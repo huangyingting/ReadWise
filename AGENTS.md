@@ -286,6 +286,18 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   lightweight stand-in until US-029 structured logging. CLI flags: `--once`, `--interval <ms>`,
   `--batch <n>`, `--max-retries <n>`, `--backoff <ms>`, `--include-published`, `--tts`,
   `--translate <codes>`.
+- Seeding tool (US-027): `npm run seed -- ...` runs `scripts/seed.ts` (same TS-CLI harness).
+  `src/lib/seed.ts` `runSeed(opts)` ties the pipeline together end-to-end: `discoverProviderUrls` →
+  `scrapeAndSave` (saves drafts, de-duped by `sourceUrl`) → `processArticle` with `tts:true` (FULL AI
+  enrichment + TTS by default). Idempotent for free: scrape dedups by sourceUrl and the processor is
+  cache-first, so re-running creates NO duplicate articles and regenerates nothing (re-run shows
+  `saved=0 duplicates=N`). GOTCHA: `scrapeAndSave` returns the new id only on `status:"saved"`; on a
+  `skipped` duplicate the seeder re-resolves the existing id via `resolveArticleId(sourceUrl)` so the
+  enrichment step still runs against pre-existing rows. Deps (`discover`/`scrapeAndSave`/
+  `resolveArticleId`/`process`) are injectable via `opts.deps` for DB/network-free unit tests (worker
+  pattern). Default provider is `PROVIDERS[0]` (NBC); CLI flags: `--provider <key[,key]>` / bare
+  `<key>...` / `--all`, `--limit N` (per provider, default 3), `--no-tts` (TTS is ON by default —
+  inverse of process/worker), `--translate <codes>`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

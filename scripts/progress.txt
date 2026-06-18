@@ -825,3 +825,25 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     `null` result (article vanished) is non-retryable — skip it. Total tries = 1 + maxRetries.
   - Reuse `runWorker` for US-027 seeder (scrape → enqueue drafts → worker --once) if a batch drain is wanted.
 ---
+
+## 2026-06-18 11:40 UTC - US-027 Seeding tool
+- Added a one-command seeder that scrapes a provider and runs FULL AI enrichment + TTS on each article.
+- New: src/lib/seed.ts (`runSeed(opts)` orchestration with injectable deps) + scripts/seed.ts (CLI).
+- Wired `npm run seed` into package.json (same TS-CLI harness as scrape/process/worker).
+- Updated AGENTS.md with the US-027 pattern entry.
+- runSeed: discoverProviderUrls -> scrapeAndSave (dedup by sourceUrl) -> processArticle({tts:true,...}).
+  Full enrichment + TTS is the DEFAULT; `--no-tts` opts out (inverse of process/worker where tts is opt-in).
+- Idempotent end-to-end: scrape dedups by sourceUrl, processor is cache-first. Re-run => saved=0, no new rows.
+- GOTCHA: scrapeAndSave only returns the id on status:"saved"; on a skipped duplicate I re-resolve the
+  existing id via resolveArticleId(sourceUrl) so enrichment still runs against pre-existing articles.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + Azure configured): `npm run seed -- --provider nbc --limit 1` scraped 1 NBC
+  article, enriched it (difficulty B2, tags=5, vocab=10, quiz=5, ArticleSpeech mp3 ~5MB), status=published.
+  Re-running reported `saved=0 duplicates=1` and article count stayed at 5 (no duplicate). Operator CLI tool,
+  so no browser verification applies.
+- **Learnings for future iterations:**
+  - The whole content pipeline now composes cleanly: scraper (US-024) -> processor (US-025) -> worker
+    (US-026) / seeder (US-027). New orchestration scripts should reuse runSeed/processArticle, not re-impl.
+  - When a scrape outcome is a duplicate-skip, you must look the id back up by sourceUrl to enrich it.
+  - Follow the worker's injectable-`opts.deps` pattern for any new orchestration lib so it's unit-testable.
+---

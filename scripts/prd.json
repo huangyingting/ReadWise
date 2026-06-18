@@ -405,8 +405,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 27,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "npm run seed (scripts/seed.ts) -> src/lib/seed.ts runSeed: discoverProviderUrls -> scrapeAndSave (dedup by sourceUrl) -> processArticle tts:true (full AI enrichment + TTS by default). Idempotent: re-run saved=0 duplicates=N, no new rows. Verified live: 1 NBC article scraped+enriched (B2, 5 tags/10 vocab/5 quiz/mp3 TTS), published; second run created no duplicate. Deps injectable for tests. Flags: --provider/--all/--limit/--no-tts/--translate."
     },
     {
       "id": "US-028",
