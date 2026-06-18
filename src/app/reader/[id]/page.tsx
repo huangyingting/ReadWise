@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress } from "@/lib/progress";
+import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleTranslation from "@/components/ArticleTranslation";
@@ -26,6 +27,8 @@ export default async function ReaderPage({
   }
 
   const progress = await getProgress(session.user.id, article.id);
+  const difficulty = await getOrCreateArticleDifficulty(article.id);
+  const difficultyLevel = difficulty?.level ?? article.difficulty;
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
 
@@ -49,8 +52,10 @@ export default async function ReaderPage({
             {readingMinutes != null ? (
               <span className="pill">{readingMinutes} min read</span>
             ) : null}
-            {article.difficulty ? (
-              <span className="pill">Level {article.difficulty}</span>
+            {difficultyLevel ? (
+              <span className="pill" title="Assessed English level">
+                Level {difficultyLevel}
+              </span>
             ) : null}
             {progress?.completed ? (
               <span className="pill pill-done">✓ Completed</span>

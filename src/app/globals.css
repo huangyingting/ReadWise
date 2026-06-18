@@ -249,6 +249,20 @@ a:hover {
   color: #ff8a8a;
 }
 
+.level-filter select {
+  padding: 0.5rem 0.65rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: #20242d;
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+.level-filter .btn {
+  width: auto;
+  padding: 0.5rem 0.9rem;
+}
+
 .translation-result {
   margin-top: 1.25rem;
 }

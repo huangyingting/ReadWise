@@ -444,3 +444,38 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     audio-serving route); bound input to MAX_TTS_CHARS (5000) to cap size/latency.
   - Headless audio playback needs the chromium flag `--autoplay-policy=no-user-gesture-required`.
 ---
+
+## 2026-06-18 10:05 UTC - US-014 Difficulty scoring & level assessment
+- Implemented article difficulty / CEFR level assessment (schema fields difficulty + difficultyScore
+  already existed from US-031 scaffolding; NO migration needed).
+- New src/lib/difficulty.ts: CEFR scale reuses ENGLISH_LEVELS from @/lib/profile; levelRank;
+  fleschReadingEase + heuristicDifficulty (deterministic fallback); AI assessment via chatComplete
+  (single CEFR token, parseLevel regex, maxOutputTokens:16); getOrCreateArticleDifficulty (AI-capable,
+  per-article, persists) and ensureArticleDifficulties (heuristic-only batch for listings, mutates in
+  place + caches). Heuristic IS cached (valid assessment, not a placeholder).
+- src/lib/articles.ts: filterAndSortByLevel(articles, maxLevel?) — filters at/below a level, sorts
+  easiest-first (unassessed sort last, not dropped). For level-appropriate recommendations.
+- Reader page (src/app/reader/[id]/page.tsx): calls getOrCreateArticleDifficulty, shows "Level X".
+- Dashboard (src/app/dashboard/page.tsx): ensureArticleDifficulties for the listing + a ?level= GET
+  filter (<select> All levels + A1-C2 "and below"); cards already render the level pill.
+- globals.css: .level-filter select/.btn styling.
+- Files: src/lib/difficulty.ts (new), src/lib/articles.ts, src/app/reader/[id]/page.tsx,
+  src/app/dashboard/page.tsx, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded onboarded Reader cookie + Playwright screenshot):
+  - Reader for a previously-null article populated to C2 and rendered "Level C2".
+  - Dashboard cards render Level pills (B1, C2, C2, C2), sorted easiest-first.
+  - ?level=B1 -> only the B1 article shown (C2 excluded); ?level=A1 -> "No articles match this level yet";
+    no filter -> all 4 articles.
+- **Learnings for future iterations:**
+  - difficulty/difficultyScore columns were ALREADY in the schema (Article model) — check the schema
+    before adding a migration; this story needed none.
+  - CEFR level strings (A1..C2) sort correctly both lexicographically AND via levelRank — either works.
+  - In rendered HTML, React splits adjacent text nodes with an HTML comment marker (e.g.
+    `Level <!-- -->C2`), so a naive grep for "Level C2" misses it; grep the parts separately or the
+    `title="Assessed English level"` attribute when verifying via curl.
+  - For listings, assess difficulty with the cheap heuristic in batch (ensureArticleDifficulties) and
+    reserve the AI call for the single-article reader view to avoid N AI requests per page load.
+  - The dev DB articles (besides the seeded Honeybees=B1) have degenerate "body. body..." content, so
+    the heuristic rates them all C2 — expected with that placeholder content, not a bug.
+---

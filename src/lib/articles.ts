@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
+import { levelRank, type DifficultyLevel } from "@/lib/difficulty";
 
 const WORDS_PER_MINUTE = 200;
 
@@ -12,6 +13,39 @@ export function listPublishedArticles(limit = 12): Promise<Article[]> {
     where: { status: "published" },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
+  });
+}
+
+/**
+ * Filters articles to those at or below `maxLevel` (appropriate, not too hard)
+ * and sorts them easiest-first by difficulty. Articles without an assessed
+ * difficulty are treated as the hardest so they sort last but are not dropped.
+ * Used to surface level-appropriate recommendations for a reader.
+ */
+export function filterAndSortByLevel(
+  articles: Article[],
+  maxLevel?: DifficultyLevel | null,
+): Article[] {
+  const max = maxLevel ? levelRank(maxLevel) : null;
+  const rankOf = (a: Article): number => {
+    const rank = a.difficulty ? levelRank(a.difficulty) : -1;
+    return rank === -1 ? Number.POSITIVE_INFINITY : rank;
+  };
+
+  const filtered =
+    max == null
+      ? [...articles]
+      : articles.filter((a) => {
+          const rank = rankOf(a);
+          return Number.isFinite(rank) && rank <= max;
+        });
+
+  return filtered.sort((a, b) => {
+    const diff = rankOf(a) - rankOf(b);
+    if (diff !== 0) {
+      return diff;
+    }
+    return (a.difficultyScore ?? 0) - (b.difficultyScore ?? 0);
   });
 }
 

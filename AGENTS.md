@@ -151,6 +151,21 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   plain gaps + timed word spans by `textOffset/length`, `onTimeUpdate` binary-searches the last word
   with `start <= currentTime` to set the active highlight, and auto-scrolls the active word into view
   ONLY when its rect leaves the comfortable 20%–75% viewport band. Clicking a word seeks audio to it.
+- Difficulty / level assessment (US-014): Article already has `difficulty` (CEFR string A1–C2) +
+  `difficultyScore` (Float, 0–100 where higher=harder) columns — no migration needed. `src/lib/difficulty.ts`
+  reuses `ENGLISH_LEVELS` from `@/lib/profile` for the CEFR scale (`levelRank` gives ordinal A1=0…C2=5;
+  CEFR strings also sort correctly lexicographically). `assessDifficulty(title, content)` prefers AI
+  (`chatComplete`, ask for a single CEFR token, parse via `parseLevel`'s `/\b([ABC][12])\b/` regex,
+  `maxOutputTokens:16`) and falls back to a deterministic `heuristicDifficulty` (Flesch Reading Ease via
+  `fleschReadingEase` → CEFR band). `getOrCreateArticleDifficulty(articleId)` returns the stored value or
+  assesses (AI-capable, per-article) + persists; `ensureArticleDifficulties(articles[])` is the cheap
+  HEURISTIC-only batch for listings (mutates objects in place + persists missing ones, no AI) — the reader
+  page does the heavier AI assessment for a single article. Both cache (heuristic is a valid assessment,
+  not a placeholder, so it IS cached — unlike vocab/quiz fallbacks). Reader page calls
+  `getOrCreateArticleDifficulty` and shows "Level X"; `ArticleCard` shows it too. Recommendations:
+  `filterAndSortByLevel(articles, maxLevel?)` in `src/lib/articles.ts` filters to articles at/below a CEFR
+  level and sorts easiest-first (unassessed sort last, never dropped). Dashboard has a `?level=` GET filter
+  (`<select>` "All levels" + A1–C2 "and below").
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
