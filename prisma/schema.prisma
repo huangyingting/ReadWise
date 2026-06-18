@@ -26,6 +26,7 @@ model User {
   sessions Session[]
   profile  Profile?
   readingProgress ReadingProgress[]
+  savedWords SavedWord[]
 }
 
 model Profile {
@@ -63,6 +64,38 @@ model Article {
 
   readingProgress ReadingProgress[]
   translations    Translation[]
+  vocabulary      VocabularyItem[]
+}
+
+model VocabularyItem {
+  id          String   @id @default(cuid())
+  articleId   String
+  word        String
+  explanation String
+  example     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, word])
+  @@index([articleId])
+}
+
+model SavedWord {
+  id          String   @id @default(cuid())
+  userId      String
+  word        String
+  explanation String?
+  example     String?
+  articleId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
 }
 
 model Translation {

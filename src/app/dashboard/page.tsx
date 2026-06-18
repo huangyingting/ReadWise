@@ -78,6 +78,7 @@ export default async function DashboardPage() {
 
       <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
         <Link href="/">← Back home</Link>
+        <Link href="/study">Study list</Link>
         <Link href="/settings">Settings</Link>
         <SignOutButton />
       </p>

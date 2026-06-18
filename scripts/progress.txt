@@ -20,6 +20,8 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Always render stored article HTML through `sanitizeArticleHtml` (src/lib/sanitize.ts) before `dangerouslySetInnerHTML`; never inject raw `content`. Article reader is `/reader/[id]`; data helpers in src/lib/articles.ts.
 - Reading progress: `ReadingProgress` (userId+articleId @@unique). Persist via `saveProgress` in src/lib/progress.ts — FORWARD-ONLY, sticky `completed` at COMPLETION_THRESHOLD=95. Use `getProgressMap(userId, ids)` for listings and the server `ArticleCard` component to render bars. Scroll tracker is the client `ReaderProgress` (throttled <=1/sec, no auto-scroll).
 - AI calls: use `src/lib/ai.ts` `chatComplete(messages, {maxOutputTokens})` (Azure OpenAI over fetch, no SDK) — returns text or `null`; gate features with `isAiConfigured()`. The gpt-5-mini deployment needs `max_completion_tokens` (NOT `max_tokens`), no custom `temperature`. Cache AI outputs in a dedicated table keyed by natural inputs and NEVER cache graceful fallbacks (so real output can replace placeholders later). Run Playwright scripts from the project root so `@playwright/test` resolves.
+- AI structured output: prompt for "JSON array only", then before JSON.parse strip ``` fences and slice between the first `[` and last `]` (models sometimes wrap output); dedup parsed entries by lowercased key. See `parseVocabularyJson` in src/lib/vocabulary.ts.
+- Per-user vs shared AI caches: cache expensive AI extraction by article (shared, e.g. `VocabularyItem`) and store per-user state separately (e.g. `SavedWord` with `@@unique([userId, word])` for dedup); merge user flags at read time via a `getSavedWordSet`-style helper.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -307,3 +309,38 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Playwright scripts MUST be run from the project root (or copied there) so `@playwright/test`
     resolves — running a .mjs from /tmp fails with ERR_MODULE_NOT_FOUND.
 ---
+
+## 2026-06-18 09:35 UTC - US-010 Vocabulary extraction & study list
+- Added two models (+migration add_vocabulary): VocabularyItem (per-article AI-extracted cache,
+  @@unique([articleId, word]), cascade w/ article) and SavedWord (per-user study list,
+  @@unique([userId, word]) for dedup, cascade w/ user). Relations added to User/Article.
+- src/lib/vocabulary.ts: getOrCreateArticleVocabulary(articleId,userId) reuses translation's
+  htmlToPlainText, asks chatComplete for a JSON array of {word,explanation,example}, parses with a
+  fence-tolerant parseVocabularyJson, upserts the cache; graceful fallback (fallback:true, no cache)
+  when AI unconfigured or parse empty. Plus saveWord/unsaveWord/getSavedWords/getSavedWordSet
+  (case-insensitive saved matching).
+- APIs: POST /api/reader/[id]/vocabulary (extract + per-user saved flags; 404 bad article, 401),
+  POST /api/vocabulary/save and /unsave (body {word,...}; 400 missing word, 401).
+- UI: src/components/ArticleVocabulary.tsx (lazy panel, optimistic save/unsave toggle) wired into
+  /reader/[id]; /study page (gated, added to middleware) lists saved words via StudyList.tsx
+  (remove=unsave); dashboard links to /study. CSS for .vocabulary-* in globals.css.
+- Files: prisma/schema.prisma (+migration), src/lib/vocabulary.ts (new),
+  src/app/api/reader/[id]/vocabulary/route.ts, src/app/api/vocabulary/{save,unsave}/route.ts (new),
+  src/components/{ArticleVocabulary,StudyList}.tsx (new), src/app/reader/[id]/page.tsx,
+  src/app/study/page.tsx (new), src/app/dashboard/page.tsx, middleware.ts, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings), build PASS.
+- Verification: live AI extraction returned 10 real entries and cached them (vocabularyItem=10);
+  save->{saved:true}, duplicate save stayed 1 row (dedup), re-extract reflected saved:true from
+  cache, unsave deleted the row (savedWord=0). 401/404/400 error cases confirmed. Playwright
+  (project root, chromium --no-sandbox): panel rendered 10 items, Save toggled to "✓ Saved",
+  /study showed the saved word; screenshot captured.
+- **Learnings for future iterations:**
+  - AI-as-JSON pattern: ask for "JSON array only", then strip ``` fences and slice between the
+    first '[' and last ']' before JSON.parse — models sometimes wrap output. Dedup parsed words
+    by lowercased key.
+  - Per-user + per-article AI caches are separate concerns: cache the extraction by article
+    (shared across users), store saved state per user; merge saved flags at read time.
+  - Inline node probe scripts MUST load env first (set -a && . ./.env.local) or Prisma throws
+    "Environment variable not found: DATABASE_URL".
+  - New gated page => update BOTH middleware PROTECTED_PREFIXES and config.matcher (the
+    `/x/:path*` matcher also covers the bare `/x` route).

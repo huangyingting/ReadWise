@@ -257,3 +257,82 @@ a:hover {
   font-size: 0.85rem;
   margin-bottom: 0.5rem;
 }
+
+.vocabulary {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.vocabulary-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vocabulary-heading {
+  margin: 0;
+}
+
+.vocabulary-controls .btn {
+  width: auto;
+}
+
+.vocabulary-panel {
+  margin-top: 1.25rem;
+}
+
+.vocabulary-error {
+  margin-top: 0.75rem;
+  color: #ff8a8a;
+}
+
+.vocabulary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vocabulary-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: #20242d;
+}
+
+.vocabulary-item-main {
+  min-width: 0;
+}
+
+.vocabulary-word {
+  font-size: 1.05rem;
+}
+
+.vocabulary-explanation {
+  margin: 0.35rem 0 0;
+}
+
+.vocabulary-example {
+  margin: 0.35rem 0 0;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.vocabulary-save {
+  width: auto;
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.vocabulary-save.is-saved {
+  border-color: var(--accent);
+}

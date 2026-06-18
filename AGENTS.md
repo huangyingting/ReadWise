@@ -99,6 +99,19 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   Client `src/components/ArticleTranslation.tsx` renders the language select + result under the
   article; translated text is split on blank lines and rendered as React text nodes (no
   `dangerouslySetInnerHTML` needed since it's plain text, not HTML).
+- Vocabulary (US-010): two models. `VocabularyItem` is the per-article AI-extracted cache
+  (`@@unique([articleId, word])`, cascade with article). `SavedWord` is the per-user study list
+  (`@@unique([userId, word])` => dedup; cascade with user; word/explanation/example/articleId).
+  `src/lib/vocabulary.ts` owns `getOrCreateArticleVocabulary(articleId, userId)` (cache hit ->
+  generate via `chatComplete` asking for a JSON array of {word,explanation,example}, parsed by the
+  fence-tolerant `parseVocabularyJson`, upserted; on AI-unconfigured OR empty parse returns
+  `fallback:true` and caches nothing), plus `saveWord`/`unsaveWord`/`getSavedWords`/`getSavedWordSet`
+  (saved-status matched case-insensitively). APIs: `POST /api/reader/[id]/vocabulary` (extract +
+  per-user saved flags, 404 missing article), `POST /api/vocabulary/save` & `.../unsave` (body
+  `{word,...}`, 400 missing word). Client `ArticleVocabulary.tsx` is a lazy panel (loads on first
+  open, optimistic save toggle); the study list page `/study` (gated, in middleware) renders saved
+  words with `StudyList.tsx` (remove = unsave). Reuse `htmlToPlainText` from translation for model
+  input. Dashboard links to `/study`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
