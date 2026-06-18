@@ -1,0 +1,35 @@
+# Ralph Progress Log
+Started: Thu Jun 18 08:35:56 UTC 2026
+---
+
+## Codebase Patterns
+- Stack: Next.js 15 (App Router, TS), React 19, Prisma+SQLite, NextAuth v4 + @auth/prisma-adapter (DB session strategy).
+- Import the singleton `prisma` from `@/lib/prisma`; never instantiate PrismaClient directly.
+- Auth: `authOptions` in `src/lib/auth.ts`. Providers added conditionally on env vars (missing creds => provider omitted, no crash).
+- Session is DATABASE strategy. Attach `id`/`role` in the `session({session,user})` callback. Session type augmented in `src/types/next-auth.d.ts`.
+- Protected routes: add prefix to BOTH `middleware.ts` (cookie-presence redirect to `/signin?callbackUrl=`) AND call `requireSession(callbackUrl)` from `@/lib/session` in the server component for real enforcement.
+- Next 15 server components: `await searchParams` / `await params` (they are Promises).
+- Run prisma/build/dev with env loaded: `set -a && . ./.env.local && set +a`.
+- Migrations committed under `prisma/migrations/`; `dev.db` is gitignored.
+- Browser verify with Playwright run from project root; chromium `--no-sandbox` at /home/agent/.cache/ms-playwright/chromium-1208/chrome-linux/chrome.
+
+## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
+- Scaffolded the entire project foundation (greenfield: only package.json existed).
+- Implemented OAuth sign-in with Google + Azure AD via NextAuth v4 + Prisma adapter.
+- Files added: package.json, tsconfig.json, next.config.ts, .eslintrc.json, .gitignore,
+  middleware.ts, prisma/schema.prisma (+ initial migration), src/lib/{prisma,auth,session}.ts,
+  src/types/next-auth.d.ts, src/app/{layout,page,providers,globals.css},
+  src/app/api/auth/[...nextauth]/route.ts, src/app/signin/{page,SignInButtons}.tsx,
+  src/app/dashboard/page.tsx, AGENTS.md.
+- Auth models: User(role default Reader), Account, Session, VerificationToken with cascade deletes.
+- User email/name/avatar(image) stored from provider profile via adapter.
+- Unauthed access to /dashboard redirects to /signin?callbackUrl=%2Fdashboard (middleware) — verified.
+- Quality: typecheck PASS, lint PASS (0 warnings), build PASS. Browser verified sign-in page
+  renders both provider buttons (screenshot) and redirect flow works.
+- **Learnings for future iterations:**
+  - @auth/prisma-adapter is compatible with next-auth v4.24+; cast adapter `as Adapter` to satisfy types.
+  - Database session strategy means `next-auth/middleware` withAuth (JWT-based) won't work — use cookie-presence check in middleware + server-side getServerSession for enforcement.
+  - `next lint` warns it's deprecated in Next 16 but still works; keep using `npm run lint` for now.
+  - First-user-becomes-Admin (US-002) NOT yet done; all new users currently default to Reader.
+  - Schema currently holds only auth models; US-031 will add Article/Progress/Vocabulary/etc.
+---

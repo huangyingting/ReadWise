@@ -1,0 +1,483 @@
+{
+  "project": "ReadWise",
+  "branchName": "ralph/readwise-replication",
+  "description": "ReadWise - AI-Assisted English Learning Reader. Full feature replication of ReadingX: cleaned article reading, on-demand AI learning tools (translation, vocabulary, comprehension quizzes, TTS with word-level highlighting), content discovery, reading progress, admin dashboard, and an offline content pipeline.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "OAuth sign-in",
+      "description": "As a visitor, I want to sign in with a third-party identity provider so that I can access my personalized learning experience without managing a password.",
+      "acceptanceCriteria": [
+        "Sign-in page offers at least two OAuth providers",
+        "Successful sign-in creates a user account on first login and a session on each login",
+        "User email, name, and avatar are stored from the provider profile",
+        "Unauthenticated access to protected pages redirects to sign-in with a return URL",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Scaffolded Next.js15+Prisma+NextAuth foundation; Google+Azure AD providers, DB sessions, middleware redirect with callbackUrl."
+    },
+    {
+      "id": "US-002",
+      "title": "Role-based access control",
+      "description": "As the platform owner, I want users to have roles (Admin, Reader) so that administrative features are restricted.",
+      "acceptanceCriteria": [
+        "Every user has a role; default is Reader",
+        "The first user to sign in is automatically assigned Admin",
+        "Admin-only pages/routes reject non-admin users (UI hidden + API 403)",
+        "Session exposes the user id and role to the app",
+        "Typecheck/lint passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Sign-out and session persistence",
+      "description": "As a signed-in user, I want my session to persist across visits and to be able to sign out.",
+      "acceptanceCriteria": [
+        "Session persists across page reloads/visits until expiry",
+        "A visible sign-out action ends the session and returns to a public state",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "First-run onboarding flow",
+      "description": "As a new user, I want a short onboarding questionnaire so the app can personalize content to my level and interests.",
+      "acceptanceCriteria": [
+        "New users without a completed profile are routed to onboarding",
+        "Onboarding collects: age range, gender (optional), English level (A1-C2), and topic preferences (multi-select from the category list)",
+        "Completing onboarding stores a user profile and marks it complete",
+        "Completed users are not shown onboarding again",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Edit profile & account settings",
+      "description": "As a user, I want a settings area to review my account info and update my learning preferences.",
+      "acceptanceCriteria": [
+        "Settings page shows account info (name, email, avatar, role)",
+        "Profile form lets the user update English level, topics, age range, gender",
+        "Changes persist and immediately affect personalized recommendations",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Article reader with cleaned content",
+      "description": "As a reader, I want to open an article and read a clean, distraction-free rendering of its content.",
+      "acceptanceCriteria": [
+        "Article page shows title, author/source, hero image, and cleaned body content",
+        "Body renders sanitized HTML/markdown without ads or extraneous markup",
+        "Estimated time-to-read and difficulty level are displayed when available",
+        "Unauthenticated access redirects to sign-in with return URL",
+        "Invalid/missing article ids return a not-found state",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Reading progress tracking",
+      "description": "As a reader, I want my scroll progress tracked so I can resume and see which articles I've completed.",
+      "acceptanceCriteria": [
+        "Scroll position maps to a 0-100% progress value (page starts at top, no auto-scroll)",
+        "Progress updates are throttled (<= 1 write/second) and forward-only",
+        "Reaching the end marks the article as completed",
+        "Progress persists per user+article and is restored on revisit",
+        "Article cards/listings reflect saved progress",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Batch progress fetch for listings",
+      "description": "As a reader, I want listing pages to show my progress for many articles efficiently.",
+      "acceptanceCriteria": [
+        "A single batch request returns progress for a set of article ids",
+        "Only visited articles are refreshed (not the entire cache)",
+        "Listings merge progress without N+1 requests",
+        "Typecheck/lint passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Article translation",
+      "description": "As a reader, I want to translate the article into a target language to aid comprehension.",
+      "acceptanceCriteria": [
+        "Reader can request translation into a supported target language",
+        "Translation is generated by an AI provider and displayed alongside/under the original",
+        "Translations are cached per article+language and reused on subsequent requests",
+        "When AI credentials are absent, a graceful placeholder/fallback is returned",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Vocabulary extraction & study list",
+      "description": "As a reader, I want key vocabulary extracted with explanations and the ability to save words to my study list.",
+      "acceptanceCriteria": [
+        "Each article can present extracted vocabulary (word, explanation, sample usage)",
+        "Reader can save/unsave a vocabulary item to their personal list",
+        "Saved state is per user and persists; duplicates are prevented",
+        "A vocabulary dialog/panel lists the article's words and saved status",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Word lookup context menu (dictionary)",
+      "description": "As a reader, I want to select/click a word in the article to see its pronunciation and meaning instantly.",
+      "acceptanceCriteria": [
+        "Selecting/clicking a word opens a context menu with the word's meaning(s)",
+        "Lookup normalizes word forms (plurals, gerunds, contractions, possessives) to a base form",
+        "Pronunciation and grouped meanings are shown when available",
+        "Unknown words return a clear 'not found' state",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Comprehension quiz",
+      "description": "As a reader, I want multiple-choice comprehension questions to check my understanding.",
+      "acceptanceCriteria": [
+        "Each article can present multiple-choice questions with one correct answer",
+        "Reader selects answers and receives correct/incorrect feedback",
+        "Question set is generated by AI and stored with the article",
+        "A comprehension dialog displays questions, options, and results",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Text-to-speech with word-level highlighting",
+      "description": "As a reader, I want to listen to the article narrated aloud with each spoken word highlighted in sync.",
+      "acceptanceCriteria": [
+        "Reader can generate/play TTS audio for the article",
+        "Word-level timing data drives synchronized highlighting of the current word",
+        "Playback controls support play/pause and seeking; view auto-scrolls only when the active word leaves a comfortable viewport zone",
+        "Generated audio + timings are cached per article and reused",
+        "Absent TTS credentials degrade gracefully (no crash)",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Difficulty scoring & level assessment",
+      "description": "As a reader, I want articles labeled with a difficulty/English level so I can pick appropriate material.",
+      "acceptanceCriteria": [
+        "Each article stores an AI-assessed difficulty level / English level",
+        "Difficulty is shown on article cards and the reader page",
+        "Personalized recommendations can filter/sort by level",
+        "Typecheck/lint passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Tag system",
+      "description": "As a reader, I want articles tagged so I can discover related content by topic.",
+      "acceptanceCriteria": [
+        "Articles have zero or more tags (unique name + slug)",
+        "Tags are auto-extracted during processing and viewable on the article",
+        "A tag listing returns articles for a given tag",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Related articles",
+      "description": "As a reader, I want to see related articles based on shared tags.",
+      "acceptanceCriteria": [
+        "A related-articles panel shows other articles ranked by shared-tag overlap",
+        "The current article is excluded; results are de-duplicated and limited",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Category browsing homepage",
+      "description": "As a reader, I want a homepage organized by news categories so I can browse by interest.",
+      "acceptanceCriteria": [
+        "Homepage exposes the category set (e.g., World, Politics, Business, Health, Science, Tech, Sports, Culture, Entertainment) plus a personalized 'Picks' view",
+        "Selecting a category loads its articles; selection is reflected in the URL",
+        "Listings support incremental/infinite loading",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Personalized picks",
+      "description": "As a reader, I want a 'Picks' feed tailored to my topics and level.",
+      "acceptanceCriteria": [
+        "'Picks' returns articles matching the user's topic preferences and English level",
+        "Falls back sensibly when the profile is sparse",
+        "Picks are cached and reflect progress state",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Admin dashboard overview",
+      "description": "As an admin, I want a dashboard landing view with key stats.",
+      "acceptanceCriteria": [
+        "Admin area is navigable with sections: Dashboard, Articles, Tags, Members, Analytics",
+        "Dashboard shows summary metrics (e.g., article counts, members, processing status)",
+        "Non-admins cannot access the admin area",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Admin article management",
+      "description": "As an admin, I want to search, inspect, rebuild, and delete articles.",
+      "acceptanceCriteria": [
+        "Admin can search/filter articles and view article content/details",
+        "Admin can delete an article (cascades remove related AI content/progress/tags)",
+        "Admin can trigger a rebuild/re-processing of an article's AI content",
+        "Destructive actions require a confirmation dialog",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Admin member management",
+      "description": "As an admin, I want to view members and manage their roles.",
+      "acceptanceCriteria": [
+        "Admin can list members with key info and activity",
+        "Admin can change a member's role and/or remove a member",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Admin tag management",
+      "description": "As an admin, I want to manage tags across the catalog.",
+      "acceptanceCriteria": [
+        "Admin can list, view usage counts for, and delete tags",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Admin analytics",
+      "description": "As an admin, I want analytics on content and engagement.",
+      "acceptanceCriteria": [
+        "Analytics view shows aggregate metrics (e.g., articles by category/level, member activity)",
+        "Typecheck/lint passes",
+        "Verify in browser"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Multi-provider article scraper",
+      "description": "As an operator, I want a CLI to scrape articles from multiple news providers so the catalog can be populated.",
+      "acceptanceCriteria": [
+        "A scraper CLI supports multiple providers (e.g., NBC News, National Geographic, Time, HuffPost)",
+        "Each provider extracts title, body, image, author, source, category, and published date",
+        "Extracted content is cleaned and saved as draft articles, de-duplicated by source URL",
+        "Typecheck/lint passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Article processing pipeline",
+      "description": "As an operator, I want a CLI to enrich existing articles with AI content (analysis, vocabulary, questions, translation, TTS).",
+      "acceptanceCriteria": [
+        "A processor CLI runs AI enrichment for selected/all unprocessed articles",
+        "It generates difficulty/level, vocabulary, comprehension questions, tags, and (optionally) TTS",
+        "Processing is idempotent and skips already-completed steps",
+        "Drafts are published when enrichment completes",
+        "Typecheck/lint passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Background processing worker",
+      "description": "As an operator, I want a long-running worker that continuously processes the article queue.",
+      "acceptanceCriteria": [
+        "A worker process polls for unprocessed articles and enriches them continuously",
+        "It handles failures with retries/backoff and logs progress",
+        "It can be started/stopped safely and resumes pending work",
+        "Typecheck/lint passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Seeding tool",
+      "description": "As an operator, I want a one-command seeder to populate the database with enriched sample articles.",
+      "acceptanceCriteria": [
+        "A seed command scrapes a provider and runs full AI enrichment + TTS",
+        "Re-running the seeder does not create duplicates",
+        "Typecheck/lint passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Consistent API handler wrapper",
+      "description": "As a developer, I want all API endpoints wrapped with a shared handler for auth, validation, logging, and error handling.",
+      "acceptanceCriteria": [
+        "A reusable handler wrapper centralizes auth checks, request-id logging, and error formatting",
+        "Protected endpoints require authentication; public endpoints are explicitly exempt",
+        "All inputs are validated with a schema; client-provided ids are never trusted",
+        "Production error responses are generic; internals are logged, not leaked",
+        "Typecheck/lint passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Structured logging & request tracing",
+      "description": "As an operator, I want structured logs with per-request context and performance metrics, plus client-side error capture.",
+      "acceptanceCriteria": [
+        "Each request carries a request id available throughout its lifecycle (request-scoped context)",
+        "Logs include user id (when authed), timings, and outcome",
+        "Client-side runtime errors are captured and reported",
+        "Typecheck/lint passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Caching with tag-based invalidation",
+      "description": "As an operator, I want category/picks/listing responses cached and invalidated precisely when content changes.",
+      "acceptanceCriteria": [
+        "Expensive listing/recommendation queries are cached server-side",
+        "Cache entries are invalidated by tag when underlying content changes",
+        "No stale content is served after an admin edit/delete/rebuild",
+        "Typecheck/lint passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Data model & integrity",
+      "description": "As a developer, I want a relational schema with constraints that guarantee integrity.",
+      "acceptanceCriteria": [
+        "Models exist for: User, Article, UserArticleProgress, Vocabulary, Question, ArticleTranslation, ArticleSpeech, UserVocabulary, Tag, ArticleTag, UserProfile (plus auth Account/Session/VerificationToken)",
+        "Composite unique constraints prevent duplicates (e.g., userId+articleId, articleId+word, articleId+language, userId+vocabularyId, articleId+tagId)",
+        "Foreign keys cascade deletes to dependent rows",
+        "Migrations create the schema reproducibly",
+        "Typecheck/lint passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Automated test suite",
+      "description": "As a developer, I want tests covering API routes, AI utilities, scrapers, tags, and profiles so regressions are caught.",
+      "acceptanceCriteria": [
+        "Tests cover API routes (progress, vocabulary, translation, TTS, admin), AI utilities (analyzer, translator, TTS), scraper(s), tags/related, and profile",
+        "Tests run without external DB/network (stubs/mocks) and pass green",
+        "Typecheck/lint passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
