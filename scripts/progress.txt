@@ -711,3 +711,25 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     existing `.admin-search`/`.admin-table`/`.admin-pagination`/`.admin-confirm` CSS + the
     AdminMemberActions/AdminArticleActions inline-confirm pattern for new admin sections.
 ---
+
+## 2026-06-18 11:05 UTC - US-023 Admin analytics
+- Added src/lib/admin-analytics.ts `getAdminAnalytics()`: articles by category (CATEGORIES
+  labels + Uncategorized bucket for null/unknown slugs), articles by CEFR level
+  (ENGLISH_LEVELS + Unassessed bucket), member activity (totalMembers, activeReaders via
+  `readingProgress.groupBy({by:["userId"]}).length`, readsTracked, completedReads, savedWords),
+  and top 10 tags by usage (`tag.findMany` include `_count.articles`, orderBy articles _count desc).
+- Rebuilt /admin/analytics page (was a placeholder) with stat-card grid + reusable BarChart
+  component (max-normalized widths). Added GET /api/admin/analytics (requireAdminApi -> JSON).
+- Added .admin-bar-row/.admin-bar-label/.admin-bar-track/.admin-bar-fill/.admin-bar-value CSS.
+- Files: src/lib/admin-analytics.ts (new), src/app/admin/analytics/page.tsx,
+  src/app/api/admin/analytics/route.ts (new), src/app/globals.css, scripts/prd.json.
+- Quality: typecheck PASS, lint PASS. Browser verified via Playwright (admin session cookie):
+  17 bars, 5 stat cards, all 4 section headings; API returns correct aggregates (4 articles:
+  2 science/1 tech/1 culture; levels 1xB1/3xC2; 5 members/2 active readers).
+- **Learnings for future iterations:**
+  - `prisma.<model>.groupBy({by:["col"]})` over a nullable column returns null as its own group;
+    bucket unknown/non-canonical slugs into an "Other/Unassessed" bin rather than dropping them.
+  - Distinct-user counts: `readingProgress.groupBy({by:["userId"]})` then `.length` (no `distinct`
+    count helper in Prisma); cheaper than fetching rows.
+  - SavedWord has no article FK, but it counts fine for the engagement metric.
+---

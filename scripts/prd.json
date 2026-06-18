@@ -349,8 +349,8 @@
         "Verify in browser"
       ],
       "priority": 23,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "getAdminAnalytics() in src/lib/admin-analytics.ts aggregates articles by category (CATEGORIES + Uncategorized) and by CEFR level (ENGLISH_LEVELS + Unassessed) via article.groupBy, member activity (members, active readers via readingProgress.groupBy userId, reads tracked, completed reads, saved words), and top 10 tags by usage. Page /admin/analytics renders stat cards + reusable BarChart; GET /api/admin/analytics (requireAdminApi). Verified in browser."
     },
     {
       "id": "US-024",
