@@ -8,6 +8,7 @@ import ReaderProgress from "@/components/ReaderProgress";
 import ArticleTranslation from "@/components/ArticleTranslation";
 import ArticleVocabulary from "@/components/ArticleVocabulary";
 import ArticleQuiz from "@/components/ArticleQuiz";
+import ArticleSpeech from "@/components/ArticleSpeech";
 import WordLookup from "@/components/WordLookup";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 
@@ -76,6 +77,8 @@ export default async function ReaderPage({
         </p>
 
         <WordLookup html={cleanBody} />
+
+        <ArticleSpeech articleId={article.id} />
 
         <ArticleVocabulary articleId={article.id} />
 

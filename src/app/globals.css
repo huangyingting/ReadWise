@@ -583,3 +583,68 @@ a:hover {
 .word-lookup-example {
   font-style: italic;
 }
+
+.tts {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.tts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tts-heading {
+  margin: 0;
+}
+
+.tts-controls .btn {
+  width: auto;
+}
+
+.tts-panel {
+  margin-top: 1.25rem;
+}
+
+.tts-error {
+  margin-top: 0.75rem;
+  color: #ff8a8a;
+}
+
+.tts-audio {
+  width: 100%;
+  margin-top: 0.5rem;
+}
+
+.tts-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+.tts-text {
+  margin-top: 1rem;
+  line-height: 1.9;
+  font-size: 1.05rem;
+  white-space: pre-wrap;
+}
+
+.tts-word {
+  border-radius: 4px;
+  padding: 0 1px;
+  cursor: pointer;
+  transition: background-color 0.1s ease, color 0.1s ease;
+}
+
+.tts-word:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.tts-word.is-active {
+  background: var(--accent);
+  color: #11141b;
+  font-weight: 600;
+}

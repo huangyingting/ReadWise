@@ -22,6 +22,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - AI calls: use `src/lib/ai.ts` `chatComplete(messages, {maxOutputTokens})` (Azure OpenAI over fetch, no SDK) — returns text or `null`; gate features with `isAiConfigured()`. The gpt-5-mini deployment needs `max_completion_tokens` (NOT `max_tokens`), no custom `temperature`. Cache AI outputs in a dedicated table keyed by natural inputs and NEVER cache graceful fallbacks (so real output can replace placeholders later). Run Playwright scripts from the project root so `@playwright/test` resolves.
 - AI structured output: prompt for "JSON array only", then before JSON.parse strip ``` fences and slice between the first `[` and last `]` (models sometimes wrap output); dedup parsed entries by lowercased key. See `parseVocabularyJson` in src/lib/vocabulary.ts.
 - Per-user vs shared AI caches: cache expensive AI extraction by article (shared, e.g. `VocabularyItem`) and store per-user state separately (e.g. `SavedWord` with `@@unique([userId, word])` for dedup); merge user flags at read time via a `getSavedWordSet`-style helper.
+- Azure Speech TTS (word-level timing): use the Speech SDK (`microsoft-cognitiveservices-speech-sdk`), NOT the REST TTS endpoint (which returns audio only). `SpeechSynthesizer(cfg, null)` returns audio in `result.audioData` headless; `synthesizer.wordBoundary` (boundaryType===Word) gives `textOffset`/`wordLength` into the input text + audioOffset/duration in TICKS (/1e7 => seconds). Routes using the SDK need `export const runtime = "nodejs"`. Store audio as base64 + return a `data:` URL (no audio-serving route). See `src/lib/speech.ts`. Headless audio playback in Playwright needs `--autoplay-policy=no-user-gesture-required`.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -408,4 +409,38 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     /grade endpoint.
   - The reader page is the integration point for all article AI panels; add new ones after
     `<ArticleVocabulary>` inside the `<article>` element.
+---
+
+## 2026-06-18 09:58 UTC - US-013 Text-to-speech with word-level highlighting
+- Added `ArticleSpeech` model (articleId @unique; audioBase64/mimeType/spokenText/words JSON +
+  voice/format; cascade with article) + migration `add_article_speech`; `speech ArticleSpeech?`
+  relation on Article.
+- New `src/lib/speech.ts`: `isSpeechConfigured()`, `getOrCreateArticleSpeech(articleId)` —
+  synthesizes via the Azure **Speech SDK** (`microsoft-cognitiveservices-speech-sdk`, new dep) with
+  `SpeechSynthesizer(cfg, null)` to capture audio in `result.audioData` and `wordBoundary` events;
+  ticks(100ns)->seconds via /1e7. Caches audio+timings on success; graceful `fallback:true`
+  (no cache) on unconfigured creds / empty text / synthesis failure.
+- API `POST /api/reader/[id]/speech` (`runtime="nodejs"`; 401 unauth, 404 missing article).
+- Client `src/components/ArticleSpeech.tsx`: lazy panel, native `<audio controls>` (play/pause/seek),
+  read-along text split into timed word spans, binary-search active-word highlight on `timeupdate`,
+  comfort-zone (20%–75% viewport) auto-scroll, click-word-to-seek. Wired into `/reader/[id]` page;
+  added `.tts*` styles to globals.css.
+- Files: prisma/schema.prisma (+migration), src/lib/speech.ts (new),
+  src/app/api/reader/[id]/speech/route.ts (new), src/components/ArticleSpeech.tsx (new),
+  src/app/reader/[id]/page.tsx, src/app/globals.css, package.json/package-lock.json, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings), build PASS.
+- Verification: real Azure synthesis via live server -> 200, 53 word timings, audio data URL,
+  offsets map onto spoken text; 2nd call cached (0.03s); 401 unauth; 404 bad article. Playwright
+  (chromium, --autoplay-policy=no-user-gesture-required): 53 word spans, active word advanced
+  Honeybees->communicate->food->remarkable during playback, screenshot shows blue highlight + audio
+  controls. dev.db cached an ArticleSpeech row for the test article (gitignored).
+- **Learnings for future iterations:**
+  - Word-level timing REQUIRES the Speech SDK (the REST `cognitiveservices/v1` TTS endpoint returns
+    audio only, no boundaries). SDK works headless in Node with `audioConfig=null`; word boundaries
+    arrive via `synthesizer.wordBoundary` with `textOffset`/`wordLength` into the INPUT text, so send
+    plain text and render highlights by slicing on those offsets (perfect alignment, keeps punctuation).
+  - Routes importing the Speech SDK must `export const runtime = "nodejs"`.
+  - Audio stored as base64 in SQLite + returned as a `data:` URL keeps it self-contained (no extra
+    audio-serving route); bound input to MAX_TTS_CHARS (5000) to cap size/latency.
+  - Headless audio playback needs the chromium flag `--autoplay-policy=no-user-gesture-required`.
 ---

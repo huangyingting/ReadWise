@@ -133,6 +133,24 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   radio options per question, "Check answers" disabled until all answered, then shows per-question
   Correct/Incorrect feedback, highlights the right option, a total score, and "Try again" reset.
   `correctIndex` is sent to the client so grading is done client-side.
+- Text-to-speech / narration (US-013): per-article AI/Speech cache `ArticleSpeech` model
+  (`articleId @unique`, cascade with article) stores `audioBase64` (mp3), `mimeType`, `spokenText`,
+  and `words` (JSON-stringified `[{textOffset,length,start,end}]`, start/end in SECONDS). Unlike the
+  OpenAI features, narration uses the Azure **Speech SDK** (`microsoft-cognitiveservices-speech-sdk`,
+  added as a dep) server-side — `src/lib/speech.ts` `getOrCreateArticleSpeech(articleId)` synthesizes
+  via `SpeechSynthesizer(cfg, null)` (null audioConfig => audio returned in `result.audioData`, no
+  speaker) and collects `synthesizer.wordBoundary` events (`boundaryType === Word`), converting
+  audioOffset/duration TICKS (100ns) to seconds via `/1e7`. Config via `AZURE_SPEECH_KEY/REGION/VOICE/
+  OUTPUT_FORMAT`; `isSpeechConfigured()` checks KEY+REGION. Caches audio+timings on success; on
+  unconfigured/empty-text/synthesis-failure returns `fallback:true` and caches NOTHING. Reuses
+  `htmlToPlainText` from translation for the spoken text (note: it does NOT strip ads like
+  sanitizeArticleHtml — consistent with translation/vocab/quiz which also feed raw content). The
+  route MUST set `export const runtime = "nodejs"` (SDK needs Node). API: `POST /api/reader/[id]/speech`
+  (404 missing article, 401 unauth). Client `ArticleSpeech.tsx` is a lazy panel: native
+  `<audio controls>` (gives play/pause + seek), `buildSegments(spokenText, words)` splits text into
+  plain gaps + timed word spans by `textOffset/length`, `onTimeUpdate` binary-searches the last word
+  with `start <= currentTime` to set the active highlight, and auto-scrolls the active word into view
+  ONLY when its rect leaves the comfortable 20%–75% viewport band. Clicking a word seeks audio to it.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
