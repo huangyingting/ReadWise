@@ -7,6 +7,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleTranslation from "@/components/ArticleTranslation";
 import ArticleVocabulary from "@/components/ArticleVocabulary";
+import ArticleQuiz from "@/components/ArticleQuiz";
 import WordLookup from "@/components/WordLookup";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 
@@ -77,6 +78,8 @@ export default async function ReaderPage({
         <WordLookup html={cleanBody} />
 
         <ArticleVocabulary articleId={article.id} />
+
+        <ArticleQuiz articleId={article.id} />
 
         <ArticleTranslation
           articleId={article.id}

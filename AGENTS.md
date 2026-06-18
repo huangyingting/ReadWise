@@ -122,6 +122,17 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   the reader prose (replaces the raw `dangerouslySetInnerHTML` prose div) and shows a fixed-position
   popover on `mouseup`: uses the text selection if present, else resolves the word under the cursor via
   `caretRangeFromPoint`/`caretPositionFromPoint`; closes on outside-click/Escape.
+- Comprehension quiz (US-012): per-article AI-cache `QuizQuestion` model (`@@unique([articleId,
+  question])`, `options` is a JSON-stringified `string[]`, `correctIndex` Int, cascade with article).
+  `src/lib/quiz.ts` owns `getOrCreateArticleQuiz(articleId)` (cache hit -> generate via `chatComplete`
+  asking for a JSON array of {question,options[],correctIndex}, parsed by fence-tolerant
+  `parseQuizJson` which validates >=2 options and an in-range correctIndex; upserted by
+  `articleId_question`; on AI-unconfigured OR empty parse returns `fallback:true` and caches nothing).
+  Quiz has NO per-user state, so the helper takes only `articleId`. API: `POST /api/reader/[id]/quiz`
+  (404 missing article, 401 unauth). Client `ArticleQuiz.tsx` is a lazy panel (loads on first open):
+  radio options per question, "Check answers" disabled until all answered, then shows per-question
+  Correct/Incorrect feedback, highlights the right option, a total score, and "Try again" reset.
+  `correctIndex` is sent to the client so grading is done client-side.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
