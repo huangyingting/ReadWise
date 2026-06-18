@@ -56,8 +56,22 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   component. Reusable client auth controls live in `src/components/` (e.g. `SignOutButton.tsx`).
   With the DB session strategy, `signOut` deletes the `Session` row server-side (not just the
   cookie). Session lifetime is set via `session.maxAge`/`updateAge` in `authOptions`.
+- Article reader lives at `/reader/[id]` (already in `middleware.ts` PROTECTED_PREFIXES +
+  matcher). Page gates with `requireSession(`/reader/${id}`)` and calls `notFound()` (renders
+  `src/app/reader/[id]/not-found.tsx`) for missing ids. Article data helpers are in
+  `src/lib/articles.ts` (`getArticleById`, `readingMinutesFor` — prefers stored
+  `readingMinutes`, else `wordCount`/body @200wpm).
+- ALWAYS render stored article HTML through `sanitizeArticleHtml` from `src/lib/sanitize.ts`
+  before `dangerouslySetInnerHTML`. It is two-pass (sanitize-html): pass 1 drops ad/boilerplate
+  blocks WITH their content via `exclusiveFilter` on class/id keywords + `nonTextTags` for
+  script/style/iframe; pass 2 enforces a strict tag/attr allowlist and forces
+  `rel=noopener noreferrer nofollow target=_blank` on links. Never inject raw `content`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
-  resolves). Chromium at `/home/agent/.cache/ms-playwright/chromium-1208/chrome-linux/chrome`,
-  launch with `--no-sandbox`.
+  resolves). Chromium binary is at
+  `~/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome` ($HOME=/home/azadmin; the
+  /home/agent/...chromium-1208 path is stale). Launch with `--no-sandbox`.
+- Verify role/session-gated pages without real OAuth: insert a `User` + `Session`
+  (sessionToken) row, add cookie `next-auth.session-token=<token>` to the browser context
+  (or curl `-H "Cookie: ..."`).

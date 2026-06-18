@@ -41,6 +41,26 @@ model Profile {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
+model Article {
+  id              String    @id @default(cuid())
+  slug            String?   @unique
+  title           String
+  author          String?
+  source          String?
+  sourceUrl       String?
+  heroImage       String?
+  excerpt         String?
+  content         String
+  wordCount       Int?
+  readingMinutes  Int?
+  difficulty      String?
+  difficultyScore Float?
+  status          String    @default("published")
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

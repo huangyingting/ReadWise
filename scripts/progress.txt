@@ -16,7 +16,8 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Next 15 server components: `await searchParams` / `await params` (they are Promises).
 - Run prisma/build/dev with env loaded: `set -a && . ./.env.local && set +a`.
 - Migrations committed under `prisma/migrations/`; `dev.db` is gitignored.
-- Browser verify with Playwright run from project root; chromium `--no-sandbox` at /home/agent/.cache/ms-playwright/chromium-1208/chrome-linux/chrome.
+- Browser verify with Playwright run from project root; chromium `--no-sandbox` at /home/azadmin/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome (the chromium-1208/chrome-linux path in early notes is stale; $HOME=/home/azadmin).
+- Always render stored article HTML through `sanitizeArticleHtml` (src/lib/sanitize.ts) before `dangerouslySetInnerHTML`; never inject raw `content`. Article reader is `/reader/[id]`; data helpers in src/lib/articles.ts.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -144,4 +145,48 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     + DB assertions against `next dev` with a seeded session cookie. The rendered <select>
     emits `value="B1" selected` and topic buttons emit `aria-pressed="true"` — grep those
     to assert preselected form state without a real browser.
+---
+
+## 2026-06-18 09:20 UTC - US-006 Article reader with cleaned content
+- Added `Article` model (slug?, title, author?, source?, sourceUrl?, heroImage?, excerpt?,
+  content, wordCount?, readingMinutes?, difficulty?, difficultyScore?, status, publishedAt?)
+  + migration `add_article`.
+- New `/reader/[id]` server page (requireSession -> redirect with callbackUrl when unauth;
+  notFound() -> scoped not-found.tsx for missing ids). Renders title, author·source, hero
+  image, reading-time + difficulty pills (shown only when available), Original-source link,
+  and the sanitized body. Added `.prose`/`.article`/`.pill` styles to globals.css.
+- New `src/lib/articles.ts`: getArticleById + readingMinutesFor (stored readingMinutes ->
+  wordCount -> body text @200wpm; countWords strips tags).
+- New `src/lib/sanitize.ts`: sanitizeArticleHtml — two-pass sanitize-html. Pass 1 drops
+  ad/boilerplate containers WITH content (exclusiveFilter on class/id/data-ad keyword regex)
+  + nonTextTags removes script/style/iframe/noscript/textarea. Pass 2 strict tag/attr
+  allowlist, http(s)/mailto schemes only, forces rel/target on <a>. Installed sanitize-html
+  + @types/sanitize-html.
+- Files: prisma/schema.prisma (+migration), src/lib/articles.ts (new), src/lib/sanitize.ts (new),
+  src/app/reader/[id]/page.tsx (new), src/app/reader/[id]/not-found.tsx (new),
+  src/app/globals.css, package.json/package-lock.json, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded Reader session; messy seed article with <script>, ad
+  div, <iframe>, inline style + onclick to stress-test sanitization):
+  - Unauth /reader/<id> -> 307 /signin?callbackUrl=%2Freader%2F<id>.
+  - Auth -> 200; renders title, "Jane Apiarist · Science Daily", "1 min read", "Level B1",
+    Original-source link, hero <img>; body keeps article text (waggle dance, list items,
+    blockquote, link) and DROPS the ad block (BUY NOW/Sponsored absent), script, iframe,
+    onclick, inline styles, and classes.
+  - Invalid id -> 404 with "Article not found" page.
+  - Playwright (chromium-1228 --no-sandbox, cookie-seeded context): screenshot confirms clean
+    reader layout; pills = ["1 min read","Level B1"]; ad text not visible.
+- **Learnings for future iterations:**
+  - sanitize-html keeps the INNER TEXT of disallowed tags (a stripped <div class="ad"> leaves
+    its text). To remove ad blocks entirely, allow structural tags in a first pass and drop
+    them via `exclusiveFilter` (returns true => element AND contents removed), then strip the
+    remaining wrappers in a strict second pass. Single-pass allowlisting is NOT enough for "no ads".
+  - `/reader` was ALREADY in middleware PROTECTED_PREFIXES + matcher from US-001 — no middleware
+    change needed for this story; just call requireSession in the page.
+  - notFound() renders the nearest not-found.tsx; a route-scoped one
+    (src/app/reader/[id]/not-found.tsx) gives a tailored 404 without a global file.
+  - difficulty/readingMinutes are nullable; gate the pills on presence so unscored articles
+    (pre US-014) still render. readingMinutesFor falls back to wordCount, then body @200wpm.
+  - Playwright chromium is at chromium-1228/chrome-linux64/chrome under /home/azadmin (NOT the
+    chromium-1208/chrome-linux path in older notes); launching it worked with --no-sandbox.
 ---

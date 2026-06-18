@@ -15,10 +15,12 @@
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
     "@prisma/client": "^6.2.1",
+    "@types/sanitize-html": "^2.16.1",
     "next": "^15.1.4",
     "next-auth": "^4.24.11",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "sanitize-html": "^2.17.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.61.0",
