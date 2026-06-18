@@ -968,3 +968,37 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - `next start` got into an unresponsive state mid-test once; `next dev` was reliable for the
     runtime cache verification.
 ---
+
+## 2026-06-18 12:05 UTC - US-031 Data model & integrity
+- Verified (no schema change needed — the relational model was built cumulatively across
+  US-001..US-030 and already satisfies every acceptance criterion):
+  - Models present: User, Article, ReadingProgress (=UserArticleProgress), VocabularyItem
+    (=Vocabulary), QuizQuestion (=Question), Translation (=ArticleTranslation), ArticleSpeech,
+    SavedWord (=UserVocabulary study list), Tag, ArticleTag, Profile (=UserProfile), plus auth
+    Account/Session/VerificationToken.
+  - Composite unique constraints: ReadingProgress @@unique([userId, articleId]),
+    VocabularyItem @@unique([articleId, word]), Translation @@unique([articleId, targetLang]),
+    SavedWord @@unique([userId, word]) (per-user dedup), ArticleTag @@id([articleId, tagId]),
+    QuizQuestion @@unique([articleId, question]), Tag name/slug @unique, Account
+    @@unique([provider, providerAccountId]).
+  - FK cascades: 12 ON DELETE CASCADE clauses across 8 migrations (Article -> translations/
+    vocab/quiz/speech/articleTags/readingProgress; User -> profile/savedWords/readingProgress/
+    accounts/sessions; Tag -> articleTags). SavedWord.articleId is intentionally a plain string
+    (not an FK) so saved words survive article deletion.
+- Reproducibility: `prisma migrate deploy` against a FRESH temp DB applied all 10 migrations
+  cleanly; `prisma migrate status` reports "Database schema is up to date" (no drift);
+  `prisma validate` passes.
+- Empirical integrity test (temp DB, prisma client): composite-unique userId+articleId blocked a
+  duplicate ReadingProgress; deleting an Article zeroed translations/vocab/quiz/speech/articleTags/
+  readingProgress; deleting a User zeroed profile/savedWords; the shared Tag survived (only its
+  ArticleTag join rows cascade). All as expected.
+- Files: scripts/prd.json, scripts/progress.txt (no schema/migration changes required).
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- **Learnings for future iterations:**
+  - To prove cascade/uniqueness empirically without touching dev.db: point DATABASE_URL at a temp
+    file (`file:./tmp_x.db` under prisma/), `prisma migrate deploy`, run a one-off .mjs that imports
+    `@prisma/client` FROM THE PROJECT ROOT (a script in /tmp can't resolve the package), then delete
+    the temp db. Keep the script inside the repo dir so node resolves node_modules.
+  - SavedWord.articleId is deliberately NOT a foreign key (plain String?), so saved study words are
+    NOT cascade-deleted when their source Article is removed — this is by design.
+---

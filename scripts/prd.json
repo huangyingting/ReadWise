@@ -463,8 +463,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 31,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Schema, composite uniques, FK cascades, and reproducible migrations all present (built cumulatively across US-001..US-030); verified empirically."
     },
     {
       "id": "US-032",
