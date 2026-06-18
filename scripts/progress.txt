@@ -25,6 +25,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Azure Speech TTS (word-level timing): use the Speech SDK (`microsoft-cognitiveservices-speech-sdk`), NOT the REST TTS endpoint (which returns audio only). `SpeechSynthesizer(cfg, null)` returns audio in `result.audioData` headless; `synthesizer.wordBoundary` (boundaryType===Word) gives `textOffset`/`wordLength` into the input text + audioOffset/duration in TICKS (/1e7 => seconds). Routes using the SDK need `export const runtime = "nodejs"`. Store audio as base64 + return a `data:` URL (no audio-serving route). See `src/lib/speech.ts`. Headless audio playback in Playwright needs `--autoplay-policy=no-user-gesture-required`.
 - Client listing feeds (e.g. `CategoryBrowser`) seed `useState` from server props ONCE; Next soft-nav between views changes props but does NOT reset state — pass `key={activeView}` on the page so the component remounts per view. To render cards in a client loader, use a presentational client component (`ArticleCardView`) fed a plain serializable object via `toListingArticle(article)`; never import prisma-backed helpers into client code. Offset pagination helpers (`listCategoryPage`/`listPicksPage`) use `take: limit+1` to compute `hasMore`.
 - Admin destructive/AI-rebuild actions: deleting an Article relies on schema cascades (removes Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/ReadingProgress; SavedWord.articleId is a plain String, no FK, so it survives). "Rebuild AI content" = `deleteMany` the cached AI rows in a `prisma.$transaction` so the `getOrCreate*` helpers regenerate them lazily on next read (preserve ReadingProgress). SQLite Prisma `contains` => case-insensitive LIKE (no `mode:"insensitive"`). Use a state-driven inline confirm panel (`.admin-confirm`), not `window.confirm`, so Playwright can assert/click it. See `src/lib/admin-articles.ts` + `src/components/AdminArticleActions.tsx`.
+- Order a query by a relation's row count at the DB level with `orderBy:{ <relation>:{ _count: "desc" } }` (used to rank tags by usage in `src/lib/admin-tags.ts`) instead of fetch-all-then-sort. Deleting a `Tag` cascades its `ArticleTag` rows (articles lose the tag, content untouched). New admin sections reuse `.admin-search`/`.admin-table`/`.admin-pagination` + the inline-`.admin-confirm` actions component pattern (`AdminTagActions`/`AdminMemberActions`).
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -684,4 +685,29 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - For remote provider avatars in <Image>, pass `unoptimized` to skip the optimizer (no next.config
     remotePatterns needed). Reader role activity counts: use prisma groupBy for the completed subset rather
     than a second per-row query.
+---
+
+## 2026-06-18 10:55 UTC - US-022 Admin tag management
+- Admin can list tags, see usage counts (total + published article counts), and delete tags.
+- New: src/lib/admin-tags.ts (`listAdminTags({query,page})` — LIKE search on name/slug,
+  paginated, ordered by usage desc via `orderBy:{articles:{_count:"desc"}}`, published
+  counts via a single `articleTag.groupBy`; `deleteTag(id)` -> structured {ok}/{error,status},
+  404 missing). New API DELETE /api/admin/tags/[id] (requireAdminApi; 401 unauth, 404 missing).
+  New client src/components/AdminTagActions.tsx (inline `.admin-confirm` delete panel + fetch +
+  router.refresh, mirrors AdminMemberActions/AdminArticleActions). Replaced the /admin/tags
+  placeholder page with a search form + table + pagination (mirrors /admin/members).
+- Files: src/lib/admin-tags.ts (new), src/app/api/admin/tags/[id]/route.ts (new),
+  src/components/AdminTagActions.tsx (new), src/app/admin/tags/page.tsx (rewritten).
+- Quality: typecheck PASS, lint PASS (0 warnings). Browser verified via Playwright + curl:
+  page lists 5 tags with correct usage (Honeybees 3·3, Waggle Dance 1·1), inline delete
+  confirm panel shows tag name, DELETE returns {ok:true} (tag count 5->4, ArticleTag rows
+  cascade away), 401 without cookie, 404 for missing id.
+- **Learnings for future iterations:**
+  - Deleting a Tag cascades its ArticleTag rows automatically (onDelete:Cascade on the tag
+    relation), so articles just lose the tag — no manual cleanup, content untouched.
+  - Prisma supports `orderBy:{ <relation>:{ _count: "desc" } }` for DB-level ordering by a
+    relation count (used to rank tags by usage) — no need to fetch-all-and-sort-in-memory.
+  - Admin tag usage shows TOTAL articles (any status) plus a published subset; reuse the
+    existing `.admin-search`/`.admin-table`/`.admin-pagination`/`.admin-confirm` CSS + the
+    AdminMemberActions/AdminArticleActions inline-confirm pattern for new admin sections.
 ---

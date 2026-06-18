@@ -229,6 +229,16 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   Remove button with inline `.admin-confirm` (controls disabled for the acting admin's own row, flagged with a "You"
   pill). Avatars use `next/image` with `unoptimized` (remote provider images, no remotePatterns config needed). New CSS:
   `.admin-member-cell`/`.admin-member-avatar`/`.admin-member-name`.
+- Admin tag management (US-022): `src/lib/admin-tags.ts` owns `listAdminTags({query,page})` (LIKE-`contains` on
+  name/slug; paginated, default `ADMIN_TAGS_PAGE_SIZE=20`; ordered by usage desc via
+  `orderBy:{articles:{_count:"desc"}}`; per-tag `articleCount` (all statuses) via `_count` + a `published`
+  subset from one `articleTag.groupBy({by:["tagId"], where:{article:{status:"published"}}})` batch) and
+  `deleteTag(id)` (structured `{ok}`/`{ok:false,error,status}`, 404 missing). Deleting a `Tag` cascades its
+  `ArticleTag` rows (articles lose the tag, content untouched). API `DELETE /api/admin/tags/[id]`
+  (`requireAdminApi`; 401 unauth, 404 missing). Page `/admin/tags` (server; reuses `.admin-search`/
+  `.admin-table`/pagination) lists name, slug (links to `/tags/[slug]`), usage and a delete action; the
+  client `src/components/AdminTagActions.tsx` is the inline-`.admin-confirm` delete pattern (mirrors
+  AdminMemberActions/AdminArticleActions).
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
