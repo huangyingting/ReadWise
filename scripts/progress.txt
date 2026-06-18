@@ -569,3 +569,28 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Existing dev.db articles had no `category`; backfilled the 4 seeds by title for verification. Future
     scraper/seeding stories (US-024..027) should set `category` to a valid slug.
 ---
+
+## 2026-06-18 10:35 UTC - US-018 Personalized picks
+- Made the "Picks" feed topic-aware (was level-only). Added `rankPicks(articles, maxLevel, topics)`
+  to src/lib/articles.ts: first applies `filterAndSortByLevel` (level-capped, easiest-first),
+  then surfaces articles whose `category` is in the reader's preferred `topics` ahead of the
+  rest while preserving level order within each group.
+- `listPicksPage` now takes `(maxLevel, topics, opts)`; both callers
+  (src/app/browse/page.tsx and src/app/api/articles/route.ts) pass `parseTopics(profile?.topics)`.
+- Browse page subtitle updated to "...match your topics and English level."
+- Files changed: src/lib/articles.ts, src/app/browse/page.tsx, src/app/api/articles/route.ts.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Browser verified (seeded C2 user, topics=["culture"]): "The Math of Music" (culture, C2)
+  ranked FIRST ahead of the easier B1 science article, confirming topic boost beats raw level
+  order; remainder stayed easiest-first (B1 science, C2 tech, C2 science). Progress bars render
+  via existing `getProgressSummaries`/SSR.
+- **Learnings for future iterations:**
+  - User `topics` are stored as JSON-stringified CATEGORY SLUGS (same set as Article.category),
+    so topic matching is a direct `article.category in topicSet` check — no mapping needed.
+  - Sparse-profile fallbacks are inherent in `rankPicks`: empty topics => plain level ranking;
+    null level => all eligible; zero topic matches => just returns the level-ranked remainder
+    (never empties the feed).
+  - When changing a shared lib signature like `listPicksPage`, update BOTH the server page
+    (src/app/browse/page.tsx) and the incremental API (src/app/api/articles/route.ts) — the
+    "Load more" client feed goes through the API, the first paint through the page.
+---

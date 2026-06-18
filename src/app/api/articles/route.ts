@@ -7,7 +7,7 @@ import {
   toListingArticle,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
-import { getProfile } from "@/lib/profile";
+import { getProfile, parseTopics } from "@/lib/profile";
 import { isValidCategorySlug } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
 
@@ -38,7 +38,8 @@ export async function GET(req: Request) {
   if (view === "picks") {
     const profile = await getProfile(session.user.id);
     const level = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
-    page = await listPicksPage(level, { offset, limit });
+    const topics = parseTopics(profile?.topics);
+    page = await listPicksPage(level, topics, { offset, limit });
   } else {
     const category =
       categoryParam && categoryParam !== "all" && isValidCategorySlug(categoryParam)

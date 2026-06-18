@@ -127,13 +127,46 @@ export async function listCategoryPage(
 }
 
 /**
- * Personalized "Picks": all published articles filtered/sorted to be
- * level-appropriate for the reader (easiest-first, capped at `maxLevel`),
- * then paginated. Difficulty is ensured (heuristically) for any unassessed
- * articles so the ranking is meaningful.
+ * Ranks articles for a reader's personalized "Picks" feed. Articles are first
+ * filtered/sorted to be level-appropriate (easiest-first, capped at `maxLevel`),
+ * then articles whose category matches one of the reader's preferred `topics`
+ * are surfaced ahead of the rest (preserving the level ordering within each
+ * group). When the profile is sparse — no level and/or no topics — this
+ * degrades sensibly: no topics means the plain level ranking, no level means
+ * all articles are eligible, and no topic matches simply falls back to the
+ * level-ranked remainder rather than returning nothing.
+ */
+export function rankPicks(
+  articles: Article[],
+  maxLevel: DifficultyLevel | null,
+  topics: string[] = [],
+): Article[] {
+  const ranked = filterAndSortByLevel(articles, maxLevel);
+  const topicSet = new Set(topics.filter(Boolean));
+  if (topicSet.size === 0) {
+    return ranked;
+  }
+  const matched: Article[] = [];
+  const rest: Article[] = [];
+  for (const article of ranked) {
+    if (article.category && topicSet.has(article.category)) {
+      matched.push(article);
+    } else {
+      rest.push(article);
+    }
+  }
+  return [...matched, ...rest];
+}
+
+/**
+ * Personalized "Picks": all published articles ranked to be both
+ * level-appropriate and aligned with the reader's preferred topics (see
+ * {@link rankPicks}), then paginated. Difficulty is ensured (heuristically)
+ * for any unassessed articles so the ranking is meaningful.
  */
 export async function listPicksPage(
   maxLevel: DifficultyLevel | null,
+  topics: string[] = [],
   opts: { offset?: number; limit?: number } = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
@@ -143,7 +176,7 @@ export async function listPicksPage(
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
   });
   await ensureArticleDifficulties(all);
-  const ranked = filterAndSortByLevel(all, maxLevel);
+  const ranked = rankPicks(all, maxLevel, topics);
   return {
     articles: ranked.slice(offset, offset + limit),
     hasMore: offset + limit < ranked.length,

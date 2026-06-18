@@ -7,7 +7,7 @@ import {
   toListingArticle,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
-import { getProfile } from "@/lib/profile";
+import { getProfile, parseTopics } from "@/lib/profile";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
 import CategoryBrowser from "@/components/CategoryBrowser";
@@ -31,7 +31,8 @@ export default async function BrowsePage({
   if (isPicks) {
     const profile = await getProfile(session.user.id);
     const level = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
-    page = await listPicksPage(level, { limit: BROWSE_PAGE_SIZE });
+    const topics = parseTopics(profile?.topics);
+    page = await listPicksPage(level, topics, { limit: BROWSE_PAGE_SIZE });
   } else {
     page = await listCategoryPage(activeCategory, { limit: BROWSE_PAGE_SIZE });
   }
@@ -56,7 +57,7 @@ export default async function BrowsePage({
       <h1 style={{ marginBottom: "0.25rem" }}>Browse</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         {isPicks
-          ? "Articles picked to match your English level."
+          ? "Articles picked to match your topics and English level."
           : "Browse cleaned news articles by category."}
       </p>
 
