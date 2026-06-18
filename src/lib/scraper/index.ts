@@ -1,0 +1,107 @@
+import { prisma } from "@/lib/prisma";
+import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
+import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
+import { providerForUrl } from "@/lib/scraper/providers";
+
+export type SaveOutcome =
+  | { status: "saved"; id: string; article: ScrapedArticle }
+  | { status: "skipped"; reason: string; sourceUrl: string }
+  | { status: "failed"; reason: string; sourceUrl: string };
+
+/** Fetches and parses a single article URL. Returns null when extraction fails. */
+export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
+  const html = await fetchHtml(url);
+  return extractArticle(html, url);
+}
+
+/**
+ * Persists a scraped article as a `draft`, de-duplicated by `sourceUrl`.
+ * Never throws on a duplicate — returns a `skipped` outcome instead.
+ */
+export async function saveDraftArticle(article: ScrapedArticle): Promise<SaveOutcome> {
+  const existing = await prisma.article.findFirst({
+    where: { sourceUrl: article.sourceUrl },
+    select: { id: true },
+  });
+  if (existing) {
+    return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
+  }
+
+  const created = await prisma.article.create({
+    data: {
+      title: article.title,
+      author: article.author,
+      source: article.source,
+      sourceUrl: article.sourceUrl,
+      heroImage: article.heroImage,
+      excerpt: article.excerpt,
+      content: article.content,
+      category: article.category,
+      wordCount: article.wordCount,
+      readingMinutes: article.readingMinutes,
+      status: "draft",
+      publishedAt: article.publishedAt,
+    },
+    select: { id: true },
+  });
+
+  return { status: "saved", id: created.id, article };
+}
+
+/** Scrapes a single URL and saves it, capturing failures as outcomes. */
+export async function scrapeAndSave(url: string): Promise<SaveOutcome> {
+  try {
+    const article = await scrapeUrl(url);
+    if (!article) {
+      return { status: "failed", reason: "could not extract article content", sourceUrl: url };
+    }
+    return await saveDraftArticle(article);
+  } catch (err) {
+    return { status: "failed", reason: errorMessage(err), sourceUrl: url };
+  }
+}
+
+/** Extracts candidate article links from a section/landing page's HTML. */
+export function discoverLinks(provider: Provider, html: string, baseUrl: string): string[] {
+  const hrefs = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].map((m) => m[1]);
+  const seen = new Set<string>();
+  const links: string[] = [];
+  for (const href of hrefs) {
+    let abs: string;
+    try {
+      abs = new URL(href, baseUrl).href.split("#")[0];
+    } catch {
+      continue;
+    }
+    if (providerForUrl(abs)?.key !== provider.key) continue;
+    if (!provider.articleUrlPattern.test(abs)) continue;
+    if (seen.has(abs)) continue;
+    seen.add(abs);
+    links.push(abs);
+  }
+  return links;
+}
+
+/** Crawls a provider's seed pages, collecting up to `limit` article URLs. */
+export async function discoverProviderUrls(provider: Provider, limit: number): Promise<string[]> {
+  const collected = new Set<string>();
+  for (const seed of provider.seeds) {
+    if (collected.size >= limit) break;
+    let html: string;
+    try {
+      html = await fetchHtml(seed);
+    } catch {
+      continue;
+    }
+    for (const link of discoverLinks(provider, html, seed)) {
+      collected.add(link);
+      if (collected.size >= limit) break;
+    }
+  }
+  return [...collected].slice(0, limit);
+}
+
+function errorMessage(err: unknown): string {
+  if (err instanceof Error) return err.message;
+  return String(err);
+}

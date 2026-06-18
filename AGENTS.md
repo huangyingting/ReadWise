@@ -239,6 +239,21 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `.admin-table`/pagination) lists name, slug (links to `/tags/[slug]`), usage and a delete action; the
   client `src/components/AdminTagActions.tsx` is the inline-`.admin-confirm` delete pattern (mirrors
   AdminMemberActions/AdminArticleActions).
+- Article scraper CLI (US-024): `npm run scrape -- ...` runs `scripts/scrape.ts` via Node's
+  type-stripping (`node --import ./scripts/register-ts.mjs`). Node strip-types needs explicit `.ts`
+  extensions + can't resolve the `@/` alias, so `scripts/ts-resolve-hook.mjs` is an ESM resolve hook
+  that maps `@/*`→`src/*` and adds `.ts`/`index.ts`; `scripts/package.json` `{"type":"module"}` scopes
+  ESM to the dir (silences the TYPELESS warning) — use this same harness for any future TS CLI. Scraper
+  lib is `src/lib/scraper/`: `providers.ts` (registry of NBC/NatGeo/Time/HuffPost keyed by hostname +
+  `articleUrlPattern` for discovery + `categoryFor` mapping to `categories.ts` slugs), `extract.ts`
+  (provider-agnostic: schema.org JSON-LD `NewsArticle` first, then OpenGraph/`<title>`/`<p>` fallback;
+  body cleaned via `sanitizeArticleHtml`; rejects <50-word bodies), `index.ts` (`scrapeUrl`,
+  `discoverProviderUrls`, `saveDraftArticle`). Saves `status:"draft"`, de-duped by `sourceUrl`
+  (`findFirst`). GOTCHA: category regexes must NOT trail with `\b` (e.g. `\bsport\b` misses "sports") —
+  anchor the stem at the start only. Provider article-URL patterns drift (Time moved to
+  `/article/YYYY/MM/DD/slug/`); fix `articleUrlPattern` when discovery finds 0 links. CLI flags:
+  `--provider <key> [--limit N]`, `--all`, `<url>...`, `--file <path> --url <u>` (offline), `--dry-run`,
+  `--list-providers`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

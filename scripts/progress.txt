@@ -3,6 +3,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 ---
 
 ## Codebase Patterns
+- Standalone TS CLIs: run with `node --import ./scripts/register-ts.mjs scripts/<x>.ts` (Node 22 strips types). The ESM resolve hook `scripts/ts-resolve-hook.mjs` maps `@/*`→`src/*` + adds `.ts`/`index.ts`; `scripts/package.json` `{"type":"module"}` silences the TYPELESS warning. No tsx/ts-node needed. See US-024 scraper.
 - Stack: Next.js 15 (App Router, TS), React 19, Prisma+SQLite, NextAuth v4 + @auth/prisma-adapter (DB session strategy).
 - Admin enforcement: pages -> `requireAdmin(callbackUrl)` from `@/lib/session` (redirects non-admins to `/forbidden`); API routes -> `requireAdminApi()` from `@/lib/api-auth` (returns `{error: NextResponse}` 401/403, else `{session}`). Hide admin UI via `session.user.role === "Admin"`.
 - First-user-becomes-Admin: handled in `events.createUser` in `src/lib/auth.ts` (NOT a callback). Real OAuth sign-in triggers it.
@@ -732,4 +733,29 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Distinct-user counts: `readingProgress.groupBy({by:["userId"]})` then `.length` (no `distinct`
     count helper in Prisma); cheaper than fetching rows.
   - SavedWord has no article FK, but it counts fine for the engagement metric.
+---
+
+## 2026-06-18 11:25 UTC - US-024 Multi-provider article scraper
+- Added a CLI scraper supporting NBC News, National Geographic, Time, HuffPost.
+- New files: scripts/scrape.ts (CLI), scripts/register-ts.mjs + scripts/ts-resolve-hook.mjs
+  (TS loader harness), scripts/package.json ({"type":"module"}), src/lib/scraper/{types,providers,
+  extract,index}.ts. package.json: added "scrape" script. AGENTS.md updated.
+- Extraction is provider-agnostic: prefers schema.org JSON-LD NewsArticle (headline/author/image/
+  datePublished/articleSection/articleBody), falls back to OpenGraph meta + <article>/<p> scrape;
+  body cleaned through sanitizeArticleHtml; computes wordCount/readingMinutes; rejects <50-word bodies.
+- Providers keyed by hostname; each has seed pages + articleUrlPattern (discovery) + categoryFor
+  mapping URL/section to categories.ts slugs. Saved as status:"draft", de-duped by sourceUrl.
+- Verified live: scraped+saved 2 NBC drafts, re-ran => both skipped (dedupe). Dry-run --all extracted
+  real articles from all 4 providers (correct titles/authors/categories/word counts). Cleaned up test drafts.
+- Quality: typecheck PASS, lint PASS (0 warnings), build PASS.
+- **Learnings for future iterations:**
+  - Node v22 strips TS types by default but requires explicit `.ts` import extensions and can't resolve
+    the `@/` alias. The reusable fix is an ESM resolve hook (scripts/ts-resolve-hook.mjs) registered via
+    `node --import ./scripts/register-ts.mjs`; scripts/package.json `{"type":"module"}` silences the
+    MODULE_TYPELESS warning. Use this harness for any future standalone TS CLI instead of adding tsx/ts-node.
+  - GOTCHA: category-matching regexes that end in `\b` miss plurals — `\bsport\b` fails on "sports",
+    `\bpolitic\b` fails on "politics". Anchor the stem with a leading `\b` only and omit the trailing one.
+  - Publisher article-URL shapes drift: Time migrated from `/1234567/slug/` to `/article/YYYY/MM/DD/slug/`.
+    When `discoverProviderUrls` returns 0, re-inspect the live homepage hrefs and update articleUrlPattern.
+  - dev.db Article already had nullable sourceUrl/status/category etc.; no migration needed for scraping.
 ---
