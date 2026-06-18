@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Image from "next/image";
 import { requireSession } from "@/lib/session";
+import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await requireSession("/dashboard");
@@ -36,8 +37,9 @@ export default async function DashboardPage() {
           </Link>
         </p>
       ) : null}
-      <p style={{ marginTop: "1.5rem" }}>
+      <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
         <Link href="/">← Back home</Link>
+        <SignOutButton />
       </p>
     </main>
   );

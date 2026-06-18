@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
+import SignOutButton from "@/components/SignOutButton";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -23,6 +24,7 @@ export default async function HomePage() {
             <Link className="btn btn-primary" href="/dashboard">
               Go to dashboard
             </Link>
+            <SignOutButton />
           </>
         ) : (
           <>

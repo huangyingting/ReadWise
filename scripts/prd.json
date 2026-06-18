@@ -45,8 +45,8 @@
         "Verify in browser"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "SignOutButton client component (next-auth signOut, callbackUrl '/') on dashboard + home. DB session strategy with maxAge 30d/updateAge 24h for persistence. Verified: signout clears cookie + deletes Session row, protected page redirects after, home shows public state."
     },
     {
       "id": "US-004",

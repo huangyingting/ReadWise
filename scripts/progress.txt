@@ -62,3 +62,25 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - When adding a new admin route, gate BOTH the page (requireAdmin) and any API (requireAdminApi),
     and add the prefix to middleware (cookie presence only; real role check is server-side).
 ---
+
+## 2026-06-18 09:05 UTC - US-003 Sign-out and session persistence
+- Added reusable `src/components/SignOutButton.tsx` (client component; next-auth `signOut({callbackUrl})`).
+- Surfaced a visible Sign out action on /dashboard and on the home page (when signed in).
+- Made session persistence explicit in `src/lib/auth.ts`: session `maxAge` 30d, `updateAge` 24h
+  (DB strategy already persisted across reloads; this sets the expiry window).
+- Files changed: src/components/SignOutButton.tsx (new), src/app/dashboard/page.tsx,
+  src/app/page.tsx, src/lib/auth.ts.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded Reader session cookie):
+  - Dashboard renders "Sign out"; home shows "Signed in as ..." with session.
+  - POST /api/auth/signout (csrf) -> 200, set-cookie clears next-auth.session-token (Max-Age=0),
+    AND the Session row is DELETED from the DB (database strategy server-side termination).
+  - After sign-out, /dashboard -> 307 redirect to /signin?callbackUrl=%2Fdashboard;
+    home shows public "not signed in" state.
+- **Learnings for future iterations:**
+  - With DB session strategy, next-auth sign-out deletes the Session row server-side (not just the
+    cookie) — verify both cookie clearing and DB row deletion.
+  - signOut/signIn must be called from a "use client" component; keep them in src/components for reuse.
+  - HTTP sign-out test: GET /api/auth/csrf (save cookie jar) then POST form-encoded csrfToken +
+    callbackUrl + json=true to /api/auth/signout with the session cookie.
+---

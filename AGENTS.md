@@ -37,6 +37,10 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `@/lib/api-auth` (returns 401 if unauthed, 403 if non-admin). Hide admin-only UI
   by checking `session.user.role === "Admin"`.
 - Migrations are committed under `prisma/migrations/`. `dev.db` is gitignored.
+- Auth UI actions (`signIn`/`signOut` from `next-auth/react`) must run in a `"use client"`
+  component. Reusable client auth controls live in `src/components/` (e.g. `SignOutButton.tsx`).
+  With the DB session strategy, `signOut` deletes the `Session` row server-side (not just the
+  cookie). Session lifetime is set via `session.maxAge`/`updateAge` in `authOptions`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

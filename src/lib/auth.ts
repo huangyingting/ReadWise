@@ -38,7 +38,11 @@ function buildProviders() {
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
   providers: buildProviders(),
-  session: { strategy: "database" },
+  session: {
+    strategy: "database",
+    maxAge: 30 * 24 * 60 * 60,
+    updateAge: 24 * 60 * 60,
+  },
   pages: {
     signIn: "/signin",
   },
