@@ -27,6 +27,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Client listing feeds (e.g. `CategoryBrowser`) seed `useState` from server props ONCE; Next soft-nav between views changes props but does NOT reset state — pass `key={activeView}` on the page so the component remounts per view. To render cards in a client loader, use a presentational client component (`ArticleCardView`) fed a plain serializable object via `toListingArticle(article)`; never import prisma-backed helpers into client code. Offset pagination helpers (`listCategoryPage`/`listPicksPage`) use `take: limit+1` to compute `hasMore`.
 - Admin destructive/AI-rebuild actions: deleting an Article relies on schema cascades (removes Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/ReadingProgress; SavedWord.articleId is a plain String, no FK, so it survives). "Rebuild AI content" = `deleteMany` the cached AI rows in a `prisma.$transaction` so the `getOrCreate*` helpers regenerate them lazily on next read (preserve ReadingProgress). SQLite Prisma `contains` => case-insensitive LIKE (no `mode:"insensitive"`). Use a state-driven inline confirm panel (`.admin-confirm`), not `window.confirm`, so Playwright can assert/click it. See `src/lib/admin-articles.ts` + `src/components/AdminArticleActions.tsx`.
 - Order a query by a relation's row count at the DB level with `orderBy:{ <relation>:{ _count: "desc" } }` (used to rank tags by usage in `src/lib/admin-tags.ts`) instead of fetch-all-then-sort. Deleting a `Tag` cascades its `ArticleTag` rows (articles lose the tag, content untouched). New admin sections reuse `.admin-search`/`.admin-table`/`.admin-pagination` + the inline-`.admin-confirm` actions component pattern (`AdminTagActions`/`AdminMemberActions`).
+- Background worker (`src/lib/worker.ts` `runWorker`): a poll-loop over the DB queue (`listUnprocessedArticleIds` + idempotent `processArticle`) with bounded retries/exponential `backoffDelay`. Keeps NO checkpoint state — re-polling the queue each loop + cache-first processor = automatic resume on restart. Safe stop via `AbortSignal` + an INTERRUPTIBLE `sleep(ms, signal)` (rejects AbortError so Ctrl-C doesn't wait out the interval). Inject deps via `opts.deps` (list/process/sleep) for DB-free unit tests. Run: `npm run worker -- [--once] [--interval ms] [--batch n] [--max-retries n] [--backoff ms]`.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -786,4 +787,41 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     drafts even with AI fully unconfigured; vocab/quiz/tags degrade to `fallback` (empty, uncached).
   - Reuse `processArticle` + `listUnprocessedArticleIds` for US-026 (worker loop with retry/backoff) and
     US-027 (seeder = scrape provider → processArticle with tts).
+---
+
+## 2026-06-18 11:25 UTC - US-026 Background processing worker
+- Added `src/lib/worker.ts` `runWorker(opts)`: a long-running loop that polls
+  `listUnprocessedArticleIds({limit:batchSize})` and runs each id through the idempotent
+  `processArticle` with bounded retries + exponential backoff (`backoffDelay` w/ jitter, capped).
+  Failures = thrown error OR `result.ok===false`; after `maxRetries` it gives up (counts failed,
+  never blocks the queue). Resumes pending work automatically on restart (queue is the source of
+  truth; processor is cache-first — no checkpoint state). Returns `WorkerStats`.
+- Safe stop via `AbortSignal`: interruptible `sleep(ms, signal)` rejects with AbortError so idle/
+  backoff waits stop promptly; the loop swallows AbortError and resolves cleanly. `--once` drains
+  the queue then exits. `createConsoleLogger()` = timestamped/level/JSON-meta lines (placeholder
+  until US-029). All deps injectable via `opts.deps` for DB-free unit tests.
+- Added CLI `scripts/worker.ts` (`npm run worker -- ...`, reuses the scraper TS-CLI harness):
+  flags `--once`, `--interval <ms>`, `--batch <n>`, `--max-retries <n>`, `--backoff <ms>`,
+  `--include-published`, `--tts`, `--translate <codes>`, `--help`. Wires SIGINT/SIGTERM →
+  controller.abort() (2nd signal force-exits 130). Warns (not errors) when AI/Speech unconfigured.
+- Files: src/lib/worker.ts (new), scripts/worker.ts (new), package.json (+worker script), AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live DB, AI configured): seeded a draft → `npm run worker -- --once` polled, processed
+  it (difficulty/tags/vocab/quiz generated), published draft→published, then drained+stopped. Continuous
+  mode (`--interval 1000`) polled an empty queue repeatedly; SIGINT stopped it immediately+cleanly
+  (exit 0, stoppedBySignal:true). Injected-dep unit checks: transient failures retried then succeed
+  (retried=1, published=1); exhausted retries counted failed with exactly 1+maxRetries calls. Cleaned up
+  the test article.
+- **Learnings for future iterations:**
+  - The worker keeps NO persistent state — "resume pending work" falls out of re-polling the DB queue
+    each loop + the cache-first processor. A restart just continues where it left off. Don't add a
+    checkpoint/cursor; the queue IS the cursor.
+  - For prompt Ctrl-C, make idle/backoff sleeps interruptible: `sleep(ms, signal)` that rejects with an
+    AbortError on `signal.abort`, and have the loop treat AbortError as a clean stop. A plain
+    `setTimeout` sleep would force the worker to wait out the full interval before noticing the signal.
+  - Make worker deps (list/process/sleep) injectable via an `opts.deps` bag so retry/backoff/stop logic
+    is unit-testable with `node --import ./scripts/register-ts.mjs -e '...'` and no DB.
+  - Treat `result.ok===false` (a processor step failed) AND thrown errors as retryable failures; a
+    `null` result (article vanished) is non-retryable — skip it. Total tries = 1 + maxRetries.
+  - Reuse `runWorker` for US-027 seeder (scrape → enqueue drafts → worker --once) if a batch drain is wanted.
 ---

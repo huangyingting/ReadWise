@@ -270,6 +270,22 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   drafts still publish). Reuse `processArticle`/`listUnprocessedArticleIds` for the US-026 worker +
   US-027 seeder. CLI flags: `<id>...`, `--all`, `--include-published`, `--limit N`, `--tts`,
   `--translate <es,fr,...>` (validated against `isSupportedLanguage`).
+- Background processing worker (US-026): `npm run worker -- ...` runs `scripts/worker.ts` (same TS-CLI
+  harness). `src/lib/worker.ts` `runWorker(opts)` is a long-running loop that polls
+  `listUnprocessedArticleIds({limit:batchSize})` and runs each through the idempotent `processArticle`
+  with bounded retries + exponential backoff (`backoffDelay(attempt, base, max)` with jitter). A failure
+  is a THROWN error OR a `result.ok===false` (a step failed); after `maxRetries` it gives up and counts
+  it failed (it does NOT block the queue). Because the queue (DB) is the source of truth and the
+  processor is cache-first, the worker RESUMES pending work automatically on restart — no checkpoint
+  state needed. Safe stop: pass an `AbortSignal`; the CLI wires SIGINT/SIGTERM → `controller.abort()`
+  (2nd signal force-exits 130). The interruptible `sleep(ms, signal)` rejects with an `AbortError` on
+  abort so idle/backoff waits stop PROMPTLY (don't block until the timer fires); the loop swallows
+  AbortError and resolves with `WorkerStats`. `--once` drains the queue then exits (good for cron/tests).
+  All deps (`listUnprocessedArticleIds`/`processArticle`/`sleep`) are injectable via `opts.deps` for unit
+  testing without a DB. Reuses the `createConsoleLogger()` (timestamped, level-prefixed, JSON meta) — a
+  lightweight stand-in until US-029 structured logging. CLI flags: `--once`, `--interval <ms>`,
+  `--batch <n>`, `--max-retries <n>`, `--backoff <ms>`, `--include-published`, `--tts`,
+  `--translate <codes>`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
