@@ -344,3 +344,36 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     "Environment variable not found: DATABASE_URL".
   - New gated page => update BOTH middleware PROTECTED_PREFIXES and config.matcher (the
     `/x/:path*` matcher also covers the bare `/x` route).
+
+## 2026-06-18 09:50 UTC - US-011 Word lookup context menu (dictionary)
+- Added click/select word-lookup popover in the article reader with normalization,
+  grouped meanings, pronunciation and a clear not-found state.
+- New `src/lib/dictionary.ts`: `normalizeCandidates(raw)` (contractions map + possessive strip +
+  plural/gerund/past/comparative/-ly rules -> ordered base-form candidates) and `lookupWord(raw)`
+  which queries the free api.dictionaryapi.dev over fetch, tries each candidate until one resolves,
+  groups definitions by partOfSpeech and surfaces phonetic/audio. Graceful fallback: returns
+  `{found:false}` (never throws) on 404/timeout/unreachable.
+- New `POST /api/dictionary` (requireSessionApi; 400 missing word, 401 unauth).
+- New client `src/components/WordLookup.tsx`: wraps the reader prose (replaces the raw prose div),
+  opens a fixed-position popover on mouseup using the text selection or the word under the cursor
+  (caretRangeFromPoint/caretPositionFromPoint), plays audio, closes on outside-click/Escape.
+- Wired into `src/app/reader/[id]/page.tsx` (+ a usage hint) and added popover CSS in globals.css.
+- Files: src/lib/dictionary.ts (new), src/app/api/dictionary/route.ts (new),
+  src/components/WordLookup.tsx (new), src/app/reader/[id]/page.tsx, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification: API (live server + seeded session cookie) - studies->found verb/noun groups w/ phonetic;
+  "Running,"->stripped+audio; dog's->dog (possessive); don't->do (contraction); nonsense->found:false;
+  {} -> 400; unauth -> 401. Playwright (project root, chromium --no-sandbox): reader page popover on
+  dblclick shows phonetic /ˈstʌdid/, 🔊, ADJECTIVE/VERB groups with examples; Escape closes it.
+- **Learnings for future iterations:**
+  - Not every "AI tool" needs the LLM: US-011 is better served by a real dictionary API
+    (api.dictionaryapi.dev, no key) which returns structured phonetics + meanings grouped by POS.
+  - Lemmatization-by-candidates: generate ordered base-form guesses and let the dictionary's
+    404 select the right one (only base forms resolve), rather than building a full stemmer.
+  - To read the clicked word from prose rendered via dangerouslySetInnerHTML, use
+    caretRangeFromPoint (Chromium) / caretPositionFromPoint (Firefox) then expand to word
+    boundaries; fall back to window.getSelection() for double-click/drag selections.
+  - The sandbox blocks `kill $VAR` (must pass a literal numeric PID); get the dev-server PID from
+    `ss -ltnp | grep :3000` then `kill <number>`. Playwright scripts must live under the project
+    root (not /tmp) so `@playwright/test` resolves.
+---

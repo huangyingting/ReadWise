@@ -7,6 +7,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleTranslation from "@/components/ArticleTranslation";
 import ArticleVocabulary from "@/components/ArticleVocabulary";
+import WordLookup from "@/components/WordLookup";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 
 export default async function ReaderPage({
@@ -69,10 +70,11 @@ export default async function ReaderPage({
           />
         ) : null}
 
-        <div
-          className="prose"
-          dangerouslySetInnerHTML={{ __html: cleanBody }}
-        />
+        <p className="muted word-lookup-hint">
+          Tip: click or select any word to look up its meaning.
+        </p>
+
+        <WordLookup html={cleanBody} />
 
         <ArticleVocabulary articleId={article.id} />
 

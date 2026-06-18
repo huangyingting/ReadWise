@@ -112,6 +112,16 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   open, optimistic save toggle); the study list page `/study` (gated, in middleware) renders saved
   words with `StudyList.tsx` (remove = unsave). Reuse `htmlToPlainText` from translation for model
   input. Dashboard links to `/study`.
+- Word lookup / dictionary (US-011): `src/lib/dictionary.ts` does NOT use AI — it queries the free
+  `api.dictionaryapi.dev` over `fetch` and degrades gracefully (returns `{found:false}`, never throws,
+  on 404/timeout/unreachable). `normalizeCandidates(raw)` returns an ordered list of base forms
+  (contractions via a map, possessive strip, plural/gerund/past/comparative/-ly rules); `lookupWord`
+  tries each candidate until one resolves, so inflections normalize to a base form automatically.
+  Result groups definitions by `partOfSpeech` and includes `phonetic`/`audio` when available. API:
+  `POST /api/dictionary` body `{word}` (400 missing word, 401 unauth). Client `WordLookup.tsx` wraps
+  the reader prose (replaces the raw `dangerouslySetInnerHTML` prose div) and shows a fixed-position
+  popover on `mouseup`: uses the text selection if present, else resolves the word under the cursor via
+  `caretRangeFromPoint`/`caretPositionFromPoint`; closes on outside-click/Escape.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
