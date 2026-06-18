@@ -880,3 +880,48 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - The wrapper sets `x-request-id` on EVERY response (including the 401/403 from api-auth) by
     re-stamping the NextResponse before returning it.
 ---
+
+## 2026-06-18 11:45 UTC - US-029 Structured logging & request tracing
+- Added `src/lib/logger.ts`: a single structured-logging module with a REQUEST-SCOPED context via
+  Node `AsyncLocalStorage`. `runWithRequestContext(ctx, fn)` binds {requestId,userId,method,path}
+  for the whole async lifetime; `getRequestContext`/`getRequestId` read it; `setRequestContext`
+  mutates it. `createLogger(scope, base?)` emits JSON lines that auto-merge the ambient context, so
+  any helper called within a request inherits requestId/userId with no param threading. Honors
+  `LOG_LEVEL` (default "info").
+- Refactored `src/lib/api-handler.ts` to wrap each request in `runWithRequestContext` and use
+  `createLogger("api")`. Attaches `userId` to the context right after auth (so request.start lacks
+  it, but request.complete/errors and any downstream logs carry it). Added `durationMs` to the
+  handled/unhandled error logs too.
+- Unified the worker: `createConsoleLogger()` in `src/lib/worker.ts` now returns
+  `createLogger("worker")` (was a bespoke timestamped formatter). The US-026 note that it was a
+  "stand-in until US-029" is now satisfied.
+- Client error capture: new public route `POST /api/client-errors` (`createPublicHandler`, returns
+  204, logs `client.error`) + new client component `src/components/ClientErrorReporter.tsx` (mounted
+  once in `src/app/layout.tsx`) that registers `window.onerror` + `unhandledrejection`, dedups +
+  throttles (max 20), and reports via `navigator.sendBeacon` (fallback `fetch keepalive`). Added
+  `src/app/global-error.tsx` root React error boundary that reports the same way.
+- Files: src/lib/logger.ts (new), src/lib/api-handler.ts, src/lib/worker.ts,
+  src/app/api/client-errors/route.ts (new), src/components/ClientErrorReporter.tsx (new),
+  src/app/global-error.tsx (new), src/app/layout.tsx, AGENTS.md, scripts/prd.json, scripts/progress.txt.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live `next dev`): client-errors valid POST -> 204 with x-request-id + a structured
+  `client.error` log line carrying requestId/method/path/clientMessage/clientStack; inbound
+  `x-request-id: trace-029` echoed back on the response AND used in the log; `{}` body -> 400.
+  request.start/complete logs carry requestId+method+path+status+durationMs. Authed request (seeded
+  User+Session cookie) -> request.complete log includes `userId`. Browser (Playwright, /signin): a
+  dispatched window `error` event was captured by ClientErrorReporter and POSTed to /api/client-errors
+  (full message/stack/url/userAgent), logged server-side with a request id. Cleaned up test user/session
+  + temp script.
+- **Learnings for future iterations:**
+  - `AsyncLocalStorage` (node:async_hooks) is the clean way to make requestId/userId ambient across a
+    request without threading them through every function — bind once in the api-handler wrapper, read
+    via `getRequestContext()` from any server lib. Route handlers run in the Node runtime so this works.
+  - Set `userId` into the context with `setRequestContext` AFTER auth resolves (it's null before), so
+    request.start won't have it but everything after will.
+  - For client error capture prefer `navigator.sendBeacon` (survives page unload) with a `fetch
+    keepalive` fallback; dedup+cap reports so an error storm can't flood the endpoint. In Next dev, an
+    uncaught `setTimeout` throw can be swallowed by the dev overlay — verify the listener with a
+    dispatched `ErrorEvent`, which reliably exercises the real `window.addEventListener("error")` path.
+  - `global-error.tsx` must be a client component and render its own <html>/<body> (it replaces the
+    root layout). Use it as the last-resort React render-error boundary + reporter.
+---

@@ -52,6 +52,21 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   (message only leaked when `NODE_ENV !== "production"`). Do NOT hand-roll
   `requireSessionApi`/`req.json()`/try-catch in routes anymore. NextAuth's `auth/[...nextauth]` is
   the only exception (it owns its own handler).
+- Structured logging & tracing (US-029): `src/lib/logger.ts` is the single logging module. It carries
+  a REQUEST-SCOPED context (requestId, userId, method, path) via Node `AsyncLocalStorage` —
+  `runWithRequestContext(ctx, fn)` binds it for the whole async lifetime, `getRequestContext()`/
+  `getRequestId()` read it, `setRequestContext({userId})` mutates it (api-handler attaches userId after
+  auth). `createLogger(scope, base?)` emits JSON lines that AUTO-MERGE the ambient request context, so
+  any lib helper called inside a request inherits requestId/userId WITHOUT threading params. Lines below
+  `LOG_LEVEL` (default "info") are dropped. The api-handler wraps every request in `runWithRequestContext`
+  and logs `request.start`/`request.complete`(status+durationMs)/`request.handled_error`/
+  `request.unhandled_error`; the worker's `createConsoleLogger()` now just returns `createLogger("worker")`.
+  Client-side: the `"use client"` `src/components/ClientErrorReporter.tsx` (mounted once in
+  `src/app/layout.tsx`) registers `window.onerror` + `unhandledrejection`, throttles + dedups, and reports
+  to `POST /api/client-errors` (public handler, returns 204) via `sendBeacon`/`fetch keepalive`; that route
+  logs `client.error` into the same structured server logs. `src/app/global-error.tsx` is the root React
+  error boundary and reports the same way. Reuse `createLogger`/the request context for any new
+  server logging instead of bare `console.*`.
 - Shared news categories live in `src/lib/categories.ts` (`CATEGORIES`, `CATEGORY_SLUGS`,
   `isValidCategorySlug`). Reuse this set everywhere (onboarding topics, category browsing,
   picks) instead of redefining the list.

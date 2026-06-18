@@ -4,6 +4,7 @@ import {
   type ArticleProcessResult,
   type ProcessOptions,
 } from "@/lib/processor";
+import { createLogger } from "@/lib/logger";
 
 export type WorkerLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -11,18 +12,9 @@ export type WorkerLogger = {
   error: (message: string, meta?: Record<string, unknown>) => void;
 };
 
-/** Default logger: timestamped, level-prefixed lines on the console. */
+/** Default logger: structured JSON lines (scope "worker") via {@link createLogger}. */
 export function createConsoleLogger(): WorkerLogger {
-  const fmt = (level: string, message: string, meta?: Record<string, unknown>) => {
-    const ts = new Date().toISOString();
-    const extra = meta && Object.keys(meta).length ? ` ${JSON.stringify(meta)}` : "";
-    return `${ts} [worker] ${level} ${message}${extra}`;
-  };
-  return {
-    info: (m, meta) => console.log(fmt("INFO", m, meta)),
-    warn: (m, meta) => console.warn(fmt("WARN", m, meta)),
-    error: (m, meta) => console.error(fmt("ERROR", m, meta)),
-  };
+  return createLogger("worker");
 }
 
 export type WorkerOptions = {

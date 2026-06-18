@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import Providers from "./providers";
+import ClientErrorReporter from "@/components/ClientErrorReporter";
 
 export const metadata: Metadata = {
   title: "ReadWise — AI-Assisted English Learning Reader",
@@ -16,6 +17,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body>
+        <ClientErrorReporter />
         <Providers>{children}</Providers>
       </body>
     </html>

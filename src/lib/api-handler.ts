@@ -14,6 +14,12 @@ import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
 import { requireAdminApi, requireSessionApi } from "@/lib/api-auth";
 import type { Schema } from "@/lib/validation";
+import {
+  createLogger,
+  runWithRequestContext,
+  setRequestContext,
+  type StructuredLogger,
+} from "@/lib/logger";
 
 const isProduction = process.env.NODE_ENV === "production";
 
@@ -27,31 +33,8 @@ export class ApiError extends Error {
   }
 }
 
-export type RequestLogger = {
-  info: (message: string, meta?: Record<string, unknown>) => void;
-  warn: (message: string, meta?: Record<string, unknown>) => void;
-  error: (message: string, meta?: Record<string, unknown>) => void;
-};
-
-function createRequestLogger(base: Record<string, unknown>): RequestLogger {
-  const emit =
-    (level: "info" | "warn" | "error") =>
-    (message: string, meta?: Record<string, unknown>) => {
-      const line = {
-        ts: new Date().toISOString(),
-        level,
-        scope: "api",
-        message,
-        ...base,
-        ...meta,
-      };
-      const out = JSON.stringify(line);
-      if (level === "error") console.error(out);
-      else if (level === "warn") console.warn(out);
-      else console.log(out);
-    };
-  return { info: emit("info"), warn: emit("warn"), error: emit("error") };
-}
+/** Request-scoped logger handed to every handler (see {@link createLogger}). */
+export type RequestLogger = StructuredLogger;
 
 type AuthMode = "public" | "session" | "admin";
 
@@ -102,91 +85,97 @@ function build<B, P, Q, S extends Session | null>(
     const requestId =
       req.headers.get("x-request-id")?.slice(0, 200) || crypto.randomUUID();
     const url = new URL(req.url);
-    const log = createRequestLogger({
-      requestId,
-      method: req.method,
-      path: url.pathname,
-    });
-    const startedAt = Date.now();
-    log.info("request.start");
+    return runWithRequestContext(
+      { requestId, method: req.method, path: url.pathname },
+      () => handleRequest(),
+    );
 
-    try {
-      // 1) Authentication — public routes are explicitly exempt.
-      let session: Session | null = null;
-      if (auth === "admin") {
-        const result = await requireAdminApi();
-        if (result.error) return withRequestId(result.error, requestId);
-        session = result.session;
-      } else if (auth === "session") {
-        const result = await requireSessionApi();
-        if (result.error) return withRequestId(result.error, requestId);
-        session = result.session;
-      }
+    async function handleRequest(): Promise<Response> {
+      const log = createLogger("api");
+      const startedAt = Date.now();
+      log.info("request.start");
 
-      // 2) Validate route params (untrusted ids from the URL).
-      let params = {} as P;
-      if (config.params) {
-        const raw = ctx.params ? await ctx.params : {};
-        const res = config.params(raw);
-        if (!res.ok) return jsonError(400, res.error, requestId);
-        params = res.value;
-      }
-
-      // 3) Validate query string.
-      let query = {} as Q;
-      if (config.query) {
-        const res = config.query(url.searchParams);
-        if (!res.ok) return jsonError(400, res.error, requestId);
-        query = res.value;
-      }
-
-      // 4) Parse + validate JSON body.
-      let body = undefined as B;
-      if (config.body) {
-        let raw: unknown;
-        try {
-          raw = await req.json();
-        } catch {
-          return jsonError(400, "Invalid JSON body", requestId);
+      try {
+        // 1) Authentication — public routes are explicitly exempt.
+        let session: Session | null = null;
+        if (auth === "admin") {
+          const result = await requireAdminApi();
+          if (result.error) return withRequestId(result.error, requestId);
+          session = result.session;
+        } else if (auth === "session") {
+          const result = await requireSessionApi();
+          if (result.error) return withRequestId(result.error, requestId);
+          session = result.session;
         }
-        const res = config.body(raw);
-        if (!res.ok) return jsonError(400, res.error, requestId);
-        body = res.value;
-      }
+        if (session?.user?.id) setRequestContext({ userId: session.user.id });
 
-      const response = await handler({
-        req,
-        session: session as S,
-        body,
-        params,
-        query,
-        requestId,
-        log,
-      });
-      log.info("request.complete", {
-        status: response.status,
-        durationMs: Date.now() - startedAt,
-      });
-      return withRequestId(response, requestId);
-    } catch (err) {
-      if (err instanceof ApiError) {
-        log.warn("request.handled_error", {
-          status: err.status,
-          error: err.message,
+        // 2) Validate route params (untrusted ids from the URL).
+        let params = {} as P;
+        if (config.params) {
+          const raw = ctx.params ? await ctx.params : {};
+          const res = config.params(raw);
+          if (!res.ok) return jsonError(400, res.error, requestId);
+          params = res.value;
+        }
+
+        // 3) Validate query string.
+        let query = {} as Q;
+        if (config.query) {
+          const res = config.query(url.searchParams);
+          if (!res.ok) return jsonError(400, res.error, requestId);
+          query = res.value;
+        }
+
+        // 4) Parse + validate JSON body.
+        let body = undefined as B;
+        if (config.body) {
+          let raw: unknown;
+          try {
+            raw = await req.json();
+          } catch {
+            return jsonError(400, "Invalid JSON body", requestId);
+          }
+          const res = config.body(raw);
+          if (!res.ok) return jsonError(400, res.error, requestId);
+          body = res.value;
+        }
+
+        const response = await handler({
+          req,
+          session: session as S,
+          body,
+          params,
+          query,
+          requestId,
+          log,
         });
-        return jsonError(err.status, err.message, requestId);
+        log.info("request.complete", {
+          status: response.status,
+          durationMs: Date.now() - startedAt,
+        });
+        return withRequestId(response, requestId);
+      } catch (err) {
+        if (err instanceof ApiError) {
+          log.warn("request.handled_error", {
+            status: err.status,
+            error: err.message,
+            durationMs: Date.now() - startedAt,
+          });
+          return jsonError(err.status, err.message, requestId);
+        }
+        // Unexpected: log internals, return a generic response in production.
+        log.error("request.unhandled_error", {
+          error: err instanceof Error ? err.message : String(err),
+          stack: err instanceof Error ? err.stack : undefined,
+          durationMs: Date.now() - startedAt,
+        });
+        const message = isProduction
+          ? "Internal server error"
+          : err instanceof Error
+            ? err.message
+            : "Internal server error";
+        return jsonError(500, message, requestId);
       }
-      // Unexpected: log internals, return a generic response in production.
-      log.error("request.unhandled_error", {
-        error: err instanceof Error ? err.message : String(err),
-        stack: err instanceof Error ? err.stack : undefined,
-      });
-      const message = isProduction
-        ? "Internal server error"
-        : err instanceof Error
-          ? err.message
-          : "Internal server error";
-      return jsonError(500, message, requestId);
     }
   };
 }
