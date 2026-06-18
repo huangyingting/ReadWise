@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { requireAdminApi } from "@/lib/api-auth";
+import { getAdminOverview } from "@/lib/admin";
 
 export async function GET() {
   const auth = await requireAdminApi();
@@ -8,10 +8,6 @@ export async function GET() {
     return auth.error;
   }
 
-  const [users, admins] = await Promise.all([
-    prisma.user.count(),
-    prisma.user.count({ where: { role: "Admin" } }),
-  ]);
-
-  return NextResponse.json({ users, admins });
+  const overview = await getAdminOverview();
+  return NextResponse.json(overview);
 }

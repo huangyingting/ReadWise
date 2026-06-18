@@ -594,3 +594,30 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     (src/app/browse/page.tsx) and the incremental API (src/app/api/articles/route.ts) — the
     "Load more" client feed goes through the API, the first paint through the page.
 ---
+
+## 2026-06-18 10:40 UTC - US-019 Admin dashboard overview
+- Added a shared admin shell: `src/app/admin/layout.tsx` gates the whole `/admin` area via
+  `requireAdmin("/admin")` and renders the `AdminNav` client component (active-link via usePathname)
+  with sections Dashboard / Articles / Tags / Members / Analytics.
+- Rewrote `src/app/admin/page.tsx` as the overview: stat cards (members, admins, articles, published,
+  tags, reads tracked) + a "Processing status" breakdown grouped by Article.status.
+- Centralized metrics in new `src/lib/admin.ts` `getAdminOverview()` (counts + `article.groupBy` on status);
+  `GET /api/admin/stats` now returns the same payload.
+- Added placeholder section pages `/admin/{articles,tags,members,analytics}` (each gated) to be fleshed
+  out by US-020–023.
+- Added admin CSS (`.admin-nav*`, `.admin-stat*`) to globals.css.
+- Files: src/app/admin/layout.tsx (new), src/app/admin/page.tsx, src/app/admin/{articles,tags,members,
+  analytics}/page.tsx (new), src/components/AdminNav.tsx (new), src/lib/admin.ts (new),
+  src/app/api/admin/stats/route.ts, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Browser verified (curl + Playwright screenshot): admin sees dashboard with nav + Overview + Processing
+  status (200); all 4 sub-sections reachable (200); Reader -> 307 /forbidden; unauth -> 307
+  /signin?callbackUrl=%2Fadmin; stats API returns full overview JSON. Seeded test users/sessions cleaned up.
+- **Learnings for future iterations:**
+  - The `/admin` area now has a layout that gates the whole subtree; US-020–023 just replace the placeholder
+    `/admin/{articles,tags,members,analytics}/page.tsx` files — no need to re-add nav or gating boilerplate
+    (though keeping a page-level `requireAdmin` is the established defense-in-depth pattern).
+  - Reuse `getAdminOverview()` from `src/lib/admin.ts` for any admin metric needs; add new aggregates there
+    so the dashboard + stats API stay in sync.
+  - `prisma.article.groupBy({by:["status"], _count:{_all:true}})` is the way to get processing-status counts.
+---

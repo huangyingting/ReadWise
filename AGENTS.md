@@ -192,6 +192,15 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   the presentational `ArticleCardView` (reusable by client listings); keep the `js-progress-*` hooks +
   `data-article-id` in `ArticleCardView`. The client `CategoryBrowser` holds the feed state — the page MUST
   pass `key={activeView}` so it REMOUNTS on tab change (else useState retains the previous view's cards).
+- Admin area (US-019): everything under `/admin` shares `src/app/admin/layout.tsx`, which gates the WHOLE
+  area via `requireAdmin("/admin")` (redirects Readers to `/forbidden`, unauthed to `/signin`) and renders the
+  shared `AdminNav` (client comp using `usePathname` for active-link highlight: Dashboard, Articles, Tags,
+  Members, Analytics). Sub-pages still call `requireAdmin(...)` themselves (defense-in-depth + they need the
+  session). Section pages live at `/admin/{articles,tags,members,analytics}` (placeholders until US-020–023).
+  Admin metrics are centralized in `src/lib/admin.ts` `getAdminOverview()` (users/admins/articles/published/
+  tags/readingProgress counts + `article.groupBy({by:["status"]})` for processing status); both the `/admin`
+  dashboard and `GET /api/admin/stats` consume it. The `/admin` prefix is already in middleware (covers all
+  sub-routes). Styling helpers in globals.css: `.admin-nav`/`.admin-nav-link`/`.admin-stat-grid`/`.admin-stat`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
