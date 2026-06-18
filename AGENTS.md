@@ -29,8 +29,13 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `requireSession(callbackUrl)` from `@/lib/session`. When adding a new protected
   area, update BOTH the middleware matcher and call `requireSession` in the page.
 - Server components in Next 15: `searchParams`/`params` are Promises — `await` them.
-- `User.role` defaults to `Reader` (enum `Role { Admin, Reader }`). First-user-Admin
-  logic is US-002 (not yet implemented).
+- `User.role` defaults to `Reader` (enum `Role { Admin, Reader }`). The first user to
+  sign in becomes `Admin` via the `events.createUser` hook in `src/lib/auth.ts`
+  (counts users after creation; if it's the only one, promotes to Admin).
+- Admin enforcement: pages call `requireAdmin(callbackUrl)` from `@/lib/session`
+  (redirects non-admins to `/forbidden`); API routes call `requireAdminApi()` from
+  `@/lib/api-auth` (returns 401 if unauthed, 403 if non-admin). Hide admin-only UI
+  by checking `session.user.role === "Admin"`.
 - Migrations are committed under `prisma/migrations/`. `dev.db` is gitignored.
 
 ## Browser verification

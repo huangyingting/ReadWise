@@ -31,8 +31,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "first-user-Admin via events.createUser; requireAdmin (pages->/forbidden) + requireAdminApi (401/403); admin UI hidden by role. Verified end-to-end over live server."
     },
     {
       "id": "US-003",

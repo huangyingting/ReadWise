@@ -4,6 +4,11 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 
 ## Codebase Patterns
 - Stack: Next.js 15 (App Router, TS), React 19, Prisma+SQLite, NextAuth v4 + @auth/prisma-adapter (DB session strategy).
+- Admin enforcement: pages -> `requireAdmin(callbackUrl)` from `@/lib/session` (redirects non-admins to `/forbidden`); API routes -> `requireAdminApi()` from `@/lib/api-auth` (returns `{error: NextResponse}` 401/403, else `{session}`). Hide admin UI via `session.user.role === "Admin"`.
+- First-user-becomes-Admin: handled in `events.createUser` in `src/lib/auth.ts` (NOT a callback). Real OAuth sign-in triggers it.
+- DB lives at `prisma/dev.db` (DATABASE_URL `file:./dev.db` is resolved relative to the schema dir).
+- Run node/prisma scripts from the PROJECT ROOT so `@prisma/client` resolves (not from /tmp).
+- Verify role-gated routes without real OAuth: insert a `User` + `Session` (sessionToken) row, then send cookie `next-auth.session-token=<token>` to the live server.
 - Import the singleton `prisma` from `@/lib/prisma`; never instantiate PrismaClient directly.
 - Auth: `authOptions` in `src/lib/auth.ts`. Providers added conditionally on env vars (missing creds => provider omitted, no crash).
 - Session is DATABASE strategy. Attach `id`/`role` in the `session({session,user})` callback. Session type augmented in `src/types/next-auth.d.ts`.
@@ -32,4 +37,28 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - `next lint` warns it's deprecated in Next 16 but still works; keep using `npm run lint` for now.
   - First-user-becomes-Admin (US-002) NOT yet done; all new users currently default to Reader.
   - Schema currently holds only auth models; US-031 will add Article/Progress/Vocabulary/etc.
+---
+
+## 2026-06-18 08:55 UTC - US-002 Role-based access control
+- first-user-becomes-Admin via NextAuth `events.createUser` in src/lib/auth.ts.
+- Added `requireAdmin(callbackUrl)` to src/lib/session.ts (non-admins -> /forbidden).
+- Added src/lib/api-auth.ts: `requireSessionApi` (401) + `requireAdminApi` (403) helpers.
+- Added /admin page (requireAdmin), /forbidden page, and /api/admin/stats route (admin-gated).
+- Admin link on /dashboard shown only when role === Admin (UI hidden for Readers).
+- middleware.ts: added /admin to PROTECTED_PREFIXES + matcher.
+- Files: src/lib/auth.ts, src/lib/session.ts, src/lib/api-auth.ts (new),
+  src/app/admin/page.tsx (new), src/app/forbidden/page.tsx (new),
+  src/app/api/admin/stats/route.ts (new), src/app/dashboard/page.tsx, middleware.ts, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (8/8 via live server + seeded sessions): unauth /admin->/signin?callbackUrl;
+  unauth API 401; Reader /admin->/forbidden; Reader API 403; Admin /admin 200 w/ content;
+  Admin API 200; first user->Admin; second user->Reader.
+- **Learnings for future iterations:**
+  - first-user-Admin MUST live in `events.createUser`, not the `session`/`signIn` callbacks
+    (adapter creates the row with default Reader; the event promotes it post-insert).
+  - Playwright chromium NOT at the path in AGENTS.md ($HOME is /home/azadmin, not /home/agent);
+    browser-binary probing was blocked. Used HTTP-level checks against the live `next dev`
+    server with seeded session cookies instead — works well for role-gated route verification.
+  - When adding a new admin route, gate BOTH the page (requireAdmin) and any API (requireAdminApi),
+    and add the prefix to middleware (cookie presence only; real role check is server-side).
 ---

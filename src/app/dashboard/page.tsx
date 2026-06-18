@@ -29,6 +29,13 @@ export default async function DashboardPage() {
           </div>
         </div>
       </div>
+      {user.role === "Admin" ? (
+        <p style={{ marginTop: "1.5rem" }}>
+          <Link className="btn btn-primary" href="/admin">
+            Admin dashboard
+          </Link>
+        </p>
+      ) : null}
       <p style={{ marginTop: "1.5rem" }}>
         <Link href="/">← Back home</Link>
       </p>

@@ -10,3 +10,11 @@ export async function requireSession(callbackUrl: string): Promise<Session> {
   }
   return session;
 }
+
+export async function requireAdmin(callbackUrl: string): Promise<Session> {
+  const session = await requireSession(callbackUrl);
+  if (session.user.role !== "Admin") {
+    redirect("/forbidden");
+  }
+  return session;
+}

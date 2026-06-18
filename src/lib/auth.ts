@@ -51,4 +51,15 @@ export const authOptions: NextAuthOptions = {
       return session;
     },
   },
+  events: {
+    async createUser({ user }) {
+      const userCount = await prisma.user.count();
+      if (userCount === 1) {
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { role: "Admin" },
+        });
+      }
+    },
+  },
 };
