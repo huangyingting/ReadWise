@@ -24,6 +24,9 @@ export default async function HomePage() {
             <Link className="btn btn-primary" href="/dashboard">
               Go to dashboard
             </Link>
+            <Link className="btn" href="/browse">
+              Browse articles
+            </Link>
             <SignOutButton />
           </>
         ) : (

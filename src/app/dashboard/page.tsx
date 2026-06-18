@@ -60,6 +60,11 @@ export default async function DashboardPage({
 
       <section style={{ marginTop: "2rem" }}>
         <h2>Continue reading</h2>
+        <p style={{ margin: "0.5rem 0" }}>
+          <Link className="btn btn-primary" href="/browse">
+            Browse by category
+          </Link>
+        </p>
         <form
           method="get"
           className="level-filter"

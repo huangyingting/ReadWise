@@ -223,6 +223,36 @@ a:hover {
   margin-top: 1rem;
 }
 
+.category-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+.category-tab {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.35rem 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--text);
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+
+.category-tab:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}
+
+.category-tab--active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
 .related-articles {
   margin-top: 2.5rem;
   padding-top: 1.5rem;

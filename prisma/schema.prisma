@@ -53,6 +53,7 @@ model Article {
   heroImage       String?
   excerpt         String?
   content         String
+  category        String?
   wordCount       Int?
   readingMinutes  Int?
   difficulty      String?
@@ -68,6 +69,8 @@ model Article {
   quizQuestions   QuizQuestion[]
   speech          ArticleSpeech?
   tags            ArticleTag[]
+
+  @@index([category])
 }
 
 model Tag {

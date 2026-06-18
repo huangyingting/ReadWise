@@ -178,6 +178,20 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `.tag-chip` links to `/tags/[slug]`. Tag listing `/tags/[slug]` (gated; in middleware PROTECTED_PREFIXES
   + matcher) reuses `ArticleCard` + `getProgressMap` + `ensureArticleDifficulties` + `ListingProgressSync`;
   `notFound()` for unknown slugs. API `POST /api/reader/[id]/tags` (401 unauth, 404 missing article).
+- Category browsing (US-017): Article has a `category String?` column (+ `@@index([category])`) holding a
+  slug from `src/lib/categories.ts` (`CATEGORIES`/`isValidCategorySlug`). Browse homepage `/browse` (gated;
+  in middleware PROTECTED_PREFIXES + matcher) renders a category tab bar (All + each category + personalized
+  Picks); the active view is reflected in the URL (`?category=<slug>` or `?view=picks`). Listing helpers in
+  `src/lib/articles.ts`: `listCategoryPage(category|null, {offset,limit})` and `listPicksPage(maxLevel,
+  {offset,limit})` both return `{articles, hasMore}` (offset pagination, `take: limit+1` to compute hasMore);
+  Picks reuses `filterAndSortByLevel` + `ensureArticleDifficulties` against the user's profile englishLevel.
+  `toListingArticle(article)` produces the plain serializable `ListingArticle` (id/title/author/source/
+  category/difficulty/readingMinutes) sent to the client. Incremental "Load more" hits `GET /api/articles`
+  (`view`/`category`/`offset`/`limit` -> `{articles, progress, hasMore, offset}`, session-gated 401).
+  IMPORTANT card refactor: `ArticleCard` (server) now just maps Article -> ListingArticle and delegates to
+  the presentational `ArticleCardView` (reusable by client listings); keep the `js-progress-*` hooks +
+  `data-article-id` in `ArticleCardView`. The client `CategoryBrowser` holds the feed state — the page MUST
+  pass `key={activeView}` so it REMOUNTS on tab change (else useState retains the previous view's cards).
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

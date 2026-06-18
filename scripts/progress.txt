@@ -23,6 +23,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - AI structured output: prompt for "JSON array only", then before JSON.parse strip ``` fences and slice between the first `[` and last `]` (models sometimes wrap output); dedup parsed entries by lowercased key. See `parseVocabularyJson` in src/lib/vocabulary.ts.
 - Per-user vs shared AI caches: cache expensive AI extraction by article (shared, e.g. `VocabularyItem`) and store per-user state separately (e.g. `SavedWord` with `@@unique([userId, word])` for dedup); merge user flags at read time via a `getSavedWordSet`-style helper.
 - Azure Speech TTS (word-level timing): use the Speech SDK (`microsoft-cognitiveservices-speech-sdk`), NOT the REST TTS endpoint (which returns audio only). `SpeechSynthesizer(cfg, null)` returns audio in `result.audioData` headless; `synthesizer.wordBoundary` (boundaryType===Word) gives `textOffset`/`wordLength` into the input text + audioOffset/duration in TICKS (/1e7 => seconds). Routes using the SDK need `export const runtime = "nodejs"`. Store audio as base64 + return a `data:` URL (no audio-serving route). See `src/lib/speech.ts`. Headless audio playback in Playwright needs `--autoplay-policy=no-user-gesture-required`.
+- Client listing feeds (e.g. `CategoryBrowser`) seed `useState` from server props ONCE; Next soft-nav between views changes props but does NOT reset state — pass `key={activeView}` on the page so the component remounts per view. To render cards in a client loader, use a presentational client component (`ArticleCardView`) fed a plain serializable object via `toListingArticle(article)`; never import prisma-backed helpers into client code. Offset pagination helpers (`listCategoryPage`/`listPicksPage`) use `take: limit+1` to compute `hasMore`.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -536,4 +537,35 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     Avoids a raw groupBy and keeps the published filter on the relation.
   - ArticleCard expects `progress?: {percent, completed}`; feed it from `getProgressMap` (Map) — same
     composition used by every listing (/tags/[slug], dashboard).
+---
+
+## 2026-06-18 10:35 UTC - US-017 Category browsing homepage
+- Added `category String?` (+ `@@index([category])`) to Article (migration add_article_category).
+- New browse homepage `/browse` (requireSession; added to middleware) with a category tab bar
+  (All + each category from src/lib/categories.ts + personalized "Picks"); active view reflected
+  in the URL (`?category=<slug>` / `?view=picks`).
+- src/lib/articles.ts: `BROWSE_PAGE_SIZE`, `ListingArticle`+`toListingArticle`, `listCategoryPage`
+  and `listPicksPage` (both offset-paginated, return `{articles, hasMore}` via take limit+1).
+  Picks reuses filterAndSortByLevel + ensureArticleDifficulties against the user's profile level.
+- New `GET /api/articles` (session-gated) for incremental "Load more": view/category/offset/limit
+  -> {articles, progress, hasMore, offset}.
+- Refactored ArticleCard -> presentational client `ArticleCardView` (server ArticleCard now maps
+  Article->ListingArticle and delegates); client `CategoryBrowser` owns feed state + load-more.
+- Files: prisma/schema.prisma (+migration), src/lib/articles.ts, src/components/{ArticleCard,
+  ArticleCardView,CategoryBrowser}.tsx, src/app/browse/page.tsx, src/app/api/articles/route.ts,
+  middleware.ts, src/app/globals.css (.category-tab*), src/app/dashboard/page.tsx, src/app/page.tsx, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings), build PASS.
+- Browser verified (Playwright, seeded B1 onboarded session): tab bar shows All+9 categories+Picks;
+  All=4 cards, Science=2, Tech=1, World=empty message, Picks=1 (B1-filtered). URL reflects selection.
+  Load more (temp-seeded 8 science articles): 6 -> 8 cards then button hides. API 401 unauth, 307
+  unauth page->/signin. Temp data cleaned up afterward.
+- **Learnings for future iterations:**
+  - The client feed component (CategoryBrowser) seeds useState from props ONCE; Next soft-navigation
+    between tabs changes props but does NOT reset state. Pass `key={activeView}` on the page to force a
+    remount per view (otherwise the previous category's cards persist). Caught only in the browser.
+  - Reusing a server `ArticleCard` inside a client incremental loader requires a presentational client
+    component fed a plain serializable object — don't import prisma-backed helpers (readingMinutesFor)
+    into the client; compute on the server via `toListingArticle` and pass `readingMinutes` precomputed.
+  - Existing dev.db articles had no `category`; backfilled the 4 seeds by title for verification. Future
+    scraper/seeding stories (US-024..027) should set `category` to a valid slug.
 ---

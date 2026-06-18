@@ -1,8 +1,15 @@
 import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
-import { levelRank, type DifficultyLevel } from "@/lib/difficulty";
+import {
+  levelRank,
+  ensureArticleDifficulties,
+  type DifficultyLevel,
+} from "@/lib/difficulty";
 
 const WORDS_PER_MINUTE = 200;
+
+/** Articles fetched per page in the browse/category listings. */
+export const BROWSE_PAGE_SIZE = 6;
 
 export function getArticleById(id: string): Promise<Article | null> {
   return prisma.article.findUnique({ where: { id } });
@@ -68,4 +75,77 @@ export function readingMinutesFor(article: Article): number | null {
     return null;
   }
   return Math.max(1, Math.round(words / WORDS_PER_MINUTE));
+}
+
+/** Plain, serializable shape for an article card (safe to send to the client). */
+export type ListingArticle = {
+  id: string;
+  title: string;
+  author: string | null;
+  source: string | null;
+  category: string | null;
+  difficulty: string | null;
+  readingMinutes: number | null;
+};
+
+export function toListingArticle(article: Article): ListingArticle {
+  return {
+    id: article.id,
+    title: article.title,
+    author: article.author,
+    source: article.source,
+    category: article.category,
+    difficulty: article.difficulty,
+    readingMinutes: readingMinutesFor(article),
+  };
+}
+
+export type ArticlePage = {
+  articles: Article[];
+  hasMore: boolean;
+};
+
+/**
+ * Fetches one page of published articles, optionally restricted to a category
+ * slug. Pass `null` for the category to list across all categories. Returns
+ * `hasMore` so callers can offer incremental ("load more") loading.
+ */
+export async function listCategoryPage(
+  category: string | null,
+  opts: { offset?: number; limit?: number } = {},
+): Promise<ArticlePage> {
+  const limit = opts.limit ?? BROWSE_PAGE_SIZE;
+  const offset = Math.max(0, opts.offset ?? 0);
+  const rows = await prisma.article.findMany({
+    where: { status: "published", ...(category ? { category } : {}) },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    skip: offset,
+    take: limit + 1,
+  });
+  const hasMore = rows.length > limit;
+  return { articles: rows.slice(0, limit), hasMore };
+}
+
+/**
+ * Personalized "Picks": all published articles filtered/sorted to be
+ * level-appropriate for the reader (easiest-first, capped at `maxLevel`),
+ * then paginated. Difficulty is ensured (heuristically) for any unassessed
+ * articles so the ranking is meaningful.
+ */
+export async function listPicksPage(
+  maxLevel: DifficultyLevel | null,
+  opts: { offset?: number; limit?: number } = {},
+): Promise<ArticlePage> {
+  const limit = opts.limit ?? BROWSE_PAGE_SIZE;
+  const offset = Math.max(0, opts.offset ?? 0);
+  const all = await prisma.article.findMany({
+    where: { status: "published" },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+  });
+  await ensureArticleDifficulties(all);
+  const ranked = filterAndSortByLevel(all, maxLevel);
+  return {
+    articles: ranked.slice(offset, offset + limit),
+    hasMore: offset + limit < ranked.length,
+  };
 }
