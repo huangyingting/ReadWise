@@ -5,6 +5,7 @@ import {
   ensureArticleDifficulties,
   type DifficultyLevel,
 } from "@/lib/difficulty";
+import { createCachedListing, ARTICLES_CACHE_TAG } from "@/lib/cache";
 
 const WORDS_PER_MINUTE = 200;
 
@@ -16,12 +17,22 @@ export function getArticleById(id: string): Promise<Article | null> {
 }
 
 export function listPublishedArticles(limit = 12): Promise<Article[]> {
+  return cachedListPublishedArticles(limit);
+}
+
+function listPublishedArticlesUncached(limit = 12): Promise<Article[]> {
   return prisma.article.findMany({
     where: { status: "published" },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
 }
+
+const cachedListPublishedArticles = createCachedListing(
+  listPublishedArticlesUncached,
+  ["articles:published"],
+  [ARTICLES_CACHE_TAG],
+);
 
 /**
  * Filters articles to those at or below `maxLevel` (appropriate, not too hard)
@@ -116,6 +127,14 @@ export async function listCategoryPage(
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
+  return cachedListCategoryPage(category, offset, limit);
+}
+
+async function listCategoryPageImpl(
+  category: string | null,
+  offset: number,
+  limit: number,
+): Promise<ArticlePage> {
   const rows = await prisma.article.findMany({
     where: { status: "published", ...(category ? { category } : {}) },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -125,6 +144,12 @@ export async function listCategoryPage(
   const hasMore = rows.length > limit;
   return { articles: rows.slice(0, limit), hasMore };
 }
+
+const cachedListCategoryPage = createCachedListing(
+  listCategoryPageImpl,
+  ["articles:category-page"],
+  [ARTICLES_CACHE_TAG],
+);
 
 /**
  * Ranks articles for a reader's personalized "Picks" feed. Articles are first
@@ -171,6 +196,15 @@ export async function listPicksPage(
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
+  return cachedListPicksPage(maxLevel, topics, offset, limit);
+}
+
+async function listPicksPageImpl(
+  maxLevel: DifficultyLevel | null,
+  topics: string[],
+  offset: number,
+  limit: number,
+): Promise<ArticlePage> {
   const all = await prisma.article.findMany({
     where: { status: "published" },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -182,3 +216,9 @@ export async function listPicksPage(
     hasMore: offset + limit < ranked.length,
   };
 }
+
+const cachedListPicksPage = createCachedListing(
+  listPicksPageImpl,
+  ["articles:picks-page"],
+  [ARTICLES_CACHE_TAG],
+);

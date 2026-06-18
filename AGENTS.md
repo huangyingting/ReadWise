@@ -328,6 +328,25 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   pattern). Default provider is `PROVIDERS[0]` (NBC); CLI flags: `--provider <key[,key]>` / bare
   `<key>...` / `--all`, `--limit N` (per provider, default 3), `--no-tts` (TTS is ON by default —
   inverse of process/worker), `--translate <codes>`.
+- Caching with tag-based invalidation (US-030): `src/lib/cache.ts` is the single caching module.
+  `createCachedListing(fn, keyParts, tags, revalidate?)` wraps a query in Next's `unstable_cache`
+  (function ARGS auto-join the cache key, so paginated/per-level calls cache independently). Two tags:
+  `ARTICLES_CACHE_TAG` ("articles") for published-article feeds, `TAGS_CACHE_TAG` ("tags") for
+  tag-derived feeds. Cached helpers: `listPublishedArticles`/`listCategoryPage`/`listPicksPage` (articles
+  tag) in `src/lib/articles.ts`; `listArticlesByTag`/`listRelatedArticles`/`listTagsWithCounts` (both
+  tags) in `src/lib/tags.ts`. PATTERN: keep the public exported fn as a thin wrapper that normalizes
+  args then delegates to a module-level `createCachedListing(...impl)` const (the impl takes ONLY
+  positional serializable args — flatten `{offset,limit}` to positionals so they're in the key).
+  Invalidate from Route Handlers via `revalidateArticlesCache()` / `revalidateTagsCache()` (the latter
+  busts BOTH tags). Wired into `DELETE /api/admin/articles/[id]`, `POST /api/admin/articles/[id]/rebuild`,
+  `DELETE /api/admin/tags/[id]`, and the processor's publish step. GOTCHAS: (1) `unstable_cache`
+  serializes results — Date fields come back as ISO STRINGS on a cache hit, so NEVER call `.getTime()`
+  on a returned article's date OUTSIDE the cached fn (do all date sorting inside it, like
+  `listRelatedArticles`; current consumers only use id/title/category/difficulty/readingMinutes via
+  `toListingArticle`, which is date-free). (2) `revalidateTag` throws outside a request scope; the
+  CLI worker/processor publish path is guarded (try/catch) and relies on the `LISTING_REVALIDATE_SECONDS`
+  (300s) soft window instead. (3) The cached fns only read prisma — never read `cookies()`/`headers()`
+  inside an `unstable_cache` callback.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

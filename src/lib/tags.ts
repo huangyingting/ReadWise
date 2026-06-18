@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { htmlToPlainText } from "@/lib/translation";
+import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 
 export type TagView = {
   id: string;
@@ -189,10 +190,11 @@ export async function getTagBySlug(slug: string): Promise<TagView | null> {
  * Returns published articles carrying the given tag slug, newest first.
  * Returns [] when the tag does not exist.
  */
-export async function listArticlesByTag(
-  slug: string,
-  limit = 24,
-): Promise<Article[]> {
+export function listArticlesByTag(slug: string, limit = 24): Promise<Article[]> {
+  return cachedListArticlesByTag(slug, limit);
+}
+
+function listArticlesByTagUncached(slug: string, limit = 24): Promise<Article[]> {
   return prisma.article.findMany({
     where: { status: "published", tags: { some: { tag: { slug } } } },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -200,13 +202,26 @@ export async function listArticlesByTag(
   });
 }
 
+const cachedListArticlesByTag = createCachedListing(
+  listArticlesByTagUncached,
+  ["tags:articles-by-tag"],
+  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+);
+
 /**
  * Returns published articles related to the given article, ranked by how many
  * tags they share with it (most overlap first, then newest). The source article
  * is excluded and results are de-duplicated and limited. Returns [] when the
  * article has no tags or nothing else shares them.
  */
-export async function listRelatedArticles(
+export function listRelatedArticles(
+  articleId: string,
+  limit = 6,
+): Promise<Article[]> {
+  return cachedListRelatedArticles(articleId, limit);
+}
+
+async function listRelatedArticlesUncached(
   articleId: string,
   limit = 6,
 ): Promise<Article[]> {
@@ -254,8 +269,18 @@ export async function listRelatedArticles(
     .slice(0, limit);
 }
 
+const cachedListRelatedArticles = createCachedListing(
+  listRelatedArticlesUncached,
+  ["tags:related-articles"],
+  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+);
+
 /** All tags that have at least one published article, with their counts. */
-export async function listTagsWithCounts(): Promise<TagWithCount[]> {
+export function listTagsWithCounts(): Promise<TagWithCount[]> {
+  return cachedListTagsWithCounts();
+}
+
+async function listTagsWithCountsUncached(): Promise<TagWithCount[]> {
   const tags = await prisma.tag.findMany({
     orderBy: { name: "asc" },
     select: {
@@ -271,3 +296,9 @@ export async function listTagsWithCounts(): Promise<TagWithCount[]> {
     .map((t) => ({ id: t.id, name: t.name, slug: t.slug, articleCount: t._count.articles }))
     .filter((t) => t.articleCount > 0);
 }
+
+const cachedListTagsWithCounts = createCachedListing(
+  listTagsWithCountsUncached,
+  ["tags:with-counts"],
+  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+);

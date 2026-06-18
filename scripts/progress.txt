@@ -30,6 +30,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Background worker (`src/lib/worker.ts` `runWorker`): a poll-loop over the DB queue (`listUnprocessedArticleIds` + idempotent `processArticle`) with bounded retries/exponential `backoffDelay`. Keeps NO checkpoint state — re-polling the queue each loop + cache-first processor = automatic resume on restart. Safe stop via `AbortSignal` + an INTERRUPTIBLE `sleep(ms, signal)` (rejects AbortError so Ctrl-C doesn't wait out the interval). Inject deps via `opts.deps` (list/process/sleep) for DB-free unit tests. Run: `npm run worker -- [--once] [--interval ms] [--batch n] [--max-retries n] [--backoff ms]`.
 
 - Shared API handler (US-028): build EVERY `src/app/api/**` route with `src/lib/api-handler.ts` — `createHandler` (auth required), `createAdminHandler`, or `createPublicHandler` (public). Config `{params?,body?,query?}`: `params`/`body` are `Schema<T>` from `src/lib/validation.ts` (shared `idParams`, `object`/`nonEmptyString`/`number`/`oneOf`/`array`/`optional` — unknown keys DROPPED), `query` is `(URLSearchParams)=>ValidationResult` via `queryString`/`queryInt`. Handler ctx: `{req,session,body,params,query,requestId,log}`. Throw `new ApiError(status,msg)` for client errors; everything else → generic 500 in prod (logged in full). x-request-id is generated or echoed from the inbound header. Gotcha: Next 15 type-checks route handler signatures via `.next/types` — type the wrapper's 2nd (context) param as `unknown` so `SecondArg` resolves to `any` and passes `ParamCheck<RouteContext>` for BOTH static and dynamic routes.
+- Server-side listing cache (US-030): `src/lib/cache.ts` `createCachedListing(fn, keyParts, tags, revalidate?)` wraps a query in `unstable_cache` (function ARGS auto-join the cache key). Tags: `ARTICLES_CACHE_TAG`/`TAGS_CACHE_TAG`. Public exported listing fn = thin arg-normalizer that delegates to a module-level cached const whose impl takes ONLY flat positional serializable args (flatten `{offset,limit}` to positionals). Invalidate from Route Handlers with `revalidateArticlesCache()`/`revalidateTagsCache()`. GOTCHA: `unstable_cache` returns Date fields as ISO STRINGS on a cache hit — do all date `.getTime()` sorting INSIDE the cached fn; consumers must only touch serializable fields (use `toListingArticle`). `revalidateTag` throws outside a request scope, so CLI publish (processor/worker) is guarded + leans on the 300s soft revalidate window.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -924,4 +925,46 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     dispatched `ErrorEvent`, which reliably exercises the real `window.addEventListener("error")` path.
   - `global-error.tsx` must be a client component and render its own <html>/<body> (it replaces the
     root layout). Use it as the last-resort React render-error boundary + reporter.
+---
+
+## 2026-06-18 11:55 UTC - US-030 Caching with tag-based invalidation
+- Added `src/lib/cache.ts`: `createCachedListing()` (wraps `unstable_cache`, args auto-key),
+  tags `ARTICLES_CACHE_TAG`/`TAGS_CACHE_TAG`, `LISTING_REVALIDATE_SECONDS=300` soft window, and
+  `revalidateArticlesCache()`/`revalidateTagsCache()` (latter busts both tags; both guard
+  `revalidateTag` in try/catch so CLI use doesn't throw).
+- Wrapped the expensive listing/recommendation queries in cached layers:
+  `listPublishedArticles`/`listCategoryPage`/`listPicksPage` (articles tag, src/lib/articles.ts)
+  and `listArticlesByTag`/`listRelatedArticles`/`listTagsWithCounts` (articles+tags, src/lib/tags.ts).
+  Each public fn now normalizes args then delegates to a module-level cached impl taking flat
+  positional serializable args.
+- Wired invalidation into the content-mutating Route Handlers: DELETE /api/admin/articles/[id]
+  and POST /api/admin/articles/[id]/rebuild and DELETE /api/admin/tags/[id] call
+  `revalidateTagsCache()`; the processor publish step (draft -> published) calls
+  `revalidateArticlesCache()` (guarded for CLI).
+- Files: src/lib/cache.ts (new), src/lib/articles.ts, src/lib/tags.ts,
+  src/app/api/admin/articles/[id]/route.ts, src/app/api/admin/articles/[id]/rebuild/route.ts,
+  src/app/api/admin/tags/[id]/route.ts, src/lib/processor.ts, AGENTS.md, scripts/prd.json,
+  scripts/progress.txt.
+- Quality: typecheck PASS, lint PASS (0 warnings), production build PASS.
+- Runtime verification (next dev + seeded Admin session, port 3100): GET /api/articles?view=all
+  populated the cache (count 6 incl. CACHE-TEST-A). A DIRECT DB insert of CACHE-TEST-B (no API ->
+  no revalidation) -> next GET still served STALE (count 6, hasB False) proving caching is active.
+  DELETE CACHE-TEST-A via the admin API -> `revalidateTagsCache()` -> next GET RECOMPUTED fresh
+  (hasA False, hasB True). Confirms tag-based invalidation kills staleness after an admin edit.
+  Cleaned up the test articles + admin user/session afterward.
+- **Learnings for future iterations:**
+  - `unstable_cache` serializes the cached result, so Date columns come back as ISO STRINGS on a
+    cache HIT. Any `.getTime()`/date math must happen INSIDE the cached fn (e.g. listRelatedArticles
+    sorts before returning). All current consumers go through `toListingArticle` (date-free), so this
+    is safe — but watch it when adding new consumers that read article dates.
+  - `revalidateTag` only works inside a Next request scope (Route Handler / Server Action). The CLI
+    worker/processor runs outside that, so guard the call (try/catch) and rely on the time-based
+    `revalidate` window for out-of-band publishes.
+  - `unstable_cache` automatically folds the wrapped function's arguments into the cache key, so
+    pass distinguishing values (category, offset, limit, level, topics) as plain positional args
+    rather than stuffing them into `keyParts`.
+  - Verify caching end-to-end by mutating the DB DIRECTLY (bypassing the API) to prove a stale read,
+    then mutating via the API to prove invalidation — a clean before/after without needing AI config.
+  - `next start` got into an unresponsive state mid-test once; `next dev` was reliable for the
+    runtime cache verification.
 ---

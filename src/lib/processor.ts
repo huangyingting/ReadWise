@@ -5,6 +5,7 @@ import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { getOrCreateArticleTags } from "@/lib/tags";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
+import { revalidateArticlesCache } from "@/lib/cache";
 
 /**
  * Placeholder user id used when generating the shared (per-article) vocabulary
@@ -205,6 +206,7 @@ export async function processArticle(
     });
     published = true;
     steps.push({ step: "publish", status: "generated", detail: "draft → published" });
+    revalidateArticlesCache();
   } else if (before.status === "published") {
     steps.push({ step: "publish", status: "skipped", detail: "already published" });
   }
