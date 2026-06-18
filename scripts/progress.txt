@@ -759,3 +759,31 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     When `discoverProviderUrls` returns 0, re-inspect the live homepage hrefs and update articleUrlPattern.
   - dev.db Article already had nullable sourceUrl/status/category etc.; no migration needed for scraping.
 ---
+
+## 2026-06-18 11:25 UTC - US-025 Article processing pipeline
+- Added `src/lib/processor.ts`: `processArticle(id, {tts?, translateLangs?})` orchestrates AI
+  enrichment by calling the existing cache-first `getOrCreate*` helpers in order (difficulty → tags
+  → vocabulary → quiz → optional translations → optional TTS), so idempotency comes for free.
+  Loads a `before` state (one findUnique with `_count` + translations/speech selects) to label each
+  step generated/skipped/fallback/failed, then publishes drafts (status draft→published + publishedAt)
+  only when no step failed. `listUnprocessedArticleIds({includePublished?, limit?})` + `articleNeedsProcessing`.
+- Added CLI `scripts/process.ts` (`npm run process -- ...`) reusing the scraper TS-CLI harness:
+  flags `<id>...`, `--all`, `--include-published`, `--limit N`, `--tts`, `--translate <codes>`, `--help`.
+  Warns (not errors) when AI/Speech unconfigured; validates `--translate` codes via isSupportedLanguage.
+- Files: src/lib/processor.ts (new), scripts/process.ts (new), package.json (+process script), AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live DB, AI configured): seeded a draft article, `npm run process -- <id> --translate es`
+  → difficulty C2 (heuristic), 5 tags, 10 vocab, 5 quiz, Spanish translation all generated, draft→published.
+  Re-ran same cmd → every step reported `skipped` + "already published" (idempotent). `--all` after
+  publishing → "No unprocessed articles found." `--help` renders. Cleaned up the test article.
+- **Learnings for future iterations:**
+  - The whole pipeline is idempotent simply because every enrichment helper is cache-first; the processor
+    adds no caching of its own — it just sequences them and flips draft→published at the end.
+  - `getOrCreateArticleVocabulary(articleId, userId)` requires a userId only for per-user saved flags;
+    from a back-office/no-user context pass the throwaway `PROCESSOR_USER_ID` — the cached extraction is
+    user-agnostic. The other helpers (difficulty/tags/quiz/translation/speech) take only an articleId.
+  - Difficulty NEVER returns a fallback (heuristic always succeeds), so it's the one step that publishes
+    drafts even with AI fully unconfigured; vocab/quiz/tags degrade to `fallback` (empty, uncached).
+  - Reuse `processArticle` + `listUnprocessedArticleIds` for US-026 (worker loop with retry/backoff) and
+    US-027 (seeder = scrape provider → processArticle with tts).
+---

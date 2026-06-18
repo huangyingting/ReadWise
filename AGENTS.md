@@ -254,6 +254,22 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `/article/YYYY/MM/DD/slug/`); fix `articleUrlPattern` when discovery finds 0 links. CLI flags:
   `--provider <key> [--limit N]`, `--all`, `<url>...`, `--file <path> --url <u>` (offline), `--dry-run`,
   `--list-providers`.
+- Article processing pipeline (US-025): `npm run process -- ...` runs `scripts/process.ts` (same
+  TS-CLI harness as the scraper). `src/lib/processor.ts` orchestrates AI enrichment by calling the
+  existing cache-first `getOrCreate*` helpers (difficulty → tags → vocabulary → quiz → optional
+  translations → optional TTS) so the WHOLE pipeline is idempotent for free (re-running = cheap reads,
+  steps reported `skipped`). `processArticle(id, {tts?, translateLangs?})` loads a `before` state via
+  one `findUnique` with `_count` (tags/vocabulary/quizQuestions) + `translations`/`speech` selects to
+  label each step `generated`/`skipped`/`fallback`/`failed`, then PUBLISHES drafts
+  (`status:"draft"→"published"` + `publishedAt`) only when no step failed. GOTCHA:
+  `getOrCreateArticleVocabulary` needs a userId (only for per-user saved flags) — pass the throwaway
+  `PROCESSOR_USER_ID` constant; the AI extraction it caches is user-agnostic. `listUnprocessedArticleIds
+  ({includePublished?, limit?})` selects work (default: drafts only; `includePublished` also matches
+  published articles missing difficulty/tags/vocab/quiz via relation `none:{}` filters). Degrades
+  gracefully when AI/Speech unconfigured (difficulty still works via heuristic; AI steps → `fallback`,
+  drafts still publish). Reuse `processArticle`/`listUnprocessedArticleIds` for the US-026 worker +
+  US-027 seeder. CLI flags: `<id>...`, `--all`, `--include-published`, `--limit N`, `--tts`,
+  `--translate <es,fr,...>` (validated against `isSupportedLanguage`).
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

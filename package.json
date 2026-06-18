@@ -9,6 +9,7 @@
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
     "scrape": "node --import ./scripts/register-ts.mjs scripts/scrape.ts",
+    "process": "node --import ./scripts/register-ts.mjs scripts/process.ts",
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "postinstall": "prisma generate"

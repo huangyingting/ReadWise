@@ -378,8 +378,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 25,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "processor.ts orchestrates cache-first getOrCreate* helpers (difficulty/tags/vocab/quiz/+opt translation/TTS) => idempotent; publishes drafts when no step fails. CLI scripts/process.ts (--all/--include-published/--limit/--tts/--translate). Verified: draft enriched (C2, 5 tags, 10 vocab, 5 quiz, ES translation) + published; re-run skips all steps."
     },
     {
       "id": "US-026",
