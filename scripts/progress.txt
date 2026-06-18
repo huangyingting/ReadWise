@@ -234,3 +234,37 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Use fetch `keepalive:true` for the unmount/navigation-away final flush (sendBeacon also works
     but keepalive lets us keep JSON + Content-Type).
 ---
+
+## 2026-06-18 09:30 UTC - US-008 Batch progress fetch for listings
+- Added `POST /api/progress/batch` (requireSessionApi): body `{ids:string[]}` -> `{progress:{[id]:{percent,completed}}}`,
+  dedups ids, caps at 200, backed by new `getProgressSummaries(userId,ids)` in src/lib/progress.ts
+  (serializable wrapper over getProgressMap). 401 unauth, 400 on non-array ids.
+- Added `src/lib/visited.ts` (client, sessionStorage key `readwise:visited-articles`):
+  markArticleVisited / getVisitedArticleIds / clearVisitedArticleIds (SSR-guarded, JSON-safe).
+- `ReaderProgress` now calls markArticleVisited(articleId) on mount so listings know what to refresh.
+- New `src/components/ListingProgressSync.tsx` (client, renders null): on mount intersects visited
+  ids with the page's articleIds, batch-fetches ONLY those in a single request, merges results into
+  the existing server-rendered cards' DOM, then clears them from the visited set. Best-effort/cancelable.
+- `ArticleCard` gained DOM hooks for merging: `data-article-id` on the Link + classes
+  `js-progress-bar` / `js-progress-label` / `js-progress-done` (completed pill always rendered,
+  toggled via display:none) so the sync can update width/aria/label/completed without a re-render.
+- Wired `<ListingProgressSync articleIds=.../>` into the dashboard listing.
+- Files: src/app/api/progress/batch/route.ts (new), src/lib/visited.ts (new),
+  src/components/ListingProgressSync.tsx (new), src/lib/progress.ts, src/components/ArticleCard.tsx,
+  src/components/ReaderProgress.tsx, src/app/dashboard/page.tsx, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded Reader session): batch unauth->401; invalid ids->400;
+  after recording progress on 2 of 3 articles, batch returns only those 2 (unread omitted, treated
+  as 0 by listing). Playwright (chromium --no-sandbox, run from project root): seeded sessionStorage
+  visited=[HONEY], mocked the batch response to 77% -> dashboard fired exactly ONE /api/progress/batch
+  request whose body.ids contained ONLY the visited id, the HONEY card DOM merged to "77% read"
+  (proving the client merge path, distinct from SSR), and a non-visited card stayed "Not started".
+- **Learnings for future iterations:**
+  - Pattern for client-refreshed listings: SSR with getProgressMap is the first-paint source of truth;
+    ListingProgressSync only refreshes the cards the user actually visited (sessionStorage), so it is
+    one batch request (no N+1) and never re-fetches the whole listing.
+  - ArticleCard now always renders the completed pill (toggled via inline display) so client merge can
+    flip completion without a React re-render; query cards by `data-article-id` (use CSS.escape).
+  - When returning serializable progress to the client, use `getProgressSummaries` (plain objects),
+    not getProgressMap (returns full Prisma rows / a Map).
+---
