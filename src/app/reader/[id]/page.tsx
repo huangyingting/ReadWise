@@ -2,7 +2,9 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor } from "@/lib/articles";
+import { getProgress } from "@/lib/progress";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
+import ReaderProgress from "@/components/ReaderProgress";
 
 export default async function ReaderPage({
   params,
@@ -10,13 +12,14 @@ export default async function ReaderPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireSession(`/reader/${id}`);
+  const session = await requireSession(`/reader/${id}`);
 
   const article = await getArticleById(id);
   if (!article) {
     notFound();
   }
 
+  const progress = await getProgress(session.user.id, article.id);
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
 
@@ -24,6 +27,10 @@ export default async function ReaderPage({
 
   return (
     <main className="container">
+      <ReaderProgress
+        articleId={article.id}
+        initialPercent={progress?.percent ?? 0}
+      />
       <p style={{ marginBottom: "1rem" }}>
         <Link href="/dashboard">← Back to dashboard</Link>
       </p>
@@ -38,6 +45,9 @@ export default async function ReaderPage({
             ) : null}
             {article.difficulty ? (
               <span className="pill">Level {article.difficulty}</span>
+            ) : null}
+            {progress?.completed ? (
+              <span className="pill pill-done">✓ Completed</span>
             ) : null}
             {article.sourceUrl ? (
               <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">

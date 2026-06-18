@@ -161,3 +161,55 @@ a:hover {
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
 }
+
+.reading-progress {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: var(--border);
+  z-index: 50;
+}
+
+.reading-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s ease;
+}
+
+.reading-progress--inline {
+  position: static;
+  border-radius: 999px;
+  overflow: hidden;
+}
+
+.reading-progress--inline .reading-progress-bar {
+  border-radius: 999px;
+}
+
+.pill-done {
+  color: #7ee787;
+  border-color: #2ea043;
+}
+
+.article-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.article-card {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 1.1rem;
+  color: var(--text);
+}
+
+.article-card:hover {
+  border-color: var(--accent);
+  text-decoration: none;
+}

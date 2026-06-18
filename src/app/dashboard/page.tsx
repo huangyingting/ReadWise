@@ -1,11 +1,20 @@
 import Link from "next/link";
 import Image from "next/image";
 import { requireOnboardedSession } from "@/lib/session";
+import { listPublishedArticles } from "@/lib/articles";
+import { getProgressMap } from "@/lib/progress";
+import ArticleCard from "@/components/ArticleCard";
 import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
   const session = await requireOnboardedSession("/dashboard");
   const user = session.user;
+
+  const articles = await listPublishedArticles();
+  const progressMap = await getProgressMap(
+    user.id,
+    articles.map((a) => a.id),
+  );
 
   return (
     <main className="container">
@@ -37,6 +46,34 @@ export default async function DashboardPage() {
           </Link>
         </p>
       ) : null}
+
+      <section style={{ marginTop: "2rem" }}>
+        <h2>Continue reading</h2>
+        {articles.length === 0 ? (
+          <p className="muted">No articles available yet.</p>
+        ) : (
+          <div className="article-grid">
+            {articles.map((article) => {
+              const progress = progressMap.get(article.id);
+              return (
+                <ArticleCard
+                  key={article.id}
+                  article={article}
+                  progress={
+                    progress
+                      ? {
+                          percent: progress.percent,
+                          completed: progress.completed,
+                        }
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        )}
+      </section>
+
       <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
         <Link href="/">← Back home</Link>
         <Link href="/settings">Settings</Link>

@@ -7,6 +7,14 @@ export function getArticleById(id: string): Promise<Article | null> {
   return prisma.article.findUnique({ where: { id } });
 }
 
+export function listPublishedArticles(limit = 12): Promise<Article[]> {
+  return prisma.article.findMany({
+    where: { status: "published" },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    take: limit,
+  });
+}
+
 export function countWords(text: string): number {
   const stripped = text.replace(/<[^>]*>/g, " ");
   const matches = stripped.trim().match(/\S+/g);

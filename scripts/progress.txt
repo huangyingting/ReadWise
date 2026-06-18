@@ -18,6 +18,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Migrations committed under `prisma/migrations/`; `dev.db` is gitignored.
 - Browser verify with Playwright run from project root; chromium `--no-sandbox` at /home/azadmin/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome (the chromium-1208/chrome-linux path in early notes is stale; $HOME=/home/azadmin).
 - Always render stored article HTML through `sanitizeArticleHtml` (src/lib/sanitize.ts) before `dangerouslySetInnerHTML`; never inject raw `content`. Article reader is `/reader/[id]`; data helpers in src/lib/articles.ts.
+- Reading progress: `ReadingProgress` (userId+articleId @@unique). Persist via `saveProgress` in src/lib/progress.ts — FORWARD-ONLY, sticky `completed` at COMPLETION_THRESHOLD=95. Use `getProgressMap(userId, ids)` for listings and the server `ArticleCard` component to render bars. Scroll tracker is the client `ReaderProgress` (throttled <=1/sec, no auto-scroll).
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -189,4 +190,47 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     (pre US-014) still render. readingMinutesFor falls back to wordCount, then body @200wpm.
   - Playwright chromium is at chromium-1228/chrome-linux64/chrome under /home/azadmin (NOT the
     chromium-1208/chrome-linux path in older notes); launching it worked with --no-sandbox.
+---
+
+## 2026-06-18 09:15 UTC - US-007 Reading progress tracking
+- Added `ReadingProgress` model (userId+articleId @@unique, percent, completed, completedAt)
+  + migration `add_reading_progress`; relations on User and Article.
+- `src/lib/progress.ts`: getProgress, getProgressMap (batch for listings), saveProgress
+  (FORWARD-ONLY — never lowers percent, sticky completion; marks completed at
+  COMPLETION_THRESHOLD=95), clampPercent.
+- `POST /api/reader/[id]/progress` ({percent}) — requireSessionApi (401), 404 on bad article,
+  400 on non-numeric percent; persists via saveProgress, returns {percent, completed}.
+- Client `src/components/ReaderProgress.tsx`: fixed top progress bar; tracks window scroll,
+  throttles writes to <=1/sec (latest-value flush after window), forward-only, final flush on
+  unmount via fetch keepalive. Page starts at top (no auto-scroll); measures once on mount.
+- Reader page now loads getProgress and renders ReaderProgress (restore) + a "✓ Completed" pill.
+- Listings: `listPublishedArticles()` in articles.ts + new server `ArticleCard.tsx` (renders
+  saved progress bar / "% read" / "Completed"). Dashboard now has a "Continue reading" grid
+  using getProgressMap.
+- CSS: .reading-progress(+--inline), .reading-progress-bar, .pill-done, .article-grid,
+  .article-card in globals.css.
+- Files: prisma/schema.prisma (+migration), src/lib/progress.ts (new), src/lib/articles.ts,
+  src/app/api/reader/[id]/progress/route.ts (new), src/components/ReaderProgress.tsx (new),
+  src/components/ArticleCard.tsx (new), src/app/reader/[id]/page.tsx, src/app/dashboard/page.tsx,
+  src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded onboarded Reader session + long seed article):
+  - Reader restores seeded 42% bar (width:42%); dashboard card shows "42% read".
+  - POST 60% -> {60,false}; POST 10% -> stays {60,false} (forward-only); POST 100% ->
+    {100,true} (completed). Unauth POST -> 401; bad article -> 404.
+  - Playwright (chromium-1228 --no-sandbox, project root, cookie-seeded): reader opens at
+    scrollY=0 (no auto-scroll) bar 0%; scrolling to bottom -> bar 100%; DB row persisted
+    percent=100 completed=true completedAt set. Screenshot confirms top progress bar.
+- **Learnings for future iterations:**
+  - Forward-only persistence belongs in saveProgress (server) AND the client (compare against
+    percentRef) so out-of-order/short-article writes never regress stored progress.
+  - Scroll percent = scrollY / (scrollHeight - innerHeight); when that denominator <= 0 (content
+    shorter than viewport) treat as 100% so already-visible short articles auto-complete.
+  - Throttle pattern: send immediately if >=1s since last send, else stash latest value and
+    setTimeout to flush the trailing value once the window elapses (debounced trailing edge).
+  - getProgressMap(userId, ids) is the reusable batch fetch for any article listing (US-008 can
+    build the dedicated batch endpoint on top of it); ArticleCard is a server component that just
+    takes {percent, completed}.
+  - Use fetch `keepalive:true` for the unmount/navigation-away final flush (sendBeacon also works
+    but keepalive lets us keep JSON + Content-Type).
 ---

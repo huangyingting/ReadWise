@@ -66,6 +66,16 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   blocks WITH their content via `exclusiveFilter` on class/id keywords + `nonTextTags` for
   script/style/iframe; pass 2 enforces a strict tag/attr allowlist and forces
   `rel=noopener noreferrer nofollow target=_blank` on links. Never inject raw `content`.
+- Reading progress: 1-many `ReadingProgress` model (userId+articleId `@@unique`, percent Int,
+  completed Bool, completedAt). Helpers in `src/lib/progress.ts`: `getProgress`,
+  `getProgressMap(userId, ids)` (batch for listings), `saveProgress(userId, articleId, percent)`
+  which is FORWARD-ONLY (never lowers percent, completion is sticky) and marks `completed` when
+  percent >= `COMPLETION_THRESHOLD` (95). `POST /api/reader/[id]/progress` body `{percent}`
+  persists it (401 unauth / 404 bad article). The client `src/components/ReaderProgress.tsx`
+  tracks scroll, throttles writes to <=1/sec, forward-only, flushes final on unmount; the page
+  does NOT auto-scroll (starts at top). Article listings use `src/components/ArticleCard.tsx`
+  (server component) which renders the saved progress bar; build listings with
+  `listPublishedArticles()` + `getProgressMap`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
