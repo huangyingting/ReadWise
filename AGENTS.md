@@ -37,6 +37,15 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `@/lib/api-auth` (returns 401 if unauthed, 403 if non-admin). Hide admin-only UI
   by checking `session.user.role === "Admin"`.
 - Migrations are committed under `prisma/migrations/`. `dev.db` is gitignored.
+- Shared news categories live in `src/lib/categories.ts` (`CATEGORIES`, `CATEGORY_SLUGS`,
+  `isValidCategorySlug`). Reuse this set everywhere (onboarding topics, category browsing,
+  picks) instead of redefining the list.
+- User onboarding: 1-1 `Profile` model (ageRange?, gender?, englishLevel, topics JSON string,
+  completedAt). SQLite has no scalar lists, so `topics` is a JSON-stringified `string[]`
+  (parse via `parseTopics` in `src/lib/profile.ts`). `completedAt != null` means onboarded.
+  Gate pages that need a finished profile with `requireOnboardedSession(callbackUrl)` from
+  `@/lib/session` (redirects to `/onboarding`). The onboarding page itself uses plain
+  `requireSession` and redirects completed users to `/dashboard`.
 - Auth UI actions (`signIn`/`signOut` from `next-auth/react`) must run in a `"use client"`
   component. Reusable client auth controls live in `src/components/` (e.g. `SignOutButton.tsx`).
   With the DB session strategy, `signOut` deletes the `Session` row server-side (not just the

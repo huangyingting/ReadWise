@@ -1,10 +1,10 @@
 import Link from "next/link";
 import Image from "next/image";
-import { requireSession } from "@/lib/session";
+import { requireOnboardedSession } from "@/lib/session";
 import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
-  const session = await requireSession("/dashboard");
+  const session = await requireOnboardedSession("/dashboard");
   const user = session.user;
 
   return (

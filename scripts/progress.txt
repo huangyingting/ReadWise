@@ -84,3 +84,32 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - HTTP sign-out test: GET /api/auth/csrf (save cookie jar) then POST form-encoded csrfToken +
     callbackUrl + json=true to /api/auth/signout with the session cookie.
 ---
+
+## 2026-06-18 09:15 UTC - US-004 First-run onboarding flow
+- Added 1-1 `Profile` model (ageRange?, gender?, englishLevel, topics JSON string, completedAt)
+  + migration `add_profile`; `profile Profile?` relation on User.
+- New shared `src/lib/categories.ts` (CATEGORIES/CATEGORY_SLUGS/isValidCategorySlug) — reusable
+  for US-017/US-018. `src/lib/profile.ts` (getProfile/isOnboarded/isUserOnboarded/parseTopics +
+  AGE_RANGES/GENDERS/ENGLISH_LEVELS constants).
+- `/onboarding` server page + `OnboardingForm.tsx` client component: English level (required,
+  A1-C2), age range (optional), gender (optional), topic multi-select from category set.
+- POST `/api/onboarding`: requireSessionApi, validates inputs, filters topics to valid slugs,
+  upserts Profile with completedAt (marks complete).
+- Gating: added `requireOnboardedSession()` to src/lib/session.ts; dashboard now uses it so
+  un-onboarded users -> /onboarding. Onboarding page redirects already-completed users -> /dashboard.
+- Files: prisma/schema.prisma (+migration), src/lib/categories.ts (new), src/lib/profile.ts (new),
+  src/lib/session.ts, src/app/onboarding/{page,OnboardingForm}.tsx (new),
+  src/app/api/onboarding/route.ts (new), src/app/dashboard/page.tsx, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server, seeded Reader session): new user /dashboard -> 307 /onboarding;
+  /onboarding renders form; POST stores profile (bogus topic filtered out); completed user
+  /onboarding -> 307 /dashboard and /dashboard -> 200. Playwright (chromium --no-sandbox, run
+  from project root) drove the full UI: selected B2, toggled Tech/World, Finish setup -> /dashboard.
+- **Learnings for future iterations:**
+  - SQLite/Prisma has NO scalar list type — store arrays (topics) as JSON strings; use parseTopics.
+  - Reuse `src/lib/categories.ts` for all category/topic UIs (don't redefine the 9-category set).
+  - To gate a page on a finished profile use `requireOnboardedSession`; never call it from the
+    onboarding page itself (infinite redirect) — that page uses requireSession + manual redirect.
+  - Playwright DOES work here when the script runs from the project root (so @playwright/test
+    resolves) with chromium launched `--no-sandbox`; direct binary-path probing is still blocked.
+---
