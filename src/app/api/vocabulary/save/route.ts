@@ -1,38 +1,21 @@
 import { NextResponse } from "next/server";
-import { requireSessionApi } from "@/lib/api-auth";
+import { createHandler } from "@/lib/api-handler";
+import { object, nonEmptyString, optional, string } from "@/lib/validation";
 import { saveWord } from "@/lib/vocabulary";
 
-type SavePayload = {
-  word?: unknown;
-  explanation?: unknown;
-  example?: unknown;
-  articleId?: unknown;
-};
+const bodySchema = object({
+  word: nonEmptyString(200),
+  explanation: optional(string({ trim: false, max: 5000 })),
+  example: optional(string({ trim: false, max: 5000 })),
+  articleId: optional(nonEmptyString(200)),
+});
 
-export async function POST(req: Request) {
-  const { session, error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  let body: SavePayload;
-  try {
-    body = (await req.json()) as SavePayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const word = typeof body.word === "string" ? body.word.trim() : "";
-  if (!word) {
-    return NextResponse.json({ error: "Word is required" }, { status: 400 });
-  }
-
+export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
   await saveWord(session.user.id, {
-    word,
-    explanation: typeof body.explanation === "string" ? body.explanation : null,
-    example: typeof body.example === "string" ? body.example : null,
-    articleId: typeof body.articleId === "string" ? body.articleId : null,
+    word: body.word,
+    explanation: body.explanation ?? null,
+    example: body.example ?? null,
+    articleId: body.articleId ?? null,
   });
-
-  return NextResponse.json({ word, saved: true });
-}
+  return NextResponse.json({ word: body.word, saved: true });
+});

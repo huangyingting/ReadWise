@@ -37,6 +37,21 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `@/lib/api-auth` (returns 401 if unauthed, 403 if non-admin). Hide admin-only UI
   by checking `session.user.role === "Admin"`.
 - Migrations are committed under `prisma/migrations/`. `dev.db` is gitignored.
+- API route handlers (US-028): build EVERY route under `src/app/api/**` with the shared wrapper
+  in `src/lib/api-handler.ts` — `createHandler` (auth required, `ctx.session` non-null),
+  `createAdminHandler` (admin only), or `createPublicHandler` (explicitly unauthenticated). The
+  wrapper centralizes auth (via `@/lib/api-auth`), a per-request `x-request-id` (honors an inbound
+  one for tracing) + JSON request/response logging, schema validation, and error formatting. Pass a
+  config `{ params?, body?, query? }`: `params`/`body` are `Schema<T>` from `src/lib/validation.ts`
+  (use the shared `idParams` for `[id]` routes; `object`/`string`/`nonEmptyString`/`number`/`oneOf`/
+  `array`/`optional` builders; unknown object keys are DROPPED so clients can't smuggle fields),
+  `query` is `(URLSearchParams) => ValidationResult<T>` (use `queryString`/`queryInt` coercers).
+  The handler receives `{ req, session, body, params, query, requestId, log }`. Throw
+  `new ApiError(status, message)` for controlled client errors (404/400/409 etc.) — its message is
+  returned; ANY other thrown error is logged in full and returned as a GENERIC 500 in production
+  (message only leaked when `NODE_ENV !== "production"`). Do NOT hand-roll
+  `requireSessionApi`/`req.json()`/try-catch in routes anymore. NextAuth's `auth/[...nextauth]` is
+  the only exception (it owns its own handler).
 - Shared news categories live in `src/lib/categories.ts` (`CATEGORIES`, `CATEGORY_SLUGS`,
   `isValidCategorySlug`). Reuse this set everywhere (onboarding topics, category browsing,
   picks) instead of redefining the list.

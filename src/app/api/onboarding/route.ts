@@ -1,46 +1,28 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSessionApi } from "@/lib/api-auth";
-import { parseProfileInput } from "@/lib/profile";
+import { createHandler } from "@/lib/api-handler";
+import type { Schema } from "@/lib/validation";
+import { parseProfileInput, type ProfileInput } from "@/lib/profile";
 
-type OnboardingPayload = {
-  ageRange?: unknown;
-  gender?: unknown;
-  englishLevel?: unknown;
-  topics?: unknown;
+const profileSchema: Schema<ProfileInput> = (value) => {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return { ok: false, error: "Request body must be an object" };
+  }
+  return parseProfileInput(value as Record<string, unknown>);
 };
 
-export async function POST(req: Request) {
-  const { session, error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  let body: OnboardingPayload;
-  try {
-    body = (await req.json()) as OnboardingPayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const parsed = parseProfileInput(body);
-  if (!parsed.ok) {
-    return NextResponse.json({ error: parsed.error }, { status: 400 });
-  }
-
+export const POST = createHandler({ body: profileSchema }, async ({ body, session }) => {
   const data = {
-    ageRange: parsed.value.ageRange,
-    gender: parsed.value.gender,
-    englishLevel: parsed.value.englishLevel,
-    topics: JSON.stringify(parsed.value.topics),
+    ageRange: body.ageRange,
+    gender: body.gender,
+    englishLevel: body.englishLevel,
+    topics: JSON.stringify(body.topics),
     completedAt: new Date(),
   };
-
   await prisma.profile.upsert({
     where: { userId: session.user.id },
     create: { userId: session.user.id, ...data },
     update: data,
   });
-
   return NextResponse.json({ ok: true });
-}
+});

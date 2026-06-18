@@ -1,68 +1,35 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/api-auth";
+import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/admin-members";
 import type { Role } from "@prisma/client";
 
-function isRole(value: unknown): value is Role {
-  return value === "Admin" || value === "Reader";
-}
+const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await requireAdminApi();
-  if (auth.error) {
-    return auth.error;
-  }
+export const PATCH = createAdminHandler(
+  { params: idParams, body: roleBody },
+  async ({ params, body, session }) => {
+    if (params.id === session.user.id && body.role !== "Admin") {
+      throw new ApiError(409, "You cannot remove your own admin role");
+    }
+    const result = await updateMemberRole(params.id, body.role);
+    if (!result.ok) {
+      throw new ApiError(result.status, result.error);
+    }
+    return NextResponse.json({ ok: true, role: result.role });
+  },
+);
 
-  const { id } = await params;
-
-  let body: unknown;
-  try {
-    body = await req.json();
-  } catch {
-    body = null;
-  }
-  const role = (body as { role?: unknown })?.role;
-  if (!isRole(role)) {
-    return NextResponse.json({ error: "Invalid role" }, { status: 400 });
-  }
-
-  if (id === auth.session.user.id && role !== "Admin") {
-    return NextResponse.json(
-      { error: "You cannot remove your own admin role" },
-      { status: 409 },
-    );
-  }
-
-  const result = await updateMemberRole(id, role);
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
-  }
-  return NextResponse.json({ ok: true, role: result.role });
-}
-
-export async function DELETE(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await requireAdminApi();
-  if (auth.error) {
-    return auth.error;
-  }
-
-  const { id } = await params;
-  if (id === auth.session.user.id) {
-    return NextResponse.json(
-      { error: "You cannot remove your own account" },
-      { status: 409 },
-    );
-  }
-
-  const result = await deleteMember(id);
-  if (!result.ok) {
-    return NextResponse.json({ error: result.error }, { status: result.status });
-  }
-  return NextResponse.json({ ok: true });
-}
+export const DELETE = createAdminHandler(
+  { params: idParams },
+  async ({ params, session }) => {
+    if (params.id === session.user.id) {
+      throw new ApiError(409, "You cannot remove your own account");
+    }
+    const result = await deleteMember(params.id);
+    if (!result.ok) {
+      throw new ApiError(result.status, result.error);
+    }
+    return NextResponse.json({ ok: true });
+  },
+);

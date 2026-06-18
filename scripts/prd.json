@@ -420,8 +420,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 28,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Shared API handler wrapper: src/lib/api-handler.ts (createHandler/createAdminHandler/createPublicHandler + ApiError) + src/lib/validation.ts schema toolkit. Centralizes auth, x-request-id logging, schema validation (untrusted ids/body/query), and generic-in-prod error formatting. Refactored all 20 non-NextAuth routes. Verified live: 401/403 auth, 400 schema, 404 bad id, request-id header + inbound passthrough."
     },
     {
       "id": "US-029",

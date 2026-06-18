@@ -1,47 +1,25 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireSessionApi } from "@/lib/api-auth";
+import { createHandler, ApiError } from "@/lib/api-handler";
+import { idParams, object, number } from "@/lib/validation";
 import { saveProgress } from "@/lib/progress";
 
-type ProgressPayload = {
-  percent?: unknown;
-};
+const bodySchema = object({ percent: number() });
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { session, error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  const { id } = await params;
-
-  let body: ProgressPayload;
-  try {
-    body = (await req.json()) as ProgressPayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const percent = Number(body.percent);
-  if (!Number.isFinite(percent)) {
-    return NextResponse.json({ error: "Invalid percent" }, { status: 400 });
-  }
-
-  const article = await prisma.article.findUnique({
-    where: { id },
-    select: { id: true },
-  });
-  if (!article) {
-    return NextResponse.json({ error: "Article not found" }, { status: 404 });
-  }
-
-  const progress = await saveProgress(session.user.id, article.id, percent);
-
-  return NextResponse.json({
-    percent: progress.percent,
-    completed: progress.completed,
-  });
-}
+export const POST = createHandler(
+  { params: idParams, body: bodySchema },
+  async ({ params, body, session }) => {
+    const article = await prisma.article.findUnique({
+      where: { id: params.id },
+      select: { id: true },
+    });
+    if (!article) {
+      throw new ApiError(404, "Article not found");
+    }
+    const progress = await saveProgress(session.user.id, article.id, body.percent);
+    return NextResponse.json({
+      percent: progress.percent,
+      completed: progress.completed,
+    });
+  },
+);

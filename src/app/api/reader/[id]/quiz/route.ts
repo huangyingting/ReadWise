@@ -1,22 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireSessionApi } from "@/lib/api-auth";
+import { createHandler, ApiError } from "@/lib/api-handler";
+import { idParams } from "@/lib/validation";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  const { id } = await params;
-
-  const result = await getOrCreateArticleQuiz(id);
+export const POST = createHandler({ params: idParams }, async ({ params }) => {
+  const result = await getOrCreateArticleQuiz(params.id);
   if (!result) {
-    return NextResponse.json({ error: "Article not found" }, { status: 404 });
+    throw new ApiError(404, "Article not found");
   }
-
   return NextResponse.json(result);
-}
+});

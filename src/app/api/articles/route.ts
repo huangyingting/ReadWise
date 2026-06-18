@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { requireSessionApi } from "@/lib/api-auth";
+import { createHandler } from "@/lib/api-handler";
+import { queryString, queryInt } from "@/lib/validation";
 import {
   BROWSE_PAGE_SIZE,
   listCategoryPage,
@@ -13,6 +14,27 @@ import { isDifficultyLevel } from "@/lib/difficulty";
 
 const MAX_LIMIT = 24;
 
+type ArticlesQuery = {
+  view: string;
+  category: string;
+  offset: number;
+  limit: number;
+};
+
+function parseQuery(params: URLSearchParams) {
+  const value: ArticlesQuery = {
+    view: queryString(params, "view"),
+    category: queryString(params, "category"),
+    offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
+    limit: queryInt(params, "limit", {
+      fallback: BROWSE_PAGE_SIZE,
+      min: 1,
+      max: MAX_LIMIT,
+    }),
+  };
+  return { ok: true as const, value };
+}
+
 /**
  * Paginated listing feed for the browse homepage. Query params:
  *   - `view`     : "picks" for the personalized view (overrides `category`).
@@ -21,18 +43,8 @@ const MAX_LIMIT = 24;
  *   - `limit`    : page size (default {@link BROWSE_PAGE_SIZE}).
  * Returns `{ articles, progress, hasMore, offset }`.
  */
-export async function GET(req: Request) {
-  const { session, error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  const url = new URL(req.url);
-  const view = url.searchParams.get("view");
-  const categoryParam = url.searchParams.get("category");
-  const offset = Math.max(0, Number.parseInt(url.searchParams.get("offset") ?? "0", 10) || 0);
-  const limitRaw = Number.parseInt(url.searchParams.get("limit") ?? "", 10);
-  const limit = Math.min(MAX_LIMIT, Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : BROWSE_PAGE_SIZE);
+export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
+  const { view, category: categoryParam, offset, limit } = query;
 
   let page;
   if (view === "picks") {
@@ -59,4 +71,4 @@ export async function GET(req: Request) {
     hasMore: page.hasMore,
     offset: offset + page.articles.length,
   });
-}
+});

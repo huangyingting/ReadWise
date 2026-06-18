@@ -1,13 +1,8 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/api-auth";
+import { createAdminHandler } from "@/lib/api-handler";
 import { getAdminOverview } from "@/lib/admin";
 
-export async function GET() {
-  const auth = await requireAdminApi();
-  if (auth.error) {
-    return auth.error;
-  }
-
+export const GET = createAdminHandler({}, async () => {
   const overview = await getAdminOverview();
   return NextResponse.json(overview);
-}
+});

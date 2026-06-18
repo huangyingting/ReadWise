@@ -1,20 +1,12 @@
 import { NextResponse } from "next/server";
-import { requireAdminApi } from "@/lib/api-auth";
+import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { idParams } from "@/lib/validation";
 import { rebuildArticleAi } from "@/lib/admin-articles";
 
-export async function POST(
-  _req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const auth = await requireAdminApi();
-  if (auth.error) {
-    return auth.error;
-  }
-
-  const { id } = await params;
-  const result = await rebuildArticleAi(id);
+export const POST = createAdminHandler({ params: idParams }, async ({ params }) => {
+  const result = await rebuildArticleAi(params.id);
   if (!result) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 });
+    throw new ApiError(404, "Not found");
   }
   return NextResponse.json({ ok: true, ...result });
-}
+});

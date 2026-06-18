@@ -29,6 +29,8 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Order a query by a relation's row count at the DB level with `orderBy:{ <relation>:{ _count: "desc" } }` (used to rank tags by usage in `src/lib/admin-tags.ts`) instead of fetch-all-then-sort. Deleting a `Tag` cascades its `ArticleTag` rows (articles lose the tag, content untouched). New admin sections reuse `.admin-search`/`.admin-table`/`.admin-pagination` + the inline-`.admin-confirm` actions component pattern (`AdminTagActions`/`AdminMemberActions`).
 - Background worker (`src/lib/worker.ts` `runWorker`): a poll-loop over the DB queue (`listUnprocessedArticleIds` + idempotent `processArticle`) with bounded retries/exponential `backoffDelay`. Keeps NO checkpoint state — re-polling the queue each loop + cache-first processor = automatic resume on restart. Safe stop via `AbortSignal` + an INTERRUPTIBLE `sleep(ms, signal)` (rejects AbortError so Ctrl-C doesn't wait out the interval). Inject deps via `opts.deps` (list/process/sleep) for DB-free unit tests. Run: `npm run worker -- [--once] [--interval ms] [--batch n] [--max-retries n] [--backoff ms]`.
 
+- Shared API handler (US-028): build EVERY `src/app/api/**` route with `src/lib/api-handler.ts` — `createHandler` (auth required), `createAdminHandler`, or `createPublicHandler` (public). Config `{params?,body?,query?}`: `params`/`body` are `Schema<T>` from `src/lib/validation.ts` (shared `idParams`, `object`/`nonEmptyString`/`number`/`oneOf`/`array`/`optional` — unknown keys DROPPED), `query` is `(URLSearchParams)=>ValidationResult` via `queryString`/`queryInt`. Handler ctx: `{req,session,body,params,query,requestId,log}`. Throw `new ApiError(status,msg)` for client errors; everything else → generic 500 in prod (logged in full). x-request-id is generated or echoed from the inbound header. Gotcha: Next 15 type-checks route handler signatures via `.next/types` — type the wrapper's 2nd (context) param as `unknown` so `SecondArg` resolves to `any` and passes `ParamCheck<RouteContext>` for BOTH static and dynamic routes.
+
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
 - Implemented OAuth sign-in with Google + Azure AD via NextAuth v4 + Prisma adapter.
@@ -846,4 +848,35 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     (US-026) / seeder (US-027). New orchestration scripts should reuse runSeed/processArticle, not re-impl.
   - When a scrape outcome is a duplicate-skip, you must look the id back up by sourceUrl to enrich it.
   - Follow the worker's injectable-`opts.deps` pattern for any new orchestration lib so it's unit-testable.
+---
+
+## 2026-06-18 11:40 UTC - US-028 Consistent API handler wrapper
+- Added `src/lib/validation.ts`: dependency-free schema toolkit (object/string/nonEmptyString/
+  number/boolean/oneOf/array/optional + `idParams` + `queryString`/`queryInt` coercers). Each
+  Schema maps unknown->{ok,value}|{ok:false,error}; object() DROPS unknown keys.
+- Added `src/lib/api-handler.ts`: `createHandler` (auth required), `createAdminHandler` (admin),
+  `createPublicHandler` (explicit public) + `ApiError`. Wrapper does: auth (via @/lib/api-auth),
+  per-request `x-request-id` (generated or echoed from inbound header) + JSON request.start/
+  complete/error logging, body/params/query schema validation, and error formatting — ApiError
+  surfaces its message; any other throw is logged in full and returned as a GENERIC 500 in
+  production (`NODE_ENV==="production"`), message only leaked in dev.
+- Refactored ALL 20 non-NextAuth routes to the wrapper: reader/[id]/{progress,translate,quiz,
+  speech,tags,vocabulary}, dictionary, progress/batch, articles, onboarding, profile,
+  vocabulary/{save,unsave}, admin/{stats,analytics,articles,articles/[id],articles/[id]/rebuild,
+  members/[id],tags/[id]}. Left auth/[...nextauth] (NextAuth owns its handler).
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live `next dev` + seeded Reader session cookie): unauth dictionary -> 401 + an
+  `x-request-id` header; authed happy 200; `{}` body -> 400 "word must be a string"; non-JSON ->
+  400 "Invalid JSON body"; bad percent -> 400; bad article id quiz -> 404; admin/stats as Reader
+  -> 403; inbound `x-request-id: trace-me-123` echoed back on the response.
+- **Learnings for future iterations:**
+  - Next 15 strict route typing: a generic handler wrapper's exported function MUST type its 2nd
+    (route-context) param as `unknown` (cast internally). Next's `.next/types` `SecondArg<T>` does
+    `unknown extends T ? any : T`, so `unknown` => `any` and passes `ParamCheck<RouteContext>` for
+    both static and dynamic routes. An optional/`| undefined` param FAILS ("undefined not
+    assignable to RouteContext").
+  - parseProfileInput already returns `{ok,value}|{ok:false,error}` == ValidationResult, so it
+    drops in as a body `Schema<ProfileInput>` with a thin object-guard adapter.
+  - The wrapper sets `x-request-id` on EVERY response (including the 401/403 from api-auth) by
+    re-stamping the NextResponse before returning it.
 ---

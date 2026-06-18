@@ -1,44 +1,20 @@
 import { NextResponse } from "next/server";
-import { requireSessionApi } from "@/lib/api-auth";
-import {
-  getOrCreateTranslation,
-  isSupportedLanguage,
-} from "@/lib/translation";
+import { createHandler, ApiError } from "@/lib/api-handler";
+import { idParams, object, nonEmptyString } from "@/lib/validation";
+import { getOrCreateTranslation, isSupportedLanguage } from "@/lib/translation";
 
-type TranslatePayload = {
-  lang?: unknown;
-};
+const bodySchema = object({ lang: nonEmptyString(20) });
 
-export async function POST(
-  req: Request,
-  { params }: { params: Promise<{ id: string }> },
-) {
-  const { error } = await requireSessionApi();
-  if (error) {
-    return error;
-  }
-
-  const { id } = await params;
-
-  let body: TranslatePayload;
-  try {
-    body = (await req.json()) as TranslatePayload;
-  } catch {
-    return NextResponse.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const lang = typeof body.lang === "string" ? body.lang : "";
-  if (!isSupportedLanguage(lang)) {
-    return NextResponse.json(
-      { error: "Unsupported target language" },
-      { status: 400 },
-    );
-  }
-
-  const result = await getOrCreateTranslation(id, lang);
-  if (!result) {
-    return NextResponse.json({ error: "Article not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(result);
-}
+export const POST = createHandler(
+  { params: idParams, body: bodySchema },
+  async ({ params, body }) => {
+    if (!isSupportedLanguage(body.lang)) {
+      throw new ApiError(400, "Unsupported target language");
+    }
+    const result = await getOrCreateTranslation(params.id, body.lang);
+    if (!result) {
+      throw new ApiError(404, "Article not found");
+    }
+    return NextResponse.json(result);
+  },
+);
