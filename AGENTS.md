@@ -84,6 +84,21 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   in a single request, merges into the cards' DOM (hooks `js-progress-bar`/`js-progress-label`/
   `js-progress-done` + `data-article-id` on `ArticleCard`), then clears those ids. SSR via
   `getProgressMap` is still the source of truth on first paint; this only refreshes visited cards.
+- AI provider (US-009+): `src/lib/ai.ts` wraps Azure OpenAI chat-completions over plain `fetch`
+  (no SDK dep). `isAiConfigured()` checks the 4 `AZURE_OPENAI_*` env vars; `chatComplete(messages,
+  opts)` returns the assistant text or `null` (graceful fallback) on missing creds / non-2xx / throw.
+  Note: the gpt-5-mini deployment requires `max_completion_tokens` (NOT `max_tokens`) and rejects a
+  custom `temperature`. Any AI feature should degrade gracefully when `chatComplete` returns null.
+- Translation (US-009): cached per article+language in the `Translation` model
+  (`@@unique([articleId, targetLang])`, cascade-deletes with the article). `src/lib/translation.ts`
+  owns `SUPPORTED_LANGUAGES`/`isSupportedLanguage`/`languageLabel`, `htmlToPlainText` (strip tags ->
+  paragraph-separated plain text for model input), and `getOrCreateTranslation(articleId, lang)`
+  which returns cache hits first, else generates via `chatComplete` and upserts; when AI is
+  unconfigured OR the request fails it returns a placeholder with `fallback:true` and does NOT cache.
+  API: `POST /api/reader/[id]/translate` body `{lang}` (400 bad lang, 404 missing article, 401 unauth).
+  Client `src/components/ArticleTranslation.tsx` renders the language select + result under the
+  article; translated text is split on blank lines and rendered as React text nodes (no
+  `dangerouslySetInnerHTML` needed since it's plain text, not HTML).
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

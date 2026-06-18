@@ -5,6 +5,8 @@ import { getArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress } from "@/lib/progress";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import ReaderProgress from "@/components/ReaderProgress";
+import ArticleTranslation from "@/components/ArticleTranslation";
+import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 
 export default async function ReaderPage({
   params,
@@ -69,6 +71,11 @@ export default async function ReaderPage({
         <div
           className="prose"
           dangerouslySetInnerHTML={{ __html: cleanBody }}
+        />
+
+        <ArticleTranslation
+          articleId={article.id}
+          languages={SUPPORTED_LANGUAGES}
         />
       </article>
     </main>
