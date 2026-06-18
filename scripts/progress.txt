@@ -479,3 +479,38 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - The dev DB articles (besides the seeded Honeybees=B1) have degenerate "body. body..." content, so
     the heuristic rates them all C2 — expected with that placeholder content, not a bug.
 ---
+
+## 2026-06-18 10:13 UTC - US-015 Tag system
+- Added many-to-many tags via explicit join table: `Tag` (name + slug both @unique) and
+  `ArticleTag` (@@id([articleId, tagId]), @@index on both fks, cascade both ways); `tags ArticleTag[]`
+  on Article. Migration `add_tags`.
+- New `src/lib/tags.ts`: `slugifyTag` (NFKD accent/punct strip -> hyphen slug), `parseTagsJson`
+  (fence-tolerant JSON-array-of-strings, dedup by slug), `getOrCreateArticleTags(articleId)` —
+  AI auto-extraction (cache-first; on miss asks `chatComplete` for up to 5 Title-Case topic tags,
+  upserts Tag by slug + links ArticleTag; AI-unconfigured/empty => `fallback:true`, caches nothing).
+  Read helpers: `getArticleTags`, `getTagBySlug`, `listArticlesByTag(slug)`, `listTagsWithCounts`.
+- Reader page (`src/app/reader/[id]/page.tsx`): calls `getOrCreateArticleTags`, renders `.tag-chip`
+  links to `/tags/[slug]` in the header.
+- New tag listing page `src/app/tags/[slug]/page.tsx` (gated via requireSession; in middleware
+  PROTECTED_PREFIXES + matcher) reuses ArticleCard + getProgressMap + ensureArticleDifficulties +
+  ListingProgressSync; `notFound()` (tags/[slug]/not-found.tsx) for unknown slugs.
+- API `POST /api/reader/[id]/tags` (401 unauth, 404 missing article). `.tag-list`/`.tag-chip` CSS.
+- Files: prisma/schema.prisma (+migration), src/lib/tags.ts (new),
+  src/app/api/reader/[id]/tags/route.ts (new), src/app/tags/[slug]/page.tsx + not-found.tsx (new),
+  src/app/reader/[id]/page.tsx, middleware.ts, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded onboarded Reader cookie + Playwright):
+  - Reader auto-extracted 5 real AI tags (Animal Communication / Behavioral Ecology / Entomology /
+    Honeybees / Waggle Dance), rendered as chips; 2nd call served from cache (fallback:false).
+  - API returns the tag list JSON; `/tags/honeybees` lists the article via ArticleCard.
+  - Unknown slug `/tags/does-not-exist` -> "Tag not found"; unauth `/tags/honeybees` -> 307 to
+    /signin?callbackUrl=%2Ftags%2Fhoneybees. Screenshot of reader chips captured.
+- **Learnings for future iterations:**
+  - Many-to-many in this codebase uses an EXPLICIT join model (e.g. ArticleTag) with a composite
+    `@@id`, consistent with the per-feature table style — not Prisma implicit m-n.
+  - Tag auto-extraction follows the same AI cache-first pattern as vocab/quiz (gate on
+    isAiConfigured, never cache the fallback) but writes across TWO tables (Tag + ArticleTag);
+    upsert the Tag by slug first to dedup shared tags across articles.
+  - New gated listing pages must be added to BOTH middleware arrays (PROTECTED_PREFIXES + matcher)
+    and call requireSession in the server component (the /tags prefix was added this story).
+---

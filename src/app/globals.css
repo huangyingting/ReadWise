@@ -101,6 +101,29 @@ a:hover {
   background: var(--panel);
 }
 
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.tag-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--panel);
+  font-size: 0.85rem;
+  text-decoration: none;
+}
+
+.tag-chip:hover {
+  border-color: var(--accent, #4f46e5);
+}
+
+
 .article-hero {
   display: block;
   width: 100%;

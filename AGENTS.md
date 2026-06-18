@@ -166,6 +166,18 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   `filterAndSortByLevel(articles, maxLevel?)` in `src/lib/articles.ts` filters to articles at/below a CEFR
   level and sorts easiest-first (unassessed sort last, never dropped). Dashboard has a `?level=` GET filter
   (`<select>` "All levels" + A1–C2 "and below").
+- Tag system (US-015): many-to-many via an explicit join table. `Tag` (name + slug both `@unique`)
+  and `ArticleTag` (`@@id([articleId, tagId])`, indexes on both fks, cascade both ways) with
+  `tags ArticleTag[]` on Article. `src/lib/tags.ts`: `slugifyTag` (NFKD strip accents/punct ->
+  lowercased hyphen slug), `parseTagsJson` (fence-tolerant JSON-array-of-strings, dedup by slug),
+  `getOrCreateArticleTags(articleId)` (AI auto-extraction like vocab/quiz: cache-first; on miss asks
+  `chatComplete` for up to 5 Title-Case topic tags, upserts Tag by slug + links via ArticleTag;
+  AI-unconfigured/empty => `fallback:true`, caches NOTHING). Read-only helpers: `getArticleTags`,
+  `getTagBySlug`, `listArticlesByTag(slug)` (published only, newest first), `listTagsWithCounts`
+  (counts published articles, drops empties). Reader page calls `getOrCreateArticleTags` and renders
+  `.tag-chip` links to `/tags/[slug]`. Tag listing `/tags/[slug]` (gated; in middleware PROTECTED_PREFIXES
+  + matcher) reuses `ArticleCard` + `getProgressMap` + `ensureArticleDifficulties` + `ListingProgressSync`;
+  `notFound()` for unknown slugs. API `POST /api/reader/[id]/tags` (401 unauth, 404 missing article).
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

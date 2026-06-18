@@ -4,6 +4,7 @@ import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
+import { getOrCreateArticleTags } from "@/lib/tags";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleTranslation from "@/components/ArticleTranslation";
@@ -29,6 +30,7 @@ export default async function ReaderPage({
   const progress = await getProgress(session.user.id, article.id);
   const difficulty = await getOrCreateArticleDifficulty(article.id);
   const difficultyLevel = difficulty?.level ?? article.difficulty;
+  const tags = (await getOrCreateArticleTags(article.id))?.tags ?? [];
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
 
@@ -66,6 +68,15 @@ export default async function ReaderPage({
               </a>
             ) : null}
           </div>
+          {tags.length > 0 ? (
+            <div className="tag-list" aria-label="Article tags">
+              {tags.map((tag) => (
+                <Link key={tag.id} href={`/tags/${tag.slug}`} className="tag-chip">
+                  #{tag.name}
+                </Link>
+              ))}
+            </div>
+          ) : null}
         </header>
 
         {article.heroImage ? (
