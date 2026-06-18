@@ -217,6 +217,18 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   panel (`.admin-confirm`, not `window.confirm` — easier to Playwright-test) then `fetch` + `router.refresh()` (or
   `router.push` on delete). Styling: `.admin-search`/`.admin-input`/`.admin-table`/`.btn-danger`/`.admin-confirm`/
   `.admin-pagination`/`.admin-article-preview` in globals.css.
+- Admin member management (US-021): `src/lib/admin-members.ts` owns `listMembers({query,role,page})` (LIKE-`contains`
+  on name/email + optional role filter; offset paginated, default `ADMIN_MEMBERS_PAGE_SIZE=20`; activity counts via
+  `_count`+a `readingProgress.groupBy({completed:true})` batch), `updateMemberRole(id,role)` and `deleteMember(id)` —
+  both return a structured `{ok}` / `{ok:false,error,status}` and GUARD against demoting/removing the LAST remaining
+  admin (count Admins; reject with 409). Deleting a User cascades accounts/sessions/profile/readingProgress/savedWords
+  (all `onDelete: Cascade`). API `PATCH|DELETE /api/admin/members/[id]` (`requireAdminApi`; 400 bad role, 404 missing,
+  409 guard) ALSO refuses self-demotion/self-deletion via `auth.session.user.id` so an admin can't lock themselves out.
+  Page `/admin/members` (server; reuses `.admin-search`/`.admin-table`/pagination) renders avatar+name+email, role pill,
+  joined date and activity; the client `src/components/AdminMemberActions.tsx` is a role `<select>` (PATCH on change) +
+  Remove button with inline `.admin-confirm` (controls disabled for the acting admin's own row, flagged with a "You"
+  pill). Avatars use `next/image` with `unoptimized` (remote provider images, no remotePatterns config needed). New CSS:
+  `.admin-member-cell`/`.admin-member-avatar`/`.admin-member-name`.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

@@ -656,3 +656,32 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Build a status filter <select> from prisma.article.findMany({distinct:["status"]}) rather than hardcoding.
   - Prefer an inline confirm panel (state-driven) over window.confirm — Playwright can assert/click it directly.
 ---
+
+## 2026-06-18 10:55 UTC - US-021 Admin member management
+- Added src/lib/admin-members.ts: listMembers({query,role,page}) with activity counts
+  (articlesStarted/Completed via readingProgress _count + a completed groupBy, savedWords _count),
+  updateMemberRole(id,role) and deleteMember(id) — both guard the LAST remaining admin (409).
+- Added API src/app/api/admin/members/[id]/route.ts (PATCH role + DELETE; requireAdminApi;
+  400 invalid role, 404 missing, 409 last-admin; ALSO blocks self-demotion/self-deletion via session id).
+- Replaced the /admin/members placeholder with a real page (search + role filter + paginated table:
+  avatar, name/email, role pill, joined date, activity) and client src/components/AdminMemberActions.tsx
+  (role <select> -> PATCH on change; Remove with inline .admin-confirm; acting admin's own row disabled +
+  "You" pill).
+- Added CSS .admin-member-cell/.admin-member-avatar/.admin-member-name to globals.css.
+- Files: src/lib/admin-members.ts (new), src/app/api/admin/members/[id]/route.ts (new),
+  src/app/admin/members/page.tsx, src/components/AdminMemberActions.tsx (new), src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Browser verified over live server: admin sees member list (Playwright screenshots), role filter works,
+  inline remove-confirm renders. curl tests: promote/demote OK, self-demote 409, invalid role 400,
+  delete self 409, delete missing 404, reader page -> 307 /forbidden, reader API -> 403, unauth API -> 401.
+- **Learnings for future iterations:**
+  - Deleting a User cascades accounts/sessions/profile/readingProgress/savedWords (all onDelete:Cascade) —
+    no manual cleanup needed.
+  - Always guard the last-admin in BOTH the lib (last-admin count) and the route (self-id check) so an admin
+    can't lock themselves out; return 409 for these conflicts.
+  - The `.stack` utility is only `margin-top` between children (NOT flex column) — for a real vertical layout
+    use a dedicated flex-column class (added .admin-member-name).
+  - For remote provider avatars in <Image>, pass `unoptimized` to skip the optimizer (no next.config
+    remotePatterns needed). Reader role activity counts: use prisma groupBy for the completed subset rather
+    than a second per-row query.
+---

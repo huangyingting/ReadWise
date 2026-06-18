@@ -323,8 +323,8 @@
         "Verify in browser"
       ],
       "priority": 21,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "admin-members.ts (listMembers w/ activity counts, updateMemberRole/deleteMember with last-admin guards). PATCH/DELETE /api/admin/members/[id] (requireAdminApi; 400/404/409; self-demotion/self-delete blocked). /admin/members page + client AdminMemberActions (role select + inline-confirm remove, self-row disabled w/ You pill). Verified end-to-end over live server + Playwright."
     },
     {
       "id": "US-022",

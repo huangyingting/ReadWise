@@ -892,3 +892,33 @@ a:hover {
   border-radius: 12px;
   padding: 1.25rem 1.5rem;
 }
+
+.admin-member-cell {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.admin-member-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.admin-member-avatar-fallback {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.admin-member-name {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
