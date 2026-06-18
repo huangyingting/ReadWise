@@ -46,6 +46,12 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   Gate pages that need a finished profile with `requireOnboardedSession(callbackUrl)` from
   `@/lib/session` (redirects to `/onboarding`). The onboarding page itself uses plain
   `requireSession` and redirects completed users to `/dashboard`.
+- Profile validation is centralized in `parseProfileInput(body)` in `src/lib/profile.ts`
+  (returns `{ok:true, value}` or `{ok:false, error}`); it validates level, age, gender and
+  filters topics to valid category slugs. Reuse it for any profile read/write API.
+  `POST /api/onboarding` sets `completedAt`; `PUT /api/profile` (edit-settings) upserts the
+  same fields but preserves `completedAt`. Settings UI lives at `/settings`
+  (`requireOnboardedSession`) with the client `ProfileSettingsForm`.
 - Auth UI actions (`signIn`/`signOut` from `next-auth/react`) must run in a `"use client"`
   component. Reusable client auth controls live in `src/components/` (e.g. `SignOutButton.tsx`).
   With the DB session strategy, `signOut` deletes the `Session` row server-side (not just the

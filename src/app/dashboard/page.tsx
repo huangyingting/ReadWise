@@ -39,6 +39,7 @@ export default async function DashboardPage() {
       ) : null}
       <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
         <Link href="/">← Back home</Link>
+        <Link href="/settings">Settings</Link>
         <SignOutButton />
       </p>
     </main>

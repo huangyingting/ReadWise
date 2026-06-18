@@ -113,3 +113,35 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Playwright DOES work here when the script runs from the project root (so @playwright/test
     resolves) with chromium launched `--no-sandbox`; direct binary-path probing is still blocked.
 ---
+
+## 2026-06-18 09:00 UTC - US-005 Edit profile & account settings
+- New `/settings` page (server, requireOnboardedSession): shows account info
+  (name, email, avatar, role) + client `ProfileSettingsForm` to edit English level,
+  topics, age range, gender. Save -> PUT /api/profile, then router.refresh().
+- New `PUT /api/profile` route: validates + upserts profile but PRESERVES completedAt
+  (so editing settings never re-triggers onboarding state).
+- Refactored: extracted shared `parseProfileInput(body)` into src/lib/profile.ts
+  (returns {ok,value}|{ok,error}); both /api/onboarding (sets completedAt) and
+  /api/profile now use it. No behavior change to onboarding.
+- Added a Settings link on /dashboard.
+- Files: src/lib/profile.ts, src/app/api/onboarding/route.ts (refactor),
+  src/app/api/profile/route.ts (new), src/app/settings/page.tsx (new),
+  src/app/settings/ProfileSettingsForm.tsx (new), src/app/dashboard/page.tsx, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded onboarded Reader session cookie):
+  - GET /settings 200 renders name/email/Role:Reader, preselected level B1, age 25-34,
+    gender Female, highlighted topics Science+Tech (aria-pressed=true).
+  - Unauth GET /settings -> 307 /signin?callbackUrl=%2Fsettings.
+  - PUT /api/profile (B1->C1, topics business/health/bogus) -> 200; DB confirms
+    englishLevel=C1, ageRange=35-44, gender=Male, topics=["business","health"]
+    (bogus slug filtered), completedAt still present.
+  - PUT bad level -> 400; unauth PUT -> 401.
+- **Learnings for future iterations:**
+  - Reuse `parseProfileInput` for any future profile-related API; don't re-validate inline.
+  - Settings vs onboarding differ ONLY in completedAt handling: onboarding upsert sets it,
+    settings upsert omits it on update (create still seeds it for safety).
+  - Browser binary probing still blocked ($HOME=/home/azadmin); used HTTP-level rendering
+    + DB assertions against `next dev` with a seeded session cookie. The rendered <select>
+    emits `value="B1" selected` and topic buttons emit `aria-pressed="true"` — grep those
+    to assert preselected form state without a real browser.
+---
