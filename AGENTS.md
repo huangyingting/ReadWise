@@ -76,6 +76,14 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   does NOT auto-scroll (starts at top). Article listings use `src/components/ArticleCard.tsx`
   (server component) which renders the saved progress bar; build listings with
   `listPublishedArticles()` + `getProgressMap`.
+- Listing client refresh (US-008): after a reader opens an article, `ReaderProgress` records its
+  id via `markArticleVisited` (`src/lib/visited.ts`, sessionStorage key `readwise:visited-articles`).
+  Drop `<ListingProgressSync articleIds={ids} />` into any listing: on mount it batch-fetches
+  progress for ONLY the visited ids present on the page via `POST /api/progress/batch`
+  (`{ids:string[]}` -> `{progress:{[id]:{percent,completed}}}`, backed by `getProgressSummaries`)
+  in a single request, merges into the cards' DOM (hooks `js-progress-bar`/`js-progress-label`/
+  `js-progress-done` + `data-article-id` on `ArticleCard`), then clears those ids. SSR via
+  `getProgressMap` is still the source of truth on first paint; this only refreshes visited cards.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

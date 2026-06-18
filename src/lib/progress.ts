@@ -41,6 +41,29 @@ export async function getProgressMap(
   return map;
 }
 
+/** Serializable progress summary safe to send to the client. */
+export type ProgressSummary = {
+  percent: number;
+  completed: boolean;
+};
+
+/**
+ * Batch fetch progress for a set of articles as plain, serializable summaries
+ * keyed by articleId. Backs the listing batch endpoint so a single query
+ * returns progress for many articles (no N+1).
+ */
+export async function getProgressSummaries(
+  userId: string,
+  articleIds: string[],
+): Promise<Record<string, ProgressSummary>> {
+  const map = await getProgressMap(userId, articleIds);
+  const summaries: Record<string, ProgressSummary> = {};
+  for (const [articleId, row] of map) {
+    summaries[articleId] = { percent: row.percent, completed: row.completed };
+  }
+  return summaries;
+}
+
 /**
  * Persist progress for a user+article. Progress is forward-only: the stored
  * percent never decreases and completion is sticky. Reaching the completion

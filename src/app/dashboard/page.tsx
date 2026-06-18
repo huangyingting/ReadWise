@@ -4,6 +4,7 @@ import { requireOnboardedSession } from "@/lib/session";
 import { listPublishedArticles } from "@/lib/articles";
 import { getProgressMap } from "@/lib/progress";
 import ArticleCard from "@/components/ArticleCard";
+import ListingProgressSync from "@/components/ListingProgressSync";
 import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage() {
@@ -72,6 +73,7 @@ export default async function DashboardPage() {
             })}
           </div>
         )}
+        <ListingProgressSync articleIds={articles.map((a) => a.id)} />
       </section>
 
       <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>

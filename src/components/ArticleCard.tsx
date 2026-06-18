@@ -20,7 +20,7 @@ export default function ArticleCard({
   const completed = progress?.completed ?? false;
 
   return (
-    <Link href={`/reader/${article.id}`} className="article-card">
+    <Link href={`/reader/${article.id}`} className="article-card" data-article-id={article.id}>
       <div className="stack">
         <strong>{article.title}</strong>
         {meta ? (
@@ -35,10 +35,15 @@ export default function ArticleCard({
           {article.difficulty ? (
             <span className="pill">Level {article.difficulty}</span>
           ) : null}
-          {completed ? <span className="pill pill-done">✓ Completed</span> : null}
+          <span
+            className="pill pill-done js-progress-done"
+            style={completed ? undefined : { display: "none" }}
+          >
+            ✓ Completed
+          </span>
         </div>
         <div
-          className="reading-progress reading-progress--inline"
+          className="reading-progress reading-progress--inline js-progress-bar"
           role="progressbar"
           aria-valuemin={0}
           aria-valuemax={100}
@@ -50,7 +55,7 @@ export default function ArticleCard({
             style={{ width: `${percent}%` }}
           />
         </div>
-        <span className="muted" style={{ fontSize: "0.8rem" }}>
+        <span className="muted js-progress-label" style={{ fontSize: "0.8rem" }}>
           {completed ? "Read" : percent > 0 ? `${percent}% read` : "Not started"}
         </span>
       </div>

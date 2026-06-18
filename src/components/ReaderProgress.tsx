@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { markArticleVisited } from "@/lib/visited";
 
 const THROTTLE_MS = 1000;
 
@@ -30,6 +31,9 @@ export default function ReaderProgress({
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
+    // Record this article as visited so listings refresh its progress.
+    markArticleVisited(articleId);
+
     function send(value: number) {
       lastSentRef.current = Date.now();
       lastSentValueRef.current = value;
