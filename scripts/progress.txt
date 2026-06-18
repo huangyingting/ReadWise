@@ -377,3 +377,35 @@ Started: Thu Jun 18 08:35:56 UTC 2026
     `ss -ltnp | grep :3000` then `kill <number>`. Playwright scripts must live under the project
     root (not /tmp) so `@playwright/test` resolves.
 ---
+
+## 2026-06-18 09:50 UTC - US-012 Comprehension quiz
+- Added `QuizQuestion` model (per-article AI cache): articleId, question, options (JSON
+  string), correctIndex Int; `@@unique([articleId, question])`, `@@index([articleId])`,
+  cascade with Article. Migration `add_quiz_questions`. Added `quizQuestions` relation on Article.
+- `src/lib/quiz.ts`: `parseQuizJson` (fence-tolerant; validates >=2 options + in-range
+  correctIndex; dedups by lowercased question), `getOrCreateArticleQuiz(articleId)` (cache-first,
+  generates 5 MCQs via `chatComplete`, upserts by articleId_question; AI-unconfigured/empty parse
+  => `fallback:true`, caches nothing). No per-user state, so helper takes only articleId.
+- API `POST /api/reader/[id]/quiz` (requireSessionApi -> 401; 404 missing article).
+- Client `src/components/ArticleQuiz.tsx`: lazy panel (loads on first open), radio options,
+  "Check answers" disabled until all answered, per-question Correct/Incorrect feedback +
+  right-answer highlight, total score, "Try again" reset. Wired into reader page after
+  ArticleVocabulary; quiz CSS in globals.css.
+- Files: prisma/schema.prisma, prisma/migrations/20260618094729_add_quiz_questions/,
+  src/lib/quiz.ts (new), src/app/api/reader/[id]/quiz/route.ts (new),
+  src/components/ArticleQuiz.tsx (new), src/app/reader/[id]/page.tsx, src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification: API 401 unauth / 404 bad article / 200 with 5 real AI questions (cached after
+  first call). Playwright (seeded user+session+article): 5 questions render, answering all-first
+  scored 4/5, 5 correct-answer highlights, per-question feedback labels correct, "Try again" resets
+  to the Check-answers state. Screenshot confirms green/red option styling.
+- **Learnings for future iterations:**
+  - For AI features WITHOUT per-user state (quiz), the get-or-create helper needs only `articleId`
+    (contrast with vocabulary which threads `userId` for saved flags).
+  - Store option arrays as JSON strings in SQLite (no scalar lists), same as Profile.topics; parse
+    defensively (`safeParseOptions` never throws).
+  - Client-side grading is fine here — the API returns `correctIndex`; no need for a separate
+    /grade endpoint.
+  - The reader page is the integration point for all article AI panels; add new ones after
+    `<ArticleVocabulary>` inside the `<article>` element.
+---
