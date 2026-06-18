@@ -476,8 +476,8 @@
         "Typecheck/lint passes"
       ],
       "priority": 32,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Node built-in test runner (no jest/vitest); 101 tests; pure helpers + mocked prisma/ai for AI helpers + API routes + worker."
     }
   ]
 }

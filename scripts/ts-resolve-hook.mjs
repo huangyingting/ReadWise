@@ -55,5 +55,27 @@ export async function resolve(specifier, context, nextResolve) {
     }
   }
 
-  return nextResolve(specifier, context);
+  try {
+    return await nextResolve(specifier, context);
+  } catch (err) {
+    // Bare package subpaths in deps without an "exports" map (e.g. `next/server`)
+    // need an explicit extension under Node's ESM resolver. Only retry when the
+    // default resolution actually failed, so this never changes valid imports.
+    if (
+      err?.code === "ERR_MODULE_NOT_FOUND" &&
+      !specifier.startsWith(".") &&
+      !specifier.startsWith("/") &&
+      !specifier.startsWith("@/") &&
+      !/\.[mc]?jsx?$/.test(specifier)
+    ) {
+      for (const ext of [".js", ".mjs", ".cjs"]) {
+        try {
+          return await nextResolve(specifier + ext, context);
+        } catch {
+          // try next extension
+        }
+      }
+    }
+    throw err;
+  }
 }

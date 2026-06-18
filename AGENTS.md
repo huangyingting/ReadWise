@@ -347,6 +347,26 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   CLI worker/processor publish path is guarded (try/catch) and relies on the `LISTING_REVALIDATE_SECONDS`
   (300s) soft window instead. (3) The cached fns only read prisma — never read `cookies()`/`headers()`
   inside an `unstable_cache` callback.
+- Automated tests (US-032): `npm test` runs Node's built-in test runner over `tests/**/*.test.ts`
+  via the same TS harness as the CLIs, with experimental module mocking:
+  `node --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test`.
+  NO test framework dependency (no jest/vitest) and NO real DB/network — everything is stubbed.
+  Patterns: (1) Each test FILE runs in its own process, so `mock.module(...)` set in a top-level
+  `before()` is isolated per file (no cross-file leakage); make mock exports read module-level
+  mutable `let`s and reset them in `beforeEach`, then `await import(...)` the unit under test INSIDE
+  each test (after mocks are registered). (2) Mock `@/lib/prisma` (export `prisma`) + `@/lib/ai`
+  (export `isAiConfigured`/`chatComplete`/`aiModelName` — `aiModelName` is required whenever the
+  import chain pulls `@/lib/translation`) to test the cache-first AI helpers; toggle env via
+  `enableAi()`/`disableAi()` in `tests/helpers.ts` for `@/lib/ai` itself. (3) Mock `@/lib/cache`'s
+  `createCachedListing` to an identity passthrough so `unstable_cache`/Next runtime isn't needed.
+  (4) Route tests import the route module (e.g. `@/app/api/reader/[id]/translate/route`), mock
+  `@/lib/api-auth` (`requireSessionApi`/`requireAdminApi`) for auth + the route's lib, and call
+  `POST(new Request(...), { params: Promise.resolve({ id }) })`; set `process.env.LOG_LEVEL="error"`
+  at the top of the file to silence request logs. (5) `next/server` has no package `exports` map, so
+  `ts-resolve-hook.mjs` now retries failed bare-specifier resolutions with `.js`/`.mjs`/`.cjs`. (6)
+  tsc includes `tests/**` — import the test helper as `"./helpers"` (NOT `"./helpers.ts"`; the hook
+  adds the extension) and annotate injected-dep return types (e.g. `Promise<ArticleProcessResult>`)
+  so object literals satisfy the real union types.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`

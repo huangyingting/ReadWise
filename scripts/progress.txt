@@ -1002,3 +1002,20 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - SavedWord.articleId is deliberately NOT a foreign key (plain String?), so saved study words are
     NOT cascade-deleted when their source Article is removed — this is by design.
 ---
+
+## Codebase Patterns (US-032 testing)
+- Tests: `npm test` = `node --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test "tests/**/*.test.ts"`. Node's BUILT-IN runner (`node:test`/`node:assert`) + the existing TS harness — NO jest/vitest, NO real DB/network. Each test FILE runs in its own process, so `mock.module()` in a top-level `before()` is file-isolated. Make mocks read module-level mutable `let`s, reset in `beforeEach`, and `await import()` the unit-under-test INSIDE each test (after mocks register).
+- Mock `@/lib/prisma` (export `prisma`) + `@/lib/ai` to test cache-first AI helpers. GOTCHA: include `aiModelName` in the `@/lib/ai` mock whenever the import chain pulls `@/lib/translation` (it imports aiModelName), else "does not provide export" SyntaxError. Mock `@/lib/cache`'s `createCachedListing` to identity to avoid Next's `unstable_cache`/request scope.
+- Route tests: import the route (e.g. `@/app/api/reader/[id]/translate/route`), mock `@/lib/api-auth` + the route's lib, call `POST(new Request(...), { params: Promise.resolve({id}) })`. Set `process.env.LOG_LEVEL="error"` at file top to silence request logs. `next/server` works in node because `ts-resolve-hook.mjs` now retries failed bare-specifier resolution with `.js`/`.mjs`/`.cjs`.
+- tsc includes `tests/**`: import helpers as `"./helpers"` (NOT `.ts`), and annotate injected-dep return types (e.g. `Promise<ArticleProcessResult>`) so literals satisfy real unions.
+
+## 2026-06-18 12:0X UTC - US-032 Automated test suite
+- Added an automated test suite (101 tests) on Node's built-in test runner — no new test-framework dependency, no DB/network (all stubbed via experimental module mocking).
+- Covered: validation, profile, sanitize, scraper extract, dictionary (normalize + lookup), difficulty heuristics, articles helpers, AI provider (ai.ts), and the cache-first AI helpers translation/vocabulary/quiz/tags + related, plus API routes (progress, progress/batch, translate, vocabulary, vocabulary/save, speech, quiz, dictionary, admin articles GET/DELETE) and the background worker (sleep/backoff/runWorker with injected deps).
+- Files: tests/*.test.ts, tests/helpers.ts, package.json (`test` script), scripts/ts-resolve-hook.mjs (bare-specifier `.js` fallback so `next/server` resolves under raw Node ESM), AGENTS.md.
+- Quality: `npm test` 101/101 pass, `npm run typecheck` PASS, `npm run lint` PASS.
+- **Learnings for future iterations:**
+  - sanitizeArticleHtml does NOT actually emit `rel="noopener..."`/`target="_blank"` on links despite the docstring — `a` allowedAttributes only lists href/title so the transformTags additions are stripped. Tests assert ACTUAL behavior (safe href kept, unsafe schemes dropped). Possible real bug in src/lib/sanitize.ts STRICT_OPTIONS allowedAttributes if rel/target are desired.
+  - normalizeCandidates("don't") returns BOTH the contraction base ("do") and the apostrophe-stripped form ("dont"); assert with `.includes(...)`, not deep-equal.
+  - Node's `node -e` is blocked by the env permission sandbox here; use a throwaway `tests/_probe.test.ts` + the test runner to probe runtime behavior instead.
+---
