@@ -24,6 +24,7 @@ Started: Thu Jun 18 08:35:56 UTC 2026
 - Per-user vs shared AI caches: cache expensive AI extraction by article (shared, e.g. `VocabularyItem`) and store per-user state separately (e.g. `SavedWord` with `@@unique([userId, word])` for dedup); merge user flags at read time via a `getSavedWordSet`-style helper.
 - Azure Speech TTS (word-level timing): use the Speech SDK (`microsoft-cognitiveservices-speech-sdk`), NOT the REST TTS endpoint (which returns audio only). `SpeechSynthesizer(cfg, null)` returns audio in `result.audioData` headless; `synthesizer.wordBoundary` (boundaryType===Word) gives `textOffset`/`wordLength` into the input text + audioOffset/duration in TICKS (/1e7 => seconds). Routes using the SDK need `export const runtime = "nodejs"`. Store audio as base64 + return a `data:` URL (no audio-serving route). See `src/lib/speech.ts`. Headless audio playback in Playwright needs `--autoplay-policy=no-user-gesture-required`.
 - Client listing feeds (e.g. `CategoryBrowser`) seed `useState` from server props ONCE; Next soft-nav between views changes props but does NOT reset state — pass `key={activeView}` on the page so the component remounts per view. To render cards in a client loader, use a presentational client component (`ArticleCardView`) fed a plain serializable object via `toListingArticle(article)`; never import prisma-backed helpers into client code. Offset pagination helpers (`listCategoryPage`/`listPicksPage`) use `take: limit+1` to compute `hasMore`.
+- Admin destructive/AI-rebuild actions: deleting an Article relies on schema cascades (removes Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/ReadingProgress; SavedWord.articleId is a plain String, no FK, so it survives). "Rebuild AI content" = `deleteMany` the cached AI rows in a `prisma.$transaction` so the `getOrCreate*` helpers regenerate them lazily on next read (preserve ReadingProgress). SQLite Prisma `contains` => case-insensitive LIKE (no `mode:"insensitive"`). Use a state-driven inline confirm panel (`.admin-confirm`), not `window.confirm`, so Playwright can assert/click it. See `src/lib/admin-articles.ts` + `src/components/AdminArticleActions.tsx`.
 
 ## 2026-06-18 08:45 UTC - US-001 OAuth sign-in
 - Scaffolded the entire project foundation (greenfield: only package.json existed).
@@ -620,4 +621,38 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - Reuse `getAdminOverview()` from `src/lib/admin.ts` for any admin metric needs; add new aggregates there
     so the dashboard + stats API stay in sync.
   - `prisma.article.groupBy({by:["status"], _count:{_all:true}})` is the way to get processing-status counts.
+---
+
+## 2026-06-18 10:55 UTC - US-020 Admin article management
+- Added `src/lib/admin-articles.ts`: `searchArticles({query,status,page})` (LIKE contains on
+  title/author/source, offset paginated, ADMIN_ARTICLES_PAGE_SIZE=20), `getAdminArticleDetail(id)`
+  (article + derived-content counts), `deleteArticle(id)` (schema cascades), `rebuildArticleAi(id)`
+  (clears Translation/VocabularyItem/QuizQuestion/ArticleTag/ArticleSpeech in a $transaction => lazy regen).
+- APIs (all requireAdminApi): GET /api/admin/articles, DELETE /api/admin/articles/[id] (404 if missing),
+  POST /api/admin/articles/[id]/rebuild (404 if missing).
+- Pages: /admin/articles (server: GET search form + status <select> from distinct statuses + paginated
+  table) and /admin/articles/[id] (content preview via sanitizeArticleHtml + counts + notFound for bad id).
+- Client `src/components/AdminArticleActions.tsx`: inline confirmation panel for delete + rebuild, fetch
+  then router.refresh()/router.push(). globals.css: admin-search/admin-input/admin-table/btn-danger/
+  admin-confirm/admin-pagination/admin-article-preview.
+- Files: src/lib/admin-articles.ts (new), src/app/api/admin/articles/route.ts (new),
+  src/app/api/admin/articles/[id]/route.ts (new), src/app/api/admin/articles/[id]/rebuild/route.ts (new),
+  src/app/admin/articles/page.tsx (rewrote), src/app/admin/articles/[id]/page.tsx (new),
+  src/components/AdminArticleActions.tsx (new), src/app/globals.css, AGENTS.md.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Verification (live server + seeded Admin session cookie + Playwright):
+  - Search API: q=honey -> 1 result; status=published -> 4; unauth -> 401.
+  - Detail page 200; unknown id -> 404. Rebuild API cleared {translations:2,tags:5,speech:1}; unknown -> 404.
+  - Delete: created throwaway article w/ translation+vocab+quiz+readingProgress, DELETE -> {ok:true},
+    re-DELETE -> 404, confirmed article + all related rows gone (cascade works). Delete unauth -> 401.
+  - Playwright: list renders 4-row table + search; clicking Delete shows the confirm dialog, Cancel hides it;
+    detail page renders. Screenshot captured.
+- **Learnings for future iterations:**
+  - "Rebuild AI content" = delete the cached AI rows (they regenerate lazily via getOrCreate* on next read);
+    do it in a prisma.$transaction. Reader progress must be preserved (don't clear ReadingProgress).
+  - Article delete cascade covers Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/
+    ReadingProgress, but SavedWord.articleId is a plain String (no FK) so saved words survive a delete.
+  - SQLite Prisma `contains` => LIKE, case-insensitive for ASCII; no `mode:"insensitive"` needed/supported.
+  - Build a status filter <select> from prisma.article.findMany({distinct:["status"]}) rather than hardcoding.
+  - Prefer an inline confirm panel (state-driven) over window.confirm — Playwright can assert/click it directly.
 ---

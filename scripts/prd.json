@@ -309,8 +309,8 @@
         "Verify in browser"
       ],
       "priority": 20,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "admin-articles.ts (searchArticles/getAdminArticleDetail/deleteArticle/rebuildArticleAi). APIs GET /api/admin/articles, DELETE + POST .../[id]/rebuild (requireAdminApi). Pages: list /admin/articles (search+status filter+pagination), detail /admin/articles/[id]. Delete cascades remove AI content/tags/progress; rebuild clears cached AI rows -> lazy regen. Inline confirm dialogs. Verified via curl+Playwright."
     },
     {
       "id": "US-021",

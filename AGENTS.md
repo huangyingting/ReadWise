@@ -201,6 +201,22 @@ AI-assisted English learning reader. Full feature replication of "ReadingX".
   tags/readingProgress counts + `article.groupBy({by:["status"]})` for processing status); both the `/admin`
   dashboard and `GET /api/admin/stats` consume it. The `/admin` prefix is already in middleware (covers all
   sub-routes). Styling helpers in globals.css: `.admin-nav`/`.admin-nav-link`/`.admin-stat-grid`/`.admin-stat`.
+- Admin article management (US-020): `src/lib/admin-articles.ts` owns `searchArticles({query,status,page})`
+  (LIKE-`contains` on title/author/source — SQLite LIKE is case-insensitive for ASCII; offset paginated, default
+  `ADMIN_ARTICLES_PAGE_SIZE=20`), `getAdminArticleDetail(id)` (article + counts of derived translations/vocab/quiz/
+  tags/speech + readingProgress), `deleteArticle(id)` (relies on schema cascades — deleting an Article removes
+  Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/ReadingProgress; SavedWord.articleId is a plain
+  string, NOT an FK, so saved words survive), and `rebuildArticleAi(id)` which "rebuilds" by CLEARING the cached AI
+  rows (translations/vocab/quiz/tags/speech) in a `$transaction` so they regenerate LAZILY on the next reader visit
+  via the `getOrCreate*` helpers (reader progress is preserved). This degrades gracefully when AI is unconfigured.
+  APIs (all `requireAdminApi`): `GET /api/admin/articles` (q/status/page), `DELETE /api/admin/articles/[id]` (404
+  if missing), `POST /api/admin/articles/[id]/rebuild` (404 if missing). Pages: list `/admin/articles` (server; GET
+  search form via searchParams + status `<select>` built from `findMany({distinct:["status"]})` + paginated table),
+  detail `/admin/articles/[id]` (content preview via `sanitizeArticleHtml`, derived-content counts, `notFound()` for
+  bad ids). Destructive actions use the client `src/components/AdminArticleActions.tsx` — an INLINE confirmation
+  panel (`.admin-confirm`, not `window.confirm` — easier to Playwright-test) then `fetch` + `router.refresh()` (or
+  `router.push` on delete). Styling: `.admin-search`/`.admin-input`/`.admin-table`/`.btn-danger`/`.admin-confirm`/
+  `.admin-pagination`/`.admin-article-preview` in globals.css.
 
 ## Browser verification
 - Playwright is installed. Run scripts from the project root (so `@playwright/test`
