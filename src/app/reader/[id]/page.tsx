@@ -4,9 +4,11 @@ import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
-import { getOrCreateArticleTags } from "@/lib/tags";
+import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { getProgressMap } from "@/lib/progress";
 import ReaderProgress from "@/components/ReaderProgress";
+import ArticleCard from "@/components/ArticleCard";
 import ArticleTranslation from "@/components/ArticleTranslation";
 import ArticleVocabulary from "@/components/ArticleVocabulary";
 import ArticleQuiz from "@/components/ArticleQuiz";
@@ -31,6 +33,11 @@ export default async function ReaderPage({
   const difficulty = await getOrCreateArticleDifficulty(article.id);
   const difficultyLevel = difficulty?.level ?? article.difficulty;
   const tags = (await getOrCreateArticleTags(article.id))?.tags ?? [];
+  const relatedArticles = await listRelatedArticles(article.id);
+  const relatedProgress = await getProgressMap(
+    session.user.id,
+    relatedArticles.map((a) => a.id),
+  );
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
 
@@ -105,6 +112,31 @@ export default async function ReaderPage({
           languages={SUPPORTED_LANGUAGES}
         />
       </article>
+
+      {relatedArticles.length > 0 ? (
+        <section className="related-articles" aria-label="Related articles">
+          <h2 style={{ marginBottom: "0.75rem" }}>Related articles</h2>
+          <p className="muted" style={{ marginTop: 0 }}>
+            Other articles that share tags with this one.
+          </p>
+          <div className="article-grid">
+            {relatedArticles.map((related) => {
+              const progress = relatedProgress.get(related.id);
+              return (
+                <ArticleCard
+                  key={related.id}
+                  article={related}
+                  progress={
+                    progress
+                      ? { percent: progress.percent, completed: progress.completed }
+                      : undefined
+                  }
+                />
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

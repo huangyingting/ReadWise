@@ -200,6 +200,60 @@ export async function listArticlesByTag(
   });
 }
 
+/**
+ * Returns published articles related to the given article, ranked by how many
+ * tags they share with it (most overlap first, then newest). The source article
+ * is excluded and results are de-duplicated and limited. Returns [] when the
+ * article has no tags or nothing else shares them.
+ */
+export async function listRelatedArticles(
+  articleId: string,
+  limit = 6,
+): Promise<Article[]> {
+  const ownTags = await prisma.articleTag.findMany({
+    where: { articleId },
+    select: { tagId: true },
+  });
+  const tagIds = ownTags.map((t) => t.tagId);
+  if (tagIds.length === 0) {
+    return [];
+  }
+
+  const links = await prisma.articleTag.findMany({
+    where: {
+      tagId: { in: tagIds },
+      articleId: { not: articleId },
+      article: { status: "published" },
+    },
+    select: { articleId: true },
+  });
+
+  const overlap = new Map<string, number>();
+  for (const link of links) {
+    overlap.set(link.articleId, (overlap.get(link.articleId) ?? 0) + 1);
+  }
+  if (overlap.size === 0) {
+    return [];
+  }
+
+  const candidateIds = [...overlap.keys()];
+  const articles = await prisma.article.findMany({
+    where: { id: { in: candidateIds }, status: "published" },
+  });
+
+  return articles
+    .sort((a, b) => {
+      const byOverlap = (overlap.get(b.id) ?? 0) - (overlap.get(a.id) ?? 0);
+      if (byOverlap !== 0) {
+        return byOverlap;
+      }
+      const aDate = (a.publishedAt ?? a.createdAt).getTime();
+      const bDate = (b.publishedAt ?? b.createdAt).getTime();
+      return bDate - aDate;
+    })
+    .slice(0, limit);
+}
+
 /** All tags that have at least one published article, with their counts. */
 export async function listTagsWithCounts(): Promise<TagWithCount[]> {
   const tags = await prisma.tag.findMany({

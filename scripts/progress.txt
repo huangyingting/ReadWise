@@ -514,3 +514,26 @@ Started: Thu Jun 18 08:35:56 UTC 2026
   - New gated listing pages must be added to BOTH middleware arrays (PROTECTED_PREFIXES + matcher)
     and call requireSession in the server component (the /tags prefix was added this story).
 ---
+
+## 2026-06-18 10:25 UTC - US-016 Related articles
+- Added `listRelatedArticles(articleId, limit=6)` to src/lib/tags.ts: collects the article's
+  tagIds, finds published ArticleTag links for those tags excluding the source article, tallies
+  shared-tag overlap per candidate in JS, then sorts by overlap desc (tiebreak publishedAt/createdAt
+  desc) and slices to the limit. Returns [] when the article has no tags or nothing else shares them.
+- Reader page (src/app/reader/[id]/page.tsx) now renders a "Related articles" section AFTER the
+  </article>, reusing `ArticleCard` + `getProgressMap` (same pattern as /tags/[slug]). Section only
+  renders when there is at least one related article.
+- Added `.related-articles` style (top border + spacing) in src/app/globals.css.
+- Files changed: src/lib/tags.ts, src/app/reader/[id]/page.tsx, src/app/globals.css.
+- Quality: typecheck PASS, lint PASS (0 warnings).
+- Browser verified: seeded shared tags (article B shares 2 tags, C shares 1, D shares 0) and
+  confirmed the panel ranks B before C, excludes the current article and the 0-overlap article D,
+  de-dupes, and shows ArticleCard progress bars. Screenshot captured (/tmp/related.png). Test data
+  cleaned up afterward (dev.db).
+- **Learnings for future iterations:**
+  - Shared-tag ranking is cheapest as: query ArticleTag by `tagId in [...]` + `articleId not` +
+    `article.status published`, tally overlap counts in JS, then one `article.findMany({id in})`.
+    Avoids a raw groupBy and keeps the published filter on the relation.
+  - ArticleCard expects `progress?: {percent, completed}`; feed it from `getProgressMap` (Map) — same
+    composition used by every listing (/tags/[slug], dashboard).
+---
