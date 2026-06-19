@@ -3,6 +3,10 @@ import Image from "next/image";
 import { requireAdmin } from "@/lib/session";
 import { listMembers } from "@/lib/admin-members";
 import AdminMemberActions from "@/components/AdminMemberActions";
+import { Input } from "@/components/ui/Input";
+import { Select } from "@/components/ui/Select";
+import { Button, buttonVariants } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 
 type SearchParams = {
   q?: string;
@@ -46,31 +50,38 @@ export default async function AdminMembersPage({
   const showingTo = Math.min(result.page * result.pageSize, result.total);
 
   return (
-    <section className="stack" style={{ marginTop: "1.5rem" }}>
-      <h2 style={{ marginBottom: 0 }}>Members</h2>
+    <section className="stack mt-[var(--space-6)]">
+      <h2>Members</h2>
 
-      <form method="get" className="admin-search">
-        <input
+      <form
+        method="get"
+        className="flex flex-wrap gap-[var(--space-2)] items-center"
+      >
+        <Input
           type="search"
           name="q"
           defaultValue={query}
           placeholder="Search name or email…"
-          className="admin-input"
+          inputSize="md"
+          className="flex-[1_1_240px]"
           aria-label="Search members"
         />
-        <select
-          name="role"
-          defaultValue={role}
-          className="admin-input"
-          aria-label="Filter by role"
-        >
-          <option value="">All roles</option>
-          <option value="Admin">Admin</option>
-          <option value="Reader">Reader</option>
-        </select>
-        <button type="submit" className="btn btn-primary admin-search-btn">
+        <div className="w-auto">
+          <Select
+            name="role"
+            defaultValue={role}
+            selectSize="md"
+            className="w-auto"
+            aria-label="Filter by role"
+          >
+            <option value="">All roles</option>
+            <option value="Admin">Admin</option>
+            <option value="Reader">Reader</option>
+          </Select>
+        </div>
+        <Button type="submit" variant="primary" size="md" className="w-auto">
           Search
-        </button>
+        </Button>
       </form>
 
       <p className="muted" style={{ margin: 0 }}>
@@ -80,7 +91,11 @@ export default async function AdminMembersPage({
       </p>
 
       {result.members.length > 0 && (
-        <div className="admin-table-wrap">
+        <div
+          className="admin-table-wrap"
+          tabIndex={0}
+          aria-label="Members table (scrollable)"
+        >
           <table className="admin-table">
             <thead>
               <tr>
@@ -116,12 +131,12 @@ export default async function AdminMembersPage({
                           <span>
                             {m.name ?? "—"}
                             {isSelf && (
-                              <span
-                                className="pill"
-                                style={{ marginLeft: "0.4rem" }}
+                              <Badge
+                                variant="neutral"
+                                className="ml-[var(--space-1)]"
                               >
                                 You
-                              </span>
+                              </Badge>
                             )}
                           </span>
                           <span className="muted">{m.email ?? "no email"}</span>
@@ -129,7 +144,11 @@ export default async function AdminMembersPage({
                       </div>
                     </td>
                     <td>
-                      <span className="pill">{m.role}</span>
+                      <Badge
+                        variant={m.role === "Admin" ? "primary" : "neutral"}
+                      >
+                        {m.role}
+                      </Badge>
                     </td>
                     <td className="muted">{dateLabel(m.createdAt)}</td>
                     <td className="muted">
@@ -155,26 +174,30 @@ export default async function AdminMembersPage({
         <div className="admin-pagination">
           {result.page > 1 ? (
             <Link
-              className="btn admin-page-btn"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
               href={buildHref({ q: query, role, page: result.page - 1 })}
             >
               ← Previous
             </Link>
           ) : (
-            <span className="btn admin-page-btn is-disabled">← Previous</span>
+            <Button variant="outline" size="sm" disabled>
+              ← Previous
+            </Button>
           )}
           <span className="muted">
             Page {result.page} of {result.totalPages}
           </span>
           {result.page < result.totalPages ? (
             <Link
-              className="btn admin-page-btn"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
               href={buildHref({ q: query, role, page: result.page + 1 })}
             >
               Next →
             </Link>
           ) : (
-            <span className="btn admin-page-btn is-disabled">Next →</span>
+            <Button variant="outline" size="sm" disabled>
+              Next →
+            </Button>
           )}
         </div>
       )}

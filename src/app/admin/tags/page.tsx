@@ -2,6 +2,8 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { listAdminTags } from "@/lib/admin-tags";
 import AdminTagActions from "@/components/AdminTagActions";
+import { Input } from "@/components/ui/Input";
+import { Button, buttonVariants } from "@/components/ui/Button";
 
 type SearchParams = {
   q?: string;
@@ -34,21 +36,25 @@ export default async function AdminTagsPage({
   const showingTo = Math.min(result.page * result.pageSize, result.total);
 
   return (
-    <section className="stack" style={{ marginTop: "1.5rem" }}>
-      <h2 style={{ marginBottom: 0 }}>Tags</h2>
+    <section className="stack mt-[var(--space-6)]">
+      <h2>Tags</h2>
 
-      <form method="get" className="admin-search">
-        <input
+      <form
+        method="get"
+        className="flex flex-wrap gap-[var(--space-2)] items-center"
+      >
+        <Input
           type="search"
           name="q"
           defaultValue={query}
           placeholder="Search tag name or slug…"
-          className="admin-input"
+          inputSize="md"
+          className="flex-[1_1_240px]"
           aria-label="Search tags"
         />
-        <button type="submit" className="btn btn-primary admin-search-btn">
+        <Button type="submit" variant="primary" size="md" className="w-auto">
           Search
-        </button>
+        </Button>
       </form>
 
       <p className="muted" style={{ margin: 0 }}>
@@ -58,7 +64,11 @@ export default async function AdminTagsPage({
       </p>
 
       {result.tags.length > 0 && (
-        <div className="admin-table-wrap">
+        <div
+          className="admin-table-wrap"
+          tabIndex={0}
+          aria-label="Tags table (scrollable)"
+        >
           <table className="admin-table">
             <thead>
               <tr>
@@ -73,7 +83,10 @@ export default async function AdminTagsPage({
                 <tr key={t.id}>
                   <td>{t.name}</td>
                   <td>
-                    <Link href={`/tags/${t.slug}`} className="muted">
+                    <Link
+                      href={`/tags/${t.slug}`}
+                      className="text-text-subtle hover:text-text text-[length:var(--text-sm)]"
+                    >
                       {t.slug}
                     </Link>
                   </td>
@@ -95,26 +108,30 @@ export default async function AdminTagsPage({
         <div className="admin-pagination">
           {result.page > 1 ? (
             <Link
-              className="btn admin-page-btn"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
               href={buildHref({ q: query, page: result.page - 1 })}
             >
               ← Previous
             </Link>
           ) : (
-            <span className="btn admin-page-btn is-disabled">← Previous</span>
+            <Button variant="outline" size="sm" disabled>
+              ← Previous
+            </Button>
           )}
           <span className="muted">
             Page {result.page} of {result.totalPages}
           </span>
           {result.page < result.totalPages ? (
             <Link
-              className="btn admin-page-btn"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
               href={buildHref({ q: query, page: result.page + 1 })}
             >
               Next →
             </Link>
           ) : (
-            <span className="btn admin-page-btn is-disabled">Next →</span>
+            <Button variant="outline" size="sm" disabled>
+              Next →
+            </Button>
           )}
         </div>
       )}

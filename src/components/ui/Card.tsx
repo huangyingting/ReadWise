@@ -37,12 +37,15 @@ export function CardHeader({
   );
 }
 
-export function CardTitle({
-  className,
-  ...props
-}: React.HTMLAttributes<HTMLHeadingElement>) {
+export interface CardTitleProps extends React.HTMLAttributes<HTMLHeadingElement> {
+  /** Heading level to render. Defaults to "h3" — non-breaking for existing usage. */
+  level?: "h2" | "h3" | "h4";
+}
+
+export function CardTitle({ level, className, ...props }: CardTitleProps) {
+  const Tag = level ?? "h3";
   return (
-    <h3
+    <Tag
       className={cn(
         "font-[family-name:var(--font-display)] font-semibold text-text",
         "text-[length:var(--text-xl)] leading-[var(--leading-snug)]",

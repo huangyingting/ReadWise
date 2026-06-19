@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { Select } from "@/components/ui/Select";
+import ConfirmAction from "@/components/ConfirmAction";
 
 type Role = "Admin" | "Reader";
 
@@ -15,7 +17,6 @@ export default function AdminMemberActions({
   isSelf: boolean;
 }) {
   const router = useRouter();
-  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [busy, setBusy] = useState<"role" | "delete" | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -56,7 +57,6 @@ export default function AdminMemberActions({
           | null;
         throw new Error(data?.error ?? `Remove failed (${res.status})`);
       }
-      setConfirmingDelete(false);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Remove failed");
@@ -68,63 +68,39 @@ export default function AdminMemberActions({
   return (
     <div className="admin-actions">
       <div className="admin-actions-row">
-        <select
-          className="admin-input"
-          aria-label="Member role"
-          value={role}
-          disabled={busy !== null || isSelf}
-          onChange={(e) => changeRole(e.target.value as Role)}
-        >
-          <option value="Reader">Reader</option>
-          <option value="Admin">Admin</option>
-        </select>
-        <button
-          type="button"
-          className="btn btn-danger"
-          disabled={busy !== null || isSelf}
-          title={isSelf ? "You cannot remove your own account" : undefined}
-          onClick={() => {
-            setError(null);
-            setConfirmingDelete((v) => !v);
-          }}
-        >
-          Remove
-        </button>
+        <div className="w-auto">
+          <Select
+            selectSize="sm"
+            className="w-auto"
+            aria-label="Member role"
+            value={role}
+            disabled={busy !== null || isSelf}
+            onChange={(e) => changeRole(e.target.value as Role)}
+          >
+            <option value="Reader">Reader</option>
+            <option value="Admin">Admin</option>
+          </Select>
+        </div>
+        <ConfirmAction
+          triggerLabel="Remove"
+          triggerVariant="danger"
+          confirmVariant="danger"
+          confirmLabel="Confirm remove"
+          confirmMessage="Permanently remove this member and all of their progress, saved words and sessions? This cannot be undone."
+          onConfirm={runDelete}
+          loading={busy === "delete"}
+          disabled={isSelf || busy === "role"}
+          disabledTitle={
+            isSelf ? "You cannot remove your own account" : undefined
+          }
+        />
       </div>
 
-      {confirmingDelete && (
-        <div
-          className="admin-confirm"
-          role="alertdialog"
-          aria-label="Confirm remove member"
-        >
-          <p style={{ margin: 0 }}>
-            Permanently remove this member and all of their progress, saved words
-            and sessions? This cannot be undone.
-          </p>
-          <div className="admin-actions-row">
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={busy === "delete"}
-              onClick={runDelete}
-            >
-              {busy === "delete" ? "Removing…" : "Confirm remove"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy === "delete"}
-              onClick={() => setConfirmingDelete(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
       {error && (
-        <p className="admin-error" style={{ margin: 0 }}>
+        <p
+          className="text-danger-text text-[length:var(--text-sm)]"
+          style={{ margin: 0 }}
+        >
           {error}
         </p>
       )}

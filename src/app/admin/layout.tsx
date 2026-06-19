@@ -11,9 +11,14 @@ export default async function AdminLayout({
 
   return (
     <main className="container">
-      <div className="admin-header">
-        <h1 style={{ margin: 0 }}>Admin</h1>
-        <Link href="/dashboard" className="muted">
+      <div className="flex items-baseline justify-between gap-[var(--space-4)] flex-wrap mt-[var(--space-6)]">
+        <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold">
+          Admin
+        </h1>
+        <Link
+          href="/dashboard"
+          className="text-text-subtle text-[length:var(--text-sm)] hover:text-text"
+        >
           ← Back to dashboard
         </Link>
       </div>

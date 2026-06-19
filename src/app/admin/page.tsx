@@ -1,13 +1,26 @@
 import { requireAdmin } from "@/lib/session";
 import { getAdminOverview } from "@/lib/admin";
+import { Card, CardMeta } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
 
 function StatCard({ label, value }: { label: string; value: number | string }) {
   return (
-    <div className="card admin-stat">
-      <div className="admin-stat-value">{value}</div>
-      <div className="muted">{label}</div>
-    </div>
+    <Card className="p-[var(--space-4)]">
+      <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
+        {value}
+      </div>
+      <CardMeta>{label}</CardMeta>
+    </Card>
   );
+}
+
+function statusBadgeVariant(
+  status: string,
+): "success" | "neutral" | "warning" | "danger" {
+  if (status === "published") return "success";
+  if (status === "processing") return "warning";
+  if (status === "failed") return "danger";
+  return "neutral";
 }
 
 export default async function AdminPage() {
@@ -15,13 +28,13 @@ export default async function AdminPage() {
   const overview = await getAdminOverview();
 
   return (
-    <section className="stack" style={{ marginTop: "1.5rem" }}>
+    <section className="stack mt-[var(--space-6)]">
       <p className="muted" style={{ margin: 0 }}>
         Signed in as <strong>{session.user.name ?? session.user.email}</strong>{" "}
         ({session.user.role})
       </p>
 
-      <h2 style={{ marginBottom: 0 }}>Overview</h2>
+      <h2>Overview</h2>
       <div className="admin-stat-grid">
         <StatCard label="Total members" value={overview.users} />
         <StatCard label="Admins" value={overview.admins} />
@@ -31,21 +44,25 @@ export default async function AdminPage() {
         <StatCard label="Reads tracked" value={overview.readingProgress} />
       </div>
 
-      <h2 style={{ marginBottom: 0 }}>Processing status</h2>
+      <h2>Processing status</h2>
       {overview.statusCounts.length === 0 ? (
         <p className="muted">No articles yet.</p>
       ) : (
-        <div className="card stack">
-          {overview.statusCounts.map((s) => (
-            <div
-              key={s.status}
-              style={{ display: "flex", justifyContent: "space-between" }}
-            >
-              <span style={{ textTransform: "capitalize" }}>{s.status}</span>
-              <strong>{s.count}</strong>
-            </div>
-          ))}
-        </div>
+        <Card>
+          <div className="stack">
+            {overview.statusCounts.map((s) => (
+              <div
+                key={s.status}
+                className="flex justify-between items-center"
+              >
+                <Badge variant={statusBadgeVariant(s.status)}>
+                  {s.status}
+                </Badge>
+                <strong>{s.count}</strong>
+              </div>
+            ))}
+          </div>
+        </Card>
       )}
     </section>
   );

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import ConfirmAction from "@/components/ConfirmAction";
 
 export default function AdminTagActions({
   tagId,
@@ -11,7 +12,6 @@ export default function AdminTagActions({
   tagName: string;
 }) {
   const router = useRouter();
-  const [confirming, setConfirming] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +26,6 @@ export default function AdminTagActions({
           | null;
         throw new Error(data?.error ?? `Delete failed (${res.status})`);
       }
-      setConfirming(false);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");
@@ -36,57 +35,29 @@ export default function AdminTagActions({
   }
 
   return (
-    <div className="admin-actions">
-      <div className="admin-actions-row">
-        <button
-          type="button"
-          className="btn btn-danger"
-          disabled={busy}
-          onClick={() => {
-            setError(null);
-            setConfirming((v) => !v);
-          }}
-        >
-          Delete
-        </button>
-      </div>
-
-      {confirming && (
-        <div
-          className="admin-confirm"
-          role="alertdialog"
-          aria-label="Confirm delete tag"
-        >
-          <p style={{ margin: 0 }}>
-            Delete the tag “{tagName}”? It will be removed from every article that
-            carries it. This cannot be undone.
-          </p>
-          <div className="admin-actions-row">
-            <button
-              type="button"
-              className="btn btn-danger"
-              disabled={busy}
-              onClick={runDelete}
-            >
-              {busy ? "Deleting…" : "Confirm delete"}
-            </button>
-            <button
-              type="button"
-              className="btn"
-              disabled={busy}
-              onClick={() => setConfirming(false)}
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
+    <>
+      <ConfirmAction
+        triggerLabel="Delete"
+        triggerVariant="danger"
+        confirmVariant="danger"
+        confirmLabel="Confirm delete"
+        confirmMessage={
+          <>
+            Delete the tag &quot;{tagName}&quot;? It will be removed from every
+            article that carries it. This cannot be undone.
+          </>
+        }
+        onConfirm={runDelete}
+        loading={busy}
+      />
       {error && (
-        <p className="admin-error" style={{ margin: 0 }}>
+        <p
+          className="text-danger-text text-[length:var(--text-sm)]"
+          style={{ margin: 0 }}
+        >
           {error}
         </p>
       )}
-    </div>
+    </>
   );
 }

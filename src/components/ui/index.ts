@@ -7,6 +7,7 @@ export {
   CardBody,
   CardFooter,
   type CardProps,
+  type CardTitleProps,
 } from "./Card";
 export { Input, inputVariants, type InputProps } from "./Input";
 export { Select, selectVariants, type SelectProps } from "./Select";
