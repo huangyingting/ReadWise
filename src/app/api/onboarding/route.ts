@@ -18,6 +18,7 @@ export const POST = createHandler({ body: profileSchema }, async ({ body, sessio
     englishLevel: body.englishLevel,
     topics: JSON.stringify(body.topics),
     completedAt: new Date(),
+    ...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {}),
   };
   await prisma.profile.upsert({
     where: { userId: session.user.id },

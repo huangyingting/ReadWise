@@ -36,11 +36,17 @@ export async function isUserOnboarded(userId: string): Promise<boolean> {
   return isOnboarded(await getProfile(userId));
 }
 
+export const DAILY_GOAL_MIN = 1;
+export const DAILY_GOAL_MAX = 10;
+export const DAILY_GOAL_DEFAULT = 2;
+
 export type ProfileInput = {
   ageRange: AgeRange | null;
   gender: Gender | null;
   englishLevel: EnglishLevel;
   topics: string[];
+  /** Articles-per-day target. Present only when explicitly supplied in the request body. */
+  dailyGoal?: number;
 };
 
 export type ProfileInputResult =
@@ -52,6 +58,7 @@ export function parseProfileInput(body: {
   gender?: unknown;
   englishLevel?: unknown;
   topics?: unknown;
+  dailyGoal?: unknown;
 }): ProfileInputResult {
   const englishLevel = body.englishLevel;
   if (
@@ -92,9 +99,32 @@ export function parseProfileInput(body: {
     ),
   );
 
+  let dailyGoal: number | undefined;
+  if (body.dailyGoal != null) {
+    const raw = body.dailyGoal;
+    if (
+      typeof raw !== "number" ||
+      !Number.isInteger(raw) ||
+      raw < DAILY_GOAL_MIN ||
+      raw > DAILY_GOAL_MAX
+    ) {
+      return {
+        ok: false,
+        error: `Daily goal must be an integer between ${DAILY_GOAL_MIN} and ${DAILY_GOAL_MAX}`,
+      };
+    }
+    dailyGoal = raw;
+  }
+
   return {
     ok: true,
-    value: { ageRange, gender, englishLevel: englishLevel as EnglishLevel, topics },
+    value: {
+      ageRange,
+      gender,
+      englishLevel: englishLevel as EnglishLevel,
+      topics,
+      ...(dailyGoal !== undefined ? { dailyGoal } : {}),
+    },
   };
 }
 

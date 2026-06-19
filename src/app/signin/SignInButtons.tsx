@@ -1,6 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { signIn } from "next-auth/react";
+import { LogIn, AlertTriangle } from "lucide-react";
+import { Button } from "@/components/ui";
 
 type Provider = {
   id: string;
@@ -19,25 +22,38 @@ export default function SignInButtons({
   providers: Provider[];
   callbackUrl: string;
 }) {
+  const [pending, setPending] = useState<string | null>(null);
+
   if (providers.length === 0) {
     return (
-      <p className="muted">
-        No authentication providers are configured. Set OAuth credentials in the
-        environment to enable sign-in.
-      </p>
+      <div className="flex items-start gap-[var(--space-2)] text-text-muted text-[length:var(--text-sm)]">
+        <AlertTriangle size={16} aria-hidden className="shrink-0 mt-px" />
+        <span>
+          No authentication providers are configured. Set OAuth credentials in
+          the environment to enable sign-in.
+        </span>
+      </div>
     );
   }
 
   return (
-    <div className="stack">
+    <div className="flex flex-col gap-[var(--space-3)]">
       {providers.map((p) => (
-        <button
+        <Button
           key={p.id}
-          className="btn"
-          onClick={() => signIn(p.id, { callbackUrl })}
+          variant="secondary"
+          size="lg"
+          className="w-full"
+          loading={pending === p.id}
+          disabled={pending !== null && pending !== p.id}
+          leadingIcon={<LogIn size={18} aria-hidden />}
+          onClick={() => {
+            setPending(p.id);
+            signIn(p.id, { callbackUrl });
+          }}
         >
           {PROVIDER_LABELS[p.id] ?? `Continue with ${p.name}`}
-        </button>
+        </Button>
       ))}
     </div>
   );
