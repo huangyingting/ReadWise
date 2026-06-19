@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { ReadingProgress } from "@prisma/client";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
+import { recordReadingActivity } from "@/lib/activity";
 
 /** Scroll percent at/above which an article is considered finished. */
 export const COMPLETION_THRESHOLD = 95;
@@ -110,14 +111,25 @@ export async function saveProgress(
   const completedAt =
     existing?.completedAt ?? (completed ? new Date() : null);
 
+  let result: ReadingProgress;
   if (existing) {
-    return prisma.readingProgress.update({
+    result = await prisma.readingProgress.update({
       where: { id: existing.id },
       data: { percent, completed, completedAt },
     });
+  } else {
+    result = await prisma.readingProgress.create({
+      data: { userId, articleId, percent, completed, completedAt },
+    });
   }
 
-  return prisma.readingProgress.create({
-    data: { userId, articleId, percent, completed, completedAt },
-  });
+  // Side-effect: record daily activity (errors are swallowed so they never
+  // affect the caller's return value or forward-only semantics).
+  try {
+    await recordReadingActivity(userId, articleId);
+  } catch {
+    // non-critical — activity tracking must not break progress saves
+  }
+
+  return result;
 }

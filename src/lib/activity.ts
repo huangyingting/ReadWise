@@ -1,0 +1,146 @@
+/**
+ * Reading-activity tracking and streak calculation (US-M6).
+ *
+ * DailyActivity rows store how many DISTINCT articles a user progressed on a
+ * given UTC calendar day. `recordReadingActivity` is called as a side-effect
+ * from `saveProgress` — it recomputes the distinct count from ReadingProgress
+ * (idempotent: same article saved twice in one day still counts once) and
+ * upserts the DailyActivity row.
+ */
+
+import { prisma } from "@/lib/prisma";
+
+/** ISO YYYY-MM-DD key for a Date (UTC). */
+function dateKey(d: Date): string {
+  return d.toISOString().slice(0, 10);
+}
+
+/** UTC midnight for the given date (or now). */
+function utcMidnight(d: Date = new Date()): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
+}
+
+/**
+ * Upserts today's DailyActivity with a fresh count of distinct articles the
+ * user progressed today.  Idempotent — safe to call on every progress save.
+ */
+export async function recordReadingActivity(
+  userId: string,
+  _articleId: string,
+): Promise<void> {
+  const today = utcMidnight();
+  const tomorrow = new Date(today.getTime() + 86_400_000);
+
+  // Distinct articles whose progress was last updated today
+  const rows = await prisma.readingProgress.findMany({
+    where: { userId, updatedAt: { gte: today, lt: tomorrow } },
+    select: { articleId: true },
+    distinct: ["articleId"],
+  });
+
+  await prisma.dailyActivity.upsert({
+    where: { userId_date: { userId, date: today } },
+    update: { articlesRead: rows.length },
+    create: { userId, date: today, articlesRead: rows.length },
+  });
+}
+
+export type DayActivity = {
+  date: string; // YYYY-MM-DD UTC
+  active: boolean;
+};
+
+export type StreakSummary = {
+  currentStreak: number;
+  longestStreak: number;
+  dailyGoal: number;
+  todayProgress: number;
+  last7Days: DayActivity[];
+};
+
+/**
+ * Returns streak statistics and the last-7-days dot-row for the dashboard.
+ *
+ * Streak rules:
+ *  - A day is "active" when articlesRead > 0.
+ *  - currentStreak counts consecutive active days ending on today; if today is
+ *    not yet active but yesterday is, the streak counts from yesterday instead
+ *    (so a streak isn't broken by an in-progress day).
+ *  - longestStreak is the longest such run anywhere in the user's history.
+ */
+export async function getStreakSummary(
+  userId: string,
+): Promise<StreakSummary> {
+  const [activities, profile] = await Promise.all([
+    prisma.dailyActivity.findMany({
+      where: { userId },
+      orderBy: { date: "asc" },
+      select: { date: true, articlesRead: true },
+    }),
+    prisma.profile.findUnique({
+      where: { userId },
+      select: { dailyGoal: true },
+    }),
+  ]);
+
+  const dailyGoal = profile?.dailyGoal ?? 2;
+
+  // Build a set of active date keys (YYYY-MM-DD)
+  const activeDates = new Set<string>();
+  for (const a of activities) {
+    if (a.articlesRead > 0) activeDates.add(dateKey(a.date));
+  }
+
+  const todayDate = new Date();
+  const todayStr = dateKey(todayDate);
+  const yesterdayStr = dateKey(new Date(todayDate.getTime() - 86_400_000));
+
+  // Today's progress count
+  const todayRow = activities.find((a) => dateKey(a.date) === todayStr);
+  const todayProgress = todayRow?.articlesRead ?? 0;
+
+  // Determine streak anchor: today if active, yesterday otherwise
+  let currentStreak = 0;
+  let anchorStr: string | null = null;
+  if (activeDates.has(todayStr)) {
+    anchorStr = todayStr;
+  } else if (activeDates.has(yesterdayStr)) {
+    anchorStr = yesterdayStr;
+  }
+
+  if (anchorStr) {
+    // Walk backward from anchor, counting consecutive active days
+    let cursor = new Date(anchorStr + "T00:00:00Z");
+    while (activeDates.has(dateKey(cursor))) {
+      currentStreak++;
+      cursor = new Date(cursor.getTime() - 86_400_000);
+    }
+  }
+
+  // Longest streak: scan sorted active dates
+  let longestStreak = 0;
+  let run = 0;
+  let prevMs: number | null = null;
+  for (const key of [...activeDates].sort()) {
+    const ms = new Date(key + "T00:00:00Z").getTime();
+    if (prevMs !== null && ms - prevMs === 86_400_000) {
+      run++;
+    } else {
+      run = 1;
+    }
+    longestStreak = Math.max(longestStreak, run);
+    prevMs = ms;
+  }
+
+  // Last 7 days (oldest → newest so the UI renders left-to-right)
+  const last7Days: DayActivity[] = [];
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(todayDate.getTime() - i * 86_400_000);
+    const key = dateKey(d);
+    last7Days.push({ date: key, active: activeDates.has(key) });
+  }
+
+  return { currentStreak, longestStreak, dailyGoal, todayProgress, last7Days };
+}

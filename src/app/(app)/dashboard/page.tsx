@@ -5,6 +5,7 @@ import { requireOnboardedSession } from "@/lib/session";
 import { listPublishedArticles, filterAndSortByLevel } from "@/lib/articles";
 import { getProgressMap, listInProgressArticles } from "@/lib/progress";
 import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
+import { getStreakSummary } from "@/lib/activity";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,8 @@ import ArticleCard from "@/components/ArticleCard";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import EmptyState from "@/components/EmptyState";
+import StreakWidget from "@/components/StreakWidget";
+import DailyGoal from "@/components/DailyGoal";
 
 export default async function DashboardPage({
   searchParams,
@@ -25,9 +28,10 @@ export default async function DashboardPage({
   const { level } = await searchParams;
   const activeLevel = isDifficultyLevel(level) ? level : null;
 
-  const [articles, inProgressEntries] = await Promise.all([
+  const [articles, inProgressEntries, streak] = await Promise.all([
     listPublishedArticles(),
     listInProgressArticles(user.id),
+    getStreakSummary(user.id),
   ]);
 
   await ensureArticleDifficulties(articles);
@@ -70,6 +74,24 @@ export default async function DashboardPage({
           </div>
         </div>
       </Card>
+
+      {/* Your progress stats band: Streak | Goal */}
+      <section
+        aria-labelledby="progress-h"
+        style={{ marginTop: "var(--space-7)" }}
+      >
+        <h2
+          id="progress-h"
+          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
+          style={{ marginBottom: "var(--space-4)" }}
+        >
+          Your progress
+        </h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--space-5)] rw-fade-up">
+          <StreakWidget streak={streak} />
+          <DailyGoal streak={streak} />
+        </div>
+      </section>
 
       {/* Continue-reading rail — only when in-progress articles exist */}
       {inProgressEntries.length > 0 ? (

@@ -1669,3 +1669,88 @@ body {
   padding-top: var(--space-6);
   border-top: 1px solid var(--reading-border, var(--border));
 }
+
+/* ================================================================
+ * M6 — Gamification motion (additive only; never alters existing rules)
+ * ================================================================ */
+
+@keyframes rw-flame-flicker {
+  /* One-shot streak-extended pulse on the Flame icon */
+  0%   { transform: scale(1);    opacity: 1; }
+  40%  { transform: scale(1.12); opacity: 0.85; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+@keyframes rw-pop {
+  /* Celebratory entrance: goal met / session complete chip */
+  0%   { transform: scale(0.8);  opacity: 0; }
+  60%  { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1);    opacity: 1; }
+}
+
+@layer utilities {
+  /* Streak flame one-shot flicker */
+  .rw-flame-flicker {
+    animation: rw-flame-flicker 600ms var(--ease-emphasized) 1;
+  }
+
+  /* Celebratory pop (goal met, session complete) */
+  .rw-pop {
+    animation: rw-pop var(--duration-slow) var(--ease-emphasized) 1;
+  }
+
+  /* Flashcard 3D flip — parent gets perspective context */
+  .rw-flip {
+    perspective: 1000px;
+  }
+
+  /* Inner wrapper rotates on flip */
+  .rw-flip-inner {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform var(--duration-slow) var(--ease-emphasized);
+  }
+
+  .rw-flip-inner[data-flipped="true"] {
+    transform: rotateY(180deg);
+  }
+
+  /* Both faces are absolute so the container keeps its height */
+  .rw-flip-face {
+    position: absolute;
+    inset: 0;
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+  }
+
+  /* Back face is pre-rotated 180° so it appears correct after parent flip */
+  .rw-flip-back {
+    transform: rotateY(180deg);
+  }
+}
+
+/* Reduced-motion: kill 3D rotation, fall back to opacity crossfade.
+   flicker/pop are also no-op'd here (belt-and-suspenders over --duration-* collapse). */
+@media (prefers-reduced-motion: reduce) {
+  .rw-flame-flicker,
+  .rw-pop {
+    animation: none !important;
+  }
+
+  .rw-flip-inner {
+    transition: opacity var(--duration-base) var(--ease-standard) !important;
+    transform: none !important;
+  }
+
+  .rw-flip-inner[data-flipped="true"] {
+    transform: none !important;
+  }
+
+  /* Reveal both faces; opacity crossfade is controlled by the component's
+     opacity classes (opacity-0 / opacity-100 toggled via data-flipped). */
+  .rw-flip-face {
+    backface-visibility: visible;
+    -webkit-backface-visibility: visible;
+    transition: opacity var(--duration-base) var(--ease-standard);
+  }
+}
