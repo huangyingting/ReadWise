@@ -16,6 +16,8 @@ export default function AdminArticleActions({
   const [busyDelete, setBusyDelete] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Only one confirm panel open at a time
+  const [openPanel, setOpenPanel] = useState<"rebuild" | "delete" | null>(null);
 
   async function runRebuild() {
     setBusyRebuild(true);
@@ -80,6 +82,8 @@ export default function AdminArticleActions({
           onConfirm={runRebuild}
           loading={busyRebuild}
           disabled={busyDelete}
+          open={openPanel === "rebuild"}
+          onOpenChange={(v) => setOpenPanel(v ? "rebuild" : null)}
         />
         <ConfirmAction
           triggerLabel="Delete"
@@ -90,6 +94,8 @@ export default function AdminArticleActions({
           onConfirm={runDelete}
           loading={busyDelete}
           disabled={busyRebuild}
+          open={openPanel === "delete"}
+          onOpenChange={(v) => setOpenPanel(v ? "delete" : null)}
         />
       </div>
 

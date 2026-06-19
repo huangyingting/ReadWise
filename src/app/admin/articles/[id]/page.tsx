@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireAdmin } from "@/lib/session";
 import { getAdminArticleDetail } from "@/lib/admin-articles";
+import { statusBadgeVariant } from "@/lib/admin";
 import { readingMinutesFor } from "@/lib/articles";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import AdminArticleActions from "@/components/AdminArticleActions";
@@ -40,17 +41,7 @@ export default async function AdminArticleDetailPage({
 
       <h2>{article.title}</h2>
       <div className="article-meta muted">
-        <Badge
-          variant={
-            article.status === "published"
-              ? "success"
-              : article.status === "processing"
-                ? "warning"
-                : article.status === "failed"
-                  ? "danger"
-                  : "neutral"
-          }
-        >
+        <Badge variant={statusBadgeVariant(article.status)}>
           {article.status}
         </Badge>
         {article.difficulty &&

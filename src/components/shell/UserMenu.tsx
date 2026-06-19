@@ -112,7 +112,6 @@ export default function UserMenu({ user }: { user: ShellUser }) {
         <div
           ref={menuRef}
           role="menu"
-          aria-label="User menu"
           className={cn(
             "absolute right-0 top-[calc(100%+var(--space-2))] z-[60] min-w-[200px]",
             "rounded-[var(--radius-md)] border border-border bg-surface-raised py-[var(--space-1)]",

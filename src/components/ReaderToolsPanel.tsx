@@ -1,7 +1,7 @@
 "use client";
 
 /**
- * ReaderToolsPanel (M5)
+ * ReaderToolsPanel (M5, patched M9-B)
  *
  * Tabbed panel containing the four AI tools: Listen · Words · Quiz · Translate.
  * Owns activeTab + visited (Set of tabs fetched at least once).
@@ -11,6 +11,10 @@
  *    · Audio keeps playing across tab switches (shared via ReaderAudioProvider)
  *    · Quiz answers / vocab saves persist in-session
  *  - Each panel triggers its own fetch on first mount
+ *  - PanelContents is rendered ONCE — in the aside on desktop, in the sheet on
+ *    mobile (NIR-M5-1: eliminated double API call per tab activation)
+ *  - Mobile bottom-sheet: focus moves into sheet on open, Tab is focus-trapped,
+ *    Escape closes and restores focus to the FAB (NIR-M5-2)
  *  - Auto-scroll in ArticleSpeech is gated on the Listen tab being active
  *  - Accessible: role="tablist", role="tab" aria-selected, role="tabpanel",
  *    roving tabindex, arrow-key navigation
@@ -215,6 +219,15 @@ function PanelContents({
   );
 }
 
+/** Selects all focusable, non-disabled elements within a container. */
+function getFocusable(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+    ),
+  );
+}
+
 export default function ReaderToolsPanel({
   articleId,
   languages,
@@ -222,9 +235,22 @@ export default function ReaderToolsPanel({
   const [activeTab, setActiveTab] = useState<TabId | null>(null);
   const [visited, setVisited] = useState<Set<TabId>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
-  const tabListRef = useRef<HTMLDivElement | null>(null);
+  /**
+   * NIR-M5-1: true once the media query fires below 1100px.
+   * Controls whether PanelContents lives in the aside or the sheet so it is
+   * never mounted in both places simultaneously.
+   */
+  const [isMobile, setIsMobile] = useState(false);
+
+  // Separate refs per TabBar so they don't clobber each other on unmount.
+  const asideTabListRef = useRef<HTMLDivElement | null>(null);
+  const sheetTabListRef = useRef<HTMLDivElement | null>(null);
+
   const sheetRef = useRef<HTMLDivElement | null>(null);
-  const firstFocusRef = useRef<HTMLButtonElement | null>(null);
+  /** FAB button — focus is restored here when the sheet closes (NIR-M5-2). */
+  const fabRef = useRef<HTMLButtonElement | null>(null);
+  /** First interactive element in the sheet — receives focus on open (NIR-M5-2). */
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
 
   const activateTab = useCallback((id: TabId) => {
     setActiveTab(id);
@@ -234,38 +260,69 @@ export default function ReaderToolsPanel({
     });
   }, []);
 
-  // Mobile sheet: focus-trap + body scroll lock
+  // NIR-M5-1: track viewport width to decide which container owns PanelContents.
+  useEffect(() => {
+    const mq = window.matchMedia("(max-width: 1099px)");
+    const update = () => setIsMobile(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+
+  // NIR-M5-2: body scroll lock + focus management + Tab focus-trap.
   useEffect(() => {
     if (!sheetOpen) return;
-    const prev = document.body.style.overflow;
+    const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
 
-    // Focus the first tab button when sheet opens
+    // Move focus into the sheet.
     requestAnimationFrame(() => {
-      firstFocusRef.current?.focus();
+      closeButtonRef.current?.focus();
     });
 
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        setSheetOpen(false);
+        e.preventDefault();
+        closeSheet();
+        return;
+      }
+      if (e.key === "Tab" && sheetRef.current) {
+        const focusable = getFocusable(sheetRef.current);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey) {
+          if (active === first || !sheetRef.current.contains(active)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (active === last || !sheetRef.current.contains(active)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     }
 
     document.addEventListener("keydown", onKey);
     return () => {
-      document.body.style.overflow = prev;
+      document.body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", onKey);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetOpen]);
+
+  function closeSheet() {
+    setSheetOpen(false);
+    // Restore focus to the FAB that opened the sheet.
+    requestAnimationFrame(() => fabRef.current?.focus());
+  }
 
   function handleSheetOpen() {
     setSheetOpen(true);
-    // Open to the last active tab or default to "listen"
     if (!activeTab) activateTab("listen");
-  }
-
-  function handleScrimClick() {
-    setSheetOpen(false);
   }
 
   const panelContents = (
@@ -287,14 +344,16 @@ export default function ReaderToolsPanel({
         <h2 className="reader-tools-heading">Reading tools</h2>
         <TabBar
           activeTab={activeTab}
-          onSelect={(id) => activateTab(id)}
-          tabListRef={tabListRef}
+          onSelect={activateTab}
+          tabListRef={asideTabListRef}
         />
-        {panelContents}
+        {/* NIR-M5-1: panels live here on desktop only */}
+        {!isMobile && panelContents}
       </aside>
 
       {/* ---- Mobile: FAB trigger ---- */}
       <button
+        ref={fabRef}
         type="button"
         aria-label="Open reading tools"
         aria-haspopup="dialog"
@@ -313,7 +372,7 @@ export default function ReaderToolsPanel({
           <div
             className="reader-bottom-sheet-scrim"
             aria-hidden="true"
-            onClick={handleScrimClick}
+            onClick={closeSheet}
           />
 
           {/* Sheet */}
@@ -327,25 +386,25 @@ export default function ReaderToolsPanel({
             <div className="reader-bottom-sheet-handle" aria-hidden="true" />
             <div className="reader-bottom-sheet-header">
               <p className="reader-bottom-sheet-title">Reading tools</p>
+              {/* closeButtonRef: first focus target when sheet opens */}
               <button
+                ref={closeButtonRef}
                 type="button"
                 aria-label="Close reading tools"
-                onClick={() => setSheetOpen(false)}
+                onClick={closeSheet}
                 className={cn("reader-icon-btn", focusRing)}
               >
                 <X size={18} />
               </button>
             </div>
             <div className="reader-bottom-sheet-body">
-              {/* Tabs (shared state — switching in sheet updates rail too) */}
               <TabBar
                 activeTab={activeTab}
-                onSelect={(id) => {
-                  activateTab(id);
-                }}
-                tabListRef={tabListRef}
+                onSelect={activateTab}
+                tabListRef={sheetTabListRef}
               />
-              {panelContents}
+              {/* NIR-M5-1: panels live here on mobile only */}
+              {isMobile && panelContents}
             </div>
           </div>
         </>

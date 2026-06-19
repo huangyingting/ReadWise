@@ -39,8 +39,7 @@ export function Spinner({
         cx="12"
         cy="12"
         r="9"
-        stroke="currentColor"
-        strokeOpacity="0.2"
+        stroke="var(--border)"
         strokeWidth="3"
       />
       <path

@@ -10,6 +10,7 @@ import {
   GENDERS,
   DAILY_GOAL_MIN,
   DAILY_GOAL_MAX,
+  LEVEL_HINTS,
 } from "@/lib/profile";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardMeta, CardBody } from "@/components/ui/Card";
@@ -24,15 +25,6 @@ type Defaults = {
   englishLevel: string;
   topics: string[];
   dailyGoal: number;
-};
-
-const LEVEL_HINTS: Record<string, string> = {
-  A1: "A1 · Beginner",
-  A2: "A2 · Elementary",
-  B1: "B1 · Intermediate",
-  B2: "B2 · Upper-intermediate",
-  C1: "C1 · Advanced",
-  C2: "C2 · Proficient",
 };
 
 export default function ProfileSettingsForm({
@@ -230,15 +222,19 @@ export default function ProfileSettingsForm({
                   step={1}
                   value={dailyGoal}
                   onChange={(e) => {
+                    // Allow mid-type freely; clamp is enforced on blur
                     const v = parseInt(e.target.value, 10);
-                    if (
-                      !isNaN(v) &&
-                      v >= DAILY_GOAL_MIN &&
-                      v <= DAILY_GOAL_MAX
-                    ) {
+                    if (!isNaN(v)) {
                       setDailyGoal(v);
                       markDirty();
                     }
+                  }}
+                  onBlur={(e) => {
+                    const v = parseInt(e.target.value, 10);
+                    const clamped = isNaN(v)
+                      ? DAILY_GOAL_MIN
+                      : Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, v));
+                    setDailyGoal(clamped);
                   }}
                   aria-describedby="daily-goal-hint"
                   className="w-[3.5rem] text-center tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"

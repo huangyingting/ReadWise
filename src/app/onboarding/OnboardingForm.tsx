@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, ArrowLeft, ArrowRight } from "lucide-react";
 import { CATEGORIES } from "@/lib/categories";
-import { AGE_RANGES, ENGLISH_LEVELS, GENDERS } from "@/lib/profile";
+import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS } from "@/lib/profile";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
@@ -17,15 +17,6 @@ type Defaults = {
   gender: string;
   englishLevel: string;
   topics: string[];
-};
-
-const LEVEL_HINTS: Record<string, string> = {
-  A1: "A1 · Beginner",
-  A2: "A2 · Elementary",
-  B1: "B1 · Intermediate",
-  B2: "B2 · Upper-intermediate",
-  C1: "C1 · Advanced",
-  C2: "C2 · Proficient",
 };
 
 const LEVEL_DESCRIPTIONS: Record<string, string> = {
@@ -408,20 +399,21 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
         >
           Step {step} of {TOTAL_STEPS} · {STEP_TITLES[step - 1]}
         </p>
-        <div className="flex gap-[var(--space-2)]" role="list">
+        <nav aria-label="Onboarding progress">
+          <ol className="flex gap-[var(--space-2)] list-none m-0 p-0">
           {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <div
+            <li
               key={i}
-              role="listitem"
               aria-current={i + 1 === step ? "step" : undefined}
               className={cn(
                 "flex-1 h-1.5 rounded-[var(--radius-full)]",
-                "transition-[background-color] [transition-duration:var(--duration-base)]",
+                "transition-[background-color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
                 i + 1 <= step ? "bg-primary" : "bg-border",
               )}
             />
           ))}
-        </div>
+          </ol>
+        </nav>
       </div>
 
       {/* Step content — key forces remount per step, triggering rw-step animation */}

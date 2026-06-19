@@ -1,5 +1,5 @@
 import { requireAdmin } from "@/lib/session";
-import { getAdminOverview } from "@/lib/admin";
+import { getAdminOverview, statusBadgeVariant } from "@/lib/admin";
 import { Card, CardMeta } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 
@@ -12,15 +12,6 @@ function StatCard({ label, value }: { label: string; value: number | string }) {
       <CardMeta>{label}</CardMeta>
     </Card>
   );
-}
-
-function statusBadgeVariant(
-  status: string,
-): "success" | "neutral" | "warning" | "danger" {
-  if (status === "published") return "success";
-  if (status === "processing") return "warning";
-  if (status === "failed") return "danger";
-  return "neutral";
 }
 
 export default async function AdminPage() {

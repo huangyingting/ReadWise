@@ -24,6 +24,16 @@ export type AgeRange = (typeof AGE_RANGES)[number];
 export type Gender = (typeof GENDERS)[number];
 export type EnglishLevel = (typeof ENGLISH_LEVELS)[number];
 
+/** Human-readable labels for each CEFR level (e.g. "B1 · Intermediate"). */
+export const LEVEL_HINTS: Record<string, string> = {
+  A1: "A1 · Beginner",
+  A2: "A2 · Elementary",
+  B1: "B1 · Intermediate",
+  B2: "B2 · Upper-intermediate",
+  C1: "C1 · Advanced",
+  C2: "C2 · Proficient",
+};
+
 export function getProfile(userId: string): Promise<Profile | null> {
   return prisma.profile.findUnique({ where: { userId } });
 }

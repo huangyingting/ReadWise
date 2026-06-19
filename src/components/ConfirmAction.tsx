@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useId } from "react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 
@@ -29,6 +29,14 @@ export interface ConfirmActionProps {
   disabledTitle?: string;
   /** Optional additional className on the wrapper div. */
   className?: string;
+  /**
+   * Controlled open state. When provided, the component is fully controlled:
+   * the trigger still toggles open, but callers can also set it externally
+   * (e.g., to enforce mutual exclusion between sibling panels).
+   */
+  open?: boolean;
+  /** Required alongside `open`. Called when the panel requests an open/close. */
+  onOpenChange?: (open: boolean) => void;
 }
 
 export default function ConfirmAction({
@@ -44,20 +52,34 @@ export default function ConfirmAction({
   disabled = false,
   disabledTitle,
   className,
+  open: controlledOpen,
+  onOpenChange,
 }: ConfirmActionProps) {
-  const [open, setOpen] = useState(false);
+  const [internalOpen, setInternalOpen] = useState(false);
+  const isControlled = controlledOpen !== undefined;
+  const isOpen = isControlled ? controlledOpen : internalOpen;
+
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
+  const msgId = useId();
+
+  function setIsOpen(v: boolean) {
+    if (isControlled) {
+      onOpenChange?.(v);
+    } else {
+      setInternalOpen(v);
+    }
+  }
 
   // Focus the Cancel button when the panel opens (safer default for destructive actions).
   useEffect(() => {
-    if (open) {
+    if (isOpen) {
       cancelRef.current?.focus();
     }
-  }, [open]);
+  }, [isOpen]);
 
   function handleClose() {
-    setOpen(false);
+    setIsOpen(false);
     // Return focus to the trigger after the panel unmounts.
     setTimeout(() => triggerRef.current?.focus(), 0);
   }
@@ -73,7 +95,7 @@ export default function ConfirmAction({
     try {
       await onConfirm();
     } finally {
-      setOpen(false);
+      setIsOpen(false);
       setTimeout(() => triggerRef.current?.focus(), 0);
     }
   }
@@ -86,20 +108,21 @@ export default function ConfirmAction({
         size={size}
         disabled={disabled || loading}
         title={disabled && disabledTitle ? disabledTitle : undefined}
-        aria-expanded={open}
-        onClick={() => setOpen((v) => !v)}
+        aria-expanded={isOpen}
+        onClick={() => setIsOpen(!isOpen)}
       >
         {triggerLabel}
       </Button>
 
-      {open && (
+      {isOpen && (
         <div
           className="admin-confirm"
           role="alertdialog"
           aria-label={`Confirm ${triggerLabel.toLowerCase()}`}
+          aria-describedby={msgId}
           onKeyDown={handleKeyDown}
         >
-          <p className="m-0 text-[length:var(--text-sm)]">{confirmMessage}</p>
+          <p id={msgId} className="m-0 text-[length:var(--text-sm)]">{confirmMessage}</p>
           <div className="admin-actions-row">
             <Button
               variant={confirmVariant}

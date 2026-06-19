@@ -1,8 +1,9 @@
 import Link from "next/link";
-import { Check, SlidersHorizontal } from "lucide-react";
+import { SlidersHorizontal } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { GoalMetIcon } from "@/components/GoalMetIcon";
 import type { StreakSummary } from "@/lib/activity";
 
 interface DailyGoalProps {
@@ -88,10 +89,7 @@ export default function DailyGoal({ streak }: DailyGoalProps) {
             aria-hidden
           >
             {met ? (
-              <Check
-                size={24}
-                className={cn("text-[color:var(--success-text)]", met && "rw-pop")}
-              />
+              <GoalMetIcon size={24} />
             ) : (
               <span className="font-[family-name:var(--font-display)] text-[length:var(--text-lg)] font-semibold text-text leading-none">
                 {todayProgress}

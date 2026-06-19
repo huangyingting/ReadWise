@@ -40,6 +40,10 @@ type AppState =
 interface FlashcardReviewProps {
   /** Due count from SSR — avoids an extra fetch on mount. */
   initialDueCount: number;
+  /** Called when a review session becomes active (phase → "session"). */
+  onSessionStart?: () => void;
+  /** Called when a review session ends (phase → idle or complete). */
+  onSessionEnd?: () => void;
 }
 
 /**
@@ -54,6 +58,8 @@ interface FlashcardReviewProps {
  */
 export default function FlashcardReview({
   initialDueCount,
+  onSessionStart,
+  onSessionEnd,
 }: FlashcardReviewProps) {
   const [appState, setAppState] = useState<AppState>({ phase: "idle" });
   const [dueCount, setDueCount] = useState(initialDueCount);
@@ -63,6 +69,17 @@ export default function FlashcardReview({
   useEffect(() => {
     appStateRef.current = appState;
   }, [appState]);
+
+  // Notify parent when session becomes active / inactive.
+  useEffect(() => {
+    if (appState.phase === "session") {
+      onSessionStart?.();
+    } else {
+      onSessionEnd?.();
+    }
+    // Intentionally omit callbacks from deps — they're expected to be stable refs.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appState.phase]);
 
   // DOM refs
   const liveRef = useRef<HTMLDivElement>(null);

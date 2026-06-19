@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { cn } from "@/lib/cn";
 
 export type StudyWord = {
   id: string;
@@ -10,7 +11,14 @@ export type StudyWord = {
   articleId: string | null;
 };
 
-export default function StudyList({ words }: { words: StudyWord[] }) {
+export default function StudyList({
+  words,
+  reviewing = false,
+}: {
+  words: StudyWord[];
+  /** When true, dims and inerts the list while a flashcard session is active. */
+  reviewing?: boolean;
+}) {
   const [items, setItems] = useState<StudyWord[]>(words);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -51,7 +59,14 @@ export default function StudyList({ words }: { words: StudyWord[] }) {
   }
 
   return (
-    <>
+    <div
+      {...(reviewing ? { inert: true } : {})}
+      className={cn(
+        "transition-opacity [transition-duration:var(--duration-base)] motion-reduce:transition-none",
+        reviewing && "opacity-60",
+      )}
+      aria-hidden={reviewing || undefined}
+    >
       {error ? (
         <p className="vocabulary-error" role="alert">
           {error}
@@ -66,7 +81,7 @@ export default function StudyList({ words }: { words: StudyWord[] }) {
                 <p className="vocabulary-explanation">{item.explanation}</p>
               ) : null}
               {item.example ? (
-                <p className="vocabulary-example muted">“{item.example}”</p>
+                <p className="vocabulary-example muted">&ldquo;{item.example}&rdquo;</p>
               ) : null}
             </div>
             <button
@@ -80,6 +95,6 @@ export default function StudyList({ words }: { words: StudyWord[] }) {
           </li>
         ))}
       </ul>
-    </>
+    </div>
   );
 }

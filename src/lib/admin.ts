@@ -2,6 +2,16 @@ import { prisma } from "@/lib/prisma";
 
 export type StatusCount = { status: string; count: number };
 
+/** Maps an article status string to its M1 Badge variant. */
+export function statusBadgeVariant(
+  status: string,
+): "success" | "neutral" | "warning" | "danger" {
+  if (status === "published") return "success";
+  if (status === "processing") return "warning";
+  if (status === "failed") return "danger";
+  return "neutral";
+}
+
 export type AdminOverview = {
   users: number;
   admins: number;

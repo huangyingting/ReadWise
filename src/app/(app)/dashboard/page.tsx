@@ -88,7 +88,10 @@ export default async function DashboardPage({
           Your progress
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--space-5)] rw-fade-up">
-          <StreakWidget streak={streak} />
+          <StreakWidget
+            streak={streak}
+            extendedToday={streak.last7Days[6]?.active === true && streak.currentStreak > 0}
+          />
           <DailyGoal streak={streak} />
         </div>
       </section>

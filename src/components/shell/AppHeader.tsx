@@ -1,11 +1,11 @@
 import Link from "next/link";
-import { Search } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import HeaderShell from "./HeaderShell";
 import AppNav from "./AppNav";
 import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 import MobileDrawer from "./MobileDrawer";
+import HeaderSearch from "./HeaderSearch";
 import type { ShellUser } from "./types";
 
 /** Top app bar: wordmark, primary nav, and the right cluster of actions. */
@@ -31,15 +31,7 @@ export default function AppHeader({ user }: { user: ShellUser | null }) {
       </div>
 
       <div className="flex items-center gap-[var(--space-2)]">
-        {/* Search placeholder — reserved for M4; disabled no-op. */}
-        <button
-          type="button"
-          disabled
-          aria-label="Search (coming soon)"
-          className="hidden sm:inline-flex items-center justify-center h-9 w-9 shrink-0 rounded-[var(--radius-md)] text-text-subtle opacity-50 cursor-not-allowed"
-        >
-          <Search size={20} aria-hidden />
-        </button>
+        <HeaderSearch />
         <ThemeToggle />
         {user ? <UserMenu user={user} /> : null}
       </div>

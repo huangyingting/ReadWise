@@ -2,6 +2,7 @@ import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { searchArticles } from "@/lib/admin-articles";
+import { statusBadgeVariant } from "@/lib/admin";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -21,15 +22,6 @@ function buildHref(params: { q: string; status: string; page: number }): string 
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/articles?${qs}` : "/admin/articles";
-}
-
-function statusBadgeVariant(
-  status: string,
-): "success" | "neutral" | "warning" | "danger" {
-  if (status === "published") return "success";
-  if (status === "processing") return "warning";
-  if (status === "failed") return "danger";
-  return "neutral";
 }
 
 export default async function AdminArticlesPage({
