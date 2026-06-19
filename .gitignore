@@ -47,3 +47,6 @@ next-env.d.ts
 .squad/.cache/
 # Squad: SubSquad activation file (local to this machine)
 .squad-workstream
+
+# Dev server log (accidental artifact)
+dev-server.log
