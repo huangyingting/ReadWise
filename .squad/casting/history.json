@@ -1,0 +1,22 @@
+{
+  "universe_usage_history": [
+    {
+      "universe": "Ocean's Eleven",
+      "assignment_id": "readwise-redesign-2026-06-19",
+      "used_at": "2026-06-19T08:37:32+08:00"
+    }
+  ],
+  "assignment_cast_snapshots": {
+    "readwise-redesign-2026-06-19": {
+      "universe": "Ocean's Eleven",
+      "agents": {
+        "lead": "Rusty",
+        "designer": "Saul",
+        "frontend": "Linus",
+        "backend": "Livingston",
+        "tester": "Basher"
+      },
+      "created_at": "2026-06-19T08:37:32+08:00"
+    }
+  }
+}
