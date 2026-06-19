@@ -15,7 +15,7 @@ _Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
 |---|---|---|---|---|
 | **M4** | Listings & Discovery — shared card → M1 primitives; skeletons; empty states; continue-reading rail; global search (net-new) | Saul (spec), Linus (build), Livingston (search), Basher (verify) | M | ✅ COMPLETE 7e554c9 |
 | **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build), Rusty (review), Basher (verify) | L | ✅ COMPLETE f199596 |
-| **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | Pending |
+| **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | ✅ COMPLETE 1beea38 |
 | **M7** | Onboarding, Auth & Settings polish | Saul (spec), Linus (build) | S–M | Pending |
 | **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | Pending |
 | **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | Pending |
@@ -46,6 +46,58 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## M6 — Dashboard & Study Gamification: COMPLETE (1beea38)
+_2026-06-19 · Yingting Huang (requester) · Saul (spec), Livingston (data), Linus (UI), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green (31 routes) · npm test 144/144 · Rusty APPROVE-WITH-NITS · Basher PASS (87 checks) · committed 1beea38.
+
+### Scope
+Light gamification only (coordinator decision): reading streaks, daily goal, and flashcard SRS. No XP, badges, leaderboards, or social features.
+
+### What shipped
+
+**Data layer (Livingston + F1)**
+- Additive migration `20260619080608_m6_gamification`: new `DailyActivity` model (`@@unique([userId, date])`, tracks `articlesRead` per UTC calendar day, cascade on User); `SavedWord` +5 SRS columns (`dueAt?`, `intervalDays` 0, `easeFactor` 2.5, `repetitions` 0, `lastReviewedAt?`); `Profile.dailyGoal Int @default(2)`.
+- `src/lib/srs.ts` — pure SM-2 engine. Grades: again (reset reps+interval=1, EF−0.2), hard (q=3, EF−0.14, 0.6× interval cap), good (q=4, EF stable), easy (q=5, EF+0.10). EF floor 1.3.
+- `src/lib/activity.ts` — `recordReadingActivity` (re-counts distinct articles from ReadingProgress today, upserts DailyActivity — idempotent); `getStreakSummary` (currentStreak anchors today or yesterday, longestStreak, last7Days dot-row, dailyGoal from Profile).
+- `src/lib/flashcards.ts` — `getDueFlashcards` (dueAt≤now OR null, nulls-first), `gradeFlashcard` (ownership check, SM-2 apply, persist), `getReviewSummary`.
+- `src/lib/progress.ts` — `saveProgress` wires `recordReadingActivity` as try/catch side-effect; forward-only semantics preserved.
+- 3 new session-gated endpoints: `GET /api/gamification/summary` → `{currentStreak, longestStreak, dailyGoal, todayProgress, last7Days[7], dueCount}`; `GET /api/study/flashcards` → `{cards, dueCount}`; `POST /api/study/flashcards/grade` body `{savedWordId, grade}` → `{dueAt, dueCount}` (400/401/404).
+- **F1 (Livingston):** corrected `srs.ts` line 42 doc-comment: "1.2× interval multiplier cap" → "60% (0.6×) interval cap". No logic change; typecheck/lint/144 tests green.
+
+**UI layer (Linus + F2)**
+- `StreakWidget` (server): teal `Flame` 28px, `--text-4xl` count, 10px dot row (teal active / `border-border` inactive / `outline-2` today ring), `Award` longest-streak sub-stat; zero-streak state ("Start a streak today").
+- `DailyGoal` (server): 72×72 SVG progress ring; teal un-met → success met; `role="progressbar"` + aria attrs; `rw-pop` on `Check` icon; "Adjust goal" → `/settings` (editing deferred M7).
+- `FlashcardReview` (`"use client"`): state machine idle→loading→session→complete; 3D flip card; 4 indigo-anchored grade buttons (Good = solid indigo `variant="primary"`, Again/Hard/Easy = outline + status-tinted icon+hover); keyboard (Space/Enter flip, 1–4 grade, Esc end); `appStateRef` stale-closure guard; `aria-live="polite"` region; optimistic grading; `.rw-flip`/`.rw-flip-inner`/`.rw-flip-face`/`.rw-flip-back` CSS.
+- Dashboard: `getStreakSummary` in `Promise.all`; "Your progress" stats band (StreakWidget + DailyGoal, `grid-cols-1 md:grid-cols-2`) between identity card and continue-reading rail. Heading order H1→H2 "Your progress" (H3s inside cards)→H2 "Browse" ✓.
+- Study page: `getReviewSummary` SSR; `FlashcardReview` above saved-words section; `listing-container` max-width; `<h2>Saved words</h2>` heading added.
+- CSS additive: `@keyframes rw-flame-flicker`, `rw-pop`, `.rw-flip*` family; `prefers-reduced-motion` → opacity crossfade fallback (no 3D rotation, no flicker/pop).
+- **F2 (Linus):** wired `hoverStyle` in `GradeButtons` map (`style={hoverStyle}` + `hover:bg-[color:var(--hover-bg)]`); status-tinted hover now renders for Again/Hard/Easy.
+
+**Tests:** 40 new tests — `srs.test.ts` (17), `activity.test.ts` (13), `gamification.test.ts` (10). 144/144 total, 0 regressions.
+
+### Key decisions
+| Decision | Choice |
+|---|---|
+| Gamification depth | Light only — no XP, badges, leaderboards (coordinator) |
+| Grade button anchor | Good = solid indigo (`variant="primary"`); others = outline + status icon (coordinator) |
+| Daily-goal editing | Read-only in M6; editing deferred to M7 (coordinator) |
+| Accent rule | Streak flame + dots + goal ring = reading-state → teal (legitimate per accent rule) |
+| `extendedToday` flame-flicker | Prop wired but always `false`; sessionStorage derivation deferred to M7 |
+| StudyList dimming during review | Deferred M7 (sibling component; needs context or `data-` attr on `<main>`) |
+
+### Deferred
+| ID | Item | Owner | When |
+|---|---|---|---|
+| D1 | `extendedToday` flame pulse (flicker fires on streak extension) | Linus | M7 |
+| D2 | StudyList `opacity-60 pointer-events-none` during active review | Linus | M7 |
+| D3 | `rw-pop` reactive on goal-met (currently SSR, plays on each load if goal already met) | Linus | M7 |
+| D4 | Daily-goal editing in Settings | Saul + Linus | M7 |
+| D5 | Session-complete focus (`doneButtonRef`) | Linus | M7 |
+| N4 | `aria-valuetext` on session progress bar + daily-goal ring | Linus | M9 a11y |
 
 ---
 

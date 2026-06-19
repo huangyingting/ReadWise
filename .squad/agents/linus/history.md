@@ -57,3 +57,12 @@
 - **Pre-land fixes**: NIR-M5-3 — wrapped `.reader-layout` in `<main id="main-content">` (landmark + skip-link target); NIR-M5-4 — removed dead `isMounted` ref + unused `useRef` from `ReaderMiniPlayer`.
 - **Must-not-break**: `sanitizeArticleHtml`→`WordLookup` sole `dangerouslySetInnerHTML` path; `ReaderProgress` byte-unchanged; `ListingProgressSync` DOM contract preserved; accent rule (teal = reading-state, indigo = interactive) upheld across all three reading modes.
 - **Validation**: typecheck 0 · lint 0 · build green (28 routes) · 108/108 tests. Rusty APPROVE-WITH-NITS; Basher PASS (77 checks, AI configured). D5 (no-flash script position) found and fixed by Basher. Deferred: NIR-M5-1 (double mobile PanelContents → M6); NIR-M5-2 + mobile focus-trap (→ M9).
+
+### M6 — Dashboard & Study Gamification (2026-06-19) ✅ SHIPPED — committed 1beea38
+- **New components**: `StreakWidget` (server — teal Flame 28px, `--text-4xl` count, 10px dot row with today ring, Award longest-streak sub-stat, zero-streak state); `DailyGoal` (server — 72×72 SVG ring, teal un-met → success met, `role="progressbar"`, `rw-pop` on Check, `/settings` link); `FlashcardReview` (`"use client"` — idle→loading→session→complete state machine, 3D `.rw-flip` card, 4 grade buttons with `appStateRef` stale-closure guard, keyboard Space/Enter/1–4/Esc, `aria-live` region, optimistic grading).
+- **Dashboard wiring**: `getStreakSummary` in `Promise.all`; "Your progress" band (`grid-cols-1 md:grid-cols-2`) between identity card and continue-reading rail. Heading order H1→H2 "Your progress"→H3s inside cards→H2 "Browse" ✓.
+- **Study page wiring**: `getReviewSummary` SSR; `FlashcardReview` above saved-words section; `listing-container` max-width; `<h2>Saved words</h2>` heading added.
+- **CSS additive**: `@keyframes rw-flame-flicker`, `rw-pop`, `.rw-flip*` family; `prefers-reduced-motion` → opacity crossfade fallback.
+- **Pre-land fix F2**: destructured `hoverStyle` in `GradeButtons` map; added `style={hoverStyle}` + `hover:bg-[color:var(--hover-bg)]` to outline buttons; status-tinted hover renders for Again/Hard/Easy.
+- **Deferred to M7**: extendedToday flame pulse (D1), StudyList dimming (D2), rw-pop reactive (D3), daily-goal editing (D4). Session-complete focus (D5 → M7). a11y aria-valuetext (N4 → M9).
+- **Validation**: typecheck 0 · lint 0 · build 31 routes · 144/144 tests. Rusty APPROVE-WITH-NITS; Basher PASS (87 checks).
