@@ -49,3 +49,11 @@
 - **`globals.css` additive only:** `.listing-container` (1200px max-width) + `.rw-rail-mask` in `@layer utilities`.
 - **Tests:** 108/108 pass. `npm test` now has `--experimental-strip-types` (Node 22.14.0 fix by Livingston).
 - **Nit cleanup in progress** (NIR-1: move published filter to Prisma `where`; NIR-2: add flag to CLI scripts; NIR-3: drop duplicate `role="region"`; NIR-4: combine `@/lib/cn` imports in CategoryBrowser).
+
+### M5 — Reader Redesign (2026-06-19) ✅ SHIPPED — committed f199596
+- **New components**: `src/lib/reader-prefs.ts` (SSR-safe pref get/set/apply, mirrors `theme.ts`); `ReaderAudioProvider` (React context: single `<audio>`, binary-search `updateActiveWord` via `useCallback([words])`); `ReaderControls` (sticky Aa−/Aa+ stepper + Light/Sepia/Dark radiogroup, roving tabindex); `ReaderToolsPanel` (Listen/Words/Quiz/Translate tabs, `hidden`-based mount-preservation, lazy `hasFetched` guard, desktop rail + mobile bottom-sheet + FAB); `ReaderMiniPlayer` (fixed-bottom Play/Pause, skip ±10s, seek bar, speed select, close).
+- **Token architecture**: `data-reading-mode` on `#reader-root` ONLY (never `<html>`); no-flash script as first child of `#reader-root` using `document.currentScript.parentElement`; sepia adds 8 WCAG-verified hex values to `tokens.css` additive-only; `suppressHydrationWarning` on `#reader-root`.
+- **Modified AI panels**: stripped outer wrappers + toggle buttons; added `active` prop (gates auto-scroll in `ArticleSpeech`); fallback degradation and inner UI logic unchanged verbatim.
+- **Pre-land fixes**: NIR-M5-3 — wrapped `.reader-layout` in `<main id="main-content">` (landmark + skip-link target); NIR-M5-4 — removed dead `isMounted` ref + unused `useRef` from `ReaderMiniPlayer`.
+- **Must-not-break**: `sanitizeArticleHtml`→`WordLookup` sole `dangerouslySetInnerHTML` path; `ReaderProgress` byte-unchanged; `ListingProgressSync` DOM contract preserved; accent rule (teal = reading-state, indigo = interactive) upheld across all three reading modes.
+- **Validation**: typecheck 0 · lint 0 · build green (28 routes) · 108/108 tests. Rusty APPROVE-WITH-NITS; Basher PASS (77 checks, AI configured). D5 (no-flash script position) found and fixed by Basher. Deferred: NIR-M5-1 (double mobile PanelContents → M6); NIR-M5-2 + mobile focus-trap (→ M9).

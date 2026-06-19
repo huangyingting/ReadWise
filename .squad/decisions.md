@@ -14,7 +14,7 @@ _Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
 | # | Milestone | Owners | Effort | Status |
 |---|---|---|---|---|
 | **M4** | Listings & Discovery — shared card → M1 primitives; skeletons; empty states; continue-reading rail; global search (net-new) | Saul (spec), Linus (build), Livingston (search), Basher (verify) | M | ✅ COMPLETE 7e554c9 |
-| **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build) | L | Pending |
+| **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build), Rusty (review), Basher (verify) | L | ✅ COMPLETE f199596 |
 | **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | Pending |
 | **M7** | Onboarding, Auth & Settings polish | Saul (spec), Linus (build) | S–M | Pending |
 | **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | Pending |
@@ -46,6 +46,42 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## M5 — Reader Redesign: COMPLETE (f199596)
+_2026-06-19 · Yingting Huang (requester) · Saul (spec), Linus (build), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green (28 routes) · npm test 108/108 · Rusty APPROVE-WITH-NITS · Basher PASS (77 checks) · committed f199596.
+
+### What shipped
+- **Two-column reader layout** — reading column capped at `--measure` (66ch, Literata); sticky tools rail (≥1100px desktop); mobile bottom-sheet + FAB; outer grid `minmax(0,1fr) 360px; max-width:1160px; margin-inline:auto`.
+- **`ReaderControls`** — sticky cluster: 5-step Aa−/Aa+ font-scale stepper + Light/Sepia/Dark segmented radio; roving-tabindex radiogroup; `aria-live` announcements; prefs persisted to `readwise:reader-prefs` localStorage.
+- **Reading-mode token architecture** — `data-reading-mode` set on `#reader-root` ONLY (never `<html>`); `src/lib/reader-prefs.ts` mirrors `theme.ts`; no-flash inline script placed as **first child** of `#reader-root` (uses `document.currentScript.parentElement` — D5 fix); `suppressHydrationWarning` on `#reader-root`; sepia adds exactly 8 WCAG-verified hex values to `tokens.css` (additive-only).
+- **AI tabbed panel** (`ReaderToolsPanel`) — Listen · Words · Quiz · Translate; panels stay **mounted** via `hidden` attribute (no unmount on tab switch); lazy-load fires once per panel per page-load via `hasFetched` ref guard; roving tabindex + arrow keys; desktop sticky rail + mobile bottom-sheet.
+- **Shared audio context** (`ReaderAudioProvider`) — single `<audio>` element; `updateActiveWord` binary-search via `useCallback([words])` (stale-closure-free); `loadAudio(src,words)` / `markFallback()`; `audioRef` stable across mini-player + listen tab.
+- **`ReaderMiniPlayer`** — fixed-bottom transport: Play/Pause, Skip ±10s, seek bar (teal fill), time display, speed select (0.75×/1×/1.25×/1.5×), close button; renders only when `isLoaded && !isFallback && !dismissed`.
+- **Article header** — M1 `CefrBadge` (CEFR level), `Badge variant="neutral"` (⏱ reading time), `Badge variant="success"` (✓ Completed when progress.completed); hero image `border-radius:var(--radius-lg)` + slight bleed; tags as `.tag-chip` links.
+- **`<main id="main-content">` landmark** added to reader page (NIR-M5-3 pre-land fix); consistent with marketing skip-link target.
+- **No schema changes.** `ReaderProgress` (forward-only scroll tracking, `markArticleVisited`), `sanitizeArticleHtml`→`WordLookup` (`dangerouslySetInnerHTML`) pipeline, and `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`) — all preserved verbatim.
+
+### Key decisions
+| Decision | Choice |
+|---|---|
+| Default reading mode | Resolved global theme (inherits `data-theme` from `<html>`) |
+| Mini-player controls | Skip ±10s + close button included |
+| Hero image width | Slight bleed (up to `min(100%,760px)`) — visual punch, body stays at 66ch |
+| Reading-mode scope | `data-reading-mode` on `#reader-root` only; dark chrome + light reading works |
+| AI panel lifecycle | Stay MOUNTED via `hidden`; fetch guard via `hasFetched` ref |
+| Audio architecture | Single `<audio>` shared by listen tab + mini-player via React context |
+
+### Deferred nits
+| ID | Item | Owner | When |
+|---|---|---|---|
+| NIR-M5-1 | Double-mount of `PanelContents` on mobile (aside CSS-hidden + sheet both live; two API calls per panel, idempotent, no correctness bug) | Linus | M6 |
+| NIR-M5-2 | `firstFocusRef` never assigned; bottom-sheet opens with no focus-move (ARIA dialog requires focus inside on open) | Linus | M9 a11y |
+| Mobile focus-trap | Tab-cycling within bottom-sheet does not cycle back (Escape + scrim-click close work correctly) | Linus | M9 a11y |
+| Speech synthesis latency | First-generation TTS can exceed 60s on some articles | Noted | M9 perf |
 
 ---
 

@@ -26,3 +26,6 @@ Reviewed M4 working tree (linus-m4-built.md + livingston-m4-search.md). APPROVE-
 - **NIR-3:** Duplicate `role="region"` landmark on continue-reading rail (`<section aria-label>` + inner `<div role="region">`).
 - **NIR-4:** Two separate `@/lib/cn` imports in `CategoryBrowser.tsx`.
 Linus nit-cleanup in progress.
+
+### M5 — Reader Redesign Code Review (2026-06-19) ✅ APPROVE-WITH-NITS — committed f199596
+Reviewed M5 working tree (linus-m5-built.md). APPROVE-WITH-NITS verdict — no blockers. All six review scopes passed: audio context architecture, tabbed panel mount-preservation, AI panel refactors, reader-prefs + no-flash, reading-mode scope, must-not-break. Key findings: `useCallback([words])` is stale-closure-free ✅; `hidden` attribute panel lifecycle correct ✅; `data-reading-mode` correctly reader-scoped, never touches `<html>` ✅; `sanitizeArticleHtml`→`WordLookup` sole HTML path ✅. Four nits: NIR-M5-1 (double mobile PanelContents → M6), NIR-M5-2 (firstFocusRef unassigned, focus-move missing → M9), NIR-M5-3 (missing `<main>` landmark — fix-before-land, FIXED by Linus), NIR-M5-4 (dead isMounted ref — FIXED by Linus). M5 LANDED f199596.
