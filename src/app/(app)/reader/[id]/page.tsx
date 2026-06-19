@@ -2,11 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor } from "@/lib/articles";
-import { getProgress } from "@/lib/progress";
+import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
-import { getProgressMap } from "@/lib/progress";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleCard from "@/components/ArticleCard";
 import ArticleTranslation from "@/components/ArticleTranslation";
@@ -14,6 +13,7 @@ import ArticleVocabulary from "@/components/ArticleVocabulary";
 import ArticleQuiz from "@/components/ArticleQuiz";
 import ArticleSpeech from "@/components/ArticleSpeech";
 import WordLookup from "@/components/WordLookup";
+import ListingProgressSync from "@/components/ListingProgressSync";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 
 export default async function ReaderPage({
@@ -112,11 +112,15 @@ export default async function ReaderPage({
 
       {relatedArticles.length > 0 ? (
         <section className="related-articles" aria-label="Related articles">
-          <h2 style={{ marginBottom: "0.75rem" }}>Related articles</h2>
+          <h2
+            className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)] mt-0"
+          >
+            Related articles
+          </h2>
           <p className="muted" style={{ marginTop: 0 }}>
             Other articles that share tags with this one.
           </p>
-          <div className="article-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
             {relatedArticles.map((related) => {
               const progress = relatedProgress.get(related.id);
               return (
@@ -132,6 +136,7 @@ export default async function ReaderPage({
               );
             })}
           </div>
+          <ListingProgressSync articleIds={relatedArticles.map((a) => a.id)} />
         </section>
       ) : null}
     </main>

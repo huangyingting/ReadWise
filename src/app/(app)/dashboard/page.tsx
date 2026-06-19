@@ -1,11 +1,18 @@
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
+import { BookOpen, SlidersHorizontal } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { listPublishedArticles, filterAndSortByLevel } from "@/lib/articles";
-import { getProgressMap } from "@/lib/progress";
+import { getProgressMap, listInProgressArticles } from "@/lib/progress";
 import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
+import { Card } from "@/components/ui/Card";
+import { Select } from "@/components/ui/Select";
+import { Button } from "@/components/ui/Button";
+import { buttonVariants } from "@/components/ui/Button";
 import ArticleCard from "@/components/ArticleCard";
+import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import EmptyState from "@/components/EmptyState";
 
 export default async function DashboardPage({
   searchParams,
@@ -18,7 +25,11 @@ export default async function DashboardPage({
   const { level } = await searchParams;
   const activeLevel = isDifficultyLevel(level) ? level : null;
 
-  const articles = await listPublishedArticles();
+  const [articles, inProgressEntries] = await Promise.all([
+    listPublishedArticles(),
+    listInProgressArticles(user.id),
+  ]);
+
   await ensureArticleDifficulties(articles);
   const visibleArticles = filterAndSortByLevel(articles, activeLevel);
   const progressMap = await getProgressMap(
@@ -26,10 +37,21 @@ export default async function DashboardPage({
     visibleArticles.map((a) => a.id),
   );
 
+  // Union of rail + grid article ids for ListingProgressSync
+  const railIds = inProgressEntries.map((e) => e.article.id);
+  const gridIds = visibleArticles.map((a) => a.id);
+  const allIds = [...new Set([...railIds, ...gridIds])];
+
   return (
-    <main className="container">
-      <h1>Dashboard</h1>
-      <div className="card stack" style={{ marginTop: "1.5rem" }}>
+    <main className="listing-container">
+      {/* Identity card */}
+      <h1
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
+        style={{ marginBottom: "1.5rem" }}
+      >
+        Dashboard
+      </h1>
+      <Card>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           {user.image ? (
             <Image
@@ -37,58 +59,118 @@ export default async function DashboardPage({
               alt={user.name ?? "avatar"}
               width={56}
               height={56}
-              style={{ borderRadius: "50%" }}
+              className="rounded-full"
+              unoptimized
             />
           ) : null}
           <div>
-            <div>
-              <strong>{user.name ?? "Unnamed reader"}</strong>
-            </div>
-            <div className="muted">{user.email}</div>
-            <div className="muted">Role: {user.role}</div>
+            <div className="font-semibold text-text">{user.name ?? "Unnamed reader"}</div>
+            <div className="text-text-muted text-[length:var(--text-sm)]">{user.email}</div>
+            <div className="text-text-muted text-[length:var(--text-sm)]">{user.role}</div>
           </div>
         </div>
-      </div>
-      <section style={{ marginTop: "2rem" }}>
-        <h2>Continue reading</h2>
-        <p style={{ margin: "0.5rem 0" }}>
-          <Link className="btn btn-primary" href="/browse">
-            Browse by category
+      </Card>
+
+      {/* Continue-reading rail — only when in-progress articles exist */}
+      {inProgressEntries.length > 0 ? (
+        <section style={{ marginTop: "var(--space-9)" }} aria-label="Continue reading">
+          <div
+            className="flex items-center justify-between mb-[var(--space-4)]"
+          >
+            <h2
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
+            >
+              Continue reading
+            </h2>
+            <span className="text-text-muted text-[length:var(--text-sm)]">
+              {inProgressEntries.length} in progress
+            </span>
+          </div>
+          <div
+            role="region"
+            aria-label="Continue reading"
+            tabIndex={0}
+            className="flex gap-[var(--space-4)] overflow-x-auto pb-[var(--space-3)] -mx-[var(--space-1)] px-[var(--space-1)] snap-x snap-mandatory rw-rail-mask"
+            style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
+          >
+            {inProgressEntries.map((entry) => (
+              <ArticleCardView
+                key={entry.article.id}
+                article={entry.article}
+                progress={entry.progress}
+                variant="rail"
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Library grid */}
+      <section style={{ marginTop: "var(--space-9)" }}>
+        <div className="flex items-center justify-between mb-[var(--space-4)]">
+          <h2
+            className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
+          >
+            Browse
+          </h2>
+          <Link
+            href="/browse"
+            className={buttonVariants({ variant: "secondary", size: "sm" })}
+          >
+            By category
           </Link>
-        </p>
+        </div>
+
+        {/* Level filter */}
         <form
           method="get"
-          className="level-filter"
-          style={{ display: "flex", gap: "0.5rem", alignItems: "center", margin: "0.75rem 0" }}
+          className="flex flex-wrap gap-[var(--space-2)] items-center mb-[var(--space-5)]"
         >
-          <label htmlFor="level" className="muted" style={{ fontSize: "0.9rem" }}>
+          <label
+            htmlFor="level"
+            className="text-text-muted text-[length:var(--text-sm)]"
+          >
             English level
           </label>
-          <select id="level" name="level" defaultValue={activeLevel ?? ""}>
+          <Select id="level" name="level" defaultValue={activeLevel ?? ""}>
             <option value="">All levels</option>
             {DIFFICULTY_LEVELS.map((lvl) => (
               <option key={lvl} value={lvl}>
                 {lvl} and below
               </option>
             ))}
-          </select>
-          <button type="submit" className="btn">
+          </Select>
+          <Button type="submit" variant="secondary" size="sm">
             Apply
-          </button>
+          </Button>
           {activeLevel ? (
-            <Link href="/dashboard" className="muted" style={{ fontSize: "0.85rem" }}>
+            <Link
+              href="/dashboard"
+              className={buttonVariants({ variant: "ghost", size: "sm" })}
+            >
               Clear
             </Link>
           ) : null}
         </form>
+
+        {/* Cards or empty state */}
         {visibleArticles.length === 0 ? (
-          <p className="muted">
-            {articles.length === 0
-              ? "No articles available yet."
-              : "No articles match this level yet."}
-          </p>
+          articles.length === 0 ? (
+            <EmptyState
+              icon={BookOpen}
+              title="Nothing to read yet"
+              description="Articles will appear here as they're added."
+            />
+          ) : (
+            <EmptyState
+              icon={SlidersHorizontal}
+              title="No articles at this level"
+              description="Try a higher CEFR level or clear the filter."
+              action={{ label: "Clear filter", href: "/dashboard" }}
+            />
+          )
         ) : (
-          <div className="article-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)] rw-fade-up">
             {visibleArticles.map((article) => {
               const progress = progressMap.get(article.id);
               return (
@@ -97,10 +179,7 @@ export default async function DashboardPage({
                   article={article}
                   progress={
                     progress
-                      ? {
-                          percent: progress.percent,
-                          completed: progress.completed,
-                        }
+                      ? { percent: progress.percent, completed: progress.completed }
                       : undefined
                   }
                 />
@@ -108,7 +187,9 @@ export default async function DashboardPage({
             })}
           </div>
         )}
-        <ListingProgressSync articleIds={visibleArticles.map((a) => a.id)} />
+
+        {/* Single ListingProgressSync over union of rail + grid ids (§4.3) */}
+        <ListingProgressSync articleIds={allIds} />
       </section>
     </main>
   );

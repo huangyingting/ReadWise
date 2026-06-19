@@ -101,6 +101,12 @@ body {
 }
 
 @layer utilities {
+  /* M4 — optional right-edge fade affordance on horizontal rails. */
+  .rw-rail-mask {
+    -webkit-mask-image: linear-gradient(to right, #000 85%, transparent);
+    mask-image: linear-gradient(to right, #000 85%, transparent);
+  }
+
   /* Brand gradient clipped to text; --primary-text fallback when clip fails. */
   .text-gradient-brand {
     color: var(--primary-text);
@@ -145,6 +151,13 @@ body {
 
 .container {
   max-width: 880px;
+  margin: 0 auto;
+  padding: 2rem 1.25rem;
+}
+
+/* M4 — wider container for listing/discovery pages (~1200px vs 880px reading width). */
+.listing-container {
+  max-width: 1200px;
   margin: 0 auto;
   padding: 2rem 1.25rem;
 }

@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "test": "node --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
+    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
     "scrape": "node --import ./scripts/register-ts.mjs scripts/scrape.ts",
     "process": "node --import ./scripts/register-ts.mjs scripts/process.ts",
     "worker": "node --import ./scripts/register-ts.mjs scripts/worker.ts",

@@ -48,15 +48,21 @@ export default async function BrowsePage({
       : "All categories";
 
   return (
-    <main className="container">
-      <h1 style={{ marginBottom: "0.25rem" }}>Browse</h1>
-      <p className="muted" style={{ marginTop: 0 }}>
+    <main className="listing-container">
+      <h1
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
+        style={{ marginBottom: "0.25rem" }}
+      >
+        Browse
+      </h1>
+      <p
+        className="text-text-muted text-[length:var(--text-base)]"
+        style={{ marginTop: 0 }}
+      >
         {isPicks
           ? "Articles picked to match your topics and English level."
           : "Browse cleaned news articles by category."}
       </p>
-
-      <h2 style={{ marginTop: "1.5rem" }}>{heading}</h2>
 
       <CategoryBrowser
         key={activeView}
@@ -65,6 +71,7 @@ export default async function BrowsePage({
         initialProgress={progress}
         initialHasMore={page.hasMore}
         initialOffset={page.articles.length}
+        heading={heading}
       />
     </main>
   );

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { ReadingProgress } from "@prisma/client";
+import { toListingArticle, type ListingArticle } from "@/lib/articles";
 
 /** Scroll percent at/above which an article is considered finished. */
 export const COMPLETION_THRESHOLD = 95;
@@ -62,6 +63,34 @@ export async function getProgressSummaries(
     summaries[articleId] = { percent: row.percent, completed: row.completed };
   }
   return summaries;
+}
+
+export type InProgressEntry = {
+  article: ListingArticle;
+  progress: ProgressSummary;
+};
+
+/**
+ * Returns articles the user has started but not yet completed, ordered by most
+ * recently updated. Used by the continue-reading rail on the dashboard.
+ * Only published articles are included.
+ */
+export async function listInProgressArticles(
+  userId: string,
+  limit = 10,
+): Promise<InProgressEntry[]> {
+  const rows = await prisma.readingProgress.findMany({
+    where: { userId, percent: { gt: 0 }, completed: false },
+    orderBy: { updatedAt: "desc" },
+    take: limit,
+    include: { article: true },
+  });
+  return rows
+    .filter((row) => row.article.status === "published")
+    .map((row) => ({
+      article: toListingArticle(row.article),
+      progress: { percent: row.percent, completed: row.completed },
+    }));
 }
 
 /**

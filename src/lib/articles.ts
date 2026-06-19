@@ -222,3 +222,43 @@ const cachedListPicksPage = createCachedListing(
   ["articles:picks-page"],
   [ARTICLES_CACHE_TAG],
 );
+
+/** Default and maximum page sizes for the user-facing global search. */
+export const SEARCH_PAGE_SIZE = 20;
+export const SEARCH_MAX_LIMIT = 50;
+
+/**
+ * Searches published articles by title, author, or source using a
+ * case-insensitive LIKE match (SQLite LIKE is case-insensitive for ASCII).
+ * An empty / blank query returns no results rather than the whole table.
+ * Results are uncached because they are query-dependent and also merged with
+ * per-user progress data in the route.
+ */
+export async function searchPublishedArticles(
+  query: string,
+  opts: { offset?: number; limit?: number } = {},
+): Promise<ArticlePage> {
+  const q = query.trim();
+  if (!q) {
+    return { articles: [], hasMore: false };
+  }
+  const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
+  const offset = Math.max(0, opts.offset ?? 0);
+
+  const rows = await prisma.article.findMany({
+    where: {
+      status: "published",
+      OR: [
+        { title: { contains: q } },
+        { author: { contains: q } },
+        { source: { contains: q } },
+      ],
+    },
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    skip: offset,
+    take: limit + 1,
+  });
+
+  const hasMore = rows.length > limit;
+  return { articles: rows.slice(0, limit), hasMore };
+}
