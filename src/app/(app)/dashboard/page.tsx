@@ -87,8 +87,6 @@ export default async function DashboardPage({
             </span>
           </div>
           <div
-            role="region"
-            aria-label="Continue reading"
             tabIndex={0}
             className="flex gap-[var(--space-4)] overflow-x-auto pb-[var(--space-3)] -mx-[var(--space-1)] px-[var(--space-1)] snap-x snap-mandatory rw-rail-mask"
             style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}

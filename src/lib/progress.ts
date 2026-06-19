@@ -80,17 +80,15 @@ export async function listInProgressArticles(
   limit = 10,
 ): Promise<InProgressEntry[]> {
   const rows = await prisma.readingProgress.findMany({
-    where: { userId, percent: { gt: 0 }, completed: false },
+    where: { userId, percent: { gt: 0 }, completed: false, article: { status: "published" } },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: { article: true },
   });
-  return rows
-    .filter((row) => row.article.status === "published")
-    .map((row) => ({
-      article: toListingArticle(row.article),
-      progress: { percent: row.percent, completed: row.completed },
-    }));
+  return rows.map((row) => ({
+    article: toListingArticle(row.article),
+    progress: { percent: row.percent, completed: row.completed },
+  }));
 }
 
 /**
