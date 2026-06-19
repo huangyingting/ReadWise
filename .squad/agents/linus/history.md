@@ -45,3 +45,13 @@
 - **CSS**: `@keyframes rw-step` + `.rw-step` + `prefers-reduced-motion` block entry; additive only. One apostrophe lint fix mid-build.
 - **Heading note**: Settings cards need `<h2>` per spec; `CardTitle` renders `<h3>` — used bare `<h2>` with CardTitle CSS classes (no M1 component modified, deferred N3 to M8).
 - **Deferred nits → M9/M8**: N1 number-input `onBlur` clamp, N2 stepper pill semantics, N3 `CardTitle` level prop, N4 `LEVEL_HINTS` duplication.
+
+### M8 — Admin Design System Polish (2026-06-19) ✅ SHIPPED — committed a631aa9
+- **New**: `src/components/ConfirmAction.tsx` (`"use client"`) — shared `role="alertdialog"` confirm panel; focus→Cancel on open; Escape closes+returns focus to trigger; `aria-expanded`/`aria-busy`; `loading`/`disabled`/`disabledTitle` props.
+- **`CardTitle level` prop** (N3 from M7): `"h2"|"h3"|"h4"` default `"h3"` — non-breaking; `CardTitleProps` re-exported.
+- **3 action components refactored**: `AdminArticleActions` (2 ConfirmAction instances), `AdminMemberActions` (M1 Select + ConfirmAction, `isSelf` self-protection preserved), `AdminTagActions` (Fragment + ConfirmAction). Playwright selectors `.admin-actions`/`.admin-actions-row`/`.admin-confirm` intact.
+- **AdminNav**: indigo pill active (`border-primary text-primary-text color-mix(primary 8%)`); inactive `buttonVariants({ghost,sm})`; layout header inline flex.
+- **5 admin pages**: M1 Card/Badge/CefrBadge/Input/Select/Button throughout; `tabIndex={0}`+`aria-label` on scrollable table wrappers.
+- **globals.css**: all admin hardcoded hex removed; retired classes `/* retired — M8 */`; new `tr:hover td` indigo color-mix.
+- Notable: Select `w-full` fix (wrap in `<div className="w-auto">`); `var(--accent)` → `var(--primary)` in `.admin-bar-fill` (same value, explicit token).
+- Rusty APPROVE (clean); Basher PASS. 41 routes · 153/153 tests.

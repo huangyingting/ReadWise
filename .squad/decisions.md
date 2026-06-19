@@ -17,7 +17,7 @@ _Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
 | **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build), Rusty (review), Basher (verify) | L | ✅ COMPLETE f199596 |
 | **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | ✅ COMPLETE 1beea38 |
 | **M7** | Onboarding, Auth & Settings polish + daily-goal editing | Saul (spec), Livingston (backend), Linus (build), Rusty (review), Basher (verify) | S–M | ✅ COMPLETE cb204c5 |
-| **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | Pending |
+| **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | ✅ COMPLETE a631aa9 |
 | **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | Pending |
 
 M4 unblocks M5–M9. Rich-features menu (quick wins + bigger bets) was documented in the accepted roadmap proposal; key greenlit items captured in "Net-New Features Greenlit" above.
@@ -46,6 +46,37 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## M8 — Admin Design System Polish: COMPLETE (a631aa9)
+_2026-06-19 · Saul (spec), Linus (build), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green (41 routes) · npm test 153/153 · Rusty APPROVE · Basher PASS · committed a631aa9.
+
+### Scope
+Surface-polish only: map `/admin` onto Studio design system (M1 primitives + tokens), extract shared `ConfirmAction`. No behavior, gating, API, or schema changes.
+
+### What shipped
+- **`ConfirmAction`** (`src/components/ConfirmAction.tsx`, `"use client"`): `role="alertdialog"`, focus→Cancel on open, Escape closes+returns focus to trigger, `aria-expanded`/`aria-busy`. Props: `triggerLabel`, `triggerVariant`, `confirmVariant`, `onConfirm`, `loading`, `disabled`/`disabledTitle`.
+- **`CardTitle level` prop** (N3 from M7): `"h2"|"h3"|"h4"` default `"h3"` — non-breaking; `CardTitleProps` re-exported. Settings cards now use `level="h2"`.
+- **AdminNav**: indigo pill active link (`border-primary text-primary-text color-mix(primary 8%)`) — coordinator decision; never teal; `aria-current="page"` preserved.
+- **3 action components refactored**: `AdminArticleActions`, `AdminMemberActions`, `AdminTagActions` — all use `ConfirmAction`; Playwright selectors `.admin-actions`/`.admin-actions-row`/`.admin-confirm` preserved.
+- **5 admin pages migrated**: M1 `Card`/`Badge`/`CefrBadge`/`Input`/`Select`/`Button` throughout; `tabIndex`+`aria-label` on scrollable table wrappers.
+- **`globals.css` tokenized**: admin block hardcoded hex removed (`#20242d`, `#3a1d22`/`#7f3a44`/`#ffb4bd`); retired classes carry `/* retired — M8 */` (kept for Playwright); `.admin-table tr:hover td` indigo hover added.
+
+### Coordinator decision
+| Decision | Choice |
+|---|---|
+| AdminNav active state | Indigo pill — never teal (teal = reading-state only) |
+
+### Deferred nits → M9
+| ID | Item |
+|---|---|
+| N1 | `AdminArticleActions` dual-open ConfirmAction panels (no mutual exclusion) |
+| N2 | `statusBadgeVariant()` copy-pasted 3× — extract to `src/lib/admin.ts` |
+| N3 | ConfirmAction `<p>` lacks `id`+`aria-describedby` on alertdialog |
+| N4 | `.admin-actions { min-width:220px }` dropped — validate narrow-width in M9 QA |
 
 ---
 
