@@ -1,0 +1,240 @@
+/*
+ * ReadWise Design Tokens — Direction B "Studio"
+ * Single source of truth for the design system (M1 foundation).
+ *
+ * Structure:
+ *   1. Theme-invariant scales (type / spacing / radii / motion) on :root.
+ *   2. Semantic color + elevation tokens — LIGHT is the :root default,
+ *      DARK via :root[data-theme="dark"] and a prefers-color-scheme fallback.
+ *   3. Legacy-compat aliases so the existing hand-written globals.css keeps
+ *      resolving its var(--panel/--muted/--accent/...) names unchanged.
+ *
+ * Values are Saul's Studio token spec (.squad/decisions/inbox/saul-studio-tokens.md).
+ *
+ * NOTE on --accent: the legacy CSS uses `--accent` as the brand/link colour, so
+ * per the locked architecture it aliases to the indigo `--primary`. Saul's teal
+ * "accent" lives under the distinct `--teal*` tokens (exposed to new components
+ * via the Tailwind `accent` colour utility in globals.css). No legacy edit needed.
+ */
+
+:root {
+  /* ---- Fonts (families injected by next/font in layout.tsx) ---- */
+  --font-sans: var(--font-sans-src), system-ui, -apple-system, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+  --font-display: var(--font-display-src), var(--font-sans-src), system-ui,
+    sans-serif;
+  --font-reading: var(--font-reading-src), Georgia, "Times New Roman", serif;
+
+  /* ---- Type scale (1.20 minor third, base 16px) ---- */
+  --text-xs: 0.694rem;
+  --text-sm: 0.833rem;
+  --text-base: 1rem;
+  --text-lg: 1.2rem;
+  --text-xl: 1.44rem;
+  --text-2xl: 1.728rem;
+  --text-3xl: 2.074rem;
+  --text-4xl: 2.488rem;
+
+  --leading-tight: 1.1;
+  --leading-snug: 1.2;
+  --leading-normal: 1.5;
+  --leading-reading: 1.7;
+
+  /* ---- Spacing (4px base) ---- */
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-7: 2rem;
+  --space-8: 2.5rem;
+  --space-9: 3rem;
+  --space-10: 4rem;
+  --space-11: 5rem;
+  --space-12: 6rem;
+
+  /* ---- Radii ---- */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 20px;
+  --radius-full: 9999px;
+
+  /* ---- Reading measure ---- */
+  --measure: 66ch;
+
+  /* ---- Motion ---- */
+  --duration-fast: 120ms;
+  --duration-base: 200ms;
+  --duration-slow: 320ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-emphasized: cubic-bezier(0.16, 1, 0.3, 1);
+
+  /* ============================================================
+   * Semantic colours — LIGHT (default)
+   * ============================================================ */
+
+  /* Surfaces */
+  --bg: #f8fafc;
+  --bg-subtle: #f1f5f9;
+  --surface: #ffffff;
+  --surface-raised: #ffffff;
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  /* Text */
+  --text: #0f172a;
+  --text-muted: #475569;
+  --text-subtle: #64748b;
+  --text-inverted: #f8fafc;
+
+  /* Brand — Indigo */
+  --primary: #4f46e5;
+  --primary-hover: #4338ca;
+  --on-primary: #ffffff;
+  --primary-text: #4f46e5;
+
+  /* Accent — Teal (Studio decorative accent; see --accent alias note above) */
+  --teal: #0d9488;
+  --teal-hover: #0f766e;
+  --teal-text: #0f766e;
+
+  /* Status — Success / Warning / Danger */
+  --success: #059669;
+  --success-text: #047857;
+  --warning: #d97706;
+  --warning-text: #b45309;
+  --on-warning: #0f172a;
+  --danger: #dc2626;
+  --danger-hover: #b91c1c;
+  --on-danger: #ffffff;
+  --danger-text: #dc2626;
+
+  /* Focus / overlay */
+  --focus-ring: #6366f1;
+  --overlay: rgba(15, 23, 42, 0.5);
+  --ring-offset: #ffffff;
+
+  /* Decorative brand gradient (same in both themes) */
+  --gradient-brand: linear-gradient(135deg, #6366f1 0%, #7c3aed 50%, #14b8a6 100%);
+
+  /* ---- Elevation — LIGHT ---- */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.06);
+  --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12), 0 6px 12px rgba(15, 23, 42, 0.08);
+  --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.16), 0 12px 24px rgba(15, 23, 42, 0.1);
+
+  /* ============================================================
+   * Legacy-compat aliases (keep the 957-line globals.css working)
+   *   --panel  -> --surface
+   *   --muted  -> --text-muted
+   *   --accent -> --primary  (legacy brand/link colour)
+   * --bg / --text / --border are kept as first-class semantic tokens above.
+   * ============================================================ */
+  --panel: var(--surface);
+  --muted: var(--text-muted);
+  --accent: var(--primary);
+}
+
+/* ============================================================
+ * Semantic colours — DARK (explicit data-theme override)
+ * ============================================================ */
+:root[data-theme="dark"] {
+  --bg: #0b1020;
+  --bg-subtle: #070a14;
+  --surface: #131a2b;
+  --surface-raised: #1b2436;
+  --border: #283449;
+  --border-strong: #3a4862;
+
+  --text: #e6e9f0;
+  --text-muted: #a3adc2;
+  --text-subtle: #7d899e;
+  --text-inverted: #0b1020;
+
+  --primary: #4f46e5;
+  --primary-hover: #6366f1;
+  --on-primary: #ffffff;
+  --primary-text: #a5b4fc;
+
+  --teal: #14b8a6;
+  --teal-hover: #2dd4bf;
+  --teal-text: #2dd4bf;
+
+  --success: #34d399;
+  --success-text: #34d399;
+  --warning: #fbbf24;
+  --warning-text: #fbbf24;
+  --on-warning: #0f172a;
+  --danger: #ef4444;
+  --danger-hover: #f87171;
+  --on-danger: #ffffff;
+  --danger-text: #f87171;
+
+  --focus-ring: #818cf8;
+  --overlay: rgba(2, 6, 23, 0.65);
+  --ring-offset: #0b1020;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.45);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.5);
+}
+
+/* No-JS / system-preference fallback: apply the same dark values unless the
+ * user has explicitly forced light via data-theme="light". The blocking script
+ * in layout.tsx always sets an explicit attribute, so this only covers the
+ * scripts-disabled path. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b1020;
+    --bg-subtle: #070a14;
+    --surface: #131a2b;
+    --surface-raised: #1b2436;
+    --border: #283449;
+    --border-strong: #3a4862;
+
+    --text: #e6e9f0;
+    --text-muted: #a3adc2;
+    --text-subtle: #7d899e;
+    --text-inverted: #0b1020;
+
+    --primary: #4f46e5;
+    --primary-hover: #6366f1;
+    --on-primary: #ffffff;
+    --primary-text: #a5b4fc;
+
+    --teal: #14b8a6;
+    --teal-hover: #2dd4bf;
+    --teal-text: #2dd4bf;
+
+    --success: #34d399;
+    --success-text: #34d399;
+    --warning: #fbbf24;
+    --warning-text: #fbbf24;
+    --on-warning: #0f172a;
+    --danger: #ef4444;
+    --danger-hover: #f87171;
+    --on-danger: #ffffff;
+    --danger-text: #f87171;
+
+    --focus-ring: #818cf8;
+    --overlay: rgba(2, 6, 23, 0.65);
+    --ring-offset: #0b1020;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.45);
+    --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* ---- Reduced motion: collapse durations, kill transform-based motion ---- */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration-fast: 0.01ms;
+    --duration-base: 0.01ms;
+    --duration-slow: 0.01ms;
+  }
+}

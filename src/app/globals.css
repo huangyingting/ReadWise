@@ -1,11 +1,62 @@
-:root {
-  --bg: #0f1115;
-  --panel: #181b22;
-  --text: #e8eaed;
-  --muted: #9aa0a6;
-  --accent: #5b8cff;
-  --border: #2a2f3a;
+@import "tailwindcss";
+@import "./tokens.css";
+
+/*
+ * Expose semantic tokens as Tailwind colour/size utilities. `inline` keeps them
+ * as var() references so theme switching (data-theme) remaps utilities at
+ * runtime instead of rebuilding components.
+ */
+@theme inline {
+  --color-bg: var(--bg);
+  --color-bg-subtle: var(--bg-subtle);
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+
+  --color-text: var(--text);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverted: var(--text-inverted);
+
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-on-primary: var(--on-primary);
+  --color-primary-text: var(--primary-text);
+
+  /* `accent` utility = Studio teal for NEW components (legacy CSS var --accent
+     remains the indigo brand alias; see tokens.css). */
+  --color-accent: var(--teal);
+  --color-accent-hover: var(--teal-hover);
+  --color-accent-text: var(--teal-text);
+
+  --color-success: var(--success);
+  --color-success-text: var(--success-text);
+  --color-warning: var(--warning);
+  --color-warning-text: var(--warning-text);
+  --color-on-warning: var(--on-warning);
+  --color-danger: var(--danger);
+  --color-danger-hover: var(--danger-hover);
+  --color-on-danger: var(--on-danger);
+  --color-danger-text: var(--danger-text);
+
+  --color-focus-ring: var(--focus-ring);
+
+  /* Skeleton shimmer (design-system primitive animation) */
+  --animate-shimmer: shimmer 1.4s linear infinite;
 }
+
+@keyframes shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* Drive Tailwind's `dark:` variant off the resolved data-theme attribute. */
+@custom-variant dark (&:where([data-theme="dark"] *, [data-theme="dark"]));
 
 * {
   box-sizing: border-box;
@@ -17,8 +68,7 @@ body {
   padding: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial,
-    sans-serif;
+  font-family: var(--font-sans);
   line-height: 1.55;
 }
 
