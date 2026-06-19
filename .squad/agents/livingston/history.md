@@ -40,3 +40,10 @@ Built the full M6 backend: additive schema migration, SM-2 SRS engine, activity/
 
 ### M6 — Dashboard & Study Gamification (2026-06-19) ✅ LANDED — committed 1beea38
 Pre-land fix **F1** applied: corrected `srs.ts` line 42 doc-comment from "1.2× interval multiplier cap" to "60% (0.6×) interval cap" — constant was already correct, comment-only change. Rusty APPROVE-WITH-NITS (F1 + F2 both resolved pre-land); Basher PASS (87 checks). All 144 tests pass, 0 regressions. SM-2 note for future: implementation uses post-update EF as the interval multiplier at rep≥2 (most SM-2 implementations do this); max deviation is ~1 day/cycle, not a correctness bug. `recordReadingActivity` idempotency relies on recount-and-upsert from `ReadingProgress` (not incrementing), ensuring the count is always accurate regardless of how many times `saveProgress` is called for the same article in a day.
+
+### M7 — Daily-Goal Editing Backend (2026-06-19) ✅ LANDED — committed cb204c5
+Extended `parseProfileInput` and both profile API routes to accept and validate `dailyGoal`. No schema changes needed (`Profile.dailyGoal Int @default(2)` existed since M6 migration `20260619080608`).
+- **Constants** `DAILY_GOAL_MIN=1`, `DAILY_GOAL_MAX=10`, `DAILY_GOAL_DEFAULT=2` exported from `src/lib/profile.ts`.
+- **Validation**: hard-reject non-integer or out-of-`[1,10]`; `null`/`undefined` omitted from return value (preserves existing DB row on upsert — never silently resets).
+- **API routes**: `PUT /api/profile` + `POST /api/onboarding` both use conditional spread `...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {})`.
+- **Tests**: +9 new tests (profile.test.ts +3: accepts 1/5/10, rejects 0/11/1.5/"5", omits when absent; profile-route.test.ts +6: PUT persists valid goal, rejects min/max, rejects non-integer, omits on absent, preserves other fields). Total: 153/153 pass.

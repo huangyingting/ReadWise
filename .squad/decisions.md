@@ -16,7 +16,7 @@ _Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
 | **M4** | Listings & Discovery — shared card → M1 primitives; skeletons; empty states; continue-reading rail; global search (net-new) | Saul (spec), Linus (build), Livingston (search), Basher (verify) | M | ✅ COMPLETE 7e554c9 |
 | **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build), Rusty (review), Basher (verify) | L | ✅ COMPLETE f199596 |
 | **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | ✅ COMPLETE 1beea38 |
-| **M7** | Onboarding, Auth & Settings polish | Saul (spec), Linus (build) | S–M | Pending |
+| **M7** | Onboarding, Auth & Settings polish + daily-goal editing | Saul (spec), Livingston (backend), Linus (build), Rusty (review), Basher (verify) | S–M | ✅ COMPLETE cb204c5 |
 | **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | Pending |
 | **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | Pending |
 
@@ -46,6 +46,37 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## M7 — Onboarding / Auth / Settings Polish + Daily-Goal: COMPLETE (cb204c5)
+_2026-06-19 · Yingting Huang (requester) · Saul (spec), Livingston (backend), Linus (build), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green (31 routes) · npm test 153/153 · Rusty APPROVE · Basher PASS (73 checks) · committed cb204c5.
+
+### Scope
+Polish sign-in, onboarding, and settings onto the Studio design system; turn onboarding into a 4-step wizard; add the daily-goal stepper deferred from M6 (D4).
+
+### What shipped
+- **Sign-in**: branded `<Card>` layout, Wordmark + ThemeToggle top-bar, error-banner mapping (`OAuthAccountNotLinked`/`AccessDenied`/generic), `rw-fade-up` entrance, neutral `LogIn` icon on provider buttons.
+- **Onboarding**: 4-step wizard (`englishLevel` → `topics[]` → `ageRange/gender` → review) with segmented-pill stepper, `aria-live` progress, `key={step}` remount + `useEffect([step])` heading focus, `CefrBadge` radio-cards, step-4 Edit-jump. POSTs identical `{englishLevel,topics,ageRange,gender}` body to `/api/onboarding` — no `dailyGoal`; DB default 2 applies. `completedAt` server-side unchanged.
+- **Settings**: 3 `<Card>` sections (Profile / Reading preferences / Account). Daily-goal `−/input/+` stepper range `[1,10]`; out-of-range typed input clamped; `PUT /api/profile` body includes `dailyGoal`.
+- **Backend (Livingston)**: `parseProfileInput` extended with `dailyGoal?: number` (hard-reject non-integer/out-of-range; omitted → no DB update). Constants `DAILY_GOAL_{MIN,MAX,DEFAULT}` exported. 9 new tests (144 → 153 total).
+- **CSS**: `@keyframes rw-step` + `.rw-step` + `prefers-reduced-motion` no-op, additive only.
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Provider button icons | Neutral `LogIn` lucide icon — no brand logos |
+| Daily-goal range | 1–10 integer (`DAILY_GOAL_{MIN,MAX}`) |
+
+### Deferred nits → M9
+| ID | Item | Owner |
+|---|---|---|
+| N1 | Typed number-input `onBlur` clamp for out-of-range entry | Linus |
+| N2 | Stepper pills: `<nav><ol>` or `role="tablist"` | Linus |
+| N3 | `CardTitle` `level` prop (settings uses bare `<h2>`) | M8 |
+| N4 | `LEVEL_HINTS` duplication across OnboardingForm + ProfileSettingsForm | Linus |
 
 ---
 
