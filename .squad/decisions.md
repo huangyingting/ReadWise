@@ -7,18 +7,20 @@ _Chosen by Yingting · 2026-06-19_
 **Direction B "Studio" is LOCKED** for the redesign — modern learning-app aesthetic: vivid indigo/violet primary (+ teal/amber accents), Inter/Geist via `next/font`, soft elevated cards, Lucide icons, light + dark themes. Touchstones: Linear / Duolingo / Vercel. All design-system and UI work follows this direction.
 Alternatives not chosen: A "Broadsheet" (editorial/serif), C "Focus" (minimal/monochrome).
 
-### Redesign Roadmap — 8 Milestones (proposed, sequential)
-_Proposed by Rusty · 2026-06-19_
-Scope: ~70% elevate existing / ~30% net-new. Design-system-first. Each milestone leaves `main` runnable, typecheck-clean, lint-clean.
-- **M1** Design system foundation — token layer + base components (Button/Card/Pill/Input/Select/Skeleton). Refactor `globals.css`. _(Saul lead, Linus)_
-- **M2** Global app shell — shared responsive header/nav/footer + user menu + mobile drawer. _(Linus, Saul)_
-- **M3** Landing/marketing redesign — hero, feature showcase, CTA, auth-aware states. _(Saul, Linus)_
-- **M4** Browse & discovery — hero thumbnails, skeleton loaders, empty states, global search (net-new). _(Linus, Livingston for search endpoint)_
-- **M5** Reader redesign (crown jewel) — reading-optimized layout, font/theme controls (net-new), AI tools as sticky tabbed panel instead of vertical stack. _(Saul, Linus)_
-- **M6** Dashboard & Study — progress visualization, reading streaks/daily goal + flashcard review (net-new spaced repetition). _(Linus, Livingston)_
-- **M7** Admin polish — apply design system to `/admin`. _(Linus)_
-- **M8** Motion, a11y, responsive & loading-state QA pass. _(Basher, Linus)_
-Recommended first: **M1** (lowest risk, unblocks everything).
+### ACCEPTED Roadmap (M4–M9) — Migration-First
+_Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
+**Rule: additive migrations only** for all net-new features (no edits to existing columns/migrations). Sequencing: migration-first (clean base, then gamification / net-new on top). Supersedes the earlier M4–M8 sketch.
+
+| # | Milestone | Owners | Effort | Status |
+|---|---|---|---|---|
+| **M4** | Listings & Discovery — shared card → M1 primitives; skeletons; empty states; continue-reading rail; global search (net-new) | Saul (spec), Linus (build), Livingston (search), Basher (verify) | M | ✅ COMPLETE 7e554c9 |
+| **M5** | Reader redesign — layout, font/theme controls, AI tools as sticky tabbed panel, audio mini-player | Saul (spec), Linus (build) | L | Pending |
+| **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | Pending |
+| **M7** | Onboarding, Auth & Settings polish | Saul (spec), Linus (build) | S–M | Pending |
+| **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | Pending |
+| **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | Pending |
+
+M4 unblocks M5–M9. Rich-features menu (quick wins + bigger bets) was documented in the accepted roadmap proposal; key greenlit items captured in "Net-New Features Greenlit" above.
 
 ### Design Token Foundation (direction-agnostic, ready to implement)
 _Proposed by Saul · 2026-06-19_
@@ -44,6 +46,66 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## M4 — Listings & Discovery: COMPLETE (7e554c9)
+_2026-06-19 · Yingting Huang (requester) · Saul (spec), Linus (build), Livingston (search endpoint), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 108/108 · Rusty APPROVE-WITH-NITS · Basher PASS (121 checks) · committed 7e554c9.
+
+### What shipped
+- **`ArticleCardView` full redesign** — M1 tokens, `variant="grid"|"rail"` prop, `CefrBadge`, byline, teal reading-state progress fill, done-chip "Read", hover/focus lift (`-translate-y-0.5`+`shadow-md`+`border-border-strong`+indigo title), `motion-reduce:transform-none`. **All 5 ListingProgressSync DOM hooks preserved verbatim** (sacred contract).
+- **Continue-reading rail** (dashboard) — horizontal snap-scroll `role="region"`, in-progress articles via new `listInProgressArticles` helper in `src/lib/progress.ts`.
+- **`EmptyState`** (`src/components/EmptyState.tsx`) — branded empty state with icon chip (`aria-hidden`), title, description, optional M1 Button-styled action link.
+- **`SkeletonCard` + `SkeletonCardGrid`** (`src/components/SkeletonCard.tsx`) — M1 `Skeleton`/`SkeletonText`-based card placeholder.
+- **Listing pages migrated** — dashboard (M1 identity `Card`, continue-reading rail, M1 `Select`+`Button` level filter), `CategoryBrowser` (indigo active tab, `EmptyState`, M1 `Button loading` for load-more), `tags/[slug]`, reader "related" section — all use `listing-container` (1200px max-width) + §2.1 responsive grid (1/2/3-col).
+- **`GET /api/search`** — session-gated global search over published articles (`title/author/source` LIKE, case-insensitive). Response mirrors `GET /api/articles` shape. Blank query → empty array, no DB hit. 7 tests added (`tests/search.test.ts`).
+- **`package.json`** — added `--experimental-strip-types` to `npm test` (Node 22.14.0 explicit requirement; pre-existing gap fixed by Livingston).
+
+### Key decisions
+| Decision | Choice |
+|---|---|
+| Category tab active colour | Indigo (`--primary`) — NOT teal (teal = reading-state only) |
+| `listInProgressArticles` query | Separate DB query (cleaner rail, accepts ~1 extra round-trip) |
+| Search caching | NOT cached (open-ended query keys, per-user progress merged) |
+| Search scope for M4 | title / author / source LIKE; level+category+tag filters deferred to M9 |
+| `SkeletonCardGrid` load-more wiring | Deferred (Button spinner used instead); M8 if desired |
+
+### Deferred / nits (Rusty APPROVE-WITH-NITS)
+| ID | Item | Owner | When |
+|---|---|---|---|
+| NIR-1 | `listInProgressArticles`: move published filter into Prisma `where` (currently JS-side; `take` may under-fill rail when unpublished rows exist) | Linus | M4.1 (in-progress cleanup) |
+| NIR-2 | `--experimental-strip-types` absent from `npm run scrape\|process\|worker\|seed` | Linus | M4.1 / CI |
+| NIR-3 | Duplicate `role="region"` landmark on continue-reading rail (`<section aria-label>` + inner `<div role="region">`) | Linus | M8 a11y pass |
+| NIR-4 | Two separate `@/lib/cn` imports in `CategoryBrowser.tsx` | Linus | M4.1 |
+| M4-F3 | `ListingProgressSync` `querySelector` refreshes first DOM match only when article appears in both rail+grid; true dual-refresh needs `querySelectorAll` | Livingston/Linus | M8 |
+
+_Linus nit-cleanup follow-up (NIR-1 through NIR-4) is in progress._
+
+---
+
+## M3 — Landing / Marketing Page: VERIFIED · COMMITTED 2824eea
+_2026-06-19 · Yingting Huang (requester) · Saul (UX spec), Linus (build), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · Basher PASS (30/30 browser checks) · committed 2824eea.
+
+**D3 follow-up (non-blocking):** Final CTA band — `Button variant="secondary"` in dark theme renders dark surface on gradient (14:1 WCAG AAA contrast ✓). Aesthetically "dark card on colourful gradient" rather than "white/indigo on gradient." Flagged for Saul sign-off before M9 polish pass.
+
+### What shipped
+- **`src/app/page.tsx`** — server component, auth-aware via `getServerSession(authOptions)`, `export const metadata` (SEO), 6 sections (Marketing Header, Hero, Features, How It Works, Social Proof, Final CTA Band), skip-link target `#main-content`.
+- **`src/components/marketing/`** — `MarketingHeader.tsx` (server, glass sticky, wordmark + ThemeToggle + auth-aware outline CTA), `MarketingFooter.tsx` (server), `Wordmark.tsx` (inline-SVG diamond glyph + Space Grotesk logotype, `<a href="/">`), `MockReaderCard.tsx` (client, pure-CSS hero reader mock with JS 3D tilt), `FeatureCard.tsx` (server, M1 Card + 3px left-border accent + Lucide icon chip + feature list), `StepCard.tsx` (server, numbered step + horizontal connector via `::after`), `Reveal.tsx` (client, IntersectionObserver scroll-reveal wrapper).
+- **`src/app/globals.css`** (ADD-only) — `@keyframes rw-fade-up` at top level; `.text-gradient-brand`, `.rw-fade-up`, `.rw-reveal`, `.rw-revealed` in `@layer utilities`; `prefers-reduced-motion` override. No existing rules altered.
+- **Auth-aware state**: signed-out → primary CTA "Get Started — It's Free" + ghost "Sign In"; signed-in → primary "Continue Reading →", secondary hidden.
+- **Design language**: brand gradient H1 text-clip, radial-orb hero background, glass sticky marketing header (standalone — outside M2 app shell).
+
+### Deviations from Saul's spec (Basher verified)
+| ID | Deviation | Reason |
+|---|---|---|
+| M3-D1 | `font-bold` (700) for H1/CTA H2 vs spec 800 | Space Grotesk loaded up to 700; `layout.tsx` out of scope |
+| M3-D2 | Header scroll-shadow omitted | Keep header server component; glass blur + border provide separation |
+| M3-D3 | Final CTA band: `Button variant="secondary"` dark surface + light text on gradient | AA contrast; intentional look. _(D3 follow-up: Saul sign-off pending, see status above)_ |
+| M3-D4 | CTAs are `<Link className={buttonVariants(...)}>` | M1 Button has no `asChild`; keyboard + focusRing preserved |
 
 ---
 

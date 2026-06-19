@@ -32,7 +32,7 @@
 
 ---
 
-## M3 — Landing Page Redesign (Studio) — BUILT
+## M3 — Landing Page Redesign (Studio) — BUILT + COMMITTED (2824eea)
 - **Scope held tight:** only `src/app/page.tsx` (replaced placeholder), new `src/components/marketing/*`, and ADD-only utility/keyframes in `globals.css`. Did NOT touch (app) shell, tokens.css values, auth, middleware, prisma, /api, or feature CSS.
 - **Auth-aware (server):** `page.tsx` reads `getServerSession(authOptions)` → `signedIn`. Signed-out hero = primary "Get Started — It's Free" (→/signin) + ghost "Sign In"; signed-in = lone primary "Continue Reading →" (→/dashboard). Header CTA + final CTA band mirror the same state. CTAs are `<Link className={buttonVariants({...})}>` (Button is a `<button>`, so use buttonVariants for nav links).
 - **Marketing components:** `MarketingHeader` (server, glass: `color-mix(surface 85%)`+`blur(12px)`, sticky, skip-link to `#main-content`, imports M2 client `ThemeToggle`), `MarketingFooter` (server), `Wordmark` (shared inline-SVG diamond, no asset), `FeatureCard` (wraps M1 Card + 3px left-border accent via inline `borderLeftColor`; teal only on Group C), `StepCard` (lg `::after` connector, suppressed on last), `MockReaderCard` (CLIENT) and `Reveal` (CLIENT scroll-reveal).
@@ -40,3 +40,12 @@
 - **MockReaderCard tilt:** controlled in JS (client) via `matchMedia` for `(min-width:1024px)` AND `(prefers-reduced-motion: reduce)` — tilt only when desktop && !reduced && !hovered; hover resets flat over `--duration-slow`. Reduced-motion = transform never applied. Cleaner than Tailwind motion variants for an arbitrary 3D transform + hover reset.
 - **text-gradient-brand:** sets `color: var(--primary-text)` first (fallback) then clips `--gradient-brand` with `-webkit-text-fill-color: transparent` so unsupporting browsers still show indigo.
 - **Verify:** typecheck 0, lint 0, build green (27 routes, `/` is ƒ server-rendered). Dev smoke: `/`=200 with new hero markup + signed-out CTAs (no "Continue Reading"), skip-link + `#main-content` present, footer present; `/signin`=200; `/dashboard` & `/browse`=307. Confirmed `@keyframes rw-fade-up`/`.text-gradient-brand`/`.rw-reveal`/reduced-motion all compiled into served CSS.
+
+### M4 — Listings & Discovery (2026-06-19) ✅ SHIPPED — committed 7e554c9
+- **`ArticleCardView` full redesign** per Saul's spec: `variant="grid"|"rail"`, M1 tokens, `CefrBadge`, byline, teal progress fill (`bg-[var(--bg-accent)]` — fixes accent-rule violation vs legacy indigo), done-chip "Read" (`.js-progress-done`), hover/focus lift (`-translate-y-0.5`+`shadow-md`+`border-border-strong`+indigo title), `active:translate-y-px`, `motion-reduce:transform-none`. **All 5 ListingProgressSync DOM hooks preserved verbatim** (confirmed by Rusty + Basher).
+- **New components:** `EmptyState` (`src/components/EmptyState.tsx` — branded icon chip + title + optional action link) and `SkeletonCard`/`SkeletonCardGrid` (`src/components/SkeletonCard.tsx` — M1 Skeleton/SkeletonText based).
+- **Pages migrated:** dashboard (continue-reading rail via new `listInProgressArticles`; M1 identity `Card`; level filter via M1 `Select`+`Button`; single `ListingProgressSync` over union of rail+grid ids), `CategoryBrowser` (indigo active tab; `EmptyState`; M1 `Button loading` for load-more; accepts `heading` prop), `tags/[slug]`, reader related section — all use `listing-container` 1200px + §2.1 responsive grid (1/2/3-col).
+- **New in `progress.ts`:** `InProgressEntry` type + `listInProgressArticles(userId, limit)` (separate DB query, published-only filter currently JS-side — NIR-1 cleanup pending).
+- **`globals.css` additive only:** `.listing-container` (1200px max-width) + `.rw-rail-mask` in `@layer utilities`.
+- **Tests:** 108/108 pass. `npm test` now has `--experimental-strip-types` (Node 22.14.0 fix by Livingston).
+- **Nit cleanup in progress** (NIR-1: move published filter to Prisma `where`; NIR-2: add flag to CLI scripts; NIR-3: drop duplicate `role="region"`; NIR-4: combine `@/lib/cn` imports in CategoryBrowser).

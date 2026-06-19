@@ -9,8 +9,16 @@
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
 
+### M3 — Landing Page (2026-06-19) ✅ PASS — ready to land (not yet committed)
+Basher verified: PASS with design flag D3 (CTA band button in dark theme: dark surface on gradient, 14:1 contrast WCAG AAA, but aesthetically dark vs white/indigo — flagged for Linus/Saul). All static gates green (typecheck 0 / lint 0 / build 0). 30 browser checks pass (2 initial false positives: dark gradient `rgba(0,0,0,0)` vs `'transparent'` string; MockReaderCard selector hit header div). Chromium at `~/.cache/ms-playwright/chromium-1208/chrome-linux64/chrome`. Dev PIDs 392796/797/821 killed; test user/session cleaned up.
+
 ### M2 — Global App Shell (2026-06-19) ✅ SHIPPED — committed 385de06
 Basher verified: CONDITIONAL PASS → D1 (inactive nav links indigo instead of gray; root cause: unlayered `a { color: var(--accent) }` in globals.css beats `@layer utilities`) → Linus fixed by wrapping in `@layer base`. Final: all shell checks pass. Open: N3 (UserMenu aria-label redundancy) → M8 a11y.
 A full redesign roadmap (8 milestones) was produced by Rusty. Basher is engaged in:
 - **M8 (Motion, a11y, responsive & loading-state QA pass):** Playwright sweep + WCAG AA contrast/focus-ring/keyboard a11y audit across all redesigned surfaces.
-No active work yet — standby until M3–M7 are complete.
+
+### M3 gate verify (2026-06-19T11:32:57+08:00)
+Spawned by Scribe: verify M3 landing page (static gates + browser verification per linus-m3-built.md spec). Output: `.squad/decisions/inbox/basher-m3-verify.md`. M3 is built but uncommitted; this verify pass is the gate before commit.
+
+### M4 — Listings & Discovery (2026-06-19) ✅ PASS — committed 7e554c9
+Basher verified M4: PASS — 121 checks (Pass 1: 81 broad sweep + Pass 2: 40 targeted re-check), 0 real failures. Method: Playwright + Chromium (port 3001), 1 User + 1 Session + 3 ReadingProgress rows (30%, 65%, 100% completed). Key confirmations: ArticleCardView all states/hooks/motion; ListingProgressSync full sync cycle; category tab indigo NOT teal; continue-reading rail snap-scroll+region+keyboard; EmptyState+SkeletonCard (code-verified); mobile 768px/375px; dark theme; heading order h1→H2s→strong. Flags confirmed: M4-F1 "Read" done-chip · M4-F2 listing-container 1200px · M4-F3 dual-refresh accepted per §4.3. Accepted deviations: M4-D1 (separate DB query), M4-D2 (SkeletonCardGrid deferred), M4-D3 (rw-fade-up on section wrappers). Test user/session cleaned up after verify.
