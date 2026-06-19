@@ -83,6 +83,66 @@ body {
   }
 }
 
+/* ============================================================
+ * M3 Landing — entrance + scroll-reveal motion + brand text clip
+ * Element keyframes live at top level; helper/utility classes in
+ * @layer utilities. A prefers-reduced-motion override fully no-ops
+ * all of it (the --duration-* tokens already collapse in M1).
+ * ============================================================ */
+@keyframes rw-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@layer utilities {
+  /* Brand gradient clipped to text; --primary-text fallback when clip fails. */
+  .text-gradient-brand {
+    color: var(--primary-text);
+    background: var(--gradient-brand);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+
+  /* Staggered entrance: apply with an inline animation-delay. */
+  .rw-fade-up {
+    animation: rw-fade-up var(--duration-slow) var(--ease-emphasized) both;
+  }
+
+  /* IntersectionObserver scroll reveal: hidden until .rw-revealed is added. */
+  .rw-reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity var(--duration-slow) var(--ease-emphasized),
+      transform var(--duration-slow) var(--ease-emphasized);
+    will-change: opacity, transform;
+  }
+
+  .rw-revealed {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Fully disable landing motion for users who request reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .rw-fade-up,
+  .rw-reveal,
+  [data-animate] {
+    animation: none !important;
+    transition: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+}
+
 .container {
   max-width: 880px;
   margin: 0 auto;

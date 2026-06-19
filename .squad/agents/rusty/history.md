@@ -8,3 +8,6 @@
 ## Learnings
 
 <!-- Append new learnings below. Each entry is something lasting about the project. -->
+
+### M2 — Global App Shell (2026-06-19) ✅ SHIPPED — committed 385de06
+Route group `src/app/(app)/` pattern confirmed: URL-transparent, zero middleware churn, single layout ownership. Admin untouched (own layout). Root layout untouched (fonts + no-flash + Providers). Nit N1 resolved: Admin link belongs in UserMenu/MobileDrawer (not AppNav) per Saul's finalized spec.
