@@ -47,3 +47,6 @@ Extended `parseProfileInput` and both profile API routes to accept and validate 
 - **Validation**: hard-reject non-integer or out-of-`[1,10]`; `null`/`undefined` omitted from return value (preserves existing DB row on upsert — never silently resets).
 - **API routes**: `PUT /api/profile` + `POST /api/onboarding` both use conditional spread `...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {})`.
 - **Tests**: +9 new tests (profile.test.ts +3: accepts 1/5/10, rejects 0/11/1.5/"5", omits when absent; profile-route.test.ts +6: PUT persists valid goal, rejects min/max, rejects non-integer, omits on absent, preserves other fields). Total: 153/153 pass.
+
+### M9 — Command Palette + Final A11y/Motion QA (2026-06-19) ✅ LANDED — committed dff6c1f
+No direct M9 work (Livingston's M4 `GET /api/search` endpoint reused unchanged by the command palette). M9 completed by Saul/Linus/Rusty/Basher. **Redesign roadmap M4–M9 is now fully complete.** All surfaces on Studio design system; 153/153 tests pass; no schema or API changes in M9.

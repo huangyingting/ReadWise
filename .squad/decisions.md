@@ -18,7 +18,7 @@ _Proposed by Rusty · Accepted by Yingting Huang · 2026-06-19_
 | **M6** | Dashboard & Study — reading streaks/daily goal, flashcard SRS over existing `SavedWord` | Livingston (data), Linus (UI), Saul (spec) | L | ✅ COMPLETE 1beea38 |
 | **M7** | Onboarding, Auth & Settings polish + daily-goal editing | Saul (spec), Livingston (backend), Linus (build), Rusty (review), Basher (verify) | S–M | ✅ COMPLETE cb204c5 |
 | **M8** | Admin polish — design system to `/admin`; extract shared `ConfirmAction` | Linus (build), Saul (light spec) | M | ✅ COMPLETE a631aa9 |
-| **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | Pending |
+| **M9** | Motion, a11y, responsive QA + ⌘K command palette (reuses M4 search endpoint). Closes M1/M2 nits N2/N3/N4. | Basher (lead QA), Linus, Livingston | M | ✅ COMPLETE dff6c1f |
 
 M4 unblocks M5–M9. Rich-features menu (quick wins + bigger bets) was documented in the accepted roadmap proposal; key greenlit items captured in "Net-New Features Greenlit" above.
 
@@ -46,6 +46,66 @@ _Proposed by Rusty · 2026-06-19_
 ### Must-Not-Break Constraints (all milestones)
 _Proposed by Rusty · 2026-06-19_
 Prisma schema & committed migrations; AI graceful degradation (`fallback:true`); NextAuth DB-session + role attach; `middleware.ts` matcher paired with `requireSession`/`requireOnboardedSession`/`requireAdmin`; `sanitizeArticleHtml` always wraps `dangerouslySetInnerHTML`; `ListingProgressSync` DOM contract (`js-progress-bar/label/done`, `data-article-id`); US-030 cache tag invalidation; cached fns prisma-only/date-safe.
+
+---
+
+## Redesign Roadmap M4–M9: COMPLETE
+_2026-06-19_
+
+The full user-facing product is now on the Studio design system. Net-new shipped across M4–M9: global search + ⌘K command palette, reader reading-modes (light/sepia/dark) + tabbed AI tools panel + audio mini-player, gamification (streaks/daily-goal/flashcard SRS), 4-step onboarding wizard, daily-goal editing in Settings, admin design-system polish and shared `ConfirmAction`. Every milestone landed green: typecheck 0 · lint 0 · build green · npm test 153/153 (full regression M4–M9 verified by Basher).
+
+---
+
+## M9 — Command Palette + Final A11y/Motion QA: COMPLETE (dff6c1f)
+_2026-06-19 · Yingting Huang (requester) · Saul (spec), Linus (build), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 153/153 · Rusty APPROVE-WITH-NITS · Basher PASS (full M4–M9 regression) · committed dff6c1f.
+
+### Scope
+⌘K command palette (headline feature, reuses `GET /api/search`); global `:focus-visible` ring baseline; reduced-motion baseline for all animations; 15-nit sweep across M5–M8/shell.
+
+### What shipped
+
+**Pass A — Command palette (Linus)**
+- `src/components/command/CommandPalette.tsx` — modal: overlay/panel, combobox+listbox ARIA engine (focus stays on input; `aria-activedescendant` drives highlight), all states (empty-query, loading skeletons, results, no-results, error, show-more pagination).
+- `src/components/command/CommandPaletteProvider.tsx` — global ⌘K / Ctrl+K / `"/"` (outside editable) listener; `useCommandPalette()` context; mounts only in the authed app shell.
+- `src/components/command/command-items.ts` — static Pages + Actions definitions, fuzzy scorer.
+- `src/components/command/useArticleSearch.ts` — debounced (200ms), abortable fetch against `GET /api/search`; `latestQueryRef` stale-response guard in `search()`.
+- `src/components/shell/HeaderSearch.tsx` — desktop faux search-box + mobile icon button (resolves M2 N4).
+- **Global `:focus-visible` ring** (`@layer base`, `:where(...)` zero-specificity — resolves M1/M2 N2).
+- Reduced-motion block: `animation:none !important; opacity:1 !important; transform:none !important` (identity, not duration-0) for all palette animations.
+
+**Pass B — 15-nit sweep (Linus)**
+- NIR-M5-1: `isMobile` media-query state in `ReaderToolsPanel`; `PanelContents` renders in only one slot; split `asideTabListRef`/`sheetTabListRef`.
+- NIR-M5-2 + focus-trap: `closeButtonRef` focus on sheet open; full `getFocusable` Tab-trap; `fabRef` focus restore on close.
+- M6 `extendedToday`: real value wired to StreakWidget flame flicker.
+- M6 StudyList dim: `StudyPageShell` lifts `reviewing` bool; `inert + aria-hidden + opacity-60` on saved-words list while reviewing.
+- M6 `rw-pop` SSR: `GoalMetIcon` client component suppresses animation on initial mount (SSR flash fixed).
+- M7 N1: daily-goal input `onBlur` clamp `[DAILY_GOAL_MIN, DAILY_GOAL_MAX]`.
+- M7 N2: stepper pills → `<nav aria-label="Onboarding progress"><ol>` + `<li aria-current="step">`.
+- M7 N4: `LEVEL_HINTS` exported from `src/lib/profile.ts`; duplicate removed from both forms.
+- M8 N1: `ConfirmAction` controlled mode (`open`/`onOpenChange` props); `AdminArticleActions` mutual exclusion via `openPanel` state.
+- M8 N2: `statusBadgeVariant()` extracted to `src/lib/admin.ts`; three consumers updated.
+- M8 N3: `ConfirmAction` `useId()` `msgId`; `aria-describedby` + `id` on alertdialog `<p>`.
+- M8 N4: `.admin-actions { min-width: 220px }` restored.
+- M1 N3: `Spinner` track uses `stroke="var(--border)"` (theme-aware token).
+- M2 N3: `aria-label` removed from `role="menu"` div in `UserMenu`.
+
+**Pre-land fixes (Linus, per Rusty FIX-BEFORE-LAND)**
+- FIX-1: `aria-expanded={true}` on combobox input (was `selectableItems.length > 0` — ARIA violation when "No results" shown).
+- FIX-2: `loadMore` stale-response guard added (mirrors existing `search()` `latestQueryRef` pattern).
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Command palette scope | Palette-only — no standalone `/search` page (reuses `GET /api/search` via palette) |
+| `GoalMetIcon` reactive pop | Accepted no-op: SSR flash fixed; reactive not-met→met animation deferred (no client-observable goal-met signal available in M9) |
+
+### Post-M9 nits (Rusty, deferrable)
+| ID | Item |
+|---|---|
+| NIT-1 | `GoalMetIcon` reactive animation dead letter — gate `setPop` on a client-observable "goal just became met" signal |
+| NIT-2 | `loadMore` stale-query guard (applied as FIX-2 pre-land; noted for completeness) |
 
 ---
 
