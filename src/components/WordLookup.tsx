@@ -6,6 +6,9 @@ import type { DictionaryResult } from "@/lib/dictionary";
 type Anchor = { x: number; y: number };
 
 const POPOVER_WIDTH = 340;
+const POPOVER_HEIGHT = 380; // approximate max height
+/** Height of the fixed mini-player (matches .reader-mini-player height: 56px). */
+const MINI_PLAYER_HEIGHT = 56;
 
 /** Resolves the word under a viewport point using the caret APIs. */
 function wordAtPoint(x: number, y: number): string | null {
@@ -39,7 +42,7 @@ function wordAtPoint(x: number, y: number): string | null {
   }
 
   const text = node.textContent ?? "";
-  const isWordChar = (c: string) => /[A-Za-z'’‘-]/.test(c);
+  const isWordChar = (c: string) => /[A-Za-z'''-]/.test(c);
 
   let start = Math.min(offset, text.length);
   let end = start;
@@ -107,17 +110,29 @@ export default function WordLookup({ html }: { html: string }) {
         candidate = wordAtPoint(clientX, clientY) ?? "";
       }
 
-      candidate = candidate.replace(/^[^A-Za-z'’]+|[^A-Za-z'’]+$/g, "");
+      candidate = candidate.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "");
 
       if (!candidate || !/[A-Za-z]/.test(candidate)) {
         return;
       }
 
-      const left = Math.min(
-        clientX,
-        window.innerWidth - POPOVER_WIDTH - 12,
-      );
-      setAnchor({ x: Math.max(12, left), y: clientY + 12 });
+      // Clamp left so popover stays within the viewport.
+      const left = Math.min(clientX, window.innerWidth - POPOVER_WIDTH - 12);
+      const clampedLeft = Math.max(12, left);
+
+      // Clamp top so popover never hides behind the audio mini-player.
+      // If the click is in the lower zone, flip the popover above the caret.
+      const safeBottom = window.innerHeight - MINI_PLAYER_HEIGHT - POPOVER_HEIGHT - 12;
+      let top: number;
+      if (clientY > safeBottom) {
+        // Flip above the caret
+        top = clientY - POPOVER_HEIGHT - 12;
+      } else {
+        top = clientY + 12;
+      }
+      top = Math.max(12, top);
+
+      setAnchor({ x: clampedLeft, y: top });
       setWord(candidate);
       void runLookup(candidate);
     },
@@ -173,7 +188,7 @@ export default function WordLookup({ html }: { html: string }) {
           className="word-lookup-popover"
           role="dialog"
           aria-label={`Dictionary: ${word}`}
-          style={{ left: anchor.x, top: anchor.y }}
+          style={{ left: anchor.x, top: anchor.y, zIndex: 60 }}
           onMouseUp={(e) => e.stopPropagation()}
         >
           <div className="word-lookup-header">
@@ -244,7 +259,7 @@ export default function WordLookup({ html }: { html: string }) {
                             {def.example ? (
                               <span className="word-lookup-example muted">
                                 {" "}
-                                “{def.example}”
+                                &ldquo;{def.example}&rdquo;
                               </span>
                             ) : null}
                           </li>
@@ -256,7 +271,7 @@ export default function WordLookup({ html }: { html: string }) {
               </div>
             ) : (
               <p className="muted word-lookup-status">
-                No definition found for “{word}”.
+                No definition found for &ldquo;{word}&rdquo;.
               </p>
             )
           ) : null}
@@ -265,3 +280,4 @@ export default function WordLookup({ html }: { html: string }) {
     </>
   );
 }
+

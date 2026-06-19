@@ -245,3 +245,50 @@
     --duration-slow: 0.01ms;
   }
 }
+
+/* ============================================================
+ * M5 — Reading surface tokens (reader-scoped via data-reading-mode)
+ *
+ * Applied to the reader root div only — never <html>. The reading
+ * column, Tools rail, mini-player, and popover read --reading-*
+ * tokens so they remap correctly across Light / Sepia / Dark
+ * reading surfaces independently of the global app theme.
+ *
+ * Light/dark use LITERAL hex values (not var(--surface)) so that
+ * a dark-chrome + light-reading combo renders correctly.
+ * Sepia introduces the only new raw colors in M5 (WCAG-verified).
+ * ============================================================ */
+
+[data-reading-mode="light"] {
+  --reading-bg:           #ffffff;   /* surface light */
+  --reading-surface:      #f8fafc;   /* bg light — raised/panels */
+  --reading-text:         #0f172a;
+  --reading-text-strong:  #0f172a;
+  --reading-text-muted:   #475569;
+  --reading-border:       #e2e8f0;
+  --reading-link:         #4f46e5;   /* primary-text light */
+  --reading-accent:       #0f766e;   /* teal-text light (reading-state) */
+}
+
+[data-reading-mode="dark"] {
+  --reading-bg:           #131a2b;   /* surface dark */
+  --reading-surface:      #1b2436;   /* surface-raised dark */
+  --reading-text:         #e6e9f0;
+  --reading-text-strong:  #e6e9f0;
+  --reading-text-muted:   #a3adc2;
+  --reading-border:       #283449;
+  --reading-link:         #a5b4fc;   /* primary-text dark */
+  --reading-accent:       #2dd4bf;   /* teal-text dark (reading-state) */
+}
+
+/* SEPIA — the ONLY new raw colors in M5 (warm paper, all WCAG-verified). */
+[data-reading-mode="sepia"] {
+  --reading-bg:           #f4ecd8;   /* paper — base surface */
+  --reading-surface:      #faf4e4;   /* raised cards/panels on sepia */
+  --reading-text:         #5b4636;   /* ink — 7.51:1 on paper (AAA body) */
+  --reading-text-strong:  #3f3122;   /* headings — 10.66:1 */
+  --reading-text-muted:   #6f5d46;   /* secondary — 5.36:1 (AA) */
+  --reading-border:       #e3d7bd;   /* hairline */
+  --reading-link:         #4338ca;   /* indigo-hover, 6.71:1 (AA links) */
+  --reading-accent:       #0f766e;   /* teal-text, 4.65:1 (reading-state) */
+}

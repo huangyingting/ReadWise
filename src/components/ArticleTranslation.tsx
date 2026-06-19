@@ -15,12 +15,25 @@ type TranslationResponse = {
   fallback: boolean;
 };
 
+/**
+ * ArticleTranslation (M5 refactor)
+ *
+ * Stripped of its outer <section> wrapper. The language select renders
+ * immediately; translation is fetched on "Translate" button click (unchanged
+ * behaviour). Inner UI/fallback handling verbatim.
+ *
+ * Props:
+ *   articleId — the article to translate
+ *   languages — list of supported language options
+ *   active    — true when the Translate tab is the currently visible panel
+ */
 export default function ArticleTranslation({
   articleId,
   languages,
 }: {
   articleId: string;
   languages: SupportedLanguage[];
+  active: boolean;
 }) {
   const [lang, setLang] = useState(languages[0]?.code ?? "");
   const [loading, setLoading] = useState(false);
@@ -60,7 +73,7 @@ export default function ArticleTranslation({
     : [];
 
   return (
-    <section className="translation" aria-label="Article translation">
+    <div>
       <div className="translation-controls">
         <label htmlFor="translation-lang" className="muted">
           Translate to
@@ -110,6 +123,7 @@ export default function ArticleTranslation({
           </div>
         </div>
       ) : null}
-    </section>
+    </div>
   );
 }
+

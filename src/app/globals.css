@@ -1080,3 +1080,592 @@ body {
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
+
+/* ============================================================
+ * M5 — Reader Redesign
+ * All rules below are ADDITIVE — existing rules above are unchanged.
+ * ============================================================ */
+
+/* ---- Reading surface overrides (scoped to data-reading-mode) ---- */
+/* Re-point blockquote border + tts active to reading-mode tokens     */
+[data-reading-mode] .word-lookup-prose blockquote {
+  border-left-color: var(--reading-accent, var(--bg-accent));
+  color: var(--reading-text-muted, var(--text-muted));
+}
+
+[data-reading-mode] .tts-word.is-active {
+  background: color-mix(in srgb, var(--reading-accent, var(--teal)) 25%, transparent);
+  color: var(--reading-text, var(--text));
+  font-weight: 600;
+}
+
+/* Reading-progress bar — teal (reading-state) override */
+[data-reading-mode] .reading-progress-bar {
+  background: var(--reading-accent, var(--bg-accent));
+}
+
+/* Word-lookup popover — adopt reading surface tokens */
+[data-reading-mode] .word-lookup-popover {
+  background: var(--reading-surface, #20242d);
+  border-color: var(--reading-border, var(--border));
+  color: var(--reading-text, var(--text));
+}
+
+[data-reading-mode] .word-lookup-pos {
+  color: var(--reading-link, var(--accent));
+}
+
+/* ---- Reader root ---- */
+/* data-reading-mode wrapper; surface-token host. No layout here — just color. */
+#reader-root {
+  background: var(--reading-bg, var(--bg));
+  color: var(--reading-text, var(--text));
+  min-height: 100vh;
+}
+
+/* ---- Reader two-column grid layout ---- */
+.reader-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-8);
+  max-width: 1160px;
+  margin-inline: auto;
+  padding: var(--space-6) var(--space-4) var(--space-12);
+  align-items: start;
+}
+
+@media (min-width: 1100px) {
+  .reader-layout {
+    grid-template-columns: minmax(0, 1fr) 360px;
+    padding: var(--space-6) var(--space-6) var(--space-10);
+  }
+}
+
+/* ---- Reading column ---- */
+.reader-column {
+  min-width: 0;
+  /* Extra bottom padding so the fixed mini-player never overlaps last paragraph */
+  padding-bottom: var(--space-10);
+}
+
+/* Prose measure + reading font — scoped to the reading column */
+.reader-column .word-lookup-prose {
+  font-family: var(--font-reading);
+  font-size: calc(1.125rem * var(--reading-font-scale, 1));
+  line-height: var(--leading-reading);
+  max-width: var(--measure);
+  margin-inline: auto;
+  color: var(--reading-text, var(--text));
+}
+
+.reader-column .word-lookup-prose p {
+  margin: 0 0 1.15em;
+}
+
+.reader-column .word-lookup-prose h2,
+.reader-column .word-lookup-prose h3 {
+  font-family: var(--font-display);
+  margin: 1.8em 0 0.6em;
+  line-height: 1.3;
+}
+
+/* Hero image — slight bleed (wider than 66ch for punch) */
+.reader-column .article-hero {
+  width: 100%;
+  max-width: min(100%, 760px);
+  margin-inline: auto;
+  display: block;
+  border-radius: var(--radius-lg);
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+  max-height: 420px;
+  border: 1px solid var(--reading-border, var(--border));
+  box-shadow: var(--shadow-sm);
+  margin-block: var(--space-6);
+}
+
+/* Article header spacing */
+.reader-article-header {
+  margin-bottom: var(--space-6);
+}
+
+.reader-article-title {
+  font-family: var(--font-display);
+  font-size: var(--text-2xl);
+  line-height: var(--leading-tight);
+  font-weight: 700;
+  color: var(--reading-text, var(--text));
+  margin: 0 0 var(--space-3);
+}
+
+@media (min-width: 640px) {
+  .reader-article-title {
+    font-size: var(--text-3xl);
+  }
+}
+
+.reader-byline {
+  font-size: var(--text-sm);
+  color: var(--reading-text-muted, var(--text-muted));
+  margin: 0 0 var(--space-3);
+}
+
+.reader-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.reader-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+/* ---- Reader controls (sticky cluster) ---- */
+.reader-controls {
+  position: sticky;
+  top: calc(56px + var(--space-2)); /* AppHeader ~56px + gap */
+  z-index: 30;
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: var(--space-4);
+  pointer-events: none; /* let clicks fall through except on the inner cluster */
+}
+
+.reader-controls-inner {
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  background: var(--reading-surface, var(--surface));
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-2);
+  box-shadow: var(--shadow-sm);
+}
+
+.reader-controls-divider {
+  width: 1px;
+  height: 1.5rem;
+  background: var(--reading-border, var(--border));
+  margin-inline: var(--space-1);
+  flex-shrink: 0;
+}
+
+/* Font-scale stepper buttons */
+.reader-scale-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--reading-text, var(--text));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  transition: background var(--duration-fast) var(--ease-standard);
+}
+
+.reader-scale-btn:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 10%, transparent);
+}
+
+.reader-scale-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* Reading-mode segmented control */
+.reader-mode-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.reader-mode-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.reader-mode-btn[aria-checked="false"] {
+  background: transparent;
+  color: var(--reading-text-muted, var(--text-muted));
+}
+
+.reader-mode-btn[aria-checked="false"]:hover {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 10%, transparent);
+  color: var(--reading-text, var(--text));
+}
+
+.reader-mode-btn[aria-checked="true"] {
+  background: var(--primary);
+  color: var(--on-primary);
+}
+
+/* ---- Tools rail (desktop sticky right panel) ---- */
+.reader-tools-rail {
+  display: none; /* hidden on mobile; shown via media query */
+  position: sticky;
+  top: var(--space-7);
+  max-height: calc(100vh - var(--space-9));
+  overflow-y: auto;
+  background: var(--reading-surface, var(--surface));
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overscroll-behavior: contain;
+}
+
+@media (min-width: 1100px) {
+  .reader-tools-rail {
+    display: block;
+  }
+  .reader-tools-fab {
+    display: none !important;
+  }
+}
+
+/* Visually hidden sr-only h2 inside tools rail */
+.reader-tools-heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Tab bar ---- */
+.reader-tabs {
+  display: flex;
+  border-bottom: 1px solid var(--reading-border, var(--border));
+}
+
+.reader-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: var(--space-2) var(--space-1);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--reading-text-muted, var(--text-muted));
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+  min-height: 52px;
+}
+
+.reader-tab-btn:hover {
+  color: var(--reading-text, var(--text));
+}
+
+.reader-tab-btn[aria-selected="true"] {
+  color: var(--primary-text);
+  border-bottom-color: var(--primary);
+}
+
+/* ---- Tab panel body ---- */
+.reader-tab-panels {
+  /* Tab bodies container; each panel hidden via [hidden] */
+}
+
+.reader-tab-panel {
+  padding: var(--space-4);
+}
+
+.reader-tab-panel[hidden] {
+  display: none;
+}
+
+/* ---- Mini player (fixed bottom, full-width) ---- */
+.reader-mini-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 56px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+  background: var(--reading-surface, var(--surface));
+  border-top: 1px solid var(--reading-border, var(--border));
+  box-shadow: var(--shadow-lg);
+}
+
+.reader-mini-player-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.reader-mini-player-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.reader-mini-player-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.reader-mini-player-time {
+  font-size: var(--text-xs);
+  color: var(--reading-text-muted, var(--text-muted));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Seek range input — teal fill for reading-state */
+.reader-seek {
+  flex: 1;
+  min-width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--reading-accent, var(--teal)) 0%,
+    var(--reading-accent, var(--teal)) var(--seek-pct, 0%),
+    var(--reading-border, var(--border)) var(--seek-pct, 0%),
+    var(--reading-border, var(--border)) 100%
+  );
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+}
+
+.reader-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--reading-surface, var(--surface));
+}
+
+.reader-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--reading-surface, var(--surface));
+}
+
+/* Speed select in mini player */
+.reader-speed-select {
+  font-size: var(--text-xs);
+  background: transparent;
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--reading-text, var(--text));
+  padding: 2px var(--space-1);
+  cursor: pointer;
+}
+
+/* Ghost icon button for player controls */
+.reader-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--reading-text, var(--text));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-standard);
+  flex-shrink: 0;
+}
+
+.reader-icon-btn:hover {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 10%, transparent);
+}
+
+.reader-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+/* ---- Mobile: Tools FAB + bottom sheet ---- */
+.reader-tools-fab {
+  position: fixed;
+  bottom: calc(56px + var(--space-3)); /* above mini-player */
+  right: var(--space-4);
+  z-index: 35;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+/* FAB when mini-player is absent */
+.reader-tools-fab.no-player {
+  bottom: var(--space-4);
+}
+
+.reader-bottom-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: 44;
+  animation: rw-fade-up var(--duration-base) var(--ease-standard) both;
+}
+
+.reader-bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 45;
+  max-height: 85vh;
+  background: var(--reading-surface, var(--surface));
+  border-top: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  transform: translateY(0);
+  animation: reader-sheet-in var(--duration-base) var(--ease-emphasized) both;
+}
+
+@keyframes reader-sheet-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.reader-bottom-sheet-handle {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) 0 var(--space-1);
+}
+
+.reader-bottom-sheet-handle::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--reading-border, var(--border));
+  border-radius: var(--radius-full);
+}
+
+.reader-bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.reader-bottom-sheet-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--reading-text, var(--text));
+  margin: 0;
+}
+
+.reader-bottom-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Reduced-motion: collapse sheet animation to opacity only */
+@media (prefers-reduced-motion: reduce) {
+  .reader-bottom-sheet {
+    animation: none;
+  }
+  .reader-bottom-sheet-scrim {
+    animation: none;
+  }
+}
+
+/* ---- Aria live status region (controls announcements) ---- */
+.reader-sr-live {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* ---- Tab panel content: inherit reading-surface tokens ---- */
+.reader-tab-panel .vocabulary-item {
+  background: var(--reading-bg, var(--bg));
+  border-color: var(--reading-border, var(--border));
+}
+
+.reader-tab-panel .translation-controls select {
+  background: var(--reading-bg, var(--bg));
+  border-color: var(--reading-border, var(--border));
+  color: var(--reading-text, var(--text));
+}
+
+/* Prose inside the translation result (inside tool panel) */
+.reader-tab-panel .prose {
+  color: var(--reading-text, var(--text));
+  font-family: var(--font-reading);
+}
+
+/* Related articles section — keep existing look, just add top margin */
+.reader-related {
+  margin-top: var(--space-10);
+  padding-top: var(--space-6);
+  border-top: 1px solid var(--reading-border, var(--border));
+}
