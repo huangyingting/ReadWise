@@ -135,6 +135,13 @@
   --panel: var(--surface);
   --muted: var(--text-muted);
   --accent: var(--primary);
+
+  /* ---- Semantic teal accent aliases (M2) ----
+   * Teal signals reading state ONLY (progress fills, CEFR badges, active-nav
+   * underline) — never a clickable affordance. Expose the existing --teal*
+   * tokens under intention-revealing names for new components. */
+  --bg-accent: var(--teal);
+  --text-accent: var(--teal-text);
 }
 
 /* ============================================================

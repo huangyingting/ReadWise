@@ -49,9 +49,6 @@ export default async function ReaderPage({
         articleId={article.id}
         initialPercent={progress?.percent ?? 0}
       />
-      <p style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard">← Back to dashboard</Link>
-      </p>
 
       <article className="article">
         <header className="stack">

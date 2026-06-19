@@ -72,13 +72,15 @@ body {
   line-height: 1.55;
 }
 
-a {
-  color: var(--accent);
-  text-decoration: none;
-}
+@layer base {
+  a {
+    color: var(--accent);
+    text-decoration: none;
+  }
 
-a:hover {
-  text-decoration: underline;
+  a:hover {
+    text-decoration: underline;
+  }
 }
 
 .container {

@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { getTagBySlug, listArticlesByTag } from "@/lib/tags";
@@ -29,10 +28,6 @@ export default async function TagPage({
 
   return (
     <main className="container">
-      <p style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard">← Back to dashboard</Link>
-      </p>
-
       <h1 style={{ marginBottom: "0.25rem" }}>#{tag.name}</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         {articles.length === 1

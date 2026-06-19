@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import {
   BROWSE_PAGE_SIZE,
@@ -50,10 +49,6 @@ export default async function BrowsePage({
 
   return (
     <main className="container">
-      <p style={{ marginBottom: "1rem" }}>
-        <Link href="/dashboard">← Back to dashboard</Link>
-      </p>
-
       <h1 style={{ marginBottom: "0.25rem" }}>Browse</h1>
       <p className="muted" style={{ marginTop: 0 }}>
         {isPicks

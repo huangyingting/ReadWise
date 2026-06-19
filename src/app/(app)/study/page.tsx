@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { getSavedWords } from "@/lib/vocabulary";
 import StudyList from "@/components/StudyList";
@@ -25,10 +24,6 @@ export default async function StudyPage() {
           }))}
         />
       </section>
-
-      <p style={{ marginTop: "1.5rem" }}>
-        <Link href="/dashboard">← Back to dashboard</Link>
-      </p>
     </main>
   );
 }

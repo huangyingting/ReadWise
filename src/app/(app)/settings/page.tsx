@@ -1,8 +1,6 @@
-import Link from "next/link";
 import Image from "next/image";
 import { requireOnboardedSession } from "@/lib/session";
 import { getProfile, parseTopics } from "@/lib/profile";
-import SignOutButton from "@/components/SignOutButton";
 import ProfileSettingsForm from "./ProfileSettingsForm";
 
 export const metadata = {
@@ -54,18 +52,6 @@ export default async function SettingsPage() {
           }}
         />
       </section>
-
-      <p
-        style={{
-          marginTop: "1.5rem",
-          display: "flex",
-          gap: "1rem",
-          alignItems: "center",
-        }}
-      >
-        <Link href="/dashboard">← Back to dashboard</Link>
-        <SignOutButton />
-      </p>
     </main>
   );
 }

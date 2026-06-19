@@ -1,0 +1,175 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import Image from "next/image";
+import { signOut } from "next-auth/react";
+import { Settings, Shield, LogOut } from "lucide-react";
+import { cn, focusRing } from "@/lib/cn";
+import type { ShellUser } from "./types";
+
+function initialOf(user: ShellUser): string {
+  const source = user.name || user.email || "?";
+  return source.trim().charAt(0).toUpperCase() || "?";
+}
+
+export default function UserMenu({ user }: { user: ShellUser }) {
+  const [open, setOpen] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const isAdmin = user.role === "Admin";
+
+  useEffect(() => {
+    if (!open) return;
+
+    function onPointerDown(event: MouseEvent) {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpen(false);
+        triggerRef.current?.focus();
+        return;
+      }
+      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+        event.preventDefault();
+        const items = menuRef.current?.querySelectorAll<HTMLElement>(
+          '[role="menuitem"]',
+        );
+        if (!items || items.length === 0) return;
+        const list = Array.from(items);
+        const idx = list.indexOf(document.activeElement as HTMLElement);
+        const dir = event.key === "ArrowDown" ? 1 : -1;
+        const next = list[(idx + dir + list.length) % list.length] ?? list[0];
+        next.focus();
+      }
+    }
+
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  // Focus the first item when the menu opens.
+  useEffect(() => {
+    if (open) {
+      const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
+      first?.focus();
+    }
+  }, [open]);
+
+  const itemClass = cn(
+    "flex items-center gap-[var(--space-2)] w-full text-left",
+    "px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] text-text",
+    "transition-colors [transition-duration:var(--duration-fast)]",
+    "hover:bg-bg-subtle",
+    focusRing,
+  );
+
+  return (
+    <div ref={containerRef} className="relative">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="User menu"
+        onClick={() => setOpen((v) => !v)}
+        className={cn(
+          "inline-flex items-center justify-center h-8 w-8 shrink-0 overflow-hidden",
+          "rounded-[var(--radius-full)]",
+          focusRing,
+          open && "[box-shadow:0_0_0_2px_var(--focus-ring)]",
+        )}
+      >
+        {user.image ? (
+          <Image
+            src={user.image}
+            alt=""
+            width={32}
+            height={32}
+            unoptimized
+            className="h-8 w-8 rounded-[var(--radius-full)] object-cover"
+          />
+        ) : (
+          <span
+            aria-hidden
+            className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-full)] bg-primary text-on-primary text-[length:var(--text-sm)] font-semibold"
+          >
+            {initialOf(user)}
+          </span>
+        )}
+      </button>
+
+      {open ? (
+        <div
+          ref={menuRef}
+          role="menu"
+          aria-label="User menu"
+          className={cn(
+            "absolute right-0 top-[calc(100%+var(--space-2))] z-[60] min-w-[200px]",
+            "rounded-[var(--radius-md)] border border-border bg-surface-raised py-[var(--space-1)]",
+            "shadow-[var(--shadow-lg)]",
+          )}
+        >
+          <div className="px-[var(--space-4)] py-[var(--space-2)]">
+            <div className="text-[length:var(--text-sm)] font-semibold text-text truncate">
+              {user.name ?? "Reader"}
+            </div>
+            {user.email ? (
+              <div className="text-[length:var(--text-xs)] text-text-subtle truncate">
+                {user.email}
+              </div>
+            ) : null}
+          </div>
+
+          <div className="my-[var(--space-1)] border-t border-border" />
+
+          <Link
+            href="/settings"
+            role="menuitem"
+            className={itemClass}
+            onClick={() => setOpen(false)}
+          >
+            <Settings size={16} aria-hidden />
+            Settings
+          </Link>
+
+          {isAdmin ? (
+            <Link
+              href="/admin"
+              role="menuitem"
+              className={itemClass}
+              onClick={() => setOpen(false)}
+            >
+              <Shield size={16} aria-hidden />
+              Admin Panel
+            </Link>
+          ) : null}
+
+          <div className="my-[var(--space-1)] border-t border-border" />
+
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              void signOut({ callbackUrl: "/" });
+            }}
+            className={cn(itemClass, "hover:text-danger-text")}
+          >
+            <LogOut size={16} aria-hidden />
+            Sign out
+          </button>
+        </div>
+      ) : null}
+    </div>
+  );
+}

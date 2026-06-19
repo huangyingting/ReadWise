@@ -6,7 +6,6 @@ import { getProgressMap } from "@/lib/progress";
 import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
 import ArticleCard from "@/components/ArticleCard";
 import ListingProgressSync from "@/components/ListingProgressSync";
-import SignOutButton from "@/components/SignOutButton";
 
 export default async function DashboardPage({
   searchParams,
@@ -50,14 +49,6 @@ export default async function DashboardPage({
           </div>
         </div>
       </div>
-      {user.role === "Admin" ? (
-        <p style={{ marginTop: "1.5rem" }}>
-          <Link className="btn btn-primary" href="/admin">
-            Admin dashboard
-          </Link>
-        </p>
-      ) : null}
-
       <section style={{ marginTop: "2rem" }}>
         <h2>Continue reading</h2>
         <p style={{ margin: "0.5rem 0" }}>
@@ -119,13 +110,6 @@ export default async function DashboardPage({
         )}
         <ListingProgressSync articleIds={visibleArticles.map((a) => a.id)} />
       </section>
-
-      <p style={{ marginTop: "1.5rem", display: "flex", gap: "1rem", alignItems: "center" }}>
-        <Link href="/">← Back home</Link>
-        <Link href="/study">Study list</Link>
-        <Link href="/settings">Settings</Link>
-        <SignOutButton />
-      </p>
     </main>
   );
 }
