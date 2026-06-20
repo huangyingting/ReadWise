@@ -26,7 +26,7 @@ const securityHeaders = [
       // images (rendered via plain <img>) and OAuth avatars.
       "img-src 'self' data: blob: https:",
       "font-src 'self'",
-      "connect-src 'self'",
+      "connect-src 'self' https://*.api.cognitive.microsoft.com https://*.stt.speech.microsoft.com wss://*.stt.speech.microsoft.com https://*.tts.speech.microsoft.com",
       // media-src blob: needed for ArticleSpeech which creates a blob URL
       // from base64 audio returned by the speech API.
       "media-src 'self' blob:",
