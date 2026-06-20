@@ -9,6 +9,7 @@ import {
   Badge,
 } from "@/components/ui";
 import ProfileSettingsForm from "./ProfileSettingsForm";
+import AccountDangerZone from "@/components/AccountDangerZone";
 
 export const metadata = {
   title: "Settings — ReadWise",
@@ -74,6 +75,19 @@ export default async function SettingsPage() {
               </div>
             </div>
           </div>
+        </CardBody>
+      </Card>
+
+      {/* Privacy & account management */}
+      <Card className="mt-[var(--space-6)]">
+        <CardHeader>
+          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
+            Privacy &amp; account
+          </h2>
+          <CardMeta>Export your data or permanently delete your account.</CardMeta>
+        </CardHeader>
+        <CardBody>
+          <AccountDangerZone />
         </CardBody>
       </Card>
     </main>
