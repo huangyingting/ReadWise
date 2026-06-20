@@ -1,18 +1,15 @@
 import Image from "next/image";
 import Link from "next/link";
-import { BookOpen, SlidersHorizontal } from "lucide-react";
+import { Sparkles, Compass } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { listPublishedArticles, filterAndSortByLevel } from "@/lib/articles";
-import { getProgressMap, listInProgressArticles } from "@/lib/progress";
-import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
+import { getProgressSummaries, listInProgressArticles } from "@/lib/progress";
 import { getStreakSummary } from "@/lib/activity";
 import { getQuizMastery } from "@/lib/quiz-mastery";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
+import { getProfile, parseTopics } from "@/lib/profile";
+import { getPersonalizedFeed } from "@/lib/feed";
 import { Card } from "@/components/ui/Card";
-import { Select } from "@/components/ui/Select";
-import { Button } from "@/components/ui/Button";
 import { buttonVariants } from "@/components/ui/Button";
-import ArticleCard from "@/components/ArticleCard";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
@@ -20,38 +17,34 @@ import EmptyState from "@/components/EmptyState";
 import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
 import MasteryWidget from "@/components/MasteryWidget";
+import ForYouFeed from "@/components/ForYouFeed";
 
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ level?: string }>;
-}) {
+export default async function DashboardPage() {
   const session = await requireOnboardedSession("/dashboard");
   const user = session.user;
 
-  const { level } = await searchParams;
-  const activeLevel = isDifficultyLevel(level) ? level : null;
-
-  const [articles, inProgressEntries, streak, mastery] = await Promise.all([
-    listPublishedArticles(),
+  const [inProgressEntries, streak, mastery, profile, feedPage] = await Promise.all([
     listInProgressArticles(user.id),
     getStreakSummary(user.id),
     getQuizMastery(user.id),
+    getProfile(user.id),
+    getPersonalizedFeed(user.id, { offset: 0, limit: 10 }),
   ]);
 
-  await ensureArticleDifficulties(articles);
-  const visibleArticles = filterAndSortByLevel(articles, activeLevel);
-
-  // Union of rail + grid article ids for ListingProgressSync + ListingBookmarkSync
+  // Union of rail + feed article ids for SSR progress + bookmark sync
   const railIds = inProgressEntries.map((e) => e.article.id);
-  const gridIds = visibleArticles.map((a) => a.id);
-  const allIds = [...new Set([...railIds, ...gridIds])];
+  const feedIds = feedPage.articles.map((a) => a.id);
+  const allIds = [...new Set([...railIds, ...feedIds])];
 
-  const [progressMap, bookmarkedIds] = await Promise.all([
-    getProgressMap(user.id, visibleArticles.map((a) => a.id)),
+  const [feedProgress, bookmarkedIds] = await Promise.all([
+    getProgressSummaries(user.id, feedIds),
     getBookmarkedArticleIds(user.id, allIds),
   ]);
+
+  // Cold-start detection: has the user chosen topics?
+  const userTopics = parseTopics(profile?.topics);
+  const hasTopics = userTopics.length > 0;
 
   return (
     <main className="listing-container">
@@ -82,7 +75,7 @@ export default async function DashboardPage({
         </div>
       </Card>
 
-      {/* Your progress stats band: Streak | Goal */}
+      {/* Your progress stats band: Streak | Goal | Mastery */}
       <section
         aria-labelledby="progress-h"
         style={{ marginTop: "var(--space-7)" }}
@@ -134,97 +127,73 @@ export default async function DashboardPage({
               />
             ))}
           </div>
+          {/* Rail sync — rail ids are disjoint from feed ids (in-progress vs unread) */}
+          <ListingProgressSync articleIds={railIds} />
+          <ListingBookmarkSync articleIds={railIds} />
         </section>
       ) : null}
 
-      {/* Library grid */}
-      <section style={{ marginTop: "var(--space-9)" }}>
-        <div className="flex items-center justify-between mb-[var(--space-4)]">
+      {/* For You feed */}
+      <section
+        aria-labelledby="foryou-h"
+        style={{ marginTop: "var(--space-9)" }}
+      >
+        <div className="flex items-center justify-between mb-[var(--space-2)]">
           <h2
+            id="foryou-h"
             className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
           >
-            Browse
+            For You
           </h2>
-          <Link
-            href="/browse"
-            className={buttonVariants({ variant: "secondary", size: "sm" })}
-          >
-            By category
-          </Link>
         </div>
 
-        {/* Level filter */}
-        <form
-          method="get"
-          className="flex flex-wrap gap-[var(--space-2)] items-center mb-[var(--space-5)]"
-        >
-          <label
-            htmlFor="level"
-            className="text-text-muted text-[length:var(--text-sm)]"
-          >
-            English level
-          </label>
-          <Select id="level" name="level" defaultValue={activeLevel ?? ""}>
-            <option value="">All levels</option>
-            {DIFFICULTY_LEVELS.map((lvl) => (
-              <option key={lvl} value={lvl}>
-                {lvl} and below
-              </option>
-            ))}
-          </Select>
-          <Button type="submit" variant="secondary" size="sm">
-            Apply
-          </Button>
-          {activeLevel ? (
-            <Link
-              href="/dashboard"
-              className={buttonVariants({ variant: "ghost", size: "sm" })}
-            >
-              Clear
-            </Link>
-          ) : null}
-        </form>
+        {/* Personalisation cue — calm, informational */}
+        <p className="text-text-muted text-[length:var(--text-sm)] mt-0 mb-[var(--space-5)]">
+          <Sparkles size={14} aria-hidden className="inline -mt-px mr-[var(--space-1)] text-text-subtle" />
+          Based on your level and topics
+        </p>
 
-        {/* Cards or empty state */}
-        {visibleArticles.length === 0 ? (
-          articles.length === 0 ? (
-            <EmptyState
-              icon={BookOpen}
-              title="Nothing to read yet"
-              description="Articles will appear here as they're added."
-            />
-          ) : (
-            <EmptyState
-              icon={SlidersHorizontal}
-              title="No articles at this level"
-              description="Try a higher CEFR level or clear the filter."
-              action={{ label: "Clear filter", href: "/dashboard" }}
-            />
-          )
+        {/* Cold-start (a): no topics chosen → send to settings */}
+        {!hasTopics ? (
+          <EmptyState
+            icon={Sparkles}
+            title="Pick a few topics to personalize your feed"
+            description="Tell us what you like and we'll line up articles at your level."
+            action={{ label: "Choose topics", href: "/settings" }}
+          />
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)] rw-fade-up">
-            {visibleArticles.map((article) => {
-              const progress = progressMap.get(article.id);
-              return (
-                <ArticleCard
-                  key={article.id}
-                  article={article}
-                  saved={bookmarkedIds.has(article.id)}
-                  progress={
-                    progress
-                      ? { percent: progress.percent, completed: progress.completed }
-                      : undefined
-                  }
-                />
-              );
-            })}
-          </div>
+          /* Topics chosen — hand off to client component (handles empty + load more + sync) */
+          <ForYouFeed
+            initialArticles={feedPage.articles}
+            initialProgress={feedProgress}
+            initialHasMore={feedPage.hasMore}
+            initialOffset={feedPage.articles.length}
+            initialSavedIds={[...bookmarkedIds].filter((id) => feedIds.includes(id))}
+            initialReasons={feedPage.reasons}
+          />
         )}
+      </section>
 
-        {/* Single ListingProgressSync + ListingBookmarkSync over union of rail + grid ids */}
-        <ListingProgressSync articleIds={allIds} />
-        <ListingBookmarkSync articleIds={allIds} />
+      {/* Browse by topic band — bridge to /browse */}
+      <section style={{ marginTop: "var(--space-9)" }}>
+        <Card>
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-4)]">
+            <div>
+              <p className="font-semibold text-text m-0">Looking for something specific?</p>
+              <p className="text-text-muted text-[length:var(--text-sm)] m-0">
+                Explore every category and your topic Picks.
+              </p>
+            </div>
+            <Link
+              href="/browse"
+              className={buttonVariants({ variant: "secondary", size: "md" })}
+            >
+              Browse by topic →
+            </Link>
+          </div>
+        </Card>
       </section>
     </main>
   );
 }
+

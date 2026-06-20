@@ -145,7 +145,29 @@ body {
     mask-image: linear-gradient(to right, #000 85%, transparent);
   }
 
-  /* Brand gradient clipped to text; --primary-text fallback when clip fails. */
+  /* M15 "why" chip — quiet metadata (NOT teal/indigo). Used in ForYouFeed only.
+   * Placed between the byline and the progress footer inside ArticleCardView;
+   * none of the .js-progress-* / .js-bookmark hooks are touched.
+   * AA-verified: --text-muted on --bg-subtle ≥ 7:1 in both themes. */
+  .rw-why-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    align-self: flex-start;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: var(--text-xs);
+    font-weight: 500;
+    color: var(--text-muted);
+    background-color: var(--bg-subtle);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-full);
+    padding: var(--space-1) var(--space-2);
+  }
+
+
   .text-gradient-brand {
     color: var(--primary-text);
     background: var(--gradient-brand);

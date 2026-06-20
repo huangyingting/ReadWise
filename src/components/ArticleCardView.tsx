@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Check } from "lucide-react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
+import { Sparkles } from "lucide-react";
 import { CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
 import { CATEGORIES } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
@@ -36,6 +37,7 @@ export default function ArticleCardView({
   saved,
   removeListId,
   removeListName,
+  reason,
 }: {
   article: ListingArticle;
   progress?: ArticleCardProgress;
@@ -45,6 +47,9 @@ export default function ArticleCardView({
   /** When provided on the /lists page: remove from this list instead of toggling default. */
   removeListId?: string;
   removeListName?: string;
+  /** Optional "why" chip text (M15 For You feed). Renders a quiet metadata chip
+   *  between the byline and the progress footer. Does NOT touch any progress/bookmark DOM hooks. */
+  reason?: string;
 }) {
   const percent = progress?.percent ?? 0;
   const completed = progress?.completed ?? false;
@@ -151,6 +156,18 @@ export default function ArticleCardView({
       {byline ? (
         <span className="text-[length:var(--text-sm)] text-text-subtle truncate">
           {byline}
+        </span>
+      ) : null}
+
+      {/* ③b "Why" chip — M15 For You feed only; absent on all other listings (no layout shift) */}
+      {reason ? (
+        <span
+          className="rw-why-chip"
+          title={reason}
+          aria-label={`Recommendation reason: ${reason}`}
+        >
+          <Sparkles size={12} aria-hidden className="shrink-0 text-text-subtle" />
+          {reason}
         </span>
       ) : null}
 
