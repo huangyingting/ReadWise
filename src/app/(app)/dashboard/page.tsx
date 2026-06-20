@@ -7,6 +7,9 @@ import { getQuizMastery } from "@/lib/quiz-mastery";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { getPersonalizedFeed } from "@/lib/feed";
+import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
+import type { DifficultyLevel } from "@/lib/difficulty";
+import type { ListingArticle } from "@/lib/articles";
 import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import ArticleCardView from "@/components/ArticleCardView";
@@ -18,11 +21,31 @@ import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
 import MasteryWidget from "@/components/MasteryWidget";
 import ForYouFeed from "@/components/ForYouFeed";
+import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 
 
-export default async function DashboardPage() {
+/** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
+function filterFeedByLevel(
+  articles: ListingArticle[],
+  maxLevel: DifficultyLevel | null,
+): ListingArticle[] {
+  if (!maxLevel) return articles;
+  const max = levelRank(maxLevel);
+  return articles.filter((a) => {
+    if (!a.difficulty || !isDifficultyLevel(a.difficulty)) return false;
+    return levelRank(a.difficulty as DifficultyLevel) <= max;
+  });
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ level?: string }>;
+}) {
   const session = await requireOnboardedSession("/dashboard");
   const user = session.user;
+  const { level: levelParam } = await searchParams;
+  const maxLevel = isDifficultyLevel(levelParam) ? levelParam : null;
 
   const [inProgressEntries, streak, mastery, profile, feedPage] = await Promise.all([
     listInProgressArticles(user.id),
@@ -32,9 +55,15 @@ export default async function DashboardPage() {
     getPersonalizedFeed(user.id, { offset: 0, limit: 10 }),
   ]);
 
+  // Apply optional CEFR level filter to the initial feed (#68).
+  // When a level is active we disable "load more" since subsequent pages
+  // won't be level-filtered (the /api/feed endpoint is unchanged).
+  const filteredArticles = filterFeedByLevel(feedPage.articles, maxLevel);
+  const filteredHasMore = maxLevel ? false : feedPage.hasMore;
+
   // Union of rail + feed article ids for SSR progress + bookmark sync
   const railIds = inProgressEntries.map((e) => e.article.id);
-  const feedIds = feedPage.articles.map((a) => a.id);
+  const feedIds = filteredArticles.map((a) => a.id);
   const allIds = [...new Set([...railIds, ...feedIds])];
 
   const [feedProgress, bookmarkedIds] = await Promise.all([
@@ -129,13 +158,16 @@ export default async function DashboardPage() {
         aria-labelledby="foryou-h"
         style={{ marginTop: "var(--space-9)" }}
       >
-        <div className="flex items-center justify-between mb-[var(--space-2)]">
+        <div className="flex flex-wrap items-center justify-between gap-[var(--space-3)] mb-[var(--space-2)]">
           <h2
             id="foryou-h"
             className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
           >
             For You
           </h2>
+
+          {/* CEFR level filter — US-017 (#68). Client component handles auto-submit. */}
+          <DashboardLevelFilter defaultValue={maxLevel ?? null} />
         </div>
 
         {/* Personalisation cue — calm, informational */}
@@ -155,10 +187,11 @@ export default async function DashboardPage() {
         ) : (
           /* Topics chosen — hand off to client component (handles empty + load more + sync) */
           <ForYouFeed
-            initialArticles={feedPage.articles}
+            key={maxLevel ?? "all"}
+            initialArticles={filteredArticles}
             initialProgress={feedProgress}
-            initialHasMore={feedPage.hasMore}
-            initialOffset={feedPage.articles.length}
+            initialHasMore={filteredHasMore}
+            initialOffset={filteredArticles.length}
             initialSavedIds={[...bookmarkedIds].filter((id) => feedIds.includes(id))}
             initialReasons={feedPage.reasons}
           />
