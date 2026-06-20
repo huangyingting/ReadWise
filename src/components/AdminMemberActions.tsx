@@ -83,7 +83,7 @@ export default function AdminMemberActions({
         </div>
         <ConfirmAction
           triggerLabel="Remove"
-          triggerVariant="danger"
+          triggerVariant="danger-ghost"
           confirmVariant="danger"
           confirmLabel="Confirm remove"
           confirmMessage="Permanently remove this member and all of their progress, saved words and sessions? This cannot be undone."

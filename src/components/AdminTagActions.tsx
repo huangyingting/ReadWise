@@ -150,7 +150,7 @@ export default function AdminTagActions({
         </Button>
         <ConfirmAction
           triggerLabel="Delete"
-          triggerVariant="danger"
+          triggerVariant="danger-ghost"
           confirmVariant="danger"
           confirmLabel="Confirm delete"
           confirmMessage={

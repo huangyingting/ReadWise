@@ -87,7 +87,7 @@ export default function AdminArticleActions({
         />
         <ConfirmAction
           triggerLabel="Delete"
-          triggerVariant="danger"
+          triggerVariant="danger-ghost"
           confirmVariant="danger"
           confirmLabel="Confirm delete"
           confirmMessage="Permanently delete this article and all related AI content, tags and reader progress? This cannot be undone."

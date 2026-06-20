@@ -8,7 +8,7 @@ export interface ConfirmActionProps {
   /** Label for the trigger button (shown in its resting state). */
   triggerLabel: string;
   /** Variant for the trigger button. Defaults to "danger". */
-  triggerVariant?: "danger" | "secondary" | "outline";
+  triggerVariant?: "danger" | "danger-ghost" | "secondary" | "outline";
   /** Size of both buttons. Defaults to "sm". */
   size?: "sm" | "md";
   /** Visible message inside the confirm panel. Required. */
@@ -41,7 +41,7 @@ export interface ConfirmActionProps {
 
 export default function ConfirmAction({
   triggerLabel,
-  triggerVariant = "danger",
+  triggerVariant = "danger-ghost",
   size = "sm",
   confirmMessage,
   confirmLabel = "Confirm",

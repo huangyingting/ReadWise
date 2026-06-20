@@ -23,6 +23,8 @@ const buttonVariants = cva(
         ghost: "bg-transparent text-text hover:bg-bg-subtle",
         danger:
           "bg-danger text-on-danger shadow-[var(--shadow-sm)] hover:bg-danger-hover active:shadow-none",
+        "danger-ghost":
+          "bg-transparent text-[var(--danger-text)] border border-[var(--danger)] hover:bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] active:shadow-none",
         outline:
           "bg-transparent text-text border border-border-strong hover:bg-bg-subtle",
       },
