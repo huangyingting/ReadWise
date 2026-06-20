@@ -58,7 +58,43 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ## Post-redesign features
 
-> **Post-redesign rich features M10–M14 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation, quiz mastery & history.
+> **Post-redesign rich features M10–M15 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation, quiz mastery & history, personalized home feed.
+
+---
+
+## M15 — Personalized home feed: COMPLETE (e504ef0)
+_2026-06-19 · Saul (UX spec), Livingston (ranking lib + endpoint, no migration), Linus (ForYouFeed + why-chip + dashboard rework), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 323/323 · Rusty APPROVE-WITH-NITS (card contract intact, no IDOR) · Basher PASS 47 checks · committed e504ef0.
+
+### Scope
+Dashboard "Browse" grid + level filter replaced by a ranked **For You** feed (level + topics + freshness, completed hard-excluded, in-progress −15 penalty). `/browse` remains the explicit category/Picks explorer; "Browse by topic →" band links the two. Each card optionally shows a quiet "why" chip. No DB migration.
+
+### Data layer (Livingston)
+- **`src/lib/feed.ts`** — `getPersonalizedFeed(userId, {offset, limit})`. Scoring: category match +40, tag match +10/tag cap +20, level proximity 0–30 (harder articles penalised more steeply than easy), freshness 0–10 (≤7d +10 … older 0), in-progress −15. Completed articles hard-excluded. Diversity pass: ≤3 consecutive same-category (O(n) deferred-append). No-profile fallback: newest-first, never errors. Max score 100.
+- **`GET /api/feed`** (`createHandler`, session-gated, NOT cached, user-scoped). Query: `offset` (default 0, min 0) + `limit` (default 10, max 24). Response: `{articles, progress, hasMore, offset, reasons}`. 4 batched DB queries — no N+1. `reasons` map keyed by `articleId`.
+
+### UI layer (Linus)
+- **`ForYouFeed.tsx`** (new client component) — mirrors `CategoryBrowser` minus tab bar; load-more (`GET /api/feed?offset=N&limit=6`, de-dupe by id, merge progress+reasons+savedIds); card DOM contract verbatim (all 5 `js-progress-*` hooks + `data-article-id` wrapper+Link + `.js-bookmark`); `ListingProgressSync` + `ListingBookmarkSync` over growing id set. States: cold-start `EmptyState`, end-of-feed `role="status"` cap + "You're all caught up.", `aria-live="polite"` sr-only load-more count.
+- **`ArticleCardView.tsx`** (additive only) — optional `reason?: string` prop renders `.rw-why-chip` (muted neutral palette — NOT teal, NOT indigo; `Sparkles` icon `text-text-subtle`; `aria-label="Recommendation reason: …"`; zero layout shift when absent; all other callers unaffected).
+- **Dashboard rework** — `searchParams`/level-filter/`listPublishedArticles`/`filterAndSortByLevel` removed cleanly. Section order: h1 → progress stats → continue-reading rail → For You → Browse-by-topic band (matches Saul §1.2). SSR first page via `getPersonalizedFeed`; `railIds` and `feedIds` sync sets are disjoint; `bookmarkedIds` fetched for their union.
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| "Why" chip | ON by default |
+| Dashboard level filter | Removed |
+| Dismiss / "not interested" | DEFERRED |
+
+### Deferred nits (3)
+| ID | Description |
+|---|---|
+| N1 | Double profile fetch in SSR dashboard |
+| N2 | `savedIds` immutable after load-more (matches CategoryBrowser parity) |
+| N3 | Double blank line in globals.css |
+
+### Cleanup note
+4 stray untracked debug scripts removed pre-commit: `scripts/_audit_ids.ts`, `_audit_inspect.ts`, `_audit_pub.ts`, `_audit_session.ts`. All were gitignored, none ever committed. `_audit_session.ts` contained a hardcoded userId; `_audit_pub.ts` was not flagged in Rusty's review (only 3 named) but is included in the spawn manifest cleanup count.
 
 ---
 
