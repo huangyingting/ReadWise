@@ -26,10 +26,36 @@ const reading = Literata({
   display: "swap",
 });
 
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ??
+  process.env.NEXTAUTH_URL ??
+  "http://localhost:3000";
+
 export const metadata: Metadata = {
-  title: "ReadWise — AI-Assisted English Learning Reader",
+  metadataBase: new URL(siteUrl),
+  title: {
+    template: "%s | ReadWise",
+    default: "ReadWise — AI-Assisted English Learning Reader",
+  },
   description:
-    "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration.",
+    "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, narration, and CEFR leveling. Learn English from real news.",
+  openGraph: {
+    type: "website",
+    siteName: "ReadWise",
+    title: "ReadWise — AI-Assisted English Learning Reader",
+    description:
+      "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration. Improve your English with real news.",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "ReadWise — AI-Assisted English Learning Reader",
+    description:
+      "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration. Improve your English with real news.",
+  },
+  icons: {
+    icon: "/icon.svg",
+    apple: "/icons/apple-touch-icon.png",
+  },
 };
 
 // Blocking, pre-paint theme resolution to avoid a light/dark flash (FOUC) and

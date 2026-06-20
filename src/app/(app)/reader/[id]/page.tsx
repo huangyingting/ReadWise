@@ -1,7 +1,8 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
-import { getViewableArticleById, readingMinutesFor } from "@/lib/articles";
+import { getArticleById, getViewableArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
@@ -21,6 +22,45 @@ import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  // Use the published-only lookup — metadata should only expose published content.
+  const article = await getArticleById(id);
+  if (!article || article.status !== "published") {
+    return { title: "Article" };
+  }
+
+  const description = htmlToPlainText(article.content)
+    .trim()
+    .replace(/\s+/g, " ")
+    .slice(0, 160);
+
+  return {
+    title: article.title,
+    description,
+    openGraph: {
+      type: "article",
+      title: article.title,
+      description,
+      ...(article.author ? { authors: [article.author] } : {}),
+      ...(article.publishedAt
+        ? { publishedTime: new Date(article.publishedAt).toISOString() }
+        : {}),
+      ...(article.heroImage ? { images: [article.heroImage] } : {}),
+    },
+    twitter: {
+      card: "summary_large_image",
+      title: article.title,
+      description,
+      ...(article.heroImage ? { images: [article.heroImage] } : {}),
+    },
+  };
+}
 
 export default async function ReaderPage({
   params,
@@ -54,8 +94,32 @@ export default async function ReaderPage({
 
   const isValidCefrLevel = difficultyLevel && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
 
+  // JSON-LD structured data for schema.org NewsArticle.
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "NewsArticle",
+    headline: article.title,
+    description: articlePlainText.trim().replace(/\s+/g, " ").slice(0, 200),
+    ...(article.author
+      ? { author: { "@type": "Person", name: article.author } }
+      : {}),
+    publisher: {
+      "@type": "Organization",
+      name: article.source ?? "ReadWise",
+    },
+    ...(article.publishedAt
+      ? { datePublished: new Date(article.publishedAt).toISOString() }
+      : {}),
+    ...(article.heroImage ? { image: article.heroImage } : {}),
+  };
+
   return (
-    <ReaderAudioProvider>
+    <>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <ReaderAudioProvider>
       <ReaderHighlightsProvider articleId={article.id}>
         {/*
          * No-flash inline script: reads localStorage["readwise:reader-prefs"]
@@ -240,6 +304,7 @@ export default async function ReaderPage({
         </div>
       </ReaderHighlightsProvider>
     </ReaderAudioProvider>
+    </>
   );
 }
 
