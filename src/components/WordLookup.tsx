@@ -17,8 +17,10 @@
  * sets innerHTML — it operates on the existing, already-sanitized nodes.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DictionaryResult } from "@/lib/dictionary";
+import type { SupportedLanguage } from "@/lib/translation";
+import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import {
   useHighlights,
   type Highlight,
@@ -26,6 +28,9 @@ import {
 } from "./ReaderHighlightsProvider";
 import SelectionToolbar from "./SelectionToolbar";
 import HighlightEditPopover from "./HighlightEditPopover";
+import SentenceTranslatePopover, {
+  type TranslateSentenceResult,
+} from "./SentenceTranslatePopover";
 
 const POPOVER_WIDTH = 340;
 const POPOVER_HEIGHT = 380;
@@ -226,7 +231,7 @@ function overlapsAny(start: number, end: number, highlights: Highlight[]): Highl
 // Component
 // ---------------------------------------------------------------------------
 
-type OpenSurface = "dictionary" | "toolbar" | "popover" | null;
+type OpenSurface = "dictionary" | "toolbar" | "popover" | "translate" | null;
 
 interface SavedAnchor {
   quote: string;
@@ -237,12 +242,23 @@ interface SavedAnchor {
   selectionWord: string;
 }
 
-export default function WordLookup({ html, articleId }: { html: string; articleId: string }) {
+export default function WordLookup({
+  html,
+  articleId,
+  languages,
+}: {
+  html: string;
+  articleId: string;
+  languages: SupportedLanguage[];
+}) {
   const proseRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const editPopoverRef = useRef<HTMLDivElement>(null);
+  const translatePopoverRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Guards stale in-flight translate requests (increment on each new request)
+  const translateReqRef = useRef(0);
 
   const [openSurface, setOpenSurface] = useState<OpenSurface>(null);
 
@@ -263,6 +279,14 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
   const [editHlId, setEditHlId] = useState<string | null>(null);
   const [editMarkEl, setEditMarkEl] = useState<HTMLElement | null>(null);
 
+  // Sentence translation (M13)
+  const [translateLang, setTranslateLangState] = useState<string>("zh-Hans");
+  const [translateLoading, setTranslateLoading] = useState(false);
+  const [translateResult, setTranslateResult] = useState<TranslateSentenceResult | null>(null);
+  const [translateError, setTranslateError] = useState<string | null>(null);
+  const [translateText, setTranslateText] = useState<string>("");
+  const [translateSelectionRect, setTranslateSelectionRect] = useState<DOMRect | null>(null);
+
   const { highlights, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
   const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
 
@@ -276,6 +300,12 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
     setResult(null);
     setDictError(null);
     setLoading(false);
+    // M13: reset translate state (translateLang is NOT reset — it's persisted)
+    setTranslateLoading(false);
+    setTranslateResult(null);
+    setTranslateError(null);
+    setTranslateSelectionRect(null);
+    setTranslateText("");
   }, []);
 
   // Mark rendering
@@ -283,6 +313,12 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
     if (!proseRef.current) return;
     applyHighlightMarks(proseRef.current, highlights, markOrphaned);
   }, [highlights, markOrphaned]);
+
+  // Seed translate language from localStorage after mount
+  useEffect(() => {
+    const stored = getTranslateLang();
+    setTranslateLangState(stored);
+  }, []);
 
   // Dictionary lookup
   const runLookup = useCallback(async (term: string) => {
@@ -405,6 +441,7 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
         popoverRef.current?.contains(t) ||
         toolbarRef.current?.contains(t) ||
         editPopoverRef.current?.contains(t) ||
+        translatePopoverRef.current?.contains(t) ||
         proseRef.current?.contains(t)
       ) return;
       closeAll();
@@ -489,6 +526,59 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
     openDictionary(candidate, window.innerWidth / 2, window.innerHeight / 2);
   }, [closeAll, openDictionary]);
 
+  // Toolbar: sentence translate (M13)
+  const runSentenceTranslate = useCallback(async (text: string, lang: string) => {
+    const reqId = ++translateReqRef.current;
+    setTranslateLoading(true);
+    setTranslateResult(null);
+    setTranslateError(null);
+    try {
+      const res = await fetch(`/api/reader/${articleId}/translate-sentence`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, lang }),
+      });
+      if (translateReqRef.current !== reqId) return;
+      if (!res.ok) throw new Error("Translation failed");
+      const data = (await res.json()) as TranslateSentenceResult;
+      if (translateReqRef.current !== reqId) return;
+      setTranslateResult(data);
+    } catch {
+      if (translateReqRef.current !== reqId) return;
+      setTranslateError("Couldn't translate that. Try again.");
+    } finally {
+      if (translateReqRef.current === reqId) setTranslateLoading(false);
+    }
+  }, [articleId]);
+
+  const handleTranslate = useCallback(() => {
+    const saved = savedAnchorRef.current;
+    const rect = toolbarRect;
+    if (!saved || !rect) return;
+    const text = saved.quote;
+    if (!text.trim()) return;
+    // Transition from toolbar → translate surface (does NOT call closeAll, preserving state)
+    setTranslateText(text);
+    setTranslateSelectionRect(rect);
+    setOpenSurface("translate");
+    setToolbarRect(null);
+    void runSentenceTranslate(text, translateLang);
+  }, [toolbarRect, translateLang, runSentenceTranslate]);
+
+  const handleTranslateLangChange = useCallback((lang: string) => {
+    setTranslateLangState(lang);
+    setTranslateLang(lang); // persist to localStorage (shared with M5 tab)
+    if (translateText) {
+      void runSentenceTranslate(translateText, lang);
+    }
+  }, [translateText, runSentenceTranslate]);
+
+  const handleTranslateRetry = useCallback(() => {
+    if (translateText) {
+      void runSentenceTranslate(translateText, translateLang);
+    }
+  }, [translateText, translateLang, runSentenceTranslate]);
+
   // Edit popover
   const handleEditColorChange = useCallback((color: HighlightColor) => {
     if (!editHlId) return;
@@ -513,6 +603,11 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
     void audio.play().catch(() => {});
   }
 
+  // Stable object reference for dangerouslySetInnerHTML — React 19 uses reference
+  // equality to decide whether to reset innerHTML; recreating the object inline on
+  // every render would wipe highlight <mark> nodes added by applyHighlightMarks.
+  const innerHtml = useMemo(() => ({ __html: html }), [html]);
+
   return (
     <>
       <div
@@ -520,7 +615,7 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
         className="prose word-lookup-prose"
         tabIndex={-1}
         onMouseUp={handleSelect}
-        dangerouslySetInnerHTML={{ __html: html }}
+        dangerouslySetInnerHTML={innerHtml}
       />
 
       {/* Dictionary popover */}
@@ -585,6 +680,7 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
           onColorChange={setToolbarColor}
           onHighlight={() => void handleHighlight()}
           onAddNote={() => void handleAddNote()}
+          onTranslate={handleTranslate}
           onDefine={handleDefine}
           onClose={closeAll}
           toolbarRef={toolbarRef}
@@ -601,6 +697,23 @@ export default function WordLookup({ html, articleId }: { html: string; articleI
           onNoteSave={handleEditNoteSave}
           onDelete={handleEditDelete}
           popoverRef={editPopoverRef}
+        />
+      ) : null}
+
+      {/* Sentence translation popover (M13) */}
+      {openSurface === "translate" && translateSelectionRect ? (
+        <SentenceTranslatePopover
+          selectionRect={translateSelectionRect}
+          text={translateText}
+          lang={translateLang}
+          loading={translateLoading}
+          result={translateResult}
+          error={translateError}
+          languages={languages}
+          onLangChange={handleTranslateLangChange}
+          onClose={closeAll}
+          onRetry={handleTranslateRetry}
+          popoverRef={translatePopoverRef}
         />
       ) : null}
     </>

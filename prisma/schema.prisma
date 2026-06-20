@@ -68,15 +68,16 @@ model Article {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  readingProgress ReadingProgress[]
-  translations    Translation[]
-  vocabulary      VocabularyItem[]
-  quizQuestions   QuizQuestion[]
-  speech          ArticleSpeech?
-  tags            ArticleTag[]
-  readingListItems ReadingListItem[]
-  highlights      Highlight[]
-  tutorMessages   TutorMessage[]
+  readingProgress      ReadingProgress[]
+  translations         Translation[]
+  sentenceTranslations SentenceTranslation[]
+  vocabulary           VocabularyItem[]
+  quizQuestions        QuizQuestion[]
+  speech               ArticleSpeech?
+  tags                 ArticleTag[]
+  readingListItems     ReadingListItem[]
+  highlights           Highlight[]
+  tutorMessages        TutorMessage[]
 
   @@index([category])
 }
@@ -320,4 +321,23 @@ model Highlight {
   article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
 
   @@index([userId, articleId])
+}
+
+// M13 — Sentence-level translation cache
+// Caches on-demand sentence/phrase translations so the same selection is
+// never re-sent to the AI. Keyed by article + a SHA-256 hash of the
+// normalized source text + target language. Cascade-deletes with the article.
+model SentenceTranslation {
+  id          String   @id @default(cuid())
+  articleId   String
+  sourceHash  String   // SHA-256 hex of normalized source text (stable cache key)
+  targetLang  String
+  sourceText  String   // original (normalized) text for human inspection
+  translation String
+  createdAt   DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceHash, targetLang])
+  @@index([articleId])
 }

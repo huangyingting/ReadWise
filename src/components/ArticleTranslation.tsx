@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 
 type SupportedLanguage = {
   code: string;
@@ -39,6 +40,12 @@ export default function ArticleTranslation({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<TranslationResponse | null>(null);
+
+  // Seed language from the shared localStorage key on mount
+  useEffect(() => {
+    const stored = getTranslateLang();
+    if (languages.some((l) => l.code === stored)) setLang(stored);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function handleTranslate() {
     if (!lang || loading) {
@@ -81,7 +88,10 @@ export default function ArticleTranslation({
         <select
           id="translation-lang"
           value={lang}
-          onChange={(e) => setLang(e.target.value)}
+          onChange={(e) => {
+            setLang(e.target.value);
+            setTranslateLang(e.target.value); // persist to shared key (M13)
+          }}
           disabled={loading}
         >
           {languages.map((l) => (

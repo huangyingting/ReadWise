@@ -15,7 +15,7 @@
  */
 
 import { useRef, useEffect, useCallback } from "react";
-import { Highlighter, StickyNote, BookText, Check } from "lucide-react";
+import { Highlighter, StickyNote, BookText, Check, Languages } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import type { HighlightColor } from "./ReaderHighlightsProvider";
 
@@ -39,6 +39,8 @@ interface SelectionToolbarProps {
   onColorChange: (c: HighlightColor) => void;
   onHighlight: () => void;
   onAddNote: () => void;
+  /** Opens the sentence translation popover for the current selection. */
+  onTranslate: () => void;
   onDefine: () => void;
   onClose: () => void;
   /** Ref guard: outside-click should ignore this element (the toolbar itself). */
@@ -52,6 +54,7 @@ export default function SelectionToolbar({
   onColorChange,
   onHighlight,
   onAddNote,
+  onTranslate,
   onDefine,
   onClose,
   toolbarRef,
@@ -171,6 +174,17 @@ export default function SelectionToolbar({
       >
         <Highlighter size={14} aria-hidden="true" />
         Highlight
+      </button>
+
+      {/* Translate — always shown when the toolbar is open */}
+      <button
+        type="button"
+        className={cn("rw-sel-toolbar-btn", focusRing)}
+        onClick={onTranslate}
+        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
+      >
+        <Languages size={14} aria-hidden="true" />
+        Translate
       </button>
 
       {/* Add note */}

@@ -2759,3 +2759,201 @@ body {
   }
 }
 
+
+/* ============================================================
+ * M13 — Sentence-level Translation Popover (.rw-tr-*)
+ *
+ * Additive utilities only. Anchored to selection rect, z-60 peer
+ * of the dictionary & highlight-edit popovers. Reads --reading-*
+ * tokens so all three reading modes (light/sepia/dark) work.
+ * Interactive accents stay indigo (--primary*).
+ * ============================================================ */
+
+.rw-tr-popover {
+  position: fixed;
+  z-index: 60;
+  width: min(360px, calc(100vw - 24px));
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--reading-surface, var(--surface));
+  box-shadow: var(--shadow-lg);
+  animation: rw-fade-up var(--duration-fast) var(--ease-standard) both;
+}
+
+.rw-tr-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--reading-border, var(--border));
+}
+
+.rw-tr-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--reading-text-muted, var(--text-muted));
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rw-tr-lang-select {
+  height: 2rem;
+  font-size: var(--text-sm);
+  color: var(--primary-text);
+  background: transparent;
+  border: 1px solid color-mix(in srgb, var(--primary) 35%, var(--reading-border, var(--border)));
+  border-radius: var(--radius-sm);
+  padding: 0 var(--space-2);
+  cursor: pointer;
+  min-width: 0;
+  flex-shrink: 1;
+}
+
+.rw-tr-lang-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.rw-tr-close {
+  background: none;
+  border: none;
+  color: var(--reading-text-muted, var(--text-muted));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-sm);
+  padding: 2px;
+  flex-shrink: 0;
+  transition: color var(--duration-fast) var(--ease-standard);
+}
+
+.rw-tr-close:hover {
+  color: var(--reading-text, var(--text));
+}
+
+.rw-tr-body {
+  padding: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+/* Source phrase: muted, quoted, line-clamped to 3 lines */
+.rw-tr-source {
+  font-family: var(--font-reading);
+  font-size: var(--text-sm);
+  color: var(--reading-text-muted, var(--text-muted));
+  margin: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* Translation result: reading typography */
+.rw-tr-translation {
+  font-family: var(--font-reading);
+  font-size: var(--text-base);
+  line-height: var(--leading-reading);
+  color: var(--reading-text, var(--text));
+}
+
+.rw-tr-translation p {
+  margin: 0;
+}
+
+.rw-tr-translation p + p {
+  margin-top: var(--space-3);
+}
+
+/* Language label meta line */
+.rw-tr-meta {
+  font-size: var(--text-xs);
+  color: var(--reading-text-muted, var(--text-muted));
+  margin: 0;
+}
+
+/* Loading shimmer skeleton lines */
+.rw-tr-shimmer {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rw-tr-shimmer-line {
+  height: 1em;
+  border-radius: var(--radius-sm);
+  background: var(--reading-border, var(--border));
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .rw-tr-shimmer-line {
+    background: linear-gradient(
+      90deg,
+      var(--reading-border, var(--border)) 25%,
+      color-mix(in srgb, var(--reading-border, var(--border)) 50%, transparent) 50%,
+      var(--reading-border, var(--border)) 75%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 1.4s linear infinite;
+  }
+}
+
+/* Unavailable / error note (calm inline text, EmptyState voice) */
+.rw-tr-unavailable {
+  font-size: var(--text-sm);
+  color: var(--reading-text-muted, var(--text-muted));
+  font-style: italic;
+  margin: 0;
+}
+
+/* Retry button — indigo, same voice as .rw-sel-toolbar-btn */
+.rw-tr-retry {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--primary-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+
+.rw-tr-retry:hover {
+  opacity: 0.75;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rw-tr-retry {
+    transition: none;
+  }
+}
+
+/* Coarse-pointer / touch: meet 44 px minimum tap targets */
+@media (pointer: coarse) {
+  .rw-tr-lang-select {
+    height: 44px;
+  }
+  .rw-tr-close {
+    min-width: 44px;
+    min-height: 44px;
+  }
+  .rw-tr-retry {
+    min-height: 44px;
+  }
+}

@@ -189,7 +189,7 @@ export default async function ReaderPage({
                 </p>
 
                 {/* Prose — ONLY renderer of sanitized HTML (unchanged constraint) */}
-                <WordLookup html={cleanBody} articleId={article.id} />
+                <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
               </article>
 
               {/* Related articles (M4 grid — unchanged) */}
