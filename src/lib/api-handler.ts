@@ -82,8 +82,12 @@ function build<B, P, Q, S extends Session | null>(
 ) {
   return async (req: Request, routeCtx?: unknown): Promise<Response> => {
     const ctx = (routeCtx ?? {}) as RouteContext;
-    const requestId =
-      req.headers.get("x-request-id")?.slice(0, 200) || crypto.randomUUID();
+    const inboundId = req.headers.get("x-request-id") ?? "";
+    // Accept an inbound x-request-id only if it is a valid UUID v4 to prevent
+    // log injection or correlation confusion via a crafted header value.
+    const UUID_V4_RE =
+      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+    const requestId = UUID_V4_RE.test(inboundId) ? inboundId : crypto.randomUUID();
     const url = new URL(req.url);
     return runWithRequestContext(
       { requestId, method: req.method, path: url.pathname },
