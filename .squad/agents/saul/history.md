@@ -1,34 +1,43 @@
 # Project Context
 
 - **Owner:** Yingting Huang
-- **Project:** ReadWise — AI-assisted English learning reader. Articles are scraped from the internet; goal is a redesign into a modern, attractive, feature-rich website.
-- **Stack:** Next.js 15 (App Router, TypeScript), React 19, Prisma + SQLite, NextAuth v4 (database sessions), Azure OpenAI / Azure Speech, Playwright.
+- **Project:** ReadWise — AI-assisted English learning reader with a modern Studio redesign.
+- **Stack:** Next.js 15 App Router, React 19, Prisma/SQLite, NextAuth database sessions, Azure OpenAI/Speech, Playwright.
 - **Created:** 2026-06-19
 
 ## Learnings
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+<!-- Condensed by Scribe on 2026-06-20 to keep agent histories compact. Full milestone details remain in decisions.md and session/orchestration logs. -->
 
-### Redesign Roadmap M2–M9 [condensed — full detail in decisions.md] (2026-06-19) ✅ ALL LANDED
-M1 (Design System): tokens.css `:root`/`[data-theme="dark"]`, 35 color tokens WCAG AA, 3 next/font families, 8 UI primitives (Button/Card/Input/Select/Field/Badge/Skeleton/Spinner). M2 (App Shell 385de06): OPT-A resolved — `--accent`=indigo, `--bg-accent`=teal; shell components (AppNav/UserMenu/MobileDrawer/ThemeToggle). M3 (Landing 2824eea): auth-aware 6-section page, `text-gradient-brand`, `rw-fade-up`. M4 (Listings 7e554c9): `ArticleCardView` variant=grid/rail, continue-reading rail, EmptyState, SkeletonCard, `GET /api/search`. M5 (Reader f199596): two-column layout, ReaderControls, reading-mode tokens, AI tabbed panel (hidden-mount), ReaderAudioProvider+MiniPlayer. M6 (Gamification 1beea38): SM-2 SRS, StreakWidget, DailyGoal ring, FlashcardReview 3D flip. M7 (Onboarding cb204c5): 4-step wizard, Sign-in Card, Settings daily-goal stepper. M8 (Admin Polish a631aa9): ConfirmAction alertdialog, CardTitle level prop, indigo AdminNav. M9 (⌘K Palette dff6c1f): CommandPalette combobox+listbox ARIA, global focus-visible ring, 15-nit sweep. **Full redesign roadmap M4–M9 complete.**
+### 2026-06-19 — Studio design direction and roadmap
 
-### M10 — Bookmarks & Reading Lists (2026-06-19) ✅ SHIPPED — committed c676921
-Delivered M10 UX spec: accent-rule adjudication (bookmark = clickable affordance → indigo, never teal; teal = reading-state only — indigo bookmark + teal progress are two distinct signals); split-pill `ReaderBookmarkCluster` anatomy (Segment A `aria-pressed` default-list toggle with `rw-pop` + optimistic revert; Segment B `ListPlus` icon-only with dot indicator for named-list membership); `CardBookmarkButton` sibling-overlay pattern (not nested in `<Link>`; specified wrapper-div structure preserving all 5 `ListingProgressSync` DOM hooks verbatim); `ListPickerPopover` (role="dialog", membership checkboxes, inline "New list" creation, focus trap); `/lists` page with `ListSwitcher` (desktop sidebar + mobile snap-scroll pill bar; `ConfirmAction` for destructive delete). Coordinator decisions: nav label "Saved", route `/lists`. Linus built to spec; Rusty APPROVE-WITH-NITS (no IDOR, 6 deferrable nits N1–N6); Basher PASS 57/57 browser checks, IDOR clean. npm test 191/191 (38 new tests).
+Saul established and refined the Studio UX direction across the redesign:
 
-### M11 — Highlights & Notes (2026-06-19) ✅ SHIPPED — committed 1e69c01
-Delivered M11 UX spec: `--hl-*` token family adjudication (user-authored content metadata → new family distinct from teal/indigo; chrome stays indigo; only `<mark>` fill uses `--hl-*`; 12 AA-verified values for light×sepia×dark); gesture-disambiguation model locked (collapsed click = dictionary unchanged; drag-select = Selection Toolbar; mutually exclusive by construction, single `handleSelect`, single open-surface state); Selection Toolbar anatomy (`role="toolbar"`, 4 swatches `role="radiogroup"`, Highlight + Add note + Define conditional on single-word); `HighlightEditPopover` anatomy (`role="dialog"`, swatch radiogroup, note textarea 2000-char cap per §6.3, M8 `ConfirmAction` delete); `ReaderNotesPanel` as 5th tab (document-order list, inline editing, scroll-to+flash, orphaned indicator, M4 `EmptyState`); anchor model (plain-text offset + prefix/suffix context for re-anchoring). Coordinator decisions: overlap → keep-earliest + toast; last-used color persisted to localStorage; note cap 2000; global cross-article notes view DEFERRED. Linus built to spec (F1/F2 pre-land); Livingston backend aligned (F3 pre-land); Rusty APPROVE-WITH-NITS (no XSS/IDOR, 5 deferrable nits); Basher PASS 219/219 tests, all browser checks.
+- Design direction **B “Studio”**: modern learning-app aesthetic with indigo/violet primary, teal/amber accents, elevated cards, Lucide icons, and light/dark themes.
+- Accent rule: indigo for interactive affordances, teal for reading/progress/learning-state feedback.
+- Roadmap coverage M2–M9: app shell, listings/discovery, reader, gamification, onboarding/auth/settings, admin polish, command palette, and final a11y/motion QA.
 
-### M12 — AI Tutor (2026-06-19) ✅ SHIPPED — committed 96ab8d0
-Delivered M12 UX spec: 6th "Ask" tab (Sparkles icon) in reader panel; `ArticleTutor` chat anatomy (scrollable message list with per-message timestamps, composer, Saul-worded starter chips, graceful-unavailable state, Clear button); grounded-AI design (question + article plain text as context window, CEFR-level-tailored system prompt); `tutor-markdown.ts` XSS-safe tokenizer rationale (plain token objects, no `dangerouslySetInnerHTML`); `ReaderTutorProvider` context contract; API contract for 3 endpoints. Coordinator decisions: tab label "Ask"; per-message timestamps shown; starter-question wording per Saul spec. Linus built to spec (F1 CSS typo + D1/D2 defects fixed by Basher); Rusty APPROVE-WITH-NITS (no XSS/IDOR); Basher PASS 267/267 tests + real gpt-5-mini + fallback path exercised.
+### 2026-06-19 — Rich reader/features M10–M16 UX specs
 
-### M13 — Sentence-level Translation (2026-06-19) ✅ SHIPPED — committed 47f7aa6
-Delivered M13 UX spec: selection-to-translation gesture (Translate button in M11 `SelectionToolbar`, order: Highlight · Translate · Add note · Define); `SentenceTranslatePopover` anatomy (4 states: loading shimmer `prefers-reduced-motion`-gated, result with `lang`+`dir="auto"` RTL, graceful-unavailable calm italic note + indigo Retry `aria-live="polite"`, network error + Retry `role="alert"`); shared `readwise:translate-lang` localStorage key with M5 whole-article tab (default `zh-Hans`); React `<p>` text nodes only (never `dangerouslySetInnerHTML`); `MAX_SENTENCE_CHARS=1000` API-enforced. Coordinator decisions: `zh-Hans` default; Add note preserved (4-button toolbar); fallback = calm note not alert. Livingston built backend (additive migration + `translateSentence` + endpoint); Linus built UI (also fixed latent M11 mark-wipe bug via `useMemo`). Rusty APPROVE-WITH-NITS; Basher PASS 28/28. 4 deferred nits: N1 lang seed validation, N2 client char guard, N3 toolbar order alignment, N4 redundant stopPropagation.
+Saul produced UI/UX specs and adjudications for the post-redesign feature set:
 
-### M14 — Quiz Mastery & History (2026-06-19) ✅ SHIPPED — committed 01380fc
-Delivered M14 UX spec: record-once-per-completion flow (`recordedRef` guard); enriched quiz result block anatomy (this-attempt score, article best, compact attempt history); `Sparkline` component spec (reusable SVG polyline, `aria-hidden` + `sr-only` label, trend direction); `MasteryWidget` anatomy (SSR server component, average-score ring `role="img"`, recent trend, `md:col-span-2 lg:col-span-1` band layout as 3rd "Your progress" card); Comprehension section on `/study`. Coordinator decisions: average = mean of ALL attempts; `isNewBest` derived client-side; per-article study table DEFERRED. Rusty APPROVE-WITH-NITS (no double-record, no IDOR); Basher PASS 38/38. 2 deferred nits: N1 "Try again" btn-primary; N2 unused `active` prop.
+- **M10 Bookmarks/Lists:** bookmark affordances use indigo; list picker as dialog; `/lists` page with switcher; card overlay cannot nest inside article links.
+- **M11 Highlights/Notes:** separate highlight token family, mutually exclusive gesture surfaces, toolbar/popover/notes panel anatomy, note cap, overlap behavior, and deferred global notes view.
+- **M12 Tutor:** “Ask” tab, grounded chat anatomy, starter chips, graceful unavailable state, and clear-history affordance.
+- **M13 Sentence Translation:** toolbar Translate action, popover states, shared language preference, calm fallback copy, and text-node-only rendering.
+- **M14 Quiz Mastery:** attempt history, best score, sparkline, mastery widget, and study-page comprehension section.
+- **M15 Personalized Feed:** For You feed replaces dashboard browse grid/level filter; quiet why-chip metadata; cold-start and end-of-feed states.
+- **M16 Pronunciation:** Speak tab, sentence stepper, score/sub-bars, non-color per-word feedback, and narration reuse.
 
-### M15 — Personalized home feed (2026-06-19) ✅ SHIPPED — committed e504ef0
-Delivered M15 UX spec: dashboard "Browse" grid + level filter replaced by a ranked "For You" feed; `ForYouFeed` client component mirroring `CategoryBrowser` minus tabs; additive optional `reason` prop on `ArticleCardView` → `.rw-why-chip` (quiet metadata — muted neutral, NOT teal, NOT indigo); cold-start `EmptyState`, end-of-feed `role="status"` cap, `aria-live="polite"` load-more count; "Browse by topic →" entry band. Card DOM contract sacred — 5 progress hooks + bookmark overlay verbatim unchanged. No migration. Coordinator decisions: "why" chip ON by default; level filter removed; dismiss/"not interested" DEFERRED. Rusty APPROVE-WITH-NITS (card contract intact, no IDOR); Basher PASS 47/47. 3 deferred nits: N1 double profile fetch SSR; N2 savedIds immutable after load-more; N3 double blank line globals.css.
+### 2026-06-20 — Ralph work-all-issues UX wave
 
-### M16 — Pronunciation Practice (2026-06-19) ✅ SHIPPED — committed e895e72
-Delivered M16 UX spec: 7th "Speak" tab in `ReaderToolsPanel`; sentence-stepper flow; score ring + sub-bars (`--pron-*` teal token family); per-word non-color feedback (underline-style dots/dashes + `sr-only` severity + visible legend + "words to work on" list); "Hear it" reuses M5 narration (no new audio storage); per-sentence Best/Last client-derived from history. Graceful-unavailable/mic-denied/transient-error states specced. Coordinator decisions: "Speak" tab placement, per-sentence Best/Last client-side, cross-article dashboard DEFERRED, `--pron-*` token family. Linus built to spec (FIX-1 applied per Rusty); Basher fixed legend swatch. **Post-redesign rich features M10–M16 all complete.**
+Saul closed Wave 3 of Ralph’s full-board cleanup: #50, #62, #63, #66, #67, #71, #75, #76, #77, and #78. The bundle included UX polish, dead CSS removal, `.btn` to shared `Button` migration, and related user-facing cleanup.
+
+Final cumulative gate after all six waves: typecheck 0, lint 0, tests 411/411, build passes.
+
+### Cross-agent lessons
+
+- Sequential single-owner waves avoid main-branch git conflicts when agents are committing directly to `main`.
+- Design-system migrations should convert legacy `.btn`/ad hoc styles into shared primitives instead of adding parallel CSS.
+- Dead CSS cleanup is safest when isolated in a UX wave after functional security/performance fixes have landed.
+- Keep visual semantics consistent: indigo means action, teal means learning/progress state, and neutral chips explain context without competing for attention.

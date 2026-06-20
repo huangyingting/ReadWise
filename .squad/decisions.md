@@ -708,3 +708,16 @@ Coordinator browser-verified the high-severity reader claims and corrected four 
 Confirmed valid high-priority issues: **#58** (CSP blocks Azure Speech WSS), **#59** (IDOR: reader subroutes lack status filter), **#60** (JSON-LD stored XSS), and **#61** (SSRF in admin ingest).
 
 Lesson: automated DOM findings on a page affected by #48 double-render require source/manual root-cause cross-checking before filing as Critical.
+
+
+## 2026-06-20 — Work-all-issues session decision merge
+
+### DECIDED — Root-cause Critical reader/a11y reports before filing or escalating
+_Source: earlier system-review decision; retained during Scribe merge on 2026-06-20T11:38:34+00:00._
+
+Before filing P0/P1 reader issues as Critical, verify root cause with source/manual behavior. The #48 double-render issue can create false DOM symptoms, so apparently critical reader reports should be reproduced and attributed before severity is locked. This rule explains the corrected handling of #54, #55, #56, and #57 after the initial #54–#78 system-review batch.
+
+### DECIDED — Close #45 as a scaling spike with a phased implementation plan
+_Source: Rusty spike; retained during Scribe merge on 2026-06-20T11:38:34+00:00._
+
+Issue #45 is closed as a spike rather than a direct implementation ticket. Rusty posted a five-phase scaling plan to the issue; future scaling work should follow that phased plan instead of mixing large architectural changes into unrelated feature or bug-fix waves.
