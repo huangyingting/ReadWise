@@ -2,14 +2,18 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
+import { assertSafeUrl, assertSafeHostname } from "@/lib/scraper/ssrf";
 
 const WORDS_PER_MINUTE = 200;
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/124.0 Safari/537.36 ReadWiseBot/1.0";
 
-/** Fetches a URL as text with a desktop UA and a timeout. Throws on non-2xx. */
+/** Fetches a URL as text with a desktop UA and a timeout. Throws on non-2xx or unsafe target. */
 export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string> {
+  // Validate URL scheme and resolve hostname before fetching to prevent SSRF.
+  await assertSafeUrl(url);
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -20,6 +24,16 @@ export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string>
     });
     if (!res.ok) {
       throw new Error(`HTTP ${res.status} for ${url}`);
+    }
+    // Guard against SSRF via redirect: check the final URL's hostname.
+    const finalUrl = res.url;
+    if (finalUrl && finalUrl !== url) {
+      try {
+        const finalParsed = new URL(finalUrl);
+        await assertSafeHostname(finalParsed.hostname);
+      } catch (err) {
+        throw new Error(`Redirect target rejected: ${err instanceof Error ? err.message : String(err)}`);
+      }
     }
     return await res.text();
   } finally {
