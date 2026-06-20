@@ -76,6 +76,7 @@ export default function CategoryBrowser({
   const [offset, setOffset] = useState<number>(initialOffset);
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const tabs = buildTabs();
 
@@ -84,9 +85,11 @@ export default function CategoryBrowser({
       return;
     }
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch(`/api/articles?${queryFor(activeView, offset)}`);
       if (!res.ok) {
+        setLoadError("Couldn't load more articles — please try again.");
         return;
       }
       const data = (await res.json()) as FeedResponse;
@@ -99,7 +102,7 @@ export default function CategoryBrowser({
       setOffset(data.offset ?? offset + next.length);
       setHasMore(Boolean(data.hasMore));
     } catch {
-      /* best-effort; keep what we have */
+      setLoadError("Couldn't load more articles — please try again.");
     } finally {
       setLoading(false);
     }
@@ -173,14 +176,22 @@ export default function CategoryBrowser({
             ))}
           </div>
           {hasMore ? (
-            <div className="mt-[var(--space-7)] flex justify-center">
+            <div className="mt-[var(--space-7)] flex flex-col items-center gap-[var(--space-3)]">
+              {loadError ? (
+                <p
+                  role="alert"
+                  className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
+                >
+                  {loadError}
+                </p>
+              ) : null}
               <Button
                 variant="secondary"
                 size="md"
                 loading={loading}
                 onClick={() => void loadMore()}
               >
-                Load more
+                {loadError ? "Retry" : "Load more"}
               </Button>
             </div>
           ) : null}
