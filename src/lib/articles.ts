@@ -331,16 +331,17 @@ export async function searchPublishedArticles(
         JOIN "Article" a ON a.rowid = article_fts.rowid
         WHERE article_fts MATCH ${ftsQuery}
           AND a.status = 'published'
-        ORDER BY rank ASC
+        ORDER BY rank ASC, a."publishedAt" DESC
         LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
       `;
 
       // Build ordered id list: FTS-ranked ids first, then per-user extras not
-      // already in the ranked set.
+      // already in the ranked set. Annotation IDs are only appended on the
+      // first page (offset === 0) to prevent duplicates across pages.
       const seen = new Set(ftsRows.map((r) => r.id));
       const orderedIds = [
         ...ftsRows.map((r) => r.id),
-        ...userArticleIds.filter((id) => !seen.has(id)),
+        ...(offset === 0 ? userArticleIds.filter((id) => !seen.has(id)) : []),
       ];
 
       const hasMore = orderedIds.length > limit;

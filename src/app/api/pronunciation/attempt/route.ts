@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
-import { createHandler } from "@/lib/api-handler";
+import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, number, optional } from "@/lib/validation";
 import { recordPronunciationAttempt } from "@/lib/pronunciation";
+import { checkRateLimit } from "@/lib/rate-limit";
+import { getViewableArticleById } from "@/lib/articles";
 
 const bodySchema = object({
   referenceText: nonEmptyString(2000),
@@ -19,6 +21,16 @@ const bodySchema = object({
  * Returns the saved attempt and the user's all-time best pronScore.
  */
 export const POST = createHandler({ body: bodySchema }, async ({ session, body }) => {
+  checkRateLimit(session.user.id, "ai");
+
+  // Validate articleId existence when provided.
+  if (body.articleId) {
+    const article = await getViewableArticleById(body.articleId, session.user.role);
+    if (!article) {
+      throw new ApiError(404, "Article not found");
+    }
+  }
+
   const result = await recordPronunciationAttempt(session.user.id, body);
   return NextResponse.json(result);
 });

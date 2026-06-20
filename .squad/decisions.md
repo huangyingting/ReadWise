@@ -721,3 +721,13 @@ Before filing P0/P1 reader issues as Critical, verify root cause with source/man
 _Source: Rusty spike; retained during Scribe merge on 2026-06-20T11:38:34+00:00._
 
 Issue #45 is closed as a spike rather than a direct implementation ticket. Rusty posted a five-phase scaling plan to the issue; future scaling work should follow that phased plan instead of mixing large architectural changes into unrelated feature or bug-fix waves.
+
+
+### DECIDED — Post-Fix Review 2 Issue Triage (#79–#99)
+_Consolidated by Rusty · recorded 2026-06-20_
+
+Rusty consolidated the second post-fix global review into 21 GitHub issues (#79–#99) after inputs from Basher, Saul, Livingston, and coordinator verification. Every critical/high-confidence regression or risk received either a focused issue or a scoped umbrella issue: search DoS/rate limits, FTS5 pagination, build reliability spike, unstyled legacy button regressions, dark-mode token gaps, reader a11y, backend/API hardening, and selected UX polish.
+
+Three Saul feature proposals were accepted as backlog feature issues: keyboard shortcut reference panel (#95), 52-week reading streak heatmap (#96), and CEFR level progression timeline (#97). Roughly 30 minor or low-sponsor findings were intentionally dropped to avoid issue-board noise and scope creep. Coordinator follow-up confirmed the reported build failure was a concurrent-dev-server/`.next` artifact rather than a clean-build product failure, and confirmed #85's legacy `.btn` use is now visibly unstyled because #66 removed the CSS.
+
+References: decisions/inbox/rusty-review2.md; GitHub issues #79–#99.
