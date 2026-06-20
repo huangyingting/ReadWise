@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Layers,
   RotateCcw,
-  Minus,
+  Frown,
   Check,
   ChevronsRight,
   CircleCheck,
@@ -495,6 +495,7 @@ const GRADES: {
   grade: Grade;
   label: string;
   key: string;
+  tooltip: string;
   icon: React.ReactNode;
   variant: "outline" | "primary";
   tintClass: string;
@@ -504,6 +505,7 @@ const GRADES: {
     grade: "again",
     label: "Again",
     key: "1",
+    tooltip: "Didn't remember — repeat today",
     icon: <RotateCcw size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--danger-text)]",
@@ -513,7 +515,8 @@ const GRADES: {
     grade: "hard",
     label: "Hard",
     key: "2",
-    icon: <Minus size={14} aria-hidden />,
+    tooltip: "Remembered with difficulty — review sooner",
+    icon: <Frown size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--warning-text)]",
     hoverStyle: { "--hover-bg": "color-mix(in srgb, var(--warning) 10%, transparent)" } as React.CSSProperties,
@@ -522,6 +525,7 @@ const GRADES: {
     grade: "good",
     label: "Good",
     key: "3",
+    tooltip: "Remembered well — normal interval",
     icon: <Check size={14} aria-hidden />,
     variant: "primary",
     tintClass: "",
@@ -530,6 +534,7 @@ const GRADES: {
     grade: "easy",
     label: "Easy",
     key: "4",
+    tooltip: "Too easy — longer interval next time",
     icon: <ChevronsRight size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--success-text)]",
@@ -543,13 +548,14 @@ function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) {
       className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-2)] w-full"
       style={{ marginTop: "var(--space-4)" }}
     >
-      {GRADES.map(({ grade, label, key, icon, variant, tintClass, hoverStyle }) => (
+      {GRADES.map(({ grade, label, key, tooltip, icon, variant, tintClass, hoverStyle }) => (
         <button
           key={grade}
           ref={grade === "good" ? goodRef : undefined}
           type="button"
           disabled={disabled}
           onClick={() => onGrade(grade)}
+          title={tooltip}
           style={hoverStyle}
           className={cn(
             "flex flex-col items-center justify-center gap-0.5",

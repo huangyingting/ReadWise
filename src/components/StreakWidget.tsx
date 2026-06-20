@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import type { StreakSummary } from "@/lib/activity";
 
-const WEEKDAY_INITIALS = ["S", "M", "T", "W", "T", "F", "S"];
+const WEEKDAY_INITIALS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 interface StreakWidgetProps {
   streak: StreakSummary;

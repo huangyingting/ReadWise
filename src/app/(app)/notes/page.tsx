@@ -1,9 +1,12 @@
 import Link from "next/link";
-import { BookmarkCheck, FileText, StickyNote } from "lucide-react";
+import { FileText, StickyNote } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { listAllUserHighlights, HIGHLIGHT_COLORS } from "@/lib/highlights";
 import { Card } from "@/components/ui/Card";
+import { Input } from "@/components/ui/Input";
 import EmptyState from "@/components/EmptyState";
+import InlineNoteEditor from "@/components/InlineNoteEditor";
+import { cn } from "@/lib/cn";
 
 export const metadata = { title: "Notes & Highlights — ReadWise" };
 
@@ -52,28 +55,26 @@ export default async function NotesPage({
   return (
     <div className="listing-container">
       <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
-        style={{ marginBottom: "var(--space-2)" }}
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-[var(--space-2)]"
       >
         Notes &amp; Highlights
       </h1>
-      <p className="text-text-subtle text-[length:var(--text-sm)]" style={{ marginBottom: "var(--space-6)" }}>
+      <p className="text-text-subtle text-[length:var(--text-sm)] mb-[var(--space-6)]">
         {totalCount} highlight{totalCount !== 1 ? "s" : ""} · {withNotes} with notes
       </p>
 
       {/* ── Filters ── */}
       <form
         method="GET"
-        className="flex flex-wrap items-center gap-[var(--space-3)]"
-        style={{ marginBottom: "var(--space-6)" }}
+        className="flex flex-wrap items-center gap-[var(--space-3)] mb-[var(--space-6)]"
       >
-        <input
+        <Input
           type="search"
           name="q"
           defaultValue={q ?? ""}
           placeholder="Search highlights & notes…"
           aria-label="Search highlights and notes"
-          className="flex-1 min-w-[160px] px-[var(--space-3)] py-[var(--space-2)] rounded-[var(--radius-md)] border border-border bg-surface text-text text-[length:var(--text-sm)] focus:outline-none focus:ring-2 focus:ring-[var(--primary)]"
+          className="flex-1 min-w-[160px]"
         />
         {/* Preserve existing color param when searching */}
         {colorFilter && <input type="hidden" name="color" value={colorFilter} />}
@@ -81,11 +82,12 @@ export default async function NotesPage({
         <div className="flex items-center gap-[var(--space-2)]" role="group" aria-label="Filter by colour">
           <Link
             href="/notes"
-            className={`px-[var(--space-3)] py-[var(--space-1)] rounded-full text-[length:var(--text-sm)] border transition-colors ${
+            className={cn(
+              "px-[var(--space-3)] py-[var(--space-1)] rounded-full text-[length:var(--text-sm)] border transition-colors",
               !colorFilter
-                ? "bg-[var(--primary)] text-white border-[var(--primary)]"
-                : "border-border text-text-subtle hover:border-border-strong"
-            }`}
+                ? "bg-primary text-on-primary border-primary"
+                : "border-border text-text-subtle hover:border-border-strong",
+            )}
           >
             All
           </Link>
@@ -94,9 +96,10 @@ export default async function NotesPage({
               key={c}
               href={`/notes?color=${c}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
               aria-label={`Filter by ${c}`}
-              className={`w-6 h-6 rounded-full border-2 transition-all ${
-                colorFilter === c ? "border-[var(--text)] scale-110" : "border-border hover:border-border-strong"
-              }`}
+              className={cn(
+                "w-6 h-6 rounded-full border-2 transition-all",
+                colorFilter === c ? "border-[var(--text)] scale-110" : "border-border hover:border-border-strong",
+              )}
               style={{ backgroundColor: COLOR_DOT[c] }}
             />
           ))}
@@ -120,8 +123,7 @@ export default async function NotesPage({
             <section key={articleId} aria-labelledby={`article-${articleId}`}>
               {/* Article header */}
               <div
-                className="flex items-start justify-between gap-[var(--space-3)]"
-                style={{ marginBottom: "var(--space-3)" }}
+                className="flex items-start justify-between gap-[var(--space-3)] mb-[var(--space-3)]"
               >
                 <h2
                   id={`article-${articleId}`}
@@ -163,20 +165,8 @@ export default async function NotesPage({
                           &ldquo;{h.quote}&rdquo;
                         </blockquote>
 
-                        {/* Note */}
-                        {h.note && (
-                          <p
-                            className="mt-[var(--space-2)] text-[length:var(--text-sm)] text-text-muted"
-                            style={{ whiteSpace: "pre-wrap" }}
-                          >
-                            <BookmarkCheck
-                              size={13}
-                              className="inline mr-1 text-[var(--teal)]"
-                              aria-hidden
-                            />
-                            {h.note}
-                          </p>
-                        )}
+                        {/* Inline note editor (client) */}
+                        <InlineNoteEditor highlightId={h.id} initialNote={h.note} />
 
                         {/* Meta row */}
                         <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">

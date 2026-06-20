@@ -2002,6 +2002,8 @@ body {
   /* Back face is pre-rotated 180° so it appears correct after parent flip */
   .rw-flip-back {
     transform: rotateY(180deg);
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
   }
 }
 
