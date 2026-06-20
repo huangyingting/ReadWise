@@ -6,6 +6,7 @@ import { listPublishedArticles, filterAndSortByLevel } from "@/lib/articles";
 import { getProgressMap, listInProgressArticles } from "@/lib/progress";
 import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
 import { getStreakSummary } from "@/lib/activity";
+import { getQuizMastery } from "@/lib/quiz-mastery";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
@@ -18,6 +19,8 @@ import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
 import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
+import MasteryWidget from "@/components/MasteryWidget";
+
 
 export default async function DashboardPage({
   searchParams,
@@ -30,10 +33,11 @@ export default async function DashboardPage({
   const { level } = await searchParams;
   const activeLevel = isDifficultyLevel(level) ? level : null;
 
-  const [articles, inProgressEntries, streak] = await Promise.all([
+  const [articles, inProgressEntries, streak, mastery] = await Promise.all([
     listPublishedArticles(),
     listInProgressArticles(user.id),
     getStreakSummary(user.id),
+    getQuizMastery(user.id),
   ]);
 
   await ensureArticleDifficulties(articles);
@@ -90,12 +94,13 @@ export default async function DashboardPage({
         >
           Your progress
         </h2>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-[var(--space-5)] rw-fade-up">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--space-5)] rw-fade-up">
           <StreakWidget
             streak={streak}
             extendedToday={streak.last7Days[6]?.active === true && streak.currentStreak > 0}
           />
           <DailyGoal streak={streak} />
+          <MasteryWidget mastery={mastery} className="md:col-span-2 lg:col-span-1" />
         </div>
       </section>
 

@@ -31,6 +31,7 @@ model User {
   readingLists    ReadingList[]
   highlights      Highlight[]
   tutorMessages   TutorMessage[]
+  quizAttempts    QuizAttempt[]
 }
 
 model Profile {
@@ -73,6 +74,7 @@ model Article {
   sentenceTranslations SentenceTranslation[]
   vocabulary           VocabularyItem[]
   quizQuestions        QuizQuestion[]
+  quizAttempts         QuizAttempt[]
   speech               ArticleSpeech?
   tags                 ArticleTag[]
   readingListItems     ReadingListItem[]
@@ -340,4 +342,23 @@ model SentenceTranslation {
 
   @@unique([articleId, sourceHash, targetLang])
   @@index([articleId])
+}
+
+// M14 — Quiz Mastery & History
+// Records each individual quiz attempt a user makes on an article.
+// scorePct is computed at write time (0–100). Multiple attempts are allowed.
+model QuizAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  articleId      String
+  correctCount   Int
+  totalQuestions Int
+  scorePct       Int      // 0–100, computed: round(correctCount / totalQuestions * 100)
+  completedAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
+  @@index([userId, completedAt])
 }
