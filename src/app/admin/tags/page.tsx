@@ -37,7 +37,9 @@ export default async function AdminTagsPage({
 
   return (
     <section className="stack mt-[var(--space-6)]">
-      <h2>Tags</h2>
+      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
+        Tags
+      </h1>
 
       <form
         method="get"

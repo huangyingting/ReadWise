@@ -27,7 +27,7 @@ export default function AppHeader({ user }: { user: ShellUser | null }) {
       </div>
 
       <div className="flex flex-1 justify-center">
-        <AppNav />
+        <AppNav user={user} />
       </div>
 
       <div className="flex items-center gap-[var(--space-2)]">

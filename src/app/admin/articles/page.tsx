@@ -53,7 +53,9 @@ export default async function AdminArticlesPage({
 
   return (
     <section className="stack mt-[var(--space-6)]">
-      <h2>Articles</h2>
+      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
+        Articles
+      </h1>
 
       <AdminArticleIngest />
 

@@ -39,7 +39,9 @@ export default async function AdminArticleDetailPage({
         ← Back to articles
       </Link>
 
-      <h2>{article.title}</h2>
+      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
+        {article.title}
+      </h1>
       <div className="article-meta muted">
         <Badge variant={statusBadgeVariant(article.status)}>
           {article.status}
@@ -72,7 +74,7 @@ export default async function AdminArticleDetailPage({
       <Card>
         <div className="stack">
           <CardTitle level="h3">Derived content</CardTitle>
-          <div className="admin-stat-grid">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
             {aiItems.map((item) => (
               <Card key={item.label} className="p-[var(--space-4)]">
                 <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">

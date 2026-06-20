@@ -1,16 +1,15 @@
-import Link from "next/link";
+import { ShieldX } from "lucide-react";
+import EmptyState from "@/components/EmptyState";
 
 export default function ForbiddenPage() {
   return (
-    <main className="container">
-      <h1>403 — Forbidden</h1>
-      <p className="muted">
-        You don&apos;t have permission to access this area. Admin access is
-        required.
-      </p>
-      <p style={{ marginTop: "1.5rem" }}>
-        <Link href="/">← Back home</Link>
-      </p>
+    <main className="container flex items-center justify-center min-h-[60vh]">
+      <EmptyState
+        icon={ShieldX}
+        title="Access denied"
+        description="You don't have permission to access this area. Admin access is required."
+        action={{ label: "Back to Dashboard", href: "/dashboard" }}
+      />
     </main>
   );
 }

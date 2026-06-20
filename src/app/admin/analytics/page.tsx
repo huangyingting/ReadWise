@@ -1,17 +1,7 @@
 import { requireAdmin } from "@/lib/session";
 import { getAdminAnalytics, type BucketCount } from "@/lib/admin-analytics";
-import { Card, CardMeta } from "@/components/ui/Card";
-
-function StatCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <Card className="p-[var(--space-4)]">
-      <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
-        {value}
-      </div>
-      <CardMeta>{label}</CardMeta>
-    </Card>
-  );
-}
+import { Card } from "@/components/ui/Card";
+import { AdminStatCard } from "@/components/AdminStatCard";
 
 function BarChart({ buckets }: { buckets: BucketCount[] }) {
   if (buckets.length === 0) {
@@ -45,25 +35,36 @@ export default async function AdminAnalyticsPage() {
 
   return (
     <section className="stack mt-[var(--space-6)]">
-      <h2>Member activity</h2>
-      <div className="admin-stat-grid">
-        <StatCard label="Total members" value={memberActivity.totalMembers} />
-        <StatCard label="Active readers" value={memberActivity.activeReaders} />
-        <StatCard label="Reads tracked" value={memberActivity.readsTracked} />
-        <StatCard
+      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
+        Analytics
+      </h1>
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+        Member activity
+      </h2>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
+        <AdminStatCard label="Total members" value={memberActivity.totalMembers} />
+        <AdminStatCard label="Active readers" value={memberActivity.activeReaders} />
+        <AdminStatCard label="Reads tracked" value={memberActivity.readsTracked} />
+        <AdminStatCard
           label="Completed reads"
           value={memberActivity.completedReads}
         />
-        <StatCard label="Saved words" value={memberActivity.savedWords} />
+        <AdminStatCard label="Saved words" value={memberActivity.savedWords} />
       </div>
 
-      <h2>Articles by category</h2>
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+        Articles by category
+      </h2>
       <BarChart buckets={analytics.articlesByCategory} />
 
-      <h2>Articles by level</h2>
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+        Articles by level
+      </h2>
       <BarChart buckets={analytics.articlesByLevel} />
 
-      <h2>Top tags</h2>
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
+        Top tags
+      </h2>
       <BarChart buckets={analytics.topTags} />
     </section>
   );

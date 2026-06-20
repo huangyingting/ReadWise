@@ -11,6 +11,15 @@ const SESSION_COOKIES = [
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
+  // Redirect authenticated users away from the landing page to the dashboard.
+  if (pathname === "/") {
+    const hasSession = SESSION_COOKIES.some((name) => req.cookies.has(name));
+    if (hasSession) {
+      return NextResponse.redirect(new URL("/dashboard", req.url));
+    }
+    return NextResponse.next();
+  }
+
   const isProtected = PROTECTED_PREFIXES.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
   );
@@ -29,5 +38,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard/:path*", "/reader/:path*", "/settings/:path*", "/onboarding/:path*", "/admin/:path*", "/study/:path*", "/tags/:path*", "/browse/:path*", "/lists/:path*", "/lists", "/notes/:path*", "/notes", "/progress/:path*", "/progress"],
+  matcher: ["/", "/dashboard/:path*", "/reader/:path*", "/settings/:path*", "/onboarding/:path*", "/admin/:path*", "/study/:path*", "/tags/:path*", "/browse/:path*", "/lists/:path*", "/lists", "/notes/:path*", "/notes", "/progress/:path*", "/progress"],
 };
