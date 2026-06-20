@@ -9,10 +9,10 @@ export const metadata = { title: "Notes & Highlights — ReadWise" };
 
 // Map colour label → CSS custom-highlight colour token (graceful fallback)
 const COLOR_DOT: Record<string, string> = {
-  yellow: "#fbbf24",
-  green: "#34d399",
-  blue: "#60a5fa",
-  pink: "#f472b6",
+  yellow: "var(--hl-dot-yellow)",
+  green:  "var(--hl-dot-green)",
+  blue:   "var(--hl-dot-blue)",
+  pink:   "var(--hl-dot-pink)",
 };
 
 export default async function NotesPage({

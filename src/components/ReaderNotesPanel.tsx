@@ -34,10 +34,10 @@ import { SWATCH_COLORS } from "./SelectionToolbar";
 const NOTE_MAX = 2000;
 
 const COLOR_SWATCH_BG: Record<HighlightColor, string> = {
-  yellow: "var(--hl-yellow, #fde68a)",
-  green:  "var(--hl-green,  #bbf7d0)",
-  blue:   "var(--hl-blue,   #bfdbfe)",
-  pink:   "var(--hl-pink,   #fbcfe8)",
+  yellow: "var(--hl-yellow)",
+  green:  "var(--hl-green)",
+  blue:   "var(--hl-blue)",
+  pink:   "var(--hl-pink)",
 };
 
 /** Flash a <mark> in the prose by its data-hl-id and scroll it into view. */

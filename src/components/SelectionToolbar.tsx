@@ -23,10 +23,10 @@ const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
 const MINI_PLAYER_HEIGHT = 56;
 
 const SWATCH_COLORS: { color: HighlightColor; label: string; cssVar: string }[] = [
-  { color: "yellow", label: "Yellow", cssVar: "var(--hl-yellow, #fde68a)" },
-  { color: "green",  label: "Green",  cssVar: "var(--hl-green,  #bbf7d0)" },
-  { color: "blue",   label: "Blue",   cssVar: "var(--hl-blue,   #bfdbfe)" },
-  { color: "pink",   label: "Pink",   cssVar: "var(--hl-pink,   #fbcfe8)" },
+  { color: "yellow", label: "Yellow", cssVar: "var(--hl-yellow)" },
+  { color: "green",  label: "Green",  cssVar: "var(--hl-green)" },
+  { color: "blue",   label: "Blue",   cssVar: "var(--hl-blue)" },
+  { color: "pink",   label: "Pink",   cssVar: "var(--hl-pink)" },
 ];
 
 interface SelectionToolbarProps {

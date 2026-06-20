@@ -52,12 +52,12 @@ export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 export type CefrLevel = (typeof CEFR_LEVELS)[number];
 
 const CEFR_CLASSES: Record<CefrLevel, string> = {
-  A1: "bg-[#ecfdf5] text-[#047857] dark:bg-[#053b2c] dark:text-[#34d399]",
-  A2: "bg-[#f0fdf4] text-[#15803d] dark:bg-[#0a3a1f] dark:text-[#4ade80]",
-  B1: "bg-[#eff6ff] text-[#0369a1] dark:bg-[#0a2e44] dark:text-[#38bdf8]",
-  B2: "bg-[#eef2ff] text-[#4338ca] dark:bg-[#1e1b4b] dark:text-[#a5b4fc]",
-  C1: "bg-[#fffbeb] text-[#b45309] dark:bg-[#3a2606] dark:text-[#fbbf24]",
-  C2: "bg-[#fff1f2] text-[#be123c] dark:bg-[#3f1018] dark:text-[#fb7185]",
+  A1: "bg-[var(--cefr-a1-bg)] text-[var(--cefr-a1-text)]",
+  A2: "bg-[var(--cefr-a2-bg)] text-[var(--cefr-a2-text)]",
+  B1: "bg-[var(--cefr-b1-bg)] text-[var(--cefr-b1-text)]",
+  B2: "bg-[var(--cefr-b2-bg)] text-[var(--cefr-b2-text)]",
+  C1: "bg-[var(--cefr-c1-bg)] text-[var(--cefr-c1-text)]",
+  C2: "bg-[var(--cefr-c2-bg)] text-[var(--cefr-c2-text)]",
 };
 
 export interface CefrBadgeProps extends React.HTMLAttributes<HTMLSpanElement> {

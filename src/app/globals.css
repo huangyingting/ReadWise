@@ -344,7 +344,7 @@ body {
 .btn-primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #0b1020;
+  color: var(--on-primary);
 }
 
 .muted {
@@ -447,7 +447,7 @@ body {
 }
 
 .prose pre {
-  background: #0b0d12;
+  background: var(--code-bg);
   border: 1px solid var(--border);
   border-radius: 8px;
   padding: 1rem;
@@ -455,7 +455,7 @@ body {
 }
 
 .prose code {
-  background: #0b0d12;
+  background: var(--code-bg);
   padding: 0.1rem 0.35rem;
   border-radius: 4px;
 }
@@ -487,8 +487,8 @@ body {
 }
 
 .pill-done {
-  color: #7ee787;
-  border-color: #2ea043;
+  color: var(--pill-done-fg);
+  border-color: var(--pill-done-border);
 }
 
 .article-grid {
@@ -525,7 +525,7 @@ body {
 .category-tab--active {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-primary);
 }
 
 .related-articles {
@@ -569,7 +569,7 @@ body {
   padding: 0.6rem 0.75rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #20242d;
+  background: var(--surface-raised);
   color: var(--text);
   font-size: 0.95rem;
 }
@@ -580,14 +580,14 @@ body {
 
 .translation-error {
   margin-top: 0.75rem;
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .level-filter select {
   padding: 0.5rem 0.65rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #20242d;
+  background: var(--surface-raised);
   color: var(--text);
   font-size: 0.9rem;
 }
@@ -634,7 +634,7 @@ body {
 
 .vocabulary-error {
   margin-top: 0.75rem;
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .vocabulary-list {
@@ -747,7 +747,7 @@ body {
 
 .quiz-error {
   margin-top: 0.75rem;
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .quiz-list {
@@ -764,7 +764,7 @@ body {
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #20242d;
+  background: var(--surface-raised);
 }
 
 .quiz-question {
@@ -801,13 +801,13 @@ body {
 }
 
 .quiz-option-label.is-correct {
-  border-color: #4caf50;
-  background: rgba(76, 175, 80, 0.12);
+  border-color: var(--success);
+  background: color-mix(in srgb, var(--success) 12%, transparent);
 }
 
 .quiz-option-label.is-wrong {
-  border-color: #ff6b6b;
-  background: rgba(255, 107, 107, 0.12);
+  border-color: var(--danger);
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
 }
 
 .quiz-mark {
@@ -822,11 +822,11 @@ body {
 }
 
 .quiz-feedback.is-correct {
-  color: #6bd47f;
+  color: var(--success-text);
 }
 
 .quiz-feedback.is-wrong {
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .quiz-submit {
@@ -871,7 +871,7 @@ body {
   padding: 0.9rem 1rem 1rem;
   border: 1px solid var(--border);
   border-radius: 12px;
-  background: #20242d;
+  background: var(--surface-raised);
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
 }
 
@@ -907,7 +907,7 @@ body {
 
 .word-lookup-error {
   margin: 0.6rem 0 0;
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .word-lookup-base {
@@ -994,7 +994,7 @@ body {
 
 .tts-error {
   margin-top: 0.75rem;
-  color: #ff8a8a;
+  color: var(--danger-text);
 }
 
 .tts-audio {
@@ -1021,7 +1021,7 @@ body {
 
 .tts-word.is-active {
   background: var(--accent);
-  color: #11141b;
+  color: var(--on-primary);
   font-weight: 600;
 }
 
@@ -1029,7 +1029,7 @@ body {
  * Works in Chrome/Edge 105+, Safari 17.2+; silently absent elsewhere. */
 ::highlight(tts-active) {
   background-color: var(--accent);
-  color: #11141b;
+  color: var(--on-primary);
 }
 
 .admin-header {
@@ -1331,7 +1331,7 @@ body {
 
 /* Word-lookup popover — adopt reading surface tokens */
 [data-reading-mode] .word-lookup-popover {
-  background: var(--reading-surface, #20242d);
+  background: var(--reading-surface, var(--surface-raised));
   border-color: var(--reading-border, var(--border));
   color: var(--reading-text, var(--text));
 }

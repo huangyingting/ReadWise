@@ -119,6 +119,32 @@
   /* Decorative brand gradient (same in both themes) */
   --gradient-brand: linear-gradient(135deg, #6366f1 0%, #7c3aed 50%, #14b8a6 100%);
 
+  /* Code block surface — dark in both themes (conventional dark code on any page bg) */
+  --code-bg: #0b0d12;
+
+  /* "Done" article pill — success-state indicator */
+  --pill-done-fg:     #1a7f37;   /* light: AA on white */
+  --pill-done-border: #2ea043;   /* light + dark */
+
+  /* CEFR difficulty badge palette — light (AA-verified per Saul §8) */
+  --cefr-a1-bg: #ecfdf5;  --cefr-a1-text: #047857;
+  --cefr-a2-bg: #f0fdf4;  --cefr-a2-text: #15803d;
+  --cefr-b1-bg: #eff6ff;  --cefr-b1-text: #0369a1;
+  --cefr-b2-bg: #eef2ff;  --cefr-b2-text: #4338ca;
+  --cefr-c1-bg: #fffbeb;  --cefr-c1-text: #b45309;
+  --cefr-c2-bg: #fff1f2;  --cefr-c2-text: #be123c;
+
+  /* Highlight dot/swatch indicators — Notes page (saturated, per-color identity) */
+  --hl-dot-yellow: #fbbf24;
+  --hl-dot-green:  #34d399;
+  --hl-dot-blue:   #60a5fa;
+  --hl-dot-pink:   #f472b6;
+
+  /* Progress page stat accent colours */
+  --stat-vocab:  #a855f7;
+  --stat-streak: #f59e0b;
+  --stat-quiz:   #ec4899;
+
   /* ---- Elevation — LIGHT ---- */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06), 0 1px 1px rgba(15, 23, 42, 0.04);
   --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.06);
@@ -187,6 +213,16 @@
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.4);
   --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.45);
   --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.5);
+
+  --pill-done-fg: #7ee787;   /* bright green for dark surfaces */
+
+  /* CEFR difficulty badge palette — dark */
+  --cefr-a1-bg: #053b2c;  --cefr-a1-text: #34d399;
+  --cefr-a2-bg: #0a3a1f;  --cefr-a2-text: #4ade80;
+  --cefr-b1-bg: #0a2e44;  --cefr-b1-text: #38bdf8;
+  --cefr-b2-bg: #1e1b4b;  --cefr-b2-text: #a5b4fc;
+  --cefr-c1-bg: #3a2606;  --cefr-c1-text: #fbbf24;
+  --cefr-c2-bg: #3f1018;  --cefr-c2-text: #fb7185;
 }
 
 /* No-JS / system-preference fallback: apply the same dark values unless the
@@ -234,6 +270,16 @@
     --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45), 0 2px 4px rgba(0, 0, 0, 0.4);
     --shadow-lg: 0 12px 28px rgba(0, 0, 0, 0.55), 0 6px 12px rgba(0, 0, 0, 0.45);
     --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.6), 0 12px 24px rgba(0, 0, 0, 0.5);
+
+    --pill-done-fg: #7ee787;
+
+    /* CEFR difficulty badge palette — dark */
+    --cefr-a1-bg: #053b2c;  --cefr-a1-text: #34d399;
+    --cefr-a2-bg: #0a3a1f;  --cefr-a2-text: #4ade80;
+    --cefr-b1-bg: #0a2e44;  --cefr-b1-text: #38bdf8;
+    --cefr-b2-bg: #1e1b4b;  --cefr-b2-text: #a5b4fc;
+    --cefr-c1-bg: #3a2606;  --cefr-c1-text: #fbbf24;
+    --cefr-c2-bg: #3f1018;  --cefr-c2-text: #fb7185;
   }
 }
 

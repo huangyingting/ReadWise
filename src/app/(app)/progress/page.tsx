@@ -207,14 +207,14 @@ export default async function ProgressPage() {
                 icon={Brain}
                 label="Words saved"
                 value={totalSavedWords}
-                color="#a855f7"
+                color="var(--stat-vocab)"
               />
               <StatCard
                 icon={Zap}
                 label="Current streak"
                 value={`${currentStreak}d`}
                 sub={`Best: ${longestStreak} day${longestStreak !== 1 ? "s" : ""}`}
-                color="#f59e0b"
+                color="var(--stat-streak)"
               />
               {averageQuizScore !== null && (
                 <StatCard
@@ -222,7 +222,7 @@ export default async function ProgressPage() {
                   label="Avg quiz score"
                   value={`${averageQuizScore}%`}
                   sub={`${totalQuizAttempts} attempt${totalQuizAttempts !== 1 ? "s" : ""}`}
-                  color="#ec4899"
+                  color="var(--stat-quiz)"
                 />
               )}
             </div>
@@ -269,7 +269,7 @@ export default async function ProgressPage() {
                 <WeeklyBars
                   buckets={wordsByWeek}
                   label="Words saved per week over the last 12 weeks"
-                  color="#a855f7"
+                  color="var(--stat-vocab)"
                 />
                 <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
                   Words saved per week
