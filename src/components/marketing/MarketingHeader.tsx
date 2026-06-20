@@ -31,7 +31,7 @@ export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
             href={signedIn ? "/dashboard" : "/signin"}
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            {signedIn ? "Dashboard →" : "Sign In"}
+            {signedIn ? <>Dashboard <span aria-hidden="true">→</span></> : "Sign In"}
           </Link>
         </div>
       </div>

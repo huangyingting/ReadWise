@@ -496,7 +496,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
             {filteredPages.length > 0 && (
               <>
                 <GroupHeader id="cmdk-grp-pages" label="Pages" hasBorderTop={false} />
-                <li role="group" aria-labelledby="cmdk-grp-pages">
+                <li role="group" aria-label="Pages">
                   {filteredPages.map((item) => {
                     const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
                     const isActive = idx === activeIndex;
@@ -548,7 +548,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                   label="Actions"
                   hasBorderTop={filteredPages.length > 0}
                 />
-                <li role="group" aria-labelledby="cmdk-grp-actions">
+                <li role="group" aria-label="Actions">
                   {filteredActions.map((item) => {
                     const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
                     const isActive = idx === activeIndex;
@@ -591,7 +591,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                   label="Articles"
                   hasBorderTop={filteredPages.length > 0 || filteredActions.length > 0}
                 />
-                <li role="group" aria-labelledby="cmdk-grp-articles">
+                <li role="group" aria-label="Articles">
                   {/* Error state */}
                   {status === "error" && (
                     <div

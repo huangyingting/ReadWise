@@ -106,7 +106,9 @@ export default async function HomePage() {
   const signedIn = Boolean(session?.user);
 
   const primaryHref = signedIn ? "/dashboard" : "/signin";
-  const primaryLabel = signedIn ? "Continue Reading →" : "Get Started — It's Free";
+  const primaryLabel = signedIn ? (
+    <>Continue Reading <span aria-hidden="true">→</span></>
+  ) : "Get Started — It's Free";
 
   return (
     <>

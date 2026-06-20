@@ -30,7 +30,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic, Headphones } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -60,7 +60,7 @@ const TABS: {
   {
     id: "dictate",
     label: "Dictate",
-    icon: <Headphones size={14} />,
+    icon: <Keyboard size={14} />,
     ariaLabel: "Dictate tab",
   },
   {
@@ -106,18 +106,18 @@ const TABS: {
  * keyboard navigation (arrow keys) still moves linearly through TABS.
  *
  * Grouping:
- *   Audio  — Listen, Speak   (narration + pronunciation)
- *   Study  — Words, Quiz     (vocabulary + comprehension)
- *   [solo] — Translate, Notes, Ask (full-width single tabs)
+ *   Audio   — Listen, Dictate, Speak  (narration + dictation + pronunciation)
+ *   Study   — Words, Quiz             (vocabulary + comprehension)
+ *   Content — Translate, Notes, Ask   (translation + notes + AI tutor)
  */
 const TAB_GROUPS: Array<{
-  /** Null = no header; the group's tabs render as full-width solo items. */
-  label: string | null;
+  /** All groups have a label for visual clarity. */
+  label: string;
   ids: TabId[];
 }> = [
   { label: "Audio", ids: ["listen", "dictate", "speak"] },
   { label: "Study", ids: ["words", "quiz"] },
-  { label: null, ids: ["translate", "notes", "ask"] },
+  { label: "Content", ids: ["translate", "notes", "ask"] },
 ];
 
 type SupportedLanguage = {
@@ -184,20 +184,15 @@ function TabBar({
           <div
             key={group.label ?? `solo-${gi}`}
             role="presentation"
-            className={cn(
-              "reader-tab-group",
-              group.label ? "reader-tab-group--labeled" : "reader-tab-group--solo",
-            )}
+            className="reader-tab-group reader-tab-group--labeled"
           >
-            {group.label ? (
-              <span
-                className="reader-tab-group-label"
-                role="presentation"
-                aria-hidden="true"
-              >
-                {group.label}
-              </span>
-            ) : null}
+            <span
+              className="reader-tab-group-label"
+              role="presentation"
+              aria-hidden="true"
+            >
+              {group.label}
+            </span>
             <div role="presentation" className="reader-tab-group-row">
               {groupTabs.map(({ id, label, icon, ariaLabel }) => {
                 const globalIndex = TABS.findIndex((t) => t.id === id);
@@ -250,92 +245,91 @@ function PanelContents({
 }) {
   return (
     <div className="reader-tab-panels">
-      {/* Each panel renders once visited; hidden while not active */}
-      {visited.has("listen") && (
-        <div
-          id="reader-panel-listen"
-          role="tabpanel"
-          aria-labelledby="reader-tab-listen"
-          className="reader-tab-panel"
-          hidden={activeTab !== "listen"}
-        >
+      {/* All panel containers are always mounted so aria-controls references exist.
+          Content is lazy-loaded on first tab activation (stays mounted once visited). */}
+      <div
+        id="reader-panel-listen"
+        role="tabpanel"
+        aria-labelledby="reader-tab-listen"
+        className="reader-tab-panel"
+        hidden={activeTab !== "listen"}
+      >
+        {visited.has("listen") && (
           <ArticleSpeech articleId={articleId} active={activeTab === "listen"} />
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Dictate tab — lazy-mounted on first visit, stay-mounted once visited */}
-      {visited.has("dictate") && (
-        <div
-          id="reader-panel-dictate"
-          role="tabpanel"
-          aria-labelledby="reader-tab-dictate"
-          className="reader-tab-panel"
-          hidden={activeTab !== "dictate"}
-        >
+      <div
+        id="reader-panel-dictate"
+        role="tabpanel"
+        aria-labelledby="reader-tab-dictate"
+        className="reader-tab-panel"
+        hidden={activeTab !== "dictate"}
+      >
+        {visited.has("dictate") && (
           <ArticleDictation
             articleId={articleId}
             plainText={plainText}
             active={activeTab === "dictate"}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      {/* Speak tab — lazy-mounted on first visit, stay-mounted once visited */}
-      {visited.has("speak") && (
-        <div
-          id="reader-panel-speak"
-          role="tabpanel"
-          aria-labelledby="reader-tab-speak"
-          className="reader-tab-panel"
-          hidden={activeTab !== "speak"}
-        >
+      <div
+        id="reader-panel-speak"
+        role="tabpanel"
+        aria-labelledby="reader-tab-speak"
+        className="reader-tab-panel"
+        hidden={activeTab !== "speak"}
+      >
+        {visited.has("speak") && (
           <ArticlePronunciation
             articleId={articleId}
             plainText={plainText}
             active={activeTab === "speak"}
           />
-        </div>
-      )}
+        )}
+      </div>
 
-      {visited.has("words") && (
-        <div
-          id="reader-panel-words"
-          role="tabpanel"
-          aria-labelledby="reader-tab-words"
-          className="reader-tab-panel"
-          hidden={activeTab !== "words"}
-        >
+      <div
+        id="reader-panel-words"
+        role="tabpanel"
+        aria-labelledby="reader-tab-words"
+        className="reader-tab-panel"
+        hidden={activeTab !== "words"}
+      >
+        {visited.has("words") && (
           <ArticleVocabulary articleId={articleId} active={activeTab === "words"} />
-        </div>
-      )}
+        )}
+      </div>
 
-      {visited.has("quiz") && (
-        <div
-          id="reader-panel-quiz"
-          role="tabpanel"
-          aria-labelledby="reader-tab-quiz"
-          className="reader-tab-panel"
-          hidden={activeTab !== "quiz"}
-        >
+      <div
+        id="reader-panel-quiz"
+        role="tabpanel"
+        aria-labelledby="reader-tab-quiz"
+        className="reader-tab-panel"
+        hidden={activeTab !== "quiz"}
+      >
+        {visited.has("quiz") && (
           <ArticleQuiz articleId={articleId} active={activeTab === "quiz"} />
-        </div>
-      )}
+        )}
+      </div>
 
-      {visited.has("translate") && (
-        <div
-          id="reader-panel-translate"
-          role="tabpanel"
-          aria-labelledby="reader-tab-translate"
-          className="reader-tab-panel"
-          hidden={activeTab !== "translate"}
-        >
+      <div
+        id="reader-panel-translate"
+        role="tabpanel"
+        aria-labelledby="reader-tab-translate"
+        className="reader-tab-panel"
+        hidden={activeTab !== "translate"}
+      >
+        {visited.has("translate") && (
           <ArticleTranslation
             articleId={articleId}
             languages={languages}
             active={activeTab === "translate"}
           />
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Notes panel: always mounted (data loaded eagerly by ReaderHighlightsProvider) */}
       <div
@@ -348,20 +342,19 @@ function PanelContents({
         <ReaderNotesPanel />
       </div>
 
-      {/* Ask (tutor) panel: lazy-mounted on first visit */}
-      {visited.has("ask") && (
-        <div
-          id="reader-panel-ask"
-          role="tabpanel"
-          aria-labelledby="reader-tab-ask"
-          className="reader-tab-panel"
-          hidden={activeTab !== "ask"}
-        >
+      <div
+        id="reader-panel-ask"
+        role="tabpanel"
+        aria-labelledby="reader-tab-ask"
+        className="reader-tab-panel"
+        hidden={activeTab !== "ask"}
+      >
+        {visited.has("ask") && (
           <ReaderTutorProvider articleId={articleId}>
             <ArticleTutor active={activeTab === "ask"} />
           </ReaderTutorProvider>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
