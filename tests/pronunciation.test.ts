@@ -104,6 +104,16 @@ before(() => {
           },
           findMany: async () => findManyRows,
         },
+        // article.findUnique is used by getViewableArticleById in the attempt route.
+        // Return a stub published article for any id to satisfy the existence check.
+        article: {
+          findUnique: async (args: { where: { id: string; status?: string } }) => {
+            if (args.where.id) {
+              return { id: args.where.id, status: "published" };
+            }
+            return null;
+          },
+        },
       },
     },
   });
