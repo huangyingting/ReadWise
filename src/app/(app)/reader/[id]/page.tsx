@@ -7,15 +7,18 @@ import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
+import { getArticleListMembership } from "@/lib/bookmarks";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleCard from "@/components/ArticleCard";
 import WordLookup from "@/components/WordLookup";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import ReaderControls from "@/components/ReaderControls";
 import ReaderToolsPanel from "@/components/ReaderToolsPanel";
 import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
+import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 
 export default async function ReaderPage({
   params,
@@ -41,6 +44,10 @@ export default async function ReaderPage({
   );
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
+
+  // M10: SSR bookmark state for the reader cluster
+  const membership = await getArticleListMembership(session.user.id, article.id);
+  const isBookmarked = membership?.find((l) => l.isDefault)?.hasArticle ?? false;
 
   const isValidCefrLevel = difficultyLevel && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
 
@@ -119,7 +126,7 @@ export default async function ReaderPage({
                   </p>
                 ) : null}
 
-                {/* Meta row: CEFR badge · reading time · completed */}
+                {/* Meta row: CEFR badge · reading time · completed · bookmark */}
                 <div className="reader-meta">
                   {isValidCefrLevel ? (
                     <CefrBadge
@@ -139,6 +146,12 @@ export default async function ReaderPage({
                   {progress?.completed ? (
                     <Badge variant="success">✓ Completed</Badge>
                   ) : null}
+
+                  {/* M10 bookmark split-pill (segment A toggle + segment B list picker) */}
+                  <ReaderBookmarkCluster
+                    articleId={article.id}
+                    initialSaved={isBookmarked}
+                  />
                 </div>
 
                 {/* Tags */}
@@ -204,6 +217,7 @@ export default async function ReaderPage({
                   })}
                 </div>
                 <ListingProgressSync articleIds={relatedArticles.map((a) => a.id)} />
+                <ListingBookmarkSync articleIds={relatedArticles.map((a) => a.id)} />
               </section>
             ) : null}
           </div>

@@ -4,8 +4,10 @@ import { requireSession } from "@/lib/session";
 import { getTagBySlug, listArticlesByTag } from "@/lib/tags";
 import { getProgressMap } from "@/lib/progress";
 import { ensureArticleDifficulties } from "@/lib/difficulty";
+import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import ArticleCard from "@/components/ArticleCard";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
 
 export default async function TagPage({
@@ -23,10 +25,11 @@ export default async function TagPage({
 
   const articles = await listArticlesByTag(slug);
   await ensureArticleDifficulties(articles);
-  const progressMap = await getProgressMap(
-    session.user.id,
-    articles.map((a) => a.id),
-  );
+  const articleIds = articles.map((a) => a.id);
+  const [progressMap, bookmarkedIds] = await Promise.all([
+    getProgressMap(session.user.id, articleIds),
+    getBookmarkedArticleIds(session.user.id, articleIds),
+  ]);
 
   const count = articles.length;
 
@@ -61,6 +64,7 @@ export default async function TagPage({
               <ArticleCard
                 key={article.id}
                 article={article}
+                saved={bookmarkedIds.has(article.id)}
                 progress={
                   progress
                     ? { percent: progress.percent, completed: progress.completed }
@@ -73,6 +77,7 @@ export default async function TagPage({
       )}
 
       <ListingProgressSync articleIds={articles.map((a) => a.id)} />
+      <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
     </main>
   );
 }

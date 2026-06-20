@@ -6,6 +6,7 @@ import { listPublishedArticles, filterAndSortByLevel } from "@/lib/articles";
 import { getProgressMap, listInProgressArticles } from "@/lib/progress";
 import { ensureArticleDifficulties, DIFFICULTY_LEVELS, isDifficultyLevel } from "@/lib/difficulty";
 import { getStreakSummary } from "@/lib/activity";
+import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -13,6 +14,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import ArticleCard from "@/components/ArticleCard";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
 import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
@@ -36,15 +38,16 @@ export default async function DashboardPage({
 
   await ensureArticleDifficulties(articles);
   const visibleArticles = filterAndSortByLevel(articles, activeLevel);
-  const progressMap = await getProgressMap(
-    user.id,
-    visibleArticles.map((a) => a.id),
-  );
 
-  // Union of rail + grid article ids for ListingProgressSync
+  // Union of rail + grid article ids for ListingProgressSync + ListingBookmarkSync
   const railIds = inProgressEntries.map((e) => e.article.id);
   const gridIds = visibleArticles.map((a) => a.id);
   const allIds = [...new Set([...railIds, ...gridIds])];
+
+  const [progressMap, bookmarkedIds] = await Promise.all([
+    getProgressMap(user.id, visibleArticles.map((a) => a.id)),
+    getBookmarkedArticleIds(user.id, allIds),
+  ]);
 
   return (
     <main className="listing-container">
@@ -122,6 +125,7 @@ export default async function DashboardPage({
                 article={entry.article}
                 progress={entry.progress}
                 variant="rail"
+                saved={bookmarkedIds.has(entry.article.id)}
               />
             ))}
           </div>
@@ -200,6 +204,7 @@ export default async function DashboardPage({
                 <ArticleCard
                   key={article.id}
                   article={article}
+                  saved={bookmarkedIds.has(article.id)}
                   progress={
                     progress
                       ? { percent: progress.percent, completed: progress.completed }
@@ -211,8 +216,9 @@ export default async function DashboardPage({
           </div>
         )}
 
-        {/* Single ListingProgressSync over union of rail + grid ids (§4.3) */}
+        {/* Single ListingProgressSync + ListingBookmarkSync over union of rail + grid ids */}
         <ListingProgressSync articleIds={allIds} />
+        <ListingBookmarkSync articleIds={allIds} />
       </section>
     </main>
   );

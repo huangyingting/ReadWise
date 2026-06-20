@@ -1866,3 +1866,83 @@ body {
     transition: opacity var(--duration-base) var(--ease-standard);
   }
 }
+
+/* =================================================================
+ * M10 — Bookmarks & Reading Lists
+ * Additive utilities; no edits to existing rules.
+ * ================================================================= */
+
+/* Card bookmark overlay: SVG fill via CSS attribute selector so that both
+   React-rendered state AND ListingBookmarkSync DOM updates produce the
+   correct filled Bookmark icon when data-saved="true". */
+.js-bookmark[data-saved="true"] svg {
+  fill: currentColor;
+}
+
+/* Card removal animation (Saved page: optimistic fade-out when removing) */
+[data-card-wrapper][data-card-removed="true"] {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--duration-base) var(--ease-standard);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-card-wrapper][data-card-removed="true"] {
+    transition: none !important;
+  }
+}
+
+/* =================================================================
+ * M10 — /lists page layout
+ * Two-region: left sidebar (desktop ≥900px) / mobile pill bar.
+ * ================================================================= */
+
+/* Mobile: show only the pill bar, hide sidebar */
+.lists-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.lists-sidebar {
+  display: none;
+}
+
+.lists-mobile-bar {
+  display: block;
+}
+
+.lists-panel-header {
+  display: none;
+}
+
+/* Desktop: show sidebar, hide pill bar */
+@media (min-width: 900px) {
+  .lists-layout {
+    display: grid;
+    grid-template-columns: 240px 1fr;
+    gap: var(--space-6);
+    align-items: start;
+  }
+
+  .lists-sidebar {
+    display: block;
+    position: sticky;
+    top: calc(56px + var(--space-6)); /* AppHeader ~56px + gap */
+  }
+
+  .lists-mobile-bar {
+    display: none;
+  }
+
+  .lists-panel-header {
+    display: block;
+  }
+}
+
+/* Snapshot-scroll for the mobile pill bar (mirrors CategoryBrowser) */
+.lists-mobile-switcher {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+

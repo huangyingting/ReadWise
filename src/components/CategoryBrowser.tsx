@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/Button";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
 
 type Tab = { key: string; label: string; href: string };
@@ -58,6 +59,7 @@ export default function CategoryBrowser({
   initialHasMore,
   initialOffset,
   heading,
+  initialSavedIds,
 }: {
   activeView: BrowseView;
   initialArticles: ListingArticle[];
@@ -65,9 +67,12 @@ export default function CategoryBrowser({
   initialHasMore: boolean;
   initialOffset: number;
   heading: string;
+  /** SSR initial set of saved article ids — for the card bookmark overlay. */
+  initialSavedIds?: string[];
 }) {
   const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
   const [progress, setProgress] = useState<Record<string, ProgressSummary>>(initialProgress);
+  const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
   const [offset, setOffset] = useState<number>(initialOffset);
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [loading, setLoading] = useState<boolean>(false);
@@ -163,6 +168,7 @@ export default function CategoryBrowser({
                 key={article.id}
                 article={article}
                 progress={progress[article.id]}
+                saved={savedIds.has(article.id)}
               />
             ))}
           </div>
@@ -182,6 +188,7 @@ export default function CategoryBrowser({
       )}
 
       <ListingProgressSync articleIds={articles.map((a) => a.id)} />
+      <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
     </div>
   );
 }

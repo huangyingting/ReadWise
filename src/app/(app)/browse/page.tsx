@@ -9,6 +9,7 @@ import { getProgressSummaries } from "@/lib/progress";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
+import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import CategoryBrowser from "@/components/CategoryBrowser";
 
 export default async function BrowsePage({
@@ -36,10 +37,11 @@ export default async function BrowsePage({
     page = await listCategoryPage(activeCategory, { limit: BROWSE_PAGE_SIZE });
   }
 
-  const progress = await getProgressSummaries(
-    session.user.id,
-    page.articles.map((a) => a.id),
-  );
+  const articleIds = page.articles.map((a) => a.id);
+  const [progress, bookmarkedIds] = await Promise.all([
+    getProgressSummaries(session.user.id, articleIds),
+    getBookmarkedArticleIds(session.user.id, articleIds),
+  ]);
 
   const heading = isPicks
     ? "Picks for you"
@@ -72,6 +74,7 @@ export default async function BrowsePage({
         initialHasMore={page.hasMore}
         initialOffset={page.articles.length}
         heading={heading}
+        initialSavedIds={[...bookmarkedIds]}
       />
     </main>
   );

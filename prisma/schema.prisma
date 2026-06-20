@@ -28,6 +28,7 @@ model User {
   readingProgress ReadingProgress[]
   savedWords      SavedWord[]
   dailyActivities DailyActivity[]
+  readingLists    ReadingList[]
 }
 
 model Profile {
@@ -71,6 +72,7 @@ model Article {
   quizQuestions   QuizQuestion[]
   speech          ArticleSpeech?
   tags            ArticleTag[]
+  readingListItems ReadingListItem[]
 
   @@index([category])
 }
@@ -244,4 +246,31 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
+}
+
+model ReadingList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ReadingListItem[]
+
+  @@index([userId])
+}
+
+model ReadingListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  articleId String
+  addedAt   DateTime @default(now())
+
+  list    ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  article Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, articleId])
+  @@index([articleId])
 }

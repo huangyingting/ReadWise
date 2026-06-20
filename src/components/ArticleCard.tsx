@@ -7,9 +7,11 @@ export type { ArticleCardProgress };
 export default function ArticleCard({
   article,
   progress,
+  saved,
 }: {
   article: Article;
   progress?: ArticleCardProgress;
+  saved?: boolean;
 }) {
-  return <ArticleCardView article={toListingArticle(article)} progress={progress} />;
+  return <ArticleCardView article={toListingArticle(article)} progress={progress} saved={saved} />;
 }
