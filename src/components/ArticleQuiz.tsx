@@ -242,8 +242,12 @@ export default function ArticleQuiz({
           <ol className="quiz-list">
             {questions.map((q, qi) => (
               <li key={q.question} className="quiz-item">
-                <p className="quiz-question">{q.question}</p>
-                <ul className="quiz-options">
+                <p id={`quiz-question-${qi}`} className="quiz-question">{q.question}</p>
+                <div
+                  role="radiogroup"
+                  aria-labelledby={`quiz-question-${qi}`}
+                  className="quiz-options"
+                >
                   {q.options.map((opt, oi) => {
                     const selected = answers[qi] === oi;
                     const isCorrect = oi === q.correctIndex;
@@ -258,11 +262,16 @@ export default function ArticleQuiz({
                       stateClass = "is-selected";
                     }
                     return (
-                      <li key={opt} className="quiz-option">
-                        <label className={`quiz-option-label ${stateClass}`}>
+                      <div key={opt} className="quiz-option">
+                        <label
+                          htmlFor={`quiz-${qi}-${oi}`}
+                          className={`quiz-option-label ${stateClass}`}
+                        >
                           <input
                             type="radio"
+                            id={`quiz-${qi}-${oi}`}
                             name={`quiz-${qi}`}
+                            value={String(oi)}
                             checked={selected}
                             disabled={submitted}
                             onChange={() => selectAnswer(qi, oi)}
@@ -279,10 +288,10 @@ export default function ArticleQuiz({
                             </span>
                           ) : null}
                         </label>
-                      </li>
+                      </div>
                     );
                   })}
-                </ul>
+                </div>
                 {submitted ? (
                   <p
                     className={`quiz-feedback ${

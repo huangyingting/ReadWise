@@ -194,15 +194,21 @@ function TabBar({
               {groupTabs.map(({ id, label, icon, ariaLabel }) => {
                 const globalIndex = TABS.findIndex((t) => t.id === id);
                 const isActive = activeTab === id;
+                // WAI-ARIA roving-tabindex: when no tab is active, the first tab
+                // gets tabIndex=0 so keyboard users can enter the tablist (#52).
+                // That same first tab also gets aria-selected="true" so screen
+                // readers always hear exactly one selected tab (#70).
+                const isFirst = globalIndex === 0;
+                const isCurrent = isActive || (activeTab === null && isFirst);
                 return (
                   <button
                     key={id}
                     type="button"
                     role="tab"
                     id={`reader-tab-${id}`}
-                    aria-selected={isActive}
+                    aria-selected={isCurrent}
                     aria-controls={`reader-panel-${id}`}
-                    tabIndex={isActive ? 0 : -1}
+                    tabIndex={isCurrent ? 0 : -1}
                     aria-label={ariaLabel}
                     onClick={() => onSelect(id)}
                     onKeyDown={(e) => handleKeyDown(e, globalIndex)}
