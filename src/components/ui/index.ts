@@ -30,3 +30,6 @@ export {
 } from "./Badge";
 export { Skeleton, SkeletonText, type SkeletonProps } from "./Skeleton";
 export { Spinner, type SpinnerProps } from "./Spinner";
+export { Switch, type SwitchProps } from "./Switch";
+export { Textarea, textareaVariants, type TextareaProps } from "./Textarea";
+export { Tooltip, type TooltipProps } from "./Tooltip";

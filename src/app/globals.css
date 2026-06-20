@@ -113,6 +113,17 @@ body {
   }
 }
 
+@keyframes rw-fade-out-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
 @keyframes rw-step {
   from { opacity: 0; transform: translateY(8px); }
   to   { opacity: 1; transform: translateY(0); }
@@ -179,6 +190,11 @@ body {
   /* Staggered entrance: apply with an inline animation-delay. */
   .rw-fade-up {
     animation: rw-fade-up var(--duration-slow) var(--ease-emphasized) both;
+  }
+
+  /* Dismiss exit: fade + rise — add class, call handler on animationend. */
+  .rw-dismiss-out {
+    animation: rw-fade-out-up var(--duration-base) var(--ease-emphasized) both;
   }
 
   /* Step panel entrance (onboarding wizard, auth card). */
@@ -281,6 +297,7 @@ body {
 /* Fully disable landing + palette motion for users who request reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .rw-fade-up,
+  .rw-dismiss-out,
   .rw-reveal,
   .rw-step,
   [data-animate] {
@@ -3726,7 +3743,7 @@ body {
 .rw-dictate-score-fill--good { background: var(--success, #16a34a); }
 .rw-dictate-score-fill--fair { background: var(--warning, #ca8a04); }
 .rw-dictate-score-fill--poor { background: var(--danger, #dc2626); opacity: 0.8; }
-.rw-dictate-score-fill--bad  { background: var(--danger, #dc2626); }
+.rw-dictate-score-fill--bad  { background: var(--pron-bad, var(--danger, #b91c1c)); }
 
 .rw-dictate-score-label {
   font-size: var(--text-sm);

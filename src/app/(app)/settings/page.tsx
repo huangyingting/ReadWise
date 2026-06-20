@@ -71,18 +71,20 @@ export default async function SettingsPage() {
         </CardBody>
       </Card>
 
-      {/* Notifications card */}
-      <Card className="mt-[var(--space-6)]">
-        <CardHeader>
-          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
-            Notifications
-          </h2>
-          <CardMeta>Manage push reminders for your spaced-repetition reviews.</CardMeta>
-        </CardHeader>
-        <CardBody>
-          <PushReminderToggle />
-        </CardBody>
-      </Card>
+      {/* Notifications card — hidden server-side when VAPID is not configured */}
+      {process.env.VAPID_PUBLIC_KEY ? (
+        <Card className="mt-[var(--space-6)]">
+          <CardHeader>
+            <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
+              Notifications
+            </h2>
+            <CardMeta>Manage push reminders for your spaced-repetition reviews.</CardMeta>
+          </CardHeader>
+          <CardBody>
+            <PushReminderToggle />
+          </CardBody>
+        </Card>
+      ) : null}
 
       {/* Privacy & account management */}
       <Card className="mt-[var(--space-6)]">

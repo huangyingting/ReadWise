@@ -113,19 +113,20 @@ export default function StudyList({
             </div>
             <div className="vocabulary-item-actions">
               {speechAvailable ? (
-                <button
+                <Button
                   type="button"
-                  className={cn(
-                    "btn vocabulary-pronounce",
-                    speaking === item.id && "is-speaking",
-                  )}
+                  variant="ghost"
+                  size="md"
                   onClick={() => speak(item)}
                   aria-label={`Play pronunciation of ${item.word}`}
-                  title={`Play pronunciation of ${item.word}`}
                   aria-pressed={speaking === item.id}
+                  className={cn(
+                    "min-h-[44px] min-w-[44px] p-0 shrink-0",
+                    speaking === item.id && "text-primary",
+                  )}
                 >
-                  <Volume2 size={16} aria-hidden />
-                </button>
+                  <Volume2 size={18} aria-hidden />
+                </Button>
               ) : null}
               <Button
                 type="button"
