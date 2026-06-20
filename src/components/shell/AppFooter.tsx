@@ -30,10 +30,10 @@ export default function AppFooter() {
       >
         <span>© {new Date().getFullYear()} ReadWise</span>
         <nav aria-label="Footer" className="flex items-center gap-[var(--space-4)]">
-          <Link href="#" className={linkClass}>
+          <Link href="/privacy" className={linkClass}>
             Privacy
           </Link>
-          <Link href="#" className={linkClass}>
+          <Link href="/terms" className={linkClass}>
             Terms
           </Link>
         </nav>
