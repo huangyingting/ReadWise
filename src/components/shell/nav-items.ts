@@ -1,4 +1,4 @@
-import { LayoutDashboard, Compass, Bookmark, BookOpen, type LucideIcon } from "lucide-react";
+import { LayoutDashboard, Compass, Bookmark, BookOpen, StickyNote, TrendingUp, type LucideIcon } from "lucide-react";
 
 export interface NavItem {
   href: string;
@@ -12,6 +12,8 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/browse", label: "Browse", icon: Compass },
   { href: "/lists", label: "Saved", icon: Bookmark },
   { href: "/study", label: "Study", icon: BookOpen },
+  { href: "/notes", label: "Notes", icon: StickyNote },
+  { href: "/progress", label: "Progress", icon: TrendingUp },
 ];
 
 /**

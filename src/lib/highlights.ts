@@ -239,6 +239,36 @@ export async function deleteHighlight(
   return { ok: true };
 }
 
+// ---------------------------------------------------------------------------
+// Cross-article aggregation
+// ---------------------------------------------------------------------------
+
+export interface HighlightWithArticle extends HighlightRow {
+  article: { id: string; title: string };
+}
+
+/**
+ * Returns ALL highlights across ALL articles for the given user, newest first
+ * within each article. Includes the article id + title for display.
+ * Every row is scoped to `userId` — no IDOR possible.
+ */
+export async function listAllUserHighlights(
+  userId: string,
+): Promise<HighlightWithArticle[]> {
+  return prisma.highlight.findMany({
+    where: { userId },
+    select: {
+      ...highlightSelect,
+      article: { select: { id: true, title: true } },
+    },
+    orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
+  });
+}
+
+// ---------------------------------------------------------------------------
+// Counts
+// ---------------------------------------------------------------------------
+
 /**
  * Batch count of highlights per article for the given user.
  * Useful for dashboards / listing badges. Returns a map of articleId → count
