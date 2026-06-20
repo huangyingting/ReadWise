@@ -56,6 +56,66 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ---
 
+## Post-redesign features
+
+---
+
+## M10 — Bookmarks & Reading Lists: COMPLETE (c676921)
+_2026-06-19 · Saul (spec), Livingston (data + endpoints), Linus (UI), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 191/191 (38 new: 18 lib + 22 route + 1 leftover) · Rusty APPROVE-WITH-NITS · Basher PASS (57 checks, IDOR clean) · committed c676921.
+
+### Scope
+Per-user reading lists + quick-bookmark affordance. New `/lists` "Saved" page in the main nav.
+
+### Data layer (Livingston)
+- **Migration `m10_reading_lists`** — purely additive. Two new models: `ReadingList` (`@@index([userId])`, `isDefault Bool`) and `ReadingListItem` (`@@unique([listId,articleId])`, `@@index([articleId])`). Back-references on `User` + `Article`. Cascade: User→Lists→Items; Article→Items; List→Items.
+- **`src/lib/bookmarks.ts`** — 9 helpers, all ownership-scoped: `getOrCreateDefaultList`, `getUserLists`, `getListWithArticles`, `createList`, `renameList`, `deleteList` (refuses default, 409), `addToList` (idempotent), `removeFromList` (idempotent), `toggleBookmark`, `getBookmarkedArticleIds` (batch), `getArticleListMembership`.
+- **8 endpoints** (all `createHandler`, session-gated, 401 unauth, 404 on ownership failure):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/lists` | User's lists, default first, with count |
+| `POST /api/lists` | Create named list (201) |
+| `PATCH /api/lists/[id]` | Rename (ownership) |
+| `DELETE /api/lists/[id]` | Delete (ownership; 409 on default) |
+| `POST /api/lists/[id]/items` | Add article (idempotent) |
+| `DELETE /api/lists/[id]/items/[articleId]` | Remove article (idempotent) |
+| `POST /api/bookmarks/toggle` | Quick-toggle default list; lazily creates default |
+| `GET /api/bookmarks/membership?articleId=` | All lists + hasArticle flags for list-picker popover |
+| `POST /api/saved` | Batch bookmark-status check for `ListingBookmarkSync` client refresh |
+
+### UI layer (Linus)
+- **`ReaderBookmarkCluster`** — split-pill in `.reader-meta` row (`ml-auto`): Segment A (default-list Save/Saved toggle, `aria-pressed`, indigo filled-Bookmark icon, optimistic + revert, `role="status"` error live region, `rw-pop` on save) + Segment B (`ListPlus` icon, opens `ListPickerPopover`, dot indicator when in any named list).
+- **`ListPickerPopover`** — non-modal dialog, membership checkboxes from `GET /api/bookmarks/membership`, inline "New list" creation, focus trap, Escape + outside-click close.
+- **`CardBookmarkButton`** — sibling-overlay on cards (never nested in `<Link>`). Root `<div data-card-wrapper data-article-id>` wraps Link (all `.js-progress-*` hooks unchanged) + button sibling. `js-bookmark` / `data-saved` DOM contract.
+- **`ListingBookmarkSync`** — client mount-phase hydrator (parallel to `ListingProgressSync`). Reads sessionStorage (`readwise:bookmark-changes`), calls `POST /api/saved`, updates `data-saved` + `aria-pressed` in the DOM.
+- **`ListSwitcher`** — desktop sidebar + mobile snap-scroll pill bar; inline create/rename/delete; `ConfirmAction` for delete.
+- **`/lists` page** (`src/app/(app)/lists/page.tsx`) — gated with `requireSession("/lists")`; `?list=<id>` URL param; SSR via `getUserLists` + `getListWithArticles` + `getProgressMap` + `getBookmarkedArticleIds`; M4 `EmptyState`.
+- **Modified listings** — browse, dashboard, tags, reader all call `getBookmarkedArticleIds` for SSR first-paint; drop `ListingBookmarkSync` where needed.
+- **CSS additive** — M10 section: `.js-bookmark[data-saved="true"] svg { fill: currentColor }`, card-removal fade, `.lists-layout` / `.lists-sidebar` / `.lists-mobile-bar` / `.lists-panel-header` / `.lists-mobile-switcher` (900px breakpoint).
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Nav label | "Saved" (not "Lists" or "Bookmarks") |
+| Route | `/lists` |
+
+### IDOR audit (Rusty)
+All routes verified: every helper uses `findFirst({where:{id,userId}})` before mutation. 404 (not 403) on ownership failure — existence not leaked. Double-checked on `/lists` page: `listParam` resolved only within userId-filtered results; `getListWithArticles` adds second ownership layer. **No IDOR path found.**
+
+### Deferred nits (Rusty, non-blocking)
+| ID | Item |
+|---|---|
+| N1 | `getOrCreateDefaultList` lacks DB-level `@@unique` guard on `(userId, isDefault=true)`; narrow concurrent-first-use race; degrades gracefully |
+| N2 | `renameList`/`deleteList` TOCTOU between ownership check and mutation (safe in practice with CUIDs) |
+| N3 | `ListSwitcher` uses `role="tablist"` + `role="tab"` on `<Link>` — should be `role="navigation"` + `aria-current="page"` |
+| N4 | Dual DOM trees (desktop sidebar + mobile pill bar) lack `aria-hidden` on the hidden copy |
+| N5 | `CategoryBrowser` "Load more" cards default `saved=false` (no batch in `GET /api/articles` yet) |
+| N6 | `ConfirmAction className="!p-0"` in `ListSwitcher` (Tailwind `!important` override; no functional impact) |
+
+---
+
 ## M9 — Command Palette + Final A11y/Motion QA: COMPLETE (dff6c1f)
 _2026-06-19 · Yingting Huang (requester) · Saul (spec), Linus (build), Rusty (review), Basher (verify)_
 

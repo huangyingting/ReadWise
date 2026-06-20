@@ -50,3 +50,40 @@ Extended `parseProfileInput` and both profile API routes to accept and validate 
 
 ### M9 — Command Palette + Final A11y/Motion QA (2026-06-19) ✅ LANDED — committed dff6c1f
 No direct M9 work (Livingston's M4 `GET /api/search` endpoint reused unchanged by the command palette). M9 completed by Saul/Linus/Rusty/Basher. **Redesign roadmap M4–M9 is now fully complete.** All surfaces on Studio design system; 153/153 tests pass; no schema or API changes in M9.
+
+### M10 — Bookmarks & Reading Lists Data Layer (2026-06-19) ✅ SHIPPED — in working tree
+
+Built the full M10 backend: additive schema migration, reading list/bookmark helpers, 6 API route files.
+
+**Migration:** `prisma/migrations/20260619232528_m10_reading_lists/`
+- New model `ReadingList` (userId+isDefault, cascade on User, @@index([userId]))
+- New model `ReadingListItem` (listId+articleId @@unique, cascade both FK directions, @@index([articleId]))
+- Back-references added: `User.readingLists`, `Article.readingListItems`
+
+**Lib (`src/lib/bookmarks.ts`):**
+- `getOrCreateDefaultList(userId)` — lazy "Saved" list creation
+- `getUserLists(userId)` — all lists with item counts, default first
+- `getListWithArticles(listId, userId)` — ownership-checked list + articles via toListingArticle
+- `createList` / `renameList` / `deleteList` (refuses to delete default → 409)
+- `addToList` / `removeFromList` — both idempotent, ownership-checked
+- `toggleBookmark(userId, articleId)` — default-list add/remove, returns `{ok, bookmarked}`
+- `getBookmarkedArticleIds(userId, articleIds[])` — batch Set for listings (any list)
+- `getArticleListMembership(userId, articleId)` — per-list membership for list-picker popover
+
+**Endpoints (all session-gated, uncached):**
+- `GET  /api/lists` → `{lists:[{id,name,isDefault,count}]}`
+- `POST /api/lists` body `{name}` → `{list}` 201
+- `PATCH  /api/lists/[id]` body `{name}` → `{list}` (rename; 404/401)
+- `DELETE /api/lists/[id]` → `{ok}` (404/409 for default/401)
+- `POST /api/lists/[id]/items` body `{articleId}` → `{ok}` (idempotent; 404/401)
+- `DELETE /api/lists/[id]/items/[articleId]` → `{ok}` (idempotent; 404/401)
+- `POST /api/bookmarks/toggle` body `{articleId}` → `{bookmarked:bool}` (404/401)
+- `GET  /api/bookmarks/membership?articleId=` → `{lists:[{id,name,isDefault,hasArticle}]}` (for list-picker popover)
+
+**Tests:** 38 new tests (18 lib + 22 route). 191/191 total, 0 regressions.
+**Contract note:** `.squad/decisions/inbox/livingston-m10-bookmarks.md`
+
+No direct M9 work (Livingston's M4 `GET /api/search` endpoint reused unchanged by the command palette). M9 completed by Saul/Linus/Rusty/Basher. **Redesign roadmap M4–M9 is now fully complete.** All surfaces on Studio design system; 153/153 tests pass; no schema or API changes in M9.
+
+### M10 — Bookmarks & Reading Lists: LANDED — committed c676921
+Rusty APPROVE-WITH-NITS (no IDOR — all endpoints verified ownership-scoped; 6 deferrable nits N1–N6). Basher PASS 57/57 browser checks including full IDOR cross-user verification (all User A vs User B operations return 404). `/api/saved` batch endpoint accepted by Rusty as a valid client-refresh path (session-gated, validated, user-scoped). Key N1 note: `getOrCreateDefaultList` lacks a `@@unique(userId, isDefault=true)` DB guard; race is narrow (first bookmark only) and degrades gracefully — deferred to M11. All 191 tests pass. Coordinator decisions: nav label "Saved", route `/lists`.
