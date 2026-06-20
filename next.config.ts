@@ -44,6 +44,8 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Produce a self-contained `.next/standalone` directory for Docker deploys.
+  output: "standalone",
   // Restrict the Next.js image optimizer to known hosts only.
   // All current <Image> usages pass `unoptimized` (OAuth avatars, dashboard),
   // so no optimizer traffic exists today — but the wildcard would allow
