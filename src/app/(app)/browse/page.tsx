@@ -50,7 +50,7 @@ export default async function BrowsePage({
       : "All categories";
 
   return (
-    <main className="listing-container">
+    <div className="listing-container">
       <h1
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
         style={{ marginBottom: "0.25rem" }}
@@ -76,6 +76,6 @@ export default async function BrowsePage({
         heading={heading}
         initialSavedIds={[...bookmarkedIds]}
       />
-    </main>
+    </div>
   );
 }

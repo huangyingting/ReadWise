@@ -34,7 +34,7 @@ export default async function TagPage({
   const count = articles.length;
 
   return (
-    <main className="listing-container">
+    <div className="listing-container">
       <h1
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
         style={{ marginBottom: "0.25rem" }}
@@ -78,6 +78,6 @@ export default async function TagPage({
 
       <ListingProgressSync articleIds={articles.map((a) => a.id)} />
       <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
-    </main>
+    </div>
   );
 }

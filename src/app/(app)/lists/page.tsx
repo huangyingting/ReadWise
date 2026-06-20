@@ -38,7 +38,7 @@ export default async function ListsPage({
   const isDefaultList = activeList?.isDefault ?? true;
 
   return (
-    <main className="listing-container">
+    <div className="listing-container">
       {/* Page header */}
       <div className="flex items-center justify-between gap-[var(--space-4)] mb-[var(--space-6)]">
         <h1
@@ -114,6 +114,6 @@ export default async function ListsPage({
           )}
         </div>
       </div>
-    </main>
+    </div>
   );
 }

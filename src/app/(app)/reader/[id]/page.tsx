@@ -171,7 +171,7 @@ export default async function ReaderPage({
               `.trim(),
             }}
           />
-          <main id="main-content" className="reader-layout">
+          <div className="reader-layout">
             {/* ---- Reading column ---- */}
             <div className="reader-column">
               {/* Sticky controls: Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
@@ -304,7 +304,7 @@ export default async function ReaderPage({
               languages={SUPPORTED_LANGUAGES}
               plainText={articlePlainText}
             />
-          </main>
+          </div>
 
           {/* Fixed bottom audio mini-player (appears after first narration load) */}
           <ReaderMiniPlayer />

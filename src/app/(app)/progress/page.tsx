@@ -163,7 +163,7 @@ export default async function ProgressPage() {
       : "No quiz attempts yet.";
 
   return (
-    <main className="listing-container">
+    <div className="listing-container">
       <h1
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
         style={{ marginBottom: "var(--space-6)" }}
@@ -365,6 +365,6 @@ export default async function ProgressPage() {
 
         </div>
       )}
-    </main>
+    </div>
   );
 }

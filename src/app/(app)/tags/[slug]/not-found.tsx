@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function TagNotFound() {
   return (
-    <main className="container">
+    <div className="container">
       <h1>Tag not found</h1>
       <p className="muted">
         We couldn&apos;t find that tag. It may not exist yet or the link is
@@ -13,6 +13,6 @@ export default function TagNotFound() {
           Back to dashboard
         </Link>
       </p>
-    </main>
+    </div>
   );
 }

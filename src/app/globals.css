@@ -236,6 +236,48 @@ body {
   }
 }
 
+/* ================================================================
+ * Accessibility — skip link
+ * Visually hidden until focused; jumps keyboard users past the header.
+ * Uses token colours for high-contrast, focus-ring-aware styling.
+ * ================================================================ */
+.skip-link {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 9999;
+  /* sr-only baseline */
+  clip: rect(0 0 0 0);
+  clip-path: inset(50%);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  white-space: nowrap;
+  /* layout when visible */
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--primary);
+  color: var(--on-primary);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  text-decoration: none;
+  box-shadow: var(--shadow-md);
+}
+
+.skip-link:focus-visible {
+  clip: auto;
+  clip-path: none;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  white-space: normal;
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring-offset), 0 0 0 4px var(--focus-ring),
+    var(--shadow-md);
+}
+
 /* Fully disable landing + palette motion for users who request reduced motion. */
 @media (prefers-reduced-motion: reduce) {
   .rw-fade-up,

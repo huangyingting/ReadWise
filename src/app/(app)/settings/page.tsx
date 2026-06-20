@@ -21,7 +21,7 @@ export default async function SettingsPage() {
   const profile = await getProfile(user.id);
 
   return (
-    <main className="container max-w-[720px]">
+    <div className="container max-w-[720px]">
       <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] text-text mb-[var(--space-6)]">
         Settings
       </h1>
@@ -90,6 +90,6 @@ export default async function SettingsPage() {
           <AccountDangerZone />
         </CardBody>
       </Card>
-    </main>
+    </div>
   );
 }

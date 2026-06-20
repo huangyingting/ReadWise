@@ -47,7 +47,7 @@ export default async function DashboardPage() {
   const hasTopics = userTopics.length > 0;
 
   return (
-    <main className="listing-container">
+    <div className="listing-container">
       {/* Identity card */}
       <h1
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
@@ -193,7 +193,7 @@ export default async function DashboardPage() {
           </div>
         </Card>
       </section>
-    </main>
+    </div>
   );
 }
 

@@ -2,7 +2,7 @@ import Link from "next/link";
 
 export default function ArticleNotFound() {
   return (
-    <main className="container">
+    <div className="container">
       <h1>Article not found</h1>
       <p className="muted">
         We couldn&apos;t find that article. It may have been removed or the link
@@ -13,6 +13,6 @@ export default function ArticleNotFound() {
           Back to dashboard
         </Link>
       </p>
-    </main>
+    </div>
   );
 }

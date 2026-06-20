@@ -21,8 +21,14 @@ export default function AppShell({
   return (
     <CommandPaletteProvider user={user}>
       <div className="flex min-h-screen flex-col">
+        {/* Skip link — first focusable element, visible on focus (WCAG 2.4.1). */}
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <AppHeader user={user} />
-        <div className="flex-1">{children}</div>
+        <main id="main-content" className="flex-1" tabIndex={-1}>
+          {children}
+        </main>
         <AppFooter />
       </div>
     </CommandPaletteProvider>
