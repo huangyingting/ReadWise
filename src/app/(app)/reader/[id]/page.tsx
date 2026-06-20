@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireSession } from "@/lib/session";
-import { getArticleById, readingMinutesFor } from "@/lib/articles";
+import { getViewableArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
@@ -30,7 +30,7 @@ export default async function ReaderPage({
   const { id } = await params;
   const session = await requireSession(`/reader/${id}`);
 
-  const article = await getArticleById(id);
+  const article = await getViewableArticleById(id, session.user.role);
   if (!article) {
     notFound();
   }

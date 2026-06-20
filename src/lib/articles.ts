@@ -16,6 +16,22 @@ export function getArticleById(id: string): Promise<Article | null> {
   return prisma.article.findUnique({ where: { id } });
 }
 
+/**
+ * Returns the article if the requester is allowed to view it:
+ *   - Admins may view any article (including drafts).
+ *   - All other users may only view published articles.
+ * Returns null when the article does not exist or is not viewable.
+ */
+export function getViewableArticleById(
+  id: string,
+  role?: string | null,
+): Promise<Article | null> {
+  if (role === "Admin") {
+    return prisma.article.findUnique({ where: { id } });
+  }
+  return prisma.article.findUnique({ where: { id, status: "published" } });
+}
+
 export function listPublishedArticles(limit = 12): Promise<Article[]> {
   return cachedListPublishedArticles(limit);
 }

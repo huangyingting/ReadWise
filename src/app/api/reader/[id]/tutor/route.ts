@@ -1,17 +1,15 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, string } from "@/lib/validation";
 import { MAX_QUESTION_LENGTH, getTutorMessages, askTutor, clearTutor } from "@/lib/tutor";
+import { getViewableArticleById } from "@/lib/articles";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const questionBody = object({ question: string({ min: 1, max: MAX_QUESTION_LENGTH }) });
 
 /** GET /api/reader/[id]/tutor — returns the user's conversation for this article. */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await prisma.article.findUnique({
-    where: { id: params.id },
-    select: { id: true },
-  });
+  const article = await getViewableArticleById(params.id, session.user.role);
   if (!article) {
     throw new ApiError(404, "Article not found");
   }
@@ -28,6 +26,9 @@ export const GET = createHandler({ params: idParams }, async ({ params, session 
 export const POST = createHandler(
   { params: idParams, body: questionBody },
   async ({ params, body, session }) => {
+    const article = await getViewableArticleById(params.id, session.user.role);
+    if (!article) throw new ApiError(404, "Article not found");
+    checkRateLimit(session.user.id, "ai");
     const result = await askTutor(session.user.id, params.id, body.question);
     if (!result) {
       throw new ApiError(404, "Article not found");
@@ -38,10 +39,7 @@ export const POST = createHandler(
 
 /** DELETE /api/reader/[id]/tutor — clears the user's conversation for this article. */
 export const DELETE = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await prisma.article.findUnique({
-    where: { id: params.id },
-    select: { id: true },
-  });
+  const article = await getViewableArticleById(params.id, session.user.role);
   if (!article) {
     throw new ApiError(404, "Article not found");
   }
