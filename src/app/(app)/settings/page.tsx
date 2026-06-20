@@ -10,6 +10,7 @@ import {
 import ProfileSettingsForm from "./ProfileSettingsForm";
 import AccountDangerZone from "@/components/AccountDangerZone";
 import Avatar from "@/components/ui/Avatar";
+import PushReminderToggle from "@/components/PushReminderToggle";
 
 export const metadata = {
   title: "Settings — ReadWise",
@@ -67,6 +68,19 @@ export default async function SettingsPage() {
               </div>
             </div>
           </div>
+        </CardBody>
+      </Card>
+
+      {/* Notifications card */}
+      <Card className="mt-[var(--space-6)]">
+        <CardHeader>
+          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
+            Notifications
+          </h2>
+          <CardMeta>Manage push reminders for your spaced-repetition reviews.</CardMeta>
+        </CardHeader>
+        <CardBody>
+          <PushReminderToggle />
         </CardBody>
       </Card>
 

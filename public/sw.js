@@ -119,3 +119,57 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Web Push handlers — SRS review reminders
+// ---------------------------------------------------------------------------
+
+/**
+ * push event: display the notification sent by the server.
+ * Payload JSON shape: { title, body, url?, icon? }
+ */
+self.addEventListener("push", (event) => {
+  let data = { title: "ReadWise", body: "You have words to review!", url: "/study" };
+  try {
+    if (event.data) data = { ...data, ...event.data.json() };
+  } catch (_) {
+    // malformed payload — use defaults
+  }
+
+  const options = {
+    body: data.body,
+    icon: data.icon ?? "/icons/icon-192.png",
+    badge: "/icons/icon-192.png",
+    data: { url: data.url ?? "/study" },
+    actions: [{ action: "open", title: "Review now" }],
+  };
+
+  event.waitUntil(
+    self.registration.showNotification(data.title, options),
+  );
+});
+
+/**
+ * notificationclick: focus the app (or open a new tab) and navigate to /study.
+ */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url ?? "/study";
+  const fullUrl = new URL(targetUrl, self.location.origin).href;
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clients) => {
+        // Prefer an already-open ReadWise window.
+        for (const client of clients) {
+          if (client.url.startsWith(self.location.origin) && "focus" in client) {
+            client.navigate(fullUrl);
+            return client.focus();
+          }
+        }
+        // No existing window — open a new one.
+        if (self.clients.openWindow) return self.clients.openWindow(fullUrl);
+      }),
+  );
+});
