@@ -30,14 +30,15 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Wrench, X } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Wrench, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
 import ArticleTranslation from "./ArticleTranslation";
+import ReaderNotesPanel from "./ReaderNotesPanel";
 
-export type TabId = "listen" | "words" | "quiz" | "translate";
+export type TabId = "listen" | "words" | "quiz" | "translate" | "notes";
 
 const TABS: {
   id: TabId;
@@ -68,6 +69,12 @@ const TABS: {
     label: "Translate",
     icon: <Languages size={14} />,
     ariaLabel: "Translate tab",
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    icon: <Highlighter size={14} />,
+    ariaLabel: "Notes tab",
   },
 ];
 
@@ -215,6 +222,17 @@ function PanelContents({
           />
         </div>
       )}
+
+      {/* Notes panel: always mounted (data loaded eagerly by ReaderHighlightsProvider) */}
+      <div
+        id="reader-panel-notes"
+        role="tabpanel"
+        aria-labelledby="reader-tab-notes"
+        className="reader-tab-panel"
+        hidden={activeTab !== "notes"}
+      >
+        <ReaderNotesPanel />
+      </div>
     </div>
   );
 }

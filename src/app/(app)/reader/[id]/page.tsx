@@ -17,6 +17,7 @@ import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import ReaderControls from "@/components/ReaderControls";
 import ReaderToolsPanel from "@/components/ReaderToolsPanel";
 import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
+import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 
@@ -53,34 +54,35 @@ export default async function ReaderPage({
 
   return (
     <ReaderAudioProvider>
-      {/*
-       * No-flash inline script: reads localStorage["readwise:reader-prefs"]
-       * and sets data-reading-mode + --reading-font-scale on #reader-root
-       * BEFORE first paint. Mirrors the global theme script in layout.tsx.
-       * suppressHydrationWarning on the root div avoids React mismatch warning
-       * (the script mutates the element pre-hydration).
-       */}
-      {/* Reading progress — fixed top bar, z-50, forward-only (unchanged) */}
-      <ReaderProgress
-        articleId={article.id}
-        initialPercent={progress?.percent ?? 0}
-      />
-
-      <div
-        id="reader-root"
-        suppressHydrationWarning
-      >
+      <ReaderHighlightsProvider articleId={article.id}>
         {/*
-         * No-flash inline script: MUST be the first child of #reader-root so
-         * that document.currentScript.parentElement resolves to the element
-         * BEFORE any of its children are painted. Using getElementById fails
-         * because the script executes before #reader-root finishes parsing.
-         * suppressHydrationWarning on the parent prevents React from warning
-         * about the pre-hydration attribute mutation.
+         * No-flash inline script: reads localStorage["readwise:reader-prefs"]
+         * and sets data-reading-mode + --reading-font-scale on #reader-root
+         * BEFORE first paint. Mirrors the global theme script in layout.tsx.
+         * suppressHydrationWarning on the root div avoids React mismatch warning
+         * (the script mutates the element pre-hydration).
          */}
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
+        {/* Reading progress — fixed top bar, z-50, forward-only (unchanged) */}
+        <ReaderProgress
+          articleId={article.id}
+          initialPercent={progress?.percent ?? 0}
+        />
+
+        <div
+          id="reader-root"
+          suppressHydrationWarning
+        >
+          {/*
+           * No-flash inline script: MUST be the first child of #reader-root so
+           * that document.currentScript.parentElement resolves to the element
+           * BEFORE any of its children are painted. Using getElementById fails
+           * because the script executes before #reader-root finishes parsing.
+           * suppressHydrationWarning on the parent prevents React from warning
+           * about the pre-hydration attribute mutation.
+           */}
+          <script
+            dangerouslySetInnerHTML={{
+              __html: `
 (function(){try{
   var raw=localStorage.getItem('readwise:reader-prefs');
   var prefs=raw?JSON.parse(raw):null;
@@ -93,145 +95,147 @@ export default async function ReaderPage({
   var scale=prefs&&typeof prefs.fontScale==='number'?prefs.fontScale:1;
   el.style.setProperty('--reading-font-scale',String(scale));
 }catch(e){}})();
-            `.trim(),
-          }}
-        />
-        <main id="main-content" className="reader-layout">
-          {/* ---- Reading column ---- */}
-          <div className="reader-column">
-            {/* Sticky controls: Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
-            <ReaderControls />
-
-            <article>
-              {/* Article header */}
-              <header className="reader-article-header">
-                <h1 className="reader-article-title">{article.title}</h1>
-
-                {/* Byline / source */}
-                {(article.author || article.source) ? (
-                  <p className="reader-byline">
-                    {article.author ? article.author : null}
-                    {article.author && article.source ? " · " : null}
-                    {article.source && article.sourceUrl ? (
-                      <a
-                        href={article.sourceUrl}
-                        target="_blank"
-                        rel="noopener noreferrer nofollow"
-                      >
-                        {article.source}
-                      </a>
-                    ) : article.source ? (
-                      article.source
-                    ) : null}
-                  </p>
-                ) : null}
-
-                {/* Meta row: CEFR badge · reading time · completed · bookmark */}
-                <div className="reader-meta">
-                  {isValidCefrLevel ? (
-                    <CefrBadge
-                      level={difficultyLevel as CefrLevel}
-                      title="Assessed English level"
-                    />
-                  ) : difficultyLevel ? (
-                    <Badge variant="neutral" title="Assessed English level">
-                      Level {difficultyLevel}
-                    </Badge>
-                  ) : null}
-
-                  {readingMinutes != null ? (
-                    <Badge variant="neutral">⏱ {readingMinutes} min read</Badge>
-                  ) : null}
-
-                  {progress?.completed ? (
-                    <Badge variant="success">✓ Completed</Badge>
-                  ) : null}
-
-                  {/* M10 bookmark split-pill (segment A toggle + segment B list picker) */}
-                  <ReaderBookmarkCluster
-                    articleId={article.id}
-                    initialSaved={isBookmarked}
-                  />
-                </div>
-
-                {/* Tags */}
-                {tags.length > 0 ? (
-                  <div className="reader-tags" aria-label="Article tags">
-                    {tags.map((tag) => (
-                      <Link
-                        key={tag.id}
-                        href={`/tags/${tag.slug}`}
-                        className="tag-chip"
-                      >
-                        #{tag.name}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
-              </header>
-
-              {/* Hero image — slight bleed (wider than 66ch) */}
-              {article.heroImage ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  className="article-hero"
-                  src={article.heroImage}
-                  alt={article.title}
-                />
-              ) : null}
-
-              {/* Word-lookup hint */}
-              <p className="muted word-lookup-hint">
-                Tip: click or select any word to look up its meaning.
-              </p>
-
-              {/* Prose — ONLY renderer of sanitized HTML (unchanged constraint) */}
-              <WordLookup html={cleanBody} />
-            </article>
-
-            {/* Related articles (M4 grid — unchanged) */}
-            {relatedArticles.length > 0 ? (
-              <section className="reader-related" aria-label="Related articles">
-                <h2
-                  className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)] mt-0"
-                >
-                  Related articles
-                </h2>
-                <p className="muted" style={{ marginTop: 0 }}>
-                  Other articles that share tags with this one.
-                </p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
-                  {relatedArticles.map((related) => {
-                    const rel = relatedProgress.get(related.id);
-                    return (
-                      <ArticleCard
-                        key={related.id}
-                        article={related}
-                        progress={
-                          rel
-                            ? { percent: rel.percent, completed: rel.completed }
-                            : undefined
-                        }
-                      />
-                    );
-                  })}
-                </div>
-                <ListingProgressSync articleIds={relatedArticles.map((a) => a.id)} />
-                <ListingBookmarkSync articleIds={relatedArticles.map((a) => a.id)} />
-              </section>
-            ) : null}
-          </div>
-
-          {/* ---- Tools rail (desktop) / FAB+bottom-sheet (mobile) ---- */}
-          <ReaderToolsPanel
-            articleId={article.id}
-            languages={SUPPORTED_LANGUAGES}
+              `.trim(),
+            }}
           />
-        </main>
+          <main id="main-content" className="reader-layout">
+            {/* ---- Reading column ---- */}
+            <div className="reader-column">
+              {/* Sticky controls: Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
+              <ReaderControls />
 
-        {/* Fixed bottom audio mini-player (appears after first narration load) */}
-        <ReaderMiniPlayer />
-      </div>
+              <article>
+                {/* Article header */}
+                <header className="reader-article-header">
+                  <h1 className="reader-article-title">{article.title}</h1>
+
+                  {/* Byline / source */}
+                  {(article.author || article.source) ? (
+                    <p className="reader-byline">
+                      {article.author ? article.author : null}
+                      {article.author && article.source ? " · " : null}
+                      {article.source && article.sourceUrl ? (
+                        <a
+                          href={article.sourceUrl}
+                          target="_blank"
+                          rel="noopener noreferrer nofollow"
+                        >
+                          {article.source}
+                        </a>
+                      ) : article.source ? (
+                        article.source
+                      ) : null}
+                    </p>
+                  ) : null}
+
+                  {/* Meta row: CEFR badge · reading time · completed · bookmark */}
+                  <div className="reader-meta">
+                    {isValidCefrLevel ? (
+                      <CefrBadge
+                        level={difficultyLevel as CefrLevel}
+                        title="Assessed English level"
+                      />
+                    ) : difficultyLevel ? (
+                      <Badge variant="neutral" title="Assessed English level">
+                        Level {difficultyLevel}
+                      </Badge>
+                    ) : null}
+
+                    {readingMinutes != null ? (
+                      <Badge variant="neutral">⏱ {readingMinutes} min read</Badge>
+                    ) : null}
+
+                    {progress?.completed ? (
+                      <Badge variant="success">✓ Completed</Badge>
+                    ) : null}
+
+                    {/* M10 bookmark split-pill (segment A toggle + segment B list picker) */}
+                    <ReaderBookmarkCluster
+                      articleId={article.id}
+                      initialSaved={isBookmarked}
+                    />
+                  </div>
+
+                  {/* Tags */}
+                  {tags.length > 0 ? (
+                    <div className="reader-tags" aria-label="Article tags">
+                      {tags.map((tag) => (
+                        <Link
+                          key={tag.id}
+                          href={`/tags/${tag.slug}`}
+                          className="tag-chip"
+                        >
+                          #{tag.name}
+                        </Link>
+                      ))}
+                    </div>
+                  ) : null}
+                </header>
+
+                {/* Hero image — slight bleed (wider than 66ch) */}
+                {article.heroImage ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    className="article-hero"
+                    src={article.heroImage}
+                    alt={article.title}
+                  />
+                ) : null}
+
+                {/* Word-lookup / highlight hint (updated for M11) */}
+                <p className="muted word-lookup-hint">
+                  Click a word to define it · Select text to highlight or add a note · Use{" "}
+                  <kbd style={{ fontFamily: "inherit", fontSize: "0.9em" }}>⌘/Ctrl+E</kbd> with a selection
+                </p>
+
+                {/* Prose — ONLY renderer of sanitized HTML (unchanged constraint) */}
+                <WordLookup html={cleanBody} articleId={article.id} />
+              </article>
+
+              {/* Related articles (M4 grid — unchanged) */}
+              {relatedArticles.length > 0 ? (
+                <section className="reader-related" aria-label="Related articles">
+                  <h2
+                    className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)] mt-0"
+                  >
+                    Related articles
+                  </h2>
+                  <p className="muted" style={{ marginTop: 0 }}>
+                    Other articles that share tags with this one.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
+                    {relatedArticles.map((related) => {
+                      const rel = relatedProgress.get(related.id);
+                      return (
+                        <ArticleCard
+                          key={related.id}
+                          article={related}
+                          progress={
+                            rel
+                              ? { percent: rel.percent, completed: rel.completed }
+                              : undefined
+                          }
+                        />
+                      );
+                    })}
+                  </div>
+                  <ListingProgressSync articleIds={relatedArticles.map((a) => a.id)} />
+                  <ListingBookmarkSync articleIds={relatedArticles.map((a) => a.id)} />
+                </section>
+              ) : null}
+            </div>
+
+            {/* ---- Tools rail (desktop) / FAB+bottom-sheet (mobile) ---- */}
+            <ReaderToolsPanel
+              articleId={article.id}
+              languages={SUPPORTED_LANGUAGES}
+            />
+          </main>
+
+          {/* Fixed bottom audio mini-player (appears after first narration load) */}
+          <ReaderMiniPlayer />
+        </div>
+      </ReaderHighlightsProvider>
     </ReaderAudioProvider>
   );
 }

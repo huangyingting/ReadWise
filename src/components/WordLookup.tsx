@@ -1,16 +1,40 @@
 "use client";
 
+/**
+ * WordLookup (M11 — highlights + M1 dictionary, combined)
+ *
+ * ONE floating surface is open at a time, chosen by gesture:
+ *
+ *   Gesture                   | Surface
+ *   ─────────────────────────────────────────────────────────
+ *   Click/tap a word           | Dictionary popover (unchanged)
+ *   Click a <mark.rw-hl>       | Highlight edit popover (new)
+ *   Drag-select text           | Selection toolbar (new)
+ *   Cmd/Ctrl+E w/ selection    | Selection toolbar (keyboard a11y)
+ *
+ * The mark renderer (useEffect) walks text nodes via TreeWalker to wrap
+ * matching ranges in <mark class="rw-hl">. It NEVER re-sanitizes or
+ * sets innerHTML — it operates on the existing, already-sanitized nodes.
+ */
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { DictionaryResult } from "@/lib/dictionary";
-
-type Anchor = { x: number; y: number };
+import {
+  useHighlights,
+  type Highlight,
+  type HighlightColor,
+} from "./ReaderHighlightsProvider";
+import SelectionToolbar from "./SelectionToolbar";
+import HighlightEditPopover from "./HighlightEditPopover";
 
 const POPOVER_WIDTH = 340;
-const POPOVER_HEIGHT = 380; // approximate max height
-/** Height of the fixed mini-player (matches .reader-mini-player height: 56px). */
+const POPOVER_HEIGHT = 380;
 const MINI_PLAYER_HEIGHT = 56;
 
-/** Resolves the word under a viewport point using the caret APIs. */
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
 function wordAtPoint(x: number, y: number): string | null {
   const doc = document as Document & {
     caretPositionFromPoint?: (
@@ -25,60 +49,245 @@ function wordAtPoint(x: number, y: number): string | null {
 
   if (typeof doc.caretRangeFromPoint === "function") {
     const range = doc.caretRangeFromPoint(x, y);
-    if (range) {
-      node = range.startContainer;
-      offset = range.startOffset;
-    }
+    if (range) { node = range.startContainer; offset = range.startOffset; }
   } else if (typeof doc.caretPositionFromPoint === "function") {
     const pos = doc.caretPositionFromPoint(x, y);
-    if (pos) {
-      node = pos.offsetNode;
-      offset = pos.offset;
-    }
+    if (pos) { node = pos.offsetNode; offset = pos.offset; }
   }
 
-  if (!node || node.nodeType !== Node.TEXT_NODE) {
-    return null;
-  }
+  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
 
   const text = node.textContent ?? "";
   const isWordChar = (c: string) => /[A-Za-z'''-]/.test(c);
-
   let start = Math.min(offset, text.length);
   let end = start;
-  while (start > 0 && isWordChar(text[start - 1])) {
-    start--;
-  }
-  while (end < text.length && isWordChar(text[end])) {
-    end++;
-  }
-
-  const word = text.slice(start, end).trim();
-  return word || null;
+  while (start > 0 && isWordChar(text[start - 1])) start--;
+  while (end < text.length && isWordChar(text[end])) end++;
+  return text.slice(start, end).trim() || null;
 }
 
-export default function WordLookup({ html }: { html: string }) {
+function findBestAnchor(
+  fullText: string,
+  quote: string,
+  prefix: string,
+  suffix: string,
+): number {
+  if (!quote) return -1;
+  let bestIdx = -1;
+  let bestScore = -1;
+  let searchFrom = 0;
+  while (true) {
+    const idx = fullText.indexOf(quote, searchFrom);
+    if (idx === -1) break;
+    const ap = fullText.slice(Math.max(0, idx - prefix.length), idx);
+    const as_ = fullText.slice(idx + quote.length, idx + quote.length + suffix.length);
+    let score = 0;
+    if (prefix && ap === prefix) score += 2;
+    else if (prefix && (ap.includes(prefix) || prefix.includes(ap))) score += 1;
+    if (suffix && as_ === suffix) score += 2;
+    else if (suffix && (as_.includes(suffix) || suffix.includes(as_))) score += 1;
+    if (score > bestScore) { bestScore = score; bestIdx = idx; }
+    searchFrom = idx + 1;
+  }
+  return bestIdx;
+}
+
+function computeAnchor(
+  proseEl: HTMLElement,
+  sel: Selection,
+): { quote: string; startOffset: number; endOffset: number; prefix: string; suffix: string } | null {
+  if (sel.isCollapsed || sel.rangeCount === 0) return null;
+  const range = sel.getRangeAt(0);
+  const quote = sel.toString().trim();
+  if (!quote) return null;
+  const preRange = range.cloneRange();
+  preRange.selectNodeContents(proseEl);
+  preRange.setEnd(range.startContainer, range.startOffset);
+  const startOffset = preRange.toString().length;
+  const endOffset = startOffset + quote.length;
+  const fullText = proseEl.textContent ?? "";
+  const prefix = fullText.slice(Math.max(0, startOffset - 32), startOffset);
+  const suffix = fullText.slice(endOffset, Math.min(fullText.length, endOffset + 32));
+  return { quote, startOffset, endOffset, prefix, suffix };
+}
+
+// ---------------------------------------------------------------------------
+// Mark renderer
+// ---------------------------------------------------------------------------
+
+type TextNodeEntry = { node: Text; start: number; end: number };
+
+function collectTextNodes(container: HTMLElement): TextNodeEntry[] {
+  const entries: TextNodeEntry[] = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let offset = 0;
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    const tn = n as Text;
+    entries.push({ start: offset, end: offset + tn.length, node: tn });
+    offset += tn.length;
+  }
+  return entries;
+}
+
+function createMarkElement(hl: Highlight): HTMLElement {
+  const mark = document.createElement("mark");
+  mark.className = "rw-hl";
+  mark.dataset.hlId = hl.id;
+  mark.dataset.hlColor = hl.color ?? "yellow";
+  if (hl.note) {
+    mark.dataset.hlHasNote = "true";
+    const sr = document.createElement("span");
+    sr.className = "sr-only";
+    sr.textContent = "(has note)";
+    mark.appendChild(sr);
+  }
+  return mark;
+}
+
+function applyHighlightMarks(
+  container: HTMLElement,
+  highlights: Highlight[],
+  onOrphaned: (id: string) => void,
+): void {
+  // 1. Remove existing marks
+  for (const mark of Array.from(container.querySelectorAll<HTMLElement>("mark.rw-hl"))) {
+    mark.replaceWith(...Array.from(mark.childNodes));
+  }
+  container.normalize();
+
+  if (highlights.length === 0) return;
+
+  const fullText = container.textContent ?? "";
+
+  // 2. Resolve anchors
+  type Resolved = { hl: Highlight; start: number; end: number };
+  const resolved: Resolved[] = [];
+  for (const hl of highlights) {
+    let start = hl.startOffset;
+    let end = hl.endOffset;
+    if (fullText.slice(start, end) !== hl.quote) {
+      const found = findBestAnchor(fullText, hl.quote, hl.prefix, hl.suffix);
+      if (found === -1) { onOrphaned(hl.id); continue; }
+      start = found;
+      end = found + hl.quote.length;
+    }
+    resolved.push({ hl, start, end });
+  }
+  if (resolved.length === 0) return;
+  resolved.sort((a, b) => a.start - b.start);
+
+  // 3. Build segments
+  const textNodes = collectTextNodes(container);
+  interface Segment { tnIdx: number; from: number; to: number; hl: Highlight }
+  const segments: Segment[] = [];
+  for (let ti = 0; ti < textNodes.length; ti++) {
+    const tn = textNodes[ti];
+    for (const r of resolved) {
+      if (r.end <= tn.start || r.start >= tn.end) continue;
+      segments.push({
+        tnIdx: ti,
+        from: Math.max(r.start - tn.start, 0),
+        to: Math.min(r.end - tn.start, tn.end - tn.start),
+        hl: r.hl,
+      });
+    }
+  }
+
+  // 4. Apply in REVERSE (last-in-document first) to preserve earlier offsets
+  segments.sort((a, b) => b.tnIdx - a.tnIdx || b.from - a.from);
+  for (const seg of segments) {
+    const tn = textNodes[seg.tnIdx].node;
+    if (!tn.parentNode) continue;
+    // Guard: seg.from may exceed tn.length if overlapping highlights caused
+    // earlier splits to shorten the node — skip rather than throw IndexSizeError.
+    if (seg.from < 0 || seg.from >= seg.to) continue;
+    if (seg.from > tn.length) continue;
+    const mark = createMarkElement(seg.hl);
+    const target = tn.splitText(seg.from);
+    const clampedLen = Math.min(seg.to - seg.from, target.length);
+    if (clampedLen < target.length) target.splitText(clampedLen);
+    target.parentNode!.insertBefore(mark, target);
+    mark.appendChild(target);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Overlap helpers
+// ---------------------------------------------------------------------------
+
+function overlapsAny(start: number, end: number, highlights: Highlight[]): Highlight[] {
+  return highlights.filter(
+    (h) => !h.id.startsWith("optimistic-") && h.startOffset < end && h.endOffset > start,
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+type OpenSurface = "dictionary" | "toolbar" | "popover" | null;
+
+interface SavedAnchor {
+  quote: string;
+  startOffset: number;
+  endOffset: number;
+  prefix: string;
+  suffix: string;
+  selectionWord: string;
+}
+
+export default function WordLookup({ html, articleId }: { html: string; articleId: string }) {
   const proseRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const editPopoverRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [anchor, setAnchor] = useState<Anchor | null>(null);
+  const [openSurface, setOpenSurface] = useState<OpenSurface>(null);
+
+  // Dictionary
+  const [dictAnchor, setDictAnchor] = useState<{ x: number; y: number } | null>(null);
   const [word, setWord] = useState("");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DictionaryResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [dictError, setDictError] = useState<string | null>(null);
 
-  const close = useCallback(() => {
-    setAnchor(null);
-    setWord("");
+  // Toolbar
+  const [toolbarRect, setToolbarRect] = useState<DOMRect | null>(null);
+  const [toolbarColor, setToolbarColor] = useState<HighlightColor>("yellow");
+  const [toolbarShowDefine, setToolbarShowDefine] = useState(false);
+  const savedAnchorRef = useRef<SavedAnchor | null>(null);
+
+  // Edit popover
+  const [editHlId, setEditHlId] = useState<string | null>(null);
+  const [editMarkEl, setEditMarkEl] = useState<HTMLElement | null>(null);
+
+  const { highlights, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
+  const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
+
+  const closeAll = useCallback(() => {
+    setOpenSurface(null);
+    setDictAnchor(null);
+    setToolbarRect(null);
+    setEditHlId(null);
+    setEditMarkEl(null);
+    savedAnchorRef.current = null;
     setResult(null);
-    setError(null);
+    setDictError(null);
     setLoading(false);
   }, []);
 
+  // Mark rendering
+  useEffect(() => {
+    if (!proseRef.current) return;
+    applyHighlightMarks(proseRef.current, highlights, markOrphaned);
+  }, [highlights, markOrphaned]);
+
+  // Dictionary lookup
   const runLookup = useCallback(async (term: string) => {
     setLoading(true);
-    setError(null);
+    setDictError(null);
     setResult(null);
     try {
       const res = await fetch("/api/dictionary", {
@@ -86,77 +295,122 @@ export default function WordLookup({ html }: { html: string }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ word: term }),
       });
-      if (!res.ok) {
-        throw new Error("Lookup failed");
-      }
-      const data = (await res.json()) as DictionaryResult;
-      setResult(data);
+      if (!res.ok) throw new Error("Lookup failed");
+      setResult((await res.json()) as DictionaryResult);
     } catch {
-      setError("Could not look up this word. Please try again.");
+      setDictError("Could not look up this word. Please try again.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  const handleSelect = useCallback(
-    (clientX: number, clientY: number) => {
-      const selection = window.getSelection();
-      const selected = selection?.toString().trim() ?? "";
-      let candidate = "";
-
-      if (selected) {
-        candidate = selected.split(/\s+/)[0] ?? "";
-      } else {
-        candidate = wordAtPoint(clientX, clientY) ?? "";
-      }
-
-      candidate = candidate.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "");
-
-      if (!candidate || !/[A-Za-z]/.test(candidate)) {
-        return;
-      }
-
-      // Clamp left so popover stays within the viewport.
-      const left = Math.min(clientX, window.innerWidth - POPOVER_WIDTH - 12);
-      const clampedLeft = Math.max(12, left);
-
-      // Clamp top so popover never hides behind the audio mini-player.
-      // If the click is in the lower zone, flip the popover above the caret.
+  const openDictionary = useCallback(
+    (candidate: string, clientX: number, clientY: number) => {
+      const left = Math.max(12, Math.min(clientX, window.innerWidth - POPOVER_WIDTH - 12));
       const safeBottom = window.innerHeight - MINI_PLAYER_HEIGHT - POPOVER_HEIGHT - 12;
-      let top: number;
-      if (clientY > safeBottom) {
-        // Flip above the caret
-        top = clientY - POPOVER_HEIGHT - 12;
-      } else {
-        top = clientY + 12;
-      }
-      top = Math.max(12, top);
-
-      setAnchor({ x: clampedLeft, y: top });
+      const top = Math.max(12, clientY > safeBottom ? clientY - POPOVER_HEIGHT - 12 : clientY + 12);
+      setDictAnchor({ x: left, y: top });
       setWord(candidate);
+      setOpenSurface("dictionary");
       void runLookup(candidate);
     },
     [runLookup],
   );
 
-  // Close on outside click or Escape.
-  useEffect(() => {
-    if (!anchor) {
-      return;
-    }
-    const onDown = (e: MouseEvent) => {
-      if (
-        popoverRef.current?.contains(e.target as Node) ||
-        proseRef.current?.contains(e.target as Node)
-      ) {
+  // Main selection handler
+  const handleSelect = useCallback(
+    (e: React.MouseEvent<HTMLDivElement>) => {
+      const sel = window.getSelection();
+      const isCollapsed = !sel || sel.isCollapsed;
+
+      if (!isCollapsed && sel && sel.rangeCount > 0) {
+        const prose = proseRef.current;
+        if (!prose) return;
+        const anchor = computeAnchor(prose, sel);
+        if (!anchor) return;
+        const rect = sel.getRangeAt(0).getBoundingClientRect();
+        if (rect.width === 0 && rect.height === 0) return;
+        const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
+        savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
+        const stored = typeof window !== "undefined" ? localStorage.getItem("readwise:last-hl-color") : null;
+        if (stored && ["yellow", "green", "blue", "pink"].includes(stored)) setToolbarColor(stored as HighlightColor);
+        setToolbarRect(rect);
+        setToolbarShowDefine(isSingleWord);
+        setOpenSurface("toolbar");
         return;
       }
-      close();
+
+      const target = e.target as Element;
+      const markEl = target.closest<HTMLElement>("mark.rw-hl");
+      if (markEl?.dataset.hlId) {
+        closeAll();
+        setEditHlId(markEl.dataset.hlId);
+        setEditMarkEl(markEl);
+        setOpenSurface("popover");
+        return;
+      }
+
+      let candidate = wordAtPoint(e.clientX, e.clientY) ?? "";
+      candidate = candidate.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "");
+      if (!candidate || !/[A-Za-z]/.test(candidate)) return;
+      closeAll();
+      openDictionary(candidate, e.clientX, e.clientY);
+    },
+    [closeAll, openDictionary],
+  );
+
+  // Cmd/Ctrl+E keyboard summon
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.key !== "e") return;
+      const sel = window.getSelection();
+      if (!sel || sel.isCollapsed || sel.rangeCount === 0) return;
+      const prose = proseRef.current;
+      if (!prose || !prose.contains(sel.anchorNode)) return;
+      e.preventDefault();
+      const anchor = computeAnchor(prose, sel);
+      if (!anchor) return;
+      const rect = sel.getRangeAt(0).getBoundingClientRect();
+      const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
+      savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
+      setToolbarRect(rect);
+      setToolbarShowDefine(isSingleWord);
+      setOpenSurface("toolbar");
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, []);
+
+  // selectionchange → dismiss toolbar when selection collapses
+  useEffect(() => {
+    if (openSurface !== "toolbar") return;
+    let timer: ReturnType<typeof setTimeout>;
+    const onSelChange = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        const s = window.getSelection();
+        if (!s || s.isCollapsed) setOpenSurface((v) => (v === "toolbar" ? null : v));
+      }, 120);
+    };
+    document.addEventListener("selectionchange", onSelChange);
+    return () => { clearTimeout(timer); document.removeEventListener("selectionchange", onSelChange); };
+  }, [openSurface]);
+
+  // Outside-click / Escape
+  useEffect(() => {
+    if (!openSurface) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (
+        popoverRef.current?.contains(t) ||
+        toolbarRef.current?.contains(t) ||
+        editPopoverRef.current?.contains(t) ||
+        proseRef.current?.contains(t)
+      ) return;
+      closeAll();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        close();
-      }
+      if (e.key === "Escape") { e.preventDefault(); closeAll(); proseRef.current?.focus(); }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -164,7 +418,93 @@ export default function WordLookup({ html }: { html: string }) {
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [anchor, close]);
+  }, [openSurface, closeAll]);
+
+  // Toolbar: create highlight
+  const handleHighlight = useCallback(async () => {
+    const saved = savedAnchorRef.current;
+    const prose = proseRef.current;
+    if (!saved || !prose) return;
+    const color = toolbarColor;
+    localStorage.setItem("readwise:last-hl-color", color);
+    window.getSelection()?.removeAllRanges();
+    const { quote, startOffset, endOffset, prefix, suffix } = saved;
+    const overlapping = overlapsAny(startOffset, endOffset, highlights);
+    if (overlapping.length > 0) {
+      const fullText = prose.textContent ?? "";
+      const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
+      const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
+      const mergedNote = overlapping.filter((h) => h.note).sort((a, b) => a.startOffset - b.startOffset)[0]?.note ?? null;
+      for (const h of overlapping) await remove(h.id);
+      await add({ quote: fullText.slice(ns, ne), startOffset: ns, endOffset: ne,
+        prefix: fullText.slice(Math.max(0, ns - 32), ns),
+        suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)),
+        color, note: mergedNote ?? undefined });
+    } else {
+      await add({ quote, startOffset, endOffset, prefix, suffix, color });
+    }
+    closeAll();
+  }, [toolbarColor, highlights, add, remove, closeAll]);
+
+  // Toolbar: add note
+  const handleAddNote = useCallback(async () => {
+    const saved = savedAnchorRef.current;
+    if (!saved) return;
+    const color = toolbarColor;
+    localStorage.setItem("readwise:last-hl-color", color);
+    window.getSelection()?.removeAllRanges();
+    setOpenSurface(null);
+    setToolbarRect(null);
+    const { quote, startOffset, endOffset, prefix, suffix } = saved;
+    const overlapping = overlapsAny(startOffset, endOffset, highlights);
+    let newHl: Highlight | null = null;
+    if (overlapping.length > 0) {
+      const fullText = proseRef.current?.textContent ?? "";
+      const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
+      const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
+      for (const h of overlapping) await remove(h.id);
+      newHl = await add({ quote: fullText.slice(ns, ne), startOffset: ns, endOffset: ne,
+        prefix: fullText.slice(Math.max(0, ns - 32), ns),
+        suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)), color });
+    } else {
+      newHl = await add({ quote, startOffset, endOffset, prefix, suffix, color });
+    }
+    if (newHl) {
+      const hlId = newHl.id;
+      setTimeout(() => {
+        const markEl = document.querySelector<HTMLElement>(`mark.rw-hl[data-hl-id="${hlId}"]`);
+        if (markEl) { setEditHlId(hlId); setEditMarkEl(markEl); setOpenSurface("popover"); }
+      }, 80);
+    }
+  }, [toolbarColor, highlights, add, remove]);
+
+  // Toolbar: define
+  const handleDefine = useCallback(() => {
+    const saved = savedAnchorRef.current;
+    if (!saved) return;
+    let candidate = saved.selectionWord.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "").trim();
+    if (!candidate || !/[A-Za-z]/.test(candidate)) return;
+    closeAll();
+    window.getSelection()?.removeAllRanges();
+    openDictionary(candidate, window.innerWidth / 2, window.innerHeight / 2);
+  }, [closeAll, openDictionary]);
+
+  // Edit popover
+  const handleEditColorChange = useCallback((color: HighlightColor) => {
+    if (!editHlId) return;
+    void updateColor(editHlId, color);
+  }, [editHlId, updateColor]);
+
+  const handleEditNoteSave = useCallback((note: string | null) => {
+    if (!editHlId) return;
+    void updateNote(editHlId, note);
+  }, [editHlId, updateNote]);
+
+  const handleEditDelete = useCallback(async () => {
+    if (!editHlId) return;
+    await remove(editHlId);
+    closeAll();
+  }, [editHlId, remove, closeAll]);
 
   function playAudio(src: string) {
     audioRef.current?.pause();
@@ -178,90 +518,50 @@ export default function WordLookup({ html }: { html: string }) {
       <div
         ref={proseRef}
         className="prose word-lookup-prose"
-        onMouseUp={(e) => handleSelect(e.clientX, e.clientY)}
+        tabIndex={-1}
+        onMouseUp={handleSelect}
         dangerouslySetInnerHTML={{ __html: html }}
       />
 
-      {anchor ? (
+      {/* Dictionary popover */}
+      {openSurface === "dictionary" && dictAnchor ? (
         <div
           ref={popoverRef}
           className="word-lookup-popover"
           role="dialog"
           aria-label={`Dictionary: ${word}`}
-          style={{ left: anchor.x, top: anchor.y, zIndex: 60 }}
+          style={{ left: dictAnchor.x, top: dictAnchor.y, zIndex: 60 }}
           onMouseUp={(e) => e.stopPropagation()}
         >
           <div className="word-lookup-header">
             <strong className="word-lookup-word">{word}</strong>
-            <button
-              type="button"
-              className="word-lookup-close"
-              aria-label="Close"
-              onClick={close}
-            >
-              ×
-            </button>
+            <button type="button" className="word-lookup-close" aria-label="Close" onClick={closeAll}>×</button>
           </div>
-
-          {loading ? (
-            <p className="muted word-lookup-status">Looking up…</p>
-          ) : null}
-
-          {error ? (
-            <p className="word-lookup-error" role="alert">
-              {error}
-            </p>
-          ) : null}
-
-          {!loading && !error && result ? (
+          {loading ? <p className="muted word-lookup-status">Looking up…</p> : null}
+          {dictError ? <p className="word-lookup-error" role="alert">{dictError}</p> : null}
+          {!loading && !dictError && result ? (
             result.found ? (
               <div className="word-lookup-body">
-                {result.lookedUp &&
-                result.lookedUp.toLowerCase() !== word.toLowerCase() ? (
-                  <p className="muted word-lookup-base">
-                    base form: <em>{result.lookedUp}</em>
-                  </p>
+                {result.lookedUp && result.lookedUp.toLowerCase() !== word.toLowerCase() ? (
+                  <p className="muted word-lookup-base">base form: <em>{result.lookedUp}</em></p>
                 ) : null}
-
                 {result.phonetic || result.audio ? (
                   <p className="word-lookup-pron">
-                    {result.phonetic ? (
-                      <span className="word-lookup-phonetic">
-                        {result.phonetic}
-                      </span>
-                    ) : null}
+                    {result.phonetic ? <span className="word-lookup-phonetic">{result.phonetic}</span> : null}
                     {result.audio ? (
-                      <button
-                        type="button"
-                        className="word-lookup-audio"
-                        aria-label="Play pronunciation"
-                        onClick={() => playAudio(result.audio as string)}
-                      >
-                        🔊
-                      </button>
+                      <button type="button" className="word-lookup-audio" aria-label="Play pronunciation"
+                        onClick={() => playAudio(result.audio as string)}>🔊</button>
                     ) : null}
                   </p>
                 ) : null}
-
                 <ul className="word-lookup-meanings">
                   {result.meanings.map((meaning) => (
-                    <li
-                      key={meaning.partOfSpeech}
-                      className="word-lookup-meaning"
-                    >
-                      <span className="word-lookup-pos">
-                        {meaning.partOfSpeech}
-                      </span>
+                    <li key={meaning.partOfSpeech} className="word-lookup-meaning">
+                      <span className="word-lookup-pos">{meaning.partOfSpeech}</span>
                       <ol className="word-lookup-defs">
                         {meaning.definitions.map((def, i) => (
-                          <li key={i}>
-                            {def.definition}
-                            {def.example ? (
-                              <span className="word-lookup-example muted">
-                                {" "}
-                                &ldquo;{def.example}&rdquo;
-                              </span>
-                            ) : null}
+                          <li key={i}>{def.definition}
+                            {def.example ? <span className="word-lookup-example muted"> &ldquo;{def.example}&rdquo;</span> : null}
                           </li>
                         ))}
                       </ol>
@@ -270,14 +570,39 @@ export default function WordLookup({ html }: { html: string }) {
                 </ul>
               </div>
             ) : (
-              <p className="muted word-lookup-status">
-                No definition found for &ldquo;{word}&rdquo;.
-              </p>
+              <p className="muted word-lookup-status">No definition found for &ldquo;{word}&rdquo;.</p>
             )
           ) : null}
         </div>
       ) : null}
+
+      {/* Selection toolbar */}
+      {openSurface === "toolbar" && toolbarRect ? (
+        <SelectionToolbar
+          selectionRect={toolbarRect}
+          color={toolbarColor}
+          showDefine={toolbarShowDefine}
+          onColorChange={setToolbarColor}
+          onHighlight={() => void handleHighlight()}
+          onAddNote={() => void handleAddNote()}
+          onDefine={handleDefine}
+          onClose={closeAll}
+          toolbarRef={toolbarRef}
+        />
+      ) : null}
+
+      {/* Highlight edit popover */}
+      {openSurface === "popover" && editHighlight && editMarkEl ? (
+        <HighlightEditPopover
+          highlight={editHighlight}
+          anchorEl={editMarkEl}
+          onClose={closeAll}
+          onColorChange={handleEditColorChange}
+          onNoteSave={handleEditNoteSave}
+          onDelete={handleEditDelete}
+          popoverRef={editPopoverRef}
+        />
+      ) : null}
     </>
   );
 }
-

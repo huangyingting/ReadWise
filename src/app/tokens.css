@@ -292,3 +292,39 @@
   --reading-link:         #4338ca;   /* indigo-hover, 6.71:1 (AA links) */
   --reading-accent:       #0f766e;   /* teal-text, 4.65:1 (reading-state) */
 }
+
+/* ============================================================
+ * M11 — Highlight color tokens (user-content metadata family)
+ *
+ * --hl-* is a SEPARATE semantic family from teal (reading-state)
+ * and indigo (interactive). These are user-authored highlight
+ * marker colors. Solid (non-alpha) values make contrast
+ * deterministic regardless of the underlying surface.
+ *
+ * Token naming uses "pink" (matching the backend HIGHLIGHT_COLORS
+ * enum: yellow|green|blue|pink). Saul's spec used "rose" — the
+ * color values are identical; only the name differs.
+ *
+ * WCAG AA verified (≥4.5:1) for reading-text on each fill
+ * in every mode; see saul-m11-highlights.md §2.2 for the table.
+ * ============================================================ */
+[data-reading-mode="light"] {
+  --hl-yellow: #fde68a;
+  --hl-green:  #bbf7d0;
+  --hl-blue:   #bfdbfe;
+  --hl-pink:   #fbcfe8;
+}
+
+[data-reading-mode="sepia"] {
+  --hl-yellow: #ecd9a0;
+  --hl-green:  #cfe3c2;
+  --hl-blue:   #cdddec;
+  --hl-pink:   #eed0cf;
+}
+
+[data-reading-mode="dark"] {
+  --hl-yellow: #6b5510;
+  --hl-green:  #1f5135;
+  --hl-blue:   #1e3a5f;
+  --hl-pink:   #5b2740;
+}

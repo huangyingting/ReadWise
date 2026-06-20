@@ -29,6 +29,7 @@ model User {
   savedWords      SavedWord[]
   dailyActivities DailyActivity[]
   readingLists    ReadingList[]
+  highlights      Highlight[]
 }
 
 model Profile {
@@ -73,6 +74,7 @@ model Article {
   speech          ArticleSpeech?
   tags            ArticleTag[]
   readingListItems ReadingListItem[]
+  highlights      Highlight[]
 
   @@index([category])
 }
@@ -273,4 +275,30 @@ model ReadingListItem {
 
   @@unique([listId, articleId])
   @@index([articleId])
+}
+
+// M11 — Highlights & Notes
+// Anchors are W3C-annotation-style: quote + character offsets into the article's
+// rendered plain text (textContent), plus ±24-char prefix/suffix for re-anchoring.
+// Anchor fields are IMMUTABLE after creation; only note/color may be updated.
+model Highlight {
+  id          String   @id @default(cuid())
+  userId      String
+  articleId   String
+  // --- anchor (immutable) ---
+  quote       String   // exact highlighted text
+  startOffset Int      // char offset into article plain text (inclusive)
+  endOffset   Int      // char offset into article plain text (exclusive)
+  prefix      String   @default("") // up to 24 chars before the selection
+  suffix      String   @default("") // up to 24 chars after the selection
+  // --- editable ---
+  note        String?  // user annotation (markdown allowed)
+  color       String?  // e.g. "yellow" | "green" | "blue" | "pink"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
 }
