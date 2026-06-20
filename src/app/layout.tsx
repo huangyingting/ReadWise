@@ -3,6 +3,7 @@ import { Inter, Space_Grotesk, Literata } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
+import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -79,6 +80,7 @@ export default function RootLayout({
       </head>
       <body>
         <ClientErrorReporter />
+        <ServiceWorkerRegister />
         <Providers>{children}</Providers>
       </body>
     </html>

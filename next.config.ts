@@ -32,6 +32,9 @@ const securityHeaders = [
       "media-src 'self' blob:",
       "worker-src 'self' blob:",
       "object-src 'none'",
+      // manifest-src: allows the web app manifest at /manifest.webmanifest
+      // (falls back to default-src 'self' without this, but explicit is clearer).
+      "manifest-src 'self'",
       "frame-ancestors 'none'",
       "base-uri 'self'",
       "form-action 'self'",
