@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { searchArticles } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
 import AdminArticleActions from "@/components/AdminArticleActions";
+import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button, buttonVariants } from "@/components/ui/Button";
@@ -53,6 +54,8 @@ export default async function AdminArticlesPage({
   return (
     <section className="stack mt-[var(--space-6)]">
       <h2>Articles</h2>
+
+      <AdminArticleIngest />
 
       <form
         method="get"
