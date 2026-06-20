@@ -1503,10 +1503,40 @@ body {
   border: 0;
 }
 
-/* ---- Tab bar ---- */
+/* ---- Tab bar (grouped layout) ---- */
 .reader-tabs {
   display: flex;
-  border-bottom: 1px solid var(--reading-border, var(--border));
+  flex-direction: column;
+  /* No bottom-border — groups use inter-group borders instead */
+}
+
+/* Each group is a stacked section */
+.reader-tab-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Separator between adjacent groups */
+.reader-tab-group + .reader-tab-group {
+  border-top: 1px solid var(--reading-border, var(--border));
+}
+
+/* Small uppercase label above a multi-tab group */
+.reader-tab-group-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--reading-text-muted, var(--text-muted));
+  padding: 0.55rem var(--space-3) 0.15rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Tabs within a group sit in a horizontal row */
+.reader-tab-group-row {
+  display: flex;
 }
 
 .reader-tab-btn {
@@ -2402,9 +2432,9 @@ body {
   align-items: center;
 }
 
-/* 5-tab bar: allow horizontal scroll on narrow widths */
+/* Grouped tab bar: allow overflow scroll on very narrow widths */
 .reader-tabs {
-  overflow-x: auto;
+  overflow-y: auto;
   scrollbar-width: none;
 }
 

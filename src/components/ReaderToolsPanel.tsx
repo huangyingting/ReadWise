@@ -93,6 +93,25 @@ const TABS: {
   },
 ];
 
+/**
+ * Visual grouping for the tab rail. Groups are purely presentational;
+ * keyboard navigation (arrow keys) still moves linearly through TABS.
+ *
+ * Grouping:
+ *   Audio  — Listen, Speak   (narration + pronunciation)
+ *   Study  — Words, Quiz     (vocabulary + comprehension)
+ *   [solo] — Translate, Notes, Ask (full-width single tabs)
+ */
+const TAB_GROUPS: Array<{
+  /** Null = no header; the group's tabs render as full-width solo items. */
+  label: string | null;
+  ids: TabId[];
+}> = [
+  { label: "Audio", ids: ["listen", "speak"] },
+  { label: "Study", ids: ["words", "quiz"] },
+  { label: null, ids: ["translate", "notes", "ask"] },
+];
+
 type SupportedLanguage = {
   code: string;
   label: string;
@@ -149,25 +168,53 @@ function TabBar({
       aria-label="Reading tools"
       className="reader-tabs"
     >
-      {TABS.map(({ id, label, icon, ariaLabel }, i) => {
-        const isActive = activeTab === id;
+      {TAB_GROUPS.map((group, gi) => {
+        const groupTabs = group.ids
+          .map((id) => TABS.find((t) => t.id === id)!)
+          .filter(Boolean);
         return (
-          <button
-            key={id}
-            type="button"
-            role="tab"
-            id={`reader-tab-${id}`}
-            aria-selected={isActive}
-            aria-controls={`reader-panel-${id}`}
-            tabIndex={isActive ? 0 : -1}
-            aria-label={ariaLabel}
-            onClick={() => onSelect(id)}
-            onKeyDown={(e) => handleKeyDown(e, i)}
-            className={cn("reader-tab-btn", focusRing)}
+          <div
+            key={group.label ?? `solo-${gi}`}
+            role="presentation"
+            className={cn(
+              "reader-tab-group",
+              group.label ? "reader-tab-group--labeled" : "reader-tab-group--solo",
+            )}
           >
-            <span aria-hidden="true">{icon}</span>
-            <span>{label}</span>
-          </button>
+            {group.label ? (
+              <span
+                className="reader-tab-group-label"
+                role="presentation"
+                aria-hidden="true"
+              >
+                {group.label}
+              </span>
+            ) : null}
+            <div role="presentation" className="reader-tab-group-row">
+              {groupTabs.map(({ id, label, icon, ariaLabel }) => {
+                const globalIndex = TABS.findIndex((t) => t.id === id);
+                const isActive = activeTab === id;
+                return (
+                  <button
+                    key={id}
+                    type="button"
+                    role="tab"
+                    id={`reader-tab-${id}`}
+                    aria-selected={isActive}
+                    aria-controls={`reader-panel-${id}`}
+                    tabIndex={isActive ? 0 : -1}
+                    aria-label={ariaLabel}
+                    onClick={() => onSelect(id)}
+                    onKeyDown={(e) => handleKeyDown(e, globalIndex)}
+                    className={cn("reader-tab-btn", focusRing)}
+                  >
+                    <span aria-hidden="true">{icon}</span>
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
     </div>
