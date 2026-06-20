@@ -24,9 +24,13 @@ import {
   stepFontScale,
   fontScaleLabel,
   FONT_SCALE_STEPS,
+  DEFAULT_FONT_SCALE,
   type ReadingMode,
   type ReaderPrefs,
 } from "@/lib/reader-prefs";
+
+/** Default prefs used for stable SSR/hydration render before localStorage loads. */
+const DEFAULT_READER_PREFS: ReaderPrefs = { mode: "light", fontScale: DEFAULT_FONT_SCALE };
 
 const MODES: { value: ReadingMode; label: string; icon: React.ReactNode }[] = [
   { value: "light", label: "Light", icon: <Sun size={14} /> },
@@ -109,18 +113,23 @@ export default function ReaderControls() {
   }
 
   if (!prefs) {
-    // Avoid hydration mismatch — render nothing until client reads prefs.
-    return null;
+    // Use defaults for stable SSR/initial-paint render; prefs load from
+    // localStorage after hydration. suppressHydrationWarning on the container
+    // suppresses React's mismatch warning since prefs are client-only (#64).
+    // The no-flash inline script in reader/page.tsx already applies saved prefs
+    // to #reader-root before first paint, so the visual result matches on load.
   }
 
+  const displayPrefs = prefs ?? DEFAULT_READER_PREFS;
+
   const atMin =
-    (FONT_SCALE_STEPS as readonly number[]).indexOf(prefs.fontScale) === 0;
+    (FONT_SCALE_STEPS as readonly number[]).indexOf(displayPrefs.fontScale) === 0;
   const atMax =
-    (FONT_SCALE_STEPS as readonly number[]).indexOf(prefs.fontScale) ===
+    (FONT_SCALE_STEPS as readonly number[]).indexOf(displayPrefs.fontScale) ===
     FONT_SCALE_STEPS.length - 1;
 
   return (
-    <>
+    <div suppressHydrationWarning>
       {/* sr-only live region for control announcements */}
       <div
         role="status"
@@ -170,7 +179,7 @@ export default function ReaderControls() {
             className="reader-mode-group"
           >
             {MODES.map(({ value, label, icon }, i) => {
-              const isActive = prefs.mode === value;
+              const isActive = displayPrefs.mode === value;
               return (
                 <button
                   key={value}
@@ -190,6 +199,6 @@ export default function ReaderControls() {
           </div>
         </div>
       </div>
-    </>
+    </div>
   );
 }

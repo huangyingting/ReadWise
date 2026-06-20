@@ -126,36 +126,29 @@ export default async function ReaderPage({
         type="application/ld+json"
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
       />
-      <ReaderAudioProvider>
-      <ReaderHighlightsProvider articleId={article.id}>
-        {/*
-         * No-flash inline script: reads localStorage["readwise:reader-prefs"]
-         * and sets data-reading-mode + --reading-font-scale on #reader-root
-         * BEFORE first paint. Mirrors the global theme script in layout.tsx.
-         * suppressHydrationWarning on the root div avoids React mismatch warning
-         * (the script mutates the element pre-hydration).
-         */}
-        {/* Reading progress — fixed top bar, z-50, forward-only (unchanged) */}
-        <ReaderProgress
-          articleId={article.id}
-          initialPercent={progress?.percent ?? 0}
-        />
+      {/* Reading progress — fixed top bar, z-50, forward-only. Lives OUTSIDE the
+          client providers so it does NOT create an extra Suspense boundary that
+          could conflict with the route-segment loading.tsx skeleton. */}
+      <ReaderProgress
+        articleId={article.id}
+        initialPercent={progress?.percent ?? 0}
+      />
 
-        <div
-          id="reader-root"
-          suppressHydrationWarning
-        >
-          {/*
-           * No-flash inline script: MUST be the first child of #reader-root so
-           * that document.currentScript.parentElement resolves to the element
-           * BEFORE any of its children are painted. Using getElementById fails
-           * because the script executes before #reader-root finishes parsing.
-           * suppressHydrationWarning on the parent prevents React from warning
-           * about the pre-hydration attribute mutation.
-           */}
-          <script
-            dangerouslySetInnerHTML={{
-              __html: `
+      <div
+        id="reader-root"
+        suppressHydrationWarning
+      >
+        {/*
+         * No-flash inline script: MUST be the first child of #reader-root so
+         * that document.currentScript.parentElement resolves to the element
+         * BEFORE any of its children are painted. Using getElementById fails
+         * because the script executes before #reader-root finishes parsing.
+         * suppressHydrationWarning on the parent prevents React from warning
+         * about the pre-hydration attribute mutation.
+         */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `
 (function(){try{
   var raw=localStorage.getItem('readwise:reader-prefs');
   var prefs=raw?JSON.parse(raw):null;
@@ -168,19 +161,40 @@ export default async function ReaderPage({
   var scale=prefs&&typeof prefs.fontScale==='number'?prefs.fontScale:1;
   el.style.setProperty('--reading-font-scale',String(scale));
 }catch(e){}})();
-              `.trim(),
-            }}
-          />
+            `.trim(),
+          }}
+        />
+        {/*
+         * Scope the "use client" providers INSIDE #reader-root so they don't
+         * wrap the entire RSC page output. Having client components at the very
+         * top of the RSC tree creates a second Suspense boundary that races with
+         * the route-segment Suspense (loading.tsx), leaving the streaming
+         * container (#S:N) visible and duplicating the DOM (#48).
+         */}
+        <ReaderAudioProvider>
+        <ReaderHighlightsProvider articleId={article.id}>
           <div className="reader-layout">
             {/* ---- Reading column ---- */}
             <div className="reader-column">
+              {/* Reader-local skip link: lets keyboard users jump past the sticky
+                  controls directly to the article (WCAG 2.4.1, #65).
+                  Sits before ReaderControls so Tab from global skip target reaches
+                  it first. */}
+              <a href="#reader-article" className="skip-link">
+                Skip to article
+              </a>
+
               {/* Sticky controls: Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
               <ReaderControls />
 
-              <article>
+              <article
+                id="reader-article"
+                tabIndex={-1}
+                aria-labelledby="article-title"
+              >
                 {/* Article header */}
                 <header className="reader-article-header">
-                  <h1 className="reader-article-title">{article.title}</h1>
+                  <h1 id="article-title" className="reader-article-title">{article.title}</h1>
 
                   {/* Byline / source */}
                   {(article.author || article.source) ? (
@@ -308,9 +322,9 @@ export default async function ReaderPage({
 
           {/* Fixed bottom audio mini-player (appears after first narration load) */}
           <ReaderMiniPlayer />
-        </div>
-      </ReaderHighlightsProvider>
-    </ReaderAudioProvider>
+        </ReaderHighlightsProvider>
+        </ReaderAudioProvider>
+      </div>
     </>
   );
 }
