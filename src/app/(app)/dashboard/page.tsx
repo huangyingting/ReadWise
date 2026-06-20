@@ -11,7 +11,7 @@ import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import type { ListingArticle } from "@/lib/articles";
 import { Card } from "@/components/ui/Card";
-import { buttonVariants } from "@/components/ui/Button";
+import { Badge, buttonVariants } from "@/components/ui";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
@@ -79,18 +79,19 @@ export default async function DashboardPage({
     <div className="listing-container">
       {/* Identity card */}
       <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
-        style={{ marginBottom: "1.5rem" }}
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-6"
       >
         Dashboard
       </h1>
       <Card>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+        <div className="flex items-center gap-[var(--space-4)]">
           <Avatar src={user.image} name={user.name} size={56} />
           <div>
             <div className="font-semibold text-text">{user.name ?? "Unnamed reader"}</div>
             <div className="text-text-muted text-[length:var(--text-sm)]">{user.email}</div>
-            <div className="text-text-muted text-[length:var(--text-sm)]">{user.role}</div>
+            <Badge variant={user.role === "Admin" ? "primary" : "neutral"} className="mt-[var(--space-1)]">
+              {user.role}
+            </Badge>
           </div>
         </div>
       </Card>
@@ -98,12 +99,11 @@ export default async function DashboardPage({
       {/* Your progress stats band: Streak | Goal | Mastery */}
       <section
         aria-labelledby="progress-h"
-        style={{ marginTop: "var(--space-7)" }}
+        className="mt-[var(--space-7)]"
       >
         <h2
           id="progress-h"
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
-          style={{ marginBottom: "var(--space-4)" }}
+          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0 mb-[var(--space-4)]"
         >
           Your progress
         </h2>
@@ -119,7 +119,7 @@ export default async function DashboardPage({
 
       {/* Continue-reading rail — only when in-progress articles exist */}
       {inProgressEntries.length > 0 ? (
-        <section style={{ marginTop: "var(--space-9)" }} aria-label="Continue reading">
+        <section className="mt-[var(--space-9)]" aria-label="Continue reading">
           <div
             className="flex items-center justify-between mb-[var(--space-4)]"
           >
@@ -156,7 +156,7 @@ export default async function DashboardPage({
       {/* For You feed */}
       <section
         aria-labelledby="foryou-h"
-        style={{ marginTop: "var(--space-9)" }}
+        className="mt-[var(--space-9)]"
       >
         <div className="flex flex-wrap items-center justify-between gap-[var(--space-3)] mb-[var(--space-2)]">
           <h2
@@ -199,7 +199,7 @@ export default async function DashboardPage({
       </section>
 
       {/* Browse by topic band — bridge to /browse */}
-      <section style={{ marginTop: "var(--space-9)" }}>
+      <section className="mt-[var(--space-9)]">
         <Card>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-4)]">
             <div>

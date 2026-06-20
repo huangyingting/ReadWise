@@ -4,6 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { Wordmark } from "@/components/marketing/Wordmark";
+import { Wordmark as AppWordmark } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card } from "@/components/ui";
 import SignInButtons from "./SignInButtons";
@@ -60,19 +61,7 @@ export default async function SignInPage({
         <Card className="max-w-[400px] w-full flex flex-col gap-[var(--space-5)] rw-fade-up">
           {/* Brand mark + heading */}
           <div className="flex flex-col items-center gap-[var(--space-2)] text-center">
-            <svg
-              width="40"
-              height="40"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="var(--primary)"
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 1.5 14.5 8 8 14.5 1.5 8 8 1.5Z" />
-              <path d="M8 4.5v7" />
-            </svg>
+            <AppWordmark size="large" />
             <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] leading-[var(--leading-snug)] text-text">
               Sign in to ReadWise
             </h1>

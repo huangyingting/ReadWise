@@ -165,8 +165,7 @@ export default async function ProgressPage() {
   return (
     <div className="listing-container">
       <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
-        style={{ marginBottom: "var(--space-6)" }}
+        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-[var(--space-6)]"
       >
         My Progress
       </h1>
@@ -185,8 +184,7 @@ export default async function ProgressPage() {
           <section aria-labelledby="overview-h">
             <h2
               id="overview-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
-              style={{ marginBottom: "var(--space-4)" }}
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
             >
               Overview
             </h2>
@@ -232,8 +230,7 @@ export default async function ProgressPage() {
           <section aria-labelledby="reading-h">
             <h2
               id="reading-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
-              style={{ marginBottom: "var(--space-4)" }}
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
             >
               Reading activity
               <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -257,8 +254,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="vocab-h">
               <h2
                 id="vocab-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
-                style={{ marginBottom: "var(--space-4)" }}
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
               >
                 Vocabulary growth
                 <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -283,8 +279,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="quiz-h">
               <h2
                 id="quiz-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
-                style={{ marginBottom: "var(--space-4)" }}
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
               >
                 Quiz performance
               </h2>
@@ -327,8 +322,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="level-h">
               <h2
                 id="level-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
-                style={{ marginBottom: "var(--space-4)" }}
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
               >
                 Level distribution
                 <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">

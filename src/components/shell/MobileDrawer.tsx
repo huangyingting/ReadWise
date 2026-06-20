@@ -8,6 +8,7 @@ import { Menu, X, Settings, Shield, LogOut } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { PRIMARY_NAV, isActivePath } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
+import { Wordmark } from "@/components/Wordmark";
 import type { ShellUser } from "./types";
 
 export default function MobileDrawer({ user }: { user: ShellUser }) {
@@ -115,12 +116,10 @@ export default function MobileDrawer({ user }: { user: ShellUser }) {
               <Link
                 href="/dashboard"
                 onClick={() => setOpen(false)}
-                className={cn(
-                  "font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-bold text-text",
-                  focusRing,
-                )}
+                className={cn("rounded-[var(--radius-sm)]", focusRing)}
+                aria-label="ReadWise — go to dashboard"
               >
-                ReadWise
+                <Wordmark />
               </Link>
               <button
                 type="button"
