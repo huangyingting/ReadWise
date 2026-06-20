@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { getArticleQuizHistory } from "@/lib/quiz-mastery";
+import { getViewableArticleById } from "@/lib/articles";
 
 /**
  * GET /api/reader/[id]/quiz/history
@@ -21,10 +21,7 @@ import { getArticleQuizHistory } from "@/lib/quiz-mastery";
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await prisma.article.findUnique({
-      where: { id: params.id },
-      select: { id: true },
-    });
+    const article = await getViewableArticleById(params.id, session.user.role);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

@@ -1,5 +1,4 @@
 import { NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import {
   idParams,
@@ -16,6 +15,7 @@ import {
   HIGHLIGHT_NOTE_MAX,
 } from "@/lib/highlights";
 import type { HighlightColor } from "@/lib/highlights";
+import { getViewableArticleById } from "@/lib/articles";
 
 const createBody = object({
   quote: nonEmptyString(10_000),
@@ -30,10 +30,7 @@ const createBody = object({
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await prisma.article.findUnique({
-      where: { id: params.id },
-      select: { id: true },
-    });
+    const article = await getViewableArticleById(params.id, session.user.role);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }
@@ -45,10 +42,7 @@ export const GET = createHandler(
 export const POST = createHandler(
   { params: idParams, body: createBody },
   async ({ params, body, session }) => {
-    const article = await prisma.article.findUnique({
-      where: { id: params.id },
-      select: { id: true },
-    });
+    const article = await getViewableArticleById(params.id, session.user.role);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }
