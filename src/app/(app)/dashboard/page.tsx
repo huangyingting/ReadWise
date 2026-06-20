@@ -225,7 +225,7 @@ export default async function DashboardPage({
               href="/browse"
               className={buttonVariants({ variant: "secondary", size: "md" })}
             >
-              Browse by topic →
+              Browse by topic <span aria-hidden="true">→</span>
             </Link>
           </div>
         </Card>
