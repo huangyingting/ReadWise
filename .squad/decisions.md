@@ -58,7 +58,41 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ## Post-redesign features
 
-> **Post-redesign rich features M10–M13 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation.
+> **Post-redesign rich features M10–M14 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation, quiz mastery & history.
+
+---
+
+## M14 — Quiz Mastery & History: COMPLETE (01380fc)
+_2026-06-19 · Saul (spec), Livingston (QuizAttempt model + 3 endpoints + migration), Linus (record-once + Sparkline + MasteryWidget + dashboard/study UI), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 300/300 · Rusty APPROVE-WITH-NITS (no double-record, no IDOR) · Basher PASS 38 checks · committed 01380fc.
+
+### Scope
+Per-article quiz attempt recording + aggregated mastery view: enriched quiz result block (this-attempt score, article best, compact attempt history) in the reader's Quiz panel; `MasteryWidget` as a 3rd "Your progress" card on the dashboard; Comprehension section on the `/study` page.
+
+### Data layer (Livingston)
+- **Migration `m14_quiz_attempts`** — additive. New `QuizAttempt` model: `userId`, `articleId`, `correctCount`, `totalQuestions`, `scorePct Int` (server-derived), `completedAt`; `@@index([userId, articleId])` + `@@index([userId])`; cascade-deletes with User and Article.
+- **`src/lib/quiz-mastery.ts`** — `recordQuizAttempt(userId, articleId, correctCount, totalQuestions)` (server-side `scorePct`, cross-field guard `correctCount ≤ totalQuestions`→400, post-insert `_max` for best); `getArticleQuizHistory(userId, articleId)` (all attempts, ownership-scoped); `getQuizMastery(userId)` (3 parallel queries: avg via Prisma `_avg`, `recentTrend` last-10 oldest→newest, overall best).
+- **3 endpoints** (`createHandler`, 401 unauth, 404 bad article): `POST /api/reader/[id]/quiz/attempt`, `GET /api/reader/[id]/quiz/history`, `GET /api/quiz/mastery`.
+
+### UI layer (Linus)
+- **`ArticleQuiz.tsx`** — grading UNCHANGED; `recordedRef` guard (set synchronously before fetch; reset in `handleRetry`; POST failure isolates to `savedNote="failed"`); quiz result block shows score + best + recent attempts.
+- **`Sparkline.tsx`** — reusable SVG polyline component; `aria-hidden` + `sr-only` label with scores + trend direction.
+- **`MasteryWidget.tsx`** — server component; ring `role="img"` with `aria-label`; rendered in dashboard `Promise.all`; `md:col-span-2 lg:col-span-1` band layout.
+- **`/study` page** — Comprehension section with `MasteryWidget` + per-article history tables.
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Average score | Mean of ALL attempts (Prisma `_avg`) |
+| `isNewBest` | Derived client-side (`priorBest === null \|\| attempt.scorePct > priorBest`) |
+| Per-article study table | DEFERRED |
+
+### Deferred nits (2)
+| ID | Description |
+|---|---|
+| N1 | "Try again" button should use `btn-primary` (indigo) instead of plain `btn` |
+| N2 | Unused `active` prop on `ArticleQuiz` component |
 
 ---
 
