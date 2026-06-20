@@ -643,6 +643,40 @@ body {
   border-color: var(--accent);
 }
 
+.vocabulary-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.vocabulary-pronounce {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.vocabulary-pronounce:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border-color: var(--accent);
+}
+
+.vocabulary-pronounce.is-speaking {
+  color: var(--accent);
+  border-color: var(--accent);
+  background: var(--bg-subtle);
+}
+
 .quiz {
   margin-top: 2rem;
   padding-top: 1.5rem;

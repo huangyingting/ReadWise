@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
+import { Volume2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 export type StudyWord = {
@@ -22,6 +23,31 @@ export default function StudyList({
   const [items, setItems] = useState<StudyWord[]>(words);
   const [pending, setPending] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [speaking, setSpeaking] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSpeechAvailable("speechSynthesis" in window);
+  }, []);
+
+  const speak = useCallback(
+    (item: StudyWord) => {
+      if (!("speechSynthesis" in window)) return;
+      // Toggle off if already speaking this word.
+      if (speaking === item.id) {
+        window.speechSynthesis.cancel();
+        setSpeaking(null);
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(item.word);
+      utterance.onend = () => setSpeaking(null);
+      utterance.onerror = () => setSpeaking(null);
+      setSpeaking(item.id);
+      window.speechSynthesis.speak(utterance);
+    },
+    [speaking],
+  );
 
   async function remove(word: StudyWord) {
     if (pending) {
@@ -84,14 +110,31 @@ export default function StudyList({
                 <p className="vocabulary-example muted">&ldquo;{item.example}&rdquo;</p>
               ) : null}
             </div>
-            <button
-              type="button"
-              className="btn vocabulary-save is-saved"
-              onClick={() => remove(item)}
-              disabled={pending === item.id}
-            >
-              {pending === item.id ? "…" : "Remove"}
-            </button>
+            <div className="vocabulary-item-actions">
+              {speechAvailable ? (
+                <button
+                  type="button"
+                  className={cn(
+                    "btn vocabulary-pronounce",
+                    speaking === item.id && "is-speaking",
+                  )}
+                  onClick={() => speak(item)}
+                  aria-label={`Play pronunciation of ${item.word}`}
+                  title={`Play pronunciation of ${item.word}`}
+                  aria-pressed={speaking === item.id}
+                >
+                  <Volume2 size={16} aria-hidden />
+                </button>
+              ) : null}
+              <button
+                type="button"
+                className="btn vocabulary-save is-saved"
+                onClick={() => remove(item)}
+                disabled={pending === item.id}
+              >
+                {pending === item.id ? "…" : "Remove"}
+              </button>
+            </div>
           </li>
         ))}
       </ul>
