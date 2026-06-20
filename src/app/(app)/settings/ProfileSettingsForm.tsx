@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
 import { CATEGORIES } from "@/lib/categories";
@@ -42,6 +42,10 @@ export default function ProfileSettingsForm({
   const [error, setError] = useState<string | null>(null);
   const [levelError, setLevelError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  // useId ensures unique IDs even if the component mounts twice (Suspense streaming #49).
+  const uid = useId();
+  const dailyGoalId = `${uid}-daily-goal`;
+  const dailyGoalHintId = `${uid}-daily-goal-hint`;
 
   function markDirty() {
     setSaved(false);
@@ -195,9 +199,9 @@ export default function ProfileSettingsForm({
           <div className="flex flex-col gap-[var(--space-6)]">
             {/* Daily reading goal stepper */}
             <div className="flex flex-col gap-[var(--space-2)]">
-              <Label htmlFor="daily-goal">Daily reading goal</Label>
+              <Label htmlFor={dailyGoalId}>Daily reading goal</Label>
               <p
-                id="daily-goal-hint"
+                id={dailyGoalHintId}
                 className="text-text-subtle text-[length:var(--text-xs)]"
               >
                 Articles to read per day. Powers your dashboard streak ring.
@@ -214,7 +218,7 @@ export default function ProfileSettingsForm({
                   <Minus size={16} aria-hidden />
                 </Button>
                 <Input
-                  id="daily-goal"
+                  id={dailyGoalId}
                   type="number"
                   inputSize="sm"
                   min={DAILY_GOAL_MIN}
@@ -236,7 +240,7 @@ export default function ProfileSettingsForm({
                       : Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, v));
                     setDailyGoal(clamped);
                   }}
-                  aria-describedby="daily-goal-hint"
+                  aria-describedby={dailyGoalHintId}
                   className="w-[3.5rem] text-center tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
                 />
                 <Button
