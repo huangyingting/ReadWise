@@ -30,15 +30,17 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Wrench, X } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, Wrench, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
 import ArticleTranslation from "./ArticleTranslation";
 import ReaderNotesPanel from "./ReaderNotesPanel";
+import { ReaderTutorProvider } from "./ReaderTutorProvider";
+import ArticleTutor from "./ArticleTutor";
 
-export type TabId = "listen" | "words" | "quiz" | "translate" | "notes";
+export type TabId = "listen" | "words" | "quiz" | "translate" | "notes" | "ask";
 
 const TABS: {
   id: TabId;
@@ -75,6 +77,12 @@ const TABS: {
     label: "Notes",
     icon: <Highlighter size={14} />,
     ariaLabel: "Notes tab",
+  },
+  {
+    id: "ask",
+    label: "Ask",
+    icon: <Sparkles size={14} />,
+    ariaLabel: "Ask tab",
   },
 ];
 
@@ -233,6 +241,21 @@ function PanelContents({
       >
         <ReaderNotesPanel />
       </div>
+
+      {/* Ask (tutor) panel: lazy-mounted on first visit */}
+      {visited.has("ask") && (
+        <div
+          id="reader-panel-ask"
+          role="tabpanel"
+          aria-labelledby="reader-tab-ask"
+          className="reader-tab-panel"
+          hidden={activeTab !== "ask"}
+        >
+          <ReaderTutorProvider articleId={articleId}>
+            <ArticleTutor active={activeTab === "ask"} />
+          </ReaderTutorProvider>
+        </div>
+      )}
     </div>
   );
 }

@@ -30,6 +30,7 @@ model User {
   dailyActivities DailyActivity[]
   readingLists    ReadingList[]
   highlights      Highlight[]
+  tutorMessages   TutorMessage[]
 }
 
 model Profile {
@@ -75,6 +76,7 @@ model Article {
   tags            ArticleTag[]
   readingListItems ReadingListItem[]
   highlights      Highlight[]
+  tutorMessages   TutorMessage[]
 
   @@index([category])
 }
@@ -275,6 +277,23 @@ model ReadingListItem {
 
   @@unique([listId, articleId])
   @@index([articleId])
+}
+
+// M12 — AI Tutor chat
+// Per-user, per-article conversation history. Messages are persisted only on
+// successful AI responses; fallback turns are NEVER persisted.
+model TutorMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
 }
 
 // M11 — Highlights & Notes
