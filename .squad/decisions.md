@@ -60,6 +60,63 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ---
 
+## M11 — Highlights & Notes: COMPLETE (1e69c01)
+_2026-06-19 · Saul (spec), Livingston (data + anchor + 4 endpoints + migration), Linus (UI + selection state machine + mark rendering), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 219/219 (28 new) · Rusty APPROVE-WITH-NITS (no XSS/IDOR) · Basher PASS · committed 1e69c01.
+
+### Scope
+Per-user text highlighting + annotation in the reader. Highlights anchor to plain-text offsets with prefix/suffix fallback re-anchoring. New "Notes" panel as 5th reader tab.
+
+### Data layer (Livingston)
+- **Migration `m11_highlights`** — purely additive. New `Highlight` model: `userId`, `articleId`, `quote`, `startOffset/endOffset Int`, `prefix/suffix String @default("")`, `note String?`, `color String?`, `@@index([userId, articleId])`. Cascade: User→Highlights; Article→Highlights (all users).
+- **`src/lib/highlights.ts`** — 5 helpers, all ownership-scoped: `listHighlights`, `createHighlight`, `updateHighlight` (anchor immutable), `deleteHighlight`, `getHighlightCounts` (batch per-article for listing badges). `validateAnchor` exported for reuse. `HIGHLIGHT_NOTE_MAX = 2_000` exported as single source of truth. IDOR: every helper includes `userId` in WHERE clause.
+- **4 endpoints** (all `createHandler`, 401 unauth, 404 on ownership/article miss):
+
+| Endpoint | Purpose |
+|---|---|
+| `GET /api/reader/[id]/highlights` | User's highlights on article, ordered by `startOffset` |
+| `POST /api/reader/[id]/highlights` | Create (201, 400 bad anchor, 404 bad article) |
+| `PATCH /api/highlights/[id]` | Update note/color only — anchor fields immutable (200, 404 not-owner) |
+| `DELETE /api/highlights/[id]` | Delete (200, 404 not-owner) |
+
+### UI layer (Linus)
+- **Gesture-disambiguation state machine** in `WordLookup.tsx`: `OpenSurface = "dictionary" | "toolbar" | "popover" | null`. Collapsed click → dictionary (unchanged); drag-select → `SelectionToolbar`; click on `mark.rw-hl` → `HighlightEditPopover`. Mutually exclusive by construction — single `handleSelect` handler, single open-surface state.
+- **`<mark>` rendering** via TreeWalker + `splitText` over sanitized DOM nodes (no re-sanitize, no `innerHTML` after initial `dangerouslySetInnerHTML`). Applied in reverse document order. Re-anchor on load: offset-first, prefix/suffix fallback, orphaned indicator for unresolvable.
+- **`--hl-*` color tokens** (yellow/green/blue/pink ×3 reading modes in `tokens.css`) — distinct from teal/indigo, scoped to `[data-reading-mode]`. AA-verified 12 token values.
+- **`ReaderHighlightsProvider`** — client context: eager fetch, optimistic CRUD, orphan tracking, `aria-live` announcements; overlap → keep-earliest + toast; last-used color persisted to localStorage.
+- **`HighlightEditPopover`** — click-a-mark popover: 4 color swatches (`role="radiogroup"`), note textarea (2000-char cap, counter near cap), M8 `ConfirmAction` delete.
+- **`ReaderNotesPanel`** — 5th "Notes" tab (`Highlighter` icon): highlights in document order, inline note editing, scroll-to + flash, orphaned indicator, M4 `EmptyState`.
+
+### Pre-land fixes (F1–F3 all done)
+| ID | Fix | Owner |
+|---|---|---|
+| F1 | `applyHighlightMarks` crash-guard for overlapping DB highlights — `splitText` offset clamp before apply | Linus |
+| F2 | `HighlightEditPopover` positioning `useEffect` dep array `[]` → `[anchorEl]` — eliminates per-keystroke layout thrash | Linus |
+| F3 | Server note cap 50k → `HIGHLIGHT_NOTE_MAX` (2000); both route schemas updated; no DB change | Livingston |
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Highlight color overlap | Keep-earliest + toast |
+| Last-used color | Persisted to localStorage (client) |
+| Note cap | 2,000 chars (`HIGHLIGHT_NOTE_MAX`) |
+| Global cross-article notes view | DEFERRED |
+
+### IDOR audit (Rusty)
+All PATCH/DELETE routes use `findFirst({where:{id,userId}})` — a user cannot reach another user's highlights; returns 404 (not 403) on miss. GET scoped by session userId. `POST` scopes creation to session user. **No IDOR path found.** Basher independently confirmed: cross-user PATCH/DELETE → 404; GET returns only requesting user's highlights.
+
+### Deferred nits (Rusty, 5 non-blocking)
+| ID | Item |
+|---|---|
+| N1 | `disabled={atLimit && noteLen > NOTE_MAX}` — simplifies to `disabled={atLimit}`; `maxLength` makes >2000 unreachable via keyboard |
+| N2 | `flashAndScroll` template-literal selector — prefer `querySelectorAll` + `.filter` to be robust to future ID format changes |
+| N3 | Escape in `HighlightEditPopover` calls `anchorEl.focus?.()` on a non-focusable `<mark>` — should redirect focus to prose ref |
+| N4 | Overlap merge: sequential `await remove()` — no rollback on partial failure; acceptable since client prevents overlaps |
+| N5 | 80ms `setTimeout` in `handleAddNote` to open edit popover after mark apply — fragile on slow renders; `MutationObserver` would be robust |
+
+---
+
 ## M10 — Bookmarks & Reading Lists: COMPLETE (c676921)
 _2026-06-19 · Saul (spec), Livingston (data + endpoints), Linus (UI), Rusty (review), Basher (verify)_
 
