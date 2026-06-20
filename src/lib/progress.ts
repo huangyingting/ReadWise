@@ -2,6 +2,9 @@ import { prisma } from "@/lib/prisma";
 import type { ReadingProgress } from "@prisma/client";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
 import { recordReadingActivity } from "@/lib/activity";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("progress");
 
 /** Scroll percent at/above which an article is considered finished. */
 export const COMPLETION_THRESHOLD = 95;
@@ -123,12 +126,12 @@ export async function saveProgress(
     });
   }
 
-  // Side-effect: record daily activity (errors are swallowed so they never
+  // Side-effect: record daily activity (errors are logged but never
   // affect the caller's return value or forward-only semantics).
   try {
     await recordReadingActivity(userId, articleId);
-  } catch {
-    // non-critical — activity tracking must not break progress saves
+  } catch (err) {
+    log.error("activity recording failed", { userId, articleId, err });
   }
 
   return result;
