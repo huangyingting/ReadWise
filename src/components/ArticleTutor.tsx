@@ -39,6 +39,7 @@ import type { ReactNode } from "react";
 import { AlertTriangle, Send, Sparkles } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
 import EmptyState from "@/components/EmptyState";
 import ConfirmAction from "@/components/ConfirmAction";
@@ -506,7 +507,7 @@ export default function ArticleTutor({ active }: { active: boolean }) {
 
       {/* ---- Sticky composer ---- */}
       <div className="rw-tutor-composer">
-        <textarea
+        <Textarea
           ref={composerRef}
           className={cn("rw-tutor-input", focusRing)}
           placeholder="Ask anything about this article…"

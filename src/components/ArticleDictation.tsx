@@ -32,6 +32,7 @@ import {
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { Textarea } from "@/components/ui/Textarea";
 import EmptyState from "@/components/EmptyState";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import {
@@ -304,7 +305,7 @@ export default function ArticleDictation({
         <label htmlFor="dictation-input" className="rw-dictate-label">
           Type what you heard:
         </label>
-        <textarea
+        <Textarea
           id="dictation-input"
           className={cn("rw-dictate-textarea", focusRing)}
           value={typed}
@@ -312,7 +313,7 @@ export default function ArticleDictation({
           placeholder="Type the sentence here…"
           rows={3}
           lang="en"
-          spellCheck="false"
+          spellCheck={false}
           autoComplete="off"
           aria-label="Your dictation"
           disabled={phase === "playing"}

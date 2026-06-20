@@ -485,9 +485,9 @@ export default function FlashcardReview({
                     type="button"
                     onClick={() => speak(card.word, card.id)}
                     aria-label={`Play pronunciation of ${card.word}`}
-                    title="Play pronunciation"
                     className={cn(
                       "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                      "min-h-[44px] px-[var(--space-2)]",
                       "text-[length:var(--text-sm)] transition-colors",
                       focusRing,
                     )}
@@ -520,6 +520,7 @@ export default function FlashcardReview({
                       }
                       placeholder={`${"_".repeat(card.cloze.answerLength)}`}
                       autoComplete="off"
+                      spellCheck={false}
                       autoFocus
                       className={cn(
                         "w-full rounded-[var(--radius-md)] border border-border-strong bg-surface",
@@ -628,9 +629,9 @@ export default function FlashcardReview({
                         type="button"
                         onClick={() => speak(card.word, card.id)}
                         aria-label={`Play pronunciation of ${card.word}`}
-                        title="Play pronunciation"
                         className={cn(
                           "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                          "min-h-[44px] px-[var(--space-2)]",
                           "text-[length:var(--text-sm)] transition-colors",
                           focusRing,
                         )}
@@ -687,9 +688,9 @@ export default function FlashcardReview({
                         type="button"
                         onClick={() => speak(card.word, card.id)}
                         aria-label={`Play pronunciation of ${card.word}`}
-                        title="Play pronunciation"
                         className={cn(
                           "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                          "min-h-[44px] px-[var(--space-2)]",
                           "text-[length:var(--text-sm)] transition-colors",
                           focusRing,
                         )}
