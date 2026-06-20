@@ -58,7 +58,51 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ## Post-redesign features
 
-> **Post-redesign rich features M10–M15 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation, quiz mastery & history, personalized home feed.
+> **Post-redesign rich features M10–M16 COMPLETE** — bookmarks, highlights/notes, AI tutor, sentence translation, quiz mastery, personalized feed, pronunciation practice.
+
+---
+
+## M16 — Pronunciation Practice: COMPLETE (e895e72)
+_2026-06-19 · Saul (UX spec), Livingston (PronunciationAttempt migration + token endpoint + attempt/history APIs), Linus (Speak tab + browser Speech SDK + non-color cue), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — Rusty APPROVE-WITH-NITS (key never client-side, no audio stored, no IDOR; FIX-1 applied) · Basher CONDITIONAL PASS→PASS (fake-mic end-to-end, legend fix, credential security confirmed) · committed e895e72.
+
+### Scope
+Pronunciation practice as the 7th "Speak" tab in the reader tools panel. Users step through article sentences and receive per-phoneme/per-word accuracy scores via Azure Cognitive Services Pronunciation Assessment. "Hear it" reuses M5 narration audio; no audio stored server-side.
+
+### Data layer (Livingston)
+- **Migration `m16_pronunciation`** — additive. New `PronunciationAttempt` model: `userId`, `articleId`, `sentence`, `score Int` (overall), `feedback` (JSON-stringified phoneme data), `attemptedAt`; `@@index([userId, articleId])`; cascade-deletes with User and Article.
+- **`src/lib/pronunciation.ts`** — `savePronunciationAttempt(userId, articleId, sentence, score, feedback)` + `getPronunciationHistory(userId, articleId)`, both ownership-scoped (`where:{userId,articleId}`).
+- **`GET /api/speech/token`** — server-only: exchanges `AZURE_SPEECH_KEY` for a short-lived Azure authorization token; never exposes the raw key to the client. Returns `{configured:false}` gracefully when unconfigured.
+- **`POST /api/reader/[id]/pronunciation`** — saves attempt (401 unauth, 404 bad article, ownership-scoped).
+- **`GET /api/reader/[id]/pronunciation/history`** — per-sentence best/last scores (401 unauth, 404 bad article, ownership-scoped).
+
+### UI layer (Linus)
+- **`ArticleSpeakTab.tsx`** — 7th "Speak" tab; `microsoft-cognitiveservices-speech-sdk` dynamically imported (SSR-safe, no server bundle); `fromAuthorizationToken` from `GET /api/speech/token`.
+- **Score ring + sub-bars** — `--pron-*` token family (teal-anchored); overall accuracy ring + pronunciation/fluency/completeness sub-bars; `role="img"` + `aria-label` with numeric scores.
+- **Per-word feedback (non-color cue)** — never relies on color alone: underline style (`--pron-underline-*` dashes/dots) + `sr-only` severity text + visible legend panel + "words to work on" list.
+- **Per-sentence Best/Last** — derived client-side from history response.
+- **"Hear it"** — reuses M5 narration via `ReaderAudioProvider`; zero new audio storage.
+- **States** — graceful unavailable (`{configured:false}`), mic-denied (permission rejected), transient-error (retryable — FIX-1 applied).
+
+### Security / Privacy (Rusty + Basher)
+- `AZURE_SPEECH_KEY` never sent to client; token endpoint returns short-lived token only.
+- No audio stored — only `score Int` + JSON feedback persisted per attempt.
+- All routes ownership-scoped `where:{userId,articleId}`; IDOR cross-user → 404 confirmed by Basher.
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| "Speak" tab placement | 7th tab in reader tools panel |
+| Per-sentence Best/Last | Derived client-side from history response |
+| Cross-article speaking dashboard | DEFERRED |
+| Token family | `--pron-*` (separate from `--hl-*`, `--rw-tr-*`) |
+
+### Pre-land fixes
+| ID | Fix | Owner |
+|---|---|---|
+| FIX-1 | Transient token failure → retryable error state, not permanent-unavailable | Linus (per Rusty review) |
+| Basher-fix | Legend swatch CSS correction | Basher |
 
 ---
 
