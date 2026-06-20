@@ -248,14 +248,36 @@ export const SEARCH_PAGE_SIZE = 20;
 export const SEARCH_MAX_LIMIT = 50;
 
 /**
- * Searches published articles by title, author, source, or body content using a
- * case-insensitive LIKE match (SQLite LIKE is case-insensitive for ASCII).
- * When `userId` is supplied the search is extended to also surface articles that
- * the user has highlighted/annotated or saved vocabulary words from — giving
- * results even when the matched term does not appear in the article metadata.
+ * Escapes a user query for safe use in FTS5 MATCH expressions.
+ * Wraps each whitespace-delimited token in double-quotes so that punctuation
+ * and FTS5 operators in user input are treated as literals. Empty tokens are
+ * dropped. Returns null when the query is blank / collapses to nothing.
+ *
+ * Exported for unit testing.
+ */
+export function buildFtsQuery(raw: string): string | null {
+  const tokens = raw
+    .trim()
+    .split(/\s+/)
+    .map((t) => t.replace(/"/g, ""))
+    .filter(Boolean);
+  if (tokens.length === 0) return null;
+  // Each token is a prefix match ("word"*) so partial typing works.
+  return tokens.map((t) => `"${t}"*`).join(" ");
+}
+
+type FtsRow = { id: string; rank: number };
+
+/**
+ * Full-text search over published articles via SQLite FTS5 (article_fts).
+ * Results are ranked by bm25() relevance (most relevant first). Degrades
+ * gracefully to a Prisma LIKE fallback when FTS5 is unavailable.
+ *
+ * When `userId` is supplied the search is extended to also surface articles
+ * that the user has highlighted/annotated or saved vocabulary words from —
+ * giving results even when the matched term does not appear in the indexed
+ * article text.
  * An empty / blank query returns no results rather than the whole table.
- * Results are uncached because they are query-dependent and also merged with
- * per-user progress data in the route.
  */
 export async function searchPublishedArticles(
   query: string,
@@ -270,32 +292,23 @@ export async function searchPublishedArticles(
   const offset = Math.max(0, opts.offset ?? 0);
 
   // Per-user: collect article IDs from highlights and saved words that match
-  // the query. These run in parallel and feed into the main article OR clause
-  // so that pagination (skip/take) stays correct with a single DB query.
+  // the query, to merge into the ranked results.
   const userArticleIds: string[] = [];
   if (userId) {
     const [highlightMatches, vocabMatches] = await Promise.all([
       prisma.highlight.findMany({
         where: {
           userId,
-          OR: [
-            { quote: { contains: q } },
-            { note: { contains: q } },
-          ],
+          OR: [{ quote: { contains: q } }, { note: { contains: q } }],
         },
         select: { articleId: true },
         distinct: ["articleId"],
       }),
       prisma.savedWord.findMany({
-        where: {
-          userId,
-          word: { contains: q },
-          articleId: { not: null },
-        },
+        where: { userId, word: { contains: q }, articleId: { not: null } },
         select: { articleId: true },
       }),
     ]);
-
     const ids = new Set<string>();
     for (const h of highlightMatches) ids.add(h.articleId);
     for (const sw of vocabMatches) {
@@ -304,11 +317,55 @@ export async function searchPublishedArticles(
     userArticleIds.push(...ids);
   }
 
-  // Build OR clauses: article metadata (title/author/source) + per-user article IDs.
-  // Intentionally excludes full-body { content: contains: q } — a LIKE scan over
-  // the full HTML content column is O(N*content_size) with no FTS5 index and
-  // becomes prohibitively slow as the corpus grows (PERF-4 / issue #72).
-  // Full-text body search will be re-introduced via FTS5 in issue #41.
+  // Attempt FTS5 ranked search. Falls back to LIKE on any error so that a
+  // missing / corrupt FTS index doesn't break the feature.
+  const ftsQuery = buildFtsQuery(q);
+  if (ftsQuery) {
+    try {
+      // bm25() returns negative values — ORDER BY ASC puts best matches first.
+      // We fetch offset + limit + 1 + extra user IDs to handle merging and
+      // hasMore detection. The actual pagination window is applied after merge.
+      const ftsRows = await prisma.$queryRaw<FtsRow[]>`
+        SELECT a.id, bm25(article_fts) AS rank
+        FROM article_fts
+        JOIN "Article" a ON a.rowid = article_fts.rowid
+        WHERE article_fts MATCH ${ftsQuery}
+          AND a.status = 'published'
+        ORDER BY rank ASC
+        LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
+      `;
+
+      // Build ordered id list: FTS-ranked ids first, then per-user extras not
+      // already in the ranked set.
+      const seen = new Set(ftsRows.map((r) => r.id));
+      const orderedIds = [
+        ...ftsRows.map((r) => r.id),
+        ...userArticleIds.filter((id) => !seen.has(id)),
+      ];
+
+      const hasMore = orderedIds.length > limit;
+      const pageIds = orderedIds.slice(0, limit);
+
+      if (pageIds.length === 0) return { articles: [], hasMore: false };
+
+      // Fetch full Article rows for the page, preserving ranked order.
+      const byId = new Map<string, Article>();
+      const rows = await prisma.article.findMany({
+        where: { id: { in: pageIds }, status: "published" },
+      });
+      for (const r of rows) byId.set(r.id, r);
+      const articles = pageIds.flatMap((id) => {
+        const a = byId.get(id);
+        return a ? [a] : [];
+      });
+
+      return { articles, hasMore };
+    } catch {
+      // FTS unavailable — fall through to LIKE path.
+    }
+  }
+
+  // Fallback: title/author/source LIKE + optional per-user article IDs.
   const orClauses: Prisma.ArticleWhereInput[] = [
     { title: { contains: q } },
     { author: { contains: q } },
@@ -317,17 +374,12 @@ export async function searchPublishedArticles(
   if (userArticleIds.length > 0) {
     orClauses.push({ id: { in: userArticleIds } });
   }
-
   const rows = await prisma.article.findMany({
-    where: {
-      status: "published",
-      OR: orClauses,
-    },
+    where: { status: "published", OR: orClauses },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
   });
-
   const hasMore = rows.length > limit;
   return { articles: rows.slice(0, limit), hasMore };
 }

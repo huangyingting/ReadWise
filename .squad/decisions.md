@@ -683,3 +683,28 @@ _2026-06-19 · Yingting Huang (requester) · Rusty, Saul, Linus, Basher_
 - All meaningful changes require team consensus
 - Document architectural decisions here
 - Keep history focused on work, decisions focused on direction
+
+
+## 2026-06-20 — System review issue triage and coordinator verification
+
+### Rusty — Scoping decisions for issues #54–#78
+Rusty consolidated Basher QA (29 findings), Saul Design/UX (28 findings), and Livingston Backend/Security/Perf (23 findings) into 25 GitHub issues (#54–#78), plus comments on existing #43 and #46.
+
+Key decisions:
+1. **Root-cause-first over symptom-filing:** BUG-12, BUG-15, BUG-18, BUG-21, BUG-23, and BUG-26 are all secondary to #48 (double-render) and were not filed separately.
+2. **Comments vs new issues:** Livingston BUG-1 (15 failing tests) was commented on #43; Livingston SEC-6 (rate-limit gaps) was commented on #46.
+3. **SEC-4 is not a duplicate of #53:** #53 covers TTS `data:` URI CSP/audio playback; #58 covers Azure Speech SDK `wss://` CSP/pronunciation recognition.
+4. **SEC-5 dropped:** Client-controlled pronunciation scores are accepted as low-risk architecture until leaderboards/competition make score integrity higher-stakes.
+5. **Bundle strategy:** 11 standalone critical/high issues plus 14 bundles = 25 total; bundled items share a file or tight conceptual cluster and are small-effort.
+6. **#69 is a feature:** Admin analytics charts were not regressed; the text-only page needs a new chart capability.
+
+### Squad-Coordinator — P0/P1 reader verification corrections
+Coordinator browser-verified the high-severity reader claims and corrected four over-elevated/misattributed findings:
+- **#54:** Closed as duplicate of #48. `aria-controls` is correctly `reader-panel-ask`; tutor panel renders; no `panelId` bug exists.
+- **#55:** Re-scoped from p0 to p2. Quiz radios are correctly name-grouped; `value="on"` is harmless. Functional breakage is #48.
+- **#56:** Re-scoped from p1 to p2. Translate has try/catch/finally and visible error; indefinite hang is gated by missing Azure OpenAI timeout (#42). Residual issue: client AbortController.
+- **#57:** Re-scoped from p1 to needs-research. `WordLookup` is mounted (`page.tsx:265`); real drag-selection triggers the toolbar. Absent-from-DOM was a false negative.
+
+Confirmed valid high-priority issues: **#58** (CSP blocks Azure Speech WSS), **#59** (IDOR: reader subroutes lack status filter), **#60** (JSON-LD stored XSS), and **#61** (SSRF in admin ingest).
+
+Lesson: automated DOM findings on a page affected by #48 double-render require source/manual root-cause cross-checking before filing as Critical.

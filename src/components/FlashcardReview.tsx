@@ -9,6 +9,8 @@ import {
   ChevronsRight,
   CircleCheck,
   CheckCircle2,
+  Volume2,
+  FileQuestion,
 } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -22,18 +24,29 @@ type DueCard = {
   word: string;
   explanation: string | null;
   example: string | null;
+  /** Populated only when fetched via /api/study/cloze */
+  cloze?: { masked: string; answerLength: number } | null;
 };
+
+type ReviewMode = "flashcard" | "cloze";
 
 type AppState =
   | { phase: "idle" }
   | { phase: "loading" }
   | {
       phase: "session";
+      mode: ReviewMode;
       cards: DueCard[];
       index: number;
       flipped: boolean;
       grading: boolean;
       gradeCounts: Record<Grade, number>;
+      /** Cloze-mode: the user's typed answer */
+      clozeInput: string;
+      /** Cloze-mode: whether the answer has been submitted (show feedback) */
+      clozeSubmitted: boolean;
+      /** Cloze-mode: was the answer correct? */
+      clozeCorrect: boolean | null;
     }
   | { phase: "complete"; total: number; gradeCounts: Record<Grade, number> };
 
@@ -50,11 +63,14 @@ interface FlashcardReviewProps {
  * Flashcard review session (SRS). Client component.
  *
  * States: idle → loading → session (flip/grade loop) → complete → idle.
- * Fetches cards from GET /api/study/flashcards on start;
- * grades via POST /api/study/flashcards/grade (optimistic advance).
+ * Modes: "flashcard" (classic flip) | "cloze" (fill-in-the-blank).
+ * Fetches cards from GET /api/study/flashcards (flashcard mode) or
+ * GET /api/study/cloze (cloze mode).
+ * Grades via POST /api/study/flashcards/grade (optimistic advance).
+ * Audio via browser SpeechSynthesis (no server call needed).
  *
- * Keyboard map (§5.2 of Saul's spec):
- *   Space/Enter (front) = flip; 1=Again, 2=Hard, 3=Good, 4=Easy (back); Esc=end.
+ * Keyboard map:
+ *   Space/Enter (front) = flip / submit cloze; 1=Again, 2=Hard, 3=Good, 4=Easy; Esc=end.
  */
 export default function FlashcardReview({
   initialDueCount,
@@ -63,6 +79,12 @@ export default function FlashcardReview({
 }: FlashcardReviewProps) {
   const [appState, setAppState] = useState<AppState>({ phase: "idle" });
   const [dueCount, setDueCount] = useState(initialDueCount);
+  const [speechAvailable, setSpeechAvailable] = useState(false);
+  const [speaking, setSpeaking] = useState<string | null>(null);
+
+  useEffect(() => {
+    setSpeechAvailable("speechSynthesis" in window);
+  }, []);
 
   // Always-fresh state ref for stable callbacks
   const appStateRef = useRef<AppState>(appState);
@@ -77,7 +99,6 @@ export default function FlashcardReview({
     } else {
       onSessionEnd?.();
     }
-    // Intentionally omit callbacks from deps — they're expected to be stable refs.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appState.phase]);
 
@@ -85,10 +106,10 @@ export default function FlashcardReview({
   const liveRef = useRef<HTMLDivElement>(null);
   const showAnswerRef = useRef<HTMLButtonElement>(null);
   const goodButtonRef = useRef<HTMLButtonElement>(null);
+  const clozeInputRef = useRef<HTMLInputElement>(null);
 
   /** Politely announce to screen readers. */
   function announce(msg: string) {
-    // Clear then set so repeated messages are re-announced
     if (liveRef.current) {
       liveRef.current.textContent = "";
       requestAnimationFrame(() => {
@@ -97,31 +118,68 @@ export default function FlashcardReview({
     }
   }
 
-  async function startSession() {
+  /** Speak a word using the browser's SpeechSynthesis. */
+  const speak = useCallback(
+    (word: string, cardId: string) => {
+      if (!("speechSynthesis" in window)) return;
+      if (speaking === cardId) {
+        window.speechSynthesis.cancel();
+        setSpeaking(null);
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utt = new SpeechSynthesisUtterance(word);
+      utt.onend = () => setSpeaking(null);
+      utt.onerror = () => setSpeaking(null);
+      setSpeaking(cardId);
+      window.speechSynthesis.speak(utt);
+    },
+    [speaking],
+  );
+
+  async function startSession(mode: ReviewMode) {
     setAppState({ phase: "loading" });
     try {
-      const res = await fetch("/api/study/flashcards");
+      const endpoint =
+        mode === "cloze" ? "/api/study/cloze" : "/api/study/flashcards";
+      const res = await fetch(endpoint);
       if (!res.ok) throw new Error("fetch failed");
-      const data = (await res.json()) as { cards: DueCard[]; dueCount: number };
-      setDueCount(data.dueCount);
-      if (data.cards.length === 0) {
+
+      let cards: DueCard[];
+      let newDueCount: number;
+
+      if (mode === "cloze") {
+        const data = (await res.json()) as { items: DueCard[] };
+        cards = data.items;
+        newDueCount = cards.length;
+      } else {
+        const data = (await res.json()) as { cards: DueCard[]; dueCount: number };
+        cards = data.cards;
+        newDueCount = data.dueCount;
+      }
+
+      setDueCount(newDueCount);
+      if (cards.length === 0) {
         setAppState({ phase: "idle" });
         return;
       }
       setAppState({
         phase: "session",
-        cards: data.cards,
+        mode,
+        cards,
         index: 0,
         flipped: false,
         grading: false,
         gradeCounts: { again: 0, hard: 0, good: 0, easy: 0 },
+        clozeInput: "",
+        clozeSubmitted: false,
+        clozeCorrect: null,
       });
     } catch {
       setAppState({ phase: "idle" });
     }
   }
 
-  /** Flip the card to reveal answer. Stable ref pattern. */
   const flipCard = useCallback(() => {
     const s = appStateRef.current;
     if (s.phase !== "session" || s.flipped) return;
@@ -131,10 +189,30 @@ export default function FlashcardReview({
     announce("Answer revealed");
     setTimeout(() => goodButtonRef.current?.focus(), 0);
   }, []);
+
+  /** Grades a cloze answer client-side and records it with the SRS. */
+  const submitClozeAnswer = useCallback((input: string) => {
+    const s = appStateRef.current;
+    if (s.phase !== "session" || s.mode !== "cloze") return;
+    const card = s.cards[s.index];
+    // Determine correct answer from the API response or fall back to the word
+    const correct = (() => {
+      const clozeAnswer = card.word;
+      return input.trim().toLowerCase() === clozeAnswer.toLowerCase();
+    })();
+    setAppState((prev) =>
+      prev.phase === "session"
+        ? { ...prev, clozeSubmitted: true, clozeCorrect: correct }
+        : prev,
+    );
+    announce(correct ? "Correct!" : "Incorrect.");
+  }, []);
+
   const submitGrade = useCallback(
     async (g: Grade) => {
       const s = appStateRef.current;
-      if (s.phase !== "session" || !s.flipped || s.grading) return;
+      if (s.phase !== "session") return;
+      if (s.mode === "flashcard" && (!s.flipped || s.grading)) return;
 
       const cardId = s.cards[s.index].id;
       const total = s.cards.length;
@@ -183,9 +261,15 @@ export default function FlashcardReview({
             flipped: false,
             grading: false,
             gradeCounts: { ...prev.gradeCounts, [g]: prev.gradeCounts[g] + 1 },
+            clozeInput: "",
+            clozeSubmitted: false,
+            clozeCorrect: null,
           };
         });
-        setTimeout(() => showAnswerRef.current?.focus(), 0);
+        setTimeout(() => {
+          showAnswerRef.current?.focus();
+          clozeInputRef.current?.focus();
+        }, 0);
       }
     },
     [],
@@ -204,26 +288,42 @@ export default function FlashcardReview({
         return;
       }
 
-      if (!s.flipped) {
-        if (e.key === " " || e.key === "Enter") {
-          // Only if the active element is not already a button (avoid double-fire)
-          const tag = (document.activeElement as HTMLElement)?.tagName;
-          if (tag !== "BUTTON") {
+      if (s.mode === "flashcard") {
+        if (!s.flipped) {
+          if (e.key === " " || e.key === "Enter") {
+            const tag = (document.activeElement as HTMLElement)?.tagName;
+            if (tag !== "BUTTON") {
+              e.preventDefault();
+              flipCard();
+            }
+          }
+        } else {
+          const gradeMap: Record<string, Grade> = {
+            "1": "again",
+            "2": "hard",
+            "3": "good",
+            "4": "easy",
+          };
+          const g = gradeMap[e.key];
+          if (g) {
             e.preventDefault();
-            flipCard();
+            void submitGrade(g);
           }
         }
       } else {
-        const gradeMap: Record<string, Grade> = {
-          "1": "again",
-          "2": "hard",
-          "3": "good",
-          "4": "easy",
-        };
-        const g = gradeMap[e.key];
-        if (g) {
-          e.preventDefault();
-          void submitGrade(g);
+        // Cloze mode: number keys to grade after submission
+        if (s.clozeSubmitted) {
+          const gradeMap: Record<string, Grade> = {
+            "1": "again",
+            "2": "hard",
+            "3": "good",
+            "4": "easy",
+          };
+          const g = gradeMap[e.key];
+          if (g) {
+            e.preventDefault();
+            void submitGrade(g);
+          }
         }
       }
     }
@@ -273,13 +373,22 @@ export default function FlashcardReview({
                 action={{ label: "Browse articles", href: "/browse" }}
               />
             ) : (
-              <Button
-                variant="primary"
-                leadingIcon={<Layers size={16} aria-hidden />}
-                onClick={() => void startSession()}
-              >
-                Review {dueCount} due
-              </Button>
+              <div className="flex flex-wrap items-center gap-[var(--space-3)]">
+                <Button
+                  variant="primary"
+                  leadingIcon={<Layers size={16} aria-hidden />}
+                  onClick={() => void startSession("flashcard")}
+                >
+                  Review {dueCount} due
+                </Button>
+                <Button
+                  variant="outline"
+                  leadingIcon={<FileQuestion size={16} aria-hidden />}
+                  onClick={() => void startSession("cloze")}
+                >
+                  Cloze review
+                </Button>
+              </div>
             )}
           </div>
         </Card>
@@ -299,138 +408,326 @@ export default function FlashcardReview({
         </Card>
       )}
 
-      {s.phase === "session" && (
-        <Card>
-          {/* Session header */}
-          <div className="flex items-center justify-between gap-[var(--space-4)]">
-            <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
-              Reviewing
-            </h2>
-            <div className="flex items-center gap-[var(--space-3)]">
-              <span className="text-[length:var(--text-sm)] text-text-muted">
-                {s.index + 1} of {s.cards.length}
-              </span>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setAppState({ phase: "idle" })}
-              >
-                End session
-              </Button>
-            </div>
-          </div>
-
-          {/* Session progress bar */}
-          <div style={{ marginTop: "var(--space-3)" }}>
-            <div
-              role="progressbar"
-              aria-valuenow={s.index}
-              aria-valuemin={0}
-              aria-valuemax={s.cards.length}
-              aria-label="Review session progress"
-              className="w-full h-1 rounded-full bg-border overflow-hidden"
-            >
-              <div
-                className="h-full rounded-full bg-primary transition-[width] duration-[var(--duration-base)]"
-                style={{
-                  width: `${(s.index / s.cards.length) * 100}%`,
-                }}
-              />
-            </div>
-          </div>
-
-          {/* Flashcard */}
-          <div
-            className="rw-flip"
-            style={{ marginTop: "var(--space-5)", minHeight: "220px" }}
-          >
-            <div
-              className="rw-flip-inner"
-              data-flipped={s.flipped ? "true" : "false"}
-              style={{ minHeight: "220px" }}
-            >
-              {/* Front face */}
-              <div
-                className={cn(
-                  "rw-flip-face",
-                  "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
-                  s.flipped ? "opacity-0" : "opacity-100",
-                )}
-              >
-                <p
-                  className="font-[family-name:var(--font-display)] text-[length:var(--text-3xl)] font-semibold text-text m-0"
-                  style={{ maxWidth: "52ch" }}
+      {s.phase === "session" && (() => {
+        const card = s.cards[s.index];
+        return (
+          <Card>
+            {/* Session header */}
+            <div className="flex items-center justify-between gap-[var(--space-4)]">
+              <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+                {s.mode === "cloze" ? "Cloze review" : "Reviewing"}
+              </h2>
+              <div className="flex items-center gap-[var(--space-3)]">
+                <span className="text-[length:var(--text-sm)] text-text-muted">
+                  {s.index + 1} of {s.cards.length}
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setAppState({ phase: "idle" })}
                 >
-                  {s.cards[s.index].word}
-                </p>
-                <p className="text-[length:var(--text-sm)] text-text-subtle m-0">
-                  Tap or press{" "}
-                  <kbd className="font-[family-name:var(--font-sans)] bg-bg-subtle border border-border rounded-[var(--radius-sm)] px-1 text-[length:var(--text-xs)]">
-                    Space
-                  </kbd>{" "}
-                  to reveal
-                </p>
-                <button
-                  ref={showAnswerRef}
-                  type="button"
-                  onClick={flipCard}
-                  aria-expanded={s.flipped}
-                  className={cn(
-                    "inline-flex items-center justify-center gap-[var(--space-2)]",
-                    "h-10 px-[var(--space-4)]",
-                    "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
-                    "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
-                    "hover:bg-bg-subtle",
-                    "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-                    "active:translate-y-px active:shadow-none",
-                    "disabled:opacity-50 disabled:cursor-not-allowed",
-                    focusRing,
-                  )}
-                >
-                  Show answer
-                </button>
-              </div>
-
-              {/* Back face */}
-              <div
-                className={cn(
-                  "rw-flip-face rw-flip-back",
-                  "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
-                  s.flipped ? "opacity-100" : "opacity-0",
-                )}
-              >
-                {/* Word repeated smaller */}
-                <p className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text-muted m-0">
-                  {s.cards[s.index].word}
-                </p>
-
-                {/* Explanation */}
-                {s.cards[s.index].explanation ? (
-                  <p
-                    className="text-[length:var(--text-base)] text-text m-0"
-                    style={{ maxWidth: "52ch" }}
-                  >
-                    {s.cards[s.index].explanation}
-                  </p>
-                ) : null}
-
-                {/* Example */}
-                {s.cards[s.index].example ? (
-                  <p
-                    className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
-                    style={{ maxWidth: "52ch" }}
-                  >
-                    &ldquo;{s.cards[s.index].example}&rdquo;
-                  </p>
-                ) : null}
-
-                {/* Grade buttons row */}
-                <GradeButtons onGrade={(g) => void submitGrade(g)} disabled={s.grading} goodRef={goodButtonRef} />
+                  End session
+                </Button>
               </div>
             </div>
-          </div>
-        </Card>
-      )}
+
+            {/* Session progress bar */}
+            <div style={{ marginTop: "var(--space-3)" }}>
+              <div
+                role="progressbar"
+                aria-valuenow={s.index}
+                aria-valuemin={0}
+                aria-valuemax={s.cards.length}
+                aria-label="Review session progress"
+                className="w-full h-1 rounded-full bg-border overflow-hidden"
+              >
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-[var(--duration-base)]"
+                  style={{ width: `${(s.index / s.cards.length) * 100}%` }}
+                />
+              </div>
+            </div>
+
+            {s.mode === "cloze" ? (
+              // ── Cloze card ────────────────────────────────────────────
+              <div
+                className="flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]"
+                style={{ marginTop: "var(--space-5)", minHeight: "220px" }}
+              >
+                {/* Hint: which word */}
+                <p className="text-[length:var(--text-sm)] text-text-muted m-0">
+                  Fill in the blank:
+                </p>
+
+                {/* Masked sentence or fallback */}
+                {card.cloze ? (
+                  <p
+                    className="font-[family-name:var(--font-reading)] text-[length:var(--text-lg)] text-text m-0"
+                    style={{ maxWidth: "52ch" }}
+                  >
+                    {card.cloze.masked}
+                  </p>
+                ) : (
+                  <>
+                    {/* No cloze available — definition fallback */}
+                    <p className="font-[family-name:var(--font-display)] text-[length:var(--text-3xl)] font-semibold text-text m-0">
+                      {card.word}
+                    </p>
+                    <p className="text-[length:var(--text-sm)] text-text-muted m-0 italic">
+                      (No example available — definition mode)
+                    </p>
+                  </>
+                )}
+
+                {/* Audio button */}
+                {speechAvailable && (
+                  <button
+                    type="button"
+                    onClick={() => speak(card.word, card.id)}
+                    aria-label={`Play pronunciation of ${card.word}`}
+                    title="Play pronunciation"
+                    className={cn(
+                      "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                      "text-[length:var(--text-sm)] transition-colors",
+                      focusRing,
+                    )}
+                  >
+                    <Volume2 size={16} aria-hidden />
+                    {speaking === card.id ? "Playing…" : card.word}
+                  </button>
+                )}
+
+                {/* Input / feedback area */}
+                {card.cloze && !s.clozeSubmitted && (
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      submitClozeAnswer(s.clozeInput);
+                    }}
+                    className="flex flex-col items-center gap-[var(--space-3)] w-full"
+                    style={{ maxWidth: "32ch" }}
+                  >
+                    <input
+                      ref={clozeInputRef}
+                      type="text"
+                      value={s.clozeInput}
+                      onChange={(e) =>
+                        setAppState((prev) =>
+                          prev.phase === "session"
+                            ? { ...prev, clozeInput: e.target.value }
+                            : prev,
+                        )
+                      }
+                      placeholder={`${"_".repeat(card.cloze.answerLength)}`}
+                      autoComplete="off"
+                      autoFocus
+                      className={cn(
+                        "w-full rounded-[var(--radius-md)] border border-border-strong bg-surface",
+                        "px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-base)] text-text",
+                        "placeholder:text-text-subtle text-center",
+                        focusRing,
+                      )}
+                      aria-label="Your answer"
+                    />
+                    <Button
+                      type="submit"
+                      variant="primary"
+                      disabled={s.clozeInput.trim() === ""}
+                    >
+                      Check
+                    </Button>
+                  </form>
+                )}
+
+                {/* Feedback after submission */}
+                {s.clozeSubmitted && (
+                  <div className="flex flex-col items-center gap-[var(--space-3)]">
+                    <p
+                      className={cn(
+                        "font-semibold text-[length:var(--text-base)] m-0",
+                        s.clozeCorrect
+                          ? "text-[color:var(--success-text)]"
+                          : "text-[color:var(--danger-text)]",
+                      )}
+                    >
+                      {s.clozeCorrect ? "✓ Correct!" : `✗ The answer was: ${card.word}`}
+                    </p>
+                    {card.explanation && (
+                      <p className="text-[length:var(--text-sm)] text-text-muted m-0" style={{ maxWidth: "52ch" }}>
+                        {card.explanation}
+                      </p>
+                    )}
+                    <GradeButtons onGrade={(g) => void submitGrade(g)} disabled={s.grading} goodRef={goodButtonRef} />
+                  </div>
+                )}
+
+                {/* Definition-fallback grade buttons (no cloze available) */}
+                {!card.cloze && (
+                  <div className="flex flex-col items-center gap-[var(--space-3)] w-full">
+                    {!s.flipped ? (
+                      <button
+                        ref={showAnswerRef}
+                        type="button"
+                        onClick={flipCard}
+                        aria-expanded={s.flipped}
+                        className={cn(
+                          "inline-flex items-center justify-center gap-[var(--space-2)]",
+                          "h-10 px-[var(--space-4)]",
+                          "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
+                          "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
+                          "hover:bg-bg-subtle",
+                          "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
+                          "active:translate-y-px active:shadow-none",
+                          focusRing,
+                        )}
+                      >
+                        Show definition
+                      </button>
+                    ) : (
+                      <>
+                        {card.explanation && (
+                          <p className="text-[length:var(--text-base)] text-text m-0" style={{ maxWidth: "52ch" }}>
+                            {card.explanation}
+                          </p>
+                        )}
+                        <GradeButtons onGrade={(g) => void submitGrade(g)} disabled={s.grading} goodRef={goodButtonRef} />
+                      </>
+                    )}
+                  </div>
+                )}
+              </div>
+            ) : (
+              // ── Classic flashcard ─────────────────────────────────────
+              <div
+                className="rw-flip"
+                style={{ marginTop: "var(--space-5)", minHeight: "220px" }}
+              >
+                <div
+                  className="rw-flip-inner"
+                  data-flipped={s.flipped ? "true" : "false"}
+                  style={{ minHeight: "220px" }}
+                >
+                  {/* Front face */}
+                  <div
+                    className={cn(
+                      "rw-flip-face",
+                      "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
+                      s.flipped ? "opacity-0" : "opacity-100",
+                    )}
+                  >
+                    <p
+                      className="font-[family-name:var(--font-display)] text-[length:var(--text-3xl)] font-semibold text-text m-0"
+                      style={{ maxWidth: "52ch" }}
+                    >
+                      {card.word}
+                    </p>
+
+                    {/* Audio button */}
+                    {speechAvailable && (
+                      <button
+                        type="button"
+                        onClick={() => speak(card.word, card.id)}
+                        aria-label={`Play pronunciation of ${card.word}`}
+                        title="Play pronunciation"
+                        className={cn(
+                          "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                          "text-[length:var(--text-sm)] transition-colors",
+                          focusRing,
+                        )}
+                      >
+                        <Volume2 size={16} aria-hidden />
+                        {speaking === card.id ? "Playing…" : "Pronounce"}
+                      </button>
+                    )}
+
+                    <p className="text-[length:var(--text-sm)] text-text-subtle m-0">
+                      Tap or press{" "}
+                      <kbd className="font-[family-name:var(--font-sans)] bg-bg-subtle border border-border rounded-[var(--radius-sm)] px-1 text-[length:var(--text-xs)]">
+                        Space
+                      </kbd>{" "}
+                      to reveal
+                    </p>
+                    <button
+                      ref={showAnswerRef}
+                      type="button"
+                      onClick={flipCard}
+                      aria-expanded={s.flipped}
+                      className={cn(
+                        "inline-flex items-center justify-center gap-[var(--space-2)]",
+                        "h-10 px-[var(--space-4)]",
+                        "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
+                        "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
+                        "hover:bg-bg-subtle",
+                        "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
+                        "active:translate-y-px active:shadow-none",
+                        "disabled:opacity-50 disabled:cursor-not-allowed",
+                        focusRing,
+                      )}
+                    >
+                      Show answer
+                    </button>
+                  </div>
+
+                  {/* Back face */}
+                  <div
+                    className={cn(
+                      "rw-flip-face rw-flip-back",
+                      "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
+                      s.flipped ? "opacity-100" : "opacity-0",
+                    )}
+                  >
+                    {/* Word repeated smaller */}
+                    <p className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text-muted m-0">
+                      {card.word}
+                    </p>
+
+                    {/* Audio button on back face */}
+                    {speechAvailable && s.flipped && (
+                      <button
+                        type="button"
+                        onClick={() => speak(card.word, card.id)}
+                        aria-label={`Play pronunciation of ${card.word}`}
+                        title="Play pronunciation"
+                        className={cn(
+                          "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                          "text-[length:var(--text-sm)] transition-colors",
+                          focusRing,
+                        )}
+                      >
+                        <Volume2 size={16} aria-hidden />
+                        {speaking === card.id ? "Playing…" : "Pronounce"}
+                      </button>
+                    )}
+
+                    {/* Explanation */}
+                    {card.explanation ? (
+                      <p
+                        className="text-[length:var(--text-base)] text-text m-0"
+                        style={{ maxWidth: "52ch" }}
+                      >
+                        {card.explanation}
+                      </p>
+                    ) : null}
+
+                    {/* Example */}
+                    {card.example ? (
+                      <p
+                        className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
+                        style={{ maxWidth: "52ch" }}
+                      >
+                        &ldquo;{card.example}&rdquo;
+                      </p>
+                    ) : null}
+
+                    {/* Grade buttons row */}
+                    <GradeButtons onGrade={(g) => void submitGrade(g)} disabled={s.grading} goodRef={goodButtonRef} />
+                  </div>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })()}
 
       {s.phase === "complete" && (
         <Card>
@@ -470,7 +767,7 @@ export default function FlashcardReview({
               {dueCount > 0 && (
                 <Button
                   variant="ghost"
-                  onClick={() => void startSession()}
+                  onClick={() => void startSession("flashcard")}
                 >
                   Review again
                 </Button>

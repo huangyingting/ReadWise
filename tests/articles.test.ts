@@ -84,3 +84,31 @@ test("rankPicks with no topics is the plain level ranking", () => {
   ];
   assert.deepEqual(rankPicks(arts, null, []).map((a) => a.id), ["a", "b"]);
 });
+
+// ── buildFtsQuery (FTS5 search helper) ──────────────────────────────────────
+
+import { buildFtsQuery } from "@/lib/articles";
+
+test("buildFtsQuery returns null for blank input", () => {
+  assert.equal(buildFtsQuery(""), null);
+  assert.equal(buildFtsQuery("   "), null);
+});
+
+test("buildFtsQuery wraps single token as prefix match", () => {
+  assert.equal(buildFtsQuery("climate"), '"climate"*');
+});
+
+test("buildFtsQuery wraps multiple tokens, each as prefix match", () => {
+  assert.equal(buildFtsQuery("climate change"), '"climate"* "change"*');
+});
+
+test("buildFtsQuery strips FTS5 operator characters from tokens", () => {
+  // Double-quotes in input should not break the FTS expression
+  const result = buildFtsQuery('say "hello"');
+  assert.ok(result !== null);
+  assert.ok(!result.includes('""'));
+});
+
+test("buildFtsQuery handles extra whitespace between tokens", () => {
+  assert.equal(buildFtsQuery("  ocean   life  "), '"ocean"* "life"*');
+});

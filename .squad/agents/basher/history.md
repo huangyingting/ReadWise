@@ -40,3 +40,7 @@ Static: typecheck 0 · lint 0 · build green (`/api/feed` in route table) · npm
 
 ### M16 — Pronunciation Practice (2026-06-19) ✅ PASS — committed e895e72
 Verified M16: CONDITIONAL PASS→PASS. Static: typecheck 0 · lint 0 · build green. Playwright (Chromium --no-sandbox, fake-mic): score ring renders with teal fill; sub-bars populate; per-word underline cue shown (not color-only); `sr-only` severity text confirmed via accessibility tree; legend present; "words to work on" list populated. Credential security: `GET /api/speech/token` response verified — `{token, region}` only, raw `AZURE_SPEECH_KEY` absent from all network traffic. IDOR: cross-user `/api/reader/[id]/pronunciation/history` → 404. Graceful states: unavailable, mic-denied, transient-error (retryable after FIX-1) all render correctly. **Fixed:** legend swatch CSS (spacing, visual only). **Post-redesign rich features M10–M16 all complete.**
+
+
+### 2026-06-20 — System review lesson: verify DOM findings under #48
+When #48 double-render is present, automated DOM/browser-inspection findings can be artifacts rather than product regressions. Cross-check high-severity reader findings against source and manual root-cause behavior before escalating: #54 was a #48 duplicate, #55/#56 were lowered, and #57 moved to needs-research.

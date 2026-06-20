@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
-import { parseProfileInput, type ProfileInput } from "@/lib/profile";
+import { parseProfileInput, getProfile, type ProfileInput } from "@/lib/profile";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -12,12 +12,17 @@ const profileSchema: Schema<ProfileInput> = (value) => {
 };
 
 export const PUT = createHandler({ body: profileSchema }, async ({ body, session }) => {
+  const existing = await getProfile(session.user.id);
+  const levelChanged = existing?.englishLevel !== body.englishLevel;
+
   const data = {
     ageRange: body.ageRange,
     gender: body.gender,
     englishLevel: body.englishLevel,
     topics: JSON.stringify(body.topics),
     ...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {}),
+    // Record when the level is explicitly changed by the user.
+    ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
   };
   await prisma.profile.upsert({
     where: { userId: session.user.id },
@@ -26,3 +31,4 @@ export const PUT = createHandler({ body: profileSchema }, async ({ body, session
   });
   return NextResponse.json({ ok: true });
 });
+

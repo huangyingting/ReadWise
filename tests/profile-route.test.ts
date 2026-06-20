@@ -24,6 +24,7 @@ before(() => {
     namedExports: {
       prisma: {
         profile: {
+          findUnique: async () => null,
           upsert: async (args: {
             create?: Record<string, unknown>;
             update?: Record<string, unknown>;

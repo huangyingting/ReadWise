@@ -23,6 +23,7 @@ import MasteryWidget from "@/components/MasteryWidget";
 import ForYouFeed from "@/components/ForYouFeed";
 import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 import RailScroller from "@/components/RailScroller";
+import LevelRecommendationBanner from "@/components/LevelRecommendationBanner";
 
 
 /** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
@@ -96,6 +97,21 @@ export default async function DashboardPage({
           </div>
         </div>
       </Card>
+
+      {/* Level progression recommendation — shown when confidence ≥ 0.6 */}
+      {profile && (
+        <div className="mt-[var(--space-5)]">
+          <LevelRecommendationBanner
+            profile={{
+              englishLevel: profile.englishLevel,
+              ageRange: profile.ageRange ?? null,
+              gender: profile.gender ?? null,
+              topics: parseTopics(profile.topics),
+              dailyGoal: profile.dailyGoal,
+            }}
+          />
+        </div>
+      )}
 
       {/* Your progress stats band: Streak | Goal | Mastery */}
       <section
