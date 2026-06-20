@@ -1,0 +1,49 @@
+# Dependencies & build output
+node_modules
+.next
+out
+build
+
+# Version control
+.git
+.gitattributes
+
+# Local environment files (NEVER bake secrets into the image)
+.env
+.env.local
+.env*.local
+.env.development
+.env.production
+
+# Database files (use a mounted volume at runtime)
+*.db
+*.db-journal
+prisma/dev.db
+
+# Test & coverage artifacts
+coverage
+test-results
+playwright-report
+blob-report
+
+# Editor / OS metadata
+.DS_Store
+*.pem
+.vscode
+.idea
+
+# TypeScript build info
+*.tsbuildinfo
+next-env.d.ts
+
+# Logs
+*.log
+dev-server.log
+
+# Squad / agent runtime state
+.squad
+.agents
+.copilot
+.mcp.json
+skills-lock.json
+AGENTS.md
