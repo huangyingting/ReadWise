@@ -58,7 +58,46 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ## Post-redesign features
 
-> **Post-redesign rich features M10–M12 COMPLETE** — bookmarks, highlights, AI tutor.
+> **Post-redesign rich features M10–M13 COMPLETE** — bookmarks, highlights, AI tutor, sentence translation.
+
+---
+
+## M13 — Sentence-level Translation: COMPLETE (47f7aa6)
+_2026-06-19 · Saul (spec), Livingston (cache model + lib + endpoint + migration), Linus (Translate toolbar action + SentenceTranslatePopover + shared-lang + M11 mark-persistence fix), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 281/281 · Rusty APPROVE-WITH-NITS · Basher CONDITIONAL PASS→PASS (D1 M11 bug fixed) · committed 47f7aa6.
+
+### Scope
+Sentence/phrase translation directly from text selection in the reader: Translate action in the M11 `SelectionToolbar`, anchored `SentenceTranslatePopover` with 4 states (loading shimmer, result, fallback, network error). Language choice shared with M5 whole-article Translate tab via `localStorage["readwise:translate-lang"]`.
+
+### Data layer (Livingston)
+- **Migration `m13_sentence_translation`** — additive. New `SentenceTranslation` model: `articleId` FK (cascade delete), `sourceHash` (SHA-256 of normalized text), `targetLang`, `sourceText`, `translation`; `@@unique([articleId, sourceHash, targetLang])` + `@@index([articleId])`.
+- **`src/lib/sentence-translation.ts`** — `translateSentence(articleId, text, lang)`: normalize→hash→cache lookup→article check→AI→upsert; graceful `{fallback:true}` on AI-unconfigured or AI-failure (nothing cached); `MAX_SENTENCE_CHARS=1000` exported.
+- **`POST /api/reader/[id]/translate-sentence`** — `createHandler`; 400 on missing/empty/over-length text or invalid lang; 401 unauth; 404 missing article.
+
+### UI layer (Linus)
+- **`src/lib/translate-lang.ts`** — shared `TRANSLATE_LANG_KEY`/`TRANSLATE_LANG_DEFAULT="zh-Hans"`/`getTranslateLang()`/`setTranslateLang()` with SSR guards.
+- **`src/components/SentenceTranslatePopover.tsx`** — `"use client"`; fixed-position; 4 states (shimmer `prefers-reduced-motion`-gated, result `lang`+`dir="auto"` for RTL, fallback italic+Retry, network error `role="alert"`+Retry); React `<p>` text nodes only, never `dangerouslySetInnerHTML`.
+- **`SelectionToolbar.tsx`** — Translate button (Languages icon); final order: Highlight · Translate · Add note · Define.
+- **`WordLookup.tsx`** — `openSurface` gains `"translate"`; `runSentenceTranslate` with `translateReqRef` stale-request guard; `handleTranslate` transitions `toolbar→translate` without `closeAll` (preserves `savedAnchorRef`); `closeAll` resets translate state, retains `translateLang`.
+- **`ArticleTranslation.tsx`** — seeds `lang` from and writes to `readwise:translate-lang` on change (shared key).
+- **`globals.css`** — `.rw-tr-*` family appended (≈160 lines); no existing rule touched.
+- **M11 latent bug fixed (found by Basher):** `useMemo` on `dangerouslySetInnerHTML` prop in `WordLookup` — React 19 uses reference equality; inline object creation was resetting `innerHTML` on every re-render, wiping M11 `<mark>` highlight nodes.
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Shared lang key default | `zh-Hans` |
+| Fallback unavailable state | calm inline note (not `role="alert"`) |
+| Toolbar button order | Highlight · Translate · Add note · Define (Add note preserved) |
+
+### Deferred nits (4)
+| ID | Description |
+|---|---|
+| N1 | Validate seeded `translateLang` against the `languages` prop in WordLookup (ArticleTranslation already validates) |
+| N2 | Client-side 1000-char guard in `handleTranslate` (currently relies on API 400) |
+| N3 | Toolbar order vs Saul's 3-action diagram (Highlight·Translate·Define); Add note preserved as capability addition |
+| N4 | Redundant `stopPropagation` in `SentenceTranslatePopover` (outside-click already exempted via ref) |
 
 ---
 
