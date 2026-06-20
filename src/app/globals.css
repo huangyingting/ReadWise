@@ -286,7 +286,7 @@ body {
   padding: 0.75rem 1rem;
   border-radius: 8px;
   border: 1px solid var(--border);
-  background: #20242d;
+  background: var(--surface);
   color: var(--text);
   font-size: 0.95rem;
   font-weight: 600;
@@ -295,7 +295,7 @@ body {
 }
 
 .btn:hover {
-  background: #262b35;
+  background: var(--bg-subtle);
   border-color: var(--accent);
 }
 
@@ -612,7 +612,7 @@ body {
   padding: 1rem;
   border: 1px solid var(--border);
   border-radius: 10px;
-  background: #20242d;
+  background: var(--bg-subtle);
 }
 
 .vocabulary-item-main {
@@ -1783,6 +1783,21 @@ body {
 .reader-tab-panel .vocabulary-item {
   background: var(--reading-bg, var(--bg));
   border-color: var(--reading-border, var(--border));
+}
+
+/* Buttons inside any reader tab panel adapt to the reading surface. */
+.reader-tab-panel .btn {
+  background: var(--reading-surface, var(--surface));
+  color: var(--reading-text, var(--text));
+  border-color: var(--reading-border, var(--border));
+}
+.reader-tab-panel .btn:hover {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 10%, var(--reading-surface, var(--surface)));
+  border-color: var(--reading-border, var(--border));
+}
+/* Keep the saved-word accent border reading-mode-aware. */
+.reader-tab-panel .vocabulary-save.is-saved {
+  border-color: var(--reading-link, var(--accent));
 }
 
 .reader-tab-panel .translation-controls select {
