@@ -41,7 +41,7 @@ function parseQuery(params: URLSearchParams) {
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
   const { q, offset, limit } = query;
 
-  const page = await searchPublishedArticles(q, { offset, limit });
+  const page = await searchPublishedArticles(q, { offset, limit }, session.user.id);
 
   const progress = await getProgressSummaries(
     session.user.id,

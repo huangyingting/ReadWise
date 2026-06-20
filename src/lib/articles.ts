@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Article } from "@prisma/client";
+import type { Article, Prisma } from "@prisma/client";
 import {
   levelRank,
   ensureArticleDifficulties,
@@ -244,8 +244,11 @@ export const SEARCH_PAGE_SIZE = 20;
 export const SEARCH_MAX_LIMIT = 50;
 
 /**
- * Searches published articles by title, author, or source using a
+ * Searches published articles by title, author, source, or body content using a
  * case-insensitive LIKE match (SQLite LIKE is case-insensitive for ASCII).
+ * When `userId` is supplied the search is extended to also surface articles that
+ * the user has highlighted/annotated or saved vocabulary words from — giving
+ * results even when the matched term does not appear in the article metadata.
  * An empty / blank query returns no results rather than the whole table.
  * Results are uncached because they are query-dependent and also merged with
  * per-user progress data in the route.
@@ -253,6 +256,7 @@ export const SEARCH_MAX_LIMIT = 50;
 export async function searchPublishedArticles(
   query: string,
   opts: { offset?: number; limit?: number } = {},
+  userId?: string,
 ): Promise<ArticlePage> {
   const q = query.trim();
   if (!q) {
@@ -261,14 +265,56 @@ export async function searchPublishedArticles(
   const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
   const offset = Math.max(0, opts.offset ?? 0);
 
+  // Per-user: collect article IDs from highlights and saved words that match
+  // the query. These run in parallel and feed into the main article OR clause
+  // so that pagination (skip/take) stays correct with a single DB query.
+  const userArticleIds: string[] = [];
+  if (userId) {
+    const [highlightMatches, vocabMatches] = await Promise.all([
+      prisma.highlight.findMany({
+        where: {
+          userId,
+          OR: [
+            { quote: { contains: q } },
+            { note: { contains: q } },
+          ],
+        },
+        select: { articleId: true },
+        distinct: ["articleId"],
+      }),
+      prisma.savedWord.findMany({
+        where: {
+          userId,
+          word: { contains: q },
+          articleId: { not: null },
+        },
+        select: { articleId: true },
+      }),
+    ]);
+
+    const ids = new Set<string>();
+    for (const h of highlightMatches) ids.add(h.articleId);
+    for (const sw of vocabMatches) {
+      if (sw.articleId) ids.add(sw.articleId);
+    }
+    userArticleIds.push(...ids);
+  }
+
+  // Build OR clauses: article metadata + body + per-user article IDs
+  const orClauses: Prisma.ArticleWhereInput[] = [
+    { title: { contains: q } },
+    { author: { contains: q } },
+    { source: { contains: q } },
+    { content: { contains: q } },
+  ];
+  if (userArticleIds.length > 0) {
+    orClauses.push({ id: { in: userArticleIds } });
+  }
+
   const rows = await prisma.article.findMany({
     where: {
       status: "published",
-      OR: [
-        { title: { contains: q } },
-        { author: { contains: q } },
-        { source: { contains: q } },
-      ],
+      OR: orClauses,
     },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
