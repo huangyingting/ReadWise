@@ -97,7 +97,6 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
         onKeyDown={(e) => {
           if (e.key === "Escape") { e.preventDefault(); onCancel(); }
         }}
-        // eslint-disable-next-line jsx-a11y/no-autofocus
         autoFocus
       />
       {(nearLimit || atLimit) && (

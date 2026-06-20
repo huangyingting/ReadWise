@@ -211,7 +211,6 @@ export default function HighlightEditPopover({
                 }
               }}
               // Auto-focus when note editor opens
-              // eslint-disable-next-line jsx-a11y/no-autofocus
               autoFocus
             />
             {(nearLimit || atLimit) && (

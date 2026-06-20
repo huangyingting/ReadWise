@@ -40,6 +40,7 @@ import ReaderNotesPanel from "./ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
 import ArticleTutor from "./ArticleTutor";
 import ArticlePronunciation from "./ArticlePronunciation";
+import { READER_BREAKPOINT } from "@/lib/breakpoints";
 
 export type TabId = "listen" | "speak" | "words" | "quiz" | "translate" | "notes" | "ask";
 
@@ -385,7 +386,7 @@ export default function ReaderToolsPanel({
 
   // NIR-M5-1: track viewport width to decide which container owns PanelContents.
   useEffect(() => {
-    const mq = window.matchMedia("(max-width: 1099px)");
+    const mq = window.matchMedia(`(max-width: ${READER_BREAKPOINT - 1}px)`);
     const update = () => setIsMobile(mq.matches);
     update();
     mq.addEventListener("change", update);
@@ -434,7 +435,6 @@ export default function ReaderToolsPanel({
       document.body.style.overflow = prevOverflow;
       document.removeEventListener("keydown", onKey);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sheetOpen]);
 
   function closeSheet() {

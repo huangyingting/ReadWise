@@ -130,10 +130,7 @@ export default function FlashcardReview({
     );
     announce("Answer revealed");
     setTimeout(() => goodButtonRef.current?.focus(), 0);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  /** Submit a grade, advance to next card or complete. Stable ref pattern. */
   const submitGrade = useCallback(
     async (g: Grade) => {
       const s = appStateRef.current;
@@ -191,7 +188,6 @@ export default function FlashcardReview({
         setTimeout(() => showAnswerRef.current?.focus(), 0);
       }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     [],
   );
 

@@ -18,6 +18,10 @@
  */
 
 :root {
+  /* ---- Layout constants ---- */
+  /* AppHeader height — referenced by globals.css sticky offsets (search "var(--header-height)"). */
+  --header-height: 56px;
+
   /* ---- Fonts (families injected by next/font in layout.tsx) ---- */
   --font-sans: var(--font-sans-src), system-ui, -apple-system, "Segoe UI", Roboto,
     Helvetica, Arial, sans-serif;
