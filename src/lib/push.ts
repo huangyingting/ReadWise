@@ -68,28 +68,23 @@ export interface PushPayload {
 // Send to one user
 // ---------------------------------------------------------------------------
 
+type SubRow = { id: string; userId?: string; endpoint: string; p256dh: string; auth: string };
+
 /**
- * Sends a push notification to every active subscription for `userId`.
+ * Sends a push notification to a pre-loaded list of subscriptions.
  * Dead subscriptions (404 / 410 from the push service) are pruned automatically.
  * Returns the number of successfully delivered pushes.
+ *
+ * Used internally by both `sendPushToUser` and the batched `sendDueReminders`
+ * to avoid re-fetching subscriptions inside a loop.
  */
-export async function sendPushToUser(
-  userId: string,
-  payload: PushPayload,
-): Promise<number> {
+async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<number> {
   if (!ensurePushInit()) {
-    log.warn("sendPushToUser called but VAPID is unconfigured — skipping");
+    log.warn("sendToSubs called but VAPID is unconfigured — skipping");
     return 0;
   }
-
-  const subs = await prisma.pushSubscription.findMany({
-    where: { userId },
-    select: { id: true, endpoint: true, p256dh: true, auth: true },
-  });
-
   if (subs.length === 0) return 0;
 
-  const payloadStr = JSON.stringify(payload);
   const deadIds: string[] = [];
   let sent = 0;
 
@@ -104,7 +99,6 @@ export async function sendPushToUser(
       } catch (err: unknown) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) {
-          // Endpoint is gone — schedule it for removal.
           deadIds.push(sub.id);
           log.info("push subscription expired — pruning", {
             subId: sub.id,
@@ -125,6 +119,28 @@ export async function sendPushToUser(
   }
 
   return sent;
+}
+
+/**
+ * Sends a push notification to every active subscription for `userId`.
+ * Dead subscriptions (404 / 410 from the push service) are pruned automatically.
+ * Returns the number of successfully delivered pushes.
+ */
+export async function sendPushToUser(
+  userId: string,
+  payload: PushPayload,
+): Promise<number> {
+  if (!ensurePushInit()) {
+    log.warn("sendPushToUser called but VAPID is unconfigured — skipping");
+    return 0;
+  }
+
+  const subs = await prisma.pushSubscription.findMany({
+    where: { userId },
+    select: { id: true, endpoint: true, p256dh: true, auth: true },
+  });
+
+  return sendToSubs(subs, JSON.stringify(payload));
 }
 
 // ---------------------------------------------------------------------------
@@ -169,14 +185,23 @@ export async function sendDueReminders(): Promise<ReminderResult> {
 
   const dueUserIds = dueGroups.map((g) => g.userId);
 
-  // Only target users who actually have subscriptions.
-  const subscribedUserIds = (
-    await prisma.pushSubscription.findMany({
-      where: { userId: { in: dueUserIds } },
-      distinct: ["userId"],
-      select: { userId: true },
-    })
-  ).map((r) => r.userId);
+  // Batch-load ALL subscriptions for due users in a single query to avoid
+  // the N+1 pattern of calling sendPushToUser (which issues its own findMany)
+  // once per user.
+  const allSubs = await prisma.pushSubscription.findMany({
+    where: { userId: { in: dueUserIds } },
+    select: { id: true, userId: true, endpoint: true, p256dh: true, auth: true },
+  });
+
+  // Group subscriptions by userId.
+  const subsByUser = new Map<string, SubRow[]>();
+  for (const sub of allSubs) {
+    const list = subsByUser.get(sub.userId) ?? [];
+    list.push(sub);
+    subsByUser.set(sub.userId, list);
+  }
+
+  const subscribedUserIds = [...subsByUser.keys()];
 
   const result: ReminderResult = {
     usersWithDue: dueGroups.length,
@@ -197,7 +222,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
       url: "/study",
       icon: "/icons/icon-192.png",
     };
-    const delivered = await sendPushToUser(userId, payload);
+    const delivered = await sendToSubs(subsByUser.get(userId) ?? [], JSON.stringify(payload));
     if (delivered > 0) result.sent++;
   }
 
