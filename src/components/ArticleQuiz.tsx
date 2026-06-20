@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Star } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
 type QuizQuestion = {
   question: string;
@@ -381,24 +382,23 @@ export default function ArticleQuiz({
                 ) : null}
 
                 {/* Try again — indigo, unchanged */}
-                <button
+                <Button
                   type="button"
-                  className="btn"
+                  variant="outline"
                   onClick={handleRetry}
                 >
                   Try again
-                </button>
+                </Button>
               </div>
             </div>
           ) : (
-            <button
+            <Button
               type="button"
-              className="btn btn-primary quiz-submit"
               onClick={handleSubmit}
               disabled={!allAnswered}
             >
               Check answers
-            </button>
+            </Button>
           )}
         </>
       ) : null}

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { buttonVariants } from "@/components/ui/Button";
 
 export default function ArticleNotFound() {
   return (
@@ -9,7 +10,7 @@ export default function ArticleNotFound() {
         is incorrect.
       </p>
       <p style={{ marginTop: "1.5rem" }}>
-        <Link className="btn btn-primary" href="/dashboard">
+        <Link className={buttonVariants({ variant: "primary" })} href="/dashboard">
           Back to dashboard
         </Link>
       </p>

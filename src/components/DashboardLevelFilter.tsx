@@ -8,6 +8,7 @@
  */
 
 import { ENGLISH_LEVELS } from "@/lib/profile";
+import { buttonVariants } from "@/components/ui/Button";
 
 export default function DashboardLevelFilter({
   defaultValue,
@@ -40,11 +41,11 @@ export default function DashboardLevelFilter({
         ))}
       </select>
       {/* No-JS fallback: visible only without JavaScript */}
-      <noscript>
-        <button type="submit" className="btn btn-primary" style={{ marginLeft: "0.25rem" }}>
-          Go
-        </button>
-      </noscript>
+        <noscript>
+          <button type="submit" className={buttonVariants({ variant: "primary", size: "sm" })} style={{ marginLeft: "0.25rem" }}>
+            Go
+          </button>
+        </noscript>
     </form>
   );
 }

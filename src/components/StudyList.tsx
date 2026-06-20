@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { Volume2 } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
 
 export type StudyWord = {
   id: string;
@@ -126,14 +127,15 @@ export default function StudyList({
                   <Volume2 size={16} aria-hidden />
                 </button>
               ) : null}
-              <button
+              <Button
                 type="button"
-                className="btn vocabulary-save is-saved"
+                variant="outline"
+                size="sm"
                 onClick={() => remove(item)}
                 disabled={pending === item.id}
               >
                 {pending === item.id ? "…" : "Remove"}
-              </button>
+              </Button>
             </div>
           </li>
         ))}

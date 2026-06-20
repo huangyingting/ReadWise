@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button } from "@/components/ui/Button";
 
 type VocabularyItem = {
   word: string;
@@ -148,11 +149,10 @@ export default function ArticleVocabulary({
                   </p>
                 ) : null}
               </div>
-              <button
+              <Button
                 type="button"
-                className={`btn vocabulary-save ${
-                  item.saved ? "is-saved" : ""
-                }`}
+                variant={item.saved ? "outline" : "secondary"}
+                size="sm"
                 onClick={() => toggleSaved(item)}
                 disabled={pending === item.word}
                 aria-pressed={item.saved}
@@ -162,7 +162,7 @@ export default function ArticleVocabulary({
                   : item.saved
                     ? "✓ Saved"
                     : "Save"}
-              </button>
+              </Button>
             </li>
           ))}
         </ul>

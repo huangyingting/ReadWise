@@ -1,23 +1,29 @@
 "use client";
 
 import { signOut } from "next-auth/react";
+import { Button } from "@/components/ui/Button";
+import { type VariantProps } from "class-variance-authority";
+import { buttonVariants } from "@/components/ui/Button";
 
 export default function SignOutButton({
   callbackUrl = "/",
-  className = "btn",
+  variant = "outline",
+  size = "md",
   label = "Sign out",
 }: {
   callbackUrl?: string;
-  className?: string;
+  variant?: VariantProps<typeof buttonVariants>["variant"];
+  size?: VariantProps<typeof buttonVariants>["size"];
   label?: string;
 }) {
   return (
-    <button
+    <Button
       type="button"
-      className={className}
+      variant={variant}
+      size={size}
       onClick={() => signOut({ callbackUrl })}
     >
       {label}
-    </button>
+    </Button>
   );
 }

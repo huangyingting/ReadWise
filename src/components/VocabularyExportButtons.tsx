@@ -1,5 +1,7 @@
 "use client";
 
+import { buttonVariants } from "@/components/ui/Button";
+
 /**
  * Two download links (CSV and Anki TSV) for the user's saved vocabulary.
  * Plain <a href> links trigger a native browser download — no JS fetch needed.
@@ -11,14 +13,14 @@ export default function VocabularyExportButtons() {
       <a
         href="/api/vocabulary/export?format=csv"
         download
-        className="btn btn-sm btn-outline"
+        className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         CSV
       </a>
       <a
         href="/api/vocabulary/export?format=anki"
         download
-        className="btn btn-sm btn-outline"
+        className={buttonVariants({ variant: "outline", size: "sm" })}
       >
         Anki
       </a>

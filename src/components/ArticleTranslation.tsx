@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
+import { Button } from "@/components/ui/Button";
 
 type SupportedLanguage = {
   code: string;
@@ -110,14 +111,14 @@ export default function ArticleTranslation({
             </option>
           ))}
         </select>
-        <button
+        <Button
           type="button"
-          className="btn btn-primary"
           onClick={handleTranslate}
           disabled={loading || !lang}
+          loading={loading}
         >
           {loading ? "Translating…" : "Translate"}
-        </button>
+        </Button>
       </div>
 
       {error ? (
