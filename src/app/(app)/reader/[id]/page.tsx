@@ -75,21 +75,28 @@ export default async function ReaderPage({
     notFound();
   }
 
-  const progress = await getProgress(session.user.id, article.id);
-  const difficulty = await getOrCreateArticleDifficulty(article.id);
-  const difficultyLevel = (difficulty?.level ?? article.difficulty) as CefrLevel | null;
-  const tags = (await getOrCreateArticleTags(article.id))?.tags ?? [];
-  const relatedArticles = await listRelatedArticles(article.id);
+  // Parallel fetch: all five queries depend only on article.id / userId (independent of each other)
+  const [progress, difficulty, tagsResult, relatedArticles, membership] = await Promise.all([
+    getProgress(session.user.id, article.id),
+    getOrCreateArticleDifficulty(article.id),
+    getOrCreateArticleTags(article.id),
+    listRelatedArticles(article.id),
+    // M10: SSR bookmark state for the reader cluster
+    getArticleListMembership(session.user.id, article.id),
+  ]);
+
+  // relatedProgress depends on relatedArticles — must come after
   const relatedProgress = await getProgressMap(
     session.user.id,
     relatedArticles.map((a) => a.id),
   );
+
+  const difficultyLevel = (difficulty?.level ?? article.difficulty) as CefrLevel | null;
+  const tags = tagsResult?.tags ?? [];
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
   const articlePlainText = htmlToPlainText(article.content);
 
-  // M10: SSR bookmark state for the reader cluster
-  const membership = await getArticleListMembership(session.user.id, article.id);
   const isBookmarked = membership?.find((l) => l.isDefault)?.hasArticle ?? false;
 
   const isValidCefrLevel = difficultyLevel && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
