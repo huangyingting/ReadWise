@@ -38,3 +38,8 @@ Final cumulative gate after all six Ralph waves: typecheck 0, lint 0, tests 411/
 - Root-cause high-severity reader/a11y reports before filing or escalating them as Critical; double-render/hydration bugs can masquerade as many independent symptoms.
 - Scaling work should be phased from measurement and low-risk DB/cache wins toward queues, workers, observability, and larger architecture changes.
 - Security reviews should verify exploitability and ownership scope before raising severity; high-confidence findings beat broad speculative reports.
+
+
+### 2026-06-20 — Build-artifact triage lesson
+
+Before filing build failures as product bugs, verify they are not concurrent-dev-server or dirty `.next` artifacts. In review 2, the flagged build failure was artifact-only and a clean build passed, so the right follow-up was a reliability spike/comment rather than a confirmed product regression.
