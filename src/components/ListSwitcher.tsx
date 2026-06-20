@@ -15,10 +15,10 @@
  * the updated list and article data.
  */
 
-import { useState, useRef, useId } from "react";
+import { useState, useRef, useId, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Trash2, Plus, Check, X } from "lucide-react";
+import { Pencil, Plus, Check, X, MoreHorizontal } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -197,12 +197,11 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
         )}
       </Link>
 
-      {/* Rename + Delete — only for non-default lists, revealed on hover/focus */}
+      {/* Rename + Delete — only for non-default lists */}
       {!list.isDefault ? (
         <div
           className={cn(
             "flex items-center gap-[var(--space-1)] shrink-0",
-            "opacity-0 group-hover/list-row:opacity-100 focus-within:opacity-100",
             "transition-opacity [transition-duration:var(--duration-fast)]",
           )}
         >
@@ -239,12 +238,158 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
   );
 }
 
+/**
+ * Inline management panel for mobile — shown below the pill bar when a user
+ * taps the ⋯ button on a custom (non-default) list.
+ */
+interface MobileListManagerProps {
+  list: SwitcherList;
+  onClose: () => void;
+  onRenameSuccess: () => void;
+  onDeleteSuccess: (deletedId: string) => void;
+}
+
+function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: MobileListManagerProps) {
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState(list.name);
+  const [renameError, setRenameError] = useState<string | null>(null);
+  const [renamePending, setRenamePending] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const errorId = useId();
+
+  async function submitRename(e?: React.FormEvent) {
+    e?.preventDefault();
+    const trimmed = renameValue.trim();
+    if (!trimmed) { setRenameError("Name is required"); return; }
+    if (trimmed.length > 60) { setRenameError("Must be 60 characters or less"); return; }
+    if (trimmed === list.name) { setRenaming(false); return; }
+    setRenamePending(true);
+    setRenameError(null);
+    try {
+      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: trimmed }),
+      });
+      if (!res.ok) throw new Error("Failed");
+      onRenameSuccess();
+    } catch {
+      setRenameError("Couldn't rename — try again");
+    } finally {
+      setRenamePending(false);
+    }
+  }
+
+  async function handleDelete() {
+    setDeletePending(true);
+    try {
+      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Failed");
+      onDeleteSuccess(list.id);
+    } finally {
+      setDeletePending(false);
+    }
+  }
+
+  return (
+    <div
+      role="region"
+      aria-label={`Manage ${list.name}`}
+      className="mt-[var(--space-3)] p-[var(--space-3)] rounded-[var(--radius-md)] border border-border bg-bg-subtle flex flex-col gap-[var(--space-3)]"
+    >
+      {/* Header */}
+      <div className="flex items-center justify-between gap-[var(--space-2)]">
+        <span className="text-[length:var(--text-sm)] font-semibold text-text truncate">
+          {list.name}
+        </span>
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className={cn(
+            "inline-flex items-center justify-center size-7 shrink-0 rounded-[var(--radius-sm)]",
+            "text-text-subtle hover:text-text hover:bg-surface",
+            focusRing,
+          )}
+        >
+          <X size={14} aria-hidden />
+        </button>
+      </div>
+
+      {/* Rename */}
+      {renaming ? (
+        <form onSubmit={(e) => void submitRename(e)} className="flex flex-col gap-[var(--space-1)]">
+          <Input
+            ref={inputRef}
+            inputSize="sm"
+            value={renameValue}
+            maxLength={60}
+            onChange={(e) => setRenameValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Escape") setRenaming(false); }}
+            aria-label={`Rename ${list.name}`}
+            aria-describedby={renameError ? errorId : undefined}
+            invalid={!!renameError}
+            autoFocus
+          />
+          {renameError ? (
+            <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
+              {renameError}
+            </p>
+          ) : null}
+          <div className="flex gap-[var(--space-1)]">
+            <Button
+              type="submit"
+              size="sm"
+              variant="primary"
+              loading={renamePending}
+              disabled={!renameValue.trim()}
+              leadingIcon={<Check size={12} aria-hidden />}
+            >
+              Save
+            </Button>
+            <Button type="button" size="sm" variant="ghost" disabled={renamePending} onClick={() => setRenaming(false)}>
+              Cancel
+            </Button>
+          </div>
+        </form>
+      ) : (
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          leadingIcon={<Pencil size={14} aria-hidden />}
+          onClick={() => { setRenameValue(list.name); setRenameError(null); setRenaming(true); }}
+        >
+          Rename
+        </Button>
+      )}
+
+      {/* Delete */}
+      <ConfirmAction
+        triggerLabel="Delete list"
+        triggerVariant="outline"
+        size="sm"
+        confirmMessage={`Delete "${list.name}"? Saved articles stay in your library; only this list is removed.`}
+        confirmLabel="Delete"
+        cancelLabel="Keep"
+        confirmVariant="danger"
+        loading={deletePending}
+        onConfirm={handleDelete}
+      />
+    </div>
+  );
+}
+
 export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
   const [newListName, setNewListName] = useState("");
   const [createError, setCreateError] = useState<string | null>(null);
   const [createPending, setCreatePending] = useState(false);
+  const [mobileManagingId, setMobileManagingId] = useState<string | null>(null);
   const createInputRef = useRef<HTMLInputElement>(null);
   const createBtnRef = useRef<HTMLButtonElement>(null);
   const errorId = useId();
@@ -266,6 +411,7 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
     setNewListName("");
     setCreateError(null);
     setCreating(true);
+    setMobileManagingId(null);
     setTimeout(() => createInputRef.current?.focus(), 0);
   }
 
@@ -407,26 +553,52 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
     >
       {lists.map((list) => {
         const isActive = list.id === activeListId || (!activeListId && list.isDefault);
+        const isManaging = mobileManagingId === list.id;
         return (
-          <Link
-            key={list.id}
-            href={list.isDefault ? "/lists" : `/lists?list=${encodeURIComponent(list.id)}`}
-            aria-current={isActive ? "page" : undefined}
-            className={cn(
-              "inline-flex items-center gap-[var(--space-1)] shrink-0 snap-start",
-              "h-9 px-[var(--space-4)]",
-              "rounded-[var(--radius-full)]",
-              "text-[length:var(--text-sm)] font-medium no-underline",
-              "transition-colors [transition-duration:var(--duration-fast)]",
-              isActive
-                ? "bg-primary border border-primary text-on-primary"
-                : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
-              focusRing,
-            )}
-          >
-            {list.name}
-            <Badge count={list.count} />
-          </Link>
+          <Fragment key={list.id}>
+            <Link
+              href={list.isDefault ? "/lists" : `/lists?list=${encodeURIComponent(list.id)}`}
+              aria-current={isActive ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center gap-[var(--space-1)] shrink-0 snap-start",
+                "h-9 px-[var(--space-4)]",
+                "rounded-[var(--radius-full)]",
+                "text-[length:var(--text-sm)] font-medium no-underline",
+                "transition-colors [transition-duration:var(--duration-fast)]",
+                isActive
+                  ? "bg-primary border border-primary text-on-primary"
+                  : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+                focusRing,
+              )}
+            >
+              {list.name}
+              <Badge count={list.count} />
+            </Link>
+            {/* Per-list ⋯ manage button — only for non-default lists */}
+            {!list.isDefault ? (
+              <button
+                type="button"
+                aria-label={`Manage ${list.name}`}
+                aria-expanded={isManaging}
+                onClick={() => {
+                  setCreating(false);
+                  setMobileManagingId(isManaging ? null : list.id);
+                }}
+                className={cn(
+                  "inline-flex items-center justify-center shrink-0 snap-start",
+                  "h-9 w-8 rounded-[var(--radius-full)]",
+                  "bg-surface border text-text-muted",
+                  "transition-colors [transition-duration:var(--duration-fast)]",
+                  isManaging
+                    ? "border-border-strong bg-bg-subtle text-text"
+                    : "border-border hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+                  focusRing,
+                )}
+              >
+                <MoreHorizontal size={14} aria-hidden />
+              </button>
+            ) : null}
+          </Fragment>
         );
       })}
 
@@ -495,6 +667,24 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
             </div>
           </form>
         ) : null}
+        {/* Mobile management panel — shown when ⋯ is tapped on a custom list */}
+        {mobileManagingId && !creating ? (() => {
+          const mgList = lists.find((l) => l.id === mobileManagingId && !l.isDefault);
+          if (!mgList) return null;
+          return (
+            <MobileListManager
+              key={mobileManagingId}
+              list={mgList}
+              onClose={() => setMobileManagingId(null)}
+              onRenameSuccess={() => { setMobileManagingId(null); router.refresh(); }}
+              onDeleteSuccess={(id) => {
+                setMobileManagingId(null);
+                if (id === activeListId) router.push("/lists");
+                else router.refresh();
+              }}
+            />
+          );
+        })() : null}
       </div>
     </>
   );
