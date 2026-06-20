@@ -1665,7 +1665,8 @@ body {
   bottom: 0;
   left: 0;
   right: 0;
-  height: var(--header-height);
+  height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: 40;
   display: flex;
   align-items: center;
@@ -1783,7 +1784,7 @@ body {
 /* ---- Mobile: Tools FAB + bottom sheet ---- */
 .reader-tools-fab {
   position: fixed;
-  bottom: calc(var(--header-height) + var(--space-3)); /* above mini-player */
+  bottom: calc(var(--header-height) + var(--space-3) + env(safe-area-inset-bottom, 0px)); /* above mini-player */
   right: var(--space-4);
   z-index: 35;
   display: inline-flex;
@@ -1802,7 +1803,7 @@ body {
 
 /* FAB when mini-player is absent */
 .reader-tools-fab.no-player {
-  bottom: var(--space-4);
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
 }
 
 .reader-bottom-sheet-scrim {
