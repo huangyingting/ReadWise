@@ -1811,7 +1811,12 @@ body {
   inset: 0;
   background: var(--overlay);
   z-index: 44;
-  animation: rw-fade-up var(--duration-base) var(--ease-standard) both;
+  animation: rw-scrim-in var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes rw-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .reader-bottom-sheet {

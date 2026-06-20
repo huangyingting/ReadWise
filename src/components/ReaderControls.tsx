@@ -156,6 +156,15 @@ export default function ReaderControls() {
             <span aria-hidden="true">−</span>
           </button>
 
+          {/* Current font-scale label */}
+          <span
+            aria-hidden="true"
+            className="text-[length:var(--text-xs)] text-reading-text-muted tabular-nums select-none"
+            style={{ minWidth: "1.8ch", textAlign: "center" }}
+          >
+            {fontScaleLabel(displayPrefs.fontScale).slice(0, 2)}
+          </span>
+
           <button
             type="button"
             aria-label="Increase text size"

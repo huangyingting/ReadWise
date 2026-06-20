@@ -23,6 +23,7 @@ import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
+import WordLookupHint from "@/components/WordLookupHint";
 
 export async function generateMetadata({
   params,
@@ -270,11 +271,8 @@ export default async function ReaderPage({
                   />
                 ) : null}
 
-                {/* Word-lookup / highlight hint (updated for M11) */}
-                <p className="muted word-lookup-hint">
-                  Click a word to define it · Select text to highlight or add a note · Use{" "}
-                  <kbd style={{ fontFamily: "inherit", fontSize: "0.9em" }}>⌘/Ctrl+E</kbd> with a selection
-                </p>
+                {/* Word-lookup / highlight hint — dismissible (localStorage) */}
+                <WordLookupHint />
 
                 {/* Prose — ONLY renderer of sanitized HTML (unchanged constraint) */}
                 <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />

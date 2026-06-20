@@ -30,7 +30,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, Wrench, X, Mic } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -479,14 +479,14 @@ export default function ReaderToolsPanel({
       <button
         ref={fabRef}
         type="button"
-        aria-label="Open reading tools"
+        aria-label="Open AI learning tools"
         aria-haspopup="dialog"
         aria-expanded={sheetOpen}
         onClick={handleSheetOpen}
         className={cn("reader-tools-fab", focusRing)}
       >
-        <Wrench size={16} aria-hidden="true" />
-        Tools
+        <Sparkles size={16} aria-hidden="true" />
+        Learn
       </button>
 
       {/* ---- Mobile: bottom sheet ---- */}
