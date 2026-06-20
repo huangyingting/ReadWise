@@ -131,8 +131,9 @@ export async function listHighlights(
 
 /**
  * Create a new highlight for the authenticated user.
- * Validates the anchor before writing; throws nothing — returns a structured
- * result so the route can map to the right HTTP status.
+ * Validates the anchor before writing. Idempotent: if the same
+ * (userId, articleId, startOffset, endOffset) already exists the existing
+ * highlight is returned unchanged (repeat saves succeed without error).
  */
 export async function createHighlight(
   userId: string,
@@ -144,8 +145,16 @@ export async function createHighlight(
     return { ok: false, error: validation.error, status: 400 };
   }
 
-  const highlight = await prisma.highlight.create({
-    data: {
+  const highlight = await prisma.highlight.upsert({
+    where: {
+      userId_articleId_startOffset_endOffset: {
+        userId,
+        articleId,
+        startOffset: input.startOffset,
+        endOffset: input.endOffset,
+      },
+    },
+    create: {
       userId,
       articleId,
       quote: input.quote.trim(),
@@ -156,6 +165,8 @@ export async function createHighlight(
       note: input.note ?? null,
       color: input.color ?? null,
     },
+    // Duplicate: preserve anchor and existing note/color — no update needed.
+    update: {},
     select: highlightSelect,
   });
 

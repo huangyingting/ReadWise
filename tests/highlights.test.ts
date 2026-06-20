@@ -42,7 +42,7 @@ before(() => {
         },
         highlight: {
           findMany: async () => stubHighlights,
-          create: async () => stubCreated,
+          upsert: async () => stubCreated,
           findFirst: async () => stubFindFirst,
           update: async () => stubUpdated,
           delete: async () => ({}),
@@ -135,7 +135,7 @@ test("createHighlight returns 400 for invalid anchor", async () => {
   if (!result.ok) assert.equal(result.status, 400);
 });
 
-test("createHighlight delegates to prisma.highlight.create on valid input", async () => {
+test("createHighlight uses upsert for idempotent creation on valid input", async () => {
   const expectedRow = {
     id: "h-1",
     ...validAnchor,
