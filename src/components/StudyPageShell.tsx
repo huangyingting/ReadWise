@@ -3,6 +3,7 @@
 import { useState } from "react";
 import FlashcardReview from "@/components/FlashcardReview";
 import StudyList, { type StudyWord } from "@/components/StudyList";
+import VocabularyExportButtons from "@/components/VocabularyExportButtons";
 
 interface StudyPageShellProps {
   words: StudyWord[];
@@ -39,12 +40,15 @@ export default function StudyPageShell({
         >
           Saved words
         </h2>
-        <p
-          className="text-text-muted text-[length:var(--text-sm)] m-0"
+        <div
+          className="flex items-center justify-between flex-wrap gap-[var(--space-3)]"
           style={{ marginBottom: "var(--space-4)" }}
         >
-          {words.length} saved {words.length === 1 ? "word" : "words"}
-        </p>
+          <p className="text-text-muted text-[length:var(--text-sm)] m-0">
+            {words.length} saved {words.length === 1 ? "word" : "words"}
+          </p>
+          {words.length > 0 && <VocabularyExportButtons />}
+        </div>
 
         <StudyList words={words} reviewing={reviewing} />
       </section>
