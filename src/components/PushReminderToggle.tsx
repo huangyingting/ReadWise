@@ -1,6 +1,9 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { Button } from "@/components/ui/Button";
+import { Switch } from "@/components/ui/Switch";
+import { SkeletonText } from "@/components/ui/Skeleton";
 
 type PermissionState = "default" | "granted" | "denied";
 type ToggleState = "loading" | "unsupported" | "unconfigured" | "idle" | "subscribed" | "busy";
@@ -150,8 +153,23 @@ export default function PushReminderToggle() {
     }
   }, []);
 
-  // Don't render unsupported / unconfigured states in the UI at all
-  if (state === "loading" || state === "unsupported" || state === "unconfigured") {
+  // Loading: show a skeleton row while checking browser/server support
+  if (state === "loading") {
+    return <SkeletonText lines={1} className="w-3/4" />;
+  }
+
+  // Unsupported browser (e.g. iOS Safari pre-16.4 in non-standalone mode)
+  if (state === "unsupported") {
+    return (
+      <p className="text-[length:var(--text-sm)] text-text-muted m-0">
+        Push notifications are not supported in your browser.
+      </p>
+    );
+  }
+
+  // VAPID not configured server-side — settings page hides the entire card,
+  // but guard here too in case this component is rendered directly.
+  if (state === "unconfigured") {
     return null;
   }
 
@@ -168,35 +186,29 @@ export default function PushReminderToggle() {
           </div>
           <div className="text-text-muted text-[length:var(--text-xs)] mt-[var(--space-0-5)]">
             {isDenied
-              ? "Notifications are blocked. Enable them in browser settings."
+              ? "Notifications are blocked. Enable them in your browser settings."
               : isSubscribed
                 ? "Push notifications are enabled. You'll be reminded when SRS cards are due."
                 : "Get notified when your spaced-repetition cards are due for review."}
           </div>
         </div>
-        {!isDenied && (
-          <button
-            type="button"
-            onClick={isSubscribed ? unsubscribe : subscribe}
+        {isDenied ? null : (
+          <Switch
+            checked={isSubscribed}
+            onCheckedChange={isSubscribed ? () => void unsubscribe() : () => void subscribe()}
             disabled={isBusy}
-            className={
-              isSubscribed
-                ? "btn btn-outline text-[length:var(--text-sm)] shrink-0"
-                : "btn btn-primary text-[length:var(--text-sm)] shrink-0"
-            }
-          >
-            {isBusy
-              ? isSubscribed
-                ? "Disabling…"
-                : "Enabling…"
-              : isSubscribed
-                ? "Disable"
-                : "Enable"}
-          </button>
+            aria-label={isSubscribed ? "Disable review reminders" : "Enable review reminders"}
+            className="shrink-0"
+          />
         )}
       </div>
+      {isBusy && (
+        <p className="text-[length:var(--text-xs)] text-text-muted" aria-live="polite">
+          {isSubscribed ? "Disabling…" : "Enabling…"}
+        </p>
+      )}
       {error && (
-        <p className="text-[length:var(--text-xs)] text-red-600" role="alert">
+        <p className="text-[length:var(--text-xs)] text-[color:var(--danger-text)]" role="alert">
           {error}
         </p>
       )}

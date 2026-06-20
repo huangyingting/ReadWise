@@ -228,6 +228,17 @@
   --cefr-b2-bg: #1e1b4b;  --cefr-b2-text: #a5b4fc;
   --cefr-c1-bg: #3a2606;  --cefr-c1-text: #fbbf24;
   --cefr-c2-bg: #3f1018;  --cefr-c2-text: #fb7185;
+
+  /* Highlight dot/swatch indicators — dark (brighter for dark surfaces) */
+  --hl-dot-yellow: #fde68a;
+  --hl-dot-green:  #6ee7b7;
+  --hl-dot-blue:   #93c5fd;
+  --hl-dot-pink:   #f9a8d4;
+
+  /* Progress page stat accent colours — dark (AA-verified on #131a2b) */
+  --stat-vocab:  #c084fc;
+  --stat-streak: #fbbf24;
+  --stat-quiz:   #f472b6;
 }
 
 /* No-JS / system-preference fallback: apply the same dark values unless the
@@ -286,6 +297,17 @@
     --cefr-b2-bg: #1e1b4b;  --cefr-b2-text: #a5b4fc;
     --cefr-c1-bg: #3a2606;  --cefr-c1-text: #fbbf24;
     --cefr-c2-bg: #3f1018;  --cefr-c2-text: #fb7185;
+
+    /* Highlight dot/swatch indicators — dark */
+    --hl-dot-yellow: #fde68a;
+    --hl-dot-green:  #6ee7b7;
+    --hl-dot-blue:   #93c5fd;
+    --hl-dot-pink:   #f9a8d4;
+
+    /* Progress page stat accent colours — dark */
+    --stat-vocab:  #c084fc;
+    --stat-streak: #fbbf24;
+    --stat-quiz:   #f472b6;
   }
 }
 
@@ -397,6 +419,7 @@
   --pron-good: #047857;  /* ≥ 4.5:1 on white / reading-surface light */
   --pron-fair: #b45309;  /* ≥ 4.5:1 */
   --pron-poor: #dc2626;  /* ≥ 4.5:1 */
+  --pron-bad:  #b91c1c;  /* deeper red for accuracy < 50% */
 }
 
 [data-reading-mode="sepia"] {
@@ -404,10 +427,12 @@
   --pron-good: #166e4e;
   --pron-fair: #8a5413;
   --pron-poor: #b02617;
+  --pron-bad:  #991b1b;
 }
 
 [data-reading-mode="dark"] {
   --pron-good: #34d399;
   --pron-fair: #fbbf24;
   --pron-poor: #f87171;
+  --pron-bad:  #fca5a5;  /* lighter red for dark surfaces */
 }
