@@ -300,12 +300,15 @@ export async function searchPublishedArticles(
     userArticleIds.push(...ids);
   }
 
-  // Build OR clauses: article metadata + body + per-user article IDs
+  // Build OR clauses: article metadata (title/author/source) + per-user article IDs.
+  // Intentionally excludes full-body { content: contains: q } — a LIKE scan over
+  // the full HTML content column is O(N*content_size) with no FTS5 index and
+  // becomes prohibitively slow as the corpus grows (PERF-4 / issue #72).
+  // Full-text body search will be re-introduced via FTS5 in issue #41.
   const orClauses: Prisma.ArticleWhereInput[] = [
     { title: { contains: q } },
     { author: { contains: q } },
     { source: { contains: q } },
-    { content: { contains: q } },
   ];
   if (userArticleIds.length > 0) {
     orClauses.push({ id: { in: userArticleIds } });

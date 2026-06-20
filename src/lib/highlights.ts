@@ -262,6 +262,7 @@ export async function listAllUserHighlights(
       article: { select: { id: true, title: true } },
     },
     orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
+    take: 1000,
   });
 }
 

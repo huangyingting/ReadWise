@@ -84,6 +84,7 @@ model Article {
   pronunciationAttempts PronunciationAttempt[]
 
   @@index([category])
+  @@index([sourceUrl])
 }
 
 model Tag {
