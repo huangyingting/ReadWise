@@ -30,7 +30,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, Wrench, X } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, Wrench, X, Mic } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -39,8 +39,9 @@ import ArticleTranslation from "./ArticleTranslation";
 import ReaderNotesPanel from "./ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
 import ArticleTutor from "./ArticleTutor";
+import ArticlePronunciation from "./ArticlePronunciation";
 
-export type TabId = "listen" | "words" | "quiz" | "translate" | "notes" | "ask";
+export type TabId = "listen" | "speak" | "words" | "quiz" | "translate" | "notes" | "ask";
 
 const TABS: {
   id: TabId;
@@ -53,6 +54,12 @@ const TABS: {
     label: "Listen",
     icon: <Volume2 size={14} />,
     ariaLabel: "Listen tab",
+  },
+  {
+    id: "speak",
+    label: "Speak",
+    icon: <Mic size={14} />,
+    ariaLabel: "Speak tab",
   },
   {
     id: "words",
@@ -94,6 +101,8 @@ type SupportedLanguage = {
 interface ReaderToolsPanelProps {
   articleId: string;
   languages: SupportedLanguage[];
+  /** Article body as plain text — used by the Speak tab sentence splitter. */
+  plainText?: string;
 }
 
 function TabBar({
@@ -170,11 +179,13 @@ function PanelContents({
   visited,
   articleId,
   languages,
+  plainText,
 }: {
   activeTab: TabId | null;
   visited: Set<TabId>;
   articleId: string;
   languages: SupportedLanguage[];
+  plainText: string;
 }) {
   return (
     <div className="reader-tab-panels">
@@ -188,6 +199,23 @@ function PanelContents({
           hidden={activeTab !== "listen"}
         >
           <ArticleSpeech articleId={articleId} active={activeTab === "listen"} />
+        </div>
+      )}
+
+      {/* Speak tab — lazy-mounted on first visit, stay-mounted once visited */}
+      {visited.has("speak") && (
+        <div
+          id="reader-panel-speak"
+          role="tabpanel"
+          aria-labelledby="reader-tab-speak"
+          className="reader-tab-panel"
+          hidden={activeTab !== "speak"}
+        >
+          <ArticlePronunciation
+            articleId={articleId}
+            plainText={plainText}
+            active={activeTab === "speak"}
+          />
         </div>
       )}
 
@@ -272,6 +300,7 @@ function getFocusable(container: HTMLElement): HTMLElement[] {
 export default function ReaderToolsPanel({
   articleId,
   languages,
+  plainText = "",
 }: ReaderToolsPanelProps) {
   const [activeTab, setActiveTab] = useState<TabId | null>(null);
   const [visited, setVisited] = useState<Set<TabId>>(new Set());
@@ -372,6 +401,7 @@ export default function ReaderToolsPanel({
       visited={visited}
       articleId={articleId}
       languages={languages}
+      plainText={plainText}
     />
   );
 

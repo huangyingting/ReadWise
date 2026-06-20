@@ -7,6 +7,7 @@ import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/translation";
 import { getArticleListMembership } from "@/lib/bookmarks";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
@@ -45,6 +46,7 @@ export default async function ReaderPage({
   );
   const readingMinutes = readingMinutesFor(article);
   const cleanBody = sanitizeArticleHtml(article.content);
+  const articlePlainText = htmlToPlainText(article.content);
 
   // M10: SSR bookmark state for the reader cluster
   const membership = await getArticleListMembership(session.user.id, article.id);
@@ -229,6 +231,7 @@ export default async function ReaderPage({
             <ReaderToolsPanel
               articleId={article.id}
               languages={SUPPORTED_LANGUAGES}
+              plainText={articlePlainText}
             />
           </main>
 

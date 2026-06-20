@@ -328,3 +328,34 @@
   --hl-blue:   #1e3a5f;
   --hl-pink:   #5b2740;
 }
+
+/* ============================================================
+ * M16 — Per-word pronunciation feedback tokens (--pron-*)
+ *
+ * A status-palette family (good=success, fair=warning,
+ * poor=danger). Used ONLY for the text-decoration underline
+ * color, legend swatches, and "Words to work on" chip text.
+ * Color NEVER tints word glyphs (word text stays --reading-text).
+ *
+ * WCAG AA: all three values are ≥ 4.5:1 on their surface in
+ * each mode when used as chip/legend text. Underline decoration
+ * use is exempt from the 4.5:1 floor per WCAG 1.4.11.
+ * ============================================================ */
+[data-reading-mode="light"] {
+  --pron-good: #047857;  /* ≥ 4.5:1 on white / reading-surface light */
+  --pron-fair: #b45309;  /* ≥ 4.5:1 */
+  --pron-poor: #dc2626;  /* ≥ 4.5:1 */
+}
+
+[data-reading-mode="sepia"] {
+  /* on #f4ecd8 / sepia surface — verified ≥ 4.5:1 */
+  --pron-good: #166e4e;
+  --pron-fair: #8a5413;
+  --pron-poor: #b02617;
+}
+
+[data-reading-mode="dark"] {
+  --pron-good: #34d399;
+  --pron-fair: #fbbf24;
+  --pron-poor: #f87171;
+}

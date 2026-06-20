@@ -22,16 +22,17 @@ model User {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
-  accounts        Account[]
-  sessions        Session[]
-  profile         Profile?
-  readingProgress ReadingProgress[]
-  savedWords      SavedWord[]
-  dailyActivities DailyActivity[]
-  readingLists    ReadingList[]
-  highlights      Highlight[]
-  tutorMessages   TutorMessage[]
-  quizAttempts    QuizAttempt[]
+  accounts              Account[]
+  sessions              Session[]
+  profile               Profile?
+  readingProgress       ReadingProgress[]
+  savedWords            SavedWord[]
+  dailyActivities       DailyActivity[]
+  readingLists          ReadingList[]
+  highlights            Highlight[]
+  tutorMessages         TutorMessage[]
+  quizAttempts          QuizAttempt[]
+  pronunciationAttempts PronunciationAttempt[]
 }
 
 model Profile {
@@ -80,6 +81,7 @@ model Article {
   readingListItems     ReadingListItem[]
   highlights           Highlight[]
   tutorMessages        TutorMessage[]
+  pronunciationAttempts PronunciationAttempt[]
 
   @@index([category])
 }
@@ -361,4 +363,24 @@ model QuizAttempt {
 
   @@index([userId, articleId])
   @@index([userId, completedAt])
+}
+
+// M16 — Pronunciation Practice
+// Records each pronunciation attempt a user makes (article-linked or freeform).
+// Assessment runs client-side via the Azure Speech SDK; scores are server-persisted.
+model PronunciationAttempt {
+  id                String   @id @default(cuid())
+  userId            String
+  articleId         String?  // nullable — practice may be freeform or article-linked
+  referenceText     String
+  accuracyScore     Int      // 0–100
+  fluencyScore      Int      // 0–100
+  completenessScore Int      // 0–100
+  pronScore         Int      // 0–100 overall pronunciation score
+  createdAt         DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
 }
