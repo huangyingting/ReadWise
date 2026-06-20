@@ -22,6 +22,7 @@ import DailyGoal from "@/components/DailyGoal";
 import MasteryWidget from "@/components/MasteryWidget";
 import ForYouFeed from "@/components/ForYouFeed";
 import DashboardLevelFilter from "@/components/DashboardLevelFilter";
+import RailScroller from "@/components/RailScroller";
 
 
 /** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
@@ -132,11 +133,7 @@ export default async function DashboardPage({
               {inProgressEntries.length} in progress
             </span>
           </div>
-          <div
-            tabIndex={0}
-            className="flex gap-[var(--space-4)] overflow-x-auto pb-[var(--space-3)] -mx-[var(--space-1)] px-[var(--space-1)] snap-x snap-mandatory rw-rail-mask"
-            style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
-          >
+          <RailScroller>
             {inProgressEntries.map((entry) => (
               <ArticleCardView
                 key={entry.article.id}
@@ -146,7 +143,7 @@ export default async function DashboardPage({
                 saved={bookmarkedIds.has(entry.article.id)}
               />
             ))}
-          </div>
+          </RailScroller>
           {/* Rail sync — rail ids are disjoint from feed ids (in-progress vs unread) */}
           <ListingProgressSync articleIds={railIds} />
           <ListingBookmarkSync articleIds={railIds} />

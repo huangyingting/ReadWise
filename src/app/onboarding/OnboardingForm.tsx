@@ -9,7 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { Field } from "@/components/ui/Field";
 import { Select } from "@/components/ui/Select";
-import { CefrBadge, type CefrLevel } from "@/components/ui/Badge";
+import { CefrBadge, Badge, type CefrLevel } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 
 type Defaults = {
@@ -188,7 +188,8 @@ function StepAbout({
         tabIndex={-1}
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)] mb-[var(--space-1)] outline-none"
       >
-        {STEP_TITLES[2]}
+        {STEP_TITLES[2]}{" "}
+        <Badge variant="neutral" className="ml-[var(--space-2)]">Optional</Badge>
       </h2>
       <p className="text-text-subtle text-xs mb-[var(--space-4)]">
         Optional — helps us pick relevant articles for you.
@@ -405,12 +406,25 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
             <li
               key={i}
               aria-current={i + 1 === step ? "step" : undefined}
-              className={cn(
-                "flex-1 h-1.5 rounded-[var(--radius-full)]",
-                "transition-[background-color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
-                i + 1 <= step ? "bg-primary" : "bg-border",
-              )}
-            />
+              className="flex-1 flex flex-col items-center gap-[var(--space-1)]"
+            >
+              <span
+                aria-hidden
+                className={cn(
+                  "text-[length:var(--text-xs)] font-semibold tabular-nums",
+                  i + 1 <= step ? "text-primary-text" : "text-text-subtle",
+                )}
+              >
+                {i + 1}
+              </span>
+              <span
+                className={cn(
+                  "block w-full h-1.5 rounded-[var(--radius-full)]",
+                  "transition-[background-color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
+                  i + 1 <= step ? "bg-primary" : "bg-border",
+                )}
+              />
+            </li>
           ))}
           </ol>
         </nav>
