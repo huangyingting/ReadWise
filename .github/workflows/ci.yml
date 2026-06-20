@@ -48,11 +48,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
-      # TODO: 15 pre-existing test failures (as of 2026-06-20) unrelated to CI
-      # setup. Re-enable continue-on-error: false once they are fixed.
       - name: Test
         run: npm test
-        continue-on-error: true
 
       # Build is the primary gating step: it runs last so typecheck/lint/test
       # failures are visible before a potentially slow build is aborted.

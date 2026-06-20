@@ -59,6 +59,7 @@ before(() => {
     namedExports: {
       getOrCreateTranslation: async () => translationResult,
       isSupportedLanguage: () => supportedLang,
+      htmlToPlainText: (html: string) => html,
     },
   });
   mock.module("@/lib/vocabulary", {
@@ -90,6 +91,17 @@ before(() => {
         revalidateCalls++;
       },
       revalidateArticlesCache: () => {},
+      createCachedListing:
+        <T extends unknown[], R>(fn: (...args: T) => Promise<R>) =>
+        (...args: T) =>
+          fn(...args),
+      ARTICLES_CACHE_TAG: "articles",
+      TAGS_CACHE_TAG: "tags",
+    },
+  });
+  mock.module("@/lib/articles", {
+    namedExports: {
+      getViewableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
     },
   });
 });

@@ -37,6 +37,13 @@ before(() => {
   mock.module("@/lib/translation", {
     namedExports: {
       isSupportedLanguage: () => supportedLang,
+      htmlToPlainText: (html: string) => html,
+    },
+  });
+
+  mock.module("@/lib/articles", {
+    namedExports: {
+      getViewableArticleById: async () => ({ id: "a1", status: "published" }),
     },
   });
 });
