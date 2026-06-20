@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { slugifyTag } from "@/lib/tags";
 
 /** Page size for the admin tag listing. */
 export const ADMIN_TAGS_PAGE_SIZE = 20;
@@ -100,6 +101,101 @@ export async function listAdminTags(
 export type DeleteTagResult =
   | { ok: true }
   | { ok: false; error: string; status: number };
+
+/**
+ * Renames a tag, recomputing its slug via {@link slugifyTag}. If the new slug
+ * would collide with a DIFFERENT existing tag, returns a 409 error (the admin
+ * should use Merge instead). Allows same-slug updates (case-only changes).
+ */
+export async function renameTag(
+  id: string,
+  newName: string,
+): Promise<DeleteTagResult> {
+  const trimmed = newName.trim();
+  if (!trimmed) return { ok: false, error: "Name is required", status: 400 };
+
+  const tag = await prisma.tag.findUnique({ where: { id }, select: { id: true } });
+  if (!tag) return { ok: false, error: "Not found", status: 404 };
+
+  const newSlug = slugifyTag(trimmed);
+  const collision = await prisma.tag.findFirst({
+    where: { slug: newSlug, NOT: { id } },
+    select: { id: true, name: true },
+  });
+  if (collision) {
+    return {
+      ok: false,
+      error: `A tag with slug "${newSlug}" already exists — use Merge to combine them`,
+      status: 409,
+    };
+  }
+
+  await prisma.tag.update({ where: { id }, data: { name: trimmed, slug: newSlug } });
+  return { ok: true };
+}
+
+export type MergeTagsResult =
+  | { ok: true; moved: number }
+  | { ok: false; error: string; status: number };
+
+/**
+ * Merges `sourceId` into `targetId`. All `ArticleTag` links on the source that
+ * don't already exist on the target are re-pointed to the target; duplicates are
+ * silently skipped. The source tag is then deleted (its remaining ArticleTag rows
+ * are cascade-deleted). Runs in a single DB transaction.
+ */
+export async function mergeTags(
+  sourceId: string,
+  targetId: string,
+): Promise<MergeTagsResult> {
+  if (sourceId === targetId) {
+    return { ok: false, error: "Cannot merge a tag into itself", status: 400 };
+  }
+
+  const [source, target] = await Promise.all([
+    prisma.tag.findUnique({ where: { id: sourceId }, select: { id: true } }),
+    prisma.tag.findUnique({ where: { id: targetId }, select: { id: true } }),
+  ]);
+  if (!source) return { ok: false, error: "Source tag not found", status: 404 };
+  if (!target) return { ok: false, error: "Target tag not found", status: 404 };
+
+  const moved = await prisma.$transaction(async (tx) => {
+    // Collect article ids linked to source
+    const sourceLinks = await tx.articleTag.findMany({
+      where: { tagId: sourceId },
+      select: { articleId: true },
+    });
+
+    // Collect article ids already linked to target (to skip duplicates)
+    const targetArticleIds = new Set(
+      (
+        await tx.articleTag.findMany({
+          where: { tagId: targetId },
+          select: { articleId: true },
+        })
+      ).map((r) => r.articleId),
+    );
+
+    const toCreate = sourceLinks
+      .map((r) => r.articleId)
+      .filter((aid) => !targetArticleIds.has(aid));
+
+    if (toCreate.length) {
+      await tx.articleTag.createMany({
+        data: toCreate.map((articleId) => ({ articleId, tagId: targetId })),
+      });
+    }
+
+    // Delete source — cascades its remaining ArticleTag rows
+    await tx.tag.delete({ where: { id: sourceId } });
+
+    return toCreate.length;
+  });
+
+  return { ok: true, moved };
+}
+
+
 
 /**
  * Deletes a tag. The schema cascades remove its ArticleTag join rows, so
