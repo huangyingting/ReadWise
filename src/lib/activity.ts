@@ -76,8 +76,9 @@ export async function getStreakSummary(
   const [activities, profile] = await Promise.all([
     prisma.dailyActivity.findMany({
       where: { userId },
-      orderBy: { date: "asc" },
+      orderBy: { date: "desc" },
       select: { date: true, articlesRead: true },
+      take: 1095, // 3 years of daily activity rows — covers any realistic streak
     }),
     prisma.profile.findUnique({
       where: { userId },

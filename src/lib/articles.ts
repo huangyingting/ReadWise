@@ -215,6 +215,9 @@ export async function listPicksPage(
   return cachedListPicksPage(maxLevel, topics, offset, limit);
 }
 
+/** Maximum articles fetched from DB for in-memory picks ranking. */
+const MAX_PICKS_FETCH = 500;
+
 async function listPicksPageImpl(
   maxLevel: DifficultyLevel | null,
   topics: string[],
@@ -224,6 +227,7 @@ async function listPicksPageImpl(
   const all = await prisma.article.findMany({
     where: { status: "published" },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    take: MAX_PICKS_FETCH,
   });
   await ensureArticleDifficulties(all);
   const ranked = rankPicks(all, maxLevel, topics);

@@ -7,7 +7,7 @@ import { getProgressSummaries } from "@/lib/progress";
 const MAX_IDS = 200;
 
 const bodySchema = object({
-  ids: array(string({ min: 1, max: 200 }), { max: 1000 }),
+  ids: array(string({ min: 1, max: 200 }), { max: MAX_IDS }),
 });
 
 /**
