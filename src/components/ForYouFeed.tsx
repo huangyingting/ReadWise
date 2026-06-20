@@ -154,7 +154,7 @@ export default function ForYouFeed({
             href="/browse"
             className={buttonVariants({ variant: "ghost", size: "sm" })}
           >
-            Browse by topic →
+            Browse by topic <span aria-hidden="true">→</span>
           </Link>
         </p>
       )}

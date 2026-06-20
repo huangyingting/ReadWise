@@ -157,7 +157,7 @@ export default function LevelRecommendationBanner({
         type="button"
         onClick={dismiss}
         aria-label="Dismiss level recommendation"
-        className="shrink-0 text-text-subtle hover:text-text transition-colors"
+        className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-[var(--radius-md)] text-text-subtle hover:text-text transition-colors"
       >
         <X size={16} aria-hidden />
       </button>

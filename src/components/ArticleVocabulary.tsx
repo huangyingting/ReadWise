@@ -156,6 +156,7 @@ export default function ArticleVocabulary({
                 onClick={() => toggleSaved(item)}
                 disabled={pending === item.word}
                 aria-pressed={item.saved}
+                aria-label={item.saved ? `Remove saved word: ${item.word}` : `Save word: ${item.word}`}
               >
                 {pending === item.word
                   ? "…"
