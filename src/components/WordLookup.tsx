@@ -23,9 +23,10 @@ import type { SupportedLanguage } from "@/lib/translation";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import {
   useHighlights,
-  type Highlight,
+  type Highlight as RwHighlight,
   type HighlightColor,
 } from "./ReaderHighlightsProvider";
+import { useReaderAudio } from "./ReaderAudioProvider";
 import SelectionToolbar from "./SelectionToolbar";
 import HighlightEditPopover from "./HighlightEditPopover";
 import SentenceTranslatePopover, {
@@ -135,7 +136,39 @@ function collectTextNodes(container: HTMLElement): TextNodeEntry[] {
   return entries;
 }
 
-function createMarkElement(hl: Highlight): HTMLElement {
+// ---------------------------------------------------------------------------
+// TTS prose word map
+// ---------------------------------------------------------------------------
+
+type ProseWord = { node: Text; start: number; end: number };
+
+/**
+ * Walks the prose container's text nodes and returns a flat array of
+ * non-whitespace token positions. The N-th entry corresponds to the N-th
+ * word fired by the Azure Speech SDK (word-walk alignment — pragmatic, not
+ * offset-exact). Rebuilt whenever highlight marks change text node structure.
+ */
+function buildProseWordMap(container: HTMLElement): ProseWord[] {
+  const result: ProseWord[] = [];
+  const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let n: Node | null;
+  while ((n = walker.nextNode())) {
+    const text = n as Text;
+    const content = text.textContent ?? "";
+    const re = /\S+/g;
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(content)) !== null) {
+      result.push({ node: text, start: m.index, end: m.index + m[0].length });
+    }
+  }
+  return result;
+}
+
+// Typed accessor for the CSS Custom Highlight API (TS lib.dom only types
+// forEach; the actual Map-like interface has set/delete too).
+type CssHighlightRegistry = { set(k: string, v: Highlight): void; delete(k: string): void };
+
+function createMarkElement(hl: RwHighlight): HTMLElement {
   const mark = document.createElement("mark");
   mark.className = "rw-hl";
   mark.dataset.hlId = hl.id;
@@ -152,7 +185,7 @@ function createMarkElement(hl: Highlight): HTMLElement {
 
 function applyHighlightMarks(
   container: HTMLElement,
-  highlights: Highlight[],
+  highlights: RwHighlight[],
   onOrphaned: (id: string) => void,
 ): void {
   // 1. Remove existing marks
@@ -166,7 +199,7 @@ function applyHighlightMarks(
   const fullText = container.textContent ?? "";
 
   // 2. Resolve anchors
-  type Resolved = { hl: Highlight; start: number; end: number };
+  type Resolved = { hl: RwHighlight; start: number; end: number };
   const resolved: Resolved[] = [];
   for (const hl of highlights) {
     let start = hl.startOffset;
@@ -184,7 +217,7 @@ function applyHighlightMarks(
 
   // 3. Build segments
   const textNodes = collectTextNodes(container);
-  interface Segment { tnIdx: number; from: number; to: number; hl: Highlight }
+  interface Segment { tnIdx: number; from: number; to: number; hl: RwHighlight }
   const segments: Segment[] = [];
   for (let ti = 0; ti < textNodes.length; ti++) {
     const tn = textNodes[ti];
@@ -221,7 +254,7 @@ function applyHighlightMarks(
 // Overlap helpers
 // ---------------------------------------------------------------------------
 
-function overlapsAny(start: number, end: number, highlights: Highlight[]): Highlight[] {
+function overlapsAny(start: number, end: number, highlights: RwHighlight[]): RwHighlight[] {
   return highlights.filter(
     (h) => !h.id.startsWith("optimistic-") && h.startOffset < end && h.endOffset > start,
   );
@@ -290,6 +323,10 @@ export default function WordLookup({
   const { highlights, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
   const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
 
+  // TTS prose highlighting
+  const readerAudio = useReaderAudio();
+  const ttsWordMapRef = useRef<ProseWord[]>([]);
+
   const closeAll = useCallback(() => {
     setOpenSurface(null);
     setDictAnchor(null);
@@ -313,6 +350,64 @@ export default function WordLookup({
     if (!proseRef.current) return;
     applyHighlightMarks(proseRef.current, highlights, markOrphaned);
   }, [highlights, markOrphaned]);
+
+  // Rebuild the TTS word map after highlight marks are (re-)applied, since
+  // applyHighlightMarks splits/normalises text nodes. Must run AFTER the
+  // effect above (React executes effects in definition order).
+  useEffect(() => {
+    if (!proseRef.current || readerAudio.words.length === 0) {
+      ttsWordMapRef.current = [];
+      return;
+    }
+    ttsWordMapRef.current = buildProseWordMap(proseRef.current);
+  }, [readerAudio.words.length, highlights]);
+
+  // Apply / clear the TTS active-word highlight in the main prose using the
+  // CSS Custom Highlight API (graceful degradation — no highlight on unsupported
+  // browsers, audio keeps playing). Auto-scroll is gated on listenActive so
+  // background playback never hijacks the user's reading position.
+  useEffect(() => {
+    const cssh =
+      typeof CSS !== "undefined" && "highlights" in CSS
+        ? (CSS.highlights as unknown as CssHighlightRegistry)
+        : null;
+    if (!cssh) return;
+
+    const idx = readerAudio.activeIndex;
+    const map = ttsWordMapRef.current;
+    if (idx < 0 || idx >= map.length) {
+      cssh.delete("tts-active");
+      return;
+    }
+
+    const { node, start, end } = map[idx];
+    let range: Range;
+    try {
+      range = new Range();
+      range.setStart(node, start);
+      range.setEnd(node, Math.min(end, node.length));
+    } catch {
+      cssh.delete("tts-active");
+      return;
+    }
+    cssh.set("tts-active", new Highlight(range));
+
+    if (readerAudio.listenActive) {
+      const rects = range.getClientRects();
+      if (rects.length > 0) {
+        const rect = rects[0];
+        const viewTop = window.innerHeight * 0.2;
+        const viewBottom = window.innerHeight * 0.75;
+        if (rect.top < viewTop || rect.bottom > viewBottom) {
+          node.parentElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+        }
+      }
+    }
+
+    return () => {
+      cssh.delete("tts-active");
+    };
+  }, [readerAudio.activeIndex, readerAudio.listenActive]);
 
   // Seed translate language from localStorage after mount
   useEffect(() => {
@@ -494,7 +589,7 @@ export default function WordLookup({
     setToolbarRect(null);
     const { quote, startOffset, endOffset, prefix, suffix } = saved;
     const overlapping = overlapsAny(startOffset, endOffset, highlights);
-    let newHl: Highlight | null = null;
+    let newHl: RwHighlight | null = null;
     if (overlapping.length > 0) {
       const fullText = proseRef.current?.textContent ?? "";
       const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));

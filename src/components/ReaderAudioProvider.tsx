@@ -46,6 +46,14 @@ export type AudioContextValue = {
   /** Voice metadata returned by the API. */
   voiceMeta: { voice: string; cached: boolean } | null;
   /**
+   * True while the Listen tab is the active visible panel. WordLookup reads
+   * this to gate auto-scroll of the prose TTS highlight (so background
+   * playback on another tab never hijacks the user's reading scroll).
+   */
+  listenActive: boolean;
+  /** Called by ArticleSpeech to set/unset the listenActive gate. */
+  setListenActive: (v: boolean) => void;
+  /**
    * Called by ArticleSpeech after a successful fetch to seed the provider
    * with the audio src + word timings. Idempotent (safe to call on re-fetch).
    */
@@ -69,10 +77,15 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
+  const [listenActive, setListenActiveState] = useState(false);
   const [voiceMeta, setVoiceMeta] = useState<{
     voice: string;
     cached: boolean;
   } | null>(null);
+
+  const setListenActive = useCallback((v: boolean) => {
+    setListenActiveState(v);
+  }, []);
 
   /** Binary-search: find the last word whose start <= currentTime. */
   const updateActiveWord = useCallback(
@@ -127,6 +140,8 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         isLoaded,
         isFallback,
         voiceMeta,
+        listenActive,
+        setListenActive,
         loadAudio,
         markFallback,
       }}
