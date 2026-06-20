@@ -1,32 +1,13 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured, aiModelName } from "@/lib/ai";
+import {
+  languageLabel,
+  isSupportedLanguage,
+  SUPPORTED_LANGUAGES,
+} from "@/lib/supported-languages";
 
-export type SupportedLanguage = {
-  code: string;
-  label: string;
-};
-
-/** Target languages a reader can translate an article into. */
-export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
-  { code: "zh-Hans", label: "Chinese (Simplified)" },
-  { code: "es", label: "Spanish" },
-  { code: "fr", label: "French" },
-  { code: "de", label: "German" },
-  { code: "ja", label: "Japanese" },
-  { code: "ko", label: "Korean" },
-  { code: "pt", label: "Portuguese" },
-  { code: "ar", label: "Arabic" },
-  { code: "hi", label: "Hindi" },
-  { code: "ru", label: "Russian" },
-];
-
-export function isSupportedLanguage(code: string): boolean {
-  return SUPPORTED_LANGUAGES.some((l) => l.code === code);
-}
-
-export function languageLabel(code: string): string {
-  return SUPPORTED_LANGUAGES.find((l) => l.code === code)?.label ?? code;
-}
+export type { SupportedLanguage } from "@/lib/supported-languages";
+export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
 
 export type TranslationResult = {
   lang: string;

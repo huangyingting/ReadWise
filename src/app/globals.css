@@ -3593,3 +3593,206 @@ body {
 .rw-speak-note-copy {
   margin: 0;
 }
+
+/* ============================================================
+ * Dictation exercise panel (#40)
+ * Class prefix: .rw-dictate-*
+ * ============================================================ */
+
+.rw-dictate-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.rw-dictate-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rw-dictate-stepper-counter {
+  flex: 1;
+  text-align: center;
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+}
+
+.rw-dictate-stepper-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text);
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.rw-dictate-stepper-btn:hover:not(:disabled) {
+  background: var(--bg-subtle);
+}
+.rw-dictate-stepper-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.rw-dictate-controls {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.rw-dictate-form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rw-dictate-label {
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text);
+}
+
+.rw-dictate-textarea {
+  width: 100%;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-family: inherit;
+  resize: vertical;
+  line-height: 1.5;
+}
+.rw-dictate-textarea:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.rw-dictate-textarea::placeholder {
+  color: var(--text-subtle);
+}
+
+.rw-dictate-form-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rw-dictate-reset-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-sm);
+  color: var(--text-subtle);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+}
+.rw-dictate-reset-btn:hover {
+  color: var(--text);
+}
+
+/* ── Score bar ── */
+.rw-dictate-result {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.rw-dictate-score {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.rw-dictate-score-track {
+  flex: 1;
+  height: 10px;
+  border-radius: var(--radius-full);
+  background: var(--bg-subtle);
+  overflow: hidden;
+}
+
+.rw-dictate-score-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.3s ease;
+}
+.rw-dictate-score-fill--good { background: var(--success, #16a34a); }
+.rw-dictate-score-fill--fair { background: var(--warning, #ca8a04); }
+.rw-dictate-score-fill--poor { background: var(--danger, #dc2626); opacity: 0.8; }
+.rw-dictate-score-fill--bad  { background: var(--danger, #dc2626); }
+
+.rw-dictate-score-label {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Word diff ── */
+.rw-dictate-diff {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.rw-dictate-diff-hint {
+  font-size: var(--text-xs, 0.75rem);
+  margin: 0;
+}
+
+.rw-dictate-diff-tokens {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  margin: 0;
+  line-height: 1.8;
+}
+
+.rw-dictate-word {
+  display: inline-block;
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  position: relative;
+}
+
+.rw-dictate-word--correct {
+  color: var(--success-text, #15803d);
+  background: var(--success-bg, #f0fdf4);
+  text-decoration: underline;
+  text-decoration-color: var(--success-text, #15803d);
+  text-underline-offset: 2px;
+}
+
+.rw-dictate-word--wrong {
+  color: var(--danger-text, #b91c1c);
+  background: var(--danger-bg, #fef2f2);
+}
+
+.rw-dictate-word--missing {
+  color: var(--text-subtle);
+  text-decoration: line-through;
+  text-decoration-color: var(--danger, #dc2626);
+  background: var(--danger-bg, #fef2f2);
+}
+
+.rw-dictate-word--extra {
+  color: var(--warning-text, #92400e);
+  background: var(--warning-bg, #fffbeb);
+  text-decoration: underline wavy var(--warning, #ca8a04);
+  text-underline-offset: 3px;
+}
+
+.rw-dictate-correction {
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--success-text, #15803d);
+  margin-left: 2px;
+}

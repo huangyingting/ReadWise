@@ -30,7 +30,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic } from "lucide-react";
+import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic, Headphones } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -40,9 +40,10 @@ import ReaderNotesPanel from "./ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
 import ArticleTutor from "./ArticleTutor";
 import ArticlePronunciation from "./ArticlePronunciation";
+import ArticleDictation from "./ArticleDictation";
 import { READER_BREAKPOINT } from "@/lib/breakpoints";
 
-export type TabId = "listen" | "speak" | "words" | "quiz" | "translate" | "notes" | "ask";
+export type TabId = "listen" | "dictate" | "speak" | "words" | "quiz" | "translate" | "notes" | "ask";
 
 const TABS: {
   id: TabId;
@@ -55,6 +56,12 @@ const TABS: {
     label: "Listen",
     icon: <Volume2 size={14} />,
     ariaLabel: "Listen tab",
+  },
+  {
+    id: "dictate",
+    label: "Dictate",
+    icon: <Headphones size={14} />,
+    ariaLabel: "Dictate tab",
   },
   {
     id: "speak",
@@ -108,7 +115,7 @@ const TAB_GROUPS: Array<{
   label: string | null;
   ids: TabId[];
 }> = [
-  { label: "Audio", ids: ["listen", "speak"] },
+  { label: "Audio", ids: ["listen", "dictate", "speak"] },
   { label: "Study", ids: ["words", "quiz"] },
   { label: null, ids: ["translate", "notes", "ask"] },
 ];
@@ -253,6 +260,23 @@ function PanelContents({
           hidden={activeTab !== "listen"}
         >
           <ArticleSpeech articleId={articleId} active={activeTab === "listen"} />
+        </div>
+      )}
+
+      {/* Dictate tab — lazy-mounted on first visit, stay-mounted once visited */}
+      {visited.has("dictate") && (
+        <div
+          id="reader-panel-dictate"
+          role="tabpanel"
+          aria-labelledby="reader-tab-dictate"
+          className="reader-tab-panel"
+          hidden={activeTab !== "dictate"}
+        >
+          <ArticleDictation
+            articleId={articleId}
+            plainText={plainText}
+            active={activeTab === "dictate"}
+          />
         </div>
       )}
 

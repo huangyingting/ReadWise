@@ -19,7 +19,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { DictionaryResult } from "@/lib/dictionary";
-import type { SupportedLanguage } from "@/lib/translation";
+import type { SupportedLanguage } from "@/lib/supported-languages";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import {
   useHighlights,

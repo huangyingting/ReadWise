@@ -17,8 +17,8 @@
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import type { SupportedLanguage } from "@/lib/translation";
-import { languageLabel } from "@/lib/translation";
+import type { SupportedLanguage } from "@/lib/supported-languages";
+import { languageLabel } from "@/lib/supported-languages";
 
 const MINI_PLAYER_HEIGHT = 56;
 
