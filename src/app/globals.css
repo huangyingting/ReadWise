@@ -1547,8 +1547,8 @@ body {
 .reader-tools-rail {
   display: none; /* hidden on mobile; shown via media query */
   position: sticky;
-  top: var(--space-7);
-  max-height: calc(100vh - var(--space-9));
+  top: calc(56px + var(--space-2)); /* AppHeader ~56px + gap — matches .reader-controls */
+  max-height: calc(100vh - 56px - var(--space-4));
   overflow-y: auto;
   background: var(--reading-surface, var(--surface));
   border: 1px solid var(--reading-border, var(--border));
