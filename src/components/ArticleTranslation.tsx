@@ -53,11 +53,16 @@ export default function ArticleTranslation({
     }
     setLoading(true);
     setError(null);
+    // Client-side AbortController with 30 s timeout — defense-in-depth so the
+    // UI can't hang indefinitely even if the server stalls (#56).
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30_000);
     try {
       const res = await fetch(`/api/reader/${articleId}/translate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ lang }),
+        signal: controller.signal,
       });
       if (!res.ok) {
         const data = (await res.json().catch(() => null)) as {
@@ -68,9 +73,14 @@ export default function ArticleTranslation({
       const data = (await res.json()) as TranslationResponse;
       setResult(data);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Translation failed");
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setError("Translation timed out. Please try again.");
+      } else {
+        setError(err instanceof Error ? err.message : "Translation failed");
+      }
       setResult(null);
     } finally {
+      clearTimeout(timeoutId);
       setLoading(false);
     }
   }
