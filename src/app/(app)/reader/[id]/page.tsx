@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
 import { getArticleById, getViewableArticleById, readingMinutesFor } from "@/lib/articles";
 import { getProgress, getProgressMap } from "@/lib/progress";
@@ -124,7 +125,7 @@ export default async function ReaderPage({
     <>
       <script
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        dangerouslySetInnerHTML={{ __html: safeJsonStringify(jsonLd) }}
       />
       {/* Reading progress — fixed top bar, z-50, forward-only. Lives OUTSIDE the
           client providers so it does NOT create an extra Suspense boundary that
