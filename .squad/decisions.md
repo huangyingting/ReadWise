@@ -58,6 +58,43 @@ The full user-facing product is now on the Studio design system. Net-new shipped
 
 ## Post-redesign features
 
+> **Post-redesign rich features M10–M12 COMPLETE** — bookmarks, highlights, AI tutor.
+
+---
+
+## M12 — AI Tutor: COMPLETE (96ab8d0)
+_2026-06-19 · Saul (spec), Livingston (data + grounded-chat + 3 endpoints + migration), Linus (UI + Ask tab + XSS-safe tokenizer), Rusty (review), Basher (verify)_
+
+**Status: LANDED** — typecheck 0 · lint 0 · build green · npm test 267/267 · Rusty APPROVE-WITH-NITS (no XSS/IDOR) · Basher PASS + D1/D2 fixed · committed 96ab8d0.
+
+### Scope
+Per-article AI tutor: users ask questions grounded in article text; answers are CEFR-level-tailored. 6th "Ask" tab in reader panel.
+
+### Data layer (Livingston)
+- **Migration `m12_tutor`** — additive. New `TutorMessage` model: `userId`, `articleId`, `role` (user/assistant), `content`, `createdAt`; `@@index([userId, articleId])`; cascade-deletes with User and Article.
+- **`src/lib/tutor.ts`** — `askTutor`: grounded via `htmlToPlainText`, CEFR-level-tailored prompt, gpt-5-mini params, graceful `fallback:true` (persists nothing on AI miss).
+- **3 endpoints** (`createHandler`, 401 unauth, 404 bad article, ownership-scoped): `GET /api/reader/[id]/tutor` (history), `POST` (send question), `DELETE` (clear conversation).
+
+### UI layer (Linus)
+- **`src/lib/tutor-markdown.ts`** — pure TS XSS-safe tokenizer (no JSX, no HTML output); 25 unit tests.
+- **`ReaderTutorProvider.tsx`** — `"use client"` context: GET on mount, append on send, clear action.
+- **`ArticleTutor.tsx`** — chat panel: message list, composer, Saul-worded starter chips, per-message timestamps, graceful-unavailable state, Clear button (min-width D2 fixed, autofocus D1 fixed).
+- **`ReaderToolsPanel.tsx`** — 6th "Ask" tab (Sparkles icon). Additive `.rw-tutor*` CSS.
+
+### Pre-land fixes
+| ID | Fix | Owner |
+|---|---|---|
+| F1 | `@media (prefers-reduced-motion)` class typo `rw-tutor-typing-label` → `rw-tutor-thinking-label` | Linus |
+| D1 | Composer autofocus on panel open | Basher |
+| D2 | Clear button min-width | Basher |
+
+### Coordinator decisions
+| Decision | Choice |
+|---|---|
+| Tab label | "Ask" |
+| Per-message timestamps | shown |
+| Starter-question wording | Saul's spec |
+
 ---
 
 ## M11 — Highlights & Notes: COMPLETE (1e69c01)
