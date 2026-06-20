@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string } from "@/lib/validation";
+import { checkRateLimitByKey, clientIpKey } from "@/lib/rate-limit";
 
 /**
  * Client-side error sink (US-029). The browser error reporter
@@ -19,7 +20,14 @@ const bodySchema = object({
 
 export const POST = createPublicHandler(
   { body: bodySchema },
-  async ({ body, log }) => {
+  async ({ body, log, req }) => {
+    // IP-based rate limit: silently absorbs excess but still returns 204
+    // (best-effort, keep returning 204 to avoid leaking the limit to clients).
+    try {
+      checkRateLimitByKey(clientIpKey(req), "public");
+    } catch {
+      return new NextResponse(null, { status: 204 });
+    }
     log.error("client.error", {
       clientMessage: body.message,
       clientSource: body.source ?? "window",

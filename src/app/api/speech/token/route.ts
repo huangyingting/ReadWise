@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { isSpeechConfigured } from "@/lib/speech";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 // Azure Speech SDK has Node-only native bindings.
 export const runtime = "nodejs";
@@ -17,7 +18,8 @@ export const runtime = "nodejs";
  * Degrades gracefully: returns { configured: false } (200) when credentials
  * are absent so the client can hide the pronunciation feature rather than 500.
  */
-export const GET = createHandler({}, async () => {
+export const GET = createHandler({}, async ({ session }) => {
+  checkRateLimit(session.user.id, "lookup");
   if (!isSpeechConfigured()) {
     return NextResponse.json({ configured: false });
   }
