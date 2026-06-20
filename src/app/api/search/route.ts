@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHandler } from "@/lib/api-handler";
+import { createHandler, ApiError } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
 import {
   SEARCH_PAGE_SIZE,
@@ -8,6 +8,9 @@ import {
   toListingArticle,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
+import { checkRateLimit } from "@/lib/rate-limit";
+
+const SEARCH_QUERY_MAX_LENGTH = 200;
 
 type SearchQuery = {
   q: string;
@@ -16,8 +19,15 @@ type SearchQuery = {
 };
 
 function parseQuery(params: URLSearchParams) {
+  const q = queryString(params, "q");
+  if (q.length > SEARCH_QUERY_MAX_LENGTH) {
+    return {
+      ok: false as const,
+      error: `q must be at most ${SEARCH_QUERY_MAX_LENGTH} characters`,
+    };
+  }
   const value: SearchQuery = {
-    q: queryString(params, "q"),
+    q,
     offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
     limit: queryInt(params, "limit", {
       fallback: SEARCH_PAGE_SIZE,
@@ -39,6 +49,8 @@ function parseQuery(params: URLSearchParams) {
  * are query-dependent and merged with per-user progress data.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
+  checkRateLimit(session.user.id, "lookup");
+
   const { q, offset, limit } = query;
 
   const page = await searchPublishedArticles(q, { offset, limit }, session.user.id);

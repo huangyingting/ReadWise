@@ -33,6 +33,30 @@ self.addEventListener("activate", (event) => {
   );
 });
 
+// Paths that render authenticated, user-specific SSR content.
+// These must never be cached to prevent private data leaking to other users
+// on shared devices (e.g. family tablet, school computer, library terminal).
+const AUTH_PATHS = [
+  "/dashboard",
+  "/reader",
+  "/study",
+  "/browse",
+  "/notes",
+  "/progress",
+  "/lists",
+  "/settings",
+  "/admin",
+  "/tags",
+  "/onboarding",
+  "/profile",
+  "/forbidden",
+];
+
+/** Returns true when the pathname belongs to a session-gated area. */
+function isAuthenticatedPath(pathname) {
+  return AUTH_PATHS.some((p) => pathname === p || pathname.startsWith(p + "/"));
+}
+
 self.addEventListener("fetch", (event) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -93,13 +117,15 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // HTML navigations: network-first, offline fallback on failure.
+// HTML navigations: network-first, offline fallback on failure.
   if (request.mode === "navigate") {
     event.respondWith(
       fetch(request)
         .then((res) => {
-          // Cache successful HTML responses (app shell, marketing pages).
-          if (res.ok && res.status === 200) {
+          // Only cache public/unauthenticated pages (marketing, sign-in, offline).
+          // Authenticated paths (dashboard, reader, study, etc.) must NOT be cached
+          // to prevent private SSR content leaking to other users on shared devices.
+          if (res.ok && res.status === 200 && !isAuthenticatedPath(url.pathname)) {
             caches
               .open(CACHE_NAME)
               .then((cache) => cache.put(request, res.clone()));

@@ -112,3 +112,21 @@ test("buildFtsQuery strips FTS5 operator characters from tokens", () => {
 test("buildFtsQuery handles extra whitespace between tokens", () => {
   assert.equal(buildFtsQuery("  ocean   life  "), '"ocean"* "life"*');
 });
+
+test("buildFtsQuery neutralises * by double-quote wrapping", () => {
+  // * inside double-quotes is treated as a literal, not the prefix operator
+  assert.equal(buildFtsQuery("a*b"), '"a*b"*');
+});
+
+test("buildFtsQuery neutralises ^ by double-quote wrapping", () => {
+  assert.equal(buildFtsQuery("^term"), '"^term"*');
+});
+
+test("buildFtsQuery neutralises : by double-quote wrapping", () => {
+  // : is the column filter operator in FTS5 — must be inside quotes
+  assert.equal(buildFtsQuery("status:title"), '"status:title"*');
+});
+
+test("buildFtsQuery neutralises + by double-quote wrapping", () => {
+  assert.equal(buildFtsQuery("word+more"), '"word+more"*');
+});

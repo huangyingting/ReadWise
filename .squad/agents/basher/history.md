@@ -44,3 +44,8 @@ Verified M16: CONDITIONAL PASS→PASS. Static: typecheck 0 · lint 0 · build gr
 
 ### 2026-06-20 — System review lesson: verify DOM findings under #48
 When #48 double-render is present, automated DOM/browser-inspection findings can be artifacts rather than product regressions. Cross-check high-severity reader findings against source and manual root-cause behavior before escalating: #54 was a #48 duplicate, #55/#56 were lowered, and #57 moved to needs-research.
+
+
+### 2026-06-20 — Dev-browser headless QA lesson
+
+The dev-browser CLI works well headless for DOM inspection during broad QA walkthroughs. Screenshot capture can stall while fonts load; wrap screenshot calls in try/catch and keep nonessential screenshots from blocking DOM-based verification.

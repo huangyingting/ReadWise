@@ -88,6 +88,7 @@ function fillWeekBuckets(
 
 export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalytics> {
   const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86_400_000);
+  const twoYearsAgo = new Date(Date.now() - 2 * 365 * 86_400_000);
 
   const [
     progressStats,
@@ -140,11 +141,12 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
     prisma.readingProgress.findMany({
       where: { userId, completed: true },
       select: { article: { select: { difficulty: true } } },
+      take: 1000,
     }),
 
-    // Streak: all daily activity
+    // Streak: daily activity (bounded to last 2 years for performance)
     prisma.dailyActivity.findMany({
-      where: { userId },
+      where: { userId, date: { gte: twoYearsAgo } },
       orderBy: { date: "asc" },
       select: { date: true, articlesRead: true },
     }),

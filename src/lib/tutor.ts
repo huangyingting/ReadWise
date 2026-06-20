@@ -49,6 +49,7 @@ export async function getTutorMessages(
     where: { userId, articleId },
     select: { id: true, role: true, content: true, createdAt: true },
     orderBy: { createdAt: "asc" },
+    take: 200,
   });
 }
 

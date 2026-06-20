@@ -200,6 +200,7 @@ export async function chatCompleteWithMeta(
         feature,
         model: config.deployment,
         durationMs,
+        attempt,
         reason: isTimeout ? "timeout" : String(err),
       });
       return null;
