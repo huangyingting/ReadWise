@@ -82,7 +82,7 @@ export default function MobileDrawer({ user }: { user: ShellUser }) {
         aria-controls="mobile-drawer"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "md:hidden inline-flex items-center justify-center h-9 w-9 shrink-0",
+          "md:hidden inline-flex items-center justify-center h-11 w-11 shrink-0",
           "rounded-[var(--radius-md)] text-text-muted hover:bg-bg-subtle hover:text-text",
           focusRing,
         )}
@@ -127,7 +127,7 @@ export default function MobileDrawer({ user }: { user: ShellUser }) {
                 aria-label="Close menu"
                 onClick={() => setOpen(false)}
                 className={cn(
-                  "inline-flex items-center justify-center h-9 w-9 shrink-0",
+                  "inline-flex items-center justify-center h-11 w-11 shrink-0",
                   "rounded-[var(--radius-md)] text-text-muted hover:bg-bg-subtle hover:text-text",
                   focusRing,
                 )}

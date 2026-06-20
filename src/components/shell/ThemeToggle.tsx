@@ -53,7 +53,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
       aria-label={mounted ? NEXT_LABEL[theme] : "Toggle theme"}
       title={mounted ? NEXT_LABEL[theme] : undefined}
       className={cn(
-        "inline-flex items-center justify-center h-9 w-9 shrink-0",
+        "inline-flex items-center justify-center h-11 w-11 shrink-0",
         "rounded-[var(--radius-md)] text-text-muted",
         "transition-colors [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
         "hover:bg-bg-subtle hover:text-text",
