@@ -44,8 +44,18 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
+  // Restrict the Next.js image optimizer to known hosts only.
+  // All current <Image> usages pass `unoptimized` (OAuth avatars, dashboard),
+  // so no optimizer traffic exists today — but the wildcard would allow
+  // arbitrary SSRF-style image proxying via /_next/image.
+  // We allow the two OAuth avatar CDNs for future non-unoptimized use.
+  // Article hero images are rendered via a plain <img> tag (not the optimizer)
+  // so provider CDN hosts are intentionally omitted here.
   images: {
-    remotePatterns: [{ protocol: "https", hostname: "**" }],
+    remotePatterns: [
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "avatars.githubusercontent.com" },
+    ],
   },
   async headers() {
     return [
