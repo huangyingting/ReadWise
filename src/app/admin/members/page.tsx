@@ -1,5 +1,5 @@
 import Link from "next/link";
-import Image from "next/image";
+import Avatar from "@/components/ui/Avatar";
 import { requireAdmin } from "@/lib/session";
 import { listMembers } from "@/lib/admin-members";
 import AdminMemberActions from "@/components/AdminMemberActions";
@@ -113,20 +113,12 @@ export default async function AdminMembersPage({
                   <tr key={m.id}>
                     <td>
                       <div className="admin-member-cell">
-                        {m.image ? (
-                          <Image
-                            src={m.image}
-                            alt=""
-                            width={32}
-                            height={32}
-                            className="admin-member-avatar"
-                            unoptimized
-                          />
-                        ) : (
-                          <span className="admin-member-avatar admin-member-avatar-fallback">
-                            {(m.name ?? m.email ?? "?").charAt(0).toUpperCase()}
-                          </span>
-                        )}
+                        <Avatar
+                          src={m.image}
+                          name={m.name ?? m.email}
+                          size={32}
+                          className="admin-member-avatar"
+                        />
                         <span className="admin-member-name">
                           <span>
                             {m.name ?? "—"}

@@ -1,4 +1,3 @@
-import Image from "next/image";
 import Link from "next/link";
 import { Sparkles, Compass } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
@@ -13,6 +12,7 @@ import { buttonVariants } from "@/components/ui/Button";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import Avatar from "@/components/ui/Avatar";
 import EmptyState from "@/components/EmptyState";
 import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
@@ -57,16 +57,7 @@ export default async function DashboardPage() {
       </h1>
       <Card>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          {user.image ? (
-            <Image
-              src={user.image}
-              alt={user.name ?? "avatar"}
-              width={56}
-              height={56}
-              className="rounded-full"
-              unoptimized
-            />
-          ) : null}
+          <Avatar src={user.image} name={user.name} size={56} />
           <div>
             <div className="font-semibold text-text">{user.name ?? "Unnamed reader"}</div>
             <div className="text-text-muted text-[length:var(--text-sm)]">{user.email}</div>

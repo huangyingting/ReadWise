@@ -2,16 +2,11 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
 import { signOut } from "next-auth/react";
 import { Settings, Shield, LogOut } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import Avatar from "@/components/ui/Avatar";
 import type { ShellUser } from "./types";
-
-function initialOf(user: ShellUser): string {
-  const source = user.name || user.email || "?";
-  return source.trim().charAt(0).toUpperCase() || "?";
-}
 
 export default function UserMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
@@ -89,23 +84,12 @@ export default function UserMenu({ user }: { user: ShellUser }) {
           open && "[box-shadow:0_0_0_2px_var(--focus-ring)]",
         )}
       >
-        {user.image ? (
-          <Image
+        <Avatar
             src={user.image}
-            alt=""
-            width={32}
-            height={32}
-            unoptimized
-            className="h-8 w-8 rounded-[var(--radius-full)] object-cover"
+            name={user.name ?? user.email}
+            size={32}
+            className="h-8 w-8"
           />
-        ) : (
-          <span
-            aria-hidden
-            className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-full)] bg-primary text-on-primary text-[length:var(--text-sm)] font-semibold"
-          >
-            {initialOf(user)}
-          </span>
-        )}
       </button>
 
       {open ? (
