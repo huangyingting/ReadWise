@@ -2,6 +2,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { isPushConfigured } from "@/lib/push";
+import { checkRateLimit } from "@/lib/rate-limit";
 
 const unsubscribeBody = object({
   endpoint: nonEmptyString(2048),
@@ -23,6 +24,8 @@ export const POST = createHandler(
 
     const userId = session.user.id;
     const { endpoint } = body;
+
+    checkRateLimit(userId, "lookup");
 
     // Only delete if it belongs to the authenticated user.
     await prisma.pushSubscription.deleteMany({
