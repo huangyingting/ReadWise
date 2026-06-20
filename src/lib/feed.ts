@@ -22,10 +22,13 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
-import { isDifficultyLevel, levelRank, ensureArticleDifficulties } from "@/lib/difficulty";
+import { isDifficultyLevel, levelRank, heuristicDifficulty } from "@/lib/difficulty";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("feed");
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -307,8 +310,25 @@ export async function getPersonalizedFeed(
     return { articles: [], hasMore: false, reasons: {} };
   }
 
-  // 3) Ensure all articles have a difficulty assessment (heuristic only, cheap)
-  await ensureArticleDifficulties(allArticles);
+  // Warn when the corpus is approaching the cap (>= 80% of MAX_FETCH).
+  if (allArticles.length >= MAX_FETCH * 0.8) {
+    log.warn("feed.cap_approaching", {
+      count: allArticles.length,
+      cap: MAX_FETCH,
+      note: "Feed candidate set is near the cap. Consider pre-computing rankings.",
+    });
+  }
+
+  // 3) Fill in missing difficulty assessments READ-ONLY (heuristic, no DB writes).
+  // The processing pipeline writes difficulty during ingestion; we never write
+  // from a GET path to avoid write-amplification on every feed request.
+  for (const article of allArticles) {
+    if (!isDifficultyLevel(article.difficulty)) {
+      const h = heuristicDifficulty(article.content);
+      article.difficulty = h.level;
+      article.difficultyScore = h.score;
+    }
+  }
 
   // ---- No-profile fallback: newest-first, no personalisation ----
   if (!hasProfile) {
