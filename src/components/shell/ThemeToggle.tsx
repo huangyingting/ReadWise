@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { usePathname } from "next/navigation";
 import { Sun, Moon, Monitor } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import {
@@ -25,6 +26,12 @@ const NEXT_LABEL: Record<Theme, string> = {
 export default function ThemeToggle({ className }: { className?: string }) {
   const [mounted, setMounted] = useState(false);
   const [theme, setThemeState] = useState<Theme>("system");
+  const pathname = usePathname();
+
+  // On reader pages the reading-mode control (Light/Sepia/Dark) in ReaderControls
+  // serves as the single theme source of truth. Hide the global toggle to avoid
+  // two overlapping theme knobs on the same page.
+  const isReaderPage = pathname.startsWith("/reader/");
 
   useEffect(() => {
     setThemeState(getThemePreference());
@@ -34,6 +41,8 @@ export default function ThemeToggle({ className }: { className?: string }) {
   function handleClick() {
     setThemeState(toggleTheme());
   }
+
+  if (isReaderPage) return null;
 
   const Icon = ICONS[theme];
 
