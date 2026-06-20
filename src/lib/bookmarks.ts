@@ -50,17 +50,16 @@ type DataResult<T extends object> = ({ ok: true } & T) | ErrResult;
 
 /**
  * Returns the user's default "Saved" list, creating it lazily if it does not
- * yet exist. Safe to call on every request — the extra findFirst is cheap.
+ * yet exist. Uses upsert on the (userId, name) unique key so concurrent first
+ * calls collapse into one row — no duplicate default lists.
  */
 export async function getOrCreateDefaultList(
   userId: string,
 ): Promise<{ id: string; name: string; isDefault: boolean }> {
-  const existing = await prisma.readingList.findFirst({
-    where: { userId, isDefault: true },
-  });
-  if (existing) return existing;
-  return prisma.readingList.create({
-    data: { userId, name: DEFAULT_LIST_NAME, isDefault: true },
+  return prisma.readingList.upsert({
+    where: { userId_name: { userId, name: DEFAULT_LIST_NAME } },
+    create: { userId, name: DEFAULT_LIST_NAME, isDefault: true },
+    update: {},
   });
 }
 

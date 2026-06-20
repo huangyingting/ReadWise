@@ -43,6 +43,11 @@ before(() => {
             return null;
           },
           findMany: async () => stubUserLists,
+          upsert: async (args: { create: { name: string; isDefault: boolean }; update: object }) => {
+            // If the stub has an existing list, return it (update path); otherwise create.
+            if (stubDefaultList) return stubDefaultList;
+            return { id: "list-new", name: args.create.name, isDefault: args.create.isDefault };
+          },
           create: async (args: { data: { name: string; isDefault: boolean } }) => ({
             id: "list-new",
             name: args.data.name,
