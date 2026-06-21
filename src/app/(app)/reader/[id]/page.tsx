@@ -19,7 +19,7 @@ import BilingualBody from "@/components/BilingualBody";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import ReaderControls from "@/components/ReaderControls";
-import ReaderToolsPanel from "@/components/ReaderToolsPanel";
+import ArticleStudySection from "@/components/ArticleStudySection";
 import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
@@ -213,8 +213,8 @@ export default async function ReaderPage({
                 Skip to article
               </a>
 
-              {/* Sticky controls: Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
-              <ReaderControls />
+              {/* Sticky controls: Listen + Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
+              <ReaderControls articleId={article.id} />
 
               <article
                 id="reader-article"
@@ -314,6 +314,12 @@ export default async function ReaderPage({
                 initialVote={userDifficultyVote}
               />
 
+              {/* Read-after practice & study tools — full-width, in page flow */}
+              <ArticleStudySection
+                articleId={article.id}
+                plainText={articlePlainText}
+              />
+
               {/* Keep reading — CTA section after the article body (#110) */}
               {keepReadingArticles.length > 0 ? (
                 <section className="reader-related" aria-label="Keep reading">
@@ -360,13 +366,6 @@ export default async function ReaderPage({
                 </section>
               ) : null}
             </div>
-
-            {/* ---- Tools rail (desktop) / FAB+bottom-sheet (mobile) ---- */}
-            <ReaderToolsPanel
-              articleId={article.id}
-              languages={SUPPORTED_LANGUAGES}
-              plainText={articlePlainText}
-            />
           </div>
 
           {/* Fixed bottom audio mini-player (appears after first narration load) */}

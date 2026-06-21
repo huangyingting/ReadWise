@@ -21,6 +21,7 @@
 import {
   createContext,
   useContext,
+  useEffect,
   useRef,
   useState,
   useCallback,
@@ -76,6 +77,16 @@ export type AudioContextValue = {
   ) => void;
   /** Mark fallback so the mini-player never appears. */
   markFallback: () => void;
+  /** Whether narration is currently being fetched. */
+  isWarming: boolean;
+  /** Error from the last narration fetch (null = none). */
+  warmError: string | null;
+  /**
+   * Fetch narration for the article and seed the player. Idempotent — only the
+   * first successful call performs the network request; a failed call may be
+   * retried. Called by the chrome Listen button.
+   */
+  warmNarration: (articleId: string) => Promise<void>;
   /** Whether sentence-loop mode is currently active. */
   isLooping: boolean;
   /**
@@ -181,6 +192,80 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     setIsFallback(true);
   }, []);
 
+  // ── Narration fetch (moved here from ArticleSpeech so the chrome Listen
+  //    button can warm narration without mounting a dedicated panel) ──────────
+  const [isWarming, setIsWarming] = useState(false);
+  const [warmError, setWarmError] = useState<string | null>(null);
+  const hasWarmedRef = useRef(false);
+  const blobUrlRef = useRef<string | null>(null);
+
+  const warmNarration = useCallback(
+    async (articleId: string) => {
+      if (hasWarmedRef.current) return;
+      hasWarmedRef.current = true;
+      setIsWarming(true);
+      setWarmError(null);
+      try {
+        const res = await fetch(`/api/reader/${articleId}/speech`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: "{}",
+        });
+        if (!res.ok) {
+          const errBody = (await res.json().catch(() => null)) as {
+            error?: string;
+          } | null;
+          throw new Error(errBody?.error ?? "Could not load narration");
+        }
+        const body = (await res.json()) as {
+          audio: string | null;
+          mimeType: string | null;
+          spokenText: string;
+          words: SpeechWord[];
+          voice: string;
+          cached: boolean;
+          fallback: boolean;
+        };
+        if (body.fallback || !body.audio) {
+          markFallback();
+        } else {
+          // base64 → blob: URL (data: URIs are blocked by the CSP media-src).
+          const base64 = body.audio.includes(",")
+            ? body.audio.split(",")[1]
+            : body.audio;
+          const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+          const blob = new Blob([bytes], {
+            type: body.mimeType ?? "audio/mpeg",
+          });
+          const blobUrl = URL.createObjectURL(blob);
+          if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
+          blobUrlRef.current = blobUrl;
+          loadAudio(blobUrl, body.words, body.voice, body.cached, body.spokenText);
+        }
+      } catch (err) {
+        // Allow a retry on failure.
+        hasWarmedRef.current = false;
+        setWarmError(
+          err instanceof Error ? err.message : "Could not load narration",
+        );
+      } finally {
+        setIsWarming(false);
+      }
+    },
+    [loadAudio, markFallback],
+  );
+
+  // Revoke the blob URL when the provider unmounts to avoid memory leaks.
+  useEffect(
+    () => () => {
+      if (blobUrlRef.current) {
+        URL.revokeObjectURL(blobUrlRef.current);
+        blobUrlRef.current = null;
+      }
+    },
+    [],
+  );
+
   const toggleLoop = useCallback(() => {
     if (loopSegmentRef.current) {
       // Cancel loop.
@@ -227,6 +312,9 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         setListenActive,
         loadAudio,
         markFallback,
+        isWarming,
+        warmError,
+        warmNarration,
         isLooping,
         toggleLoop,
       }}
