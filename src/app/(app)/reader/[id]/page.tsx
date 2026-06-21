@@ -20,6 +20,9 @@ import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import ReaderControls from "@/components/ReaderControls";
 import ArticleStudySection from "@/components/ArticleStudySection";
+import ReaderLayout from "@/components/ReaderLayout";
+import ReaderToolsSurface from "@/components/ReaderToolsSurface";
+import { ReaderToolsProvider } from "@/components/ReaderToolsProvider";
 import { ReaderAudioProvider } from "@/components/ReaderAudioProvider";
 import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider";
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
@@ -198,7 +201,8 @@ export default async function ReaderPage({
          */}
         <ReaderAudioProvider>
         <ReaderHighlightsProvider articleId={article.id}>
-          <div className="reader-layout">
+          <ReaderToolsProvider>
+          <ReaderLayout>
             {/* ---- Reading column ---- */}
             <div className="reader-column">
               {/* Reader-local skip link: lets keyboard users jump past the sticky
@@ -310,11 +314,9 @@ export default async function ReaderPage({
                 initialVote={userDifficultyVote}
               />
 
-              {/* Read-after practice & study tools — full-width, in page flow */}
-              <ArticleStudySection
-                articleId={article.id}
-                plainText={articlePlainText}
-              />
+              {/* Read-after practice & study tools — in-flow SSR anchor/CTA
+                  that opens the responsive Tools surface (#153). */}
+              <ArticleStudySection />
 
               {/* Keep reading — CTA section after the article body (#110) */}
               {keepReadingArticles.length > 0 ? (
@@ -362,7 +364,15 @@ export default async function ReaderPage({
                 </section>
               ) : null}
             </div>
-          </div>
+
+            {/* ---- Tools surface ---- second grid column on xl (sticky rail),
+                 a focus-trapped bottom sheet on <xl. Single mounted instance. */}
+            <ReaderToolsSurface
+              articleId={article.id}
+              plainText={articlePlainText}
+            />
+          </ReaderLayout>
+          </ReaderToolsProvider>
 
           {/* Fixed bottom audio mini-player (appears after first narration load) */}
           <ReaderMiniPlayer />

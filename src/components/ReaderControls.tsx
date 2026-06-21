@@ -34,6 +34,7 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 import { focusRing, cn } from "@/lib/cn";
 import ReaderListenButton from "./ReaderListenButton";
 import ReaderBackButton from "./ReaderBackButton";
+import { useReaderTools } from "./ReaderToolsProvider";
 import {
   getReaderPrefs,
   setReaderPrefs,
@@ -74,6 +75,7 @@ const SPACING_OPTIONS = [
 ];
 
 export default function ReaderControls({ articleId }: { articleId: string }) {
+  const { open: toolsOpen, toggle: toggleTools } = useReaderTools();
   const [prefs, setPrefsState] = useState<ReaderPrefs | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const [displayOpen, setDisplayOpen] = useState(false);
@@ -282,13 +284,17 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
           )}
         </div>
 
-        {/* Tools — practice tools launcher; wired in #153. Inert placeholder. */}
-        <Tooltip content="Reading tools (coming soon)" side="bottom">
+        {/* Tools — opens the responsive practice-tools surface (#153):
+            a docked right rail on xl, a focus-trapped bottom sheet on <xl. */}
+        <Tooltip content="Practice tools" side="bottom">
           <button
             type="button"
-            disabled
-            aria-label="Reading tools (coming soon)"
-            className={cn("reader-tool-btn", focusRing)}
+            aria-haspopup="dialog"
+            aria-expanded={toolsOpen}
+            aria-controls="reader-tools-surface"
+            aria-label="Practice tools"
+            onClick={toggleTools}
+            className={cn("reader-tool-btn", toolsOpen && "is-active", focusRing)}
           >
             <PanelRight size={16} aria-hidden="true" />
           </button>
