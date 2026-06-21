@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Offline Reader | ReadWise</title>
+  <style>
+    :root {
+      --primary: #4f46e5;
+      --text: #111827;
+      --text-muted: #6b7280;
+      --border: #e5e7eb;
+      --bg: #fafafa;
+      --surface: #fff;
+      --danger: #dc2626;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --text: #f9fafb;
+        --text-muted: #9ca3af;
+        --border: #374151;
+        --bg: #111827;
+        --surface: #1f2937;
+      }
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: Georgia, "Times New Roman", serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.7;
+      padding: 0 1rem 4rem;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0.75rem 1rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      z-index: 10;
+    }
+    .header-logo {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--primary);
+      text-decoration: none;
+      font-family: system-ui, sans-serif;
+    }
+    .header-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.35em;
+      font-size: 0.75rem;
+      font-family: system-ui, sans-serif;
+      color: var(--text-muted);
+      border: 1px solid var(--border);
+      border-radius: 9999px;
+      padding: 0.2rem 0.6rem;
+    }
+    main {
+      max-width: 68ch;
+      margin: 2.5rem auto 0;
+    }
+    .article-title {
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      font-weight: 700;
+      line-height: 1.25;
+      margin-bottom: 0.75rem;
+    }
+    .article-meta {
+      font-size: 0.875rem;
+      font-family: system-ui, sans-serif;
+      color: var(--text-muted);
+      margin-bottom: 2rem;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem 1rem;
+      align-items: center;
+    }
+    .article-meta .badge {
+      display: inline-block;
+      background: color-mix(in srgb, var(--primary) 12%, transparent);
+      color: var(--primary);
+      border-radius: 4px;
+      padding: 1px 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+    hr {
+      border: none;
+      border-top: 1px solid var(--border);
+      margin: 1.5rem 0;
+    }
+    .prose { font-size: 1.0625rem; }
+    .prose p { margin-bottom: 1.25rem; }
+    .prose h2, .prose h3, .prose h4 {
+      font-family: system-ui, sans-serif;
+      margin: 1.5rem 0 0.75rem;
+    }
+    .prose h2 { font-size: 1.3rem; }
+    .prose h3 { font-size: 1.1rem; }
+    .prose ul, .prose ol { padding-left: 1.5rem; margin-bottom: 1.25rem; }
+    .prose li { margin-bottom: 0.4rem; }
+    .prose blockquote {
+      border-left: 3px solid var(--primary);
+      margin-left: 0;
+      padding-left: 1rem;
+      color: var(--text-muted);
+      font-style: italic;
+    }
+    .prose a { color: var(--primary); }
+    .prose img { max-width: 100%; border-radius: 8px; margin: 1rem 0; }
+
+    /* Status screens */
+    .status-card {
+      max-width: 420px;
+      margin: 4rem auto;
+      text-align: center;
+      background: var(--surface);
+      border-radius: 1rem;
+      padding: 2.5rem 2rem;
+      border: 1px solid var(--border);
+      font-family: system-ui, sans-serif;
+    }
+    .status-icon { font-size: 3rem; margin-bottom: 1rem; }
+    .status-card h2 {
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: var(--primary);
+      margin-bottom: 0.75rem;
+    }
+    .status-card p {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      line-height: 1.6;
+      margin-bottom: 1rem;
+    }
+    .btn {
+      display: inline-block;
+      padding: 0.55rem 1.25rem;
+      background: var(--primary);
+      color: #fff;
+      border: none;
+      border-radius: 0.5rem;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: none;
+      font-family: system-ui, sans-serif;
+    }
+    .btn:hover { opacity: 0.9; }
+    .btn-outline {
+      background: transparent;
+      color: var(--primary);
+      border: 1px solid var(--primary);
+      margin-left: 0.5rem;
+    }
+    #loading { text-align: center; padding: 3rem 1rem; font-family: system-ui, sans-serif; color: var(--text-muted); }
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/" class="header-logo">ReadWise</a>
+    <span class="header-badge">📴 Offline</span>
+  </header>
+
+  <div id="loading">Loading saved article…</div>
+  <main id="article-container" style="display:none"></main>
+  <div id="not-found" style="display:none">
+    <div class="status-card">
+      <div class="status-icon">📭</div>
+      <h2>Article not downloaded</h2>
+      <p>
+        This article hasn't been saved for offline reading.
+        You can download articles from the reader when you have a connection.
+      </p>
+      <a href="/offline" class="btn">Offline Library</a>
+      <button class="btn btn-outline" onclick="window.history.back()">Go back</button>
+    </div>
+  </div>
+  <div id="idb-error" style="display:none">
+    <div class="status-card">
+      <div class="status-icon">⚠️</div>
+      <h2>Storage unavailable</h2>
+      <p>Offline storage isn't available in this browser context (e.g. private browsing).</p>
+      <button class="btn" onclick="window.location.reload()">Retry</button>
+    </div>
+  </div>
+
+  <script>
+    (function () {
+      var DB_NAME = "readwise-offline";
+      var STORE_NAME = "articles";
+      var EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
+
+      // Extract article ID from the current path: /reader/<id>
+      var match = window.location.pathname.match(/\/reader\/([^/?#]+)/);
+      var articleId = match ? match[1] : null;
+
+      function show(id) {
+        ["loading", "article-container", "not-found", "idb-error"].forEach(function (n) {
+          var el = document.getElementById(n);
+          if (el) el.style.display = n === id ? (id === "article-container" ? "block" : "flex") : "none";
+        });
+        var el = document.getElementById(id);
+        if (el) el.style.display = "";
+      }
+
+      function escapeHtml(str) {
+        return str
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;")
+          .replace(/"/g, "&quot;");
+      }
+
+      function renderArticle(article) {
+        document.title = article.title + " | ReadWise (Offline)";
+        var container = document.getElementById("article-container");
+
+        var metaParts = [];
+        if (article.author) metaParts.push(escapeHtml(article.author));
+        if (article.source) metaParts.push(escapeHtml(article.source));
+        if (article.readingMinutes) metaParts.push("⏱ " + article.readingMinutes + " min read");
+        var difficultyHtml = article.difficulty
+          ? '<span class="badge">' + escapeHtml(article.difficulty) + "</span>"
+          : "";
+
+        container.innerHTML =
+          "<h1 class=\"article-title\">" + escapeHtml(article.title) + "</h1>" +
+          "<div class=\"article-meta\">" +
+          (metaParts.length ? metaParts.join(" · ") : "") +
+          difficultyHtml +
+          "</div>" +
+          "<hr />" +
+          "<div class=\"prose\">" + article.sanitizedHtml + "</div>";
+
+        show("article-container");
+      }
+
+      if (!articleId) {
+        show("not-found");
+        return;
+      }
+
+      if (typeof indexedDB === "undefined") {
+        show("idb-error");
+        return;
+      }
+
+      var req = indexedDB.open(DB_NAME, 1);
+      req.onerror = function () { show("idb-error"); };
+      req.onsuccess = function (e) {
+        var db = e.target.result;
+        var tx = db.transaction(STORE_NAME, "readonly");
+        var store = tx.objectStore(STORE_NAME);
+        var getReq = store.get(articleId);
+        getReq.onsuccess = function () {
+          var article = getReq.result;
+          if (!article) { show("not-found"); return; }
+          var age = Date.now() - new Date(article.savedAt).getTime();
+          if (age > EXPIRY_MS) { show("not-found"); return; }
+          renderArticle(article);
+        };
+        getReq.onerror = function () { show("not-found"); };
+      };
+    })();
+  </script>
+</body>
+</html>
