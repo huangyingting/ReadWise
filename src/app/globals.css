@@ -1333,17 +1333,17 @@ body {
 .reader-layout {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-8);
+  gap: var(--space-6);
   max-width: 1160px;
   margin-inline: auto;
-  padding: var(--space-6) var(--space-4) var(--space-12);
+  padding: var(--space-6) var(--space-4) var(--space-8);
   align-items: start;
 }
 
 @media (min-width: 1100px) {
   .reader-layout {
     grid-template-columns: minmax(0, 1fr) 360px;
-    padding: var(--space-6) var(--space-6) var(--space-10);
+    padding: var(--space-6) var(--space-6) var(--space-8);
   }
 }
 
@@ -1409,12 +1409,12 @@ body {
   max-height: 420px;
   border: 1px solid var(--reading-border, var(--border));
   box-shadow: var(--shadow-sm);
-  margin-block: var(--space-6);
+  margin-block: var(--space-4);
 }
 
 /* Article header spacing */
 .reader-article-header {
-  margin-bottom: var(--space-6);
+  margin-bottom: var(--space-4);
 }
 
 .reader-article-title {
@@ -1973,8 +1973,8 @@ body {
 
 /* Related articles section — keep existing look, just add top margin */
 .reader-related {
-  margin-top: var(--space-10);
-  padding-top: var(--space-6);
+  margin-top: var(--space-7);
+  padding-top: var(--space-5);
   border-top: 1px solid var(--reading-border, var(--border));
 }
 
