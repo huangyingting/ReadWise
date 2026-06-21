@@ -36,7 +36,7 @@ export default function StudyPageShell({
       />
 
       {/* Saved words list — dimmed + inert while a review session is active */}
-      <section style={{ marginTop: "var(--space-9)" }}>
+      <section style={{ marginTop: "var(--space-7)" }}>
         <h2
           className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
           style={{ marginBottom: "var(--space-4)" }}

@@ -148,7 +148,7 @@ export default async function DashboardPage({
 
       {/* Continue-reading rail — only when in-progress articles exist */}
       {inProgressEntries.length > 0 ? (
-        <section className="mt-[var(--space-9)]" aria-label="Continue reading">
+        <section className="mt-[var(--space-7)]" aria-label="Continue reading">
           <div
             className="flex items-center justify-between mb-[var(--space-4)]"
           >
@@ -181,7 +181,7 @@ export default async function DashboardPage({
       {/* For You feed */}
       <section
         aria-labelledby="foryou-h"
-        className="mt-[var(--space-9)]"
+        className="mt-[var(--space-7)]"
       >
         <div className="flex flex-wrap items-center justify-between gap-[var(--space-3)] mb-[var(--space-2)]">
           <h2
@@ -224,7 +224,7 @@ export default async function DashboardPage({
       </section>
 
       {/* Browse by topic band — bridge to /browse */}
-      <section className="mt-[var(--space-9)]">
+      <section className="mt-[var(--space-7)]">
         <Card>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-4)]">
             <div>
