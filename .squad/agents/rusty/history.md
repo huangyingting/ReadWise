@@ -48,3 +48,8 @@ Before filing build failures as product bugs, verify they are not concurrent-dev
 ### 2026-06-20 — PR-flow divergence lesson
 
 PR flow for this repo: branch from `origin/main`, squash-merge, then reset local `main` to `origin/main` after each merge to avoid divergence before starting the next branch.
+
+
+### 2026-06-21 — Product backlog from competitor research
+
+Review 3 surfaced a learner-focused product backlog informed by competitor and internet pain-point research. Many issues #105–#126 are feature gaps marked `go:needs-research`, so future triage should separate quick UX wins from larger product/architecture decisions.

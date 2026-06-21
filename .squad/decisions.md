@@ -731,3 +731,29 @@ Rusty consolidated the second post-fix global review into 21 GitHub issues (#79�
 Three Saul feature proposals were accepted as backlog feature issues: keyboard shortcut reference panel (#95), 52-week reading streak heatmap (#96), and CEFR level progression timeline (#97). Roughly 30 minor or low-sponsor findings were intentionally dropped to avoid issue-board noise and scope creep. Coordinator follow-up confirmed the reported build failure was a concurrent-dev-server/`.next` artifact rather than a clean-build product failure, and confirmed #85's legacy `.btn` use is now visibly unstyled because #66 removed the CSS.
 
 References: decisions/inbox/rusty-review2.md; GitHub issues #79–#99.
+
+
+---
+
+## 2026-06-21 — Review 3: End-User / Product-Gap Issue Consolidation
+
+**Source:** `decisions/inbox/rusty-review3.md`  
+**Status:** DECIDED  
+**Owner:** Rusty (Lead/Architect)
+
+A third review round combined internet competitor research, Saul's static product/UX gap analysis, and Basher's end-user usability walkthrough. The board was empty before this run, and the team filed **22 GitHub issues (#105–#126)** focused on learner needs and ease of use.
+
+### Issue set
+
+- **Bugs:** #105 AI Tutor disabled on the tutor path; #106 UTC streak boundary for non-UTC users.
+- **Features:** #107 save word from dictionary popover; #108 CEFR filter on Browse; #109 0.5× speed and sentence loop; #110 post-article momentum; #113 bilingual parallel reading; #114 grammar/idiom explanations; #115 vocabulary journal/management; #116 learner content import; #117 offline/PWA reading; #118 content freshness/scheduling; #119 flashcards with original sentence context; #120 placement-level calibration; #123 word frequency signal; #124 article difficulty feedback; #125 streak recovery.
+- **Chore/UX:** #111 reader tool discoverability; #112 dyslexia-friendly font/spacing controls; #121 first-run guidance; #122 reader polish bundle; #126 richer article card metadata/CTA.
+
+### Coordinator caveats retained
+
+- Basher F-31 placeholder article bodies were treated as seed/dev-data artifacts, not a production content bug. The real product gaps are #116 and #118.
+- Basher F-11 AI Tutor was reframed as a real p1 bug (#105): tutor `chatComplete` returns null while translation works on the same endpoint; suspected token-budget issue in `src/lib/tutor.ts`.
+
+### Rationale
+
+The 22-issue count stayed within the target 18–28 range, grouped sub-threshold polish items into themed work, and preserved research-backed gaps from competitor products including LingQ, Readlang, Beelinguapp, News in Levels, Language Reactor, and Migaku. Many feature issues are intentionally marked `go:needs-research` because they touch product scope or architecture.

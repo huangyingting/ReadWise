@@ -39,3 +39,8 @@ Basher verified all rich reader features with browser, static, security, and reg
 - When #48 double-render is present, automated DOM/browser findings can be artifacts. Cross-check high-severity reader issues against source and manual root-cause behavior before escalating.
 - The dev-browser CLI is effective headless for broad DOM QA. Screenshot capture can stall while fonts load; wrap screenshots in try/catch and avoid blocking DOM-based verification on nonessential screenshots.
 - Preserve established browser contracts during redesign and feature QA: listing progress hooks, card wrapper/article IDs, bookmark hooks, reader surface state machine, auth gates, and IDOR behavior.
+
+
+### 2026-06-21 — End-user review triage lesson
+
+During review 3, distinguish dev-data artifacts and expected graceful-fallback states from true product bugs before flagging High. Placeholder seed article bodies were not filed as a content bug, while the AI Tutor failure was escalated because translation worked in the same environment and the tutor path returned null.
