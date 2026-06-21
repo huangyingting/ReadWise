@@ -28,7 +28,7 @@ export default function HeaderShell({ children }: { children: ReactNode }) {
           : "border-b border-border",
       )}
     >
-      <div className="mx-auto flex h-14 max-w-[1280px] items-center gap-[var(--space-4)] px-[var(--space-6)]">
+      <div className="mx-auto flex h-14 max-w-[1280px] items-center justify-between gap-[var(--space-4)] px-[var(--space-6)]">
         {children}
       </div>
     </header>
