@@ -914,7 +914,7 @@ export default function ArticlePronunciation({
       if (body.fallback || !body.audio) {
         audio.markFallback();
       } else {
-        audio.loadAudio(body.audio, body.words, body.voice, body.cached);
+        audio.loadAudio(body.audio, body.words, body.voice, body.cached, body.spokenText);
       }
     } catch {
       // Silent — "Hear it" just won't work.

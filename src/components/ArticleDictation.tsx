@@ -142,8 +142,7 @@ export default function ArticleDictation({
       const blobUrl = URL.createObjectURL(blob);
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = blobUrl;
-      audio.loadAudio(blobUrl, body.words, body.voice, body.cached);
-
+      audio.loadAudio(blobUrl, body.words, body.voice, body.cached, plainText);
       const segs = segmentDictation(plainText, body.words);
       setSegments(segs);
       setPhase(segs.length > 0 ? "idle" : "fallback");

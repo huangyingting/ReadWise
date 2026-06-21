@@ -136,21 +136,44 @@ export type ArticlePage = {
  * Fetches one page of published articles, optionally restricted to a category
  * slug. Pass `null` for the category to list across all categories. Returns
  * `hasMore` so callers can offer incremental ("load more") loading.
+ *
+ * When `maxLevel` is provided, articles are filtered to those at or below that
+ * CEFR level and sorted easiest-first (in-memory, like the Picks feed).
  */
 export async function listCategoryPage(
   category: string | null,
-  opts: { offset?: number; limit?: number } = {},
+  opts: { offset?: number; limit?: number; maxLevel?: DifficultyLevel | null } = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
-  return cachedListCategoryPage(category, offset, limit);
+  const maxLevel = opts.maxLevel ?? null;
+  return cachedListCategoryPage(category, maxLevel, offset, limit);
 }
+
+/** Maximum articles fetched per category for in-memory level filtering. */
+const MAX_CATEGORY_FETCH = 500;
 
 async function listCategoryPageImpl(
   category: string | null,
+  maxLevel: DifficultyLevel | null,
   offset: number,
   limit: number,
 ): Promise<ArticlePage> {
+  if (maxLevel != null) {
+    // In-memory level filtering — must load all candidates first.
+    const all = await prisma.article.findMany({
+      where: { status: "published", ...(category ? { category } : {}) },
+      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+      take: MAX_CATEGORY_FETCH,
+    });
+    await ensureArticleDifficulties(all);
+    const filtered = filterAndSortByLevel(all, maxLevel);
+    return {
+      articles: filtered.slice(offset, offset + limit),
+      hasMore: offset + limit < filtered.length,
+    };
+  }
+  // DB-level pagination when no level filter is active.
   const rows = await prisma.article.findMany({
     where: { status: "published", ...(category ? { category } : {}) },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],

@@ -34,7 +34,8 @@ model User {
   tutorMessages         TutorMessage[]
   quizAttempts          QuizAttempt[]
   pronunciationAttempts PronunciationAttempt[]
-  pushSubscriptions     PushSubscription[]
+  pushSubscriptions       PushSubscription[]
+  difficultyFeedback      ArticleDifficultyFeedback[]
 }
 
 model Profile {
@@ -86,7 +87,8 @@ model Article {
   readingListItems     ReadingListItem[]
   highlights           Highlight[]
   tutorMessages        TutorMessage[]
-  pronunciationAttempts PronunciationAttempt[]
+  pronunciationAttempts     PronunciationAttempt[]
+  difficultyFeedback        ArticleDifficultyFeedback[]
 
   @@index([category])
   @@index([sourceUrl])
@@ -417,4 +419,22 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// #124 — Per-user difficulty feedback for articles.
+// Vote is one of: too_easy | just_right | too_hard.
+// @@unique enforces one vote per user per article (upsert to change vote).
+model ArticleDifficultyFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  vote      String   // "too_easy" | "just_right" | "too_hard"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([articleId])
 }
