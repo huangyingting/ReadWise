@@ -30,6 +30,13 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
     setMoreOpen(false);
   }, [pathname]);
 
+  // #153: hide the bottom tab bar inside the reader (focused reading) so it
+  // never collides with the fixed ReaderMiniPlayer / reading toolbar. The reader
+  // owns its own bottom chrome (mini-player + Tools sheet) on mobile.
+  if (pathname?.startsWith("/reader/")) {
+    return null;
+  }
+
   const itemClass = (active: boolean) =>
     cn(
       "flex flex-1 flex-col items-center justify-center gap-[2px]",

@@ -1338,11 +1338,35 @@ body {
   margin-inline: auto;
   padding: var(--space-6) var(--space-4) var(--space-8);
   align-items: start;
+  /* Width of the docked Tools rail at xl (see ReaderToolsSurface). */
+  --reader-rail-width: 360px;
 }
 
 @media (min-width: 1100px) {
   .reader-layout {
     padding: var(--space-6) var(--space-6) var(--space-8);
+  }
+}
+
+/*
+ * #153 — reader Tools surface z-index band (single source of truth):
+ *   reader-controls toolbar ...... 30
+ *   reader-mini-player ........... 40
+ *   reader-tools-scrim ........... 49   (bottom-sheet backdrop, <xl only)
+ *   reader-tools-surface (sheet) . 50
+ *   app modals / Popovers / Sheet  60
+ * On xl the surface is a non-modal sticky rail (z-index 1, no scrim).
+ */
+
+/* xl: reserve the right-rail column ONLY while the surface is open, so the
+   reading column keeps its full width (measure) when Tools is closed and there
+   is never a horizontal scroll. */
+@media (min-width: 1280px) {
+  .reader-layout {
+    max-width: 1320px;
+  }
+  .reader-layout[data-tools-open="true"] {
+    grid-template-columns: minmax(0, 1fr) var(--reader-rail-width);
   }
 }
 
@@ -1523,6 +1547,11 @@ body {
 
 .reader-tool-btn[aria-expanded="true"] {
   background: color-mix(in srgb, var(--reading-text, var(--text)) 12%, transparent);
+}
+
+.reader-tool-btn.is-active {
+  background: color-mix(in srgb, var(--primary) 16%, transparent);
+  color: var(--primary);
 }
 
 .reader-tool-btn:disabled {
@@ -1732,6 +1761,155 @@ body {
 .article-study-panel .vocabulary-item {
   background: var(--reading-bg, var(--bg));
   border-color: var(--reading-border, var(--border));
+}
+
+/* ---- #153 in-flow anchor CTA (opens the Tools surface) ---- */
+.article-study-cta {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  background: var(--reading-surface, var(--surface));
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+}
+
+.article-study-cta-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.article-study-cta-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--reading-border, var(--border));
+  background: var(--reading-bg, var(--bg));
+  color: var(--reading-text-muted, var(--text-muted));
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  white-space: nowrap;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+}
+
+.article-study-cta-chip:hover {
+  color: var(--reading-text, var(--text));
+  border-color: var(--primary);
+}
+
+/* ---- #153 unified responsive Tools surface (single mounted instance) ---- */
+/* Default (< 1280px): a modal bottom sheet, hidden until open. */
+.reader-tools-surface {
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.reader-tools-surface[data-open="true"] {
+  display: flex;
+  position: fixed;
+  inset-inline: 0;
+  bottom: 0;
+  max-height: 85vh;
+  z-index: 50;
+  background: var(--reading-surface, var(--surface));
+  border-top: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  box-shadow: var(--shadow-xl);
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.reader-tools-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 49;
+  background: var(--overlay);
+}
+
+.reader-tools-surface-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--reading-border, var(--border));
+  flex-shrink: 0;
+}
+
+.reader-tools-surface-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--reading-text, var(--text));
+}
+
+.reader-tools-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  border: none;
+  background: transparent;
+  color: var(--reading-text-muted, var(--text-muted));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.reader-tools-close-btn:hover {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 8%, transparent);
+  color: var(--reading-text, var(--text));
+}
+
+/* The body scrolls independently of the header. */
+.reader-tools-surface-body {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* In the surface the tabs become a sticky segmented header above the panels. */
+.reader-tools-surface .article-study-tabs {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.reader-tools-surface .article-study-panel {
+  padding: var(--space-4);
+}
+
+/* >= 1280px (xl): the surface is a sticky, independently scrollable RIGHT RAIL
+   docked in the second grid column (non-modal — no scrim, no focus trap). */
+@media (min-width: 1280px) {
+  .reader-tools-scrim {
+    display: none;
+  }
+
+  .reader-tools-surface[data-open="true"] {
+    position: sticky;
+    top: calc(var(--header-height) + var(--space-2));
+    bottom: auto;
+    inset-inline: auto;
+    z-index: 1;
+    max-height: calc(100vh - var(--header-height) - var(--space-6));
+    overflow: hidden;
+    border: 1px solid var(--reading-border, var(--border));
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-sm);
+    padding-bottom: 0;
+  }
 }
 
 /* ---- First-visit orientation banner ---- */
