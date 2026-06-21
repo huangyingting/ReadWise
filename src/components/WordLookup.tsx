@@ -32,9 +32,11 @@ import HighlightEditPopover from "./HighlightEditPopover";
 import SentenceTranslatePopover, {
   type TranslateSentenceResult,
 } from "./SentenceTranslatePopover";
+import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
+import { Badge } from "@/components/ui/Badge";
 
 const POPOVER_WIDTH = 340;
-const POPOVER_HEIGHT = 380;
+const POPOVER_HEIGHT = 400;
 const MINI_PLAYER_HEIGHT = 56;
 
 // ---------------------------------------------------------------------------
@@ -120,6 +122,26 @@ function computeAnchor(
 // ---------------------------------------------------------------------------
 // Mark renderer
 // ---------------------------------------------------------------------------
+
+/**
+ * Extracts the sentence containing `word` from the prose element's text content.
+ * Splits on `.`, `?`, `!` followed by whitespace/end, and on paragraph breaks.
+ * Returns the trimmed sentence or null when not found.
+ */
+function extractContextSentence(proseEl: HTMLElement, word: string): string | null {
+  const text = proseEl.textContent ?? "";
+  if (!text || !word) return null;
+  // Split on sentence-ending punctuation (. ? !) followed by whitespace or EOL
+  const sentences = text.split(/(?<=[.?!])\s+/);
+  const lower = word.toLowerCase();
+  for (const sentence of sentences) {
+    if (sentence.toLowerCase().includes(lower)) {
+      const trimmed = sentence.trim();
+      if (trimmed.length > 0 && trimmed.length <= 400) return trimmed;
+    }
+  }
+  return null;
+}
 
 type TextNodeEntry = { node: Text; start: number; end: number };
 
@@ -302,6 +324,13 @@ export default function WordLookup({
   const [result, setResult] = useState<DictionaryResult | null>(null);
   const [dictError, setDictError] = useState<string | null>(null);
 
+  // Save word from popover (issue #107)
+  const [wordSaved, setWordSaved] = useState(false);
+  const [savePending, setSavePending] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  // Session-level cache: word -> saved state (avoids re-fetching on re-open)
+  const savedCacheRef = useRef<Map<string, boolean>>(new Map());
+
   // Toolbar
   const [toolbarRect, setToolbarRect] = useState<DOMRect | null>(null);
   const [toolbarColor, setToolbarColor] = useState<HighlightColor>("yellow");
@@ -337,6 +366,8 @@ export default function WordLookup({
     setResult(null);
     setDictError(null);
     setLoading(false);
+    setSaveError(null);
+    setSavePending(false);
     // M13: reset translate state (translateLang is NOT reset — it's persisted)
     setTranslateLoading(false);
     setTranslateResult(null);
@@ -443,10 +474,67 @@ export default function WordLookup({
       setDictAnchor({ x: left, y: top });
       setWord(candidate);
       setOpenSurface("dictionary");
+      setSaveError(null);
+      // Restore saved state from session cache immediately
+      const cached = savedCacheRef.current.get(candidate.toLowerCase());
+      setWordSaved(cached ?? false);
       void runLookup(candidate);
     },
     [runLookup],
   );
+
+  // Toggle save/unsave a word from the dictionary popover
+  const handleToggleSave = useCallback(async () => {
+    if (savePending) return;
+    setSavePending(true);
+    setSaveError(null);
+
+    const isSaved = wordSaved;
+    // Optimistic update
+    setWordSaved(!isSaved);
+    savedCacheRef.current.set(word.toLowerCase(), !isSaved);
+
+    try {
+      const endpoint = isSaved ? "/api/vocabulary/unsave" : "/api/vocabulary/save";
+      const body: Record<string, unknown> = { word };
+
+      if (!isSaved) {
+        // Build explanation/example from dictionary result
+        const firstMeaning = result?.found ? result.meanings[0] : null;
+        const firstDef = firstMeaning?.definitions[0];
+        if (firstDef?.definition) {
+          body.explanation = `(${firstMeaning!.partOfSpeech}) ${firstDef.definition}`;
+        }
+        if (firstDef?.example) {
+          body.example = firstDef.example;
+        }
+        // Context sentence from prose
+        const prose = proseRef.current;
+        if (prose) {
+          const ctx = extractContextSentence(prose, word);
+          if (ctx) body.contextSentence = ctx;
+        }
+        body.articleId = articleId;
+      }
+
+      const res = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      if (!res.ok) {
+        const d = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(d?.error ?? "Could not update study list");
+      }
+    } catch (err) {
+      // Revert on error
+      setWordSaved(isSaved);
+      savedCacheRef.current.set(word.toLowerCase(), isSaved);
+      setSaveError(err instanceof Error ? err.message : "Could not update study list");
+    } finally {
+      setSavePending(false);
+    }
+  }, [savePending, wordSaved, word, result, articleId]);
 
   // Main selection handler
   const handleSelect = useCallback(
@@ -724,7 +812,22 @@ export default function WordLookup({
           onMouseUp={(e) => e.stopPropagation()}
         >
           <div className="word-lookup-header">
-            <strong className="word-lookup-word">{word}</strong>
+            <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+              <strong className="word-lookup-word">{word}</strong>
+              {(() => {
+                const tier = frequencyTier(word);
+                if (!tier) return null;
+                return (
+                  <Badge
+                    variant={TIER_VARIANTS[tier]}
+                    aria-label={`Word frequency: ${TIER_LABELS[tier]}`}
+                    style={{ fontSize: "0.7rem", padding: "1px 6px" }}
+                  >
+                    {TIER_LABELS[tier]}
+                  </Badge>
+                );
+              })()}
+            </div>
             <button type="button" className="word-lookup-close" aria-label="Close" onClick={closeAll}>×</button>
           </div>
           {loading ? <p className="muted word-lookup-status">Looking up…</p> : null}
@@ -763,6 +866,22 @@ export default function WordLookup({
               <p className="muted word-lookup-status">No definition found for &ldquo;{word}&rdquo;.</p>
             )
           ) : null}
+          {/* Save word footer */}
+          <div className="word-lookup-footer">
+            {saveError ? (
+              <p className="word-lookup-error" role="alert" style={{ fontSize: "0.75rem", margin: 0 }}>{saveError}</p>
+            ) : null}
+            <button
+              type="button"
+              className={`word-lookup-save-btn${wordSaved ? " word-lookup-save-btn--saved" : ""}`}
+              onClick={() => void handleToggleSave()}
+              disabled={savePending || loading}
+              aria-pressed={wordSaved}
+              aria-label={wordSaved ? `Remove "${word}" from study list` : `Save "${word}" to study list`}
+            >
+              {savePending ? "…" : wordSaved ? "✓ Saved" : "Save word"}
+            </button>
+          </div>
         </div>
       ) : null}
 

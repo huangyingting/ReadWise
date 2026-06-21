@@ -203,24 +203,98 @@ export type SavedWordView = {
   word: string;
   explanation: string | null;
   example: string | null;
+  contextSentence: string | null;
   articleId: string | null;
   createdAt: Date;
+  dueAt: Date | null;
 };
+
+const SAVED_WORD_SELECT = {
+  id: true,
+  word: true,
+  explanation: true,
+  example: true,
+  contextSentence: true,
+  articleId: true,
+  createdAt: true,
+  dueAt: true,
+} as const;
 
 /** All of a user's saved vocabulary, newest first. */
 export async function getSavedWords(userId: string): Promise<SavedWordView[]> {
   return prisma.savedWord.findMany({
     where: { userId },
     orderBy: { createdAt: "desc" },
-    select: {
-      id: true,
-      word: true,
-      explanation: true,
-      example: true,
-      articleId: true,
-      createdAt: true,
-    },
+    select: SAVED_WORD_SELECT,
   });
+}
+
+export const WORDS_PAGE_SIZE = 20;
+
+export type FilteredWordsResult = {
+  words: SavedWordView[];
+  total: number;
+  page: number;
+  totalPages: number;
+};
+
+/**
+ * Paginated, searchable list of a user's saved words.
+ *
+ * @param search  - filter by word text or explanation (case-insensitive LIKE)
+ * @param articleId - filter by the article the word was saved from
+ * @param filter  - "due" = SRS due now; "new" = never reviewed; "all" (default)
+ * @param page    - 1-based page index
+ */
+export async function getFilteredSavedWords(
+  userId: string,
+  opts: {
+    search?: string;
+    articleId?: string;
+    filter?: "all" | "due" | "new";
+    page?: number;
+  } = {},
+): Promise<FilteredWordsResult> {
+  const { search, articleId, filter = "all", page = 1 } = opts;
+  const skip = (Math.max(1, page) - 1) * WORDS_PAGE_SIZE;
+
+  const now = new Date();
+
+  const where = {
+    userId,
+    ...(search
+      ? {
+          OR: [
+            { word: { contains: search } },
+            { explanation: { contains: search } },
+          ],
+        }
+      : {}),
+    ...(articleId ? { articleId } : {}),
+    ...(filter === "due"
+      ? { OR: [{ dueAt: null }, { dueAt: { lte: now } }] }
+      : filter === "new"
+        ? { dueAt: null }
+        : {}),
+  };
+
+  const [total, words] = await Promise.all([
+    prisma.savedWord.count({ where }),
+    prisma.savedWord.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      skip,
+      take: WORDS_PAGE_SIZE,
+      select: SAVED_WORD_SELECT,
+    }),
+  ]);
+
+  return {
+    words,
+    total,
+    page: Math.max(1, page),
+    totalPages: Math.max(1, Math.ceil(total / WORDS_PAGE_SIZE)),
+  };
 }
 
 /**
@@ -233,6 +307,7 @@ export async function saveWord(
     word: string;
     explanation?: string | null;
     example?: string | null;
+    contextSentence?: string | null;
     articleId?: string | null;
   },
 ): Promise<void> {
@@ -245,6 +320,7 @@ export async function saveWord(
     update: {
       explanation: entry.explanation ?? undefined,
       example: entry.example ?? undefined,
+      contextSentence: entry.contextSentence ?? undefined,
       articleId: entry.articleId ?? undefined,
     },
     create: {
@@ -252,6 +328,7 @@ export async function saveWord(
       word,
       explanation: entry.explanation ?? null,
       example: entry.example ?? null,
+      contextSentence: entry.contextSentence ?? null,
       articleId: entry.articleId ?? null,
     },
   });
