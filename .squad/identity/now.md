@@ -1,13 +1,13 @@
 ---
-updated_at: 2026-06-20T21:34:23+00:00
-focus_area: Second global review complete; issues #79–#99 ready to work
-active_issues: [79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99]
+updated_at: 2026-06-20T22:58:01+00:00
+focus_area: Board cleared via five merged PRs; main green
+active_issues: []
 ---
 
 # What We're Focused On
 
-The second post-fix global review is complete. Basher walked 22 pages headlessly with no regressions and verified all 41 prior fixes; Saul and Livingston supplied design/UX and backend/static findings; Rusty consolidated the batch into 21 new GitHub issues (#79–#99).
+The second review board is fully cleared. All 21 issues #79–#99 were resolved through five squash-merged PRs (#100–#104), each CI-gated green before merge.
 
-Board status: 21 open issues are ready to work across search/FTS, rate limiting, push hardening, build reliability, reader a11y/UX, dark-mode tokens, backend/API bundles, and selected feature proposals.
+Final `main` is clean and synced with origin. Verification passed typecheck, lint, tests, and production build; the final test run reported 458 passing tests.
 
-Coordinator follow-up confirmed the build failure report was a concurrent-dev-server/`.next` artifact with clean build passing, and confirmed #85's legacy `.btn` usage is currently visibly unstyled after #66 removed the CSS.
+Key retained lessons: keep client components free of server-only import chains such as `@/lib/difficulty -> @/lib/ai -> @/lib/logger -> node:async_hooks`, and avoid running production builds while a dev server shares `.next`.

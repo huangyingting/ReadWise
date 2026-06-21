@@ -47,3 +47,8 @@ Final cumulative gate after all six waves: typecheck 0, lint 0, tests 411/411, b
 - Reader DOM symptoms should be root-caused against hydration/double-render behavior before treating them as independent Critical bugs.
 - Preserve established DOM contracts (`ListingProgressSync` hooks, card bookmark hooks, reader surface state machine) before layering new UI.
 - Browser-only capabilities such as dictation/Speech SDK need client-only loading, permission-aware states, and graceful unavailable paths.
+
+
+### 2026-06-20 — Client/server import boundary lesson
+
+Client (`"use client"`) components must not import `@/lib/difficulty`, `@/lib/ai`, or `@/lib/logger`, because that chain can pull Node-only `node:async_hooks` into the client bundle. Run `npm run build` from a clean `.next` state with no dev server as a hard gate before pushing client-facing changes.
