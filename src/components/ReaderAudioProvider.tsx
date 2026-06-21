@@ -9,11 +9,13 @@
  *
  * Architecture:
  *  - ArticleSpeech fetches speech data on first tab activation, then calls
- *    `loadAudio(src, words, voice, cached)` to seed the provider.
+ *    `loadAudio(src, words, voice, cached, spokenText)` to seed the provider.
  *  - ReaderMiniPlayer reads `audioRef` to drive transport controls.
  *  - Both components read `activeIndex` for highlight / time display.
  *  - updateActiveWord (binary-search) is MOVED here from ArticleSpeech so
  *    the single onTimeUpdate handler on the shared <audio> updates both views.
+ *  - Loop: `toggleLoop()` captures the current sentence segment and loops it;
+ *    a second call cancels. The `isLooping` flag drives the UI toggle state.
  */
 
 import {
@@ -24,6 +26,11 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import {
+  segmentDictation,
+  type DictationSegment,
+  type SpeechWordTiming,
+} from "@/lib/dictation";
 
 export type SpeechWord = {
   textOffset: number;
@@ -37,6 +44,8 @@ export type AudioContextValue = {
   audioRef: React.RefObject<HTMLAudioElement | null>;
   /** The word-timing array for the loaded article. */
   words: SpeechWord[];
+  /** Sentence-level segments derived from the spoken text + word timings. */
+  segments: DictationSegment[];
   /** Index of the currently highlighted word (-1 = none). */
   activeIndex: number;
   /** Whether narration data has been loaded (may still be fallback). */
@@ -55,16 +64,26 @@ export type AudioContextValue = {
   setListenActive: (v: boolean) => void;
   /**
    * Called by ArticleSpeech after a successful fetch to seed the provider
-   * with the audio src + word timings. Idempotent (safe to call on re-fetch).
+   * with the audio src + word timings + spoken text (for segment computation).
+   * Idempotent (safe to call on re-fetch).
    */
   loadAudio: (
     src: string,
     ws: SpeechWord[],
     voice: string,
     cached: boolean,
+    spokenText: string,
   ) => void;
   /** Mark fallback so the mini-player never appears. */
   markFallback: () => void;
+  /** Whether sentence-loop mode is currently active. */
+  isLooping: boolean;
+  /**
+   * Toggle sentence-loop mode. When turning on, captures the sentence
+   * containing the current playback position. Turning on again or calling
+   * while no speech is loaded is a no-op. Calling while looping cancels.
+   */
+  toggleLoop: () => void;
 };
 
 const ReaderAudioContext = createContext<AudioContextValue | null>(null);
@@ -74,6 +93,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [words, setWords] = useState<SpeechWord[]>([]);
+  const [segments, setSegments] = useState<DictationSegment[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isFallback, setIsFallback] = useState(false);
@@ -82,6 +102,9 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     voice: string;
     cached: boolean;
   } | null>(null);
+  // Loop state: the sentence segment currently being looped (null = not looping).
+  const loopSegmentRef = useRef<DictationSegment | null>(null);
+  const [isLooping, setIsLooping] = useState(false);
 
   const setListenActive = useCallback((v: boolean) => {
     setListenActiveState(v);
@@ -115,13 +138,40 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     [words],
   );
 
+  /** If looping, seek back to sentence start whenever we pass the end. */
+  const handleTimeUpdate = useCallback(
+    (time: number) => {
+      updateActiveWord(time);
+      const seg = loopSegmentRef.current;
+      if (seg && time >= seg.endTime - 0.05) {
+        const audio = audioRef.current;
+        if (audio) {
+          audio.currentTime = seg.startTime;
+        }
+      }
+    },
+    [updateActiveWord],
+  );
+
   const loadAudio = useCallback(
-    (src: string, ws: SpeechWord[], voice: string, cached: boolean) => {
+    (
+      src: string,
+      ws: SpeechWord[],
+      voice: string,
+      cached: boolean,
+      spokenText: string,
+    ) => {
       setAudioSrc(src);
       setWords(ws);
+      // Compute sentence segments from spoken text + word timings.
+      const segs = segmentDictation(spokenText, ws as SpeechWordTiming[]);
+      setSegments(segs);
       setIsLoaded(true);
       setIsFallback(false);
       setVoiceMeta({ voice, cached });
+      // Cancel any active loop when new audio is loaded.
+      loopSegmentRef.current = null;
+      setIsLooping(false);
     },
     [],
   );
@@ -131,11 +181,44 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     setIsFallback(true);
   }, []);
 
+  const toggleLoop = useCallback(() => {
+    if (loopSegmentRef.current) {
+      // Cancel loop.
+      loopSegmentRef.current = null;
+      setIsLooping(false);
+      return;
+    }
+    // Find the segment containing the current playback time.
+    const audio = audioRef.current;
+    if (!audio) return;
+    const time = audio.currentTime;
+    const segs = segments;
+    if (segs.length === 0) return;
+    // Find the last segment whose startTime <= currentTime.
+    let seg: DictationSegment | null = null;
+    for (const s of segs) {
+      if (s.startTime <= time) {
+        seg = s;
+      } else {
+        break;
+      }
+    }
+    // If past all segments, use the last one.
+    if (!seg) seg = segs[0];
+    loopSegmentRef.current = seg;
+    setIsLooping(true);
+    // Seek to sentence start if we're past its end.
+    if (time >= seg.endTime) {
+      audio.currentTime = seg.startTime;
+    }
+  }, [segments]);
+
   return (
     <ReaderAudioContext.Provider
       value={{
         audioRef,
         words,
+        segments,
         activeIndex,
         isLoaded,
         isFallback,
@@ -144,6 +227,8 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         setListenActive,
         loadAudio,
         markFallback,
+        isLooping,
+        toggleLoop,
       }}
     >
       {/* Single <audio> element for the whole reader page. */}
@@ -154,9 +239,14 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           preload="metadata"
           className="reader-sr-live"
           style={{ display: "none" }}
-          onTimeUpdate={(e) => updateActiveWord(e.currentTarget.currentTime)}
+          onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
           onSeeked={(e) => updateActiveWord(e.currentTarget.currentTime)}
-          onEnded={() => setActiveIndex(-1)}
+          onEnded={() => {
+            setActiveIndex(-1);
+            // Cancel loop when audio ends naturally (i.e. user seeked past last seg).
+            loopSegmentRef.current = null;
+            setIsLooping(false);
+          }}
         />
       ) : (
         // Keep ref stable even when no audio yet.

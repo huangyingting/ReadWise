@@ -6,7 +6,7 @@ import {
   toListingArticle,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
-import { getProfile, parseTopics } from "@/lib/profile";
+import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
@@ -15,10 +15,10 @@ import CategoryBrowser from "@/components/CategoryBrowser";
 export default async function BrowsePage({
   searchParams,
 }: {
-  searchParams: Promise<{ view?: string; category?: string }>;
+  searchParams: Promise<{ view?: string; category?: string; level?: string }>;
 }) {
   const session = await requireSession("/browse");
-  const { view, category } = await searchParams;
+  const { view, category, level: levelParam } = await searchParams;
 
   const isPicks = view === "picks";
   const activeCategory =
@@ -27,14 +27,25 @@ export default async function BrowsePage({
       : null;
   const activeView = isPicks ? "picks" : (activeCategory ?? "all");
 
+  // URL-level filter — validated against ENGLISH_LEVELS (same set as CEFR levels)
+  const urlLevel =
+    levelParam && (ENGLISH_LEVELS as readonly string[]).includes(levelParam)
+      ? (levelParam as (typeof ENGLISH_LEVELS)[number])
+      : null;
+
   let page;
   if (isPicks) {
     const profile = await getProfile(session.user.id);
-    const level = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
+    // URL level overrides profile level when specified.
+    const profileLevel = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
+    const maxLevel = urlLevel ?? profileLevel;
     const topics = parseTopics(profile?.topics);
-    page = await listPicksPage(level, topics, { limit: BROWSE_PAGE_SIZE });
+    page = await listPicksPage(maxLevel, topics, { limit: BROWSE_PAGE_SIZE });
   } else {
-    page = await listCategoryPage(activeCategory, { limit: BROWSE_PAGE_SIZE });
+    page = await listCategoryPage(activeCategory, {
+      limit: BROWSE_PAGE_SIZE,
+      maxLevel: urlLevel,
+    });
   }
 
   const articleIds = page.articles.map((a) => a.id);
@@ -67,7 +78,7 @@ export default async function BrowsePage({
       </p>
 
       <CategoryBrowser
-        key={activeView}
+        key={`${activeView}:${urlLevel ?? ""}`}
         activeView={activeView}
         initialArticles={page.articles.map(toListingArticle)}
         initialProgress={progress}
@@ -75,6 +86,7 @@ export default async function BrowsePage({
         initialOffset={page.articles.length}
         heading={heading}
         initialSavedIds={[...bookmarkedIds]}
+        initialLevel={urlLevel}
       />
     </div>
   );

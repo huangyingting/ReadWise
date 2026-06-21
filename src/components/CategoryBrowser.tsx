@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { Inbox, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
+import { ENGLISH_LEVELS } from "@/lib/profile";
 import { Button } from "@/components/ui/Button";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleCardView from "@/components/ArticleCardView";
@@ -25,32 +27,37 @@ type FeedResponse = {
   offset?: number;
 };
 
-function buildTabs(): Tab[] {
+function buildTabs(level: string | null): Tab[] {
+  const levelSuffix = level ? `&level=${level}` : "";
   return [
-    { key: "all", label: "All", href: "/browse" },
+    { key: "all", label: "All", href: `/browse${level ? `?level=${level}` : ""}` },
     ...CATEGORIES.map((c) => ({
       key: c.slug,
       label: c.label,
-      href: `/browse?category=${c.slug}`,
+      href: `/browse?category=${c.slug}${levelSuffix}`,
     })),
-    { key: "picks", label: "Picks", href: "/browse?view=picks" },
+    { key: "picks", label: "Picks", href: `/browse?view=picks${levelSuffix}` },
   ];
 }
 
-function queryFor(view: BrowseView, offset: number): string {
+function queryFor(view: BrowseView, offset: number, level: string | null): string {
   const params = new URLSearchParams({ offset: String(offset), limit: "6" });
   if (view === "picks") {
     params.set("view", "picks");
   } else if (view !== "all") {
     params.set("category", view);
   }
+  if (level) {
+    params.set("level", level);
+  }
   return params.toString();
 }
 
 /**
  * Category browsing homepage feed. Renders the category tab bar (each tab is a
- * URL-reflected link), an initial server-rendered page of cards, and a
- * "Load more" control that incrementally fetches and appends the next page.
+ * URL-reflected link), an optional CEFR level filter, an initial server-rendered
+ * page of cards, and a "Load more" control that incrementally fetches and appends
+ * the next page.
  */
 export default function CategoryBrowser({
   activeView,
@@ -60,6 +67,7 @@ export default function CategoryBrowser({
   initialOffset,
   heading,
   initialSavedIds,
+  initialLevel,
 }: {
   activeView: BrowseView;
   initialArticles: ListingArticle[];
@@ -69,7 +77,10 @@ export default function CategoryBrowser({
   heading: string;
   /** SSR initial set of saved article ids — for the card bookmark overlay. */
   initialSavedIds?: string[];
+  /** Active CEFR level filter from the URL (e.g. "B1") or null. */
+  initialLevel?: string | null;
 }) {
+  const router = useRouter();
   const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
   const [progress, setProgress] = useState<Record<string, ProgressSummary>>(initialProgress);
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
@@ -78,7 +89,8 @@ export default function CategoryBrowser({
   const [loading, setLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const tabs = buildTabs();
+  const level = initialLevel ?? null;
+  const tabs = buildTabs(level);
 
   const loadMore = useCallback(async () => {
     if (loading || !hasMore) {
@@ -87,7 +99,7 @@ export default function CategoryBrowser({
     setLoading(true);
     setLoadError(null);
     try {
-      const res = await fetch(`/api/articles?${queryFor(activeView, offset)}`);
+      const res = await fetch(`/api/articles?${queryFor(activeView, offset, level)}`);
       if (!res.ok) {
         setLoadError("Couldn't load more articles — please try again.");
         return;
@@ -106,13 +118,29 @@ export default function CategoryBrowser({
     } finally {
       setLoading(false);
     }
-  }, [activeView, offset, hasMore, loading]);
+  }, [activeView, offset, hasMore, loading, level]);
+
+  function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const newLevel = e.target.value || null;
+    // Build the new URL preserving the current view/category.
+    const params = new URLSearchParams();
+    if (activeView === "picks") {
+      params.set("view", "picks");
+    } else if (activeView !== "all") {
+      params.set("category", activeView);
+    }
+    if (newLevel) {
+      params.set("level", newLevel);
+    }
+    const qs = params.toString();
+    router.push(`/browse${qs ? `?${qs}` : ""}`);
+  }
 
   return (
     <div>
       {/* Category tab bar — §2.6 */}
       <nav
-        className="flex flex-nowrap overflow-x-auto items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-6)] pb-[var(--space-1)]"
+        className="flex flex-nowrap overflow-x-auto items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-3)] pb-[var(--space-1)]"
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
         aria-label="Categories"
       >
@@ -139,6 +167,35 @@ export default function CategoryBrowser({
         ))}
         {/* Search slot reserved for M9 */}
       </nav>
+
+      {/* Level filter row */}
+      <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-5)]">
+        <label
+          htmlFor="browse-level-filter"
+          className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+        >
+          Level
+        </label>
+        <select
+          id="browse-level-filter"
+          value={level ?? ""}
+          onChange={handleLevelChange}
+          className={cn(
+            "text-[length:var(--text-sm)] rounded border border-border bg-surface",
+            "px-[var(--space-2)] py-[var(--space-1)] text-text",
+            "focus:outline-none focus:ring-2 focus:ring-teal",
+            focusRing,
+          )}
+          aria-label="Filter articles by CEFR level"
+        >
+          <option value="">All levels</option>
+          {ENGLISH_LEVELS.map((lvl) => (
+            <option key={lvl} value={lvl}>
+              {lvl} and below
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Section heading */}
       <h2

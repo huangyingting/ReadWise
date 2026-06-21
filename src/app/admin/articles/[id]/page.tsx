@@ -22,7 +22,7 @@ export default async function AdminArticleDetailPage({
     notFound();
   }
 
-  const { article, counts } = detail;
+  const { article, counts, difficultyFeedback } = detail;
   const minutes = readingMinutesFor(article);
   const aiItems: { label: string; value: number }[] = [
     { label: "Translations", value: counts.translations },
@@ -95,6 +95,45 @@ export default async function AdminArticleDetailPage({
           dangerouslySetInnerHTML={{ __html: sanitizeArticleHtml(article.content) }}
         />
       </Card>
+
+      {/* Difficulty feedback distribution (#124) */}
+      {difficultyFeedback.total > 0 ? (
+        <Card>
+          <div className="stack">
+            <CardTitle level="h3">Difficulty feedback</CardTitle>
+            <p className="muted" style={{ margin: 0 }}>
+              {difficultyFeedback.total} reader{difficultyFeedback.total !== 1 ? "s" : ""} rated this article.
+            </p>
+            <div className="grid grid-cols-3 gap-[var(--space-4)]">
+              <Card className="p-[var(--space-4)]">
+                <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
+                  {difficultyFeedback.tooEasy}
+                </div>
+                <CardMeta>😴 Too Easy</CardMeta>
+              </Card>
+              <Card className="p-[var(--space-4)]">
+                <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
+                  {difficultyFeedback.justRight}
+                </div>
+                <CardMeta>🎯 Just Right</CardMeta>
+              </Card>
+              <Card className="p-[var(--space-4)]">
+                <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
+                  {difficultyFeedback.tooHard}
+                </div>
+                <CardMeta>🤯 Too Hard</CardMeta>
+              </Card>
+            </div>
+          </div>
+        </Card>
+      ) : (
+        <Card>
+          <div className="stack">
+            <CardTitle level="h3">Difficulty feedback</CardTitle>
+            <p className="muted" style={{ margin: 0 }}>No difficulty feedback yet.</p>
+          </div>
+        </Card>
+      )}
     </section>
   );
 }

@@ -105,7 +105,7 @@ export default function ArticleSpeech({
         }
         blobUrlRef.current = blobUrl;
         // Hand blob URL + timings to the shared provider.
-        audio.loadAudio(blobUrl, body.words, body.voice, body.cached);
+        audio.loadAudio(blobUrl, body.words, body.voice, body.cached, body.spokenText);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not load narration");

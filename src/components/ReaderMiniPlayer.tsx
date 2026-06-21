@@ -8,7 +8,7 @@
  * element via ReaderAudioProvider context.
  *
  * Controls: Play/Pause · Skip −10s · Skip +10s · Seek bar (teal fill) ·
- * Time readout · Speed select · Close (per-session dismiss).
+ * Time readout · Speed select · Loop toggle · Close (per-session dismiss).
  *
  * Mini-player is absent when: narration not yet loaded, or API returned
  * fallback:true (speech service unconfigured).
@@ -21,11 +21,12 @@ import {
   Rewind,
   FastForward,
   X,
+  Repeat1,
 } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
-const SPEEDS = [0.75, 1, 1.25, 1.5] as const;
+const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
 
 function formatTime(secs: number): string {
   if (!isFinite(secs)) return "0:00";
@@ -35,7 +36,7 @@ function formatTime(secs: number): string {
 }
 
 export default function ReaderMiniPlayer() {
-  const { audioRef, isLoaded, isFallback } = useReaderAudio();
+  const { audioRef, isLoaded, isFallback, isLooping, toggleLoop, segments } = useReaderAudio();
 
   const [dismissed, setDismissed] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
@@ -116,6 +117,7 @@ export default function ReaderMiniPlayer() {
   }
 
   const timeText = `${formatTime(currentTime)} / ${formatTime(duration)}`;
+  const canLoop = segments.length > 0;
 
   return (
     <div
@@ -178,7 +180,7 @@ export default function ReaderMiniPlayer() {
         </span>
       </div>
 
-      {/* Right: speed + close */}
+      {/* Right: speed + loop + close */}
       <div className="reader-mini-player-right">
         <select
           value={speed}
@@ -192,6 +194,24 @@ export default function ReaderMiniPlayer() {
             </option>
           ))}
         </select>
+
+        {/* Sentence loop toggle — disabled when no segments available */}
+        <button
+          type="button"
+          aria-label={isLooping ? "Stop looping sentence" : "Loop current sentence"}
+          aria-pressed={isLooping}
+          onClick={toggleLoop}
+          disabled={!canLoop}
+          className={cn(
+            "reader-icon-btn",
+            focusRing,
+            isLooping && "text-primary",
+            !canLoop && "opacity-40 cursor-not-allowed",
+          )}
+          title={isLooping ? "Stop looping sentence" : "Loop current sentence"}
+        >
+          <Repeat1 size={16} />
+        </button>
 
         <button
           type="button"

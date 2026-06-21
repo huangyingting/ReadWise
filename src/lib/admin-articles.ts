@@ -102,14 +102,23 @@ export type AdminArticleAiCounts = {
   readingProgress: number;
 };
 
+export type DifficultyFeedbackCounts = {
+  tooEasy: number;
+  justRight: number;
+  tooHard: number;
+  total: number;
+};
+
 export type AdminArticleDetail = {
   article: Article;
   counts: AdminArticleAiCounts;
+  difficultyFeedback: DifficultyFeedbackCounts;
 };
 
 /**
- * Loads a single article with the counts of its derived AI content and reader
- * progress for the admin inspection view. Returns `null` for unknown ids.
+ * Loads a single article with the counts of its derived AI content, reader
+ * progress, and difficulty feedback distribution for the admin inspection view.
+ * Returns `null` for unknown ids.
  */
 export async function getAdminArticleDetail(
   id: string,
@@ -119,7 +128,7 @@ export async function getAdminArticleDetail(
     return null;
   }
 
-  const [translations, vocabulary, quizQuestions, tags, speech, readingProgress] =
+  const [translations, vocabulary, quizQuestions, tags, speech, readingProgress, feedbackRows] =
     await Promise.all([
       prisma.translation.count({ where: { articleId: id } }),
       prisma.vocabularyItem.count({ where: { articleId: id } }),
@@ -127,11 +136,28 @@ export async function getAdminArticleDetail(
       prisma.articleTag.count({ where: { articleId: id } }),
       prisma.articleSpeech.count({ where: { articleId: id } }),
       prisma.readingProgress.count({ where: { articleId: id } }),
+      prisma.articleDifficultyFeedback.findMany({
+        where: { articleId: id },
+        select: { vote: true },
+      }),
     ]);
+
+  const difficultyFeedback: DifficultyFeedbackCounts = {
+    tooEasy: 0,
+    justRight: 0,
+    tooHard: 0,
+    total: feedbackRows.length,
+  };
+  for (const row of feedbackRows) {
+    if (row.vote === "too_easy") difficultyFeedback.tooEasy++;
+    else if (row.vote === "just_right") difficultyFeedback.justRight++;
+    else if (row.vote === "too_hard") difficultyFeedback.tooHard++;
+  }
 
   return {
     article,
     counts: { translations, vocabulary, quizQuestions, tags, speech, readingProgress },
+    difficultyFeedback,
   };
 }
 
