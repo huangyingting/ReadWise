@@ -48,6 +48,42 @@ npm run dev
 > translation, vocabulary, quiz, tags, TTS, and difficulty assessment all
 > degrade gracefully (returning placeholder responses or heuristic fallbacks).
 
+## Development notes
+
+### Loading environment variables
+
+The dev server and CLI scripts read from `.env.local`. When running scripts
+directly in your shell (e.g. `npm run scrape`, `npm run worker`) you may need
+to load the env file first:
+
+```bash
+set -a && . ./.env.local && set +a
+```
+
+### ⚠️ Do NOT run `npm run build` while `npm run dev` is active
+
+Both commands share the `.next/` output directory. Running a production build
+concurrently with the dev server causes a **file-write race** that reproducibly
+triggers `PageNotFoundError` for `(app)` route-group pages (issue #83). The
+build output is scrambled and the error is non-deterministic.
+
+**Rule:** before running `npm run build`, always stop the dev server first (or
+open a separate checkout). If you suspect the `.next/` cache is stale, clean it
+first:
+
+```bash
+rm -rf .next && npm run build
+```
+
+### `output: "standalone"` (Docker artefact)
+
+`next.config.ts` sets `output: "standalone"` when `NODE_ENV=production`. This
+produces a self-contained `.next/standalone/` directory that the Docker image
+uses to run the app (`node server.js`). It is **only emitted during
+`npm run build`** and has no effect on `npm run dev`. On a fresh clone you do
+**not** need to run a production build before starting the dev server — just
+`npm run dev` directly.
+
 ## Environment variables
 
 Copy `.env.example` to `.env.local` and fill in real values.
