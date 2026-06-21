@@ -9,7 +9,6 @@
  */
 
 import { ENGLISH_LEVELS, LEVEL_HINTS, type EnglishLevel } from "@/lib/profile";
-import { levelRank } from "@/lib/difficulty";
 import { CefrBadge } from "@/components/ui/Badge";
 import type { LevelEntry } from "@/lib/progress-helpers";
 
@@ -26,7 +25,7 @@ function formatDate(isoStr: string): string {
 
 /** Width percentage for a CEFR level in the timeline scale. */
 function levelPct(level: EnglishLevel): number {
-  const rank = levelRank(level); // 0–5
+  const rank = ENGLISH_LEVELS.indexOf(level); // 0–5
   return Math.round(((rank + 1) / ENGLISH_LEVELS.length) * 100);
 }
 
@@ -36,7 +35,7 @@ function levelPct(level: EnglishLevel): number {
 
 function EmptyTimeline({ currentLevel }: { currentLevel: EnglishLevel }) {
   const pct = levelPct(currentLevel);
-  const nextRank = levelRank(currentLevel) + 1;
+  const nextRank = ENGLISH_LEVELS.indexOf(currentLevel) + 1;
   const nextLevel =
     nextRank < ENGLISH_LEVELS.length ? ENGLISH_LEVELS[nextRank] : null;
 
