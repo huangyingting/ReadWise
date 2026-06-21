@@ -19,6 +19,7 @@ import { useEffect, useRef, useState } from "react";
 import { Sun, Contrast, Moon, Type, AlignLeft } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { focusRing, cn } from "@/lib/cn";
+import ReaderListenButton from "./ReaderListenButton";
 import {
   getReaderPrefs,
   setReaderPrefs,
@@ -58,7 +59,7 @@ const SPACINGS: { value: ReadingSpacing; label: string; shortLabel: string; tool
   { value: "spacious", label: "Spacious", shortLabel: "2×", tooltip: "Spacious spacing (WCAG 1.4.12)" },
 ];
 
-export default function ReaderControls() {
+export default function ReaderControls({ articleId }: { articleId: string }) {
   const [prefs, setPrefsState] = useState<ReaderPrefs | null>(null);
   const [announcement, setAnnouncement] = useState("");
   const modeGroupRef = useRef<HTMLDivElement>(null);
@@ -168,6 +169,11 @@ export default function ReaderControls() {
 
       <div className="reader-controls" aria-label="Reading settings">
         <div className="reader-controls-inner">
+          {/* Listen — ambient narration control (plays via the bottom mini-player) */}
+          <ReaderListenButton articleId={articleId} />
+
+          <div className="reader-controls-divider" aria-hidden="true" />
+
           {/* Font-size stepper */}
           <Tooltip content="Decrease text size" side="bottom">
             <button
