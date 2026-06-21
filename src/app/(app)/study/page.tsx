@@ -9,6 +9,8 @@ import { buttonVariants } from "@/components/ui/Button";
 import EmptyState from "@/components/EmptyState";
 import Sparkline from "@/components/Sparkline";
 import StudyPageShell from "@/components/StudyPageShell";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function StudyPage() {
   const session = await requireSession("/study");
@@ -40,12 +42,8 @@ export default async function StudyPage() {
   const ringOffset = RING_C * (1 - avg / 100);
 
   return (
-    <div className="listing-container">
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-[var(--space-6)]"
-      >
-        Study list
-      </h1>
+    <PageShell variant="listing">
+      <PageHeader title="Study list" />
 
       {/* ── Comprehension section (M14) ── */}
       <section aria-labelledby="comprehension-h" className="mb-[var(--space-6)]">
@@ -125,7 +123,7 @@ export default async function StudyPage() {
         }))}
         initialDueCount={reviewSummary.dueCount}
       />
-    </div>
+    </PageShell>
   );
 }
 

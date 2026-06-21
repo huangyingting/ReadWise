@@ -6,6 +6,8 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import EmptyState from "@/components/EmptyState";
 import InlineNoteEditor from "@/components/InlineNoteEditor";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 
 export const metadata = { title: "Notes & Highlights — ReadWise" };
@@ -53,15 +55,11 @@ export default async function NotesPage({
   const withNotes = all.filter((h) => h.note).length;
 
   return (
-    <div className="listing-container">
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-[var(--space-2)]"
-      >
-        Notes &amp; Highlights
-      </h1>
-      <p className="text-text-subtle text-[length:var(--text-sm)] mb-[var(--space-6)]">
-        {totalCount} highlight{totalCount !== 1 ? "s" : ""} · {withNotes} with notes
-      </p>
+    <PageShell variant="listing">
+      <PageHeader
+        title="Notes & Highlights"
+        description={`${totalCount} highlight${totalCount !== 1 ? "s" : ""} · ${withNotes} with notes`}
+      />
 
       {/* ── Filters ── */}
       <form
@@ -193,6 +191,6 @@ export default async function NotesPage({
           ))}
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

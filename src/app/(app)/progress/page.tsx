@@ -8,6 +8,8 @@ import EmptyState from "@/components/EmptyState";
 import Sparkline from "@/components/Sparkline";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
 import LevelTimeline from "@/components/LevelTimeline";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 export const metadata = { title: "My Progress — ReadWise" };
 
@@ -172,12 +174,8 @@ export default async function ProgressPage() {
       : "No quiz attempts yet.";
 
   return (
-    <div className="listing-container">
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-[var(--space-6)]"
-      >
-        My Progress
-      </h1>
+    <PageShell variant="listing">
+      <PageHeader title="My Progress" />
 
       {!hasAnyData && !currentLevel ? (
         <EmptyState
@@ -195,7 +193,7 @@ export default async function ProgressPage() {
           <section aria-labelledby="overview-h">
             <h2
               id="overview-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
             >
               Overview
             </h2>
@@ -241,7 +239,7 @@ export default async function ProgressPage() {
           <section aria-labelledby="reading-h">
             <h2
               id="reading-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
             >
               Reading activity
               <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -265,7 +263,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="vocab-h">
               <h2
                 id="vocab-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
               >
                 Vocabulary growth
                 <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -290,7 +288,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="quiz-h">
               <h2
                 id="quiz-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
               >
                 Quiz performance
               </h2>
@@ -333,7 +331,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="level-h">
               <h2
                 id="level-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
               >
                 Level distribution
                 <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -375,7 +373,7 @@ export default async function ProgressPage() {
           <section aria-labelledby="heatmap-h">
             <h2
               id="heatmap-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
             >
               Reading streak
               <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
@@ -392,7 +390,7 @@ export default async function ProgressPage() {
             <section aria-labelledby="timeline-h">
               <h2
                 id="timeline-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
               >
                 Level progression
               </h2>
@@ -404,6 +402,6 @@ export default async function ProgressPage() {
 
         </div>
       )}
-    </div>
+    </PageShell>
   );
 }

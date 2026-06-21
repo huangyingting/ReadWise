@@ -8,6 +8,8 @@ import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
 import ListSwitcher from "@/components/ListSwitcher";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function ListsPage({
   searchParams,
@@ -38,15 +40,9 @@ export default async function ListsPage({
   const isDefaultList = activeList?.isDefault ?? true;
 
   return (
-    <div className="listing-container">
+    <PageShell variant="listing">
       {/* Page header */}
-      <div className="flex items-center justify-between gap-[var(--space-4)] mb-[var(--space-6)]">
-        <h1
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text m-0"
-        >
-          Saved
-        </h1>
-      </div>
+      <PageHeader title="Saved" />
 
       {/* Two-region layout: sidebar switcher + article grid */}
       <div className="lists-layout">
@@ -114,6 +110,6 @@ export default async function ListsPage({
           )}
         </div>
       </div>
-    </div>
+    </PageShell>
   );
 }
