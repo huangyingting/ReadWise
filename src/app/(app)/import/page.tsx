@@ -24,7 +24,7 @@ export default async function ImportPage() {
       : {};
 
   return (
-    <div className="container max-w-[720px]">
+    <div className="container">
       <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] text-text mb-[var(--space-2)]">
         Import Article
       </h1>
