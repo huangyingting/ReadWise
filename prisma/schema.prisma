@@ -36,6 +36,7 @@ model User {
   pronunciationAttempts PronunciationAttempt[]
   pushSubscriptions       PushSubscription[]
   difficultyFeedback      ArticleDifficultyFeedback[]
+  ownedArticles           Article[]                   @relation("OwnedArticles")
 }
 
 model Profile {
@@ -75,7 +76,10 @@ model Article {
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
+  /// Nullable FK to User. null = public library article; non-null = user-private import.
+  ownerId         String?
 
+  owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: SetNull)
   readingProgress      ReadingProgress[]
   translations         Translation[]
   sentenceTranslations SentenceTranslation[]
@@ -93,6 +97,7 @@ model Article {
 
   @@index([category])
   @@index([sourceUrl])
+  @@index([ownerId])
 }
 
 model Tag {
