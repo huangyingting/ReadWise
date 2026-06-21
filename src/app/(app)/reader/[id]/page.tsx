@@ -26,7 +26,6 @@ import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import WordLookupHint from "@/components/WordLookupHint";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
-import ReaderBackButton from "@/components/ReaderBackButton";
 import OfflineDownloadButton from "@/components/OfflineDownloadButton";
 
 export async function generateMetadata({
@@ -202,9 +201,6 @@ export default async function ReaderPage({
           <div className="reader-layout">
             {/* ---- Reading column ---- */}
             <div className="reader-column">
-              {/* Back navigation — returns to the listing the user came from */}
-              <ReaderBackButton />
-
               {/* Reader-local skip link: lets keyboard users jump past the sticky
                   controls directly to the article (WCAG 2.4.1, #65).
                   Sits before ReaderControls so Tab from global skip target reaches
@@ -213,7 +209,7 @@ export default async function ReaderPage({
                 Skip to article
               </a>
 
-              {/* Sticky controls: Listen + Aa−/Aa+ stepper + Light/Sepia/Dark mode */}
+              {/* Slim sticky toolbar: Back · Listen · Aa (display settings) · Tools */}
               <ReaderControls articleId={article.id} />
 
               <article
