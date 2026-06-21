@@ -187,7 +187,7 @@ export default async function ProgressPage() {
           action={{ label: "Browse articles", href: "/browse" }}
         />
       ) : (
-        <div className="flex flex-col gap-[var(--space-8)]">
+        <div className="flex flex-col gap-[var(--space-7)]">
 
           {hasAnyData && (
             <>
