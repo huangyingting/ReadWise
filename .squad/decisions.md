@@ -757,3 +757,9 @@ A third review round combined internet competitor research, Saul's static produc
 ### Rationale
 
 The 22-issue count stayed within the target 18–28 range, grouped sub-threshold polish items into themed work, and preserved research-backed gaps from competitor products including LingQ, Readlang, Beelinguapp, News in Levels, Language Reactor, and Migaku. Many feature issues are intentionally marked `go:needs-research` because they touch product scope or architecture.
+
+
+### DECIDED — CI Billing Blocked; Coordinator Local Verification Used for PR #127–#133
+_Recorded by Scribe · 2026-06-21_
+
+GitHub Actions jobs could not start during the #105–#126 delivery wave because the account was billing-blocked (`account payments failed / spending limit`). The coordinator therefore treated CI as unavailable and gated each merge locally with the repository verification sequence: typecheck, lint, test, and clean production build. All seven squashed PRs (#127–#133) were self-verified locally before merge, and final `main` was confirmed green with 561 passing tests and a clean build.
