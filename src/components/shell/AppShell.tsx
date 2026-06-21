@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import AppHeader from "./AppHeader";
 import AppFooter from "./AppFooter";
 import AppSidebar from "./AppSidebar";
+import BottomTabBar from "./BottomTabBar";
 import CommandPaletteProvider from "@/components/command/CommandPaletteProvider";
 import type { ShellUser } from "./types";
 
@@ -31,13 +32,14 @@ export default function AppShell({
         <AppHeader user={user} />
         <div className="flex flex-1 flex-row">
           {user ? <AppSidebar user={user} /> : null}
-          <div className="flex min-w-0 flex-1 flex-col">
+          <div className="flex min-w-0 flex-1 flex-col pb-[var(--bottom-bar-h)] md:pb-0">
             <main id="main-content" className="flex-1" tabIndex={-1}>
               {children}
             </main>
             <AppFooter />
           </div>
         </div>
+        {user ? <BottomTabBar user={user} /> : null}
       </div>
     </CommandPaletteProvider>
   );
