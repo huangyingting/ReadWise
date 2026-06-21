@@ -32,6 +32,7 @@ import {
 } from "react";
 import { Volume2, BookOpen, CircleCheck, Languages, Highlighter, Sparkles, X, Mic, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { Tooltip } from "@/components/ui/Tooltip";
 import ArticleSpeech from "./ArticleSpeech";
 import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
@@ -50,54 +51,63 @@ const TABS: {
   label: string;
   icon: ReactNode;
   ariaLabel: string;
+  tooltip: string;
 }[] = [
   {
     id: "listen",
     label: "Listen",
     icon: <Volume2 size={14} />,
     ariaLabel: "Listen tab",
+    tooltip: "Hear the article read aloud with word-by-word highlighting",
   },
   {
     id: "dictate",
     label: "Dictate",
     icon: <Keyboard size={14} />,
     ariaLabel: "Dictate tab",
+    tooltip: "Listen to sentences and practice typing what you hear",
   },
   {
     id: "speak",
     label: "Speak",
     icon: <Mic size={14} />,
     ariaLabel: "Speak tab",
+    tooltip: "Record yourself and get pronunciation feedback",
   },
   {
     id: "words",
     label: "Words",
     icon: <BookOpen size={14} />,
     ariaLabel: "Words tab",
+    tooltip: "Study AI-extracted vocabulary and save words",
   },
   {
     id: "quiz",
     label: "Quiz",
     icon: <CircleCheck size={14} />,
     ariaLabel: "Quiz tab",
+    tooltip: "Test your comprehension with multiple-choice questions",
   },
   {
     id: "translate",
     label: "Translate",
     icon: <Languages size={14} />,
     ariaLabel: "Translate tab",
+    tooltip: "Translate the full article to your language",
   },
   {
     id: "notes",
     label: "Notes",
     icon: <Highlighter size={14} />,
     ariaLabel: "Notes tab",
+    tooltip: "Review your highlights and add notes",
   },
   {
     id: "ask",
     label: "Ask",
     icon: <Sparkles size={14} />,
     ariaLabel: "Ask tab",
+    tooltip: "Ask the AI tutor any question about this article",
   },
 ];
 
@@ -131,6 +141,8 @@ interface ReaderToolsPanelProps {
   /** Article body as plain text — used by the Speak tab sentence splitter. */
   plainText?: string;
 }
+
+const READER_TOUR_KEY = "readwise:reader-tour-seen";
 
 function TabBar({
   activeTab,
@@ -194,32 +206,29 @@ function TabBar({
               {group.label}
             </span>
             <div role="presentation" className="reader-tab-group-row">
-              {groupTabs.map(({ id, label, icon, ariaLabel }) => {
+              {groupTabs.map(({ id, label, icon, ariaLabel, tooltip }) => {
                 const globalIndex = TABS.findIndex((t) => t.id === id);
                 const isActive = activeTab === id;
-                // WAI-ARIA roving-tabindex: when no tab is active, the first tab
-                // gets tabIndex=0 so keyboard users can enter the tablist (#52).
-                // That same first tab also gets aria-selected="true" so screen
-                // readers always hear exactly one selected tab (#70).
                 const isFirst = globalIndex === 0;
                 const isCurrent = isActive || (activeTab === null && isFirst);
                 return (
-                  <button
-                    key={id}
-                    type="button"
-                    role="tab"
-                    id={`reader-tab-${id}`}
-                    aria-selected={isCurrent}
-                    aria-controls={`reader-panel-${id}`}
-                    tabIndex={isCurrent ? 0 : -1}
-                    aria-label={ariaLabel}
-                    onClick={() => onSelect(id)}
-                    onKeyDown={(e) => handleKeyDown(e, globalIndex)}
-                    className={cn("reader-tab-btn", focusRing)}
-                  >
-                    <span aria-hidden="true">{icon}</span>
-                    <span>{label}</span>
-                  </button>
+                  <Tooltip key={id} content={tooltip} side="bottom">
+                    <button
+                      type="button"
+                      role="tab"
+                      id={`reader-tab-${id}`}
+                      aria-selected={isCurrent}
+                      aria-controls={`reader-panel-${id}`}
+                      tabIndex={isCurrent ? 0 : -1}
+                      aria-label={ariaLabel}
+                      onClick={() => onSelect(id)}
+                      onKeyDown={(e) => handleKeyDown(e, globalIndex)}
+                      className={cn("reader-tab-btn", focusRing)}
+                    >
+                      <span aria-hidden="true">{icon}</span>
+                      <span>{label}</span>
+                    </button>
+                  </Tooltip>
                 );
               })}
             </div>
@@ -376,6 +385,7 @@ export default function ReaderToolsPanel({
   const [activeTab, setActiveTab] = useState<TabId | null>(null);
   const [visited, setVisited] = useState<Set<TabId>>(new Set());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [showTourBanner, setShowTourBanner] = useState(false);
   /**
    * NIR-M5-1: true once the media query fires below 1100px.
    * Controls whether PanelContents lives in the aside or the sheet so it is
@@ -409,6 +419,25 @@ export default function ReaderToolsPanel({
     mq.addEventListener("change", update);
     return () => mq.removeEventListener("change", update);
   }, []);
+
+  // Check first-visit tour banner.
+  useEffect(() => {
+    try {
+      const seen = localStorage.getItem(READER_TOUR_KEY);
+      if (!seen) setShowTourBanner(true);
+    } catch {
+      // Ignore storage errors.
+    }
+  }, []);
+
+  function dismissTourBanner() {
+    setShowTourBanner(false);
+    try {
+      localStorage.setItem(READER_TOUR_KEY, "1");
+    } catch {
+      // Ignore storage errors.
+    }
+  }
 
   // NIR-M5-2: body scroll lock + focus management + Tab focus-trap.
   useEffect(() => {
@@ -483,6 +512,25 @@ export default function ReaderToolsPanel({
         aria-label="Reading tools"
       >
         <h2 className="reader-tools-heading">Reading tools</h2>
+
+        {/* First-visit orientation banner (desktop) */}
+        {showTourBanner && (
+          <div className="reader-tour-banner" role="note" aria-label="Learning tools tip">
+            <span aria-hidden="true">✨</span>
+            <span className="reader-tour-banner-text">
+              Try all 8 learning tools — Listen, Quiz, Ask the AI tutor, and more.
+            </span>
+            <button
+              type="button"
+              className={cn("reader-tour-banner-dismiss", focusRing)}
+              aria-label="Dismiss tip"
+              onClick={dismissTourBanner}
+            >
+              Got it
+            </button>
+          </div>
+        )}
+
         <TabBar
           activeTab={activeTab}
           onSelect={activateTab}
@@ -539,6 +587,23 @@ export default function ReaderToolsPanel({
               </button>
             </div>
             <div className="reader-bottom-sheet-body">
+              {/* First-visit orientation banner (mobile) */}
+              {showTourBanner && (
+                <div className="reader-tour-banner" role="note" aria-label="Learning tools tip">
+                  <span aria-hidden="true">✨</span>
+                  <span className="reader-tour-banner-text">
+                    Try all 8 learning tools — Listen, Quiz, Ask the AI tutor, and more.
+                  </span>
+                  <button
+                    type="button"
+                    className={cn("reader-tour-banner-dismiss", focusRing)}
+                    aria-label="Dismiss tip"
+                    onClick={dismissTourBanner}
+                  >
+                    Got it
+                  </button>
+                </div>
+              )}
               <TabBar
                 activeTab={activeTab}
                 onSelect={activateTab}

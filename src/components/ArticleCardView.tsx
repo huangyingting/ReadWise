@@ -1,14 +1,27 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, ChevronRight } from "lucide-react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { Sparkles } from "lucide-react";
 import { CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
 import { CATEGORIES } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
+import { Tooltip } from "@/components/ui/Tooltip";
 import CardBookmarkButton from "@/components/CardBookmarkButton";
+import ReferrerLink from "@/components/ReferrerLink";
+import { formatRelativeDate } from "@/lib/utils";
 
 export type ArticleCardProgress = ProgressSummary;
+
+/** Short descriptions for each CEFR level shown as a tooltip on the difficulty badge. */
+const CEFR_DESCRIPTIONS: Record<string, string> = {
+  A1: "A1 · Beginner",
+  A2: "A2 · Elementary",
+  B1: "B1 · Intermediate",
+  B2: "B2 · Upper-Intermediate",
+  C1: "C1 · Advanced",
+  C2: "C2 · Proficient",
+};
 
 /**
  * Presentational article card — M4 redesign.
@@ -53,6 +66,7 @@ export default function ArticleCardView({
 }) {
   const percent = progress?.percent ?? 0;
   const completed = progress?.completed ?? false;
+  const notStarted = percent === 0 && !completed;
 
   const byline = [article.author, article.source].filter(Boolean).join(" · ");
 
@@ -67,11 +81,14 @@ export default function ArticleCardView({
       ? (article.difficulty as CefrLevel)
       : null;
 
+  const relativeDate = formatRelativeDate(article.publishedAt);
+
   const metaParts = [
     categoryLabel,
     article.readingMinutes != null
       ? `${article.readingMinutes} min read`
       : null,
+    relativeDate,
   ]
     .filter(Boolean)
     .join(" · ");
@@ -92,7 +109,7 @@ export default function ArticleCardView({
       data-card-wrapper
       data-article-id={article.id}
     >
-      <Link
+      <ReferrerLink
         href={`/reader/${article.id}`}
         data-article-id={article.id}
         className={cn(
@@ -113,7 +130,13 @@ export default function ArticleCardView({
       {/* ① Top meta row */}
       <div className="flex items-center justify-between gap-[var(--space-2)]">
         <div className="flex items-center gap-[var(--space-2)] min-w-0">
-          {level ? <CefrBadge level={level} /> : null}
+          {level ? (
+            <Tooltip content={CEFR_DESCRIPTIONS[level] ?? level} side="top">
+              <span>
+                <CefrBadge level={level} />
+              </span>
+            </Tooltip>
+          ) : null}
           {metaParts ? (
             <span className="text-text-subtle text-[length:var(--text-xs)] truncate">
               {metaParts}
@@ -186,11 +209,17 @@ export default function ArticleCardView({
             style={{ width: `${percent}%` }}
           />
         </div>
-        <span className="js-progress-label text-[length:var(--text-xs)] text-text-subtle">
-          {completed ? "Read" : percent > 0 ? `${percent}% read` : "Not started"}
-        </span>
+        {notStarted ? (
+          <span className="js-progress-label text-[length:var(--text-xs)] text-primary-text flex items-center gap-[var(--space-1)]">
+            Start reading <ChevronRight size={12} aria-hidden />
+          </span>
+        ) : (
+          <span className="js-progress-label text-[length:var(--text-xs)] text-text-subtle">
+            {completed ? "Read" : `${percent}% read`}
+          </span>
+        )}
       </div>
-    </Link>
+    </ReferrerLink>
 
     {/*
      * M10 bookmark button — sibling overlay, NOT nested inside <Link>.

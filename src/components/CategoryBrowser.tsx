@@ -138,35 +138,37 @@ export default function CategoryBrowser({
 
   return (
     <div>
-      {/* Category tab bar — §2.6 */}
-      <nav
-        className="flex flex-nowrap overflow-x-auto items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-3)] pb-[var(--space-1)]"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
-        aria-label="Categories"
-      >
-        {tabs.map((tab) => (
-          <Link
-            key={tab.key}
-            href={tab.href}
-            aria-current={tab.key === activeView ? "page" : undefined}
-            className={cn(
-              "inline-flex items-center shrink-0",
-              "h-9 px-[var(--space-4)]",
-              "rounded-[var(--radius-full)]",
-              "text-[length:var(--text-sm)] font-medium",
-              "no-underline",
-              "transition-colors [transition-duration:var(--duration-fast)]",
-              tab.key === activeView
-                ? "bg-primary border border-primary text-on-primary"
-                : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
-              focusRing,
-            )}
-          >
-            {tab.label}
-          </Link>
-        ))}
-        {/* Search slot reserved for M9 */}
-      </nav>
+      {/* Category tab bar — §2.6; gradient affordance shows scroll on mobile */}
+      <div className="category-tabs-wrapper">
+        <nav
+          className="flex flex-nowrap overflow-x-auto items-center gap-[var(--space-2)] mt-[var(--space-5)] mb-[var(--space-3)] pb-[var(--space-1)]"
+          style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
+          aria-label="Categories"
+        >
+          {tabs.map((tab) => (
+            <Link
+              key={tab.key}
+              href={tab.href}
+              aria-current={tab.key === activeView ? "page" : undefined}
+              className={cn(
+                "inline-flex items-center shrink-0",
+                "h-9 px-[var(--space-4)]",
+                "rounded-[var(--radius-full)]",
+                "text-[length:var(--text-sm)] font-medium",
+                "no-underline",
+                "transition-colors [transition-duration:var(--duration-fast)]",
+                tab.key === activeView
+                  ? "bg-primary border border-primary text-on-primary"
+                  : "bg-surface border border-border text-text-muted hover:border-border-strong hover:text-text hover:bg-bg-subtle",
+                focusRing,
+              )}
+            >
+              {tab.label}
+            </Link>
+          ))}
+          {/* Search slot reserved for M9 */}
+        </nav>
+      </div>
 
       {/* Level filter row */}
       <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-5)]">

@@ -113,6 +113,7 @@ export type ListingArticle = {
   category: string | null;
   difficulty: string | null;
   readingMinutes: number | null;
+  publishedAt: string | null;
 };
 
 export function toListingArticle(article: Article): ListingArticle {
@@ -124,6 +125,11 @@ export function toListingArticle(article: Article): ListingArticle {
     category: article.category,
     difficulty: article.difficulty,
     readingMinutes: readingMinutesFor(article),
+    publishedAt: article.publishedAt instanceof Date
+      ? article.publishedAt.toISOString()
+      : article.publishedAt
+      ? new Date(article.publishedAt).toISOString()
+      : null,
   };
 }
 

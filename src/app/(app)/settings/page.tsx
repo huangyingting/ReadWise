@@ -11,6 +11,7 @@ import ProfileSettingsForm from "./ProfileSettingsForm";
 import AccountDangerZone from "@/components/AccountDangerZone";
 import Avatar from "@/components/ui/Avatar";
 import PushReminderToggle from "@/components/PushReminderToggle";
+import SettingsThemeRow from "@/components/SettingsThemeRow";
 
 export const metadata = {
   title: "Settings — ReadWise",
@@ -37,6 +38,19 @@ export default async function SettingsPage() {
           dailyGoal: profile?.dailyGoal ?? DAILY_GOAL_DEFAULT,
         }}
       />
+
+      {/* App theme card — outside the profile form, no submit needed */}
+      <Card className="mt-[var(--space-6)]">
+        <CardHeader>
+          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
+            Appearance
+          </h2>
+          <CardMeta>Choose your preferred app theme.</CardMeta>
+        </CardHeader>
+        <CardBody>
+          <SettingsThemeRow />
+        </CardBody>
+      </Card>
 
       {/* Account card — read-only, outside the form */}
       <Card className="mt-[var(--space-6)]">

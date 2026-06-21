@@ -20,10 +20,14 @@
 import { getActiveTheme } from "./theme";
 
 export type ReadingMode = "light" | "sepia" | "dark";
+export type ReadingFont = "serif" | "sans" | "dyslexic";
+export type ReadingSpacing = "normal" | "comfortable" | "spacious";
 
 export interface ReaderPrefs {
   mode: ReadingMode;
   fontScale: number;
+  fontFamily: ReadingFont;
+  lineSpacing: ReadingSpacing;
 }
 
 /** Ordered font-scale steps (5 steps per Saul's spec). */
@@ -32,11 +36,27 @@ export const DEFAULT_FONT_SCALE = 1.0;
 export const READER_PREFS_KEY = "readwise:reader-prefs";
 
 const READING_MODES: readonly ReadingMode[] = ["light", "sepia", "dark"];
+const READING_FONTS: readonly ReadingFont[] = ["serif", "sans", "dyslexic"];
+const READING_SPACINGS: readonly ReadingSpacing[] = ["normal", "comfortable", "spacious"];
 
 function isReadingMode(value: unknown): value is ReadingMode {
   return (
     typeof value === "string" &&
     (READING_MODES as readonly string[]).includes(value)
+  );
+}
+
+function isReadingFont(value: unknown): value is ReadingFont {
+  return (
+    typeof value === "string" &&
+    (READING_FONTS as readonly string[]).includes(value)
+  );
+}
+
+function isReadingSpacing(value: unknown): value is ReadingSpacing {
+  return (
+    typeof value === "string" &&
+    (READING_SPACINGS as readonly string[]).includes(value)
   );
 }
 
@@ -65,6 +85,12 @@ export function getStoredReaderPrefs(): ReaderPrefs | null {
       return {
         mode: (parsed as ReaderPrefs).mode,
         fontScale: (parsed as ReaderPrefs).fontScale,
+        fontFamily: isReadingFont((parsed as { fontFamily?: unknown }).fontFamily)
+          ? (parsed as ReaderPrefs).fontFamily
+          : "serif",
+        lineSpacing: isReadingSpacing((parsed as { lineSpacing?: unknown }).lineSpacing)
+          ? (parsed as ReaderPrefs).lineSpacing
+          : "normal",
       };
     }
     return null;
@@ -81,12 +107,13 @@ export function getReaderPrefs(): ReaderPrefs {
   const stored = getStoredReaderPrefs();
   if (stored) return stored;
   const resolvedTheme = getActiveTheme(); // "light" | "dark"
-  return { mode: resolvedTheme, fontScale: DEFAULT_FONT_SCALE };
+  return { mode: resolvedTheme, fontScale: DEFAULT_FONT_SCALE, fontFamily: "serif", lineSpacing: "normal" };
 }
 
 /**
  * Apply reading prefs to the given root element (or the reader root by id).
- * Sets `data-reading-mode` attribute and `--reading-font-scale` CSS variable.
+ * Sets `data-reading-mode`, `data-reading-font`, `data-reading-spacing`
+ * attributes and `--reading-font-scale` CSS variable.
  */
 export function applyReaderPrefs(
   prefs: ReaderPrefs,
@@ -97,6 +124,8 @@ export function applyReaderPrefs(
     rootEl ?? (document.getElementById("reader-root") as HTMLElement | null);
   if (!el) return;
   el.dataset.readingMode = prefs.mode;
+  el.dataset.readingFont = prefs.fontFamily;
+  el.dataset.readingSpacing = prefs.lineSpacing;
   el.style.setProperty("--reading-font-scale", String(prefs.fontScale));
 }
 
