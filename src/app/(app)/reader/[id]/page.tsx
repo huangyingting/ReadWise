@@ -15,7 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleCard from "@/components/ArticleCard";
-import WordLookup from "@/components/WordLookup";
+import BilingualBody from "@/components/BilingualBody";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import ReaderControls from "@/components/ReaderControls";
@@ -27,6 +27,7 @@ import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import WordLookupHint from "@/components/WordLookupHint";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import ReaderBackButton from "@/components/ReaderBackButton";
+import OfflineDownloadButton from "@/components/OfflineDownloadButton";
 
 export async function generateMetadata({
   params,
@@ -269,6 +270,9 @@ export default async function ReaderPage({
                       articleId={article.id}
                       initialSaved={isBookmarked}
                     />
+
+                    {/* #117 offline download button */}
+                    <OfflineDownloadButton articleId={article.id} />
                   </div>
 
                   {/* Tags */}
@@ -300,8 +304,8 @@ export default async function ReaderPage({
                 {/* Word-lookup / highlight hint — dismissible (localStorage) */}
                 <WordLookupHint />
 
-                {/* Prose — ONLY renderer of sanitized HTML (unchanged constraint) */}
-                <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
+                {/* Prose — bilingual-capable wrapper (falls back to normal WordLookup when disabled) */}
+                <BilingualBody html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
               </article>
 
               {/* Difficulty feedback widget (#124) */}

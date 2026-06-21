@@ -4,15 +4,17 @@
 //   - Network-first for everything else
 //   - Offline fallback (/offline.html) for failed HTML navigations
 //   - API routes are always network-only (never cache authenticated responses)
+//   - /reader/* paths: when offline, serve /offline-reader.html (which reads
+//     article content from IndexedDB if the user downloaded it — #117)
 
-const CACHE_NAME = "readwise-v1";
+const CACHE_NAME = "readwise-v2";
 
-// Pre-cache the offline fallback on install so it's always available.
+// Pre-cache the offline fallbacks on install so they're always available.
 self.addEventListener("install", (event) => {
   event.waitUntil(
     caches
       .open(CACHE_NAME)
-      .then((cache) => cache.add("/offline.html"))
+      .then((cache) => cache.addAll(["/offline.html", "/offline-reader.html"]))
       .then(() => self.skipWaiting()),
   );
 });
@@ -98,6 +100,7 @@ self.addEventListener("fetch", (event) => {
     url.pathname.startsWith("/icons/") ||
     url.pathname === "/icon.svg" ||
     url.pathname === "/offline.html" ||
+    url.pathname === "/offline-reader.html" ||
     url.pathname === "/manifest.webmanifest"
   ) {
     event.respondWith(
@@ -132,15 +135,28 @@ self.addEventListener("fetch", (event) => {
           }
           return res;
         })
-        .catch(
-          () =>
+        .catch(() => {
+          // For /reader/* paths when offline: serve the standalone offline reader
+          // which reads article content from IndexedDB (if user downloaded it).
+          if (url.pathname.startsWith("/reader/")) {
+            return (
+              caches.match("/offline-reader.html") ??
+              caches.match("/offline.html") ??
+              new Response("Offline", {
+                status: 503,
+                headers: { "Content-Type": "text/plain" },
+              })
+            );
+          }
+          return (
             caches.match(request) ??
             caches.match("/offline.html") ??
             new Response("Offline", {
               status: 503,
               headers: { "Content-Type": "text/plain" },
-            }),
-        ),
+            })
+          );
+        }),
     );
     return;
   }
