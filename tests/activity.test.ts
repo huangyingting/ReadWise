@@ -2,6 +2,7 @@
  * Tests for activity recording and streak calculation (src/lib/activity.ts).
  * All Prisma calls are mocked — no DB required.
  */
+process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
@@ -9,7 +10,10 @@ import assert from "node:assert/strict";
 let progressRows: { articleId: string; updatedAt: Date }[] = [];
 let activityRows: { date: Date; articlesRead: number }[] = [];
 let upsertCalls: unknown[] = [];
-let profileRow: { dailyGoal: number } | null = null;
+let profileUpdateCalls: unknown[] = [];
+let transactionCalls: unknown[] = [];
+let profileRow: { dailyGoal?: number; timezone?: string | null; streakShields?: number } | null =
+  null;
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -27,6 +31,14 @@ before(() => {
         },
         profile: {
           findUnique: async () => profileRow,
+          update: async (args: unknown) => {
+            profileUpdateCalls.push(args);
+            return {};
+          },
+        },
+        $transaction: async (ops: Promise<unknown>[]) => {
+          transactionCalls.push(ops);
+          return Promise.all(ops);
         },
       },
     },
@@ -37,6 +49,8 @@ beforeEach(() => {
   progressRows = [];
   activityRows = [];
   upsertCalls = [];
+  profileUpdateCalls = [];
+  transactionCalls = [];
   profileRow = null;
 });
 
@@ -50,6 +64,13 @@ function daysAgo(n: number): Date {
   );
   d.setUTCDate(d.getUTCDate() - n);
   return d;
+}
+
+/** Produce a YYYY-MM-DD string N days before a given date string (UTC). */
+function subtractDays(dateStr: string, n: number): string {
+  const d = new Date(dateStr + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() - n);
+  return d.toISOString().slice(0, 10);
 }
 
 // ---- recordReadingActivity -----------------------------------------------
@@ -174,4 +195,183 @@ test("last7Days marks active days correctly", async () => {
   assert.equal(yesterday.active, true);
   const today = summary.last7Days[6];
   assert.equal(today.active, false);
+});
+
+// ---- getStreakSummary — streakShields ------------------------------------
+
+test("getStreakSummary returns streakShields from profile", async () => {
+  profileRow = { dailyGoal: 2, streakShields: 1 };
+  const { getStreakSummary } = await import("@/lib/activity");
+  const summary = await getStreakSummary("user-1");
+  assert.equal(summary.streakShields, 1);
+});
+
+test("getStreakSummary defaults streakShields to 0 when no profile", async () => {
+  const { getStreakSummary } = await import("@/lib/activity");
+  const summary = await getStreakSummary("user-1");
+  assert.equal(summary.streakShields, 0);
+});
+
+// ---- dateKey — timezone bucketing ----------------------------------------
+
+test("dateKey defaults to UTC", async () => {
+  const { dateKey } = await import("@/lib/activity");
+  const d = new Date("2026-06-21T04:00:00Z"); // 04:00 UTC June 21
+  assert.equal(dateKey(d), "2026-06-21");
+});
+
+test("dateKey uses UTC-5: 23:00 local on June 21 = June 21, not June 22", async () => {
+  const { dateKey } = await import("@/lib/activity");
+  // Etc/GMT+5 is a fixed UTC-5 offset (no DST).
+  // 2026-06-22T04:00:00Z = 2026-06-21 23:00 local time in UTC-5.
+  const d = new Date("2026-06-22T04:00:00Z");
+  assert.equal(dateKey(d, "Etc/GMT+5"), "2026-06-21");
+  // Contrast: UTC date is already June 22
+  assert.equal(dateKey(d, "UTC"), "2026-06-22");
+});
+
+test("dateKey UTC+14: 23:00 local June 21 stays June 21", async () => {
+  const { dateKey } = await import("@/lib/activity");
+  // UTC+14 is Pacific/Kiritimati — 23:00 local = 09:00 UTC same day
+  const d = new Date("2026-06-21T09:00:00Z");
+  assert.equal(dateKey(d, "Pacific/Kiritimati"), "2026-06-21");
+});
+
+test("dateKey falls back to UTC for an invalid timezone", async () => {
+  const { dateKey } = await import("@/lib/activity");
+  const d = new Date("2026-06-21T12:00:00Z");
+  assert.equal(dateKey(d, "Not/A/Timezone"), "2026-06-21");
+});
+
+// ---- localDayStart -------------------------------------------------------
+
+test("localDayStart UTC equals UTC midnight", async () => {
+  const { localDayStart } = await import("@/lib/activity");
+  const d = new Date("2026-06-21T15:30:00Z");
+  const start = localDayStart(d, "UTC");
+  assert.equal(start.toISOString(), "2026-06-21T00:00:00.000Z");
+});
+
+test("localDayStart UTC-5: 23:00 UTC-5 local → local date midnight", async () => {
+  const { localDayStart } = await import("@/lib/activity");
+  // Etc/GMT+5 is fixed UTC-5 (no DST).
+  // 2026-06-22T04:00:00Z = 23:00 UTC-5 on June 21
+  const d = new Date("2026-06-22T04:00:00Z");
+  const start = localDayStart(d, "Etc/GMT+5");
+  // Local date = June 21 → stored as 2026-06-21T00:00:00Z
+  assert.equal(start.toISOString(), "2026-06-21T00:00:00.000Z");
+});
+
+// ---- recordReadingActivity — shield gap-fill ----------------------------
+
+test("recordReadingActivity: shield fills a 1-day gap and is consumed", async () => {
+  profileRow = { streakShields: 1 };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const twoDaysAgoKey = subtractDays(todayKey, 2);
+  // Two days ago was active, yesterday was missed (no row)
+  activityRows = [{ date: new Date(twoDaysAgoKey + "T00:00:00Z"), articlesRead: 1 }];
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  // Transaction should have been called (fills yesterday + decrements shield)
+  assert.ok(transactionCalls.length >= 1, "transaction should fire for shield gap-fill");
+  // Today's upsert should happen as well
+  assert.ok(upsertCalls.length >= 1, "today's upsert should happen");
+});
+
+test("recordReadingActivity: shield NOT consumed when gap > 1 day", async () => {
+  profileRow = { streakShields: 1 };
+  // Last active day was 3 days ago (gap = 2 days) — shield only covers 1 day
+  const threeDaysAgoKey = subtractDays(new Date().toISOString().slice(0, 10), 3);
+  activityRows = [{ date: new Date(threeDaysAgoKey + "T00:00:00Z"), articlesRead: 1 }];
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  // No transaction for gap-fill (gap > 1)
+  assert.equal(transactionCalls.length, 0);
+  // Today's upsert still fires
+  assert.ok(upsertCalls.length >= 1);
+});
+
+test("recordReadingActivity: no shield consumed when no gap (consecutive days)", async () => {
+  profileRow = { streakShields: 1 };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  const yesterdayKey = subtractDays(todayKey, 1);
+  activityRows = [{ date: new Date(yesterdayKey + "T00:00:00Z"), articlesRead: 2 }];
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  // No gap → no transaction for shield consume
+  assert.equal(transactionCalls.length, 0);
+});
+
+// ---- recordReadingActivity — shield earn --------------------------------
+
+test("recordReadingActivity: earns a shield after 7 consecutive active days", async () => {
+  profileRow = { streakShields: 0 };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  // Make the last 6 days all active
+  activityRows = Array.from({ length: 6 }, (_, i) => ({
+    date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
+    articlesRead: 1,
+  }));
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  // profile.update should be called to set streakShields = MAX_SHIELDS (1)
+  assert.ok(profileUpdateCalls.length >= 1, "should award shield after 7-day streak");
+});
+
+test("recordReadingActivity: does NOT earn a shield when one is already held", async () => {
+  profileRow = { streakShields: 1 };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  activityRows = Array.from({ length: 6 }, (_, i) => ({
+    date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
+    articlesRead: 1,
+  }));
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  // Shield already at max — no earn update
+  assert.equal(profileUpdateCalls.length, 0);
+});
+
+test("recordReadingActivity: does NOT earn a shield with only 5 consecutive days", async () => {
+  profileRow = { streakShields: 0 };
+  const todayKey = new Date().toISOString().slice(0, 10);
+  // Only 5 prior days active (not enough for 7-day streak)
+  activityRows = Array.from({ length: 5 }, (_, i) => ({
+    date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
+    articlesRead: 1,
+  }));
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  assert.equal(profileUpdateCalls.length, 0);
+});
+
+// ---- recordReadingActivity — timezone param ------------------------------
+
+test("recordReadingActivity: accepts timezone override and uses local date", async () => {
+  profileRow = null; // no profile → defaults, but timezone param is passed
+  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  // Should not throw when a timezone override is provided
+  await assert.doesNotReject(
+    recordReadingActivity("user-1", "a1", "America/New_York"),
+  );
+  assert.ok(upsertCalls.length >= 1, "upsert should still fire");
 });

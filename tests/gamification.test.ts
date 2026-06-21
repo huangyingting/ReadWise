@@ -15,6 +15,7 @@ let streakResult = {
   longestStreak: 7,
   dailyGoal: 2,
   todayProgress: 1,
+  streakShields: 1,
   last7Days: [
     { date: "2026-06-13", active: false },
     { date: "2026-06-14", active: true },
@@ -75,6 +76,14 @@ test("GET gamification/summary returns streak + dueCount", async () => {
   assert.equal(body.todayProgress, 1);
   assert.equal(body.dueCount, 5);
   assert.equal(body.last7Days.length, 7);
+});
+
+test("GET gamification/summary includes streakShields in response", async () => {
+  const { GET } = (await import("@/app/api/gamification/summary/route")) as { GET: RouteHandler };
+  const res = await GET(new Request("http://test/api/gamification/summary"), undefined);
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.streakShields, 1);
 });
 
 test("GET gamification/summary returns 401 when unauthenticated", async () => {

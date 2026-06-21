@@ -125,7 +125,10 @@ export async function askTutor(
     { role: "user", content: question },
   ];
 
-  const completion = await chatComplete(chatMessages, { maxOutputTokens: 512 });
+  const completion = await chatComplete(chatMessages, {
+    maxOutputTokens: 2048,
+    feature: "tutor",
+  });
 
   if (!completion) {
     // AI configured but request failed — graceful fallback, persist nothing.
