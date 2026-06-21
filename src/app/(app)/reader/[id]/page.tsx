@@ -26,6 +26,7 @@ import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import WordLookupHint from "@/components/WordLookupHint";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
+import ReaderBackButton from "@/components/ReaderBackButton";
 
 export async function generateMetadata({
   params,
@@ -180,6 +181,10 @@ export default async function ReaderPage({
   el.dataset.readingMode=mode;
   var scale=prefs&&typeof prefs.fontScale==='number'?prefs.fontScale:1;
   el.style.setProperty('--reading-font-scale',String(scale));
+  var font=prefs&&prefs.fontFamily?prefs.fontFamily:'serif';
+  el.dataset.readingFont=font;
+  var spacing=prefs&&prefs.lineSpacing?prefs.lineSpacing:'normal';
+  el.dataset.readingSpacing=spacing;
 }catch(e){}})();
             `.trim(),
           }}
@@ -196,6 +201,9 @@ export default async function ReaderPage({
           <div className="reader-layout">
             {/* ---- Reading column ---- */}
             <div className="reader-column">
+              {/* Back navigation — returns to the listing the user came from */}
+              <ReaderBackButton />
+
               {/* Reader-local skip link: lets keyboard users jump past the sticky
                   controls directly to the article (WCAG 2.4.1, #65).
                   Sits before ReaderControls so Tab from global skip target reaches

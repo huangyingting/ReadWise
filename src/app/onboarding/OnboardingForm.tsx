@@ -382,7 +382,7 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
         setSubmitting(false);
         return;
       }
-      router.push("/dashboard");
+      router.push("/welcome");
       router.refresh();
     } catch {
       setError("Network error. Please try again.");
@@ -392,40 +392,50 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
 
   return (
     <Card className="mt-[var(--space-6)] flex flex-col gap-[var(--space-5)]">
-      {/* Progress stepper */}
+       {/* Progress stepper */}
       <div aria-label="Onboarding progress">
         <p
-          className="text-text-subtle text-xs mb-[var(--space-2)]"
+          className="text-text-subtle text-xs mb-[var(--space-3)]"
           aria-live="polite"
         >
           Step {step} of {TOTAL_STEPS} · {STEP_TITLES[step - 1]}
         </p>
-        <nav aria-label="Onboarding progress">
+        <nav aria-label="Onboarding steps">
           <ol className="flex gap-[var(--space-2)] list-none m-0 p-0">
-          {Array.from({ length: TOTAL_STEPS }, (_, i) => (
-            <li
-              key={i}
-              aria-current={i + 1 === step ? "step" : undefined}
-              className="flex-1 flex flex-col items-center gap-[var(--space-1)]"
-            >
-              <span
-                aria-hidden
-                className={cn(
-                  "text-[length:var(--text-xs)] font-semibold tabular-nums",
-                  i + 1 <= step ? "text-primary-text" : "text-text-subtle",
-                )}
+          {Array.from({ length: TOTAL_STEPS }, (_, i) => {
+            const isDone = i + 1 < step;
+            const isCurrent = i + 1 === step;
+            return (
+              <li
+                key={i}
+                aria-current={isCurrent ? "step" : undefined}
+                className="flex-1 flex flex-col items-center gap-[var(--space-1)]"
               >
-                {i + 1}
-              </span>
-              <span
-                className={cn(
-                  "block w-full h-1.5 rounded-[var(--radius-full)]",
-                  "transition-[background-color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
-                  i + 1 <= step ? "bg-primary" : "bg-border",
-                )}
-              />
-            </li>
-          ))}
+                {/* Numbered dot */}
+                <span
+                  aria-hidden
+                  className={cn(
+                    "inline-flex items-center justify-center",
+                    "w-6 h-6 rounded-full text-[length:var(--text-xs)] font-bold",
+                    "transition-[background-color,color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
+                    isDone || isCurrent
+                      ? "bg-primary text-on-primary"
+                      : "bg-border text-text-subtle",
+                  )}
+                >
+                  {isDone ? "✓" : i + 1}
+                </span>
+                {/* Progress bar segment */}
+                <span
+                  className={cn(
+                    "block w-full h-1 rounded-[var(--radius-full)]",
+                    "transition-[background-color] [transition-duration:var(--duration-base)] motion-reduce:transition-none",
+                    isDone || isCurrent ? "bg-primary" : "bg-border",
+                  )}
+                />
+              </li>
+            );
+          })}
           </ol>
         </nav>
       </div>

@@ -24,6 +24,7 @@ import ForYouFeed from "@/components/ForYouFeed";
 import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 import RailScroller from "@/components/RailScroller";
 import LevelRecommendationBanner from "@/components/LevelRecommendationBanner";
+import DashboardWelcomeBanner from "@/components/DashboardWelcomeBanner";
 
 
 /** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
@@ -77,6 +78,14 @@ export default async function DashboardPage({
   const userTopics = parseTopics(profile?.topics);
   const hasTopics = userTopics.length > 0;
 
+  // First-run detection: no reading progress + onboarding completed recently (within last hour).
+  // We use streak.currentStreak and inProgressEntries as lightweight proxies.
+  const isNewUser =
+    inProgressEntries.length === 0 &&
+    streak.currentStreak === 0 &&
+    profile?.completedAt != null &&
+    Date.now() - new Date(profile.completedAt).getTime() < 60 * 60 * 1000;
+
   return (
     <div className="listing-container">
       {/* Identity card */}
@@ -97,6 +106,9 @@ export default async function DashboardPage({
           </div>
         </div>
       </Card>
+
+      {/* First-run welcome banner — shown once to new users (localStorage-gated client-side) */}
+      {isNewUser && <DashboardWelcomeBanner />}
 
       {/* Level progression recommendation — shown when confidence ≥ 0.6 */}
       {profile && (

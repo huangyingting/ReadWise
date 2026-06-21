@@ -389,6 +389,56 @@
 }
 
 /* ============================================================
+ * A11y — Reading font-family tokens (data-reading-font)
+ *
+ * Overrides --font-reading on the reader root so all prose in
+ * the reading column inherits the user's chosen family.
+ * "dyslexic" font-face is loaded lazily by the CSS selector —
+ * it is never fetched unless the user selects that option.
+ * ============================================================ */
+
+/* Default: serif (no override needed — tokens.css :root already sets serif) */
+
+[data-reading-font="sans"] {
+  --font-reading: system-ui, -apple-system, "Segoe UI", Helvetica, Arial, sans-serif;
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("https://fonts.cdnfonts.com/s/14305/OpenDyslexic-Regular.woff") format("woff");
+}
+
+[data-reading-font="dyslexic"] {
+  --font-reading: "OpenDyslexic", system-ui, sans-serif;
+}
+
+/* ============================================================
+ * A11y — Reading line/letter spacing tokens (data-reading-spacing, WCAG 1.4.12)
+ *
+ * CSS custom properties --reading-line-height and --reading-letter-spacing
+ * are read by the .reader-column .word-lookup-prose selector in globals.css.
+ * ============================================================ */
+
+/* Normal (default — no-op) */
+[data-reading-spacing="normal"] {
+  --reading-line-height:      var(--leading-reading); /* 1.7 */
+  --reading-letter-spacing:   0;
+}
+
+[data-reading-spacing="comfortable"] {
+  --reading-line-height:      1.9;
+  --reading-letter-spacing:   0.01em;
+}
+
+[data-reading-spacing="spacious"] {
+  --reading-line-height:      2.2;
+  --reading-letter-spacing:   0.02em;
+}
+
+/* ============================================================
  * M11 — Highlight color tokens (user-content metadata family)
  *
  * --hl-* is a SEPARATE semantic family from teal (reading-state)
