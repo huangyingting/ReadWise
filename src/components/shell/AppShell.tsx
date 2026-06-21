@@ -1,15 +1,18 @@
 import type { ReactNode } from "react";
 import AppHeader from "./AppHeader";
 import AppFooter from "./AppFooter";
+import AppSidebar from "./AppSidebar";
 import CommandPaletteProvider from "@/components/command/CommandPaletteProvider";
 import type { ShellUser } from "./types";
 
 /**
- * Global app shell: sticky header + main content slot + self-hiding footer.
- * Server component — receives the session-derived (display-only) user from the
- * route-group layout; a null user renders the chrome without the user menu.
- * CommandPaletteProvider mounts here (authed app surface only) and exposes
- * the ⌘K palette to every page in the (app) route group.
+ * Global app shell: full-width sticky header on top, then a row below with the
+ * collapsible left sidebar (md+) and the main content column on the right, plus
+ * a self-hiding footer. Server component — receives the session-derived
+ * (display-only) user from the route-group layout; a null user renders the
+ * chrome without the user menu. CommandPaletteProvider mounts here (authed app
+ * surface only) and exposes the ⌘K palette to every page in the (app) route
+ * group.
  */
 export default function AppShell({
   user,
@@ -26,10 +29,15 @@ export default function AppShell({
           Skip to main content
         </a>
         <AppHeader user={user} />
-        <main id="main-content" className="flex-1" tabIndex={-1}>
-          {children}
-        </main>
-        <AppFooter />
+        <div className="flex flex-1 flex-row">
+          {user ? <AppSidebar user={user} /> : null}
+          <div className="flex min-w-0 flex-1 flex-col">
+            <main id="main-content" className="flex-1" tabIndex={-1}>
+              {children}
+            </main>
+            <AppFooter />
+          </div>
+        </div>
       </div>
     </CommandPaletteProvider>
   );

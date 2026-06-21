@@ -68,6 +68,10 @@
   /* ---- Reading measure ---- */
   --measure: 66ch;
 
+  /* ---- App sidebar (US-149) ---- */
+  --sidebar-w: 240px;
+  --sidebar-w-collapsed: 64px;
+
   /* ---- Motion ---- */
   --duration-fast: 120ms;
   --duration-base: 200ms;

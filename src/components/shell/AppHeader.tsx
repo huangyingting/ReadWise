@@ -1,6 +1,4 @@
-import { cn, focusRing } from "@/lib/cn";
 import HeaderShell from "./HeaderShell";
-import AppNav from "./AppNav";
 import ThemeToggle from "./ThemeToggle";
 import UserMenu from "./UserMenu";
 import MobileDrawer from "./MobileDrawer";
@@ -8,7 +6,11 @@ import HeaderSearch from "./HeaderSearch";
 import { WordmarkLink } from "@/components/Wordmark";
 import type { ShellUser } from "./types";
 
-/** Top app bar: wordmark, primary nav, and the right cluster of actions. */
+/**
+ * Top app bar: wordmark + the right cluster of actions. Primary navigation now
+ * lives in the left sidebar on md+ (AppSidebar); below md the MobileDrawer
+ * hamburger still owns nav. The header center is a flex spacer.
+ */
 export default function AppHeader({ user }: { user: ShellUser | null }) {
   return (
     <HeaderShell>
@@ -17,9 +19,7 @@ export default function AppHeader({ user }: { user: ShellUser | null }) {
         <WordmarkLink />
       </div>
 
-      <div className="flex flex-1 justify-center">
-        <AppNav user={user} />
-      </div>
+      <div className="flex flex-1" />
 
       <div className="flex items-center gap-[var(--space-2)]">
         <HeaderSearch />

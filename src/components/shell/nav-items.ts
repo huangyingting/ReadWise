@@ -7,7 +7,7 @@ export interface NavItem {
   group: "primary" | "secondary";
 }
 
-/** Primary navigation — shared by AppNav (desktop) and MobileDrawer. */
+/** Primary navigation — shared by AppSidebar (desktop) and MobileDrawer. */
 export const PRIMARY_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "primary" },
   { href: "/browse", label: "Browse", icon: Compass, group: "primary" },
