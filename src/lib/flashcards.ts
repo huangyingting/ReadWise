@@ -14,6 +14,8 @@ export type FlashcardView = {
   word: string;
   explanation: string | null;
   example: string | null;
+  contextSentence: string | null;
+  articleId: string | null;
 };
 
 export type GradeResult = {
@@ -44,7 +46,7 @@ export async function getDueFlashcards(
     // SQLite sorts NULLs before non-NULLs in ASC order → new cards appear first
     orderBy: { dueAt: "asc" },
     take: limit,
-    select: { id: true, word: true, explanation: true, example: true },
+    select: { id: true, word: true, explanation: true, example: true, contextSentence: true, articleId: true },
   });
 
   return cards.map((c) => ({
@@ -52,6 +54,8 @@ export async function getDueFlashcards(
     word: c.word,
     explanation: c.explanation,
     example: c.example,
+    contextSentence: c.contextSentence,
+    articleId: c.articleId,
   }));
 }
 
