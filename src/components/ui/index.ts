@@ -33,3 +33,5 @@ export { Spinner, type SpinnerProps } from "./Spinner";
 export { Switch, type SwitchProps } from "./Switch";
 export { Textarea, textareaVariants, type TextareaProps } from "./Textarea";
 export { Tooltip, type TooltipProps } from "./Tooltip";
+export { Sheet, type SheetProps } from "./Sheet";
+export { Popover, type PopoverProps } from "./Popover";
