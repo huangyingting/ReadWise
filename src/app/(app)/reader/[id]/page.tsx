@@ -3,7 +3,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
-import { getArticleById, getViewableArticleById, readingMinutesFor } from "@/lib/articles";
+import { getArticleById, getViewableArticleById, readingMinutesFor, listCategoryPage } from "@/lib/articles";
 import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
@@ -11,6 +11,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 import { htmlToPlainText } from "@/lib/translation";
 import { getArticleListMembership } from "@/lib/bookmarks";
+import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleCard from "@/components/ArticleCard";
@@ -24,6 +25,7 @@ import { ReaderHighlightsProvider } from "@/components/ReaderHighlightsProvider"
 import ReaderMiniPlayer from "@/components/ReaderMiniPlayer";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import WordLookupHint from "@/components/WordLookupHint";
+import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 
 export async function generateMetadata({
   params,
@@ -78,19 +80,33 @@ export default async function ReaderPage({
   }
 
   // Parallel fetch: all five queries depend only on article.id / userId (independent of each other)
-  const [progress, difficulty, tagsResult, relatedArticles, membership] = await Promise.all([
+  const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback] = await Promise.all([
     getProgress(session.user.id, article.id),
     getOrCreateArticleDifficulty(article.id),
     getOrCreateArticleTags(article.id),
     listRelatedArticles(article.id),
     // M10: SSR bookmark state for the reader cluster
     getArticleListMembership(session.user.id, article.id),
+    // #124: existing difficulty vote for this user+article (may be null)
+    prisma.articleDifficultyFeedback.findUnique({
+      where: { userId_articleId: { userId: session.user.id, articleId: article.id } },
+      select: { vote: true },
+    }),
   ]);
 
-  // relatedProgress depends on relatedArticles — must come after
+  // If no related articles, fall back to articles from the same category.
+  let keepReadingArticles = relatedArticles.slice(0, 3);
+  if (keepReadingArticles.length === 0) {
+    const fallbackPage = await listCategoryPage(article.category ?? null, { limit: 4 });
+    keepReadingArticles = fallbackPage.articles
+      .filter((a) => a.id !== article.id)
+      .slice(0, 3);
+  }
+
+  // relatedProgress depends on keepReadingArticles — must come after
   const relatedProgress = await getProgressMap(
     session.user.id,
-    relatedArticles.map((a) => a.id),
+    keepReadingArticles.map((a) => a.id),
   );
 
   const difficultyLevel = (difficulty?.level ?? article.difficulty) as CefrLevel | null;
@@ -100,6 +116,8 @@ export default async function ReaderPage({
   const articlePlainText = htmlToPlainText(article.content);
 
   const isBookmarked = membership?.find((l) => l.isDefault)?.hasArticle ?? false;
+  const isCompleted = progress?.completed ?? false;
+  const userDifficultyVote = existingFeedback?.vote as "too_easy" | "just_right" | "too_hard" | null ?? null;
 
   const isValidCefrLevel = difficultyLevel && (CEFR_LEVELS as readonly string[]).includes(difficultyLevel);
 
@@ -278,19 +296,37 @@ export default async function ReaderPage({
                 <WordLookup html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
               </article>
 
-              {/* Related articles (M4 grid — unchanged) */}
-              {relatedArticles.length > 0 ? (
-                <section className="reader-related" aria-label="Related articles">
+              {/* Difficulty feedback widget (#124) */}
+              <ArticleDifficultyFeedback
+                articleId={article.id}
+                initialVote={userDifficultyVote}
+              />
+
+              {/* Keep reading — CTA section after the article body (#110) */}
+              {keepReadingArticles.length > 0 ? (
+                <section className="reader-related" aria-label="Keep reading">
+                  {/* Completion banner */}
+                  {isCompleted ? (
+                    <div
+                      className="reader-completion-banner"
+                      role="status"
+                    >
+                      <span aria-hidden="true">✓</span>
+                      <span>Article completed! Here&rsquo;s what to read next.</span>
+                    </div>
+                  ) : null}
                   <h2
                     className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)] mt-0"
                   >
-                    Related articles
+                    Keep reading
                   </h2>
                   <p className="muted" style={{ marginTop: 0 }}>
-                    Other articles that share tags with this one.
+                    {relatedArticles.length > 0
+                      ? "Other articles that share tags with this one."
+                      : "More articles from the same category."}
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
-                    {relatedArticles.map((related) => {
+                    {keepReadingArticles.map((related) => {
                       const rel = relatedProgress.get(related.id);
                       return (
                         <ArticleCard
@@ -305,8 +341,10 @@ export default async function ReaderPage({
                       );
                     })}
                   </div>
-                  <ListingProgressSync articleIds={relatedArticles.map((a) => a.id)} />
-                  <ListingBookmarkSync articleIds={relatedArticles.map((a) => a.id)} />
+                  <ListingProgressSync
+                    articleIds={keepReadingArticles.map((a) => a.id)}
+                  />
+                  <ListingBookmarkSync articleIds={keepReadingArticles.map((a) => a.id)} />
                 </section>
               ) : null}
             </div>
