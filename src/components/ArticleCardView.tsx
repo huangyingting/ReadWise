@@ -127,8 +127,8 @@ export default function ArticleCardView({
           "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
           "text-text gap-[var(--space-3)]",
           variant === "rail"
-            ? "p-[var(--space-5)]"
-            : "p-[var(--space-5)] sm:p-[var(--space-6)]",
+            ? "p-[var(--space-4)]"
+            : "p-[var(--space-4)] sm:p-[var(--space-5)]",
           "transition-[box-shadow,border-color,transform,color]",
           "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
           "hover:shadow-[var(--shadow-md)] hover:border-border-strong hover:-translate-y-0.5",
