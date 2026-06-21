@@ -31,7 +31,7 @@ function getStoredCollapsed(): boolean | null {
 /**
  * Persistent collapsible left sidebar (US-149). Owns primary + secondary nav on
  * md+ (resolves the #134 header overflow by moving nav out of the header).
- * Hidden below md, where MobileDrawer still provides nav.
+ * Hidden below md, where the BottomTabBar + More sheet provide nav.
  *
  * Collapsed state persists in localStorage. With no stored preference the
  * default is responsive: collapsed icon-rail on md (768–1023px), expanded on
