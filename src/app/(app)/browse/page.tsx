@@ -11,6 +11,8 @@ import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import CategoryBrowser from "@/components/CategoryBrowser";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function BrowsePage({
   searchParams,
@@ -61,21 +63,15 @@ export default async function BrowsePage({
       : "All categories";
 
   return (
-    <div className="listing-container">
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
-        style={{ marginBottom: "0.25rem" }}
-      >
-        Browse
-      </h1>
-      <p
-        className="text-text-muted text-[length:var(--text-base)]"
-        style={{ marginTop: 0 }}
-      >
-        {isPicks
-          ? "Articles picked to match your topics and English level."
-          : "Browse cleaned news articles by category."}
-      </p>
+    <PageShell variant="listing">
+      <PageHeader
+        title="Browse"
+        description={
+          isPicks
+            ? "Articles picked to match your topics and English level."
+            : "Browse cleaned news articles by category."
+        }
+      />
 
       <CategoryBrowser
         key={`${activeView}:${urlLevel ?? ""}`}
@@ -88,6 +84,6 @@ export default async function BrowsePage({
         initialSavedIds={[...bookmarkedIds]}
         initialLevel={urlLevel}
       />
-    </div>
+    </PageShell>
   );
 }

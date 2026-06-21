@@ -4,6 +4,8 @@ import { listPersonalArticles, toListingArticle } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 import ImportForm from "./ImportForm";
 
 export const metadata: Metadata = {
@@ -24,15 +26,11 @@ export default async function ImportPage() {
       : {};
 
   return (
-    <div className="container">
-      <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] text-text mb-[var(--space-2)]">
-        Import Article
-      </h1>
-      <p className="text-text-muted mb-[var(--space-6)]">
-        Save any article for private reading. Paste a URL to scrape it, or paste
-        the text directly. Imported articles are{" "}
-        <strong>only visible to you</strong>.
-      </p>
+    <PageShell variant="narrow">
+      <PageHeader
+        title="Import Article"
+        description="Save any article for private reading. Paste a URL to scrape it, or paste the text directly. Imported articles are only visible to you."
+      />
 
       <ImportForm />
 
@@ -53,6 +51,6 @@ export default async function ImportPage() {
           <ListingProgressSync articleIds={personalArticles.map((a) => a.id)} />
         </section>
       )}
-    </div>
+    </PageShell>
   );
 }

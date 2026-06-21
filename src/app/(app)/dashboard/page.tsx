@@ -25,6 +25,8 @@ import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 import RailScroller from "@/components/RailScroller";
 import LevelRecommendationBanner from "@/components/LevelRecommendationBanner";
 import DashboardWelcomeBanner from "@/components/DashboardWelcomeBanner";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 
 /** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
@@ -87,13 +89,9 @@ export default async function DashboardPage({
     Date.now() - new Date(profile.completedAt).getTime() < 60 * 60 * 1000;
 
   return (
-    <div className="listing-container">
+    <PageShell variant="listing">
+      <PageHeader title="Dashboard" />
       {/* Identity card */}
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text mb-6"
-      >
-        Dashboard
-      </h1>
       <Card>
         <div className="flex items-center gap-[var(--space-4)]">
           <Avatar src={user.image} name={user.name} size={56} />
@@ -242,7 +240,7 @@ export default async function DashboardPage({
           </div>
         </Card>
       </section>
-    </div>
+    </PageShell>
   );
 }
 

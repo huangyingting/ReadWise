@@ -12,6 +12,8 @@ import AccountDangerZone from "@/components/AccountDangerZone";
 import Avatar from "@/components/ui/Avatar";
 import PushReminderToggle from "@/components/PushReminderToggle";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
 
 export const metadata = {
   title: "Settings — ReadWise",
@@ -23,10 +25,8 @@ export default async function SettingsPage() {
   const profile = await getProfile(user.id);
 
   return (
-    <div className="container max-w-[720px]">
-      <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] text-text mb-[var(--space-6)]">
-        Settings
-      </h1>
+    <PageShell variant="narrow">
+      <PageHeader title="Settings" />
 
       {/* ProfileSettingsForm renders Profile + Reading preferences cards */}
       <ProfileSettingsForm
@@ -112,6 +112,6 @@ export default async function SettingsPage() {
           <AccountDangerZone />
         </CardBody>
       </Card>
-    </div>
+    </PageShell>
   );
 }
