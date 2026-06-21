@@ -24,11 +24,22 @@ export const PUT = createHandler({ body: profileSchema }, async ({ body, session
     // Record when the level is explicitly changed by the user.
     ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
   };
-  await prisma.profile.upsert({
-    where: { userId: session.user.id },
-    create: { userId: session.user.id, ...data, completedAt: new Date() },
-    update: data,
+
+  // Run profile upsert + optional level history record in one transaction.
+  await prisma.$transaction(async (tx) => {
+    await tx.profile.upsert({
+      where: { userId: session.user.id },
+      create: { userId: session.user.id, ...data, completedAt: new Date() },
+      update: data,
+    });
+
+    if (levelChanged) {
+      await tx.levelHistory.create({
+        data: { userId: session.user.id, level: body.englishLevel },
+      });
+    }
   });
+
   return NextResponse.json({ ok: true });
 });
 

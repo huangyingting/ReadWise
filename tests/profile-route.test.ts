@@ -33,6 +33,25 @@ before(() => {
             return {};
           },
         },
+        levelHistory: {
+          create: async () => ({}),
+        },
+        $transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
+          return fn({
+            profile: {
+              upsert: async (args: {
+                create?: Record<string, unknown>;
+                update?: Record<string, unknown>;
+              }) => {
+                lastUpsertArgs = args;
+                return {};
+              },
+            },
+            levelHistory: {
+              create: async () => ({}),
+            },
+          });
+        },
       },
     },
   });
