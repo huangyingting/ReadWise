@@ -37,7 +37,7 @@ export default async function ImportPage() {
       <ImportForm />
 
       {personalArticles.length > 0 && (
-        <section className="mt-[var(--space-10)]">
+        <section className="mt-[var(--space-7)]">
           <h2 className="font-semibold text-[length:var(--text-lg)] text-text mb-[var(--space-4)]">
             My Imports
           </h2>

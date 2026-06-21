@@ -48,7 +48,7 @@ export default async function StudyPage() {
       </h1>
 
       {/* ── Comprehension section (M14) ── */}
-      <section aria-labelledby="comprehension-h" className="mb-[var(--space-8)]">
+      <section aria-labelledby="comprehension-h" className="mb-[var(--space-6)]">
         <h2
           id="comprehension-h"
           className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0 mb-[var(--space-4)]"
