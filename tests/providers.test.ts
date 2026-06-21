@@ -39,22 +39,25 @@ test("bbc-learning-english articleUrlPattern matches learningenglish paths", () 
 
 test("bbc-learning-english categoryFor maps science path to science", () => {
   const p = getProviderOrFail("bbc-learning-english");
+  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
   const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/science-focus/ep-2301");
-  const cat = p.categoryFor(url, null);
+  const cat = p.categoryFor!(url, null);
   assert.equal(cat, "science");
 });
 
 test("bbc-learning-english categoryFor maps health path to health", () => {
   const p = getProviderOrFail("bbc-learning-english");
+  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
   const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/health/ep-2301");
-  const cat = p.categoryFor(url, null);
+  const cat = p.categoryFor!(url, null);
   assert.equal(cat, "health");
 });
 
 test("bbc-learning-english categoryFor defaults to culture for generic paths", () => {
   const p = getProviderOrFail("bbc-learning-english");
+  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
   const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-2301");
-  const cat = p.categoryFor(url, null);
+  const cat = p.categoryFor!(url, null);
   assert.ok(CATEGORY_SLUGS.includes(cat ?? ""), `returned category "${cat}" must be a valid slug`);
 });
 
@@ -78,29 +81,33 @@ test("voa-learning-english articleUrlPattern matches /a/<slug>.html paths", () =
 
 test("voa-learning-english categoryFor maps science-technology path to science", () => {
   const p = getProviderOrFail("voa-learning-english");
+  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
   const url = new URL("https://learningenglish.voanews.com/science-technology");
-  const cat = p.categoryFor(url, "science-technology");
+  const cat = p.categoryFor!(url, "science-technology");
   assert.equal(cat, "science");
 });
 
 test("voa-learning-english categoryFor maps health-lifestyle to health", () => {
   const p = getProviderOrFail("voa-learning-english");
+  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
   const url = new URL("https://learningenglish.voanews.com/health-lifestyle");
-  const cat = p.categoryFor(url, "health-lifestyle");
+  const cat = p.categoryFor!(url, "health-lifestyle");
   assert.equal(cat, "health");
 });
 
 test("voa-learning-english categoryFor maps arts-culture to culture", () => {
   const p = getProviderOrFail("voa-learning-english");
+  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
   const url = new URL("https://learningenglish.voanews.com/arts-culture");
-  const cat = p.categoryFor(url, "arts-culture");
+  const cat = p.categoryFor!(url, "arts-culture");
   assert.equal(cat, "culture");
 });
 
 test("voa-learning-english categoryFor returns a valid category slug for any path", () => {
   const p = getProviderOrFail("voa-learning-english");
+  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
   const url = new URL("https://learningenglish.voanews.com/a/some-article.html");
-  const cat = p.categoryFor(url, null);
+  const cat = p.categoryFor!(url, null);
   assert.ok(cat === null || CATEGORY_SLUGS.includes(cat), `returned "${cat}" must be null or a valid slug`);
 });
 
@@ -111,7 +118,7 @@ test("voa-learning-english categoryFor returns a valid category slug for any pat
 test("all providers have keys with valid category slugs as defaults", () => {
   for (const p of PROVIDERS) {
     assert.ok(
-      CATEGORY_SLUGS.includes(p.defaultCategory),
+      p.defaultCategory !== null && CATEGORY_SLUGS.includes(p.defaultCategory),
       `Provider "${p.key}" defaultCategory "${p.defaultCategory}" must be a valid slug`,
     );
   }
