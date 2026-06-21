@@ -1,9 +1,12 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import FlashcardReview from "@/components/FlashcardReview";
 import StudyList, { type StudyWord } from "@/components/StudyList";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
+import { buttonVariants } from "@/components/ui/Button";
+import { BookOpen } from "lucide-react";
 
 interface StudyPageShellProps {
   words: StudyWord[];
@@ -47,7 +50,16 @@ export default function StudyPageShell({
           <p className="text-text-muted text-[length:var(--text-sm)] m-0">
             {words.length} saved {words.length === 1 ? "word" : "words"}
           </p>
-          {words.length > 0 && <VocabularyExportButtons />}
+          <div className="flex items-center gap-[var(--space-2)] flex-wrap">
+            <Link
+              href="/study/words"
+              className={buttonVariants({ variant: "ghost", size: "sm" }) + " inline-flex items-center gap-[var(--space-1)]"}
+            >
+              <BookOpen size={15} aria-hidden />
+              Manage words
+            </Link>
+            {words.length > 0 && <VocabularyExportButtons />}
+          </div>
         </div>
 
         <StudyList words={words} reviewing={reviewing} />

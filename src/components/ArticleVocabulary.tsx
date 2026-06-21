@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
+import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
 
 type VocabularyItem = {
   word: string;
@@ -138,37 +140,50 @@ export default function ArticleVocabulary({
 
       {items.length > 0 ? (
         <ul className="vocabulary-list">
-          {items.map((item) => (
-            <li key={item.word} className="vocabulary-item">
-              <div className="vocabulary-item-main">
-                <strong className="vocabulary-word">{item.word}</strong>
-                <p className="vocabulary-explanation">{item.explanation}</p>
-                {item.example ? (
-                  <p className="vocabulary-example muted">
-                    &ldquo;{item.example}&rdquo;
-                  </p>
-                ) : null}
-              </div>
-              <Button
-                type="button"
-                variant={item.saved ? "outline" : "secondary"}
-                size="sm"
-                onClick={() => toggleSaved(item)}
-                disabled={pending === item.word}
-                aria-pressed={item.saved}
-                aria-label={item.saved ? `Remove saved word: ${item.word}` : `Save word: ${item.word}`}
-              >
-                {pending === item.word
-                  ? "…"
-                  : item.saved
+          {items.map((item) => {
+            const tier = frequencyTier(item.word);
+            return (
+              <li key={item.word} className="vocabulary-item">
+                <div className="vocabulary-item-main">
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+                    <strong className="vocabulary-word">{item.word}</strong>
+                    {tier ? (
+                      <Badge
+                        variant={TIER_VARIANTS[tier]}
+                        aria-label={`Word frequency: ${TIER_LABELS[tier]}`}
+                        style={{ fontSize: "0.7rem", padding: "1px 6px" }}
+                      >
+                        {TIER_LABELS[tier]}
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="vocabulary-explanation">{item.explanation}</p>
+                  {item.example ? (
+                    <p className="vocabulary-example muted">
+                      &ldquo;{item.example}&rdquo;
+                    </p>
+                  ) : null}
+                </div>
+                <Button
+                  type="button"
+                  variant={item.saved ? "outline" : "secondary"}
+                  size="sm"
+                  onClick={() => toggleSaved(item)}
+                  disabled={pending === item.word}
+                  aria-pressed={item.saved}
+                  aria-label={item.saved ? `Remove saved word: ${item.word}` : `Save word: ${item.word}`}
+                >
+                  {pending === item.word
+                    ? "…"
+                    : item.saved
                     ? "✓ Saved"
                     : "Save"}
-              </Button>
-            </li>
-          ))}
+                </Button>
+              </li>
+            );
+          })}
         </ul>
       ) : null}
     </div>
   );
 }
-

@@ -24,6 +24,8 @@ type DueCard = {
   word: string;
   explanation: string | null;
   example: string | null;
+  contextSentence: string | null;
+  articleId: string | null;
   /** Populated only when fetched via /api/study/cloze */
   cloze?: { masked: string; answerLength: number } | null;
 };
@@ -710,14 +712,37 @@ export default function FlashcardReview({
                       </p>
                     ) : null}
 
-                    {/* Example */}
-                    {card.example ? (
+                    {/* Context sentence (original article sentence) or AI example fallback */}
+                    {card.contextSentence ? (
+                      <div
+                        className="flex flex-col gap-[var(--space-1)]"
+                        style={{ maxWidth: "52ch" }}
+                      >
+                        <p className="text-[length:var(--text-xs)] text-text-muted m-0 uppercase tracking-wide font-semibold">
+                          Original context
+                        </p>
+                        <p className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0">
+                          &ldquo;{card.contextSentence}&rdquo;
+                        </p>
+                      </div>
+                    ) : card.example ? (
                       <p
                         className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
                         style={{ maxWidth: "52ch" }}
                       >
                         &ldquo;{card.example}&rdquo;
                       </p>
+                    ) : null}
+
+                    {/* Article linkback */}
+                    {card.articleId ? (
+                      <a
+                        href={`/reader/${card.articleId}`}
+                        className="inline-flex items-center gap-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted hover:text-primary underline underline-offset-2 transition-colors"
+                        aria-label={`Go to article where "${card.word}" was saved`}
+                      >
+                        Go to article ↗
+                      </a>
                     ) : null}
 
                     {/* Grade buttons row */}

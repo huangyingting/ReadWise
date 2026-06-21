@@ -57,6 +57,8 @@ export const GET = createHandler({ query: parseQuery }, async ({ session, query 
       word: card.word,
       explanation: card.explanation,
       example: card.example,
+      contextSentence: card.contextSentence,
+      articleId: card.articleId,
       cloze:
         result?.ok
           ? { masked: result.card.masked, answerLength: result.card.answerLength }
