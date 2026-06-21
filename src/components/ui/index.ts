@@ -35,3 +35,8 @@ export { Textarea, textareaVariants, type TextareaProps } from "./Textarea";
 export { Tooltip, type TooltipProps } from "./Tooltip";
 export { Sheet, type SheetProps } from "./Sheet";
 export { Popover, type PopoverProps } from "./Popover";
+export {
+  SegmentedControl,
+  type SegmentedControlProps,
+  type SegmentedControlOption,
+} from "./SegmentedControl";
