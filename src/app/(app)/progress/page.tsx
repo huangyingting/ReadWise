@@ -1,9 +1,13 @@
 import { TrendingUp, BookOpen, Zap, Star, Brain, BookMarked } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { getLearnerAnalytics } from "@/lib/learner-analytics";
+import { getActivityHeatmap } from "@/lib/activity";
+import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
 import { Card } from "@/components/ui/Card";
 import EmptyState from "@/components/EmptyState";
 import Sparkline from "@/components/Sparkline";
+import ActivityHeatmap from "@/components/ActivityHeatmap";
+import LevelTimeline from "@/components/LevelTimeline";
 
 export const metadata = { title: "My Progress — ReadWise" };
 
@@ -139,7 +143,12 @@ function StatCard({
 // ---------------------------------------------------------------------------
 export default async function ProgressPage() {
   const session = await requireOnboardedSession("/progress");
-  const analytics = await getLearnerAnalytics(session.user.id);
+  const [analytics, heatmapCells, levelHistory, currentLevel] = await Promise.all([
+    getLearnerAnalytics(session.user.id),
+    getActivityHeatmap(session.user.id),
+    getLevelHistory(session.user.id),
+    getCurrentLevel(session.user.id),
+  ]);
 
   const {
     totalCompleted,
@@ -170,7 +179,7 @@ export default async function ProgressPage() {
         My Progress
       </h1>
 
-      {!hasAnyData ? (
+      {!hasAnyData && !currentLevel ? (
         <EmptyState
           icon={TrendingUp}
           title="Nothing to show yet"
@@ -180,6 +189,8 @@ export default async function ProgressPage() {
       ) : (
         <div className="flex flex-col gap-[var(--space-8)]">
 
+          {hasAnyData && (
+            <>
           {/* ── Stat overview ── */}
           <section aria-labelledby="overview-h">
             <h2
@@ -353,6 +364,40 @@ export default async function ProgressPage() {
                     );
                   })}
                 </div>
+              </Card>
+            </section>
+          )}
+
+          </>
+          )}
+
+          {/* ── Activity heatmap (#96) ── */}
+          <section aria-labelledby="heatmap-h">
+            <h2
+              id="heatmap-h"
+              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+            >
+              Reading streak
+              <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
+                last 52 weeks
+              </span>
+            </h2>
+            <Card>
+              <ActivityHeatmap cells={heatmapCells} />
+            </Card>
+          </section>
+
+          {/* ── CEFR level timeline (#97) ── */}
+          {currentLevel && (
+            <section aria-labelledby="timeline-h">
+              <h2
+                id="timeline-h"
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text mb-[var(--space-4)]"
+              >
+                Level progression
+              </h2>
+              <Card>
+                <LevelTimeline history={levelHistory} currentLevel={currentLevel} />
               </Card>
             </section>
           )}
