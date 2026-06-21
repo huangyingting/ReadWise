@@ -49,7 +49,7 @@ export default function OfflineLibraryPage() {
   }
 
   return (
-    <main className="container" style={{ paddingTop: "2rem", paddingBottom: "4rem" }}>
+    <main className="container">
       <div className="offline-library-header">
         <h1 className="offline-library-title">
           <WifiOff size={22} aria-hidden />
