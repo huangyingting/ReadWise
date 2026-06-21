@@ -25,7 +25,7 @@ export const POST = createHandler({ body: bodySchema }, async ({ session, body }
 
   // Validate articleId existence when provided.
   if (body.articleId) {
-    const article = await getViewableArticleById(body.articleId, session.user.role);
+    const article = await getViewableArticleById(body.articleId, session.user.role, session.user.id);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

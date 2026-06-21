@@ -301,7 +301,7 @@ export async function getPersonalizedFeed(
 
   // 2) Fetch all published articles (newest-first; capped for memory safety)
   const allArticles = await prisma.article.findMany({
-    where: { status: "published" },
+    where: { status: "published", ownerId: null },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: MAX_FETCH,
   });

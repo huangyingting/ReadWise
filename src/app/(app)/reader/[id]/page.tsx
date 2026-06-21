@@ -76,7 +76,7 @@ export default async function ReaderPage({
   const { id } = await params;
   const session = await requireSession(`/reader/${id}`);
 
-  const article = await getViewableArticleById(id, session.user.role);
+  const article = await getViewableArticleById(id, session.user.role, session.user.id);
   if (!article) {
     notFound();
   }

@@ -10,7 +10,7 @@ const bodySchema = object({ lang: nonEmptyString(20) });
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    await requireViewable(params.id, session.user.role);
+    await requireViewable(params.id, session.user.role, session.user.id);
     checkRateLimit(session.user.id, "ai");
     if (!isSupportedLanguage(body.lang)) {
       throw new ApiError(400, "Unsupported target language");
@@ -23,7 +23,7 @@ export const POST = createHandler(
   },
 );
 
-async function requireViewable(id: string, role?: string | null): Promise<void> {
-  const article = await getViewableArticleById(id, role);
+async function requireViewable(id: string, role?: string | null, userId?: string | null): Promise<void> {
+  const article = await getViewableArticleById(id, role, userId);
   if (!article) throw new ApiError(404, "Article not found");
 }
