@@ -43,3 +43,8 @@ Final cumulative gate after all six Ralph waves: typecheck 0, lint 0, tests 411/
 ### 2026-06-20 — Build-artifact triage lesson
 
 Before filing build failures as product bugs, verify they are not concurrent-dev-server or dirty `.next` artifacts. In review 2, the flagged build failure was artifact-only and a clean build passed, so the right follow-up was a reliability spike/comment rather than a confirmed product regression.
+
+
+### 2026-06-20 — PR-flow divergence lesson
+
+PR flow for this repo: branch from `origin/main`, squash-merge, then reset local `main` to `origin/main` after each merge to avoid divergence before starting the next branch.

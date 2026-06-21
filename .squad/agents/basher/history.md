@@ -1,51 +1,41 @@
 # Project Context
 
 - **Owner:** Yingting Huang
-- **Project:** ReadWise — AI-assisted English learning reader. Articles are scraped from the internet; goal is a redesign into a modern, attractive, feature-rich website.
-- **Stack:** Next.js 15 (App Router, TypeScript), React 19, Prisma + SQLite, NextAuth v4 (database sessions), Azure OpenAI / Azure Speech, Playwright.
+- **Project:** ReadWise — AI-assisted English learning reader with Studio redesign and rich reader features.
+- **Stack:** Next.js 15 App Router, React 19, Prisma/SQLite, NextAuth database sessions, Azure OpenAI/Speech, Playwright.
 - **Created:** 2026-06-19
 
 ## Learnings
 
-<!-- Append new learnings below. Each entry is something lasting about the project. -->
+<!-- Condensed by Scribe on 2026-06-20 after the history-size gate. Full QA detail remains in session/orchestration logs and issue/PR records. -->
 
-### Redesign roadmap M2–M9 COMPLETE ✅ (summarized)
-_All milestones shipped 2026-06-19. Playwright + Chromium 1228 (`~/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome`); all static gates typecheck 0/lint 0/build green across every milestone._
-- **M2** (385de06) — CONDITIONAL PASS → PASS after D1 (inactive nav links; fix: `@layer base` wrapper). N3 (UserMenu aria-label) → M8.
-- **M3** — PASS (30 checks; D3 CTA-band dark-on-gradient flagged/accepted; not committed at verify time).
-- **M4** (7e554c9) — PASS (121 checks). ArticleCardView hooks, ListingProgressSync, category tab indigo not teal, continue-reading rail, mobile/dark all verified.
-- **M5** (f199596) — PASS (77 checks; AI-configured). Fixed D5 (no-flash script position). TTS, word-highlight, reading-mode, mini-player, WordLookup all verified.
-- **M6** (1beea38) — PASS (87 checks). StreakWidget, DailyGoal ring, FlashcardReview state machine (3D flip, keyboard 1–4, aria-live), SRS grade API all verified.
-- **M7** (cb204c5) — PASS (73 checks). 4-step wizard gate, aria-live/aria-current, daily-goal stepper range/clamp, role="status" save confirmation, reduced-motion, 153 tests.
-- **M8** (a631aa9) — PASS. AdminNav indigo pill, ConfirmAction alertdialog (focus→Cancel, Escape, aria-expanded), dark-mode token audit, CardTitle levels verified.
-- **M9** (dff6c1f) — PASS. Palette (⌘K/combobox/listbox/Tab-trap/mobile sheet), 15-nit sweep, 10 reduced-motion elements, full M4–M9 regression. **Redesign complete.**
+### 2026-06-19 — Redesign roadmap M2–M9 QA
 
-### M10 — Bookmarks & Reading Lists (2026-06-19) ✅ PASS — committed c676921
-Basher verified M10: PASS — 57/57 browser checks, 0 failures, 0 warnings. Method: Playwright + Chromium 1228, User A + User B seeded (`basher-m10-session-*` tokens); cleaned up post-test. Static gates: typecheck 0 · lint 0 · build green · npm test 191/191. Key checks: middleware gating (unauthenticated `/lists` → `/signin?callbackUrl=/lists`); reader Segment A toggle (`aria-pressed`, indigo fill, page reload persistence); reader Segment B popover (`role="dialog"`, checkboxes, Escape close); card `.js-bookmark` sibling pattern (never inside `<a>`); `[data-card-wrapper][data-article-id]` + `.js-progress-bar` hooks both present; `/lists` page (h1 "Saved", default list tag, create/rename/delete via ConfirmAction, `?list=<id>` navigation); **IDOR full verification**: all User A vs User B cross-user operations return 404 (not 200/403) — GET, PATCH, DELETE list, DELETE item all confirmed; `GET /api/lists` returns only own lists; `ListingBookmarkSync` sessionStorage key `readwise:bookmark-changes` + `data-saved` DOM update. Mobile 375px (`.lists-mobile-bar` shown, `.lists-sidebar` hidden, no overflow); dark theme (both `/lists` and reader render correctly); regressions M4/M5/M6/M9 all clear. 4 non-blocking observations noted (ListSwitcher dual-render, refresh latency, no `ListingBookmarkSync` on /tags, Load-more `saved=false`).
+Basher verified the Studio redesign milestones with Playwright/Chromium 1228 and static gates. The cumulative redesign passed typecheck, lint, and production build across the milestone sequence.
 
-### M11 — Highlights & Notes (2026-06-19) ✅ PASS — committed 1e69c01
-Verified M11: PASS — all browser checks, 0 blocking bugs, IDOR clean, XSS clean. Static gates: typecheck 0 · lint 0 · build green · npm test 219/219. Playwright (Chromium, --no-sandbox, User A + User B): T01 page load + 5th Notes tab + Provider eager-fetch; T02 selection coexistence CRITICAL — dictionary and toolbar never co-exist, Ctrl+E summon, `selectionchange` clears toolbar; T03 all 4 colors (yellow/green/blue/pink) → 201 + `mark.rw-hl[data-hl-color]` + `--hl-*` tokens; T04 toolbar drag 1 infra-artifact fail (double-nav race in test harness, not product bug — T02 confirms); T05 persistence + re-anchor (offset-first, prefix/suffix fallback confirmed via source); T06 edit popover (color, note, char counter at cap, delete via ConfirmAction + Cancel); T07 Notes panel (.rw-note-row rows, badge, quote+swatch, inline edit, orphaned indicator, EmptyState); T08 IDOR CRITICAL — cross-user PATCH/DELETE → 404, GET returns only own highlights; T09 AA color table all 12 values match spec; T10 reader integrity (WordLookup/progress/modes/fonts/audio/word-sync all unaffected); T11 a11y (mark, toolbar, radiogroup, dialog, aria-live, sr-only, reduced-motion); T12 mobile 375px (no overflow, toolbar clamps, popovers don't overflow); T13 XSS (script/img payloads escaped as React text, no __xss_pwned).
+- **M2 App Shell:** conditional pass became pass after inactive nav link CSS fix; remaining user-menu aria-label deferred to M8.
+- **M3 Landing:** marketing page checks passed; one accepted CTA-band dark-gradient observation.
+- **M4 Listings:** 121 checks passed; preserved `ArticleCardView`, `ListingProgressSync`, `data-article-id`, and progress DOM hooks.
+- **M5 Reader:** 77 checks passed with AI configured; no-flash script placement fixed; TTS, word highlight, reading modes, mini player, and lookup verified.
+- **M6 Gamification:** 87 checks passed; streak, daily goal, flashcard review, keyboard grading, aria-live, and SRS API verified.
+- **M7 Onboarding/Goal:** 73 checks passed; wizard gate, aria-current/live, goal clamping, reduced motion, and save confirmation verified.
+- **M8 Admin/UI:** admin nav, `ConfirmAction`, dark-token audit, and heading levels verified.
+- **M9 Command palette/final sweep:** palette semantics, mobile sheet, reduced-motion elements, and M4–M9 regression passed.
 
-### M12 — AI Tutor (2026-06-19) ✅ PASS — committed 96ab8d0
-Verified M12: CONDITIONAL PASS → PASS after fixing 2 defects in-place. Found and fixed **D1** (composer textarea not autofocused on "Ask" tab activation) and **D2** (Clear button collapsing — min-width fix applied). Static gates: typecheck 0 · lint 0 · build green · npm test 267/267 (48 new: 25 tutor-markdown unit + 23 route/lib). Migration `20260620013343_m12_tutor` applied + TutorMessage table confirmed. AI path: exercised real Azure OpenAI `gpt-5-mini` — received grounded, CEFR-level-tailored responses; one call returned `fallback:true` (rate-limit), confirming graceful-unavailable path renders correctly in-browser. IDOR: `DELETE /api/reader/[id]/tutor` confirmed clears only session user's messages (cross-user attempt → 404). XSS: `<script>alert(1)</script>` and `<img onerror=...>` in question input rendered as escaped text nodes (tokenizer plain-token path confirmed). Starter chips, timestamps, clear button, graceful-unavailable state all verified.
+### 2026-06-19 — Rich feature QA M10–M16
 
-### M13 — Sentence-level Translation (2026-06-19) ✅ PASS — committed 47f7aa6
-Verified M13: CONDITIONAL PASS → PASS (condition: D1 M11 mark-wipe fix applied pre-land). 28/28 browser tests, 0 fail. All API contracts (200/400/401/404). Core translate flow (toolbar→popover, shimmer then result); language switch + localStorage sharing with M5 Translate tab; RTL `dir="auto"` (`ar`); fallback + network error states; coexistence with dictionary/highlights (no double-popover; Translate never creates a highlight); reader regressions clean after M11 mark-persistence fix; themes (light/sepia/dark); mobile 375px; a11y (focus→close, Escape, `role="dialog"`, `aria-live`); reduced-motion shimmer = static block. **D1 (pre-existing M11 bug, found here):** `dangerouslySetInnerHTML={{ __html: html }}` inline object → React 19 reference-equality → `innerHTML` reset on every re-render → `<mark>` nodes wiped. Fix: `useMemo(() => ({ __html: html }), [html])`. MutationObserver confirmed: `childList added=9 removed=9` pre-fix → none post-fix. npm test 281/281 after fix. Cleanup: test rows deleted, temp spec/playwright files removed.
+Basher verified all rich reader features with browser, static, security, and regression checks:
 
-### M14 — Quiz Mastery & History QA (2026-06-19) ✅ PASS — committed 01380fc
-Static: typecheck 0 · lint 0 · build green · npm test 300/300 (19 new M14 backend tests + 281 baseline). Code review: record-once ref synchronous before fetch; Strict Mode double-invoke blocked; retry resets ref; IDOR clean (`where:{userId}`); dashboard band layout `grid-cols-1 md:grid-cols-2 lg:grid-cols-3` + `MasteryWidget md:col-span-2 lg:col-span-1` verified; Sparkline `aria-hidden`+`sr-only` label; MasteryWidget ring `role="img" aria-label`. Browser (38 checks, Chromium --no-sandbox, seeded User A/B + QuizAttempt rows): attempt recording fire-and-forget, enriched result block, isNewBest flag, history list, MasteryWidget SSR ring, IDOR cross-user all 404, fallback states. PASS — no pre-land fixes required.
+- **M10 Bookmarks/Lists:** PASS, 57/57 checks. Confirmed auth gating, reader/card bookmark behavior, `/lists`, mobile/dark states, listing progress hooks, and cross-user IDOR responses returning 404.
+- **M11 Highlights/Notes:** PASS. Confirmed selection coexistence, four highlight colors, persistence/reanchor, edit/delete panel, notes panel, XSS-safe React text, IDOR isolation, mobile/a11y, and reader regression safety.
+- **M12 AI Tutor:** conditional pass to pass after autofocus and clear-button width fixes. Verified real Azure response/fallback, grounded chat UI, clear history, XSS-safe token rendering, and user-scoped clearing.
+- **M13 Sentence Translation:** conditional pass to pass after the React 19 mark-wipe fix (`useMemo` for `dangerouslySetInnerHTML` object). Verified toolbar/popover, language sharing, RTL, fallback/network states, no highlight side effects, a11y, mobile, and reduced motion.
+- **M14 Quiz Mastery:** PASS. Verified record-once attempt behavior, best/history/mastery UI, IDOR clean routes, Sparkline accessibility, and dashboard layout.
+- **M15 Personalized Feed:** PASS. Verified scoring constants, completed-article exclusion, diversity, uncached API, card DOM contracts, why chips, load more, cold-start/end states, and 401 auth behavior.
+- **M16 Pronunciation:** conditional pass to pass after legend swatch CSS fix. Verified score/sub-bars, per-word non-color cues, Azure token response excluding the raw key, cross-user 404, unavailable/mic-denied/transient retry states.
 
-### M15 — Personalized home feed QA (2026-06-19) ✅ PASS — committed e504ef0
-Static: typecheck 0 · lint 0 · build green (`/api/feed` in route table) · npm test 323/323 (300 baseline + 23 new M15 tests). No migration. Code review: scoring constants match spec (CATEGORY_MATCH=40, TAG_MAX=20, LEVEL_PERFECT=30, FRESHNESS_RECENT=10, IN_PROGRESS_PENALTY=15); hard-exclusion of completed; soft −15 in-progress; no-profile fallback; diversity pass; `createHandler` 401; NOT cached; response shape `{articles,progress,hasMore,offset,reasons}`. `ForYouFeed`: CategoryBrowser pattern; card DOM contract verbatim; `ListingProgressSync`/`ListingBookmarkSync`; cold-start `EmptyState`; end-of-feed `role="status"`; `aria-live="polite"`. `ArticleCardView`: optional `reason` prop; `.rw-why-chip`; all other callers unaffected. Browser (47 checks, Chromium --no-sandbox): For You feed renders; load-more no duplicates; end-of-feed cap; "why" chips present; cold-start fallback; no-profile newest-first; IDOR → 401; chip NOT teal/indigo; level filter absent; Browse-by-topic band present. PASS — no pre-land fixes required.
+### 2026-06-20 — Review and QA lessons
 
-### M16 — Pronunciation Practice (2026-06-19) ✅ PASS — committed e895e72
-Verified M16: CONDITIONAL PASS→PASS. Static: typecheck 0 · lint 0 · build green. Playwright (Chromium --no-sandbox, fake-mic): score ring renders with teal fill; sub-bars populate; per-word underline cue shown (not color-only); `sr-only` severity text confirmed via accessibility tree; legend present; "words to work on" list populated. Credential security: `GET /api/speech/token` response verified — `{token, region}` only, raw `AZURE_SPEECH_KEY` absent from all network traffic. IDOR: cross-user `/api/reader/[id]/pronunciation/history` → 404. Graceful states: unavailable, mic-denied, transient-error (retryable after FIX-1) all render correctly. **Fixed:** legend swatch CSS (spacing, visual only). **Post-redesign rich features M10–M16 all complete.**
-
-
-### 2026-06-20 — System review lesson: verify DOM findings under #48
-When #48 double-render is present, automated DOM/browser-inspection findings can be artifacts rather than product regressions. Cross-check high-severity reader findings against source and manual root-cause behavior before escalating: #54 was a #48 duplicate, #55/#56 were lowered, and #57 moved to needs-research.
-
-
-### 2026-06-20 — Dev-browser headless QA lesson
-
-The dev-browser CLI works well headless for DOM inspection during broad QA walkthroughs. Screenshot capture can stall while fonts load; wrap screenshot calls in try/catch and keep nonessential screenshots from blocking DOM-based verification.
+- When #48 double-render is present, automated DOM/browser findings can be artifacts. Cross-check high-severity reader issues against source and manual root-cause behavior before escalating.
+- The dev-browser CLI is effective headless for broad DOM QA. Screenshot capture can stall while fonts load; wrap screenshots in try/catch and avoid blocking DOM-based verification on nonessential screenshots.
+- Preserve established browser contracts during redesign and feature QA: listing progress hooks, card wrapper/article IDs, bookmark hooks, reader surface state machine, auth gates, and IDOR behavior.
