@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 let aiConfigured = false;
 let aiReply: string | null = null;
 let lastChatMessages: Array<{ role: string; content: string }> = [];
+let lastChatOptions: { maxOutputTokens?: number; feature?: string } = {};
 
 type Article = { title: string; content: string } | null;
 let mockArticle: Article = null;
@@ -29,8 +30,12 @@ before(() => {
     namedExports: {
       isAiConfigured: () => aiConfigured,
       aiModelName: () => (aiConfigured ? "gpt-test" : null),
-      chatComplete: async (msgs: Array<{ role: string; content: string }>) => {
+      chatComplete: async (
+        msgs: Array<{ role: string; content: string }>,
+        opts: { maxOutputTokens?: number; feature?: string } = {},
+      ) => {
         lastChatMessages = msgs;
+        lastChatOptions = opts;
         return aiReply;
       },
     },
@@ -100,6 +105,7 @@ beforeEach(() => {
   aiConfigured = false;
   aiReply = null;
   lastChatMessages = [];
+  lastChatOptions = {};
   mockArticle = { title: "Test Article", content: "<p>This is the article body.</p>" };
   messageRows = [];
   createCalls = [];
@@ -225,4 +231,25 @@ test("clearTutor deletes all messages for the user+article", async () => {
   await clearTutor("user-1", "article-1");
   assert.equal(deleteManyCount, 1);
   assert.equal(messageRows.length, 0);
+});
+
+// ---- askTutor — token budget (#105) ------------------------------------
+
+test("askTutor uses a token budget of at least 1500 (fixes gpt-5-mini reasoning budget)", async () => {
+  aiConfigured = true;
+  aiReply = "Answer about the article.";
+  const { askTutor } = await import("@/lib/tutor");
+  await askTutor("user-1", "article-1", "What is this about?");
+  assert.ok(
+    (lastChatOptions.maxOutputTokens ?? 0) >= 1500,
+    `maxOutputTokens should be >= 1500 to avoid exhausting reasoning budget, got ${lastChatOptions.maxOutputTokens}`,
+  );
+});
+
+test("askTutor passes feature='tutor' to chatComplete for diagnostic logging", async () => {
+  aiConfigured = true;
+  aiReply = "Some answer.";
+  const { askTutor } = await import("@/lib/tutor");
+  await askTutor("user-1", "article-1", "Hello?");
+  assert.equal(lastChatOptions.feature, "tutor");
 });
