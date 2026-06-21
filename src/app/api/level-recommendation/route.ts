@@ -48,7 +48,7 @@ export const GET = createHandler({}, async ({ session }) => {
       where: {
         userId,
         article: {
-          status: "published",
+          status: "published", ownerId: null,
           difficulty: {
             in: ENGLISH_LEVELS.slice(currentRank) as string[],
           },
@@ -65,14 +65,14 @@ export const GET = createHandler({}, async ({ session }) => {
         userId,
         completed: true,
         article: {
-          status: "published",
+          status: "published", ownerId: null,
           difficulty: currentLevel,
         },
       },
     }),
 
     prisma.article.count({
-      where: { status: "published", difficulty: currentLevel },
+      where: { status: "published", difficulty: currentLevel, ownerId: null },
     }),
   ]);
 

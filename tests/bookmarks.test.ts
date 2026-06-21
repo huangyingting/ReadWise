@@ -76,6 +76,7 @@ before(() => {
         },
         article: {
           findUnique: async () => stubArticle,
+          findFirst: async () => stubArticle,
         },
       },
     },

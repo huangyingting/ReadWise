@@ -9,7 +9,7 @@ const questionBody = object({ question: string({ min: 1, max: MAX_QUESTION_LENGT
 
 /** GET /api/reader/[id]/tutor — returns the user's conversation for this article. */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await getViewableArticleById(params.id, session.user.role);
+  const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
   if (!article) {
     throw new ApiError(404, "Article not found");
   }
@@ -26,7 +26,7 @@ export const GET = createHandler({ params: idParams }, async ({ params, session 
 export const POST = createHandler(
   { params: idParams, body: questionBody },
   async ({ params, body, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role);
+    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
     if (!article) throw new ApiError(404, "Article not found");
     checkRateLimit(session.user.id, "ai");
     const result = await askTutor(session.user.id, params.id, body.question);
@@ -39,7 +39,7 @@ export const POST = createHandler(
 
 /** DELETE /api/reader/[id]/tutor — clears the user's conversation for this article. */
 export const DELETE = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await getViewableArticleById(params.id, session.user.role);
+  const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
   if (!article) {
     throw new ApiError(404, "Article not found");
   }

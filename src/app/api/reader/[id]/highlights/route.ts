@@ -30,7 +30,7 @@ const createBody = object({
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role);
+    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }
@@ -42,7 +42,7 @@ export const GET = createHandler(
 export const POST = createHandler(
   { params: idParams, body: createBody },
   async ({ params, body, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role);
+    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

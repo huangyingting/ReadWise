@@ -53,6 +53,7 @@ before(() => {
       prisma: {
         article: {
           findUnique: async () => (articleExists ? { id: "a1" } : null),
+          findFirst: async () => (articleExists ? { id: "a1" } : null),
         },
         quizAttempt: {
           create: async (args: {

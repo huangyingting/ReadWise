@@ -6,7 +6,7 @@ import { getViewableArticleById } from "@/lib/articles";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 export const POST = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await getViewableArticleById(params.id, session.user.role);
+  const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
   if (!article) throw new ApiError(404, "Article not found");
   checkRateLimit(session.user.id, "ai");
   const result = await getOrCreateArticleQuiz(params.id);

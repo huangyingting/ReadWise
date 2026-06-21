@@ -19,17 +19,31 @@ export function getArticleById(id: string): Promise<Article | null> {
 /**
  * Returns the article if the requester is allowed to view it:
  *   - Admins may view any article (including drafts).
- *   - All other users may only view published articles.
+ *   - Owners may view their own personal articles (ownerId === userId).
+ *   - All other users may only view published public articles (ownerId IS NULL).
  * Returns null when the article does not exist or is not viewable.
  */
 export function getViewableArticleById(
   id: string,
   role?: string | null,
+  userId?: string | null,
 ): Promise<Article | null> {
   if (role === "Admin") {
     return prisma.article.findUnique({ where: { id } });
   }
-  return prisma.article.findUnique({ where: { id, status: "published" } });
+  if (userId) {
+    // Allow the article if it's public+published OR owned by this user.
+    return prisma.article.findFirst({
+      where: {
+        id,
+        OR: [
+          { status: "published", ownerId: null },
+          { ownerId: userId },
+        ],
+      },
+    });
+  }
+  return prisma.article.findUnique({ where: { id, status: "published", ownerId: null } });
 }
 
 export function listPublishedArticles(limit = 12): Promise<Article[]> {
@@ -38,7 +52,7 @@ export function listPublishedArticles(limit = 12): Promise<Article[]> {
 
 function listPublishedArticlesUncached(limit = 12): Promise<Article[]> {
   return prisma.article.findMany({
-    where: { status: "published" },
+    where: { status: "published", ownerId: null },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
@@ -168,7 +182,7 @@ async function listCategoryPageImpl(
   if (maxLevel != null) {
     // In-memory level filtering — must load all candidates first.
     const all = await prisma.article.findMany({
-      where: { status: "published", ...(category ? { category } : {}) },
+      where: { status: "published", ownerId: null, ...(category ? { category } : {}) },
       orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
       take: MAX_CATEGORY_FETCH,
     });
@@ -181,7 +195,7 @@ async function listCategoryPageImpl(
   }
   // DB-level pagination when no level filter is active.
   const rows = await prisma.article.findMany({
-    where: { status: "published", ...(category ? { category } : {}) },
+    where: { status: "published", ownerId: null, ...(category ? { category } : {}) },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
@@ -254,7 +268,7 @@ async function listPicksPageImpl(
   limit: number,
 ): Promise<ArticlePage> {
   const all = await prisma.article.findMany({
-    where: { status: "published" },
+    where: { status: "published", ownerId: null },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: MAX_PICKS_FETCH,
   });
@@ -360,6 +374,7 @@ export async function searchPublishedArticles(
         JOIN "Article" a ON a.rowid = article_fts.rowid
         WHERE article_fts MATCH ${ftsQuery}
           AND a.status = 'published'
+          AND a."ownerId" IS NULL
         ORDER BY rank ASC, a."publishedAt" DESC
         LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
       `;
@@ -381,7 +396,7 @@ export async function searchPublishedArticles(
       // Fetch full Article rows for the page, preserving ranked order.
       const byId = new Map<string, Article>();
       const rows = await prisma.article.findMany({
-        where: { id: { in: pageIds }, status: "published" },
+        where: { id: { in: pageIds }, status: "published", ownerId: null },
       });
       for (const r of rows) byId.set(r.id, r);
       const articles = pageIds.flatMap((id) => {
@@ -405,11 +420,26 @@ export async function searchPublishedArticles(
     orClauses.push({ id: { in: userArticleIds } });
   }
   const rows = await prisma.article.findMany({
-    where: { status: "published", OR: orClauses },
+    where: { status: "published", ownerId: null, OR: orClauses },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
   });
   const hasMore = rows.length > limit;
   return { articles: rows.slice(0, limit), hasMore };
+}
+
+/**
+ * Returns personal (user-imported) articles for the given user, newest first.
+ * Personal articles have `ownerId === userId` and are never shown to others.
+ */
+export function listPersonalArticles(
+  userId: string,
+  limit = 20,
+): Promise<Article[]> {
+  return prisma.article.findMany({
+    where: { ownerId: userId },
+    orderBy: [{ createdAt: "desc" }],
+    take: limit,
+  });
 }

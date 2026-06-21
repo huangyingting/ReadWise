@@ -104,12 +104,18 @@ before(() => {
           },
           findMany: async () => findManyRows,
         },
-        // article.findUnique is used by getViewableArticleById in the attempt route.
+        // article.findUnique/findFirst is used by getViewableArticleById in the attempt route.
         // Return a stub published article for any id to satisfy the existence check.
         article: {
           findUnique: async (args: { where: { id: string; status?: string } }) => {
             if (args.where.id) {
-              return { id: args.where.id, status: "published" };
+              return { id: args.where.id, status: "published", ownerId: null };
+            }
+            return null;
+          },
+          findFirst: async (args: { where: { id: string } }) => {
+            if (args.where.id) {
+              return { id: args.where.id, status: "published", ownerId: null };
             }
             return null;
           },

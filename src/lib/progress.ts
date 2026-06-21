@@ -84,7 +84,7 @@ export async function listInProgressArticles(
   limit = 10,
 ): Promise<InProgressEntry[]> {
   const rows = await prisma.readingProgress.findMany({
-    where: { userId, percent: { gt: 0 }, completed: false, article: { status: "published" } },
+    where: { userId, percent: { gt: 0 }, completed: false, article: { status: "published", ownerId: null } },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: { article: true },

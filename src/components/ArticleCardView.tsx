@@ -83,6 +83,16 @@ export default function ArticleCardView({
 
   const relativeDate = formatRelativeDate(article.publishedAt);
 
+  /** True when the article was published within the last 24 hours. */
+  const isNew = (() => {
+    if (!article.publishedAt) return false;
+    const published =
+      typeof article.publishedAt === "string"
+        ? new Date(article.publishedAt)
+        : article.publishedAt;
+    return Date.now() - published.getTime() < 24 * 60 * 60 * 1000;
+  })();
+
   const metaParts = [
     categoryLabel,
     article.readingMinutes != null
@@ -137,6 +147,20 @@ export default function ArticleCardView({
               </span>
             </Tooltip>
           ) : null}
+          {isNew && (
+            <span
+              aria-label="New"
+              className={cn(
+                "inline-flex items-center rounded-[var(--radius-full)]",
+                "px-[var(--space-2)] py-px",
+                "text-[length:var(--text-xs)] font-semibold",
+                "bg-green-100 text-green-700 border border-green-200",
+                "dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
+              )}
+            >
+              New
+            </span>
+          )}
           {metaParts ? (
             <span className="text-text-subtle text-[length:var(--text-xs)] truncate">
               {metaParts}

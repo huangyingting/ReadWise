@@ -39,6 +39,7 @@ before(() => {
       prisma: {
         article: {
           findUnique: async () => stubArticle,
+          findFirst: async () => stubArticle,
         },
         highlight: {
           findMany: async () => stubHighlights,

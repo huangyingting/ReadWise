@@ -21,7 +21,7 @@ const bodySchema = object({ vote: oneOf(VOTE_VALUES) });
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role);
+    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
     if (!article) throw new ApiError(404, "Article not found");
 
     const vote = body.vote as VoteValue;

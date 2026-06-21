@@ -196,7 +196,7 @@ export function listArticlesByTag(slug: string, limit = 24): Promise<Article[]> 
 
 function listArticlesByTagUncached(slug: string, limit = 24): Promise<Article[]> {
   return prisma.article.findMany({
-    where: { status: "published", tags: { some: { tag: { slug } } } },
+    where: { status: "published", ownerId: null, tags: { some: { tag: { slug } } } },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
@@ -238,7 +238,7 @@ async function listRelatedArticlesUncached(
     where: {
       tagId: { in: tagIds },
       articleId: { not: articleId },
-      article: { status: "published" },
+      article: { status: "published", ownerId: null },
     },
     select: { articleId: true },
   });
@@ -253,7 +253,7 @@ async function listRelatedArticlesUncached(
 
   const candidateIds = [...overlap.keys()];
   const articles = await prisma.article.findMany({
-    where: { id: { in: candidateIds }, status: "published" },
+    where: { id: { in: candidateIds }, status: "published", ownerId: null },
   });
 
   return articles
@@ -288,7 +288,7 @@ async function listTagsWithCountsUncached(): Promise<TagWithCount[]> {
       name: true,
       slug: true,
       _count: {
-        select: { articles: { where: { article: { status: "published" } } } },
+        select: { articles: { where: { article: { status: "published", ownerId: null } } } },
       },
     },
   });
