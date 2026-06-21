@@ -142,14 +142,23 @@ export async function chatCompleteWithMeta(
       }
 
       const data = (await res.json()) as {
-        choices?: { message?: { content?: string } }[];
+        choices?: { message?: { content?: string }; finish_reason?: string }[];
         usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
         model?: string;
       };
 
-      const content = data.choices?.[0]?.message?.content;
+      const choice = data.choices?.[0];
+      const content = choice?.message?.content;
+      const finishReason = choice?.finish_reason ?? "unknown";
       if (typeof content !== "string" || !content.trim()) {
-        log.warn("ai.empty", { feature, model: config.deployment, durationMs });
+        log.warn("ai.empty", {
+          feature,
+          model: config.deployment,
+          durationMs,
+          finishReason,
+          contentType: typeof content,
+          contentLength: typeof content === "string" ? content.length : null,
+        });
         return null;
       }
 
@@ -165,6 +174,7 @@ export async function chatCompleteWithMeta(
         feature,
         model: data.model ?? config.deployment,
         durationMs,
+        finishReason,
         promptTokens: usage?.promptTokens,
         completionTokens: usage?.completionTokens,
         totalTokens: usage?.totalTokens,

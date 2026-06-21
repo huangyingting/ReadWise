@@ -121,6 +121,18 @@ export default function StreakWidget({
         Longest: {longestStreak}{" "}
         {longestStreak === 1 ? "day" : "days"}
       </p>
+
+      {/* Streak shield indicator */}
+      {streak.streakShields > 0 && (
+        <p
+          className="flex items-center gap-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted m-0"
+          style={{ marginTop: "var(--space-2)" }}
+          title="Your streak is protected once if you miss a day."
+          aria-label={`${streak.streakShields} streak shield available — your streak is protected if you miss one day`}
+        >
+          🛡 {streak.streakShields} shield
+        </p>
+      )}
     </Card>
   );
 }
