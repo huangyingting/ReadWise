@@ -30,7 +30,7 @@ export default function EmptyState({
         "col-span-full",
         "flex flex-col items-center text-center",
         "gap-[var(--space-3)]",
-        "py-[var(--space-10)] px-[var(--space-6)]",
+        "py-[var(--space-7)] px-[var(--space-6)]",
         "rounded-[var(--radius-lg)]",
         "border border-dashed border-border",
         "bg-bg-subtle",
@@ -39,10 +39,10 @@ export default function EmptyState({
     >
       {/* Icon chip */}
       <div
-        className="inline-flex items-center justify-center h-12 w-12 rounded-[var(--radius-full)] bg-surface border border-border text-text-subtle"
+        className="inline-flex items-center justify-center h-10 w-10 rounded-[var(--radius-full)] bg-surface border border-border text-text-subtle"
         aria-hidden
       >
-        <Icon size={24} />
+        <Icon size={20} />
       </div>
 
       <p className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-lg)] text-text m-0">
