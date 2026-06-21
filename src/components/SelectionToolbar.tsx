@@ -15,7 +15,7 @@
  */
 
 import { useRef, useEffect, useCallback } from "react";
-import { Highlighter, StickyNote, BookText, Check, Languages } from "lucide-react";
+import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import type { HighlightColor } from "./ReaderHighlightsProvider";
 
@@ -36,12 +36,15 @@ interface SelectionToolbarProps {
   color: HighlightColor;
   /** Whether "Define" should be shown (only when exactly one word selected). */
   showDefine: boolean;
+  /** Whether "Grammar" should be shown (2–5 words selected). */
+  showGrammar: boolean;
   onColorChange: (c: HighlightColor) => void;
   onHighlight: () => void;
   onAddNote: () => void;
   /** Opens the sentence translation popover for the current selection. */
   onTranslate: () => void;
   onDefine: () => void;
+  onGrammar: () => void;
   onClose: () => void;
   /** Ref guard: outside-click should ignore this element (the toolbar itself). */
   toolbarRef: React.RefObject<HTMLDivElement | null>;
@@ -51,11 +54,13 @@ export default function SelectionToolbar({
   selectionRect,
   color,
   showDefine,
+  showGrammar,
   onColorChange,
   onHighlight,
   onAddNote,
   onTranslate,
   onDefine,
+  onGrammar,
   onClose,
   toolbarRef,
 }: SelectionToolbarProps) {
@@ -208,6 +213,19 @@ export default function SelectionToolbar({
         >
           <BookText size={14} aria-hidden="true" />
           Define
+        </button>
+      ) : null}
+
+      {/* Grammar — 2–5 word phrases */}
+      {showGrammar ? (
+        <button
+          type="button"
+          className={cn("rw-sel-toolbar-btn", focusRing)}
+          onClick={onGrammar}
+          onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
+        >
+          <BookMarked size={14} aria-hidden="true" />
+          Grammar
         </button>
       ) : null}
     </div>

@@ -89,6 +89,7 @@ model Article {
   tutorMessages        TutorMessage[]
   pronunciationAttempts     PronunciationAttempt[]
   difficultyFeedback        ArticleDifficultyFeedback[]
+  grammarExplanations       GrammarExplanation[]
 
   @@index([category])
   @@index([sourceUrl])
@@ -419,6 +420,23 @@ model PushSubscription {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// #114 — Per-article AI grammar explanation cache.
+// Keyed by (articleId, normalized phrase) so the same phrase in the same
+// article reuses the cached explanation instead of calling the AI again.
+model GrammarExplanation {
+  id          String   @id @default(cuid())
+  articleId   String
+  phrase      String
+  explanation String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, phrase])
+  @@index([articleId])
 }
 
 // #124 — Per-user difficulty feedback for articles.

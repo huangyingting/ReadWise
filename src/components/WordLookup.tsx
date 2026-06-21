@@ -32,6 +32,7 @@ import HighlightEditPopover from "./HighlightEditPopover";
 import SentenceTranslatePopover, {
   type TranslateSentenceResult,
 } from "./SentenceTranslatePopover";
+import GrammarPopover, { type GrammarResult } from "./GrammarPopover";
 import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
 import { Badge } from "@/components/ui/Badge";
 
@@ -286,7 +287,7 @@ function overlapsAny(start: number, end: number, highlights: RwHighlight[]): RwH
 // Component
 // ---------------------------------------------------------------------------
 
-type OpenSurface = "dictionary" | "toolbar" | "popover" | "translate" | null;
+type OpenSurface = "dictionary" | "toolbar" | "popover" | "translate" | "grammar" | null;
 
 interface SavedAnchor {
   quote: string;
@@ -311,6 +312,7 @@ export default function WordLookup({
   const toolbarRef = useRef<HTMLDivElement>(null);
   const editPopoverRef = useRef<HTMLDivElement>(null);
   const translatePopoverRef = useRef<HTMLDivElement>(null);
+  const grammarPopoverRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   // Guards stale in-flight translate requests (increment on each new request)
   const translateReqRef = useRef(0);
@@ -335,6 +337,7 @@ export default function WordLookup({
   const [toolbarRect, setToolbarRect] = useState<DOMRect | null>(null);
   const [toolbarColor, setToolbarColor] = useState<HighlightColor>("yellow");
   const [toolbarShowDefine, setToolbarShowDefine] = useState(false);
+  const [toolbarShowGrammar, setToolbarShowGrammar] = useState(false);
   const savedAnchorRef = useRef<SavedAnchor | null>(null);
 
   // Edit popover
@@ -348,6 +351,13 @@ export default function WordLookup({
   const [translateError, setTranslateError] = useState<string | null>(null);
   const [translateText, setTranslateText] = useState<string>("");
   const [translateSelectionRect, setTranslateSelectionRect] = useState<DOMRect | null>(null);
+
+  // Grammar explanation (#114)
+  const [grammarLoading, setGrammarLoading] = useState(false);
+  const [grammarResult, setGrammarResult] = useState<GrammarResult | null>(null);
+  const [grammarError, setGrammarError] = useState<string | null>(null);
+  const [grammarPhrase, setGrammarPhrase] = useState<string>("");
+  const [grammarSelectionRect, setGrammarSelectionRect] = useState<DOMRect | null>(null);
 
   const { highlights, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
   const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
@@ -374,6 +384,12 @@ export default function WordLookup({
     setTranslateError(null);
     setTranslateSelectionRect(null);
     setTranslateText("");
+    // #114: reset grammar state
+    setGrammarLoading(false);
+    setGrammarResult(null);
+    setGrammarError(null);
+    setGrammarSelectionRect(null);
+    setGrammarPhrase("");
   }, []);
 
   // Mark rendering
@@ -549,12 +565,15 @@ export default function WordLookup({
         if (!anchor) return;
         const rect = sel.getRangeAt(0).getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) return;
+        const wordCount = anchor.quote.trim().split(/\s+/).length;
         const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
+        const isShortPhrase = wordCount >= 2 && wordCount <= 5;
         savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
         const stored = typeof window !== "undefined" ? localStorage.getItem("readwise:last-hl-color") : null;
         if (stored && ["yellow", "green", "blue", "pink"].includes(stored)) setToolbarColor(stored as HighlightColor);
         setToolbarRect(rect);
         setToolbarShowDefine(isSingleWord);
+        setToolbarShowGrammar(isShortPhrase);
         setOpenSurface("toolbar");
         return;
       }
@@ -590,10 +609,13 @@ export default function WordLookup({
       const anchor = computeAnchor(prose, sel);
       if (!anchor) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
+      const wordCount = anchor.quote.trim().split(/\s+/).length;
       const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
+      const isShortPhrase = wordCount >= 2 && wordCount <= 5;
       savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
       setToolbarRect(rect);
       setToolbarShowDefine(isSingleWord);
+      setToolbarShowGrammar(isShortPhrase);
       setOpenSurface("toolbar");
     };
     document.addEventListener("keydown", onKey);
@@ -625,6 +647,7 @@ export default function WordLookup({
         toolbarRef.current?.contains(t) ||
         editPopoverRef.current?.contains(t) ||
         translatePopoverRef.current?.contains(t) ||
+        grammarPopoverRef.current?.contains(t) ||
         proseRef.current?.contains(t)
       ) return;
       closeAll();
@@ -762,6 +785,46 @@ export default function WordLookup({
     }
   }, [translateText, translateLang, runSentenceTranslate]);
 
+  // Grammar explanation (#114)
+  const runGrammarExplain = useCallback(async (phrase: string) => {
+    setGrammarLoading(true);
+    setGrammarResult(null);
+    setGrammarError(null);
+    try {
+      const contextSentence = proseRef.current
+        ? extractContextSentence(proseRef.current, phrase) ?? ""
+        : "";
+      const res = await fetch(`/api/reader/${articleId}/grammar`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ phrase, contextSentence }),
+      });
+      if (!res.ok) throw new Error("Request failed");
+      setGrammarResult((await res.json()) as GrammarResult);
+    } catch {
+      setGrammarError("Couldn't fetch grammar explanation. Try again.");
+    } finally {
+      setGrammarLoading(false);
+    }
+  }, [articleId]);
+
+  const handleGrammar = useCallback(() => {
+    const saved = savedAnchorRef.current;
+    const rect = toolbarRect;
+    if (!saved || !rect) return;
+    const phrase = saved.quote.trim();
+    if (!phrase) return;
+    setGrammarPhrase(phrase);
+    setGrammarSelectionRect(rect);
+    setOpenSurface("grammar");
+    setToolbarRect(null);
+    void runGrammarExplain(phrase);
+  }, [toolbarRect, runGrammarExplain]);
+
+  const handleGrammarRetry = useCallback(() => {
+    if (grammarPhrase) void runGrammarExplain(grammarPhrase);
+  }, [grammarPhrase, runGrammarExplain]);
+
   // Edit popover
   const handleEditColorChange = useCallback((color: HighlightColor) => {
     if (!editHlId) return;
@@ -891,11 +954,13 @@ export default function WordLookup({
           selectionRect={toolbarRect}
           color={toolbarColor}
           showDefine={toolbarShowDefine}
+          showGrammar={toolbarShowGrammar}
           onColorChange={setToolbarColor}
           onHighlight={() => void handleHighlight()}
           onAddNote={() => void handleAddNote()}
           onTranslate={handleTranslate}
           onDefine={handleDefine}
+          onGrammar={handleGrammar}
           onClose={closeAll}
           toolbarRef={toolbarRef}
         />
@@ -928,6 +993,20 @@ export default function WordLookup({
           onClose={closeAll}
           onRetry={handleTranslateRetry}
           popoverRef={translatePopoverRef}
+        />
+      ) : null}
+
+      {/* Grammar explanation popover (#114) */}
+      {openSurface === "grammar" && grammarSelectionRect ? (
+        <GrammarPopover
+          selectionRect={grammarSelectionRect}
+          phrase={grammarPhrase}
+          loading={grammarLoading}
+          result={grammarResult}
+          error={grammarError}
+          onClose={closeAll}
+          onRetry={handleGrammarRetry}
+          popoverRef={grammarPopoverRef}
         />
       ) : null}
     </>
