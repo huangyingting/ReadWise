@@ -53,5 +53,10 @@ jobs:
 
       # Build is the primary gating step: it runs last so typecheck/lint/test
       # failures are visible before a potentially slow build is aborted.
+      # Ensure no stale .next/ from a previous run (e.g. a cached workspace)
+      # can race with the new build and cause PageNotFoundError (#83).
+      - name: Clean build cache
+        run: rm -rf .next
+
       - name: Build
         run: npm run build
