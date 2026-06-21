@@ -53,3 +53,7 @@ PR flow for this repo: branch from `origin/main`, squash-merge, then reset local
 ### 2026-06-21 — Product backlog from competitor research
 
 Review 3 surfaced a learner-focused product backlog informed by competitor and internet pain-point research. Many issues #105–#126 are feature gaps marked `go:needs-research`, so future triage should separate quick UX wins from larger product/architecture decisions.
+
+
+## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
+- When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.

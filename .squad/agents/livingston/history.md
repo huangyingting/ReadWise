@@ -40,3 +40,8 @@ Final cumulative gate after all six waves: typecheck 0, lint 0, tests 411/411, b
 - `web-push` and VAPID/private-key logic must remain server-only so the client bundle does not pull Node/server dependencies or expose secrets.
 - Security/performance bundles should include both code fixes and regression gates; Livingston’s Wave 2 paired hardening with CI/test repair.
 - Keep AI and Speech features graceful on missing credentials, timeouts, or provider failures; never cache fallback content that represents an unavailable provider.
+
+
+## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
+- ownerId access control must be filtered in EVERY public listing/feed/search query (incl. FTS) to avoid leaking personal articles.
+- When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.

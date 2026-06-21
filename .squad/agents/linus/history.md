@@ -52,3 +52,8 @@ Final cumulative gate after all six waves: typecheck 0, lint 0, tests 411/411, b
 ### 2026-06-20 — Client/server import boundary lesson
 
 Client (`"use client"`) components must not import `@/lib/difficulty`, `@/lib/ai`, or `@/lib/logger`, because that chain can pull Node-only `node:async_hooks` into the client bundle. Run `npm run build` from a clean `.next` state with no dev server as a hard gate before pushing client-facing changes.
+
+
+## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
+- PR-body files belong in /tmp, never committed into .squad/ or the repo.
+- When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.

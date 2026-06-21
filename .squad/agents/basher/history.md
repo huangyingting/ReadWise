@@ -44,3 +44,7 @@ Basher verified all rich reader features with browser, static, security, and reg
 ### 2026-06-21 — End-user review triage lesson
 
 During review 3, distinguish dev-data artifacts and expected graceful-fallback states from true product bugs before flagging High. Placeholder seed article bodies were not filed as a content bug, while the AI Tutor failure was escalated because translation worked in the same environment and the tutor path returned null.
+
+
+## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
+- When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.

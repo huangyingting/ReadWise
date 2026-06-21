@@ -1,13 +1,13 @@
 ---
-updated_at: 2026-06-21T00:32:57+00:00
-focus_area: End-user/product review completed; learner-focused backlog open
-active_issues: [105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126]
+updated_at: 2026-06-21T01:53:08+00:00
+focus_area: Board cleared via seven merged PRs; main green; end-user feature set shipped
+active_issues: []
 ---
 
 # What We're Focused On
 
-A third global review is complete. It focused on end-user experience, learner needs, product gaps, and competitor-informed expectations.
+The 22 end-user issues **#105–#126** have been completed and merged into `main` through seven squashed PRs **#127–#133**.
 
-A backlog of **22 end-user issues (#105–#126)** is now open. Headline themes include user content import, save-from-popover, vocabulary journal/management, bilingual parallel view, grammar-in-context, audio speed/loop controls, accessibility fonts/spacing, offline reading, the AI Tutor bug, and the UTC streak bug.
+`main` is locally verified green: typecheck, lint, 561 tests passing, and clean production build. GitHub Actions CI was billing-blocked during the wave, so Ralph used local coordinator verification before every merge.
 
-Many larger feature gaps are marked `go:needs-research`; quick UX wins should be prioritized separately from architecture-heavy product bets.
+Major shipped capabilities include user article import with owner-scoped access control, offline reading, parallel bilingual view, grammar-in-context, CEFR placement quiz, vocabulary journal, BBC Learning English + VOA providers, accessibility reading controls, streak fixes, and AI tutor fallback fixes.

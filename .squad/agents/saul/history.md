@@ -41,3 +41,7 @@ Final cumulative gate after all six waves: typecheck 0, lint 0, tests 411/411, b
 - Design-system migrations should convert legacy `.btn`/ad hoc styles into shared primitives instead of adding parallel CSS.
 - Dead CSS cleanup is safest when isolated in a UX wave after functional security/performance fixes have landed.
 - Keep visual semantics consistent: indigo means action, teal means learning/progress state, and neutral chips explain context without competing for attention.
+
+
+## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
+- When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.
