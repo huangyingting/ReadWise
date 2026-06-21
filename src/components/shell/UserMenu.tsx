@@ -3,16 +3,36 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { Settings, Shield, LogOut } from "lucide-react";
+import { Settings, Shield, LogOut, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import Avatar from "@/components/ui/Avatar";
+import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import type { ShellUser } from "./types";
 
 export default function UserMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  // Global "?" shortcut — open the shortcuts panel when focus is not in a field.
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "?" || e.metaKey || e.ctrlKey || e.altKey) return;
+      const target = e.target as Element | null;
+      const inEditable =
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        (target instanceof HTMLElement && target.isContentEditable);
+      if (!inEditable) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, []);
 
   const isAdmin = user.role === "Admin";
 
@@ -137,6 +157,19 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             </Link>
           ) : null}
 
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              setOpen(false);
+              setShortcutsOpen(true);
+            }}
+            className={itemClass}
+          >
+            <Keyboard size={16} aria-hidden />
+            Keyboard shortcuts
+          </button>
+
           <div className="my-[var(--space-1)] border-t border-border" />
 
           <button
@@ -152,6 +185,10 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             Sign out
           </button>
         </div>
+      ) : null}
+
+      {shortcutsOpen ? (
+        <KeyboardShortcutsModal onClose={() => setShortcutsOpen(false)} />
       ) : null}
     </div>
   );

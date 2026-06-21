@@ -28,6 +28,7 @@ model User {
   readingProgress       ReadingProgress[]
   savedWords            SavedWord[]
   dailyActivities       DailyActivity[]
+  levelHistory          LevelHistory[]
   readingLists          ReadingList[]
   highlights            Highlight[]
   tutorMessages         TutorMessage[]
@@ -189,6 +190,17 @@ model DailyActivity {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, date])
+  @@index([userId])
+}
+
+model LevelHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  level     String
+  changedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
   @@index([userId])
 }
 

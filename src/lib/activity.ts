@@ -22,6 +22,57 @@ function utcMidnight(d: Date = new Date()): Date {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Heatmap helpers (exported for unit tests)
+// ---------------------------------------------------------------------------
+
+export type HeatCell = {
+  /** YYYY-MM-DD UTC */
+  date: string;
+  /** raw articles read on this day */
+  count: number;
+  /** 0–4 heat level (0 = no activity) */
+  level: 0 | 1 | 2 | 3 | 4;
+};
+
+/**
+ * Compute a 0–4 heat level from an article count.
+ * Thresholds: 0 → 0, 1 → 1, 2–3 → 2, 4–5 → 3, 6+ → 4.
+ * Exported so tests can verify it without a DB.
+ */
+export function heatLevel(count: number): 0 | 1 | 2 | 3 | 4 {
+  if (count <= 0) return 0;
+  if (count === 1) return 1;
+  if (count <= 3) return 2;
+  if (count <= 5) return 3;
+  return 4;
+}
+
+/**
+ * Build a fully-populated 52-week (364 + today = 365 cell) heatmap grid
+ * from a sparse map of date → articlesRead.
+ *
+ * Exported for unit tests.
+ */
+export function buildHeatmapCells(
+  activityMap: Map<string, number>,
+  /** Today's UTC date string YYYY-MM-DD. Defaults to actual today. */
+  todayStr?: string,
+): HeatCell[] {
+  const today = todayStr
+    ? new Date(todayStr + "T00:00:00Z")
+    : utcMidnight();
+  const cells: HeatCell[] = [];
+  // 364 days back (= 52 weeks) + today = 365 cells
+  for (let i = 364; i >= 0; i--) {
+    const d = new Date(today.getTime() - i * 86_400_000);
+    const key = dateKey(d);
+    const count = activityMap.get(key) ?? 0;
+    cells.push({ date: key, count, level: heatLevel(count) });
+  }
+  return cells;
+}
+
 /**
  * Upserts today's DailyActivity with a fresh count of distinct articles the
  * user progressed today.  Idempotent — safe to call on every progress save.
@@ -144,4 +195,21 @@ export async function getStreakSummary(
   }
 
   return { currentStreak, longestStreak, dailyGoal, todayProgress, last7Days };
+}
+
+/**
+ * Returns a 365-cell (52-week + today) heatmap for the given user.
+ * Query is bounded to the last 53 weeks for safety.
+ */
+export async function getActivityHeatmap(userId: string): Promise<HeatCell[]> {
+  const fiftyThreeWeeksAgo = new Date(Date.now() - 53 * 7 * 86_400_000);
+  const rows = await prisma.dailyActivity.findMany({
+    where: { userId, date: { gte: fiftyThreeWeeksAgo } },
+    select: { date: true, articlesRead: true },
+  });
+  const map = new Map<string, number>();
+  for (const r of rows) {
+    map.set(dateKey(r.date), r.articlesRead);
+  }
+  return buildHeatmapCells(map);
 }

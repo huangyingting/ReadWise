@@ -1,0 +1,244 @@
+"use client";
+
+/**
+ * 52-week (GitHub-style) reading activity heatmap (Issue #96).
+ *
+ * Receives pre-fetched HeatCell[] (server-side).
+ * Renders a 7-row × 53-col CSS grid, oldest column on the left.
+ * Cells are <button> elements with aria-labels for accessibility.
+ * Uses CSS custom properties --heat-0..--heat-4 from tokens.css.
+ */
+
+import { useMemo, useState } from "react";
+import { cn } from "@/lib/cn";
+import type { HeatCell } from "@/lib/activity";
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Abbreviated month names (Jan, Feb, …) */
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** Day-of-week abbreviations Sunday-first */
+const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+/** Format a YYYY-MM-DD string as a human-readable label. */
+function formatDateLabel(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const date = new Date(Date.UTC(y, m - 1, d));
+  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
+}
+
+type Column = {
+  /** The 7 cells in this column (index 0 = Sunday, 6 = Saturday). */
+  cells: (HeatCell | null)[];
+  /** First YYYY-MM date in this column (for month label). */
+  firstDate: string; // YYYY-MM-DD
+};
+
+/**
+ * Arrange flat cells into columns of 7 (Sun→Sat).
+ * The first column may be partially filled (cells padded with null at the top).
+ */
+function groupIntoCols(cells: HeatCell[]): Column[] {
+  if (cells.length === 0) return [];
+
+  // Day of week of the first cell (0 = Sunday).
+  const [fy, fm, fd] = cells[0].date.split("-").map(Number);
+  const firstDow = new Date(Date.UTC(fy, fm - 1, fd)).getUTCDay(); // 0–6
+
+  // Pad the beginning so column 0 starts on a Sunday.
+  const padded: (HeatCell | null)[] = [
+    ...Array.from({ length: firstDow }, () => null),
+    ...cells,
+  ];
+
+  const cols: Column[] = [];
+  for (let i = 0; i < padded.length; i += 7) {
+    const chunk = padded.slice(i, i + 7);
+    // Pad to 7 if last column is short.
+    while (chunk.length < 7) chunk.push(null);
+    const firstRealCell = chunk.find((c) => c !== null);
+    cols.push({ cells: chunk, firstDate: firstRealCell?.date ?? "" });
+  }
+  return cols;
+}
+
+/** Returns the YYYY-MM of the first real cell in a column. */
+function colMonth(col: Column): string {
+  return col.firstDate.slice(0, 7); // "YYYY-MM"
+}
+
+// ---------------------------------------------------------------------------
+// Component
+// ---------------------------------------------------------------------------
+
+interface ActivityHeatmapProps {
+  cells: HeatCell[];
+}
+
+export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
+  const [tooltip, setTooltip] = useState<{ date: string; count: number } | null>(null);
+
+  const cols = useMemo(() => groupIntoCols(cells), [cells]);
+
+  const totalActive = cells.filter((c) => c.count > 0).length;
+  const totalArticles = cells.reduce((s, c) => s + c.count, 0);
+
+  // Build month label positions: show label when the month changes.
+  const monthLabels: { colIndex: number; label: string }[] = [];
+  let lastMonth = "";
+  cols.forEach((col, idx) => {
+    const m = colMonth(col);
+    if (m && m !== lastMonth) {
+      lastMonth = m;
+      const [, mon] = m.split("-").map(Number);
+      monthLabels.push({ colIndex: idx, label: MONTHS[mon - 1] });
+    }
+  });
+
+  return (
+    <div>
+      {/* Summary */}
+      <p className="text-[length:var(--text-sm)] text-text-subtle mb-[var(--space-3)]">
+        {totalActive > 0
+          ? `${totalArticles} article${totalArticles !== 1 ? "s" : ""} read on ${totalActive} day${totalActive !== 1 ? "s" : ""} in the past year`
+          : "No reading activity in the past 52 weeks — start reading to fill this in!"}
+      </p>
+
+      {/* Grid wrapper — horizontal scroll on small screens */}
+      <div
+        className="overflow-x-auto pb-[var(--space-2)]"
+        aria-label="52-week reading activity heatmap"
+        role="img"
+      >
+        <div className="inline-flex flex-col gap-0 min-w-max">
+          {/* Month axis */}
+          <div
+            className="flex mb-[var(--space-1)]"
+            aria-hidden
+          >
+            {/* Spacer for DOW labels */}
+            <div style={{ width: 28 }} />
+            {cols.map((_, idx) => {
+              const ml = monthLabels.find((m) => m.colIndex === idx);
+              return (
+                <div
+                  key={idx}
+                  style={{ width: 12, marginRight: 2 }}
+                  className="text-[length:var(--text-xs)] text-text-subtle leading-none"
+                >
+                  {ml ? ml.label : ""}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Grid rows (one per day-of-week) */}
+          <div className="flex gap-0">
+            {/* Day-of-week labels */}
+            <div
+              className="flex flex-col justify-between mr-[var(--space-1)]"
+              style={{ width: 24 }}
+              aria-hidden
+            >
+              {DOW_LABELS.map((d, i) =>
+                i % 2 === 1 ? (
+                  <span
+                    key={d}
+                    className="text-[length:var(--text-xs)] text-text-subtle"
+                    style={{ height: 12, lineHeight: "12px", marginBottom: 2 }}
+                  >
+                    {d.slice(0, 3)}
+                  </span>
+                ) : (
+                  <span key={d} style={{ height: 12, marginBottom: 2 }} />
+                ),
+              )}
+            </div>
+
+            {/* Cell columns */}
+            <div
+              className="flex gap-[2px]"
+              role="list"
+            >
+              {cols.map((col, colIdx) => (
+                <div key={colIdx} className="flex flex-col gap-[2px]" role="presentation">
+                  {col.cells.map((cell, rowIdx) => {
+                    if (!cell) {
+                      return (
+                        <div
+                          key={rowIdx}
+                          style={{ width: 12, height: 12 }}
+                          aria-hidden
+                        />
+                      );
+                    }
+                    const label =
+                      cell.count === 0
+                        ? `No articles on ${formatDateLabel(cell.date)}`
+                        : `${cell.count} article${cell.count !== 1 ? "s" : ""} on ${formatDateLabel(cell.date)}`;
+                    return (
+                      <button
+                        key={cell.date}
+                        type="button"
+                        role="listitem"
+                        data-level={cell.level}
+                        aria-label={label}
+                        className={cn(
+                          "rounded-[2px] transition-[opacity,outline] [transition-duration:var(--duration-fast)]",
+                          "hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1",
+                          "focus-visible:outline-[color:var(--focus-ring)] motion-reduce:transition-none",
+                        )}
+                        style={{
+                          width: 12,
+                          height: 12,
+                          backgroundColor: `var(--heat-${cell.level})`,
+                        }}
+                        onMouseEnter={() => setTooltip({ date: cell.date, count: cell.count })}
+                        onMouseLeave={() => setTooltip(null)}
+                        onFocus={() => setTooltip({ date: cell.date, count: cell.count })}
+                        onBlur={() => setTooltip(null)}
+                      />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Tooltip (simple fixed label, no portal needed at this size) */}
+      {tooltip && (
+        <p
+          className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle"
+          aria-live="polite"
+          aria-atomic
+        >
+          {tooltip.count === 0
+            ? `No articles on ${formatDateLabel(tooltip.date)}`
+            : `${tooltip.count} article${tooltip.count !== 1 ? "s" : ""} on ${formatDateLabel(tooltip.date)}`}
+        </p>
+      )}
+
+      {/* Legend */}
+      <div className="flex items-center gap-[var(--space-2)] mt-[var(--space-3)]" aria-hidden>
+        <span className="text-[length:var(--text-xs)] text-text-subtle">Less</span>
+        {([0, 1, 2, 3, 4] as const).map((level) => (
+          <div
+            key={level}
+            style={{
+              width: 12,
+              height: 12,
+              borderRadius: 2,
+              backgroundColor: `var(--heat-${level})`,
+            }}
+          />
+        ))}
+        <span className="text-[length:var(--text-xs)] text-text-subtle">More</span>
+      </div>
+    </div>
+  );
+}
