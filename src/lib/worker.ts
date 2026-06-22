@@ -32,6 +32,12 @@ export type WorkerOptions = {
   includePublished?: boolean;
   /** Drain the queue once then stop (instead of polling forever). */
   once?: boolean;
+  /**
+   * How long (ms) to quarantine an article that permanently failed (exhausted
+   * retries) so the DB-derived queue doesn't re-select and re-fail it forever.
+   * Default 300000 (5 min). The id is skipped until the cooldown expires.
+   */
+  quarantineMs?: number;
   /** Forwarded to processArticle (e.g. tts / translateLangs). */
   process?: ProcessOptions;
   /** Cooperative stop signal — aborting it stops the worker safely. */
@@ -51,6 +57,8 @@ export type WorkerStats = {
   published: number;
   failed: number;
   retried: number;
+  /** Count of articles quarantined this run after exhausting retries. */
+  quarantined: number;
   stoppedBySignal: boolean;
 };
 
@@ -174,11 +182,28 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
   const maxRetries = Math.max(0, options.maxRetries ?? 3);
   const baseBackoffMs = Math.max(0, options.baseBackoffMs ?? 1000);
   const maxBackoffMs = Math.max(baseBackoffMs, options.maxBackoffMs ?? 30000);
+  const quarantineMs = Math.max(0, options.quarantineMs ?? 300000);
   const logger = options.logger ?? createConsoleLogger();
   const signal = options.signal;
   const listFn = options.deps?.listUnprocessedArticleIds ?? listUnprocessedArticleIds;
   const processFn = options.deps?.processArticle ?? processArticle;
   const sleepFn = options.deps?.sleep ?? sleep;
+
+  // In-memory poison-message quarantine: articleId -> timestamp (ms) until which
+  // the id is skipped. A permanently-failing article (exhausted retries) is the
+  // queue's source of truth, so without this the poll loop re-selects and
+  // re-fails it on every poll forever. Entries expire so a transiently-broken
+  // article gets retried again later.
+  const quarantineUntil = new Map<string, number>();
+  const isQuarantined = (id: string, nowMs: number): boolean => {
+    const until = quarantineUntil.get(id);
+    if (until === undefined) return false;
+    if (nowMs >= until) {
+      quarantineUntil.delete(id);
+      return false;
+    }
+    return true;
+  };
 
   const stats: WorkerStats = {
     polls: 0,
@@ -186,6 +211,7 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
     published: 0,
     failed: 0,
     retried: 0,
+    quarantined: 0,
     stoppedBySignal: false,
   };
 
@@ -212,18 +238,27 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
         limit: batchSize,
       });
 
-      if (ids.length === 0) {
+      const now = Date.now();
+      const processable = ids.filter((id) => !isQuarantined(id, now));
+
+      if (processable.length === 0) {
         if (options.once) {
-          logger.info("queue drained, stopping (once mode)");
+          // Either the queue is empty or everything left is quarantined; in
+          // once mode there is no more progress to make, so stop.
+          logger.info(
+            ids.length === 0
+              ? "queue drained, stopping (once mode)"
+              : "remaining articles are quarantined, stopping (once mode)",
+          );
           break;
         }
         await sleepFn(pollIntervalMs, signal);
         continue;
       }
 
-      logger.info("processing batch", { count: ids.length });
+      logger.info("processing batch", { count: processable.length });
 
-      for (const id of ids) {
+      for (const id of processable) {
         if (signal?.aborted) {
           stats.stoppedBySignal = true;
           break;
@@ -242,12 +277,16 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
         if (result === null) {
           logger.warn("article skipped (missing or unrecoverable)", { articleId: id, attempts });
           stats.failed++;
+          quarantineUntil.set(id, Date.now() + quarantineMs);
+          stats.quarantined++;
           continue;
         }
         stats.processed++;
         if (result.published) stats.published++;
         if (!result.ok) {
           stats.failed++;
+          quarantineUntil.set(id, Date.now() + quarantineMs);
+          stats.quarantined++;
           continue;
         }
         logger.info("article processed", {
