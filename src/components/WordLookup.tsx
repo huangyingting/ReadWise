@@ -17,7 +17,7 @@
  * sets innerHTML — it operates on the existing, already-sanitized nodes.
  */
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { DictionaryResult } from "@/lib/dictionary";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
@@ -309,6 +309,7 @@ export default function WordLookup({
 }) {
   const proseRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
+  const dictCloseRef = useRef<HTMLButtonElement>(null);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const editPopoverRef = useRef<HTMLDivElement>(null);
   const translatePopoverRef = useRef<HTMLDivElement>(null);
@@ -484,10 +485,11 @@ export default function WordLookup({
 
   const openDictionary = useCallback(
     (candidate: string, clientX: number, clientY: number) => {
-      const left = Math.max(12, Math.min(clientX, window.innerWidth - POPOVER_WIDTH - 12));
-      const safeBottom = window.innerHeight - MINI_PLAYER_HEIGHT - POPOVER_HEIGHT - 12;
-      const top = Math.max(12, clientY > safeBottom ? clientY - POPOVER_HEIGHT - 12 : clientY + 12);
-      setDictAnchor({ x: left, y: top });
+      // Store the raw anchor point; the layout effect below measures the real
+      // rendered height and clamps/flips so the whole popover (incl. Save) stays
+      // on-screen above the mini-player. A fixed POPOVER_HEIGHT estimate is unsafe
+      // because the real max-height is 60vh, far taller than the old 400px guess.
+      setDictAnchor({ x: clientX, y: clientY });
       setWord(candidate);
       setOpenSurface("dictionary");
       setSaveError(null);
@@ -498,6 +500,49 @@ export default function WordLookup({
     },
     [runLookup],
   );
+
+  // Clamp/flip the dictionary popover using its REAL measured height so the whole
+  // surface (incl. the Save footer) stays within the viewport, above the mini-player.
+  useLayoutEffect(() => {
+    if (openSurface !== "dictionary" || !dictAnchor) return;
+    const el = popoverRef.current;
+    if (!el) return;
+
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    // Cap the height to the safe band (above the mini-player) so a tall entry
+    // scrolls INSIDE the popover instead of running off-screen.
+    const available = vh - MINI_PLAYER_HEIGHT - 24;
+    el.style.maxHeight = `${available}px`;
+
+    const pw = el.offsetWidth || POPOVER_WIDTH;
+    const ph = el.offsetHeight || POPOVER_HEIGHT;
+
+    const left = Math.max(12, Math.min(dictAnchor.x, vw - pw - 12));
+
+    const safeBottom = vh - MINI_PLAYER_HEIGHT - 12;
+    // Prefer below the anchor; flip above if it would overflow the safe band.
+    let top = dictAnchor.y + 12;
+    if (top + ph > safeBottom) top = dictAnchor.y - ph - 12;
+    // Final clamp: keep the whole popover within the safe band.
+    top = Math.min(top, safeBottom - ph);
+    top = Math.max(12, top);
+
+    el.style.left = `${left}px`;
+    el.style.top = `${top}px`;
+  }, [openSurface, dictAnchor, loading, result, dictError, word]);
+
+  // A11y parity with sibling popovers: move focus to the close button on open,
+  // return focus to the reader prose (selection origin) on close.
+  useEffect(() => {
+    if (openSurface !== "dictionary") return;
+    const prose = proseRef.current;
+    dictCloseRef.current?.focus();
+    return () => {
+      prose?.focus();
+    };
+  }, [openSurface]);
 
   // Toggle save/unsave a word from the dictionary popover
   const handleToggleSave = useCallback(async () => {
@@ -870,6 +915,7 @@ export default function WordLookup({
           ref={popoverRef}
           className="word-lookup-popover"
           role="dialog"
+          aria-modal="false"
           aria-label={`Dictionary: ${word}`}
           style={{ left: dictAnchor.x, top: dictAnchor.y, zIndex: 60 }}
           onMouseUp={(e) => e.stopPropagation()}
@@ -891,44 +937,54 @@ export default function WordLookup({
                 );
               })()}
             </div>
-            <button type="button" className="word-lookup-close" aria-label="Close" onClick={closeAll}>×</button>
+            <button
+              ref={dictCloseRef}
+              type="button"
+              className="word-lookup-close"
+              aria-label="Close"
+              onClick={closeAll}
+              onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); closeAll(); proseRef.current?.focus(); } }}
+            >×</button>
           </div>
-          {loading ? <p className="muted word-lookup-status">Looking up…</p> : null}
-          {dictError ? <p className="word-lookup-error" role="alert">{dictError}</p> : null}
-          {!loading && !dictError && result ? (
-            result.found ? (
-              <div className="word-lookup-body">
-                {result.lookedUp && result.lookedUp.toLowerCase() !== word.toLowerCase() ? (
-                  <p className="muted word-lookup-base">base form: <em>{result.lookedUp}</em></p>
-                ) : null}
-                {result.phonetic || result.audio ? (
-                  <p className="word-lookup-pron">
-                    {result.phonetic ? <span className="word-lookup-phonetic">{result.phonetic}</span> : null}
-                    {result.audio ? (
-                      <button type="button" className="word-lookup-audio" aria-label="Play pronunciation"
-                        onClick={() => playAudio(result.audio as string)}>🔊</button>
-                    ) : null}
-                  </p>
-                ) : null}
-                <ul className="word-lookup-meanings">
-                  {result.meanings.map((meaning) => (
-                    <li key={meaning.partOfSpeech} className="word-lookup-meaning">
-                      <span className="word-lookup-pos">{meaning.partOfSpeech}</span>
-                      <ol className="word-lookup-defs">
-                        {meaning.definitions.map((def, i) => (
-                          <li key={i}>{def.definition}
-                            {def.example ? <span className="word-lookup-example muted"> &ldquo;{def.example}&rdquo;</span> : null}
-                          </li>
-                        ))}
-                      </ol>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-            ) : (
-              <p className="muted word-lookup-status">No definition found for &ldquo;{word}&rdquo;.</p>
-            )
-          ) : null}
+          {/* aria-live: announce status + the looked-up definition to screen readers */}
+          <div aria-live="polite" aria-atomic="true">
+            {loading ? <p className="muted word-lookup-status" role="status">Looking up “{word}”…</p> : null}
+            {dictError ? <p className="word-lookup-error" role="alert">{dictError}</p> : null}
+            {!loading && !dictError && result ? (
+              result.found ? (
+                <div className="word-lookup-body">
+                  {result.lookedUp && result.lookedUp.toLowerCase() !== word.toLowerCase() ? (
+                    <p className="muted word-lookup-base">base form: <em>{result.lookedUp}</em></p>
+                  ) : null}
+                  {result.phonetic || result.audio ? (
+                    <p className="word-lookup-pron">
+                      {result.phonetic ? <span className="word-lookup-phonetic">{result.phonetic}</span> : null}
+                      {result.audio ? (
+                        <button type="button" className="word-lookup-audio" aria-label="Play pronunciation"
+                          onClick={() => playAudio(result.audio as string)}>🔊</button>
+                      ) : null}
+                    </p>
+                  ) : null}
+                  <ul className="word-lookup-meanings">
+                    {result.meanings.map((meaning) => (
+                      <li key={meaning.partOfSpeech} className="word-lookup-meaning">
+                        <span className="word-lookup-pos">{meaning.partOfSpeech}</span>
+                        <ol className="word-lookup-defs">
+                          {meaning.definitions.map((def, i) => (
+                            <li key={i}>{def.definition}
+                              {def.example ? <span className="word-lookup-example muted"> &ldquo;{def.example}&rdquo;</span> : null}
+                            </li>
+                          ))}
+                        </ol>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ) : (
+                <p className="muted word-lookup-status">No definition found for &ldquo;{word}&rdquo;.</p>
+              )
+            ) : null}
+          </div>
           {/* Save word footer */}
           <div className="word-lookup-footer">
             {saveError ? (
