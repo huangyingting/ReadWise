@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/ui";
+import { Button } from "@/components/ui/Button";
 
 type Mode = "url" | "text";
 
@@ -148,13 +149,14 @@ export default function ImportForm() {
             </p>
           )}
 
-          <button
+          <Button
             type="submit"
-            disabled={loading}
-            className="btn-primary self-start"
+            variant="primary"
+            loading={loading}
+            className="self-start"
           >
-            {loading ? "Importing…" : "Import Article"}
-          </button>
+            Import Article
+          </Button>
         </form>
       </CardBody>
     </Card>
