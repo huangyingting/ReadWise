@@ -167,6 +167,13 @@ export async function exportUserData(userId: string) {
 
 // ── Deletion ───────────────────────────────────────────────────────────────
 
+// Sentinel thrown inside a transaction to signal the last-admin guard fired.
+class LastAdminError extends Error {
+  constructor() {
+    super("last-admin");
+  }
+}
+
 export async function deleteOwnAccount(userId: string): Promise<DeleteAccountResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -175,18 +182,6 @@ export async function deleteOwnAccount(userId: string): Promise<DeleteAccountRes
 
   if (!user) {
     return { ok: false, error: "Account not found", status: 404 };
-  }
-
-  if (user.role === "Admin") {
-    const adminCount = await prisma.user.count({ where: { role: "Admin" } });
-    if (adminCount <= 1) {
-      return {
-        ok: false,
-        error:
-          "You are the last admin — transfer the Admin role to another user before deleting your account.",
-        status: 409,
-      };
-    }
   }
 
   // Delete the user's personally-imported articles (ownerId === userId) in the
@@ -198,12 +193,32 @@ export async function deleteOwnAccount(userId: string): Promise<DeleteAccountRes
   // readingProgress/readingListItem/highlights, etc. — all onDelete: Cascade on
   // articleId).
   //
+  // The last-admin guard is re-evaluated INSIDE the transaction so two
+  // concurrent self-deletes can never both pass the guard and leave the system
+  // without an admin.
+  //
   // Cascade deletes on the user: accounts, sessions, profile, readingProgress,
   // savedWords, dailyActivities, readingLists (+ items), highlights,
   // tutorMessages, quizAttempts, pronunciationAttempts — all onDelete: Cascade.
-  await prisma.$transaction([
-    prisma.article.deleteMany({ where: { ownerId: userId } }),
-    prisma.user.delete({ where: { id: userId } }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (user.role === "Admin") {
+        const adminCount = await tx.user.count({ where: { role: "Admin" } });
+        if (adminCount <= 1) throw new LastAdminError();
+      }
+      await tx.article.deleteMany({ where: { ownerId: userId } });
+      await tx.user.delete({ where: { id: userId } });
+    });
+  } catch (e) {
+    if (e instanceof LastAdminError) {
+      return {
+        ok: false,
+        error:
+          "You are the last admin — transfer the Admin role to another user before deleting your account.",
+        status: 409,
+      };
+    }
+    throw e;
+  }
   return { ok: true };
 }

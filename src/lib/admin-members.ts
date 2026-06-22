@@ -126,6 +126,17 @@ export type UpdateMemberRoleResult =
  * the platform can never be left without an administrator. Returns a structured
  * error (with an HTTP status) on failure.
  */
+// Sentinel thrown inside a transaction to signal a guard condition.
+class AdminGuardError extends Error {
+  readonly guardError: string;
+  readonly guardStatus: number;
+  constructor(error: string, status: number) {
+    super(error);
+    this.guardError = error;
+    this.guardStatus = status;
+  }
+}
+
 export async function updateMemberRole(
   id: string,
   role: Role,
@@ -138,19 +149,26 @@ export async function updateMemberRole(
     return { ok: false, error: "Not found", status: 404 };
   }
 
-  if (user.role === "Admin" && role !== "Admin") {
-    const admins = await prisma.user.count({ where: { role: "Admin" } });
-    if (admins <= 1) {
-      return {
-        ok: false,
-        error: "Cannot demote the last remaining admin",
-        status: 409,
-      };
-    }
-  }
+  // No role change — skip the DB write entirely.
+  if (user.role === role) return { ok: true, role };
 
-  if (user.role !== role) {
-    await prisma.user.update({ where: { id }, data: { role } });
+  // Re-count admins inside the transaction so two concurrent demotions of the
+  // last admin can never both pass the guard and leave the system adminless.
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (user.role === "Admin" && role !== "Admin") {
+        const admins = await tx.user.count({ where: { role: "Admin" } });
+        if (admins <= 1) {
+          throw new AdminGuardError("Cannot demote the last remaining admin", 409);
+        }
+      }
+      await tx.user.update({ where: { id }, data: { role } });
+    });
+  } catch (e) {
+    if (e instanceof AdminGuardError) {
+      return { ok: false, error: e.guardError, status: e.guardStatus };
+    }
+    throw e;
   }
   return { ok: true, role };
 }
@@ -174,17 +192,6 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
     return { ok: false, error: "Not found", status: 404 };
   }
 
-  if (user.role === "Admin") {
-    const admins = await prisma.user.count({ where: { role: "Admin" } });
-    if (admins <= 1) {
-      return {
-        ok: false,
-        error: "Cannot remove the last remaining admin",
-        status: 409,
-      };
-    }
-  }
-
   // Delete the member's personally-imported articles (ownerId === id) in the
   // SAME transaction as the user delete. Article.ownerId is onDelete: SetNull,
   // so otherwise those rows would survive as status:"published"/ownerId→NULL and
@@ -192,11 +199,28 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
   // cascades all derived rows (translations/vocab/quiz/tags/speech/progress/
   // readingListItem/highlights — all onDelete: Cascade on articleId).
   //
+  // The last-admin guard is re-evaluated INSIDE the transaction so two
+  // concurrent admin deletions can never both pass the guard and leave the
+  // system without an admin.
+  //
   // Cascade deletes on the user: accounts, sessions, profile, reading progress,
   // saved words, etc. — all onDelete: Cascade.
-  await prisma.$transaction([
-    prisma.article.deleteMany({ where: { ownerId: id } }),
-    prisma.user.delete({ where: { id } }),
-  ]);
+  try {
+    await prisma.$transaction(async (tx) => {
+      if (user.role === "Admin") {
+        const admins = await tx.user.count({ where: { role: "Admin" } });
+        if (admins <= 1) {
+          throw new AdminGuardError("Cannot remove the last remaining admin", 409);
+        }
+      }
+      await tx.article.deleteMany({ where: { ownerId: id } });
+      await tx.user.delete({ where: { id } });
+    });
+  } catch (e) {
+    if (e instanceof AdminGuardError) {
+      return { ok: false, error: e.guardError, status: e.guardStatus };
+    }
+    throw e;
+  }
   return { ok: true };
 }
