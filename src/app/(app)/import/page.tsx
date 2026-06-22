@@ -1,12 +1,15 @@
 import type { Metadata } from "next";
 import { requireOnboardedSession } from "@/lib/session";
-import { listPersonalArticles, toListingArticle } from "@/lib/articles";
+import {
+  listPersonalArticlesPage,
+  toListingArticle,
+  IMPORTS_PAGE_SIZE,
+} from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
-import ArticleCardView from "@/components/ArticleCardView";
-import ListingProgressSync from "@/components/ListingProgressSync";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import ImportForm from "./ImportForm";
+import PersonalImports from "./PersonalImports";
 
 export const metadata: Metadata = {
   title: "Import Article — ReadWise",
@@ -16,7 +19,10 @@ export default async function ImportPage() {
   const session = await requireOnboardedSession("/import");
   const userId = session.user.id;
 
-  const personalArticles = await listPersonalArticles(userId, 20);
+  const { articles: personalArticles, hasMore } = await listPersonalArticlesPage(
+    userId,
+    { offset: 0, limit: IMPORTS_PAGE_SIZE },
+  );
   const progressMap =
     personalArticles.length > 0
       ? await getProgressSummaries(
@@ -34,23 +40,12 @@ export default async function ImportPage() {
 
       <ImportForm />
 
-      {personalArticles.length > 0 && (
-        <section className="mt-[var(--space-7)]">
-          <h2 className="font-semibold text-[length:var(--text-lg)] text-text mb-[var(--space-4)]">
-            My Imports
-          </h2>
-          <div className="grid gap-[var(--space-4)]">
-            {personalArticles.map((article) => (
-              <ArticleCardView
-                key={article.id}
-                article={toListingArticle(article)}
-                progress={progressMap[article.id]}
-              />
-            ))}
-          </div>
-          <ListingProgressSync articleIds={personalArticles.map((a) => a.id)} />
-        </section>
-      )}
+      <PersonalImports
+        initialArticles={personalArticles.map(toListingArticle)}
+        initialProgress={progressMap}
+        initialHasMore={hasMore}
+        initialOffset={personalArticles.length}
+      />
     </PageShell>
   );
 }

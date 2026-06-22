@@ -15,10 +15,12 @@ export default function ImportForm() {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     setLoading(true);
 
     try {
@@ -38,6 +40,12 @@ export default function ImportForm() {
       if (!res.ok) {
         setError(data?.error ?? "Import failed. Please try again.");
         return;
+      }
+
+      // A duplicate URL import returns the existing article (no new row, no
+      // quota consumed) — let the user know before opening it.
+      if (data.duplicate) {
+        setNotice("You've already imported this article — opening it now.");
       }
 
       // Navigate to the reader.
@@ -146,6 +154,12 @@ export default function ImportForm() {
           {error && (
             <p role="alert" className="text-sm text-red-600 dark:text-red-400">
               {error}
+            </p>
+          )}
+
+          {notice && (
+            <p role="status" className="text-sm text-text-muted">
+              {notice}
             </p>
           )}
 
