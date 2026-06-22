@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
-import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 
@@ -75,30 +75,6 @@ export function parseTagsJson(raw: string): string[] {
   return names;
 }
 
-async function generateTags(title: string, content: string): Promise<string[]> {
-  const source = htmlToPlainText(content).slice(0, MAX_SOURCE_CHARS);
-  const completion = await chatComplete([
-    {
-      role: "system",
-      content:
-        "You label news articles with topic tags for discovery. From the user's " +
-        `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
-        "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
-        "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
-        "array only.",
-    },
-    {
-      role: "user",
-      content: `Title: ${title}\n\n${source}`,
-    },
-  ], { feature: "tags" });
-
-  if (!completion) {
-    return [];
-  }
-  return parseTagsJson(completion).slice(0, TARGET_TAGS);
-}
-
 function toView(tag: { id: string; name: string; slug: string }): TagView {
   return { id: tag.id, name: tag.name, slug: tag.slug };
 }
@@ -139,39 +115,51 @@ async function upsertTag(name: string): Promise<{ id: string; name: string; slug
 export async function getOrCreateArticleTags(
   articleId: string,
 ): Promise<ArticleTagsResult | null> {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: { id: true, title: true, content: true },
-  });
-  if (!article) {
-    return null;
-  }
-
-  let tags = await getArticleTags(articleId);
-  let fallback = false;
-
-  if (tags.length === 0) {
-    if (!isAiConfigured()) {
-      fallback = true;
-    } else {
-      const names = await generateTags(article.title, article.content);
-      if (names.length === 0) {
-        fallback = true;
-      } else {
-        for (const name of names) {
-          const tag = await upsertTag(name);
-          await prisma.articleTag.upsert({
-            where: { articleId_tagId: { articleId, tagId: tag.id } },
-            update: {},
-            create: { articleId, tagId: tag.id },
-          });
-        }
-        tags = await getArticleTags(articleId);
+  return getOrCreateArticleAi<
+    { title: string; content: string },
+    string[],
+    TagView[],
+    ArticleTagsResult
+  >(articleId, {
+    feature: "tags",
+    readCache: async () => {
+      const tags = await getArticleTags(articleId);
+      return tags.length > 0 ? tags : null;
+    },
+    buildMessages: (article) => {
+      const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+      return [
+        {
+          role: "system",
+          content:
+            "You label news articles with topic tags for discovery. From the user's " +
+            `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
+            "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
+            "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
+            "array only.",
+        },
+        {
+          role: "user",
+          content: `Title: ${article.title}\n\n${source}`,
+        },
+      ];
+    },
+    parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
+    isEmpty: (names) => names.length === 0,
+    persist: async (id, names) => {
+      for (const name of names) {
+        const tag = await upsertTag(name);
+        await prisma.articleTag.upsert({
+          where: { articleId_tagId: { articleId: id, tagId: tag.id } },
+          update: {},
+          create: { articleId: id, tagId: tag.id },
+        });
       }
-    }
-  }
-
-  return { articleId, tags, fallback };
+      return getArticleTags(id);
+    },
+    toResult: (tags) => ({ articleId, tags, fallback: false }),
+    fallback: () => ({ articleId, tags: [], fallback: true }),
+  });
 }
 
 /** A tag plus the count of published articles carrying it. */
