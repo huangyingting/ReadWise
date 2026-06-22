@@ -22,6 +22,7 @@ import { buildArticle } from "./helpers";
 let ftsRows: { id: string; rank: number }[] = [];
 let shouldThrowFts = false;
 let articleDbRows: Article[] = [];
+let personalRows: Article[] = [];
 let highlightRows: { articleId: string }[] = [];
 let savedWordRows: { articleId: string | null }[] = [];
 
@@ -61,12 +62,15 @@ before(() => {
         },
         article: {
           findMany: async (args: {
-            where?: { id?: { in?: string[] }; status?: string };
+            where?: { id?: { in?: string[] }; status?: string; ownerId?: string };
           }) => {
             const ids = args.where?.id?.in;
-            // FTS path: filter by explicit id list. LIKE path: return all rows.
-            if (!ids) return articleDbRows;
-            return articleDbRows.filter((a) => ids.includes(a.id));
+            // FTS final fetch / LIKE path: filter by explicit id list.
+            if (ids) return articleDbRows.filter((a) => ids.includes(a.id));
+            // Per-user personal-imports query: where.ownerId set, no id.in.
+            if (args.where?.ownerId) return personalRows;
+            // LIKE fallback path (no id.in, no ownerId): return all rows.
+            return articleDbRows;
           },
         },
       },
@@ -78,6 +82,7 @@ beforeEach(() => {
   ftsRows = [];
   shouldThrowFts = false;
   articleDbRows = [];
+  personalRows = [];
   highlightRows = [];
   savedWordRows = [];
 });
@@ -204,4 +209,42 @@ test("searchPublishedArticles returns empty for blank query without hitting DB",
 
   assert.deepEqual(result.articles, []);
   assert.equal(result.hasMore, false);
+});
+
+// ---------------------------------------------------------------------------
+// Personal imports (ownerId === userId) merge into results
+// ---------------------------------------------------------------------------
+
+test("searchPublishedArticles includes the user's own imports (FTS path)", async () => {
+  const { searchPublishedArticles } = await import("@/lib/articles");
+
+  const f1 = buildArticle({ id: "f1" });
+  const mine = buildArticle({ id: "mine", title: "My private import" });
+
+  ftsRows = [{ id: "f1", rank: -1.0 }];
+  // The personal import is owned by the user; resolvable in the final fetch.
+  articleDbRows = [f1, mine];
+  personalRows = [mine];
+
+  const result = await searchPublishedArticles("import", { offset: 0, limit: 10 }, "user-1");
+
+  const ids = result.articles.map((a) => a.id);
+  assert.ok(ids.includes("mine"), "personal import should appear in results");
+  assert.ok(ids.includes("f1"));
+});
+
+test("searchPublishedArticles does not query personal imports without a userId", async () => {
+  const { searchPublishedArticles } = await import("@/lib/articles");
+
+  const f1 = buildArticle({ id: "f1" });
+  ftsRows = [{ id: "f1", rank: -1.0 }];
+  articleDbRows = [f1];
+  // personalRows is set but must be ignored when no userId is supplied.
+  personalRows = [buildArticle({ id: "leak" })];
+
+  const result = await searchPublishedArticles("test", { offset: 0, limit: 10 });
+
+  const ids = result.articles.map((a) => a.id);
+  assert.ok(!ids.includes("leak"), "personal imports must not leak without a userId");
+  assert.deepEqual(ids, ["f1"]);
 });

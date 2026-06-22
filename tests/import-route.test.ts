@@ -30,6 +30,8 @@ let scrapeResult: unknown = {
 let scrapeThrows = false;
 let ssrfThrows = false;
 let updateCalled = false;
+let createCalled = false;
+let findFirstResult: { id: string } | null = null;
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -50,8 +52,10 @@ before(() => {
       prisma: {
         article: {
           count: async () => countResult,
-          create: async () => ({ id: createdId }),
+          findFirst: async () => findFirstResult,
+          create: async () => { createCalled = true; return { id: createdId }; },
           update: async () => { updateCalled = true; return { id: createdId }; },
+          findMany: async () => [],
         },
       },
     },
@@ -84,6 +88,16 @@ before(() => {
   mock.module("@/lib/articles", {
     namedExports: {
       countWords: (text: string) => text.split(/\s+/).filter(Boolean).length,
+      toListingArticle: (a: { id: string }) => a,
+      listPersonalArticlesPage: async () => ({ articles: [], hasMore: false }),
+      IMPORTS_PAGE_SIZE: 20,
+      IMPORTS_MAX_LIMIT: 50,
+    },
+  });
+
+  mock.module("@/lib/progress", {
+    namedExports: {
+      getProgressSummaries: async () => ({}),
     },
   });
 
@@ -107,6 +121,8 @@ beforeEach(() => {
   scrapeThrows = false;
   ssrfThrows = false;
   updateCalled = false;
+  createCalled = false;
+  findFirstResult = null;
   createdId = "new-article-id";
   scrapeResult = {
     title: "My Article",
@@ -203,4 +219,24 @@ test("422 when scraper returns null (extraction failed)", async () => {
   assert.equal(res.status, 422);
   const data = await res.json();
   assert.ok(data.error.toLowerCase().includes("extract") || data.error.toLowerCase().includes("content"));
+});
+
+test("duplicate URL import returns 200 with duplicate flag and does not create or consume quota", async () => {
+  findFirstResult = { id: "existing-id" };
+  // Even at the daily limit, a duplicate must NOT 429 (dedupe happens first).
+  countResult = 5;
+  const res = await makeReq({ url: "https://example.com/article" });
+  assert.equal(res.status, 200);
+  const data = await res.json();
+  assert.equal(data.duplicate, true);
+  assert.equal(data.id, "existing-id");
+  assert.equal(createCalled, false);
+});
+
+test("non-duplicate URL import at the daily limit returns 429 (quota checked after dedupe)", async () => {
+  findFirstResult = null;
+  countResult = 5;
+  const res = await makeReq({ url: "https://example.com/article" });
+  assert.equal(res.status, 429);
+  assert.equal(createCalled, false);
 });
