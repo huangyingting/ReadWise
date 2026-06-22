@@ -34,7 +34,7 @@ export default async function AdminArticleDetailPage({
   ];
 
   return (
-    <section className="stack mt-[var(--space-6)]">
+    <section className="stack">
       <Link href="/admin/articles" className="muted">
         ← Back to articles
       </Link>

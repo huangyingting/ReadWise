@@ -1,31 +1,39 @@
-import Link from "next/link";
+import type { ReactNode } from "react";
+import { requireAdmin } from "@/lib/session";
+import AppShell from "@/components/shell/AppShell";
+import { PageShell } from "@/components/shell/PageShell";
 import AdminNav from "@/components/AdminNav";
+import type { ShellUser } from "@/components/shell/types";
 
 /**
- * Admin layout — sync, no `await requireAdmin()` here.
+ * Admin layout — renders the admin area INSIDE the unified app shell (sidebar +
+ * chrome header on md+, mobile bottom tab bar), consistent with the rest of the
+ * app. Gates the whole area with `requireAdmin("/admin")` (defence-in-depth:
+ * each page also calls `requireAdmin` itself) and reuses the returned session to
+ * derive the display-only shell user exactly like the `(app)` route group.
  *
- * Each admin page calls `requireAdmin()` individually (defence-in-depth).
- * Making the layout async created a second streaming Suspense boundary that
- * raced with the page-level boundary and left the streaming container (#S:N)
- * visible, duplicating the stat-card grid in the DOM (#51).
+ * `AdminNav` is demoted to an in-content secondary sub-nav rendered above the
+ * page content inside the shell's main column.
  */
-export default function AdminLayout({
+export default async function AdminLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  const session = await requireAdmin("/admin");
+  const user: ShellUser = {
+    name: session.user.name,
+    email: session.user.email,
+    image: session.user.image,
+    role: session.user.role,
+  };
+
   return (
-    <main className="container">
-      <div className="flex items-baseline justify-between gap-[var(--space-4)] flex-wrap mt-[var(--space-6)]">
-        <Link
-          href="/dashboard"
-          className="text-text-subtle text-[length:var(--text-sm)] hover:text-text"
-        >
-          ← Back to dashboard
-        </Link>
-      </div>
-      <AdminNav />
-      {children}
-    </main>
+    <AppShell user={user}>
+      <PageShell>
+        <AdminNav />
+        {children}
+      </PageShell>
+    </AppShell>
   );
 }
