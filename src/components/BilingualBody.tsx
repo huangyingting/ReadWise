@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Languages } from "lucide-react";
 import WordLookup from "@/components/WordLookup";
+import AiBadge from "@/components/AiBadge";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import {
   splitHtmlParagraphs,
@@ -145,8 +146,10 @@ export default function BilingualBody({
   const injectedRef = useRef(false);
 
   useEffect(() => {
-    if (!enabled || !translation || loading) {
-      // Remove any injected bilingual translations when mode is off or changing.
+    if (!enabled || !translation || loading || translation.fallback) {
+      // Remove any injected bilingual translations when mode is off, loading,
+      // or the translation is a fallback (no real per-paragraph text exists —
+      // the fallback is surfaced as a single banner above the body instead).
       document
         .querySelectorAll(".bilingual-translation")
         .forEach((el) => el.remove());
@@ -260,13 +263,18 @@ export default function BilingualBody({
             {error}
           </span>
         )}
-
-        {translation?.fallback && enabled && (
-          <span className="bilingual-status muted" aria-live="polite">
-            Translation service unavailable — using fallback.
-          </span>
-        )}
       </div>
+
+      {/* Single fallback banner — shown above the body when the translation is
+          unavailable, instead of mislabeling individual paragraphs (#172). */}
+      {enabled && translation?.fallback && !loading && (
+        <div className="bilingual-fallback-banner" role="status" aria-live="polite">
+          <AiBadge />
+          <span>
+            AI feature unavailable — translation is not available right now.
+          </span>
+        </div>
+      )}
 
       {/* Article prose — WordLookup unchanged; translations are injected by the useEffect above */}
       <WordLookup html={html} articleId={articleId} languages={languages} />
