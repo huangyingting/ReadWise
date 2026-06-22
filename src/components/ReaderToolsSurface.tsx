@@ -1,27 +1,25 @@
 "use client";
 
 /**
- * ReaderToolsSurface (#153)
+ * ReaderToolsSurface (#153, #206 → full-screen overlay)
  *
  * The single, always-mounted home of <ReaderTools>. One instance on the page —
  * no duplicate tool components, so there are NO duplicate network fetches and
  * in-progress state (quiz answers, tutor chat, dictation) is preserved while the
- * surface is toggled or the breakpoint changes (it's only ever CSS-hidden, never
- * unmounted).
+ * surface is toggled (it's only ever CSS-hidden, never unmounted).
  *
- * Responsive behaviour (driven by CSS in globals.css, gated by `data-open`):
- *  - >= 1440px (#169): a sticky, independently scrollable RIGHT RAIL docked in
- *    the second grid column of `.reader-layout` (non-modal; no scrim, no focus
- *    trap). The threshold leaves room for the measure column AND the rail beside
- *    the collapsed sidebar, so the reading column never drops below its measure.
- *  - <  1440px:      a focus-trapped BOTTOM SHEET overlay (modal; scrim + Esc +
- *    Tab trap + return focus), closeable via scrim/Esc/close button/route change.
+ * Presentation (driven by CSS in globals.css, gated by `data-open`): a
+ * FULL-SCREEN modal overlay on EVERY breakpoint — `position: fixed; inset: 0`,
+ * covering the article. Modal: focus trap + Esc + return focus + body scroll
+ * lock, closeable via the header close button, Esc, or a route change. A header
+ * bar holds the title + close button; the tool tabs/panels are centered and
+ * scroll independently below.
  *
- * z-index band (documented in globals.css too): reader toolbar (30) <
- * mini-player (40) < tools scrim/sheet (49/50) < app modals & Popovers (60).
+ * z-index band: reader toolbar (30) < mini-player (40) < tools overlay (50) <
+ * app modals & Popovers (60).
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { useReaderTools } from "./ReaderToolsProvider";
@@ -45,9 +43,6 @@ function getTabbable(root: HTMLElement | null): HTMLElement[] {
   ).filter((el) => el.tabIndex >= 0);
 }
 
-/** Below this width the surface is a modal bottom sheet; at/above it's a rail. */
-const SHEET_MAX_WIDTH = "(max-width: 1439.98px)";
-
 export default function ReaderToolsSurface({
   articleId,
   plainText,
@@ -58,33 +53,24 @@ export default function ReaderToolsSurface({
   const { open, closeTools } = useReaderTools();
   const panelRef = useRef<HTMLElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
-  // Track the breakpoint so `aria-modal`/`role` reflect the actual presentation:
-  // a modal bottom sheet (<1440) vs the non-modal docked rail.
-  const [isSheet, setIsSheet] = useState(false);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const mq = window.matchMedia(SHEET_MAX_WIDTH);
-    const update = () => setIsSheet(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
-
-  // Focus trap + Esc + return-focus — ONLY in bottom-sheet (modal) mode. On the
-  // xl rail the surface is non-modal, so we don't steal focus or trap Tab.
+  // Full-screen modal overlay on every breakpoint: focus trap + Esc + return
+  // focus + body scroll lock while open. (One always-mounted instance — the
+  // panel is only ever CSS-hidden, never unmounted, so in-progress quiz/tutor/
+  // dictation state survives open/close.)
   useEffect(() => {
     if (!open) return;
     if (typeof window === "undefined") return;
-
-    const isSheetMode = window.matchMedia(SHEET_MAX_WIDTH).matches;
-    if (!isSheetMode) return;
 
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
 
     const panel = panelRef.current;
     const first = getTabbable(panel)[0];
     (first ?? panel)?.focus();
+
+    // Lock background scroll behind the overlay.
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -114,49 +100,38 @@ export default function ReaderToolsSurface({
     document.addEventListener("keydown", onKeyDown);
     return () => {
       document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = prevOverflow;
       restoreFocusRef.current?.focus();
     };
   }, [open, closeTools]);
 
   return (
-    <>
-      {/* Scrim — only meaningful in sheet mode (CSS hides it at xl). Rendered
-          only while open so it never intercepts clicks for the rail. */}
-      {open ? (
-        <div
-          aria-hidden="true"
-          className="reader-tools-scrim"
+    <aside
+      ref={panelRef}
+      id="reader-tools-surface"
+      className="reader-tools-surface"
+      data-open={open ? "true" : "false"}
+      role="dialog"
+      aria-modal="true"
+      aria-label="Practice tools"
+      aria-hidden={open ? undefined : "true"}
+      tabIndex={-1}
+    >
+      <div className="reader-tools-surface-header">
+        <span className="reader-tools-surface-title">Practice tools</span>
+        <button
+          type="button"
+          aria-label="Close practice tools"
           onClick={closeTools}
-        />
-      ) : null}
+          className={cn("reader-tools-close-btn", focusRing)}
+        >
+          <X size={18} aria-hidden="true" />
+        </button>
+      </div>
 
-      <aside
-        ref={panelRef}
-        id="reader-tools-surface"
-        className="reader-tools-surface"
-        data-open={open ? "true" : "false"}
-        role={isSheet ? "dialog" : undefined}
-        aria-modal={isSheet ? "true" : undefined}
-        aria-label="Practice tools"
-        aria-hidden={open ? undefined : "true"}
-        tabIndex={-1}
-      >
-        <div className="reader-tools-surface-header">
-          <span className="reader-tools-surface-title">Practice tools</span>
-          <button
-            type="button"
-            aria-label="Close practice tools"
-            onClick={closeTools}
-            className={cn("reader-tools-close-btn", focusRing)}
-          >
-            <X size={18} aria-hidden="true" />
-          </button>
-        </div>
-
-        <div className="reader-tools-surface-body">
-          <ReaderTools articleId={articleId} plainText={plainText} />
-        </div>
-      </aside>
-    </>
+      <div className="reader-tools-surface-body">
+        <ReaderTools articleId={articleId} plainText={plainText} />
+      </div>
+    </aside>
   );
 }
