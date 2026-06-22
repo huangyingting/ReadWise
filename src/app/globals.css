@@ -1414,7 +1414,11 @@ body {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   gap: var(--space-6);
-  max-width: 1160px;
+  /* #2 — hug the reading measure so the text isn't marooned in a wide container
+     with oversized empty side gutters; the column is widened (see --measure) and
+     the container tracks it (minimal inner gutter). The wider two-column width is
+     applied only when the Tools rail is docked (see the xl rule below). */
+  max-width: 50rem;
   margin-inline: auto;
   padding: var(--space-6) var(--space-4) var(--space-8);
   align-items: start;
@@ -1447,10 +1451,11 @@ body {
    button opens the bottom sheet there instead. Keep this threshold in sync with
    ReaderToolsSurface's SHEET_MAX_WIDTH. */
 @media (min-width: 1440px) {
-  .reader-layout {
-    max-width: 1400px;
-  }
+  /* Only widen the layout (and add the rail column) when the Tools rail is
+     actually docked; when closed it stays at the tighter measure-based width so
+     the prose never floats in a 1400px container with oversized side gutters. */
   .reader-layout[data-tools-open="true"] {
+    max-width: 1400px;
     grid-template-columns: minmax(0, 1fr) var(--reader-rail-width);
   }
 }
@@ -1566,13 +1571,19 @@ body {
 /* Single-row bar: Back (left) · Listen/Aa/Tools cluster (right). */
 .reader-controls {
   position: sticky;
-  top: calc(var(--header-height) + var(--space-2)); /* AppHeader height + gap */
+  /* Sit flush under the opaque AppHeader (no text-showing sliver) */
+  top: var(--header-height);
   z-index: 30;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-4);
+  /* #1 — opaque reading background so article text scrolls UNDER (not through)
+     the sticky toolbar instead of "floating" over it. Same colour as the page
+     background, so the band itself stays invisible while masking the text. */
+  background: var(--reading-bg, var(--bg));
+  padding-block: var(--space-2);
+  margin-bottom: var(--space-3);
 }
 
 /* Back button sits inside the bar now — drop its standalone bottom margin and
