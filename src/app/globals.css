@@ -387,6 +387,15 @@ body {
   border-color: var(--accent, #4f46e5);
 }
 
+/* Coarse-pointer / touch: 44px minimum hit area for tag links (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .tag-chip {
+    min-height: 44px;
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+}
+
 
 .prose {
   font-size: 1.075rem;
@@ -1078,6 +1087,27 @@ body {
 .word-lookup-save-btn:disabled {
   opacity: 0.6;
   cursor: default;
+}
+
+/* Coarse-pointer / touch: 44px minimum hit area for dictionary controls (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .word-lookup-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .word-lookup-audio {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .word-lookup-save-btn {
+    min-height: 44px;
+  }
 }
 
 .tts {
@@ -2744,6 +2774,12 @@ body {
   .rw-sel-toolbar { flex-wrap: wrap; max-width: calc(100vw - 24px); }
 }
 
+/* Narrow viewports (regardless of pointer type): wrap + cap width so actions
+   never clip off the right edge on small desktop windows (360–414px). */
+@media (max-width: 480px) {
+  .rw-sel-toolbar { flex-wrap: wrap; max-width: calc(100vw - 24px); }
+}
+
 /* ---- Highlight edit popover ---- */
 .rw-hl-popover {
   position: fixed;
@@ -3843,6 +3879,13 @@ body {
   opacity: 0.35;
   cursor: not-allowed;
 }
+/* Coarse-pointer / touch: 44px minimum hit area (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .rw-speak-stepper-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
 
 /* ── Reference sentence card ─────────────────────────────────────────────── */
 .rw-speak-sentence-card {
@@ -4326,6 +4369,13 @@ body {
 .rw-dictate-stepper-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+}
+/* Coarse-pointer / touch: 44px minimum hit area (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .rw-dictate-stepper-btn {
+    min-width: 44px;
+    min-height: 44px;
+  }
 }
 
 .rw-dictate-controls {
