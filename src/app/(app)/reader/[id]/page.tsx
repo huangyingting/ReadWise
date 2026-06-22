@@ -91,7 +91,7 @@ export default async function ReaderPage({
     getOrCreateArticleTags(article.id),
     listRelatedArticles(article.id),
     // M10: SSR bookmark state for the reader cluster
-    getArticleListMembership(session.user.id, article.id),
+    getArticleListMembership(session.user.id, article.id, session.user.role),
     // #124: existing difficulty vote for this user+article (may be null)
     prisma.articleDifficultyFeedback.findUnique({
       where: { userId_articleId: { userId: session.user.id, articleId: article.id } },

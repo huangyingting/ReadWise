@@ -185,6 +185,18 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
     }
   }
 
-  await prisma.user.delete({ where: { id } });
+  // Delete the member's personally-imported articles (ownerId === id) in the
+  // SAME transaction as the user delete. Article.ownerId is onDelete: SetNull,
+  // so otherwise those rows would survive as status:"published"/ownerId→NULL and
+  // become world-readable via the public-visibility predicate. Deleting them
+  // cascades all derived rows (translations/vocab/quiz/tags/speech/progress/
+  // readingListItem/highlights — all onDelete: Cascade on articleId).
+  //
+  // Cascade deletes on the user: accounts, sessions, profile, reading progress,
+  // saved words, etc. — all onDelete: Cascade.
+  await prisma.$transaction([
+    prisma.article.deleteMany({ where: { ownerId: id } }),
+    prisma.user.delete({ where: { id } }),
+  ]);
   return { ok: true };
 }
