@@ -18,7 +18,7 @@ export default async function AdminAnalyticsPage() {
   ];
 
   return (
-    <section className="stack mt-[var(--space-6)]">
+    <section className="stack">
       <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
         Analytics
       </h1>

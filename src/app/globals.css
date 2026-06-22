@@ -1134,14 +1134,58 @@ body {
   align-items: center;
 }
 
+/* Secondary admin sub-nav: a horizontal tab strip that scrolls (never wraps or
+   clips) below the available width, keeping the active tab reachable on mobile. */
+.admin-subnav {
+  margin-bottom: var(--space-6);
+  border-bottom: 1px solid var(--border);
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: thin;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+}
+
+.admin-subnav-track {
+  display: flex;
+  gap: var(--space-2);
+  width: max-content;
+  min-width: 100%;
+  padding-bottom: var(--space-3);
+}
+
 .admin-table-wrap {
   overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
+  /* Scroll-shadow affordance: subtle left/right edge shadows that reveal there
+     is more content to scroll to and fade away once that edge is reached. The
+     `local`-attachment cover gradients mask the shadow at the resting edge. */
+  background:
+    linear-gradient(to right, var(--bg) 0, transparent 24px) 0 0 / 24px 100%
+      local no-repeat,
+    linear-gradient(to left, var(--bg) 0, transparent 24px) 100% 0 / 24px 100%
+      local no-repeat,
+    radial-gradient(
+        farthest-side at 0 50%,
+        color-mix(in srgb, var(--text) 14%, transparent),
+        transparent
+      )
+      0 0 / 14px 100% scroll no-repeat,
+    radial-gradient(
+        farthest-side at 100% 50%,
+        color-mix(in srgb, var(--text) 14%, transparent),
+        transparent
+      )
+      100% 0 / 14px 100% scroll no-repeat;
 }
 
 .admin-table {
   width: 100%;
+  /* Force horizontal scroll (rather than crushing columns) below md so the
+     Actions column is never clipped on 360–768px viewports. */
+  min-width: 720px;
   border-collapse: collapse;
   font-size: var(--text-sm);
 }
