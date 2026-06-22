@@ -1396,9 +1396,14 @@ body {
 /* xl: reserve the right-rail column ONLY while the surface is open, so the
    reading column keeps its full width (measure) when Tools is closed and there
    is never a horizontal scroll. */
-@media (min-width: 1280px) {
+/* #169 — only dock the Tools rail when there is genuinely room for the measure
+   reading column AND the rail beside the (collapsed) sidebar. Below this the
+   1280–1440 band cramped the reading column under its measure, so the Tools
+   button opens the bottom sheet there instead. Keep this threshold in sync with
+   ReaderToolsSurface's SHEET_MAX_WIDTH. */
+@media (min-width: 1440px) {
   .reader-layout {
-    max-width: 1320px;
+    max-width: 1400px;
   }
   .reader-layout[data-tools-open="true"] {
     grid-template-columns: minmax(0, 1fr) var(--reader-rail-width);
@@ -1410,6 +1415,21 @@ body {
   min-width: 0;
   /* Extra bottom padding so the fixed mini-player never overlaps last paragraph */
   padding-bottom: var(--space-10);
+}
+
+/* #169 — one shared measure column + one left edge. The sticky toolbar, the
+   article (header + hero + prose), the difficulty widget and the study CTA all
+   share the SAME measure-width block and align on the SAME edge, so the body
+   text sits directly under its title instead of detaching into the dead left
+   gutter. The block centers as a UNIT within the available reading space (the
+   gutters stay balanced), so opening/closing the Tools rail never re-aligns the
+   prose. The "Keep reading" grid (.reader-related) is intentionally wider. */
+.reader-column > .reader-controls,
+.reader-column > article,
+.reader-column > .reader-difficulty-feedback,
+.reader-column > .article-study {
+  max-width: var(--measure);
+  margin-inline: auto;
 }
 
 /* ---- Reader back navigation button ---- */
@@ -1439,8 +1459,10 @@ body {
   font-size: calc(1.125rem * var(--reading-font-scale, 1));
   line-height: var(--reading-line-height, var(--leading-reading));
   letter-spacing: var(--reading-letter-spacing, 0);
-  max-width: var(--measure);
-  margin-inline: auto;
+  /* #169 — the prose now fills its measure-width <article> wrapper rather than
+     centering itself, so its left edge matches the header/hero above it. */
+  max-width: none;
+  margin-inline: 0;
   color: var(--reading-text, var(--text));
 }
 
@@ -1841,7 +1863,7 @@ body {
 }
 
 /* ---- #153 unified responsive Tools surface (single mounted instance) ---- */
-/* Default (< 1280px): a modal bottom sheet, hidden until open. */
+/* Default (< 1440px, #169): a modal bottom sheet, hidden until open. */
 .reader-tools-surface {
   display: none;
   flex-direction: column;
@@ -1925,9 +1947,10 @@ body {
   padding: var(--space-4);
 }
 
-/* >= 1280px (xl): the surface is a sticky, independently scrollable RIGHT RAIL
-   docked in the second grid column (non-modal — no scrim, no focus trap). */
-@media (min-width: 1280px) {
+/* >= 1440px (#169): the surface is a sticky, independently scrollable RIGHT RAIL
+   docked in the second grid column (non-modal — no scrim, no focus trap). Below
+   this it is a bottom sheet (kept in sync with ReaderToolsSurface). */
+@media (min-width: 1440px) {
   .reader-tools-scrim {
     display: none;
   }
@@ -2079,6 +2102,16 @@ body {
   background: var(--reading-surface, var(--surface));
   border-top: 1px solid var(--reading-border, var(--border));
   box-shadow: var(--shadow-lg);
+}
+
+/* #169 — on md+ the sidebar is present, so inset the fixed mini-player past it
+   (it tracks the LIVE sidebar width published by AppSidebar, defaulting to the
+   collapsed icon-rail width since /reader auto-collapses the sidebar). Below md
+   the sidebar is hidden and the bar spans the full width. */
+@media (min-width: 768px) {
+  .reader-mini-player {
+    left: var(--app-sidebar-w, var(--sidebar-w-collapsed));
+  }
 }
 
 .reader-mini-player-left {

@@ -36,34 +36,76 @@ function getStoredCollapsed(): boolean | null {
  * Collapsed state persists in localStorage. With no stored preference the
  * default is responsive: collapsed icon-rail on md (768–1023px), expanded on
  * lg+ (>=1024px). A stored preference always wins once the user toggles.
+ *
+ * #169 — focused reading mode: while on a `/reader/*` route the sidebar renders
+ * in its collapsed icon-rail state BY DEFAULT (frees reading width, removes the
+ * competing full nav). This is a derived/effective state — the global
+ * `readwise:sidebar-collapsed` preference is NEVER overwritten by visiting a
+ * reader page. The user can still expand it for the current view via a transient
+ * override that resets when they leave the reader route.
  */
 export default function AppSidebar({ user }: { user: ShellUser | null }) {
   const pathname = usePathname();
   const isAdmin = user?.role === "Admin";
+  const isReaderRoute = pathname?.startsWith("/reader") ?? false;
 
-  // Default to expanded for SSR/first paint; the real value is resolved in the
-  // effect below to avoid a hydration mismatch and respect stored/responsive
-  // defaults.
-  const [collapsed, setCollapsed] = useState(false);
+  // The persisted global preference (responsive default until resolved in the
+  // effect below). Default to expanded for SSR/first paint to avoid a hydration
+  // mismatch; the real stored value is resolved client-side.
+  const [storedCollapsed, setStoredCollapsed] = useState(false);
+  // Transient per-view override that lets the user expand/collapse on a reader
+  // route WITHOUT mutating the global preference. Reset when the route changes.
+  const [readerOverride, setReaderOverride] = useState<boolean | null>(null);
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
     const stored = getStoredCollapsed();
     if (stored !== null) {
-      setCollapsed(stored);
+      setStoredCollapsed(stored);
     } else {
       // No stored preference — derive from viewport: lg+ expanded, md collapsed.
       const isLgUp =
         typeof window !== "undefined" &&
         typeof window.matchMedia === "function" &&
         window.matchMedia("(min-width: 1024px)").matches;
-      setCollapsed(!isLgUp);
+      setStoredCollapsed(!isLgUp);
     }
     setMounted(true);
   }, []);
 
+  // Drop the transient reader override whenever we enter/leave a reader route so
+  // each reader visit starts collapsed and other routes follow the stored pref.
+  useEffect(() => {
+    setReaderOverride(null);
+  }, [isReaderRoute]);
+
+  // Effective collapsed state: on a reader route default to collapsed
+  // (storedCollapsed || isReaderRoute), but honor a transient user override.
+  const effectiveCollapsed = isReaderRoute
+    ? (readerOverride ?? true)
+    : storedCollapsed;
+
+  // Publish the live sidebar width so the fixed ReaderMiniPlayer can inset past
+  // it (md+) and never paint over the sidebar column.
+  useEffect(() => {
+    const root = document.documentElement;
+    root.style.setProperty(
+      "--app-sidebar-w",
+      effectiveCollapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)",
+    );
+    return () => {
+      root.style.removeProperty("--app-sidebar-w");
+    };
+  }, [effectiveCollapsed]);
+
   function toggle() {
-    setCollapsed((prev) => {
+    if (isReaderRoute) {
+      // Focused reading mode — transient override only, never persist so the
+      // global preference is preserved.
+      setReaderOverride(!effectiveCollapsed);
+      return;
+    }
+    setStoredCollapsed((prev) => {
       const next = !prev;
       try {
         window.localStorage.setItem(SIDEBAR_STORAGE_KEY, String(next));
@@ -73,6 +115,8 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
       return next;
     });
   }
+
+  const collapsed = effectiveCollapsed;
 
   const primary = PRIMARY_NAV.filter((item) => item.group === "primary");
   const secondary = PRIMARY_NAV.filter((item) => item.group === "secondary");
