@@ -25,7 +25,7 @@ const DEFAULT_LEVEL = "B1";
 
 /** Friendly message returned when the AI service is unavailable. */
 const FALLBACK_ANSWER =
-  "I'm sorry, the AI tutor is unavailable right now. Please try again later.";
+  "AI feature unavailable — the AI tutor is not available right now. Please try again later.";
 
 export type TutorMessageDto = {
   id: string;

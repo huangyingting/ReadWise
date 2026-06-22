@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
+import AiBadge from "@/components/AiBadge";
 
 type VocabularyItem = {
   word: string;
@@ -119,6 +120,10 @@ export default function ArticleVocabulary({
 
   return (
     <div className="vocabulary-panel">
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <AiBadge />
+      </div>
+
       {loading ? <p className="muted">Extracting key words…</p> : null}
 
       {error ? (
@@ -129,8 +134,8 @@ export default function ArticleVocabulary({
 
       {!loading && loaded && fallback ? (
         <p className="muted">
-          Vocabulary extraction is unavailable right now. Please try again
-          later.
+          AI feature unavailable — vocabulary extraction is not available right
+          now. Please try again later.
         </p>
       ) : null}
 
