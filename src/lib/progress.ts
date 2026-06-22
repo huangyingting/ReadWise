@@ -179,7 +179,11 @@ export async function saveProgress(
   try {
     await recordReadingActivity(userId, articleId);
   } catch (err) {
-    log.error("activity recording failed", { userId, articleId, err });
+    log.error("activity recording failed", {
+      userId,
+      articleId,
+      err: err instanceof Error ? err.message : String(err),
+    });
   }
 
   return result;
