@@ -4,6 +4,7 @@ import {
   string,
   nonEmptyString,
   number,
+  clampedInt,
   boolean,
   oneOf,
   array,
@@ -34,6 +35,16 @@ test("number coerces numeric strings and bounds/int", () => {
   assert.equal(number({ int: true })(1.5).ok, false);
   assert.equal(number({ min: 0, max: 10 })(11).ok, false);
   assert.equal(number()("nope").ok, false);
+});
+
+test("clampedInt rounds and clamps into range, rejects non-numbers", () => {
+  const s = clampedInt(0, 100);
+  assert.deepEqual(s(200), { ok: true, value: 100 }); // clamp high
+  assert.deepEqual(s(-50), { ok: true, value: 0 }); // clamp low
+  assert.deepEqual(s(85.6), { ok: true, value: 86 }); // round
+  assert.deepEqual(s("90"), { ok: true, value: 90 }); // numeric string
+  assert.equal(s("nope").ok, false); // NaN rejected
+  assert.equal(s(null).ok, false);
 });
 
 test("boolean only accepts booleans", () => {

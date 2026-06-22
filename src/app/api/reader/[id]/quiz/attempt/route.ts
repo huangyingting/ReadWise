@@ -1,12 +1,19 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, number } from "@/lib/validation";
+import { idParams, object, number, array } from "@/lib/validation";
 import { recordQuizAttempt } from "@/lib/quiz-mastery";
+import { getOrCreateArticleQuiz } from "@/lib/quiz";
+import { gradeQuizAnswers } from "@/lib/quiz-grading";
 import { getViewableArticleById } from "@/lib/articles";
 
 const bodySchema = object({
-  correctCount: number({ int: true, min: 0, max: 1000 }),
-  totalQuestions: number({ int: true, min: 1, max: 1000 }),
+  answers: array(
+    object({
+      index: number({ int: true, min: 0, max: 1000 }),
+      selectedIndex: number({ int: true, min: 0, max: 1000 }),
+    }),
+    { max: 1000 },
+  ),
 });
 
 /**
@@ -14,9 +21,14 @@ const bodySchema = object({
  *
  * Records a completed quiz attempt for the authenticated user.
  *
- * Body: { correctCount: number, totalQuestions: number }
+ * The client submits ONLY its selected answer indices — never a self-reported
+ * score. Grading is done SERVER-SIDE against the cached `QuizQuestion.correctIndex`
+ * rows for the article (the source of truth), so a forged `correctCount` cannot
+ * inflate mastery/leveling. The persisted attempt uses the server-derived score.
+ *
+ * Body: { answers: { index: number, selectedIndex: number }[] }
  * Response 200: { attempt: { id, correctCount, totalQuestions, scorePct, completedAt }, best: number }
- * Errors: 400 invalid counts | 401 unauthenticated | 404 article not found
+ * Errors: 400 invalid/mismatched answers | 401 unauthenticated | 404 article not found
  */
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
@@ -26,13 +38,27 @@ export const POST = createHandler(
       throw new ApiError(404, "Article not found");
     }
 
+    // Load the canonical cached quiz (already gated by article access above).
+    const quiz = await getOrCreateArticleQuiz(article.id);
+    if (!quiz || quiz.fallback || quiz.questions.length === 0) {
+      throw new ApiError(400, "Quiz is not available for this article");
+    }
+
+    // Grade server-side from the real correctIndex values.
+    let graded;
+    try {
+      graded = gradeQuizAnswers(quiz.questions, body.answers);
+    } catch (err) {
+      throw new ApiError(400, err instanceof Error ? err.message : "Invalid answers");
+    }
+
     let result;
     try {
       result = await recordQuizAttempt(
         session.user.id,
         article.id,
-        body.correctCount,
-        body.totalQuestions,
+        graded.correctCount,
+        graded.total,
       );
     } catch (err) {
       throw new ApiError(400, err instanceof Error ? err.message : "Invalid attempt data");

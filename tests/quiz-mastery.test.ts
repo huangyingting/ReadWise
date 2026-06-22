@@ -30,6 +30,12 @@ let maxAggResult: { _max: { scorePct: number | null } } = { _max: { scorePct: nu
 let findManyRows: Record<string, unknown>[] = [];
 let groupByRows: { articleId: string; _count: { articleId: number } }[] = [];
 
+// @/lib/quiz stub (getOrCreateArticleQuiz) — controls the cached questions the
+// route grades against.
+type StubQuestion = { question: string; options: string[]; correctIndex: number };
+let quizQuestions: StubQuestion[] = [];
+let quizFallback = false;
+
 // ---------------------------------------------------------------------------
 // Module mocks (registered once before any imports of the modules under test)
 // ---------------------------------------------------------------------------
@@ -54,8 +60,7 @@ before(() => {
         article: {
           findUnique: async () => (articleExists ? { id: "a1" } : null),
           findFirst: async () => (articleExists ? { id: "a1" } : null),
-        },
-        quizAttempt: {
+        },        quizAttempt: {
           create: async (args: {
             data: Record<string, unknown>;
             select: Record<string, unknown>;
@@ -86,6 +91,16 @@ before(() => {
       },
     },
   });
+
+  mock.module("@/lib/quiz", {
+    namedExports: {
+      getOrCreateArticleQuiz: async () => ({
+        articleId: "a1",
+        questions: quizQuestions,
+        fallback: quizFallback,
+      }),
+    },
+  });
 });
 
 beforeEach(() => {
@@ -96,6 +111,12 @@ beforeEach(() => {
   maxAggResult = { _max: { scorePct: null } };
   findManyRows = [];
   groupByRows = [];
+  quizQuestions = [
+    { question: "Q1", options: ["a", "b", "c"], correctIndex: 1 },
+    { question: "Q2", options: ["a", "b", "c"], correctIndex: 0 },
+    { question: "Q3", options: ["a", "b", "c"], correctIndex: 2 },
+  ];
+  quizFallback = false;
 });
 
 // ---------------------------------------------------------------------------
@@ -217,7 +238,13 @@ test("POST /attempt → 401 when unauthenticated", async () => {
     new Request("http://localhost/api/reader/a1/quiz/attempt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctCount: 3, totalQuestions: 5 }),
+      body: JSON.stringify({
+        answers: [
+          { index: 0, selectedIndex: 1 },
+          { index: 1, selectedIndex: 0 },
+          { index: 2, selectedIndex: 2 },
+        ],
+      }),
     }),
     { params: Promise.resolve({ id: "a1" }) },
   );
@@ -232,44 +259,137 @@ test("POST /attempt → 404 when article not found", async () => {
     new Request("http://localhost/api/reader/missing/quiz/attempt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctCount: 3, totalQuestions: 5 }),
+      body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 1 }] }),
     }),
     { params: Promise.resolve({ id: "missing" }) },
   );
   assert.equal(res.status, 404);
 });
 
-test("POST /attempt → 400 when counts invalid (correctCount > totalQuestions)", async () => {
+test("POST /attempt → 400 when submitted answer count != cached quiz length", async () => {
   maxAggResult = { _max: { scorePct: null } };
   const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+  // Cached quiz has 3 questions; submit only 1.
   const res = await POST(
     new Request("http://localhost/api/reader/a1/quiz/attempt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctCount: 6, totalQuestions: 5 }),
+      body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 1 }] }),
     }),
     { params: Promise.resolve({ id: "a1" }) },
   );
   assert.equal(res.status, 400);
 });
 
-test("POST /attempt → 200 with attempt and best on success", async () => {
-  maxAggResult = { _max: { scorePct: 80 } };
+test("POST /attempt → 400 when an unknown question index is submitted", async () => {
+  maxAggResult = { _max: { scorePct: null } };
   const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
   const res = await POST(
     new Request("http://localhost/api/reader/a1/quiz/attempt", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctCount: 4, totalQuestions: 5 }),
+      body: JSON.stringify({
+        answers: [
+          { index: 0, selectedIndex: 1 },
+          { index: 1, selectedIndex: 0 },
+          { index: 9, selectedIndex: 2 }, // out of range
+        ],
+      }),
+    }),
+    { params: Promise.resolve({ id: "a1" }) },
+  );
+  assert.equal(res.status, 400);
+});
+
+test("POST /attempt → 400 when quiz unavailable (fallback)", async () => {
+  quizFallback = true;
+  quizQuestions = [];
+  const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+  const res = await POST(
+    new Request("http://localhost/api/reader/a1/quiz/attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 0 }] }),
+    }),
+    { params: Promise.resolve({ id: "a1" }) },
+  );
+  assert.equal(res.status, 400);
+});
+
+test("POST /attempt → server-grades all-correct answers (scorePct 100)", async () => {
+  maxAggResult = { _max: { scorePct: 100 } };
+  const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+  // correctIndex are [1, 0, 2] — submit all correct.
+  const res = await POST(
+    new Request("http://localhost/api/reader/a1/quiz/attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        answers: [
+          { index: 0, selectedIndex: 1 },
+          { index: 1, selectedIndex: 0 },
+          { index: 2, selectedIndex: 2 },
+        ],
+      }),
     }),
     { params: Promise.resolve({ id: "a1" }) },
   );
   assert.equal(res.status, 200);
   const body = await res.json();
-  assert.ok("attempt" in body);
-  assert.ok("best" in body);
-  assert.equal(body.attempt.scorePct, 80);
-  assert.equal(body.best, 80);
+  assert.equal(body.attempt.correctCount, 3);
+  assert.equal(body.attempt.totalQuestions, 3);
+  assert.equal(body.attempt.scorePct, 100);
+});
+
+test("POST /attempt → a forged high count cannot inflate the score (server-graded)", async () => {
+  // Client smuggles correctCount/totalQuestions; unknown keys are DROPPED, and
+  // the actual answers are all wrong → server grades 0, not the forged value.
+  maxAggResult = { _max: { scorePct: 0 } };
+  const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+  const res = await POST(
+    new Request("http://localhost/api/reader/a1/quiz/attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        correctCount: 3,
+        totalQuestions: 3,
+        answers: [
+          { index: 0, selectedIndex: 0 }, // wrong (correct=1)
+          { index: 1, selectedIndex: 1 }, // wrong (correct=0)
+          { index: 2, selectedIndex: 0 }, // wrong (correct=2)
+        ],
+      }),
+    }),
+    { params: Promise.resolve({ id: "a1" }) },
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.attempt.correctCount, 0);
+  assert.equal(body.attempt.totalQuestions, 3);
+  assert.equal(body.attempt.scorePct, 0);
+});
+
+test("POST /attempt → partial answers graded correctly (2/3 → 67%)", async () => {
+  maxAggResult = { _max: { scorePct: 67 } };
+  const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
+  const res = await POST(
+    new Request("http://localhost/api/reader/a1/quiz/attempt", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        answers: [
+          { index: 0, selectedIndex: 1 }, // correct
+          { index: 1, selectedIndex: 0 }, // correct
+          { index: 2, selectedIndex: 0 }, // wrong (correct=2)
+        ],
+      }),
+    }),
+    { params: Promise.resolve({ id: "a1" }) },
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.attempt.correctCount, 2);
+  assert.equal(body.attempt.scorePct, 67); // round(2/3*100)
 });
 
 // ---------------------------------------------------------------------------
