@@ -9,6 +9,7 @@ import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/profile";
 import { Button } from "@/components/ui/Button";
+import { Select } from "@/components/ui/Select";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
@@ -183,25 +184,22 @@ export default function CategoryBrowser({
         >
           Level
         </label>
-        <select
-          id="browse-level-filter"
-          value={level ?? ""}
-          onChange={handleLevelChange}
-          className={cn(
-            "text-[length:var(--text-sm)] rounded border border-border bg-surface",
-            "px-[var(--space-2)] py-[var(--space-1)] text-text",
-            "focus:outline-none focus:ring-2 focus:ring-teal",
-            focusRing,
-          )}
-          aria-label="Filter articles by CEFR level"
-        >
-          <option value="">All levels</option>
-          {ENGLISH_LEVELS.map((lvl) => (
-            <option key={lvl} value={lvl}>
-              {lvl} and below
-            </option>
-          ))}
-        </select>
+        <div className="w-36">
+          <Select
+            id="browse-level-filter"
+            value={level ?? ""}
+            onChange={handleLevelChange}
+            selectSize="sm"
+            aria-label="Filter articles by CEFR level"
+          >
+            <option value="">All levels</option>
+            {ENGLISH_LEVELS.map((lvl) => (
+              <option key={lvl} value={lvl}>
+                {lvl} and below
+              </option>
+            ))}
+          </Select>
+        </div>
       </div>
 
       {/* Section heading */}

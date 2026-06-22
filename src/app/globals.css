@@ -2784,7 +2784,20 @@ body {
 
 /* Coarse-pointer / touch: larger targets */
 @media (pointer: coarse) {
-  .rw-sel-swatch { width: 28px; height: 28px; }
+  /* 44×44 hit area; background-clip:content-box keeps the visual dot at ~24px */
+  .rw-sel-swatch {
+    width: 44px;
+    height: 44px;
+    padding: 10px; /* (44 - 24) / 2 */
+    background-clip: content-box;
+    border-color: transparent;
+  }
+  .rw-sel-swatch[aria-checked="true"] {
+    box-shadow: none;
+    /* Inset outline approximates a ring around the 24px content-box dot */
+    outline: 2px solid var(--primary);
+    outline-offset: -11px;
+  }
   .rw-sel-toolbar-btn { height: 2.75rem; }
   .rw-sel-toolbar { flex-wrap: wrap; max-width: calc(100vw - 24px); }
 }
@@ -2872,6 +2885,22 @@ body {
   box-shadow:
     0 0 0 2px var(--reading-surface, var(--surface)),
     0 0 0 4px var(--primary);
+}
+
+/* Coarse-pointer / touch: 44×44 hit area with ~24px visual dot */
+@media (pointer: coarse) {
+  .rw-hl-popover-swatch {
+    width: 44px;
+    height: 44px;
+    padding: 10px; /* (44 - 24) / 2 */
+    background-clip: content-box;
+    border-color: transparent;
+  }
+  .rw-hl-popover-swatch[aria-checked="true"] {
+    box-shadow: none;
+    outline: 2px solid var(--primary);
+    outline-offset: -11px;
+  }
 }
 
 /* Note textarea */
