@@ -261,7 +261,7 @@ function scrollToBottomSmooth(el: HTMLElement): void {
 // ---------------------------------------------------------------------------
 
 export default function ArticleTutor({ active }: { active: boolean }) {
-  const { messages, transient, fetching, loaded, asking, clearLoading, ask, clear } =
+  const { messages, transient, fetching, loaded, asking, clearLoading, clearError, ask, clear } =
     useTutor();
 
   const [question, setQuestion] = useState("");
@@ -350,7 +350,13 @@ export default function ArticleTutor({ active }: { active: boolean }) {
   }, [question, asking, fetching, ask]);
 
   const handleClear = useCallback(async () => {
-    await clear();
+    const ok = await clear();
+    if (!ok) {
+      // Surface the failure; the conversation is left intact.
+      setAnnouncement("");
+      setTimeout(() => setAnnouncement("Couldn't clear the conversation"), 50);
+      return;
+    }
     setJumpVisible(false);
     // Announce and focus composer
     setAnnouncement("");
@@ -403,6 +409,12 @@ export default function ArticleTutor({ active }: { active: boolean }) {
           ) : null}
         </div>
       </div>
+
+      {clearError ? (
+        <p role="alert" className="translation-error" style={{ marginTop: "var(--space-2)" }}>
+          {clearError}
+        </p>
+      ) : null}
 
       {/* ---- Message list ---- */}
       <div

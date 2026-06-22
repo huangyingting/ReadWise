@@ -595,6 +595,49 @@ body {
   color: var(--danger-text);
 }
 
+/* Reader tool panel error boundary fallback (#224) */
+.reader-panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.reader-panel-error-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.reader-panel-error-retry {
+  appearance: none;
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.reader-panel-error-retry:hover {
+  background: var(--bg-subtle);
+  border-color: var(--text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-panel-error-retry {
+    transition: none;
+  }
+}
+
 .level-filter select {
   padding: 0.5rem 0.65rem;
   border-radius: 8px;
