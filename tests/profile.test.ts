@@ -28,6 +28,12 @@ test("parseProfileInput validates age and gender when present", () => {
     assert.equal(res.value.ageRange, "25-34");
     assert.equal(res.value.gender, "Female");
   }
+  // "Other" is a valid gender option
+  const resOther = parseProfileInput({ englishLevel: "B1", gender: "Other" });
+  assert.equal(resOther.ok, true);
+  if (resOther.ok) {
+    assert.equal(resOther.value.gender, "Other");
+  }
 });
 
 test("parseProfileInput keeps only valid category slugs and dedups", () => {
