@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Compass, Sparkles, CheckCircle2 } from "lucide-react";
+import { Compass, CheckCircle2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";

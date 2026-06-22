@@ -93,10 +93,6 @@ export default function ArticleTranslation({
 
   return (
     <div>
-      <div style={{ marginBottom: "var(--space-3)" }}>
-        <AiBadge />
-      </div>
-
       <div className="translation-controls">
         <label htmlFor="translation-lang" className="muted">
           Translate to
@@ -130,6 +126,12 @@ export default function ArticleTranslation({
         <p className="translation-error" role="alert">
           {error}
         </p>
+      ) : null}
+
+      {result && !result.fallback ? (
+        <div style={{ marginBottom: "var(--space-3)" }}>
+          <AiBadge />
+        </div>
       ) : null}
 
       {result ? (

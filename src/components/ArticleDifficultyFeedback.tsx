@@ -29,9 +29,11 @@ const VOTE_LABEL: Record<Vote, string> = {
 export default function ArticleDifficultyFeedback({
   articleId,
   initialVote,
+  difficulty,
 }: {
   articleId: string;
   initialVote?: Vote | null;
+  difficulty?: string | null;
 }) {
   const [vote, setVote] = useState<Vote | null>(initialVote ?? null);
   const [saving, setSaving] = useState(false);
@@ -67,6 +69,11 @@ export default function ArticleDifficultyFeedback({
       <h3 className="text-[length:var(--text-sm)] font-semibold text-text-muted uppercase tracking-wide mb-[var(--space-3)] mt-0">
         How was the difficulty?
       </h3>
+      {difficulty ? (
+        <p className="text-[length:var(--text-xs)] text-text-subtle m-0 mb-[var(--space-3)]">
+          AI-estimated level: <strong className="text-text-muted">{difficulty}</strong>
+        </p>
+      ) : null}
 
       {vote ? (
         <p className="text-[length:var(--text-sm)] text-text-muted m-0">

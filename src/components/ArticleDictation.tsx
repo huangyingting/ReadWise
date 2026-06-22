@@ -34,6 +34,7 @@ import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import EmptyState from "@/components/EmptyState";
+import AiBadge from "@/components/AiBadge";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import {
   segmentDictation,
@@ -246,7 +247,7 @@ export default function ArticleDictation({
       <EmptyState
         icon={Headphones}
         title="Narration not available"
-        description="Dictation requires text-to-speech narration. Please check back after the article has been processed."
+        description="Audio for this article isn't ready yet. Check back in a few minutes."
       />
     );
   }
@@ -265,6 +266,11 @@ export default function ArticleDictation({
 
   return (
     <div className="rw-dictate-panel">
+      {/* ── AI badge ── */}
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <AiBadge />
+      </div>
+
       {/* ── Sentence navigator ── */}
       <div className="rw-dictate-stepper" role="navigation" aria-label="Sentence navigation">
         <button
