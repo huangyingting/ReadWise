@@ -59,6 +59,7 @@ test("toListingArticle returns only serializable card fields", () => {
     "author",
     "category",
     "difficulty",
+    "heroImage",
     "id",
     "publishedAt",
     "readingMinutes",
