@@ -63,14 +63,17 @@ export default async function ListsPage({
           aria-label={activeList?.name ?? "Saved"}
           className="min-w-0"
         >
-          {/* Per-list heading (desktop) */}
-          <div className="lists-panel-header">
-            <h2
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mt-0 mb-[var(--space-4)]"
-            >
-              {activeList?.name ?? "Saved"}
-            </h2>
-          </div>
+          {/* Per-list heading — only shown for non-default lists to avoid
+              duplicating the "Saved" page H1 that PageHeader already renders. */}
+          {!isDefaultList && (
+            <div className="lists-panel-header">
+              <h2
+                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mt-0 mb-[var(--space-4)]"
+              >
+                {activeList?.name ?? "Saved"}
+              </h2>
+            </div>
+          )}
 
           {!listData || listData.articles.length === 0 ? (
             <EmptyState

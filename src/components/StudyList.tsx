@@ -1,9 +1,10 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Volume2 } from "lucide-react";
+import { BookOpen, Volume2 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import EmptyState from "@/components/EmptyState";
 
 export type StudyWord = {
   id: string;
@@ -78,10 +79,12 @@ export default function StudyList({
 
   if (items.length === 0) {
     return (
-      <p className="muted">
-        Your study list is empty. Open an article and save vocabulary to build
-        it up.
-      </p>
+      <EmptyState
+        icon={BookOpen}
+        title="Your study list is empty"
+        description="Open an article and save vocabulary words to build it up."
+        action={{ label: "Browse articles", href: "/browse" }}
+      />
     );
   }
 

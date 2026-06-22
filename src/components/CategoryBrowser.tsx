@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Inbox, Sparkles } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
@@ -88,14 +88,18 @@ export default function CategoryBrowser({
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [loading, setLoading] = useState<boolean>(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+  // Ref-tracked loading flag so loadMore never reads a stale closure value —
+  // avoids the edge-case where a click fires just before the state update lands.
+  const loadingRef = useRef(false);
 
   const level = initialLevel ?? null;
   const tabs = buildTabs(level);
 
   const loadMore = useCallback(async () => {
-    if (loading || !hasMore) {
+    if (loadingRef.current || !hasMore) {
       return;
     }
+    loadingRef.current = true;
     setLoading(true);
     setLoadError(null);
     try {
@@ -116,9 +120,10 @@ export default function CategoryBrowser({
     } catch {
       setLoadError("Couldn't load more articles — please try again.");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [activeView, offset, hasMore, loading, level]);
+  }, [activeView, offset, hasMore, level]);
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newLevel = e.target.value || null;
