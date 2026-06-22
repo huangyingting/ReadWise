@@ -43,6 +43,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
 import EmptyState from "@/components/EmptyState";
 import ConfirmAction from "@/components/ConfirmAction";
+import AiBadge from "@/components/AiBadge";
 import {
   useTutor,
   type TutorMessage,
@@ -385,19 +386,22 @@ export default function ArticleTutor({ active }: { active: boolean }) {
             Answers are based on this article · tuned to your level.
           </span>
         </div>
-        {hasConversation ? (
-          <ConfirmAction
-            triggerLabel="Clear"
-            triggerVariant="outline"
-            size="sm"
-            confirmMessage="Clear this conversation? Your questions and the tutor's answers for this article will be deleted."
-            confirmLabel="Clear"
-            confirmVariant="danger"
-            onConfirm={handleClear}
-            loading={clearLoading}
-            className="!min-w-0"
-          />
-        ) : null}
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+          <AiBadge />
+          {hasConversation ? (
+            <ConfirmAction
+              triggerLabel="Clear"
+              triggerVariant="outline"
+              size="sm"
+              confirmMessage="Clear this conversation? Your questions and the tutor's answers for this article will be deleted."
+              confirmLabel="Clear"
+              confirmVariant="danger"
+              onConfirm={handleClear}
+              loading={clearLoading}
+              className="!min-w-0"
+            />
+          ) : null}
+        </div>
       </div>
 
       {/* ---- Message list ---- */}

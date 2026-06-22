@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import { Button } from "@/components/ui/Button";
+import AiBadge from "@/components/AiBadge";
 
 type SupportedLanguage = {
   code: string;
@@ -92,6 +93,10 @@ export default function ArticleTranslation({
 
   return (
     <div>
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <AiBadge />
+      </div>
+
       <div className="translation-controls">
         <label htmlFor="translation-lang" className="muted">
           Translate to
@@ -132,7 +137,7 @@ export default function ArticleTranslation({
           <p className="muted translation-meta">
             {result.languageLabel}
             {result.fallback
-              ? " · translation service unavailable"
+              ? " · AI feature unavailable — translation is not available right now"
               : result.cached
                 ? " · cached"
                 : " · newly generated"}

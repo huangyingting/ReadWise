@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import AiBadge from "@/components/AiBadge";
 
 type QuizQuestion = {
   question: string;
@@ -219,6 +220,10 @@ export default function ArticleQuiz({
 
   return (
     <div className="quiz-panel">
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <AiBadge />
+      </div>
+
       {loading ? <p className="muted">Generating questions…</p> : null}
 
       {error ? (
@@ -229,8 +234,8 @@ export default function ArticleQuiz({
 
       {!loading && loaded && fallback ? (
         <p className="muted">
-          The comprehension quiz is unavailable right now. Please try again
-          later.
+          AI feature unavailable — quiz generation is not available right now.
+          Please try again later.
         </p>
       ) : null}
 
