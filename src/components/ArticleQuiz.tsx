@@ -220,10 +220,6 @@ export default function ArticleQuiz({
 
   return (
     <div className="quiz-panel">
-      <div style={{ marginBottom: "var(--space-3)" }}>
-        <AiBadge />
-      </div>
-
       {loading ? <p className="muted">Generating questions…</p> : null}
 
       {error ? (
@@ -245,6 +241,9 @@ export default function ArticleQuiz({
 
       {questions.length > 0 ? (
         <>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <AiBadge />
+          </div>
           <ol className="quiz-list">
             {questions.map((q, qi) => (
               <li key={q.question} className="quiz-item">

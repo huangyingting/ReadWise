@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Sparkles, Compass, GraduationCap } from "lucide-react";
+import { Sparkles, Compass, GraduationCap, SlidersHorizontal } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { getProgressSummaries, listInProgressArticles } from "@/lib/progress";
 import { getStreakSummary } from "@/lib/activity";
@@ -215,7 +215,7 @@ export default async function DashboardPage({
 
         {/* Personalisation cue — calm, informational */}
         <p className="text-text-muted text-[length:var(--text-sm)] mt-0 mb-[var(--space-5)]">
-          <Sparkles size={14} aria-hidden className="inline -mt-px mr-[var(--space-1)] text-text-subtle" />
+          <SlidersHorizontal size={14} aria-hidden className="inline -mt-px mr-[var(--space-1)] text-text-subtle" />
           Based on your level and topics
         </p>
 
