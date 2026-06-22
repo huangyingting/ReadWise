@@ -149,7 +149,7 @@ async function aiAssessLevel(
         content: `Title: ${title}\n\n${source}`,
       },
     ],
-    { maxOutputTokens: 16 },
+    { maxOutputTokens: 16, feature: "difficulty" },
   );
   if (!completion) {
     return null;

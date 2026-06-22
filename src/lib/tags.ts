@@ -91,7 +91,7 @@ async function generateTags(title: string, content: string): Promise<string[]> {
       role: "user",
       content: `Title: ${title}\n\n${source}`,
     },
-  ]);
+  ], { feature: "tags" });
 
   if (!completion) {
     return [];
