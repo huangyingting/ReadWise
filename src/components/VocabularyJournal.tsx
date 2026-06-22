@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useEffect, useRef, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { getJson, postJson } from "@/lib/client-fetch";
 
 export type WordEntry = {
   id: string;
@@ -52,6 +53,12 @@ export default function VocabularyJournal({
   const [bulkPending, setBulkPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Cancels the in-flight words request so out-of-order responses (e.g. from
+  // fast typing) can't overwrite a newer result. Debounce ref keeps the search
+  // from firing a request on every keystroke.
+  const abortRef = useRef<AbortController | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const fetchWords = useCallback(
     async (opts: {
       q?: string;
@@ -69,19 +76,43 @@ export default function VocabularyJournal({
         router.replace(`/study/words?${params.toString()}`, { scroll: false });
       });
 
-      const res = await fetch(`/api/study/words?${params.toString()}`);
-      if (!res.ok) return;
-      const json = (await res.json()) as JournalData;
-      setData(json);
-      setSelected(new Set());
+      // Abort any prior request so only the latest one can render.
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      try {
+        const json = await getJson<JournalData>(
+          `/api/study/words?${params.toString()}`,
+          { signal: controller.signal },
+        );
+        if (controller.signal.aborted) return;
+        setData(json);
+        setSelected(new Set());
+      } catch (err) {
+        // Swallow aborts (superseded by a newer request); keep current data on
+        // other failures rather than blanking the table.
+        if (err instanceof DOMException && err.name === "AbortError") return;
+      }
     },
     [router, searchParams],
   );
 
+  // Cleanup: cancel any pending debounce + in-flight request on unmount.
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      abortRef.current?.abort();
+    };
+  }, []);
+
   const handleSearch = useCallback(
     (value: string) => {
       setQuery(value);
-      void fetchWords({ q: value });
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        void fetchWords({ q: value });
+      }, 300);
     },
     [fetchWords],
   );
@@ -132,15 +163,7 @@ export default function VocabularyJournal({
     setBulkPending(true);
     setError(null);
     try {
-      const res = await fetch("/api/vocabulary/unsave-batch", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ words: Array.from(selected) }),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(d?.error ?? "Could not remove words");
-      }
+      await postJson("/api/vocabulary/unsave-batch", { words: Array.from(selected) });
       // Re-fetch current page (may shrink)
       await fetchWords({});
     } catch (err) {
