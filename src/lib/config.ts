@@ -85,6 +85,17 @@ export type SpeechConfig = {
 /** Default synthesis voice when AZURE_SPEECH_VOICE is unset. */
 export const DEFAULT_SPEECH_VOICE = "en-US-AndrewMultilingualNeural";
 const DEFAULT_SPEECH_OUTPUT_FORMAT = "audio-24khz-96kbitrate-mono-mp3";
+const DEFAULT_SPEECH_TIMEOUT_MS = 30_000;
+
+/**
+ * Per-synthesis Azure Speech timeout in ms (SPEECH_TIMEOUT_MS, default 30000).
+ * NaN-guarded so a malformed env can't yield `setTimeout(reject, NaN)` (which
+ * fires immediately and fails every TTS request).
+ */
+export function speechTimeoutMs(): number {
+  const v = parseInt(process.env.SPEECH_TIMEOUT_MS ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_SPEECH_TIMEOUT_MS;
+}
 
 /** Azure Speech config; voice/format fall back to project defaults. */
 export const speechConfig: FeatureConfig<SpeechConfig> = defineFeatureConfig(
