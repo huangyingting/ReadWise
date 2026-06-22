@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Check, ArrowLeft, ArrowRight } from "lucide-react";
+import { Check, X, ArrowLeft, ArrowRight } from "lucide-react";
 import { CATEGORIES } from "@/lib/categories";
 import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS, type EnglishLevel } from "@/lib/profile";
 import {
@@ -205,6 +205,9 @@ function StepPlacement({
                       {isRevealed && isCorrect && (
                         <Check size={14} aria-hidden className="ml-auto text-[color:var(--success,#22c55e)]" />
                       )}
+                      {isRevealed && isWrong && (
+                        <X size={14} aria-hidden className="ml-auto text-[color:var(--danger-text,#ef4444)]" />
+                      )}
                     </label>
                   );
                 })}
@@ -367,6 +370,12 @@ function StepAbout({
           </Select>
         </Field>
       </div>
+      <p className="mt-[var(--space-4)] text-text-subtle text-xs">
+        These fields are optional and stored in your profile. They are used
+        solely to personalise article recommendations. You can update or clear
+        them at any time in{" "}
+        <strong className="font-medium text-text">Settings</strong>.
+      </p>
     </div>
   );
 }

@@ -15,6 +15,7 @@ export const GENDERS = [
   "Female",
   "Male",
   "Non-binary",
+  "Other",
   "Prefer not to say",
 ] as const;
 
