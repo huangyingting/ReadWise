@@ -4,6 +4,9 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
+import { Textarea } from "@/components/ui/Textarea";
+import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
 type Mode = "url" | "text";
 
@@ -57,33 +60,22 @@ export default function ImportForm() {
     }
   }
 
+  const modeOptions = [
+    { value: "url" as const, label: "Paste URL" },
+    { value: "text" as const, label: "Paste Text" },
+  ] as const;
+
   return (
     <Card>
       <CardBody>
-        {/* Mode tabs */}
-        <div className="flex gap-[var(--space-2)] mb-[var(--space-5)]">
-          <button
-            type="button"
-            onClick={() => setMode("url")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              mode === "url"
-                ? "bg-accent text-white"
-                : "bg-surface-raised text-text-muted hover:text-text"
-            }`}
-          >
-            Paste URL
-          </button>
-          <button
-            type="button"
-            onClick={() => setMode("text")}
-            className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-              mode === "text"
-                ? "bg-accent text-white"
-                : "bg-surface-raised text-text-muted hover:text-text"
-            }`}
-          >
-            Paste Text
-          </button>
+        {/* Mode selector */}
+        <div className="mb-[var(--space-5)]">
+          <SegmentedControl
+            label="Import mode"
+            value={mode}
+            onChange={setMode}
+            options={modeOptions}
+          />
         </div>
 
         <form onSubmit={handleSubmit} className="flex flex-col gap-[var(--space-4)]">
@@ -95,14 +87,13 @@ export default function ImportForm() {
               >
                 Article URL
               </label>
-              <input
+              <Input
                 id="import-url"
                 type="url"
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/article"
                 required
-                className="admin-input w-full"
               />
               <p className="text-xs text-text-muted mt-1">
                 Paste a link to any publicly accessible article.
@@ -118,14 +109,13 @@ export default function ImportForm() {
                   Title{" "}
                   <span className="text-text-muted font-normal">(optional)</span>
                 </label>
-                <input
+                <Input
                   id="import-title"
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="My article title"
                   maxLength={500}
-                  className="admin-input w-full"
                 />
               </div>
               <div>
@@ -135,14 +125,14 @@ export default function ImportForm() {
                 >
                   Article Text
                 </label>
-                <textarea
+                <Textarea
                   id="import-text"
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Paste your article text here…"
                   required
                   rows={12}
-                  className="admin-input w-full resize-y"
+                  className="resize-y"
                 />
                 <p className="text-xs text-text-muted mt-1">
                   Separate paragraphs with a blank line.
@@ -152,7 +142,7 @@ export default function ImportForm() {
           )}
 
           {error && (
-            <p role="alert" className="text-sm text-red-600 dark:text-red-400">
+            <p role="alert" className="text-sm text-danger-text">
               {error}
             </p>
           )}
