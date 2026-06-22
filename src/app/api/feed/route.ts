@@ -1,15 +1,18 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { queryInt } from "@/lib/validation";
+import { queryInt, queryString } from "@/lib/validation";
 import { FEED_PAGE_SIZE, FEED_MAX_LIMIT, getPersonalizedFeed } from "@/lib/feed";
 import { getProgressSummaries } from "@/lib/progress";
+import { isDifficultyLevel, type DifficultyLevel } from "@/lib/difficulty";
 
 type FeedQuery = {
   offset: number;
   limit: number;
+  level: DifficultyLevel | null;
 };
 
 function parseQuery(params: URLSearchParams) {
+  const rawLevel = queryString(params, "level", "");
   const value: FeedQuery = {
     offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
     limit: queryInt(params, "limit", {
@@ -17,6 +20,7 @@ function parseQuery(params: URLSearchParams) {
       min: 1,
       max: FEED_MAX_LIMIT,
     }),
+    level: isDifficultyLevel(rawLevel) ? rawLevel : null,
   };
   return { ok: true as const, value };
 }
@@ -27,6 +31,9 @@ function parseQuery(params: URLSearchParams) {
  * Query params:
  *   - `offset` : articles to skip (incremental loading; default 0)
  *   - `limit`  : page size (default {@link FEED_PAGE_SIZE}, max {@link FEED_MAX_LIMIT})
+ *   - `level`  : optional CEFR cap (A1–C2) — only articles at/below this level
+ *                are ranked, applied at the DB layer so `hasMore` / "Load more"
+ *                stay correct under a level filter.
  *
  * Response: `{ articles, progress, hasMore, offset, reasons }`
  *   - `articles`  : ListingArticle[] — same shape as /api/articles; render with ArticleCardView
@@ -36,14 +43,14 @@ function parseQuery(params: URLSearchParams) {
  *   - `reasons`   : human-readable personalisation reason per articleId
  *
  * This endpoint is session-gated (401 for unauthenticated requests) and
- * intentionally NOT cached — results are user-scoped and change with reading
- * history. Do not wrap with {@link createCachedListing}.
+ * intentionally NOT cached at the route layer — results are user-scoped and
+ * change with reading history. Do not wrap with {@link createCachedListing}.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
-  const { offset, limit } = query;
+  const { offset, limit, level } = query;
   const userId = session.user.id;
 
-  const feed = await getPersonalizedFeed(userId, { offset, limit });
+  const feed = await getPersonalizedFeed(userId, { offset, limit, maxLevel: level });
 
   const progress = await getProgressSummaries(
     userId,

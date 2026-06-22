@@ -21,8 +21,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { Article } from "@prisma/client";
-import { isDifficultyLevel, levelRank, heuristicDifficulty } from "@/lib/difficulty";
+import type { Prisma } from "@prisma/client";
+import { isDifficultyLevel, levelRank, levelsAtOrBelow } from "@/lib/difficulty";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
@@ -38,10 +38,56 @@ export const FEED_PAGE_SIZE = 10;
 export const FEED_MAX_LIMIT = 24;
 
 /** Safety cap: maximum articles fetched from DB for in-memory ranking. */
-const MAX_FETCH = 1000;
+const MAX_FETCH = 200;
 
 /** Maximum consecutive articles from the same category before diversity kicks in. */
 const MAX_CONSECUTIVE_SAME_CATEGORY = 3;
+
+/** Short-lived per-user feed cache TTL (ms). */
+const FEED_CACHE_TTL_MS = 5 * 60 * 1000;
+
+// In-process per-user memo for the computed feed page. The feed is user-scoped
+// and reflects reading history, so it can't share Next's tag-based
+// `unstable_cache` (which also can't read the session). A small TTL map gives
+// most of the win — repeated dashboard/feed hits within a few minutes reuse the
+// ranking — while staying bounded and trivially correct. Disabled under test so
+// each test observes its own freshly-mocked data.
+const FEED_CACHE_ENABLED = process.env.NODE_ENV !== "test";
+const feedCache = new Map<string, { expires: number; value: FeedPage }>();
+
+function feedCacheKey(
+  userId: string,
+  offset: number,
+  limit: number,
+  maxLevel: DifficultyLevel | null,
+): string {
+  return `${userId}|${offset}|${limit}|${maxLevel ?? ""}`;
+}
+
+/**
+ * Columns needed to score, diversify and render a feed card. Deliberately
+ * EXCLUDES the large `content` HTML — the feed never renders the body, and
+ * dropping it cuts the fetched payload by orders of magnitude.
+ */
+const FEED_ARTICLE_SELECT = {
+  id: true,
+  title: true,
+  author: true,
+  source: true,
+  heroImage: true,
+  category: true,
+  difficulty: true,
+  difficultyScore: true,
+  readingMinutes: true,
+  wordCount: true,
+  publishedAt: true,
+  excerpt: true,
+  status: true,
+  ownerId: true,
+} satisfies Prisma.ArticleSelect;
+
+/** Article projection used throughout the feed (content-free). */
+export type FeedArticle = Prisma.ArticleGetPayload<{ select: typeof FEED_ARTICLE_SELECT }>;
 
 // ---------------------------------------------------------------------------
 // Scoring weights (exported so tests can assert on them)
@@ -125,7 +171,7 @@ export function buildTagMap(rows: ArticleTagRow[]): Map<string, string[]> {
 // ---------------------------------------------------------------------------
 
 export type ScoredArticle = {
-  article: Article;
+  article: FeedArticle;
   score: number;
   reason: string;
 };
@@ -148,7 +194,7 @@ export type ScoringContext = {
  * This is a pure function — callers supply all contextual data.
  */
 export function scoreArticle(
-  article: Article,
+  article: FeedArticle,
   ctx: ScoringContext,
 ): ScoredArticle | null {
   const { userLevel, userLevelRank, topicSet, tagSlugsForArticle, completedIds, inProgressIds, now } = ctx;
@@ -289,21 +335,65 @@ export type FeedPage = {
  */
 export async function getPersonalizedFeed(
   userId: string,
-  opts: { offset?: number; limit?: number } = {},
+  opts: { offset?: number; limit?: number; maxLevel?: DifficultyLevel | null } = {},
 ): Promise<FeedPage> {
   const limit = opts.limit ?? FEED_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
+  const maxLevel = opts.maxLevel ?? null;
   const now = new Date();
 
+  // Short-lived per-user memo (see FEED_CACHE_* notes above).
+  const cacheKey = feedCacheKey(userId, offset, limit, maxLevel);
+  if (FEED_CACHE_ENABLED) {
+    const hit = feedCache.get(cacheKey);
+    if (hit && hit.expires > now.getTime()) {
+      return hit.value;
+    }
+  }
+
+  const result = await computePersonalizedFeed(userId, offset, limit, maxLevel, now);
+
+  if (FEED_CACHE_ENABLED) {
+    feedCache.set(cacheKey, { value: result, expires: now.getTime() + FEED_CACHE_TTL_MS });
+  }
+  return result;
+}
+
+async function computePersonalizedFeed(
+  userId: string,
+  offset: number,
+  limit: number,
+  maxLevel: DifficultyLevel | null,
+  now: Date,
+): Promise<FeedPage> {
   // 1) Load user profile (non-fatal on missing)
   const profile = await getProfile(userId);
   const hasProfile = Boolean(profile?.completedAt);
 
-  // 2) Fetch all published articles (newest-first; capped for memory safety)
+  // 2) Pre-collect the user's COMPLETED article ids so we can exclude them at
+  // the DB layer — completed articles are never "For You" discovery content,
+  // and dropping them before fetch keeps the candidate set lean.
+  const completedRows = await prisma.readingProgress.findMany({
+    where: { userId, completed: true },
+    select: { articleId: true },
+  });
+  const completedIds = new Set(completedRows.map((r) => r.articleId));
+
+  // 3) Fetch candidate published articles (newest-first; content-free
+  // projection; capped for memory safety). Completed articles are excluded at
+  // the DB layer, and when a level cap is active we constrain difficulty too so
+  // level-filtered feeds paginate correctly without over-fetching.
+  const where: Prisma.ArticleWhereInput = {
+    status: "published",
+    ownerId: null,
+    ...(completedIds.size > 0 ? { id: { notIn: [...completedIds] } } : {}),
+    ...(maxLevel ? { difficulty: { in: levelsAtOrBelow(maxLevel) } } : {}),
+  };
   const allArticles = await prisma.article.findMany({
-    where: { status: "published", ownerId: null },
+    where,
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: MAX_FETCH,
+    select: FEED_ARTICLE_SELECT,
   });
 
   if (allArticles.length === 0) {
@@ -319,17 +409,6 @@ export async function getPersonalizedFeed(
     });
   }
 
-  // 3) Fill in missing difficulty assessments READ-ONLY (heuristic, no DB writes).
-  // The processing pipeline writes difficulty during ingestion; we never write
-  // from a GET path to avoid write-amplification on every feed request.
-  for (const article of allArticles) {
-    if (!isDifficultyLevel(article.difficulty)) {
-      const h = heuristicDifficulty(article.content);
-      article.difficulty = h.level;
-      article.difficultyScore = h.score;
-    }
-  }
-
   // ---- No-profile fallback: newest-first, no personalisation ----
   if (!hasProfile) {
     const page = allArticles.slice(offset, offset + limit);
@@ -342,18 +421,16 @@ export async function getPersonalizedFeed(
 
   const articleIds = allArticles.map((a) => a.id);
 
-  // 4) Batch-load reading progress (one query — no N+1)
+  // 4) Batch-load in-progress reading state for the candidates (one query —
+  // no N+1). Completed rows were already handled via the DB exclusion above.
   const progressRows = await prisma.readingProgress.findMany({
-    where: { userId, articleId: { in: articleIds } },
-    select: { articleId: true, completed: true, percent: true },
+    where: { userId, articleId: { in: articleIds }, completed: false },
+    select: { articleId: true, percent: true },
   });
 
-  const completedIds = new Set<string>();
   const inProgressIds = new Set<string>();
   for (const row of progressRows) {
-    if (row.completed) {
-      completedIds.add(row.articleId);
-    } else if (row.percent > 0) {
+    if (row.percent > 0) {
       inProgressIds.add(row.articleId);
     }
   }

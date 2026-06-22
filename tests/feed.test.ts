@@ -24,17 +24,31 @@ let mockProfile: {
   englishLevel: string;
   topics: string;
 } | null = null;
+let lastArticleFindManyArgs: { where?: Record<string, unknown>; select?: Record<string, unknown> } | null = null;
 
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
         article: {
-          findMany: async () => mockArticles,
+          findMany: async (args: { where?: Record<string, unknown>; select?: Record<string, unknown> }) => {
+            lastArticleFindManyArgs = args ?? null;
+            return mockArticles;
+          },
           update: async () => ({}),
         },
         readingProgress: {
-          findMany: async () => mockProgress,
+          findMany: async (args: { where?: { completed?: boolean } }) => {
+            // Split completed vs in-progress to mirror the real queries the feed
+            // now issues (one for DB-level completed exclusion, one for penalty).
+            if (args?.where?.completed === true) {
+              return mockProgress.filter((p) => p.completed);
+            }
+            if (args?.where?.completed === false) {
+              return mockProgress.filter((p) => !p.completed);
+            }
+            return mockProgress;
+          },
         },
         articleTag: {
           findMany: async () => mockTagRows,
@@ -67,6 +81,11 @@ before(() => {
         ["A1", "A2", "B1", "B2", "C1", "C2"].includes(v as string),
       levelRank: (v: string) =>
         ["A1", "A2", "B1", "B2", "C1", "C2"].indexOf(v),
+      levelsAtOrBelow: (max: string) => {
+        const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+        const i = levels.indexOf(max);
+        return i < 0 ? [] : levels.slice(0, i + 1);
+      },
       ensureArticleDifficulties: async () => new Map(),
       heuristicDifficulty: (_content: string) => ({ level: "B1", score: 50 }),
     },
@@ -78,6 +97,7 @@ beforeEach(() => {
   mockProgress = [];
   mockTagRows = [];
   mockProfile = null;
+  lastArticleFindManyArgs = null;
 });
 
 // ---------------------------------------------------------------------------
@@ -361,4 +381,50 @@ test("getPersonalizedFeed: returns empty feed when no articles exist", async () 
   const { getPersonalizedFeed } = await import("@/lib/feed");
   const feed = await getPersonalizedFeed("user-1");
   assert.deepEqual(feed, { articles: [], hasMore: false, reasons: {} });
+});
+
+// ---------------------------------------------------------------------------
+// PERF: the candidate fetch projects only needed fields (excludes `content`)
+// ---------------------------------------------------------------------------
+
+test("getPersonalizedFeed: fetch select excludes the large content field", async () => {
+  mockArticles = [buildArticle({ id: "a1", category: "tech", difficulty: "B1" })];
+  mockProfile = {
+    completedAt: new Date("2026-01-01"),
+    englishLevel: "B1",
+    topics: JSON.stringify(["tech"]),
+  };
+
+  const { getPersonalizedFeed } = await import("@/lib/feed");
+  await getPersonalizedFeed("user-1");
+
+  const select = lastArticleFindManyArgs?.select;
+  assert.ok(select, "article.findMany was called with a select projection");
+  assert.ok(!("content" in (select as Record<string, unknown>)), "content is NOT selected");
+  assert.equal((select as Record<string, unknown>).id, true);
+  assert.equal((select as Record<string, unknown>).title, true);
+  assert.equal((select as Record<string, unknown>).difficulty, true);
+  assert.equal((select as Record<string, unknown>).difficultyScore, true);
+});
+
+// ---------------------------------------------------------------------------
+// Level filter: constrains difficulty at the DB layer (IN [...])
+// ---------------------------------------------------------------------------
+
+test("getPersonalizedFeed: maxLevel constrains difficulty at the DB layer", async () => {
+  mockArticles = [buildArticle({ id: "a1", category: "tech", difficulty: "A2" })];
+  mockProfile = {
+    completedAt: new Date("2026-01-01"),
+    englishLevel: "B1",
+    topics: JSON.stringify(["tech"]),
+  };
+
+  const { getPersonalizedFeed } = await import("@/lib/feed");
+  await getPersonalizedFeed("user-1", { offset: 0, limit: 10, maxLevel: "B1" });
+
+  const where = lastArticleFindManyArgs?.where as
+    | { difficulty?: { in?: string[] } }
+    | undefined;
+  assert.ok(where?.difficulty?.in, "difficulty IN filter applied");
+  assert.deepEqual(where!.difficulty!.in, ["A1", "A2", "B1"]);
 });
