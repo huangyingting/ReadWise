@@ -19,7 +19,6 @@ export type RequestContext = {
   userId?: string;
   method?: string;
   path?: string;
-  [key: string]: unknown;
 };
 
 const storage = new AsyncLocalStorage<RequestContext>();

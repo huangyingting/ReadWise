@@ -15,8 +15,25 @@ const bodySchema = object({
   source: optional(string({ max: 100 })),
   stack: optional(string({ max: 8000, trim: false })),
   url: optional(string({ max: 2000 })),
-  userAgent: optional(string({ max: 500 })),
 });
+
+/** Mask email addresses and long token-like strings to prevent PII in logs. */
+function scrubClientText(text: string): string {
+  return text
+    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
+    .replace(/\b[A-Za-z0-9_-]{24,}\b/g, "[token]");
+}
+
+/** Strip query string and hash from a URL string (defense-in-depth). */
+function stripUrlSensitive(url: string): string {
+  try {
+    const parsed = new URL(url);
+    return parsed.origin + parsed.pathname;
+  } catch {
+    // Not a valid absolute URL — strip manually.
+    return url.split("?")[0].split("#")[0];
+  }
+}
 
 export const POST = createPublicHandler(
   { body: bodySchema },
@@ -29,11 +46,10 @@ export const POST = createPublicHandler(
       return new NextResponse(null, { status: 204 });
     }
     log.error("client.error", {
-      clientMessage: body.message,
+      clientMessage: scrubClientText(body.message),
       clientSource: body.source ?? "window",
-      clientStack: body.stack,
-      clientUrl: body.url,
-      clientUserAgent: body.userAgent,
+      clientStack: body.stack ? scrubClientText(body.stack) : undefined,
+      clientUrl: body.url ? stripUrlSensitive(body.url) : undefined,
     });
     return new NextResponse(null, { status: 204 });
   },
