@@ -1,9 +1,10 @@
 /**
  * Tests for fetchHtml redirect handling (src/lib/scraper/extract.ts).
- * The SSRF guard and global fetch are mocked so no DNS/network is touched.
- * Verifies that EVERY redirect hop's host is re-validated through the SSRF
- * guard (no DNS-rebinding / SSRF via redirects) and that the hop count is
- * bounded, while preserving the timeout/UA/non-2xx behavior.
+ * The SSRF guard (resolveAndPin) and undici's fetch/Agent are mocked so no
+ * DNS/network is touched. Verifies that EVERY redirect hop's host is
+ * re-validated + IP-pinned through the SSRF guard (no DNS-rebinding / SSRF via
+ * redirects) and that the hop count is bounded, while preserving the
+ * timeout/UA/non-2xx behavior.
  */
 process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
@@ -33,25 +34,36 @@ function fakeResponse(r: { status: number; location?: string; body?: string }): 
 before(() => {
   mock.module("@/lib/scraper/ssrf", {
     namedExports: {
-      assertSafeUrl: async (u: string) => {
+      resolveAndPin: async (u: string) => {
         validated.push(u);
         const parsed = new URL(u);
         if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
           throw new Error(`bad scheme: ${parsed.protocol}`);
         }
         if (isUnsafe(u)) throw new Error(`private address blocked: ${u}`);
+        return { ip: "93.184.216.34", family: 4 };
       },
+      assertSafeUrl: async () => {},
       assertSafeHostname: async () => {},
     },
   });
 
-  globalThis.fetch = (async (input: RequestInfo | URL): Promise<Response> => {
-    const url = typeof input === "string" ? input : input.toString();
-    fetchCalls.push(url);
-    const r = routes[url];
-    if (!r) throw new Error(`no route configured for ${url}`);
-    return fakeResponse(r);
-  }) as typeof fetch;
+  // The scraper connects via undici's `fetch` with a per-request pinned
+  // dispatcher (Agent). Mock both so no DNS/network/Agent is touched.
+  mock.module("undici", {
+    namedExports: {
+      Agent: class {
+        async close() {}
+      },
+      fetch: async (input: unknown): Promise<Response> => {
+        const url = typeof input === "string" ? input : String(input);
+        fetchCalls.push(url);
+        const r = routes[url];
+        if (!r) throw new Error(`no route configured for ${url}`);
+        return fakeResponse(r);
+      },
+    },
+  });
 });
 
 beforeEach(() => {

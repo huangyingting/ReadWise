@@ -45,9 +45,15 @@ export function isPrivateIPv6(ip: string): boolean {
   );
 }
 
-function isPrivateAddress(address: string): boolean {
-  if (address.includes(":")) return isPrivateIPv6(address);
-  return isPrivateIPv4(address);
+export function isPrivateAddress(address: string): boolean {
+  const lower = address.toLowerCase().replace(/^\[|\]$/g, "");
+  // IPv4-mapped / IPv4-compatible IPv6 (e.g. ::ffff:127.0.0.1) — validate the
+  // embedded IPv4 against the IPv4 rules so a mapped private/metadata address
+  // can't slip through the IPv6 prefix checks.
+  const mapped = lower.match(/(?:::ffff:|::)(\d+\.\d+\.\d+\.\d+)$/);
+  if (mapped) return isPrivateIPv4(mapped[1]);
+  if (lower.includes(":")) return isPrivateIPv6(lower);
+  return isPrivateIPv4(lower);
 }
 
 // ---------------------------------------------------------------------------
@@ -90,4 +96,57 @@ export async function assertSafeUrl(rawUrl: string): Promise<void> {
     throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
   }
   await assertSafeHostname(parsed.hostname);
+}
+
+/** A validated, pinned address for a host: the exact IP undici must connect to. */
+export interface PinnedAddress {
+  /** The validated IP literal to connect to. */
+  ip: string;
+  /** IP family: 4 (IPv4) or 6 (IPv6). */
+  family: 4 | 6;
+}
+
+/**
+ * Validates that `rawUrl` is an http(s) URL, resolves its host ONCE with
+ * `{ all: true }`, validates EVERY returned address against the
+ * private/loopback/link-local/unique-local/metadata ranges, and returns a
+ * single validated address to pin the connection to.
+ *
+ * Pinning the connection to this exact IP (via an undici dispatcher `lookup`)
+ * closes the DNS-rebinding / TOCTOU gap where `fetch(hostname)` would otherwise
+ * re-resolve DNS at connect time and reach an unvalidated (e.g. metadata) IP.
+ *
+ * Throws an Error (not ApiError) on any violation so callers can wrap it.
+ */
+export async function resolveAndPin(rawUrl: string): Promise<PinnedAddress> {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid URL: ${rawUrl}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
+  }
+
+  let results: { address: string; family: number }[];
+  try {
+    results = await dns.promises.lookup(parsed.hostname, { all: true });
+  } catch {
+    throw new Error(`DNS lookup failed for host: ${parsed.hostname}`);
+  }
+  if (results.length === 0) {
+    throw new Error(`DNS lookup returned no addresses for host: ${parsed.hostname}`);
+  }
+
+  // Validate EVERY resolved address — a single private/metadata answer poisons
+  // the whole set (the rebinding host could hand back a public + a private IP).
+  for (const { address } of results) {
+    if (isPrivateAddress(address)) {
+      throw new Error(`Requests to private/internal addresses are not allowed (${address})`);
+    }
+  }
+
+  const chosen = results[0];
+  return { ip: chosen.address, family: chosen.family === 6 ? 6 : 4 };
 }
