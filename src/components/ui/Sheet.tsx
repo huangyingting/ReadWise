@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { getTabbable } from "@/lib/focus-trap";
 
 export interface SheetProps {
   /** Whether the sheet is rendered. When false, nothing renders. */
@@ -14,26 +15,6 @@ export interface SheetProps {
   label: string;
   /** Panel contents. */
   children: React.ReactNode;
-}
-
-const FOCUSABLE_SELECTOR =
-  "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
-
-/**
- * Collect the genuinely tabbable elements inside `root`.
- *
- * The CSS selector alone is not enough: roving-tabindex widgets (e.g.
- * `SegmentedControl`) render their inactive options as real `<button>`s with
- * `tabindex="-1"`, which the selector still matches. Including them would make
- * the computed "last focusable" an unreachable element, so Tab-wrap never fires
- * and focus escapes the trap. Filter to elements actually in the tab order
- * (`el.tabIndex >= 0`).
- */
-function getTabbable(root: HTMLElement | null): HTMLElement[] {
-  if (!root) return [];
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-  ).filter((el) => el.tabIndex >= 0);
 }
 
 /**

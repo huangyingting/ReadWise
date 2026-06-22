@@ -47,7 +47,7 @@ export default function ReaderTools({
   articleId: string;
   plainText: string;
 }) {
-  const { activeTab, visited, activate } = useReaderTools();
+  const { open, activeTab, visited, activate } = useReaderTools();
   const tabListRef = useRef<HTMLDivElement | null>(null);
 
   function handleKeyDown(e: React.KeyboardEvent, index: number) {
@@ -70,7 +70,7 @@ export default function ReaderTools({
       <div
         ref={tabListRef}
         role="tablist"
-        aria-label="Practice tools"
+        aria-label="Choose a practice tool"
         className="article-study-tabs"
       >
         {TOOL_TABS.map(({ id, label, icon, hint }, i) => {
@@ -105,7 +105,7 @@ export default function ReaderTools({
           hidden={activeTab !== "words"}
         >
           {visited.has("words") && (
-            <ArticleVocabulary articleId={articleId} active={activeTab === "words"} />
+            <ArticleVocabulary articleId={articleId} active={open && activeTab === "words"} />
           )}
         </div>
 
@@ -117,7 +117,7 @@ export default function ReaderTools({
           hidden={activeTab !== "quiz"}
         >
           {visited.has("quiz") && (
-            <ArticleQuiz articleId={articleId} active={activeTab === "quiz"} />
+            <ArticleQuiz articleId={articleId} active={open && activeTab === "quiz"} />
           )}
         </div>
 
@@ -132,7 +132,7 @@ export default function ReaderTools({
             <ArticleDictation
               articleId={articleId}
               plainText={plainText}
-              active={activeTab === "dictate"}
+              active={open && activeTab === "dictate"}
             />
           )}
         </div>
@@ -148,7 +148,7 @@ export default function ReaderTools({
             <ArticlePronunciation
               articleId={articleId}
               plainText={plainText}
-              active={activeTab === "speak"}
+              active={open && activeTab === "speak"}
             />
           )}
         </div>
@@ -172,7 +172,7 @@ export default function ReaderTools({
         >
           {visited.has("ask") && (
             <ReaderTutorProvider articleId={articleId}>
-              <ArticleTutor active={activeTab === "ask"} />
+              <ArticleTutor active={open && activeTab === "ask"} />
             </ReaderTutorProvider>
           )}
         </div>

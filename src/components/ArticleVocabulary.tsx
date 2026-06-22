@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { BookOpen, CircleOff } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { Spinner } from "@/components/ui/Spinner";
 import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
 import AiBadge from "@/components/AiBadge";
 
@@ -124,7 +126,12 @@ export default function ArticleVocabulary({
         <AiBadge />
       </div>
 
-      {loading ? <p className="muted">Extracting key words…</p> : null}
+      {loading ? (
+        <div className="reader-tools-panel-state" role="status">
+          <Spinner size="lg" />
+          <p className="muted">Extracting key words…</p>
+        </div>
+      ) : null}
 
       {error ? (
         <p className="vocabulary-error" role="alert">
@@ -133,14 +140,24 @@ export default function ArticleVocabulary({
       ) : null}
 
       {!loading && loaded && fallback ? (
-        <p className="muted">
-          AI feature unavailable — vocabulary extraction is not available right
-          now. Please try again later.
-        </p>
+        <div className="reader-tools-panel-state">
+          <CircleOff size={28} className="text-text-subtle" aria-hidden />
+          <p className="font-semibold m-0">Vocabulary unavailable</p>
+          <p className="muted m-0 max-w-[40ch]">
+            AI vocabulary extraction is not available right now. Please try again
+            later.
+          </p>
+        </div>
       ) : null}
 
       {!loading && loaded && !fallback && items.length === 0 ? (
-        <p className="muted">No vocabulary found for this article.</p>
+        <div className="reader-tools-panel-state">
+          <BookOpen size={28} className="text-text-subtle" aria-hidden />
+          <p className="font-semibold m-0">No vocabulary found</p>
+          <p className="muted m-0 max-w-[40ch]">
+            We couldn&rsquo;t pull key words from this article.
+          </p>
+        </div>
       ) : null}
 
       {items.length > 0 ? (
