@@ -83,6 +83,39 @@ test("runWorker retries a failing article then counts it failed", async () => {
   assert.equal(stats.retried, 1);
 });
 
+test("runWorker quarantines a permanently-failing article instead of looping forever", async () => {
+  // listFn ALWAYS returns the same poison id (simulating the DB queue
+  // re-selecting it every poll). Without quarantine this loops forever.
+  let processCalls = 0;
+  const stats = await runWorker({
+    once: true,
+    maxRetries: 0,
+    baseBackoffMs: 0,
+    maxBackoffMs: 0,
+    quarantineMs: 60000,
+    logger: silentLogger,
+    deps: {
+      listUnprocessedArticleIds: async () => ["poison"],
+      processArticle: async (id: string): Promise<ArticleProcessResult> => {
+        processCalls++;
+        return {
+          articleId: id,
+          title: id,
+          ok: false,
+          published: false,
+          steps: [{ step: "tags", status: "failed", detail: "boom" }],
+        };
+      },
+      sleep: async () => {},
+    },
+  });
+  // Processed exactly once: after the first permanent failure the id is
+  // quarantined, so the next poll finds nothing processable and once-mode stops.
+  assert.equal(processCalls, 1);
+  assert.equal(stats.failed, 1);
+  assert.equal(stats.quarantined, 1);
+});
+
 test("runWorker stops promptly when the signal is aborted", async () => {
   const controller = new AbortController();
   controller.abort();

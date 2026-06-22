@@ -2,40 +2,52 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
-import { assertSafeUrl, assertSafeHostname } from "@/lib/scraper/ssrf";
+import { assertSafeUrl } from "@/lib/scraper/ssrf";
 
 const WORDS_PER_MINUTE = 200;
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
   "Chrome/124.0 Safari/537.36 ReadWiseBot/1.0";
 
+/** Max redirect hops followed before giving up. */
+const MAX_REDIRECTS = 5;
+
 /** Fetches a URL as text with a desktop UA and a timeout. Throws on non-2xx or unsafe target. */
 export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string> {
-  // Validate URL scheme and resolve hostname before fetching to prevent SSRF.
-  await assertSafeUrl(url);
-
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await fetch(url, {
-      headers: { "user-agent": USER_AGENT, accept: "text/html" },
-      signal: controller.signal,
-      redirect: "follow",
-    });
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status} for ${url}`);
-    }
-    // Guard against SSRF via redirect: check the final URL's hostname.
-    const finalUrl = res.url;
-    if (finalUrl && finalUrl !== url) {
-      try {
-        const finalParsed = new URL(finalUrl);
-        await assertSafeHostname(finalParsed.hostname);
-      } catch (err) {
-        throw new Error(`Redirect target rejected: ${err instanceof Error ? err.message : String(err)}`);
+    let currentUrl = url;
+    // Follow redirects manually so EVERY hop's host is re-validated through the
+    // SSRF guard. With `redirect: "follow"` the runtime re-resolves DNS and only
+    // the final hostname could be checked, leaving a DNS-rebinding / SSRF window
+    // where an intermediate hop points at a private/loopback/metadata address.
+    for (let hop = 0; ; hop++) {
+      // Validate scheme + resolved IP of this hop before fetching it.
+      await assertSafeUrl(currentUrl);
+
+      const res = await fetch(currentUrl, {
+        headers: { "user-agent": USER_AGENT, accept: "text/html" },
+        signal: controller.signal,
+        redirect: "manual",
+      });
+
+      const location = res.headers.get("location");
+      if (res.status >= 300 && res.status < 400 && location) {
+        if (hop >= MAX_REDIRECTS) {
+          throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${url}`);
+        }
+        // Resolve relative redirects against the current URL; the next loop
+        // iteration re-validates the resulting host before fetching it.
+        currentUrl = new URL(location, currentUrl).href;
+        continue;
       }
+
+      if (!res.ok) {
+        throw new Error(`HTTP ${res.status} for ${currentUrl}`);
+      }
+      return await res.text();
     }
-    return await res.text();
   } finally {
     clearTimeout(timer);
   }

@@ -9,6 +9,7 @@ type Args = {
   batchSize: number;
   maxRetries: number;
   baseBackoffMs: number;
+  quarantineMs: number;
   includePublished: boolean;
   once: boolean;
   tts: boolean;
@@ -22,6 +23,7 @@ function parseArgs(argv: string[]): Args {
     batchSize: 5,
     maxRetries: 3,
     baseBackoffMs: 1000,
+    quarantineMs: 300000,
     includePublished: false,
     once: false,
     tts: false,
@@ -42,6 +44,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--backoff":
         args.baseBackoffMs = Math.max(0, Number(argv[++i]) || 0);
+        break;
+      case "--quarantine":
+        args.quarantineMs = Math.max(0, Number(argv[++i]) || 0);
         break;
       case "--include-published":
         args.includePublished = true;
@@ -88,6 +93,7 @@ Options:
   --batch <n>           Articles fetched per poll (default 5)
   --max-retries <n>     Retry attempts per article on failure (default 3)
   --backoff <ms>        Base delay for exponential backoff (default 1000)
+  --quarantine <ms>     Cooldown before re-trying a poison article (default 300000)
   --include-published   Also enrich published articles missing content
   --once                Process the queue until empty, then stop
   --tts                 Also generate text-to-speech narration (slow)
@@ -139,6 +145,7 @@ async function main(): Promise<number> {
     batchSize: args.batchSize,
     maxRetries: args.maxRetries,
     baseBackoffMs: args.baseBackoffMs,
+    quarantineMs: args.quarantineMs,
     includePublished: args.includePublished,
     once: args.once,
     signal: controller.signal,
