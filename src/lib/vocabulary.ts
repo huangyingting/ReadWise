@@ -91,7 +91,7 @@ async function generateVocabulary(
       role: "user",
       content: `Title: ${title}\n\n${source}`,
     },
-  ]);
+  ], { feature: "vocabulary" });
 
   if (!completion) {
     return [];
