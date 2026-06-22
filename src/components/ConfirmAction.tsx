@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useId } from "react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/Input";
 
 export interface ConfirmActionProps {
   /** Label for the trigger button (shown in its resting state). */
@@ -27,6 +28,12 @@ export interface ConfirmActionProps {
   disabled?: boolean;
   /** Tooltip on the trigger when disabled. */
   disabledTitle?: string;
+  /**
+   * When set, renders a text input inside the confirm panel. The confirm button
+   * stays disabled until the user types this exact value. Use for high-stakes
+   * destructive actions (e.g. confirmKeyword="DELETE").
+   */
+  confirmKeyword?: string;
   /** Optional additional className on the wrapper div. */
   className?: string;
   /**
@@ -51,6 +58,7 @@ export default function ConfirmAction({
   loading = false,
   disabled = false,
   disabledTitle,
+  confirmKeyword,
   className,
   open: controlledOpen,
   onOpenChange,
@@ -58,6 +66,9 @@ export default function ConfirmAction({
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : internalOpen;
+
+  const [typedValue, setTypedValue] = useState("");
+  const keywordInputId = useId();
 
   const triggerRef = useRef<HTMLButtonElement>(null);
   const cancelRef = useRef<HTMLButtonElement>(null);
@@ -80,6 +91,7 @@ export default function ConfirmAction({
 
   function handleClose() {
     setIsOpen(false);
+    setTypedValue("");
     // Return focus to the trigger after the panel unmounts.
     setTimeout(() => triggerRef.current?.focus(), 0);
   }
@@ -96,6 +108,7 @@ export default function ConfirmAction({
       await onConfirm();
     } finally {
       setIsOpen(false);
+      setTypedValue("");
       setTimeout(() => triggerRef.current?.focus(), 0);
     }
   }
@@ -123,12 +136,32 @@ export default function ConfirmAction({
           onKeyDown={handleKeyDown}
         >
           <p id={msgId} className="m-0 text-[length:var(--text-sm)]">{confirmMessage}</p>
+          {confirmKeyword && (
+            <div className="flex flex-col gap-[var(--space-1)]">
+              <label
+                htmlFor={keywordInputId}
+                className="text-[length:var(--text-xs)] text-text-muted"
+              >
+                Type <strong>{confirmKeyword}</strong> to confirm:
+              </label>
+              <Input
+                id={keywordInputId}
+                inputSize="sm"
+                value={typedValue}
+                onChange={(e) => setTypedValue(e.target.value)}
+                autoComplete="off"
+                spellCheck={false}
+                aria-describedby={msgId}
+              />
+            </div>
+          )}
           <div className="admin-actions-row">
             <Button
               variant={confirmVariant}
               size={size}
               loading={loading}
               aria-busy={loading}
+              disabled={!!confirmKeyword && typedValue !== confirmKeyword}
               onClick={handleConfirm}
             >
               {confirmLabel}

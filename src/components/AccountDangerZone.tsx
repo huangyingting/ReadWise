@@ -88,6 +88,7 @@ export default function AccountDangerZone() {
                 and all your data. There is no way to recover it.
               </span>
             }
+            confirmKeyword="DELETE"
             confirmLabel="Yes, delete my account"
             cancelLabel="Cancel"
             confirmVariant="danger"

@@ -92,7 +92,7 @@ export default async function SettingsPage() {
             <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
               Notifications
             </h2>
-            <CardMeta>Manage push reminders for your spaced-repetition reviews.</CardMeta>
+            <CardMeta>Get reminders when words in your study list are ready to review.</CardMeta>
           </CardHeader>
           <CardBody>
             <PushReminderToggle />

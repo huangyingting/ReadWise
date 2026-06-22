@@ -179,14 +179,14 @@ export default function VocabularyJournal({
 
         <div style={{ flex: "0 1 200px", minWidth: 150 }}>
           <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="srs-filter">
-            SRS filter
+            Review filter
           </label>
           <select
             id="srs-filter"
             value={filter}
             onChange={(e) => handleFilterChange(e.target.value as "all" | "due" | "new")}
             className="w-full rounded-[var(--radius-md)] border border-border bg-bg text-text px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]"
-            aria-label="Filter by SRS status"
+            aria-label="Filter by review status"
           >
             {(["all", "due", "new"] as const).map((f) => (
               <option key={f} value={f}>{filterLabels[f]}</option>
@@ -275,7 +275,11 @@ export default function VocabularyJournal({
                 <th>Definition</th>
                 <th>Article</th>
                 <th>Saved</th>
-                <th>SRS</th>
+                <th>
+                  <span title="Review due date based on spaced repetition — words you review just before you forget them stick best.">
+                    Review due
+                  </span>
+                </th>
               </tr>
             </thead>
             <tbody>

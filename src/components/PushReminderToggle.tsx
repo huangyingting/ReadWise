@@ -188,8 +188,8 @@ export default function PushReminderToggle() {
             {isDenied
               ? "Notifications are blocked. Enable them in your browser settings."
               : isSubscribed
-                ? "Push notifications are enabled. You'll be reminded when SRS cards are due."
-                : "Get notified when your spaced-repetition cards are due for review."}
+                ? "Push notifications are enabled. You'll get a reminder when words are ready to review — at most one reminder per day."
+                : "Get notified when words in your study list are ready to review again."}
           </div>
         </div>
         {isDenied ? null : (

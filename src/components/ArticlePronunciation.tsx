@@ -48,6 +48,7 @@ import {
 } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import EmptyState from "@/components/EmptyState";
+import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useReaderAudio, type SpeechWord } from "@/components/ReaderAudioProvider";
@@ -1087,6 +1088,9 @@ export default function ArticlePronunciation({
 
   return (
     <div className="rw-speak-panel">
+      <div style={{ marginBottom: "var(--space-3)" }}>
+        <AiBadge />
+      </div>
       {/* ── Sentence stepper ─────────────────────────────────────────── */}
       <div className="rw-speak-stepper">
         <button
