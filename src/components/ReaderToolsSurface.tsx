@@ -10,9 +10,11 @@
  * unmounted).
  *
  * Responsive behaviour (driven by CSS in globals.css, gated by `data-open`):
- *  - >= 1280px (xl): a sticky, independently scrollable RIGHT RAIL docked in the
- *    second grid column of `.reader-layout` (non-modal; no scrim, no focus trap).
- *  - <  1280px:      a focus-trapped BOTTOM SHEET overlay (modal; scrim + Esc +
+ *  - >= 1440px (#169): a sticky, independently scrollable RIGHT RAIL docked in
+ *    the second grid column of `.reader-layout` (non-modal; no scrim, no focus
+ *    trap). The threshold leaves room for the measure column AND the rail beside
+ *    the collapsed sidebar, so the reading column never drops below its measure.
+ *  - <  1440px:      a focus-trapped BOTTOM SHEET overlay (modal; scrim + Esc +
  *    Tab trap + return focus), closeable via scrim/Esc/close button/route change.
  *
  * z-index band (documented in globals.css too): reader toolbar (30) <
@@ -44,7 +46,7 @@ function getTabbable(root: HTMLElement | null): HTMLElement[] {
 }
 
 /** Below this width the surface is a modal bottom sheet; at/above it's a rail. */
-const SHEET_MAX_WIDTH = "(max-width: 1279.98px)";
+const SHEET_MAX_WIDTH = "(max-width: 1439.98px)";
 
 export default function ReaderToolsSurface({
   articleId,
@@ -57,7 +59,7 @@ export default function ReaderToolsSurface({
   const panelRef = useRef<HTMLElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
   // Track the breakpoint so `aria-modal`/`role` reflect the actual presentation:
-  // a modal bottom sheet (<1280) vs the non-modal docked xl rail.
+  // a modal bottom sheet (<1440) vs the non-modal docked rail.
   const [isSheet, setIsSheet] = useState(false);
 
   useEffect(() => {
