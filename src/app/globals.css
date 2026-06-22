@@ -1584,6 +1584,21 @@ body {
   line-height: 1;
 }
 
+/* Touch targets: on mobile the slim toolbar controls (Back · Listen · Aa ·
+   Tools) must present at least a 44×44px hit area (WCAG 2.5.5 / 2.5.8). We
+   grow the hit area via min sizes while keeping the visual styling tasteful. */
+@media (max-width: 639.98px) {
+  .reader-controls .reader-back-btn,
+  .reader-listen-btn {
+    min-height: 44px;
+  }
+
+  .reader-tool-btn {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
 /* ---- Display panel (Aa popover / mobile sheet) ---- */
 .reader-display-panel {
   display: flex;
