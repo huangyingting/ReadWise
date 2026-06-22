@@ -189,9 +189,21 @@ export async function deleteOwnAccount(userId: string): Promise<DeleteAccountRes
     }
   }
 
-  // Cascade deletes: accounts, sessions, profile, readingProgress, savedWords,
-  // dailyActivities, readingLists (+ items), highlights, tutorMessages,
-  // quizAttempts, pronunciationAttempts — all have onDelete: Cascade.
-  await prisma.user.delete({ where: { id: userId } });
+  // Delete the user's personally-imported articles (ownerId === userId) in the
+  // SAME transaction as the user delete. Article.ownerId is onDelete: SetNull,
+  // so without this, those rows would survive with status:"published" and
+  // ownerId→NULL — i.e. the public-visibility predicate ({status:"published",
+  // ownerId:null}) would make a user's private imports world-readable. Deleting
+  // them cascades all derived rows (translations/vocabulary/quiz/tags/speech/
+  // readingProgress/readingListItem/highlights, etc. — all onDelete: Cascade on
+  // articleId).
+  //
+  // Cascade deletes on the user: accounts, sessions, profile, readingProgress,
+  // savedWords, dailyActivities, readingLists (+ items), highlights,
+  // tutorMessages, quizAttempts, pronunciationAttempts — all onDelete: Cascade.
+  await prisma.$transaction([
+    prisma.article.deleteMany({ where: { ownerId: userId } }),
+    prisma.user.delete({ where: { id: userId } }),
+  ]);
   return { ok: true };
 }

@@ -19,7 +19,7 @@ function parseQuery(params: URLSearchParams) {
  * Response: `{ lists: {id, name, isDefault, hasArticle}[] }`
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
-  const result = await getArticleListMembership(session.user.id, query.articleId);
+  const result = await getArticleListMembership(session.user.id, query.articleId, session.user.role);
   if (result === null) {
     throw new ApiError(404, "Article not found");
   }

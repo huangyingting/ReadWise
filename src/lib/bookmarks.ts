@@ -16,7 +16,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { toListingArticle, type ListingArticle } from "@/lib/articles";
+import { toListingArticle, getViewableArticleById, type ListingArticle } from "@/lib/articles";
 
 const DEFAULT_LIST_NAME = "Saved";
 
@@ -162,16 +162,23 @@ export async function deleteList(
 /**
  * Adds an article to a list. Idempotent — adding an article already in the
  * list returns ok without error. Both the list ownership and the article's
- * existence are checked; either missing yields 404.
+ * VISIBILITY are checked: the article must be viewable by the caller (public
+ * published, owned by them, or any article for admins) via
+ * getViewableArticleById, so drafts and other users' private imports can't be
+ * attached. A missing-or-non-viewable article yields 404 (no existence oracle).
+ *
+ * `role` is the caller's role; when omitted it defaults to the non-admin
+ * (Reader) path — never elevated.
  */
 export async function addToList(
   listId: string,
   userId: string,
   articleId: string,
+  role?: string | null,
 ): Promise<SimpleResult> {
   const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
   if (!list) return { ok: false, error: "List not found", status: 404 };
-  const article = await prisma.article.findUnique({ where: { id: articleId } });
+  const article = await getViewableArticleById(articleId, role, userId);
   if (!article) return { ok: false, error: "Article not found", status: 404 };
   // Idempotent: upsert with a no-op update so duplicate adds are safe.
   await prisma.readingListItem.upsert({
@@ -205,15 +212,20 @@ export async function removeFromList(
  * Toggles an article in the user's default "Saved" list:
  * - Not bookmarked → adds it, returns `{ok:true, bookmarked:true}`.
  * - Already bookmarked → removes it, returns `{ok:true, bookmarked:false}`.
- * - Article not found → returns `{ok:false, error, status:404}`.
+ * - Article not found OR not viewable → returns `{ok:false, error, status:404}`.
+ *
+ * Visibility is enforced via getViewableArticleById so drafts/foreign imports
+ * can't be bookmarked or used as an existence oracle. `role` defaults to the
+ * non-admin (Reader) path when omitted — never elevated.
  *
  * The default list is lazily created on first toggle.
  */
 export async function toggleBookmark(
   userId: string,
   articleId: string,
+  role?: string | null,
 ): Promise<DataResult<{ bookmarked: boolean }>> {
-  const article = await prisma.article.findUnique({ where: { id: articleId } });
+  const article = await getViewableArticleById(articleId, role, userId);
   if (!article) return { ok: false, error: "Article not found", status: 404 };
 
   const defaultList = await getOrCreateDefaultList(userId);
@@ -281,14 +293,17 @@ export type ListMembership = {
  * in each list. Used by the list-picker popover so Linus can render the
  * checkbox state in a single request.
  *
- * Default list is first (same ordering as getUserLists). Returns an empty
- * array when the article does not exist; the route maps this to 404.
+ * Default list is first (same ordering as getUserLists). Returns null when the
+ * article does not exist OR is not viewable by the caller (drafts/foreign
+ * imports) — the route maps this to 404 so there's no metadata leak. `role`
+ * defaults to the non-admin (Reader) path when omitted — never elevated.
  */
 export async function getArticleListMembership(
   userId: string,
   articleId: string,
+  role?: string | null,
 ): Promise<ListMembership[] | null> {
-  const article = await prisma.article.findUnique({ where: { id: articleId }, select: { id: true } });
+  const article = await getViewableArticleById(articleId, role, userId);
   if (!article) return null;
 
   const lists = await prisma.readingList.findMany({

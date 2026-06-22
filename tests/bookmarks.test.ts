@@ -93,6 +93,10 @@ before(() => {
         difficulty: null,
         readingMinutes: null,
       }),
+      // Visibility gate (Issue #235): bookmarks/lists route article loads
+      // through this instead of a bare findUnique. The stub mirrors article
+      // existence/visibility via stubArticle.
+      getViewableArticleById: async () => stubArticle,
     },
   });
 });
@@ -270,4 +274,38 @@ test("getBookmarkedArticleIds returns only the bookmarked article ids", async ()
   assert.equal(result.size, 1);
   assert.ok(result.has("a1"));
   assert.ok(!result.has("a2"));
+});
+
+// ---------------------------------------------------------------------------
+// Visibility gating (Issue #235): non-viewable articles (drafts / other users'
+// private imports) must be rejected as 404 by add/toggle/membership so they
+// can't be attached to a list or leaked via an existence oracle.
+// getViewableArticleById returns null for a non-viewable article.
+// ---------------------------------------------------------------------------
+
+test("addToList returns 404 when the article is not viewable", async () => {
+  stubListById = { id: "list-1", name: "My List", isDefault: false };
+  stubArticle = null; // getViewableArticleById sees draft/foreign import
+
+  const { addToList } = await import("@/lib/bookmarks");
+  const result = await addToList("list-1", "user-1", "draft-1");
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 404);
+});
+
+test("toggleBookmark returns 404 when the article is not viewable", async () => {
+  stubArticle = null; // getViewableArticleById sees draft/foreign import
+
+  const { toggleBookmark } = await import("@/lib/bookmarks");
+  const result = await toggleBookmark("user-1", "foreign-import");
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, 404);
+});
+
+test("getArticleListMembership returns null when the article is not viewable", async () => {
+  stubArticle = null; // getViewableArticleById sees draft/foreign import
+
+  const { getArticleListMembership } = await import("@/lib/bookmarks");
+  const result = await getArticleListMembership("user-1", "draft-1");
+  assert.equal(result, null);
 });

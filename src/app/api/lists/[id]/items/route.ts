@@ -9,7 +9,7 @@ const bodySchema = object({ articleId: nonEmptyString(200) });
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    const result = await addToList(params.id, session.user.id, body.articleId);
+    const result = await addToList(params.id, session.user.id, body.articleId, session.user.role);
     if (!result.ok) throw new ApiError(result.status, result.error);
     return NextResponse.json({ ok: true });
   },
