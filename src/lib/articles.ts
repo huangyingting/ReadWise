@@ -128,6 +128,7 @@ export type ListingArticle = {
   difficulty: string | null;
   readingMinutes: number | null;
   publishedAt: string | null;
+  heroImage: string | null;
 };
 
 export function toListingArticle(article: Article): ListingArticle {
@@ -144,6 +145,7 @@ export function toListingArticle(article: Article): ListingArticle {
       : article.publishedAt
       ? new Date(article.publishedAt).toISOString()
       : null,
+    heroImage: article.heroImage ?? null,
   };
 }
 

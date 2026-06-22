@@ -8,6 +8,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
 import CardBookmarkButton from "@/components/CardBookmarkButton";
+import ArticleHero from "@/components/ArticleHero";
 import ReferrerLink from "@/components/ReferrerLink";
 import { formatRelativeDate } from "@/lib/utils";
 
@@ -137,6 +138,15 @@ export default function ArticleCardView({
           focusRing,
         )}
       >
+      {/* ⓪ Optional 16:9 thumbnail — collapses gracefully when absent/broken */}
+      {article.heroImage ? (
+        <ArticleHero
+          src={article.heroImage}
+          alt={article.title}
+          variant="thumb"
+        />
+      ) : null}
+
       {/* ① Top meta row */}
       <div className="flex items-center justify-between gap-[var(--space-2)]">
         <div className="flex items-center gap-[var(--space-2)] min-w-0">
