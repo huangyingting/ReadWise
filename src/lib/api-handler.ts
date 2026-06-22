@@ -21,7 +21,6 @@ import {
   type StructuredLogger,
 } from "@/lib/logger";
 
-const isProduction = process.env.NODE_ENV === "production";
 
 /** Throw from a handler to return a controlled, client-safe error response. */
 export class ApiError extends Error {
@@ -173,7 +172,7 @@ function build<B, P, Q, S extends Session | null>(
           stack: err instanceof Error ? err.stack : undefined,
           durationMs: Date.now() - startedAt,
         });
-        const message = isProduction
+        const message = process.env.NODE_ENV === "production"
           ? "Internal server error"
           : err instanceof Error
             ? err.message
