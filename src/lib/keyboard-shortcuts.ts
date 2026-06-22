@@ -44,7 +44,8 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     label: "Reader",
     shortcuts: [
-      { keys: ["←", "→"], description: "Switch between reader tabs" },
+      { keys: ["⌘E"], description: "Look up word / open dictionary (with text selected)" },
+      { keys: ["←", "→"], description: "Switch tool tabs (when reader tools tab bar is focused)" },
       { keys: ["Esc"], description: "Close open panel / popover" },
     ],
   },

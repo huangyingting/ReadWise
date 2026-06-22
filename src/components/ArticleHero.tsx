@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
+import { Skeleton } from "@/components/ui/Skeleton";
 
 export interface ArticleHeroProps {
   /** Remote (or local) hero image URL. Renders nothing when absent. */
@@ -22,10 +23,12 @@ export interface ArticleHeroProps {
  * with `unoptimized` (mirroring the avatar approach) so any remote host works
  * without a `remotePatterns` whitelist.
  *
- * Graceful failure: the aspect-ratio frame is only reserved while loading; on
- * load error (or missing `src`) the whole container collapses to nothing — no
- * empty bordered box, no broken-image icon, and no cumulative layout shift
- * beyond the image area itself.
+ * Loading state: a Skeleton shimmer fills the 16:9 frame until `onLoad` fires,
+ * preventing a flat dark void in dark mode.
+ *
+ * Graceful failure: on load error (or missing `src`) the whole container
+ * collapses to nothing — no empty bordered box, no broken-image icon, and no
+ * cumulative layout shift beyond the image area itself.
  */
 export default function ArticleHero({
   src,
@@ -34,19 +37,28 @@ export default function ArticleHero({
   className,
 }: ArticleHeroProps) {
   const [errored, setErrored] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   if (!src || errored) return null;
 
   return (
     <div
       className={cn(
-        "relative w-full overflow-hidden aspect-[16/9] bg-bg-subtle",
+        "relative w-full overflow-hidden aspect-[16/9]",
         variant === "reader"
           ? "mx-auto max-w-[min(100%,760px)] max-h-[420px] rounded-[var(--radius-lg)] border border-border shadow-[var(--shadow-sm)] my-[var(--space-4)]"
           : "rounded-[var(--radius-md)] border border-border",
         className,
       )}
     >
+      {/* Shimmer shown until the image loads */}
+      {!loaded && (
+        <Skeleton
+          shape="block"
+          className="absolute inset-0 rounded-none"
+          aria-hidden
+        />
+      )}
       <Image
         src={src}
         alt={alt}
@@ -58,6 +70,7 @@ export default function ArticleHero({
             : "(max-width: 640px) 100vw, 400px"
         }
         className="object-cover"
+        onLoad={() => setLoaded(true)}
         onError={() => setErrored(true)}
       />
     </div>
