@@ -414,7 +414,15 @@
   font-style: normal;
   font-weight: 400;
   font-display: swap;
-  src: url("https://fonts.cdnfonts.com/s/14305/OpenDyslexic-Regular.woff") format("woff");
+  src: url("/fonts/OpenDyslexic-Regular.woff") format("woff");
+}
+
+@font-face {
+  font-family: "OpenDyslexic";
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("/fonts/OpenDyslexic-Bold.woff") format("woff");
 }
 
 [data-reading-font="dyslexic"] {
