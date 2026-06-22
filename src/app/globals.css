@@ -1451,13 +1451,9 @@ body {
    button opens the bottom sheet there instead. Keep this threshold in sync with
    ReaderToolsSurface's SHEET_MAX_WIDTH. */
 @media (min-width: 1440px) {
-  /* Only widen the layout (and add the rail column) when the Tools rail is
-     actually docked; when closed it stays at the tighter measure-based width so
-     the prose never floats in a 1400px container with oversized side gutters. */
-  .reader-layout[data-tools-open="true"] {
-    max-width: 1400px;
-    grid-template-columns: minmax(0, 1fr) var(--reader-rail-width);
-  }
+  /* #206 — practice tools now open as a FULL-SCREEN overlay (see
+     .reader-tools-surface), so the reading layout no longer reserves a rail
+     column; the reading column keeps its measure width underneath the overlay. */
 }
 
 /* ---- Reading column ---- */
@@ -1926,25 +1922,29 @@ body {
   min-height: 0;
 }
 
+/* #206 — full-screen modal overlay on every breakpoint, covering the article. */
 .reader-tools-surface[data-open="true"] {
   display: flex;
   position: fixed;
-  inset-inline: 0;
-  bottom: 0;
-  max-height: 85vh;
+  inset: 0;
   z-index: 50;
-  background: var(--reading-surface, var(--surface));
-  border-top: 1px solid var(--reading-border, var(--border));
-  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
-  box-shadow: var(--shadow-xl);
+  background: var(--reading-bg, var(--bg));
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
-.reader-tools-scrim {
-  position: fixed;
-  inset: 0;
-  z-index: 49;
-  background: var(--overlay);
+@media (prefers-reduced-motion: no-preference) {
+  .reader-tools-surface[data-open="true"] {
+    animation: reader-tools-overlay-in var(--duration-base) var(--ease-standard);
+  }
+}
+
+@keyframes reader-tools-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 
 .reader-tools-surface-header {
@@ -1954,6 +1954,7 @@ body {
   gap: var(--space-2);
   padding: var(--space-3) var(--space-4);
   border-bottom: 1px solid var(--reading-border, var(--border));
+  background: var(--reading-bg, var(--bg));
   flex-shrink: 0;
 }
 
@@ -1968,8 +1969,8 @@ body {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 2rem;
-  height: 2rem;
+  width: 2.75rem;
+  height: 2.75rem;
   border: none;
   background: transparent;
   color: var(--reading-text-muted, var(--text-muted));
@@ -1985,45 +1986,30 @@ body {
   color: var(--reading-text, var(--text));
 }
 
-/* The body scrolls independently of the header. */
+/* The body scrolls independently of the header; its content is centered to a
+   comfortable width within the full-screen overlay. */
 .reader-tools-surface-body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
 }
 
-/* In the surface the tabs become a sticky segmented header above the panels. */
+.reader-tools-surface-body > * {
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+/* In the overlay the tabs become a sticky segmented header above the panels. */
 .reader-tools-surface .article-study-tabs {
   position: sticky;
   top: 0;
   z-index: 1;
+  background: var(--reading-bg, var(--bg));
 }
 
 .reader-tools-surface .article-study-panel {
   padding: var(--space-4);
-}
-
-/* >= 1440px (#169): the surface is a sticky, independently scrollable RIGHT RAIL
-   docked in the second grid column (non-modal — no scrim, no focus trap). Below
-   this it is a bottom sheet (kept in sync with ReaderToolsSurface). */
-@media (min-width: 1440px) {
-  .reader-tools-scrim {
-    display: none;
-  }
-
-  .reader-tools-surface[data-open="true"] {
-    position: sticky;
-    top: calc(var(--header-height) + var(--space-2));
-    bottom: auto;
-    inset-inline: auto;
-    z-index: 1;
-    max-height: calc(100vh - var(--header-height) - var(--space-6));
-    overflow: hidden;
-    border: 1px solid var(--reading-border, var(--border));
-    border-radius: var(--radius-lg);
-    box-shadow: var(--shadow-sm);
-    padding-bottom: 0;
-  }
 }
 
 /* ---- First-visit orientation banner ---- */
