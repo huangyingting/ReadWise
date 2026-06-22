@@ -10,6 +10,7 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
+import { pushConfig } from "@/lib/config";
 
 const log = createLogger("push");
 
@@ -22,16 +23,12 @@ function readVapidConfig(): {
   privateKey: string;
   subject: string;
 } | null {
-  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  const subject = process.env.VAPID_SUBJECT?.trim();
-  if (!publicKey || !privateKey || !subject) return null;
-  return { publicKey, privateKey, subject };
+  return pushConfig.get();
 }
 
 /** Returns true when all three VAPID env vars are present. */
 export function isPushConfigured(): boolean {
-  return readVapidConfig() !== null;
+  return pushConfig.isConfigured();
 }
 
 /** The VAPID public key (safe to expose to clients), or null when unconfigured. */

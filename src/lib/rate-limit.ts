@@ -17,28 +17,25 @@
  * store (e.g. Redis) would be required for cross-instance enforcement.
  */
 import { ApiError } from "@/lib/api-handler";
-
-const DEFAULT_AI_LIMIT = 20;
-const DEFAULT_LOOKUP_LIMIT = 60;
-const DEFAULT_PUBLIC_LIMIT = 30;
-const DEFAULT_WINDOW_MS = 60_000;
+import {
+  rateLimitAiRequests,
+  rateLimitLookupRequests,
+  rateLimitPublicRequests,
+  rateLimitWindowMs,
+} from "@/lib/config";
 
 function getLimitForScope(scope: string): number {
   if (scope === "lookup") {
-    const v = parseInt(process.env.RATE_LIMIT_LOOKUP_REQUESTS ?? "", 10);
-    return Number.isFinite(v) && v > 0 ? v : DEFAULT_LOOKUP_LIMIT;
+    return rateLimitLookupRequests();
   }
   if (scope === "public") {
-    const v = parseInt(process.env.RATE_LIMIT_PUBLIC_REQUESTS ?? "", 10);
-    return Number.isFinite(v) && v > 0 ? v : DEFAULT_PUBLIC_LIMIT;
+    return rateLimitPublicRequests();
   }
-  const v = parseInt(process.env.RATE_LIMIT_AI_REQUESTS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_LIMIT;
+  return rateLimitAiRequests();
 }
 
 function getWindowMs(): number {
-  const v = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_WINDOW_MS;
+  return rateLimitWindowMs();
 }
 
 interface Bucket {

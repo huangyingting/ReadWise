@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { isSpeechConfigured } from "@/lib/speech";
+import { speechConfig } from "@/lib/config";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 // Azure Speech SDK has Node-only native bindings.
@@ -24,8 +25,11 @@ export const GET = createHandler({}, async ({ session }) => {
     return NextResponse.json({ configured: false });
   }
 
-  const key = process.env.AZURE_SPEECH_KEY!;
-  const region = process.env.AZURE_SPEECH_REGION!;
+  const cfg = speechConfig.get();
+  if (!cfg) {
+    return NextResponse.json({ configured: false });
+  }
+  const { key, region } = cfg;
   const tokenUrl = `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
 
   let tokenRes: Response;

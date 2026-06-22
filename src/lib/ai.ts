@@ -11,19 +11,13 @@
  */
 
 import { createLogger } from "@/lib/logger";
+import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
 
 const log = createLogger("ai");
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
-};
-
-type AzureConfig = {
-  endpoint: string;
-  apiKey: string;
-  deployment: string;
-  apiVersion: string;
 };
 
 /** Token usage reported by Azure OpenAI in the response body. */
@@ -41,36 +35,26 @@ export type AiResult = {
   durationMs: number;
 };
 
-function readAzureConfig(): AzureConfig | null {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/+$/, "");
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
-
-  if (!endpoint || !apiKey || !deployment || !apiVersion) {
-    return null;
-  }
-  return { endpoint, apiKey, deployment, apiVersion };
+function readAzureConfig() {
+  return aiConfig.get();
 }
 
 /** Whether the Azure OpenAI chat completion provider is configured. */
 export function isAiConfigured(): boolean {
-  return readAzureConfig() !== null;
+  return aiConfig.isConfigured();
 }
 
 /** The configured deployment/model name, or null when unconfigured. */
 export function aiModelName(): string | null {
-  return readAzureConfig()?.deployment ?? null;
+  return aiConfig.get()?.deployment ?? null;
 }
 
 function getTimeoutMs(): number {
-  const v = parseInt(process.env.AI_REQUEST_TIMEOUT_MS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : 30_000;
+  return aiTimeoutMs();
 }
 
 function getMaxRetries(): number {
-  const v = parseInt(process.env.AI_MAX_RETRIES ?? "", 10);
-  return Number.isFinite(v) && v >= 0 ? v : 2;
+  return aiMaxRetries();
 }
 
 function backoffMs(attempt: number, base = 1000, max = 10_000): number {

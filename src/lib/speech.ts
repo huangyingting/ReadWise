@@ -1,11 +1,14 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
 import { prisma } from "@/lib/prisma";
 import { htmlToPlainText } from "@/lib/translation";
+import {
+  DEFAULT_SPEECH_VOICE,
+  speechConfig,
+  type SpeechConfig as AzureSpeechConfig,
+} from "@/lib/config";
 
 /** Max characters of article text synthesized (bounds audio size / latency). */
 const MAX_TTS_CHARS = 5000;
-
-const DEFAULT_VOICE = "en-US-AndrewMultilingualNeural";
 
 /** A single spoken word with timings (seconds) and source-text position. */
 export type SpeechWord = {
@@ -25,32 +28,13 @@ export type SpeechResult = {
   fallback: boolean;
 };
 
-type AzureSpeechConfig = {
-  key: string;
-  region: string;
-  voice: string;
-  format: string;
-};
-
 function readSpeechConfig(): AzureSpeechConfig | null {
-  const key = process.env.AZURE_SPEECH_KEY;
-  const region = process.env.AZURE_SPEECH_REGION;
-  if (!key || !region) {
-    return null;
-  }
-  return {
-    key,
-    region,
-    voice: process.env.AZURE_SPEECH_VOICE || DEFAULT_VOICE,
-    format:
-      process.env.AZURE_SPEECH_OUTPUT_FORMAT ||
-      "audio-24khz-96kbitrate-mono-mp3",
-  };
+  return speechConfig.get();
 }
 
 /** Whether Azure Speech credentials are configured. */
 export function isSpeechConfigured(): boolean {
-  return readSpeechConfig() !== null;
+  return speechConfig.isConfigured();
 }
 
 /** Maps the configured output-format string to an SDK enum + MIME type. */
@@ -210,7 +194,7 @@ export async function getOrCreateArticleSpeech(
 
   const config = readSpeechConfig();
   if (!config) {
-    return fallbackResult(DEFAULT_VOICE);
+    return fallbackResult(DEFAULT_SPEECH_VOICE);
   }
 
   const spokenText = htmlToPlainText(article.content)
