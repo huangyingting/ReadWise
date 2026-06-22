@@ -89,6 +89,25 @@ export default async function SignInPage({
           {/* Provider buttons */}
           <SignInButtons providers={providers} callbackUrl={safeCallback} />
 
+          {/* Terms / Privacy disclosure */}
+          <p className="text-center text-text-subtle text-[length:var(--text-xs)] leading-[var(--leading-relaxed)]">
+            By continuing, you agree to our{" "}
+            <Link
+              href="/terms"
+              className="underline underline-offset-2 hover:text-text transition-colors [transition-duration:var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-[2px]"
+            >
+              Terms
+            </Link>{" "}
+            and{" "}
+            <Link
+              href="/privacy"
+              className="underline underline-offset-2 hover:text-text transition-colors [transition-duration:var(--duration-fast)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 rounded-[2px]"
+            >
+              Privacy Policy
+            </Link>
+            .
+          </p>
+
           {/* Back to home */}
           <div className="text-center">
             <Link
