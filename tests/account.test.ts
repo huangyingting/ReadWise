@@ -20,30 +20,36 @@ let deleteManyArgs: { where: Record<string, unknown> } | null = null;
 let userDeleteArgs: { where: { id: string } } | null = null;
 let transactionCalled = false;
 
+// Module-level ref so the callback-form $transaction can pass it as `tx`.
+let mockPrisma: Record<string, unknown> = {};
+
 before(() => {
-  mock.module("@/lib/prisma", {
-    namedExports: {
-      prisma: {
-        user: {
-          findUnique: async () => stubUser,
-          count: async () => stubAdminCount,
-          delete: async (args: { where: { id: string } }) => {
-            userDeleteArgs = args;
-            return { id: args.where.id };
-          },
-        },
-        article: {
-          deleteMany: async (args: { where: Record<string, unknown> }) => {
-            deleteManyArgs = args;
-            return { count: 1 };
-          },
-        },
-        $transaction: async (ops: Promise<unknown>[]) => {
-          transactionCalled = true;
-          return Promise.all(ops);
-        },
+  mockPrisma = {
+    user: {
+      findUnique: async () => stubUser,
+      count: async () => stubAdminCount,
+      delete: async (args: { where: { id: string } }) => {
+        userDeleteArgs = args;
+        return { id: args.where.id };
       },
     },
+    article: {
+      deleteMany: async (args: { where: Record<string, unknown> }) => {
+        deleteManyArgs = args;
+        return { count: 1 };
+      },
+    },
+    $transaction: async (opsOrFn: unknown) => {
+      transactionCalled = true;
+      if (typeof opsOrFn === "function") {
+        // Interactive/callback form: pass mockPrisma as the tx client.
+        return (opsOrFn as (tx: unknown) => Promise<unknown>)(mockPrisma);
+      }
+      return Promise.all(opsOrFn as Promise<unknown>[]);
+    },
+  };
+  mock.module("@/lib/prisma", {
+    namedExports: { prisma: mockPrisma },
   });
 });
 
@@ -85,7 +91,30 @@ test("deleteOwnAccount refuses to delete the last remaining admin", async () => 
   const result = await deleteOwnAccount("admin-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
-  // Guard fires before any deletion.
+  // Guard fires INSIDE the transaction (atomicity): tx is entered but no deletion occurs.
+  assert.equal(transactionCalled, true);
   assert.equal(deleteManyArgs, null);
-  assert.equal(transactionCalled, false);
+  assert.equal(userDeleteArgs, null);
+});
+
+test("deleteOwnAccount last-admin guard is re-counted inside the transaction (atomicity)", async () => {
+  // Verifies the guard count happens inside the tx callback so two concurrent
+  // requests cannot both observe count=2 then both delete, leaving zero admins.
+  stubUser = { id: "admin-1", role: "Admin" };
+  stubAdminCount = 1; // would be 0 after deletion — guard must fire
+
+  const { deleteOwnAccount } = await import("@/lib/account");
+  const result = await deleteOwnAccount("admin-1");
+
+  // Transaction entered (count evaluated inside it)
+  assert.equal(transactionCalled, true);
+  // Guard produced the 409 error
+  assert.equal(result.ok, false);
+  if (!result.ok) {
+    assert.equal(result.status, 409);
+    assert.ok(result.error.includes("last admin"));
+  }
+  // No rows were deleted
+  assert.equal(deleteManyArgs, null);
+  assert.equal(userDeleteArgs, null);
 });
