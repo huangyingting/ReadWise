@@ -15,6 +15,7 @@ import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
 import ArticleCard from "@/components/ArticleCard";
+import ArticleHero from "@/components/ArticleHero";
 import BilingualBody from "@/components/BilingualBody";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
@@ -291,15 +292,8 @@ export default async function ReaderPage({
                   ) : null}
                 </header>
 
-                {/* Hero image — slight bleed (wider than 66ch) */}
-                {article.heroImage ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    className="article-hero"
-                    src={article.heroImage}
-                    alt={article.title}
-                  />
-                ) : null}
+                {/* Hero image — graceful 16:9 frame that collapses on error */}
+                <ArticleHero src={article.heroImage} alt={article.title} />
 
                 {/* Word-lookup / highlight hint — dismissible (localStorage) */}
                 <WordLookupHint />
