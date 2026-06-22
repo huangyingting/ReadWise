@@ -95,8 +95,8 @@ model Article {
   difficultyFeedback        ArticleDifficultyFeedback[]
   grammarExplanations       GrammarExplanation[]
 
+  @@unique([sourceUrl, ownerId])
   @@index([category])
-  @@index([sourceUrl])
   @@index([ownerId])
 }
 

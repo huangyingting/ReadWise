@@ -21,6 +21,7 @@ import {
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { heuristicDifficulty } from "@/lib/difficulty";
 
 /** Max personal imports per user per calendar day. */
@@ -189,29 +190,62 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
   // Not a duplicate — now enforce the daily quota.
   await assertWithinDailyQuota(userId);
 
-  const article = await prisma.article.create({
-    data: {
-      title: scraped.title,
-      author: scraped.author,
-      source: scraped.source,
-      sourceUrl: scraped.sourceUrl,
-      heroImage: scraped.heroImage,
-      excerpt: scraped.excerpt,
-      content: scraped.content,
-      category: scraped.category,
-      wordCount: scraped.wordCount,
-      readingMinutes: scraped.readingMinutes,
-      status: "published",
-      publishedAt: scraped.publishedAt ?? new Date(),
-      ownerId: userId,
-    },
-    select: { id: true },
-  });
+  let article;
+  try {
+    article = await prisma.article.create({
+      data: {
+        title: scraped.title,
+        author: scraped.author,
+        source: scraped.source,
+        sourceUrl: scraped.sourceUrl,
+        heroImage: scraped.heroImage,
+        excerpt: scraped.excerpt,
+        content: scraped.content,
+        category: scraped.category,
+        wordCount: scraped.wordCount,
+        readingMinutes: scraped.readingMinutes,
+        status: "published",
+        publishedAt: scraped.publishedAt ?? new Date(),
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+  } catch (err) {
+    // A concurrent import of the same URL won the race between the dedupe
+    // pre-check and this insert. The @@unique([sourceUrl, ownerId]) constraint
+    // surfaces a P2002; resolve the winner's row and return it as a duplicate
+    // (no second row, no double AI spend) instead of a 500.
+    const existing = await resolveDuplicateOnConflict(err, scraped.sourceUrl, userId);
+    if (existing) {
+      return NextResponse.json({ id: existing.id, duplicate: true }, { status: 200 });
+    }
+    throw err;
+  }
 
   // Heuristic difficulty assessment (cheap, no AI needed).
   await applyHeuristicDifficulty(article.id, scraped.content);
 
   return NextResponse.json({ id: article.id }, { status: 201 });
+}
+
+/**
+ * On a Prisma P2002 unique-constraint violation, re-resolves the existing
+ * article that a concurrent writer created for the same (sourceUrl, ownerId).
+ * Returns null for any other error (caller re-throws) or when sourceUrl is
+ * absent (the unique key can't match a NULL sourceUrl).
+ */
+async function resolveDuplicateOnConflict(
+  err: unknown,
+  sourceUrl: string | null | undefined,
+  userId: string,
+): Promise<{ id: string } | null> {
+  const isP2002 =
+    err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
+  if (!isP2002 || !sourceUrl) return null;
+  return prisma.article.findFirst({
+    where: { sourceUrl, ownerId: userId },
+    select: { id: true },
+  });
 }
 
 async function handleTextImport(
