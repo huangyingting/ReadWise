@@ -58,7 +58,7 @@ type Phase =
 export default function ArticleDictation({
   articleId,
   plainText,
-  active: _active,
+  active,
 }: {
   articleId: string;
   plainText: string;
@@ -88,6 +88,16 @@ export default function ArticleDictation({
       stopPlayRef.current?.();
     };
   }, []);
+
+  // Stop sentence playback when the tab becomes hidden or the overlay closes
+  // (`active` is `open && activeTab === "dictate"`) (#210).
+  useEffect(() => {
+    if (active) return;
+    stopPlayRef.current?.();
+    stopPlayRef.current = null;
+    audio.audioRef.current?.pause();
+    setPhase((p) => (p === "playing" ? "idle" : p));
+  }, [active, audio]);
 
   // When audio is already loaded (Listen tab was visited), compute segments.
   useEffect(() => {

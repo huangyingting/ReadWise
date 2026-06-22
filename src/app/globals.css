@@ -1987,11 +1987,29 @@ body {
 }
 
 /* The body scrolls independently of the header; its content is centered to a
-   comfortable width within the full-screen overlay. */
+   comfortable width within the full-screen overlay. `display:flex` + centered
+   items keep a short message (loading/empty/unavailable state) from being
+   marooned in the top-left corner. */
 .reader-tools-surface-body {
   min-height: 0;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Centered loading/empty/unavailable state inside a tool panel (#210). */
+.reader-tools-panel-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+  min-height: 12rem;
+  padding: var(--space-6) var(--space-4);
+  color: var(--reading-text-muted, var(--text-muted));
 }
 
 .reader-tools-surface-body > * {
