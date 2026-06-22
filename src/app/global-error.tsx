@@ -10,6 +10,12 @@ import "./globals.css";
  * replaces the root layout, so it must render its own <html>/<body> and stay
  * self-contained — it imports `globals.css` directly so design tokens resolve.
  */
+
+// Module-level throttle so repeated render crashes don't flood the endpoint.
+let _geReportCount = 0;
+const _geReportSeen = new Set<string>();
+const GE_MAX_REPORTS = 20;
+
 export default function GlobalError({
   error,
   reset,
@@ -18,15 +24,24 @@ export default function GlobalError({
   reset: () => void;
 }) {
   useEffect(() => {
+    if (_geReportCount >= GE_MAX_REPORTS) return;
+    const key = `${error.message}:${error.stack ?? ""}`.slice(0, 500);
+    if (_geReportSeen.has(key)) return;
+    _geReportSeen.add(key);
+    _geReportCount += 1;
+
     try {
+      // Only origin + pathname — no query string or hash (privacy).
+      const url =
+        typeof window !== "undefined"
+          ? window.location.origin + window.location.pathname
+          : undefined;
       const payload = JSON.stringify({
         message: error.message || "React render error",
         source: "global-error",
         digest: error.digest,
         stack: error.stack,
-        url: typeof window !== "undefined" ? window.location.href : undefined,
-        userAgent:
-          typeof navigator !== "undefined" ? navigator.userAgent : undefined,
+        url,
       });
       void fetch("/api/client-errors", {
         method: "POST",

@@ -27,8 +27,8 @@ export default function ClientErrorReporter() {
           message: message.slice(0, 2000),
           source,
           stack: stack?.slice(0, 8000),
-          url: window.location.href,
-          userAgent: navigator.userAgent,
+          // Only origin + pathname — no query string or hash (privacy).
+          url: window.location.origin + window.location.pathname,
         });
         const sent =
           typeof navigator.sendBeacon === "function" &&
