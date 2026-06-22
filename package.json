@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
+    "test": "NODE_ENV=test node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
     "scrape": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/scrape.ts",
     "process": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/process.ts",
     "worker": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/worker.ts",

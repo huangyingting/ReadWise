@@ -212,8 +212,42 @@ test("searchPublishedArticles returns empty for blank query without hitting DB",
 });
 
 // ---------------------------------------------------------------------------
-// Personal imports (ownerId === userId) merge into results
+// FTS returns 0 ids → fall through to LIKE (author/source/category terms)
 // ---------------------------------------------------------------------------
+
+test("searchPublishedArticles falls through to LIKE when FTS matches nothing", async () => {
+  const { searchPublishedArticles } = await import("@/lib/articles");
+
+  // FTS returns no rows (e.g. a source/author term absent from title/content),
+  // but the LIKE fallback finds the article by its source field.
+  ftsRows = [];
+  const sourceMatch = buildArticle({ id: "src-match", source: "The Guardian" });
+  articleDbRows = [sourceMatch];
+
+  const result = await searchPublishedArticles("Guardian", { offset: 0, limit: 10 });
+
+  assert.equal(result.articles.length, 1, "LIKE fallback runs after empty FTS");
+  assert.equal(result.articles[0].id, "src-match");
+  assert.equal(result.hasMore, false);
+});
+
+// ---------------------------------------------------------------------------
+// FTS with results does NOT trigger the LIKE fallback
+// ---------------------------------------------------------------------------
+
+test("searchPublishedArticles returns FTS results without LIKE fallback", async () => {
+  const { searchPublishedArticles } = await import("@/lib/articles");
+
+  ftsRows = [{ id: "f1", rank: -1.0 }];
+  // Only f1 is reachable by id.in; a LIKE fallback (returns all rows) would also
+  // surface "like-only", so its absence proves the FTS path returned directly.
+  articleDbRows = [buildArticle({ id: "f1" }), buildArticle({ id: "like-only" })];
+
+  const result = await searchPublishedArticles("hello", { offset: 0, limit: 10 });
+
+  assert.deepEqual(result.articles.map((a) => a.id), ["f1"]);
+  assert.equal(result.hasMore, false);
+});
 
 test("searchPublishedArticles includes the user's own imports (FTS path)", async () => {
   const { searchPublishedArticles } = await import("@/lib/articles");
