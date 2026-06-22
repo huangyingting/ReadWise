@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 
 export type VocabularyEntry = {
@@ -71,34 +71,6 @@ function parseVocabularyJson(raw: string): VocabularyEntry[] {
   return entries;
 }
 
-async function generateVocabulary(
-  title: string,
-  content: string,
-): Promise<VocabularyEntry[]> {
-  const source = htmlToPlainText(content).slice(0, MAX_SOURCE_CHARS);
-  const completion = await chatComplete([
-    {
-      role: "system",
-      content:
-        "You are an English vocabulary tutor. From the user's article, select the " +
-        `${TARGET_WORDS} most useful, challenging vocabulary words or phrases for an ` +
-        "English learner. Respond ONLY with a JSON array. Each element must be an " +
-        'object with exactly these string keys: "word" (the term), "explanation" (a ' +
-        'concise learner-friendly definition), and "example" (one short sample ' +
-        "sentence using the word). No markdown, no commentary, JSON array only.",
-    },
-    {
-      role: "user",
-      content: `Title: ${title}\n\n${source}`,
-    },
-  ], { feature: "vocabulary" });
-
-  if (!completion) {
-    return [];
-  }
-  return parseVocabularyJson(completion);
-}
-
 /**
  * Returns cached extracted vocabulary for an article, generating and caching it
  * via the AI provider on a cache miss. When AI is unconfigured or the request
@@ -108,69 +80,91 @@ export async function getOrCreateArticleVocabulary(
   articleId: string,
   userId: string,
 ): Promise<ArticleVocabularyResult | null> {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: { id: true, title: true, content: true },
-  });
-  if (!article) {
-    return null;
-  }
-
-  let entries: VocabularyEntry[] = (
-    await prisma.vocabularyItem.findMany({
-      where: { articleId },
-      orderBy: { createdAt: "asc" },
-      select: { word: true, explanation: true, example: true },
-    })
-  ).map((v) => ({ word: v.word, explanation: v.explanation, example: v.example }));
-
-  let fallback = false;
-
-  if (entries.length === 0) {
-    if (!isAiConfigured()) {
-      fallback = true;
-    } else {
-      const generated = await generateVocabulary(article.title, article.content);
-      if (generated.length === 0) {
-        fallback = true;
-      } else {
-        await Promise.all(
-          generated.map((entry) =>
-            prisma.vocabularyItem.upsert({
-              where: {
-                articleId_word: { articleId, word: entry.word },
-              },
-              update: {
-                explanation: entry.explanation,
-                example: entry.example,
-              },
-              create: {
-                articleId,
-                word: entry.word,
-                explanation: entry.explanation,
-                example: entry.example,
-              },
-            }),
-          ),
-        );
-        entries = generated;
-      }
-    }
-  }
-
-  const savedSet = await getSavedWordSet(
-    userId,
-    entries.map((e) => e.word),
-  );
-
-  return {
-    articleId,
-    items: entries.map((e) => ({
-      ...e,
-      saved: savedSet.has(e.word.toLowerCase()),
-    })),
-    fallback,
+  const toResult = async (
+    entries: VocabularyEntry[],
+    fallback: boolean,
+  ): Promise<ArticleVocabularyResult> => {
+    const savedSet = await getSavedWordSet(
+      userId,
+      entries.map((e) => e.word),
+    );
+    return {
+      articleId,
+      items: entries.map((e) => ({
+        ...e,
+        saved: savedSet.has(e.word.toLowerCase()),
+      })),
+      fallback,
+    };
   };
+
+  return getOrCreateArticleAi<
+    { title: string; content: string },
+    VocabularyEntry[],
+    VocabularyEntry[],
+    ArticleVocabularyResult
+  >(articleId, {
+    feature: "vocabulary",
+    readCache: async () => {
+      const entries: VocabularyEntry[] = (
+        await prisma.vocabularyItem.findMany({
+          where: { articleId },
+          orderBy: { createdAt: "asc" },
+          select: { word: true, explanation: true, example: true },
+        })
+      ).map((v) => ({
+        word: v.word,
+        explanation: v.explanation,
+        example: v.example,
+      }));
+      return entries.length > 0 ? entries : null;
+    },
+    buildMessages: (article) => {
+      const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+      return [
+        {
+          role: "system",
+          content:
+            "You are an English vocabulary tutor. From the user's article, select the " +
+            `${TARGET_WORDS} most useful, challenging vocabulary words or phrases for an ` +
+            "English learner. Respond ONLY with a JSON array. Each element must be an " +
+            'object with exactly these string keys: "word" (the term), "explanation" (a ' +
+            'concise learner-friendly definition), and "example" (one short sample ' +
+            "sentence using the word). No markdown, no commentary, JSON array only.",
+        },
+        {
+          role: "user",
+          content: `Title: ${article.title}\n\n${source}`,
+        },
+      ];
+    },
+    parse: parseVocabularyJson,
+    isEmpty: (entries) => entries.length === 0,
+    persist: async (id, generated) => {
+      await Promise.all(
+        generated.map((entry) =>
+          prisma.vocabularyItem.upsert({
+            where: {
+              articleId_word: { articleId: id, word: entry.word },
+            },
+            update: {
+              explanation: entry.explanation,
+              example: entry.example,
+            },
+            create: {
+              articleId: id,
+              word: entry.word,
+              explanation: entry.explanation,
+              example: entry.example,
+            },
+          }),
+        ),
+      );
+      return generated;
+    },
+    toResult: (entries) => toResult(entries, false),
+    fallback: () => toResult([], true),
+  });
 }
 
 /**
