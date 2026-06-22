@@ -53,7 +53,7 @@ export default async function TagPage({
         href="/tags"
         className="inline-flex items-center gap-1 text-[length:var(--text-sm)] text-text-muted hover:text-text mb-[var(--space-4)] transition-colors"
       >
-        ← All topics
+        ← All tags
       </Link>
 
       <PageHeader

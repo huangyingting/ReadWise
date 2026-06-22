@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import EmptyState from "@/components/EmptyState";
 import InlineNoteEditor from "@/components/InlineNoteEditor";
+import ReferrerLink from "@/components/ReferrerLink";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
@@ -129,13 +130,14 @@ export default async function NotesPage({
                 >
                   {title}
                 </h2>
-                <Link
+                <ReferrerLink
                   href={`/reader/${articleId}`}
+                  referrerLabel="Notes"
                   className="shrink-0 text-[length:var(--text-sm)] text-[var(--primary-text)] hover:underline flex items-center gap-[var(--space-1)]"
                 >
                   <FileText size={14} aria-hidden />
                   Open article
-                </Link>
+                </ReferrerLink>
               </div>
 
               {/* Highlight cards */}

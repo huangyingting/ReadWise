@@ -10,6 +10,7 @@ import {
 import { useRouter } from "next/navigation";
 import { Search, SearchX, FileText, X, AlertTriangle } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { setReaderReferrer } from "@/lib/reader-referrer";
 import { Spinner } from "@/components/ui/Spinner";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { CefrBadge, CEFR_LEVELS, type CefrLevel, CategoryBadge } from "@/components/ui/Badge";
@@ -268,6 +269,12 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
         }
         onClose();
       } else if (item.kind === "article") {
+        // Record the search origin so the reader's Back button returns here
+        // (the page the user searched from) instead of always the dashboard.
+        setReaderReferrer({
+          href: window.location.pathname + window.location.search,
+          label: "Search",
+        });
         router.push(`/reader/${item.article.id}`);
         onClose();
       } else if (item.kind === "more") {

@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentPropsWithoutRef } from "react";
-
-const READER_REFERRER_KEY = "readwise:reader-referrer";
+import { setReaderReferrer } from "@/lib/reader-referrer";
 
 interface ReferrerLinkProps extends ComponentPropsWithoutRef<typeof Link> {
   /** Human-readable label for the back button (e.g. "Browse" or "Dashboard"). */
@@ -29,10 +28,7 @@ export default function ReferrerLink({
     try {
       const href = referrerHref ?? window.location.pathname + window.location.search;
       const label = referrerLabel ?? document.title ?? "Back";
-      sessionStorage.setItem(
-        READER_REFERRER_KEY,
-        JSON.stringify({ href, label }),
-      );
+      setReaderReferrer({ href, label });
     } catch {
       // Ignore storage errors.
     }

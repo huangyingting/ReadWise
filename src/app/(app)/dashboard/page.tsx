@@ -1,9 +1,10 @@
 import Link from "next/link";
-import { Sparkles, Compass } from "lucide-react";
+import { Sparkles, Compass, GraduationCap } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
 import { getProgressSummaries, listInProgressArticles } from "@/lib/progress";
 import { getStreakSummary } from "@/lib/activity";
 import { getQuizMastery } from "@/lib/quiz-mastery";
+import { getReviewSummary } from "@/lib/flashcards";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { getPersonalizedFeed } from "@/lib/feed";
@@ -37,13 +38,16 @@ export default async function DashboardPage({
   const { level: levelParam } = await searchParams;
   const maxLevel = isDifficultyLevel(levelParam) ? levelParam : null;
 
-  const [inProgressEntries, streak, mastery, profile, feedPage] = await Promise.all([
+  const [inProgressEntries, streak, mastery, profile, feedPage, reviewSummary] = await Promise.all([
     listInProgressArticles(user.id),
     getStreakSummary(user.id),
     getQuizMastery(user.id),
     getProfile(user.id),
     getPersonalizedFeed(user.id, { offset: 0, limit: 10, maxLevel }),
+    getReviewSummary(user.id),
   ]);
+
+  const dueCount = reviewSummary.dueCount;
 
   // Apply optional CEFR level filter to the initial feed (#68, #211). The level
   // is now threaded through /api/feed so subsequent "Load more" pages stay
@@ -119,6 +123,37 @@ export default async function DashboardPage({
         >
           Your progress
         </h2>
+
+        {/* SRS review CTA — surfaced only when flashcards are due (#212) */}
+        {dueCount > 0 && (
+          <Card className="mb-[var(--space-5)]">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-[var(--space-4)]">
+              <div className="flex items-center gap-[var(--space-3)]">
+                <span
+                  aria-hidden
+                  className="flex items-center justify-center w-10 h-10 rounded-full bg-[var(--bg-subtle)] text-[var(--primary-text)] shrink-0"
+                >
+                  <GraduationCap size={20} />
+                </span>
+                <div>
+                  <p className="font-semibold text-text m-0">
+                    {dueCount} flashcard{dueCount === 1 ? "" : "s"} due for review
+                  </p>
+                  <p className="text-text-muted text-[length:var(--text-sm)] m-0">
+                    Keep your vocabulary fresh with a quick review session.
+                  </p>
+                </div>
+              </div>
+              <Link
+                href="/study"
+                className={buttonVariants({ variant: "primary", size: "md" })}
+              >
+                Review {dueCount} due <span aria-hidden="true">→</span>
+              </Link>
+            </div>
+          </Card>
+        )}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-[var(--space-5)] rw-fade-up">
           <StreakWidget
             streak={streak}

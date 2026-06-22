@@ -8,7 +8,7 @@ import { PageHeader } from "@/components/shell/PageHeader";
 import EmptyState from "@/components/EmptyState";
 
 export const metadata: Metadata = {
-  title: "Topics",
+  title: "Tags",
 };
 
 export default async function TagsPage() {
@@ -18,15 +18,15 @@ export default async function TagsPage() {
   return (
     <PageShell variant="listing">
       <PageHeader
-        title="Topics"
-        description="Browse articles by topic. Each tag links to its collection of published articles."
+        title="Tags"
+        description="Browse articles by tag. Each tag links to its collection of published articles."
       />
 
       {tags.length === 0 ? (
         <EmptyState
           icon={Hash}
-          title="No topics yet"
-          description="Topics are added automatically as articles are processed. Check back after some articles have been published."
+          title="No tags yet"
+          description="Tags are added automatically as articles are processed. Check back after some articles have been published."
           action={{ label: "Browse all articles", href: "/browse" }}
         />
       ) : (
