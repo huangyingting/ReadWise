@@ -20,6 +20,23 @@ const FOCUSABLE_SELECTOR =
   "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
 /**
+ * Collect the genuinely tabbable elements inside `root`.
+ *
+ * The CSS selector alone is not enough: roving-tabindex widgets (e.g.
+ * `SegmentedControl`) render their inactive options as real `<button>`s with
+ * `tabindex="-1"`, which the selector still matches. Including them would make
+ * the computed "last focusable" an unreachable element, so Tab-wrap never fires
+ * and focus escapes the trap. Filter to elements actually in the tab order
+ * (`el.tabIndex >= 0`).
+ */
+function getTabbable(root: HTMLElement | null): HTMLElement[] {
+  if (!root) return [];
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+  ).filter((el) => el.tabIndex >= 0);
+}
+
+/**
  * Accessible modal overlay sheet.
  *
  * Renders a scrim plus a `role="dialog" aria-modal="true"` panel that slides in
@@ -48,7 +65,7 @@ export function Sheet({
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
     // Move focus into the panel: first focusable, else the panel itself.
-    const first = panelRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    const first = getTabbable(panelRef.current)[0];
     if (first) {
       first.focus();
     } else {
@@ -62,16 +79,13 @@ export function Sheet({
         return;
       }
       if (event.key !== "Tab") return;
-      const focusable = panelRef.current?.querySelectorAll<HTMLElement>(
-        FOCUSABLE_SELECTOR,
-      );
-      if (!focusable || focusable.length === 0) {
+      const list = getTabbable(panelRef.current);
+      if (list.length === 0) {
         // Keep focus on the panel when there is nothing else to tab to.
         event.preventDefault();
         panelRef.current?.focus();
         return;
       }
-      const list = Array.from(focusable);
       const firstEl = list[0];
       const lastEl = list[list.length - 1];
       const active = document.activeElement;
