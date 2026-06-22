@@ -16,6 +16,7 @@
  */
 
 import { cn, focusRing } from "@/lib/cn";
+import { Button } from "@/components/ui/Button";
 import { useReaderTools } from "./ReaderToolsProvider";
 import { TOOL_TABS } from "./ReaderTools";
 
@@ -36,13 +37,13 @@ export default function ArticleStudySection() {
       </p>
 
       <div className="article-study-cta">
-        <button
+        <Button
           type="button"
+          variant="primary"
           onClick={() => openTools()}
-          className={cn("btn-primary", focusRing)}
         >
           Open practice tools
-        </button>
+        </Button>
 
         <div className="article-study-cta-chips" aria-label="Jump to a tool">
           {TOOL_TABS.map(({ id, label, icon, hint }) => (
