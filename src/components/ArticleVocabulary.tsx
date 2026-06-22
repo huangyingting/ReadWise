@@ -122,10 +122,6 @@ export default function ArticleVocabulary({
 
   return (
     <div className="vocabulary-panel">
-      <div style={{ marginBottom: "var(--space-3)" }}>
-        <AiBadge />
-      </div>
-
       {loading ? (
         <div className="reader-tools-panel-state" role="status">
           <Spinner size="lg" />
@@ -161,7 +157,11 @@ export default function ArticleVocabulary({
       ) : null}
 
       {items.length > 0 ? (
-        <ul className="vocabulary-list">
+        <>
+          <div style={{ marginBottom: "var(--space-3)" }}>
+            <AiBadge />
+          </div>
+          <ul className="vocabulary-list">
           {items.map((item) => {
             const tier = frequencyTier(item.word);
             return (
@@ -205,6 +205,7 @@ export default function ArticleVocabulary({
             );
           })}
         </ul>
+        </>
       ) : null}
     </div>
   );

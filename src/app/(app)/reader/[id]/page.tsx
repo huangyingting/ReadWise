@@ -250,10 +250,10 @@ export default async function ReaderPage({
                     {isValidCefrLevel ? (
                       <CefrBadge
                         level={difficultyLevel as CefrLevel}
-                        title="Assessed English level"
+                        title="AI-estimated reading level"
                       />
                     ) : difficultyLevel ? (
-                      <Badge variant="neutral" title="Assessed English level">
+                      <Badge variant="neutral" title="AI-estimated reading level">
                         Level {difficultyLevel}
                       </Badge>
                     ) : null}
@@ -306,6 +306,7 @@ export default async function ReaderPage({
               <ArticleDifficultyFeedback
                 articleId={article.id}
                 initialVote={userDifficultyVote}
+                difficulty={difficultyLevel}
               />
 
               {/* Read-after practice & study tools — in-flow SSR anchor/CTA
