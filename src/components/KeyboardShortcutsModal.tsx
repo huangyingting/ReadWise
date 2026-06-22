@@ -84,11 +84,15 @@ export default function KeyboardShortcutsModal({
     closeButtonRef.current?.focus();
   }, []);
 
-  // Keyboard handling: Esc to close + focus trap.
+  // Keyboard handling: Esc to close + focus trap. Registered in the CAPTURE
+  // phase so this topmost overlay sees the key first; on Esc we
+  // stopImmediatePropagation so a background overlay (e.g. the More sheet this
+  // modal can open on top of) doesn't ALSO close on the same keypress.
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
         e.preventDefault();
+        e.stopImmediatePropagation();
         onClose();
         return;
       }
@@ -98,7 +102,7 @@ export default function KeyboardShortcutsModal({
           dialogRef.current.querySelectorAll<HTMLElement>(
             'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
           ),
-        );
+        ).filter((el) => el.tabIndex >= 0);
         if (focusable.length === 0) return;
         const first = focusable[0];
         const last = focusable[focusable.length - 1];
@@ -117,8 +121,8 @@ export default function KeyboardShortcutsModal({
       }
     }
 
-    document.addEventListener("keydown", onKeyDown);
-    return () => document.removeEventListener("keydown", onKeyDown);
+    document.addEventListener("keydown", onKeyDown, true);
+    return () => document.removeEventListener("keydown", onKeyDown, true);
   }, [onClose]);
 
   return (
