@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
 import { providerForUrl } from "@/lib/scraper/providers";
@@ -15,37 +16,48 @@ export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
 }
 
 /**
- * Persists a scraped article as a `draft`, de-duplicated by `sourceUrl`.
- * Never throws on a duplicate — returns a `skipped` outcome instead.
+ * Persists a scraped article as a `draft`, de-duplicated by `sourceUrl` (for
+ * library scrapes `ownerId` is null). Never throws on a duplicate — returns a
+ * `skipped` outcome instead. A concurrent writer can win the race between the
+ * pre-check and the insert; the `@@unique([sourceUrl, ownerId])` constraint
+ * then surfaces a Prisma P2002, which is caught and reported as `skipped`
+ * (re-resolving the winner's id) rather than bubbling up as a 500.
  */
 export async function saveDraftArticle(article: ScrapedArticle): Promise<SaveOutcome> {
   const existing = await prisma.article.findFirst({
-    where: { sourceUrl: article.sourceUrl },
+    where: { sourceUrl: article.sourceUrl, ownerId: null },
     select: { id: true },
   });
   if (existing) {
     return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
   }
 
-  const created = await prisma.article.create({
-    data: {
-      title: article.title,
-      author: article.author,
-      source: article.source,
-      sourceUrl: article.sourceUrl,
-      heroImage: article.heroImage,
-      excerpt: article.excerpt,
-      content: article.content,
-      category: article.category,
-      wordCount: article.wordCount,
-      readingMinutes: article.readingMinutes,
-      status: "draft",
-      publishedAt: article.publishedAt,
-    },
-    select: { id: true },
-  });
-
-  return { status: "saved", id: created.id, article };
+  try {
+    const created = await prisma.article.create({
+      data: {
+        title: article.title,
+        author: article.author,
+        source: article.source,
+        sourceUrl: article.sourceUrl,
+        heroImage: article.heroImage,
+        excerpt: article.excerpt,
+        content: article.content,
+        category: article.category,
+        wordCount: article.wordCount,
+        readingMinutes: article.readingMinutes,
+        status: "draft",
+        publishedAt: article.publishedAt,
+      },
+      select: { id: true },
+    });
+    return { status: "saved", id: created.id, article };
+  } catch (err) {
+    // A concurrent scrape created the same (sourceUrl, ownerId) first.
+    if (isUniqueConstraintError(err)) {
+      return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
+    }
+    throw err;
+  }
 }
 
 /** Scrapes a single URL and saves it, capturing failures as outcomes. */
@@ -104,4 +116,9 @@ export async function discoverProviderUrls(provider: Provider, limit: number): P
 function errorMessage(err: unknown): string {
   if (err instanceof Error) return err.message;
   return String(err);
+}
+
+/** True for a Prisma unique-constraint violation (P2002). */
+function isUniqueConstraintError(err: unknown): boolean {
+  return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
