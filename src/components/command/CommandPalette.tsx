@@ -363,7 +363,8 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
   // First load: query ≥ 2 but no articles yet (show skeleton rows)
   const isFirstLoad = isLoading && articles.length === 0 && trimmedQuery.length >= 2;
   const showArticleGroup =
-    trimmedQuery.length >= 2 && (isLoading || status === "done" || status === "error");
+    trimmedQuery.length >= 2 &&
+    (isLoading || (status === "done" && articles.length > 0) || status === "error");
   const hasNoResults =
     status === "done" &&
     trimmedQuery.length >= 2 &&
