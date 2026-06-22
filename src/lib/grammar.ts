@@ -73,7 +73,7 @@ export async function explainGrammar(
     },
   ];
 
-  const text = await chatComplete(messages, { maxOutputTokens: 256 });
+  const text = await chatComplete(messages, { maxOutputTokens: 256, feature: "grammar" });
   if (!text) {
     return { explanation: null, fallback: true };
   }

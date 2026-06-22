@@ -78,7 +78,7 @@ export async function translateSentence(
       },
       { role: "user", content: normalized },
     ],
-    { maxOutputTokens: 256 },
+    { maxOutputTokens: 256, feature: "sentence-translation" },
   );
 
   // 4) AI configured but request failed → graceful fallback, nothing cached.

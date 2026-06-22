@@ -13,7 +13,7 @@
  * Safe to import in both server and client components.
  */
 
-import { normalizeCandidates } from "@/lib/dictionary";
+import { normalizeCandidates } from "@/lib/dictionary-normalize";
 import { WORD_FREQUENCY } from "@/data/word-frequency-data";
 
 export type FrequencyTier = "top1k" | "top5k" | "academic";

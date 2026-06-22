@@ -103,7 +103,7 @@ async function generateQuiz(
       role: "user",
       content: `Title: ${title}\n\n${source}`,
     },
-  ]);
+  ], { feature: "quiz" });
 
   if (!completion) {
     return [];

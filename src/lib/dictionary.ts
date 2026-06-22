@@ -8,6 +8,11 @@
  * clear "not found" result instead of throwing.
  */
 
+import { createLogger } from "@/lib/logger";
+import { normalizeCandidates } from "@/lib/dictionary-normalize";
+
+const log = createLogger("dictionary");
+
 export type DictionaryDefinition = {
   definition: string;
   example?: string;
@@ -35,155 +40,8 @@ const DICTIONARY_ENDPOINT =
 /** Max definitions kept per part of speech (keeps the popover compact). */
 const MAX_DEFINITIONS_PER_POS = 4;
 
-/** Common English contractions mapped to a base word to look up. */
-const CONTRACTIONS: Record<string, string> = {
-  "i'm": "i",
-  "you're": "you",
-  "he's": "he",
-  "she's": "she",
-  "it's": "it",
-  "we're": "we",
-  "they're": "they",
-  "i've": "i",
-  "you've": "you",
-  "we've": "we",
-  "they've": "they",
-  "i'll": "i",
-  "you'll": "you",
-  "he'll": "he",
-  "she'll": "she",
-  "it'll": "it",
-  "we'll": "we",
-  "they'll": "they",
-  "i'd": "i",
-  "you'd": "you",
-  "he'd": "he",
-  "she'd": "she",
-  "we'd": "we",
-  "they'd": "they",
-  "isn't": "is",
-  "aren't": "are",
-  "wasn't": "was",
-  "weren't": "were",
-  "don't": "do",
-  "doesn't": "does",
-  "didn't": "did",
-  "can't": "can",
-  cannot: "can",
-  "couldn't": "could",
-  "won't": "will",
-  "wouldn't": "would",
-  "shouldn't": "should",
-  "mustn't": "must",
-  "mightn't": "might",
-  "hasn't": "has",
-  "haven't": "have",
-  "hadn't": "had",
-  "let's": "let",
-  "that's": "that",
-  "there's": "there",
-  "what's": "what",
-  "who's": "who",
-  "where's": "where",
-  "here's": "here",
-};
-
-/** Generates morphological base-form candidates for an already-cleaned word. */
-function morphCandidates(word: string): string[] {
-  const out: string[] = [];
-  const add = (w: string) => {
-    if (w && w.length >= 1 && !out.includes(w)) {
-      out.push(w);
-    }
-  };
-
-  add(word);
-
-  if (word.endsWith("ies") && word.length > 4) {
-    add(word.slice(0, -3) + "y");
-  }
-  if (word.endsWith("es") && word.length > 3) {
-    add(word.slice(0, -2));
-    add(word.slice(0, -1));
-  }
-  if (word.endsWith("s") && !word.endsWith("ss") && word.length > 2) {
-    add(word.slice(0, -1));
-  }
-
-  if (word.endsWith("ing") && word.length > 4) {
-    const stem = word.slice(0, -3);
-    add(stem);
-    add(stem + "e");
-    if (/(.)\1$/.test(stem)) {
-      add(stem.slice(0, -1));
-    }
-  }
-
-  if (word.endsWith("ied") && word.length > 4) {
-    add(word.slice(0, -3) + "y");
-  }
-  if (word.endsWith("ed") && word.length > 3) {
-    const stem = word.slice(0, -2);
-    add(stem);
-    add(word.slice(0, -1));
-    if (/(.)\1$/.test(stem)) {
-      add(stem.slice(0, -1));
-    }
-  }
-
-  if (word.endsWith("er") && word.length > 4) {
-    add(word.slice(0, -2));
-    add(word.slice(0, -1));
-  }
-  if (word.endsWith("est") && word.length > 5) {
-    add(word.slice(0, -3));
-    add(word.slice(0, -2));
-  }
-  if (word.endsWith("ly") && word.length > 4) {
-    add(word.slice(0, -2));
-  }
-
-  return out;
-}
-
-/**
- * Normalizes a raw selected token into an ordered list of base-form candidates
- * to try, handling contractions, possessives and common inflections.
- */
-export function normalizeCandidates(raw: string): string[] {
-  let w = raw.toLowerCase().trim();
-  w = w.replace(/[’‘`]/g, "'");
-  // Strip leading/trailing characters that are neither letters nor apostrophes.
-  w = w.replace(/^[^a-z']+|[^a-z']+$/g, "");
-  if (!w) {
-    return [];
-  }
-
-  const out: string[] = [];
-  const add = (x: string) => {
-    if (x && !out.includes(x)) {
-      out.push(x);
-    }
-  };
-
-  if (CONTRACTIONS[w]) {
-    add(CONTRACTIONS[w]);
-  }
-
-  // Possessives: dog's -> dog ; dogs' -> dogs
-  if (w.endsWith("'s")) {
-    w = w.slice(0, -2);
-  } else if (w.endsWith("'")) {
-    w = w.slice(0, -1);
-  }
-
-  const base = w.replace(/'/g, "");
-  for (const candidate of morphCandidates(base)) {
-    add(candidate);
-  }
-
-  return out;
-}
+// Re-export so existing imports of normalizeCandidates from this module continue to work.
+export { normalizeCandidates };
 
 type RawPhonetic = { text?: unknown; audio?: unknown };
 type RawDefinition = { definition?: unknown; example?: unknown };
@@ -208,7 +66,8 @@ async function fetchEntry(word: string): Promise<Entry | null> {
       return null;
     }
     data = await res.json();
-  } catch {
+  } catch (err) {
+    log.warn("dictionary.fetch_error", { word, error: String(err) });
     return null;
   }
 
@@ -284,14 +143,29 @@ async function fetchEntry(word: string): Promise<Entry | null> {
 export async function lookupWord(raw: string): Promise<DictionaryResult> {
   const display = raw.trim();
   const candidates = normalizeCandidates(raw);
+  const start = Date.now();
+
+  log.info("dictionary.lookup_start", { word: display });
 
   if (candidates.length === 0) {
+    log.info("dictionary.lookup_outcome", {
+      word: display,
+      found: false,
+      reason: "no_candidates",
+      durationMs: Date.now() - start,
+    });
     return { word: display, found: false, meanings: [] };
   }
 
   for (const candidate of candidates) {
     const entry = await fetchEntry(candidate);
     if (entry) {
+      log.info("dictionary.lookup_outcome", {
+        word: display,
+        lookedUp: candidate,
+        found: true,
+        durationMs: Date.now() - start,
+      });
       return {
         word: display,
         lookedUp: candidate,
@@ -303,5 +177,11 @@ export async function lookupWord(raw: string): Promise<DictionaryResult> {
     }
   }
 
+  log.info("dictionary.lookup_outcome", {
+    word: display,
+    found: false,
+    candidatesTried: candidates.length,
+    durationMs: Date.now() - start,
+  });
   return { word: display, found: false, meanings: [] };
 }

@@ -6,6 +6,15 @@ import {
   speechConfig,
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/config";
+import { createLogger } from "@/lib/logger";
+
+const log = createLogger("speech");
+
+/** Default synthesize timeout in milliseconds (~30 s). */
+const SYNTHESIZE_TIMEOUT_MS =
+  typeof process !== "undefined" && process.env.SPEECH_TIMEOUT_MS
+    ? parseInt(process.env.SPEECH_TIMEOUT_MS, 10)
+    : 30_000;
 
 /** Max characters of article text synthesized (bounds audio size / latency). */
 const MAX_TTS_CHARS = 5000;
@@ -88,12 +97,17 @@ type SynthesisOutput = {
 /**
  * Synthesizes `text` via Azure Speech, collecting word-boundary timings.
  * Resolves null on any failure so callers can degrade gracefully.
+ * Includes a configurable timeout (SYNTHESIZE_TIMEOUT_MS) to prevent hangs.
  */
 function synthesize(
   text: string,
   config: AzureSpeechConfig,
+  articleId: string,
 ): Promise<SynthesisOutput | null> {
-  return new Promise((resolve) => {
+  const start = Date.now();
+  log.info("speech.synthesis_start", { articleId, textLength: text.length });
+
+  const inner = new Promise<SynthesisOutput | null>((resolve) => {
     let synthesizer: sdk.SpeechSynthesizer | null = null;
     try {
       const speechConfig = sdk.SpeechConfig.fromSubscription(
@@ -131,22 +145,61 @@ function synthesize(
           synthesizer = null;
           if (ok && audioData && audioData.byteLength > 0) {
             words.sort((a, b) => a.start - b.start);
+            log.info("speech.synthesis_success", {
+              articleId,
+              durationMs: Date.now() - start,
+              audioBytes: audioData.byteLength,
+              wordCount: words.length,
+            });
             resolve({ audio: Buffer.from(audioData), words });
           } else {
+            log.warn("speech.synthesis_failure", {
+              articleId,
+              reason: "incomplete_or_empty_audio",
+              resultReason: result.reason,
+              durationMs: Date.now() - start,
+            });
             resolve(null);
           }
         },
-        () => {
+        (errorMessage) => {
           synthesizer?.close();
           synthesizer = null;
+          log.error("speech.synthesis_failure", {
+            articleId,
+            reason: "error_callback",
+            error: String(errorMessage),
+            durationMs: Date.now() - start,
+          });
           resolve(null);
         },
       );
-    } catch {
+    } catch (err) {
       synthesizer?.close();
+      log.error("speech.synthesis_failure", {
+        articleId,
+        reason: "exception",
+        error: String(err),
+        durationMs: Date.now() - start,
+      });
       resolve(null);
     }
   });
+
+  const timeout = new Promise<SynthesisOutput | null>((resolve) => {
+    const timer = setTimeout(() => {
+      log.error("speech.synthesis_failure", {
+        articleId,
+        reason: "timeout",
+        timeoutMs: SYNTHESIZE_TIMEOUT_MS,
+        durationMs: Date.now() - start,
+      });
+      resolve(null);
+    }, SYNTHESIZE_TIMEOUT_MS);
+    inner.then(() => clearTimeout(timer)).catch(() => clearTimeout(timer));
+  });
+
+  return Promise.race([inner, timeout]);
 }
 
 function fallbackResult(voice: string): SpeechResult {
@@ -173,11 +226,24 @@ export async function getOrCreateArticleSpeech(
     where: { articleId },
   });
   if (cached) {
+    let words: SpeechWord[];
+    try {
+      words = JSON.parse(cached.words) as SpeechWord[];
+    } catch (err) {
+      log.error("speech.cache_parse_failure", {
+        articleId,
+        error: String(err),
+      });
+      // Treat the corrupt row as a cache miss — fall through to regenerate.
+      words = [];
+      await prisma.articleSpeech.delete({ where: { articleId } });
+      return getOrCreateArticleSpeech(articleId);
+    }
     return {
       audio: `data:${cached.mimeType};base64,${cached.audioBase64}`,
       mimeType: cached.mimeType,
       spokenText: cached.spokenText,
-      words: JSON.parse(cached.words) as SpeechWord[],
+      words,
       voice: cached.voice,
       cached: true,
       fallback: false,
@@ -207,7 +273,7 @@ export async function getOrCreateArticleSpeech(
     return fallbackResult(config.voice);
   }
 
-  const output = await synthesize(spokenText, config);
+  const output = await synthesize(spokenText, config, articleId);
   if (!output) {
     return fallbackResult(config.voice);
   }

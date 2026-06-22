@@ -104,7 +104,7 @@ export async function getOrCreateTranslation(
       role: "user",
       content: `Title: ${article.title}\n\n${source}`,
     },
-  ]);
+  ], { feature: "translation" });
 
   if (!completion) {
     // AI configured but request failed — graceful fallback, not cached.
