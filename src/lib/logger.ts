@@ -9,8 +9,9 @@
  * threading it through every function signature.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
+import { logLevel, type LogLevel } from "@/lib/config";
 
-export type LogLevel = "debug" | "info" | "warn" | "error";
+export type { LogLevel };
 
 /** Per-request ambient context merged into every log line. */
 export type RequestContext = {
@@ -60,11 +61,7 @@ export type StructuredLogger = {
 const order: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
 function minLevel(): LogLevel {
-  const raw = (process.env.LOG_LEVEL ?? "").toLowerCase();
-  if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {
-    return raw;
-  }
-  return "info";
+  return logLevel();
 }
 
 /**
