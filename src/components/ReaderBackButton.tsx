@@ -4,8 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-
-const READER_REFERRER_KEY = "readwise:reader-referrer";
+import { READER_REFERRER_KEY } from "@/lib/reader-referrer";
 
 /**
  * Back button in the reader that returns the user to the listing they came from.

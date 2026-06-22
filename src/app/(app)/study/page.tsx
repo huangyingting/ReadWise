@@ -5,8 +5,6 @@ import { getQuizMastery } from "@/lib/quiz-mastery";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
-import { buttonVariants } from "@/components/ui/Button";
-import EmptyState from "@/components/EmptyState";
 import Sparkline from "@/components/Sparkline";
 import StudyPageShell from "@/components/StudyPageShell";
 import { PageShell } from "@/components/shell/PageShell";
@@ -45,8 +43,20 @@ export default async function StudyPage() {
     <PageShell variant="listing">
       <PageHeader title="Study list" />
 
-      {/* ── Comprehension section (M14) ── */}
-      <section aria-labelledby="comprehension-h" className="mb-[var(--space-6)]">
+      {/* Actionable sections first (#212): flashcard review (N due) + saved words. */}
+      <StudyPageShell
+        words={words.map((w) => ({
+          id: w.id,
+          word: w.word,
+          explanation: w.explanation,
+          example: w.example,
+          articleId: w.articleId,
+        }))}
+        initialDueCount={reviewSummary.dueCount}
+      />
+
+      {/* ── Comprehension section (M14) — demoted below actionable items (#212) ── */}
+      <section aria-labelledby="comprehension-h" className="mt-[var(--space-7)]">
         <h2
           id="comprehension-h"
           className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0 mb-[var(--space-4)]"
@@ -104,25 +114,20 @@ export default async function StudyPage() {
             </div>
           </Card>
         ) : (
-          <EmptyState
-            icon={GraduationCap}
-            title="No quizzes yet"
-            description="Take a quiz after reading an article to start tracking your comprehension."
-            action={{ label: "Browse articles", href: "/browse" }}
-          />
+          /* No attempts yet — a compact hint rather than a large empty state, so
+             the actionable sections above stay front-and-centre (esp. mobile). */
+          <p className="text-text-muted text-[length:var(--text-sm)] m-0 flex items-center gap-[var(--space-2)]">
+            <GraduationCap size={16} aria-hidden className="text-text-subtle shrink-0" />
+            <span>
+              No quizzes yet — take a quiz after reading an article to start tracking your comprehension.{" "}
+              <Link href="/browse" className="text-[var(--primary-text)] hover:underline">
+                Browse articles
+              </Link>
+              .
+            </span>
+          </p>
         )}
       </section>
-
-      <StudyPageShell
-        words={words.map((w) => ({
-          id: w.id,
-          word: w.word,
-          explanation: w.explanation,
-          example: w.example,
-          articleId: w.articleId,
-        }))}
-        initialDueCount={reviewSummary.dueCount}
-      />
     </PageShell>
   );
 }
