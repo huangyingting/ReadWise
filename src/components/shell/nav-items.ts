@@ -12,12 +12,12 @@ export const PRIMARY_NAV: NavItem[] = [
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "primary" },
   { href: "/browse", label: "Browse", icon: Compass, group: "primary" },
   { href: "/import", label: "Import", icon: Download, group: "secondary" },
-  { href: "/lists", label: "Saved", icon: Bookmark, group: "secondary" },
+  { href: "/lists", label: "Saved articles", icon: Bookmark, group: "secondary" },
   { href: "/study", label: "Study", icon: BookOpen, group: "primary" },
   { href: "/notes", label: "Notes", icon: StickyNote, group: "secondary" },
   { href: "/progress", label: "Progress", icon: TrendingUp, group: "primary" },
   { href: "/offline", label: "Offline", icon: WifiOff, group: "secondary" },
-  { href: "/tags", label: "Topics", icon: Hash, group: "secondary" },
+  { href: "/tags", label: "Tags", icon: Hash, group: "secondary" },
 ];
 
 /**
@@ -28,8 +28,8 @@ export const PRIMARY_NAV: NavItem[] = [
 export const PRIMARY_TABS: NavItem[] = PRIMARY_NAV.filter((item) => item.group === "primary");
 
 /**
- * Secondary navigation — Saved, Notes, Import, Offline (in `PRIMARY_NAV` order),
- * derived from `PRIMARY_NAV` by group.
+ * Secondary navigation — Import, Saved articles, Notes, Offline, Tags (in
+ * `PRIMARY_NAV` order), derived from `PRIMARY_NAV` by group.
  */
 export const SECONDARY_NAV: NavItem[] = PRIMARY_NAV.filter((item) => item.group === "secondary");
 
