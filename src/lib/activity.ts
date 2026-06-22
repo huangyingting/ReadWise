@@ -150,16 +150,27 @@ export async function recordReadingActivity(
   const yesterdayDate = new Date(todayDate.getTime() - 86_400_000);
   const twoDaysAgoDate = new Date(todayDate.getTime() - 2 * 86_400_000);
 
-  // UTC day window for ReadingProgress — always contains `now` regardless of tz.
-  const utcToday = localDayStart(now, "UTC");
-  const utcTomorrow = new Date(utcToday.getTime() + 86_400_000);
-
-  // Distinct articles whose progress was last updated in the current UTC day.
+  // ReadingProgress.updatedAt holds real UTC instants, but DailyActivity.date is
+  // keyed by the user's LOCAL calendar day — for a non-UTC user the local day
+  // can straddle a UTC midnight. A fixed UTC day window would miss readings from
+  // the local evening (now in the next UTC day) and truncate the recompute,
+  // overwriting articlesRead. Fetch a window wide enough to contain the whole
+  // local day, then keep only the rows whose LOCAL date key matches today's,
+  // reusing the same dateKey() helper that derives the stored DailyActivity.date
+  // so the recompute always covers exactly the local day whose row we upsert.
+  const todayKeyForCount = dateKey(now, tz);
+  const progressWindowStart = new Date(now.getTime() - 36 * 60 * 60 * 1000);
   const progressRows = await prisma.readingProgress.findMany({
-    where: { userId, updatedAt: { gte: utcToday, lt: utcTomorrow } },
-    select: { articleId: true },
-    distinct: ["articleId"],
+    where: { userId, updatedAt: { gte: progressWindowStart } },
+    select: { articleId: true, updatedAt: true },
   });
+  const todayArticleIds = new Set<string>();
+  for (const row of progressRows) {
+    if (dateKey(row.updatedAt, tz) === todayKeyForCount) {
+      todayArticleIds.add(row.articleId);
+    }
+  }
+  const articlesReadToday = todayArticleIds.size;
 
   // Recent activity for gap detection and shield-earn check
   // (covers today + SHIELD_EARN_STREAK + 1 prior days).
@@ -208,8 +219,8 @@ export async function recordReadingActivity(
   // --- Upsert today ---
   await prisma.dailyActivity.upsert({
     where: { userId_date: { userId, date: todayDate } },
-    update: { articlesRead: progressRows.length },
-    create: { userId, date: todayDate, articlesRead: progressRows.length },
+    update: { articlesRead: articlesReadToday },
+    create: { userId, date: todayDate, articlesRead: articlesReadToday },
   });
   activeKeys.add(todayKey);
 

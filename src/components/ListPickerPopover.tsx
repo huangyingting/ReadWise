@@ -71,6 +71,7 @@ export default function ListPickerPopover({
   const firstCheckRef = useRef<HTMLInputElement>(null);
   const newListInputRef = useRef<HTMLInputElement>(null);
   const createRowRef = useRef<HTMLButtonElement>(null);
+  const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusId = useId();
 
   // Use ref so the callback never causes re-runs of the data-fetch effect
@@ -104,6 +105,13 @@ export default function ListPickerPopover({
       cancelled = true;
     };
   }, [articleId]);
+
+  // Clear the pending error-clear timer on unmount
+  useEffect(() => {
+    return () => {
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    };
+  }, []);
 
   // Move focus to first checkbox (or new-list trigger) on load
   useEffect(() => {
@@ -173,7 +181,8 @@ export default function ListPickerPopover({
         prev.map((l) => (l.id === list.id ? { ...l, hasArticle: wasChecked } : l)),
       );
       setError("Couldn't update list — try again");
-      setTimeout(() => setError(null), 3000);
+      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+      errorTimerRef.current = setTimeout(() => setError(null), 3000);
     }
   }
 
