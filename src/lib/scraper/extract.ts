@@ -2,7 +2,8 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
-import { assertSafeUrl } from "@/lib/scraper/ssrf";
+import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
+import { Agent, fetch as undiciFetch } from "undici";
 
 const WORDS_PER_MINUTE = 200;
 const USER_AGENT =
@@ -12,25 +13,57 @@ const USER_AGENT =
 /** Max redirect hops followed before giving up. */
 const MAX_REDIRECTS = 5;
 
+/**
+ * Builds a one-shot undici dispatcher that PINS the connection to the exact
+ * pre-validated IP. The `lookup` short-circuits DNS so undici never re-resolves
+ * the hostname at connect time (closing the DNS-rebinding / TOCTOU gap), while
+ * `fetch(url)` still sends the correct `Host` header and TLS SNI for vhosts.
+ */
+function pinnedDispatcher(pin: PinnedAddress): Agent {
+  return new Agent({
+    connect: {
+      lookup: (_hostname, options, callback) => {
+        // undici/net may request all addresses (`all: true`) and then expects an
+        // array; otherwise it expects the single (err, address, family) form.
+        if (options && (options as { all?: boolean }).all) {
+          callback(null, [{ address: pin.ip, family: pin.family }]);
+        } else {
+          callback(null, pin.ip, pin.family);
+        }
+      },
+    },
+  });
+}
+
 /** Fetches a URL as text with a desktop UA and a timeout. Throws on non-2xx or unsafe target. */
 export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let currentUrl = url;
-    // Follow redirects manually so EVERY hop's host is re-validated through the
-    // SSRF guard. With `redirect: "follow"` the runtime re-resolves DNS and only
-    // the final hostname could be checked, leaving a DNS-rebinding / SSRF window
-    // where an intermediate hop points at a private/loopback/metadata address.
+    // Follow redirects manually so EVERY hop's host is re-validated AND its IP
+    // re-resolved + pinned through the SSRF guard. `fetch(hostname)` alone lets
+    // undici re-resolve DNS at connect time, leaving a DNS-rebinding / SSRF
+    // window where a host validated as public could connect to a private /
+    // loopback / metadata address. Pinning the validated IP closes that gap.
     for (let hop = 0; ; hop++) {
-      // Validate scheme + resolved IP of this hop before fetching it.
-      await assertSafeUrl(currentUrl);
+      // Validate scheme, resolve+validate EVERY address, and pin one validated
+      // IP for this hop before connecting to it.
+      const pin = await resolveAndPin(currentUrl);
+      const dispatcher = pinnedDispatcher(pin);
 
-      const res = await fetch(currentUrl, {
-        headers: { "user-agent": USER_AGENT, accept: "text/html" },
-        signal: controller.signal,
-        redirect: "manual",
-      });
+      let res: Awaited<ReturnType<typeof undiciFetch>>;
+      try {
+        res = await undiciFetch(currentUrl, {
+          headers: { "user-agent": USER_AGENT, accept: "text/html" },
+          signal: controller.signal,
+          redirect: "manual",
+          dispatcher,
+        });
+      } finally {
+        // Tear down the per-hop dispatcher once the response has been received.
+        void dispatcher.close();
+      }
 
       const location = res.headers.get("location");
       if (res.status >= 300 && res.status < 400 && location) {
@@ -38,7 +71,7 @@ export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string>
           throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${url}`);
         }
         // Resolve relative redirects against the current URL; the next loop
-        // iteration re-validates the resulting host before fetching it.
+        // iteration re-validates + re-pins the resulting host before fetching it.
         currentUrl = new URL(location, currentUrl).href;
         continue;
       }
