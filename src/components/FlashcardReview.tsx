@@ -106,9 +106,32 @@ export default function FlashcardReview({
 
   // DOM refs
   const liveRef = useRef<HTMLDivElement>(null);
+  const sessionRegionRef = useRef<HTMLDivElement>(null);
   const showAnswerRef = useRef<HTMLButtonElement>(null);
   const goodButtonRef = useRef<HTMLButtonElement>(null);
   const clozeInputRef = useRef<HTMLInputElement>(null);
+
+  // Move keyboard focus INTO the review panel when a session starts (the
+  // trigger button unmounts, so focus would otherwise fall back to <body>).
+  const sessionStartedRef = useRef(false);
+  useEffect(() => {
+    if (appState.phase === "session") {
+      if (sessionStartedRef.current) return;
+      sessionStartedRef.current = true;
+      const total = appState.cards.length;
+      announce(`Review started. Card 1 of ${total}.`);
+      setTimeout(() => {
+        const target =
+          clozeInputRef.current ??
+          showAnswerRef.current ??
+          sessionRegionRef.current;
+        target?.focus();
+      }, 0);
+    } else {
+      sessionStartedRef.current = false;
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appState.phase]);
 
   /** Politely announce to screen readers. */
   function announce(msg: string) {
@@ -208,6 +231,9 @@ export default function FlashcardReview({
         : prev,
     );
     announce(correct ? "Correct!" : "Incorrect.");
+    // Mirror the flashcard flip: move focus to the grade controls once the
+    // answer is revealed so keyboard users land on the buttons.
+    setTimeout(() => goodButtonRef.current?.focus(), 0);
   }, []);
 
   const submitGrade = useCallback(
@@ -415,7 +441,13 @@ export default function FlashcardReview({
         return (
           <Card>
             {/* Session header */}
-            <div className="flex items-center justify-between gap-[var(--space-4)]">
+            <div
+              ref={sessionRegionRef}
+              tabIndex={-1}
+              role="group"
+              aria-label={s.mode === "cloze" ? "Cloze review" : "Flashcard review"}
+              className="flex items-center justify-between gap-[var(--space-4)] outline-none"
+            >
               <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
                 {s.mode === "cloze" ? "Cloze review" : "Reviewing"}
               </h2>
@@ -481,23 +513,39 @@ export default function FlashcardReview({
                   </>
                 )}
 
-                {/* Audio button */}
-                {speechAvailable && (
-                  <button
-                    type="button"
-                    onClick={() => speak(card.word, card.id)}
-                    aria-label={`Play pronunciation of ${card.word}`}
-                    className={cn(
-                      "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
-                      "min-h-[44px] px-[var(--space-2)]",
-                      "text-[length:var(--text-sm)] transition-colors",
-                      focusRing,
-                    )}
-                  >
-                    <Volume2 size={16} aria-hidden />
-                    {speaking === card.id ? "Playing…" : card.word}
-                  </button>
-                )}
+                {/* Audio button — neutral affordance. For a masked cloze the
+                    answer must NOT be spoken/exposed before submission, so the
+                    button is disabled (and never carries the word in its label)
+                    until the answer is revealed. */}
+                {speechAvailable &&
+                  (() => {
+                    const pronounceEnabled = !card.cloze || s.clozeSubmitted;
+                    return (
+                      <button
+                        type="button"
+                        onClick={() =>
+                          pronounceEnabled ? speak(card.word, card.id) : undefined
+                        }
+                        disabled={!pronounceEnabled}
+                        aria-label="Play pronunciation"
+                        title={
+                          pronounceEnabled
+                            ? undefined
+                            : "Available after you answer"
+                        }
+                        className={cn(
+                          "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
+                          "min-h-[44px] px-[var(--space-2)]",
+                          "text-[length:var(--text-sm)] transition-colors",
+                          "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-muted",
+                          focusRing,
+                        )}
+                      >
+                        <Volume2 size={16} aria-hidden />
+                        {speaking === card.id ? "Playing…" : "Pronounce"}
+                      </button>
+                    );
+                  })()}
 
                 {/* Input / feedback area */}
                 {card.cloze && !s.clozeSubmitted && (

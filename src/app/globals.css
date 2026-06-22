@@ -2466,9 +2466,11 @@ body {
     perspective: 1000px;
   }
 
-  /* Inner wrapper rotates on flip */
+  /* Inner wrapper rotates on flip. Faces are grid-stacked (not absolutely
+     positioned) so the container auto-sizes to the tallest face and the
+     revealed back never overflows to overlap the progress bar above. */
   .rw-flip-inner {
-    position: relative;
+    display: grid;
     transform-style: preserve-3d;
     transition: transform var(--duration-slow) var(--ease-emphasized);
   }
@@ -2477,10 +2479,10 @@ body {
     transform: rotateY(180deg);
   }
 
-  /* Both faces are absolute so the container keeps its height */
+  /* Both faces share the same grid cell so they stack; the cell grows to fit
+     the larger face, keeping the container height content-driven. */
   .rw-flip-face {
-    position: absolute;
-    inset: 0;
+    grid-area: 1 / 1;
     backface-visibility: hidden;
     -webkit-backface-visibility: hidden;
   }
