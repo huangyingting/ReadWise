@@ -362,6 +362,71 @@ test("recordReadingActivity: does NOT earn a shield with only 5 consecutive days
   assert.equal(profileUpdateCalls.length, 0);
 });
 
+// ---- recordReadingActivity — non-UTC day window (#238) -------------------
+
+test("recordReadingActivity: counts both articles read in the local day even when it spans a UTC midnight", async () => {
+  // UTC-5 user (Etc/GMT+5, no DST). Their local calendar day in real UTC runs
+  // from 05:00Z..05:00Z(+1), which always contains a UTC midnight. Two readings
+  // on opposite sides of that UTC midnight are still the SAME local day, so the
+  // recompute must keep articlesRead = 2 (the old UTC-window code dropped one).
+  const tz = "Etc/GMT+5";
+  const { dateKey } = await import("@/lib/activity");
+  const localKey = dateKey(new Date(), tz);
+  // Real UTC instant of this local midnight (UTC = local + 5h for UTC-5).
+  const localMidnightUTC = new Date(localKey + "T05:00:00Z").getTime();
+  const beforeUtcMidnight = new Date(localMidnightUTC + 18 * 3_600_000); // 23:00Z same UTC day
+  const afterUtcMidnight = new Date(localMidnightUTC + 21 * 3_600_000); // 02:00Z next UTC day
+
+  // Sanity: both timestamps map to the same local day but different UTC days.
+  assert.equal(dateKey(beforeUtcMidnight, tz), localKey);
+  assert.equal(dateKey(afterUtcMidnight, tz), localKey);
+  assert.notEqual(
+    beforeUtcMidnight.toISOString().slice(0, 10),
+    afterUtcMidnight.toISOString().slice(0, 10),
+  );
+
+  profileRow = { timezone: tz, streakShields: 0 };
+  progressRows = [
+    { articleId: "a1", updatedAt: beforeUtcMidnight },
+    { articleId: "a2", updatedAt: afterUtcMidnight },
+  ];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  assert.equal(upsertCalls.length, 1);
+  const call = upsertCalls[0] as {
+    update: { articlesRead: number };
+    create: { articlesRead: number };
+  };
+  assert.equal(call.update.articlesRead, 2);
+  assert.equal(call.create.articlesRead, 2);
+});
+
+test("recordReadingActivity: excludes readings outside the local day", async () => {
+  const tz = "Etc/GMT+5";
+  const { dateKey } = await import("@/lib/activity");
+  const localKey = dateKey(new Date(), tz);
+  const localMidnightUTC = new Date(localKey + "T05:00:00Z").getTime();
+  const inToday = new Date(localMidnightUTC + 18 * 3_600_000);
+  const yesterday = new Date(localMidnightUTC - 2 * 3_600_000); // before local midnight
+
+  assert.equal(dateKey(inToday, tz), localKey);
+  assert.notEqual(dateKey(yesterday, tz), localKey);
+
+  profileRow = { timezone: tz, streakShields: 0 };
+  progressRows = [
+    { articleId: "a1", updatedAt: inToday },
+    { articleId: "a2", updatedAt: yesterday }, // different local day — must NOT count
+  ];
+
+  const { recordReadingActivity } = await import("@/lib/activity");
+  await recordReadingActivity("user-1", "a1");
+
+  const call = upsertCalls[0] as { update: { articlesRead: number } };
+  assert.equal(call.update.articlesRead, 1);
+});
+
 // ---- recordReadingActivity — timezone param ------------------------------
 
 test("recordReadingActivity: accepts timezone override and uses local date", async () => {

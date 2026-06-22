@@ -6,6 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { getStreakSummary } from "@/lib/activity";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -88,7 +89,6 @@ function fillWeekBuckets(
 
 export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalytics> {
   const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86_400_000);
-  const twoYearsAgo = new Date(Date.now() - 2 * 365 * 86_400_000);
 
   const [
     progressStats,
@@ -98,7 +98,7 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
     quizAgg,
     recentQuizAttempts,
     completedWithLevel,
-    activityRows,
+    streakSummary,
   ] = await Promise.all([
     // Total completed + in-progress
     prisma.readingProgress.groupBy({
@@ -144,12 +144,9 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
       take: 1000,
     }),
 
-    // Streak: daily activity (bounded to last 2 years for performance)
-    prisma.dailyActivity.findMany({
-      where: { userId, date: { gte: twoYearsAgo } },
-      orderBy: { date: "asc" },
-      select: { date: true, articlesRead: true },
-    }),
+    // Streak summary computed in the user's timezone (delegated to the shared
+    // activity helper so streak/day-boundary logic is not re-implemented here).
+    getStreakSummary(userId),
   ]);
 
   // --- totals ---
@@ -191,39 +188,8 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
     .map(([level, count]) => ({ level, count }))
     .sort((a, b) => a.level.localeCompare(b.level));
 
-  // --- streaks (mirrors activity.ts logic) ---
-  const activeDates = new Set<string>();
-  for (const a of activityRows) {
-    if (a.articlesRead > 0) {
-      activeDates.add(a.date.toISOString().slice(0, 10));
-    }
-  }
-  const todayStr = new Date().toISOString().slice(0, 10);
-  const yesterdayStr = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
-
-  let currentStreak = 0;
-  const anchor = activeDates.has(todayStr)
-    ? todayStr
-    : activeDates.has(yesterdayStr)
-      ? yesterdayStr
-      : null;
-  if (anchor) {
-    let cursor = new Date(anchor + "T00:00:00Z");
-    while (activeDates.has(cursor.toISOString().slice(0, 10))) {
-      currentStreak++;
-      cursor = new Date(cursor.getTime() - 86_400_000);
-    }
-  }
-
-  let longestStreak = 0;
-  let run = 0;
-  let prevMs: number | null = null;
-  for (const key of [...activeDates].sort()) {
-    const ms = new Date(key + "T00:00:00Z").getTime();
-    run = prevMs !== null && ms - prevMs === 86_400_000 ? run + 1 : 1;
-    longestStreak = Math.max(longestStreak, run);
-    prevMs = ms;
-  }
+  // --- streaks (timezone-aware, via getStreakSummary) ---
+  const { currentStreak, longestStreak } = streakSummary;
 
   return {
     totalCompleted,

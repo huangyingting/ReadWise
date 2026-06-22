@@ -4,17 +4,12 @@ import { htmlToPlainText } from "@/lib/translation";
 import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
+  speechTimeoutMs,
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("speech");
-
-/** Default synthesize timeout in milliseconds (~30 s). */
-const SYNTHESIZE_TIMEOUT_MS =
-  typeof process !== "undefined" && process.env.SPEECH_TIMEOUT_MS
-    ? parseInt(process.env.SPEECH_TIMEOUT_MS, 10)
-    : 30_000;
 
 /** Max characters of article text synthesized (bounds audio size / latency). */
 const MAX_TTS_CHARS = 5000;
@@ -97,7 +92,7 @@ type SynthesisOutput = {
 /**
  * Synthesizes `text` via Azure Speech, collecting word-boundary timings.
  * Resolves null on any failure so callers can degrade gracefully.
- * Includes a configurable timeout (SYNTHESIZE_TIMEOUT_MS) to prevent hangs.
+ * Includes a configurable timeout (SPEECH_TIMEOUT_MS) to prevent hangs.
  */
 function synthesize(
   text: string,
@@ -105,6 +100,7 @@ function synthesize(
   articleId: string,
 ): Promise<SynthesisOutput | null> {
   const start = Date.now();
+  const synthesizeTimeoutMs = speechTimeoutMs();
   log.info("speech.synthesis_start", { articleId, textLength: text.length });
 
   const inner = new Promise<SynthesisOutput | null>((resolve) => {
@@ -191,11 +187,11 @@ function synthesize(
       log.error("speech.synthesis_failure", {
         articleId,
         reason: "timeout",
-        timeoutMs: SYNTHESIZE_TIMEOUT_MS,
+        timeoutMs: synthesizeTimeoutMs,
         durationMs: Date.now() - start,
       });
       resolve(null);
-    }, SYNTHESIZE_TIMEOUT_MS);
+    }, synthesizeTimeoutMs);
     inner.then(() => clearTimeout(timer)).catch(() => clearTimeout(timer));
   });
 
