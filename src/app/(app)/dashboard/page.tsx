@@ -7,9 +7,7 @@ import { getQuizMastery } from "@/lib/quiz-mastery";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { getPersonalizedFeed } from "@/lib/feed";
-import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
-import type { DifficultyLevel } from "@/lib/difficulty";
-import type { ListingArticle } from "@/lib/articles";
+import { isDifficultyLevel } from "@/lib/difficulty";
 import { Card } from "@/components/ui/Card";
 import { Badge, buttonVariants } from "@/components/ui";
 import ArticleCardView from "@/components/ArticleCardView";
@@ -29,19 +27,6 @@ import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 
 
-/** Filter ListingArticle[] to those at or below `maxLevel` (easiest-first). */
-function filterFeedByLevel(
-  articles: ListingArticle[],
-  maxLevel: DifficultyLevel | null,
-): ListingArticle[] {
-  if (!maxLevel) return articles;
-  const max = levelRank(maxLevel);
-  return articles.filter((a) => {
-    if (!a.difficulty || !isDifficultyLevel(a.difficulty)) return false;
-    return levelRank(a.difficulty as DifficultyLevel) <= max;
-  });
-}
-
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -57,14 +42,14 @@ export default async function DashboardPage({
     getStreakSummary(user.id),
     getQuizMastery(user.id),
     getProfile(user.id),
-    getPersonalizedFeed(user.id, { offset: 0, limit: 10 }),
+    getPersonalizedFeed(user.id, { offset: 0, limit: 10, maxLevel }),
   ]);
 
-  // Apply optional CEFR level filter to the initial feed (#68).
-  // When a level is active we disable "load more" since subsequent pages
-  // won't be level-filtered (the /api/feed endpoint is unchanged).
-  const filteredArticles = filterFeedByLevel(feedPage.articles, maxLevel);
-  const filteredHasMore = maxLevel ? false : feedPage.hasMore;
+  // Apply optional CEFR level filter to the initial feed (#68, #211). The level
+  // is now threaded through /api/feed so subsequent "Load more" pages stay
+  // level-filtered and `hasMore` is accurate — no need to disable Load more.
+  const filteredArticles = feedPage.articles;
+  const filteredHasMore = feedPage.hasMore;
 
   // Union of rail + feed article ids for SSR progress + bookmark sync
   const railIds = inProgressEntries.map((e) => e.article.id);
@@ -211,6 +196,7 @@ export default async function DashboardPage({
           /* Topics chosen — hand off to client component (handles empty + load more + sync) */
           <ForYouFeed
             key={maxLevel ?? "all"}
+            level={maxLevel}
             initialArticles={filteredArticles}
             initialProgress={feedProgress}
             initialHasMore={filteredHasMore}

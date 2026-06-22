@@ -42,6 +42,7 @@ export default function ForYouFeed({
   initialOffset,
   initialSavedIds,
   initialReasons,
+  level,
 }: {
   initialArticles: ListingArticle[];
   initialProgress: Record<string, ProgressSummary>;
@@ -51,6 +52,8 @@ export default function ForYouFeed({
   initialSavedIds?: string[];
   /** SSR personalisation reasons keyed by articleId. */
   initialReasons?: Record<string, string>;
+  /** Active CEFR level cap — threaded to /api/feed so Load more stays filtered. */
+  level?: string | null;
 }) {
   const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
   const [progress, setProgress] = useState<Record<string, ProgressSummary>>(initialProgress);
@@ -67,6 +70,7 @@ export default function ForYouFeed({
     setLoading(true);
     try {
       const params = new URLSearchParams({ offset: String(offset), limit: "6" });
+      if (level) params.set("level", level);
       const res = await fetch(`/api/feed?${params.toString()}`);
       if (!res.ok) return;
       const data = (await res.json()) as FeedApiResponse;
@@ -87,7 +91,7 @@ export default function ForYouFeed({
     } finally {
       setLoading(false);
     }
-  }, [offset, hasMore, loading]);
+  }, [offset, hasMore, loading, level]);
 
   const articleIds = articles.map((a) => a.id);
 

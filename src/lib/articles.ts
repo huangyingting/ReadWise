@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import type { Article, Prisma } from "@prisma/client";
 import {
   levelRank,
+  levelsAtOrBelow,
   ensureArticleDifficulties,
   type DifficultyLevel,
 } from "@/lib/difficulty";
@@ -104,14 +105,35 @@ export function countWords(text: string): number {
 }
 
 /**
+ * Minimal article shape needed to render a listing card. Accepts full Article
+ * rows as well as partial `select`-narrowed rows (e.g. the feed's projection
+ * that omits the large `content` HTML), so `content` is optional here.
+ */
+export type ArticleCardSource = Pick<
+  Article,
+  | "id"
+  | "title"
+  | "author"
+  | "source"
+  | "category"
+  | "difficulty"
+  | "readingMinutes"
+  | "wordCount"
+  | "publishedAt"
+  | "heroImage"
+> & { content?: string | null };
+
+/**
  * Estimated minutes to read. Prefers the stored value, otherwise derives it
  * from the stored word count or, as a last resort, the body text.
  */
-export function readingMinutesFor(article: Article): number | null {
+export function readingMinutesFor(
+  article: Pick<Article, "readingMinutes" | "wordCount"> & { content?: string | null },
+): number | null {
   if (article.readingMinutes != null) {
     return article.readingMinutes;
   }
-  const words = article.wordCount ?? countWords(article.content);
+  const words = article.wordCount ?? countWords(article.content ?? "");
   if (words <= 0) {
     return null;
   }
@@ -131,7 +153,7 @@ export type ListingArticle = {
   heroImage: string | null;
 };
 
-export function toListingArticle(article: Article): ListingArticle {
+export function toListingArticle(article: ArticleCardSource): ListingArticle {
   return {
     id: article.id,
     title: article.title,
@@ -172,32 +194,45 @@ export async function listCategoryPage(
   return cachedListCategoryPage(category, maxLevel, offset, limit);
 }
 
-/** Maximum articles fetched per category for in-memory level filtering. */
-const MAX_CATEGORY_FETCH = 500;
-
 async function listCategoryPageImpl(
   category: string | null,
   maxLevel: DifficultyLevel | null,
   offset: number,
   limit: number,
 ): Promise<ArticlePage> {
+  const baseWhere: Prisma.ArticleWhereInput = {
+    status: "published",
+    ownerId: null,
+    ...(category ? { category } : {}),
+  };
+
   if (maxLevel != null) {
-    // In-memory level filtering — must load all candidates first.
-    const all = await prisma.article.findMany({
-      where: { status: "published", ownerId: null, ...(category ? { category } : {}) },
-      orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-      take: MAX_CATEGORY_FETCH,
-    });
-    await ensureArticleDifficulties(all);
-    const filtered = filterAndSortByLevel(all, maxLevel);
-    return {
-      articles: filtered.slice(offset, offset + limit),
-      hasMore: offset + limit < filtered.length,
+    // Level-filtered browse: constrain to assessed articles at/below the level
+    // at the DB layer (difficulty IN [...]) and paginate via skip/take instead
+    // of loading the whole category into memory. Articles without an assessed
+    // difficulty are excluded from a level-filtered view (we can't place them).
+    const levelWhere: Prisma.ArticleWhereInput = {
+      ...baseWhere,
+      difficulty: { in: levelsAtOrBelow(maxLevel) },
     };
+    const rows = await prisma.article.findMany({
+      where: levelWhere,
+      // Easiest-first within the level cap, newest as a tiebreaker — mirrors
+      // filterAndSortByLevel's ordering while staying DB-paginated.
+      orderBy: [
+        { difficultyScore: "asc" },
+        { publishedAt: "desc" },
+        { createdAt: "desc" },
+      ],
+      skip: offset,
+      take: limit + 1,
+    });
+    const hasMore = rows.length > limit;
+    return { articles: rows.slice(0, limit), hasMore };
   }
   // DB-level pagination when no level filter is active.
   const rows = await prisma.article.findMany({
-    where: { status: "published", ownerId: null, ...(category ? { category } : {}) },
+    where: baseWhere,
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
@@ -411,26 +446,31 @@ export async function searchPublishedArticles(
       const hasMore = orderedIds.length > limit;
       const pageIds = orderedIds.slice(0, limit);
 
-      if (pageIds.length === 0) return { articles: [], hasMore: false };
+      // Only return from the FTS path when it (or the per-user merge) produced
+      // ids. When FTS matches nothing — e.g. the query is an author/source/
+      // category term that doesn't appear in the indexed title/content — fall
+      // through to the LIKE fallback below, which searches title/author/source.
+      if (pageIds.length > 0) {
+        // Fetch full Article rows for the page, preserving ranked order. Allow
+        // the caller's own personal imports (ownerId === userId) in addition to
+        // public articles so merged personal matches resolve to rows.
+        const byId = new Map<string, Article>();
+        const rows = await prisma.article.findMany({
+          where: {
+            id: { in: pageIds },
+            status: "published",
+            OR: [{ ownerId: null }, ...(userId ? [{ ownerId: userId }] : [])],
+          },
+        });
+        for (const r of rows) byId.set(r.id, r);
+        const articles = pageIds.flatMap((id) => {
+          const a = byId.get(id);
+          return a ? [a] : [];
+        });
 
-      // Fetch full Article rows for the page, preserving ranked order. Allow the
-      // caller's own personal imports (ownerId === userId) in addition to public
-      // articles so merged personal matches resolve to rows.
-      const byId = new Map<string, Article>();
-      const rows = await prisma.article.findMany({
-        where: {
-          id: { in: pageIds },
-          status: "published",
-          OR: [{ ownerId: null }, ...(userId ? [{ ownerId: userId }] : [])],
-        },
-      });
-      for (const r of rows) byId.set(r.id, r);
-      const articles = pageIds.flatMap((id) => {
-        const a = byId.get(id);
-        return a ? [a] : [];
-      });
-
-      return { articles, hasMore };
+        return { articles, hasMore };
+      }
+      // FTS returned no ids — fall through to the LIKE fallback.
     } catch {
       // FTS unavailable — fall through to LIKE path.
     }

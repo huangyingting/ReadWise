@@ -32,6 +32,18 @@ export function levelRank(level: string): number {
   return (DIFFICULTY_LEVELS as readonly string[]).indexOf(level);
 }
 
+/**
+ * Returns every CEFR level at or below `maxLevel` (inclusive), in ascending
+ * order. Useful for building DB `difficulty IN (...)` filters that keep
+ * level-appropriate articles without loading the whole corpus into memory.
+ * Returns an empty array for an unknown level.
+ */
+export function levelsAtOrBelow(maxLevel: DifficultyLevel): DifficultyLevel[] {
+  const max = levelRank(maxLevel);
+  if (max < 0) return [];
+  return DIFFICULTY_LEVELS.filter((_, i) => i <= max);
+}
+
 export type DifficultySource = "cache" | "ai" | "heuristic";
 
 export type DifficultyResult = {
