@@ -137,7 +137,7 @@ export default function ArticleCardView({
 
       {/* ① Top meta row — pr-9 reserves space for the absolute bookmark button */}
       <div className="flex items-center justify-between gap-[var(--space-2)] pr-9">
-        <div className="flex items-center gap-[var(--space-2)] min-w-0">
+        <div className="flex items-center gap-[var(--space-2)] min-w-0 flex-1">
           {level ? (
             <Tooltip content={CEFR_DESCRIPTIONS[level] ?? level} side="top">
               <span>
@@ -159,18 +159,13 @@ export default function ArticleCardView({
               New
             </span>
           )}
-          {/* Meta: category (can truncate) + "N min read" (shrink-0, never cut) */}
+          {/* Meta: category + "N min read" truncate together so the line never
+              overflows under the Read chip / bookmark on narrow (4-col) cards. */}
           {(categoryLabel || readingTimeLabel) ? (
-            <span className="flex items-center gap-[var(--space-1)] min-w-0 text-text-subtle text-[length:var(--text-xs)]">
-              {categoryLabel ? (
-                <span className="truncate">{categoryLabel}</span>
-              ) : null}
-              {categoryLabel && readingTimeLabel ? (
-                <span className="shrink-0">·</span>
-              ) : null}
-              {readingTimeLabel ? (
-                <span className="shrink-0">{readingTimeLabel}</span>
-              ) : null}
+            <span className="truncate min-w-0 text-text-subtle text-[length:var(--text-xs)]">
+              {categoryLabel}
+              {categoryLabel && readingTimeLabel ? " · " : ""}
+              {readingTimeLabel}
             </span>
           ) : null}
         </div>
