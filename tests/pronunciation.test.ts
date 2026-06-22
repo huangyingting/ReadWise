@@ -396,7 +396,10 @@ test("POST /pronunciation/attempt accepts optional articleId", async () => {
   assert.equal(body.attempt.articleId, "article-1");
 });
 
-test("POST /pronunciation/attempt returns 400 for score > 100", async () => {
+test("POST /pronunciation/attempt clamps an out-of-range score to 0–100", async () => {
+  // The score is client-derived; the endpoint CLAMPS rather than rejecting so a
+  // forged/over-range value (200) is bounded to 100 instead of corrupting stats.
+  maxPronScore = 100;
   const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
     POST: RouteHandler;
   };
@@ -406,7 +409,56 @@ test("POST /pronunciation/attempt returns 400 for score > 100", async () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
         referenceText: "Hello",
-        accuracyScore: 200,
+        accuracyScore: 200, // → clamped to 100
+        fluencyScore: -50, // → clamped to 0
+        completenessScore: 95,
+        pronScore: 90,
+      }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.attempt.accuracyScore, 100);
+  assert.equal(body.attempt.fluencyScore, 0);
+  assert.equal(body.attempt.completenessScore, 95);
+  assert.equal(body.attempt.pronScore, 90);
+});
+
+test("POST /pronunciation/attempt clamps a non-integer score by rounding", async () => {
+  maxPronScore = 86;
+  const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
+    POST: RouteHandler;
+  };
+  const res = await POST(
+    new Request("http://test/api/pronunciation/attempt", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        referenceText: "Hello",
+        accuracyScore: 85.6, // → rounded to 86
+        fluencyScore: 80.2, // → rounded to 80
+        completenessScore: 95,
+        pronScore: 86,
+      }),
+    }),
+  );
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.equal(body.attempt.accuracyScore, 86);
+  assert.equal(body.attempt.fluencyScore, 80);
+});
+
+test("POST /pronunciation/attempt returns 400 for a non-numeric score", async () => {
+  const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
+    POST: RouteHandler;
+  };
+  const res = await POST(
+    new Request("http://test/api/pronunciation/attempt", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        referenceText: "Hello",
+        accuracyScore: "not-a-number",
         fluencyScore: 80,
         completenessScore: 95,
         pronScore: 90,

@@ -170,11 +170,6 @@ export default function ArticleQuiz({
   }
 
   function handleSubmit() {
-    // Compute correctCount synchronously before setSubmitted (memo depends on submitted state)
-    const correctCount = questions.reduce(
-      (total, q, i) => (answers[i] === q.correctIndex ? total + 1 : total),
-      0,
-    );
     setSubmitted(true);
 
     // Guard: fire exactly once per completion cycle; never on fallback or empty quiz
@@ -184,10 +179,18 @@ export default function ArticleQuiz({
 
     const priorBest = best; // capture before async update
 
+    // Send the user's SELECTED answer indices — the server grades against the
+    // cached correctIndex and derives the authoritative score. The client-side
+    // `correctCount`/feedback above is for instant display only.
+    const submittedAnswers = questions.map((_, i) => ({
+      index: i,
+      selectedIndex: answers[i],
+    }));
+
     fetch(`/api/reader/${articleId}/quiz/attempt`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ correctCount, totalQuestions: questions.length }),
+      body: JSON.stringify({ answers: submittedAnswers }),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((data: AttemptResponse) => {
