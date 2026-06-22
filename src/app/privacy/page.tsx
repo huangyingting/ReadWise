@@ -61,9 +61,12 @@ export default function PrivacyPage() {
             4. Data retention &amp; deletion
           </h2>
           <p className="text-text-muted">
-            You may request deletion of your account and associated data by contacting us. When an
-            account is deleted, all reading progress, saved words, highlights, and profile information
-            are permanently removed.
+            You can permanently delete your account and all associated data at any time from{" "}
+            <Link href="/settings" className="text-primary-text hover:underline">
+              Settings → Privacy &amp; account
+            </Link>
+            . When an account is deleted, all reading progress, saved words, highlights,
+            and profile information are permanently and immediately removed.
           </p>
         </section>
 

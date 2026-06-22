@@ -309,10 +309,18 @@ export default function ProfileSettingsForm({
         </CardBody>
       </Card>
 
-      {/* ── Form footer ────────────────────────────────────── */}
-      <div className="flex items-center gap-[var(--space-4)] flex-wrap">
+      {/* ── Form footer ──────────────────────────────────────────────── */}
+      {/* Placed inside the form element so it's visually clear what's being saved. */}
+      <div
+        className="flex items-center gap-[var(--space-4)] flex-wrap"
+        style={{
+          paddingTop: "var(--space-4)",
+          borderTop: "1px solid var(--border)",
+          marginTop: "var(--space-2)",
+        }}
+      >
         <Button type="submit" variant="primary" loading={submitting}>
-          Save changes
+          Save profile &amp; reading preferences
         </Button>
 
         {saved && (
