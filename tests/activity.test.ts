@@ -15,33 +15,41 @@ let transactionCalls: unknown[] = [];
 let profileRow: { dailyGoal?: number; timezone?: string | null; streakShields?: number } | null =
   null;
 
+// Module-level ref so the callback-form $transaction can pass it as `tx`.
+let mockPrisma: Record<string, unknown> = {};
+
 before(() => {
-  mock.module("@/lib/prisma", {
-    namedExports: {
-      prisma: {
-        readingProgress: {
-          findMany: async () => progressRows,
-        },
-        dailyActivity: {
-          upsert: async (args: unknown) => {
-            upsertCalls.push(args);
-            return {};
-          },
-          findMany: async () => activityRows,
-        },
-        profile: {
-          findUnique: async () => profileRow,
-          update: async (args: unknown) => {
-            profileUpdateCalls.push(args);
-            return {};
-          },
-        },
-        $transaction: async (ops: Promise<unknown>[]) => {
-          transactionCalls.push(ops);
-          return Promise.all(ops);
-        },
+  mockPrisma = {
+    readingProgress: {
+      findMany: async () => progressRows,
+    },
+    dailyActivity: {
+      upsert: async (args: unknown) => {
+        upsertCalls.push(args);
+        return {};
+      },
+      findMany: async () => activityRows,
+    },
+    profile: {
+      findUnique: async () => profileRow,
+      update: async (args: unknown) => {
+        profileUpdateCalls.push(args);
+        return {};
       },
     },
+    $transaction: async (opsOrFn: unknown) => {
+      if (typeof opsOrFn === "function") {
+        // Callback form (today-upsert + optional shield earn): pass mockPrisma as tx.
+        // Not tracked in transactionCalls so existing gap-fill assertions are unaffected.
+        return (opsOrFn as (tx: unknown) => Promise<unknown>)(mockPrisma);
+      }
+      // Array form (gap-fill): track for existing test assertions.
+      transactionCalls.push(opsOrFn);
+      return Promise.all(opsOrFn as Promise<unknown>[]);
+    },
+  };
+  mock.module("@/lib/prisma", {
+    namedExports: { prisma: mockPrisma },
   });
 });
 

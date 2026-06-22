@@ -216,17 +216,12 @@ export async function recordReadingActivity(
     activeKeys.add(yesterdayKey);
   }
 
-  // --- Upsert today ---
-  await prisma.dailyActivity.upsert({
-    where: { userId_date: { userId, date: todayDate } },
-    update: { articlesRead: articlesReadToday },
-    create: { userId, date: todayDate, articlesRead: articlesReadToday },
-  });
+  // --- Determine if a shield should be earned (purely in-memory, no DB) ---
+  // We tentatively add today to activeKeys so the consecutive-day count
+  // correctly includes the upsert we are about to make.
   activeKeys.add(todayKey);
 
-  // --- Shield earn check ---
-  // Award one shield when SHIELD_EARN_STREAK consecutive days are all active
-  // and the user is below the MAX_SHIELDS cap. Profile must exist to earn.
+  let shouldEarnShield = false;
   if (currentShields < MAX_SHIELDS && profile !== null) {
     let consecutive = 0;
     for (let i = 0; i < SHIELD_EARN_STREAK; i++) {
@@ -239,13 +234,25 @@ export async function recordReadingActivity(
         break;
       }
     }
-    if (consecutive >= SHIELD_EARN_STREAK) {
-      await prisma.profile.update({
+    shouldEarnShield = consecutive >= SHIELD_EARN_STREAK;
+  }
+
+  // --- Upsert today + optional shield earn in one atomic write ---
+  // Grouping them prevents a partial failure from leaving articlesRead updated
+  // but the shield not awarded (or vice-versa).
+  await prisma.$transaction(async (tx) => {
+    await tx.dailyActivity.upsert({
+      where: { userId_date: { userId, date: todayDate } },
+      update: { articlesRead: articlesReadToday },
+      create: { userId, date: todayDate, articlesRead: articlesReadToday },
+    });
+    if (shouldEarnShield) {
+      await tx.profile.update({
         where: { userId },
         data: { streakShields: MAX_SHIELDS },
       });
     }
-  }
+  });
 }
 
 // ---------------------------------------------------------------------------
