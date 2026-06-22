@@ -1,5 +1,7 @@
+import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Tag } from "lucide-react";
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { getTagBySlug, listArticlesByTag } from "@/lib/tags";
 import { getProgressMap } from "@/lib/progress";
@@ -9,6 +11,18 @@ import ArticleCard from "@/components/ArticleCard";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import EmptyState from "@/components/EmptyState";
+import { PageShell } from "@/components/shell/PageShell";
+import { PageHeader } from "@/components/shell/PageHeader";
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}): Promise<Metadata> {
+  const { slug } = await params;
+  const tag = await getTagBySlug(slug);
+  return { title: tag ? `#${tag.name}` : "Tag" };
+}
 
 export default async function TagPage({
   params,
@@ -34,20 +48,18 @@ export default async function TagPage({
   const count = articles.length;
 
   return (
-    <div className="listing-container">
-      <h1
-        className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text"
-        style={{ marginBottom: "0.25rem" }}
+    <PageShell variant="listing">
+      <Link
+        href="/tags"
+        className="inline-flex items-center gap-1 text-[length:var(--text-sm)] text-text-muted hover:text-text mb-[var(--space-4)] transition-colors"
       >
-        #{tag.name}
-      </h1>
-      <p
-        className="text-text-muted text-[length:var(--text-base)]"
-        style={{ marginTop: 0 }}
-      >
-        {count === 1 ? "1 article" : `${count} articles`} tagged &ldquo;
-        {tag.name}&rdquo;
-      </p>
+        ← All topics
+      </Link>
+
+      <PageHeader
+        title={`#${tag.name}`}
+        description={`${count === 1 ? "1 article" : `${count} articles`} tagged "${tag.name}"`}
+      />
 
       {articles.length === 0 ? (
         <EmptyState
@@ -78,6 +90,6 @@ export default async function TagPage({
 
       <ListingProgressSync articleIds={articles.map((a) => a.id)} />
       <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
-    </div>
+    </PageShell>
   );
 }
