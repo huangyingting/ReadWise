@@ -50,3 +50,6 @@ next-env.d.ts
 
 # Dev server log (accidental artifact)
 dev-server.log
+
+# Copilot CLI per-session scratch state (never commit)
+.copilot/session-state/
