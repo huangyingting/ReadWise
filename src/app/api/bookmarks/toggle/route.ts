@@ -11,7 +11,7 @@ const bodySchema = object({ articleId: nonEmptyString(200) });
  * when removed. 404 if the article does not exist.
  */
 export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
-  const result = await toggleBookmark(session.user.id, body.articleId);
+  const result = await toggleBookmark(session.user.id, body.articleId, session.user.role);
   if (!result.ok) throw new ApiError(result.status, result.error);
   return NextResponse.json({ bookmarked: result.bookmarked });
 });
