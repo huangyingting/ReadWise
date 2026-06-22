@@ -41,6 +41,8 @@ export default function ArticleStudySection() {
           type="button"
           variant="primary"
           onClick={() => openTools()}
+          aria-haspopup="dialog"
+          aria-controls="reader-tools-surface"
         >
           Open practice tools
         </Button>
@@ -52,6 +54,8 @@ export default function ArticleStudySection() {
               type="button"
               title={hint}
               onClick={() => openTools(id)}
+              aria-haspopup="dialog"
+              aria-controls="reader-tools-surface"
               className={cn("article-study-cta-chip", focusRing)}
             >
               <span aria-hidden="true">{icon}</span>

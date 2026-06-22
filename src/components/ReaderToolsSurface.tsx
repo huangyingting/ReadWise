@@ -19,29 +19,13 @@
  * app modals & Popovers (60).
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { getTabbable } from "@/lib/focus-trap";
 import { useReaderTools } from "./ReaderToolsProvider";
 import ReaderTools from "./ReaderTools";
-
-const FOCUSABLE_SELECTOR =
-  "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
-
-/**
- * Collect the genuinely tabbable elements inside `root`.
- *
- * Mirrors the filter in `ui/Sheet.tsx`: the selector still matches roving
- * `tabindex="-1"` widgets (e.g. `SegmentedControl` options), so filter to
- * elements actually in the tab order (`el.tabIndex >= 0`) — otherwise the
- * computed "last focusable" is unreachable and Tab-wrap never fires.
- */
-function getTabbable(root: HTMLElement | null): HTMLElement[] {
-  if (!root) return [];
-  return Array.from(
-    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
-  ).filter((el) => el.tabIndex >= 0);
-}
 
 export default function ReaderToolsSurface({
   articleId,
@@ -53,6 +37,10 @@ export default function ReaderToolsSurface({
   const { open, closeTools } = useReaderTools();
   const panelRef = useRef<HTMLElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  // Portal to <body> so the overlay lives OUTSIDE `#main-content`, letting us
+  // mark the background inert while keeping the overlay reachable (#210).
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   // Full-screen modal overlay on every breakpoint: focus trap + Esc + return
   // focus + body scroll lock while open. (One always-mounted instance — the
@@ -65,12 +53,28 @@ export default function ReaderToolsSurface({
     restoreFocusRef.current = document.activeElement as HTMLElement | null;
 
     const panel = panelRef.current;
+    // Focus the currently-selected tab on open (not the close button), so
+    // keyboard users land on the active tool (#210).
+    const activeTabEl = panel?.querySelector<HTMLElement>(
+      '[role="tab"][aria-selected="true"]',
+    );
     const first = getTabbable(panel)[0];
-    (first ?? panel)?.focus();
+    (activeTabEl ?? first ?? panel)?.focus();
 
     // Lock background scroll behind the overlay.
     const prevOverflow = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+
+    // Make the app background inert + hidden from assistive tech so SR/keyboard
+    // can't reach it. The overlay is portaled OUTSIDE `#main-content`, so this
+    // never inerts the overlay itself.
+    const main = document.getElementById("main-content");
+    const prevAriaHidden = main?.getAttribute("aria-hidden") ?? null;
+    const prevInert = main?.hasAttribute("inert") ?? false;
+    if (main) {
+      main.setAttribute("aria-hidden", "true");
+      main.setAttribute("inert", "");
+    }
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -101,11 +105,17 @@ export default function ReaderToolsSurface({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prevOverflow;
+      if (main) {
+        if (prevInert) main.setAttribute("inert", "");
+        else main.removeAttribute("inert");
+        if (prevAriaHidden === null) main.removeAttribute("aria-hidden");
+        else main.setAttribute("aria-hidden", prevAriaHidden);
+      }
       restoreFocusRef.current?.focus();
     };
   }, [open, closeTools]);
 
-  return (
+  const surface = (
     <aside
       ref={panelRef}
       id="reader-tools-surface"
@@ -113,12 +123,14 @@ export default function ReaderToolsSurface({
       data-open={open ? "true" : "false"}
       role="dialog"
       aria-modal="true"
-      aria-label="Practice tools"
+      aria-labelledby="reader-tools-title"
       aria-hidden={open ? undefined : "true"}
       tabIndex={-1}
     >
       <div className="reader-tools-surface-header">
-        <span className="reader-tools-surface-title">Practice tools</span>
+        <h2 id="reader-tools-title" className="reader-tools-surface-title">
+          Practice tools
+        </h2>
         <button
           type="button"
           aria-label="Close practice tools"
@@ -134,4 +146,7 @@ export default function ReaderToolsSurface({
       </div>
     </aside>
   );
+
+  if (!mounted) return null;
+  return createPortal(surface, document.body);
 }

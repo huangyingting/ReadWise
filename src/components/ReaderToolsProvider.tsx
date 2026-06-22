@@ -30,6 +30,22 @@ import { usePathname } from "next/navigation";
 
 export type ToolTabId = "words" | "quiz" | "dictate" | "speak" | "notes" | "ask";
 
+const TOOL_TAB_IDS: readonly ToolTabId[] = [
+  "words",
+  "quiz",
+  "dictate",
+  "speak",
+  "notes",
+  "ask",
+];
+
+/** localStorage key used to remember the last-used practice tab across reloads. */
+const ACTIVE_TAB_STORAGE_KEY = "readwise:reader-tools-tab";
+
+function isToolTabId(value: unknown): value is ToolTabId {
+  return typeof value === "string" && TOOL_TAB_IDS.includes(value as ToolTabId);
+}
+
 type ReaderToolsContextValue = {
   /** Whether the Tools surface (rail on xl / sheet on <xl) is open. */
   open: boolean;
@@ -52,8 +68,11 @@ const ReaderToolsContext = createContext<ReaderToolsContextValue | null>(null);
 export function ReaderToolsProvider({ children }: { children: ReactNode }) {
   const [open, setOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<ToolTabId>("words");
+  // Start with an EMPTY visited set so no panel (notably ArticleVocabulary) mounts
+  // — and thus fires its POST — on plain reader load. A tab is only marked visited
+  // when it is activated or when the surface is opened on that tab (#210).
   const [visited, setVisited] = useState<Set<ToolTabId>>(
-    () => new Set<ToolTabId>(["words"]),
+    () => new Set<ToolTabId>(),
   );
   const pathname = usePathname();
 
@@ -72,6 +91,65 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
 
   const closeTools = useCallback(() => setOpen(false), []);
   const toggle = useCallback(() => setOpen((o) => !o), []);
+
+  // Restore the last-used tab from localStorage on mount. Done in an effect (not
+  // a lazy initializer) to avoid an SSR/client hydration mismatch. Restoring the
+  // tab does NOT mark it visited, so no panel fetch fires until the surface opens.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const stored = window.localStorage.getItem(ACTIVE_TAB_STORAGE_KEY);
+      if (isToolTabId(stored)) setActiveTab(stored);
+    } catch {
+      // Ignore storage access errors (private mode, disabled storage).
+    }
+  }, []);
+
+  // Persist the active tab so it is remembered across reloads.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      window.localStorage.setItem(ACTIVE_TAB_STORAGE_KEY, activeTab);
+    } catch {
+      // Ignore storage access errors.
+    }
+  }, [activeTab]);
+
+  // When the surface opens, mark the active tab visited so its panel mounts. This
+  // keeps the auto-fire suppression (empty initial visited set) while still
+  // loading the current tab the moment the overlay is opened.
+  useEffect(() => {
+    if (!open) return;
+    setVisited((prev) =>
+      prev.has(activeTab) ? prev : new Set([...prev, activeTab]),
+    );
+  }, [open, activeTab]);
+
+  // Browser/hardware Back should close the overlay instead of leaving the article
+  // (#210). Push a history entry on open and listen for popstate; on a normal
+  // close (X/Esc) pop the entry we pushed so we don't accumulate stray entries.
+  useEffect(() => {
+    if (!open) return;
+    if (typeof window === "undefined") return;
+
+    window.history.pushState({ readerTools: true }, "");
+
+    function onPopState() {
+      setOpen(false);
+    }
+    window.addEventListener("popstate", onPopState);
+
+    return () => {
+      window.removeEventListener("popstate", onPopState);
+      // If we closed via X/Esc (not via Back), our pushed entry is still on top —
+      // pop it. If we closed because Back was pressed, the browser already popped
+      // it and history.state no longer carries the marker, so we skip.
+      const state = window.history.state as { readerTools?: boolean } | null;
+      if (state?.readerTools) {
+        window.history.back();
+      }
+    };
+  }, [open]);
 
   // Close the surface on client-side route change (acceptance: route-change
   // closes the sheet). The provider only mounts on /reader/*, so this also

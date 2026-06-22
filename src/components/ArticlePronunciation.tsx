@@ -568,6 +568,23 @@ export default function ArticlePronunciation({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ── Stop mic/playback when the tab becomes hidden or the overlay closes ────
+  // `active` is `open && activeTab === "speak"`, so this fires when the Speak
+  // panel is hidden behind another tab OR the whole overlay is closed (#210).
+  useEffect(() => {
+    if (active) return;
+    if (phase === "recording") {
+      void stopRecording(false);
+    }
+    stopMeter();
+    cancelAutoStop();
+    hearItCleanupRef.current?.();
+    hearItCleanupRef.current = null;
+    const audioEl = audio.audioRef.current;
+    if (audioEl && !audioEl.paused) audioEl.pause();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [active]);
+
   // ── Per-sentence history derived from allAttempts ─────────────────────────
   const sentenceHistory = useMemo<SentenceHistory>(() => {
     if (allAttempts.length === 0 || !currentSentence) return { best: null, last: null };
