@@ -1,0 +1,65 @@
+"use client";
+
+import { useState } from "react";
+import Image from "next/image";
+import { cn } from "@/lib/cn";
+
+export interface ArticleHeroProps {
+  /** Remote (or local) hero image URL. Renders nothing when absent. */
+  src?: string | null;
+  /** Accessible alt text — typically the article title. */
+  alt: string;
+  /**
+   * `reader` (default) is the full-width hero shown above the article body.
+   * `thumb` is the compact 16:9 thumbnail used at the top of a listing card.
+   */
+  variant?: "reader" | "thumb";
+  className?: string;
+}
+
+/**
+ * Renders an article image inside an intrinsic 16:9 container using `next/image`
+ * with `unoptimized` (mirroring the avatar approach) so any remote host works
+ * without a `remotePatterns` whitelist.
+ *
+ * Graceful failure: the aspect-ratio frame is only reserved while loading; on
+ * load error (or missing `src`) the whole container collapses to nothing — no
+ * empty bordered box, no broken-image icon, and no cumulative layout shift
+ * beyond the image area itself.
+ */
+export default function ArticleHero({
+  src,
+  alt,
+  variant = "reader",
+  className,
+}: ArticleHeroProps) {
+  const [errored, setErrored] = useState(false);
+
+  if (!src || errored) return null;
+
+  return (
+    <div
+      className={cn(
+        "relative w-full overflow-hidden aspect-[16/9] bg-bg-subtle",
+        variant === "reader"
+          ? "mx-auto max-w-[min(100%,760px)] max-h-[420px] rounded-[var(--radius-lg)] border border-border shadow-[var(--shadow-sm)] my-[var(--space-4)]"
+          : "rounded-[var(--radius-md)] border border-border",
+        className,
+      )}
+    >
+      <Image
+        src={src}
+        alt={alt}
+        fill
+        unoptimized
+        sizes={
+          variant === "reader"
+            ? "(max-width: 760px) 100vw, 760px"
+            : "(max-width: 640px) 100vw, 400px"
+        }
+        className="object-cover"
+        onError={() => setErrored(true)}
+      />
+    </div>
+  );
+}
