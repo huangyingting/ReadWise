@@ -68,6 +68,23 @@ export function number(opts: {
   };
 }
 
+/**
+ * A number coerced into an integer and CLAMPED to `[min, max]` (rather than
+ * rejected). Accepts numeric strings. Only non-finite / non-numeric input is
+ * rejected. Useful for client-derived scores (e.g. pronunciation 0–100) where a
+ * forged/out-of-range value should be bounded instead of trusted verbatim.
+ */
+export function clampedInt(min: number, max: number): Schema<number> {
+  return (value, field) => {
+    const num = typeof value === "string" ? Number(value) : value;
+    if (typeof num !== "number" || !Number.isFinite(num)) {
+      return { ok: false, error: `${label(field)} must be a number` };
+    }
+    const clamped = Math.min(max, Math.max(min, Math.round(num)));
+    return { ok: true, value: clamped };
+  };
+}
+
 /** A boolean. */
 export function boolean(): Schema<boolean> {
   return (value, field) => {
