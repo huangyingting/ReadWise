@@ -36,7 +36,7 @@ export default async function AdminTagsPage({
   const showingTo = Math.min(result.page * result.pageSize, result.total);
 
   return (
-    <section className="stack mt-[var(--space-6)]">
+    <section className="stack">
       <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
         Tags
       </h1>
