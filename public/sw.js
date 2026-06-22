@@ -52,6 +52,8 @@ const AUTH_PATHS = [
   "/onboarding",
   "/profile",
   "/forbidden",
+  "/import",
+  "/welcome",
 ];
 
 /** Returns true when the pathname belongs to a session-gated area. */

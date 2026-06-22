@@ -2,11 +2,24 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString, optional, string } from "@/lib/validation";
+import {
+  object,
+  nonEmptyString,
+  optional,
+  string,
+  queryInt,
+} from "@/lib/validation";
 import { assertSafeUrl } from "@/lib/scraper/ssrf";
 import { scrapeUrl } from "@/lib/scraper";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
-import { countWords } from "@/lib/articles";
+import {
+  countWords,
+  listPersonalArticlesPage,
+  toListingArticle,
+  IMPORTS_PAGE_SIZE,
+  IMPORTS_MAX_LIMIT,
+} from "@/lib/articles";
+import { getProgressSummaries } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
 import { heuristicDifficulty } from "@/lib/difficulty";
 
@@ -30,29 +43,38 @@ function utcDayStart(): Date {
 }
 
 /**
+ * Enforces the per-user daily import quota. Throws 429 when the user has
+ * already created {@link DAILY_IMPORT_LIMIT} articles in the current UTC day.
+ * Called only AFTER duplicate detection so re-importing an existing URL never
+ * consumes quota.
+ */
+async function assertWithinDailyQuota(userId: string): Promise<void> {
+  const dayStart = utcDayStart();
+  const todayCount = await prisma.article.count({
+    where: { ownerId: userId, createdAt: { gte: dayStart } },
+  });
+  if (todayCount >= DAILY_IMPORT_LIMIT) {
+    throw new ApiError(
+      429,
+      `You have reached the daily import limit (${DAILY_IMPORT_LIMIT} articles per day). Try again tomorrow.`,
+    );
+  }
+}
+
+/**
  * POST /api/articles/import
  *
  * Authenticated: creates a PERSONAL article for the calling user.
  * Accepts either `{url}` (scrape + extract) or `{title, text}` (paste text).
  * The resulting article is private: only visible to its owner in the reader.
- * Rate-limited to 5 submissions per UTC day per user.
+ * Rate-limited to 5 submissions per UTC day per user. Re-importing a URL that
+ * the user already imported returns the existing article (200, `duplicate:true`)
+ * without creating a new row or consuming quota.
  */
 export const POST = createHandler(
   { body: importBody },
   async ({ body, session }) => {
     const userId = session.user.id;
-
-    // --- Rate limit: 5 personal imports per UTC day ----------------------
-    const dayStart = utcDayStart();
-    const todayCount = await prisma.article.count({
-      where: { ownerId: userId, createdAt: { gte: dayStart } },
-    });
-    if (todayCount >= DAILY_IMPORT_LIMIT) {
-      throw new ApiError(
-        429,
-        `You have reached the daily import limit (${DAILY_IMPORT_LIMIT} articles per day). Try again tomorrow.`,
-      );
-    }
 
     // --- Branch: URL import or text paste --------------------------------
     if (body.url) {
@@ -70,6 +92,44 @@ export const POST = createHandler(
 
 // ---------------------------------------------------------------------------
 
+type ImportsListQuery = { offset: number; limit: number };
+
+function parseListQuery(params: URLSearchParams) {
+  const value: ImportsListQuery = {
+    offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
+    limit: queryInt(params, "limit", {
+      fallback: IMPORTS_PAGE_SIZE,
+      min: 1,
+      max: IMPORTS_MAX_LIMIT,
+    }),
+  };
+  return { ok: true as const, value };
+}
+
+/**
+ * GET /api/articles/import — paginated list of the caller's own personal
+ * imports (newest first) for the `/import` "Load more" affordance. Returns
+ * `{ articles, progress, hasMore, offset }` — same shape as GET /api/articles.
+ * Session-gated (401 when unauthenticated).
+ */
+export const GET = createHandler(
+  { query: parseListQuery },
+  async ({ query, session }) => {
+    const { offset, limit } = query;
+    const page = await listPersonalArticlesPage(session.user.id, { offset, limit });
+    const progress = await getProgressSummaries(
+      session.user.id,
+      page.articles.map((a) => a.id),
+    );
+    return NextResponse.json({
+      articles: page.articles.map(toListingArticle),
+      progress,
+      hasMore: page.hasMore,
+      offset: offset + page.articles.length,
+    });
+  },
+);
+
 async function handleUrlImport(rawUrl: string, userId: string): Promise<Response> {
   // SSRF guard — must not be bypassed.
   try {
@@ -78,6 +138,19 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
     throw new ApiError(
       422,
       `Invalid or unsafe URL: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  // De-dupe BEFORE scraping/creating so re-importing never consumes quota.
+  // Match the raw URL the user submitted first (cheap, avoids a scrape).
+  const existingByRawUrl = await prisma.article.findFirst({
+    where: { sourceUrl: rawUrl, ownerId: userId },
+    select: { id: true },
+  });
+  if (existingByRawUrl) {
+    return NextResponse.json(
+      { id: existingByRawUrl.id, duplicate: true },
+      { status: 200 },
     );
   }
 
@@ -97,6 +170,24 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
       "Could not extract article content from that URL. The page may be behind a paywall or use an unsupported format.",
     );
   }
+
+  // The canonical scraped sourceUrl may differ from the submitted URL (redirects,
+  // canonicalisation). De-dupe again on it before creating / consuming quota.
+  if (scraped.sourceUrl && scraped.sourceUrl !== rawUrl) {
+    const existingByCanonical = await prisma.article.findFirst({
+      where: { sourceUrl: scraped.sourceUrl, ownerId: userId },
+      select: { id: true },
+    });
+    if (existingByCanonical) {
+      return NextResponse.json(
+        { id: existingByCanonical.id, duplicate: true },
+        { status: 200 },
+      );
+    }
+  }
+
+  // Not a duplicate — now enforce the daily quota.
+  await assertWithinDailyQuota(userId);
 
   const article = await prisma.article.create({
     data: {
@@ -131,6 +222,8 @@ async function handleTextImport(
   if (!text.trim()) {
     throw new ApiError(400, "text must not be empty.");
   }
+
+  await assertWithinDailyQuota(userId);
 
   // Wrap each paragraph block in a <p> tag, then sanitize.
   const rawHtml = text

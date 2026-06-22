@@ -336,11 +336,13 @@ export async function searchPublishedArticles(
   const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
   const offset = Math.max(0, opts.offset ?? 0);
 
-  // Per-user: collect article IDs from highlights and saved words that match
-  // the query, to merge into the ranked results.
+  // Per-user: collect article IDs from highlights, saved words, and the user's
+  // OWN imported (personal) articles that match the query, to merge into the
+  // ranked results. Personal imports have `ownerId === userId` and are excluded
+  // from the public FTS / LIKE paths below, so they only surface via this merge.
   const userArticleIds: string[] = [];
   if (userId) {
-    const [highlightMatches, vocabMatches] = await Promise.all([
+    const [highlightMatches, vocabMatches, personalMatches] = await Promise.all([
       prisma.highlight.findMany({
         where: {
           userId,
@@ -353,8 +355,24 @@ export async function searchPublishedArticles(
         where: { userId, word: { contains: q }, articleId: { not: null } },
         select: { articleId: true },
       }),
+      prisma.article.findMany({
+        where: {
+          ownerId: userId,
+          status: "published",
+          OR: [
+            { title: { contains: q } },
+            { author: { contains: q } },
+            { source: { contains: q } },
+          ],
+        },
+        select: { id: true },
+        orderBy: [{ createdAt: "desc" }],
+      }),
     ]);
     const ids = new Set<string>();
+    // Personal imports first so the user's own articles rank ahead of merged
+    // annotation matches.
+    for (const p of personalMatches) ids.add(p.id);
     for (const h of highlightMatches) ids.add(h.articleId);
     for (const sw of vocabMatches) {
       if (sw.articleId) ids.add(sw.articleId);
@@ -395,10 +413,16 @@ export async function searchPublishedArticles(
 
       if (pageIds.length === 0) return { articles: [], hasMore: false };
 
-      // Fetch full Article rows for the page, preserving ranked order.
+      // Fetch full Article rows for the page, preserving ranked order. Allow the
+      // caller's own personal imports (ownerId === userId) in addition to public
+      // articles so merged personal matches resolve to rows.
       const byId = new Map<string, Article>();
       const rows = await prisma.article.findMany({
-        where: { id: { in: pageIds }, status: "published", ownerId: null },
+        where: {
+          id: { in: pageIds },
+          status: "published",
+          OR: [{ ownerId: null }, ...(userId ? [{ ownerId: userId }] : [])],
+        },
       });
       for (const r of rows) byId.set(r.id, r);
       const articles = pageIds.flatMap((id) => {
@@ -413,16 +437,22 @@ export async function searchPublishedArticles(
   }
 
   // Fallback: title/author/source LIKE + optional per-user article IDs.
-  const orClauses: Prisma.ArticleWhereInput[] = [
+  const textClauses: Prisma.ArticleWhereInput[] = [
     { title: { contains: q } },
     { author: { contains: q } },
     { source: { contains: q } },
+  ];
+  // Public articles matching the text, the caller's own imports matching the
+  // text, plus any merged per-user IDs (annotations / personal matches).
+  const orClauses: Prisma.ArticleWhereInput[] = [
+    { ownerId: null, OR: textClauses },
+    ...(userId ? [{ ownerId: userId, OR: textClauses }] : []),
   ];
   if (userArticleIds.length > 0) {
     orClauses.push({ id: { in: userArticleIds } });
   }
   const rows = await prisma.article.findMany({
-    where: { status: "published", ownerId: null, OR: orClauses },
+    where: { status: "published", OR: orClauses },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
@@ -444,4 +474,28 @@ export function listPersonalArticles(
     orderBy: [{ createdAt: "desc" }],
     take: limit,
   });
+}
+
+/** Default page size for the personal "My Imports" listing on /import. */
+export const IMPORTS_PAGE_SIZE = 20;
+export const IMPORTS_MAX_LIMIT = 50;
+
+/**
+ * Offset-paginated personal imports for `/import` "Load more". Fetches one extra
+ * row beyond `limit` to compute `hasMore` without a separate count query.
+ */
+export async function listPersonalArticlesPage(
+  userId: string,
+  opts: { offset?: number; limit?: number } = {},
+): Promise<ArticlePage> {
+  const limit = Math.min(opts.limit ?? IMPORTS_PAGE_SIZE, IMPORTS_MAX_LIMIT);
+  const offset = Math.max(0, opts.offset ?? 0);
+  const rows = await prisma.article.findMany({
+    where: { ownerId: userId },
+    orderBy: [{ createdAt: "desc" }],
+    skip: offset,
+    take: limit + 1,
+  });
+  const hasMore = rows.length > limit;
+  return { articles: rows.slice(0, limit), hasMore };
 }
