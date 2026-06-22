@@ -8,7 +8,7 @@ export default function ForbiddenPage() {
         icon={ShieldX}
         title="Access denied"
         description="You don't have permission to access this area. Admin access is required."
-        action={{ label: "Back to Dashboard", href: "/dashboard" }}
+        action={{ label: "← Back to dashboard", href: "/dashboard" }}
       />
     </main>
   );
