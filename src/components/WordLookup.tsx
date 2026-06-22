@@ -519,7 +519,10 @@ export default function WordLookup({
     const pw = el.offsetWidth || POPOVER_WIDTH;
     const ph = el.offsetHeight || POPOVER_HEIGHT;
 
-    const left = Math.max(12, Math.min(dictAnchor.x, vw - pw - 12));
+    // #3 — center the popover horizontally on the clicked word (anchor.x is the
+    // click point) instead of anchoring its left edge there, so it pops over the
+    // word rather than spilling into the right-hand gutter. Clamp to the viewport.
+    const left = Math.max(12, Math.min(dictAnchor.x - pw / 2, vw - pw - 12));
 
     const safeBottom = vh - MINI_PLAYER_HEIGHT - 12;
     // Prefer below the anchor; flip above if it would overflow the safe band.
