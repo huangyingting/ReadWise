@@ -1,27 +1,25 @@
-import Link from "next/link";
 import { Check, ChevronRight } from "lucide-react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { Sparkles } from "lucide-react";
 import { CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
-import { CATEGORIES } from "@/lib/categories";
+import { humanizeCategorySlug } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
 import CardBookmarkButton from "@/components/CardBookmarkButton";
 import ArticleHero from "@/components/ArticleHero";
 import ReferrerLink from "@/components/ReferrerLink";
-import { formatRelativeDate } from "@/lib/utils";
 
 export type ArticleCardProgress = ProgressSummary;
 
 /** Short descriptions for each CEFR level shown as a tooltip on the difficulty badge. */
 const CEFR_DESCRIPTIONS: Record<string, string> = {
-  A1: "A1 · Beginner",
-  A2: "A2 · Elementary",
-  B1: "B1 · Intermediate",
-  B2: "B2 · Upper-Intermediate",
-  C1: "C1 · Advanced",
-  C2: "C2 · Proficient",
+  A1: "A1 · Beginner — estimated reading level",
+  A2: "A2 · Elementary — estimated reading level",
+  B1: "B1 · Intermediate — estimated reading level",
+  B2: "B2 · Upper-Intermediate — estimated reading level",
+  C1: "C1 · Advanced — estimated reading level",
+  C2: "C2 · Proficient — estimated reading level",
 };
 
 /**
@@ -72,8 +70,7 @@ export default function ArticleCardView({
   const byline = [article.author, article.source].filter(Boolean).join(" · ");
 
   const categoryLabel = article.category
-    ? (CATEGORIES.find((c) => c.slug === article.category)?.label ??
-      article.category)
+    ? humanizeCategorySlug(article.category)
     : null;
 
   const level =
@@ -82,7 +79,8 @@ export default function ArticleCardView({
       ? (article.difficulty as CefrLevel)
       : null;
 
-  const relativeDate = formatRelativeDate(article.publishedAt);
+  const readingTimeLabel =
+    article.readingMinutes != null ? `${article.readingMinutes} min read` : null;
 
   /** True when the article was published within the last 24 hours. */
   const isNew = (() => {
@@ -93,16 +91,6 @@ export default function ArticleCardView({
         : article.publishedAt;
     return Date.now() - published.getTime() < 24 * 60 * 60 * 1000;
   })();
-
-  const metaParts = [
-    categoryLabel,
-    article.readingMinutes != null
-      ? `${article.readingMinutes} min read`
-      : null,
-    relativeDate,
-  ]
-    .filter(Boolean)
-    .join(" · ");
 
   return (
     /*
@@ -147,8 +135,8 @@ export default function ArticleCardView({
         />
       ) : null}
 
-      {/* ① Top meta row */}
-      <div className="flex items-center justify-between gap-[var(--space-2)]">
+      {/* ① Top meta row — pr-9 reserves space for the absolute bookmark button */}
+      <div className="flex items-center justify-between gap-[var(--space-2)] pr-9">
         <div className="flex items-center gap-[var(--space-2)] min-w-0">
           {level ? (
             <Tooltip content={CEFR_DESCRIPTIONS[level] ?? level} side="top">
@@ -171,9 +159,18 @@ export default function ArticleCardView({
               New
             </span>
           )}
-          {metaParts ? (
-            <span className="text-text-subtle text-[length:var(--text-xs)] truncate">
-              {metaParts}
+          {/* Meta: category (can truncate) + "N min read" (shrink-0, never cut) */}
+          {(categoryLabel || readingTimeLabel) ? (
+            <span className="flex items-center gap-[var(--space-1)] min-w-0 text-text-subtle text-[length:var(--text-xs)]">
+              {categoryLabel ? (
+                <span className="truncate">{categoryLabel}</span>
+              ) : null}
+              {categoryLabel && readingTimeLabel ? (
+                <span className="shrink-0">·</span>
+              ) : null}
+              {readingTimeLabel ? (
+                <span className="shrink-0">{readingTimeLabel}</span>
+              ) : null}
             </span>
           ) : null}
         </div>
