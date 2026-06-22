@@ -57,6 +57,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
 
@@ -66,7 +67,6 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
     setRenaming(true);
     setTimeout(() => inputRef.current?.focus(), 0);
   }
-
   async function submitRename(e?: React.FormEvent) {
     e?.preventDefault();
     const trimmed = renameValue.trim();
@@ -102,12 +102,15 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
 
   async function handleDelete() {
     setDeletePending(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed");
       onDeleteSuccess(list.id);
+    } catch {
+      setDeleteError("Couldn't delete — try again");
     } finally {
       setDeletePending(false);
     }
@@ -232,6 +235,11 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             onConfirm={handleDelete}
             className="!p-0"
           />
+          {deleteError ? (
+            <span role="alert" className="text-[length:var(--text-xs)] text-danger-text">
+              {deleteError}
+            </span>
+          ) : null}
         </div>
       ) : null}
     </div>
@@ -255,6 +263,7 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
   const [renameError, setRenameError] = useState<string | null>(null);
   const [renamePending, setRenamePending] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const errorId = useId();
 
@@ -283,12 +292,15 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
 
   async function handleDelete() {
     setDeletePending(true);
+    setDeleteError(null);
     try {
       const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
         method: "DELETE",
       });
       if (!res.ok) throw new Error("Failed");
       onDeleteSuccess(list.id);
+    } catch {
+      setDeleteError("Couldn't delete — try again");
     } finally {
       setDeletePending(false);
     }
@@ -379,6 +391,11 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
         loading={deletePending}
         onConfirm={handleDelete}
       />
+      {deleteError ? (
+        <p role="alert" className="text-[length:var(--text-xs)] text-danger-text m-0">
+          {deleteError}
+        </p>
+      ) : null}
     </div>
   );
 }

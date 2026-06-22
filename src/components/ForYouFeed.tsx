@@ -2,10 +2,11 @@
 
 import Link from "next/link";
 import { Compass, CheckCircle2 } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { Button, buttonVariants } from "@/components/ui/Button";
+import { getJson } from "@/lib/client-fetch";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
@@ -62,18 +63,22 @@ export default function ForYouFeed({
   const [offset, setOffset] = useState<number>(initialOffset);
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [loading, setLoading] = useState<boolean>(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  // Ref-tracked loading flag so loadMore never reads a stale closure value —
+  // mirrors CategoryBrowser's double-tap guard.
+  const loadingRef = useRef(false);
   // live-region text for a11y ("N more articles loaded")
   const [announcement, setAnnouncement] = useState<string>("");
 
   const loadMore = useCallback(async () => {
-    if (loading || !hasMore) return;
+    if (loadingRef.current || !hasMore) return;
+    loadingRef.current = true;
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({ offset: String(offset), limit: "6" });
       if (level) params.set("level", level);
-      const res = await fetch(`/api/feed?${params.toString()}`);
-      if (!res.ok) return;
-      const data = (await res.json()) as FeedApiResponse;
+      const data = await getJson<FeedApiResponse>(`/api/feed?${params.toString()}`);
       const next = data.articles ?? [];
       setArticles((prev) => {
         const seen = new Set(prev.map((a) => a.id));
@@ -87,11 +92,12 @@ export default function ForYouFeed({
         setAnnouncement(`${next.length} more article${next.length === 1 ? "" : "s"} loaded`);
       }
     } catch {
-      /* best-effort: keep current cards on network error */
+      setLoadError("Couldn't load more articles — please try again.");
     } finally {
+      loadingRef.current = false;
       setLoading(false);
     }
-  }, [offset, hasMore, loading, level]);
+  }, [offset, hasMore, level]);
 
   const articleIds = articles.map((a) => a.id);
 
@@ -136,14 +142,22 @@ export default function ForYouFeed({
 
       {/* Load more / end-cap */}
       {hasMore ? (
-        <div className="mt-[var(--space-7)] flex justify-center">
+        <div className="mt-[var(--space-7)] flex flex-col items-center gap-[var(--space-3)]">
+          {loadError ? (
+            <p
+              role="alert"
+              className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
+            >
+              {loadError}
+            </p>
+          ) : null}
           <Button
             variant="secondary"
             size="md"
             loading={loading}
             onClick={() => void loadMore()}
           >
-            Load more
+            {loadError ? "Retry" : "Load more"}
           </Button>
         </div>
       ) : (

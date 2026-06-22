@@ -116,8 +116,9 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
   // Initial fetch
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/reader/${articleId}/highlights`)
+    fetch(`/api/reader/${articleId}/highlights`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { highlights: Highlight[] }) => {
         if (!cancelled) {
@@ -132,6 +133,7 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [articleId]);
 

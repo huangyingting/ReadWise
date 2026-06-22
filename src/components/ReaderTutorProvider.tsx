@@ -52,8 +52,11 @@ interface TutorContextValue {
   loaded: boolean;
   asking: boolean;
   clearLoading: boolean;
+  /** Set when clear() fails so the UI can surface a transient error. */
+  clearError: string | null;
   ask: (question: string) => Promise<void>;
-  clear: () => Promise<void>;
+  /** Returns true on success, false if the delete failed. */
+  clear: () => Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,12 +89,14 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
   const [loaded, setLoaded] = useState(false);
   const [asking, setAsking] = useState(false);
   const [clearLoading, setClearLoading] = useState(false);
+  const [clearError, setClearError] = useState<string | null>(null);
 
   // Fetch conversation on mount (lazy: only mounted on first "ask" tab visit).
   useEffect(() => {
     let cancelled = false;
+    const controller = new AbortController();
     setFetching(true);
-    fetch(`/api/reader/${articleId}/tutor`)
+    fetch(`/api/reader/${articleId}/tutor`, { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { messages: TutorMessage[] }) => {
         if (!cancelled) setMessages(data.messages ?? []);
@@ -107,6 +112,7 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
       });
     return () => {
       cancelled = true;
+      controller.abort();
     };
   }, [articleId]);
 
@@ -186,8 +192,9 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
   );
 
   // ---- clear ----
-  const clear = useCallback(async (): Promise<void> => {
+  const clear = useCallback(async (): Promise<boolean> => {
     setClearLoading(true);
+    setClearError(null);
     try {
       const res = await fetch(`/api/reader/${articleId}/tutor`, {
         method: "DELETE",
@@ -197,6 +204,10 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
       }
       setMessages([]);
       setTransient([]);
+      return true;
+    } catch {
+      setClearError("Couldn't clear the conversation — please try again.");
+      return false;
     } finally {
       setClearLoading(false);
     }
@@ -211,6 +222,7 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
         loaded,
         asking,
         clearLoading,
+        clearError,
         ask,
         clear,
       }}

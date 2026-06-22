@@ -25,6 +25,7 @@ import ArticlePronunciation from "./ArticlePronunciation";
 import ReaderNotesPanel from "./ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
 import ArticleTutor from "./ArticleTutor";
+import ReaderPanelErrorBoundary from "./ReaderPanelErrorBoundary";
 
 export const TOOL_TABS: {
   id: ToolTabId;
@@ -105,7 +106,9 @@ export default function ReaderTools({
           hidden={activeTab !== "words"}
         >
           {visited.has("words") && (
-            <ArticleVocabulary articleId={articleId} active={open && activeTab === "words"} />
+            <ReaderPanelErrorBoundary label="Words">
+              <ArticleVocabulary articleId={articleId} active={open && activeTab === "words"} />
+            </ReaderPanelErrorBoundary>
           )}
         </div>
 
@@ -117,7 +120,9 @@ export default function ReaderTools({
           hidden={activeTab !== "quiz"}
         >
           {visited.has("quiz") && (
-            <ArticleQuiz articleId={articleId} active={open && activeTab === "quiz"} />
+            <ReaderPanelErrorBoundary label="Quiz">
+              <ArticleQuiz articleId={articleId} active={open && activeTab === "quiz"} />
+            </ReaderPanelErrorBoundary>
           )}
         </div>
 
@@ -129,11 +134,13 @@ export default function ReaderTools({
           hidden={activeTab !== "dictate"}
         >
           {visited.has("dictate") && (
-            <ArticleDictation
-              articleId={articleId}
-              plainText={plainText}
-              active={open && activeTab === "dictate"}
-            />
+            <ReaderPanelErrorBoundary label="Dictate">
+              <ArticleDictation
+                articleId={articleId}
+                plainText={plainText}
+                active={open && activeTab === "dictate"}
+              />
+            </ReaderPanelErrorBoundary>
           )}
         </div>
 
@@ -145,11 +152,13 @@ export default function ReaderTools({
           hidden={activeTab !== "speak"}
         >
           {visited.has("speak") && (
-            <ArticlePronunciation
-              articleId={articleId}
-              plainText={plainText}
-              active={open && activeTab === "speak"}
-            />
+            <ReaderPanelErrorBoundary label="Speak">
+              <ArticlePronunciation
+                articleId={articleId}
+                plainText={plainText}
+                active={open && activeTab === "speak"}
+              />
+            </ReaderPanelErrorBoundary>
           )}
         </div>
 
@@ -160,7 +169,9 @@ export default function ReaderTools({
           className="article-study-panel"
           hidden={activeTab !== "notes"}
         >
-          <ReaderNotesPanel />
+          <ReaderPanelErrorBoundary label="Notes">
+            <ReaderNotesPanel />
+          </ReaderPanelErrorBoundary>
         </div>
 
         <div
@@ -171,9 +182,11 @@ export default function ReaderTools({
           hidden={activeTab !== "ask"}
         >
           {visited.has("ask") && (
-            <ReaderTutorProvider articleId={articleId}>
-              <ArticleTutor active={open && activeTab === "ask"} />
-            </ReaderTutorProvider>
+            <ReaderPanelErrorBoundary label="Ask">
+              <ReaderTutorProvider articleId={articleId}>
+                <ArticleTutor active={open && activeTab === "ask"} />
+              </ReaderTutorProvider>
+            </ReaderPanelErrorBoundary>
           )}
         </div>
       </div>
