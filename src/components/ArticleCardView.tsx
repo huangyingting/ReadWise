@@ -7,7 +7,7 @@ import { humanizeCategorySlug } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
 import CardBookmarkButton from "@/components/CardBookmarkButton";
-import ArticleHero from "@/components/ArticleHero";
+import CardThumbnail from "@/components/CardThumbnail";
 import ReferrerLink from "@/components/ReferrerLink";
 
 export type ArticleCardProgress = ProgressSummary;
@@ -126,14 +126,12 @@ export default function ArticleCardView({
           focusRing,
         )}
       >
-      {/* ⓪ Optional 16:9 thumbnail — collapses gracefully when absent/broken */}
-      {article.heroImage ? (
-        <ArticleHero
-          src={article.heroImage}
-          alt={article.title}
-          variant="thumb"
-        />
-      ) : null}
+      {/* ⓪ Always render a 16:9 thumbnail — real image or category-tinted placeholder */}
+      <CardThumbnail
+        src={article.heroImage}
+        alt={article.title}
+        category={article.category}
+      />
 
       {/* ① Top meta row — pr-9 reserves space for the absolute bookmark button */}
       <div className="flex items-center justify-between gap-[var(--space-2)] pr-9">
