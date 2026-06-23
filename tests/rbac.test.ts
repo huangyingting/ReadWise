@@ -38,6 +38,7 @@ const ADMIN_ONLY_CAPS = [
   CAPABILITIES.analyticsView,
   CAPABILITIES.securityView,
   CAPABILITIES.contentModerate,
+  CAPABILITIES.sourcesManage,
   CAPABILITIES.supportAssist,
 ] as const;
 

@@ -3,6 +3,8 @@ import { ArticleStatus, Prisma } from "@prisma/client";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
 import { providerForUrl } from "@/lib/scraper/providers";
+import { isProviderEnabled } from "@/lib/content-sources";
+import { isUrlAllowed } from "@/lib/scraper/robots";
 import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 
@@ -103,20 +105,50 @@ export function discoverLinks(provider: Provider, html: string, baseUrl: string)
   return links;
 }
 
-/** Crawls a provider's seed pages, collecting up to `limit` article URLs. */
-export async function discoverProviderUrls(provider: Provider, limit: number): Promise<string[]> {
+/**
+ * Injectable governance hooks for {@link discoverProviderUrls}. Default to the
+ * real implementations; tests override them without a DB or network.
+ */
+export type DiscoverDeps = {
+  fetchHtml?: (url: string) => Promise<string>;
+  /** Gate from the ContentSource model — disabled providers discover nothing. */
+  isProviderEnabled?: (providerKey: string) => Promise<boolean>;
+  /** robots.txt allow check applied to every seed + candidate link. */
+  isUrlAllowed?: (url: string) => Promise<boolean>;
+};
+
+/**
+ * Crawls a provider's seed pages, collecting up to `limit` article URLs. Honors
+ * content-source governance: a DISABLED provider yields nothing, and every seed
+ * + discovered link is filtered through the robots.txt allow check (fail-open).
+ */
+export async function discoverProviderUrls(
+  provider: Provider,
+  limit: number,
+  deps: DiscoverDeps = {},
+): Promise<string[]> {
+  const fetchPage = deps.fetchHtml ?? fetchHtml;
+  const enabledCheck = deps.isProviderEnabled ?? isProviderEnabled;
+  const allowedCheck = deps.isUrlAllowed ?? isUrlAllowed;
+
+  if (!(await enabledCheck(provider.key))) {
+    return [];
+  }
+
   const collected = new Set<string>();
   for (const seed of provider.seeds) {
     if (collected.size >= limit) break;
+    if (!(await allowedCheck(seed))) continue; // robots-disallowed seed
     let html: string;
     try {
-      html = await fetchHtml(seed);
+      html = await fetchPage(seed);
     } catch {
       continue;
     }
     for (const link of discoverLinks(provider, html, seed)) {
-      collected.add(link);
       if (collected.size >= limit) break;
+      if (!(await allowedCheck(link))) continue; // robots-disallowed article
+      collected.add(link);
     }
   }
   return [...collected].slice(0, limit);

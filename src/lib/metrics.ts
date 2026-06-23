@@ -308,6 +308,24 @@ export function recordContentProcessingStep(input: {
 }
 
 /**
+ * Records the outcome of a provider crawl/ingestion run (RW-050). Labels are
+ * low-cardinality: the `provider` key (bounded code registry) and a coarse
+ * `outcome` (success/empty/failed) plus the resulting `health` status. Per-run
+ * counts (discovered/scraped/…) live on the ContentSource row, not as labels.
+ */
+export function recordIngestionRun(input: {
+  provider: string;
+  outcome: "success" | "empty" | "failed";
+  health?: string;
+}): void {
+  incCounter("readwise_ingestion_runs_total", "Provider ingestion runs by outcome.", {
+    provider: input.provider,
+    outcome: input.outcome,
+    health: input.health ?? "unknown",
+  });
+}
+
+/**
  * Records a captured application error (RW-033). Labels are low-cardinality on
  * purpose: `source` (server/client/worker), `severity`, and an `alert` flag set
  * when the error fingerprint crossed the high-frequency alert threshold. The
