@@ -40,13 +40,13 @@ function parseQuery(params: URLSearchParams) {
 
 /**
  * User-facing global article search. Query params:
- *   - `q`      : search term matched against title, author, and source (LIKE).
+ *   - `q`      : search term matched by the configured article-search provider.
  *                Blank / missing → empty results (200), not an error.
  *   - `offset` : number of items to skip (incremental loading, default 0).
  *   - `limit`  : page size (default {@link SEARCH_PAGE_SIZE}, max {@link SEARCH_MAX_LIMIT}).
  * Returns `{ articles, progress, hasMore, offset }` — same shape as GET /api/articles.
  * Session-gated (401 when unauthenticated). Results are NOT cached because they
- * are query-dependent and merged with per-user progress data.
+ * are query-dependent, visibility-scoped, and merged with per-user progress data.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
   checkRateLimit(session.user.id, "lookup");

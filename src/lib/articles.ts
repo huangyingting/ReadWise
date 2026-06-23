@@ -8,13 +8,19 @@ import {
 } from "@/lib/difficulty";
 import { createCachedListing, ARTICLES_CACHE_TAG } from "@/lib/cache";
 import {
-  articleAccessContext,
   getPublicListableArticleById,
   getReadableArticleById,
   ownedArticleWhere,
   publicListableArticleWhere,
-  readableArticleWhere,
 } from "@/lib/article-access";
+export {
+  SEARCH_MAX_LIMIT,
+  SEARCH_PAGE_SIZE,
+  buildSearchTerms,
+  getArticleSearchProvider,
+  searchPublishedArticles,
+  scoreArticleSearchCandidate,
+} from "@/lib/article-search";
 
 const WORDS_PER_MINUTE = 200;
 
@@ -313,185 +319,6 @@ const cachedListPicksPage = createCachedListing(
   ["articles:picks-page"],
   [ARTICLES_CACHE_TAG],
 );
-
-/** Default and maximum page sizes for the user-facing global search. */
-export const SEARCH_PAGE_SIZE = 20;
-export const SEARCH_MAX_LIMIT = 50;
-
-/**
- * Escapes a user query for safe use in FTS5 MATCH expressions.
- * Wraps each whitespace-delimited token in double-quotes so that punctuation
- * and FTS5 operators in user input are treated as literals. Empty tokens are
- * dropped. Returns null when the query is blank / collapses to nothing.
- *
- * Exported for unit testing.
- */
-export function buildFtsQuery(raw: string): string | null {
-  const tokens = raw
-    .trim()
-    .split(/\s+/)
-    .map((t) => t.replace(/"/g, ""))
-    .filter(Boolean);
-  if (tokens.length === 0) return null;
-  // Each token is a prefix match ("word"*) so partial typing works.
-  return tokens.map((t) => `"${t}"*`).join(" ");
-}
-
-type FtsRow = { id: string; rank: number };
-
-/**
- * Full-text search over published articles via SQLite FTS5 (article_fts).
- * Results are ranked by bm25() relevance (most relevant first). Degrades
- * gracefully to a Prisma LIKE fallback when FTS5 is unavailable.
- *
- * When `userId` is supplied the search is extended to also surface articles
- * that the user has highlighted/annotated or saved vocabulary words from —
- * giving results even when the matched term does not appear in the indexed
- * article text.
- * An empty / blank query returns no results rather than the whole table.
- */
-export async function searchPublishedArticles(
-  query: string,
-  opts: { offset?: number; limit?: number } = {},
-  userId?: string,
-): Promise<ArticlePage> {
-  const q = query.trim();
-  if (!q) {
-    return { articles: [], hasMore: false };
-  }
-  const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
-  const offset = Math.max(0, opts.offset ?? 0);
-  const context = userId
-    ? articleAccessContext({ id: userId, role: "Reader" })
-    : null;
-
-  // Per-user: collect article IDs from highlights, saved words, and the user's
-  // OWN imported (personal) articles that match the query, to merge into the
-  // ranked results. Personal imports have `ownerId === userId` and are excluded
-  // from the public FTS / LIKE paths below, so they only surface via this merge.
-  const userArticleIds: string[] = [];
-  if (userId) {
-    const [highlightMatches, vocabMatches, personalMatches] = await Promise.all([
-      prisma.highlight.findMany({
-        where: {
-          userId,
-          OR: [{ quote: { contains: q } }, { note: { contains: q } }],
-        },
-        select: { articleId: true },
-        distinct: ["articleId"],
-      }),
-      prisma.savedWord.findMany({
-        where: { userId, word: { contains: q }, articleId: { not: null } },
-        select: { articleId: true },
-      }),
-      prisma.article.findMany({
-        where: ownedArticleWhere(userId, {
-          status: "published",
-          OR: [
-            { title: { contains: q } },
-            { author: { contains: q } },
-            { source: { contains: q } },
-          ],
-        }),
-        select: { id: true },
-        orderBy: [{ createdAt: "desc" }],
-      }),
-    ]);
-    const ids = new Set<string>();
-    // Personal imports first so the user's own articles rank ahead of merged
-    // annotation matches.
-    for (const p of personalMatches) ids.add(p.id);
-    for (const h of highlightMatches) ids.add(h.articleId);
-    for (const sw of vocabMatches) {
-      if (sw.articleId) ids.add(sw.articleId);
-    }
-    userArticleIds.push(...ids);
-  }
-
-  // Attempt FTS5 ranked search. Falls back to LIKE on any error so that a
-  // missing / corrupt FTS index doesn't break the feature.
-  const ftsQuery = buildFtsQuery(q);
-  if (ftsQuery) {
-    try {
-      // bm25() returns negative values — ORDER BY ASC puts best matches first.
-      // We fetch offset + limit + 1 + extra user IDs to handle merging and
-      // hasMore detection. The actual pagination window is applied after merge.
-      const ftsRows = await prisma.$queryRaw<FtsRow[]>`
-        SELECT a.id, bm25(article_fts) AS rank
-        FROM article_fts
-        JOIN "Article" a ON a.rowid = article_fts.rowid
-        WHERE article_fts MATCH ${ftsQuery}
-          AND a.status = 'published'
-          AND a."ownerId" IS NULL
-        ORDER BY rank ASC, a."publishedAt" DESC
-        LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
-      `;
-
-      // Build ordered id list: FTS-ranked ids first, then per-user extras not
-      // already in the ranked set. Annotation IDs are only appended on the
-      // first page (offset === 0) to prevent duplicates across pages.
-      const seen = new Set(ftsRows.map((r) => r.id));
-      const orderedIds = [
-        ...ftsRows.map((r) => r.id),
-        ...(offset === 0 ? userArticleIds.filter((id) => !seen.has(id)) : []),
-      ];
-
-      const hasMore = orderedIds.length > limit;
-      const pageIds = orderedIds.slice(0, limit);
-
-      // Only return from the FTS path when it (or the per-user merge) produced
-      // ids. When FTS matches nothing — e.g. the query is an author/source/
-      // category term that doesn't appear in the indexed title/content — fall
-      // through to the LIKE fallback below, which searches title/author/source.
-      if (pageIds.length > 0) {
-        // Fetch full Article rows for the page, preserving ranked order. Allow
-        // the caller's own personal imports (ownerId === userId) in addition to
-        // public articles so merged personal matches resolve to rows.
-        const byId = new Map<string, Article>();
-        const rows = await prisma.article.findMany({
-          where: readableArticleWhere(context, {
-            id: { in: pageIds },
-            status: "published",
-          }),
-        });
-        for (const r of rows) byId.set(r.id, r);
-        const articles = pageIds.flatMap((id) => {
-          const a = byId.get(id);
-          return a ? [a] : [];
-        });
-
-        return { articles, hasMore };
-      }
-      // FTS returned no ids — fall through to the LIKE fallback.
-    } catch {
-      // FTS unavailable — fall through to LIKE path.
-    }
-  }
-
-  // Fallback: title/author/source LIKE + optional per-user article IDs.
-  const textClauses: Prisma.ArticleWhereInput[] = [
-    { title: { contains: q } },
-    { author: { contains: q } },
-    { source: { contains: q } },
-  ];
-  // Public articles matching the text, the caller's own imports matching the
-  // text, plus any merged per-user IDs (annotations / personal matches).
-  const orClauses: Prisma.ArticleWhereInput[] = [
-    publicListableArticleWhere({ OR: textClauses }),
-    ...(userId ? [ownedArticleWhere(userId, { status: "published", OR: textClauses })] : []),
-  ];
-  if (userArticleIds.length > 0) {
-    orClauses.push(readableArticleWhere(context, { id: { in: userArticleIds }, status: "published" }));
-  }
-  const rows = await prisma.article.findMany({
-    where: { status: "published", OR: orClauses },
-    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    skip: offset,
-    take: limit + 1,
-  });
-  const hasMore = rows.length > limit;
-  return { articles: rows.slice(0, limit), hasMore };
-}
 
 /**
  * Returns personal (user-imported) articles for the given user, newest first.
