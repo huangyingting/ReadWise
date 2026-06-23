@@ -1,0 +1,463 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  Admin
+  Reader
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(Reader)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  profile               Profile?
+  readingProgress       ReadingProgress[]
+  savedWords            SavedWord[]
+  dailyActivities       DailyActivity[]
+  levelHistory          LevelHistory[]
+  readingLists          ReadingList[]
+  highlights            Highlight[]
+  tutorMessages         TutorMessage[]
+  quizAttempts          QuizAttempt[]
+  pronunciationAttempts PronunciationAttempt[]
+  pushSubscriptions       PushSubscription[]
+  difficultyFeedback      ArticleDifficultyFeedback[]
+  ownedArticles           Article[]                   @relation("OwnedArticles")
+}
+
+model Profile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  ageRange        String?
+  gender          String?
+  englishLevel    String
+  topics          String    @default("[]")
+  completedAt     DateTime?
+  dailyGoal       Int       @default(2)
+  timezone        String?
+  streakShields   Int       @default(0)
+  levelUpdatedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Article {
+  id              String    @id @default(cuid())
+  slug            String?   @unique
+  title           String
+  author          String?
+  source          String?
+  sourceUrl       String?
+  heroImage       String?
+  excerpt         String?
+  content         String
+  category        String?
+  wordCount       Int?
+  readingMinutes  Int?
+  difficulty      String?
+  difficultyScore Float?
+  status          String    @default("published")
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  /// Nullable FK to User. null = public library article; non-null = user-private import.
+  ownerId         String?
+
+  owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: SetNull)
+  readingProgress      ReadingProgress[]
+  translations         Translation[]
+  sentenceTranslations SentenceTranslation[]
+  vocabulary           VocabularyItem[]
+  quizQuestions        QuizQuestion[]
+  quizAttempts         QuizAttempt[]
+  speech               ArticleSpeech?
+  tags                 ArticleTag[]
+  readingListItems     ReadingListItem[]
+  highlights           Highlight[]
+  tutorMessages        TutorMessage[]
+  pronunciationAttempts     PronunciationAttempt[]
+  difficultyFeedback        ArticleDifficultyFeedback[]
+  grammarExplanations       GrammarExplanation[]
+
+  @@unique([sourceUrl, ownerId])
+  @@index([category])
+  @@index([ownerId])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  articles ArticleTag[]
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+  @@index([articleId])
+}
+
+model ArticleSpeech {
+  id          String   @id @default(cuid())
+  articleId   String   @unique
+  voice       String
+  format      String
+  mimeType    String
+  audioBase64 String
+  spokenText  String
+  words       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model QuizQuestion {
+  id           String   @id @default(cuid())
+  articleId    String
+  question     String
+  options      String
+  correctIndex Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, question])
+  @@index([articleId])
+}
+
+model VocabularyItem {
+  id          String   @id @default(cuid())
+  articleId   String
+  word        String
+  explanation String
+  example     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, word])
+  @@index([articleId])
+}
+
+model SavedWord {
+  id              String    @id @default(cuid())
+  userId          String
+  word            String
+  explanation     String?
+  example         String?
+  contextSentence String?
+  articleId       String?
+  dueAt           DateTime?
+  intervalDays    Int       @default(0)
+  easeFactor      Float     @default(2.5)
+  repetitions     Int       @default(0)
+  lastReviewedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+}
+
+model DailyActivity {
+  id           String   @id @default(cuid())
+  userId       String
+  date         DateTime
+  articlesRead Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model LevelHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  level     String
+  changedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Translation {
+  id         String   @id @default(cuid())
+  articleId  String
+  targetLang String
+  content    String
+  model      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, targetLang])
+  @@index([articleId])
+}
+
+model ReadingProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  articleId   String
+  percent     Int       @default(0)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ReadingList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ReadingListItem[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model ReadingListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  articleId String
+  addedAt   DateTime @default(now())
+
+  list    ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  article Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, articleId])
+  @@index([articleId])
+}
+
+// M12 — AI Tutor chat
+// Per-user, per-article conversation history. Messages are persisted only on
+// successful AI responses; fallback turns are NEVER persisted.
+model TutorMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
+}
+
+// M11 — Highlights & Notes
+// Anchors are W3C-annotation-style: quote + character offsets into the article's
+// rendered plain text (textContent), plus ±24-char prefix/suffix for re-anchoring.
+// Anchor fields are IMMUTABLE after creation; only note/color may be updated.
+model Highlight {
+  id          String   @id @default(cuid())
+  userId      String
+  articleId   String
+  // --- anchor (immutable) ---
+  quote       String   // exact highlighted text
+  startOffset Int      // char offset into article plain text (inclusive)
+  endOffset   Int      // char offset into article plain text (exclusive)
+  prefix      String   @default("") // up to 24 chars before the selection
+  suffix      String   @default("") // up to 24 chars after the selection
+  // --- editable ---
+  note        String?  // user annotation (markdown allowed)
+  color       String?  // e.g. "yellow" | "green" | "blue" | "pink"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId, startOffset, endOffset])
+  @@index([userId, articleId])
+}
+
+// M13 — Sentence-level translation cache
+// Caches on-demand sentence/phrase translations so the same selection is
+// never re-sent to the AI. Keyed by article + a SHA-256 hash of the
+// normalized source text + target language. Cascade-deletes with the article.
+model SentenceTranslation {
+  id          String   @id @default(cuid())
+  articleId   String
+  sourceHash  String   // SHA-256 hex of normalized source text (stable cache key)
+  targetLang  String
+  sourceText  String   // original (normalized) text for human inspection
+  translation String
+  createdAt   DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceHash, targetLang])
+  @@index([articleId])
+}
+
+// M14 — Quiz Mastery & History
+// Records each individual quiz attempt a user makes on an article.
+// scorePct is computed at write time (0–100). Multiple attempts are allowed.
+model QuizAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  articleId      String
+  correctCount   Int
+  totalQuestions Int
+  scorePct       Int      // 0–100, computed: round(correctCount / totalQuestions * 100)
+  completedAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
+  @@index([userId, completedAt])
+}
+
+// M16 — Pronunciation Practice
+// Records each pronunciation attempt a user makes (article-linked or freeform).
+// Assessment runs client-side via the Azure Speech SDK; scores are server-persisted.
+model PronunciationAttempt {
+  id                String   @id @default(cuid())
+  userId            String
+  articleId         String?  // nullable — practice may be freeform or article-linked
+  referenceText     String
+  accuracyScore     Int      // 0–100
+  fluencyScore      Int      // 0–100
+  completenessScore Int      // 0–100
+  pronScore         Int      // 0–100 overall pronunciation score
+  createdAt         DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Web Push subscriptions — stored per user, pruned when endpoint returns 404/410.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// #114 — Per-article AI grammar explanation cache.
+// Keyed by (articleId, normalized phrase) so the same phrase in the same
+// article reuses the cached explanation instead of calling the AI again.
+model GrammarExplanation {
+  id          String   @id @default(cuid())
+  articleId   String
+  phrase      String
+  explanation String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, phrase])
+  @@index([articleId])
+}
+
+// #124 — Per-user difficulty feedback for articles.
+// Vote is one of: too_easy | just_right | too_hard.
+// @@unique enforces one vote per user per article (upsert to change vote).
+model ArticleDifficultyFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  vote      String   // "too_easy" | "just_right" | "too_hard"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([articleId])
+}

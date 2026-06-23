@@ -60,3 +60,52 @@ jobs:
 
       - name: Build
         run: npm run build
+
+  db-integration:
+    name: PostgreSQL Migrate / Integration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: readwise_test
+          POSTGRES_USER: readwise
+          POSTGRES_HOST_AUTH_METHOD: trust
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U readwise -d readwise_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://readwise@localhost:5432/readwise_test?schema=public
+      NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
+      NEXTAUTH_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate PostgreSQL Prisma client
+        run: npm run prisma:generate:pg
+
+      - name: Apply PostgreSQL migrations
+        run: npm run prisma:migrate:pg
+
+      - name: Check PostgreSQL migration status
+        run: npx prisma migrate status --schema prisma/postgresql/schema.prisma
+
+      - name: Run PostgreSQL integration tests
+        run: npm run test:db
