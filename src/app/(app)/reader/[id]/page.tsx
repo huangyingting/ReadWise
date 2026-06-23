@@ -3,7 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
-import { getArticleById, getViewableArticleById, readingMinutesFor, listCategoryPage } from "@/lib/articles";
+import { getArticleById, readingMinutesFor, listCategoryPage } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
@@ -78,8 +79,9 @@ export default async function ReaderPage({
 }) {
   const { id } = await params;
   const session = await requireSession(`/reader/${id}`);
+  const context = articleAccessContext(session.user);
 
-  const article = await getViewableArticleById(id, session.user.role, session.user.id);
+  const article = await getReadableArticleById(id, context);
   if (!article) {
     notFound();
   }
@@ -87,8 +89,8 @@ export default async function ReaderPage({
   // Parallel fetch: all five queries depend only on article.id / userId (independent of each other)
   const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback] = await Promise.all([
     getProgress(session.user.id, article.id),
-    getOrCreateArticleDifficulty(article.id),
-    getOrCreateArticleTags(article.id),
+    getOrCreateArticleDifficulty(article.id, context),
+    getOrCreateArticleTags(article.id, context),
     listRelatedArticles(article.id),
     // M10: SSR bookmark state for the reader cluster
     getArticleListMembership(session.user.id, article.id, session.user.role),
@@ -377,4 +379,3 @@ export default async function ReaderPage({
     </>
   );
 }
-

@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { getViewableArticleById, readingMinutesFor } from "@/lib/articles";
+import { readingMinutesFor } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 
 /**
@@ -15,7 +16,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
+    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

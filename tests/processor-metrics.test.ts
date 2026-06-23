@@ -12,7 +12,7 @@ before(() => {
     namedExports: {
       prisma: {
         article: {
-          findUnique: async () => ({
+          findFirst: async () => ({
             id: "secret-article-id-123456",
             title: "Metrics article",
             status,

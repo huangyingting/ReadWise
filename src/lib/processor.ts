@@ -6,6 +6,11 @@ import { getOrCreateArticleTags } from "@/lib/tags";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
+import {
+  SYSTEM_ARTICLE_CONTEXT,
+  aiProcessableArticleWhere,
+  getAiProcessableArticleById,
+} from "@/lib/article-access";
 import { recordContentProcessingRun, recordContentProcessingStep } from "@/lib/metrics";
 
 /**
@@ -61,8 +66,7 @@ type ArticleState = {
 };
 
 async function loadArticleState(articleId: string): Promise<ArticleState | null> {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
+  const article = await getAiProcessableArticleById(articleId, SYSTEM_ARTICLE_CONTEXT, {
     select: {
       id: true,
       title: true,
@@ -136,7 +140,7 @@ export async function processArticle(
 
   steps.push(
     await runStep("difficulty", before.hasDifficulty, async () => {
-      const res = await getOrCreateArticleDifficulty(articleId);
+      const res = await getOrCreateArticleDifficulty(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: false,
         detail: res ? `${res.level} (${res.source})` : undefined,
@@ -146,7 +150,7 @@ export async function processArticle(
 
   steps.push(
     await runStep("tags", before.tagCount > 0, async () => {
-      const res = await getOrCreateArticleTags(articleId);
+      const res = await getOrCreateArticleTags(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
         detail: res ? `${res.tags.length} tag(s)` : undefined,
@@ -156,7 +160,11 @@ export async function processArticle(
 
   steps.push(
     await runStep("vocabulary", before.vocabCount > 0, async () => {
-      const res = await getOrCreateArticleVocabulary(articleId, PROCESSOR_USER_ID);
+      const res = await getOrCreateArticleVocabulary(
+        articleId,
+        PROCESSOR_USER_ID,
+        SYSTEM_ARTICLE_CONTEXT,
+      );
       return {
         fallback: res?.fallback ?? true,
         detail: res ? `${res.items.length} word(s)` : undefined,
@@ -166,7 +174,7 @@ export async function processArticle(
 
   steps.push(
     await runStep("quiz", before.quizCount > 0, async () => {
-      const res = await getOrCreateArticleQuiz(articleId);
+      const res = await getOrCreateArticleQuiz(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
         detail: res ? `${res.questions.length} question(s)` : undefined,
@@ -177,7 +185,7 @@ export async function processArticle(
   for (const lang of opts.translateLangs ?? []) {
     steps.push(
       await runStep("translation", before.translationLangs.has(lang), async () => {
-        const res = await getOrCreateTranslation(articleId, lang);
+        const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
         return {
           fallback: res?.fallback ?? true,
           detail: res ? res.languageLabel : lang,
@@ -189,7 +197,7 @@ export async function processArticle(
   if (opts.tts) {
     steps.push(
       await runStep("tts", before.hasSpeech, async () => {
-        const res = await getOrCreateArticleSpeech(articleId);
+        const res = await getOrCreateArticleSpeech(articleId, SYSTEM_ARTICLE_CONTEXT);
         return {
           fallback: res?.fallback ?? true,
           detail: res ? `${res.words.length} word timing(s)` : undefined,
@@ -268,7 +276,7 @@ export async function listUnprocessedArticleIds(
     : { status: "draft" };
 
   const articles = await prisma.article.findMany({
-    where,
+    where: aiProcessableArticleWhere(SYSTEM_ARTICLE_CONTEXT, where),
     orderBy: { createdAt: "asc" },
     select: { id: true },
     ...(opts.limit ? { take: opts.limit } : {}),

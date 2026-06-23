@@ -6,6 +6,8 @@ import { NextResponse } from "next/server";
 import { buildArticle } from "./helpers";
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+type MockUser = { id?: string | null; role?: string | null } | null | undefined;
+type MockAccessContext = { userId?: string | null; role?: string | null };
 
 const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
 
@@ -47,6 +49,24 @@ before(() => {
         authState === "unauth"
           ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
           : { session },
+    },
+  });
+
+  mock.module("@/lib/article-access", {
+    namedExports: {
+      articleAccessContext: (user: MockUser): MockAccessContext => ({
+        userId: user?.id ?? null,
+        role: user?.role ?? null,
+      }),
+      getReadableArticleById: async (id: string, context?: MockAccessContext | null) => {
+        viewableCalls.push({ id, role: context?.role, userId: context?.userId });
+        return viewableArticle;
+      },
+      findOwnedArticleBySourceUrl: async () => importExisting,
+      ownedArticleWhere: (userId: string, extra?: Record<string, unknown>) => ({
+        ...(extra ?? {}),
+        ownerId: userId,
+      }),
     },
   });
 

@@ -95,7 +95,7 @@ test("getViewableArticleById hides private and draft articles from anonymous use
   const { getViewableArticleById } = await import("@/lib/articles");
 
   assert.equal(await getViewableArticleById("foreign-private"), null);
-  assert.deepEqual(findUniqueWhere, {
+  assert.deepEqual(findFirstWhere, {
     id: "foreign-private",
     status: "published",
     ownerId: null,
@@ -109,7 +109,7 @@ test("getViewableArticleById lets admins resolve private and draft article ids",
 
   const privateArticle = await getViewableArticleById("foreign-private", "Admin", "admin-1");
   assert.equal(privateArticle?.id, "foreign-private");
-  assert.deepEqual(findUniqueWhere, { id: "foreign-private" });
+  assert.deepEqual(findFirstWhere, { id: "foreign-private" });
 
   const draft = await getViewableArticleById("public-draft", "Admin", "admin-1");
   assert.equal(draft?.id, "public-draft");
