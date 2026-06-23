@@ -6,6 +6,8 @@ import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
 import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
 import { withSpan } from "@/lib/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
+import { applyProviderCleanup } from "@/lib/scraper/cleanup";
+import { normalizeArticleHtml } from "@/lib/scraper/normalize";
 
 const WORDS_PER_MINUTE = 200;
 const USER_AGENT =
@@ -353,6 +355,20 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
  * Parses already-fetched HTML into a normalized, cleaned ScrapedArticle.
  * Combines schema.org JSON-LD, OpenGraph meta tags and raw `<p>` extraction so
  * it works across NBC News, National Geographic, Time and HuffPost.
+ *
+ * Pipeline:
+ * 1. **Provider cleanup** (optional, declarative): removes noise blocks such as
+ *    video players, newsletter CTAs, social-share widgets and ad containers
+ *    before any extraction takes place.
+ * 2. **Metadata extraction**: JSON-LD, OpenGraph and `<meta>` tags are read
+ *    from the cleaned HTML while `<script>` elements are still present.
+ * 3. **HTML normalization** (optional, `SCRAPER_HTML_NORMALIZE=true`): strips
+ *    scripts, styles, inline event handlers and style attributes to reduce
+ *    noise in the HTML used for raw `<p>` body extraction.
+ * 4. **Body extraction**: JSON-LD `articleBody` is preferred; falls back to
+ *    `<p>` harvesting from the normalized HTML.
+ * 5. **Sanitization**: `sanitizeArticleHtml` is always the final pass — it
+ *    enforces the strict tag/attr allowlist and is never bypassed.
  */
 export function extractArticle(html: string, sourceUrl: string): ScrapedArticle | null {
   const provider = providerForUrl(sourceUrl);
@@ -363,40 +379,57 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
     return null;
   }
 
-  const ld = extractArticleJsonLd(html);
+  // --- Step 1: provider-specific pre-extraction cleanup (optional) ----------
+  // Removes video/iframe/newsletter/social/ad blocks BEFORE any extraction so
+  // their text content doesn't leak into paragraphs or word counts.
+  const cleanedHtml = provider?.cleanup ? applyProviderCleanup(html, provider.cleanup) : html;
+
+  // --- Step 2: extract structured metadata (JSON-LD lives in <script> tags) -
+  // We use `cleanedHtml` here — cleanup preserves <script> elements so that
+  // JSON-LD is still intact at this point.
+  const ld = extractArticleJsonLd(cleanedHtml);
 
   const title =
     (ld && (jsonLdString(ld.headline) ?? jsonLdString(ld.name))) ??
-    metaContent(html, "og:title") ??
-    (html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]
-      ? decodeEntities(html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)![1]).trim()
+    metaContent(cleanedHtml, "og:title") ??
+    (cleanedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]
+      ? decodeEntities(cleanedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)![1]).trim()
       : null);
 
   if (!title) return null;
 
   const author =
     (ld && jsonLdAuthor(ld.author)) ??
-    metaContent(html, "author") ??
-    metaContent(html, "article:author");
+    metaContent(cleanedHtml, "author") ??
+    metaContent(cleanedHtml, "article:author");
 
   const heroImage = toAbsolute(
-    (ld && jsonLdImage(ld.image)) ?? metaContent(html, "og:image"),
+    (ld && jsonLdImage(ld.image)) ?? metaContent(cleanedHtml, "og:image"),
     sourceUrl,
   );
 
   const section =
     (ld && jsonLdString(ld.articleSection)) ??
-    metaContent(html, "article:section") ??
-    metaContent(html, "og:article:section");
+    metaContent(cleanedHtml, "article:section") ??
+    metaContent(cleanedHtml, "og:article:section");
 
   const publishedRaw =
     (ld && jsonLdString(ld.datePublished)) ??
-    metaContent(html, "article:published_time") ??
-    metaContent(html, "datePublished");
+    metaContent(cleanedHtml, "article:published_time") ??
+    metaContent(cleanedHtml, "datePublished");
   const publishedAt = publishedRaw ? safeDate(publishedRaw) : null;
 
+  // --- Step 3: optional HTML normalization (disabled by default) -------------
+  // Strips scripts/styles/inline-attrs from the HTML used for body extraction.
+  // JSON-LD was already read in step 2, so removing <script> here is safe.
+  // When SCRAPER_HTML_NORMALIZE is not set the default path is unchanged.
+  const { html: bodyHtml } = normalizeArticleHtml(cleanedHtml);
+
+  // --- Step 4: build raw body from JSON-LD (preferred) or page HTML ---------
   const ldBody = ld && jsonLdString(ld.articleBody);
-  const rawBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(html);
+  const rawBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml);
+
+  // --- Step 5: final sanitization (always runs, never bypassed) -------------
   const content = sanitizeArticleHtml(rawBody).trim();
   const bodyText = stripTags(content);
 
@@ -406,8 +439,8 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
 
   const description =
     (ld && jsonLdString(ld.description)) ??
-    metaContent(html, "og:description") ??
-    metaContent(html, "description");
+    metaContent(cleanedHtml, "og:description") ??
+    metaContent(cleanedHtml, "description");
   const excerpt = description ?? bodyText.slice(0, 240).trim() + (bodyText.length > 240 ? "…" : "");
 
   const wordCount = countWords(bodyText);

@@ -76,7 +76,10 @@ const DROP_BLOCKS_OPTIONS: sanitizeHtml.IOptions = {
 const STRICT_OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: ALLOWED_TAGS,
   allowedAttributes: {
-    a: ["href", "title"],
+    // `rel` and `target` must be listed here so the `transformTags.a`
+    // transform (which unconditionally sets rel=noopener noreferrer nofollow
+    // and target=_blank) is not immediately stripped by the attribute filter.
+    a: ["href", "title", "rel", "target"],
     img: ["src", "alt", "title"],
     th: ["colspan", "rowspan"],
     td: ["colspan", "rowspan"],
