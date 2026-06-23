@@ -3,6 +3,8 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { prisma } from "@/lib/prisma";
+import { updateArticleMastery } from "@/lib/article-mastery";
+import { bestEffortMastery } from "@/lib/mastery";
 
 const VOTE_VALUES = ["too_easy", "just_right", "too_hard"] as const;
 type VoteValue = (typeof VOTE_VALUES)[number];
@@ -32,6 +34,11 @@ export const POST = createHandler(
       create: { userId: session.user.id, articleId: params.id, vote },
       update: { vote },
     });
+
+    // Best-effort: difficulty feedback influences article mastery.
+    await bestEffortMastery("difficulty.article_mastery", () =>
+      updateArticleMastery(session.user.id, params.id),
+    );
 
     // Return aggregate counts.
     const all = await prisma.articleDifficultyFeedback.findMany({

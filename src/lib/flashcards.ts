@@ -8,6 +8,9 @@
 
 import { prisma } from "@/lib/prisma";
 import { applySm2, type Grade } from "@/lib/srs";
+import { recordWordReview } from "@/lib/word-mastery";
+import { recordSkillEvidence } from "@/lib/skill-mastery";
+import { bestEffortMastery } from "@/lib/mastery";
 
 export type FlashcardView = {
   id: string;
@@ -26,6 +29,17 @@ export type GradeResult = {
 export type ReviewSummary = {
   dueCount: number;
   totalSaved: number;
+};
+
+/**
+ * Maps an SM-2 grade to a 0–1 vocabulary-skill outcome. Mirrors the recall
+ * quality: a confident "easy" is full credit; "again" is none.
+ */
+const GRADE_OUTCOME: Record<Grade, number> = {
+  again: 0,
+  hard: 0.35,
+  good: 0.75,
+  easy: 1,
 };
 
 /**
@@ -73,6 +87,8 @@ export async function gradeFlashcard(
     select: {
       id: true,
       userId: true,
+      word: true,
+      articleId: true,
       intervalDays: true,
       easeFactor: true,
       repetitions: true,
@@ -100,6 +116,22 @@ export async function gradeFlashcard(
       lastReviewedAt: new Date(),
     },
   });
+
+  // Best-effort mastery — a flashcard review is a vocabulary review signal. A
+  // "good"/"easy" recall counts as correct; "again"/"hard" as incorrect. Never
+  // break the SRS write if mastery bookkeeping fails.
+  const correct = grade === "good" || grade === "easy";
+  const skillOutcome = GRADE_OUTCOME[grade];
+  await Promise.all([
+    bestEffortMastery("flashcard.word_review", () =>
+      recordWordReview(userId, card.word, correct, {
+        articleId: card.articleId ?? undefined,
+      }),
+    ),
+    bestEffortMastery("flashcard.vocabulary_skill", () =>
+      recordSkillEvidence(userId, "vocabulary", skillOutcome),
+    ),
+  ]);
 
   return { dueAt: next.dueAt, intervalDays: next.intervalDays };
 }
