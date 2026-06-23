@@ -8,6 +8,7 @@ import { articleAccessContext, getReadableArticleById } from "@/lib/article-acce
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 
 const bodySchema = object({
   answers: array(
@@ -89,6 +90,19 @@ export const POST = createHandler(
         recordSkillEvidence(session.user.id, "reading", score, 0.5),
       ),
     ]);
+
+    // Product analytics (RW-051): quiz completion is a core engagement signal.
+    // Metadata only — only the server-derived score/counts, never quiz content.
+    await recordEvent({
+      type: ANALYTICS_EVENT_TYPES.quizComplete,
+      userId: session.user.id,
+      articleId: article.id,
+      properties: {
+        scorePct: result.attempt.scorePct,
+        correctCount: result.attempt.correctCount,
+        totalQuestions: result.attempt.totalQuestions,
+      },
+    });
 
     return NextResponse.json(result);
   },

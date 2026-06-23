@@ -32,6 +32,7 @@ import {
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
 import { clientIp } from "@/lib/client-ip";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;
@@ -253,6 +254,14 @@ async function handleUrlImport(
     throw err;
   }
 
+  // Product analytics (RW-051): a successful personal import. Metadata only.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.import,
+    userId,
+    articleId: article.id,
+    properties: { importType: "url", category: scraped.category },
+  });
+
   return NextResponse.json({ id: article.id }, { status: 201 });
 }
 
@@ -327,6 +336,14 @@ async function handleTextImport(
       tx,
     );
     return created;
+  });
+
+  // Product analytics (RW-051): a successful personal text import. Metadata only.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.import,
+    userId,
+    articleId: article.id,
+    properties: { importType: "text" },
   });
 
   return NextResponse.json({ id: article.id }, { status: 201 });

@@ -806,3 +806,39 @@ model ReminderPreference {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+// ===========================================================================
+// Product analytics event model (Epic RW-E010 — RW-051).
+//
+// A general-purpose, append-only stream of product analytics events that
+// COMPLEMENTS (never replaces) the domain/activity tables. It powers funnel,
+// activation, retention and feature-usage analysis (RW-052) without coupling
+// those dashboards to a dozen different domain tables.
+//
+// Design principles (mirroring the AiInvocation/AuditLog ledgers):
+//   - METADATA ONLY. `properties` holds small, non-sensitive metadata (counts,
+//     enums, ids) — NEVER article text, selected text, prompts, or PII. The
+//     `recordEvent` writer sanitizes + version-stamps the payload.
+//   - NON-FK REFERENCES. `userId`/`articleId` are plain string identifiers (NOT
+//     foreign keys, like AuditLog/AiInvocation/Job) so an event survives user or
+//     article deletion and never cascades. Privacy is enforced by the documented
+//     retention window (`pruneOldEvents`) and an explicit `deleteEventsForUser`.
+//   - BEST-EFFORT. Writes never throw — an analytics write must never break the
+//     user action that emitted it.
+//
+// See `docs/analytics.md` for the versioned event schema + retention rules.
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  type        String
+  userId      String?
+  anonymousId String?
+  articleId   String?
+  sessionId   String?
+  properties  Json     @default("{}")
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([type, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([occurredAt])
+}
