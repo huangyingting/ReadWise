@@ -8,6 +8,10 @@ import { Input } from "@/components/ui/Input";
 export interface ConfirmActionProps {
   /** Label for the trigger button (shown in its resting state). */
   triggerLabel: string;
+  /** Icon to render inside the trigger button when triggerLabel is empty. */
+  triggerIcon?: React.ReactNode;
+  /** Accessible name for the trigger button, used as aria-label when provided. Also used for the dialog aria-label fallback when triggerLabel is empty. */
+  triggerAriaLabel?: string;
   /** Variant for the trigger button. Defaults to "danger". */
   triggerVariant?: "danger" | "danger-ghost" | "secondary" | "outline";
   /** Size of both buttons. Defaults to "sm". */
@@ -48,6 +52,8 @@ export interface ConfirmActionProps {
 
 export default function ConfirmAction({
   triggerLabel,
+  triggerIcon,
+  triggerAriaLabel,
   triggerVariant = "danger-ghost",
   size = "sm",
   confirmMessage,
@@ -121,17 +127,18 @@ export default function ConfirmAction({
         size={size}
         disabled={disabled || loading}
         title={disabled && disabledTitle ? disabledTitle : undefined}
+        aria-label={triggerAriaLabel}
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
       >
-        {triggerLabel}
+        {triggerLabel || triggerIcon}
       </Button>
 
       {isOpen && (
         <div
           className="admin-confirm"
           role="alertdialog"
-          aria-label={`Confirm ${triggerLabel.toLowerCase()}`}
+          aria-label={`Confirm ${(triggerAriaLabel ?? triggerLabel).toLowerCase()}`}
           aria-describedby={msgId}
           onKeyDown={handleKeyDown}
         >

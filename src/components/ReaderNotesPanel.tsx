@@ -220,7 +220,9 @@ function NoteRow({
 
           <ConfirmAction
             triggerLabel=""
-            triggerVariant="danger"
+            triggerIcon={<Trash2 size={14} aria-hidden="true" />}
+            triggerAriaLabel="Delete highlight"
+            triggerVariant="danger-ghost"
             size="sm"
             confirmMessage="Delete this highlight and its note?"
             loading={deleting}

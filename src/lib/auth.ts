@@ -1,7 +1,13 @@
 import type { NextAuthOptions } from "next-auth";
 import type { Adapter } from "next-auth/adapters";
-import GoogleProvider from "next-auth/providers/google";
-import AzureADProvider from "next-auth/providers/azure-ad";
+import GoogleProviderImport from "next-auth/providers/google";
+import AzureADProviderImport from "next-auth/providers/azure-ad";
+// Under Node native ESM (CLI harness) these CJS modules resolve to a namespace
+// object { default: fn }; Next.js/SWC esModuleInterop masks this so the app
+// works with bare default imports. Use the interop pattern so both runtimes
+// get the callable function.
+const GoogleProvider = (GoogleProviderImport as unknown as { default?: typeof GoogleProviderImport }).default ?? GoogleProviderImport;
+const AzureADProvider = (AzureADProviderImport as unknown as { default?: typeof AzureADProviderImport }).default ?? AzureADProviderImport;
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
