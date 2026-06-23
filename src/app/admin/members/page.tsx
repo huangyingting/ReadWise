@@ -1,6 +1,7 @@
 import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { listMembers } from "@/lib/admin-members";
 import AdminMemberActions from "@/components/AdminMemberActions";
 import { Input } from "@/components/ui/Input";
@@ -36,7 +37,7 @@ export default async function AdminMembersPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const session = await requireAdmin("/admin/members");
+  const session = await requireCapability(CAPABILITIES.membersManage, "/admin/members");
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
