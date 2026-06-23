@@ -33,6 +33,8 @@ let updateCalled = false;
 let createCalled = false;
 let findFirstResult: { id: string } | null = null;
 let auditCalls = 0;
+let createArgs: { data?: { content?: string } } | null = null;
+let sanitizeCalls: string[] = [];
 let prismaStub: Record<string, unknown>;
 
 before(() => {
@@ -53,7 +55,7 @@ before(() => {
     article: {
       count: async () => countResult,
       findFirst: async () => findFirstResult,
-      create: async () => { createCalled = true; return { id: createdId }; },
+      create: async (args: unknown) => { createCalled = true; createArgs = args as typeof createArgs; return { id: createdId }; },
       update: async () => { updateCalled = true; return { id: createdId }; },
       findMany: async () => [],
     },
@@ -72,8 +74,14 @@ before(() => {
 
   mock.module("@/lib/scraper/ssrf", {
     namedExports: {
-      assertSafeUrl: async () => {
+      assertSafeUrl: async (raw: string) => {
         if (ssrfThrows) throw new Error("Unsafe URL: private address");
+        // Mirror the real guard's protocol allowlist + URL parse so the route's
+        // 422 handling for dangerous schemes / malformed URLs is exercised.
+        const u = new URL(raw);
+        if (u.protocol !== "http:" && u.protocol !== "https:") {
+          throw new Error(`Only http(s) URLs are allowed (got ${u.protocol})`);
+        }
       },
     },
   });
@@ -90,7 +98,14 @@ before(() => {
 
   mock.module("@/lib/sanitize", {
     namedExports: {
-      sanitizeArticleHtml: (html: string) => html,
+      // Minimal real-ish sanitizer so route tests can assert stored HTML is
+      // cleaned (no <script> / inline handlers) BEFORE persistence.
+      sanitizeArticleHtml: (html: string) => {
+        sanitizeCalls.push(html);
+        return html
+          .replace(/<script[\s\S]*?<\/script>/gi, "")
+          .replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
+      },
     },
   });
 
@@ -148,6 +163,8 @@ beforeEach(() => {
   findFirstResult = null;
   createdId = "new-article-id";
   auditCalls = 0;
+  createArgs = null;
+  sanitizeCalls = [];
   scrapeResult = {
     title: "My Article",
     author: null,
@@ -230,6 +247,41 @@ test("422 when SSRF guard rejects the URL", async () => {
   assert.equal(res.status, 422);
   const data = await res.json();
   assert.ok(data.error.includes("unsafe") || data.error.includes("Unsafe") || data.error.includes("Invalid"));
+});
+
+test("422 for a non-http(s) protocol URL (file:)", async () => {
+  const res = await makeReq({ url: "file:///etc/passwd" });
+  assert.equal(res.status, 422);
+  const data = await res.json();
+  assert.ok(data.error.toLowerCase().includes("http") || data.error.toLowerCase().includes("unsafe"));
+  // The dangerous URL must never reach the scraper / DB.
+  assert.equal(createCalled, false);
+});
+
+test("422 for a gopher: protocol URL", async () => {
+  const res = await makeReq({ url: "gopher://169.254.169.254/" });
+  assert.equal(res.status, 422);
+  assert.equal(createCalled, false);
+});
+
+test("422 for a malformed URL string", async () => {
+  const res = await makeReq({ url: "http://" });
+  assert.equal(res.status, 422);
+  assert.equal(createCalled, false);
+});
+
+test("text import sanitizes HTML before storing (strips script/onerror)", async () => {
+  const res = await makeReq({
+    title: "XSS Attempt",
+    text: "Hello <script>alert('xss')</script> world\n\n<img src=x onerror=alert(1)> more text here.",
+  });
+  assert.equal(res.status, 201);
+  // Sanitizer was invoked on the wrapped HTML...
+  assert.ok(sanitizeCalls.length >= 1, "sanitizeArticleHtml should be called");
+  // ...and the persisted content contains no dangerous constructs.
+  const stored = createArgs?.data?.content ?? "";
+  assert.doesNotMatch(stored, /<script/i);
+  assert.doesNotMatch(stored, /onerror/i);
 });
 
 test("422 when scraper throws (network error)", async () => {
