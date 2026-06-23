@@ -82,6 +82,7 @@ export const GET = createPublicHandler({}, async () => {
           push: config.optional.push.status,
           googleOAuth: config.optional.googleOAuth.status,
           azureAdOAuth: config.optional.azureAdOAuth.status,
+          storage: config.optional.storage.status,
         },
       },
       migrations: {
