@@ -7,6 +7,7 @@ import { getOrCreateArticleTags } from "@/lib/tags";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
+import { runWithAiContext } from "@/lib/ai-budget";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   aiProcessableArticleWhere,
@@ -128,6 +129,16 @@ async function runStep(
  * of cheap reads). Degrades gracefully when AI/Speech credentials are absent.
  */
 export async function processArticle(
+  articleId: string,
+  opts: ProcessOptions = {},
+): Promise<ArticleProcessResult | null> {
+  // Mark every AI call in this enrichment run as background work so it enforces
+  // the global-background + per-feature AI budgets (RW-022) and skips gracefully
+  // (instead of throwing) when a budget is exhausted.
+  return runWithAiContext({ kind: "background" }, () => processArticleInner(articleId, opts));
+}
+
+async function processArticleInner(
   articleId: string,
   opts: ProcessOptions = {},
 ): Promise<ArticleProcessResult | null> {
