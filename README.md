@@ -164,6 +164,7 @@ npm run start         # Start production server (after build)
 npm run typecheck     # TypeScript type-check (tsc --noEmit)
 npm run lint          # ESLint via Next.js lint
 npm test              # Run all tests (Node built-in runner, no framework)
+npm run test:e2e:smoke # Playwright smoke flows with direct DB session seeding
 
 # Content pipeline
 npm run scrape -- --provider nbcnews --limit 5   # Scrape articles from a provider
