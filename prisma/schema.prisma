@@ -41,6 +41,23 @@ enum TagScope {
   ORG
 }
 
+enum JobType {
+  ARTICLE_INGEST
+  ARTICLE_PROCESS
+  AI_REBUILD
+  TTS_GENERATE
+  PUSH_REMINDER
+}
+
+enum JobStatus {
+  PENDING
+  CLAIMED
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -544,4 +561,39 @@ model AuditLog {
   @@index([actorId, createdAt])
   @@index([action, createdAt])
   @@index([targetType, targetId])
+}
+
+// Durable background-job queue (RW-013/014/015). DB-backed so jobs survive
+// restarts and can be claimed safely by multiple workers. `payload` references
+// (e.g. articleId) are plain strings, NOT FKs, so a job row is independent of
+// the entity it acts on (and survives its deletion, like AuditLog/SavedWord).
+// `type`/`status` are enums in the schema but TEXT columns in the migrations
+// (matching the ArticleStatus convention); claim logic uses raw SQL on
+// PostgreSQL (FOR UPDATE SKIP LOCKED) and a serialized transaction on SQLite.
+model Job {
+  id             String    @id @default(cuid())
+  type           JobType
+  status         JobStatus @default(PENDING)
+  payload        Json
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  priority       Int       @default(0)
+  runAfter       DateTime  @default(now())
+  lockedBy       String?
+  lockedAt       DateTime?
+  lastError      String?
+  errorHistory   Json
+  dedupeKey      String?   @unique
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  deadLetteredAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, runAfter])
+  @@index([status, type, runAfter])
+  @@index([type, status])
+  @@index([lockedBy])
+  @@index([lockedAt])
 }

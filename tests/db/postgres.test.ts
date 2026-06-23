@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
 import { after, afterEach, test } from "node:test";
-import { ArticleStatus, ArticleVisibility, TagScope, type Prisma } from "@prisma/client";
+import { ArticleStatus, ArticleVisibility, JobStatus, JobType, TagScope, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const enabled = process.env.RUN_DB_INTEGRATION === "1";
@@ -22,6 +22,7 @@ async function cleanIntegrationRows(): Promise<void> {
   await prisma.article.deleteMany({ where: { id: { startsWith: PREFIX } } });
   await prisma.tag.deleteMany({ where: { id: { startsWith: PREFIX } } });
   await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } });
+  await prisma.job.deleteMany({ where: { dedupeKey: { startsWith: PREFIX } } });
 }
 
 function quoteIdentifier(value: string): string {
@@ -1015,7 +1016,7 @@ test("PostgreSQL full-text article search is case-insensitive and privacy-filter
   );
 });
 
-test("worker/processor selection uses article state until a job table exists", { skip: !enabled }, async () => {
+test("worker/processor selection uses article state for the derived queue", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
   const publishedMissingId = id("processor_missing");
@@ -1081,18 +1082,106 @@ test("worker/processor selection uses article state until a job table exists", {
     withPublishedBackfill.filter((articleId) => [draftOldId, draftNewId, publishedMissingId, enrichedId].includes(articleId)),
     [draftOldId, publishedMissingId, draftNewId],
   );
+});
+
+test("persistent Job table exists with the expected enums", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
   const jobTables = await prisma.$queryRaw<Array<{ table_name: string }>>`
     SELECT table_name
     FROM information_schema.tables
     WHERE table_schema = 'public'
-      AND table_name ILIKE '%job%'
+      AND table_name = 'Job'
   `;
+  assert.deepEqual(jobTables, [{ table_name: "Job" }]);
+
+  const jobEnums = await prisma.$queryRaw<Array<{ typname: string }>>`
+    SELECT typname
+    FROM pg_type
+    WHERE typname IN ('JobType', 'JobStatus')
+    ORDER BY typname
+  `;
+  assert.deepEqual(jobEnums, [{ typname: "JobStatus" }, { typname: "JobType" }]);
+});
+
+test("claimNextJob uses FOR UPDATE SKIP LOCKED so concurrent workers never collide", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const { enqueueJob, claimNextJob } = await import("@/lib/jobs");
+
+  const first = await enqueueJob(JobType.PUSH_REMINDER, { n: 1 }, { dedupeKey: id("job_lock_a"), priority: 1 });
+  const second = await enqueueJob(JobType.PUSH_REMINDER, { n: 2 }, { dedupeKey: id("job_lock_b"), priority: 1 });
+
+  // Two workers claim concurrently. SKIP LOCKED guarantees they take different rows.
+  const [claimA, claimB] = await Promise.all([
+    claimNextJob("worker-a"),
+    claimNextJob("worker-b"),
+  ]);
+
+  assert.ok(claimA, "worker-a should claim a job");
+  assert.ok(claimB, "worker-b should claim a job");
+  assert.notEqual(claimA.id, claimB.id, "two workers must not claim the same job");
   assert.deepEqual(
-    jobTables,
-    [],
-    "Row-level job locking tests are deferred until ADR-0005's persistent job table exists; current worker queue semantics are article-state selection only.",
+    [claimA.id, claimB.id].sort(),
+    [first.id, second.id].sort(),
   );
+  assert.equal(claimA.status, JobStatus.CLAIMED);
+  assert.equal(claimB.status, JobStatus.CLAIMED);
+  assert.equal(claimA.lockedBy, "worker-a");
+  assert.equal(claimB.lockedBy, "worker-b");
+
+  // Queue drained: a third claim finds nothing runnable.
+  const empty = await claimNextJob("worker-c");
+  assert.equal(empty, null);
+});
+
+test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const { enqueueJob, claimNextJob, DEFAULT_LOCK_TTL_MS } = await import("@/lib/jobs");
+
+  const t0 = new Date();
+  const job = await enqueueJob(JobType.PUSH_REMINDER, { stale: true }, { dedupeKey: id("job_stale") });
+
+  const claimed = await claimNextJob("worker-1", { now: t0 });
+  assert.ok(claimed, "worker-1 should claim the job");
+  assert.equal(claimed.id, job.id);
+  assert.equal(claimed.lockedBy, "worker-1");
+
+  // Still within the lease: a second worker cannot steal the fresh lock.
+  const tooEarly = await claimNextJob("worker-2", { now: new Date(t0.getTime() + 1_000) });
+  assert.equal(tooEarly, null);
+
+  // Past the lease: the stale lock is reclaimable by another worker.
+  const reclaimed = await claimNextJob("worker-2", {
+    now: new Date(t0.getTime() + DEFAULT_LOCK_TTL_MS + 1_000),
+  });
+  assert.ok(reclaimed, "worker-2 should reclaim the stale job");
+  assert.equal(reclaimed.id, job.id);
+  assert.equal(reclaimed.lockedBy, "worker-2");
+});
+
+test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const { enqueueJob, claimNextJob, failJob, JobError, listDeadLetterJobs } = await import("@/lib/jobs");
+
+  const job = await enqueueJob(JobType.PUSH_REMINDER, { boom: true }, {
+    dedupeKey: id("job_dlq"),
+    maxAttempts: 1,
+  });
+
+  const claimed = await claimNextJob("worker-dlq");
+  assert.ok(claimed, "should claim the job");
+
+  const failed = await failJob(claimed.id, new JobError("provider exploded", { kind: "provider" }));
+  assert.ok(failed, "failJob should return the updated job");
+  assert.equal(failed.status, JobStatus.DEAD_LETTER, "exhausted attempts must dead-letter");
+  assert.equal(failed.lastError, "provider exploded");
+  assert.ok(failed.deadLetteredAt, "deadLetteredAt should be set");
+
+  const dlq = await listDeadLetterJobs();
+  assert.ok(dlq.some((entry) => entry.id === job.id), "dead-letter listing should include the job");
 });
 
 test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled }, async () => {
