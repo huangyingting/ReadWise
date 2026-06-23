@@ -12,6 +12,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 import { htmlToPlainText } from "@/lib/translation";
 import { getArticleListMembership } from "@/lib/bookmarks";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";
@@ -85,6 +86,16 @@ export default async function ReaderPage({
   if (!article) {
     notFound();
   }
+
+  // Product analytics (RW-051): record an article view. Best-effort + metadata
+  // only (category/difficulty) — never the article text. Awaiting a single
+  // insert that never throws keeps the page render reliable.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.articleView,
+    userId: session.user.id,
+    articleId: article.id,
+    properties: { category: article.category, difficulty: article.difficulty },
+  });
 
   // Parallel fetch: all five queries depend only on article.id / userId (independent of each other)
   const [progress, difficulty, tagsResult, relatedArticles, membership, existingFeedback] = await Promise.all([

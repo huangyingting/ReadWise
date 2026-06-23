@@ -124,7 +124,9 @@ export default async function AdminMembersPage({
                         />
                         <span className="admin-member-name">
                           <span>
-                            {m.name ?? "—"}
+                            <Link href={`/admin/members/${m.id}`}>
+                              {m.name ?? "—"}
+                            </Link>
                             {isSelf && (
                               <Badge
                                 variant="neutral"
@@ -151,11 +153,19 @@ export default async function AdminMembersPage({
                       {m.savedWords} words
                     </td>
                     <td>
-                      <AdminMemberActions
-                        memberId={m.id}
-                        role={m.role}
-                        isSelf={isSelf}
-                      />
+                      <div className="flex flex-col gap-[var(--space-1)] items-start">
+                        <Link
+                          className="text-[length:var(--text-sm)]"
+                          href={`/admin/members/${m.id}`}
+                        >
+                          View &amp; support →
+                        </Link>
+                        <AdminMemberActions
+                          memberId={m.id}
+                          role={m.role}
+                          isSelf={isSelf}
+                        />
+                      </div>
                     </td>
                   </tr>
                 );
