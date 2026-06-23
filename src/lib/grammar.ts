@@ -11,6 +11,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { moderateText } from "@/lib/ai/moderation";
 
 export type GrammarResult = {
   explanation: string | null;
@@ -73,8 +74,13 @@ export async function explainGrammar(
     },
   ];
 
-  const text = await chatComplete(messages, { maxOutputTokens: 256, feature: "grammar" });
+  const text = await chatComplete(messages, { maxOutputTokens: 256, feature: "grammar", promptVersion: "grammar/v1", articleId });
   if (!text) {
+    return { explanation: null, fallback: true };
+  }
+
+  // Safety: don't cache or surface an unsafe explanation (RW-024).
+  if (moderateText(text).flagged) {
     return { explanation: null, fallback: true };
   }
 

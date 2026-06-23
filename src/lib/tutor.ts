@@ -9,6 +9,7 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { htmlToPlainText } from "@/lib/translation";
+import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/moderation";
 import { getProfile } from "@/lib/profile";
 import {
   getAiProcessableArticleById,
@@ -90,6 +91,16 @@ export async function askTutor(
     return null;
   }
 
+  // Safety: refuse obviously-unsafe questions up front (RW-024). Cheap heuristic
+  // check; benign learning questions are unaffected. Persist nothing.
+  if (moderateText(question).flagged) {
+    return {
+      answer: MODERATION_FALLBACK_MESSAGE,
+      fallback: true,
+      messages: await getTutorMessages(userId, articleId),
+    };
+  }
+
   // Fetch recent prior turns (most recent first, then reverse to chronological).
   const rawPrior = await prisma.tutorMessage.findMany({
     where: { userId, articleId },
@@ -139,12 +150,24 @@ export async function askTutor(
   const completion = await chatComplete(chatMessages, {
     maxOutputTokens: 2048,
     feature: "tutor",
+    promptVersion: "tutor/v1",
+    articleId,
   });
 
   if (!completion) {
     // AI configured but request failed — graceful fallback, persist nothing.
     return {
       answer: FALLBACK_ANSWER,
+      fallback: true,
+      messages: await getTutorMessages(userId, articleId),
+    };
+  }
+
+  // Safety: never show/persist an unsafe model answer (RW-024). Degrade to a
+  // safe fallback and persist nothing.
+  if (moderateText(completion).flagged) {
+    return {
+      answer: MODERATION_FALLBACK_MESSAGE,
       fallback: true,
       messages: await getTutorMessages(userId, articleId),
     };
