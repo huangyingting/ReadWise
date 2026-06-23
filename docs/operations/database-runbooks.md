@@ -64,13 +64,19 @@ Restore into an isolated path first; never overwrite the only known-good copy.
 ```bash
 sha256sum --check './backups/readwise-YYYYMMDD-HHMMSS.db.sha256'
 cp './backups/readwise-YYYYMMDD-HHMMSS.db' ./prisma/dev.db.restore
-DATABASE_URL='file:./dev.db.restore' npx prisma migrate status
-DATABASE_URL='file:./dev.db.restore' npx prisma db execute --stdin <<'SQL'
+export DATABASE_URL='file:./dev.db.restore'
+npx prisma migrate status --schema prisma/schema.prisma
+npx prisma db execute --schema prisma/schema.prisma --stdin <<'SQL'
+PRAGMA integrity_check;
+SQL
+sqlite3 ./prisma/dev.db.restore <<'SQL'
+.headers on
+.mode column
 PRAGMA integrity_check;
 SELECT COUNT(*) AS users FROM User;
 SELECT COUNT(*) AS articles FROM Article;
 SQL
-DATABASE_URL='file:./dev.db.restore' npm run typecheck
+npm run typecheck
 ```
 
 For a real restore, stop all app and worker processes, replace the database file,
@@ -83,6 +89,15 @@ curl --fail 'https://<app-host>/api/ready'
 ```
 
 ## PostgreSQL target: backup
+
+These PostgreSQL steps are target-state runbooks for after the Prisma datasource
+provider has been migrated from `sqlite` to `postgresql` in
+`prisma/schema.prisma`, or when an equivalent PostgreSQL schema file is supplied
+with `--schema`. With the current SQLite Prisma schema, Prisma commands that use
+a PostgreSQL `DATABASE_URL` are expected to fail; use the SQLite sections above
+until the PostgreSQL migration lands. Native PostgreSQL tools (`pg_dump`,
+`pg_restore`, `psql`) are still appropriate for databases that already exist on
+PostgreSQL.
 
 Prefer managed point-in-time recovery snapshots for production. Also take a
 logical dump before Prisma migrations so a rollback artifact is tied to the
@@ -120,18 +135,24 @@ pg_restore \
   --no-acl \
   './backups/readwise-YYYYMMDD-HHMMSS.dump'
 
-DATABASE_URL='postgresql://<staging-user>:<password>@<host>:5432/readwise_restore_drill_YYYYMMDD?schema=public' npx prisma migrate status
-DATABASE_URL='postgresql://<staging-user>:<password>@<host>:5432/readwise_restore_drill_YYYYMMDD?schema=public' npm run typecheck
+export DATABASE_URL='postgresql://<staging-user>:<password>@<host>:5432/readwise_restore_drill_YYYYMMDD?schema=public'
+npx prisma migrate status --schema prisma/schema.prisma
+psql "$DATABASE_URL" <<'SQL'
+SELECT COUNT(*) AS users FROM "User";
+SELECT COUNT(*) AS articles FROM "Article";
+SELECT COUNT(*) AS sessions FROM "Session";
+SQL
+npm run typecheck
 curl --fail 'https://<staging-host>/api/ready'
 ```
 
 Before exposing the restored app to testers, invalidate copied sessions:
 
 ```bash
-DATABASE_URL='postgresql://<staging-user>:<password>@<host>:5432/readwise_restore_drill_YYYYMMDD?schema=public' \
-  npx prisma db execute --stdin <<'SQL'
+psql "$DATABASE_URL" <<'SQL'
 DELETE FROM "Session";
 -- If provider tokens are present in Account rows, clear token columns before tester access.
+SELECT COUNT(*) AS remaining_sessions FROM "Session";
 SQL
 ```
 
@@ -157,7 +178,8 @@ reaches production.
 3. Deploy to staging:
    ```bash
    pg_dump "$STAGING_DATABASE_URL" --format=custom --no-owner --no-acl --file './backups/staging-pre-migration-YYYYMMDD.dump'
-   DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy
+   DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma
+   psql "$STAGING_DATABASE_URL" -c 'SELECT COUNT(*) AS users FROM "User";'
    curl --fail 'https://<staging-host>/api/ready'
    npm run worker -- --once
    ```
@@ -165,14 +187,15 @@ reaches production.
    - Announce maintenance risk and pause scheduled workers if the migration may
      rewrite data or hold locks.
    - Take a pre-migration backup.
-   - Deploy code and run `DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate deploy`.
+   - Deploy code and run `DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma`
+     only after the deployed Prisma schema provider is `postgresql`.
    - Start the web app, then workers.
    - Verify `/api/ready`, logs, admin overview, article listings, reader pages,
      sign-in, and worker completion.
 
-ADR-0005's planned persistent job table and PostgreSQL row locking make migration
-order important: deploy schema first, then code that writes new job states, then
-enable multiple workers.
+After the PostgreSQL Prisma migration, ADR-0005's planned persistent job table
+and PostgreSQL row locking make migration order important: deploy schema first,
+then code that writes new job states, then enable multiple workers.
 
 ## Rollback strategies
 
