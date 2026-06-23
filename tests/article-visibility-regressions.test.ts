@@ -72,6 +72,7 @@ before(() => {
 beforeEach(() => {
   articles = [
     buildArticle({ id: "public-published", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
+    buildArticle({ id: "owned-public", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, ownerId: "user-1" }),
     buildArticle({ id: "owner-private", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
     buildArticle({ id: "foreign-private", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-2" }),
     buildArticle({ id: "public-draft", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
@@ -88,7 +89,7 @@ test("getViewableArticleById scopes readers to public published or self-owned ar
   assert.deepEqual(findFirstWhere, {
     id: "owner-private",
     OR: [
-      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED },
+      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
       { visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" },
     ],
   });
@@ -105,9 +106,23 @@ test("getViewableArticleById hides private and draft articles from anonymous use
     id: "foreign-private",
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
+    ownerId: null,
   });
 
   assert.equal(await getViewableArticleById("public-draft"), null);
+});
+
+test("getViewableArticleById excludes owner-linked public articles from public library access", async () => {
+  const { getViewableArticleById } = await import("@/lib/articles");
+
+  assert.equal(await getViewableArticleById("owned-public", "Reader", "user-1"), null);
+  assert.deepEqual(findFirstWhere, {
+    id: "owned-public",
+    OR: [
+      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
+      { visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" },
+    ],
+  });
 });
 
 test("getViewableArticleById lets admins resolve private and draft article ids", async () => {

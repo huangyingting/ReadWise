@@ -76,6 +76,7 @@ before(() => {
 beforeEach(() => {
   articleRows = [
     buildArticle({ id: "public", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
+    buildArticle({ id: "owner-public", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, ownerId: "user-1" }),
     buildArticle({ id: "draft-public", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
     buildArticle({ id: "owner-u1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
     buildArticle({ id: "draft-u1", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
@@ -85,7 +86,12 @@ beforeEach(() => {
 
 test("pure readability checks cover anonymous, owner, non-owner, and admin", async () => {
   const { canReadArticle } = await import("@/lib/article-access");
-  const [publicArticle, draftPublic, ownerArticle] = articleRows;
+  const publicArticle = articleRows.find((article) => article.id === "public");
+  const draftPublic = articleRows.find((article) => article.id === "draft-public");
+  const ownerArticle = articleRows.find((article) => article.id === "owner-u1");
+  assert.ok(publicArticle);
+  assert.ok(draftPublic);
+  assert.ok(ownerArticle);
 
   assert.equal(canReadArticle(publicArticle), true, "anonymous can read public published");
   assert.equal(canReadArticle(draftPublic), false, "anonymous cannot read drafts");
@@ -106,6 +112,26 @@ test("private articles without an owner are not public after a deleted-user life
   assert.equal(isPublicListableArticle(stalePrivate), false);
   assert.equal(canReadArticle(stalePrivate, { userId: "user-2", role: "Reader" }), false);
   assert.equal(canReadArticle(stalePrivate, { role: "Admin" }), true);
+});
+
+test("public-listable predicates require ownerless library articles", async () => {
+  const {
+    canReadArticle,
+    getPublicListableArticleById,
+    isPublicListableArticle,
+    publicListableArticleWhere,
+  } = await import("@/lib/article-access");
+  const ownedPublic = articleRows.find((article) => article.id === "owner-public");
+  assert.ok(ownedPublic);
+
+  assert.deepEqual(publicListableArticleWhere(), {
+    visibility: ArticleVisibility.PUBLIC,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: null,
+  });
+  assert.equal(isPublicListableArticle(ownedPublic), false);
+  assert.equal(canReadArticle(ownedPublic), false);
+  assert.equal(await getPublicListableArticleById("owner-public"), null);
 });
 
 test("getPublicListableArticleById only returns published library articles", async () => {
