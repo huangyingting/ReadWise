@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
 import { getArticleById, readingMinutesFor, listCategoryPage } from "@/lib/articles";
@@ -42,8 +44,11 @@ export async function generateMetadata({
   params: Promise<{ id: string }>;
 }): Promise<Metadata> {
   const { id } = await params;
-  // Use the published-only lookup — metadata should only expose published content.
-  const article = await getArticleById(id);
+  // Use a non-throwing session read so unauthenticated crawlers get the
+  // generic fallback title (no redirect/crash). Authenticated owners can then
+  // see titles of their private articles in the <title> tag.
+  const session = await getServerSession(authOptions);
+  const article = await getReadableArticleById(id, articleAccessContext(session?.user ?? null));
   if (!article) {
     return { title: "Article" };
   }
