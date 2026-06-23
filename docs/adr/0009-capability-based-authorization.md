@@ -51,5 +51,5 @@ with the Prisma enum.
 
 - [ ] Promote a planned system role to the enum + `ACTIVE_ROLES` when first
       needed (e.g. Moderator).
-- [ ] Store tenant roles on the organization/classroom membership model (#318),
+- [x] Store tenant roles on the organization/classroom membership model (#318),
       separate from `User.role`.

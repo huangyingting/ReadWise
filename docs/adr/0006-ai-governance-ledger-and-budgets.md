@@ -1,6 +1,6 @@
 # ADR-0006: AI invocation ledger, prompt versions, and budgets
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #277 (RW-019), #278 (RW-020), #279 (RW-021), #280 (RW-022), #312 (RW-054), #324 (RW-066)
 
@@ -26,8 +26,8 @@ Treat AI calls as governed product operations: record an invocation ledger, vers
 
 ## Follow-up work
 
-- [ ] #277: add AI invocation ledger.
-- [ ] #278: add prompt version management.
-- [ ] #279: create AI evaluation datasets.
-- [ ] #280: enforce AI budgets and quotas.
-- [ ] #312: expose AI cost/content operations dashboards.
+- [x] #277: add AI invocation ledger.
+- [x] #278: add prompt version management.
+- [x] #279: create AI evaluation datasets.
+- [x] #280: enforce AI budgets and quotas.
+- [x] #312: expose AI cost/content operations dashboards.

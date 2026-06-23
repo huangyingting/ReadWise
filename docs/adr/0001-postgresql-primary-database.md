@@ -1,6 +1,6 @@
 # ADR-0001: PostgreSQL as the primary durable database
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #259 (RW-001), #314 (RW-056), #324 (RW-066)
 
@@ -26,5 +26,6 @@ Use PostgreSQL as the primary durable database for shared, test, and production 
 
 ## Follow-up work
 
-- [ ] #259: migrate Prisma schema and runtime configuration to PostgreSQL.
-- [ ] #314: add real database migration and integration tests.
+- [x] #259: add PostgreSQL Prisma schema/runtime configuration and local parity workflow.
+- [x] #314: add PostgreSQL migration and integration-test path.
+- [ ] Operational cutover: run production/shared environments on managed PostgreSQL while keeping SQLite as the lightweight local default until the cutover is complete.

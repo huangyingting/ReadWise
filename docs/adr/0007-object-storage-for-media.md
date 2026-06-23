@@ -1,12 +1,12 @@
 # ADR-0007: Object storage for generated and imported media
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #307 (RW-049), #324 (RW-066)
 
 ## Context
 
-Article speech currently stores generated audio inline in the database. Future imported media, larger narration files, and offline assets will make database blobs expensive to back up and serve.
+Article speech historically stored generated audio inline in the database. Future imported media, larger narration files, and offline assets would make database blobs expensive to back up and serve.
 
 ## Decision
 
@@ -26,5 +26,5 @@ Store generated and imported media in object storage, with database rows keeping
 
 ## Follow-up work
 
-- [ ] #307: add object storage support for media.
-- [ ] Revisit generated speech caching after object storage is available.
+- [x] #307: add object storage support for media.
+- [x] Revisit generated speech caching after object storage is available.

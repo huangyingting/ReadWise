@@ -383,14 +383,19 @@ manager.
 ## Documentation map
 
 - `docs/database.md` — SQLite/PostgreSQL workflows, migration tests, local DB helper.
+- `docs/README.md` — full documentation index.
+- `docs/health-readiness.md` — health/readiness probes and runtime config validation.
+- `docs/admin-operations.md` — admin jobs, audit logs, processing steps, provider operations.
+- `docs/learning-and-mastery.md` — learner analytics, mastery models, adaptive leveling, SRS.
+- `docs/reader-annotations.md` — highlights, notes, anchor revalidation, offline note merge.
 - `docs/operations/database-runbooks.md` — backup, restore, rollback, and DR runbooks.
 - `docs/ci.md` — CI quality gates and failure triage.
-- `docs/security.md` — trusted proxy, CSRF, security events, alerting posture.
+- `docs/security.md` — trusted proxy, CSRF, security events, audit logs.
 - `docs/observability.md` — logs, metrics, tracing, and error reporting.
 - `docs/media-storage.md` — filesystem/Azure media storage and migration guide.
 - `docs/analytics.md` — product analytics event schema and retention.
 - `docs/ai-context.md`, `docs/ai-prompts.md`, `docs/ai-safety.md`, `docs/ai-evals.md` — AI prompt governance and evaluations.
-- `docs/content-policy.md` — content moderation, rights, and takedown policy.
+- `docs/content-policy.md` — source governance, provider health, rights, and takedown policy.
 - `docs/scrapers.md` — scraper provider architecture and drift handling.
 - `docs/offline-sync.md` — offline queue and conflict-resolution design.
 - `docs/search-and-indexing.md` — search/indexing strategy.

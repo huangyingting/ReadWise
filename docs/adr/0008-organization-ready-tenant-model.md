@@ -1,12 +1,12 @@
 # ADR-0008: Organization-ready tenant model
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #318 (RW-060), #319 (RW-061), #324 (RW-066)
 
 ## Context
 
-ReadWise is single-user-account oriented today, but planned classrooms and organizations need shared administration, assignments, content visibility, and audit boundaries. Tenant choices will affect authorization, data models, analytics, and storage keys.
+ReadWise started as single-user-account oriented, but classrooms and organizations need shared administration, assignments, content visibility, and audit boundaries. Tenant choices affect authorization, data models, analytics, and storage keys.
 
 ## Decision
 
@@ -20,11 +20,11 @@ Introduce an organization and membership model before classroom-specific feature
 
 ## Consequences
 
-- Future classroom features have a stable ownership boundary.
+- Classroom features have a stable ownership boundary.
 - Queries and audit logs must distinguish personal and organization-scoped actions.
 - Tenant isolation rules should be covered before broad organization rollout.
 
 ## Follow-up work
 
-- [ ] #318: add organization and membership model.
-- [ ] #319: build classroom assignments on top of memberships.
+- [x] #318: add organization and membership model.
+- [x] #319: build classroom assignments on top of memberships.

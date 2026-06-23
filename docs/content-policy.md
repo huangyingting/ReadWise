@@ -12,8 +12,10 @@ material. Extraction is provider-aware and lives in code under
 `src/lib/scraper/`:
 
 - `providers.ts` — the registry of supported providers (NBC, National Geographic,
-  Time, HuffPost), keyed by hostname, with article-URL patterns and category
-  mapping.
+  Time, HuffPost, BBC News, Smithsonian Magazine, Knowable Magazine, Nautilus,
+  Aeon, MIT Technology Review, Noema Magazine, Undark, BBC Learning English,
+  VOA Learning English), keyed by hostname, with article-URL patterns,
+  provider-specific discovery hooks and category mapping.
 - `extract.ts` — provider-agnostic extraction (schema.org JSON-LD first, then
   OpenGraph/`<p>` fallback) with SSRF protection and size/time caps. Bodies are
   sanitized via `sanitizeArticleHtml` before storage.
@@ -31,7 +33,7 @@ extraction logic, which stays in code):
 - `providerKey` (matches the code registry key), `displayName`, `baseUrl`
 - `enabled` — when false, the scraper SKIPS the provider during discovery
 - `crawlPolicy` — optional JSON policy (reserved for future per-provider rules)
-- health/operational counters (see `docs`-linked RW-050 health section below)
+- health/operational counters: `lastDiscoveryCount`, lifetime discovered/scraped/failed/duplicates/rejected totals, consecutive failure and zero-discovery streaks, `lastError`, and `lastCrawledAt`
 
 Sync rows from the code registry with `syncContentSources()` (also exposed as
 **Sync from registry** on `/admin/sources`, gated on the `sources.manage`
@@ -40,6 +42,23 @@ capability). Toggling a source is audited (`admin.source.toggle`).
 The scraper consults `isProviderEnabled(providerKey)` before crawling. An
 UNSYNCED provider (no row yet) defaults to enabled so discovery keeps working
 before the first sync; once a row exists, its `enabled` flag is authoritative.
+
+### Provider health
+
+`recordCrawlRun(providerKey, outcome)` folds scraper/seeder run results into the
+persisted counters and recomputes `healthStatus`:
+
+| Status | Rule |
+| --- | --- |
+| `unknown` | Pre-first-crawl default. |
+| `healthy` | No recent error/failure/zero-discovery streak. |
+| `degraded` | At least one recent failed run, zero-discovery run, or lingering `lastError`. |
+| `failing` | `consecutiveFailures >= 3` or `consecutiveZeroDiscovery >= 3`. |
+
+A run counts as a failure when it records an explicit error, or when it
+discovered URLs but saved zero articles. A zero-discovery run increments only the
+zero-discovery streak. Every recorded crawl also emits ingestion metrics. See
+[`admin-operations.md`](./admin-operations.md) for the operator view.
 
 ### robots.txt & crawl restrictions
 

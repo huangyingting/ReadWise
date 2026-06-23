@@ -26,7 +26,7 @@ Represent article lifecycle and visibility explicitly, and route article reads/w
 
 ## Follow-up work
 
-- [ ] #260: add explicit article visibility/status/source-type fields.
-- [ ] #261: enforce safe private article lifecycle.
-- [ ] #266: centralize article access.
-- [ ] #267: add IDOR regression tests.
+- [x] #260: add explicit article visibility/status/source-type fields.
+- [x] #261: enforce safe private article lifecycle.
+- [x] #266: centralize article access.
+- [x] #267: add IDOR regression tests.

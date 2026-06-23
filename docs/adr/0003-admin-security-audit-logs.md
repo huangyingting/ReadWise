@@ -1,6 +1,6 @@
 # ADR-0003: Append-only admin and security audit logs
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #270 (RW-012), #324 (RW-066)
 
@@ -28,4 +28,4 @@ Audit writes for high-risk mutations are part of the same database transaction a
 
 ## Follow-up work
 
-- [ ] #270: implement admin/security audit log model and instrumentation.
+- [x] #270: implement admin/security audit log model and instrumentation.

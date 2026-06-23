@@ -1,10 +1,14 @@
-# Security: trusted proxy/IP, CSRF & security event monitoring
+# Security: trusted proxy/IP, CSRF, security events & audit logs
 
 This document covers the three hardening pieces shipped in Epic **RW-E005**:
 
 - **RW-027** — trusted proxy & client-IP handling
 - **RW-028** — CSRF, session & destructive-action protection
 - **RW-029** — security event monitoring & alerting
+
+It also explains how those signals relate to the durable `AuditLog` table used
+for admin/security history. Operational job/source/audit workflows are covered
+in [`admin-operations.md`](./admin-operations.md).
 
 Everything here is **graceful and opt-in**: with nothing configured the app
 behaves exactly as before — but several controls are *weaker* (or spoofable)
@@ -231,3 +235,34 @@ history and real alerting, **forward the structured `security.event` log lines
 and the `readwise_security_events_total` metric** to your SIEM / log pipeline /
 Prometheus, and (optionally) wire `setAlertHook` to your pager. No security
 event ever contains article content or secrets, so the logs are safe to ship.
+
+---
+
+## 4. Durable audit logs
+
+Security events answer “what suspicious thing just happened?”; audit logs answer
+“who performed this admin/account action, against what target, and from which
+request?” They are complementary.
+
+`AuditLog` rows are durable and append-only. Actor and target ids are plain
+strings, not foreign keys, so deleting users/articles/tags never erases the
+investigation trail.
+
+| Field | Purpose |
+| --- | --- |
+| `action` | Stable action name, e.g. `admin.article.delete` or `admin.job.retry`. |
+| `actorId`, `actorRole` | Session user and role when available. |
+| `targetType`, `targetId` | Low-cardinality target descriptor. |
+| `metadata` | Sanitized JSON string. Sensitive keys and token/email-like values are redacted. |
+| `requestId` | Correlates with structured logs and traces. |
+| `ipAddress`, `userAgent` | Trusted-proxy-aware request metadata. |
+| `createdAt` | Event timestamp. |
+
+Use `recordAuditFromRequest(...)` for request-driven actions so actor, trusted
+client IP, user agent and request id are attached consistently. Use
+`tryRecordAuditLog(...)` only for best-effort denied-access paths where an audit
+write failure must not change the response.
+
+`GET /api/admin/audit-logs` lists durable rows with filters for `action`,
+`actorId`, and `targetType`. Reading audit logs is itself audited as
+`admin.audit_logs.read`.
