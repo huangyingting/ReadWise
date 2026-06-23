@@ -1,6 +1,6 @@
 # ADR-0004: Shared server-side rate limiting
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #284 (RW-026), #277 (RW-019), #280 (RW-022), #324 (RW-066)
 
@@ -26,5 +26,5 @@ Introduce a shared server-side rate-limiting module used by API routes and worke
 
 ## Follow-up work
 
-- [ ] #284: implement shared rate limiting.
-- [ ] Align AI budgets in #280 with rate-limit keys where possible.
+- [x] #284: implement shared rate limiting.
+- [x] Align AI budgets in #280 with rate-limit keys where possible.

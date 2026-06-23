@@ -24,6 +24,11 @@ listing, cache key, or analytics surface changes for them.
 | `Assignment` | A `Classroom` ↔ `Article` reading assignment with optional `dueDate`/`instructions`. |
 | `AssignmentCompletion` | A student's progress on an assignment (`status`, optional `quizScore`, `completedAt`). `@@unique([assignmentId, studentId])`. |
 
+`AssignmentStatus` values are `ASSIGNED`, `IN_PROGRESS`, and `COMPLETED` (mapped
+to `assigned`, `in_progress`, `completed` in the database). A completion row is
+created/updated for the authenticated student only; student ids are never taken
+from the request body.
+
 ### Roles — two independent axes
 
 - **Global `Role`** (`Admin` | `Reader`) lives on `session.user.role`. A global
@@ -95,6 +100,10 @@ and full progress reads.
 | `/teacher` | Teachers / org admins | Their classrooms + create-classroom (and create-org bootstrap) forms. |
 | `/teacher/classrooms/[id]` | Teacher / org admin / system admin | Class KPIs, assignments, **role-scoped** student progress, assign-article + add-student forms. |
 | `/assignments` | Students | Their assigned readings with their OWN completion status + "mark complete". |
+
+The student completion API accepts `{ status?, quizScore? }`; when omitted,
+status defaults to `COMPLETED`. Scores are clamped to 0-100 in the route/schema
+layer.
 
 All three are added to `middleware.ts` (`PROTECTED_PREFIXES` + `config.matcher`)
 and gate server-side via `requireSession` plus the membership/role checks above.

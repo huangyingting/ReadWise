@@ -1,6 +1,6 @@
 # ADR-0005: Persistent job table before external queues
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-22
 - **Related:** #271 (RW-013), #272 (RW-014), #273 (RW-015), #274 (RW-016), #324 (RW-066)
 
@@ -26,7 +26,7 @@ Add a persistent database-backed job table with explicit state, attempts, next-r
 
 ## Follow-up work
 
-- [ ] #271: add persistent job table.
-- [ ] #272: implement multi-worker locking.
-- [ ] #273: define retry and dead-letter policy.
-- [ ] #274: track article processing at step level.
+- [x] #271: add persistent job table.
+- [x] #272: implement multi-worker locking.
+- [x] #273: define retry and dead-letter policy.
+- [x] #274: track article processing at step level.

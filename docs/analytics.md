@@ -25,6 +25,12 @@ denormalized log of product-significant moments** optimized for aggregation
   foreign keys), so an event survives user/article deletion. Privacy is enforced
   by an explicit retention window + per-user purge, not by DB cascades.
 
+Learner-facing progress analytics, mastery scores, streaks, heatmaps and
+adaptive level recommendations are documented separately in
+[`learning-and-mastery.md`](./learning-and-mastery.md). Those are derived from
+user-owned domain tables and are not part of this append-only product-event
+stream.
+
 ## The `AnalyticsEvent` model
 
 | Field         | Type       | Notes                                                            |
