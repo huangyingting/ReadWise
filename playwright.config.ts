@@ -49,7 +49,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `npx prisma db push --skip-generate && npx next dev -H ${appUrl.hostname} -p ${appUrl.port || "3000"}`,
+    command: `npx prisma migrate deploy && npx next dev -H ${appUrl.hostname} -p ${appUrl.port || "3000"}`,
     url: baseURL,
     timeout: 120_000,
     reuseExistingServer: false,
