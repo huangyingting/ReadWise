@@ -11,6 +11,7 @@ import {
   aiProcessableArticleWhere,
   getAiProcessableArticleById,
 } from "@/lib/article-access";
+import { recordContentProcessingRun, recordContentProcessingStep } from "@/lib/metrics";
 
 /**
  * Placeholder user id used when generating the shared (per-article) vocabulary
@@ -131,6 +132,7 @@ export async function processArticle(
 ): Promise<ArticleProcessResult | null> {
   const before = await loadArticleState(articleId);
   if (!before) {
+    recordContentProcessingRun({ outcome: "missing" });
     return null;
   }
 
@@ -218,6 +220,11 @@ export async function processArticle(
   } else if (before.status === "published") {
     steps.push({ step: "publish", status: "skipped", detail: "already published" });
   }
+
+  for (const step of steps) {
+    recordContentProcessingStep({ step: step.step, status: step.status });
+  }
+  recordContentProcessingRun({ outcome: ok ? "success" : "failed", published });
 
   return { articleId, title: before.title, published, steps, ok };
 }
