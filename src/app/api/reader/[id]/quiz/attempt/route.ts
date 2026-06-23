@@ -5,6 +5,9 @@ import { recordQuizAttempt } from "@/lib/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { updateArticleMastery } from "@/lib/article-mastery";
+import { recordSkillEvidence } from "@/lib/skill-mastery";
+import { bestEffortMastery } from "@/lib/mastery";
 
 const bodySchema = object({
   answers: array(
@@ -64,6 +67,21 @@ export const POST = createHandler(
     } catch (err) {
       throw new ApiError(400, err instanceof Error ? err.message : "Invalid attempt data");
     }
+
+    // Best-effort mastery side-effects — never break the attempt write. A quiz
+    // is the strongest comprehension signal; it also feeds reading.
+    const score = result.attempt.scorePct / 100;
+    await Promise.all([
+      bestEffortMastery("quiz.article_mastery", () =>
+        updateArticleMastery(session.user.id, article.id),
+      ),
+      bestEffortMastery("quiz.comprehension_skill", () =>
+        recordSkillEvidence(session.user.id, "comprehension", score),
+      ),
+      bestEffortMastery("quiz.reading_skill", () =>
+        recordSkillEvidence(session.user.id, "reading", score, 0.5),
+      ),
+    ]);
 
     return NextResponse.json(result);
   },
