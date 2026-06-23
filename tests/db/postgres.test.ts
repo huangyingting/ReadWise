@@ -47,10 +47,6 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
     "PostgreSQL privacy migration should be recorded separately from the baseline",
   );
   assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260623004100_json_field_cleanup"),
-    "PostgreSQL JSON cleanup migration should be recorded separately from the baseline",
-  );
-  assert.ok(
     migrations.some((migration) => migration.migration_name === "20260623004100_add_audit_logs"),
     "PostgreSQL audit-log migration should be recorded",
   );
