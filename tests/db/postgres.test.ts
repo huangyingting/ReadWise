@@ -29,6 +29,133 @@ after(async () => {
   await prisma.$disconnect();
 });
 
+type ExplainRow = { "QUERY PLAN": unknown };
+type PlanNode = Record<string, unknown>;
+
+function asPlanNodes(value: unknown): PlanNode[] {
+  const parsed = typeof value === "string" ? JSON.parse(value) : value;
+  if (!Array.isArray(parsed)) {
+    throw new Error("EXPLAIN JSON result should be an array");
+  }
+  return parsed as PlanNode[];
+}
+
+function collectIndexNames(node: unknown, result = new Set<string>()): Set<string> {
+  if (!node || typeof node !== "object") {
+    return result;
+  }
+  const record = node as PlanNode;
+  const indexName = record["Index Name"];
+  if (typeof indexName === "string") {
+    result.add(indexName);
+  }
+  const plans = record.Plans;
+  if (Array.isArray(plans)) {
+    for (const child of plans) {
+      collectIndexNames(child, result);
+    }
+  }
+  return result;
+}
+
+function indexesFromExplainRows(rows: ExplainRow[]): Set<string> {
+  const indexes = new Set<string>();
+  for (const row of rows) {
+    for (const plan of asPlanNodes(row["QUERY PLAN"])) {
+      collectIndexNames(plan.Plan, indexes);
+    }
+  }
+  return indexes;
+}
+
+async function explainIndexNames(sql: string, ...params: unknown[]): Promise<Set<string>> {
+  return prisma.$transaction(async (tx) => {
+    await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
+    const rows = await tx.$queryRawUnsafe<ExplainRow[]>(
+      `EXPLAIN (FORMAT JSON, COSTS OFF) ${sql}`,
+      ...params,
+    );
+    return indexesFromExplainRows(rows);
+  });
+}
+
+function assertUsesIndexes(actual: Set<string>, expected: string[]): void {
+  for (const indexName of expected) {
+    assert.ok(
+      actual.has(indexName),
+      `expected plan to use ${indexName}; used indexes: ${[...actual].sort().join(", ") || "(none)"}`,
+    );
+  }
+}
+
+async function seedQueryPlanFixture(): Promise<{ userId: string }> {
+  const userId = id("plan_user");
+  await prisma.user.create({ data: { id: userId, name: "DB Plan User", role: "Reader" } });
+
+  const now = Date.now();
+  const categories = ["science", "technology", "business", "culture"];
+  const levels = ["A1", "A2", "B1", "B2", "C1", "C2"];
+  const articleRows = Array.from({ length: 720 }, (_, i) => {
+    const published = i % 9 !== 0;
+    return {
+      id: id(`plan_article_${i}`),
+      title: published && i % 17 === 0 ? `Nebula planning ${i}` : `Plan article ${i}`,
+      author: `Author ${i % 11}`,
+      source: `Source ${i % 7}`,
+      excerpt: i % 17 === 0 ? "Nebula evidence excerpt" : "Index evidence excerpt",
+      content: i % 17 === 0
+        ? "Nebula search evidence body with astronomy vocabulary."
+        : "Representative index evidence body.",
+      category: categories[i % categories.length],
+      difficulty: levels[i % levels.length],
+      difficultyScore: (i % 100) + 0.5,
+      readingMinutes: 4,
+      wordCount: 800,
+      status: published ? ArticleStatus.PUBLISHED : ArticleStatus.DRAFT,
+      visibility: ArticleVisibility.PUBLIC,
+      publishedAt: published ? new Date(now - i * 60_000) : null,
+      createdAt: new Date(now - i * 120_000),
+      updatedAt: new Date(now - i * 60_000),
+    };
+  });
+  await prisma.article.createMany({ data: articleRows });
+
+  await prisma.readingProgress.createMany({
+    data: articleRows.slice(0, 500).map((article, i) => ({
+      id: id(`plan_progress_${i}`),
+      userId,
+      articleId: article.id,
+      percent: i % 3 === 0 ? 100 : 35,
+      completed: i % 3 === 0,
+      completedAt: i % 3 === 0 ? new Date(now - i * 90_000) : null,
+      createdAt: new Date(now - i * 120_000),
+      updatedAt: new Date(now - i * 45_000),
+    })),
+  });
+
+  await prisma.savedWord.createMany({
+    data: Array.from({ length: 420 }, (_, i) => ({
+      id: id(`plan_word_${i}`),
+      userId,
+      word: `planword${i}`,
+      explanation: "A representative saved word for query-plan tests.",
+      example: "The saved word appears in a deterministic plan fixture.",
+      articleId: articleRows[i % articleRows.length].id,
+      dueAt: i % 4 === 0 ? null : new Date(now - i * 30_000),
+      createdAt: new Date(now - i * 60_000),
+      updatedAt: new Date(now - i * 30_000),
+    })),
+  });
+
+  await Promise.all([
+    prisma.$executeRawUnsafe('ANALYZE "Article"'),
+    prisma.$executeRawUnsafe('ANALYZE "ReadingProgress"'),
+    prisma.$executeRawUnsafe('ANALYZE "SavedWord"'),
+  ]);
+
+  return { userId };
+}
+
 test("PostgreSQL migrations are applied and include the article FTS index", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
@@ -50,6 +177,10 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
     migrations.some((migration) => migration.migration_name === "20260623004100_add_audit_logs"),
     "PostgreSQL audit-log migration should be recorded",
   );
+  assert.ok(
+    migrations.some((migration) => migration.migration_name === "20260623035600_query_plan_indexes"),
+    "PostgreSQL query-plan index migration should be recorded",
+  );
   assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
 
   const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
@@ -57,7 +188,14 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
     FROM pg_indexes
     WHERE schemaname = 'public'
       AND (
-        (tablename = 'Article' AND indexname = 'Article_search_vector_idx')
+        (tablename = 'Article' AND indexname IN (
+          'Article_search_vector_idx',
+          'Article_public_feed_idx',
+          'Article_public_category_feed_idx',
+          'Article_public_level_feed_idx'
+        ))
+        OR (tablename = 'SavedWord' AND indexname = 'SavedWord_user_created_idx')
+        OR (tablename = 'ReadingProgress' AND indexname = 'ReadingProgress_user_completedAt_idx')
         OR (tablename = 'AuditLog' AND indexname IN (
           'AuditLog_createdAt_idx',
           'AuditLog_actorId_createdAt_idx',
@@ -69,11 +207,16 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
   assert.deepEqual(
     indexes.map((index) => index.indexname).sort(),
     [
+      "Article_public_category_feed_idx",
+      "Article_public_feed_idx",
+      "Article_public_level_feed_idx",
       "Article_search_vector_idx",
       "AuditLog_action_createdAt_idx",
       "AuditLog_actorId_createdAt_idx",
       "AuditLog_createdAt_idx",
       "AuditLog_targetType_targetId_idx",
+      "ReadingProgress_user_completedAt_idx",
+      "SavedWord_user_created_idx",
     ],
   );
 });
@@ -347,4 +490,111 @@ test("PostgreSQL full-text article search is case-insensitive", { skip: !enabled
   const results = await searchPublishedArticles("galactic", { limit: 5 });
 
   assert.ok(results.articles.some((article) => article.id === articleId));
+});
+
+test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const { userId } = await seedQueryPlanFixture();
+
+  const feedIndexes = await explainIndexNames(
+    `SELECT "id"
+     FROM "Article"
+     WHERE "status" = 'published'::"ArticleStatus"
+       AND "visibility" = 'PUBLIC'::"ArticleVisibility"
+       AND "ownerId" IS NULL
+     ORDER BY "publishedAt" DESC, "createdAt" DESC
+     LIMIT 20`,
+  );
+  assertUsesIndexes(feedIndexes, ["Article_public_feed_idx"]);
+
+  const categoryIndexes = await explainIndexNames(
+    `SELECT "id"
+     FROM "Article"
+     WHERE "status" = 'published'::"ArticleStatus"
+       AND "visibility" = 'PUBLIC'::"ArticleVisibility"
+       AND "ownerId" IS NULL
+       AND "category" = 'science'
+     ORDER BY "publishedAt" DESC, "createdAt" DESC
+     LIMIT 20`,
+  );
+  assertUsesIndexes(categoryIndexes, ["Article_public_category_feed_idx"]);
+
+  const recommendationIndexes = await explainIndexNames(
+    `SELECT "id"
+     FROM "Article"
+     WHERE "status" = 'published'::"ArticleStatus"
+       AND "visibility" = 'PUBLIC'::"ArticleVisibility"
+       AND "ownerId" IS NULL
+       AND "difficulty" = 'B1'
+     ORDER BY "difficultyScore" ASC, "publishedAt" DESC
+     LIMIT 20`,
+  );
+  assertUsesIndexes(recommendationIndexes, ["Article_public_level_feed_idx"]);
+
+  const workerIndexes = await explainIndexNames(
+    `SELECT "id"
+     FROM "Article"
+     WHERE "status" = $1::"ArticleStatus"
+     ORDER BY "createdAt" ASC
+     LIMIT 20`,
+    "draft",
+  );
+  assertUsesIndexes(workerIndexes, ["Article_status_created_idx"]);
+
+  const progressIndexes = await explainIndexNames(
+    `SELECT "articleId", "percent", "completed"
+     FROM "ReadingProgress"
+     WHERE "userId" = $1
+       AND "completed" = false
+     ORDER BY "updatedAt" DESC
+     LIMIT 10`,
+    userId,
+  );
+  assertUsesIndexes(progressIndexes, ["ReadingProgress_user_completed_updated_idx"]);
+
+  const analyticsIndexes = await explainIndexNames(
+    `SELECT "completedAt"
+     FROM "ReadingProgress"
+     WHERE "userId" = $1
+       AND "completed" = true
+       AND "completedAt" >= $2
+     ORDER BY "completedAt" DESC
+     LIMIT 50`,
+    userId,
+    new Date(Date.now() - 12 * 7 * 86_400_000),
+  );
+  assertUsesIndexes(analyticsIndexes, ["ReadingProgress_user_completedAt_idx"]);
+
+  const savedWordsIndexes = await explainIndexNames(
+    `SELECT "id", "word"
+     FROM "SavedWord"
+     WHERE "userId" = $1
+     ORDER BY "createdAt" DESC
+     LIMIT 20`,
+    userId,
+  );
+  assertUsesIndexes(savedWordsIndexes, ["SavedWord_user_created_idx"]);
+
+  const dueWordIndexes = await explainIndexNames(
+    `SELECT "id", "word"
+     FROM "SavedWord"
+     WHERE "userId" = $1
+       AND ("dueAt" IS NULL OR "dueAt" <= $2)
+     ORDER BY "dueAt" ASC
+     LIMIT 20`,
+    userId,
+    new Date(),
+  );
+  assertUsesIndexes(dueWordIndexes, ["SavedWord_due_idx"]);
+
+  const searchIndexes = await explainIndexNames(
+    `SELECT "id"
+     FROM "Article"
+     WHERE to_tsvector('english', coalesce("title", '') || ' ' || coalesce("excerpt", '') || ' ' || coalesce("content", ''))
+       @@ plainto_tsquery('english', $1)
+     LIMIT 20`,
+    "nebula",
+  );
+  assertUsesIndexes(searchIndexes, ["Article_search_vector_idx"]);
 });
