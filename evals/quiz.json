@@ -1,0 +1,24 @@
+{
+  "feature": "quiz",
+  "description": "Quiz generation must parse to questions that each have at least two distinct options and an in-range correctIndex. Tolerant of code fences.",
+  "cases": [
+    {
+      "name": "comprehension-plain-json",
+      "input": {
+        "title": "The Return of the Wolves",
+        "source": "After decades of absence, grey wolves returned to the national park in 1995. Their presence changed the behaviour of deer, which in turn allowed young trees to grow back along the rivers."
+      },
+      "modelOutput": "[{\"question\":\"When did grey wolves return to the park?\",\"options\":[\"1985\",\"1995\",\"2005\",\"2015\"],\"correctIndex\":1},{\"question\":\"What animal changed its behaviour because of the wolves?\",\"options\":[\"Deer\",\"Bears\",\"Eagles\",\"Foxes\"],\"correctIndex\":0},{\"question\":\"What grew back along the rivers?\",\"options\":[\"Grass\",\"Young trees\",\"Reeds\",\"Moss\"],\"correctIndex\":1}]",
+      "expect": { "minItems": 2 }
+    },
+    {
+      "name": "fenced-json-four-options",
+      "input": {
+        "title": "A Brief History of Tea",
+        "source": "Tea spread from China along trade routes, becoming a daily ritual in many cultures. Different processing methods produce green, black, and oolong varieties from the same plant."
+      },
+      "modelOutput": "```json\n[{\"question\":\"Where did tea originally spread from?\",\"options\":[\"India\",\"China\",\"Japan\",\"Kenya\"],\"correctIndex\":1},{\"question\":\"What determines the tea variety?\",\"options\":[\"The soil only\",\"The processing method\",\"The cup used\",\"The water temperature only\"],\"correctIndex\":1}]\n```",
+      "expect": { "minItems": 2 }
+    }
+  ]
+}

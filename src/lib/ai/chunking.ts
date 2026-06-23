@@ -21,6 +21,7 @@
  */
 import { createHash } from "crypto";
 import { aiMaxContextTokens } from "@/lib/config";
+import { activePromptVersion, PROMPT_FEATURES } from "@/lib/ai/prompts";
 
 /** Average characters per token for the heuristic estimator (no tokenizer). */
 const CHARS_PER_TOKEN = 4;
@@ -253,24 +254,19 @@ export function hashContent(text: string): string {
 }
 
 /**
- * Per-feature prompt version. Bump when a feature's prompt changes so the
- * invocation ledger (and any content-versioned cache) can distinguish outputs
- * produced by different prompt revisions.
+ * Per-feature prompt version, derived from the versioned prompt registry
+ * (RW-020, {@link import("@/lib/ai/prompts").PROMPT_TEMPLATES}). Bump a
+ * feature's active template version there so the invocation ledger (and any
+ * content-versioned cache) can distinguish outputs produced by different prompt
+ * revisions. Kept as a map for backwards compatibility with earlier callers.
  */
-export const PROMPT_VERSIONS: Record<string, string> = {
-  translation: "translation/v1",
-  vocabulary: "vocabulary/v1",
-  quiz: "quiz/v1",
-  tags: "tags/v1",
-  difficulty: "difficulty/v1",
-  tutor: "tutor/v1",
-  grammar: "grammar/v1",
-  "sentence-translation": "sentence-translation/v1",
-};
+export const PROMPT_VERSIONS: Record<string, string> = Object.fromEntries(
+  PROMPT_FEATURES.map((feature) => [feature, activePromptVersion(feature)]),
+);
 
 /** Returns the prompt version label for a feature (or a `<feature>/v1` default). */
 export function promptVersionFor(feature: string): string {
-  return PROMPT_VERSIONS[feature] ?? `${feature}/v1`;
+  return activePromptVersion(feature);
 }
 
 /**

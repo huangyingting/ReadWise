@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { aiModelName } from "@/lib/ai";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
+import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-access";
 import {
   languageLabel,
@@ -49,33 +50,6 @@ function fallbackText(label: string): string {
   );
 }
 
-/** Builds the chat messages used to translate a single chunk of an article. */
-function translationMessages(
-  label: string,
-  title: string,
-  chunk: string,
-  isPart: boolean,
-): { role: "system" | "user"; content: string }[] {
-  const partNote = isPart
-    ? " You are translating one section of a longer article; translate it " +
-      "faithfully on its own without adding intro/outro text."
-    : "";
-  return [
-    {
-      role: "system",
-      content:
-        `You are a professional translator. Translate the user's article into ${label}. ` +
-        "Preserve paragraph breaks. Output only the translated text with no commentary, " +
-        "no notes, and no markdown fences." +
-        partNote,
-    },
-    {
-      role: "user",
-      content: `Title: ${title}\n\n${chunk}`,
-    },
-  ];
-}
-
 /**
  * Returns the cached translation for an article+language, generating and
  * caching it via the AI provider on a cache miss. Long articles are translated
@@ -99,6 +73,7 @@ export async function getOrCreateTranslation(
     articleId,
     {
       feature: "translation",
+      maxOutputTokens: promptModelParams("translation").maxOutputTokens,
       readCache: async () => {
         const cached = await prisma.translation.findUnique({
           where: { articleId_targetLang: { articleId, targetLang: lang } },
@@ -113,7 +88,12 @@ export async function getOrCreateTranslation(
         const parts: string[] = [];
         for (const chunk of chunks) {
           const completion = await callModel(
-            translationMessages(label, article.title, chunk, chunks.length > 1),
+            renderPrompt("translation", {
+              label,
+              title: article.title,
+              chunk,
+              isPart: chunks.length > 1,
+            }),
           );
           // Any chunk failing → fallback; never cache a partial translation.
           if (!completion) {

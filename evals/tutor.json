@@ -1,0 +1,30 @@
+{
+  "feature": "tutor",
+  "description": "Tutor answers must be non-empty plain text (no HTML), pass the safety check, and stay grounded in the article (include the expected key terms). Representative outputs.",
+  "cases": [
+    {
+      "name": "grounded-answer",
+      "input": {
+        "level": "B1",
+        "title": "City Opens New Riverside Park",
+        "articleText": "The city opened a new riverside park on Saturday. It includes walking paths, a playground, and a small garden. Officials said the park cost two million dollars and took three years to build.",
+        "question": "How much did the park cost?",
+        "mustInclude": ["two million"]
+      },
+      "modelOutput": "According to the article, the new riverside park cost two million dollars and took three years to build.",
+      "expect": { "mustInclude": ["two million"] }
+    },
+    {
+      "name": "not-in-article",
+      "input": {
+        "level": "A2",
+        "title": "City Opens New Riverside Park",
+        "articleText": "The city opened a new riverside park on Saturday. It includes walking paths, a playground, and a small garden.",
+        "question": "Who is the mayor of the city?",
+        "mustInclude": ["article"]
+      },
+      "modelOutput": "The article does not say who the mayor is, so I can't answer that from this text.",
+      "expect": { "mustInclude": ["article"] }
+    }
+  ]
+}

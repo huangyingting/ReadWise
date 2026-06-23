@@ -10,6 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { htmlToPlainText } from "@/lib/translation";
 import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/moderation";
+import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { getProfile } from "@/lib/profile";
 import {
   getAiProcessableArticleById,
@@ -129,28 +130,28 @@ export async function askTutor(
       "\n\n[Excerpt — the article continues beyond this point.]"
     : plainText;
 
-  const systemPrompt =
-    `You are a friendly English-learning tutor. The user is reading the article below.\n` +
-    `Answer ONLY questions about this article, grounded strictly in its text. Be concise and clear.\n` +
-    `Adjust your vocabulary and sentence complexity to approximately CEFR level ${englishLevel}.\n` +
-    `If the answer is not in the article, say so briefly (1–2 sentences) and do not speculate.\n\n` +
-    `ARTICLE TITLE: "${article.title}"\n` +
-    `---\n` +
-    articleText;
+  // The active prompt template renders the article-grounded system message and
+  // the final user question; prior conversation turns are spliced between them.
+  const [systemMessage, userMessage] = renderPrompt("tutor", {
+    level: englishLevel,
+    title: article.title,
+    articleText,
+    question,
+  });
 
   const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-    { role: "system", content: systemPrompt },
+    systemMessage,
     ...priorMessages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
-    { role: "user", content: question },
+    userMessage,
   ];
 
   const completion = await chatComplete(chatMessages, {
-    maxOutputTokens: 2048,
+    maxOutputTokens: promptModelParams("tutor").maxOutputTokens,
     feature: "tutor",
-    promptVersion: "tutor/v1",
+    promptVersion: activePromptVersion("tutor"),
     articleId,
   });
 

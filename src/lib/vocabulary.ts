@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/validation";
 import type { ArticleAccessContext } from "@/lib/article-access";
 
@@ -20,9 +21,6 @@ export type ArticleVocabularyResult = {
   items: VocabularyItemResult[];
   fallback: boolean;
 };
-
-/** How many vocabulary entries to request from the model. */
-const TARGET_WORDS = 10;
 
 /**
  * Parses the model's JSON response into vocabulary entries via the shared strict
@@ -70,6 +68,7 @@ export async function getOrCreateArticleVocabulary(
     articleId,
     {
       feature: "vocabulary",
+      maxOutputTokens: promptModelParams("vocabulary").maxOutputTokens,
       readCache: async () => {
       const entries: VocabularyEntry[] = (
         await prisma.vocabularyItem.findMany({
@@ -86,22 +85,7 @@ export async function getOrCreateArticleVocabulary(
       },
       buildMessages: (article) => {
       const source = boundedSampleForFeature(htmlToPlainText(article.content), "vocabulary");
-      return [
-        {
-          role: "system",
-          content:
-            "You are an English vocabulary tutor. From the user's article, select the " +
-            `${TARGET_WORDS} most useful, challenging vocabulary words or phrases for an ` +
-            "English learner. Respond ONLY with a JSON array. Each element must be an " +
-            'object with exactly these string keys: "word" (the term), "explanation" (a ' +
-            'concise learner-friendly definition), and "example" (one short sample ' +
-            "sentence using the word). No markdown, no commentary, JSON array only.",
-        },
-        {
-          role: "user",
-          content: `Title: ${article.title}\n\n${source}`,
-        },
-      ];
+      return renderPrompt("vocabulary", { title: article.title, source });
       },
       parse: parseVocabularyJson,
       isEmpty: (entries) => entries.length === 0,
