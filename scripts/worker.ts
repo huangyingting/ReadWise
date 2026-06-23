@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { runWorker, createConsoleLogger, type WorkerOptions } from "@/lib/worker";
+import {
+  runWorker,
+  runJobWorker,
+  createConsoleLogger,
+  type WorkerOptions,
+  type JobWorkerOptions,
+} from "@/lib/worker";
 import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";
@@ -14,6 +20,8 @@ type Args = {
   once: boolean;
   tts: boolean;
   translateLangs: string[];
+  jobs: boolean;
+  lockTtlMs: number;
   help: boolean;
 };
 
@@ -28,6 +36,8 @@ function parseArgs(argv: string[]): Args {
     once: false,
     tts: false,
     translateLangs: [],
+    jobs: false,
+    lockTtlMs: 600000,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -47,6 +57,12 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--quarantine":
         args.quarantineMs = Math.max(0, Number(argv[++i]) || 0);
+        break;
+      case "--jobs":
+        args.jobs = true;
+        break;
+      case "--lock-ttl":
+        args.lockTtlMs = Math.max(0, Number(argv[++i]) || 0);
         break;
       case "--include-published":
         args.includePublished = true;
@@ -87,6 +103,7 @@ resumes any remaining work on restart.
 Usage:
   npm run worker                 Run continuously (poll forever)
   npm run worker -- --once       Drain the queue once, then exit
+  npm run worker -- --jobs       Drain the persistent Job table instead
 
 Options:
   --interval <ms>       Idle wait between polls when empty (default 5000)
@@ -94,6 +111,9 @@ Options:
   --max-retries <n>     Retry attempts per article on failure (default 3)
   --backoff <ms>        Base delay for exponential backoff (default 1000)
   --quarantine <ms>     Cooldown before re-trying a poison article (default 300000)
+  --jobs                Drain the persistent Job table (DB-backed queue) with
+                        multi-worker locking + dead-letter/retry policy
+  --lock-ttl <ms>       Stale-lock recovery threshold for --jobs (default 600000)
   --include-published   Also enrich published articles missing content
   --once                Process the queue until empty, then stop
   --tts                 Also generate text-to-speech narration (slow)
@@ -139,6 +159,19 @@ async function main(): Promise<number> {
   };
   process.on("SIGINT", () => onSignal("SIGINT"));
   process.on("SIGTERM", () => onSignal("SIGTERM"));
+
+  if (args.jobs) {
+    const jobOpts: JobWorkerOptions = {
+      pollIntervalMs: args.intervalMs,
+      lockTtlMs: args.lockTtlMs,
+      once: args.once,
+      signal: controller.signal,
+      logger,
+      process: { tts: args.tts, translateLangs: args.translateLangs },
+    };
+    await runJobWorker(jobOpts);
+    return 0;
+  }
 
   const opts: WorkerOptions = {
     pollIntervalMs: args.intervalMs,
