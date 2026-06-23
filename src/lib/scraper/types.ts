@@ -81,4 +81,29 @@ export type Provider = {
    * Defaults to 1 (no pagination). Requires {@link paginateSeed}.
    */
   maxSeedPages?: number;
+  /**
+   * Declarative pre-extraction cleanup rules applied to raw page HTML **before**
+   * body paragraphs are extracted. Removes noise blocks (video, iframe,
+   * newsletter, social, promo, ad) without arbitrary code in the provider
+   * config, keeping provider definitions data-only.
+   *
+   * Cleanup is purely additive — `sanitizeArticleHtml` remains the final,
+   * authoritative safety pass. Omitting this field leaves behavior unchanged.
+   */
+  cleanup?: {
+    /**
+     * Plain tag names to drop together with ALL their inner content (e.g.
+     * `"video"`, `"iframe"`, `"aside"`). Selector syntax (e.g. `".ad"`) is
+     * intentionally rejected — only bare tag names are accepted so the
+     * behaviour remains predictable and well-tested.
+     */
+    dropSelectors?: string[];
+    /**
+     * Case-insensitive class/id keyword fragments. Any structural block element
+     * whose `class` or `id` attribute contains any of these strings — together
+     * with its entire inner content — is removed before body extraction.
+     * Examples: `"related"`, `"newsletter"`, `"social-share"`, `"promo"`.
+     */
+    dropClassKeywords?: string[];
+  };
 };
