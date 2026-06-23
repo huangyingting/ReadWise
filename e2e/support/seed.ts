@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { BrowserContext } from "@playwright/test";
 import { PrismaClient, type Role } from "@prisma/client";
+import { assertSafeE2eDatabaseUrl } from "./db-guard";
 
 export const TEST_ARTICLE_ID = "e2e-critical-reader";
 
@@ -18,6 +19,8 @@ const ARTICLE_BODY = `
 `;
 
 async function resetDatabase(): Promise<void> {
+  assertSafeE2eDatabaseUrl();
+
   await prisma.$transaction([
     prisma.articleDifficultyFeedback.deleteMany(),
     prisma.grammarExplanation.deleteMany(),

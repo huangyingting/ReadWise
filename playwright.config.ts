@@ -52,7 +52,7 @@ export default defineConfig({
     command: `npx prisma db push --skip-generate && npx next dev -H ${appUrl.hostname} -p ${appUrl.port || "3000"}`,
     url: baseURL,
     timeout: 120_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: false,
     env: e2eEnv,
   },
 });
