@@ -45,7 +45,7 @@ model Profile {
   ageRange        String?
   gender          String?
   englishLevel    String
-  topics          String    @default("[]")
+  topics          Json      @default("[]")
   completedAt     DateTime?
   dailyGoal       Int       @default(2)
   timezone        String?
@@ -131,7 +131,7 @@ model ArticleSpeech {
   mimeType    String
   audioBase64 String
   spokenText  String
-  words       String
+  words       Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -142,7 +142,7 @@ model QuizQuestion {
   id           String   @id @default(cuid())
   articleId    String
   question     String
-  options      String
+  options      Json
   correctIndex Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
