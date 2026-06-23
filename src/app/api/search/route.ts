@@ -49,7 +49,7 @@ function parseQuery(params: URLSearchParams) {
  * are query-dependent, visibility-scoped, and merged with per-user progress data.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
-  checkRateLimit(session.user.id, "lookup");
+  await checkRateLimit(session.user.id, "lookup");
 
   const { q, offset, limit } = query;
 

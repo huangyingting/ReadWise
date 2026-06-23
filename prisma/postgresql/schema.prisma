@@ -597,3 +597,55 @@ model Job {
   @@index([lockedBy])
   @@index([lockedAt])
 }
+
+// AI invocation ledger (RW-019). First-class operational record of every AI
+// provider call so cost, quota, quality, and feature usage can be analyzed.
+// METADATA ONLY — full prompts/responses are intentionally never stored.
+// `userId`/`articleId` are plain string identifiers (NOT FKs, like AuditLog/Job)
+// so the ledger survives user/article deletion and never cascades. `status`
+// reuses the AI outcome vocabulary from chatCompleteWithMeta/recordAiCall
+// (success | error | empty | unconfigured | aborted); `fallback` flags whether
+// the feature degraded to a non-AI path. Writes are best-effort and must never
+// break an AI feature.
+model AiInvocation {
+  id               String   @id @default(cuid())
+  feature          String
+  model            String?
+  promptVersion    String?
+  userId           String?
+  articleId        String?
+  requestId        String?
+  status           String
+  fallback         Boolean  @default(false)
+  cacheHit         Boolean  @default(false)
+  latencyMs        Int?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Float?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  @@index([feature, createdAt])
+  @@index([model])
+  @@index([status])
+  @@index([userId])
+}
+
+// Shared (DB-backed) fixed-window rate-limit counter (RW-026). Replaces the
+// process-local limiter so limits are enforced consistently across instances.
+// Each row is one (bucketKey, windowStart) bucket; an atomic upsert increments
+// `count` within the window. `expiresAt` lets a best-effort sweep prune stale
+// rows. The in-memory limiter remains a graceful fallback when the DB store is
+// unavailable. bucketKey already encodes the scope (e.g. "u1:ai").
+model RateLimitCounter {
+  bucketKey   String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([bucketKey, windowStart])
+  @@index([expiresAt])
+}

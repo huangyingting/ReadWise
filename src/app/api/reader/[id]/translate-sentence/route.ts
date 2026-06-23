@@ -17,7 +17,7 @@ export const POST = createHandler(
     const context = articleAccessContext(session.user);
     const article = await getReadableArticleById(params.id, context);
     if (!article) throw new ApiError(404, "Article not found");
-    checkRateLimit(session.user.id, "ai");
+    await checkRateLimit(session.user.id, "ai");
     if (!isSupportedLanguage(body.lang)) {
       throw new ApiError(400, "Unsupported target language");
     }

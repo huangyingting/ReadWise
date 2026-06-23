@@ -20,7 +20,7 @@ export const runtime = "nodejs";
  * are absent so the client can hide the pronunciation feature rather than 500.
  */
 export const GET = createHandler({}, async ({ session }) => {
-  checkRateLimit(session.user.id, "lookup");
+  await checkRateLimit(session.user.id, "lookup");
   if (!isSpeechConfigured()) {
     return NextResponse.json({ configured: false });
   }

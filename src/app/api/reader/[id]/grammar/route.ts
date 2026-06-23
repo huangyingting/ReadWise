@@ -15,7 +15,7 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
     if (!article) throw new ApiError(404, "Article not found");
-    checkRateLimit(session.user.id, "ai");
+    await checkRateLimit(session.user.id, "ai");
 
     const result = await explainGrammar(
       params.id,

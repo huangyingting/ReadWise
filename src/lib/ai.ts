@@ -13,12 +13,31 @@
 import { createLogger } from "@/lib/logger";
 import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
+import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
 
 const log = createLogger("ai");
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
+};
+
+/**
+ * Options for a chat completion. The ledger fields (`feature`, `userId`,
+ * `articleId`, `promptVersion`, `cacheHit`) are metadata-only and feed the AI
+ * invocation ledger (RW-019) — never any prompt/response content.
+ */
+export type ChatOptions = {
+  maxOutputTokens?: number;
+  signal?: AbortSignal;
+  /** Short label for structured logs / ledger (e.g. "translation", "quiz"). */
+  feature?: string;
+  /** Optional ledger metadata; defaults from the request context when omitted. */
+  userId?: string | null;
+  articleId?: string | null;
+  promptVersion?: string | null;
+  /** Marks the record as a cache hit. Defaults false (provider call). */
+  cacheHit?: boolean;
 };
 
 /** Token usage reported by Azure OpenAI in the response body. */
@@ -71,12 +90,29 @@ function backoffMs(attempt: number, base = 1000, max = 10_000): number {
  */
 export async function chatCompleteWithMeta(
   messages: ChatMessage[],
-  options: { maxOutputTokens?: number; signal?: AbortSignal; feature?: string } = {},
+  options: ChatOptions = {},
 ): Promise<AiResult | null> {
   const config = readAzureConfig();
   const feature = options.feature ?? "unknown";
+
+  // Best-effort ledger writer shared by every outcome path (RW-019). Never
+  // throws; metadata-only. `model` defaults to the configured deployment.
+  const logLedger = (status: AiInvocationStatus, extra: Partial<AiInvocationInput> = {}) =>
+    recordAiInvocation({
+      feature,
+      model: config?.deployment ?? null,
+      userId: options.userId ?? null,
+      articleId: options.articleId ?? null,
+      promptVersion: options.promptVersion ?? null,
+      cacheHit: options.cacheHit ?? false,
+      status,
+      fallback: status !== "success",
+      ...extra,
+    });
+
   if (!config) {
     recordAiCall({ feature, outcome: "unconfigured" });
+    await logLedger("unconfigured");
     return null;
   }
 
@@ -126,6 +162,7 @@ export async function chatCompleteWithMeta(
         }
         recordAiCall({ feature, outcome: "error", status, durationMs });
         log.warn("ai.error", { feature, model: config.deployment, status, durationMs, attempt });
+        await logLedger("error", { latencyMs: durationMs, errorMessage: `HTTP ${status}` });
         return null;
       }
 
@@ -147,6 +184,12 @@ export async function chatCompleteWithMeta(
           finishReason,
           contentType: typeof content,
           contentLength: typeof content === "string" ? content.length : null,
+        });
+        await logLedger("empty", {
+          latencyMs: durationMs,
+          promptTokens: data.usage?.prompt_tokens,
+          completionTokens: data.usage?.completion_tokens,
+          totalTokens: data.usage?.total_tokens,
         });
         return null;
       }
@@ -179,6 +222,13 @@ export async function chatCompleteWithMeta(
         completionTokens: usage?.completionTokens,
         totalTokens: usage?.totalTokens,
       });
+      await logLedger("success", {
+        model: data.model ?? config.deployment,
+        latencyMs: durationMs,
+        promptTokens: usage?.promptTokens,
+        completionTokens: usage?.completionTokens,
+        totalTokens: usage?.totalTokens,
+      });
       return { text: content.trim(), usage, model: data.model ?? config.deployment, durationMs };
     } catch (err) {
       const durationMs = Date.now() - start;
@@ -189,6 +239,7 @@ export async function chatCompleteWithMeta(
       if (isAbort && options.signal?.aborted) {
         recordAiCall({ feature, outcome: "aborted", durationMs });
         log.warn("ai.aborted", { feature, model: config.deployment, durationMs });
+        await logLedger("aborted", { latencyMs: durationMs });
         return null;
       }
 
@@ -219,6 +270,10 @@ export async function chatCompleteWithMeta(
         attempt,
         reason: isTimeout ? "timeout" : String(err),
       });
+      await logLedger("error", {
+        latencyMs: durationMs,
+        errorMessage: isTimeout ? "timeout" : "network error",
+      });
       return null;
     }
   }
@@ -236,7 +291,7 @@ export async function chatCompleteWithMeta(
  */
 export async function chatComplete(
   messages: ChatMessage[],
-  options: { maxOutputTokens?: number; signal?: AbortSignal; feature?: string } = {},
+  options: ChatOptions = {},
 ): Promise<string | null> {
   const result = await chatCompleteWithMeta(messages, options);
   return result?.text ?? null;

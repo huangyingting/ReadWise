@@ -51,7 +51,7 @@ export const POST = createHandler(
       }
     }
 
-    checkRateLimit(userId, "lookup");
+    await checkRateLimit(userId, "lookup");
 
     await prisma.pushSubscription.upsert({
       where: { endpoint },

@@ -29,7 +29,7 @@ const bodySchema = object({
  * Returns the saved attempt and the user's all-time best pronScore.
  */
 export const POST = createHandler({ body: bodySchema }, async ({ session, body }) => {
-  checkRateLimit(session.user.id, "ai");
+  await checkRateLimit(session.user.id, "ai");
 
   // Validate articleId existence when provided.
   if (body.articleId) {

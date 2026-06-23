@@ -31,7 +31,7 @@ import { publicListableArticleWhere } from "@/lib/article-access";
 export const GET = createHandler({}, async ({ session }) => {
   const userId = session.user.id;
 
-  checkRateLimit(userId, "lookup");
+  await checkRateLimit(userId, "lookup");
 
   const profile = await getProfile(userId);
   if (!profile) {
