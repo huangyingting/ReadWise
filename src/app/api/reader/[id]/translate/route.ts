@@ -12,7 +12,7 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     const context = articleAccessContext(session.user);
     await requireViewable(params.id, context);
-    checkRateLimit(session.user.id, "ai");
+    await checkRateLimit(session.user.id, "ai");
     if (!isSupportedLanguage(body.lang)) {
       throw new ApiError(400, "Unsupported target language");
     }

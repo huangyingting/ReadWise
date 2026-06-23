@@ -7,7 +7,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 const bodySchema = object({ word: nonEmptyString(200) });
 
 export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
-  checkRateLimit(session.user.id, "lookup");
+  await checkRateLimit(session.user.id, "lookup");
   const result = await lookupWord(body.word);
   return NextResponse.json(result);
 });
