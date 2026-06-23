@@ -10,6 +10,22 @@ import AdminArticleActions from "@/components/AdminArticleActions";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 
+/** Maps a processing-step status to a Badge variant. */
+function stepStatusVariant(
+  status: string,
+): "success" | "neutral" | "warning" | "danger" {
+  if (status === "generated") return "success";
+  if (status === "fallback") return "warning";
+  if (status === "failed") return "danger";
+  if (status === "running") return "warning";
+  return "neutral";
+}
+
+function formatStepTime(value: Date | null): string {
+  if (!value) return "—";
+  return new Date(value).toLocaleString();
+}
+
 export default async function AdminArticleDetailPage({
   params,
 }: {
@@ -23,7 +39,7 @@ export default async function AdminArticleDetailPage({
     notFound();
   }
 
-  const { article, counts, difficultyFeedback } = detail;
+  const { article, counts, difficultyFeedback, processingSteps } = detail;
   const minutes = readingMinutesFor(article);
   const aiItems: { label: string; value: number }[] = [
     { label: "Translations", value: counts.translations },
@@ -86,6 +102,61 @@ export default async function AdminArticleDetailPage({
             ))}
           </div>
           <AdminArticleActions articleId={article.id} redirectOnDelete="/admin/articles" />
+        </div>
+      </Card>
+
+      <Card>
+        <div className="stack">
+          <CardTitle level="h3">Processing state</CardTitle>
+          <p className="muted" style={{ margin: 0 }}>
+            Step-level enrichment timeline. Failed steps show the last error so
+            you can see exactly why an article is not fully enriched.
+          </p>
+          {processingSteps.length === 0 ? (
+            <p className="muted" style={{ margin: 0 }}>
+              No processing steps recorded yet. They are written the next time
+              this article is processed.
+            </p>
+          ) : (
+            <div
+              className="admin-table-wrap"
+              tabIndex={0}
+              aria-label="Processing steps table (scrollable)"
+            >
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>Step</th>
+                    <th>Status</th>
+                    <th>Attempts</th>
+                    <th>Model</th>
+                    <th>Started</th>
+                    <th>Completed</th>
+                    <th>Last error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {processingSteps.map((step) => (
+                    <tr key={step.id}>
+                      <td className="font-medium">{step.step}</td>
+                      <td>
+                        <Badge variant={stepStatusVariant(step.status)}>
+                          {step.status}
+                        </Badge>
+                      </td>
+                      <td>{step.attempts}</td>
+                      <td className="muted">{step.modelName ?? "—"}</td>
+                      <td className="muted">{formatStepTime(step.startedAt)}</td>
+                      <td className="muted">{formatStepTime(step.completedAt)}</td>
+                      <td className="text-danger-text text-[length:var(--text-sm)]">
+                        {step.lastError ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </Card>
 

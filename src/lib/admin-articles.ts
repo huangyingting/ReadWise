@@ -3,6 +3,10 @@ import { ArticleStatus, type Article } from "@prisma/client";
 import { readingMinutesFor } from "@/lib/articles";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 import {
+  getArticleProcessingSteps,
+  type StepRow,
+} from "@/lib/processing-state";
+import {
   SYSTEM_ARTICLE_CONTEXT,
   adminVisibleArticleWhere,
   getAdminVisibleArticleById,
@@ -130,12 +134,14 @@ export type AdminArticleDetail = {
   article: Article;
   counts: AdminArticleAiCounts;
   difficultyFeedback: DifficultyFeedbackCounts;
+  processingSteps: StepRow[];
 };
 
 /**
  * Loads a single article with the counts of its derived AI content, reader
- * progress, and difficulty feedback distribution for the admin inspection view.
- * Returns `null` for unknown ids.
+ * progress, difficulty feedback distribution, and the durable step-level
+ * processing state (RW-016) for the admin inspection view. Returns `null` for
+ * unknown ids.
  */
 export async function getAdminArticleDetail(
   id: string,
@@ -146,19 +152,28 @@ export async function getAdminArticleDetail(
     return null;
   }
 
-  const [translations, vocabulary, quizQuestions, tags, speech, readingProgress, feedbackRows] =
-    await Promise.all([
-      prisma.translation.count({ where: { articleId: id } }),
-      prisma.vocabularyItem.count({ where: { articleId: id } }),
-      prisma.quizQuestion.count({ where: { articleId: id } }),
-      prisma.articleTag.count({ where: { articleId: id } }),
-      prisma.articleSpeech.count({ where: { articleId: id } }),
-      prisma.readingProgress.count({ where: { articleId: id } }),
-      prisma.articleDifficultyFeedback.findMany({
-        where: { articleId: id },
-        select: { vote: true },
-      }),
-    ]);
+  const [
+    translations,
+    vocabulary,
+    quizQuestions,
+    tags,
+    speech,
+    readingProgress,
+    feedbackRows,
+    processingSteps,
+  ] = await Promise.all([
+    prisma.translation.count({ where: { articleId: id } }),
+    prisma.vocabularyItem.count({ where: { articleId: id } }),
+    prisma.quizQuestion.count({ where: { articleId: id } }),
+    prisma.articleTag.count({ where: { articleId: id } }),
+    prisma.articleSpeech.count({ where: { articleId: id } }),
+    prisma.readingProgress.count({ where: { articleId: id } }),
+    prisma.articleDifficultyFeedback.findMany({
+      where: { articleId: id },
+      select: { vote: true },
+    }),
+    getArticleProcessingSteps(id),
+  ]);
 
   const difficultyFeedback: DifficultyFeedbackCounts = {
     tooEasy: 0,
@@ -176,6 +191,7 @@ export async function getAdminArticleDetail(
     article,
     counts: { translations, vocabulary, quizQuestions, tags, speech, readingProgress },
     difficultyFeedback,
+    processingSteps,
   };
 }
 
@@ -239,6 +255,13 @@ export async function rebuildArticleAi(
         tx.articleTag.deleteMany({ where: { articleId: id } }),
         tx.articleSpeech.deleteMany({ where: { articleId: id } }),
       ]);
+
+    // Reset the durable step state for the cleared features (RW-016) so the
+    // admin timeline reflects the post-rebuild reality. Difficulty is NOT
+    // cleared by a rebuild, so its step row is preserved.
+    await tx.articleProcessingStep.deleteMany({
+      where: { articleId: id, step: { not: "difficulty" } },
+    });
 
     const result = {
       cleared: {
