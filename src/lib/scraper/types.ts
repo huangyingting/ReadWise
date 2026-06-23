@@ -17,6 +17,27 @@ export type ScrapedArticle = {
   readingMinutes: number;
 };
 
+/**
+ * Injectable HTTP client passed to {@link Provider.urlExtractor}. Supports GET
+ * (default) and POST so RSS, REST-JSON and GraphQL extractors share one type.
+ * In tests, inject a stub that returns fixture data — no real network needed.
+ */
+export type ExtractorFetch = (
+  url: string,
+  init?: { method?: string; headers?: Record<string, string>; body?: string },
+) => Promise<string>;
+
+/**
+ * Context passed to a provider's optional
+ * {@link Provider.urlExtractor} hook.
+ */
+export type UrlExtractorContext = {
+  /** Total URL count requested — extractor may return more; caller enforces. */
+  limit: number;
+  /** SSRF-safe HTTP client. Injected in tests for zero-network execution. */
+  fetch: ExtractorFetch;
+};
+
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
   /** Short CLI key, e.g. "nbc". */
@@ -38,4 +59,26 @@ export type Provider = {
    * any section string found in metadata; returns one of our category slugs.
    */
   categoryFor?: (url: URL, section: string | null) => string | null;
+  /**
+   * Optional URL-discovery hook. When defined, `discoverProviderUrls` calls
+   * this extractor **instead of** the seed-HTML crawler. The extractor receives
+   * an injectable fetch so tests never touch a real network.
+   *
+   * Extractor results are still validated against `articleUrlPattern`,
+   * `articleUrlFilter`, robots rules, and the provider's hostname before use.
+   */
+  urlExtractor?: (ctx: UrlExtractorContext) => Promise<string[]>;
+  /**
+   * Optional paginated seed-URL builder for HTML-discovery providers. Called
+   * with `(seed, pageNum)` where `pageNum` starts at **2** (page 1 is the
+   * plain seed URL). Return `null` when the seed has no further pages.
+   *
+   * Requires {@link maxSeedPages} > 1 to take effect.
+   */
+  paginateSeed?: (seed: string, page: number) => string | null;
+  /**
+   * Maximum pages to crawl per seed during HTML-based discovery.
+   * Defaults to 1 (no pagination). Requires {@link paginateSeed}.
+   */
+  maxSeedPages?: number;
 };
