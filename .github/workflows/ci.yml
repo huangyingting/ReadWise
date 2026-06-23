@@ -5,23 +5,116 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Nightly full run (fast checks + unit + build + db + E2E) for release-readiness.
+  schedule:
+    - cron: "0 6 * * *"
+  # Allow on-demand runs (e.g. to trigger the tiered E2E job from the UI).
+  workflow_dispatch:
+
+# Cancel superseded PR runs to save minutes; never cancel main/schedule runs so
+# post-merge and nightly signal is always recorded.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Tiers (see docs/ci.md):
+#   fast-checks     — typecheck + lint        (every PR, fails fast)
+#   unit-tests      — npm test                (every PR)
+#   build           — npm run build           (every PR)
+#   db-integration  — PostgreSQL migrate/test (every PR)
+#   e2e-smoke       — Playwright smoke        (push to main + nightly + manual; NOT on PRs)
+#   ci-summary      — writes a pass/fail digest to the run summary
+#
+# Required per-PR gates: fast-checks, unit-tests, build, db-integration.
+# E2E is intentionally tiered off PRs so a slower/flakier browser run can never
+# block a merge — it still runs post-merge, nightly, and on demand.
 
 jobs:
-  ci:
-    name: Typecheck / Lint / Test / Build
+  # ---------------------------------------------------------------------------
+  # Tier 1 — Fast checks: typecheck + lint. Cheapest gate, runs first so trivial
+  # type/lint mistakes surface in ~1 minute without waiting on a build.
+  # ---------------------------------------------------------------------------
+  fast-checks:
+    name: Fast checks (typecheck + lint)
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: file:./ci.db
+      NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
+      NEXTAUTH_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+  # ---------------------------------------------------------------------------
+  # Tier 2 — Unit tests: the Node built-in test runner. These are DB-free (they
+  # mock @/lib/prisma) so no migration step is needed; only the generated client.
+  # ---------------------------------------------------------------------------
+  unit-tests:
+    name: Unit tests
+    runs-on: ubuntu-latest
+
+    env:
+      DATABASE_URL: file:./ci.db
+      NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
+      NEXTAUTH_URL: http://localhost:3000
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Unit tests
+        run: npm test
+
+  # ---------------------------------------------------------------------------
+  # Tier 3 — Build: the production Next.js build. Runs the SQLite migrations so
+  # any statically-generated route that reads the database has a real schema.
+  # ---------------------------------------------------------------------------
+  build:
+    name: Build
     runs-on: ubuntu-latest
 
     env:
       # -----------------------------------------------------------------------
       # Minimal environment required so Next.js build and Prisma succeed.
       # Real secrets are never stored here — use repository secrets for prod.
+      # Azure / OAuth provider vars are intentionally absent: features degrade
+      # gracefully when unconfigured (isAiConfigured / isSpeechConfigured).
       # -----------------------------------------------------------------------
       DATABASE_URL: file:./ci.db
       NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
       NEXTAUTH_URL: http://localhost:3000
-      # NODE_ENV is set automatically by the build step
-      # Azure / OAuth provider vars are intentionally absent: features degrade
-      # gracefully when unconfigured (isAiConfigured / isSpeechConfigured).
 
     steps:
       - name: Checkout
@@ -42,25 +135,36 @@ jobs:
       - name: Apply database migrations
         run: npx prisma migrate deploy
 
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Test
-        run: npm test
-
-      # Build is the primary gating step: it runs last so typecheck/lint/test
-      # failures are visible before a potentially slow build is aborted.
-      # Ensure no stale .next/ from a previous run (e.g. a cached workspace)
-      # can race with the new build and cause PageNotFoundError (#83).
+      # Ensure no stale .next/ from a previous run (e.g. a cached workspace) can
+      # race with the new build and cause PageNotFoundError (#83). The dev server
+      # and a production build share .next/, so always start the build clean.
       - name: Clean build cache
         run: rm -rf .next
 
       - name: Build
         run: npm run build
 
+      - name: Build failure diagnosis
+        if: failure()
+        run: |
+          {
+            echo "### ❌ Build failed"
+            echo ""
+            echo "Common causes:"
+            echo "- Stale \`.next/\` cache racing with the build (#83). This job runs \`rm -rf .next\` first; reproduce locally the same way."
+            echo "- Type or import errors that only surface during \`next build\`."
+            echo ""
+            echo "Reproduce locally:"
+            echo '```bash'
+            echo "export DATABASE_URL=file:./ci.db NEXTAUTH_SECRET=dev NEXTAUTH_URL=http://localhost:3000"
+            echo "npm ci && npx prisma generate && npx prisma migrate deploy"
+            echo "rm -rf .next && npm run build"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # Tier 4 — Database integration: real PostgreSQL migrate + integration tests.
+  # ---------------------------------------------------------------------------
   db-integration:
     name: PostgreSQL Migrate / Integration
     runs-on: ubuntu-latest
@@ -110,3 +214,119 @@ jobs:
 
       - name: Run PostgreSQL integration tests
         run: npm run test:db
+
+  # ---------------------------------------------------------------------------
+  # Tier 5 — E2E smoke (Playwright). Slower/flakier, so it is TIERED: it runs on
+  # pushes to main, the nightly schedule, and manual dispatch — never on pull
+  # requests. That keeps PR feedback fast and means a browser run can never block
+  # a merge, while still giving post-merge and nightly confidence.
+  # ---------------------------------------------------------------------------
+  e2e-smoke:
+    name: E2E smoke (Playwright)
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name != 'pull_request' }}
+
+    env:
+      DATABASE_URL: file:./e2e.db
+      NEXTAUTH_SECRET: readwise-playwright-smoke-secret
+      NEXTAUTH_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3100
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # Cache the downloaded browser binaries keyed on the Playwright version so
+      # we only re-download Chromium when the dependency changes.
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      # Always run install: on a cache hit this is fast (binaries present) and
+      # still installs the OS-level libraries Chromium needs (--with-deps).
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run E2E smoke tests
+        run: npm run test:e2e:smoke
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Digest — writes a concise pass/fail checklist of the required PR gates to the
+  # run summary. Informational only (always exits 0); the individual jobs above
+  # remain the gating checks.
+  # ---------------------------------------------------------------------------
+  ci-summary:
+    name: CI summary
+    runs-on: ubuntu-latest
+    needs: [fast-checks, unit-tests, build, db-integration]
+    if: ${{ always() }}
+
+    steps:
+      - name: Write gate summary
+        env:
+          FAST_CHECKS: ${{ needs.fast-checks.result }}
+          UNIT_TESTS: ${{ needs.unit-tests.result }}
+          BUILD: ${{ needs.build.result }}
+          DB_INTEGRATION: ${{ needs.db-integration.result }}
+        run: |
+          icon() {
+            case "$1" in
+              success) echo "✅" ;;
+              failure) echo "❌" ;;
+              cancelled) echo "🚫" ;;
+              skipped) echo "⏭️" ;;
+              *) echo "❔" ;;
+            esac
+          }
+          {
+            echo "## CI quality gates"
+            echo ""
+            echo "Event: \`${{ github.event_name }}\` · Ref: \`${{ github.ref_name }}\`"
+            echo ""
+            echo "| Gate | Result |"
+            echo "| --- | --- |"
+            echo "| Fast checks (typecheck + lint) | $(icon "$FAST_CHECKS") $FAST_CHECKS |"
+            echo "| Unit tests | $(icon "$UNIT_TESTS") $UNIT_TESTS |"
+            echo "| Build | $(icon "$BUILD") $BUILD |"
+            echo "| PostgreSQL migrate / integration | $(icon "$DB_INTEGRATION") $DB_INTEGRATION |"
+            echo ""
+            if [ "$FAST_CHECKS" = "success" ] && [ "$UNIT_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$DB_INTEGRATION" = "success" ]; then
+              echo "All required gates passed. ✅"
+            else
+              echo "One or more required gates did not pass — see the table above and the failing job's logs."
+            fi
+            echo ""
+            echo "_E2E smoke is tiered (push to main + nightly + manual) and does not run on PRs._"
+          } >> "$GITHUB_STEP_SUMMARY"
