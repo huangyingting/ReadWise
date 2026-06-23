@@ -645,6 +645,19 @@ export async function cancelJob(
   });
 }
 
+/**
+ * Permanently removes a job row (admin action). Only safe on TERMINAL jobs
+ * (COMPLETED / DEAD_LETTER) — archiving an in-flight or pending job would let
+ * the worker keep running it without a record, so callers must guard against
+ * that. Returns the deleted job, or null when the job does not exist.
+ */
+export async function archiveJob(jobId: string): Promise<Job | null> {
+  const job = await prisma.job.findUnique({ where: { id: jobId } });
+  if (!job) return null;
+  await prisma.job.delete({ where: { id: jobId } });
+  return job;
+}
+
 export type ListJobsFilter = {
   status?: JobStatus | JobStatus[];
   type?: JobType | JobType[];
@@ -678,6 +691,16 @@ export async function countJobsByStatus(): Promise<Record<string, number>> {
   const out: Record<string, number> = {};
   for (const g of groups) {
     out[g.status] = g._count._all;
+  }
+  return out;
+}
+
+/** Returns a `{ type: count }` map for dashboards/monitoring. */
+export async function countJobsByType(): Promise<Record<string, number>> {
+  const groups = await prisma.job.groupBy({ by: ["type"], _count: { _all: true } });
+  const out: Record<string, number> = {};
+  for (const g of groups) {
+    out[g.type] = g._count._all;
   }
   return out;
 }

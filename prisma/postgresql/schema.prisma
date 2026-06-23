@@ -146,6 +146,7 @@ model Article {
   pronunciationAttempts     PronunciationAttempt[]
   difficultyFeedback        ArticleDifficultyFeedback[]
   grammarExplanations       GrammarExplanation[]
+  processingSteps           ArticleProcessingStep[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
@@ -596,6 +597,35 @@ model Job {
   @@index([type, status])
   @@index([lockedBy])
   @@index([lockedAt])
+}
+
+// Step-level article processing state (RW-016). A durable, per-article
+// per-step timeline of the enrichment pipeline so admins can answer "why is
+// this article not fully enriched?". One row per (articleId, step); `step`
+// is a feature label (difficulty|tags|vocabulary|quiz|speech|grammar) or a
+// language-scoped translation key ("translation:es"). METADATA ONLY — model
+// name / prompt version / a short error message are stored, never prompt
+// content. Cascades with the article (unlike the Job/ledger string refs, this
+// IS a real FK so step state is cleaned up with its article).
+model ArticleProcessingStep {
+  id            String    @id @default(cuid())
+  articleId     String
+  step          String
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  modelName     String?
+  promptVersion String?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, step])
+  @@index([articleId])
+  @@index([status])
 }
 
 // AI invocation ledger (RW-019). First-class operational record of every AI
