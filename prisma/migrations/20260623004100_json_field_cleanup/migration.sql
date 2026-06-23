@@ -36,6 +36,10 @@ WHERE EXISTS (
   SELECT 1
   FROM json_each(s."words") AS w
   WHERE w."type" <> 'object'
+     OR json_type(w."value", '$.textOffset') IS NULL
+     OR json_type(w."value", '$.length') IS NULL
+     OR json_type(w."value", '$.start') IS NULL
+     OR json_type(w."value", '$.end') IS NULL
      OR json_type(w."value", '$.textOffset') NOT IN ('integer', 'real')
      OR json_type(w."value", '$.length') NOT IN ('integer', 'real')
      OR json_type(w."value", '$.start') NOT IN ('integer', 'real')
@@ -58,7 +62,7 @@ CREATE TABLE "new_Profile" (
     "ageRange" TEXT,
     "gender" TEXT,
     "englishLevel" TEXT NOT NULL,
-    "topics" JSONB NOT NULL DEFAULT [],
+    "topics" JSONB NOT NULL DEFAULT '[]',
     "completedAt" DATETIME,
     "dailyGoal" INTEGER NOT NULL DEFAULT 2,
     "timezone" TEXT,
