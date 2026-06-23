@@ -2,9 +2,10 @@ import { requireSession } from "@/lib/session";
 import {
   BROWSE_PAGE_SIZE,
   listCategoryPage,
-  listPicksPage,
   toListingArticle,
+  type ListingArticle,
 } from "@/lib/articles";
+import { listScoredPicksPage } from "@/lib/recommendations";
 import { getProgressSummaries } from "@/lib/progress";
 import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
@@ -35,22 +36,31 @@ export default async function BrowsePage({
       ? (levelParam as (typeof ENGLISH_LEVELS)[number])
       : null;
 
-  let page;
+  let listingArticles: ListingArticle[];
+  let hasMore: boolean;
   if (isPicks) {
     const profile = await getProfile(session.user.id);
     // URL level overrides profile level when specified.
     const profileLevel = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
     const maxLevel = urlLevel ?? profileLevel;
     const topics = parseTopics(profile?.topics);
-    page = await listPicksPage(maxLevel, topics, { limit: BROWSE_PAGE_SIZE });
+    const picks = await listScoredPicksPage(session.user.id, {
+      maxLevel,
+      topics,
+      limit: BROWSE_PAGE_SIZE,
+    });
+    listingArticles = picks.articles;
+    hasMore = picks.hasMore;
   } else {
-    page = await listCategoryPage(activeCategory, {
+    const page = await listCategoryPage(activeCategory, {
       limit: BROWSE_PAGE_SIZE,
       maxLevel: urlLevel,
     });
+    listingArticles = page.articles.map(toListingArticle);
+    hasMore = page.hasMore;
   }
 
-  const articleIds = page.articles.map((a) => a.id);
+  const articleIds = listingArticles.map((a) => a.id);
   const [progress, bookmarkedIds] = await Promise.all([
     getProgressSummaries(session.user.id, articleIds),
     getBookmarkedArticleIds(session.user.id, articleIds),
@@ -76,10 +86,10 @@ export default async function BrowsePage({
       <CategoryBrowser
         key={`${activeView}:${urlLevel ?? ""}`}
         activeView={activeView}
-        initialArticles={page.articles.map(toListingArticle)}
+        initialArticles={listingArticles}
         initialProgress={progress}
-        initialHasMore={page.hasMore}
-        initialOffset={page.articles.length}
+        initialHasMore={hasMore}
+        initialOffset={listingArticles.length}
         heading={heading}
         initialSavedIds={[...bookmarkedIds]}
         initialLevel={urlLevel}
