@@ -52,16 +52,27 @@ npm run dev
 ### Production-parity PostgreSQL workflow
 
 SQLite remains the default so existing local workflows keep working. For
-PostgreSQL parity, start the local stack and generate/apply the PostgreSQL
-schema explicitly:
+PostgreSQL parity, use the deterministic helper. It starts the loopback-only
+PostgreSQL/Redis compose stack, generates the PostgreSQL Prisma client, deploys
+migrations, and seeds local-only data (no scraping, AI calls, or secrets):
 
 ```bash
-docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
-export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
-npm run prisma:generate:pg
-npm run prisma:migrate:pg
+npm run local:pg:setup
 npm run dev
+```
+
+Seeded browser sessions are available for OAuth-free local testing:
+
+```js
+document.cookie = "next-auth.session-token=readwise-local-admin-session; path=/; max-age=2592000; SameSite=Lax";
+location.href = "/admin";
+```
+
+Use `readwise-local-reader-session` instead for reader flows. To rebuild the
+PostgreSQL/Redis state from scratch, run the guarded reset:
+
+```bash
+npm run local:pg:reset -- --yes
 ```
 
 See `docs/database.md` for reset, migration-test, Docker image, and SQLite data
@@ -194,6 +205,9 @@ npm run process -- --all                         # Enrich all draft articles wit
 npm run worker -- --once                         # Process queue then exit (cron-safe)
 npm run worker                                   # Long-running background processor
 npm run seed -- --provider nbcnews --limit 3     # Scrape + process in one command
+npm run local:seed:dry-run                       # Validate deterministic local seed plan (DB-free)
+npm run local:pg:setup                           # Start/migrate/seed local PostgreSQL + Redis
+npm run local:pg:reset -- --yes                  # Destructively reset only the local compose stack
 ```
 
 ### Content pipeline detail
