@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { slugifyTag } from "@/lib/tags";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 import { publicListableArticleWhere } from "@/lib/article-access";
 import { TagScope } from "@prisma/client";
 
@@ -104,8 +105,15 @@ export async function listAdminTags(
 }
 
 export type DeleteTagResult =
-  | { ok: true }
+  | { ok: true; articleCount: number }
   | { ok: false; error: string; status: number };
+type DeleteTagSuccess = Extract<DeleteTagResult, { ok: true }>;
+
+export type RenameTagResult =
+  | { ok: true; changed: boolean }
+  | { ok: false; error: string; status: number };
+type RenameTagSuccess = Extract<RenameTagResult, { ok: true }>;
+type AuditFactory<T> = (result: T) => AuditRequestInput;
 
 /**
  * Renames a tag, recomputing its slug via {@link slugifyTag}. If the new slug
@@ -115,13 +123,14 @@ export type DeleteTagResult =
 export async function renameTag(
   id: string,
   newName: string,
-): Promise<DeleteTagResult> {
+  audit?: AuditFactory<RenameTagSuccess>,
+): Promise<RenameTagResult> {
   const trimmed = newName.trim();
   if (!trimmed) return { ok: false, error: "Name is required", status: 400 };
 
   const tag = await prisma.tag.findFirst({
     where: { id, scope: TagScope.PUBLIC },
-    select: { id: true, namespace: true, scope: true },
+    select: { id: true, slug: true, namespace: true, scope: true },
   });
   if (!tag) return { ok: false, error: "Not found", status: 404 };
 
@@ -138,13 +147,21 @@ export async function renameTag(
     };
   }
 
-  await prisma.tag.update({ where: { id }, data: { name: trimmed, slug: newSlug } });
-  return { ok: true };
+  return prisma.$transaction(async (tx) => {
+    const changed = tag.slug !== newSlug;
+    await tx.tag.update({ where: { id }, data: { name: trimmed, slug: newSlug } });
+    const result = { ok: true, changed } as const;
+    if (audit) {
+      await recordAuditFromRequest(audit(result), tx);
+    }
+    return result;
+  });
 }
 
 export type MergeTagsResult =
   | { ok: true; moved: number }
   | { ok: false; error: string; status: number };
+type MergeTagsSuccess = Extract<MergeTagsResult, { ok: true }>;
 
 /**
  * Merges `sourceId` into `targetId`. All `ArticleTag` links on the source that
@@ -155,6 +172,7 @@ export type MergeTagsResult =
 export async function mergeTags(
   sourceId: string,
   targetId: string,
+  audit?: AuditFactory<MergeTagsSuccess>,
 ): Promise<MergeTagsResult> {
   if (sourceId === targetId) {
     return { ok: false, error: "Cannot merge a tag into itself", status: 400 };
@@ -197,6 +215,10 @@ export async function mergeTags(
     // Delete source — cascades its remaining ArticleTag rows
     await tx.tag.delete({ where: { id: sourceId } });
 
+    if (audit) {
+      await recordAuditFromRequest(audit({ ok: true, moved: toCreate.length }), tx);
+    }
+
     return toCreate.length;
   });
 
@@ -210,15 +232,24 @@ export async function mergeTags(
  * articles simply lose the tag (their content is untouched). Returns a
  * structured error when the tag does not exist.
  */
-export async function deleteTag(id: string): Promise<DeleteTagResult> {
-  const tag = await prisma.tag.findUnique({
-    where: { id },
-    select: { id: true, scope: true },
+export async function deleteTag(
+  id: string,
+  audit?: AuditFactory<DeleteTagSuccess>,
+): Promise<DeleteTagResult> {
+  const tag = await prisma.tag.findFirst({
+    where: { id, scope: TagScope.PUBLIC },
+    select: { id: true, _count: { select: { articles: true } } },
   });
-  if (!tag || tag.scope !== TagScope.PUBLIC) {
+  if (!tag) {
     return { ok: false, error: "Not found", status: 404 };
   }
 
-  await prisma.tag.delete({ where: { id } });
-  return { ok: true };
+  return prisma.$transaction(async (tx) => {
+    await tx.tag.delete({ where: { id } });
+    const result = { ok: true, articleCount: tag._count.articles } as const;
+    if (audit) {
+      await recordAuditFromRequest(audit(result), tx);
+    }
+    return result;
+  });
 }

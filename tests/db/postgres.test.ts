@@ -14,6 +14,7 @@ function id(label: string): string {
 }
 
 async function cleanIntegrationRows(): Promise<void> {
+  await prisma.auditLog.deleteMany({ where: { actorId: { startsWith: PREFIX } } });
   await prisma.savedWord.deleteMany({ where: { userId: { startsWith: PREFIX } } });
   await prisma.article.deleteMany({ where: { id: { startsWith: PREFIX } } });
   await prisma.tag.deleteMany({ where: { id: { startsWith: PREFIX } } });
@@ -45,16 +46,61 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
     migrations.some((migration) => migration.migration_name === "20260623004106_privacy_article_model"),
     "PostgreSQL privacy migration should be recorded separately from the baseline",
   );
+  assert.ok(
+    migrations.some((migration) => migration.migration_name === "20260623004100_add_audit_logs"),
+    "PostgreSQL audit-log migration should be recorded",
+  );
   assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
 
   const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
     SELECT indexname
     FROM pg_indexes
     WHERE schemaname = 'public'
-      AND tablename = 'Article'
-      AND indexname = 'Article_search_vector_idx'
+      AND (
+        (tablename = 'Article' AND indexname = 'Article_search_vector_idx')
+        OR (tablename = 'AuditLog' AND indexname IN (
+          'AuditLog_createdAt_idx',
+          'AuditLog_actorId_createdAt_idx',
+          'AuditLog_action_createdAt_idx',
+          'AuditLog_targetType_targetId_idx'
+        ))
+      )
   `;
-  assert.equal(indexes.length, 1);
+  assert.deepEqual(
+    indexes.map((index) => index.indexname).sort(),
+    [
+      "Article_search_vector_idx",
+      "AuditLog_action_createdAt_idx",
+      "AuditLog_actorId_createdAt_idx",
+      "AuditLog_createdAt_idx",
+      "AuditLog_targetType_targetId_idx",
+    ],
+  );
+});
+
+test("audit logs persist security event details on PostgreSQL", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const actorId = id("audit_actor");
+  const row = await prisma.auditLog.create({
+    data: {
+      action: "admin.audit_logs.read",
+      actorId,
+      actorRole: "Admin",
+      targetType: "AuditLog",
+      targetId: id("audit_target"),
+      metadata: "{\"scope\":\"integration\"}",
+      requestId: id("request"),
+      ipAddress: "127.0.0.1",
+      userAgent: "node:test",
+    },
+  });
+
+  const found = await prisma.auditLog.findUnique({ where: { id: row.id } });
+
+  assert.equal(found?.actorId, actorId);
+  assert.equal(found?.action, "admin.audit_logs.read");
+  assert.equal(found?.targetType, "AuditLog");
 });
 
 test("PostgreSQL JSON fields migrate to jsonb columns", { skip: !enabled }, async () => {

@@ -24,6 +24,7 @@ let importExisting: { id: string } | null = null;
 let assertSafeCalls: string[] = [];
 let assertSafeThrows = false;
 let scrapeCalls: string[] = [];
+let auditCalls = 0;
 
 const scrapedArticle = {
   title: "Scraped article",
@@ -188,20 +189,27 @@ before(() => {
     },
   });
 
+  const prismaMock = {
+    article: {
+      count: async () => importCount,
+      findFirst: async () => importExisting,
+      create: async (args: { data: Record<string, unknown> }) => {
+        importCreateData = args.data;
+        return { id: "import-1" };
+      },
+      update: async () => ({}),
+      findMany: async () => [],
+    },
+    $transaction: async (fn: unknown) => {
+      if (typeof fn === "function") {
+        return (fn as (tx: unknown) => Promise<unknown>)(prismaMock);
+      }
+      return Promise.all(fn as Promise<unknown>[]);
+    },
+  };
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
-        article: {
-          count: async () => importCount,
-          findFirst: async () => importExisting,
-          create: async (args: { data: Record<string, unknown> }) => {
-            importCreateData = args.data;
-            return { id: "import-1" };
-          },
-          update: async () => ({}),
-          findMany: async () => [],
-        },
-      },
+      prisma: prismaMock,
     },
   });
 
@@ -252,6 +260,20 @@ before(() => {
       TAGS_CACHE_TAG: "tags",
     },
   });
+
+  mock.module("@/lib/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        articleImport: "article.import",
+        securityAdminAccessDenied: "security.admin_access_denied",
+      },
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async () => {
+        auditCalls++;
+      },
+      tryRecordAuditLog: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {
@@ -267,6 +289,7 @@ beforeEach(() => {
   assertSafeCalls = [];
   assertSafeThrows = false;
   scrapeCalls = [];
+  auditCalls = 0;
 });
 
 function jsonReq(body: unknown, url = "http://test/api/route"): Request {

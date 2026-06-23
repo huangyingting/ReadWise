@@ -12,6 +12,8 @@ Admin actions already affect articles, tags, members, and generated content. As 
 
 Add append-only audit log records for admin and security-sensitive actions. Store actor, action, target type/id, request id, timestamp, and safe metadata. Do not store secrets or full private article bodies in audit metadata.
 
+Audit writes for high-risk mutations are part of the same database transaction as the mutation where the code path uses Prisma. If the audit write fails, the sensitive mutation rolls back or is not performed. Reading the admin audit-log API is itself audited with `admin.audit_logs.read` before entries are returned; audit persistence failure prevents disclosure of the audit log response.
+
 ## Alternatives considered
 
 - **Rely only on structured application logs:** Useful for debugging, but retention and querying are operationally fragile.

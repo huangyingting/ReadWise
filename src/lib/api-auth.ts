@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 
 type AuthResult =
   | { session: Session; error?: undefined }
-  | { session?: undefined; error: NextResponse };
+  | { session?: Session; error: NextResponse };
 
 export async function requireSessionApi(): Promise<AuthResult> {
   const session = await getServerSession(authOptions);
@@ -21,7 +21,10 @@ export async function requireAdminApi(): Promise<AuthResult> {
     return result;
   }
   if (result.session.user.role !== "Admin") {
-    return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+    return {
+      session: result.session,
+      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+    };
   }
   return result;
 }
