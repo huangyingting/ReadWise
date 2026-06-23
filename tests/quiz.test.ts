@@ -4,7 +4,7 @@ import assert from "node:assert/strict";
 let aiConfigured = false;
 let aiReply: string | null = null;
 const articles = new Map<string, { title: string; content: string }>();
-let quizRows: { question: string; options: string; correctIndex: number }[] = [];
+let quizRows: { question: string; options: string | string[]; correctIndex: number }[] = [];
 let quizUpserts = 0;
 
 before(() => {
@@ -25,7 +25,7 @@ before(() => {
         quizQuestion: {
           findMany: async () => quizRows,
           upsert: async (a: {
-            create: { question: string; options: string; correctIndex: number };
+            create: { question: string; options: string[]; correctIndex: number };
           }) => {
             quizUpserts++;
             quizRows.push(a.create);
@@ -67,10 +67,30 @@ test("parseQuizJson validates options and correctIndex", async () => {
 });
 
 test("getOrCreateArticleQuiz returns cached questions, parsing stored options", async () => {
-  quizRows = [{ question: "Q?", options: JSON.stringify(["a", "b"]), correctIndex: 0 }];
+  quizRows = [{ question: "Q?", options: ["a", "b"], correctIndex: 0 }];
   const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
   const result = await getOrCreateArticleQuiz("a1");
   assert.equal(result?.fallback, false);
+  assert.deepEqual(result?.questions[0].options, ["a", "b"]);
+  assert.equal(quizUpserts, 0);
+});
+
+test("parseStoredOptions supports empty, Json, and legacy string shapes", async () => {
+  const { parseStoredOptions } = await import("@/lib/quiz");
+  assert.deepEqual(parseStoredOptions([]), []);
+  assert.deepEqual(parseStoredOptions(["a", "b"]), ["a", "b"]);
+  assert.deepEqual(parseStoredOptions(["a", 1, "b"]), ["a", "b"]);
+  assert.deepEqual(parseStoredOptions(JSON.stringify(["legacy", "row"])), [
+    "legacy",
+    "row",
+  ]);
+  assert.deepEqual(parseStoredOptions("not json"), []);
+});
+
+test("getOrCreateArticleQuiz remains compatible with legacy string rows", async () => {
+  quizRows = [{ question: "Q?", options: JSON.stringify(["a", "b"]), correctIndex: 0 }];
+  const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
+  const result = await getOrCreateArticleQuiz("a1");
   assert.deepEqual(result?.questions[0].options, ["a", "b"]);
   assert.equal(quizUpserts, 0);
 });
@@ -95,5 +115,6 @@ test("getOrCreateArticleQuiz generates + caches when AI configured", async () =>
   assert.equal(result?.fallback, false);
   assert.equal(result?.questions.length, 1);
   assert.equal(result?.questions[0].correctIndex, 2);
+  assert.deepEqual(quizRows[0].options, ["x", "y", "z"]);
   assert.equal(quizUpserts, 1);
 });

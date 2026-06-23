@@ -192,12 +192,9 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
     return { ok: false, error: "Not found", status: 404 };
   }
 
-  // Delete the member's personally-imported articles (ownerId === id) in the
-  // SAME transaction as the user delete. Article.ownerId is onDelete: SetNull,
-  // so otherwise those rows would survive as status:"published"/ownerId→NULL and
-  // become world-readable via the public-visibility predicate. Deleting them
-  // cascades all derived rows (translations/vocab/quiz/tags/speech/progress/
-  // readingListItem/highlights — all onDelete: Cascade on articleId).
+  // Article.owner now uses onDelete: Cascade, so deleting the user also deletes
+  // their private imports at the database layer. Private content cannot survive
+  // as ownerless public rows.
   //
   // The last-admin guard is re-evaluated INSIDE the transaction so two
   // concurrent admin deletions can never both pass the guard and leave the
@@ -213,7 +210,6 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
           throw new AdminGuardError("Cannot remove the last remaining admin", 409);
         }
       }
-      await tx.article.deleteMany({ where: { ownerId: id } });
       await tx.user.delete({ where: { id } });
     });
   } catch (e) {

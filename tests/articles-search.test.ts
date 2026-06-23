@@ -8,7 +8,12 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { Article, Prisma } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  type Article,
+  type Prisma,
+} from "@prisma/client";
 import { buildArticle } from "./helpers";
 
 type FindArgs = {
@@ -203,9 +208,15 @@ test("search returns empty for blank query without touching Prisma", async () =>
 test("anonymous/public search never leaks owned or draft articles", async () => {
   const { searchPublishedArticles } = await import("@/lib/article-search");
   articleRows = [
-    buildArticle({ id: "public", title: "Climate", ownerId: null, status: "published" }),
-    buildArticle({ id: "owned", title: "Climate private", ownerId: "user-1", status: "published" }),
-    buildArticle({ id: "draft", title: "Climate draft", ownerId: null, status: "draft" }),
+    buildArticle({ id: "public", title: "Climate", ownerId: null, status: ArticleStatus.PUBLISHED }),
+    buildArticle({
+      id: "owned",
+      title: "Climate private",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
+    buildArticle({ id: "draft", title: "Climate draft", ownerId: null, status: ArticleStatus.DRAFT }),
   ];
 
   const result = await searchPublishedArticles("climate", { limit: 10 });
@@ -217,9 +228,21 @@ test("anonymous/public search never leaks owned or draft articles", async () => 
 test("authenticated search includes the user's own private imports but not another user's imports", async () => {
   const { searchPublishedArticles } = await import("@/lib/article-search");
   articleRows = [
-    buildArticle({ id: "public", title: "Import guide", ownerId: null, status: "published" }),
-    buildArticle({ id: "mine", title: "Import notes", ownerId: "user-1", status: "draft" }),
-    buildArticle({ id: "theirs", title: "Import secret", ownerId: "user-2", status: "published" }),
+    buildArticle({ id: "public", title: "Import guide", ownerId: null, status: ArticleStatus.PUBLISHED }),
+    buildArticle({
+      id: "mine",
+      title: "Import notes",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.DRAFT,
+    }),
+    buildArticle({
+      id: "theirs",
+      title: "Import secret",
+      ownerId: "user-2",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
   ];
 
   const result = await searchPublishedArticles("import", { limit: 10 }, "user-1");
@@ -230,8 +253,20 @@ test("authenticated search includes the user's own private imports but not anoth
 test("highlight/note matches are scoped to the requesting user and final article readability", async () => {
   const { searchPublishedArticles } = await import("@/lib/article-search");
   articleRows = [
-    buildArticle({ id: "mine", title: "Private article", ownerId: "user-1", status: "draft" }),
-    buildArticle({ id: "theirs", title: "Other article", ownerId: "user-2", status: "published" }),
+    buildArticle({
+      id: "mine",
+      title: "Private article",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.DRAFT,
+    }),
+    buildArticle({
+      id: "theirs",
+      title: "Other article",
+      ownerId: "user-2",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
   ];
   highlightRows = [
     { userId: "user-1", articleId: "mine", quote: "mitochondria" },
@@ -246,7 +281,7 @@ test("highlight/note matches are scoped to the requesting user and final article
 
 test("saved vocabulary matches can surface readable articles", async () => {
   const { searchPublishedArticles } = await import("@/lib/article-search");
-  articleRows = [buildArticle({ id: "article", title: "General news", ownerId: null, status: "published" })];
+  articleRows = [buildArticle({ id: "article", title: "General news", ownerId: null, status: ArticleStatus.PUBLISHED })];
   savedWordRows = [{ userId: "user-1", articleId: "article", word: "photosynthesis" }];
 
   const result = await searchPublishedArticles("photosynthesis", { limit: 10 }, "user-1");

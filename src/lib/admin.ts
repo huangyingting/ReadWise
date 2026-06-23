@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ArticleStatus } from "@prisma/client";
 
 export type StatusCount = { status: string; count: number };
 
@@ -6,9 +7,9 @@ export type StatusCount = { status: string; count: number };
 export function statusBadgeVariant(
   status: string,
 ): "success" | "neutral" | "warning" | "danger" {
-  if (status === "published") return "success";
-  if (status === "processing") return "warning";
-  if (status === "failed") return "danger";
+  if (status === ArticleStatus.PUBLISHED) return "success";
+  if (status === ArticleStatus.PROCESSING) return "warning";
+  if (status === ArticleStatus.FAILED) return "danger";
   return "neutral";
 }
 
@@ -28,7 +29,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       prisma.user.count(),
       prisma.user.count({ where: { role: "Admin" } }),
       prisma.article.count(),
-      prisma.article.count({ where: { status: "published" } }),
+      prisma.article.count({ where: { status: ArticleStatus.PUBLISHED } }),
       prisma.tag.count(),
       prisma.readingProgress.count(),
       prisma.article.groupBy({

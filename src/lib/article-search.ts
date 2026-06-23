@@ -222,9 +222,9 @@ function accessContext(context?: SearchContext | null): ArticleAccessContext | n
 function postgresReadableSql(access: ArticleAccessContext | null): Prisma.Sql {
   if (isArticleOperator(access)) return Prisma.sql`TRUE`;
   if (access?.userId) {
-    return Prisma.sql`((a.status = 'published' AND a."ownerId" IS NULL) OR a."ownerId" = ${access.userId})`;
+    return Prisma.sql`((a.status = 'published' AND a.visibility = 'PUBLIC') OR (a.visibility = 'PRIVATE' AND a."ownerId" = ${access.userId}))`;
   }
-  return Prisma.sql`(a.status = 'published' AND a."ownerId" IS NULL)`;
+  return Prisma.sql`(a.status = 'published' AND a.visibility = 'PUBLIC')`;
 }
 
 async function postgresTextMatches(

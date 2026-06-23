@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Article, Prisma } from "@prisma/client";
+import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
 import {
   levelRank,
   levelsAtOrBelow,
@@ -35,7 +35,7 @@ export function getArticleById(id: string): Promise<Article | null> {
  * Returns the article if the requester is allowed to view it:
  *   - Admins may view any article (including drafts).
  *   - Owners may view their own personal articles (ownerId === userId).
- *   - All other users may only view published public articles (ownerId IS NULL).
+ *   - All other users may only view published public articles.
  * Returns null when the article does not exist or is not viewable.
  */
 export function getViewableArticleById(
@@ -319,6 +319,7 @@ const cachedListPicksPage = createCachedListing(
   ["articles:picks-page"],
   [ARTICLES_CACHE_TAG],
 );
+
 
 /**
  * Returns personal (user-imported) articles for the given user, newest first.
