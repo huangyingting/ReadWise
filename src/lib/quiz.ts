@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateQuiz } from "@/lib/ai/validation";
 import type { ArticleAccessContext } from "@/lib/article-access";
 import type { Prisma } from "@prisma/client";
@@ -17,9 +18,6 @@ export type ArticleQuizResult = {
   questions: QuizQuestion[];
   fallback: boolean;
 };
-
-/** How many comprehension questions to request from the model. */
-const TARGET_QUESTIONS = 5;
 
 /**
  * Parses the model's JSON response into quiz questions via the shared strict
@@ -50,6 +48,7 @@ export async function getOrCreateArticleQuiz(
     articleId,
     {
       feature: "quiz",
+      maxOutputTokens: promptModelParams("quiz").maxOutputTokens,
       readCache: async () => {
         const questions: QuizQuestion[] = (
           await prisma.quizQuestion.findMany({
@@ -66,24 +65,7 @@ export async function getOrCreateArticleQuiz(
       },
       buildMessages: (article) => {
         const source = boundedSampleForFeature(htmlToPlainText(article.content), "quiz");
-        return [
-          {
-            role: "system",
-            content:
-              "You are an English reading-comprehension tutor. From the user's " +
-              `article, write ${TARGET_QUESTIONS} multiple-choice comprehension ` +
-              "questions that check whether a reader understood the text. Respond " +
-              "ONLY with a JSON array. Each element must be an object with exactly " +
-              'these keys: "question" (the question text), "options" (an array of ' +
-              "3 or 4 distinct answer strings), and \"correctIndex\" (the 0-based " +
-              "index of the single correct option). Exactly one option is correct. " +
-              "No markdown, no commentary, JSON array only.",
-          },
-          {
-            role: "user",
-            content: `Title: ${article.title}\n\n${source}`,
-          },
-        ];
+        return renderPrompt("quiz", { title: article.title, source });
       },
       parse: parseQuizJson,
       isEmpty: (questions) => questions.length === 0,

@@ -12,6 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { moderateText } from "@/lib/ai/moderation";
+import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 
 export type GrammarResult = {
   explanation: string | null;
@@ -61,20 +62,18 @@ export async function explainGrammar(
   const ctx = contextSentence.trim().slice(0, MAX_CONTEXT_CHARS);
   const levelLabel = level || "B1";
 
-  const messages: { role: "system" | "user"; content: string }[] = [
-    {
-      role: "system",
-      content: `You are a friendly English tutor. Explain phrases and grammar in plain English suitable for a ${levelLabel} learner. Be concise (2–3 sentences). Do not use HTML.`,
-    },
-    {
-      role: "user",
-      content: ctx
-        ? `Explain the phrase "${phrase}" as used in this sentence: "${ctx}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`
-        : `Explain the phrase "${phrase}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`,
-    },
-  ];
+  const messages = renderPrompt("grammar", {
+    phrase,
+    context: ctx,
+    level: levelLabel,
+  });
 
-  const text = await chatComplete(messages, { maxOutputTokens: 256, feature: "grammar", promptVersion: "grammar/v1", articleId });
+  const text = await chatComplete(messages, {
+    maxOutputTokens: promptModelParams("grammar").maxOutputTokens,
+    feature: "grammar",
+    promptVersion: activePromptVersion("grammar"),
+    articleId,
+  });
   if (!text) {
     return { explanation: null, fallback: true };
   }

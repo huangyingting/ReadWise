@@ -2,6 +2,7 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { isSupportedLanguage, languageLabel } from "@/lib/translation";
+import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
@@ -85,16 +86,13 @@ export async function translateSentence(
 
   const label = languageLabel(lang);
   const completion = await chatComplete(
-    [
-      {
-        role: "system",
-        content:
-          `Translate the following sentence or phrase from an English article into ${label}. ` +
-          "Return ONLY the translation, natural and learner-friendly.",
-      },
-      { role: "user", content: normalized },
-    ],
-    { maxOutputTokens: 256, feature: "sentence-translation", promptVersion: "sentence-translation/v1", articleId },
+    renderPrompt("sentence-translation", { label, text: normalized }),
+    {
+      maxOutputTokens: promptModelParams("sentence-translation").maxOutputTokens,
+      feature: "sentence-translation",
+      promptVersion: activePromptVersion("sentence-translation"),
+      articleId,
+    },
   );
 
   // 4) AI configured but request failed → graceful fallback, nothing cached.

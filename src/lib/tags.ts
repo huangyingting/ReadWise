@@ -3,6 +3,7 @@ import { ArticleVisibility, TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/validation";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "@/lib/article-access";
@@ -19,9 +20,6 @@ export type ArticleTagsResult = {
   tags: TagView[];
   fallback: boolean;
 };
-
-/** How many topic tags to request from the model. */
-const TARGET_TAGS = 5;
 
 /**
  * Converts a free-form tag name into a URL-safe slug. Lowercases, strips
@@ -130,27 +128,14 @@ export async function getOrCreateArticleTags(
     articleId,
     {
       feature: "tags",
+      maxOutputTokens: promptModelParams("tags").maxOutputTokens,
       readCache: async () => {
         const tags = await getArticleTags(articleId);
         return tags.length > 0 ? tags : null;
       },
       buildMessages: (article) => {
         const source = boundedSampleForFeature(htmlToPlainText(article.content), "tags");
-        return [
-          {
-            role: "system",
-            content:
-              "You label news articles with topic tags for discovery. From the user's " +
-              `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
-              "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
-              "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
-              "array only.",
-          },
-          {
-            role: "user",
-            content: `Title: ${article.title}\n\n${source}`,
-          },
-        ];
+        return renderPrompt("tags", { title: article.title, source });
       },
       parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
       isEmpty: (names) => names.length === 0,
