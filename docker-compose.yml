@@ -4,9 +4,9 @@ services:
     environment:
       POSTGRES_DB: readwise
       POSTGRES_USER: readwise
-      POSTGRES_HOST_AUTH_METHOD: trust
+      POSTGRES_PASSWORD: readwise-dev-password
     ports:
-      - "55432:5432"
+      - "127.0.0.1:55432:5432"
     volumes:
       - readwise-postgres-data:/var/lib/postgresql/data
     healthcheck:

@@ -71,9 +71,9 @@ jobs:
         env:
           POSTGRES_DB: readwise_test
           POSTGRES_USER: readwise
-          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_PASSWORD: readwise-ci-password
         ports:
-          - 5432:5432
+          - 127.0.0.1:5432:5432
         options: >-
           --health-cmd "pg_isready -U readwise -d readwise_test"
           --health-interval 5s
@@ -81,7 +81,6 @@ jobs:
           --health-retries 10
 
     env:
-      DATABASE_URL: postgresql://readwise@localhost:5432/readwise_test?schema=public
       NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
       NEXTAUTH_URL: http://localhost:3000
 
@@ -96,16 +95,24 @@ jobs:
           cache: "npm"
 
       - name: Install dependencies
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Generate PostgreSQL Prisma client
         run: npm run prisma:generate:pg
+        env:
+          DATABASE_URL: postgresql://readwise:readwise-ci-password@localhost:5432/readwise_test?schema=public
 
       - name: Apply PostgreSQL migrations
         run: npm run prisma:migrate:pg
+        env:
+          DATABASE_URL: postgresql://readwise:readwise-ci-password@localhost:5432/readwise_test?schema=public
 
       - name: Check PostgreSQL migration status
         run: npx prisma migrate status --schema prisma/postgresql/schema.prisma
+        env:
+          DATABASE_URL: postgresql://readwise:readwise-ci-password@localhost:5432/readwise_test?schema=public
 
       - name: Run PostgreSQL integration tests
         run: npm run test:db
+        env:
+          DATABASE_URL: postgresql://readwise:readwise-ci-password@localhost:5432/readwise_test?schema=public

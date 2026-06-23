@@ -8,15 +8,15 @@ Prisma client.
 
 ```bash
 docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise@localhost:55432/readwise?schema=public"
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run dev
 ```
 
-The compose stack uses trust auth for local development only. Production must set
-`DATABASE_URL` through the deployment secret manager with real credentials and
-must not commit those values.
+The compose stack binds PostgreSQL to loopback only and uses a clearly dev-only
+password. Production must set `DATABASE_URL` through the deployment secret
+manager with real credentials and must not commit those values.
 
 To switch back to SQLite after generating the PostgreSQL client, restore the
 default client:
@@ -33,7 +33,7 @@ This removes the local PostgreSQL volume and all local data:
 ```bash
 docker compose down -v
 docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise@localhost:55432/readwise?schema=public"
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
 npm run prisma:migrate:pg
 ```
 
@@ -43,7 +43,7 @@ The PostgreSQL baseline lives in `prisma/postgresql/migrations/`. Run checks
 against a disposable PostgreSQL database:
 
 ```bash
-export DATABASE_URL="postgresql://readwise@localhost:55432/readwise?schema=public"
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run test:db
@@ -81,6 +81,12 @@ Recommended safe path for a one-time migration:
    migrated database.
 7. Start the app with the PostgreSQL `DATABASE_URL` and PostgreSQL-generated
    Prisma client.
+
+CSV exports can contain user emails, names, auth/session-related rows, saved
+study data, highlights, and other private reading activity. Treat export files
+as sensitive production data: write them only to an access-controlled location,
+encrypt them at rest when retained, never commit or upload them to shared issue
+trackers/logs, and delete the files once validation and import are complete.
 
 Use placeholders in migration runbooks and CI fixtures. Keep real database URLs,
 passwords, OAuth secrets, and API keys only in local env files or deployment
