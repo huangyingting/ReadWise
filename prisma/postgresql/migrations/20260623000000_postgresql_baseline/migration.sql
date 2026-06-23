@@ -4,18 +4,6 @@ CREATE SCHEMA IF NOT EXISTS "public";
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('Admin', 'Reader');
 
--- CreateEnum
-CREATE TYPE "ArticleVisibility" AS ENUM ('PUBLIC', 'PRIVATE', 'UNLISTED', 'ORG');
-
--- CreateEnum
-CREATE TYPE "ArticleStatus" AS ENUM ('draft', 'processing', 'published', 'failed', 'archived');
-
--- CreateEnum
-CREATE TYPE "ArticleSourceType" AS ENUM ('SCRAPED', 'IMPORTED', 'MANUAL', 'RSS', 'ASSIGNMENT');
-
--- CreateEnum
-CREATE TYPE "TagScope" AS ENUM ('PUBLIC', 'PRIVATE', 'ORG');
-
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
@@ -65,9 +53,7 @@ CREATE TABLE "Article" (
     "readingMinutes" INTEGER,
     "difficulty" TEXT,
     "difficultyScore" DOUBLE PRECISION,
-    "visibility" "ArticleVisibility" NOT NULL DEFAULT 'PUBLIC',
-    "status" "ArticleStatus" NOT NULL DEFAULT 'published',
-    "sourceType" "ArticleSourceType" NOT NULL DEFAULT 'SCRAPED',
+    "status" TEXT NOT NULL DEFAULT 'published',
     "publishedAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
@@ -81,10 +67,6 @@ CREATE TABLE "Tag" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "slug" TEXT NOT NULL,
-    "scope" "TagScope" NOT NULL DEFAULT 'PUBLIC',
-    "namespace" TEXT NOT NULL DEFAULT 'public',
-    "ownerId" TEXT,
-    "orgId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
 
@@ -391,19 +373,13 @@ CREATE INDEX "Article_category_idx" ON "Article"("category");
 CREATE INDEX "Article_ownerId_idx" ON "Article"("ownerId");
 
 -- CreateIndex
-CREATE INDEX "Article_visibility_status_idx" ON "Article"("visibility", "status");
-
--- CreateIndex
 CREATE UNIQUE INDEX "Article_sourceUrl_ownerId_key" ON "Article"("sourceUrl", "ownerId");
 
 -- CreateIndex
-CREATE INDEX "Tag_scope_namespace_idx" ON "Tag"("scope", "namespace");
+CREATE UNIQUE INDEX "Tag_name_key" ON "Tag"("name");
 
 -- CreateIndex
-CREATE INDEX "Tag_ownerId_idx" ON "Tag"("ownerId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Tag_scope_namespace_slug_key" ON "Tag"("scope", "namespace", "slug");
+CREATE UNIQUE INDEX "Tag_slug_key" ON "Tag"("slug");
 
 -- CreateIndex
 CREATE INDEX "ArticleTag_tagId_idx" ON "ArticleTag"("tagId");
@@ -523,10 +499,7 @@ CREATE UNIQUE INDEX "ArticleDifficultyFeedback_userId_articleId_key" ON "Article
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Article" ADD CONSTRAINT "Article_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "Tag" ADD CONSTRAINT "Tag_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+ALTER TABLE "Article" ADD CONSTRAINT "Article_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ArticleTag" ADD CONSTRAINT "ArticleTag_articleId_fkey" FOREIGN KEY ("articleId") REFERENCES "Article"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -614,7 +587,6 @@ ALTER TABLE "ArticleDifficultyFeedback" ADD CONSTRAINT "ArticleDifficultyFeedbac
 
 -- AddForeignKey
 ALTER TABLE "ArticleDifficultyFeedback" ADD CONSTRAINT "ArticleDifficultyFeedback_articleId_fkey" FOREIGN KEY ("articleId") REFERENCES "Article"("id") ON DELETE CASCADE ON UPDATE CASCADE;
-
 
 -- PostgreSQL full-text search parity for article search.
 CREATE INDEX "Article_search_vector_idx" ON "Article"
