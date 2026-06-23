@@ -3,6 +3,7 @@ import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
 import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
+import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
 import { Agent, fetch as undiciFetch } from "undici";
 
 const WORDS_PER_MINUTE = 200;
@@ -35,8 +36,12 @@ function pinnedDispatcher(pin: PinnedAddress): Agent {
   });
 }
 
-/** Fetches a URL as text with a desktop UA and a timeout. Throws on non-2xx or unsafe target. */
-export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string> {
+/** Fetches a URL as text with a desktop UA, a hard timeout and a body-size cap. Throws on non-2xx or unsafe target. */
+export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Promise<string> {
+  const maxBytes = scraperMaxBytes();
+  // A single AbortController bounds the TOTAL request budget — connect, every
+  // redirect hop AND the streamed body read all share `controller.signal`, so a
+  // slow server can't stall any phase past `timeoutMs`.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -60,13 +65,17 @@ export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string>
           redirect: "manual",
           dispatcher,
         });
-      } finally {
-        // Tear down the per-hop dispatcher once the response has been received.
+      } catch (err) {
         void dispatcher.close();
+        throw err;
       }
 
       const location = res.headers.get("location");
       if (res.status >= 300 && res.status < 400 && location) {
+        // Drain + release the redirect response body before moving on so the
+        // pinned dispatcher's socket is freed promptly.
+        await res.body?.cancel().catch(() => {});
+        void dispatcher.close();
         if (hop >= MAX_REDIRECTS) {
           throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${url}`);
         }
@@ -76,14 +85,72 @@ export async function fetchHtml(url: string, timeoutMs = 15000): Promise<string>
         continue;
       }
 
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status} for ${currentUrl}`);
+      try {
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status} for ${currentUrl}`);
+        }
+        // Stream the body with a hard byte cap — never trust Content-Length
+        // alone; count bytes as they arrive and abort once the cap is exceeded.
+        return await readBodyWithLimit(res, maxBytes);
+      } finally {
+        // Tear down the per-hop dispatcher once the body has been read/aborted.
+        void dispatcher.close();
       }
-      return await res.text();
     }
   } finally {
     clearTimeout(timer);
   }
+}
+
+type FetchResponse = Awaited<ReturnType<typeof undiciFetch>>;
+
+/**
+ * Reads a response body as UTF-8 text while enforcing `maxBytes`.
+ *
+ * Defense in depth against oversized / decompression-bomb responses:
+ *  1. Reject up-front when a declared `Content-Length` already exceeds the cap.
+ *  2. Stream the body and count bytes as they arrive, aborting (cancelling the
+ *     stream) the moment the running total would exceed the cap — Content-Length
+ *     is advisory and may be absent or lie, so the streaming count is the real
+ *     guard.
+ *
+ * Falls back to `res.text()` for response shapes without a readable stream
+ * (still size-checked after the fact).
+ */
+async function readBodyWithLimit(res: FetchResponse, maxBytes: number): Promise<string> {
+  const declared = Number(res.headers.get("content-length"));
+  if (Number.isFinite(declared) && declared > maxBytes) {
+    throw new Error(`Response too large: ${declared} bytes exceeds limit of ${maxBytes} bytes`);
+  }
+
+  const body = res.body as ReadableStream<Uint8Array> | null | undefined;
+  if (!body || typeof body.getReader !== "function") {
+    const text = await res.text();
+    if (Buffer.byteLength(text, "utf8") > maxBytes) {
+      throw new Error(`Response too large: exceeds limit of ${maxBytes} bytes`);
+    }
+    return text;
+  }
+
+  const reader = body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!value) continue;
+      total += value.byteLength;
+      if (total > maxBytes) {
+        throw new Error(`Response too large: exceeds limit of ${maxBytes} bytes`);
+      }
+      chunks.push(value);
+    }
+  } finally {
+    // Cancel releases the lock and tells undici to abort any unread body.
+    await reader.cancel().catch(() => {});
+  }
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 const ENTITIES: Record<string, string> = {

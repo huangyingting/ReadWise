@@ -83,3 +83,41 @@ test("extractArticle returns null for an invalid URL", () => {
   const html = "<html><head><title>T</title></head><body></body></html>";
   assert.equal(extractArticle(html, "not a url"), null);
 });
+
+test("extractArticle sanitizes scraped body HTML (strips script/onerror/javascript:)", () => {
+  const filler = Array.from({ length: 60 }, () => "word").join(" ");
+  const html =
+    "<html><head><title>Malicious Page</title></head><body><article>" +
+    `<p>Intro ${filler}<script>window.__pwned=1;alert('xss')</script> trailing.</p>` +
+    `<p><img src="x" onerror="alert('xss')"> ` +
+    `<a href="javascript:alert('xss')">click</a> ${filler}</p>` +
+    "</article></body></html>";
+  const result = extractArticle(html, "https://www.nbcnews.com/security/story");
+  assert.ok(result, "article should still extract");
+  const content = result?.content ?? "";
+  // Sanitizer must remove the dangerous constructs entirely.
+  assert.doesNotMatch(content, /<script/i, "no <script> tags");
+  assert.doesNotMatch(content, /onerror/i, "no inline event handlers");
+  assert.doesNotMatch(content, /javascript:/i, "no javascript: scheme");
+  // ...while preserving legitimate prose.
+  assert.match(content, /word/);
+});
+
+test("extractArticle sanitizes a malicious JSON-LD headline path's body", () => {
+  const ld = {
+    "@type": "NewsArticle",
+    headline: "Breaking <img src=x onerror=alert(1)> News",
+    articleBody: Array.from({ length: 80 }, () => "ocean").join(" "),
+    datePublished: "2026-02-03T08:00:00Z",
+  };
+  const html =
+    "<html><head><title>Fallback</title>" +
+    `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
+    "</head><body></body></html>";
+  const result = extractArticle(html, "https://www.nbcnews.com/world/story");
+  assert.ok(result);
+  // Body comes from articleBody (plain text) -> no markup leaks into content.
+  assert.doesNotMatch(result?.content ?? "", /onerror/i);
+  assert.doesNotMatch(result?.content ?? "", /<img/i);
+  assert.match(result?.content ?? "", /ocean/);
+});

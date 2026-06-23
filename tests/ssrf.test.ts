@@ -16,9 +16,12 @@ let lookupThrows = false;
 before(() => {
   const fakeDns = {
     promises: {
-      lookup: async (_host: string, _opts?: unknown) => {
+      lookup: async (_host: string, opts?: { all?: boolean }) => {
         if (lookupThrows) throw new Error("ENOTFOUND");
-        return lookupResult;
+        // `{ all: true }` (resolveAndPin) expects an array; the single form
+        // (assertSafeHostname) expects one `{ address, family }` record.
+        if (opts && opts.all) return lookupResult;
+        return lookupResult[0] ?? { address: "0.0.0.0", family: 4 };
       },
     },
   };
@@ -113,4 +116,33 @@ test("resolveAndPin throws when DNS resolution fails", async () => {
   const { resolveAndPin } = await import("@/lib/scraper/ssrf");
   lookupThrows = true;
   await assert.rejects(resolveAndPin("https://nxdomain.example/"), /DNS lookup failed/);
+});
+
+test("assertSafeUrl rejects non-http(s) protocols", async () => {
+  const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
+  for (const url of [
+    "file:///etc/passwd",
+    "ftp://example.com/x",
+    "gopher://example.com/",
+    "data:text/html,<script>alert(1)</script>",
+  ]) {
+    await assert.rejects(assertSafeUrl(url), /Only http\(s\)/, `${url} should be rejected`);
+  }
+});
+
+test("assertSafeUrl rejects a malformed URL", async () => {
+  const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
+  await assert.rejects(assertSafeUrl("http://"), /Invalid URL/);
+});
+
+test("assertSafeUrl rejects a host resolving to a private/metadata IP", async () => {
+  const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
+  lookupResult = [{ address: "169.254.169.254", family: 4 }];
+  await assert.rejects(assertSafeUrl("https://rebind.example/"), /private\/internal addresses/);
+});
+
+test("assertSafeUrl resolves a public host without throwing", async () => {
+  const { assertSafeUrl } = await import("@/lib/scraper/ssrf");
+  lookupResult = [{ address: "93.184.216.34", family: 4 }];
+  await assert.doesNotReject(assertSafeUrl("https://example.com/article"));
 });
