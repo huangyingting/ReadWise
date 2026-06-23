@@ -37,40 +37,45 @@ function pinnedDispatcher(pin: PinnedAddress): Agent {
   });
 }
 
-/** Fetches a URL as text with a desktop UA, a hard timeout and a body-size cap. Throws on non-2xx or unsafe target. */
-export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Promise<string> {
+/** Options for {@link fetchText} (superset of {@link fetchHtml}'s GET-only call). */
+type FetchCoreInit = {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+};
+
+/**
+ * Core SSRF-safe fetch shared by {@link fetchHtml} and {@link fetchText}.
+ * Validates every redirect hop through `resolveAndPin`, enforces a hard
+ * timeout, and caps the response body at `scraperMaxBytes`.
+ */
+async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
   let host = "unknown";
   try {
     host = new URL(url).hostname;
   } catch {
     // keep "unknown" — never put a raw/invalid URL on a span attribute
   }
-  // Child span around the provider fetch. Only the hostname (low cardinality,
-  // no path/query) is recorded so no article URL/content leaks into traces.
   return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
   const maxBytes = scraperMaxBytes();
-  // A single AbortController bounds the TOTAL request budget — connect, every
-  // redirect hop AND the streamed body read all share `controller.signal`, so a
-  // slow server can't stall any phase past `timeoutMs`.
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
     let currentUrl = url;
-    // Follow redirects manually so EVERY hop's host is re-validated AND its IP
-    // re-resolved + pinned through the SSRF guard. `fetch(hostname)` alone lets
-    // undici re-resolve DNS at connect time, leaving a DNS-rebinding / SSRF
-    // window where a host validated as public could connect to a private /
-    // loopback / metadata address. Pinning the validated IP closes that gap.
     for (let hop = 0; ; hop++) {
-      // Validate scheme, resolve+validate EVERY address, and pin one validated
-      // IP for this hop before connecting to it.
       const pin = await resolveAndPin(currentUrl);
       const dispatcher = pinnedDispatcher(pin);
 
       let res: Awaited<ReturnType<typeof undiciFetch>>;
       try {
         res = await undiciFetch(currentUrl, {
-          headers: { "user-agent": USER_AGENT, accept: "text/html" },
+          method: init.method ?? "GET",
+          headers: {
+            "user-agent": USER_AGENT,
+            accept: init.method && init.method !== "GET" ? "application/json, */*" : "text/html",
+            ...(init.headers ?? {}),
+          },
+          body: init.body,
           signal: controller.signal,
           redirect: "manual",
           dispatcher,
@@ -82,15 +87,11 @@ export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Pr
 
       const location = res.headers.get("location");
       if (res.status >= 300 && res.status < 400 && location) {
-        // Drain + release the redirect response body before moving on so the
-        // pinned dispatcher's socket is freed promptly.
         await res.body?.cancel().catch(() => {});
         void dispatcher.close();
         if (hop >= MAX_REDIRECTS) {
           throw new Error(`Too many redirects (> ${MAX_REDIRECTS}) starting from ${url}`);
         }
-        // Resolve relative redirects against the current URL; the next loop
-        // iteration re-validates + re-pins the resulting host before fetching it.
         currentUrl = new URL(location, currentUrl).href;
         continue;
       }
@@ -99,11 +100,8 @@ export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Pr
         if (!res.ok) {
           throw new Error(`HTTP ${res.status} for ${currentUrl}`);
         }
-        // Stream the body with a hard byte cap — never trust Content-Length
-        // alone; count bytes as they arrive and abort once the cap is exceeded.
         return await readBodyWithLimit(res, maxBytes);
       } finally {
-        // Tear down the per-hop dispatcher once the body has been read/aborted.
         void dispatcher.close();
       }
     }
@@ -111,6 +109,25 @@ export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Pr
     clearTimeout(timer);
   }
   });
+}
+
+/** Fetches a URL as text (GET) with a desktop UA, a hard timeout and a body-size cap. Throws on non-2xx or unsafe target. */
+export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Promise<string> {
+  return fetchCore(url, {}, timeoutMs);
+}
+
+/**
+ * SSRF-safe fetch that supports GET **and POST** (for API/GraphQL extractors).
+ * Uses the same redirect validation, timeout, and body-size cap as
+ * {@link fetchHtml}. The `init.body` is sent as-is; callers must set
+ * `Content-Type` in `init.headers` when posting JSON.
+ */
+export async function fetchText(
+  url: string,
+  init: FetchCoreInit = {},
+  timeoutMs = scraperTimeoutMs(),
+): Promise<string> {
+  return fetchCore(url, init, timeoutMs);
 }
 
 type FetchResponse = Awaited<ReturnType<typeof undiciFetch>>;
