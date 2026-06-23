@@ -87,6 +87,7 @@ model User {
   wordMastery             WordMastery[]
   articleMastery          ArticleMastery[]
   skillMastery            SkillMastery[]
+  reminderPreference      ReminderPreference?
 
   @@index([role, createdAt], map: "User_role_created_idx")
 }
@@ -468,6 +469,9 @@ model QuizAttempt {
   correctCount   Int
   totalQuestions Int
   scorePct       Int      // 0–100, computed: round(correctCount / totalQuestions * 100)
+  // RW-042 — idempotency key for offline-queued re-syncs. A duplicate submit
+  // with the same key returns the existing attempt instead of double-recording.
+  clientMutationId String? @unique
   completedAt    DateTime @default(now())
 
   user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -504,6 +508,12 @@ model PushSubscription {
   endpoint  String   @unique
   p256dh    String
   auth      String
+  // RW-045 — delivery tracking: consecutive transient failures + last
+  // success/failure timestamps. Used to prune unhealthy endpoints reliably
+  // (in addition to immediate 404/410 pruning) and to make sends observable.
+  failureCount  Int       @default(0)
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
   createdAt DateTime @default(now())
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -775,4 +785,24 @@ model SkillMastery {
 
   @@unique([userId, skill])
   @@index([userId])
+}
+
+// RW-045 — Per-user push reminder preferences (timing + quiet hours).
+// 1-1 with User; cascades on account deletion. Hours are 0–23 in the user's
+// local timezone (`timezone`, falling back to Profile.timezone then UTC).
+// Quiet hours suppress sends; `preferredHour` gates the daily reminder to a
+// single local hour. Appended last (additive) to minimize merge friction with
+// concurrent schema work.
+model ReminderPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  enabled         Boolean  @default(true)
+  preferredHour   Int?
+  quietHoursStart Int?
+  quietHoursEnd   Int?
+  timezone        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

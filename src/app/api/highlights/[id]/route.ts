@@ -6,6 +6,9 @@ import { updateHighlight, deleteHighlight, HIGHLIGHT_NOTE_MAX } from "@/lib/high
 const patchBody = object({
   note: optional(string({ max: HIGHLIGHT_NOTE_MAX })),
   color: optional(string({ max: 20 })),
+  // RW-043 — the updatedAt the offline client last saw, for conflict-aware
+  // note merging (both versions preserved when the server note changed).
+  baseUpdatedAt: optional(string({ max: 40 })),
 });
 
 export const PATCH = createHandler(
@@ -14,11 +17,12 @@ export const PATCH = createHandler(
     const result = await updateHighlight(params.id, session.user.id, {
       note: body.note,
       color: body.color,
+      baseUpdatedAt: body.baseUpdatedAt,
     });
     if (!result.ok) {
       throw new ApiError(result.status, result.error);
     }
-    return NextResponse.json({ highlight: result.highlight });
+    return NextResponse.json({ highlight: result.highlight, conflict: result.conflict });
   },
 );
 
