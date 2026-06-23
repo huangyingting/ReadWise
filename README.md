@@ -221,6 +221,10 @@ scripts/                  # CLI tools (scrape, process, worker, seed)
 tests/                    # Unit tests (Node built-in runner, no framework)
 ```
 
+## Operations docs
+
+- [Database backup, restore, migration, and rollback runbooks](docs/operations/database-runbooks.md)
+
 ### Key conventions
 
 - **API routes** — all built with `createHandler` / `createAdminHandler` / `createPublicHandler`
