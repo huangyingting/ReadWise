@@ -3,6 +3,7 @@ import { requireOnboardedSession } from "@/lib/session";
 import { getLearnerAnalytics } from "@/lib/learner-analytics";
 import { getActivityHeatmap } from "@/lib/activity";
 import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
+import { getReadingSpeedStats } from "@/lib/reading-speed-stats";
 import { Card } from "@/components/ui/Card";
 import EmptyState from "@/components/EmptyState";
 import Sparkline from "@/components/Sparkline";
@@ -173,11 +174,12 @@ function StatCard({
 // ---------------------------------------------------------------------------
 export default async function ProgressPage() {
   const session = await requireOnboardedSession("/progress");
-  const [analytics, heatmapCells, levelHistory, currentLevel] = await Promise.all([
+  const [analytics, heatmapCells, levelHistory, currentLevel, speedStats] = await Promise.all([
     getLearnerAnalytics(session.user.id),
     getActivityHeatmap(session.user.id),
     getLevelHistory(session.user.id),
     getCurrentLevel(session.user.id),
+    getReadingSpeedStats(session.user.id),
   ]);
 
   const {
@@ -258,6 +260,19 @@ export default async function ProgressPage() {
                   value={`${averageQuizScore}%`}
                   sub={`${totalQuizAttempts} attempt${totalQuizAttempts !== 1 ? "s" : ""}`}
                   color="var(--stat-quiz)"
+                />
+              )}
+              {speedStats.averageWpm !== null && (
+                <StatCard
+                  icon={TrendingUp}
+                  label="Reading speed"
+                  value={`${speedStats.averageWpm} wpm`}
+                  sub={
+                    speedStats.recentWpm !== null && speedStats.recentWpm !== speedStats.averageWpm
+                      ? `Recent: ${speedStats.recentWpm} wpm (${speedStats.recentWpm > speedStats.averageWpm ? "↑ faster" : "↓ slower"})`
+                      : `${speedStats.sessionCount} session${speedStats.sessionCount !== 1 ? "s" : ""}`
+                  }
+                  color="var(--primary)"
                 />
               )}
             </div>

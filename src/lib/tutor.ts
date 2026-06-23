@@ -68,12 +68,18 @@ export async function getTutorMessages(
  * On AI success: persists both messages, returns `{answer, fallback:false}`.
  * On AI unconfigured or failure: returns `{answer: <friendly text>, fallback:true}`
  * without persisting anything.
+ *
+ * @param paragraphContext — (#377) optional current reading paragraph. When
+ *   provided, it is appended to the user message so the tutor can give a more
+ *   localised answer. Privacy rule: ONLY the paragraph of the article the user
+ *   is currently viewing is sent — never personal data or other article text.
  */
 export async function askTutor(
   userId: string,
   articleId: string,
   question: string,
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+  paragraphContext?: string,
 ): Promise<AskTutorResult | null> {
   // Load article and user profile in parallel.
   const [article, profile] = await Promise.all([
@@ -132,11 +138,20 @@ export async function askTutor(
 
   // The active prompt template renders the article-grounded system message and
   // the final user question; prior conversation turns are spliced between them.
+  // #377: when a paragraph context is available, append it as a soft hint so
+  // the tutor can give a more localised answer.  Only the current paragraph of
+  // the article the user is reading is included — no other personal data.
+  const MAX_PARA_CONTEXT = 500;
+  const contextualQuestion =
+    paragraphContext && paragraphContext.trim().length > 0
+      ? `${question}\n\n[Current paragraph the user is reading: "${paragraphContext.trim().slice(0, MAX_PARA_CONTEXT)}"]`
+      : question;
+
   const [systemMessage, userMessage] = renderPrompt("tutor", {
     level: englishLevel,
     title: article.title,
     articleText,
-    question,
+    question: contextualQuestion,
   });
 
   const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [

@@ -101,13 +101,18 @@ function toRecord(row: ArticleMasteryRow): ArticleMasteryRecord {
 /**
  * Recomputes and upserts the user's mastery for an article from its current
  * source signals (reading progress, best quiz score, saved-word density and
- * difficulty feedback). `timeSpentMs` is preserved/updated only when supplied
- * by the caller (we do not track per-article time elsewhere yet).
+ * difficulty feedback).
+ *
+ * `timeSpentMs` is updated only when supplied by the caller. When
+ * `accumulateTime` is true the supplied delta is ADDED to the existing stored
+ * value (saturating at Number.MAX_SAFE_INTEGER) instead of replacing it.
+ * This lets the reading-time tracker accumulate session time without
+ * over-writing concurrent updates from other sessions.
  */
 export async function updateArticleMastery(
   userId: string,
   articleId: string,
-  opts: { timeSpentMs?: number } = {},
+  opts: { timeSpentMs?: number; accumulateTime?: boolean } = {},
 ): Promise<ArticleMasteryRecord | null> {
   const [progress, quizAgg, savedCount, article, feedback, existing] =
     await Promise.all([
@@ -145,7 +150,11 @@ export async function updateArticleMastery(
   const difficultyFeedback = feedback?.vote ?? null;
 
   const timeSpentMs =
-    opts.timeSpentMs != null ? opts.timeSpentMs : (existing?.timeSpentMs ?? null);
+    opts.timeSpentMs != null
+      ? opts.accumulateTime
+        ? (existing?.timeSpentMs ?? 0) + opts.timeSpentMs
+        : opts.timeSpentMs
+      : (existing?.timeSpentMs ?? null);
 
   const comprehensionScore = computeComprehensionScore({
     readingCompletion,

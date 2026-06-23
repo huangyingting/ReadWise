@@ -80,9 +80,19 @@ export function useTutor(): TutorContextValue {
 interface Props {
   articleId: string;
   children: ReactNode;
+  /**
+   * #377 — current reading paragraph context.
+   *
+   * Privacy / prompt-safety rule: ONLY the user's current paragraph of the
+   * article they are actively reading is passed as context. No other user data
+   * (personal information, reading history, etc.) is included. This narrows
+   * the AI's grounding to the section the user is looking at, improving
+   * relevance while staying strictly within the article they opened.
+   */
+  paragraphContext?: string;
 }
 
-export function ReaderTutorProvider({ articleId, children }: Props) {
+export function ReaderTutorProvider({ articleId, children, paragraphContext }: Props) {
   const [messages, setMessages] = useState<TutorMessage[]>([]);
   const [transient, setTransient] = useState<TransientItem[]>([]);
   const [fetching, setFetching] = useState(false);
@@ -137,7 +147,13 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
         const res = await fetch(`/api/reader/${articleId}/tutor`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ question: q }),
+          body: JSON.stringify({
+            question: q,
+            // #377 — Privacy: only the current paragraph of the article the
+            // user is reading is sent as optional context. Capped at 500 chars
+            // on the server. No other user data is included.
+            ...(paragraphContext ? { paragraphContext } : {}),
+          }),
         });
 
         if (!res.ok) {
@@ -188,7 +204,7 @@ export function ReaderTutorProvider({ articleId, children }: Props) {
         setAsking(false);
       }
     },
-    [articleId, asking],
+    [articleId, asking, paragraphContext],
   );
 
   // ---- clear ----

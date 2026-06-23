@@ -48,7 +48,8 @@ export default function ReaderTools({
   articleId: string;
   plainText: string;
 }) {
-  const { open, activeTab, visited, activate } = useReaderTools();
+  const { open, activeTab, visited, activate, currentBlock } = useReaderTools();
+  const currentBlockText = currentBlock?.text;
   const tabListRef = useRef<HTMLDivElement | null>(null);
 
   function handleKeyDown(e: React.KeyboardEvent, index: number) {
@@ -157,6 +158,7 @@ export default function ReaderTools({
                 articleId={articleId}
                 plainText={plainText}
                 active={open && activeTab === "speak"}
+                currentBlockText={currentBlockText}
               />
             </ReaderPanelErrorBoundary>
           )}
@@ -183,7 +185,7 @@ export default function ReaderTools({
         >
           {visited.has("ask") && (
             <ReaderPanelErrorBoundary label="Ask">
-              <ReaderTutorProvider articleId={articleId}>
+              <ReaderTutorProvider articleId={articleId} paragraphContext={currentBlockText}>
                 <ArticleTutor active={open && activeTab === "ask"} />
               </ReaderTutorProvider>
             </ReaderPanelErrorBoundary>
