@@ -106,6 +106,11 @@ export const PROVIDERS: readonly Provider[] = [
       excludes(url, ["/live-blog/", "/video/", "/nbc-news-now-live-audio", "select/shopping"]),
     defaultCategory: "world",
     categoryFor: categoryFromFirstSegment,
+    cleanup: {
+      // Drop entire media and UI chrome blocks before paragraph extraction.
+      dropSelectors: ["video", "iframe", "aside"],
+      dropClassKeywords: ["related", "social-share", "newsletter", "promo", "advertisement"],
+    },
   },
   {
     key: "natgeo",
@@ -121,6 +126,10 @@ export const PROVIDERS: readonly Provider[] = [
     articleUrlPattern: /\/article\//i,
     defaultCategory: "science",
     categoryFor: categoryFromFirstSegment,
+    cleanup: {
+      dropSelectors: ["video", "iframe", "aside"],
+      dropClassKeywords: ["related", "social", "newsletter", "promo"],
+    },
   },
   {
     key: "time",
@@ -156,6 +165,10 @@ export const PROVIDERS: readonly Provider[] = [
     articleUrlFilter: (url) => excludes(url, ["/video/", "/voices/", "/section/"]),
     defaultCategory: "world",
     categoryFor: categoryFromFirstSegment,
+    cleanup: {
+      dropSelectors: ["video", "iframe"],
+      dropClassKeywords: ["related", "social", "newsletter", "promo", "advertisement", "comment"],
+    },
   },
   {
     key: "bbc",
