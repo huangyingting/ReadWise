@@ -1,76 +1,127 @@
 /**
- * Unit tests for searchPublishedArticles in src/lib/articles.ts.
+ * Unit tests for the portable article search provider.
  *
- * Covers: FTS5 page-1 annotation merge, page-N duplicate-prevention (regression
- * for #80), hasMore computation, FTS5 error fallback, and empty query.
- *
- * Mocks: @/lib/prisma (highlight, savedWord, article, $queryRaw),
- *        @/lib/cache (createCachedListing passthrough).
- * No real DB or network is touched.
+ * No real DB/FTS index is touched. The Prisma mock intentionally omits
+ * `$queryRaw`, so any regression to SQLite FTS5 fails these tests.
  */
 process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { Article } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  type Article,
+  type Prisma,
+} from "@prisma/client";
 import { buildArticle } from "./helpers";
 
-// ---------------------------------------------------------------------------
-// Mutable state shared by mock implementations (reset in beforeEach)
-// ---------------------------------------------------------------------------
+type FindArgs = {
+  where?: Record<string, unknown>;
+  orderBy?: Array<Record<string, "asc" | "desc">>;
+  take?: number;
+};
 
-let ftsRows: { id: string; rank: number }[] = [];
-let shouldThrowFts = false;
-let articleDbRows: Article[] = [];
-let personalRows: Article[] = [];
-let highlightRows: { articleId: string }[] = [];
-let savedWordRows: { articleId: string | null }[] = [];
+type HighlightRow = { userId: string; articleId: string; quote: string; note?: string | null };
+type SavedWordRow = {
+  userId: string;
+  articleId: string | null;
+  word: string;
+  explanation?: string | null;
+  example?: string | null;
+  contextSentence?: string | null;
+};
 
-// ---------------------------------------------------------------------------
-// Module mocks — registered once before any module-under-test is imported
-// ---------------------------------------------------------------------------
+let articleRows: Article[] = [];
+let highlightRows: HighlightRow[] = [];
+let savedWordRows: SavedWordRow[] = [];
+let articleFindCalls: FindArgs[] = [];
+let highlightFindCalls: FindArgs[] = [];
+let savedWordFindCalls: FindArgs[] = [];
+
+function valueFor(row: unknown, key: string): unknown {
+  return (row as Record<string, unknown>)[key];
+}
+
+function contains(actual: unknown, expected: unknown): boolean {
+  return String(actual ?? "").toLowerCase().includes(String(expected ?? "").toLowerCase());
+}
+
+function matchesWhere(row: unknown, where: Record<string, unknown> = {}): boolean {
+  const and = where.AND;
+  if (Array.isArray(and) && !and.every((clause) => matchesWhere(row, clause as Record<string, unknown>))) {
+    return false;
+  }
+  const or = where.OR;
+  if (Array.isArray(or) && !or.some((clause) => matchesWhere(row, clause as Record<string, unknown>))) {
+    return false;
+  }
+
+  for (const [key, expected] of Object.entries(where)) {
+    if (key === "AND" || key === "OR") continue;
+    const actual = valueFor(row, key);
+    if (expected && typeof expected === "object") {
+      const filter = expected as Record<string, unknown>;
+      if (Array.isArray(filter.in)) {
+        if (!filter.in.includes(actual)) return false;
+        continue;
+      }
+      if ("not" in filter) {
+        if (actual === filter.not) return false;
+        continue;
+      }
+      if ("contains" in filter) {
+        if (!contains(actual, filter.contains)) return false;
+        continue;
+      }
+    }
+    if (actual !== expected) return false;
+  }
+  return true;
+}
+
+function sortArticles(rows: Article[], orderBy: FindArgs["orderBy"]): Article[] {
+  if (!orderBy) return rows;
+  return [...rows].sort((a, b) => {
+    for (const order of orderBy) {
+      const [field, direction] = Object.entries(order)[0] as [keyof Article, "asc" | "desc"];
+      const av = a[field] instanceof Date ? (a[field] as Date).getTime() : a[field];
+      const bv = b[field] instanceof Date ? (b[field] as Date).getTime() : b[field];
+      if (av === bv) continue;
+      const cmp = av == null ? -1 : bv == null ? 1 : av < bv ? -1 : 1;
+      return direction === "desc" ? -cmp : cmp;
+    }
+    return 0;
+  });
+}
 
 before(() => {
-  // Passthrough cache so unstable_cache / Next.js runtime is never needed.
-  mock.module("@/lib/cache", {
-    namedExports: {
-      createCachedListing:
-        (fn: (...args: unknown[]) => unknown) =>
-        (...args: unknown[]) =>
-          fn(...args),
-      ARTICLES_CACHE_TAG: "articles",
-      TAGS_CACHE_TAG: "tags",
-      LISTING_REVALIDATE_SECONDS: 300,
-      revalidateArticlesCache: () => {},
-      revalidateTagsCache: () => {},
-    },
-  });
-
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
-        // Tagged template literal — receives TemplateStringsArray as first arg.
-        $queryRaw: async (..._args: unknown[]) => {
-          if (shouldThrowFts) throw new Error("FTS5 unavailable");
-          return ftsRows;
+        article: {
+          findMany: async (args: FindArgs = {}) => {
+            articleFindCalls.push(args);
+            const matched = articleRows.filter((row) => matchesWhere(row, args.where));
+            const sorted = sortArticles(matched, args.orderBy);
+            return typeof args.take === "number" ? sorted.slice(0, args.take) : sorted;
+          },
+          count: async (args: Pick<FindArgs, "where"> = {}) => {
+            return articleRows.filter((row) => matchesWhere(row, args.where)).length;
+          },
         },
         highlight: {
-          findMany: async () => highlightRows,
+          findMany: async (args: FindArgs = {}) => {
+            highlightFindCalls.push(args);
+            const matched = highlightRows.filter((row) => matchesWhere(row, args.where));
+            return matched.map((row) => ({ articleId: row.articleId }));
+          },
         },
         savedWord: {
-          findMany: async () => savedWordRows,
-        },
-        article: {
-          findMany: async (args: {
-            where?: { id?: { in?: string[] }; status?: string; ownerId?: string };
-          }) => {
-            const ids = args.where?.id?.in;
-            // FTS final fetch / LIKE path: filter by explicit id list.
-            if (ids) return articleDbRows.filter((a) => ids.includes(a.id));
-            // Per-user personal-imports query: where.ownerId set, no id.in.
-            if (args.where?.ownerId) return personalRows;
-            // LIKE fallback path (no id.in, no ownerId): return all rows.
-            return articleDbRows;
+          findMany: async (args: FindArgs = {}) => {
+            savedWordFindCalls.push(args);
+            const matched = savedWordRows.filter((row) => matchesWhere(row, args.where));
+            return matched.map((row) => ({ articleId: row.articleId }));
           },
         },
       },
@@ -79,206 +130,193 @@ before(() => {
 });
 
 beforeEach(() => {
-  ftsRows = [];
-  shouldThrowFts = false;
-  articleDbRows = [];
-  personalRows = [];
+  articleRows = [];
   highlightRows = [];
   savedWordRows = [];
+  articleFindCalls = [];
+  highlightFindCalls = [];
+  savedWordFindCalls = [];
 });
 
-// ---------------------------------------------------------------------------
-// Page 1: annotation IDs merged and deduplicated
-// ---------------------------------------------------------------------------
+test("buildSearchTerms normalizes punctuation and deduplicates", async () => {
+  const { buildSearchTerms } = await import("@/lib/article-search");
 
-test("searchPublishedArticles page 1 merges annotation IDs and deduplicates", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+  assert.deepEqual(buildSearchTerms("  Climate, climate-change!  "), ["climate", "change"]);
+  assert.deepEqual(buildSearchTerms("   "), []);
+});
 
-  const f1 = buildArticle({ id: "f1" });
-  const f2 = buildArticle({ id: "f2" });
-  const annot = buildArticle({ id: "annot" });
-
-  ftsRows = [
-    { id: "f1", rank: -1.5 },
-    { id: "f2", rank: -1.0 },
+test("search ranks title matches ahead of body/source matches and then by recency", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    buildArticle({ id: "body", title: "Other", content: "climate", publishedAt: new Date("2026-01-03") }),
+    buildArticle({ id: "title-old", title: "Climate policy", publishedAt: new Date("2026-01-01") }),
+    buildArticle({ id: "title-new", title: "Climate science", publishedAt: new Date("2026-01-02") }),
   ];
-  articleDbRows = [f1, f2, annot];
-  highlightRows = [{ articleId: "annot" }];
-  // f1 is already in the FTS results — it should NOT appear twice
-  savedWordRows = [{ articleId: "f1" }];
 
-  const result = await searchPublishedArticles("hello", { offset: 0, limit: 3 }, "user-1");
+  const result = await searchPublishedArticles("climate", { limit: 3 });
 
-  assert.deepEqual(
-    result.articles.map((a) => a.id),
-    ["f1", "f2", "annot"],
-  );
+  assert.deepEqual(result.articles.map((a) => a.id), ["title-new", "title-old", "body"]);
   assert.equal(result.hasMore, false);
 });
 
-// ---------------------------------------------------------------------------
-// Page 2: annotation IDs must NOT be re-appended (regression test for #80)
-// ---------------------------------------------------------------------------
-
-test("searchPublishedArticles page 2 does not re-append annotation IDs", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
-
-  const f3 = buildArticle({ id: "f3" });
-  const annot = buildArticle({ id: "annot" });
-
-  // Simulate page 2 (offset=5): FTS returns only f3
-  ftsRows = [{ id: "f3", rank: -0.5 }];
-  articleDbRows = [f3, annot];
-  // annot came from annotations on page 1 — must NOT reappear on page 2
-  highlightRows = [{ articleId: "annot" }];
-
-  const result = await searchPublishedArticles("hello", { offset: 5, limit: 3 }, "user-1");
-
-  assert.deepEqual(
-    result.articles.map((a) => a.id),
-    ["f3"],
-  );
-  assert.equal(result.hasMore, false);
-});
-
-// ---------------------------------------------------------------------------
-// hasMore computed correctly
-// ---------------------------------------------------------------------------
-
-test("searchPublishedArticles hasMore is true when FTS overflow exceeds limit", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
-
-  const arts = ["f1", "f2", "f3", "f4"].map((id) => buildArticle({ id }));
-  articleDbRows = arts;
-  // 4 FTS rows for limit=3: orderedIds.length(4) > limit(3) → hasMore=true
-  ftsRows = [
-    { id: "f1", rank: -2.0 },
-    { id: "f2", rank: -1.5 },
-    { id: "f3", rank: -1.0 },
-    { id: "f4", rank: -0.5 },
+test("older title matches are not hidden behind the recency-capped body candidate window", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    ...Array.from({ length: 30 }, (_, index) =>
+      buildArticle({
+        id: `source-${index}`,
+        title: `Recent source match ${index}`,
+        source: "Xenolith Daily",
+        content: "no matching body text",
+        publishedAt: new Date(`2026-04-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+      }),
+    ),
+    ...Array.from({ length: 75 }, (_, index) =>
+      buildArticle({
+        id: `body-${index}`,
+        title: `Recent body match ${index}`,
+        content: "xenolith appears in the body",
+        publishedAt: new Date(`2026-03-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+      }),
+    ),
+    buildArticle({
+      id: "older-title",
+      title: "Xenolith field guide",
+      content: "no matching body text",
+      publishedAt: new Date("2020-01-01T00:00:00Z"),
+    }),
   ];
 
-  const result = await searchPublishedArticles("test", { offset: 0, limit: 3 });
+  const result = await searchPublishedArticles("xenolith");
 
-  assert.equal(result.articles.length, 3);
+  assert.equal(result.articles[0].id, "older-title");
+  assert.ok(result.articles.some((article) => article.id === "older-title"));
   assert.equal(result.hasMore, true);
 });
 
-test("searchPublishedArticles hasMore is false when results fit within limit", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
-
-  articleDbRows = [buildArticle({ id: "f1" }), buildArticle({ id: "f2" })];
-  ftsRows = [
-    { id: "f1", rank: -1.5 },
-    { id: "f2", rank: -1.0 },
-  ];
-
-  const result = await searchPublishedArticles("test", { offset: 0, limit: 5 });
-
-  assert.equal(result.articles.length, 2);
-  assert.equal(result.hasMore, false);
-});
-
-// ---------------------------------------------------------------------------
-// FTS5 error fallback to LIKE
-// ---------------------------------------------------------------------------
-
-test("searchPublishedArticles falls back to LIKE when FTS5 throws", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
-
-  shouldThrowFts = true;
-  const likeMatch = buildArticle({ id: "like-match", title: "hello world" });
-  articleDbRows = [likeMatch];
-
-  // LIKE path: article.findMany called without id.in → mock returns all rows
-  const result = await searchPublishedArticles("hello", { offset: 0, limit: 10 });
-
-  assert.equal(result.articles.length, 1);
-  assert.equal(result.articles[0].id, "like-match");
-  assert.equal(result.hasMore, false);
-});
-
-// ---------------------------------------------------------------------------
-// Empty / blank query
-// ---------------------------------------------------------------------------
-
-test("searchPublishedArticles returns empty for blank query without hitting DB", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+test("search returns empty for blank query without touching Prisma", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
 
   const result = await searchPublishedArticles("  ");
 
-  assert.deepEqual(result.articles, []);
-  assert.equal(result.hasMore, false);
+  assert.deepEqual(result, { articles: [], hasMore: false });
+  assert.equal(articleFindCalls.length, 0);
+  assert.equal(highlightFindCalls.length, 0);
+  assert.equal(savedWordFindCalls.length, 0);
 });
 
-// ---------------------------------------------------------------------------
-// FTS returns 0 ids → fall through to LIKE (author/source/category terms)
-// ---------------------------------------------------------------------------
+test("anonymous/public search never leaks owned or draft articles", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    buildArticle({ id: "public", title: "Climate", ownerId: null, status: ArticleStatus.PUBLISHED }),
+    buildArticle({
+      id: "owned",
+      title: "Climate private",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
+    buildArticle({ id: "draft", title: "Climate draft", ownerId: null, status: ArticleStatus.DRAFT }),
+  ];
 
-test("searchPublishedArticles falls through to LIKE when FTS matches nothing", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+  const result = await searchPublishedArticles("climate", { limit: 10 });
 
-  // FTS returns no rows (e.g. a source/author term absent from title/content),
-  // but the LIKE fallback finds the article by its source field.
-  ftsRows = [];
-  const sourceMatch = buildArticle({ id: "src-match", source: "The Guardian" });
-  articleDbRows = [sourceMatch];
-
-  const result = await searchPublishedArticles("Guardian", { offset: 0, limit: 10 });
-
-  assert.equal(result.articles.length, 1, "LIKE fallback runs after empty FTS");
-  assert.equal(result.articles[0].id, "src-match");
-  assert.equal(result.hasMore, false);
+  assert.deepEqual(result.articles.map((a) => a.id), ["public"]);
+  assert.equal(highlightFindCalls.length, 0, "anonymous search must not query user annotations");
 });
 
-// ---------------------------------------------------------------------------
-// FTS with results does NOT trigger the LIKE fallback
-// ---------------------------------------------------------------------------
+test("authenticated search includes the user's own private imports but not another user's imports", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    buildArticle({ id: "public", title: "Import guide", ownerId: null, status: ArticleStatus.PUBLISHED }),
+    buildArticle({
+      id: "mine",
+      title: "Import notes",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.DRAFT,
+    }),
+    buildArticle({
+      id: "theirs",
+      title: "Import secret",
+      ownerId: "user-2",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
+  ];
 
-test("searchPublishedArticles returns FTS results without LIKE fallback", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+  const result = await searchPublishedArticles("import", { limit: 10 }, "user-1");
 
-  ftsRows = [{ id: "f1", rank: -1.0 }];
-  // Only f1 is reachable by id.in; a LIKE fallback (returns all rows) would also
-  // surface "like-only", so its absence proves the FTS path returned directly.
-  articleDbRows = [buildArticle({ id: "f1" }), buildArticle({ id: "like-only" })];
-
-  const result = await searchPublishedArticles("hello", { offset: 0, limit: 10 });
-
-  assert.deepEqual(result.articles.map((a) => a.id), ["f1"]);
-  assert.equal(result.hasMore, false);
+  assert.deepEqual(result.articles.map((a) => a.id), ["mine", "public"]);
 });
 
-test("searchPublishedArticles includes the user's own imports (FTS path)", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+test("highlight/note matches are scoped to the requesting user and final article readability", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    buildArticle({
+      id: "mine",
+      title: "Private article",
+      ownerId: "user-1",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.DRAFT,
+    }),
+    buildArticle({
+      id: "theirs",
+      title: "Other article",
+      ownerId: "user-2",
+      visibility: ArticleVisibility.PRIVATE,
+      status: ArticleStatus.PUBLISHED,
+    }),
+  ];
+  highlightRows = [
+    { userId: "user-1", articleId: "mine", quote: "mitochondria" },
+    { userId: "user-2", articleId: "theirs", quote: "mitochondria" },
+  ];
 
-  const f1 = buildArticle({ id: "f1" });
-  const mine = buildArticle({ id: "mine", title: "My private import" });
+  const result = await searchPublishedArticles("mitochondria", { limit: 10 }, "user-1");
 
-  ftsRows = [{ id: "f1", rank: -1.0 }];
-  // The personal import is owned by the user; resolvable in the final fetch.
-  articleDbRows = [f1, mine];
-  personalRows = [mine];
-
-  const result = await searchPublishedArticles("import", { offset: 0, limit: 10 }, "user-1");
-
-  const ids = result.articles.map((a) => a.id);
-  assert.ok(ids.includes("mine"), "personal import should appear in results");
-  assert.ok(ids.includes("f1"));
+  assert.deepEqual(result.articles.map((a) => a.id), ["mine"]);
+  assert.equal(highlightFindCalls[0].where?.userId, "user-1");
 });
 
-test("searchPublishedArticles does not query personal imports without a userId", async () => {
-  const { searchPublishedArticles } = await import("@/lib/articles");
+test("saved vocabulary matches can surface readable articles", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [buildArticle({ id: "article", title: "General news", ownerId: null, status: ArticleStatus.PUBLISHED })];
+  savedWordRows = [{ userId: "user-1", articleId: "article", word: "photosynthesis" }];
 
-  const f1 = buildArticle({ id: "f1" });
-  ftsRows = [{ id: "f1", rank: -1.0 }];
-  articleDbRows = [f1];
-  // personalRows is set but must be ignored when no userId is supplied.
-  personalRows = [buildArticle({ id: "leak" })];
+  const result = await searchPublishedArticles("photosynthesis", { limit: 10 }, "user-1");
 
-  const result = await searchPublishedArticles("test", { offset: 0, limit: 10 });
+  assert.deepEqual(result.articles.map((a) => a.id), ["article"]);
+  assert.equal(savedWordFindCalls[0].where?.userId, "user-1");
+});
 
-  const ids = result.articles.map((a) => a.id);
-  assert.ok(!ids.includes("leak"), "personal imports must not leak without a userId");
-  assert.deepEqual(ids, ["f1"]);
+test("search paginates ranked candidates and reports hasMore", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = ["a1", "a2", "a3"].map((id, index) =>
+    buildArticle({ id, title: `Climate ${id}`, publishedAt: new Date(`2026-01-0${3 - index}T00:00:00Z`) }),
+  );
+
+  const page1 = await searchPublishedArticles("climate", { offset: 0, limit: 2 });
+  const page2 = await searchPublishedArticles("climate", { offset: 2, limit: 2 });
+
+  assert.deepEqual(page1.articles.map((a) => a.id), ["a1", "a2"]);
+  assert.equal(page1.hasMore, true);
+  assert.deepEqual(page2.articles.map((a) => a.id), ["a3"]);
+  assert.equal(page2.hasMore, false);
+});
+
+test("search does not report hasMore after the capped broad candidate window is exhausted", async () => {
+  const { SEARCH_CANDIDATE_LIMIT, searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = Array.from({ length: SEARCH_CANDIDATE_LIMIT + 25 }, (_, index) =>
+    buildArticle({
+      id: `broad-${index}`,
+      title: `Climate broad match ${index}`,
+      publishedAt: new Date(`2026-02-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+    }),
+  );
+
+  const page = await searchPublishedArticles("climate", { offset: SEARCH_CANDIDATE_LIMIT, limit: 20 });
+
+  assert.deepEqual(page.articles, []);
+  assert.equal(page.hasMore, false);
 });

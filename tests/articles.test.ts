@@ -6,6 +6,7 @@ import {
   countWords,
   toListingArticle,
   rankPicks,
+  buildSearchTerms,
 } from "@/lib/articles";
 import { buildArticle } from "./helpers";
 
@@ -87,48 +88,18 @@ test("rankPicks with no topics is the plain level ranking", () => {
   assert.deepEqual(rankPicks(arts, null, []).map((a) => a.id), ["a", "b"]);
 });
 
-// ── buildFtsQuery (FTS5 search helper) ──────────────────────────────────────
+// ── portable search term tokenizer ──────────────────────────────────────────
 
-import { buildFtsQuery } from "@/lib/articles";
-
-test("buildFtsQuery returns null for blank input", () => {
-  assert.equal(buildFtsQuery(""), null);
-  assert.equal(buildFtsQuery("   "), null);
+test("buildSearchTerms returns no tokens for blank input", () => {
+  assert.deepEqual(buildSearchTerms(""), []);
+  assert.deepEqual(buildSearchTerms("   "), []);
 });
 
-test("buildFtsQuery wraps single token as prefix match", () => {
-  assert.equal(buildFtsQuery("climate"), '"climate"*');
+test("buildSearchTerms normalizes punctuation and whitespace", () => {
+  assert.deepEqual(buildSearchTerms("  ocean   life  "), ["ocean", "life"]);
+  assert.deepEqual(buildSearchTerms("status:title word+more"), ["status", "title", "word", "more"]);
 });
 
-test("buildFtsQuery wraps multiple tokens, each as prefix match", () => {
-  assert.equal(buildFtsQuery("climate change"), '"climate"* "change"*');
-});
-
-test("buildFtsQuery strips FTS5 operator characters from tokens", () => {
-  // Double-quotes in input should not break the FTS expression
-  const result = buildFtsQuery('say "hello"');
-  assert.ok(result !== null);
-  assert.ok(!result.includes('""'));
-});
-
-test("buildFtsQuery handles extra whitespace between tokens", () => {
-  assert.equal(buildFtsQuery("  ocean   life  "), '"ocean"* "life"*');
-});
-
-test("buildFtsQuery neutralises * by double-quote wrapping", () => {
-  // * inside double-quotes is treated as a literal, not the prefix operator
-  assert.equal(buildFtsQuery("a*b"), '"a*b"*');
-});
-
-test("buildFtsQuery neutralises ^ by double-quote wrapping", () => {
-  assert.equal(buildFtsQuery("^term"), '"^term"*');
-});
-
-test("buildFtsQuery neutralises : by double-quote wrapping", () => {
-  // : is the column filter operator in FTS5 — must be inside quotes
-  assert.equal(buildFtsQuery("status:title"), '"status:title"*');
-});
-
-test("buildFtsQuery neutralises + by double-quote wrapping", () => {
-  assert.equal(buildFtsQuery("word+more"), '"word+more"*');
+test("buildSearchTerms deduplicates and lowercases", () => {
+  assert.deepEqual(buildSearchTerms("Climate climate CHANGE"), ["climate", "change"]);
 });

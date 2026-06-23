@@ -67,6 +67,8 @@ model User {
   difficultyFeedback      ArticleDifficultyFeedback[]
   ownedArticles           Article[]                   @relation("OwnedArticles")
   ownedTags               Tag[]                       @relation("OwnedTags")
+
+  @@index([role, createdAt], map: "User_role_created_idx")
 }
 
 model Profile {
@@ -132,6 +134,12 @@ model Article {
   @@index([category])
   @@index([ownerId])
   @@index([visibility, status])
+  @@index([sourceUrl], map: "Article_sourceUrl_idx")
+  @@index([status, ownerId, publishedAt, createdAt], map: "Article_visibility_feed_idx")
+  @@index([status, ownerId, category, publishedAt, createdAt], map: "Article_category_feed_idx")
+  @@index([ownerId, status, createdAt], map: "Article_owner_status_created_idx")
+  @@index([status, createdAt], map: "Article_status_created_idx")
+  @@index([status, ownerId, difficulty, difficultyScore, publishedAt], map: "Article_level_feed_idx")
 }
 
 model Tag {
@@ -233,6 +241,8 @@ model SavedWord {
 
   @@unique([userId, word])
   @@index([userId])
+  @@index([userId, articleId], map: "SavedWord_user_article_idx")
+  @@index([userId, dueAt], map: "SavedWord_due_idx")
 }
 
 model DailyActivity {
@@ -290,6 +300,8 @@ model ReadingProgress {
 
   @@unique([userId, articleId])
   @@index([userId])
+  @@index([userId, completed, updatedAt], map: "ReadingProgress_user_completed_updated_idx")
+  @@index([articleId], map: "ReadingProgress_article_idx")
 }
 
 model Account {
@@ -309,6 +321,7 @@ model Account {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_user_idx")
 }
 
 model Session {
@@ -318,6 +331,8 @@ model Session {
   expires      DateTime
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_user_idx")
 }
 
 model VerificationToken {
@@ -398,6 +413,7 @@ model Highlight {
 
   @@unique([userId, articleId, startOffset, endOffset])
   @@index([userId, articleId])
+  @@index([userId, createdAt], map: "Highlight_user_created_idx")
 }
 
 // M13 — Sentence-level translation cache
