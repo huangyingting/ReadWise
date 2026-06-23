@@ -93,7 +93,7 @@ Copy `.env.example` to `.env.local` and fill in real values.
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | Prisma datasource URL, e.g. `file:./dev.db` |
-| `NEXTAUTH_SECRET` | Random secret for signing sessions (generate with `openssl rand -hex 32`) |
+| `NEXTAUTH_SECRET` | Random secret for signing sessions; at least 32 characters (generate with `openssl rand -hex 32`) |
 | `NEXTAUTH_URL` | Canonical URL of the app, e.g. `http://localhost:3000` |
 
 ### OAuth providers (optional — at least one recommended for sign-in)
@@ -124,13 +124,36 @@ Copy `.env.example` to `.env.local` and fill in real values.
 | `AZURE_SPEECH_VOICE` | TTS voice name, e.g. `en-US-AndrewMultilingualNeural` |
 | `AZURE_SPEECH_OUTPUT_FORMAT` | Audio output format, e.g. `audio-24khz-96kbitrate-mono-mp3` |
 
+### Web Push / VAPID (optional — enables review reminders)
+
+| Variable | Description |
+|----------|-------------|
+| `VAPID_PUBLIC_KEY` | Public VAPID key exposed to clients |
+| `VAPID_PRIVATE_KEY` | Private VAPID key used server-side |
+| `VAPID_SUBJECT` | Contact subject for push services, e.g. `mailto:admin@example.com` |
+
 ### Tuning (optional)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `LOG_LEVEL` | `info` | Server log verbosity: `debug`, `info`, `warn`, `error` |
+| `AI_REQUEST_TIMEOUT_MS` | `30000` | Per-request Azure OpenAI timeout |
+| `AI_MAX_RETRIES` | `2` | Retry attempts for transient Azure OpenAI failures |
+| `SPEECH_TIMEOUT_MS` | `30000` | Azure Speech synthesis timeout |
 | `RATE_LIMIT_AI_REQUESTS` | `20` | Max AI requests per user per window |
+| `RATE_LIMIT_LOOKUP_REQUESTS` | `60` | Max dictionary/lookup requests per user per window |
+| `RATE_LIMIT_PUBLIC_REQUESTS` | `30` | Max unauthenticated public requests per window |
 | `RATE_LIMIT_WINDOW_MS` | `60000` | Rate-limit window length in milliseconds |
+
+### Startup validation and probes
+
+`/api/health` is a cheap liveness probe: it does not touch the database or
+external providers. `/api/ready` is the readiness probe: it validates required
+configuration, checks database connectivity, verifies Prisma migration-table
+health, and reports optional provider degradation without making slow external
+calls. Missing, partial, or malformed AI, Speech, Push, or OAuth settings are
+reported as unconfigured/degraded but do not block readiness; missing or
+malformed required settings do.
 
 ## Scripts
 
@@ -169,7 +192,7 @@ src/
 │   ├── admin/            # Admin area (layout-gated to Admin role)
 │   ├── api/              # API route handlers
 │   │   ├── health/       # GET /api/health  — liveness probe
-│   │   ├── ready/        # GET /api/ready   — readiness probe (DB + providers)
+│   │   ├── ready/        # GET /api/ready   — readiness probe (DB + migrations + config)
 │   │   ├── reader/[id]/  # Progress, translate, vocabulary, quiz, speech, tags
 │   │   └── admin/        # Admin stats, article/member/tag management
 │   ├── browse/           # Category browsing with infinite scroll
