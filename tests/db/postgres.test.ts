@@ -107,6 +107,46 @@ test("audit logs persist security event details on PostgreSQL", { skip: !enabled
   assert.equal(found?.targetType, "AuditLog");
 });
 
+test("PostgreSQL JSON fields migrate to jsonb columns", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const migrations = await prisma.$queryRaw<Array<{ migration_name: string }>>`
+    SELECT migration_name
+    FROM "_prisma_migrations"
+    WHERE migration_name = '20260623023200_json_field_parity'
+      AND rolled_back_at IS NULL
+      AND finished_at IS NOT NULL
+  `;
+  assert.equal(migrations.length, 1);
+
+  const columns = await prisma.$queryRaw<
+    Array<{ table_name: string; column_name: string; data_type: string; column_default: string | null }>
+  >`
+    SELECT table_name, column_name, data_type, column_default
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND (table_name, column_name) IN (
+        ('Profile', 'topics'),
+        ('QuizQuestion', 'options'),
+        ('ArticleSpeech', 'words')
+      )
+  `;
+
+  const byColumn = new Map(columns.map((column) => [`${column.table_name}.${column.column_name}`, column]));
+  assert.equal(byColumn.get("Profile.topics")?.data_type, "jsonb");
+  assert.match(byColumn.get("Profile.topics")?.column_default ?? "", /'\[\]'::jsonb/);
+  assert.equal(byColumn.get("QuizQuestion.options")?.data_type, "jsonb");
+  assert.equal(byColumn.get("ArticleSpeech.words")?.data_type, "jsonb");
+
+  const userId = id("json_user");
+  await prisma.user.create({ data: { id: userId, name: "DB Integration JSON User", role: "Reader" } });
+  const profile = await prisma.profile.create({
+    data: { userId, englishLevel: "B1", topics: ["technology", "science"] },
+    select: { topics: true },
+  });
+  assert.deepEqual(profile.topics, ["technology", "science"]);
+});
+
 test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
@@ -218,9 +258,9 @@ test("article deletes cascade derived data but keep saved-word study history", {
       data: { articleId, sourceHash: id("hash"), targetLang: "es", sourceText: "Hello", translation: "Hola" },
     }),
     prisma.vocabularyItem.create({ data: { articleId, word: "cascade", explanation: "test", example: "cascade test" } }),
-    prisma.quizQuestion.create({ data: { articleId, question: "Question?", options: "[\"A\",\"B\"]", correctIndex: 0 } }),
+    prisma.quizQuestion.create({ data: { articleId, question: "Question?", options: ["A", "B"], correctIndex: 0 } }),
     prisma.articleSpeech.create({
-      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", audioBase64: "AA==", spokenText: "Hello", words: "[]" },
+      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", audioBase64: "AA==", spokenText: "Hello", words: [] },
     }),
     prisma.readingProgress.create({ data: { userId, articleId, percent: 50 } }),
     prisma.readingList.create({ data: { id: id("list"), userId, name: "Integration List", items: { create: { articleId } } } }),
