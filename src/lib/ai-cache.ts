@@ -20,6 +20,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { promptVersionFor } from "@/lib/ai/chunking";
 import {
   loadAiProcessableArticleText,
   isArticleOperator,
@@ -31,6 +32,12 @@ type ChatMessage = {
   role: "system" | "user" | "assistant";
   content: string;
 };
+
+/** Calls the model with the helper's feature/article/prompt-version metadata. */
+export type CallModel = (
+  messages: ChatMessage[],
+  override?: { maxOutputTokens?: number },
+) => Promise<string | null>;
 
 /** The minimal article shape shared helpers need to build a prompt. */
 export type ArticleText = {
@@ -74,12 +81,24 @@ export type ArticleAiSpec<TArticle extends ArticleText, TParsed, TCache, TResult
   LoadArticleField<TArticle> & {
     /** Short label for structured AI logs (e.g. "translation", "quiz"). */
     feature: string;
+    /** Prompt version recorded in the ledger; defaults from the feature. */
+    promptVersion?: string;
     /** Reads the per-article cache; return null to signal a miss. */
     readCache: (articleId: string) => Promise<TCache | null>;
     /** Builds the chat messages sent to the provider on a cache miss. */
-    buildMessages: (article: TArticle) => ChatMessage[];
+    buildMessages?: (article: TArticle) => ChatMessage[];
     /** Fence-tolerant parse of the raw model response into TParsed. */
-    parse: (completion: string) => TParsed;
+    parse?: (completion: string) => TParsed;
+    /**
+     * Custom generation, used INSTEAD of buildMessages+parse when present. Lets
+     * a feature do multi-call generation (e.g. translation chunking) while still
+     * reusing the cache-first / don't-cache-fallbacks lifecycle. Return null to
+     * signal a generation failure (→ graceful fallback, not cached).
+     */
+    generate?: (
+      article: TArticle,
+      helpers: { articleId: string; callModel: CallModel },
+    ) => Promise<TParsed | null>;
     /** Whether the parsed value is empty (→ graceful fallback, not cached). */
     isEmpty: (parsed: TParsed) => boolean;
     /** Persists the parsed value and returns the cache shape for `toResult`. */
@@ -149,15 +168,35 @@ export async function getOrCreateArticleAi<
     return spec.fallback(article);
   }
 
-  const options: { feature: string; maxOutputTokens?: number } = {
-    feature: spec.feature,
+  const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
+  const callModel: CallModel = (messages, override) => {
+    const options: {
+      feature: string;
+      articleId: string;
+      promptVersion: string;
+      maxOutputTokens?: number;
+    } = {
+      feature: spec.feature,
+      articleId,
+      promptVersion,
+    };
+    const maxOutputTokens = override?.maxOutputTokens ?? spec.maxOutputTokens;
+    if (maxOutputTokens != null) {
+      options.maxOutputTokens = maxOutputTokens;
+    }
+    return chatComplete(messages, options);
   };
-  if (spec.maxOutputTokens != null) {
-    options.maxOutputTokens = spec.maxOutputTokens;
-  }
 
-  const completion = await chatComplete(spec.buildMessages(article), options);
-  const parsed = completion ? spec.parse(completion) : null;
+  let parsed: TParsed | null;
+  if (spec.generate) {
+    parsed = await spec.generate(article, { articleId, callModel });
+  } else if (spec.buildMessages && spec.parse) {
+    const completion = await callModel(spec.buildMessages(article));
+    parsed = completion ? spec.parse(completion) : null;
+  } else {
+    // Misconfigured spec (neither generate nor buildMessages+parse).
+    parsed = null;
+  }
   if (parsed === null || spec.isEmpty(parsed)) {
     // AI configured but request failed or yielded nothing — graceful fallback.
     return spec.fallback(article);

@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
+import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { validateQuiz } from "@/lib/ai/validation";
 import type { ArticleAccessContext } from "@/lib/article-access";
 import type { Prisma } from "@prisma/client";
 
@@ -16,71 +18,17 @@ export type ArticleQuizResult = {
   fallback: boolean;
 };
 
-/** Max characters of source text sent to the model (keeps token use bounded). */
-const MAX_SOURCE_CHARS = 8000;
-
 /** How many comprehension questions to request from the model. */
 const TARGET_QUESTIONS = 5;
 
 /**
- * Parses the model's JSON response into quiz questions, tolerating markdown code
- * fences and surrounding prose. Returns [] when nothing usable is found. Each
- * question must have a non-empty prompt, at least two options, and a
- * `correctIndex` that points at a real option.
+ * Parses the model's JSON response into quiz questions via the shared strict
+ * validator (RW-024): tolerant of code fences/prose, rejects questions without
+ * a prompt, with fewer than two options, or with an out-of-range correctIndex.
+ * Returns [] when nothing usable is found.
  */
 export function parseQuizJson(raw: string): QuizQuestion[] {
-  const fenced = raw.replace(/```(?:json)?/gi, "").trim();
-  const start = fenced.indexOf("[");
-  const end = fenced.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) {
-    return [];
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fenced.slice(start, end + 1));
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const questions: QuizQuestion[] = [];
-  for (const row of parsed) {
-    if (!row || typeof row !== "object") {
-      continue;
-    }
-    const record = row as Record<string, unknown>;
-    const question =
-      typeof record.question === "string" ? record.question.trim() : "";
-    const rawOptions = Array.isArray(record.options) ? record.options : [];
-    const options = rawOptions
-      .map((o) => (typeof o === "string" ? o.trim() : ""))
-      .filter((o) => o.length > 0);
-    const correctIndex =
-      typeof record.correctIndex === "number"
-        ? Math.trunc(record.correctIndex)
-        : -1;
-
-    if (
-      !question ||
-      options.length < 2 ||
-      correctIndex < 0 ||
-      correctIndex >= options.length
-    ) {
-      continue;
-    }
-
-    const key = question.toLowerCase();
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    questions.push({ question, options, correctIndex });
-  }
-  return questions;
+  return validateQuiz(raw).items;
 }
 
 /**
@@ -117,7 +65,7 @@ export async function getOrCreateArticleQuiz(
         return questions.length > 0 ? questions : null;
       },
       buildMessages: (article) => {
-        const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+        const source = boundedSampleForFeature(htmlToPlainText(article.content), "quiz");
         return [
           {
             role: "system",

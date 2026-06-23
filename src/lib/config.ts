@@ -399,6 +399,8 @@ export const aiConfig: FeatureConfig<AiConfig> = defineFeatureConfig(() => {
 
 const DEFAULT_AI_TIMEOUT_MS = 30_000;
 const DEFAULT_AI_MAX_RETRIES = 2;
+const DEFAULT_AI_MAX_CONTEXT_TOKENS = 128_000;
+const DEFAULT_AI_MAX_OUTPUT_TOKENS = 4096;
 
 /** Per-request AI timeout in ms (AI_REQUEST_TIMEOUT_MS, default 30000). */
 export function aiTimeoutMs(): number {
@@ -410,6 +412,22 @@ export function aiTimeoutMs(): number {
 export function aiMaxRetries(): number {
   const v = parseInt(process.env.AI_MAX_RETRIES ?? "", 10);
   return Number.isFinite(v) && v >= 0 ? v : DEFAULT_AI_MAX_RETRIES;
+}
+
+/**
+ * Model context window in tokens, used by long-text chunking (RW-025) to keep
+ * prompts within the model limit. Override per deployment via
+ * AZURE_OPENAI_MAX_CONTEXT_TOKENS (default 128000).
+ */
+export function aiMaxContextTokens(): number {
+  const v = parseInt(process.env.AZURE_OPENAI_MAX_CONTEXT_TOKENS ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_MAX_CONTEXT_TOKENS;
+}
+
+/** Default completion-token budget when a caller omits one (default 4096). */
+export function aiDefaultMaxOutputTokens(): number {
+  const v = parseInt(process.env.AI_MAX_OUTPUT_TOKENS ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_MAX_OUTPUT_TOKENS;
 }
 
 // ---------------------------------------------------------------------------
