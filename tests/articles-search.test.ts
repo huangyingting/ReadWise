@@ -101,6 +101,9 @@ before(() => {
             const sorted = sortArticles(matched, args.orderBy);
             return typeof args.take === "number" ? sorted.slice(0, args.take) : sorted;
           },
+          count: async (args: Pick<FindArgs, "where"> = {}) => {
+            return articleRows.filter((row) => matchesWhere(row, args.where)).length;
+          },
         },
         highlight: {
           findMany: async (args: FindArgs = {}) => {
@@ -149,6 +152,41 @@ test("search ranks title matches ahead of body/source matches and then by recenc
 
   assert.deepEqual(result.articles.map((a) => a.id), ["title-new", "title-old", "body"]);
   assert.equal(result.hasMore, false);
+});
+
+test("older title matches are not hidden behind the recency-capped body candidate window", async () => {
+  const { searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = [
+    ...Array.from({ length: 30 }, (_, index) =>
+      buildArticle({
+        id: `source-${index}`,
+        title: `Recent source match ${index}`,
+        source: "Xenolith Daily",
+        content: "no matching body text",
+        publishedAt: new Date(`2026-04-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+      }),
+    ),
+    ...Array.from({ length: 75 }, (_, index) =>
+      buildArticle({
+        id: `body-${index}`,
+        title: `Recent body match ${index}`,
+        content: "xenolith appears in the body",
+        publishedAt: new Date(`2026-03-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+      }),
+    ),
+    buildArticle({
+      id: "older-title",
+      title: "Xenolith field guide",
+      content: "no matching body text",
+      publishedAt: new Date("2020-01-01T00:00:00Z"),
+    }),
+  ];
+
+  const result = await searchPublishedArticles("xenolith");
+
+  assert.equal(result.articles[0].id, "older-title");
+  assert.ok(result.articles.some((article) => article.id === "older-title"));
+  assert.equal(result.hasMore, true);
 });
 
 test("search returns empty for blank query without touching Prisma", async () => {

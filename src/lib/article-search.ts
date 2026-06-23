@@ -10,7 +10,7 @@ import {
 export const SEARCH_PAGE_SIZE = 20;
 export const SEARCH_MAX_LIMIT = 50;
 
-/** Hard cap for the SQLite-safe Prisma strategy; PostgreSQL FTS replaces this after #259. */
+/** Hard cap for low-priority SQLite-safe Prisma candidate buckets; PostgreSQL FTS replaces this after #259. */
 export const SEARCH_CANDIDATE_LIMIT = 500;
 
 type ArticlePage = {
@@ -34,6 +34,8 @@ export type ArticleSearchProvider = {
 };
 
 const ARTICLE_SEARCH_FIELDS = ["title", "excerpt", "content", "author", "source", "category"] as const;
+const TITLE_ARTICLE_SEARCH_FIELDS = ["title"] as const;
+const BYLINE_ARTICLE_SEARCH_FIELDS = ["author", "source"] as const;
 const HIGHLIGHT_SEARCH_FIELDS = ["quote", "note"] as const;
 const SAVED_WORD_SEARCH_FIELDS = ["word", "explanation", "example", "contextSentence"] as const;
 
@@ -68,11 +70,29 @@ function candidateTake(offset: number, limit: number): number {
   return Math.min(SEARCH_CANDIDATE_LIMIT, Math.max(limit + 1, offset + limit + 1 + 50));
 }
 
-function articleTextWhere(terms: string[]): Prisma.ArticleWhereInput {
+function priorityTake(offset: number, limit: number): number {
+  return Math.min(SEARCH_CANDIDATE_LIMIT, offset + limit + 1);
+}
+
+function articleFieldsWhere(
+  fields: readonly (typeof ARTICLE_SEARCH_FIELDS)[number][],
+  terms: string[],
+): Prisma.ArticleWhereInput {
   const perTerm = terms.map((term) => ({
-    OR: ARTICLE_SEARCH_FIELDS.map((field) => ({ [field]: { contains: term } })),
+    OR: fields.map((field) => ({ [field]: { contains: term } })),
   })) as Prisma.ArticleWhereInput[];
   return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
+}
+
+function articleTextWhere(terms: string[]): Prisma.ArticleWhereInput {
+  return articleFieldsWhere(ARTICLE_SEARCH_FIELDS, terms);
+}
+
+function articleExactWhere(
+  fields: readonly (typeof ARTICLE_SEARCH_FIELDS)[number][],
+  query: string,
+): Prisma.ArticleWhereInput {
+  return { OR: fields.map((field) => ({ [field]: { contains: query } })) };
 }
 
 function highlightTextWhere(terms: string[]): Prisma.HighlightWhereInput {
@@ -199,19 +219,71 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
 
     const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
     const offset = Math.max(0, opts.offset ?? 0);
-    const take = candidateTake(offset, limit);
+    const broadTake = candidateTake(offset, limit);
+    const highPriorityTake = priorityTake(offset, limit);
     const access = accessContext(context);
+    const readableTextWhere = readableArticleWhere(access, articleTextWhere(terms));
 
-    const [textMatches, annotations] = await Promise.all([
+    const [
+      textMatchCount,
+      exactTitleMatches,
+      titleMatches,
+      exactBylineMatches,
+      bylineMatches,
+      exactTextMatches,
+      textMatches,
+      annotations,
+    ] = await Promise.all([
+      prisma.article.count({ where: readableTextWhere }),
       prisma.article.findMany({
-        where: readableArticleWhere(access, articleTextWhere(terms)),
+        where: readableArticleWhere(access, articleExactWhere(TITLE_ARTICLE_SEARCH_FIELDS, q)),
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take,
+        take: highPriorityTake,
       }),
-      userAnnotationArticleIds(context?.userId, terms, take),
+      prisma.article.findMany({
+        where: readableArticleWhere(access, articleFieldsWhere(TITLE_ARTICLE_SEARCH_FIELDS, terms)),
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: highPriorityTake,
+      }),
+      prisma.article.findMany({
+        where: readableArticleWhere(access, articleExactWhere(BYLINE_ARTICLE_SEARCH_FIELDS, q)),
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: highPriorityTake,
+      }),
+      prisma.article.findMany({
+        where: readableArticleWhere(access, articleFieldsWhere(BYLINE_ARTICLE_SEARCH_FIELDS, terms)),
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: highPriorityTake,
+      }),
+      prisma.article.findMany({
+        where: readableArticleWhere(access, articleExactWhere(ARTICLE_SEARCH_FIELDS, q)),
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: highPriorityTake,
+      }),
+      prisma.article.findMany({
+        where: readableTextWhere,
+        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+        take: broadTake,
+      }),
+      userAnnotationArticleIds(context?.userId, terms, broadTake),
     ]);
 
     const candidates = new Map<string, SearchCandidate>();
+    for (const article of exactTitleMatches) {
+      putCandidate(candidates, article, "article");
+    }
+    for (const article of titleMatches) {
+      putCandidate(candidates, article, "article");
+    }
+    for (const article of exactBylineMatches) {
+      putCandidate(candidates, article, "article");
+    }
+    for (const article of bylineMatches) {
+      putCandidate(candidates, article, "article");
+    }
+    for (const article of exactTextMatches) {
+      putCandidate(candidates, article, "article");
+    }
     for (const article of textMatches) {
       putCandidate(candidates, article, "article");
     }
@@ -221,7 +293,7 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
     if (missingAnnotationIds.length > 0) {
       const annotationArticles = await prisma.article.findMany({
         where: readableArticleWhere(access, { id: { in: missingAnnotationIds } }),
-        take,
+        take: missingAnnotationIds.length,
       });
       for (const article of annotationArticles) {
         putCandidate(candidates, article, "article");
@@ -239,7 +311,7 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
     const page = ranked.slice(offset, offset + limit);
     return {
       articles: page.map((candidate) => candidate.article),
-      hasMore: ranked.length > offset + limit,
+      hasMore: ranked.length > offset + limit || textMatchCount > offset + limit,
     };
   }
 }
