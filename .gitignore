@@ -28,6 +28,7 @@ yarn-error.log*
 *.db-journal
 /prisma/dev.db
 /prisma/*.db
+/backups/
 
 # typescript
 *.tsbuildinfo
