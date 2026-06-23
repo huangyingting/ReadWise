@@ -6,18 +6,43 @@ Prisma client.
 
 ## Local PostgreSQL parity stack
 
+Recommended one-command setup:
+
 ```bash
-docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
-export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
-npm run prisma:generate:pg
-npm run prisma:migrate:pg
+npm run local:pg:setup
 npm run dev
+```
+
+`local:pg:setup` runs:
+
+1. `docker compose up -d --wait postgres redis`
+2. PostgreSQL Prisma client generation
+3. PostgreSQL migrations
+4. Deterministic local seed data
+
+The helper injects the local-only environment values below so it does not need
+to read `.env.local`:
+
+```bash
+DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
+REDIS_URL="redis://localhost:6379"
 ```
 
 The compose stack binds PostgreSQL to loopback only and uses a clearly dev-only
 password. Production must set `DATABASE_URL` through the deployment secret
 manager with real credentials and must not commit those values.
+
+Manual equivalent commands remain available when debugging:
+
+```bash
+npm run local:pg:up
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
+npm run prisma:generate:pg
+npm run prisma:migrate:pg
+npm run local:seed
+```
 
 To switch back to SQLite after generating the PostgreSQL client, restore the
 default client:
@@ -28,17 +53,61 @@ export PRISMA_SCHEMA_PATH="prisma/schema.prisma"
 npm run prisma:generate
 ```
 
-## Reset local PostgreSQL state
+## Deterministic local seed data
 
-This removes the local PostgreSQL volume and all local data:
+`npm run local:pg:seed` (or `npm run local:seed` with a safe local
+`DATABASE_URL`) seeds a fixed, idempotent dataset without scraping, network
+calls, AI provider calls, OAuth providers, or secrets.
+
+Included fixtures:
+
+| Area | Seeded data |
+| --- | --- |
+| Users | Admin, Reader, and a removable workflow Reader |
+| Sessions | `readwise-local-admin-session`, `readwise-local-reader-session` |
+| Articles | Published reader articles plus Draft, Failed, Archived, and Private samples |
+| Reader state | Reading progress, saved words, reading list, highlight, quiz attempt |
+| AI/admin detail | Vocabulary, quiz questions, translation, speech timing stub, difficulty feedback |
+| Admin workflows | Tags for delete/merge testing and audit rows for article/member workflows |
+
+To enter the app without OAuth in a browser, set a seeded cookie from DevTools on
+`http://localhost:3000`:
+
+```js
+document.cookie = "next-auth.session-token=readwise-local-admin-session; path=/; max-age=2592000; SameSite=Lax";
+location.href = "/admin";
+```
+
+Use `readwise-local-reader-session` and navigate to `/browse` for reader flows.
+Re-run `npm run local:pg:seed` at any time to restore the deterministic seed
+fixtures without resetting the whole database. The seeder refuses non-local
+database URLs; validate its DB-free plan with:
 
 ```bash
-docker compose down -v
-docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
-export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
-npm run prisma:migrate:pg
+npm run local:seed:dry-run
 ```
+
+## Reset local PostgreSQL state
+
+This removes only the compose resources for the `readwise-local` project,
+including the local PostgreSQL volume, then recreates the stack, applies
+migrations, and reseeds:
+
+```bash
+npm run local:pg:reset -- --yes
+```
+
+Guardrails:
+
+- The reset command requires `-- --yes`; without it, it refuses to run.
+- `docker-compose.yml` sets `name: readwise-local`, so reset targets a stable
+  local project instead of whatever directory name the worktree happens to use.
+- The seeder refuses production-looking `DATABASE_URL` values.
+- If `127.0.0.1:55432` or `127.0.0.1:6379` is already owned by an older
+  ReadWise compose project, stop that project before running setup/reset so the
+  helper cannot accidentally target the wrong local database.
+- Do not run reset against shared Docker contexts or with modified compose files
+  that point at external volumes.
 
 ## Migration and integration checks
 
