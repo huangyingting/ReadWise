@@ -4,7 +4,7 @@
 set -e
 
 echo "Running database migrations..."
-./node_modules/.bin/prisma migrate deploy
+./node_modules/.bin/prisma migrate deploy --schema "${PRISMA_SCHEMA_PATH:-prisma/schema.prisma}"
 
 echo "Starting server..."
 exec node server.js

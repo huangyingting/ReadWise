@@ -11,7 +11,7 @@ and tracks reading progress per user.
 |-------|------------|
 | Framework | Next.js 15 (App Router, TypeScript) |
 | UI | React 19 |
-| Database | Prisma ORM + SQLite |
+| Database | Prisma ORM + SQLite by default; PostgreSQL production-parity schema available |
 | Auth | NextAuth v4 + `@auth/prisma-adapter` (database sessions) |
 | AI features | Azure OpenAI (chat completions) |
 | Narration | Azure Cognitive Services Speech SDK |
@@ -21,7 +21,8 @@ and tracks reading progress per user.
 
 - **Node.js 22** (or later)
 - **npm 10+** (ships with Node 22)
-- No database server needed — SQLite is embedded
+- No database server needed for the default SQLite workflow
+- Docker Compose is available for production-parity PostgreSQL + Redis development
 
 ## Local setup
 
@@ -47,6 +48,24 @@ npm run dev
 > **AI features are optional.** The app runs fully without Azure credentials —
 > translation, vocabulary, quiz, tags, TTS, and difficulty assessment all
 > degrade gracefully (returning placeholder responses or heuristic fallbacks).
+
+### Production-parity PostgreSQL workflow
+
+SQLite remains the default so existing local workflows keep working. For
+PostgreSQL parity, start the local stack and generate/apply the PostgreSQL
+schema explicitly:
+
+```bash
+docker compose up -d postgres redis
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
+npm run prisma:generate:pg
+npm run prisma:migrate:pg
+npm run dev
+```
+
+See `docs/database.md` for reset, migration-test, Docker image, and SQLite data
+migration notes.
 
 ## Development notes
 
@@ -92,7 +111,8 @@ Copy `.env.example` to `.env.local` and fill in real values.
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | Prisma datasource URL, e.g. `file:./dev.db` |
+| `DATABASE_URL` | Prisma datasource URL. Default local: `file:./dev.db`; PostgreSQL parity: `postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public` |
+| `PRISMA_SCHEMA_PATH` | Prisma schema used by runtime readiness/migration checks. Default local: `prisma/schema.prisma`; PostgreSQL parity: `prisma/postgresql/schema.prisma` |
 | `NEXTAUTH_SECRET` | Random secret for signing sessions; at least 32 characters (generate with `openssl rand -hex 32`) |
 | `NEXTAUTH_URL` | Canonical URL of the app, e.g. `http://localhost:3000` |
 
@@ -165,6 +185,7 @@ npm run typecheck     # TypeScript type-check (tsc --noEmit)
 npm run lint          # ESLint via Next.js lint
 npm test              # Run all tests (Node built-in runner, no framework)
 npm run test:e2e:smoke # Playwright smoke flows with direct DB session seeding
+npm run test:db       # PostgreSQL migration/integration tests (requires DATABASE_URL, PRISMA_SCHEMA_PATH + generated PostgreSQL client)
 
 # Content pipeline
 npm run scrape -- --provider nbcnews --limit 5   # Scrape articles from a provider
@@ -214,8 +235,9 @@ src/
 └── types/                # TypeScript augmentations (next-auth.d.ts)
 
 prisma/
-├── schema.prisma         # Prisma schema (SQLite, all models)
-└── migrations/           # Auto-generated migration history
+├── schema.prisma         # Default SQLite Prisma schema
+├── migrations/           # SQLite migration history
+└── postgresql/           # PostgreSQL parity schema + baseline migration
 
 scripts/                  # CLI tools (scrape, process, worker, seed)
 tests/                    # Unit tests (Node built-in runner, no framework)
