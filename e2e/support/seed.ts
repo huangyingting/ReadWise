@@ -132,7 +132,7 @@ export async function createUserWithSession({
             profile: {
               create: {
                 englishLevel: "B1",
-                topics: JSON.stringify(["tech", "world"]),
+                topics: ["tech", "world"],
                 completedAt: new Date(),
               },
             },

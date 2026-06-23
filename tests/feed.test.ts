@@ -22,7 +22,7 @@ let mockTagRows: { articleId: string; tag: { slug: string } }[] = [];
 let mockProfile: {
   completedAt: Date | null;
   englishLevel: string;
-  topics: string;
+  topics: string | string[];
 } | null = null;
 let lastArticleFindManyArgs: { where?: Record<string, unknown>; select?: Record<string, unknown> } | null = null;
 
@@ -60,8 +60,9 @@ before(() => {
   mock.module("@/lib/profile", {
     namedExports: {
       getProfile: async () => mockProfile,
-      parseTopics: (raw: string | null | undefined) => {
-        if (!raw) return [];
+      parseTopics: (raw: string | string[] | null | undefined) => {
+        if (raw == null) return [];
+        if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === "string");
         try {
           const parsed: unknown = JSON.parse(raw);
           if (Array.isArray(parsed))
@@ -284,7 +285,7 @@ test("getPersonalizedFeed: topic-matched articles rank before unmatched ones", a
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -305,7 +306,7 @@ test("getPersonalizedFeed: completed articles are excluded from the feed", async
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -339,7 +340,7 @@ test("getPersonalizedFeed: pagination hasMore is correct across pages", async ()
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify([]),
+    topics: [],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -357,7 +358,7 @@ test("getPersonalizedFeed: reasons map contains a non-empty entry per article", 
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -375,7 +376,7 @@ test("getPersonalizedFeed: returns empty feed when no articles exist", async () 
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -392,7 +393,7 @@ test("getPersonalizedFeed: fetch select excludes the large content field", async
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
@@ -416,7 +417,7 @@ test("getPersonalizedFeed: maxLevel constrains difficulty at the DB layer", asyn
   mockProfile = {
     completedAt: new Date("2026-01-01"),
     englishLevel: "B1",
-    topics: JSON.stringify(["tech"]),
+    topics: ["tech"],
   };
 
   const { getPersonalizedFeed } = await import("@/lib/feed");
