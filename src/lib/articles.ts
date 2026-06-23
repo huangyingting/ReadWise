@@ -7,6 +7,14 @@ import {
   type DifficultyLevel,
 } from "@/lib/difficulty";
 import { createCachedListing, ARTICLES_CACHE_TAG } from "@/lib/cache";
+import {
+  articleAccessContext,
+  getPublicListableArticleById,
+  getReadableArticleById,
+  ownedArticleWhere,
+  publicListableArticleWhere,
+  readableArticleWhere,
+} from "@/lib/article-access";
 
 const WORDS_PER_MINUTE = 200;
 
@@ -14,7 +22,7 @@ const WORDS_PER_MINUTE = 200;
 export const BROWSE_PAGE_SIZE = 6;
 
 export function getArticleById(id: string): Promise<Article | null> {
-  return prisma.article.findUnique({ where: { id } });
+  return getPublicListableArticleById(id);
 }
 
 /**
@@ -29,22 +37,7 @@ export function getViewableArticleById(
   role?: string | null,
   userId?: string | null,
 ): Promise<Article | null> {
-  if (role === "Admin") {
-    return prisma.article.findUnique({ where: { id } });
-  }
-  if (userId) {
-    // Allow the article if it's public+published OR owned by this user.
-    return prisma.article.findFirst({
-      where: {
-        id,
-        OR: [
-          { status: "published", ownerId: null },
-          { ownerId: userId },
-        ],
-      },
-    });
-  }
-  return prisma.article.findUnique({ where: { id, status: "published", ownerId: null } });
+  return getReadableArticleById(id, { role, userId });
 }
 
 export function listPublishedArticles(limit = 12): Promise<Article[]> {
@@ -53,7 +46,7 @@ export function listPublishedArticles(limit = 12): Promise<Article[]> {
 
 function listPublishedArticlesUncached(limit = 12): Promise<Article[]> {
   return prisma.article.findMany({
-    where: { status: "published", ownerId: null },
+    where: publicListableArticleWhere(),
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
@@ -200,11 +193,9 @@ async function listCategoryPageImpl(
   offset: number,
   limit: number,
 ): Promise<ArticlePage> {
-  const baseWhere: Prisma.ArticleWhereInput = {
-    status: "published",
-    ownerId: null,
-    ...(category ? { category } : {}),
-  };
+  const baseWhere: Prisma.ArticleWhereInput = publicListableArticleWhere(
+    category ? { category } : undefined,
+  );
 
   if (maxLevel != null) {
     // Level-filtered browse: constrain to assessed articles at/below the level
@@ -305,7 +296,7 @@ async function listPicksPageImpl(
   limit: number,
 ): Promise<ArticlePage> {
   const all = await prisma.article.findMany({
-    where: { status: "published", ownerId: null },
+    where: publicListableArticleWhere(),
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: MAX_PICKS_FETCH,
   });
@@ -370,6 +361,9 @@ export async function searchPublishedArticles(
   }
   const limit = Math.min(opts.limit ?? SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT);
   const offset = Math.max(0, opts.offset ?? 0);
+  const context = userId
+    ? articleAccessContext({ id: userId, role: "Reader" })
+    : null;
 
   // Per-user: collect article IDs from highlights, saved words, and the user's
   // OWN imported (personal) articles that match the query, to merge into the
@@ -391,15 +385,14 @@ export async function searchPublishedArticles(
         select: { articleId: true },
       }),
       prisma.article.findMany({
-        where: {
-          ownerId: userId,
+        where: ownedArticleWhere(userId, {
           status: "published",
           OR: [
             { title: { contains: q } },
             { author: { contains: q } },
             { source: { contains: q } },
           ],
-        },
+        }),
         select: { id: true },
         orderBy: [{ createdAt: "desc" }],
       }),
@@ -456,11 +449,10 @@ export async function searchPublishedArticles(
         // public articles so merged personal matches resolve to rows.
         const byId = new Map<string, Article>();
         const rows = await prisma.article.findMany({
-          where: {
+          where: readableArticleWhere(context, {
             id: { in: pageIds },
             status: "published",
-            OR: [{ ownerId: null }, ...(userId ? [{ ownerId: userId }] : [])],
-          },
+          }),
         });
         for (const r of rows) byId.set(r.id, r);
         const articles = pageIds.flatMap((id) => {
@@ -485,11 +477,11 @@ export async function searchPublishedArticles(
   // Public articles matching the text, the caller's own imports matching the
   // text, plus any merged per-user IDs (annotations / personal matches).
   const orClauses: Prisma.ArticleWhereInput[] = [
-    { ownerId: null, OR: textClauses },
-    ...(userId ? [{ ownerId: userId, OR: textClauses }] : []),
+    publicListableArticleWhere({ OR: textClauses }),
+    ...(userId ? [ownedArticleWhere(userId, { status: "published", OR: textClauses })] : []),
   ];
   if (userArticleIds.length > 0) {
-    orClauses.push({ id: { in: userArticleIds } });
+    orClauses.push(readableArticleWhere(context, { id: { in: userArticleIds }, status: "published" }));
   }
   const rows = await prisma.article.findMany({
     where: { status: "published", OR: orClauses },
@@ -510,7 +502,7 @@ export function listPersonalArticles(
   limit = 20,
 ): Promise<Article[]> {
   return prisma.article.findMany({
-    where: { ownerId: userId },
+    where: ownedArticleWhere(userId),
     orderBy: [{ createdAt: "desc" }],
     take: limit,
   });
@@ -531,7 +523,7 @@ export async function listPersonalArticlesPage(
   const limit = Math.min(opts.limit ?? IMPORTS_PAGE_SIZE, IMPORTS_MAX_LIMIT);
   const offset = Math.max(0, opts.offset ?? 0);
   const rows = await prisma.article.findMany({
-    where: { ownerId: userId },
+    where: ownedArticleWhere(userId),
     orderBy: [{ createdAt: "desc" }],
     skip: offset,
     take: limit + 1,

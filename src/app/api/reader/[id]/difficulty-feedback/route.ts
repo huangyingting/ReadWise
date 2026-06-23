@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
-import { getViewableArticleById } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { prisma } from "@/lib/prisma";
 
 const VOTE_VALUES = ["too_easy", "just_right", "too_hard"] as const;
@@ -21,7 +21,7 @@ const bodySchema = object({ vote: oneOf(VOTE_VALUES) });
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
+    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
     if (!article) throw new ApiError(404, "Article not found");
 
     const vote = body.vote as VoteValue;

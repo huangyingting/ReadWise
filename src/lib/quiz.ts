@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
+import type { ArticleAccessContext } from "@/lib/article-access";
 
 export type QuizQuestion = {
   question: string;
@@ -89,15 +90,18 @@ export function parseQuizJson(raw: string): QuizQuestion[] {
  */
 export async function getOrCreateArticleQuiz(
   articleId: string,
+  context?: ArticleAccessContext | null,
 ): Promise<ArticleQuizResult | null> {
   return getOrCreateArticleAi<
     { title: string; content: string },
     QuizQuestion[],
     QuizQuestion[],
     ArticleQuizResult
-  >(articleId, {
-    feature: "quiz",
-    readCache: async () => {
+  >(
+    articleId,
+    {
+      feature: "quiz",
+      readCache: async () => {
       const questions: QuizQuestion[] = (
         await prisma.quizQuestion.findMany({
           where: { articleId },
@@ -110,8 +114,8 @@ export async function getOrCreateArticleQuiz(
         correctIndex: q.correctIndex,
       }));
       return questions.length > 0 ? questions : null;
-    },
-    buildMessages: (article) => {
+      },
+      buildMessages: (article) => {
       const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
       return [
         {
@@ -131,10 +135,10 @@ export async function getOrCreateArticleQuiz(
           content: `Title: ${article.title}\n\n${source}`,
         },
       ];
-    },
-    parse: parseQuizJson,
-    isEmpty: (questions) => questions.length === 0,
-    persist: async (id, generated) => {
+      },
+      parse: parseQuizJson,
+      isEmpty: (questions) => questions.length === 0,
+      persist: async (id, generated) => {
       await Promise.all(
         generated.map((q) =>
           prisma.quizQuestion.upsert({
@@ -155,10 +159,12 @@ export async function getOrCreateArticleQuiz(
         ),
       );
       return generated;
+      },
+      toResult: (questions) => ({ articleId, questions, fallback: false }),
+      fallback: () => ({ articleId, questions: [], fallback: true }),
     },
-    toResult: (questions) => ({ articleId, questions, fallback: false }),
-    fallback: () => ({ articleId, questions: [], fallback: true }),
-  });
+    context,
+  );
 }
 
 /** Parses a stored options JSON string into an array of strings (never throws). */

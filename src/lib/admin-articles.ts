@@ -1,6 +1,12 @@
 import { prisma } from "@/lib/prisma";
 import type { Article } from "@prisma/client";
 import { readingMinutesFor } from "@/lib/articles";
+import {
+  SYSTEM_ARTICLE_CONTEXT,
+  adminVisibleArticleWhere,
+  getAdminVisibleArticleById,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 /** Page size for the admin article listing. */
 export const ADMIN_ARTICLES_PAGE_SIZE = 20;
@@ -32,6 +38,7 @@ export type SearchArticlesOpts = {
   status?: string | null;
   page?: number;
   pageSize?: number;
+  context?: ArticleAccessContext | null;
 };
 
 /**
@@ -46,8 +53,9 @@ export async function searchArticles(
   const status = opts.status && opts.status.trim() ? opts.status.trim() : null;
   const pageSize = opts.pageSize ?? ADMIN_ARTICLES_PAGE_SIZE;
   const page = Math.max(1, opts.page ?? 1);
+  const context = opts.context ?? SYSTEM_ARTICLE_CONTEXT;
 
-  const where = {
+  const where = adminVisibleArticleWhere(context, {
     ...(status ? { status } : {}),
     ...(query
       ? {
@@ -58,7 +66,7 @@ export async function searchArticles(
           ],
         }
       : {}),
-  };
+  });
 
   const [total, rows] = await Promise.all([
     prisma.article.count({ where }),
@@ -122,8 +130,9 @@ export type AdminArticleDetail = {
  */
 export async function getAdminArticleDetail(
   id: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<AdminArticleDetail | null> {
-  const article = await prisma.article.findUnique({ where: { id } });
+  const article = await getAdminVisibleArticleById(id, context);
   if (!article) {
     return null;
   }
@@ -166,9 +175,11 @@ export async function getAdminArticleDetail(
  * questions, speech, tag links) and reading progress are removed by the
  * schema's cascade rules. Returns false if the article does not exist.
  */
-export async function deleteArticle(id: string): Promise<boolean> {
-  const existing = await prisma.article.findUnique({
-    where: { id },
+export async function deleteArticle(
+  id: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+): Promise<boolean> {
+  const existing = await getAdminVisibleArticleById(id, context, {
     select: { id: true },
   });
   if (!existing) {
@@ -189,9 +200,11 @@ export type RebuildResult = {
  * reader opens the article. Reader progress is preserved. Returns null for an
  * unknown article id.
  */
-export async function rebuildArticleAi(id: string): Promise<RebuildResult | null> {
-  const existing = await prisma.article.findUnique({
-    where: { id },
+export async function rebuildArticleAi(
+  id: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+): Promise<RebuildResult | null> {
+  const existing = await getAdminVisibleArticleById(id, context, {
     select: { id: true },
   });
   if (!existing) {

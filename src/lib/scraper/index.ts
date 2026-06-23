@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
 import { providerForUrl } from "@/lib/scraper/providers";
+import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 
 export type SaveOutcome =
   | { status: "saved"; id: string; article: ScrapedArticle }
@@ -24,10 +25,7 @@ export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
  * (re-resolving the winner's id) rather than bubbling up as a 500.
  */
 export async function saveDraftArticle(article: ScrapedArticle): Promise<SaveOutcome> {
-  const existing = await prisma.article.findFirst({
-    where: { sourceUrl: article.sourceUrl, ownerId: null },
-    select: { id: true },
-  });
+  const existing = await findPublicLibraryArticleBySourceUrl(article.sourceUrl);
   if (existing) {
     return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
   }

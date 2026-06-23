@@ -10,6 +10,12 @@ import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { htmlToPlainText } from "@/lib/translation";
 import { getProfile } from "@/lib/profile";
+import {
+  getAiProcessableArticleById,
+  isArticleOperator,
+  SYSTEM_ARTICLE_CONTEXT,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 /** Max characters of article plain-text sent to the model as grounding. */
 const MAX_ARTICLE_CHARS = 7000;
@@ -65,13 +71,18 @@ export async function askTutor(
   userId: string,
   articleId: string,
   question: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<AskTutorResult | null> {
   // Load article and user profile in parallel.
   const [article, profile] = await Promise.all([
-    prisma.article.findUnique({
-      where: { id: articleId },
-      select: { title: true, content: true },
-    }),
+    isArticleOperator(context)
+      ? prisma.article.findUnique({
+          where: { id: articleId },
+          select: { title: true, content: true },
+        })
+      : getAiProcessableArticleById(articleId, context, {
+          select: { title: true, content: true },
+        }),
     getProfile(userId),
   ]);
 

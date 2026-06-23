@@ -5,6 +5,7 @@ import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
+import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 
 const ingestBody = object({ url: nonEmptyString(2000) });
 
@@ -38,11 +39,7 @@ export const POST = createAdminHandler(
 
     if (outcome.status === "skipped") {
       // Duplicate — return the existing article id so the UI can link to it
-      const { prisma } = await import("@/lib/prisma");
-      const existing = await prisma.article.findFirst({
-        where: { sourceUrl: url },
-        select: { id: true },
-      });
+      const existing = await findPublicLibraryArticleBySourceUrl(outcome.sourceUrl);
       return NextResponse.json(
         {
           status: "duplicate",
