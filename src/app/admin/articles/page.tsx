@@ -3,6 +3,7 @@ import { requireAdmin } from "@/lib/session";
 import { prisma } from "@/lib/prisma";
 import { searchArticles } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
+import { adminVisibleArticleWhere, articleAccessContext } from "@/lib/article-access";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";
@@ -30,7 +31,8 @@ export default async function AdminArticlesPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireAdmin("/admin/articles");
+  const session = await requireAdmin("/admin/articles");
+  const context = articleAccessContext(session.user);
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
@@ -38,8 +40,9 @@ export default async function AdminArticlesPage({
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
   const [result, statusRows] = await Promise.all([
-    searchArticles({ query, status, page }),
+    searchArticles({ query, status, page, context }),
     prisma.article.findMany({
+      where: adminVisibleArticleWhere(context),
       distinct: ["status"],
       select: { status: true },
       orderBy: { status: "asc" },

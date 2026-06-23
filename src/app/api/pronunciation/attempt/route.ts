@@ -3,7 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, clampedInt, optional } from "@/lib/validation";
 import { recordPronunciationAttempt } from "@/lib/pronunciation";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { getViewableArticleById } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 
 /**
  * Pronunciation scores are computed CLIENT-SIDE by the Azure Speech SDK (by
@@ -33,7 +33,7 @@ export const POST = createHandler({ body: bodySchema }, async ({ session, body }
 
   // Validate articleId existence when provided.
   if (body.articleId) {
-    const article = await getViewableArticleById(body.articleId, session.user.role, session.user.id);
+    const article = await getReadableArticleById(body.articleId, articleAccessContext(session.user));
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

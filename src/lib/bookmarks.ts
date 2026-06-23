@@ -16,7 +16,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { toListingArticle, getViewableArticleById, type ListingArticle } from "@/lib/articles";
+import { toListingArticle, type ListingArticle } from "@/lib/articles";
+import { getReadableArticleById } from "@/lib/article-access";
 
 const DEFAULT_LIST_NAME = "Saved";
 
@@ -164,7 +165,7 @@ export async function deleteList(
  * list returns ok without error. Both the list ownership and the article's
  * VISIBILITY are checked: the article must be viewable by the caller (public
  * published, owned by them, or any article for admins) via
- * getViewableArticleById, so drafts and other users' private imports can't be
+ * getReadableArticleById, so drafts and other users' private imports can't be
  * attached. A missing-or-non-viewable article yields 404 (no existence oracle).
  *
  * `role` is the caller's role; when omitted it defaults to the non-admin
@@ -178,7 +179,7 @@ export async function addToList(
 ): Promise<SimpleResult> {
   const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
   if (!list) return { ok: false, error: "List not found", status: 404 };
-  const article = await getViewableArticleById(articleId, role, userId);
+  const article = await getReadableArticleById(articleId, { role, userId });
   if (!article) return { ok: false, error: "Article not found", status: 404 };
   // Idempotent: upsert with a no-op update so duplicate adds are safe.
   await prisma.readingListItem.upsert({
@@ -214,7 +215,7 @@ export async function removeFromList(
  * - Already bookmarked → removes it, returns `{ok:true, bookmarked:false}`.
  * - Article not found OR not viewable → returns `{ok:false, error, status:404}`.
  *
- * Visibility is enforced via getViewableArticleById so drafts/foreign imports
+ * Visibility is enforced via getReadableArticleById so drafts/foreign imports
  * can't be bookmarked or used as an existence oracle. `role` defaults to the
  * non-admin (Reader) path when omitted — never elevated.
  *
@@ -225,7 +226,7 @@ export async function toggleBookmark(
   articleId: string,
   role?: string | null,
 ): Promise<DataResult<{ bookmarked: boolean }>> {
-  const article = await getViewableArticleById(articleId, role, userId);
+  const article = await getReadableArticleById(articleId, { role, userId });
   if (!article) return { ok: false, error: "Article not found", status: 404 };
 
   const defaultList = await getOrCreateDefaultList(userId);
@@ -303,7 +304,7 @@ export async function getArticleListMembership(
   articleId: string,
   role?: string | null,
 ): Promise<ListMembership[] | null> {
-  const article = await getViewableArticleById(articleId, role, userId);
+  const article = await getReadableArticleById(articleId, { role, userId });
   if (!article) return null;
 
   const lists = await prisma.readingList.findMany({

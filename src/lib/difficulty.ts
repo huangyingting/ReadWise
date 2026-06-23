@@ -1,7 +1,14 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
+import type { Prisma } from "@prisma/client";
 import { htmlToPlainText } from "@/lib/translation";
 import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";
+import {
+  getAiProcessableArticleById,
+  isArticleOperator,
+  SYSTEM_ARTICLE_CONTEXT,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 /**
  * Difficulty / English level assessment for articles. Levels reuse the CEFR
@@ -183,17 +190,18 @@ export async function assessDifficulty(
  */
 export async function getOrCreateArticleDifficulty(
   articleId: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<DifficultyResult | null> {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: {
+  const select = {
       id: true,
       title: true,
       content: true,
       difficulty: true,
       difficultyScore: true,
-    },
-  });
+    } satisfies Prisma.ArticleSelect;
+  const article = isArticleOperator(context)
+    ? await prisma.article.findUnique({ where: { id: articleId }, select })
+    : await getAiProcessableArticleById(articleId, context, { select });
   if (!article) {
     return null;
   }

@@ -1,8 +1,8 @@
-import { prisma } from "@/lib/prisma";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
 import { processArticle, type ArticleProcessResult, type ProcessOptions } from "@/lib/processor";
 import type { Provider } from "@/lib/scraper/types";
+import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 
 export type SeedLogger = {
   info: (msg: string) => void;
@@ -31,10 +31,7 @@ const defaultDeps: SeedDeps = {
   discover: discoverProviderUrls,
   scrapeAndSave,
   resolveArticleId: async (sourceUrl) => {
-    const existing = await prisma.article.findFirst({
-      where: { sourceUrl },
-      select: { id: true },
-    });
+    const existing = await findPublicLibraryArticleBySourceUrl(sourceUrl);
     return existing?.id ?? null;
   },
   process: processArticle,

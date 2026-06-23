@@ -20,6 +20,12 @@
 
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
+import {
+  loadAiProcessableArticleText,
+  isArticleOperator,
+  SYSTEM_ARTICLE_CONTEXT,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -35,7 +41,11 @@ export type ArticleText = {
 /** The default article loader: title + content by id, or null when missing. */
 export async function loadArticleText(
   articleId: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<ArticleText | null> {
+  if (!context || !isArticleOperator(context)) {
+    return loadAiProcessableArticleText(articleId, context);
+  }
   return prisma.article.findUnique({
     where: { id: articleId },
     select: { title: true, content: true },
@@ -49,8 +59,8 @@ export async function loadArticleText(
  * compile-time error instead of silently falling back to the wrong shape.
  */
 type LoadArticleField<TArticle extends ArticleText> = ArticleText extends TArticle
-  ? { loadArticle?: (articleId: string) => Promise<TArticle | null> }
-  : { loadArticle: (articleId: string) => Promise<TArticle | null> };
+  ? { loadArticle?: (articleId: string, context: ArticleAccessContext | null) => Promise<TArticle | null> }
+  : { loadArticle: (articleId: string, context: ArticleAccessContext | null) => Promise<TArticle | null> };
 
 /**
  * Declares the feature-specific pieces of the shared cache-first AI lifecycle.
@@ -104,7 +114,19 @@ export async function getOrCreateArticleAi<
 >(
   articleId: string,
   spec: ArticleAiSpec<TArticle, TParsed, TCache, TResult>,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<TResult | null> {
+  let article: TArticle | null | undefined;
+  if (!isArticleOperator(context)) {
+    const rawArticle = spec.loadArticle !== undefined
+      ? await spec.loadArticle(articleId, context)
+      : await loadArticleText(articleId, context);
+    article = rawArticle as TArticle | null;
+    if (article === null) {
+      return null;
+    }
+  }
+
   const cached = await spec.readCache(articleId);
   if (cached !== null) {
     return spec.toResult(cached, { cached: true });
@@ -115,10 +137,10 @@ export async function getOrCreateArticleAi<
   // loader; when TArticle IS ArticleText (structurally) the field is optional and
   // the default loadArticleText is safe.  The single `as` cast is valid because
   // the conditional type in the spec guarantees compatibility at the call site.
-  const rawArticle = spec.loadArticle !== undefined
-    ? await spec.loadArticle(articleId)
-    : await loadArticleText(articleId);
-  const article = rawArticle as TArticle | null;
+  const rawArticle = article ?? (spec.loadArticle !== undefined
+    ? await spec.loadArticle(articleId, context)
+    : await loadArticleText(articleId, context));
+  article = rawArticle as TArticle | null;
   if (article === null) {
     return null;
   }

@@ -1,148 +1,134 @@
 /**
- * Tests for article ownership / access control (Issue #116).
- * Verifies that getViewableArticleById correctly enforces:
- *   - Admins see all articles.
- *   - Owners see their own personal articles.
- *   - Non-owners can't access another user's personal article.
- *   - Public articles are visible to everyone.
+ * Tests for centralized article access rules (Issue #266).
+ * Covers anonymous, reader, owner, non-owner, and admin/system paths without a DB.
  */
-import { test } from "node:test";
-import assert from "node:assert/strict";
-import { buildArticle } from "./helpers";
-import type { Article } from "@prisma/client";
+process.env.LOG_LEVEL = "error";
 
-// ---------------------------------------------------------------------------
-// Stub getViewableArticleById logic inline — mirrors src/lib/articles.ts
-// without importing Prisma so this test is pure-logic.
-// ---------------------------------------------------------------------------
+import { test, before, beforeEach, mock } from "node:test";
+import assert from "node:assert/strict";
+import type { Article, Prisma } from "@prisma/client";
+import { buildArticle } from "./helpers";
+
+let articleRows: Article[] = [];
 
 type FindArgs = {
-  where: {
-    id?: string;
-    status?: string;
-    ownerId?: string | null;
-    OR?: Array<{ status?: string; ownerId?: string | null }>;
-  };
+  where?: Prisma.ArticleWhereInput;
+  select?: Record<string, boolean>;
 };
 
-/** Simulates prisma.article.findFirst / findUnique for a given article set. */
-function makePrismaStub(articles: Article[]) {
-  return {
-    findFirst(args: FindArgs): Article | null {
-      const cand = articles.find((a) => {
-        if (args.where.id && a.id !== args.where.id) return false;
-        if (args.where.status && a.status !== args.where.status) return false;
-        if ("ownerId" in args.where && args.where.ownerId !== undefined) {
-          if (a.ownerId !== args.where.ownerId) return false;
-        }
-        if (args.where.OR) {
-          return args.where.OR.some((clause) => {
-            if (clause.status && a.status !== clause.status) return false;
-            if ("ownerId" in clause && clause.ownerId !== undefined) {
-              if (a.ownerId !== clause.ownerId) return false;
-            }
-            return true;
-          });
-        }
-        return true;
-      });
-      return cand ?? null;
-    },
-    findUnique(args: FindArgs): Article | null {
-      return this.findFirst(args);
-    },
-  };
+function matchesWhere(article: Article, where: Prisma.ArticleWhereInput = {}): boolean {
+  const record = article as unknown as Record<string, unknown>;
+  const clauses = where as Record<string, unknown>;
+  const and = clauses.AND;
+  if (Array.isArray(and) && !and.every((clause) => matchesWhere(article, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  const or = clauses.OR;
+  if (Array.isArray(or) && !or.some((clause) => matchesWhere(article, clause as Prisma.ArticleWhereInput))) {
+    return false;
+  }
+  for (const [key, expected] of Object.entries(clauses)) {
+    if (key === "AND" || key === "OR") continue;
+    const actual = record[key];
+    if (expected && typeof expected === "object" && "in" in expected) {
+      const values = (expected as { in?: unknown[] }).in ?? [];
+      if (!values.includes(actual)) return false;
+      continue;
+    }
+    if (actual !== expected) return false;
+  }
+  return true;
 }
 
-/**
- * Re-implements the access-control logic from getViewableArticleById
- * against our stub DB so we can test it without Prisma.
- */
-function getViewableArticleById(
-  articles: Article[],
-  id: string,
-  role?: string | null,
-  userId?: string | null,
-): Article | null {
-  const db = makePrismaStub(articles);
-  if (role === "Admin") {
-    return db.findUnique({ where: { id } });
-  }
-  if (userId) {
-    return db.findFirst({
-      where: {
-        id,
-        OR: [
-          { status: "published", ownerId: null },
-          { ownerId: userId },
-        ],
+function project(article: Article, select?: Record<string, boolean>): unknown {
+  if (!select) return article;
+  return Object.fromEntries(
+    Object.entries(select)
+      .filter(([, include]) => include)
+      .map(([key]) => [key, (article as unknown as Record<string, unknown>)[key]]),
+  );
+}
+
+before(() => {
+  mock.module("@/lib/prisma", {
+    namedExports: {
+      prisma: {
+        article: {
+          findFirst: async (args: FindArgs) => {
+            const found = articleRows.find((article) => matchesWhere(article, args.where));
+            return found ? project(found, args.select) : null;
+          },
+          findUnique: async (args: FindArgs & { where: { id: string } }) => {
+            const found = articleRows.find((article) => article.id === args.where.id);
+            return found ? project(found, args.select) : null;
+          },
+        },
       },
-    });
-  }
-  return db.findUnique({ where: { id, status: "published", ownerId: null } });
-}
-
-// ---------------------------------------------------------------------------
-// Fixtures
-// ---------------------------------------------------------------------------
-
-const PUBLIC_PUBLISHED = buildArticle({ id: "pub", status: "published", ownerId: null });
-const PERSONAL_USER1 = buildArticle({ id: "priv-u1", status: "published", ownerId: "user-1" });
-const PERSONAL_USER2 = buildArticle({ id: "priv-u2", status: "published", ownerId: "user-2" });
-const DRAFT_PUBLIC = buildArticle({ id: "draft", status: "draft", ownerId: null });
-
-const ALL_ARTICLES = [PUBLIC_PUBLISHED, PERSONAL_USER1, PERSONAL_USER2, DRAFT_PUBLIC];
-
-// ---------------------------------------------------------------------------
-// Tests
-// ---------------------------------------------------------------------------
-
-test("public published article is visible to an unauthenticated request", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "pub");
-  assert.ok(result, "should return public article");
-  assert.equal(result?.id, "pub");
+    },
+  });
 });
 
-test("public published article is visible to a regular user", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "pub", "Reader", "user-1");
-  assert.ok(result);
-  assert.equal(result?.id, "pub");
+beforeEach(() => {
+  articleRows = [
+    buildArticle({ id: "public", status: "published", ownerId: null }),
+    buildArticle({ id: "draft-public", status: "draft", ownerId: null }),
+    buildArticle({ id: "owner-u1", status: "published", ownerId: "user-1" }),
+    buildArticle({ id: "draft-u1", status: "draft", ownerId: "user-1" }),
+    buildArticle({ id: "owner-u2", status: "published", ownerId: "user-2" }),
+  ];
 });
 
-test("personal article is visible to its owner", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "priv-u1", "Reader", "user-1");
-  assert.ok(result, "owner should see their own personal article");
-  assert.equal(result?.id, "priv-u1");
+test("pure readability checks cover anonymous, owner, non-owner, and admin", async () => {
+  const { canReadArticle } = await import("@/lib/article-access");
+  const [publicArticle, draftPublic, ownerArticle] = articleRows;
+
+  assert.equal(canReadArticle(publicArticle), true, "anonymous can read public published");
+  assert.equal(canReadArticle(draftPublic), false, "anonymous cannot read drafts");
+  assert.equal(canReadArticle(ownerArticle, { userId: "user-1", role: "Reader" }), true);
+  assert.equal(canReadArticle(ownerArticle, { userId: "user-2", role: "Reader" }), false);
+  assert.equal(canReadArticle(draftPublic, { role: "Admin" }), true);
 });
 
-test("personal article is NOT visible to a different user", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "priv-u1", "Reader", "user-2");
-  assert.equal(result, null, "other users must not see personal articles");
+test("getPublicListableArticleById only returns published library articles", async () => {
+  const { getPublicListableArticleById } = await import("@/lib/article-access");
+
+  assert.equal((await getPublicListableArticleById("public"))?.id, "public");
+  assert.equal(await getPublicListableArticleById("draft-public"), null);
+  assert.equal(await getPublicListableArticleById("owner-u1"), null);
 });
 
-test("personal article is NOT visible when no userId is provided", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "priv-u1");
-  assert.equal(result, null, "unauthenticated request must not see personal articles");
+test("getReadableArticleById enforces anonymous, reader, owner, non-owner, and admin access", async () => {
+  const { getReadableArticleById } = await import("@/lib/article-access");
+
+  assert.equal((await getReadableArticleById("public", null))?.id, "public");
+  assert.equal(await getReadableArticleById("owner-u1", null), null);
+  assert.equal((await getReadableArticleById("owner-u1", { userId: "user-1", role: "Reader" }))?.id, "owner-u1");
+  assert.equal(await getReadableArticleById("owner-u1", { userId: "user-2", role: "Reader" }), null);
+  assert.equal((await getReadableArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
 });
 
-test("admin can see personal articles owned by others", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "priv-u1", "Admin");
-  assert.ok(result, "admin should see all articles");
-  assert.equal(result?.id, "priv-u1");
+test("editable access allows owners and admins but blocks anonymous and non-owners", async () => {
+  const { getEditableArticleById } = await import("@/lib/article-access");
+
+  assert.equal(await getEditableArticleById("owner-u1", null), null);
+  assert.equal((await getEditableArticleById("owner-u1", { userId: "user-1", role: "Reader" }))?.id, "owner-u1");
+  assert.equal(await getEditableArticleById("owner-u1", { userId: "user-2", role: "Reader" }), null);
+  assert.equal((await getEditableArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
 });
 
-test("admin can see draft articles", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "draft", "Admin");
-  assert.ok(result, "admin should see drafts");
-  assert.equal(result?.id, "draft");
+test("admin-visible access is admin/system only", async () => {
+  const { getAdminVisibleArticleById, SYSTEM_ARTICLE_CONTEXT } = await import("@/lib/article-access");
+
+  assert.equal(await getAdminVisibleArticleById("public", { userId: "user-1", role: "Reader" }), null);
+  assert.equal((await getAdminVisibleArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
+  assert.equal((await getAdminVisibleArticleById("owner-u2", SYSTEM_ARTICLE_CONTEXT))?.id, "owner-u2");
 });
 
-test("draft public article is not visible to regular users", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "draft", "Reader", "user-1");
-  assert.equal(result, null, "draft public articles should be hidden from non-admins");
-});
+test("AI-processable access follows readable rules for users and all-article rules for admins", async () => {
+  const { getAiProcessableArticleById } = await import("@/lib/article-access");
 
-test("returns null for non-existent article id", () => {
-  const result = getViewableArticleById(ALL_ARTICLES, "does-not-exist", "Admin");
-  assert.equal(result, null);
+  assert.equal((await getAiProcessableArticleById("public", null, { select: { title: true } }))?.title, "Test Article");
+  assert.equal((await getAiProcessableArticleById("draft-u1", { userId: "user-1", role: "Reader" }))?.id, "draft-u1");
+  assert.equal(await getAiProcessableArticleById("owner-u1", { userId: "user-2", role: "Reader" }), null);
+  assert.equal((await getAiProcessableArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
 });

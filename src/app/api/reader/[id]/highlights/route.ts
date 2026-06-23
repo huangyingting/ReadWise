@@ -15,7 +15,7 @@ import {
   HIGHLIGHT_NOTE_MAX,
 } from "@/lib/highlights";
 import type { HighlightColor } from "@/lib/highlights";
-import { getViewableArticleById } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 
 const createBody = object({
   quote: nonEmptyString(10_000),
@@ -30,7 +30,7 @@ const createBody = object({
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
+    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
     if (!article) {
       throw new ApiError(404, "Article not found");
     }
@@ -42,7 +42,7 @@ export const GET = createHandler(
 export const POST = createHandler(
   { params: idParams, body: createBody },
   async ({ params, body, session }) => {
-    const article = await getViewableArticleById(params.id, session.user.role, session.user.id);
+    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
     if (!article) {
       throw new ApiError(404, "Article not found");
     }

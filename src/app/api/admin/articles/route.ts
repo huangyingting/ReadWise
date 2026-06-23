@@ -3,6 +3,7 @@ import { createAdminHandler } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
 import type { ValidationResult } from "@/lib/validation";
 import { searchArticles } from "@/lib/admin-articles";
+import { articleAccessContext } from "@/lib/article-access";
 
 const ARTICLE_STATUSES = ["draft", "published"] as const;
 type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
@@ -39,7 +40,7 @@ function parseQuery(params: URLSearchParams): ValidationResult<ArticlesAdminQuer
   return { ok: true, value: { query: q, status, page } };
 }
 
-export const GET = createAdminHandler({ query: parseQuery }, async ({ query }) => {
-  const result = await searchArticles(query);
+export const GET = createAdminHandler({ query: parseQuery }, async ({ query, session }) => {
+  const result = await searchArticles({ ...query, context: articleAccessContext(session.user) });
   return NextResponse.json(result);
 });

@@ -23,6 +23,7 @@ import { getProgressSummaries } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { heuristicDifficulty } from "@/lib/difficulty";
+import { findOwnedArticleBySourceUrl, ownedArticleWhere } from "@/lib/article-access";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;
@@ -52,7 +53,7 @@ function utcDayStart(): Date {
 async function assertWithinDailyQuota(userId: string): Promise<void> {
   const dayStart = utcDayStart();
   const todayCount = await prisma.article.count({
-    where: { ownerId: userId, createdAt: { gte: dayStart } },
+    where: ownedArticleWhere(userId, { createdAt: { gte: dayStart } }),
   });
   if (todayCount >= DAILY_IMPORT_LIMIT) {
     throw new ApiError(
@@ -144,10 +145,7 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
 
   // De-dupe BEFORE scraping/creating so re-importing never consumes quota.
   // Match the raw URL the user submitted first (cheap, avoids a scrape).
-  const existingByRawUrl = await prisma.article.findFirst({
-    where: { sourceUrl: rawUrl, ownerId: userId },
-    select: { id: true },
-  });
+  const existingByRawUrl = await findOwnedArticleBySourceUrl(rawUrl, userId);
   if (existingByRawUrl) {
     return NextResponse.json(
       { id: existingByRawUrl.id, duplicate: true },
@@ -175,10 +173,7 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
   // The canonical scraped sourceUrl may differ from the submitted URL (redirects,
   // canonicalisation). De-dupe again on it before creating / consuming quota.
   if (scraped.sourceUrl && scraped.sourceUrl !== rawUrl) {
-    const existingByCanonical = await prisma.article.findFirst({
-      where: { sourceUrl: scraped.sourceUrl, ownerId: userId },
-      select: { id: true },
-    });
+    const existingByCanonical = await findOwnedArticleBySourceUrl(scraped.sourceUrl, userId);
     if (existingByCanonical) {
       return NextResponse.json(
         { id: existingByCanonical.id, duplicate: true },
@@ -242,10 +237,7 @@ async function resolveDuplicateOnConflict(
   const isP2002 =
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
   if (!isP2002 || !sourceUrl) return null;
-  return prisma.article.findFirst({
-    where: { sourceUrl, ownerId: userId },
-    select: { id: true },
-  });
+  return findOwnedArticleBySourceUrl(sourceUrl, userId);
 }
 
 async function handleTextImport(

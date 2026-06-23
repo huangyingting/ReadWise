@@ -1,6 +1,7 @@
 import { requireOnboardedSession } from "@/lib/session";
 import { getFilteredSavedWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
 import { prisma } from "@/lib/prisma";
+import { articleAccessContext, readableArticleWhere } from "@/lib/article-access";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/Button";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
@@ -20,6 +21,7 @@ export default async function StudyWordsPage({
   searchParams: Promise<SearchParams>;
 }) {
   const session = await requireOnboardedSession("/study/words");
+  const context = articleAccessContext(session.user);
   const params = await searchParams;
 
   const query = params.q ?? "";
@@ -44,7 +46,7 @@ export default async function StudyWordsPage({
   const articles: Record<string, string> = {};
   if (articleIds.length > 0) {
     const rows = await prisma.article.findMany({
-      where: { id: { in: articleIds } },
+      where: readableArticleWhere(context, { id: { in: articleIds } }),
       select: { id: true, title: true },
     });
     for (const row of rows) {

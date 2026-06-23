@@ -2,6 +2,12 @@ import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { isSupportedLanguage, languageLabel } from "@/lib/translation";
+import {
+  getAiProcessableArticleById,
+  isArticleOperator,
+  SYSTEM_ARTICLE_CONTEXT,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 /** Maximum source text length accepted for sentence translation. */
 export const MAX_SENTENCE_CHARS = 1000;
@@ -35,6 +41,7 @@ export async function translateSentence(
   articleId: string,
   text: string,
   lang: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<SentenceTranslationResult | null> {
   const normalized = normalizeText(text);
 
@@ -44,6 +51,13 @@ export async function translateSentence(
   }
 
   const sourceHash = hashText(normalized);
+
+  const allowedArticle = !isArticleOperator(context)
+    ? await getAiProcessableArticleById(articleId, context, { select: { id: true } })
+    : null;
+  if (!isArticleOperator(context) && !allowedArticle) {
+    return null;
+  }
 
   // 1) Cache hit — the FK cascade guarantees the article still exists.
   const cached = await prisma.sentenceTranslation.findUnique({
@@ -56,10 +70,12 @@ export async function translateSentence(
   }
 
   // 2) Verify the article exists (gives caller a proper 404 on miss).
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: { id: true },
-  });
+  const article =
+    allowedArticle ??
+    (await prisma.article.findUnique({
+      where: { id: articleId },
+      select: { id: true },
+    }));
   if (!article) return null;
 
   // 3) AI unavailable → graceful fallback, nothing cached.

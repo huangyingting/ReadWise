@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
 import { getOrCreateTranslation, isSupportedLanguage } from "@/lib/translation";
-import { getViewableArticleById } from "@/lib/articles";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 
 const bodySchema = object({ lang: nonEmptyString(20) });
@@ -10,12 +10,13 @@ const bodySchema = object({ lang: nonEmptyString(20) });
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    await requireViewable(params.id, session.user.role, session.user.id);
+    const context = articleAccessContext(session.user);
+    await requireViewable(params.id, context);
     checkRateLimit(session.user.id, "ai");
     if (!isSupportedLanguage(body.lang)) {
       throw new ApiError(400, "Unsupported target language");
     }
-    const result = await getOrCreateTranslation(params.id, body.lang);
+    const result = await getOrCreateTranslation(params.id, body.lang, context);
     if (!result) {
       throw new ApiError(404, "Article not found");
     }
@@ -23,7 +24,10 @@ export const POST = createHandler(
   },
 );
 
-async function requireViewable(id: string, role?: string | null, userId?: string | null): Promise<void> {
-  const article = await getViewableArticleById(id, role, userId);
+async function requireViewable(
+  id: string,
+  context: ReturnType<typeof articleAccessContext>,
+): Promise<void> {
+  const article = await getReadableArticleById(id, context);
   if (!article) throw new ApiError(404, "Article not found");
 }

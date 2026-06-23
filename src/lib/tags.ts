@@ -3,6 +3,7 @@ import type { Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
+import { publicListableArticleWhere, type ArticleAccessContext } from "@/lib/article-access";
 
 export type TagView = {
   id: string;
@@ -114,19 +115,22 @@ async function upsertTag(name: string): Promise<{ id: string; name: string; slug
  */
 export async function getOrCreateArticleTags(
   articleId: string,
+  context?: ArticleAccessContext | null,
 ): Promise<ArticleTagsResult | null> {
   return getOrCreateArticleAi<
     { title: string; content: string },
     string[],
     TagView[],
     ArticleTagsResult
-  >(articleId, {
-    feature: "tags",
-    readCache: async () => {
+  >(
+    articleId,
+    {
+      feature: "tags",
+      readCache: async () => {
       const tags = await getArticleTags(articleId);
       return tags.length > 0 ? tags : null;
-    },
-    buildMessages: (article) => {
+      },
+      buildMessages: (article) => {
       const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
       return [
         {
@@ -143,10 +147,10 @@ export async function getOrCreateArticleTags(
           content: `Title: ${article.title}\n\n${source}`,
         },
       ];
-    },
-    parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
-    isEmpty: (names) => names.length === 0,
-    persist: async (id, names) => {
+      },
+      parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
+      isEmpty: (names) => names.length === 0,
+      persist: async (id, names) => {
       for (const name of names) {
         const tag = await upsertTag(name);
         await prisma.articleTag.upsert({
@@ -156,10 +160,12 @@ export async function getOrCreateArticleTags(
         });
       }
       return getArticleTags(id);
+      },
+      toResult: (tags) => ({ articleId, tags, fallback: false }),
+      fallback: () => ({ articleId, tags: [], fallback: true }),
     },
-    toResult: (tags) => ({ articleId, tags, fallback: false }),
-    fallback: () => ({ articleId, tags: [], fallback: true }),
-  });
+    context,
+  );
 }
 
 /** A tag plus the count of published articles carrying it. */
@@ -184,7 +190,7 @@ export function listArticlesByTag(slug: string, limit = 24): Promise<Article[]> 
 
 function listArticlesByTagUncached(slug: string, limit = 24): Promise<Article[]> {
   return prisma.article.findMany({
-    where: { status: "published", ownerId: null, tags: { some: { tag: { slug } } } },
+    where: publicListableArticleWhere({ tags: { some: { tag: { slug } } } }),
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
@@ -226,7 +232,7 @@ async function listRelatedArticlesUncached(
     where: {
       tagId: { in: tagIds },
       articleId: { not: articleId },
-      article: { status: "published", ownerId: null },
+      article: publicListableArticleWhere(),
     },
     select: { articleId: true },
   });
@@ -241,7 +247,7 @@ async function listRelatedArticlesUncached(
 
   const candidateIds = [...overlap.keys()];
   const articles = await prisma.article.findMany({
-    where: { id: { in: candidateIds }, status: "published", ownerId: null },
+    where: publicListableArticleWhere({ id: { in: candidateIds } }),
   });
 
   return articles

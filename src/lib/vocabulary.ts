@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
+import type { ArticleAccessContext } from "@/lib/article-access";
 
 export type VocabularyEntry = {
   word: string;
@@ -79,6 +80,7 @@ function parseVocabularyJson(raw: string): VocabularyEntry[] {
 export async function getOrCreateArticleVocabulary(
   articleId: string,
   userId: string,
+  context?: ArticleAccessContext | null,
 ): Promise<ArticleVocabularyResult | null> {
   const toResult = async (
     entries: VocabularyEntry[],
@@ -103,9 +105,11 @@ export async function getOrCreateArticleVocabulary(
     VocabularyEntry[],
     VocabularyEntry[],
     ArticleVocabularyResult
-  >(articleId, {
-    feature: "vocabulary",
-    readCache: async () => {
+  >(
+    articleId,
+    {
+      feature: "vocabulary",
+      readCache: async () => {
       const entries: VocabularyEntry[] = (
         await prisma.vocabularyItem.findMany({
           where: { articleId },
@@ -118,8 +122,8 @@ export async function getOrCreateArticleVocabulary(
         example: v.example,
       }));
       return entries.length > 0 ? entries : null;
-    },
-    buildMessages: (article) => {
+      },
+      buildMessages: (article) => {
       const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
       return [
         {
@@ -137,10 +141,10 @@ export async function getOrCreateArticleVocabulary(
           content: `Title: ${article.title}\n\n${source}`,
         },
       ];
-    },
-    parse: parseVocabularyJson,
-    isEmpty: (entries) => entries.length === 0,
-    persist: async (id, generated) => {
+      },
+      parse: parseVocabularyJson,
+      isEmpty: (entries) => entries.length === 0,
+      persist: async (id, generated) => {
       await Promise.all(
         generated.map((entry) =>
           prisma.vocabularyItem.upsert({
@@ -161,10 +165,12 @@ export async function getOrCreateArticleVocabulary(
         ),
       );
       return generated;
+      },
+      toResult: (entries) => toResult(entries, false),
+      fallback: () => toResult([], true),
     },
-    toResult: (entries) => toResult(entries, false),
-    fallback: () => toResult([], true),
-  });
+    context,
+  );
 }
 
 /**

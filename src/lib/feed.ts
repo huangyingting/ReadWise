@@ -27,6 +27,7 @@ import type { DifficultyLevel } from "@/lib/difficulty";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
 import { createLogger } from "@/lib/logger";
+import { publicListableArticleWhere } from "@/lib/article-access";
 
 const log = createLogger("feed");
 
@@ -383,12 +384,10 @@ async function computePersonalizedFeed(
   // projection; capped for memory safety). Completed articles are excluded at
   // the DB layer, and when a level cap is active we constrain difficulty too so
   // level-filtered feeds paginate correctly without over-fetching.
-  const where: Prisma.ArticleWhereInput = {
-    status: "published",
-    ownerId: null,
+  const where: Prisma.ArticleWhereInput = publicListableArticleWhere({
     ...(completedIds.size > 0 ? { id: { notIn: [...completedIds] } } : {}),
     ...(maxLevel ? { difficulty: { in: levelsAtOrBelow(maxLevel) } } : {}),
-  };
+  });
   const allArticles = await prisma.article.findMany({
     where,
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],

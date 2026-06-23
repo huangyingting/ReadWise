@@ -8,6 +8,12 @@ import {
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
+import {
+  getAiProcessableArticleById,
+  isArticleOperator,
+  SYSTEM_ARTICLE_CONTEXT,
+  type ArticleAccessContext,
+} from "@/lib/article-access";
 
 const log = createLogger("speech");
 
@@ -217,7 +223,17 @@ function fallbackResult(voice: string): SpeechResult {
  */
 export async function getOrCreateArticleSpeech(
   articleId: string,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<SpeechResult | null> {
+  const allowedArticle = !isArticleOperator(context)
+    ? await getAiProcessableArticleById(articleId, context, {
+        select: { title: true, content: true },
+      })
+    : null;
+  if (!isArticleOperator(context) && !allowedArticle) {
+    return null;
+  }
+
   const cached = await prisma.articleSpeech.findUnique({
     where: { articleId },
   });
@@ -233,7 +249,7 @@ export async function getOrCreateArticleSpeech(
       // Treat the corrupt row as a cache miss — fall through to regenerate.
       words = [];
       await prisma.articleSpeech.delete({ where: { articleId } });
-      return getOrCreateArticleSpeech(articleId);
+      return getOrCreateArticleSpeech(articleId, context);
     }
     return {
       audio: `data:${cached.mimeType};base64,${cached.audioBase64}`,
@@ -246,10 +262,12 @@ export async function getOrCreateArticleSpeech(
     };
   }
 
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: { title: true, content: true },
-  });
+  const article =
+    allowedArticle ??
+    (await prisma.article.findUnique({
+      where: { id: articleId },
+      select: { title: true, content: true },
+    }));
   if (!article) {
     return null;
   }

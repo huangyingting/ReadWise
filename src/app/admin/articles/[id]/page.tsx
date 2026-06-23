@@ -5,6 +5,7 @@ import { getAdminArticleDetail } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
 import { readingMinutesFor } from "@/lib/articles";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { articleAccessContext } from "@/lib/article-access";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
@@ -15,9 +16,9 @@ export default async function AdminArticleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  await requireAdmin(`/admin/articles/${id}`);
+  const session = await requireAdmin(`/admin/articles/${id}`);
 
-  const detail = await getAdminArticleDetail(id);
+  const detail = await getAdminArticleDetail(id, articleAccessContext(session.user));
   if (!detail) {
     notFound();
   }
