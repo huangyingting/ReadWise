@@ -808,3 +808,154 @@ export function errorAlertThreshold(): number {
   const v = parseInt(process.env.ERROR_ALERT_THRESHOLD ?? "", 10);
   return Number.isInteger(v) && v > 0 ? v : 10;
 }
+
+// ---------------------------------------------------------------------------
+// Security — trusted proxy / client IP handling (RW-027)
+// ---------------------------------------------------------------------------
+
+/**
+ * Resolved trusted-proxy model used to extract a trustworthy client IP from
+ * forwarding headers. Each strategy is independent; when several are set the
+ * most specific wins (list → hops → header). When NOTHING is configured the
+ * client IP falls back to best-effort (leftmost `X-Forwarded-For`), which is a
+ * SOFT, spoofable identity — see `docs/security.md` for deployment guidance.
+ *
+ * Env:
+ *   TRUSTED_PROXY_HOPS   — integer >= 0. Number of trusted proxy hops that
+ *                          append to `X-Forwarded-For` (counted from the RIGHT).
+ *                          0 means the rightmost XFF entry is the client (single
+ *                          load balancer). Spoofed extra LEFT hops are ignored.
+ *   TRUSTED_PROXY_LIST   — comma-separated trusted proxy IPs / CIDRs. The client
+ *                          IP is the rightmost XFF entry NOT in this set.
+ *   TRUSTED_PROXY_HEADER — a single platform header the edge guarantees and
+ *                          sanitizes (e.g. "cf-connecting-ip", "true-client-ip",
+ *                          "x-real-ip"). Its value is trusted directly.
+ */
+export type TrustedProxyConfig = {
+  /** Trusted XFF hop count (counted from the right), or null when unset. */
+  hops: number | null;
+  /** Trusted proxy IPs / CIDRs (right-to-left skip), or [] when unset. */
+  list: string[];
+  /** Lower-cased trusted platform header name, or null when unset. */
+  header: string | null;
+};
+
+/** Read a non-negative-int env var, returning null when unset / invalid / < 0. */
+function optionalNonNegativeIntEnv(name: string): number | null {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return null;
+  const v = parseInt(raw, 10);
+  return Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+/** Resolved trusted-proxy configuration (env-driven; all strategies optional). */
+export function trustedProxyConfig(): TrustedProxyConfig {
+  const listRaw = envValue("TRUSTED_PROXY_LIST");
+  const list = listRaw
+    ? listRaw
+        .split(",")
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.length > 0)
+    : [];
+  const headerRaw = envValue("TRUSTED_PROXY_HEADER");
+  return {
+    hops: optionalNonNegativeIntEnv("TRUSTED_PROXY_HOPS"),
+    list,
+    header: headerRaw ? headerRaw.toLowerCase() : null,
+  };
+}
+
+/** Whether any trusted-proxy strategy is configured (else soft best-effort). */
+export function isTrustedProxyConfigured(): boolean {
+  const cfg = trustedProxyConfig();
+  return cfg.hops !== null || cfg.list.length > 0 || cfg.header !== null;
+}
+
+// ---------------------------------------------------------------------------
+// Security — CSRF / same-origin enforcement (RW-028)
+// ---------------------------------------------------------------------------
+
+/**
+ * Extra origins (beyond the request's own host) allowed to make state-changing
+ * (POST/PUT/PATCH/DELETE) API calls. Same-origin requests are always allowed;
+ * requests with NO `Origin` header (server-to-server, health checks, `fetch`
+ * from non-browser clients, tests) are treated as same-origin and allowed.
+ * Cross-site browser requests with a foreign `Origin` are rejected with 403.
+ *
+ * Env:
+ *   CSRF_ALLOWED_ORIGINS — comma-separated absolute origins (scheme + host[:port]).
+ *   CSRF_TRUSTED_ORIGINS — alias accepted for the same purpose.
+ *   NEXTAUTH_URL / APP_URL — their origin is always trusted when present.
+ */
+export function csrfAllowedOrigins(): string[] {
+  const out = new Set<string>();
+  const raw =
+    envValue("CSRF_ALLOWED_ORIGINS") ?? envValue("CSRF_TRUSTED_ORIGINS");
+  if (raw) {
+    for (const entry of raw.split(",")) {
+      const origin = normalizeOriginValue(entry);
+      if (origin) out.add(origin);
+    }
+  }
+  for (const name of ["NEXTAUTH_URL", "APP_URL", "NEXT_PUBLIC_APP_URL"]) {
+    const origin = normalizeOriginValue(envValue(name));
+    if (origin) out.add(origin);
+  }
+  return [...out];
+}
+
+/** Normalize a URL/origin string to its `scheme://host[:port]` origin, or null. */
+function normalizeOriginValue(value: string | null | undefined): string | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  try {
+    return new URL(trimmed).origin.toLowerCase();
+  } catch {
+    // Allow bare "host:port" / "host" forms by assuming https.
+    try {
+      return new URL(`https://${trimmed}`).origin.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+}
+
+/**
+ * Whether same-origin enforcement is active for app API mutations. Defaults to
+ * ON; set `CSRF_ENFORCE=false`/`0`/`off` to disable (e.g. for a deployment that
+ * fronts the API with a separate CSRF layer). Always reports the posture so the
+ * decision is explicit rather than magical.
+ */
+export function csrfEnforceSameOrigin(): boolean {
+  const raw = (process.env.CSRF_ENFORCE ?? "").trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "off" || raw === "no") return false;
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Security — event monitoring & alerting (RW-029)
+// ---------------------------------------------------------------------------
+
+/**
+ * Number of times the same security event (type + actor/IP) within the rolling
+ * window before it is treated as a SPIKE and escalated through the alert seam.
+ * Defaults to 10. Set via `SECURITY_EVENT_ALERT_THRESHOLD`.
+ */
+export function securityEventAlertThreshold(): number {
+  return positiveIntEnv("SECURITY_EVENT_ALERT_THRESHOLD", 10);
+}
+
+/** Rolling window (ms) over which security-event spikes are counted (default 60000). */
+export function securityEventWindowMs(): number {
+  return positiveIntEnv("SECURITY_EVENT_WINDOW_MS", 60_000);
+}
+
+/**
+ * Capacity of the in-memory recent-security-event ring buffer surfaced to the
+ * admin endpoint. Defaults to 200; capped so it can never grow unbounded.
+ */
+export function securityEventBufferSize(): number {
+  const v = positiveIntEnv("SECURITY_EVENT_BUFFER_SIZE", 200);
+  return Math.min(v, 2000);
+}

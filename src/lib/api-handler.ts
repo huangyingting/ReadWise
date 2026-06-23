@@ -24,6 +24,9 @@ import { recordApiRequest, routeGroupFromPath } from "@/lib/metrics";
 import { withSpan, setSpanAttributes, recordSpanError } from "@/lib/tracing";
 import { captureError } from "@/lib/error-reporting";
 import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/audit";
+import { checkSameOrigin, isStateChangingMethod } from "@/lib/csrf";
+import { clientIp } from "@/lib/client-ip";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
 
 
 /** Throw from a handler to return a controlled, client-safe error response. */
@@ -76,6 +79,43 @@ function jsonError(
 function withRequestId(res: Response, requestId: string): Response {
   res.headers.set("x-request-id", requestId);
   return res;
+}
+
+/**
+ * Emit a security event for a denied/limited response status (RW-029). Covers
+ * the 401/403/429 surfaces produced by the wrapper so repeated auth failures
+ * and rate-limit hits are consistently monitored + alertable.
+ */
+function recordStatusSecurityEvent(input: {
+  status: number;
+  route: string;
+  method: string;
+  req: Request;
+  actorId?: string | null;
+}): void {
+  let type: string;
+  let severity: "low" | "medium";
+  if (input.status === 401) {
+    type = SECURITY_EVENT_TYPES.unauthorized;
+    severity = "low";
+  } else if (input.status === 403) {
+    type = SECURITY_EVENT_TYPES.forbidden;
+    severity = "medium";
+  } else if (input.status === 429) {
+    type = SECURITY_EVENT_TYPES.rateLimited;
+    severity = "medium";
+  } else {
+    return;
+  }
+  recordSecurityEvent({
+    type,
+    severity,
+    status: input.status,
+    route: input.route,
+    actorId: input.actorId ?? undefined,
+    ip: clientIp(input.req),
+    meta: { method: input.method },
+  });
 }
 
 function build<B, P, Q, S extends Session | null>(
@@ -134,6 +174,21 @@ function build<B, P, Q, S extends Session | null>(
           };
 
           try {
+            // 0) CSRF defense-in-depth: reject cross-site state-changing
+            //    requests before doing any work (covers public + auth routes).
+            const csrf = checkSameOrigin(req);
+            if (!csrf.ok) {
+              recordSecurityEvent({
+                type: SECURITY_EVENT_TYPES.csrfBlocked,
+                severity: "medium",
+                status: 403,
+                route: routeGroup,
+                ip: clientIp(req),
+                meta: { method: req.method, origin: csrf.origin, reason: csrf.reason },
+              });
+              return complete(jsonError(403, "Cross-site request blocked", requestId));
+            }
+
             // 1) Authentication — public routes are explicitly exempt.
             let session: Session | null = null;
             if (auth === "admin") {
@@ -149,12 +204,27 @@ function build<B, P, Q, S extends Session | null>(
                   metadata: { status: result.error.status, method: req.method },
                   ...auditRequestInfo(req),
                 });
+                recordStatusSecurityEvent({
+                  status: result.error.status,
+                  route: routeGroup,
+                  method: req.method,
+                  req,
+                  actorId: result.session?.user?.id ?? null,
+                });
                 return complete(result.error);
               }
               session = result.session;
             } else if (auth === "session") {
               const result = await requireSessionApi();
-              if (result.error) return complete(result.error);
+              if (result.error) {
+                recordStatusSecurityEvent({
+                  status: result.error.status,
+                  route: routeGroup,
+                  method: req.method,
+                  req,
+                });
+                return complete(result.error);
+              }
               session = result.session;
             }
             if (session?.user?.id) setRequestContext({ userId: session.user.id });
@@ -199,6 +269,25 @@ function build<B, P, Q, S extends Session | null>(
               requestId,
               log,
             });
+
+            // A successful admin mutation is a security-relevant change — record
+            // it for monitoring (it is also audited inside the route handler).
+            if (
+              auth === "admin" &&
+              isStateChangingMethod(req.method) &&
+              response.status < 400
+            ) {
+              recordSecurityEvent({
+                type: SECURITY_EVENT_TYPES.adminMutation,
+                severity: "medium",
+                status: response.status,
+                route: routeGroup,
+                actorId: session?.user?.id ?? undefined,
+                ip: clientIp(req),
+                meta: { method: req.method },
+              });
+            }
+
             return complete(response);
           } catch (err) {
             if (err instanceof ApiError) {
@@ -206,6 +295,12 @@ function build<B, P, Q, S extends Session | null>(
                 status: err.status,
                 error: err.message,
                 durationMs: Date.now() - startedAt,
+              });
+              recordStatusSecurityEvent({
+                status: err.status,
+                route: routeGroup,
+                method: req.method,
+                req,
               });
               return complete(jsonError(err.status, err.message, requestId));
             }

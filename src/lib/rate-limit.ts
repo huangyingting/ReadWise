@@ -27,6 +27,7 @@
  */
 import { ApiError } from "@/lib/api-handler";
 import { createLogger } from "@/lib/logger";
+import { clientIpKey } from "@/lib/client-ip";
 import {
   rateLimitAdminJobRequests,
   rateLimitAiRequests,
@@ -148,19 +149,10 @@ export async function checkRateLimit(userId: string, scope: string): Promise<voi
 }
 
 /**
- * Extracts a best-effort client IP from a Request for use as a rate-limit key.
- * Uses `x-forwarded-for` (first hop, trusted behind a proxy) or falls back to
- * a fixed string so the limiter degrades gracefully rather than skipping.
- *
- * NOTE: x-forwarded-for can be spoofed if the server is not behind a trusted
- * reverse proxy. This is an acceptable trade-off for a soft per-IP cap.
+ * Extracts a client IP rate-limit key from a Request using the trusted-proxy
+ * aware resolver in {@link "@/lib/client-ip"}. Re-exported here so existing call
+ * sites keep importing it from `@/lib/rate-limit`. See `docs/security.md` for
+ * how to configure trusted proxies; with none configured this is a SOFT
+ * (spoofable) per-IP identity suitable only for best-effort limits.
  */
-export function clientIpKey(req: Request): string {
-  const xff = req.headers.get("x-forwarded-for");
-  if (xff) {
-    // Take the first IP (client); subsequent entries are added by proxies.
-    const first = xff.split(",")[0].trim();
-    if (first) return `ip:${first}`;
-  }
-  return "ip:unknown";
-}
+export { clientIpKey };

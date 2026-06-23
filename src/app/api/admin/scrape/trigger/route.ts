@@ -7,6 +7,8 @@ import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
+import { clientIp } from "@/lib/client-ip";
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 50;
@@ -85,6 +87,14 @@ export const POST = createAdminHandler(
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         log.warn("scrape.trigger.discover_failed", { provider: provider.key, error: message });
+        recordSecurityEvent({
+          type: SECURITY_EVENT_TYPES.importFailed,
+          severity: "medium",
+          route: "/api/admin/scrape/trigger",
+          actorId: session.user.id,
+          ip: clientIp(req),
+          meta: { provider: provider.key, phase: "discover", error: message },
+        });
         results.push({ provider: provider.key, discovered: 0, saved: 0, skipped: 0, failed: 0, error: message });
         continue;
       }
@@ -110,6 +120,14 @@ export const POST = createAdminHandler(
         } catch (err) {
           const message = err instanceof Error ? err.message : String(err);
           log.warn("scrape.trigger.save_failed", { provider: provider.key, url, error: message });
+          recordSecurityEvent({
+            type: SECURITY_EVENT_TYPES.importFailed,
+            severity: "medium",
+            route: "/api/admin/scrape/trigger",
+            actorId: session.user.id,
+            ip: clientIp(req),
+            meta: { provider: provider.key, phase: "save", error: message },
+          });
           failed++;
         }
       }

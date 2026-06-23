@@ -326,6 +326,28 @@ export function recordErrorCaptured(input: {
   });
 }
 
+/**
+ * Records a security-relevant event (RW-029). Labels are intentionally
+ * low-cardinality: the event `type` (e.g. auth.forbidden, rate_limit.exceeded),
+ * `severity`, an HTTP `status_class` when known, and an `alert` flag set when
+ * the event was escalated through the alert seam. Actor ids, IPs, request ids,
+ * and free-form metadata are NOT labels — they live in the structured
+ * `security.event` log line for correlation.
+ */
+export function recordSecurityEventMetric(input: {
+  type: string;
+  severity: string;
+  status?: number;
+  alert?: boolean;
+}): void {
+  incCounter("readwise_security_events_total", "Security-relevant events by type and severity.", {
+    type: input.type,
+    severity: input.severity,
+    status_class: input.status !== undefined ? statusClass(input.status) : "none",
+    alert: input.alert ? "true" : "false",
+  });
+}
+
 const JOB_QUEUE_EVENTS = [
   "enqueued",
   "claimed",
