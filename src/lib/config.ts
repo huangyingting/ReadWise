@@ -720,3 +720,91 @@ export function logLevel(): LogLevel {
   }
   return "info";
 }
+
+// ---------------------------------------------------------------------------
+// Observability — OpenTelemetry tracing (RW-032)
+// ---------------------------------------------------------------------------
+
+/** Resolved tracing config when tracing is enabled (else `null`). */
+export type TracingConfig = {
+  /** Exporter target. "otlp" needs an endpoint; "console" prints spans (dev). */
+  exporter: "otlp" | "console";
+  /** OTLP traces endpoint (only set when exporter === "otlp"). */
+  endpoint: string | null;
+  /** Logical service name reported on every span's resource. */
+  serviceName: string;
+  /** Deployment environment (production/staging/development/test). */
+  environment: string;
+  /** Release/version string for the resource (APP_VERSION / package version). */
+  serviceVersion: string;
+};
+
+function truthyEnv(name: string): boolean {
+  const raw = (process.env[name] ?? "").trim().toLowerCase();
+  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+}
+
+/** The release/version string used for traces and error reports. */
+export function appVersion(): string {
+  return (
+    envValue("APP_VERSION") ??
+    envValue("npm_package_version") ??
+    "0.0.0"
+  );
+}
+
+/**
+ * Resolve the tracing configuration following the graceful-fallback convention.
+ *
+ * Tracing is OFF (returns `null`) unless explicitly enabled. It is enabled when
+ * either:
+ *   - `OTEL_EXPORTER_OTLP_ENDPOINT` (or `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`) is
+ *     set — spans are exported over OTLP/HTTP to that collector, OR
+ *   - `TRACING_ENABLED` is truthy — without an endpoint this falls back to a
+ *     console exporter (handy for local debugging without a collector).
+ *
+ * Returning `null` means the OpenTelemetry SDK is never started, so the OTel
+ * API stays a no-op and nothing breaks when no collector is present.
+ */
+export function tracingConfig(): TracingConfig | null {
+  const endpoint =
+    envValue("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") ??
+    envValue("OTEL_EXPORTER_OTLP_ENDPOINT");
+  const flagEnabled = truthyEnv("TRACING_ENABLED");
+  if (!endpoint && !flagEnabled) return null;
+  return {
+    exporter: endpoint ? "otlp" : "console",
+    endpoint,
+    serviceName: envValue("OTEL_SERVICE_NAME") ?? "readwise",
+    environment: process.env.NODE_ENV ?? "development",
+    serviceVersion: appVersion(),
+  };
+}
+
+/** Whether OpenTelemetry tracing is enabled for this process. */
+export function isTracingConfigured(): boolean {
+  return tracingConfig() !== null;
+}
+
+// ---------------------------------------------------------------------------
+// Observability — error aggregation (RW-033)
+// ---------------------------------------------------------------------------
+
+/**
+ * The configured error-aggregation provider. Backend-agnostic: the default
+ * (`"log"`) writes a structured `error.captured` line + increments a metric.
+ * Set `ERROR_REPORTING_PROVIDER` to a provider name (e.g. "sentry", "otlp") to
+ * route through a real provider seam without changing call sites.
+ */
+export function errorReportingProvider(): string {
+  return (envValue("ERROR_REPORTING_PROVIDER") ?? "log").toLowerCase();
+}
+
+/**
+ * Number of occurrences of a single error fingerprint within the process
+ * lifetime that triggers the high-frequency alert hook. Defaults to 10.
+ */
+export function errorAlertThreshold(): number {
+  const v = parseInt(process.env.ERROR_ALERT_THRESHOLD ?? "", 10);
+  return Number.isInteger(v) && v > 0 ? v : 10;
+}

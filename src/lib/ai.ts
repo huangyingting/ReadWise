@@ -13,6 +13,7 @@
 import { createLogger } from "@/lib/logger";
 import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
+import { withSpan, setSpanAttributes } from "@/lib/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
 import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
 
@@ -151,6 +152,13 @@ export async function chatCompleteWithMeta(
   const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
   const maxRetries = getMaxRetries();
 
+  // Child span around the provider interaction so AI calls show up as nested
+  // spans under the request/job. Only low-cardinality metadata — never the
+  // prompt or response content.
+  return withSpan(
+    "ai.chat_completion",
+    { "readwise.feature": feature, "readwise.kind": budgetKind },
+    async (span) => {
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const start = Date.now();
     const timeoutSignal = AbortSignal.timeout(getTimeoutMs());
@@ -261,6 +269,10 @@ export async function chatCompleteWithMeta(
         completionTokens: usage?.completionTokens,
         totalTokens: usage?.totalTokens,
       });
+      setSpanAttributes(span, {
+        "readwise.outcome": "success",
+        "readwise.duration_ms": durationMs,
+      });
       return { text: content.trim(), usage, model: data.model ?? config.deployment, durationMs };
     } catch (err) {
       const durationMs = Date.now() - start;
@@ -306,11 +318,17 @@ export async function chatCompleteWithMeta(
         latencyMs: durationMs,
         errorMessage: isTimeout ? "timeout" : "network error",
       });
+      setSpanAttributes(span, {
+        "readwise.outcome": "error",
+        "readwise.duration_ms": durationMs,
+      });
       return null;
     }
   }
 
-  return null;
+      return null;
+    },
+  );
 }
 
 /**

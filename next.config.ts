@@ -51,6 +51,18 @@ const nextConfig: NextConfig = {
   // Gated to production so local `npm run dev` doesn't emit the standalone
   // artefact (which is only needed by the Dockerfile / container runtime).
   ...(isProduction ? { output: "standalone" } : {}),
+  // Keep the OpenTelemetry Node SDK out of the webpack bundle (RW-032). It is
+  // only ever loaded from `src/instrumentation.ts` in the Node runtime, uses
+  // native require-in-the-middle instrumentation, and pulls OPTIONAL exporters
+  // (e.g. jaeger) that we don't install. Externalizing avoids bundling it (and
+  // the harmless "Can't resolve @opentelemetry/exporter-jaeger" build warning)
+  // and is the Next.js-recommended setup for manual OTel.
+  serverExternalPackages: [
+    "@opentelemetry/sdk-node",
+    "@opentelemetry/exporter-trace-otlp-http",
+    "@opentelemetry/resources",
+    "@opentelemetry/sdk-trace-base",
+  ],
   // Restrict the Next.js image optimizer to known hosts only.
   // All current <Image> usages pass `unoptimized` (OAuth avatars, dashboard),
   // so no optimizer traffic exists today — but the wildcard would allow

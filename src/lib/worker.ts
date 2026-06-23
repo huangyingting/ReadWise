@@ -6,6 +6,8 @@ import {
 } from "@/lib/processor";
 import { createLogger } from "@/lib/logger";
 import { recordWorkerJob } from "@/lib/metrics";
+import { withSpan } from "@/lib/tracing";
+import { captureError } from "@/lib/error-reporting";
 import {
   claimNextJob,
   completeJob,
@@ -278,22 +280,33 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
         let result: ArticleProcessResult | null;
         let attempts: number;
         try {
-          ({ result, attempts } = await processWithRetry(id, {
-            maxRetries,
-            baseBackoffMs,
-            maxBackoffMs,
-            process: options.process,
-            logger,
-            signal,
-            processArticleFn: processFn,
-            sleepFn,
-          }));
+          ({ result, attempts } = await withSpan(
+            "worker.process_article",
+            { "readwise.article_id": id, "readwise.job_type": "article" },
+            () =>
+              processWithRetry(id, {
+                maxRetries,
+                baseBackoffMs,
+                maxBackoffMs,
+                process: options.process,
+                logger,
+                signal,
+                processArticleFn: processFn,
+                sleepFn,
+              }),
+          ));
         } catch (err) {
           if (isAbort(err)) {
             recordWorkerJob({
               outcome: "aborted",
               attempts: 1,
               durationMs: Date.now() - jobStartedAt,
+            });
+          } else {
+            captureError(err, {
+              source: "worker",
+              severity: "error",
+              extra: { articleId: id, jobType: "article" },
             });
           }
           throw err;
@@ -319,6 +332,18 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
             attempts,
             published: result.published,
             durationMs: Date.now() - jobStartedAt,
+          });
+          captureError(new Error(`article processing failed after ${attempts} attempt(s)`), {
+            source: "worker",
+            severity: "warning",
+            extra: {
+              articleId: id,
+              attempts,
+              failedSteps: result.steps
+                .filter((step) => step.status === "failed")
+                .map((step) => step.step)
+                .join(","),
+            },
           });
           stats.failed++;
           quarantineUntil.set(id, Date.now() + quarantineMs);
@@ -539,7 +564,11 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
             kind: "validation",
           });
         }
-        await handler(job, { logger, signal, process: options.process });
+        await withSpan(
+          "worker.job",
+          { "readwise.job_type": job.type, "readwise.attempt": attempts },
+          () => handler(job, { logger, signal, process: options.process }),
+        );
         await completeFn(job.id);
         stats.completed++;
         recordWorkerJob({ outcome: "success", attempts, durationMs: Date.now() - startedAt });
@@ -551,16 +580,23 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
         }
         const updated = await failFn(job.id, err);
         stats.failed++;
-        if (updated?.status === JobStatus.DEAD_LETTER) {
+        const deadLettered = updated?.status === JobStatus.DEAD_LETTER;
+        if (deadLettered) {
           stats.deadLettered++;
         } else {
           stats.retried++;
         }
         recordWorkerJob({ outcome: "failed", attempts, durationMs: Date.now() - startedAt });
+        // Dead-letter = exhausted retries => higher severity so it can alert.
+        captureError(err, {
+          source: "worker",
+          severity: deadLettered ? "fatal" : "warning",
+          extra: { jobId: job.id, jobType: job.type, attempts, deadLettered },
+        });
         logger.warn("job handler failed", {
           jobId: job.id,
           type: job.type,
-          deadLettered: updated?.status === JobStatus.DEAD_LETTER,
+          deadLettered,
           error: err instanceof Error ? err.message : String(err),
         });
       }
