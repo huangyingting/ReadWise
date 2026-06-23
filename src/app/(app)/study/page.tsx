@@ -2,20 +2,23 @@ import { requireSession } from "@/lib/session";
 import { getSavedWords } from "@/lib/vocabulary";
 import { getReviewSummary } from "@/lib/flashcards";
 import { getQuizMastery } from "@/lib/quiz-mastery";
+import { generateStudyPlan } from "@/lib/study-plan";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import Sparkline from "@/components/Sparkline";
 import StudyPageShell from "@/components/StudyPageShell";
+import StudyPlanSection from "@/components/StudyPlanSection";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function StudyPage() {
   const session = await requireSession("/study");
-  const [words, reviewSummary, mastery] = await Promise.all([
+  const [words, reviewSummary, mastery, studyPlan] = await Promise.all([
     getSavedWords(session.user.id),
     getReviewSummary(session.user.id),
     getQuizMastery(session.user.id),
+    generateStudyPlan(session.user.id),
   ]);
 
   const { totalAttempts, articlesQuizzed, averageScore, recentTrend } = mastery;
@@ -54,6 +57,9 @@ export default async function StudyPage() {
         }))}
         initialDueCount={reviewSummary.dueCount}
       />
+
+      {/* ── Weekly study plan (RW-041) — grounded weakness diagnostics ── */}
+      <StudyPlanSection plan={studyPlan} />
 
       {/* ── Comprehension section (M14) — demoted below actionable items (#212) ── */}
       <section aria-labelledby="comprehension-h" className="mt-[var(--space-7)]">

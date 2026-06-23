@@ -4,9 +4,10 @@ import { queryString, queryInt } from "@/lib/validation";
 import {
   BROWSE_PAGE_SIZE,
   listCategoryPage,
-  listPicksPage,
   toListingArticle,
+  type ListingArticle,
 } from "@/lib/articles";
+import { listScoredPicksPage } from "@/lib/recommendations";
 import { getProgressSummaries } from "@/lib/progress";
 import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";
 import { isValidCategorySlug } from "@/lib/categories";
@@ -55,30 +56,40 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
       ? (levelParam as (typeof ENGLISH_LEVELS)[number])
       : null;
 
-  let page;
+  let articles: ListingArticle[];
+  let hasMore: boolean;
   if (view === "picks") {
     const profile = await getProfile(session.user.id);
     const profileLevel = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
     const maxLevel = urlLevel ?? profileLevel;
     const topics = parseTopics(profile?.topics);
-    page = await listPicksPage(maxLevel, topics, { offset, limit });
+    const picks = await listScoredPicksPage(session.user.id, {
+      maxLevel,
+      topics,
+      offset,
+      limit,
+    });
+    articles = picks.articles;
+    hasMore = picks.hasMore;
   } else {
     const category =
       categoryParam && categoryParam !== "all" && isValidCategorySlug(categoryParam)
         ? categoryParam
         : null;
-    page = await listCategoryPage(category, { offset, limit, maxLevel: urlLevel });
+    const page = await listCategoryPage(category, { offset, limit, maxLevel: urlLevel });
+    articles = page.articles.map(toListingArticle);
+    hasMore = page.hasMore;
   }
 
   const progress = await getProgressSummaries(
     session.user.id,
-    page.articles.map((a) => a.id),
+    articles.map((a) => a.id),
   );
 
   return NextResponse.json({
-    articles: page.articles.map(toListingArticle),
+    articles,
     progress,
-    hasMore: page.hasMore,
-    offset: offset + page.articles.length,
+    hasMore,
+    offset: offset + articles.length,
   });
 });
