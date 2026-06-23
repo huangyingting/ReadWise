@@ -259,6 +259,7 @@ tests/                    # Unit tests (Node built-in runner, no framework)
 
 ## Operations docs
 
+- [CI quality gates & release readiness](docs/ci.md)
 - [Database backup, restore, migration, and rollback runbooks](docs/operations/database-runbooks.md)
 
 ### Key conventions
