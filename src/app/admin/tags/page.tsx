@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminTags } from "@/lib/admin-tags";
 import AdminTagActions from "@/components/AdminTagActions";
 import { Input } from "@/components/ui/Input";
@@ -23,7 +24,7 @@ export default async function AdminTagsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireAdmin("/admin/tags");
+  await requireCapability(CAPABILITIES.tagsManage, "/admin/tags");
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();

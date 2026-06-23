@@ -1,4 +1,5 @@
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { getRecentSecurityEvents } from "@/lib/security-events";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import {
@@ -16,7 +17,7 @@ export const dynamic = "force-dynamic";
  * a SIEM (see docs/security.md). Lives at /admin/security (admin-gated).
  */
 export default async function AdminSecurityPage() {
-  await requireAdmin("/admin/security");
+  await requireCapability(CAPABILITIES.securityView, "/admin/security");
   const events = getRecentSecurityEvents(100);
   const proxy = trustedProxyConfig();
 

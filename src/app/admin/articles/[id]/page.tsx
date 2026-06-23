@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminArticleDetail } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
 import { readingMinutesFor } from "@/lib/articles";
@@ -32,7 +33,7 @@ export default async function AdminArticleDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const session = await requireAdmin(`/admin/articles/${id}`);
+  const session = await requireCapability(CAPABILITIES.articlesManage, `/admin/articles/${id}`);
 
   const detail = await getAdminArticleDetail(id, articleAccessContext(session.user));
   if (!detail) {

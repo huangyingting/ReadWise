@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { prisma } from "@/lib/prisma";
 import { searchArticles } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
@@ -31,7 +32,7 @@ export default async function AdminArticlesPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  const session = await requireAdmin("/admin/articles");
+  const session = await requireCapability(CAPABILITIES.articlesManage, "/admin/articles");
   const context = articleAccessContext(session.user);
 
   const sp = await searchParams;

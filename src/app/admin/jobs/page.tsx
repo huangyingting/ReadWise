@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin-jobs";
 import { JobStatus, JobType } from "@prisma/client";
 import AdminJobActions from "@/components/AdminJobActions";
@@ -127,7 +128,7 @@ export default async function AdminJobsPage({
 }: {
   searchParams: Promise<SearchParams>;
 }) {
-  await requireAdmin("/admin/jobs");
+  await requireCapability(CAPABILITIES.jobsManage, "/admin/jobs");
 
   const sp = await searchParams;
   const status = (sp.status ?? "").trim();

@@ -1,10 +1,11 @@
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminAnalytics } from "@/lib/admin-analytics";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import { BarChart } from "@/components/admin/BarChart";
 
 export default async function AdminAnalyticsPage() {
-  await requireAdmin("/admin/analytics");
+  await requireCapability(CAPABILITIES.analyticsView, "/admin/analytics");
   const analytics = await getAdminAnalytics();
   const { memberActivity } = analytics;
 
