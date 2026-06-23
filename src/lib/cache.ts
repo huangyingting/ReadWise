@@ -1,4 +1,5 @@
 import { unstable_cache, revalidateTag } from "next/cache";
+import { recordCacheLookup, recordCacheMiss } from "@/lib/metrics";
 
 /**
  * Tag-based server-side caching for expensive listing/recommendation queries.
@@ -35,7 +36,19 @@ export function createCachedListing<Args extends unknown[], T>(
   tags: string[],
   revalidate: number | false = LISTING_REVALIDATE_SECONDS,
 ): (...args: Args) => Promise<T> {
-  return unstable_cache(fn, keyParts, { tags, revalidate });
+  const cacheName = keyParts.join(":");
+  const cached = unstable_cache(
+    async (...args: Args) => {
+      recordCacheMiss(cacheName);
+      return fn(...args);
+    },
+    keyParts,
+    { tags, revalidate },
+  );
+  return (...args: Args) => {
+    recordCacheLookup(cacheName);
+    return cached(...args);
+  };
 }
 
 function safeRevalidate(tag: string): void {
