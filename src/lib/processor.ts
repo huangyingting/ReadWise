@@ -7,6 +7,8 @@ import { getOrCreateArticleTags } from "@/lib/tags";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
+import { aiModelName } from "@/lib/ai";
+import { beginStep, finishStep, translationStepKey } from "@/lib/processing-state";
 import { runWithAiContext } from "@/lib/ai-budget";
 import {
   SYSTEM_ARTICLE_CONTEXT,
@@ -101,22 +103,36 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
   };
 }
 
+/**
+ * Runs a single enrichment step and records its durable processing state
+ * (RW-016). `persistAs` is the step key written to `ArticleProcessingStep`
+ * (defaults to `step`; translations pass a language-scoped key). State writes
+ * are best-effort and never affect the returned {@link StepResult}.
+ */
 async function runStep(
+  articleId: string,
   step: StepName,
   alreadyDone: boolean,
   fn: () => Promise<{ fallback: boolean; detail?: string }>,
+  persistAs: string = step,
 ): Promise<StepResult> {
   if (alreadyDone) {
+    await finishStep(articleId, persistAs, "skipped");
     return { step, status: "skipped" };
   }
+  await beginStep(articleId, persistAs);
   try {
     const { fallback, detail } = await fn();
-    return { step, status: fallback ? "fallback" : "generated", detail };
+    const status: StepStatus = fallback ? "fallback" : "generated";
+    await finishStep(articleId, persistAs, status, { modelName: aiModelName() });
+    return { step, status, detail };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    await finishStep(articleId, persistAs, "failed", { lastError: message });
     return {
       step,
       status: "failed",
-      detail: err instanceof Error ? err.message : String(err),
+      detail: message,
     };
   }
 }
@@ -151,7 +167,7 @@ async function processArticleInner(
   const steps: StepResult[] = [];
 
   steps.push(
-    await runStep("difficulty", before.hasDifficulty, async () => {
+    await runStep(articleId, "difficulty", before.hasDifficulty, async () => {
       const res = await getOrCreateArticleDifficulty(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: false,
@@ -161,7 +177,7 @@ async function processArticleInner(
   );
 
   steps.push(
-    await runStep("tags", before.tagCount > 0, async () => {
+    await runStep(articleId, "tags", before.tagCount > 0, async () => {
       const res = await getOrCreateArticleTags(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
@@ -171,7 +187,7 @@ async function processArticleInner(
   );
 
   steps.push(
-    await runStep("vocabulary", before.vocabCount > 0, async () => {
+    await runStep(articleId, "vocabulary", before.vocabCount > 0, async () => {
       const res = await getOrCreateArticleVocabulary(
         articleId,
         PROCESSOR_USER_ID,
@@ -185,7 +201,7 @@ async function processArticleInner(
   );
 
   steps.push(
-    await runStep("quiz", before.quizCount > 0, async () => {
+    await runStep(articleId, "quiz", before.quizCount > 0, async () => {
       const res = await getOrCreateArticleQuiz(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
@@ -196,25 +212,37 @@ async function processArticleInner(
 
   for (const lang of opts.translateLangs ?? []) {
     steps.push(
-      await runStep("translation", before.translationLangs.has(lang), async () => {
-        const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
-        return {
-          fallback: res?.fallback ?? true,
-          detail: res ? res.languageLabel : lang,
-        };
-      }),
+      await runStep(
+        articleId,
+        "translation",
+        before.translationLangs.has(lang),
+        async () => {
+          const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
+          return {
+            fallback: res?.fallback ?? true,
+            detail: res ? res.languageLabel : lang,
+          };
+        },
+        translationStepKey(lang),
+      ),
     );
   }
 
   if (opts.tts) {
     steps.push(
-      await runStep("tts", before.hasSpeech, async () => {
-        const res = await getOrCreateArticleSpeech(articleId, SYSTEM_ARTICLE_CONTEXT);
-        return {
-          fallback: res?.fallback ?? true,
-          detail: res ? `${res.words.length} word timing(s)` : undefined,
-        };
-      }),
+      await runStep(
+        articleId,
+        "tts",
+        before.hasSpeech,
+        async () => {
+          const res = await getOrCreateArticleSpeech(articleId, SYSTEM_ARTICLE_CONTEXT);
+          return {
+            fallback: res?.fallback ?? true,
+            detail: res ? `${res.words.length} word timing(s)` : undefined,
+          };
+        },
+        "speech",
+      ),
     );
   }
 
