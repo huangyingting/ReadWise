@@ -2,6 +2,7 @@ process.env.LOG_LEVEL = "error"; // silence request.start/complete logs
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
+import { recordCacheAccess, resetMetrics } from "@/lib/metrics";
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
 
@@ -116,6 +117,7 @@ beforeEach(() => {
   revalidateCalls = 0;
   lastSavedWord = null;
   deleteArticleResult = true;
+  resetMetrics();
 });
 
 function jsonReq(body: unknown): Request {
@@ -276,4 +278,13 @@ test("DELETE admin/articles/[id] returns 404 when not found", async () => {
   const res = await DELETE(new Request("http://test/x", { method: "DELETE" }), ctx());
   assert.equal(res.status, 404);
   assert.equal(revalidateCalls, 0);
+});
+
+test("GET admin/metrics exports Prometheus text for admins", async () => {
+  recordCacheAccess("articles:published", "miss");
+  const { GET } = (await import("@/app/api/admin/metrics/route")) as { GET: RouteHandler };
+  const res = await GET(new Request("http://test/api/admin/metrics"), undefined);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") ?? "", /text\/plain/);
+  assert.match(await res.text(), /readwise_cache_access_total/);
 });

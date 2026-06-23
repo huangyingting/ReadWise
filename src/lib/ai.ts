@@ -12,6 +12,7 @@
 
 import { createLogger } from "@/lib/logger";
 import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
+import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 
 const log = createLogger("ai");
 
@@ -73,13 +74,14 @@ export async function chatCompleteWithMeta(
   options: { maxOutputTokens?: number; signal?: AbortSignal; feature?: string } = {},
 ): Promise<AiResult | null> {
   const config = readAzureConfig();
+  const feature = options.feature ?? "unknown";
   if (!config) {
+    recordAiCall({ feature, outcome: "unconfigured" });
     return null;
   }
 
   const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
   const maxRetries = getMaxRetries();
-  const feature = options.feature ?? "unknown";
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
     const start = Date.now();
@@ -117,10 +119,12 @@ export async function chatCompleteWithMeta(
             const seconds = parseInt(retryAfter, 10);
             if (Number.isFinite(seconds)) delay = Math.min(seconds * 1000, 60_000);
           }
+          recordAiRetry({ feature, reason: status === 429 ? "rate_limited" : status >= 500 ? "server_error" : "http" });
           log.warn("ai.retry", { feature, model: config.deployment, attempt, status, delayMs: delay });
           await new Promise<void>((resolve) => setTimeout(resolve, delay));
           continue;
         }
+        recordAiCall({ feature, outcome: "error", status, durationMs });
         log.warn("ai.error", { feature, model: config.deployment, status, durationMs, attempt });
         return null;
       }
@@ -135,6 +139,7 @@ export async function chatCompleteWithMeta(
       const content = choice?.message?.content;
       const finishReason = choice?.finish_reason ?? "unknown";
       if (typeof content !== "string" || !content.trim()) {
+        recordAiCall({ feature, outcome: "empty", status, durationMs });
         log.warn("ai.empty", {
           feature,
           model: config.deployment,
@@ -165,6 +170,15 @@ export async function chatCompleteWithMeta(
         ok: true,
       });
 
+      recordAiCall({
+        feature,
+        outcome: "success",
+        status,
+        durationMs,
+        promptTokens: usage?.promptTokens,
+        completionTokens: usage?.completionTokens,
+        totalTokens: usage?.totalTokens,
+      });
       return { text: content.trim(), usage, model: data.model ?? config.deployment, durationMs };
     } catch (err) {
       const durationMs = Date.now() - start;
@@ -173,12 +187,14 @@ export async function chatCompleteWithMeta(
 
       // If the caller aborted, do not retry
       if (isAbort && options.signal?.aborted) {
+        recordAiCall({ feature, outcome: "aborted", durationMs });
         log.warn("ai.aborted", { feature, model: config.deployment, durationMs });
         return null;
       }
 
       if (attempt < maxRetries && !isAbort) {
         const delay = backoffMs(attempt + 1);
+        recordAiRetry({ feature, reason: isTimeout ? "timeout" : "network" });
         log.warn("ai.retry", {
           feature,
           model: config.deployment,
@@ -190,6 +206,12 @@ export async function chatCompleteWithMeta(
         continue;
       }
 
+      recordAiCall({
+        feature,
+        outcome: "error",
+        status: isTimeout ? "timeout" : "network",
+        durationMs,
+      });
       log.warn("ai.error", {
         feature,
         model: config.deployment,
@@ -219,4 +241,3 @@ export async function chatComplete(
   const result = await chatCompleteWithMeta(messages, options);
   return result?.text ?? null;
 }
-
