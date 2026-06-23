@@ -466,14 +466,43 @@ function PronLegend() {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
+/**
+ * Finds the index of the first sentence that belongs to the given paragraph
+ * block text. Used to jump to the current reading position when the Speak
+ * tab is first activated (#377).
+ *
+ * Strategy: the first sentence whose leading characters appear at the start
+ * of `blockText` (or within it) is considered to be "in" that paragraph.
+ */
+function findSentenceIndexForBlock(
+  sentences: string[],
+  blockText: string,
+): number {
+  if (!blockText || sentences.length === 0) return 0;
+  const normalised = blockText.trim();
+  for (let i = 0; i < sentences.length; i++) {
+    const s = sentences[i];
+    // A sentence belongs to this block if the block text contains the
+    // sentence's first 20 characters (tolerant to minor whitespace diff).
+    const probe = s.trim().slice(0, 20);
+    if (probe && normalised.includes(probe)) return i;
+  }
+  return 0;
+}
+
 export default function ArticlePronunciation({
   articleId,
   plainText,
   active,
+  currentBlockText,
 }: {
   articleId: string;
   plainText: string;
   active: boolean;
+  /** #377: text of the prose block the user is currently reading. When
+   *  provided and the panel is in idle state, the component defaults to the
+   *  first sentence belonging to that paragraph. */
+  currentBlockText?: string;
 }) {
   const audio = useReaderAudio();
 
@@ -535,6 +564,22 @@ export default function ArticlePronunciation({
     void initSpeakTab();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active]);
+
+  // ── #377: Default to the current reading paragraph when first activated ───
+  // Once the tab transitions from "init" to "idle" and the user has not yet
+  // manually navigated, jump to the first sentence of the current paragraph.
+  // This runs ONCE per activation (hasJumpedToBlockRef prevents re-fires on
+  // block changes after the user has taken control).
+  const hasJumpedToBlockRef = useRef(false);
+  useEffect(() => {
+    if (phase !== "idle") return;
+    if (hasJumpedToBlockRef.current) return;
+    if (!currentBlockText) return;
+    hasJumpedToBlockRef.current = true;
+    const idx = findSentenceIndexForBlock(sentences, currentBlockText);
+    if (idx !== 0) setCurrentIndex(idx);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
 
   // ── Changing sentence resets state ────────────────────────────────────────
   const prevSentenceRef = useRef<string>("");

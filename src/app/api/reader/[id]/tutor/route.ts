@@ -1,11 +1,25 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, string } from "@/lib/validation";
+import { idParams, object, string, optional } from "@/lib/validation";
 import { MAX_QUESTION_LENGTH, getTutorMessages, askTutor, clearTutor } from "@/lib/tutor";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
 import { checkRateLimit } from "@/lib/rate-limit";
 
-const questionBody = object({ question: string({ min: 1, max: MAX_QUESTION_LENGTH }) });
+/** Max characters of paragraph context accepted from the client. */
+const MAX_PARAGRAPH_CONTEXT = 500;
+
+const questionBody = object({
+  question: string({ min: 1, max: MAX_QUESTION_LENGTH }),
+  /**
+   * #377 — Optional paragraph context (current reading block).
+   *
+   * Privacy rule: this must be a substring of the article the user is
+   * reading. The client only sends the current visible paragraph — never
+   * any personal data, user history, or content from other articles.
+   * Capped server-side to prevent prompt-injection via oversized payloads.
+   */
+  paragraphContext: optional(string({ max: MAX_PARAGRAPH_CONTEXT })),
+});
 
 /** GET /api/reader/[id]/tutor — returns the user's conversation for this article. */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
@@ -31,7 +45,7 @@ export const POST = createHandler(
     const article = await getReadableArticleById(params.id, context);
     if (!article) throw new ApiError(404, "Article not found");
     await checkRateLimit(session.user.id, "ai");
-    const result = await askTutor(session.user.id, params.id, body.question, context);
+    const result = await askTutor(session.user.id, params.id, body.question, context, body.paragraphContext);
     if (!result) {
       throw new ApiError(404, "Article not found");
     }

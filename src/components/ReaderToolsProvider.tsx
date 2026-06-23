@@ -27,6 +27,7 @@ import {
   type ReactNode,
 } from "react";
 import { usePathname } from "next/navigation";
+import type { ReadingBlock } from "@/components/reader/useCurrentReadingBlock";
 
 export type ToolTabId = "words" | "quiz" | "dictate" | "speak" | "notes" | "ask";
 
@@ -61,6 +62,13 @@ type ReaderToolsContextValue = {
   closeTools: () => void;
   /** Select a tab (marks it visited). Does not change open state. */
   activate: (tab: ToolTabId) => void;
+  /**
+   * The most-visible prose block the reader is currently looking at (#376).
+   * Null before the tracker mounts or when IntersectionObserver is unavailable.
+   */
+  currentBlock: ReadingBlock | null;
+  /** Used by ReaderReadingBlockTracker to push updates into context. */
+  setCurrentBlock: (block: ReadingBlock | null) => void;
 };
 
 const ReaderToolsContext = createContext<ReaderToolsContextValue | null>(null);
@@ -74,6 +82,7 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
   const [visited, setVisited] = useState<Set<ToolTabId>>(
     () => new Set<ToolTabId>(),
   );
+  const [currentBlock, setCurrentBlock] = useState<ReadingBlock | null>(null);
   const pathname = usePathname();
 
   const activate = useCallback((tab: ToolTabId) => {
@@ -160,7 +169,7 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
 
   return (
     <ReaderToolsContext.Provider
-      value={{ open, activeTab, visited, toggle, openTools, closeTools, activate }}
+      value={{ open, activeTab, visited, toggle, openTools, closeTools, activate, currentBlock, setCurrentBlock }}
     >
       {children}
     </ReaderToolsContext.Provider>
