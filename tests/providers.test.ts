@@ -129,6 +129,60 @@ test("getProvider is case-insensitive", () => {
   assert.ok(getProvider("nbc"));
 });
 
+test("ReadingX-derived providers are registered", () => {
+  for (const key of [
+    "bbc",
+    "smithsonian",
+    "knowable",
+    "nautilus",
+    "aeon",
+    "technologyreview",
+    "noema",
+    "undark",
+  ]) {
+    const p = getProvider(key);
+    assert.ok(p, `Provider "${key}" must be registered`);
+    assert.ok(p?.seeds.length, `Provider "${key}" must have discovery seeds`);
+  }
+});
+
+test("ReadingX-derived provider URL patterns match article URLs", () => {
+  assert.ok(getProviderOrFail("bbc").articleUrlPattern.test("https://www.bbc.com/news/articles/c1234567890"));
+  assert.ok(
+    getProviderOrFail("smithsonian").articleUrlPattern.test(
+      "https://www.smithsonianmag.com/science-nature/example-story-180987800/",
+    ),
+  );
+  assert.ok(
+    getProviderOrFail("knowable").articleUrlPattern.test(
+      "https://knowablemagazine.org/content/article/technology/2026/example-story",
+    ),
+  );
+  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/example-story-123456/"));
+  assert.ok(getProviderOrFail("aeon").articleUrlPattern.test("https://aeon.co/essays/example-story"));
+  assert.ok(
+    getProviderOrFail("technologyreview").articleUrlPattern.test(
+      "https://www.technologyreview.com/2026/06/23/123456/example-story/",
+    ),
+  );
+  assert.ok(getProviderOrFail("noema").articleUrlPattern.test("https://www.noemamag.com/example-story/"));
+  assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/2026/06/23/example-story/"));
+});
+
+test("ReadingX-derived URL filters reject non-article pages", () => {
+  const bbc = getProviderOrFail("bbc");
+  assert.equal(bbc.articleUrlFilter?.("https://www.bbc.com/news/live/c1234567890"), false);
+
+  const smithsonian = getProviderOrFail("smithsonian");
+  assert.equal(smithsonian.articleUrlFilter?.("https://www.smithsonianmag.com/category/science-nature/"), false);
+
+  const technologyReview = getProviderOrFail("technologyreview");
+  assert.equal(technologyReview.articleUrlFilter?.("https://www.technologyreview.com/topic/artificial-intelligence/"), false);
+
+  const undark = getProviderOrFail("undark");
+  assert.equal(undark.articleUrlFilter?.("https://undark.org/tag/climate-change/"), false);
+});
+
 // ---------------------------------------------------------------------------
 // mapSectionToCategory
 // ---------------------------------------------------------------------------

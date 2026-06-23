@@ -38,6 +38,34 @@ function firstSegment(url: URL): string | null {
 const categoryFromFirstSegment = (url: URL, section: string | null): string | null =>
   mapSectionToCategory(section) ?? mapSectionToCategory(firstSegment(url));
 
+function categoryFromRules(
+  url: URL,
+  section: string | null,
+  rules: ReadonlyArray<readonly [RegExp, string]>,
+  fallback: string | null,
+): string | null {
+  const haystack = `${section ?? ""} ${url.pathname}`.toLowerCase();
+  for (const [pattern, slug] of rules) {
+    if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
+  }
+  return categoryFromFirstSegment(url, section) ?? fallback;
+}
+
+function excludes(url: string, fragments: readonly string[]): boolean {
+  const lower = url.toLowerCase();
+  return !fragments.some((fragment) => lower.includes(fragment));
+}
+
+function isBbcNewsArticleUrl(url: string): boolean {
+  const lower = url.toLowerCase();
+  const hasArticlePath =
+    /\/news\/articles\/[a-z0-9]+/.test(lower) || /\/news\/[a-z0-9_-]+-\d{6,}/.test(lower);
+  return (
+    hasArticlePath &&
+    excludes(lower, ["/live/", "/in_pictures", "/av/", "/topics/", "/correspondents/"])
+  );
+}
+
 export const PROVIDERS: readonly Provider[] = [
   {
     key: "nbc",
@@ -52,6 +80,8 @@ export const PROVIDERS: readonly Provider[] = [
     ],
     // NBC article slugs end with an "-rcnaNNNNN" id.
     articleUrlPattern: /\/[a-z0-9-]+-rcna\d+/i,
+    articleUrlFilter: (url) =>
+      excludes(url, ["/live-blog/", "/video/", "/nbc-news-now-live-audio", "select/shopping"]),
     defaultCategory: "world",
     categoryFor: categoryFromFirstSegment,
   },
@@ -81,8 +111,9 @@ export const PROVIDERS: readonly Provider[] = [
       "https://time.com/section/health/",
       "https://time.com/section/business/",
     ],
-    // Time article URLs look like time.com/article/YYYY/MM/DD/slug/
-    articleUrlPattern: /time\.com\/article\/\d{4}\/\d{2}\/\d{2}\//i,
+    // Time article URLs have used both /article/YYYY/MM/DD/slug/ and /NNNNNNN/slug/ formats.
+    articleUrlPattern: /time\.com\/(?:article\/\d{4}\/\d{2}\/\d{2}\/|\d{7}\/[a-z0-9-]+\/?)/i,
+    articleUrlFilter: (url) => excludes(url, ["/collection", "/tag/", "/author/"]),
     defaultCategory: "world",
     categoryFor: (url, section) =>
       mapSectionToCategory(section) ??
@@ -100,8 +131,322 @@ export const PROVIDERS: readonly Provider[] = [
       "https://www.huffpost.com/news/business",
     ],
     articleUrlPattern: /\/entry\//i,
+    articleUrlFilter: (url) => excludes(url, ["/video/", "/voices/", "/section/"]),
     defaultCategory: "world",
     categoryFor: categoryFromFirstSegment,
+  },
+  {
+    key: "bbc",
+    name: "BBC News",
+    hostnames: ["bbc.com", "www.bbc.com", "bbc.co.uk", "www.bbc.co.uk"],
+    seeds: [
+      "https://www.bbc.com/news/world",
+      "https://www.bbc.com/news/technology",
+      "https://www.bbc.com/news/business",
+      "https://www.bbc.com/news/science_and_environment",
+      "https://www.bbc.com/news/health",
+      "https://www.bbc.com/news/entertainment_and_arts",
+    ],
+    articleUrlPattern:
+      /^https:\/\/(?:www\.)?bbc\.(?:com|co\.uk)\/news\/(?:articles\/[a-z0-9]+|[a-z0-9_-]+-\d{6,})(?:[/?#].*)?$/i,
+    articleUrlFilter: isBbcNewsArticleUrl,
+    defaultCategory: "world",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/world|global|international|us[-_]and[-_]canada/, "world"],
+          [/politic|election|government/, "politics"],
+          [/business|econom|market|money/, "business"],
+          [/technology|innovation|tech|\bai\b/, "tech"],
+          [/science|environment|climate/, "science"],
+          [/health|medical/, "health"],
+          [/entertainment|arts|culture/, "entertainment"],
+          [/sport/, "sports"],
+        ],
+        "world",
+      ),
+  },
+  {
+    key: "smithsonian",
+    name: "Smithsonian Magazine",
+    hostnames: ["smithsonianmag.com", "www.smithsonianmag.com"],
+    seeds: [
+      "https://www.smithsonianmag.com/category/science-nature/",
+      "https://www.smithsonianmag.com/category/history/",
+      "https://www.smithsonianmag.com/category/arts-culture/",
+      "https://www.smithsonianmag.com/category/travel/",
+      "https://www.smithsonianmag.com/category/innovation/",
+    ],
+    articleUrlPattern:
+      /^https:\/\/(?:www\.)?smithsonianmag\.com\/[a-z-]+\/[a-z0-9-]+-\d+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/category/",
+        "/tag/",
+        "/author/",
+        "/videos/",
+        "/photocontest/",
+        "/search/",
+        "/subscribe/",
+        "/privacy/",
+        "/terms/",
+      ]),
+    defaultCategory: "science",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/science|nature|innovation/, "science"],
+          [/history|arts|culture|travel/, "culture"],
+        ],
+        "science",
+      ),
+  },
+  {
+    key: "knowable",
+    name: "Knowable Magazine",
+    hostnames: ["knowablemagazine.org", "www.knowablemagazine.org"],
+    seeds: [
+      "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=physical-world&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/physical-world",
+      "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=technology&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/technology",
+      "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=living-world&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/living-world",
+      "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=society&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/society",
+      "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=food-environment&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/food-environment",
+    ],
+    articleUrlPattern:
+      /^https:\/\/(?:www\.)?knowablemagazine\.org\/(?:content\/)?article\/[a-z-]+\/\d{4}\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) => excludes(url, ["/search", "/about", "/contact", "/subscribe"]),
+    defaultCategory: "science",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/technology|digital|computing/, "tech"],
+          [/living-world|physical-world|food-environment|science|environment/, "science"],
+          [/society|culture/, "culture"],
+          [/health|medical/, "health"],
+          [/business|econom/, "business"],
+        ],
+        "science",
+      ),
+  },
+  {
+    key: "nautilus",
+    name: "Nautilus",
+    hostnames: ["nautil.us", "www.nautil.us"],
+    seeds: [
+      "https://nautil.us/art-science/",
+      "https://nautil.us/biology-beyond/",
+      "https://nautil.us/cosmos/",
+      "https://nautil.us/culture/",
+      "https://nautil.us/earth/",
+      "https://nautil.us/life/",
+      "https://nautil.us/mind/",
+      "https://nautil.us/ocean/",
+    ],
+    articleUrlPattern: /^https:\/\/(?:www\.)?nautil\.us\/[a-z0-9-]+-\d+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/page/",
+        "/category/",
+        "/tag/",
+        "/author/",
+        "/about",
+        "/contact",
+        "/newsletter",
+        "/join",
+        "/shop",
+        "/feed",
+        "/wp-",
+        "/concierge",
+      ]),
+    defaultCategory: "science",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/culture/, "culture"],
+          [/mind|biology|cosmos|earth|life|ocean|science/, "science"],
+        ],
+        "science",
+      ),
+  },
+  {
+    key: "aeon",
+    name: "Aeon",
+    hostnames: ["aeon.co", "www.aeon.co"],
+    seeds: [
+      "https://aeon.co/philosophy",
+      "https://aeon.co/psychology",
+      "https://aeon.co/society",
+      "https://aeon.co/science",
+      "https://aeon.co/culture",
+    ],
+    articleUrlPattern: /^https:\/\/(?:www\.)?aeon\.co\/essays\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/about",
+        "/contact",
+        "/support",
+        "/donate",
+        "/feed",
+        "/privacy",
+        "/terms",
+        "/community-guidelines",
+        "?utm_source",
+      ]),
+    defaultCategory: "culture",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/science|psychology/, "science"],
+          [/society|politic|democracy/, "politics"],
+          [/philosophy|culture/, "culture"],
+        ],
+        "culture",
+      ),
+  },
+  {
+    key: "technologyreview",
+    name: "MIT Technology Review",
+    hostnames: ["technologyreview.com", "www.technologyreview.com"],
+    seeds: [
+      "https://www.technologyreview.com/topic/artificial-intelligence",
+      "https://www.technologyreview.com/topic/biotechnology",
+      "https://www.technologyreview.com/topic/climate-change",
+      "https://www.technologyreview.com/topic/computing",
+      "https://www.technologyreview.com/topic/business",
+      "https://www.technologyreview.com/topic/culture",
+      "https://www.technologyreview.com/topic/space",
+    ],
+    articleUrlPattern:
+      /^https:\/\/(?:www\.)?technologyreview\.com\/\d{4}\/\d{2}\/\d{2}\/\d+\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/author/",
+        "/topic/",
+        "/newsletter/",
+        "/podcasts/",
+        "/events/",
+        "/lists/",
+        "/subscribe",
+        "/about",
+        "/sitemap",
+      ]),
+    defaultCategory: "tech",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/artificial-intelligence|computing|technology|digital|\bai\b/, "tech"],
+          [/biotechnology|climate|space|science/, "science"],
+          [/business|econom/, "business"],
+          [/culture/, "culture"],
+          [/policy|politic/, "politics"],
+        ],
+        "tech",
+      ),
+  },
+  {
+    key: "noema",
+    name: "Noema Magazine",
+    hostnames: ["noemamag.com", "www.noemamag.com"],
+    seeds: [
+      "https://www.noemamag.com/article-topic/technology-and-the-human/",
+      "https://www.noemamag.com/article-topic/future-of-capitalism/",
+      "https://www.noemamag.com/article-topic/philosophy-culture/",
+      "https://www.noemamag.com/article-topic/climate-crisis/",
+      "https://www.noemamag.com/article-topic/geopolitics-globalization/",
+      "https://www.noemamag.com/article-topic/future-of-democracy/",
+      "https://www.noemamag.com/article-topic/digital-society/",
+    ],
+    articleUrlPattern: /^https:\/\/(?:www\.)?noemamag\.com\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/article-topic/",
+        "/article-type/",
+        "/author/",
+        "/tag/",
+        "/about",
+        "/contact",
+        "/newsletter",
+        "/masthead",
+        "/careers",
+        "/feed",
+        "/wp-",
+        "/articles-search",
+      ]),
+    defaultCategory: "culture",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/technology|digital|human/, "tech"],
+          [/capitalism|business|econom/, "business"],
+          [/climate|science/, "science"],
+          [/geopolitics|globalization|democracy|politic/, "politics"],
+          [/philosophy|culture/, "culture"],
+        ],
+        "culture",
+      ),
+  },
+  {
+    key: "undark",
+    name: "Undark",
+    hostnames: ["undark.org", "www.undark.org"],
+    seeds: [
+      "https://undark.org/tag/academia/",
+      "https://undark.org/tag/climate-change/",
+      "https://undark.org/tag/environment-conservation/",
+      "https://undark.org/tag/fish-wildlife/",
+      "https://undark.org/tag/health-medicine/",
+      "https://undark.org/tag/math-physics/",
+      "https://undark.org/tag/natural-sciences/",
+      "https://undark.org/tag/science-policy/",
+      "https://undark.org/tag/social-sciences/",
+      "https://undark.org/tag/space-astronomy/",
+      "https://undark.org/tag/technology-innovation/",
+    ],
+    articleUrlPattern:
+      /^https:\/\/(?:www\.)?undark\.org\/\d{4}\/\d{2}\/\d{2}\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
+    articleUrlFilter: (url) =>
+      excludes(url, [
+        "/tag/",
+        "/category/",
+        "/author/",
+        "/page/",
+        "/about",
+        "/contact",
+        "/newsletter",
+        "/subscribe",
+        "/team",
+        "/funding",
+        "/corrections",
+        "/feed",
+        "/wp-",
+      ]),
+    defaultCategory: "science",
+    categoryFor: (url, section) =>
+      categoryFromRules(
+        url,
+        section,
+        [
+          [/health|medicine|covid|drugs/, "health"],
+          [/technology|innovation/, "tech"],
+          [/policy|social-sciences|academia/, "politics"],
+          [/climate|environment|wildlife|physics|natural-sciences|space|science/, "science"],
+        ],
+        "science",
+      ),
   },
   {
     key: "bbc-learning-english",
@@ -165,9 +510,8 @@ export function providerForUrl(rawUrl: string): Provider | null {
   } catch {
     return null;
   }
-  return (
-    PROVIDERS.find((p) =>
-      p.hostnames.some((h) => h.replace(/^www\./, "") === host),
-    ) ?? null
+  const hostMatches = PROVIDERS.filter((p) =>
+    p.hostnames.some((h) => h.replace(/^www\./, "") === host),
   );
+  return hostMatches.find((p) => p.articleUrlPattern.test(rawUrl)) ?? hostMatches[0] ?? null;
 }

@@ -98,6 +98,7 @@ export function discoverLinks(provider: Provider, html: string, baseUrl: string)
     }
     if (providerForUrl(abs)?.key !== provider.key) continue;
     if (!provider.articleUrlPattern.test(abs)) continue;
+    if (provider.articleUrlFilter && !provider.articleUrlFilter(abs)) continue;
     if (seen.has(abs)) continue;
     seen.add(abs);
     links.push(abs);

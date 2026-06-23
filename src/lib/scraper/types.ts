@@ -29,6 +29,8 @@ export type Provider = {
   seeds: string[];
   /** Matches URLs that look like article pages (vs. section/index pages). */
   articleUrlPattern: RegExp;
+  /** Optional provider-specific filter for excluding live blogs, video pages, topic pages, etc. */
+  articleUrlFilter?: (url: string) => boolean;
   /** Fallback category slug when one can't be inferred. */
   defaultCategory: string | null;
   /**
