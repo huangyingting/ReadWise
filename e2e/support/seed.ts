@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { BrowserContext } from "@playwright/test";
-import { PrismaClient, type Role } from "@prisma/client";
+import { ArticleStatus, PrismaClient, type Role } from "@prisma/client";
 import { assertSafeE2eDatabaseUrl } from "./db-guard";
 
 export const TEST_ARTICLE_ID = "e2e-critical-reader";
@@ -90,7 +90,7 @@ export async function seedSmokeData(): Promise<void> {
         content: ARTICLE_BODY,
         wordCount: 92,
         readingMinutes: 1,
-        status: "published",
+        status: ArticleStatus.PUBLISHED,
         publishedAt: now,
       },
     });

@@ -1,9 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { ArticleStatus, Prisma } from "@prisma/client";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
 import { providerForUrl } from "@/lib/scraper/providers";
-import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
+import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 
 export type SaveOutcome =
   | { status: "saved"; id: string; article: ScrapedArticle }
@@ -43,7 +43,8 @@ export async function saveDraftArticle(article: ScrapedArticle): Promise<SaveOut
         category: article.category,
         wordCount: article.wordCount,
         readingMinutes: article.readingMinutes,
-        status: "draft",
+        status: ArticleStatus.DRAFT,
+        ...PUBLIC_ARTICLE_CREATE_FIELDS,
         publishedAt: article.publishedAt,
       },
       select: { id: true },

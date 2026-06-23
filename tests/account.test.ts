@@ -2,9 +2,9 @@
  * Unit tests for src/lib/account.ts deleteOwnAccount (Issue #235).
  * Prisma is mocked — no real DB is touched.
  *
- * The key behaviour under test: deleting a user must ALSO delete that user's
- * owned (personally-imported) articles in the same transaction, so an
- * ownerId→NULL SetNull can't leave a status:"published" row world-readable.
+ * The key behaviour under test: deleting a user relies on the Article.owner
+ * ON DELETE CASCADE constraint, so private imports cannot survive as ownerless
+ * public rows.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -61,14 +61,13 @@ beforeEach(() => {
   transactionCalled = false;
 });
 
-test("deleteOwnAccount deletes the user's owned articles in the same transaction", async () => {
+test("deleteOwnAccount deletes the user and relies on DB cascade for owned articles", async () => {
   const { deleteOwnAccount } = await import("@/lib/account");
   const result = await deleteOwnAccount("user-1");
 
   assert.equal(result.ok, true);
   assert.equal(transactionCalled, true);
-  assert.ok(deleteManyArgs, "article.deleteMany should be called");
-  assert.deepEqual(deleteManyArgs!.where, { ownerId: "user-1" });
+  assert.equal(deleteManyArgs, null, "article cleanup is enforced by FK cascade");
   assert.ok(userDeleteArgs, "user.delete should be called");
   assert.equal(userDeleteArgs!.where.id, "user-1");
 });
