@@ -38,6 +38,8 @@ import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 const DAILY_IMPORT_LIMIT = 5;
 /** Max length for pasted text body. */
 const MAX_TEXT_BYTES = 200_000;
+/** Minimum word count for a pasted text import (mirrors the scraper's 50-word rejection). */
+const MIN_IMPORT_WORDS = 50;
 
 const importBody = object({
   url: optional(nonEmptyString(2000)),
@@ -307,6 +309,10 @@ async function handleTextImport(
   const content = sanitizeArticleHtml(rawHtml);
   const wordCount = countWords(content);
   const readingMinutes = Math.max(1, Math.round(wordCount / 200));
+
+  if (wordCount < MIN_IMPORT_WORDS) {
+    throw new ApiError(400, `Article text is too short (minimum ${MIN_IMPORT_WORDS} words).`);
+  }
 
   const article = await prisma.$transaction(async (tx) => {
     const created = await tx.article.create({
