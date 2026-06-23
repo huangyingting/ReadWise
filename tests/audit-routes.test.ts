@@ -10,12 +10,15 @@ let authState: "ok" | "unauth" | "forbidden" = "ok";
 let auditCalls: unknown[] = [];
 let listCalls = 0;
 let deleteArticleResult = true;
+let deleteArticleThrows = false;
 let revalidateCalls = 0;
 
 const session = { user: { id: "admin-1", role: "Admin", name: "Admin", email: null } };
+const readerSession = { user: { id: "reader-1", role: "Reader", name: "Reader", email: null } };
 const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
   securityAdminAccessDenied: "security.admin_access_denied",
+  adminAuditLogRead: "admin.audit_logs.read",
 };
 
 before(() => {
@@ -30,7 +33,10 @@ before(() => {
           return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
         }
         if (authState === "forbidden") {
-          return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+          return {
+            session: readerSession,
+            error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+          };
         }
         return { session };
       },
@@ -65,7 +71,12 @@ before(() => {
 
   mock.module("@/lib/admin-articles", {
     namedExports: {
-      deleteArticle: async () => deleteArticleResult,
+      deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
+        if (!deleteArticleResult) return false;
+        if (deleteArticleThrows) throw new Error("audit unavailable");
+        if (audit) auditCalls.push(audit);
+        return true;
+      },
     },
   });
 
@@ -89,6 +100,7 @@ beforeEach(() => {
   auditCalls = [];
   listCalls = 0;
   deleteArticleResult = true;
+  deleteArticleThrows = false;
   revalidateCalls = 0;
 });
 
@@ -104,7 +116,10 @@ test("admin audit log API requires admin", async () => {
 
   assert.equal(res.status, 403);
   assert.equal(listCalls, 0);
-  assert.equal((auditCalls[0] as { action: string }).action, "security.admin_access_denied");
+  const audit = auditCalls[0] as { action: string; actorId: string; actorRole: string };
+  assert.equal(audit.action, "security.admin_access_denied");
+  assert.equal(audit.actorId, "reader-1");
+  assert.equal(audit.actorRole, "Reader");
 });
 
 test("admin audit log API returns audit entries for admins", async () => {
@@ -115,6 +130,7 @@ test("admin audit log API returns audit entries for admins", async () => {
   assert.equal(res.status, 200);
   assert.equal((await res.json()).total, 1);
   assert.equal(listCalls, 1);
+  assert.equal((auditCalls[0] as { action: string }).action, "admin.audit_logs.read");
 });
 
 test("admin article deletion writes an audit record with request context", async () => {
@@ -146,6 +162,19 @@ test("admin article deletion writes an audit record with request context", async
   assert.equal(audit.targetId, "article-1");
   assert.equal(audit.session.user.id, "admin-1");
   assert.equal(audit.requestId, "550e8400-e29b-41d4-a716-446655440000");
+});
+
+test("admin article deletion returns 500 and skips cache invalidation when atomic audit write fails", async () => {
+  deleteArticleThrows = true;
+  const { DELETE } = (await import("@/app/api/admin/articles/[id]/route")) as { DELETE: RouteHandler };
+
+  const res = await DELETE(
+    new Request("http://test/api/admin/articles/article-1", { method: "DELETE" }),
+    ctx("article-1"),
+  );
+
+  assert.equal(res.status, 500);
+  assert.equal(revalidateCalls, 0);
 });
 
 test("admin article deletion does not audit failed not-found deletes", async () => {

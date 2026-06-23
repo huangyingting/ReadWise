@@ -4,6 +4,7 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
 let createdData: Record<string, unknown> | null = null;
+let txCreatedData: Record<string, unknown> | null = null;
 let createThrows = false;
 let rows: Array<Record<string, unknown>> = [];
 
@@ -27,6 +28,7 @@ before(() => {
 
 beforeEach(() => {
   createdData = null;
+  txCreatedData = null;
   createThrows = false;
   rows = [];
 });
@@ -128,6 +130,31 @@ test("recordAuditLog throws when durable persistence fails", async () => {
   } finally {
     console.error = originalError;
   }
+});
+
+test("recordAuditLog can write through a transaction client", async () => {
+  const { recordAuditLog } = await import("@/lib/audit");
+  const tx = {
+    auditLog: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        txCreatedData = args.data;
+        return { id: "audit-tx-1", ...args.data };
+      },
+    },
+  };
+
+  await recordAuditLog(
+    {
+      action: "admin.article.delete",
+      actorId: "admin-1",
+      targetType: "article",
+      targetId: "article-1",
+    },
+    tx as unknown as Parameters<typeof recordAuditLog>[1],
+  );
+
+  assert.equal(createdData, null);
+  assert.equal(txCreatedData?.action, "admin.article.delete");
 });
 
 test("listAuditLogs returns parsed metadata without exposing invalid JSON", async () => {

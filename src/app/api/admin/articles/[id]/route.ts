@@ -4,14 +4,10 @@ import { idParams } from "@/lib/validation";
 import { deleteArticle } from "@/lib/admin-articles";
 import { revalidateTagsCache } from "@/lib/cache";
 import { articleAccessContext } from "@/lib/article-access";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/audit";
 
 export const DELETE = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
-  const ok = await deleteArticle(params.id, articleAccessContext(session.user));
-  if (!ok) {
-    throw new ApiError(404, "Not found");
-  }
-  await recordAuditFromRequest({
+  const ok = await deleteArticle(params.id, articleAccessContext(session.user), {
     req,
     session,
     requestId,
@@ -19,6 +15,9 @@ export const DELETE = createAdminHandler({ params: idParams }, async ({ req, par
     targetType: "article",
     targetId: params.id,
   });
+  if (!ok) {
+    throw new ApiError(404, "Not found");
+  }
   revalidateTagsCache();
   return NextResponse.json({ ok: true });
 });

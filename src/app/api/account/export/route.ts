@@ -1,14 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { exportUserData } from "@/lib/account";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/audit";
 
 export const GET = createHandler({}, async ({ req, session, requestId }) => {
-  const data = await exportUserData(session.user.id);
-  const date = new Date().toISOString().slice(0, 10);
-  const json = JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2);
-
-  await recordAuditFromRequest({
+  const data = await exportUserData(session.user.id, {
     req,
     session,
     requestId,
@@ -17,6 +13,8 @@ export const GET = createHandler({}, async ({ req, session, requestId }) => {
     targetId: session.user.id,
     metadata: { format: "json" },
   });
+  const date = new Date().toISOString().slice(0, 10);
+  const json = JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2);
 
   return new NextResponse(json, {
     status: 200,

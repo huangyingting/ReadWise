@@ -33,6 +33,7 @@ let updateCalled = false;
 let createCalled = false;
 let findFirstResult: { id: string } | null = null;
 let auditCalls = 0;
+let prismaStub: Record<string, unknown>;
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -48,17 +49,24 @@ before(() => {
     },
   });
 
+  prismaStub = {
+    article: {
+      count: async () => countResult,
+      findFirst: async () => findFirstResult,
+      create: async () => { createCalled = true; return { id: createdId }; },
+      update: async () => { updateCalled = true; return { id: createdId }; },
+      findMany: async () => [],
+    },
+    $transaction: async (fn: unknown) => {
+      if (typeof fn === "function") {
+        return (fn as (tx: unknown) => Promise<unknown>)(prismaStub);
+      }
+      return Promise.all(fn as Promise<unknown>[]);
+    },
+  };
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
-        article: {
-          count: async () => countResult,
-          findFirst: async () => findFirstResult,
-          create: async () => { createCalled = true; return { id: createdId }; },
-          update: async () => { updateCalled = true; return { id: createdId }; },
-          findMany: async () => [],
-        },
-      },
+      prisma: prismaStub,
     },
   });
 

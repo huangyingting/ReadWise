@@ -125,6 +125,8 @@ function build<B, P, Q, S extends Session | null>(
           if (result.error) {
             await tryRecordAuditLog({
               action: AUDIT_ACTIONS.securityAdminAccessDenied,
+              actorId: result.session?.user?.id ?? null,
+              actorRole: result.session?.user?.role ?? null,
               targetType: "route",
               targetId: routeGroup,
               requestId,

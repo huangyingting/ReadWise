@@ -29,6 +29,7 @@ let auditCalls: unknown[] = [];
 const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
   securityAdminAccessDenied: "security.admin_access_denied",
+  adminAuditLogRead: "admin.audit_logs.read",
 };
 
 before(() => {
@@ -90,7 +91,11 @@ before(() => {
   mock.module("@/lib/admin-articles", {
     namedExports: {
       searchArticles: async () => searchArticlesResult,
-      deleteArticle: async () => deleteArticleResult,
+      deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
+        if (!deleteArticleResult) return false;
+        if (audit) auditCalls.push(audit);
+        return true;
+      },
     },
   });
   mock.module("@/lib/cache", {

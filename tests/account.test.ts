@@ -19,31 +19,69 @@ let stubAdminCount = 2;
 let deleteManyArgs: { where: Record<string, unknown> } | null = null;
 let userDeleteArgs: { where: { id: string } } | null = null;
 let transactionCalled = false;
+let auditCreateThrows = false;
+let auditCreateArgs: { data: Record<string, unknown> } | null = null;
 
 // Module-level ref so the callback-form $transaction can pass it as `tx`.
 let mockPrisma: Record<string, unknown> = {};
 
 before(() => {
-  mockPrisma = {
+  const txPrisma = {
     user: {
       findUnique: async () => stubUser,
       count: async () => stubAdminCount,
       delete: async (args: { where: { id: string } }) => {
-        userDeleteArgs = args;
         return { id: args.where.id };
       },
     },
     article: {
       deleteMany: async (args: { where: Record<string, unknown> }) => {
-        deleteManyArgs = args;
         return { count: 1 };
       },
     },
+    auditLog: {
+      create: async (args: { data: Record<string, unknown> }) => {
+        if (auditCreateThrows) throw new Error("audit unavailable");
+        return { id: "audit-1", ...args.data };
+      },
+    },
+  };
+  mockPrisma = {
+    ...txPrisma,
     $transaction: async (opsOrFn: unknown) => {
       transactionCalled = true;
       if (typeof opsOrFn === "function") {
-        // Interactive/callback form: pass mockPrisma as the tx client.
-        return (opsOrFn as (tx: unknown) => Promise<unknown>)(mockPrisma);
+        let pendingDeleteManyArgs: { where: Record<string, unknown> } | null = null;
+        let pendingUserDeleteArgs: { where: { id: string } } | null = null;
+        let pendingAuditCreateArgs: { data: Record<string, unknown> } | null = null;
+        const tx = {
+          ...txPrisma,
+          user: {
+            ...txPrisma.user,
+            delete: async (args: { where: { id: string } }) => {
+              pendingUserDeleteArgs = args;
+              return { id: args.where.id };
+            },
+          },
+          article: {
+            deleteMany: async (args: { where: Record<string, unknown> }) => {
+              pendingDeleteManyArgs = args;
+              return { count: 1 };
+            },
+          },
+          auditLog: {
+            create: async (args: { data: Record<string, unknown> }) => {
+              if (auditCreateThrows) throw new Error("audit unavailable");
+              pendingAuditCreateArgs = args;
+              return { id: "audit-1", ...args.data };
+            },
+          },
+        };
+        const result = await (opsOrFn as (tx: unknown) => Promise<unknown>)(tx);
+        deleteManyArgs = pendingDeleteManyArgs;
+        userDeleteArgs = pendingUserDeleteArgs;
+        auditCreateArgs = pendingAuditCreateArgs;
+        return result;
       }
       return Promise.all(opsOrFn as Promise<unknown>[]);
     },
@@ -59,6 +97,8 @@ beforeEach(() => {
   deleteManyArgs = null;
   userDeleteArgs = null;
   transactionCalled = false;
+  auditCreateThrows = false;
+  auditCreateArgs = null;
 });
 
 test("deleteOwnAccount deletes the user's owned articles in the same transaction", async () => {
@@ -71,6 +111,27 @@ test("deleteOwnAccount deletes the user's owned articles in the same transaction
   assert.deepEqual(deleteManyArgs!.where, { ownerId: "user-1" });
   assert.ok(userDeleteArgs, "user.delete should be called");
   assert.equal(userDeleteArgs!.where.id, "user-1");
+});
+
+test("deleteOwnAccount rolls back deletion when the required audit write fails", async () => {
+  auditCreateThrows = true;
+  const { deleteOwnAccount } = await import("@/lib/account");
+
+  await assert.rejects(
+    deleteOwnAccount("user-1", {
+      req: new Request("http://test/api/account", { method: "DELETE" }),
+      session: { user: { id: "user-1", role: "Reader" } },
+      action: "account.delete",
+      targetType: "account",
+      targetId: "user-1",
+    }),
+    /audit unavailable/,
+  );
+
+  assert.equal(transactionCalled, true);
+  assert.equal(deleteManyArgs, null);
+  assert.equal(userDeleteArgs, null);
+  assert.equal(auditCreateArgs, null);
 });
 
 test("deleteOwnAccount returns 404 when the account does not exist", async () => {

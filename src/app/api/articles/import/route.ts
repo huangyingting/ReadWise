@@ -195,23 +195,39 @@ async function handleUrlImport(
 
   let article;
   try {
-    article = await prisma.article.create({
-      data: {
-        title: scraped.title,
-        author: scraped.author,
-        source: scraped.source,
-        sourceUrl: scraped.sourceUrl,
-        heroImage: scraped.heroImage,
-        excerpt: scraped.excerpt,
-        content: scraped.content,
-        category: scraped.category,
-        wordCount: scraped.wordCount,
-        readingMinutes: scraped.readingMinutes,
-        status: "published",
-        publishedAt: scraped.publishedAt ?? new Date(),
-        ownerId: userId,
-      },
-      select: { id: true },
+    article = await prisma.$transaction(async (tx) => {
+      const created = await tx.article.create({
+        data: {
+          title: scraped.title,
+          author: scraped.author,
+          source: scraped.source,
+          sourceUrl: scraped.sourceUrl,
+          heroImage: scraped.heroImage,
+          excerpt: scraped.excerpt,
+          content: scraped.content,
+          category: scraped.category,
+          wordCount: scraped.wordCount,
+          readingMinutes: scraped.readingMinutes,
+          status: "published",
+          publishedAt: scraped.publishedAt ?? new Date(),
+          ownerId: userId,
+        },
+        select: { id: true },
+      });
+      await applyHeuristicDifficulty(created.id, scraped.content, tx);
+      await recordAuditFromRequest(
+        {
+          req,
+          session,
+          requestId,
+          action: AUDIT_ACTIONS.articleImport,
+          targetType: "article",
+          targetId: created.id,
+          metadata: { importType: "url" },
+        },
+        tx,
+      );
+      return created;
     });
   } catch (err) {
     // A concurrent import of the same URL won the race between the dedupe
@@ -224,19 +240,6 @@ async function handleUrlImport(
     }
     throw err;
   }
-
-  // Heuristic difficulty assessment (cheap, no AI needed).
-  await applyHeuristicDifficulty(article.id, scraped.content);
-
-  await recordAuditFromRequest({
-    req,
-    session,
-    requestId,
-    action: AUDIT_ACTIONS.articleImport,
-    targetType: "article",
-    targetId: article.id,
-    metadata: { importType: "url" },
-  });
 
   return NextResponse.json({ id: article.id }, { status: 201 });
 }
@@ -284,30 +287,34 @@ async function handleTextImport(
   const wordCount = countWords(content);
   const readingMinutes = Math.max(1, Math.round(wordCount / 200));
 
-  const article = await prisma.article.create({
-    data: {
-      title,
-      source: "Personal",
-      content,
-      wordCount,
-      readingMinutes,
-      status: "published",
-      publishedAt: new Date(),
-      ownerId: userId,
-    },
-    select: { id: true },
-  });
-
-  await applyHeuristicDifficulty(article.id, content);
-
-  await recordAuditFromRequest({
-    req,
-    session,
-    requestId,
-    action: AUDIT_ACTIONS.articleImport,
-    targetType: "article",
-    targetId: article.id,
-    metadata: { importType: "text" },
+  const article = await prisma.$transaction(async (tx) => {
+    const created = await tx.article.create({
+      data: {
+        title,
+        source: "Personal",
+        content,
+        wordCount,
+        readingMinutes,
+        status: "published",
+        publishedAt: new Date(),
+        ownerId: userId,
+      },
+      select: { id: true },
+    });
+    await applyHeuristicDifficulty(created.id, content, tx);
+    await recordAuditFromRequest(
+      {
+        req,
+        session,
+        requestId,
+        action: AUDIT_ACTIONS.articleImport,
+        targetType: "article",
+        targetId: created.id,
+        metadata: { importType: "text" },
+      },
+      tx,
+    );
+    return created;
   });
 
   return NextResponse.json({ id: article.id }, { status: 201 });
@@ -317,10 +324,11 @@ async function handleTextImport(
 async function applyHeuristicDifficulty(
   articleId: string,
   content: string,
+  client: Pick<Prisma.TransactionClient, "article"> = prisma,
 ): Promise<void> {
   try {
     const { level: difficulty, score: difficultyScore } = heuristicDifficulty(content);
-    await prisma.article.update({
+    await client.article.update({
       where: { id: articleId },
       data: { difficulty, difficultyScore },
     });

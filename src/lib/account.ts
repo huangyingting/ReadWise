@@ -11,6 +11,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import type { Prisma } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -20,8 +22,10 @@ export type DeleteAccountResult =
 
 // ── Export ─────────────────────────────────────────────────────────────────
 
-export async function exportUserData(userId: string) {
-  const user = await prisma.user.findUnique({
+type AccountClient = Pick<Prisma.TransactionClient, "user" | "auditLog">;
+
+async function readUserExport(userId: string, client: AccountClient = prisma) {
+  return client.user.findUnique({
     where: { id: userId },
     select: {
       id: true,
@@ -161,8 +165,21 @@ export async function exportUserData(userId: string) {
       },
     },
   });
+}
 
-  return user;
+export async function exportUserData(
+  userId: string,
+  audit?: AuditRequestInput,
+) {
+  if (!audit) {
+    return readUserExport(userId);
+  }
+
+  return prisma.$transaction(async (tx) => {
+    const user = await readUserExport(userId, tx);
+    await recordAuditFromRequest(audit, tx);
+    return user;
+  });
 }
 
 // ── Deletion ───────────────────────────────────────────────────────────────
@@ -174,7 +191,10 @@ class LastAdminError extends Error {
   }
 }
 
-export async function deleteOwnAccount(userId: string): Promise<DeleteAccountResult> {
+export async function deleteOwnAccount(
+  userId: string,
+  audit?: AuditRequestInput,
+): Promise<DeleteAccountResult> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, role: true },
@@ -208,6 +228,9 @@ export async function deleteOwnAccount(userId: string): Promise<DeleteAccountRes
       }
       await tx.article.deleteMany({ where: { ownerId: userId } });
       await tx.user.delete({ where: { id: userId } });
+      if (audit) {
+        await recordAuditFromRequest(audit, tx);
+      }
     });
   } catch (e) {
     if (e instanceof LastAdminError) {

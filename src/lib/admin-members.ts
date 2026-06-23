@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 
 /** Page size for the admin member listing. */
 export const ADMIN_MEMBERS_PAGE_SIZE = 20;
@@ -120,6 +121,8 @@ export async function listMembers(
 export type UpdateMemberRoleResult =
   | { ok: true; role: Role; previousRole: Role; changed: boolean }
   | { ok: false; error: string; status: number };
+type UpdateMemberRoleSuccess = Extract<UpdateMemberRoleResult, { ok: true }>;
+type AuditFactory<T> = (result: T) => AuditRequestInput;
 
 /**
  * Updates a member's role. Guards against demoting the last remaining admin so
@@ -140,6 +143,7 @@ class AdminGuardError extends Error {
 export async function updateMemberRole(
   id: string,
   role: Role,
+  audit?: AuditFactory<UpdateMemberRoleSuccess>,
 ): Promise<UpdateMemberRoleResult> {
   const user = await prisma.user.findUnique({
     where: { id },
@@ -151,7 +155,11 @@ export async function updateMemberRole(
 
   // No role change — skip the DB write entirely.
   if (user.role === role) {
-    return { ok: true, role, previousRole: user.role, changed: false };
+    const result = { ok: true, role, previousRole: user.role, changed: false } as const;
+    if (audit) {
+      await recordAuditFromRequest(audit(result));
+    }
+    return result;
   }
 
   // Re-count admins inside the transaction so two concurrent demotions of the
@@ -165,6 +173,12 @@ export async function updateMemberRole(
         }
       }
       await tx.user.update({ where: { id }, data: { role } });
+      if (audit) {
+        await recordAuditFromRequest(
+          audit({ ok: true, role, previousRole: user.role, changed: true }),
+          tx,
+        );
+      }
     });
   } catch (e) {
     if (e instanceof AdminGuardError) {
@@ -178,6 +192,7 @@ export async function updateMemberRole(
 export type DeleteMemberResult =
   | { ok: true; role: Role; ownedArticleCount: number }
   | { ok: false; error: string; status: number };
+type DeleteMemberSuccess = Extract<DeleteMemberResult, { ok: true }>;
 
 /**
  * Removes a member. Related auth rows (accounts, sessions), profile, reading
@@ -185,7 +200,10 @@ export type DeleteMemberResult =
  * against removing the last remaining admin. Returns a structured error on
  * failure.
  */
-export async function deleteMember(id: string): Promise<DeleteMemberResult> {
+export async function deleteMember(
+  id: string,
+  audit?: AuditFactory<DeleteMemberSuccess>,
+): Promise<DeleteMemberResult> {
   const user = await prisma.user.findUnique({
     where: { id },
     select: { id: true, role: true },
@@ -219,6 +237,12 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
       const deletedArticles = await tx.article.deleteMany({ where: { ownerId: id } });
       ownedArticleCount = deletedArticles.count;
       await tx.user.delete({ where: { id } });
+      if (audit) {
+        await recordAuditFromRequest(
+          audit({ ok: true, role: user.role, ownedArticleCount }),
+          tx,
+        );
+      }
     });
   } catch (e) {
     if (e instanceof AdminGuardError) {

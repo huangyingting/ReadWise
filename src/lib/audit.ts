@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/logger";
+import type { Prisma } from "@prisma/client";
 
 export const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
@@ -15,6 +16,7 @@ export const AUDIT_ACTIONS = {
   accountExport: "account.export",
   accountDelete: "account.delete",
   securityAdminAccessDenied: "security.admin_access_denied",
+  adminAuditLogRead: "admin.audit_logs.read",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -67,6 +69,8 @@ export type AuditLogRow = {
   userAgent: string | null;
   createdAt: Date;
 };
+
+export type AuditClient = Pick<Prisma.TransactionClient, "auditLog">;
 
 export type ListAuditLogsOptions = {
   page?: number;
@@ -160,7 +164,10 @@ function parseMetadata(raw: string): AuditMetadata {
   }
 }
 
-export async function recordAuditLog(input: AuditLogInput): Promise<void> {
+export async function recordAuditLog(
+  input: AuditLogInput,
+  client: AuditClient = prisma,
+): Promise<void> {
   const requestContext = getRequestContext();
   const data = {
     action: truncate(input.action, 120),
@@ -175,7 +182,7 @@ export async function recordAuditLog(input: AuditLogInput): Promise<void> {
   };
 
   try {
-    await prisma.auditLog.create({ data });
+    await client.auditLog.create({ data });
   } catch (err) {
     logger.error("audit.write_failed", {
       action: data.action,
@@ -187,9 +194,12 @@ export async function recordAuditLog(input: AuditLogInput): Promise<void> {
   }
 }
 
-export async function tryRecordAuditLog(input: AuditLogInput): Promise<void> {
+export async function tryRecordAuditLog(
+  input: AuditLogInput,
+  client: AuditClient = prisma,
+): Promise<void> {
   try {
-    await recordAuditLog(input);
+    await recordAuditLog(input, client);
   } catch {
     // recordAuditLog already emits the structured failure. This best-effort path
     // is used only for denied access attempts where preserving the auth response
@@ -207,11 +217,17 @@ export function auditInputFromRequest(input: AuditRequestInput): AuditLogInput {
   };
 }
 
-export async function recordAuditFromRequest(input: AuditRequestInput): Promise<void> {
-  await recordAuditLog(auditInputFromRequest(input));
+export async function recordAuditFromRequest(
+  input: AuditRequestInput,
+  client: AuditClient = prisma,
+): Promise<void> {
+  await recordAuditLog(auditInputFromRequest(input), client);
 }
 
-export async function listAuditLogs(opts: ListAuditLogsOptions = {}) {
+export async function listAuditLogs(
+  opts: ListAuditLogsOptions = {},
+  client: AuditClient = prisma,
+) {
   const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 50));
   const page = Math.max(1, opts.page ?? 1);
   const where = {
@@ -221,8 +237,8 @@ export async function listAuditLogs(opts: ListAuditLogsOptions = {}) {
   };
 
   const [total, rows] = await Promise.all([
-    prisma.auditLog.count({ where }),
-    prisma.auditLog.findMany({
+    client.auditLog.count({ where }),
+    client.auditLog.findMany({
       where,
       orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,

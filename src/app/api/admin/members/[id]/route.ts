@@ -3,7 +3,7 @@ import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/admin-members";
 import type { Role } from "@prisma/client";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/audit";
 
 const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
 
@@ -13,11 +13,7 @@ export const PATCH = createAdminHandler(
     if (params.id === session.user.id && body.role !== "Admin") {
       throw new ApiError(409, "You cannot remove your own admin role");
     }
-    const result = await updateMemberRole(params.id, body.role);
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
-    await recordAuditFromRequest({
+    const result = await updateMemberRole(params.id, body.role, (auditResult) => ({
       req,
       session,
       requestId,
@@ -25,11 +21,14 @@ export const PATCH = createAdminHandler(
       targetType: "user",
       targetId: params.id,
       metadata: {
-        previousRole: result.previousRole,
-        role: result.role,
-        changed: result.changed,
+        previousRole: auditResult.previousRole,
+        role: auditResult.role,
+        changed: auditResult.changed,
       },
-    });
+    }));
+    if (!result.ok) {
+      throw new ApiError(result.status, result.error);
+    }
     return NextResponse.json({ ok: true, role: result.role });
   },
 );
@@ -40,11 +39,7 @@ export const DELETE = createAdminHandler(
     if (params.id === session.user.id) {
       throw new ApiError(409, "You cannot remove your own account");
     }
-    const result = await deleteMember(params.id);
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
-    await recordAuditFromRequest({
+    const result = await deleteMember(params.id, (auditResult) => ({
       req,
       session,
       requestId,
@@ -52,10 +47,13 @@ export const DELETE = createAdminHandler(
       targetType: "user",
       targetId: params.id,
       metadata: {
-        role: result.role,
-        ownedArticleCount: result.ownedArticleCount,
+        role: auditResult.role,
+        ownedArticleCount: auditResult.ownedArticleCount,
       },
-    });
+    }));
+    if (!result.ok) {
+      throw new ApiError(result.status, result.error);
+    }
     return NextResponse.json({ ok: true });
   },
 );
