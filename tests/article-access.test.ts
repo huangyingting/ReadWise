@@ -6,7 +6,12 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { Article, Prisma } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  type Article,
+  type Prisma,
+} from "@prisma/client";
 import { buildArticle } from "./helpers";
 
 let articleRows: Article[] = [];
@@ -70,11 +75,11 @@ before(() => {
 
 beforeEach(() => {
   articleRows = [
-    buildArticle({ id: "public", status: "published", ownerId: null }),
-    buildArticle({ id: "draft-public", status: "draft", ownerId: null }),
-    buildArticle({ id: "owner-u1", status: "published", ownerId: "user-1" }),
-    buildArticle({ id: "draft-u1", status: "draft", ownerId: "user-1" }),
-    buildArticle({ id: "owner-u2", status: "published", ownerId: "user-2" }),
+    buildArticle({ id: "public", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
+    buildArticle({ id: "draft-public", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PUBLIC, ownerId: null }),
+    buildArticle({ id: "owner-u1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
+    buildArticle({ id: "draft-u1", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
+    buildArticle({ id: "owner-u2", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-2" }),
   ];
 });
 
@@ -87,6 +92,20 @@ test("pure readability checks cover anonymous, owner, non-owner, and admin", asy
   assert.equal(canReadArticle(ownerArticle, { userId: "user-1", role: "Reader" }), true);
   assert.equal(canReadArticle(ownerArticle, { userId: "user-2", role: "Reader" }), false);
   assert.equal(canReadArticle(draftPublic, { role: "Admin" }), true);
+});
+
+test("private articles without an owner are not public after a deleted-user lifecycle", async () => {
+  const { canReadArticle, isPublicListableArticle } = await import("@/lib/article-access");
+  const stalePrivate = buildArticle({
+    id: "stale-private",
+    visibility: ArticleVisibility.PRIVATE,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: null,
+  });
+
+  assert.equal(isPublicListableArticle(stalePrivate), false);
+  assert.equal(canReadArticle(stalePrivate, { userId: "user-2", role: "Reader" }), false);
+  assert.equal(canReadArticle(stalePrivate, { role: "Admin" }), true);
 });
 
 test("getPublicListableArticleById only returns published library articles", async () => {

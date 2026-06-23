@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { slugifyTag } from "@/lib/tags";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import { publicListableArticleWhere } from "@/lib/article-access";
+import { TagScope } from "@prisma/client";
 
 /** Page size for the admin tag listing. */
 export const ADMIN_TAGS_PAGE_SIZE = 20;
@@ -30,7 +32,9 @@ export type ListTagsOpts = {
 };
 
 /**
- * Lists tags for the admin area. Matches the query (case insensitively via
+ * Lists global public tags for the admin area. Private user/import tags are
+ * intentionally excluded from this tool so they cannot leak into global tag
+ * management. Matches the query (case insensitively via
  * SQLite LIKE) against name and slug, and includes usage counts: total articles
  * carrying the tag plus how many of those are published. Paginated, ordered by
  * total usage (most-used first), then alphabetically.
@@ -44,12 +48,13 @@ export async function listAdminTags(
 
   const where = query
     ? {
+        scope: TagScope.PUBLIC,
         OR: [
           { name: { contains: query } },
           { slug: { contains: query } },
         ],
       }
-    : {};
+    : { scope: TagScope.PUBLIC };
 
   const [total, rows] = await Promise.all([
     prisma.tag.count({ where }),
@@ -72,7 +77,7 @@ export async function listAdminTags(
   const publishedGroups = ids.length
     ? await prisma.articleTag.groupBy({
         by: ["tagId"],
-        where: { tagId: { in: ids }, article: { status: "published" } },
+        where: { tagId: { in: ids }, article: publicListableArticleWhere() },
         _count: { _all: true },
       })
     : [];
@@ -123,12 +128,15 @@ export async function renameTag(
   const trimmed = newName.trim();
   if (!trimmed) return { ok: false, error: "Name is required", status: 400 };
 
-  const tag = await prisma.tag.findUnique({ where: { id }, select: { id: true, slug: true } });
+  const tag = await prisma.tag.findFirst({
+    where: { id, scope: TagScope.PUBLIC },
+    select: { id: true, slug: true, namespace: true, scope: true },
+  });
   if (!tag) return { ok: false, error: "Not found", status: 404 };
 
   const newSlug = slugifyTag(trimmed);
   const collision = await prisma.tag.findFirst({
-    where: { slug: newSlug, NOT: { id } },
+    where: { slug: newSlug, scope: tag.scope, namespace: tag.namespace, NOT: { id } },
     select: { id: true, name: true },
   });
   if (collision) {
@@ -171,8 +179,8 @@ export async function mergeTags(
   }
 
   const [source, target] = await Promise.all([
-    prisma.tag.findUnique({ where: { id: sourceId }, select: { id: true } }),
-    prisma.tag.findUnique({ where: { id: targetId }, select: { id: true } }),
+    prisma.tag.findFirst({ where: { id: sourceId, scope: TagScope.PUBLIC }, select: { id: true } }),
+    prisma.tag.findFirst({ where: { id: targetId, scope: TagScope.PUBLIC }, select: { id: true } }),
   ]);
   if (!source) return { ok: false, error: "Source tag not found", status: 404 };
   if (!target) return { ok: false, error: "Target tag not found", status: 404 };
@@ -228,8 +236,8 @@ export async function deleteTag(
   id: string,
   audit?: AuditFactory<DeleteTagSuccess>,
 ): Promise<DeleteTagResult> {
-  const tag = await prisma.tag.findUnique({
-    where: { id },
+  const tag = await prisma.tag.findFirst({
+    where: { id, scope: TagScope.PUBLIC },
     select: { id: true, _count: { select: { articles: true } } },
   });
   if (!tag) {

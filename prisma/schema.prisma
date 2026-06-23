@@ -12,6 +12,35 @@ enum Role {
   Reader
 }
 
+enum ArticleVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+  ORG
+}
+
+enum ArticleStatus {
+  DRAFT      @map("draft")
+  PROCESSING @map("processing")
+  PUBLISHED  @map("published")
+  FAILED     @map("failed")
+  ARCHIVED   @map("archived")
+}
+
+enum ArticleSourceType {
+  SCRAPED
+  IMPORTED
+  MANUAL
+  RSS
+  ASSIGNMENT
+}
+
+enum TagScope {
+  PUBLIC
+  PRIVATE
+  ORG
+}
+
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -37,6 +66,7 @@ model User {
   pushSubscriptions       PushSubscription[]
   difficultyFeedback      ArticleDifficultyFeedback[]
   ownedArticles           Article[]                   @relation("OwnedArticles")
+  ownedTags               Tag[]                       @relation("OwnedTags")
 }
 
 model Profile {
@@ -45,7 +75,7 @@ model Profile {
   ageRange        String?
   gender          String?
   englishLevel    String
-  topics          String    @default("[]")
+  topics          Json      @default("[]")
   completedAt     DateTime?
   dailyGoal       Int       @default(2)
   timezone        String?
@@ -72,14 +102,17 @@ model Article {
   readingMinutes  Int?
   difficulty      String?
   difficultyScore Float?
-  status          String    @default("published")
+  visibility      ArticleVisibility @default(PUBLIC)
+  status          ArticleStatus     @default(PUBLISHED)
+  sourceType      ArticleSourceType @default(SCRAPED)
   publishedAt     DateTime?
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
-  /// Nullable FK to User. null = public library article; non-null = user-private import.
+  /// Nullable FK to User. Public library articles are explicit (`visibility = PUBLIC`);
+  /// private imports use `visibility = PRIVATE` plus a non-null ownerId.
   ownerId         String?
 
-  owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: SetNull)
+  owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: Cascade)
   readingProgress      ReadingProgress[]
   translations         Translation[]
   sentenceTranslations SentenceTranslation[]
@@ -98,16 +131,28 @@ model Article {
   @@unique([sourceUrl, ownerId])
   @@index([category])
   @@index([ownerId])
+  @@index([visibility, status])
 }
 
 model Tag {
   id        String   @id @default(cuid())
-  name      String   @unique
-  slug      String   @unique
+  name      String
+  slug      String
+  scope     TagScope @default(PUBLIC)
+  /// Stable non-null namespace for uniqueness: "public" for global tags,
+  /// "user:<id>" for private tags, and future "org:<id>".
+  namespace String   @default("public")
+  ownerId   String?
+  orgId     String?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  owner    User?        @relation("OwnedTags", fields: [ownerId], references: [id], onDelete: Cascade)
   articles ArticleTag[]
+
+  @@unique([scope, namespace, slug])
+  @@index([scope, namespace])
+  @@index([ownerId])
 }
 
 model ArticleTag {
@@ -131,7 +176,7 @@ model ArticleSpeech {
   mimeType    String
   audioBase64 String
   spokenText  String
-  words       String
+  words       Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -142,7 +187,7 @@ model QuizQuestion {
   id           String   @id @default(cuid())
   articleId    String
   question     String
-  options      String
+  options      Json
   correctIndex Int
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt

@@ -1,7 +1,8 @@
 /**
  * Unit tests for src/lib/admin-members.ts — deleteMember and updateMemberRole.
  * Verifies the last-admin guard, the self-guard, and that the guard count is
- * evaluated inside the transaction (atomicity fix, Issue #239).
+ * evaluated inside the transaction (atomicity fix, Issue #239). Owned private
+ * articles are removed by the Article.owner ON DELETE CASCADE constraint.
  *
  * All Prisma calls are mocked — no real DB is touched.
  */
@@ -38,6 +39,7 @@ before(() => {
       },
     },
     article: {
+      count: async () => 0,
       deleteMany: async (args: { where: Record<string, unknown> }) => {
         deleteManyArgs = args;
         return { count: 0 };
@@ -82,6 +84,7 @@ test("deleteMember removes a Reader without a guard check", async () => {
   const result = await deleteMember("reader-1");
   assert.equal(result.ok, true);
   assert.equal(transactionCalled, true);
+  assert.equal(deleteManyArgs, null, "article cleanup is enforced by FK cascade");
   assert.ok(userDeleteArgs, "user.delete must be called");
 });
 

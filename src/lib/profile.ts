@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Profile } from "@prisma/client";
+import type { Prisma, Profile } from "@prisma/client";
 import { isValidCategorySlug } from "@/lib/categories";
 
 export const AGE_RANGES = [
@@ -139,10 +139,22 @@ export function parseProfileInput(body: {
   };
 }
 
-export function parseTopics(topics: string | null | undefined): string[] {
-  if (!topics) {
+export function parseTopics(
+  topics: Prisma.JsonValue | string | null | undefined,
+): string[] {
+  if (topics == null) {
     return [];
   }
+
+  if (Array.isArray(topics)) {
+    return topics.filter((t): t is string => typeof t === "string");
+  }
+
+  // Backwards compatibility for rows written before Profile.topics became Json.
+  if (typeof topics !== "string") {
+    return [];
+  }
+
   try {
     const parsed: unknown = JSON.parse(topics);
     if (Array.isArray(parsed)) {

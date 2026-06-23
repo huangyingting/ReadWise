@@ -204,14 +204,9 @@ export async function deleteOwnAccount(
     return { ok: false, error: "Account not found", status: 404 };
   }
 
-  // Delete the user's personally-imported articles (ownerId === userId) in the
-  // SAME transaction as the user delete. Article.ownerId is onDelete: SetNull,
-  // so without this, those rows would survive with status:"published" and
-  // ownerId→NULL — i.e. the public-visibility predicate ({status:"published",
-  // ownerId:null}) would make a user's private imports world-readable. Deleting
-  // them cascades all derived rows (translations/vocabulary/quiz/tags/speech/
-  // readingProgress/readingListItem/highlights, etc. — all onDelete: Cascade on
-  // articleId).
+  // Article.owner now uses onDelete: Cascade, so deleting the user also deletes
+  // their private imports at the database layer. Private articles therefore can
+  // never survive as ownerless public rows.
   //
   // The last-admin guard is re-evaluated INSIDE the transaction so two
   // concurrent self-deletes can never both pass the guard and leave the system
@@ -226,7 +221,6 @@ export async function deleteOwnAccount(
         const adminCount = await tx.user.count({ where: { role: "Admin" } });
         if (adminCount <= 1) throw new LastAdminError();
       }
-      await tx.article.deleteMany({ where: { ownerId: userId } });
       await tx.user.delete({ where: { id: userId } });
       if (audit) {
         await recordAuditFromRequest(audit, tx);

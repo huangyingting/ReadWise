@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { ArticleStatus } from "@prisma/client";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleVocabulary } from "@/lib/vocabulary";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
@@ -208,16 +209,16 @@ export async function processArticle(
 
   const ok = !steps.some((s) => s.status === "failed");
 
-  let published = before.status === "published";
-  if (ok && before.status === "draft") {
+  let published = before.status === ArticleStatus.PUBLISHED;
+  if (ok && before.status === ArticleStatus.DRAFT) {
     await prisma.article.update({
       where: { id: articleId },
-      data: { status: "published", publishedAt: new Date() },
+      data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
     });
     published = true;
     steps.push({ step: "publish", status: "generated", detail: "draft → published" });
     revalidateArticlesCache();
-  } else if (before.status === "published") {
+  } else if (before.status === ArticleStatus.PUBLISHED) {
     steps.push({ step: "publish", status: "skipped", detail: "already published" });
   }
 
@@ -240,7 +241,7 @@ export async function articleNeedsProcessing(articleId: string): Promise<boolean
     return false;
   }
   return (
-    state.status === "draft" ||
+    state.status === ArticleStatus.DRAFT ||
     !state.hasDifficulty ||
     state.tagCount === 0 ||
     state.vocabCount === 0 ||
@@ -266,14 +267,14 @@ export async function listUnprocessedArticleIds(
   const where = opts.includePublished
     ? {
         OR: [
-          { status: "draft" },
+          { status: ArticleStatus.DRAFT },
           { difficulty: null },
           { tags: { none: {} } },
           { vocabulary: { none: {} } },
           { quizQuestions: { none: {} } },
         ],
       }
-    : { status: "draft" };
+    : { status: ArticleStatus.DRAFT };
 
   const articles = await prisma.article.findMany({
     where: aiProcessableArticleWhere(SYSTEM_ARTICLE_CONTEXT, where),

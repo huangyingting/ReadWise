@@ -1,10 +1,16 @@
 import { prisma } from "@/lib/prisma";
-import type { Article, Prisma } from "@prisma/client";
+import {
+  ArticleStatus,
+  ArticleVisibility,
+  ArticleSourceType,
+  type Article,
+  type Prisma,
+} from "@prisma/client";
 
 /**
  * Central article access rules.
  *
- * Public-listable: `status === "published" && ownerId === null`; visible in
+ * Public-listable: `visibility === PUBLIC && status === PUBLISHED`; visible in
  * anonymous metadata, public/library feeds, browse, tags, and unauthenticated
  * lookups.
  * Readable: Admin/System can read any article; an authenticated reader can read
@@ -43,25 +49,37 @@ export function isArticleOperator(context?: ArticleAccessContext | null): boolea
   return context?.role === "Admin" || context?.role === "System";
 }
 
-export function isPublicListableArticle(article: Pick<Article, "status" | "ownerId">): boolean {
-  return article.status === "published" && article.ownerId === null;
+type ArticleVisibilityShape = Pick<Article, "status" | "visibility" | "ownerId">;
+
+export function isPublicListableArticle(article: ArticleVisibilityShape): boolean {
+  return article.visibility === ArticleVisibility.PUBLIC && article.status === ArticleStatus.PUBLISHED;
 }
 
 export function canReadArticle(
-  article: Pick<Article, "status" | "ownerId">,
+  article: ArticleVisibilityShape,
   context?: ArticleAccessContext | null,
 ): boolean {
   if (isArticleOperator(context)) return true;
-  if (context?.userId && article.ownerId === context.userId) return true;
+  if (
+    context?.userId &&
+    article.visibility === ArticleVisibility.PRIVATE &&
+    article.ownerId === context.userId
+  ) {
+    return true;
+  }
   return isPublicListableArticle(article);
 }
 
 export function canEditArticle(
-  article: Pick<Article, "ownerId">,
+  article: Pick<Article, "visibility" | "ownerId">,
   context?: ArticleAccessContext | null,
 ): boolean {
   if (isArticleOperator(context)) return true;
-  return Boolean(context?.userId && article.ownerId === context.userId);
+  return Boolean(
+    context?.userId &&
+      article.visibility === ArticleVisibility.PRIVATE &&
+      article.ownerId === context.userId,
+  );
 }
 
 export function canAdminViewArticles(context?: ArticleAccessContext | null): boolean {
@@ -69,7 +87,7 @@ export function canAdminViewArticles(context?: ArticleAccessContext | null): boo
 }
 
 export function canAiProcessArticle(
-  article: Pick<Article, "status" | "ownerId">,
+  article: ArticleVisibilityShape,
   context?: ArticleAccessContext | null,
 ): boolean {
   return canReadArticle(article, context);
@@ -87,14 +105,24 @@ function andWhere(
 export function publicListableArticleWhere(
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), status: "published", ownerId: null };
+  return {
+    ...(extra ?? {}),
+    visibility: ArticleVisibility.PUBLIC,
+    status: ArticleStatus.PUBLISHED,
+  };
 }
 
 export function ownedArticleWhere(
   userId: string,
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), ownerId: userId };
+  return { ...(extra ?? {}), visibility: ArticleVisibility.PRIVATE, ownerId: userId };
+}
+
+export function publicLibraryArticleWhere(
+  extra?: Prisma.ArticleWhereInput,
+): Prisma.ArticleWhereInput {
+  return { ...(extra ?? {}), visibility: ArticleVisibility.PUBLIC };
 }
 
 export function readableArticleWhere(
@@ -103,7 +131,12 @@ export function readableArticleWhere(
 ): Prisma.ArticleWhereInput {
   if (isArticleOperator(context)) return andWhere({}, extra);
   if (context?.userId) {
-    const access = { OR: [{ status: "published", ownerId: null }, { ownerId: context.userId }] };
+    const access = {
+      OR: [
+        { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED },
+        { visibility: ArticleVisibility.PRIVATE, ownerId: context.userId },
+      ],
+    };
     if (extra?.OR || extra?.AND) {
       return andWhere(access, extra);
     }
@@ -266,7 +299,28 @@ export function findPublicLibraryArticleBySourceUrl(
   sourceUrl: string,
 ): Promise<{ id: string } | null> {
   return prisma.article.findFirst({
-    where: { sourceUrl, ownerId: null },
+    where: publicLibraryArticleWhere({ sourceUrl }),
     select: { id: true },
   });
+}
+
+export const ARTICLE_STATUSES = [
+  ArticleStatus.DRAFT,
+  ArticleStatus.PROCESSING,
+  ArticleStatus.PUBLISHED,
+  ArticleStatus.FAILED,
+  ArticleStatus.ARCHIVED,
+] as const;
+
+export const PUBLIC_ARTICLE_CREATE_FIELDS = {
+  visibility: ArticleVisibility.PUBLIC,
+  sourceType: ArticleSourceType.SCRAPED,
+} as const;
+
+export function privateImportedArticleCreateFields(ownerId: string) {
+  return {
+    visibility: ArticleVisibility.PRIVATE,
+    sourceType: ArticleSourceType.IMPORTED,
+    ownerId,
+  } as const;
 }
