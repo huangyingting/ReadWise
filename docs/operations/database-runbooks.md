@@ -176,13 +176,32 @@ reaches production.
    Check for destructive operations, long locks, data rewrites, and indexes that
    may need concurrent creation in PostgreSQL.
 3. Deploy to staging:
-   ```bash
-   pg_dump "$STAGING_DATABASE_URL" --format=custom --no-owner --no-acl --file './backups/staging-pre-migration-YYYYMMDD.dump'
-   DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma
-   psql "$STAGING_DATABASE_URL" -c 'SELECT COUNT(*) AS users FROM "User";'
-   curl --fail 'https://<staging-host>/api/ready'
-   npm run worker -- --once
-   ```
+   - **Current SQLite staging:** use this path while `prisma/schema.prisma`
+     still has `provider = "sqlite"`. Replace the filename with the SQLite
+     database file used by staging.
+     ```bash
+     export DATABASE_URL='file:./staging.db'
+     mkdir -p ./backups
+     sqlite3 ./prisma/staging.db ".backup './backups/staging-pre-migration-YYYYMMDD.db'"
+     DATABASE_URL="$DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma
+     sqlite3 ./prisma/staging.db 'SELECT COUNT(*) AS users FROM User;'
+     curl --fail 'https://<staging-host>/api/ready'
+     npm run worker -- --once
+     ```
+   - **PostgreSQL target staging:** use this only after the deployed Prisma
+     schema provider is `postgresql`, or when an equivalent PostgreSQL schema is
+     supplied with `--schema`.
+     ```bash
+     pg_dump "$STAGING_DATABASE_URL" \
+       --format=custom \
+       --no-owner \
+       --no-acl \
+       --file './backups/staging-pre-migration-YYYYMMDD.dump'
+     DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma
+     psql "$STAGING_DATABASE_URL" -c 'SELECT COUNT(*) AS users FROM "User";'
+     curl --fail 'https://<staging-host>/api/ready'
+     npm run worker -- --once
+     ```
 4. Deploy to production:
    - Announce maintenance risk and pause scheduled workers if the migration may
      rewrite data or hold locks.
