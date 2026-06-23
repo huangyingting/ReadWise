@@ -270,7 +270,7 @@ function StepTopics({
         tabIndex={-1}
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)] mb-[var(--space-1)] outline-none"
       >
-        {STEP_TITLES[1]}
+        {STEP_TITLES[2]}
       </h2>
       <p className="text-text-subtle text-xs mb-[var(--space-4)]">
         Pick any that interest you — or none.
@@ -336,7 +336,7 @@ function StepAbout({
         tabIndex={-1}
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)] mb-[var(--space-1)] outline-none"
       >
-        {STEP_TITLES[2]}{" "}
+        {STEP_TITLES[3]}{" "}
         <Badge variant="neutral" className="ml-[var(--space-2)]">Optional</Badge>
       </h2>
       <p className="text-text-subtle text-xs mb-[var(--space-4)]">
@@ -411,7 +411,7 @@ function StepReview({
         tabIndex={-1}
         className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)] mb-[var(--space-1)] outline-none"
       >
-        {STEP_TITLES[3]}
+        {STEP_TITLES[4]}
       </h2>
       <p className="text-text-muted text-[length:var(--text-sm)] mb-[var(--space-5)]">
         Here&apos;s a quick summary. You can edit these anytime in Settings.

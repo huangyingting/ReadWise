@@ -210,15 +210,25 @@ test("URL import succeeds with valid URL and returns article id", async () => {
 });
 
 test("text import succeeds with title + text", async () => {
-  const res = await makeReq({ title: "My Title", text: "First paragraph.\n\nSecond paragraph." });
+  const res = await makeReq({ title: "My Title", text: "word ".repeat(55).trim() });
   assert.equal(res.status, 201);
   const data = await res.json();
   assert.equal(data.id, createdId);
 });
 
 test("text import uses Untitled import when no title provided", async () => {
-  const res = await makeReq({ text: "Some content here with enough words." });
+  const res = await makeReq({ text: "word ".repeat(55).trim() });
   assert.equal(res.status, 201);
+});
+
+test("400 when text is too short (below minimum word count)", async () => {
+  const res = await makeReq({ title: "Short", text: "Too short." });
+  assert.equal(res.status, 400);
+  const data = await res.json();
+  assert.ok(
+    data.error.toLowerCase().includes("short") || data.error.toLowerCase().includes("minimum"),
+    `expected min-word error but got: ${data.error}`,
+  );
 });
 
 test("400 when neither url nor text is provided", async () => {
@@ -271,9 +281,10 @@ test("422 for a malformed URL string", async () => {
 });
 
 test("text import sanitizes HTML before storing (strips script/onerror)", async () => {
+  const safeBody = "word ".repeat(50).trim();
   const res = await makeReq({
     title: "XSS Attempt",
-    text: "Hello <script>alert('xss')</script> world\n\n<img src=x onerror=alert(1)> more text here.",
+    text: `${safeBody}\n\n<script>alert('xss')</script> world <img src=x onerror=alert(1)> more text here.`,
   });
   assert.equal(res.status, 201);
   // Sanitizer was invoked on the wrapped HTML...

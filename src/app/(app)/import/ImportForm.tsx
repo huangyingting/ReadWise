@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardBody } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
@@ -8,7 +8,14 @@ import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
+/** Must match the server-side MIN_IMPORT_WORDS constant in the import route. */
+const MIN_IMPORT_WORDS = 50;
+
 type Mode = "url" | "text";
+
+function countWords(t: string): number {
+  return t.trim() ? t.trim().split(/\s+/).filter(Boolean).length : 0;
+}
 
 export default function ImportForm() {
   const router = useRouter();
@@ -19,6 +26,21 @@ export default function ImportForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const feedbackRef = useRef<HTMLDivElement>(null);
+
+  const textWordCount = countWords(text);
+  const textBelowMin = mode === "text" && text.trim().length > 0 && textWordCount < MIN_IMPORT_WORDS;
+  const submitDisabled =
+    loading ||
+    (mode === "url" && !url.trim()) ||
+    (mode === "text" && (text.trim().length === 0 || textWordCount < MIN_IMPORT_WORDS));
+
+  // Scroll feedback into view whenever error or notice changes.
+  useEffect(() => {
+    if ((error || notice) && feedbackRef.current) {
+      feedbackRef.current.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }, [error, notice]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -45,14 +67,17 @@ export default function ImportForm() {
         return;
       }
 
-      // A duplicate URL import returns the existing article (no new row, no
-      // quota consumed) — let the user know before opening it.
       if (data.duplicate) {
+        // Re-import of an existing article — let the user know before opening.
         setNotice("You've already imported this article — opening it now.");
+        setTimeout(() => router.push(`/reader/${data.id}`), 1500);
+      } else if (mode === "text") {
+        // Text paste — show a brief confirmation before navigating.
+        setNotice("Article imported successfully! Opening reader…");
+        setTimeout(() => router.push(`/reader/${data.id}`), 1200);
+      } else {
+        router.push(`/reader/${data.id}`);
       }
-
-      // Navigate to the reader.
-      router.push(`/reader/${data.id}`);
     } catch {
       setError("Network error. Please try again.");
     } finally {
@@ -93,7 +118,6 @@ export default function ImportForm() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/article"
-                required
               />
               <p className="text-xs text-text-muted mt-1">
                 Paste a link to any publicly accessible article.
@@ -130,33 +154,43 @@ export default function ImportForm() {
                   value={text}
                   onChange={(e) => setText(e.target.value)}
                   placeholder="Paste your article text here…"
-                  required
                   rows={12}
                   className="resize-y"
                 />
                 <p className="text-xs text-text-muted mt-1">
-                  Separate paragraphs with a blank line.
+                  {textWordCount > 0 ? (
+                    <>
+                      <span className={textBelowMin ? "text-danger-text" : undefined}>
+                        {textWordCount} word{textWordCount !== 1 ? "s" : ""}
+                      </span>
+                      {textBelowMin && ` — minimum ${MIN_IMPORT_WORDS} required`}
+                    </>
+                  ) : (
+                    <>Minimum {MIN_IMPORT_WORDS} words. Separate paragraphs with a blank line.</>
+                  )}
                 </p>
               </div>
             </>
           )}
 
-          {error && (
-            <p role="alert" className="text-sm text-danger-text">
-              {error}
-            </p>
-          )}
-
-          {notice && (
-            <p role="status" className="text-sm text-text-muted">
-              {notice}
-            </p>
-          )}
+          <div ref={feedbackRef}>
+            {error && (
+              <p role="alert" className="text-sm text-danger-text">
+                {error}
+              </p>
+            )}
+            {notice && (
+              <p role="status" className="text-sm text-success-text">
+                {notice}
+              </p>
+            )}
+          </div>
 
           <Button
             type="submit"
             variant="primary"
             loading={loading}
+            disabled={submitDisabled}
             className="self-start"
           >
             Import Article
