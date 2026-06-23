@@ -3,9 +3,7 @@ import { createAdminHandler } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
 import type { ValidationResult } from "@/lib/validation";
 import { searchArticles } from "@/lib/admin-articles";
-import { articleAccessContext } from "@/lib/article-access";
-
-const ARTICLE_STATUSES = ["draft", "published"] as const;
+import { ARTICLE_STATUSES, articleAccessContext } from "@/lib/article-access";
 type ArticleStatus = (typeof ARTICLE_STATUSES)[number];
 
 type ArticlesAdminQuery = {
@@ -26,13 +24,14 @@ function parseQuery(params: URLSearchParams): ValidationResult<ArticlesAdminQuer
   const rawStatus = params.get("status") ?? "";
   let status: ArticleStatus | null = null;
   if (rawStatus !== "") {
-    if (!(ARTICLE_STATUSES as readonly string[]).includes(rawStatus)) {
+    const normalizedStatus = rawStatus.toUpperCase();
+    if (!(ARTICLE_STATUSES as readonly string[]).includes(normalizedStatus)) {
       return {
         ok: false,
         error: `status must be one of: ${ARTICLE_STATUSES.join(", ")}`,
       };
     }
-    status = rawStatus as ArticleStatus;
+    status = normalizedStatus as ArticleStatus;
   }
 
   const page = queryInt(params, "page", { fallback: 1, min: 1, max: MAX_PAGE });

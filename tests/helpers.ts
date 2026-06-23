@@ -3,7 +3,12 @@
  * project's TS harness (`scripts/register-ts.mjs`) with experimental module
  * mocking — no external DB or network is ever touched (everything is stubbed).
  */
-import type { Article } from "@prisma/client";
+import {
+  ArticleSourceType,
+  ArticleStatus,
+  ArticleVisibility,
+  type Article,
+} from "@prisma/client";
 
 /** Azure OpenAI env vars that {@link import("@/lib/ai").isAiConfigured} reads. */
 const AI_ENV_KEYS = [
@@ -41,7 +46,9 @@ export function buildArticle(partial: Partial<Article> = {}): Article {
     excerpt: "An excerpt.",
     content: "<p>Body</p>",
     category: null,
-    status: "published",
+    visibility: ArticleVisibility.PUBLIC,
+    status: ArticleStatus.PUBLISHED,
+    sourceType: ArticleSourceType.SCRAPED,
     difficulty: null,
     difficultyScore: null,
     wordCount: null,

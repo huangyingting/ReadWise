@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/profile";
+import { publicListableArticleWhere } from "@/lib/article-access";
+import { TagScope } from "@prisma/client";
 
 export type BucketCount = { key: string; label: string; count: number };
 
@@ -36,7 +38,10 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
     prisma.readingProgress.count({ where: { completed: true } }),
     prisma.savedWord.count(),
     prisma.tag.findMany({
-      include: { _count: { select: { articles: true } } },
+      where: { scope: TagScope.PUBLIC },
+      include: {
+        _count: { select: { articles: { where: { article: publicListableArticleWhere() } } } },
+      },
       orderBy: { articles: { _count: "desc" } },
       take: 10,
     }),

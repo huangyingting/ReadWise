@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
 import { after, afterEach, test } from "node:test";
+import { ArticleStatus, ArticleVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 const enabled = process.env.RUN_DB_INTEGRATION === "1";
@@ -40,6 +41,10 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
     migrations.some((migration) => migration.migration_name === "20260623000000_postgresql_baseline"),
     "PostgreSQL baseline migration should be recorded",
   );
+  assert.ok(
+    migrations.some((migration) => migration.migration_name === "20260623004106_privacy_article_model"),
+    "PostgreSQL privacy migration should be recorded separately from the baseline",
+  );
   assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
 
   const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
@@ -67,19 +72,72 @@ test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, as
   });
 
   await prisma.article.create({
-    data: { id: id("article_a"), title: "Owned Article A", content: "Body", sourceUrl, ownerId: ownerA },
+    data: {
+      id: id("article_a"),
+      title: "Owned Article A",
+      content: "Body",
+      sourceUrl,
+      ownerId: ownerA,
+      visibility: ArticleVisibility.PRIVATE,
+    },
   });
 
   await assert.rejects(
     prisma.article.create({
-      data: { id: id("article_dup"), title: "Duplicate Owner Article", content: "Body", sourceUrl, ownerId: ownerA },
+      data: {
+        id: id("article_dup"),
+        title: "Duplicate Owner Article",
+        content: "Body",
+        sourceUrl,
+        ownerId: ownerA,
+        visibility: ArticleVisibility.PRIVATE,
+      },
     }),
     /Unique constraint failed|Unique constraint|duplicate key value/,
   );
 
   await prisma.article.create({
-    data: { id: id("article_b"), title: "Owned Article B", content: "Body", sourceUrl, ownerId: ownerB },
+    data: {
+      id: id("article_b"),
+      title: "Owned Article B",
+      content: "Body",
+      sourceUrl,
+      ownerId: ownerB,
+      visibility: ArticleVisibility.PRIVATE,
+    },
   });
+});
+
+test("PostgreSQL privacy checks enforce owner and visibility invariants", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const ownerId = id("privacy_owner");
+  await prisma.user.create({ data: { id: ownerId, name: "DB Integration Privacy Owner", role: "Reader" } });
+
+  await assert.rejects(
+    prisma.article.create({
+      data: {
+        id: id("private_without_owner"),
+        title: "Invalid Private Article",
+        content: "Body",
+        visibility: ArticleVisibility.PRIVATE,
+      },
+    }),
+    /Article_private_owner_check|check constraint|constraint failed/i,
+  );
+
+  await assert.rejects(
+    prisma.article.create({
+      data: {
+        id: id("owned_public"),
+        title: "Invalid Owned Public Article",
+        content: "Body",
+        ownerId,
+        visibility: ArticleVisibility.PUBLIC,
+      },
+    }),
+    /Article_owner_visibility_check|check constraint|constraint failed/i,
+  );
 });
 
 test("article deletes cascade derived data but keep saved-word study history", { skip: !enabled }, async () => {
@@ -95,9 +153,10 @@ test("article deletes cascade derived data but keep saved-word study history", {
       id: articleId,
       title: "Cascade Article",
       content: "A long enough body for derived data.",
-      status: "published",
+      status: ArticleStatus.PUBLISHED,
       publishedAt: new Date(),
       ownerId: userId,
+      visibility: ArticleVisibility.PRIVATE,
     },
   });
   await prisma.tag.create({ data: { id: tagId, name: `Integration ${tagId}`, slug: tagId } });
@@ -193,7 +252,7 @@ test("PostgreSQL full-text article search is case-insensitive", { skip: !enabled
       id: articleId,
       title: "Galactic Lanterns",
       content: "Astronomers study bright lantern-like stars.",
-      status: "published",
+      status: ArticleStatus.PUBLISHED,
       publishedAt: new Date(),
     },
   });

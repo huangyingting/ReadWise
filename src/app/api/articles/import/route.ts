@@ -21,9 +21,13 @@ import {
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
 import { prisma } from "@/lib/prisma";
-import { Prisma } from "@prisma/client";
+import { ArticleStatus, Prisma } from "@prisma/client";
 import { heuristicDifficulty } from "@/lib/difficulty";
-import { findOwnedArticleBySourceUrl, ownedArticleWhere } from "@/lib/article-access";
+import {
+  findOwnedArticleBySourceUrl,
+  ownedArticleWhere,
+  privateImportedArticleCreateFields,
+} from "@/lib/article-access";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;
@@ -199,9 +203,9 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
         category: scraped.category,
         wordCount: scraped.wordCount,
         readingMinutes: scraped.readingMinutes,
-        status: "published",
+        status: ArticleStatus.PUBLISHED,
         publishedAt: scraped.publishedAt ?? new Date(),
-        ownerId: userId,
+        ...privateImportedArticleCreateFields(userId),
       },
       select: { id: true },
     });
@@ -270,9 +274,9 @@ async function handleTextImport(
       content,
       wordCount,
       readingMinutes,
-      status: "published",
+      status: ArticleStatus.PUBLISHED,
       publishedAt: new Date(),
-      ownerId: userId,
+      ...privateImportedArticleCreateFields(userId),
     },
     select: { id: true },
   });

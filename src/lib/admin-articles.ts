@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Article } from "@prisma/client";
+import { ArticleStatus, type Article } from "@prisma/client";
 import { readingMinutesFor } from "@/lib/articles";
 import {
   SYSTEM_ARTICLE_CONTEXT,
@@ -18,6 +18,8 @@ export type AdminArticleRow = {
   source: string | null;
   category: string | null;
   status: string;
+  visibility: string;
+  sourceType: string;
   difficulty: string | null;
   readingMinutes: number | null;
   createdAt: Date;
@@ -50,7 +52,11 @@ export async function searchArticles(
   opts: SearchArticlesOpts = {},
 ): Promise<AdminArticleSearch> {
   const query = (opts.query ?? "").trim();
-  const status = opts.status && opts.status.trim() ? opts.status.trim() : null;
+  const statusCandidate = opts.status?.trim().toUpperCase();
+  const status = statusCandidate &&
+    (Object.values(ArticleStatus) as string[]).includes(statusCandidate)
+    ? (statusCandidate as ArticleStatus)
+    : null;
   const pageSize = opts.pageSize ?? ADMIN_ARTICLES_PAGE_SIZE;
   const page = Math.max(1, opts.page ?? 1);
   const context = opts.context ?? SYSTEM_ARTICLE_CONTEXT;
@@ -85,6 +91,8 @@ export async function searchArticles(
     source: a.source,
     category: a.category,
     status: a.status,
+    visibility: a.visibility,
+    sourceType: a.sourceType,
     difficulty: a.difficulty,
     readingMinutes: readingMinutesFor(a),
     createdAt: a.createdAt,

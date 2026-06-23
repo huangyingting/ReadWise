@@ -41,7 +41,7 @@ export async function generateMetadata({
   const { id } = await params;
   // Use the published-only lookup — metadata should only expose published content.
   const article = await getArticleById(id);
-  if (!article || article.status !== "published") {
+  if (!article) {
     return { title: "Article" };
   }
 
@@ -281,15 +281,21 @@ export default async function ReaderPage({
                   {/* Tags */}
                   {tags.length > 0 ? (
                     <div className="reader-tags" aria-label="Article tags">
-                      {tags.map((tag) => (
-                        <Link
-                          key={tag.id}
-                          href={`/tags/${tag.slug}`}
-                          className="tag-chip"
-                        >
-                          #{tag.name}
-                        </Link>
-                      ))}
+                      {tags.map((tag) =>
+                        tag.scope === "PUBLIC" ? (
+                          <Link
+                            key={tag.id}
+                            href={`/tags/${tag.slug}`}
+                            className="tag-chip"
+                          >
+                            #{tag.name}
+                          </Link>
+                        ) : (
+                          <span key={tag.id} className="tag-chip">
+                            #{tag.name}
+                          </span>
+                        ),
+                      )}
                     </div>
                   ) : null}
                 </header>

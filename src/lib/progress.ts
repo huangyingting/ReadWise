@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { ReadingProgress } from "@prisma/client";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
+import { publicListableArticleWhere } from "@/lib/article-access";
 import { recordReadingActivity } from "@/lib/activity";
 import { createLogger } from "@/lib/logger";
 
@@ -85,7 +86,12 @@ export async function listInProgressArticles(
   limit = 10,
 ): Promise<InProgressEntry[]> {
   const rows = await prisma.readingProgress.findMany({
-    where: { userId, percent: { gt: 0 }, completed: false, article: { status: "published", ownerId: null } },
+    where: {
+      userId,
+      percent: { gt: 0 },
+      completed: false,
+      article: publicListableArticleWhere(),
+    },
     orderBy: { updatedAt: "desc" },
     take: limit,
     include: { article: true },

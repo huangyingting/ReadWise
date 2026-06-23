@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Article } from "@prisma/client";
+import { ArticleVisibility, TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
@@ -9,6 +9,7 @@ export type TagView = {
   id: string;
   name: string;
   slug: string;
+  scope: TagScope;
 };
 
 export type ArticleTagsResult = {
@@ -76,8 +77,8 @@ export function parseTagsJson(raw: string): string[] {
   return names;
 }
 
-function toView(tag: { id: string; name: string; slug: string }): TagView {
-  return { id: tag.id, name: tag.name, slug: tag.slug };
+function toView(tag: { id: string; name: string; slug: string; scope: TagScope }): TagView {
+  return { id: tag.id, name: tag.name, slug: tag.slug, scope: tag.scope };
 }
 
 /** Reads an article's currently-stored tags, alphabetically by name. */
@@ -85,7 +86,7 @@ export async function getArticleTags(articleId: string): Promise<TagView[]> {
   const rows = await prisma.articleTag.findMany({
     where: { articleId },
     orderBy: { tag: { name: "asc" } },
-    select: { tag: { select: { id: true, name: true, slug: true } } },
+    select: { tag: { select: { id: true, name: true, slug: true, scope: true } } },
   });
   return rows.map((r) => toView(r.tag));
 }
@@ -94,16 +95,50 @@ export async function getArticleTags(articleId: string): Promise<TagView[]> {
  * Finds-or-creates a Tag by name (slug derived from the name). Tag names are
  * unique case-insensitively via their slug; an existing slug match is reused.
  */
-async function upsertTag(name: string): Promise<{ id: string; name: string; slug: string }> {
+function namespaceFor(scope: TagScope, ownerId?: string | null, orgId?: string | null): string {
+  if (scope === TagScope.PRIVATE) return `user:${ownerId ?? "unknown"}`;
+  if (scope === TagScope.ORG) return `org:${orgId ?? "unknown"}`;
+  return "public";
+}
+
+function tagScopeForArticle(article: Pick<Article, "visibility" | "ownerId">): {
+  scope: TagScope;
+  ownerId: string | null;
+  namespace: string;
+} {
+  if (article.visibility === ArticleVisibility.PRIVATE) {
+    return {
+      scope: TagScope.PRIVATE,
+      ownerId: article.ownerId,
+      namespace: namespaceFor(TagScope.PRIVATE, article.ownerId),
+    };
+  }
+  return { scope: TagScope.PUBLIC, ownerId: null, namespace: namespaceFor(TagScope.PUBLIC) };
+}
+
+/**
+ * Finds-or-creates a Tag inside a scoped namespace. Public library tags are
+ * global (`PUBLIC/public`); private import tags are per-owner (`PRIVATE/user:id`).
+ * The same slug can therefore exist privately without leaking into public tag
+ * listings or claiming a global tag name.
+ */
+async function upsertTag(
+  name: string,
+  scope: TagScope,
+  ownerId: string | null,
+  namespace: string,
+): Promise<{ id: string; name: string; slug: string; scope: TagScope }> {
   const slug = slugifyTag(name);
-  const existing = await prisma.tag.findUnique({ where: { slug } });
+  const existing = await prisma.tag.findUnique({
+    where: { scope_namespace_slug: { scope, namespace, slug } },
+  });
   if (existing) {
     return existing;
   }
   return prisma.tag.upsert({
-    where: { slug },
+    where: { scope_namespace_slug: { scope, namespace, slug } },
     update: {},
-    create: { name: name.trim(), slug },
+    create: { name: name.trim(), slug, scope, namespace, ownerId },
   });
 }
 
@@ -127,39 +162,45 @@ export async function getOrCreateArticleTags(
     {
       feature: "tags",
       readCache: async () => {
-      const tags = await getArticleTags(articleId);
-      return tags.length > 0 ? tags : null;
+        const tags = await getArticleTags(articleId);
+        return tags.length > 0 ? tags : null;
       },
       buildMessages: (article) => {
-      const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
-      return [
-        {
-          role: "system",
-          content:
-            "You label news articles with topic tags for discovery. From the user's " +
-            `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
-            "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
-            "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
-            "array only.",
-        },
-        {
-          role: "user",
-          content: `Title: ${article.title}\n\n${source}`,
-        },
-      ];
+        const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+        return [
+          {
+            role: "system",
+            content:
+              "You label news articles with topic tags for discovery. From the user's " +
+              `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
+              "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
+              "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
+              "array only.",
+          },
+          {
+            role: "user",
+            content: `Title: ${article.title}\n\n${source}`,
+          },
+        ];
       },
       parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
       isEmpty: (names) => names.length === 0,
       persist: async (id, names) => {
-      for (const name of names) {
-        const tag = await upsertTag(name);
-        await prisma.articleTag.upsert({
-          where: { articleId_tagId: { articleId: id, tagId: tag.id } },
-          update: {},
-          create: { articleId: id, tagId: tag.id },
+        const article = await prisma.article.findUnique({
+          where: { id },
+          select: { visibility: true, ownerId: true },
         });
-      }
-      return getArticleTags(id);
+        if (!article) return [];
+        const tagScope = tagScopeForArticle(article);
+        for (const name of names) {
+          const tag = await upsertTag(name, tagScope.scope, tagScope.ownerId, tagScope.namespace);
+          await prisma.articleTag.upsert({
+            where: { articleId_tagId: { articleId: id, tagId: tag.id } },
+            update: {},
+            create: { articleId: id, tagId: tag.id },
+          });
+        }
+        return getArticleTags(id);
       },
       toResult: (tags) => ({ articleId, tags, fallback: false }),
       fallback: () => ({ articleId, tags: [], fallback: true }),
@@ -173,9 +214,13 @@ export type TagWithCount = TagView & { articleCount: number };
 
 /** Looks up a single tag by its slug. */
 export async function getTagBySlug(slug: string): Promise<TagView | null> {
-  const tag = await prisma.tag.findUnique({
-    where: { slug },
-    select: { id: true, name: true, slug: true },
+  const tag = await prisma.tag.findFirst({
+    where: {
+      slug,
+      scope: TagScope.PUBLIC,
+      articles: { some: { article: publicListableArticleWhere() } },
+    },
+    select: { id: true, name: true, slug: true, scope: true },
   });
   return tag ? toView(tag) : null;
 }
@@ -190,7 +235,7 @@ export function listArticlesByTag(slug: string, limit = 24): Promise<Article[]> 
 
 function listArticlesByTagUncached(slug: string, limit = 24): Promise<Article[]> {
   return prisma.article.findMany({
-    where: publicListableArticleWhere({ tags: { some: { tag: { slug } } } }),
+    where: publicListableArticleWhere({ tags: { some: { tag: { slug, scope: TagScope.PUBLIC } } } }),
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     take: limit,
   });
@@ -220,7 +265,7 @@ async function listRelatedArticlesUncached(
   limit = 6,
 ): Promise<Article[]> {
   const ownTags = await prisma.articleTag.findMany({
-    where: { articleId },
+    where: { articleId, tag: { scope: TagScope.PUBLIC } },
     select: { tagId: true },
   });
   const tagIds = ownTags.map((t) => t.tagId);
@@ -233,6 +278,7 @@ async function listRelatedArticlesUncached(
       tagId: { in: tagIds },
       articleId: { not: articleId },
       article: publicListableArticleWhere(),
+      tag: { scope: TagScope.PUBLIC },
     },
     select: { articleId: true },
   });
@@ -276,18 +322,20 @@ export function listTagsWithCounts(): Promise<TagWithCount[]> {
 
 async function listTagsWithCountsUncached(): Promise<TagWithCount[]> {
   const tags = await prisma.tag.findMany({
+    where: { scope: TagScope.PUBLIC },
     orderBy: { name: "asc" },
     select: {
       id: true,
       name: true,
       slug: true,
+      scope: true,
       _count: {
-        select: { articles: { where: { article: { status: "published", ownerId: null } } } },
+        select: { articles: { where: { article: publicListableArticleWhere() } } },
       },
     },
   });
   return tags
-    .map((t) => ({ id: t.id, name: t.name, slug: t.slug, articleCount: t._count.articles }))
+    .map((t) => ({ id: t.id, name: t.name, slug: t.slug, scope: t.scope, articleCount: t._count.articles }))
     .filter((t) => t.articleCount > 0);
 }
 

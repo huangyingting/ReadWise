@@ -38,8 +38,12 @@ export default async function AdminTagsPage({
   return (
     <section className="stack">
       <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Tags
+        Global tags
       </h1>
+      <p className="muted" style={{ margin: 0 }}>
+        This tool manages public-library tags only. Private import tags stay scoped
+        to their owner and are not listed here.
+      </p>
 
       <form
         method="get"

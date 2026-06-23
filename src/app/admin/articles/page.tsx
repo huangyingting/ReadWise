@@ -36,7 +36,7 @@ export default async function AdminArticlesPage({
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
-  const status = (sp.status ?? "").trim();
+  const status = (sp.status ?? "").trim().toUpperCase();
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
   const [result, statusRows] = await Promise.all([
@@ -113,7 +113,7 @@ export default async function AdminArticlesPage({
               <tr>
                 <th>Title</th>
                 <th>Author / Source</th>
-                <th>Status</th>
+                <th>Visibility / Status</th>
                 <th>Level</th>
                 <th>Actions</th>
               </tr>
@@ -134,9 +134,11 @@ export default async function AdminArticlesPage({
                     {a.source ? ` · ${a.source}` : ""}
                   </td>
                   <td>
-                    <Badge variant={statusBadgeVariant(a.status)}>
-                      {a.status}
-                    </Badge>
+                    <div className="flex flex-wrap gap-[var(--space-1)]">
+                      <Badge variant="neutral">{a.visibility}</Badge>
+                      <Badge variant={statusBadgeVariant(a.status)}>{a.status}</Badge>
+                      <Badge variant="neutral">{a.sourceType}</Badge>
+                    </div>
                   </td>
                   <td>
                     {a.difficulty &&
