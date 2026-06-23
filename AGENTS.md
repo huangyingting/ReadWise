@@ -1,378 +1,81 @@
-# ReadWise — Agent Notes
+# ReadWise — Agent Guide
 
-AI-assisted English learning reader. Full feature replication of "ReadingX".
+Code is the single source of truth. Before changing behavior, inspect the
+relevant source, schema, tests, and scripts directly. Keep this file short: only
+record durable rules that are easy to miss and costly to violate.
 
-## Stack
-- Next.js 15 (App Router, TypeScript), React 19
-- Prisma ORM + SQLite (`DATABASE_URL=file:./dev.db`)
-- NextAuth v4 with `@auth/prisma-adapter` (database session strategy)
-- Azure OpenAI / Azure Speech for AI tools (see `.env.local`)
+## Hard rules
 
-## Commands
-- `npm run dev` — dev server (port 3000). Load env first: `set -a && . ./.env.local && set +a`
-- `npm run typecheck` — `tsc --noEmit`
-- `npm run lint` — `next lint`
-- `npm run build` — production build (also runs type/lint checks)
-- `npx prisma migrate dev --name <n>` — create + apply a migration (run with env loaded)
+- Use `@/*` imports for project code.
+- Use the Prisma singleton from `@/lib/prisma`; never instantiate another
+  `PrismaClient` in app code.
+- Build API routes with the shared handler wrappers in `src/lib/api-handler.ts`
+  unless a framework integration owns the route.
+- Validate all params, query strings, and bodies before use.
+- Enforce authorization server-side. Middleware and hidden UI are not security
+  boundaries.
+- In Next.js 15 server components, `params` and `searchParams` are promises;
+  await them.
+- Never render stored or scraped article HTML unless it has gone through
+  `sanitizeArticleHtml`.
+- Never log or persist secrets, tokens, cookies, prompts, article text, selected
+  text, credentials, or user-private content in observability/audit/analytics
+  metadata.
+- Optional providers must degrade gracefully. Missing AI, Speech, Push, OAuth or
+  storage config is normal in local and test environments.
+- Use `createLogger(scope)` for server logs; avoid raw `console.*` outside CLI
+  presentation code.
+- Keep generated media behind the storage abstraction; database base64 is only a
+  fallback.
+- Do not run a production build while the dev server is running; both write to
+  `.next/`.
 
-## Conventions & Gotchas
-- Path alias `@/*` → `./src/*`.
-- DB access: import the singleton `prisma` from `@/lib/prisma` (never `new PrismaClient()`).
-- Auth config lives in `src/lib/auth.ts` (`authOptions`). Providers are added
-  conditionally based on env vars so missing OAuth creds don't crash (graceful fallback).
-- Session strategy is **database** (not JWT). Role + id are attached in the
-  `session` callback from the `user` arg. `Session.user` type is augmented in
-  `src/types/next-auth.d.ts` to include `id` and `role`.
-- Protected routes: listed in `middleware.ts` (`PROTECTED_PREFIXES` + `config.matcher`).
-  Middleware only checks session-cookie presence and redirects to
-  `/signin?callbackUrl=<path>`. Real enforcement is server-side via
-  `requireSession(callbackUrl)` from `@/lib/session`. When adding a new protected
-  area, update BOTH the middleware matcher and call `requireSession` in the page.
-- Server components in Next 15: `searchParams`/`params` are Promises — `await` them.
-- `User.role` defaults to `Reader` (enum `Role { Admin, Reader }`). The first user to
-  sign in becomes `Admin` via the `events.createUser` hook in `src/lib/auth.ts`
-  (counts users after creation; if it's the only one, promotes to Admin).
-- Admin enforcement: pages call `requireAdmin(callbackUrl)` from `@/lib/session`
-  (redirects non-admins to `/forbidden`); API routes call `requireAdminApi()` from
-  `@/lib/api-auth` (returns 401 if unauthed, 403 if non-admin). Hide admin-only UI
-  by checking `session.user.role === "Admin"`.
-- Migrations are committed under `prisma/migrations/`. `dev.db` is gitignored.
-- API route handlers (US-028): build EVERY route under `src/app/api/**` with the shared wrapper
-  in `src/lib/api-handler.ts` — `createHandler` (auth required, `ctx.session` non-null),
-  `createAdminHandler` (admin only), or `createPublicHandler` (explicitly unauthenticated). The
-  wrapper centralizes auth (via `@/lib/api-auth`), a per-request `x-request-id` (honors an inbound
-  one for tracing) + JSON request/response logging, schema validation, and error formatting. Pass a
-  config `{ params?, body?, query? }`: `params`/`body` are `Schema<T>` from `src/lib/validation.ts`
-  (use the shared `idParams` for `[id]` routes; `object`/`string`/`nonEmptyString`/`number`/`oneOf`/
-  `array`/`optional` builders; unknown object keys are DROPPED so clients can't smuggle fields),
-  `query` is `(URLSearchParams) => ValidationResult<T>` (use `queryString`/`queryInt` coercers).
-  The handler receives `{ req, session, body, params, query, requestId, log }`. Throw
-  `new ApiError(status, message)` for controlled client errors (404/400/409 etc.) — its message is
-  returned; ANY other thrown error is logged in full and returned as a GENERIC 500 in production
-  (message only leaked when `NODE_ENV !== "production"`). Do NOT hand-roll
-  `requireSessionApi`/`req.json()`/try-catch in routes anymore. NextAuth's `auth/[...nextauth]` is
-  the only exception (it owns its own handler).
-- Structured logging & tracing (US-029): `src/lib/logger.ts` is the single logging module. It carries
-  a REQUEST-SCOPED context (requestId, userId, method, path) via Node `AsyncLocalStorage` —
-  `runWithRequestContext(ctx, fn)` binds it for the whole async lifetime, `getRequestContext()`/
-  `getRequestId()` read it, `setRequestContext({userId})` mutates it (api-handler attaches userId after
-  auth). `createLogger(scope, base?)` emits JSON lines that AUTO-MERGE the ambient request context, so
-  any lib helper called inside a request inherits requestId/userId WITHOUT threading params. Lines below
-  `LOG_LEVEL` (default "info") are dropped. The api-handler wraps every request in `runWithRequestContext`
-  and logs `request.start`/`request.complete`(status+durationMs)/`request.handled_error`/
-  `request.unhandled_error`; the worker's `createConsoleLogger()` now just returns `createLogger("worker")`.
-  Client-side: the `"use client"` `src/components/ClientErrorReporter.tsx` (mounted once in
-  `src/app/layout.tsx`) registers `window.onerror` + `unhandledrejection`, throttles + dedups, and reports
-  to `POST /api/client-errors` (public handler, returns 204) via `sendBeacon`/`fetch keepalive`; that route
-  logs `client.error` into the same structured server logs. `src/app/global-error.tsx` is the root React
-  error boundary and reports the same way. Reuse `createLogger`/the request context for any new
-  server logging instead of bare `console.*`.
-- Shared news categories live in `src/lib/categories.ts` (`CATEGORIES`, `CATEGORY_SLUGS`,
-  `isValidCategorySlug`). Reuse this set everywhere (onboarding topics, category browsing,
-  picks) instead of redefining the list.
-- User onboarding: 1-1 `Profile` model (ageRange?, gender?, englishLevel, topics JSON string,
-  completedAt). SQLite has no scalar lists, so `topics` is a JSON-stringified `string[]`
-  (parse via `parseTopics` in `src/lib/profile.ts`). `completedAt != null` means onboarded.
-  Gate pages that need a finished profile with `requireOnboardedSession(callbackUrl)` from
-  `@/lib/session` (redirects to `/onboarding`). The onboarding page itself uses plain
-  `requireSession` and redirects completed users to `/dashboard`.
-- Profile validation is centralized in `parseProfileInput(body)` in `src/lib/profile.ts`
-  (returns `{ok:true, value}` or `{ok:false, error}`); it validates level, age, gender and
-  filters topics to valid category slugs. Reuse it for any profile read/write API.
-  `POST /api/onboarding` sets `completedAt`; `PUT /api/profile` (edit-settings) upserts the
-  same fields but preserves `completedAt`. Settings UI lives at `/settings`
-  (`requireOnboardedSession`) with the client `ProfileSettingsForm`.
-- Auth UI actions (`signIn`/`signOut` from `next-auth/react`) must run in a `"use client"`
-  component. Reusable client auth controls live in `src/components/` (e.g. `SignOutButton.tsx`).
-  With the DB session strategy, `signOut` deletes the `Session` row server-side (not just the
-  cookie). Session lifetime is set via `session.maxAge`/`updateAge` in `authOptions`.
-- Article reader lives at `/reader/[id]` (already in `middleware.ts` PROTECTED_PREFIXES +
-  matcher). Page gates with `requireSession(`/reader/${id}`)` and calls `notFound()` (renders
-  `src/app/reader/[id]/not-found.tsx`) for missing ids. Article data helpers are in
-  `src/lib/articles.ts` (`getArticleById`, `readingMinutesFor` — prefers stored
-  `readingMinutes`, else `wordCount`/body @200wpm).
-- ALWAYS render stored article HTML through `sanitizeArticleHtml` from `src/lib/sanitize.ts`
-  before `dangerouslySetInnerHTML`. It is two-pass (sanitize-html): pass 1 drops ad/boilerplate
-  blocks WITH their content via `exclusiveFilter` on class/id keywords + `nonTextTags` for
-  script/style/iframe; pass 2 enforces a strict tag/attr allowlist and forces
-  `rel=noopener noreferrer nofollow target=_blank` on links. Never inject raw `content`.
-- Reading progress: 1-many `ReadingProgress` model (userId+articleId `@@unique`, percent Int,
-  completed Bool, completedAt). Helpers in `src/lib/progress.ts`: `getProgress`,
-  `getProgressMap(userId, ids)` (batch for listings), `saveProgress(userId, articleId, percent)`
-  which is FORWARD-ONLY (never lowers percent, completion is sticky) and marks `completed` when
-  percent >= `COMPLETION_THRESHOLD` (95). `POST /api/reader/[id]/progress` body `{percent}`
-  persists it (401 unauth / 404 bad article). The client `src/components/ReaderProgress.tsx`
-  tracks scroll, throttles writes to <=1/sec, forward-only, flushes final on unmount; the page
-  does NOT auto-scroll (starts at top). Article listings use `src/components/ArticleCard.tsx`
-  (server component) which renders the saved progress bar; build listings with
-  `listPublishedArticles()` + `getProgressMap`.
-- Listing client refresh (US-008): after a reader opens an article, `ReaderProgress` records its
-  id via `markArticleVisited` (`src/lib/visited.ts`, sessionStorage key `readwise:visited-articles`).
-  Drop `<ListingProgressSync articleIds={ids} />` into any listing: on mount it batch-fetches
-  progress for ONLY the visited ids present on the page via `POST /api/progress/batch`
-  (`{ids:string[]}` -> `{progress:{[id]:{percent,completed}}}`, backed by `getProgressSummaries`)
-  in a single request, merges into the cards' DOM (hooks `js-progress-bar`/`js-progress-label`/
-  `js-progress-done` + `data-article-id` on `ArticleCard`), then clears those ids. SSR via
-  `getProgressMap` is still the source of truth on first paint; this only refreshes visited cards.
-- AI provider (US-009+): `src/lib/ai.ts` wraps Azure OpenAI chat-completions over plain `fetch`
-  (no SDK dep). `isAiConfigured()` checks the 4 `AZURE_OPENAI_*` env vars; `chatComplete(messages,
-  opts)` returns the assistant text or `null` (graceful fallback) on missing creds / non-2xx / throw.
-  Note: the gpt-5-mini deployment requires `max_completion_tokens` (NOT `max_tokens`) and rejects a
-  custom `temperature`. Any AI feature should degrade gracefully when `chatComplete` returns null.
-- Translation (US-009): cached per article+language in the `Translation` model
-  (`@@unique([articleId, targetLang])`, cascade-deletes with the article). `src/lib/translation.ts`
-  owns `SUPPORTED_LANGUAGES`/`isSupportedLanguage`/`languageLabel`, `htmlToPlainText` (strip tags ->
-  paragraph-separated plain text for model input), and `getOrCreateTranslation(articleId, lang)`
-  which returns cache hits first, else generates via `chatComplete` and upserts; when AI is
-  unconfigured OR the request fails it returns a placeholder with `fallback:true` and does NOT cache.
-  API: `POST /api/reader/[id]/translate` body `{lang}` (400 bad lang, 404 missing article, 401 unauth).
-  Client `src/components/ArticleTranslation.tsx` renders the language select + result under the
-  article; translated text is split on blank lines and rendered as React text nodes (no
-  `dangerouslySetInnerHTML` needed since it's plain text, not HTML).
-- Vocabulary (US-010): two models. `VocabularyItem` is the per-article AI-extracted cache
-  (`@@unique([articleId, word])`, cascade with article). `SavedWord` is the per-user study list
-  (`@@unique([userId, word])` => dedup; cascade with user; word/explanation/example/articleId).
-  `src/lib/vocabulary.ts` owns `getOrCreateArticleVocabulary(articleId, userId)` (cache hit ->
-  generate via `chatComplete` asking for a JSON array of {word,explanation,example}, parsed by the
-  fence-tolerant `parseVocabularyJson`, upserted; on AI-unconfigured OR empty parse returns
-  `fallback:true` and caches nothing), plus `saveWord`/`unsaveWord`/`getSavedWords`/`getSavedWordSet`
-  (saved-status matched case-insensitively). APIs: `POST /api/reader/[id]/vocabulary` (extract +
-  per-user saved flags, 404 missing article), `POST /api/vocabulary/save` & `.../unsave` (body
-  `{word,...}`, 400 missing word). Client `ArticleVocabulary.tsx` is a lazy panel (loads on first
-  open, optimistic save toggle); the study list page `/study` (gated, in middleware) renders saved
-  words with `StudyList.tsx` (remove = unsave). Reuse `htmlToPlainText` from translation for model
-  input. Dashboard links to `/study`.
-- Word lookup / dictionary (US-011): `src/lib/dictionary.ts` does NOT use AI — it queries the free
-  `api.dictionaryapi.dev` over `fetch` and degrades gracefully (returns `{found:false}`, never throws,
-  on 404/timeout/unreachable). `normalizeCandidates(raw)` returns an ordered list of base forms
-  (contractions via a map, possessive strip, plural/gerund/past/comparative/-ly rules); `lookupWord`
-  tries each candidate until one resolves, so inflections normalize to a base form automatically.
-  Result groups definitions by `partOfSpeech` and includes `phonetic`/`audio` when available. API:
-  `POST /api/dictionary` body `{word}` (400 missing word, 401 unauth). Client `WordLookup.tsx` wraps
-  the reader prose (replaces the raw `dangerouslySetInnerHTML` prose div) and shows a fixed-position
-  popover on `mouseup`: uses the text selection if present, else resolves the word under the cursor via
-  `caretRangeFromPoint`/`caretPositionFromPoint`; closes on outside-click/Escape.
-- Comprehension quiz (US-012): per-article AI-cache `QuizQuestion` model (`@@unique([articleId,
-  question])`, `options` is a JSON-stringified `string[]`, `correctIndex` Int, cascade with article).
-  `src/lib/quiz.ts` owns `getOrCreateArticleQuiz(articleId)` (cache hit -> generate via `chatComplete`
-  asking for a JSON array of {question,options[],correctIndex}, parsed by fence-tolerant
-  `parseQuizJson` which validates >=2 options and an in-range correctIndex; upserted by
-  `articleId_question`; on AI-unconfigured OR empty parse returns `fallback:true` and caches nothing).
-  Quiz has NO per-user state, so the helper takes only `articleId`. API: `POST /api/reader/[id]/quiz`
-  (404 missing article, 401 unauth). Client `ArticleQuiz.tsx` is a lazy panel (loads on first open):
-  radio options per question, "Check answers" disabled until all answered, then shows per-question
-  Correct/Incorrect feedback, highlights the right option, a total score, and "Try again" reset.
-  `correctIndex` is sent to the client so grading is done client-side.
-- Text-to-speech / narration (US-013): per-article AI/Speech cache `ArticleSpeech` model
-  (`articleId @unique`, cascade with article) stores `audioBase64` (mp3), `mimeType`, `spokenText`,
-  and `words` (JSON-stringified `[{textOffset,length,start,end}]`, start/end in SECONDS). Unlike the
-  OpenAI features, narration uses the Azure **Speech SDK** (`microsoft-cognitiveservices-speech-sdk`,
-  added as a dep) server-side — `src/lib/speech.ts` `getOrCreateArticleSpeech(articleId)` synthesizes
-  via `SpeechSynthesizer(cfg, null)` (null audioConfig => audio returned in `result.audioData`, no
-  speaker) and collects `synthesizer.wordBoundary` events (`boundaryType === Word`), converting
-  audioOffset/duration TICKS (100ns) to seconds via `/1e7`. Config via `AZURE_SPEECH_KEY/REGION/VOICE/
-  OUTPUT_FORMAT`; `isSpeechConfigured()` checks KEY+REGION. Caches audio+timings on success; on
-  unconfigured/empty-text/synthesis-failure returns `fallback:true` and caches NOTHING. Reuses
-  `htmlToPlainText` from translation for the spoken text (note: it does NOT strip ads like
-  sanitizeArticleHtml — consistent with translation/vocab/quiz which also feed raw content). The
-  route MUST set `export const runtime = "nodejs"` (SDK needs Node). API: `POST /api/reader/[id]/speech`
-  (404 missing article, 401 unauth). Client `ArticleSpeech.tsx` is a lazy panel: native
-  `<audio controls>` (gives play/pause + seek), `buildSegments(spokenText, words)` splits text into
-  plain gaps + timed word spans by `textOffset/length`, `onTimeUpdate` binary-searches the last word
-  with `start <= currentTime` to set the active highlight, and auto-scrolls the active word into view
-  ONLY when its rect leaves the comfortable 20%–75% viewport band. Clicking a word seeks audio to it.
-- Difficulty / level assessment (US-014): Article already has `difficulty` (CEFR string A1–C2) +
-  `difficultyScore` (Float, 0–100 where higher=harder) columns — no migration needed. `src/lib/difficulty.ts`
-  reuses `ENGLISH_LEVELS` from `@/lib/profile` for the CEFR scale (`levelRank` gives ordinal A1=0…C2=5;
-  CEFR strings also sort correctly lexicographically). `assessDifficulty(title, content)` prefers AI
-  (`chatComplete`, ask for a single CEFR token, parse via `parseLevel`'s `/\b([ABC][12])\b/` regex,
-  `maxOutputTokens:16`) and falls back to a deterministic `heuristicDifficulty` (Flesch Reading Ease via
-  `fleschReadingEase` → CEFR band). `getOrCreateArticleDifficulty(articleId)` returns the stored value or
-  assesses (AI-capable, per-article) + persists; `ensureArticleDifficulties(articles[])` is the cheap
-  HEURISTIC-only batch for listings (mutates objects in place + persists missing ones, no AI) — the reader
-  page does the heavier AI assessment for a single article. Both cache (heuristic is a valid assessment,
-  not a placeholder, so it IS cached — unlike vocab/quiz fallbacks). Reader page calls
-  `getOrCreateArticleDifficulty` and shows "Level X"; `ArticleCard` shows it too. Recommendations:
-  `filterAndSortByLevel(articles, maxLevel?)` in `src/lib/articles.ts` filters to articles at/below a CEFR
-  level and sorts easiest-first (unassessed sort last, never dropped). Dashboard has a `?level=` GET filter
-  (`<select>` "All levels" + A1–C2 "and below").
-- Tag system (US-015): many-to-many via an explicit join table. `Tag` (name + slug both `@unique`)
-  and `ArticleTag` (`@@id([articleId, tagId])`, indexes on both fks, cascade both ways) with
-  `tags ArticleTag[]` on Article. `src/lib/tags.ts`: `slugifyTag` (NFKD strip accents/punct ->
-  lowercased hyphen slug), `parseTagsJson` (fence-tolerant JSON-array-of-strings, dedup by slug),
-  `getOrCreateArticleTags(articleId)` (AI auto-extraction like vocab/quiz: cache-first; on miss asks
-  `chatComplete` for up to 5 Title-Case topic tags, upserts Tag by slug + links via ArticleTag;
-  AI-unconfigured/empty => `fallback:true`, caches NOTHING). Read-only helpers: `getArticleTags`,
-  `getTagBySlug`, `listArticlesByTag(slug)` (published only, newest first), `listTagsWithCounts`
-  (counts published articles, drops empties). Reader page calls `getOrCreateArticleTags` and renders
-  `.tag-chip` links to `/tags/[slug]`. Tag listing `/tags/[slug]` (gated; in middleware PROTECTED_PREFIXES
-  + matcher) reuses `ArticleCard` + `getProgressMap` + `ensureArticleDifficulties` + `ListingProgressSync`;
-  `notFound()` for unknown slugs. API `POST /api/reader/[id]/tags` (401 unauth, 404 missing article).
-- Category browsing (US-017): Article has a `category String?` column (+ `@@index([category])`) holding a
-  slug from `src/lib/categories.ts` (`CATEGORIES`/`isValidCategorySlug`). Browse homepage `/browse` (gated;
-  in middleware PROTECTED_PREFIXES + matcher) renders a category tab bar (All + each category + personalized
-  Picks); the active view is reflected in the URL (`?category=<slug>` or `?view=picks`). Listing helpers in
-  `src/lib/articles.ts`: `listCategoryPage(category|null, {offset,limit})` and `listPicksPage(maxLevel,
-  {offset,limit})` both return `{articles, hasMore}` (offset pagination, `take: limit+1` to compute hasMore);
-  Picks reuses `filterAndSortByLevel` + `ensureArticleDifficulties` against the user's profile englishLevel.
-  `toListingArticle(article)` produces the plain serializable `ListingArticle` (id/title/author/source/
-  category/difficulty/readingMinutes) sent to the client. Incremental "Load more" hits `GET /api/articles`
-  (`view`/`category`/`offset`/`limit` -> `{articles, progress, hasMore, offset}`, session-gated 401).
-  IMPORTANT card refactor: `ArticleCard` (server) now just maps Article -> ListingArticle and delegates to
-  the presentational `ArticleCardView` (reusable by client listings); keep the `js-progress-*` hooks +
-  `data-article-id` in `ArticleCardView`. The client `CategoryBrowser` holds the feed state — the page MUST
-  pass `key={activeView}` so it REMOUNTS on tab change (else useState retains the previous view's cards).
-- Admin area (US-019): everything under `/admin` shares `src/app/admin/layout.tsx`, which gates the WHOLE
-  area via `requireAdmin("/admin")` (redirects Readers to `/forbidden`, unauthed to `/signin`) and renders the
-  shared `AdminNav` (client comp using `usePathname` for active-link highlight: Dashboard, Articles, Tags,
-  Members, Analytics). Sub-pages still call `requireAdmin(...)` themselves (defense-in-depth + they need the
-  session). Section pages live at `/admin/{articles,tags,members,analytics}` (placeholders until US-020–023).
-  Admin metrics are centralized in `src/lib/admin.ts` `getAdminOverview()` (users/admins/articles/published/
-  tags/readingProgress counts + `article.groupBy({by:["status"]})` for processing status); both the `/admin`
-  dashboard and `GET /api/admin/stats` consume it. The `/admin` prefix is already in middleware (covers all
-  sub-routes). Styling helpers in globals.css: `.admin-nav`/`.admin-nav-link`/`.admin-stat-grid`/`.admin-stat`.
-- Admin article management (US-020): `src/lib/admin-articles.ts` owns `searchArticles({query,status,page})`
-  (LIKE-`contains` on title/author/source — SQLite LIKE is case-insensitive for ASCII; offset paginated, default
-  `ADMIN_ARTICLES_PAGE_SIZE=20`), `getAdminArticleDetail(id)` (article + counts of derived translations/vocab/quiz/
-  tags/speech + readingProgress), `deleteArticle(id)` (relies on schema cascades — deleting an Article removes
-  Translation/VocabularyItem/QuizQuestion/ArticleSpeech/ArticleTag/ReadingProgress; SavedWord.articleId is a plain
-  string, NOT an FK, so saved words survive), and `rebuildArticleAi(id)` which "rebuilds" by CLEARING the cached AI
-  rows (translations/vocab/quiz/tags/speech) in a `$transaction` so they regenerate LAZILY on the next reader visit
-  via the `getOrCreate*` helpers (reader progress is preserved). This degrades gracefully when AI is unconfigured.
-  APIs (all `requireAdminApi`): `GET /api/admin/articles` (q/status/page), `DELETE /api/admin/articles/[id]` (404
-  if missing), `POST /api/admin/articles/[id]/rebuild` (404 if missing). Pages: list `/admin/articles` (server; GET
-  search form via searchParams + status `<select>` built from `findMany({distinct:["status"]})` + paginated table),
-  detail `/admin/articles/[id]` (content preview via `sanitizeArticleHtml`, derived-content counts, `notFound()` for
-  bad ids). Destructive actions use the client `src/components/AdminArticleActions.tsx` — an INLINE confirmation
-  panel (`.admin-confirm`, not `window.confirm` — easier to Playwright-test) then `fetch` + `router.refresh()` (or
-  `router.push` on delete). Styling: `.admin-search`/`.admin-input`/`.admin-table`/`.btn-danger`/`.admin-confirm`/
-  `.admin-pagination`/`.admin-article-preview` in globals.css.
-- Admin member management (US-021): `src/lib/admin-members.ts` owns `listMembers({query,role,page})` (LIKE-`contains`
-  on name/email + optional role filter; offset paginated, default `ADMIN_MEMBERS_PAGE_SIZE=20`; activity counts via
-  `_count`+a `readingProgress.groupBy({completed:true})` batch), `updateMemberRole(id,role)` and `deleteMember(id)` —
-  both return a structured `{ok}` / `{ok:false,error,status}` and GUARD against demoting/removing the LAST remaining
-  admin (count Admins; reject with 409). Deleting a User cascades accounts/sessions/profile/readingProgress/savedWords
-  (all `onDelete: Cascade`). API `PATCH|DELETE /api/admin/members/[id]` (`requireAdminApi`; 400 bad role, 404 missing,
-  409 guard) ALSO refuses self-demotion/self-deletion via `auth.session.user.id` so an admin can't lock themselves out.
-  Page `/admin/members` (server; reuses `.admin-search`/`.admin-table`/pagination) renders avatar+name+email, role pill,
-  joined date and activity; the client `src/components/AdminMemberActions.tsx` is a role `<select>` (PATCH on change) +
-  Remove button with inline `.admin-confirm` (controls disabled for the acting admin's own row, flagged with a "You"
-  pill). Avatars use `next/image` with `unoptimized` (remote provider images, no remotePatterns config needed). New CSS:
-  `.admin-member-cell`/`.admin-member-avatar`/`.admin-member-name`.
-- Admin tag management (US-022): `src/lib/admin-tags.ts` owns `listAdminTags({query,page})` (LIKE-`contains` on
-  name/slug; paginated, default `ADMIN_TAGS_PAGE_SIZE=20`; ordered by usage desc via
-  `orderBy:{articles:{_count:"desc"}}`; per-tag `articleCount` (all statuses) via `_count` + a `published`
-  subset from one `articleTag.groupBy({by:["tagId"], where:{article:{status:"published"}}})` batch) and
-  `deleteTag(id)` (structured `{ok}`/`{ok:false,error,status}`, 404 missing). Deleting a `Tag` cascades its
-  `ArticleTag` rows (articles lose the tag, content untouched). API `DELETE /api/admin/tags/[id]`
-  (`requireAdminApi`; 401 unauth, 404 missing). Page `/admin/tags` (server; reuses `.admin-search`/
-  `.admin-table`/pagination) lists name, slug (links to `/tags/[slug]`), usage and a delete action; the
-  client `src/components/AdminTagActions.tsx` is the inline-`.admin-confirm` delete pattern (mirrors
-  AdminMemberActions/AdminArticleActions).
-- Article scraper CLI (US-024): `npm run scrape -- ...` runs `scripts/scrape.ts` via Node's
-  type-stripping (`node --import ./scripts/register-ts.mjs`). Node strip-types needs explicit `.ts`
-  extensions + can't resolve the `@/` alias, so `scripts/ts-resolve-hook.mjs` is an ESM resolve hook
-  that maps `@/*`→`src/*` and adds `.ts`/`index.ts`; `scripts/package.json` `{"type":"module"}` scopes
-  ESM to the dir (silences the TYPELESS warning) — use this same harness for any future TS CLI. Scraper
-  lib is `src/lib/scraper/`: `providers.ts` (registry of NBC/NatGeo/Time/HuffPost keyed by hostname +
-  `articleUrlPattern` for discovery + `categoryFor` mapping to `categories.ts` slugs), `extract.ts`
-  (provider-agnostic: schema.org JSON-LD `NewsArticle` first, then OpenGraph/`<title>`/`<p>` fallback;
-  body cleaned via `sanitizeArticleHtml`; rejects <50-word bodies), `index.ts` (`scrapeUrl`,
-  `discoverProviderUrls`, `saveDraftArticle`). Saves `status:"draft"`, de-duped by `sourceUrl`
-  (`findFirst`). GOTCHA: category regexes must NOT trail with `\b` (e.g. `\bsport\b` misses "sports") —
-  anchor the stem at the start only. Provider article-URL patterns drift (Time moved to
-  `/article/YYYY/MM/DD/slug/`); fix `articleUrlPattern` when discovery finds 0 links. CLI flags:
-  `--provider <key> [--limit N]`, `--all`, `<url>...`, `--file <path> --url <u>` (offline), `--dry-run`,
-  `--list-providers`.
-- Article processing pipeline (US-025): `npm run process -- ...` runs `scripts/process.ts` (same
-  TS-CLI harness as the scraper). `src/lib/processor.ts` orchestrates AI enrichment by calling the
-  existing cache-first `getOrCreate*` helpers (difficulty → tags → vocabulary → quiz → optional
-  translations → optional TTS) so the WHOLE pipeline is idempotent for free (re-running = cheap reads,
-  steps reported `skipped`). `processArticle(id, {tts?, translateLangs?})` loads a `before` state via
-  one `findUnique` with `_count` (tags/vocabulary/quizQuestions) + `translations`/`speech` selects to
-  label each step `generated`/`skipped`/`fallback`/`failed`, then PUBLISHES drafts
-  (`status:"draft"→"published"` + `publishedAt`) only when no step failed. GOTCHA:
-  `getOrCreateArticleVocabulary` needs a userId (only for per-user saved flags) — pass the throwaway
-  `PROCESSOR_USER_ID` constant; the AI extraction it caches is user-agnostic. `listUnprocessedArticleIds
-  ({includePublished?, limit?})` selects work (default: drafts only; `includePublished` also matches
-  published articles missing difficulty/tags/vocab/quiz via relation `none:{}` filters). Degrades
-  gracefully when AI/Speech unconfigured (difficulty still works via heuristic; AI steps → `fallback`,
-  drafts still publish). Reuse `processArticle`/`listUnprocessedArticleIds` for the US-026 worker +
-  US-027 seeder. CLI flags: `<id>...`, `--all`, `--include-published`, `--limit N`, `--tts`,
-  `--translate <es,fr,...>` (validated against `isSupportedLanguage`).
-- Background processing worker (US-026): `npm run worker -- ...` runs `scripts/worker.ts` (same TS-CLI
-  harness). `src/lib/worker.ts` `runWorker(opts)` is a long-running loop that polls
-  `listUnprocessedArticleIds({limit:batchSize})` and runs each through the idempotent `processArticle`
-  with bounded retries + exponential backoff (`backoffDelay(attempt, base, max)` with jitter). A failure
-  is a THROWN error OR a `result.ok===false` (a step failed); after `maxRetries` it gives up and counts
-  it failed (it does NOT block the queue). Because the queue (DB) is the source of truth and the
-  processor is cache-first, the worker RESUMES pending work automatically on restart — no checkpoint
-  state needed. Safe stop: pass an `AbortSignal`; the CLI wires SIGINT/SIGTERM → `controller.abort()`
-  (2nd signal force-exits 130). The interruptible `sleep(ms, signal)` rejects with an `AbortError` on
-  abort so idle/backoff waits stop PROMPTLY (don't block until the timer fires); the loop swallows
-  AbortError and resolves with `WorkerStats`. `--once` drains the queue then exits (good for cron/tests).
-  All deps (`listUnprocessedArticleIds`/`processArticle`/`sleep`) are injectable via `opts.deps` for unit
-  testing without a DB. Reuses the `createConsoleLogger()` (timestamped, level-prefixed, JSON meta) — a
-  lightweight stand-in until US-029 structured logging. CLI flags: `--once`, `--interval <ms>`,
-  `--batch <n>`, `--max-retries <n>`, `--backoff <ms>`, `--include-published`, `--tts`,
-  `--translate <codes>`.
-- Seeding tool (US-027): `npm run seed -- ...` runs `scripts/seed.ts` (same TS-CLI harness).
-  `src/lib/seed.ts` `runSeed(opts)` ties the pipeline together end-to-end: `discoverProviderUrls` →
-  `scrapeAndSave` (saves drafts, de-duped by `sourceUrl`) → `processArticle` with `tts:true` (FULL AI
-  enrichment + TTS by default). Idempotent for free: scrape dedups by sourceUrl and the processor is
-  cache-first, so re-running creates NO duplicate articles and regenerates nothing (re-run shows
-  `saved=0 duplicates=N`). GOTCHA: `scrapeAndSave` returns the new id only on `status:"saved"`; on a
-  `skipped` duplicate the seeder re-resolves the existing id via `resolveArticleId(sourceUrl)` so the
-  enrichment step still runs against pre-existing rows. Deps (`discover`/`scrapeAndSave`/
-  `resolveArticleId`/`process`) are injectable via `opts.deps` for DB/network-free unit tests (worker
-  pattern). Default provider is `PROVIDERS[0]` (NBC); CLI flags: `--provider <key[,key]>` / bare
-  `<key>...` / `--all`, `--limit N` (per provider, default 3), `--no-tts` (TTS is ON by default —
-  inverse of process/worker), `--translate <codes>`.
-- Caching with tag-based invalidation (US-030): `src/lib/cache.ts` is the single caching module.
-  `createCachedListing(fn, keyParts, tags, revalidate?)` wraps a query in Next's `unstable_cache`
-  (function ARGS auto-join the cache key, so paginated/per-level calls cache independently). Two tags:
-  `ARTICLES_CACHE_TAG` ("articles") for published-article feeds, `TAGS_CACHE_TAG` ("tags") for
-  tag-derived feeds. Cached helpers: `listPublishedArticles`/`listCategoryPage`/`listPicksPage` (articles
-  tag) in `src/lib/articles.ts`; `listArticlesByTag`/`listRelatedArticles`/`listTagsWithCounts` (both
-  tags) in `src/lib/tags.ts`. PATTERN: keep the public exported fn as a thin wrapper that normalizes
-  args then delegates to a module-level `createCachedListing(...impl)` const (the impl takes ONLY
-  positional serializable args — flatten `{offset,limit}` to positionals so they're in the key).
-  Invalidate from Route Handlers via `revalidateArticlesCache()` / `revalidateTagsCache()` (the latter
-  busts BOTH tags). Wired into `DELETE /api/admin/articles/[id]`, `POST /api/admin/articles/[id]/rebuild`,
-  `DELETE /api/admin/tags/[id]`, and the processor's publish step. GOTCHAS: (1) `unstable_cache`
-  serializes results — Date fields come back as ISO STRINGS on a cache hit, so NEVER call `.getTime()`
-  on a returned article's date OUTSIDE the cached fn (do all date sorting inside it, like
-  `listRelatedArticles`; current consumers only use id/title/category/difficulty/readingMinutes via
-  `toListingArticle`, which is date-free). (2) `revalidateTag` throws outside a request scope; the
-  CLI worker/processor publish path is guarded (try/catch) and relies on the `LISTING_REVALIDATE_SECONDS`
-  (300s) soft window instead. (3) The cached fns only read prisma — never read `cookies()`/`headers()`
-  inside an `unstable_cache` callback.
-- Automated tests (US-032): `npm test` runs Node's built-in test runner over `tests/**/*.test.ts`
-  via the same TS harness as the CLIs, with experimental module mocking:
-  `node --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test`.
-  NO test framework dependency (no jest/vitest) and NO real DB/network — everything is stubbed.
-  Patterns: (1) Each test FILE runs in its own process, so `mock.module(...)` set in a top-level
-  `before()` is isolated per file (no cross-file leakage); make mock exports read module-level
-  mutable `let`s and reset them in `beforeEach`, then `await import(...)` the unit under test INSIDE
-  each test (after mocks are registered). (2) Mock `@/lib/prisma` (export `prisma`) + `@/lib/ai`
-  (export `isAiConfigured`/`chatComplete`/`aiModelName` — `aiModelName` is required whenever the
-  import chain pulls `@/lib/translation`) to test the cache-first AI helpers; toggle env via
-  `enableAi()`/`disableAi()` in `tests/helpers.ts` for `@/lib/ai` itself. (3) Mock `@/lib/cache`'s
-  `createCachedListing` to an identity passthrough so `unstable_cache`/Next runtime isn't needed.
-  (4) Route tests import the route module (e.g. `@/app/api/reader/[id]/translate/route`), mock
-  `@/lib/api-auth` (`requireSessionApi`/`requireAdminApi`) for auth + the route's lib, and call
-  `POST(new Request(...), { params: Promise.resolve({ id }) })`; set `process.env.LOG_LEVEL="error"`
-  at the top of the file to silence request logs. (5) `next/server` has no package `exports` map, so
-  `ts-resolve-hook.mjs` now retries failed bare-specifier resolutions with `.js`/`.mjs`/`.cjs`. (6)
-  tsc includes `tests/**` — import the test helper as `"./helpers"` (NOT `"./helpers.ts"`; the hook
-  adds the extension) and annotate injected-dep return types (e.g. `Promise<ArticleProcessResult>`)
-  so object literals satisfy the real union types.
+## When editing
 
-## Browser verification
-- Playwright is installed. Run scripts from the project root (so `@playwright/test`
-  resolves). Chromium binary is at
-  `~/.cache/ms-playwright/chromium-1228/chrome-linux64/chrome` ($HOME=/home/azadmin; the
-  /home/agent/...chromium-1208 path is stale). Launch with `--no-sandbox`.
-- Verify role/session-gated pages without real OAuth: insert a `User` + `Session`
-  (sessionToken) row, add cookie `next-auth.session-token=<token>` to the browser context
-  (or curl `-H "Cookie: ..."`).
+1. Read the relevant implementation first.
+2. Make the smallest behavior-preserving change that solves the task.
+3. Update tests when behavior changes.
+4. Update user/operator documentation when scripts, env vars, schema, runtime
+   behavior, or operational workflows change.
+5. Validate with the narrowest useful check, then broaden if the change warrants
+   it.
+6. Review the diff for accidental rewrites or unrelated formatting.
+
+## Schema changes
+
+- Keep SQLite and PostgreSQL schema intent aligned when a model change affects
+  production parity.
+- Commit migrations with schema changes.
+- Think through cascades, private/org visibility, audit retention, analytics
+  retention, and seed/test data.
+
+## Auth and tenancy
+
+- Prefer capability and tenant guards over raw role checks.
+- A global admin and an organization/classroom role are different concepts.
+- Student/user identifiers for protected mutations must come from the session,
+  not from request bodies.
+
+## AI and content pipeline
+
+- Preserve cache-first, idempotent processing behavior.
+- Do not cache failed or placeholder AI output unless the implementation
+  explicitly says that is intended.
+- Keep scraper/provider behavior source-governed and idempotent.
+- Record or preserve audit/security/processing state for privileged or
+  operator-visible mutations.
+
+## Tests
+
+- Prefer focused tests with mocked database, network, AI, and storage seams.
+- Route tests should call handlers with `Request` and promised `params` where
+  needed.
+- Keep noisy route tests at `LOG_LEVEL=error`.
+
+## Do not add here
+
+- Feature inventories.
+- API catalogs.
+- Environment variable tables.
+- Command lists copied from package scripts.
+- Explanations that can be recovered from source code.
