@@ -43,6 +43,26 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60,
     updateAge: 24 * 60 * 60,
   },
+  // Explicit, production-safe cookie posture (RW-028). The session cookie is
+  // HttpOnly (no JS access), SameSite=Lax (sent on top-level navigations but
+  // withheld from cross-site sub-requests — a baseline CSRF mitigation), and
+  // Secure + `__Secure-` prefixed in production. The names match the
+  // SESSION_COOKIES list in `middleware.ts`.
+  useSecureCookies: process.env.NODE_ENV === "production",
+  cookies: {
+    sessionToken: {
+      name:
+        process.env.NODE_ENV === "production"
+          ? "__Secure-next-auth.session-token"
+          : "next-auth.session-token",
+      options: {
+        httpOnly: true,
+        sameSite: "lax",
+        path: "/",
+        secure: process.env.NODE_ENV === "production",
+      },
+    },
+  },
   pages: {
     signIn: "/signin",
   },

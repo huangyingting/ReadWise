@@ -30,6 +30,8 @@ import {
   privateImportedArticleCreateFields,
 } from "@/lib/article-access";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
+import { clientIp } from "@/lib/client-ip";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;
@@ -149,10 +151,16 @@ async function handleUrlImport(
   try {
     await assertSafeUrl(rawUrl);
   } catch (err) {
-    throw new ApiError(
-      422,
-      `Invalid or unsafe URL: ${err instanceof Error ? err.message : String(err)}`,
-    );
+    const message = err instanceof Error ? err.message : String(err);
+    recordSecurityEvent({
+      type: SECURITY_EVENT_TYPES.importBlocked,
+      severity: "high",
+      route: "/api/articles/import",
+      actorId: userId,
+      ip: clientIp(req),
+      meta: { reason: "ssrf_blocked", error: message },
+    });
+    throw new ApiError(422, `Invalid or unsafe URL: ${message}`);
   }
 
   // De-dupe BEFORE scraping/creating so re-importing never consumes quota.
