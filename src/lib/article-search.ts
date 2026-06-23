@@ -1,7 +1,8 @@
 import { prisma } from "@/lib/prisma";
-import type { Article, Prisma } from "@prisma/client";
+import { Prisma, type Article } from "@prisma/client";
 import {
   articleAccessContext,
+  isArticleOperator,
   readableArticleWhere,
   type ArticleAccessContext,
 } from "@/lib/article-access";
@@ -46,6 +47,8 @@ type SearchCandidate = {
   sources: Set<SearchSource>;
 };
 
+type StringContainsFilter = { contains: string; mode?: "insensitive" };
+
 /**
  * Tokenizes a user query for portable Prisma `contains` searches. This avoids
  * SQLite FTS5 syntax entirely today while keeping the call site behind
@@ -66,6 +69,15 @@ export function buildSearchTerms(raw: string): string[] {
   );
 }
 
+function isPostgresDatabase(): boolean {
+  const url = process.env.DATABASE_URL ?? "";
+  return url.startsWith("postgresql://") || url.startsWith("postgres://");
+}
+
+function containsFilter(value: string): StringContainsFilter {
+  return isPostgresDatabase() ? { contains: value, mode: "insensitive" } : { contains: value };
+}
+
 function candidateTake(offset: number, limit: number): number {
   return Math.min(SEARCH_CANDIDATE_LIMIT, Math.max(limit + 1, offset + limit + 1 + 50));
 }
@@ -79,7 +91,7 @@ function articleFieldsWhere(
   terms: string[],
 ): Prisma.ArticleWhereInput {
   const perTerm = terms.map((term) => ({
-    OR: fields.map((field) => ({ [field]: { contains: term } })),
+    OR: fields.map((field) => ({ [field]: containsFilter(term) })),
   })) as Prisma.ArticleWhereInput[];
   return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
 }
@@ -92,19 +104,19 @@ function articleExactWhere(
   fields: readonly (typeof ARTICLE_SEARCH_FIELDS)[number][],
   query: string,
 ): Prisma.ArticleWhereInput {
-  return { OR: fields.map((field) => ({ [field]: { contains: query } })) };
+  return { OR: fields.map((field) => ({ [field]: containsFilter(query) })) };
 }
 
 function highlightTextWhere(terms: string[]): Prisma.HighlightWhereInput {
   const perTerm = terms.map((term) => ({
-    OR: HIGHLIGHT_SEARCH_FIELDS.map((field) => ({ [field]: { contains: term } })),
+    OR: HIGHLIGHT_SEARCH_FIELDS.map((field) => ({ [field]: containsFilter(term) })),
   })) as Prisma.HighlightWhereInput[];
   return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
 }
 
 function savedWordTextWhere(terms: string[]): Prisma.SavedWordWhereInput {
   const perTerm = terms.map((term) => ({
-    OR: SAVED_WORD_SEARCH_FIELDS.map((field) => ({ [field]: { contains: term } })),
+    OR: SAVED_WORD_SEARCH_FIELDS.map((field) => ({ [field]: containsFilter(term) })),
   })) as Prisma.SavedWordWhereInput[];
   return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
 }
@@ -207,6 +219,45 @@ function accessContext(context?: SearchContext | null): ArticleAccessContext | n
   });
 }
 
+function postgresReadableSql(access: ArticleAccessContext | null): Prisma.Sql {
+  if (isArticleOperator(access)) return Prisma.sql`TRUE`;
+  if (access?.userId) {
+    return Prisma.sql`((a.status = 'published' AND a."ownerId" IS NULL) OR a."ownerId" = ${access.userId})`;
+  }
+  return Prisma.sql`(a.status = 'published' AND a."ownerId" IS NULL)`;
+}
+
+async function postgresTextMatches(
+  query: string,
+  access: ArticleAccessContext | null,
+  take: number,
+): Promise<Article[]> {
+  if (!isPostgresDatabase()) return [];
+  try {
+    const visibility = postgresReadableSql(access);
+    return await prisma.$queryRaw<Article[]>`
+      WITH ranked AS (
+        SELECT
+          a.*,
+          ts_rank_cd(
+            to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.excerpt, '') || ' ' || coalesce(a.content, '')),
+            plainto_tsquery('english', ${query})
+          ) AS "_searchRank"
+        FROM "Article" a
+        WHERE ${visibility}
+          AND to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.excerpt, '') || ' ' || coalesce(a.content, ''))
+              @@ plainto_tsquery('english', ${query})
+      )
+      SELECT *
+      FROM ranked
+      ORDER BY "_searchRank" DESC, "publishedAt" DESC NULLS LAST, "createdAt" DESC
+      LIMIT ${take}
+    `;
+  } catch {
+    return [];
+  }
+}
+
 export class PrismaArticleSearchProvider implements ArticleSearchProvider {
   name = "prisma-like";
 
@@ -231,6 +282,7 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
       exactBylineMatches,
       bylineMatches,
       exactTextMatches,
+      postgresMatches,
       textMatches,
       annotations,
     ] = await Promise.all([
@@ -260,6 +312,7 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
         take: highPriorityTake,
       }),
+      postgresTextMatches(q, access, broadTake),
       prisma.article.findMany({
         where: readableTextWhere,
         orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -282,6 +335,9 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
       putCandidate(candidates, article, "article");
     }
     for (const article of exactTextMatches) {
+      putCandidate(candidates, article, "article");
+    }
+    for (const article of postgresMatches) {
       putCandidate(candidates, article, "article");
     }
     for (const article of textMatches) {

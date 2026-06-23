@@ -42,6 +42,14 @@ test("search index migration removes SQLite FTS5 and creates production query in
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "SavedWord_due_idx"/);
 });
 
+test("PostgreSQL search index migration creates the same production query indexes", () => {
+  const migration = read("prisma/postgresql/migrations/20260623004500_search_indexes/migration.sql");
+
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_visibility_feed_idx"/);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_level_feed_idx"/);
+  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Highlight_user_created_idx"/);
+});
+
 test("search strategy docs capture scaling assumptions and PostgreSQL follow-up", () => {
   const docs = read("docs/search-and-indexing.md");
   assert.match(docs, /ArticleSearchProvider/);
