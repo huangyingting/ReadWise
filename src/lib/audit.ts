@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/logger";
+import { clientIp } from "@/lib/client-ip";
 import type { Prisma } from "@prisma/client";
 
 export const AUDIT_ACTIONS = {
@@ -151,8 +152,12 @@ function firstHeader(req: Request, names: string[]): string | null {
 }
 
 export function auditRequestInfo(req: Request): Pick<AuditLogInput, "ipAddress" | "userAgent"> {
-  const forwardedFor = firstHeader(req, ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"]);
-  const ipAddress = normalizeOptionalString(forwardedFor?.split(",")[0], 128);
+  // Use the trusted-proxy aware resolver (RW-027) so audit records carry the
+  // same normalized client identity as rate limiting. Falls back to a raw
+  // header value only when the resolver cannot determine an IP.
+  const resolved = clientIp(req);
+  const fallback = firstHeader(req, ["x-forwarded-for", "x-real-ip", "cf-connecting-ip"])?.split(",")[0];
+  const ipAddress = normalizeOptionalString(resolved ?? fallback, 128);
   const userAgent = normalizeOptionalString(req.headers.get("user-agent"), MAX_USER_AGENT_LENGTH);
   return { ipAddress, userAgent };
 }
