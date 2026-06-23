@@ -33,7 +33,7 @@ const log = createLogger("storage");
 /** Storage backends selectable via `MEDIA_STORAGE`. */
 export type MediaStorageKind = "database" | "filesystem" | "s3" | "azure" | "r2";
 
-/** Cloud seams that are documented but not bundled with an SDK. */
+/** Cloud seams that require runtime SDK loading (not bundled). */
 const CLOUD_SEAMS: readonly MediaStorageKind[] = ["s3", "azure", "r2"];
 
 export type PutMediaInput = {
@@ -120,6 +120,170 @@ function sanitizeKeyHint(hint: string | undefined): string {
   return cleaned || "media";
 }
 
+// ---------------------------------------------------------------------------
+// Azure Blob Storage backend (#371)
+// ---------------------------------------------------------------------------
+
+export type AzureStorageConfig = {
+  /** Azure Storage account name (for account-key auth). */
+  accountName: string;
+  /** Azure Storage account key (for account-key auth). */
+  accountKey: string;
+  /** Blob container to store media assets in. */
+  container: string;
+};
+
+export type AzureStorageConnectionStringConfig = {
+  /** Full connection string (alternative to account-name+key). */
+  connectionString: string;
+  /** Blob container to store media assets in. */
+  container: string;
+};
+
+/**
+ * Reads Azure Blob Storage configuration from environment variables.
+ * Supports both connection-string and account-name+account-key auth.
+ * Returns null when credentials are absent so the caller can skip Azure.
+ */
+export function azureStorageConfig():
+  | AzureStorageConfig
+  | AzureStorageConnectionStringConfig
+  | null {
+  const container =
+    (process.env.AZURE_STORAGE_CONTAINER ?? "").trim() || "media";
+  const connStr = (process.env.AZURE_STORAGE_CONNECTION_STRING ?? "").trim();
+  if (connStr) {
+    return { connectionString: connStr, container };
+  }
+  const accountName = (process.env.AZURE_STORAGE_ACCOUNT ?? "").trim();
+  const accountKey = (process.env.AZURE_STORAGE_KEY ?? "").trim();
+  if (accountName && accountKey) {
+    return { accountName, accountKey, container };
+  }
+  return null;
+}
+
+/**
+ * Azure Blob Storage–backed {@link MediaStorage}.
+ *
+ * Uses a lazy `import("@azure/storage-blob")` to avoid bundling the SDK in
+ * the browser bundle or crashing at startup when the package is absent.
+ * All methods degrade safely: construction never throws for missing creds.
+ */
+class AzureBlobMediaStorage implements MediaStorage {
+  readonly kind = "azure" as const;
+  private readonly config:
+    | AzureStorageConfig
+    | AzureStorageConnectionStringConfig;
+
+  constructor(
+    config: AzureStorageConfig | AzureStorageConnectionStringConfig,
+  ) {
+    this.config = config;
+  }
+
+  /** Returns a `ContainerClient` or null if the SDK or config is unavailable. */
+  private async getContainer(): Promise<import("@azure/storage-blob").ContainerClient | null> {
+    try {
+      const { BlobServiceClient, StorageSharedKeyCredential } =
+        await import("@azure/storage-blob");
+      const cfg = this.config;
+      let serviceClient: import("@azure/storage-blob").BlobServiceClient;
+      if ("connectionString" in cfg) {
+        serviceClient = BlobServiceClient.fromConnectionString(
+          cfg.connectionString,
+        );
+      } else {
+        const credential = new StorageSharedKeyCredential(
+          cfg.accountName,
+          cfg.accountKey,
+        );
+        serviceClient = new BlobServiceClient(
+          `https://${cfg.accountName}.blob.core.windows.net`,
+          credential,
+        );
+      }
+      const container = serviceClient.getContainerClient(cfg.container);
+      // Ensure the container exists; createIfNotExists is idempotent.
+      await container.createIfNotExists();
+      return container;
+    } catch (err) {
+      log.warn("storage.azure_container_unavailable", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
+  async put(input: PutMediaInput): Promise<PutMediaResult> {
+    const checksum = sha256Hex(input.data);
+    const ext =
+      normalizeExtension(input.extension) ?? extensionForMime(input.mimeType);
+    const prefix = sanitizeKeyHint(input.keyHint);
+    const storageKey = `${prefix}/${checksum}${ext}`;
+
+    const container = await this.getContainer();
+    if (!container) {
+      throw new Error("Azure Blob Storage container unavailable");
+    }
+
+    const blobClient = container.getBlockBlobClient(storageKey);
+    await blobClient.uploadData(input.data, {
+      blobHTTPHeaders: { blobContentType: input.mimeType },
+    });
+    log.info("storage.azure_put", {
+      storageKey,
+      sizeBytes: input.data.byteLength,
+    });
+    return {
+      storageKey,
+      sizeBytes: input.data.byteLength,
+      checksum,
+    };
+  }
+
+  async get(storageKey: string): Promise<Buffer | null> {
+    const container = await this.getContainer();
+    if (!container) return null;
+    try {
+      const blobClient = container.getBlockBlobClient(storageKey);
+      const response = await blobClient.download();
+      if (!response.readableStreamBody) return null;
+      const chunks: Buffer[] = [];
+      for await (const chunk of response.readableStreamBody as AsyncIterable<Buffer>) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+      }
+      return Buffer.concat(chunks);
+    } catch (err: unknown) {
+      // 404 → blob doesn't exist; return null (graceful missing).
+      const status =
+        err instanceof Object && "statusCode" in err
+          ? (err as { statusCode?: number }).statusCode
+          : undefined;
+      if (status === 404) return null;
+      log.warn("storage.azure_get_failed", {
+        storageKey,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      return null;
+    }
+  }
+
+  async delete(storageKey: string): Promise<void> {
+    const container = await this.getContainer();
+    if (!container) return;
+    try {
+      const blobClient = container.getBlockBlobClient(storageKey);
+      await blobClient.deleteIfExists();
+    } catch (err) {
+      log.warn("storage.azure_delete_failed", {
+        storageKey,
+        error: err instanceof Error ? err.message : String(err),
+      });
+    }
+  }
+}
+
 /** Filesystem-backed {@link MediaStorage}. Content-addressed, traversal-safe. */
 class FilesystemMediaStorage implements MediaStorage {
   readonly kind = "filesystem" as const;
@@ -179,6 +343,17 @@ export function getMediaStorage(): MediaStorage | null {
       return null;
     case "filesystem":
       return new FilesystemMediaStorage(mediaStorageDir());
+    case "azure": {
+      const cfg = azureStorageConfig();
+      if (cfg) {
+        return new AzureBlobMediaStorage(cfg);
+      }
+      log.warn("storage.cloud_seam_unconfigured", {
+        kind,
+        hint: "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — falling back to DB base64",
+      });
+      return null;
+    }
     default:
       if (CLOUD_SEAMS.includes(kind)) {
         log.warn("storage.cloud_seam_unconfigured", {

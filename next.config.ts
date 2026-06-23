@@ -62,6 +62,8 @@ const nextConfig: NextConfig = {
     "@opentelemetry/exporter-trace-otlp-http",
     "@opentelemetry/resources",
     "@opentelemetry/sdk-trace-base",
+    // Azure Blob Storage SDK — server-only; never bundle into the browser.
+    "@azure/storage-blob",
   ],
   // Restrict the Next.js image optimizer to known hosts only.
   // All current <Image> usages pass `unoptimized` (OAuth avatars, dashboard),

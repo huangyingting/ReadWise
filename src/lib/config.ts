@@ -63,6 +63,7 @@ export type RuntimeConfigReport = {
     push: ConfigCheckReport;
     googleOAuth: ConfigCheckReport;
     azureAdOAuth: ConfigCheckReport;
+    storage: ConfigCheckReport;
   };
   tuning: ConfigCheckReport;
   errors: ConfigIssue[];
@@ -344,11 +345,81 @@ function validateRuntimeSections() {
 
   const googleOAuth = evaluateOptional(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
   const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
+
+  /**
+   * Media object storage (MEDIA_STORAGE=filesystem|azure; default: database/none).
+   * When MEDIA_STORAGE=azure, the report is "degraded" if creds are missing
+   * (base64 fallback still works — never crash). No secrets are emitted here.
+   */
+  const storageModeRaw = (process.env.MEDIA_STORAGE ?? "").trim().toLowerCase();
+  let storage: ConfigCheckReport;
+  if (!storageModeRaw || storageModeRaw === "database" || storageModeRaw === "db" || storageModeRaw === "none") {
+    storage = {
+      status: "unconfigured",
+      configured: false,
+      required: false,
+      env: ["MEDIA_STORAGE"],
+      missing: [],
+      issues: [],
+    };
+  } else if (storageModeRaw === "filesystem" || storageModeRaw === "local" || storageModeRaw === "fs") {
+    storage = {
+      status: "configured",
+      configured: true,
+      required: false,
+      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
+      missing: [],
+      issues: [],
+    };
+  } else if (storageModeRaw === "azure") {
+    const connStr = (process.env.AZURE_STORAGE_CONNECTION_STRING ?? "").trim();
+    const acct = (process.env.AZURE_STORAGE_ACCOUNT ?? "").trim();
+    const key = (process.env.AZURE_STORAGE_KEY ?? "").trim();
+    const hasCreds = Boolean(connStr || (acct && key));
+    if (hasCreds) {
+      storage = {
+        status: "configured",
+        configured: true,
+        required: false,
+        env: ["MEDIA_STORAGE", "AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "AZURE_STORAGE_CONTAINER"],
+        missing: [],
+        issues: [],
+      };
+    } else {
+      storage = {
+        status: "degraded",
+        configured: false,
+        required: false,
+        env: ["MEDIA_STORAGE", "AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "AZURE_STORAGE_CONTAINER"],
+        missing: connStr ? [] : ["AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY"],
+        issues: [
+          issue(
+            "warning",
+            "azure_storage_creds_missing",
+            "MEDIA_STORAGE=azure but credentials are missing; falling back to DB base64 (app still works).",
+            ["AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"],
+          ),
+        ],
+      };
+    }
+  } else {
+    storage = {
+      status: "degraded",
+      configured: false,
+      required: false,
+      env: ["MEDIA_STORAGE"],
+      missing: [],
+      issues: [
+        issue("warning", "unknown_storage_kind", `MEDIA_STORAGE="${storageModeRaw}" is not a known backend; falling back to database.`, ["MEDIA_STORAGE"]),
+      ],
+    };
+  }
+
   const tuning = evaluateTuning();
 
   return {
     required: { database, auth },
-    optional: { ai, speech, push, googleOAuth, azureAdOAuth },
+    optional: { ai, speech, push, googleOAuth, azureAdOAuth, storage },
     tuning,
   };
 }
