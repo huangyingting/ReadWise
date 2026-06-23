@@ -11,10 +11,10 @@
  * are exposed as small accessor functions that read the current env on each
  * call and apply the existing defaults.
  *
- * IMPORTANT: env names, defaults and trimming MUST stay identical to the
- * historical inline reads — this module is a pure centralization, not a
- * behavior change. Never import this from a Client Component or the service
- * worker (it reads process.env at runtime).
+ * IMPORTANT: never import this from a Client Component or the service worker
+ * (it reads process.env at runtime). Keep optional providers graceful: invalid
+ * or incomplete optional config should disable/degrade that feature, not crash
+ * the app.
  */
 
 /** A configured-or-null view over a multi-variable feature's environment. */
@@ -25,11 +25,331 @@ export type FeatureConfig<T> = {
   isConfigured(): boolean;
 };
 
+export type ConfigIssue = {
+  severity: "error" | "warning";
+  code: string;
+  message: string;
+  env: string[];
+};
+
+export type ConfigCheckStatus =
+  | "ok"
+  | "missing"
+  | "malformed"
+  | "configured"
+  | "unconfigured"
+  | "degraded";
+
+export type ConfigCheckReport = {
+  status: ConfigCheckStatus;
+  configured: boolean;
+  required: boolean;
+  env: string[];
+  missing: string[];
+  issues: ConfigIssue[];
+};
+
+export type RuntimeConfigReport = {
+  ready: boolean;
+  status: "ready" | "unavailable";
+  checkedAt: string;
+  required: {
+    database: ConfigCheckReport;
+    auth: ConfigCheckReport;
+  };
+  optional: {
+    ai: ConfigCheckReport;
+    speech: ConfigCheckReport;
+    push: ConfigCheckReport;
+    googleOAuth: ConfigCheckReport;
+    azureAdOAuth: ConfigCheckReport;
+  };
+  tuning: ConfigCheckReport;
+  errors: ConfigIssue[];
+  warnings: ConfigIssue[];
+};
+
 /** Wraps a `read` function into a {@link FeatureConfig}. */
 function defineFeatureConfig<T>(read: () => T | null): FeatureConfig<T> {
   return {
     get: read,
     isConfigured: () => read() !== null,
+  };
+}
+
+function envValue(name: string): string | null {
+  const value = process.env[name]?.trim();
+  return value ? value : null;
+}
+
+function issue(
+  severity: ConfigIssue["severity"],
+  code: string,
+  message: string,
+  env: string[],
+): ConfigIssue {
+  return { severity, code, message, env };
+}
+
+function httpUrlIssue(
+  name: string,
+  value: string,
+  severity: ConfigIssue["severity"] = "error",
+): ConfigIssue | null {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "http:" && url.protocol !== "https:") {
+      return issue(severity, "invalid_url_protocol", `${name} must use http or https.`, [name]);
+    }
+    return null;
+  } catch {
+    return issue(severity, "invalid_url", `${name} must be a valid URL.`, [name]);
+  }
+}
+
+function evaluateRequired(
+  env: string[],
+  validators: Array<(values: Record<string, string>) => ConfigIssue | null>,
+): ConfigCheckReport {
+  const values = Object.fromEntries(env.map((name) => [name, envValue(name)]));
+  const missing = env.filter((name) => !values[name]);
+  const issues = missing.length
+    ? [
+        issue(
+          "error",
+          "missing_required_env",
+          `Missing required environment variable${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
+          missing,
+        ),
+      ]
+    : validators.flatMap((validate) => {
+        const result = validate(values as Record<string, string>);
+        return result ? [result] : [];
+      });
+  const hasErrors = issues.some((item) => item.severity === "error");
+  return {
+    status: missing.length ? "missing" : hasErrors ? "malformed" : "ok",
+    configured: missing.length === 0 && !hasErrors,
+    required: true,
+    env,
+    missing,
+    issues,
+  };
+}
+
+function evaluateOptional(
+  env: string[],
+  validators: Array<(values: Record<string, string>) => ConfigIssue | null> = [],
+): ConfigCheckReport {
+  const values = Object.fromEntries(env.map((name) => [name, envValue(name)]));
+  const present = env.filter((name) => values[name]);
+  const missing = env.filter((name) => !values[name]);
+
+  if (present.length === 0) {
+    return {
+      status: "unconfigured",
+      configured: false,
+      required: false,
+      env,
+      missing: [],
+      issues: [],
+    };
+  }
+
+  const issues: ConfigIssue[] = [];
+  if (missing.length > 0) {
+    issues.push(
+      issue(
+        "warning",
+        "partial_optional_provider",
+        `Optional provider is partially configured; missing ${missing.join(", ")}.`,
+        missing,
+      ),
+    );
+  }
+
+  issues.push(
+    ...validators.flatMap((validate) => {
+      const result = validate(values as Record<string, string>);
+      return result ? [result] : [];
+    }),
+  );
+
+  const degraded = missing.length > 0 || issues.length > 0;
+  return {
+    status: degraded ? "degraded" : "configured",
+    configured: !degraded,
+    required: false,
+    env,
+    missing,
+    issues,
+  };
+}
+
+function evaluateTuning(): ConfigCheckReport {
+  const env = [
+    "AI_REQUEST_TIMEOUT_MS",
+    "AI_MAX_RETRIES",
+    "SPEECH_TIMEOUT_MS",
+    "RATE_LIMIT_AI_REQUESTS",
+    "RATE_LIMIT_LOOKUP_REQUESTS",
+    "RATE_LIMIT_PUBLIC_REQUESTS",
+    "RATE_LIMIT_WINDOW_MS",
+    "LOG_LEVEL",
+  ];
+  const issues: ConfigIssue[] = [];
+
+  const positiveInt = (name: string) => {
+    const value = envValue(name);
+    if (!value) return;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed <= 0) {
+      issues.push(
+        issue("warning", "invalid_positive_integer", `${name} must be a positive integer; default will be used.`, [name]),
+      );
+    }
+  };
+  positiveInt("AI_REQUEST_TIMEOUT_MS");
+  positiveInt("SPEECH_TIMEOUT_MS");
+  positiveInt("RATE_LIMIT_AI_REQUESTS");
+  positiveInt("RATE_LIMIT_LOOKUP_REQUESTS");
+  positiveInt("RATE_LIMIT_PUBLIC_REQUESTS");
+  positiveInt("RATE_LIMIT_WINDOW_MS");
+
+  const retries = envValue("AI_MAX_RETRIES");
+  if (retries) {
+    const parsed = Number(retries);
+    if (!Number.isInteger(parsed) || parsed < 0) {
+      issues.push(
+        issue("warning", "invalid_nonnegative_integer", "AI_MAX_RETRIES must be a non-negative integer; default will be used.", [
+          "AI_MAX_RETRIES",
+        ]),
+      );
+    }
+  }
+
+  const level = envValue("LOG_LEVEL");
+  if (level && !["debug", "info", "warn", "error"].includes(level.toLowerCase())) {
+    issues.push(
+      issue("warning", "invalid_log_level", "LOG_LEVEL must be one of debug, info, warn, or error; info will be used.", [
+        "LOG_LEVEL",
+      ]),
+    );
+  }
+
+  return {
+    status: issues.length ? "degraded" : "ok",
+    configured: issues.length === 0,
+    required: false,
+    env,
+    missing: [],
+    issues,
+  };
+}
+
+const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
+  "audio-16khz-32kbitrate-mono-mp3",
+  "audio-16khz-128kbitrate-mono-mp3",
+  "audio-24khz-48kbitrate-mono-mp3",
+  "audio-24khz-96kbitrate-mono-mp3",
+  "audio-48khz-96kbitrate-mono-mp3",
+]);
+
+function isValidVapidSubject(subject: string): boolean {
+  return /^(mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https?:\/\/.+)/i.test(subject);
+}
+
+function validateRuntimeSections() {
+  const database = evaluateRequired(["DATABASE_URL"], [
+    (values) =>
+      values.DATABASE_URL.startsWith("file:") && values.DATABASE_URL.length > "file:".length
+        ? null
+        : issue("error", "invalid_database_url", "DATABASE_URL must be a non-empty SQLite file: URL.", ["DATABASE_URL"]),
+  ]);
+
+  const auth = evaluateRequired(["NEXTAUTH_SECRET", "NEXTAUTH_URL"], [
+    (values) =>
+      /^(replace-with|your-|changeme|change-me)/i.test(values.NEXTAUTH_SECRET)
+        ? issue("error", "placeholder_secret", "NEXTAUTH_SECRET must be replaced with a real random secret.", [
+            "NEXTAUTH_SECRET",
+          ])
+        : null,
+    (values) =>
+      values.NEXTAUTH_SECRET.length < 32
+        ? issue("error", "weak_secret", "NEXTAUTH_SECRET must be at least 32 characters.", ["NEXTAUTH_SECRET"])
+        : null,
+    (values) => httpUrlIssue("NEXTAUTH_URL", values.NEXTAUTH_URL),
+  ]);
+
+  const ai = evaluateOptional(
+    ["AZURE_OPENAI_ENDPOINT", "AZURE_OPENAI_API_KEY", "AZURE_OPENAI_DEPLOYMENT", "AZURE_OPENAI_API_VERSION"],
+    [
+      (values) =>
+        values.AZURE_OPENAI_ENDPOINT
+          ? httpUrlIssue("AZURE_OPENAI_ENDPOINT", values.AZURE_OPENAI_ENDPOINT, "warning")
+          : null,
+      (values) =>
+        values.AZURE_OPENAI_API_VERSION && !/^\d{4}-\d{2}-\d{2}(-preview)?$/.test(values.AZURE_OPENAI_API_VERSION)
+          ? issue("warning", "invalid_api_version", "AZURE_OPENAI_API_VERSION should look like YYYY-MM-DD or YYYY-MM-DD-preview.", [
+              "AZURE_OPENAI_API_VERSION",
+            ])
+          : null,
+    ],
+  );
+
+  const speech = evaluateOptional(["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"], [
+    (values) =>
+      values.AZURE_SPEECH_REGION && !/^[a-z][a-z0-9-]*$/i.test(values.AZURE_SPEECH_REGION)
+        ? issue("warning", "invalid_speech_region", "AZURE_SPEECH_REGION should be an Azure region slug such as eastus.", [
+            "AZURE_SPEECH_REGION",
+          ])
+        : null,
+    () => {
+      const format = envValue("AZURE_SPEECH_OUTPUT_FORMAT");
+      return format && !SUPPORTED_SPEECH_OUTPUT_FORMATS.has(format)
+        ? issue("warning", "unsupported_speech_format", "AZURE_SPEECH_OUTPUT_FORMAT is unsupported; default mp3 output will be used.", [
+            "AZURE_SPEECH_OUTPUT_FORMAT",
+          ])
+        : null;
+    },
+  ]);
+
+  const push = evaluateOptional(["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"], [
+    (values) =>
+      values.VAPID_SUBJECT && !isValidVapidSubject(values.VAPID_SUBJECT)
+        ? issue("warning", "invalid_vapid_subject", "VAPID_SUBJECT should be a mailto: address or URL.", ["VAPID_SUBJECT"])
+        : null,
+  ]);
+
+  const googleOAuth = evaluateOptional(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
+  const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
+  const tuning = evaluateTuning();
+
+  return {
+    required: { database, auth },
+    optional: { ai, speech, push, googleOAuth, azureAdOAuth },
+    tuning,
+  };
+}
+
+export function validateRuntimeConfig(): RuntimeConfigReport {
+  const sections = validateRuntimeSections();
+  const allChecks = [
+    ...Object.values(sections.required),
+    ...Object.values(sections.optional),
+    sections.tuning,
+  ];
+  const errors = allChecks.flatMap((check) => check.issues.filter((item) => item.severity === "error"));
+  const warnings = allChecks.flatMap((check) => check.issues.filter((item) => item.severity === "warning"));
+  const ready = Object.values(sections.required).every((check) => check.configured);
+
+  return {
+    ...sections,
+    ready,
+    status: ready ? "ready" : "unavailable",
+    checkedAt: new Date().toISOString(),
+    errors,
+    warnings,
   };
 }
 
@@ -46,10 +366,10 @@ export type AiConfig = {
 
 /** Azure OpenAI chat-completions config (endpoint trailing slashes stripped). */
 export const aiConfig: FeatureConfig<AiConfig> = defineFeatureConfig(() => {
-  const endpoint = process.env.AZURE_OPENAI_ENDPOINT?.replace(/\/+$/, "");
-  const apiKey = process.env.AZURE_OPENAI_API_KEY;
-  const deployment = process.env.AZURE_OPENAI_DEPLOYMENT;
-  const apiVersion = process.env.AZURE_OPENAI_API_VERSION;
+  const endpoint = envValue("AZURE_OPENAI_ENDPOINT")?.replace(/\/+$/, "");
+  const apiKey = envValue("AZURE_OPENAI_API_KEY");
+  const deployment = envValue("AZURE_OPENAI_DEPLOYMENT");
+  const apiVersion = envValue("AZURE_OPENAI_API_VERSION");
   if (!endpoint || !apiKey || !deployment || !apiVersion) {
     return null;
   }
@@ -100,17 +420,17 @@ export function speechTimeoutMs(): number {
 /** Azure Speech config; voice/format fall back to project defaults. */
 export const speechConfig: FeatureConfig<SpeechConfig> = defineFeatureConfig(
   () => {
-    const key = process.env.AZURE_SPEECH_KEY;
-    const region = process.env.AZURE_SPEECH_REGION;
+    const key = envValue("AZURE_SPEECH_KEY");
+    const region = envValue("AZURE_SPEECH_REGION");
     if (!key || !region) {
       return null;
     }
     return {
       key,
       region,
-      voice: process.env.AZURE_SPEECH_VOICE || DEFAULT_SPEECH_VOICE,
+      voice: envValue("AZURE_SPEECH_VOICE") || DEFAULT_SPEECH_VOICE,
       format:
-        process.env.AZURE_SPEECH_OUTPUT_FORMAT || DEFAULT_SPEECH_OUTPUT_FORMAT,
+        envValue("AZURE_SPEECH_OUTPUT_FORMAT") || DEFAULT_SPEECH_OUTPUT_FORMAT,
     };
   },
 );
@@ -127,10 +447,13 @@ export type PushConfig = {
 
 /** VAPID config for web-push (all three values trimmed). */
 export const pushConfig: FeatureConfig<PushConfig> = defineFeatureConfig(() => {
-  const publicKey = process.env.VAPID_PUBLIC_KEY?.trim();
-  const privateKey = process.env.VAPID_PRIVATE_KEY?.trim();
-  const subject = process.env.VAPID_SUBJECT?.trim();
+  const publicKey = envValue("VAPID_PUBLIC_KEY");
+  const privateKey = envValue("VAPID_PRIVATE_KEY");
+  const subject = envValue("VAPID_SUBJECT");
   if (!publicKey || !privateKey || !subject) {
+    return null;
+  }
+  if (!isValidVapidSubject(subject)) {
     return null;
   }
   return { publicKey, privateKey, subject };

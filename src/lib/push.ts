@@ -26,9 +26,9 @@ function readVapidConfig(): {
   return pushConfig.get();
 }
 
-/** Returns true when all three VAPID env vars are present. */
+/** Returns true when VAPID env vars are present and accepted by web-push. */
 export function isPushConfigured(): boolean {
-  return pushConfig.isConfigured();
+  return pushConfig.isConfigured() && ensurePushInit();
 }
 
 /** The VAPID public key (safe to expose to clients), or null when unconfigured. */
@@ -39,12 +39,30 @@ export function vapidPublicKey(): string | null {
 // Lazily initialise web-push once so we don't throw at module load time when
 // VAPID keys are absent.
 let pushInitialised = false;
+let pushInitKey: string | null = null;
+
+function pushConfigKey(cfg: NonNullable<ReturnType<typeof readVapidConfig>>): string {
+  return `${cfg.subject}\n${cfg.publicKey}\n${cfg.privateKey}`;
+}
+
 function ensurePushInit(): boolean {
-  if (pushInitialised) return true;
   const cfg = readVapidConfig();
   if (!cfg) return false;
-  webpush.setVapidDetails(cfg.subject, cfg.publicKey, cfg.privateKey);
-  pushInitialised = true;
+  const key = pushConfigKey(cfg);
+  if (pushInitialised && pushInitKey === key) return true;
+
+  try {
+    webpush.setVapidDetails(cfg.subject, cfg.publicKey, cfg.privateKey);
+    pushInitialised = true;
+    pushInitKey = key;
+  } catch (err) {
+    pushInitialised = false;
+    pushInitKey = null;
+    log.warn("invalid VAPID configuration — push disabled", {
+      error: String(err),
+    });
+    return false;
+  }
   return true;
 }
 

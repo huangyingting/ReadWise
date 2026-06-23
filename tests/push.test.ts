@@ -12,6 +12,7 @@ import assert from "node:assert/strict";
 // ---------------------------------------------------------------------------
 
 let pushConfigured = false;
+let setVapidThrows = false;
 
 // Subscriptions store: userId -> sub[]
 let mockSubs: { id: string; userId: string; endpoint: string; p256dh: string; auth: string }[] = [];
@@ -34,7 +35,9 @@ let deletedManyEndpoints: string[][] = [];
 before(() => {
   mock.module("web-push", {
     defaultExport: {
-      setVapidDetails: () => {},
+      setVapidDetails: () => {
+        if (setVapidThrows) throw new Error("bad VAPID config");
+      },
       sendNotification: async (sub: { endpoint: string }, payload: string) => {
         if (sendShouldFail !== false) {
           const err: Error & { statusCode?: number } = Object.assign(
@@ -107,6 +110,7 @@ before(() => {
 
 beforeEach(() => {
   pushConfigured = false;
+  setVapidThrows = false;
   mockSubs = [];
   sendCalls = [];
   sendShouldFail = false;
@@ -141,6 +145,19 @@ test("isPushConfigured returns true when all VAPID env vars are set", async () =
   enablePush();
   const { isPushConfigured } = await import("@/lib/push");
   assert.equal(isPushConfigured(), true);
+});
+
+test("isPushConfigured returns false when web-push rejects VAPID details", async () => {
+  enablePush();
+  process.env.VAPID_PUBLIC_KEY = "BDifferentRejectedPublicKey";
+  setVapidThrows = true;
+
+  const { isPushConfigured, sendPushToUser } = await import("@/lib/push");
+
+  assert.equal(isPushConfigured(), false);
+  const sent = await sendPushToUser("user-1", { title: "Hi", body: "Test" });
+  assert.equal(sent, 0);
+  assert.equal(sendCalls.length, 0);
 });
 
 // ---------------------------------------------------------------------------
