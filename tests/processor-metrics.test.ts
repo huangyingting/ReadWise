@@ -3,8 +3,9 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
+import { ArticleStatus, TagScope } from "@prisma/client";
 
-let status = "draft";
+let status: ArticleStatus = ArticleStatus.DRAFT;
 let updated = false;
 
 before(() => {
@@ -23,7 +24,7 @@ before(() => {
           }),
           update: async () => {
             updated = true;
-            status = "published";
+            status = ArticleStatus.PUBLISHED;
             return {};
           },
           findMany: async () => [],
@@ -48,7 +49,10 @@ before(() => {
   });
   mock.module("@/lib/tags", {
     namedExports: {
-      getOrCreateArticleTags: async () => ({ tags: [{ id: "t1", name: "Metrics", slug: "metrics" }], fallback: false }),
+      getOrCreateArticleTags: async () => ({
+        tags: [{ id: "t1", name: "Metrics", slug: "metrics", scope: TagScope.PUBLIC }],
+        fallback: false,
+      }),
     },
   });
   mock.module("@/lib/translation", {
@@ -69,7 +73,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  status = "draft";
+  status = ArticleStatus.DRAFT;
   updated = false;
   resetMetrics();
 });

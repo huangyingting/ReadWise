@@ -4,6 +4,7 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
 import { buildArticle } from "./helpers";
+import { ArticleSourceType, ArticleStatus, ArticleVisibility } from "@prisma/client";
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
 type MockUser = { id?: string | null; role?: string | null } | null | undefined;
@@ -65,7 +66,13 @@ before(() => {
       findOwnedArticleBySourceUrl: async () => importExisting,
       ownedArticleWhere: (userId: string, extra?: Record<string, unknown>) => ({
         ...(extra ?? {}),
+        visibility: ArticleVisibility.PRIVATE,
         ownerId: userId,
+      }),
+      privateImportedArticleCreateFields: (ownerId: string) => ({
+        visibility: ArticleVisibility.PRIVATE,
+        sourceType: ArticleSourceType.IMPORTED,
+        ownerId,
       }),
     },
   });
@@ -421,7 +428,9 @@ test("personal text import stores sanitized private content owned by the caller"
 
   assert.equal(res.status, 201);
   assert.equal(importCreateData?.ownerId, "user-1");
-  assert.equal(importCreateData?.status, "published");
+  assert.equal(importCreateData?.status, ArticleStatus.PUBLISHED);
+  assert.equal(importCreateData?.visibility, ArticleVisibility.PRIVATE);
+  assert.equal(importCreateData?.sourceType, ArticleSourceType.IMPORTED);
   assert.equal(importCreateData?.source, "Personal");
   assert.match(String(importCreateData?.content), /Hello/);
   assert.match(String(importCreateData?.content), /World/);

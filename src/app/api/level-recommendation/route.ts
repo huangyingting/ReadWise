@@ -8,6 +8,7 @@ import {
   type LevelingSignals,
 } from "@/lib/leveling";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { publicListableArticleWhere } from "@/lib/article-access";
 
 /**
  * GET /api/level-recommendation
@@ -48,7 +49,7 @@ export const GET = createHandler({}, async ({ session }) => {
       where: {
         userId,
         article: {
-          status: "published", ownerId: null,
+          ...publicListableArticleWhere(),
           difficulty: {
             in: ENGLISH_LEVELS.slice(currentRank) as string[],
           },
@@ -65,14 +66,14 @@ export const GET = createHandler({}, async ({ session }) => {
         userId,
         completed: true,
         article: {
-          status: "published", ownerId: null,
+          ...publicListableArticleWhere(),
           difficulty: currentLevel,
         },
       },
     }),
 
     prisma.article.count({
-      where: { status: "published", difficulty: currentLevel, ownerId: null },
+      where: publicListableArticleWhere({ difficulty: currentLevel }),
     }),
   ]);
 

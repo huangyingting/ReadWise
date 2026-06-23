@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import type { Article, Prisma } from "@prisma/client";
+import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
 import {
   levelRank,
   levelsAtOrBelow,
@@ -29,7 +29,7 @@ export function getArticleById(id: string): Promise<Article | null> {
  * Returns the article if the requester is allowed to view it:
  *   - Admins may view any article (including drafts).
  *   - Owners may view their own personal articles (ownerId === userId).
- *   - All other users may only view published public articles (ownerId IS NULL).
+ *   - All other users may only view published public articles.
  * Returns null when the article does not exist or is not viewable.
  */
 export function getViewableArticleById(
@@ -386,7 +386,7 @@ export async function searchPublishedArticles(
       }),
       prisma.article.findMany({
         where: ownedArticleWhere(userId, {
-          status: "published",
+          status: ArticleStatus.PUBLISHED,
           OR: [
             { title: { contains: q } },
             { author: { contains: q } },
@@ -422,7 +422,7 @@ export async function searchPublishedArticles(
         JOIN "Article" a ON a.rowid = article_fts.rowid
         WHERE article_fts MATCH ${ftsQuery}
           AND a.status = 'published'
-          AND a."ownerId" IS NULL
+          AND a.visibility = 'PUBLIC'
         ORDER BY rank ASC, a."publishedAt" DESC
         LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
       `;
@@ -451,7 +451,7 @@ export async function searchPublishedArticles(
         const rows = await prisma.article.findMany({
           where: readableArticleWhere(context, {
             id: { in: pageIds },
-            status: "published",
+            status: ArticleStatus.PUBLISHED,
           }),
         });
         for (const r of rows) byId.set(r.id, r);
@@ -478,13 +478,13 @@ export async function searchPublishedArticles(
   // text, plus any merged per-user IDs (annotations / personal matches).
   const orClauses: Prisma.ArticleWhereInput[] = [
     publicListableArticleWhere({ OR: textClauses }),
-    ...(userId ? [ownedArticleWhere(userId, { status: "published", OR: textClauses })] : []),
+    ...(userId ? [ownedArticleWhere(userId, { status: ArticleStatus.PUBLISHED, OR: textClauses })] : []),
   ];
   if (userArticleIds.length > 0) {
-    orClauses.push(readableArticleWhere(context, { id: { in: userArticleIds }, status: "published" }));
+    orClauses.push(readableArticleWhere(context, { id: { in: userArticleIds }, status: ArticleStatus.PUBLISHED }));
   }
   const rows = await prisma.article.findMany({
-    where: { status: "published", OR: orClauses },
+    where: { status: ArticleStatus.PUBLISHED, OR: orClauses },
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
