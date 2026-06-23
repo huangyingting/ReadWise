@@ -88,6 +88,10 @@ model User {
   articleMastery          ArticleMastery[]
   skillMastery            SkillMastery[]
   reminderPreference      ReminderPreference?
+  memberships             Membership[]
+  taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
+  classroomMemberships    ClassroomMembership[]
+  assignmentCompletions   AssignmentCompletion[]
 
   @@index([role, createdAt], map: "User_role_created_idx")
 }
@@ -134,6 +138,11 @@ model Article {
   /// Nullable FK to User. Public library articles are explicit (`visibility = PUBLIC`);
   /// private imports use `visibility = PRIVATE` plus a non-null ownerId.
   ownerId         String?
+  /// Nullable SOFT tenant-scope reference (RW-060). NOT a foreign key — mirrors the
+  /// AnalyticsEvent/AuditLog plain-string ref convention so existing global/public
+  /// articles are unaffected (null = global/public, never appears in org feeds) and
+  /// deleting an Organization never rebuilds this table. Org/tenant feeds filter on it.
+  organizationId  String?
 
   owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: Cascade)
   readingProgress      ReadingProgress[]
@@ -152,10 +161,12 @@ model Article {
   grammarExplanations       GrammarExplanation[]
   processingSteps           ArticleProcessingStep[]
   articleMastery            ArticleMastery[]
+  assignments               Assignment[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
   @@index([ownerId])
+  @@index([organizationId])
   @@index([sourceUrl], map: "Article_sourceUrl_idx")
   @@index([visibility, status, ownerId, publishedAt, createdAt], map: "Article_visibility_feed_idx")
   @@index([visibility, status, ownerId, category, publishedAt, createdAt], map: "Article_category_feed_idx")
@@ -841,4 +852,135 @@ model AnalyticsEvent {
   @@index([type, occurredAt])
   @@index([userId, occurredAt])
   @@index([occurredAt])
+}
+
+// ===========================================================================
+// Multi-tenancy: organizations, memberships, classrooms & assignments
+// (Epic RW-E012 — RW-060/061). Additive and NULLABLE by design: an account
+// with no Membership is unchanged (the global single-user experience). Tenant
+// roles are SEPARATE from the global Role enum (Admin/Reader) — an OrgAdmin is
+// not a ReadWise system admin (see docs/multi-tenancy.md + src/lib/rbac.ts).
+// ===========================================================================
+
+/// Tenant role inside an Organization. Resolved to capabilities per-membership
+/// in src/lib/rbac.ts (OrgAdmin/Teacher carry tenant capabilities; Member/
+/// Student carry only the base reader capabilities).
+enum MembershipRole {
+  OrgAdmin
+  Teacher
+  Member
+  Student
+}
+
+/// Role inside a single Classroom. Teachers manage the roster + assignments;
+/// students receive assigned readings.
+enum ClassroomRole {
+  Teacher
+  Student
+}
+
+/// Lifecycle of a single student's work on an Assignment.
+enum AssignmentStatus {
+  ASSIGNED    @map("assigned")
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  /// Free-form tenant settings (branding, feature flags). Metadata only.
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  classrooms  Classroom[]
+
+  @@index([slug])
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  orgId     String
+  role      MembershipRole @default(Member)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([userId])
+  @@index([orgId])
+  @@index([orgId, role])
+}
+
+model Classroom {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  teacherId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org         Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  teacher     User                  @relation("TaughtClassrooms", fields: [teacherId], references: [id], onDelete: Cascade)
+  members     ClassroomMembership[]
+  assignments Assignment[]
+
+  @@index([orgId])
+  @@index([teacherId])
+}
+
+model ClassroomMembership {
+  id          String        @id @default(cuid())
+  classroomId String
+  userId      String
+  role        ClassroomRole @default(Student)
+  createdAt   DateTime      @default(now())
+
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, userId])
+  @@index([userId])
+  @@index([classroomId, role])
+}
+
+model Assignment {
+  id           String    @id @default(cuid())
+  classroomId  String
+  articleId    String
+  dueDate      DateTime?
+  instructions String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  classroom   Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  article     Article                @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  completions AssignmentCompletion[]
+
+  @@index([classroomId])
+  @@index([articleId])
+}
+
+model AssignmentCompletion {
+  id           String           @id @default(cuid())
+  assignmentId String
+  studentId    String
+  status       AssignmentStatus @default(ASSIGNED)
+  quizScore    Int?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@index([assignmentId, status])
 }
