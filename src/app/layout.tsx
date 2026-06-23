@@ -4,6 +4,7 @@ import "./globals.css";
 import Providers from "./providers";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
+import OfflineSyncIndicator from "@/components/OfflineSyncIndicator";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -85,6 +86,7 @@ export default function RootLayout({
       <body>
         <ClientErrorReporter />
         <ServiceWorkerRegister />
+        <OfflineSyncIndicator />
         <Providers>{children}</Providers>
       </body>
     </html>

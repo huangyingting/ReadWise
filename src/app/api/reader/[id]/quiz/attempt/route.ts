@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, number, array } from "@/lib/validation";
+import { idParams, object, number, array, optional, nonEmptyString } from "@/lib/validation";
 import { recordQuizAttempt } from "@/lib/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
@@ -18,6 +18,9 @@ const bodySchema = object({
     }),
     { max: 1000 },
   ),
+  // RW-042 — optional idempotency key for offline-queued re-syncs (also accepted
+  // via the X-Client-Mutation-Id header).
+  clientMutationId: optional(nonEmptyString(100)),
 });
 
 /**
@@ -36,7 +39,7 @@ const bodySchema = object({
  */
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session }) => {
     const context = articleAccessContext(session.user);
     const article = await getReadableArticleById(params.id, context);
     if (!article) {
@@ -57,6 +60,9 @@ export const POST = createHandler(
       throw new ApiError(400, err instanceof Error ? err.message : "Invalid answers");
     }
 
+    const clientMutationId =
+      body.clientMutationId ?? req.headers.get("x-client-mutation-id") ?? null;
+
     let result;
     try {
       result = await recordQuizAttempt(
@@ -64,6 +70,7 @@ export const POST = createHandler(
         article.id,
         graded.correctCount,
         graded.total,
+        { clientMutationId },
       );
     } catch (err) {
       throw new ApiError(400, err instanceof Error ? err.message : "Invalid attempt data");

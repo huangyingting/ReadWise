@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import AiBadge from "@/components/AiBadge";
+import { submitMutation, newClientMutationId } from "@/lib/offline-mutations";
 
 type QuizQuestion = {
   question: string;
@@ -38,7 +39,7 @@ type AttemptResponse = {
   best: number;
 };
 
-type SavedNote = "idle" | "saving" | "saved" | "failed";
+type SavedNote = "idle" | "saving" | "saved" | "failed" | "queued";
 
 /** Formats a Date/ISO string into a human-readable relative time. */
 function relativeDate(iso: string): string {
@@ -187,10 +188,20 @@ export default function ArticleQuiz({
       selectedIndex: answers[i],
     }));
 
-    fetch(`/api/reader/${articleId}/quiz/attempt`, {
+    // One idempotency key per completion: shared by the online attempt and any
+    // offline-queued retry so a partially-applied online send + a queued replay
+    // can't double-record the attempt (RW-042; server dedupes on it).
+    const clientMutationId = newClientMutationId();
+    const endpoint = `/api/reader/${articleId}/quiz/attempt`;
+    const payload = { answers: submittedAnswers, clientMutationId };
+
+    fetch(endpoint, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ answers: submittedAnswers }),
+      headers: {
+        "Content-Type": "application/json",
+        "x-client-mutation-id": clientMutationId,
+      },
+      body: JSON.stringify(payload),
     })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
       .then((data: AttemptResponse) => {
@@ -200,7 +211,17 @@ export default function ArticleQuiz({
         setIsNewBest(priorBest === null || data.attempt.scorePct > priorBest);
       })
       .catch(() => {
-        setSavedNote("failed");
+        // Offline / network failure — queue the attempt for background sync.
+        // The score is already shown from client-side grading.
+        void submitMutation({
+          type: "quiz.attempt",
+          endpoint,
+          method: "POST",
+          body: payload,
+          clientMutationId,
+        }).then((res) => {
+          setSavedNote(res.queued ? "queued" : "failed");
+        });
       });
   }
 
@@ -344,6 +365,8 @@ export default function ArticleQuiz({
                       <Check size={13} aria-hidden />
                       {" "}Attempt saved
                     </>
+                  ) : savedNote === "queued" ? (
+                    "Saved offline — will sync when you reconnect"
                   ) : savedNote === "failed" ? (
                     "Couldn't save this attempt"
                   ) : null}

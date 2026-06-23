@@ -11,11 +11,13 @@ import {
 import {
   listHighlights,
   createHighlight,
+  annotateHighlightAnchors,
   HIGHLIGHT_COLORS,
   HIGHLIGHT_NOTE_MAX,
 } from "@/lib/highlights";
 import type { HighlightColor } from "@/lib/highlights";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { htmlToPlainText } from "@/lib/translation";
 
 const createBody = object({
   quote: nonEmptyString(10_000),
@@ -35,7 +37,11 @@ export const GET = createHandler(
       throw new ApiError(404, "Article not found");
     }
     const highlights = await listHighlights(session.user.id, params.id);
-    return NextResponse.json({ highlights });
+    // RW-043 — flag highlights whose anchor no longer matches the current
+    // content as stale (revalidation), without dropping any.
+    const plainText = htmlToPlainText(article.content ?? "");
+    const annotated = annotateHighlightAnchors(highlights, plainText);
+    return NextResponse.json({ highlights: annotated });
   },
 );
 

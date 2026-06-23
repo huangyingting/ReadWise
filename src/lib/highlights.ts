@@ -8,6 +8,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { mergeNoteConflict, revalidateAnchor, type AnchorStatus } from "@/lib/offline-conflict";
 
 // ---------------------------------------------------------------------------
 // Validation constants
@@ -42,6 +43,12 @@ export interface CreateHighlightInput {
 export interface UpdateHighlightInput {
   note?: string;
   color?: string;
+  /**
+   * RW-043 — the `updatedAt` the offline client last saw. When provided and the
+   * stored note changed since then, the note is merged (both versions kept)
+   * instead of overwritten so offline text is never silently lost.
+   */
+  baseUpdatedAt?: Date | string;
 }
 
 export interface HighlightRow {
@@ -55,6 +62,45 @@ export interface HighlightRow {
   color: string | null;
   createdAt: Date;
   updatedAt: Date;
+}
+
+/** A highlight annotated with the result of anchor revalidation (RW-043). */
+export interface HighlightWithAnchor extends HighlightRow {
+  /** True when the stored anchor no longer matches the current content. */
+  stale: boolean;
+  anchorStatus: AnchorStatus;
+  suggestedStartOffset?: number;
+  suggestedEndOffset?: number;
+}
+
+/**
+ * Revalidate each highlight's anchor against the article's current plain text.
+ * Stale highlights are FLAGGED (never dropped) so the reader can surface them
+ * and the user decides what to do — moved anchors carry suggested offsets.
+ */
+export function annotateHighlightAnchors(
+  rows: HighlightRow[],
+  plainText: string,
+): HighlightWithAnchor[] {
+  return rows.map((row) => {
+    const result = revalidateAnchor(
+      {
+        quote: row.quote,
+        startOffset: row.startOffset,
+        endOffset: row.endOffset,
+        prefix: row.prefix,
+        suffix: row.suffix,
+      },
+      plainText,
+    );
+    return {
+      ...row,
+      stale: result.stale,
+      anchorStatus: result.status,
+      suggestedStartOffset: result.suggestedStartOffset,
+      suggestedEndOffset: result.suggestedEndOffset,
+    };
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -184,7 +230,8 @@ export async function updateHighlight(
   userId: string,
   input: UpdateHighlightInput,
 ): Promise<
-  { ok: true; highlight: HighlightRow } | { ok: false; error: string; status: number }
+  | { ok: true; highlight: HighlightRow; conflict: boolean }
+  | { ok: false; error: string; status: number }
 > {
   // Validate color if provided
   if (input.color !== undefined && input.color !== null) {
@@ -199,14 +246,30 @@ export async function updateHighlight(
 
   const existing = await prisma.highlight.findFirst({
     where: { id, userId },
-    select: { id: true },
+    select: { id: true, note: true, updatedAt: true },
   });
   if (!existing) {
     return { ok: false, error: "Highlight not found", status: 404 };
   }
 
   const data: { note?: string | null; color?: string | null } = {};
-  if ("note" in input) data.note = input.note ?? null;
+  let conflict = false;
+  if ("note" in input) {
+    const incoming = input.note ?? null;
+    // Last-write-wins, but never silently lose text: if the stored note changed
+    // since the offline client based its edit, merge both versions (RW-043).
+    if (
+      input.baseUpdatedAt != null &&
+      existing.note !== incoming &&
+      new Date(existing.updatedAt).getTime() > new Date(input.baseUpdatedAt).getTime()
+    ) {
+      const merged = mergeNoteConflict(existing.note, incoming);
+      data.note = merged.text;
+      conflict = merged.conflict;
+    } else {
+      data.note = incoming;
+    }
+  }
   if ("color" in input) data.color = input.color ?? null;
 
   const highlight = await prisma.highlight.update({
@@ -215,7 +278,7 @@ export async function updateHighlight(
     select: highlightSelect,
   });
 
-  return { ok: true, highlight };
+  return { ok: true, highlight, conflict };
 }
 
 /**

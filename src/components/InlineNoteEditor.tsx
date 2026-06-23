@@ -3,6 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { submitMutation } from "@/lib/offline-mutations";
 
 interface Props {
   highlightId: string;
@@ -41,6 +42,18 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
         setNote(trimmed);
         setEditing(false);
       }
+    } catch {
+      // Offline / network failure — queue the note edit and keep it locally so
+      // the user's text is never lost (RW-042). Server uses last-write-wins.
+      void submitMutation({
+        type: "highlight.note",
+        endpoint: `/api/highlights/${highlightId}`,
+        method: "PATCH",
+        body: { note: trimmed || null },
+        dedupeKey: `hl-note:${highlightId}`,
+      });
+      setNote(trimmed);
+      setEditing(false);
     } finally {
       setSaving(false);
     }

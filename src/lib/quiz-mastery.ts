@@ -7,6 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -66,6 +67,7 @@ export async function recordQuizAttempt(
   articleId: string,
   correctCount: number,
   totalQuestions: number,
+  options: { clientMutationId?: string | null } = {},
 ): Promise<{ attempt: QuizAttemptRecord; best: number }> {
   if (
     !Number.isInteger(totalQuestions) ||
@@ -80,26 +82,67 @@ export async function recordQuizAttempt(
   }
 
   const scorePct = computeScorePct(correctCount, totalQuestions);
+  const clientMutationId = options.clientMutationId?.trim() || null;
 
-  const attempt = await prisma.quizAttempt.create({
-    data: { userId, articleId, correctCount, totalQuestions, scorePct },
-    select: {
-      id: true,
-      correctCount: true,
-      totalQuestions: true,
-      scorePct: true,
-      completedAt: true,
-    },
-  });
+  // Idempotency (RW-042): an offline-queued attempt may be delivered more than
+  // once. When a clientMutationId is supplied, a duplicate returns the existing
+  // attempt instead of double-recording.
+  const select = {
+    id: true,
+    correctCount: true,
+    totalQuestions: true,
+    scorePct: true,
+    completedAt: true,
+  } as const;
 
-  // Best score across all attempts for this article (including the new one).
+  if (clientMutationId) {
+    const existing = await prisma.quizAttempt.findUnique({
+      where: { clientMutationId },
+      select,
+    });
+    if (existing) {
+      return { attempt: existing, best: await bestScore(userId, articleId, existing.scorePct) };
+    }
+  }
+
+  let attempt: QuizAttemptRecord;
+  try {
+    attempt = await prisma.quizAttempt.create({
+      data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
+      select,
+    });
+  } catch (err) {
+    // Lost the race against a concurrent duplicate — return the winner.
+    if (
+      clientMutationId &&
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      const winner = await prisma.quizAttempt.findUnique({
+        where: { clientMutationId },
+        select,
+      });
+      if (winner) {
+        return { attempt: winner, best: await bestScore(userId, articleId, winner.scorePct) };
+      }
+    }
+    throw err;
+  }
+
+  return { attempt, best: await bestScore(userId, articleId, scorePct) };
+}
+
+/** Best scorePct across all attempts for this user+article (>= fallback). */
+async function bestScore(
+  userId: string,
+  articleId: string,
+  fallback: number,
+): Promise<number> {
   const agg = await prisma.quizAttempt.aggregate({
     where: { userId, articleId },
     _max: { scorePct: true },
   });
-  const best = agg._max.scorePct ?? scorePct;
-
-  return { attempt, best };
+  return agg._max.scorePct ?? fallback;
 }
 
 /**

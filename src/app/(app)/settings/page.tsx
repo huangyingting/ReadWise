@@ -11,6 +11,7 @@ import ProfileSettingsForm from "./ProfileSettingsForm";
 import AccountDangerZone from "@/components/AccountDangerZone";
 import Avatar from "@/components/ui/Avatar";
 import PushReminderToggle from "@/components/PushReminderToggle";
+import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -96,6 +97,7 @@ export default async function SettingsPage() {
           </CardHeader>
           <CardBody>
             <PushReminderToggle />
+            <ReminderPreferencesForm />
           </CardBody>
         </Card>
       ) : null}

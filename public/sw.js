@@ -6,8 +6,23 @@
 //   - API routes are always network-only (never cache authenticated responses)
 //   - /reader/* paths: when offline, serve /offline-reader.html (which reads
 //     article content from IndexedDB if the user downloaded it — #117)
+//
+// Cache versioning (RW-044): CACHE_VERSION is the single source of truth for
+// the runtime cache name. Bumping it makes `activate` drop every older
+// readwise-* cache. MUST stay in sync with SW_CACHE_VERSION in
+// src/lib/cache-version.ts (the SW can't import that module).
+//
+// Background sync (RW-042): a `sync` event (tag "readwise-mutations") and a
+// `message` from the page both ask open clients to flush their offline
+// mutation queue. `message` also supports SKIP_WAITING (graceful upgrade) and
+// purging private caches on sign-out.
 
-const CACHE_NAME = "readwise-v2";
+const CACHE_VERSION = "v3";
+const CACHE_PREFIX = "readwise-";
+const CACHE_NAME = CACHE_PREFIX + CACHE_VERSION;
+
+const SYNC_TAG = "readwise-mutations";
+const FLUSH_MESSAGE = "readwise:flush-queue";
 
 // Pre-cache the offline fallbacks on install so they're always available.
 self.addEventListener("install", (event) => {
@@ -19,7 +34,10 @@ self.addEventListener("install", (event) => {
   );
 });
 
-// Activate: claim clients and remove stale caches.
+// Activate: claim clients and remove stale readwise-* caches (keep the current
+// one). Done in `activate` (not `install`) so an in-flight read from the old
+// SW completes before its cache is dropped — offline reading is not broken by
+// an upgrade.
 self.addEventListener("activate", (event) => {
   event.waitUntil(
     caches
@@ -27,12 +45,58 @@ self.addEventListener("activate", (event) => {
       .then((keys) =>
         Promise.all(
           keys
-            .filter((k) => k !== CACHE_NAME)
+            .filter((k) => k.startsWith(CACHE_PREFIX) && k !== CACHE_NAME)
             .map((k) => caches.delete(k)),
         ),
       )
       .then(() => self.clients.claim()),
   );
+});
+
+// ---------------------------------------------------------------------------
+// Messaging — graceful upgrade + cache purge + flush trigger
+// ---------------------------------------------------------------------------
+self.addEventListener("message", (event) => {
+  const data = event.data || {};
+  if (data.type === "SKIP_WAITING") {
+    self.skipWaiting();
+    return;
+  }
+  if (data.type === "readwise:purge-caches") {
+    // Sign-out / account deletion: drop ALL readwise caches so private content
+    // never lingers on a shared device.
+    event.waitUntil(
+      caches
+        .keys()
+        .then((keys) =>
+          Promise.all(
+            keys
+              .filter((k) => k.startsWith(CACHE_PREFIX))
+              .map((k) => caches.delete(k)),
+          ),
+        ),
+    );
+    return;
+  }
+});
+
+// ---------------------------------------------------------------------------
+// Background Sync — ask open clients to flush the offline mutation queue
+// ---------------------------------------------------------------------------
+function notifyClientsToFlush() {
+  return self.clients
+    .matchAll({ type: "window", includeUncontrolled: true })
+    .then((clients) => {
+      for (const client of clients) {
+        client.postMessage({ type: FLUSH_MESSAGE });
+      }
+    });
+}
+
+self.addEventListener("sync", (event) => {
+  if (event.tag === SYNC_TAG) {
+    event.waitUntil(notifyClientsToFlush());
+  }
 });
 
 // Paths that render authenticated, user-specific SSR content.

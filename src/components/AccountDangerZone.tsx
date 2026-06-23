@@ -5,6 +5,7 @@ import { signOut } from "next-auth/react";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { purgeOfflineUserData } from "@/lib/offline-mutations";
 
 export default function AccountDangerZone() {
   const [deleteBusy, setDeleteBusy] = useState(false);
@@ -19,7 +20,8 @@ export default function AccountDangerZone() {
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? `Deletion failed (${res.status})`);
       }
-      // Session is now invalid server-side — sign out and go to sign-in page.
+      // Session is now invalid server-side — purge offline data then sign out.
+      await purgeOfflineUserData();
       await signOut({ callbackUrl: "/signin" });
     } catch (err) {
       setDeleteError(err instanceof Error ? err.message : "Deletion failed");

@@ -15,7 +15,14 @@ let pushConfigured = false;
 let setVapidThrows = false;
 
 // Subscriptions store: userId -> sub[]
-let mockSubs: { id: string; userId: string; endpoint: string; p256dh: string; auth: string }[] = [];
+let mockSubs: {
+  id: string;
+  userId: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  failureCount?: number;
+}[] = [];
 
 // web-push sendNotification mock
 let sendCalls: { endpoint: string; payload: string }[] = [];
@@ -24,9 +31,22 @@ let sendShouldFail: number | false = false; // HTTP status to throw, or false fo
 // SavedWord groupBy results
 let savedWordGroups: { userId: string; _count: { id: number } }[] = [];
 
+// Reminder preferences + profiles (RW-045)
+let mockReminderPrefs: {
+  userId: string;
+  enabled: boolean;
+  preferredHour: number | null;
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
+  timezone: string | null;
+}[] = [];
+let mockProfiles: { userId: string; timezone: string | null }[] = [];
+
 // Prisma deleteMany calls
 let deletedSubIds: string[][] = [];
 let deletedManyEndpoints: string[][] = [];
+// Prisma updateMany calls (delivery tracking)
+let updatedManyCalls: { ids?: string[]; data: Record<string, unknown> }[] = [];
 
 // ---------------------------------------------------------------------------
 // Mocks registered once in before()
@@ -93,6 +113,13 @@ before(() => {
             }
             return { count: 0 };
           },
+          updateMany: async (args: {
+            where?: { id?: { in?: string[] } };
+            data: Record<string, unknown>;
+          }) => {
+            updatedManyCalls.push({ ids: args.where?.id?.in, data: args.data });
+            return { count: args.where?.id?.in?.length ?? 0 };
+          },
           upsert: async (args: {
             create: { id?: string; userId: string; endpoint: string; p256dh: string; auth: string };
           }) => {
@@ -102,6 +129,18 @@ before(() => {
         },
         savedWord: {
           groupBy: async () => savedWordGroups,
+        },
+        reminderPreference: {
+          findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
+            const ids = args.where?.userId?.in;
+            return ids ? mockReminderPrefs.filter((p) => ids.includes(p.userId)) : mockReminderPrefs;
+          },
+        },
+        profile: {
+          findMany: async (args: { where?: { userId?: { in?: string[] } } }) => {
+            const ids = args.where?.userId?.in;
+            return ids ? mockProfiles.filter((p) => ids.includes(p.userId)) : mockProfiles;
+          },
         },
       },
     },
@@ -115,8 +154,11 @@ beforeEach(() => {
   sendCalls = [];
   sendShouldFail = false;
   savedWordGroups = [];
+  mockReminderPrefs = [];
+  mockProfiles = [];
   deletedSubIds = [];
   deletedManyEndpoints = [];
+  updatedManyCalls = [];
 
   // Reset VAPID env vars
   delete process.env.VAPID_PUBLIC_KEY;
@@ -324,4 +366,87 @@ test("sendDueReminders payload includes /study url", async () => {
   await sendDueReminders();
   const payload = JSON.parse(sendCalls[0].payload);
   assert.equal(payload.url, "/study");
+});
+
+// ---------------------------------------------------------------------------
+// Delivery tracking & resilient pruning (RW-045)
+// ---------------------------------------------------------------------------
+
+test("successful send resets failureCount and stamps lastSuccessAt", async () => {
+  enablePush();
+  mockSubs = [
+    { id: "s1", userId: "u1", endpoint: "https://push.example.com/ok", p256dh: "k", auth: "a", failureCount: 3 },
+  ];
+  const { sendPushToUser } = await import("@/lib/push");
+  await sendPushToUser("u1", { title: "T", body: "B" });
+
+  const success = updatedManyCalls.find(
+    (c) => c.ids?.includes("s1") && c.data.failureCount === 0,
+  );
+  assert.ok(success, "expected an updateMany resetting failureCount to 0");
+  assert.ok("lastSuccessAt" in success!.data, "expected lastSuccessAt to be stamped");
+  assert.equal(deletedSubIds.flat().length, 0, "healthy sub must not be pruned");
+});
+
+test("transient failure increments failureCount without pruning (below threshold)", async () => {
+  enablePush();
+  mockSubs = [
+    { id: "s1", userId: "u1", endpoint: "https://push.example.com/err", p256dh: "k", auth: "a", failureCount: 0 },
+  ];
+  sendShouldFail = 500;
+  const { sendPushToUser } = await import("@/lib/push");
+  await sendPushToUser("u1", { title: "T", body: "B" });
+
+  const failUpdate = updatedManyCalls.find((c) => c.ids?.includes("s1"));
+  assert.ok(failUpdate, "expected an updateMany for the failed sub");
+  assert.deepEqual(failUpdate!.data.failureCount, { increment: 1 });
+  assert.equal(deletedSubIds.flat().length, 0, "must not prune below the failure threshold");
+});
+
+test("transient failure at the threshold prunes the unhealthy endpoint", async () => {
+  enablePush();
+  // failureCount 7; the 8th consecutive failure (MAX_CONSECUTIVE_FAILURES) prunes it.
+  mockSubs = [
+    { id: "s1", userId: "u1", endpoint: "https://push.example.com/dying", p256dh: "k", auth: "a", failureCount: 7 },
+  ];
+  sendShouldFail = 500; // NOT a 404/410 — pruning is driven purely by the threshold
+  const { sendPushToUser } = await import("@/lib/push");
+  await sendPushToUser("u1", { title: "T", body: "B" });
+
+  assert.ok(deletedSubIds.flat().includes("s1"), "sub at the failure threshold should be pruned");
+});
+
+// ---------------------------------------------------------------------------
+// Reminder preferences in sendDueReminders (RW-045)
+// ---------------------------------------------------------------------------
+
+test("sendDueReminders suppresses users who disabled reminders", async () => {
+  enablePush();
+  savedWordGroups = [{ userId: "u1", _count: { id: 4 } }];
+  mockSubs = [
+    { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
+  ];
+  mockReminderPrefs = [
+    { userId: "u1", enabled: false, preferredHour: null, quietHoursStart: null, quietHoursEnd: null, timezone: null },
+  ];
+  const { sendDueReminders } = await import("@/lib/push");
+  const result = await sendDueReminders();
+  assert.equal(result.usersWithDue, 1);
+  assert.equal(result.sent, 0);
+  assert.equal(result.skipped, 0, "the user HAS a subscription, so not 'skipped'");
+  assert.equal(result.suppressed, 1, "disabled preference should suppress the send");
+  assert.equal(sendCalls.length, 0);
+});
+
+test("sendDueReminders still sends to users with default (enabled) preferences", async () => {
+  enablePush();
+  savedWordGroups = [{ userId: "u1", _count: { id: 2 } }];
+  mockSubs = [
+    { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
+  ];
+  // No stored preference → defaults (enabled, any hour, no quiet hours).
+  const { sendDueReminders } = await import("@/lib/push");
+  const result = await sendDueReminders();
+  assert.equal(result.sent, 1);
+  assert.equal(result.suppressed, 0);
 });
