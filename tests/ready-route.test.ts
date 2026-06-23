@@ -8,6 +8,7 @@ const ENV_KEYS = [
   "DATABASE_URL",
   "NEXTAUTH_SECRET",
   "NEXTAUTH_URL",
+  "PRISMA_SCHEMA_PATH",
   "AZURE_OPENAI_ENDPOINT",
   "AZURE_OPENAI_API_KEY",
   "AZURE_OPENAI_DEPLOYMENT",
@@ -21,6 +22,7 @@ let migrationFsFails = false;
 let repositoryMigrations: string[] = [];
 let appliedMigrations: string[] = [];
 let unfinishedMigrations: string[] = [];
+let lastReaddirPath = "";
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -60,7 +62,8 @@ before(() => {
 
   mock.module("node:fs/promises", {
     namedExports: {
-      readdir: async () => {
+      readdir: async (path: string) => {
+        lastReaddirPath = path;
         if (migrationFsFails) throw new Error("migration files unavailable");
         return [
           ...repositoryMigrations.map((name) => ({
@@ -86,6 +89,7 @@ beforeEach(() => {
   dbFails = false;
   migrationFails = false;
   migrationFsFails = false;
+  lastReaddirPath = "";
   repositoryMigrations = ["20260618084048_init_auth", "20260618085521_add_profile"];
   appliedMigrations = [...repositoryMigrations];
   unfinishedMigrations = [];
@@ -119,6 +123,22 @@ test("GET /api/ready returns ready when DB, migrations, and required config are 
   assert.equal(body.checks.migrations, "ok");
   assert.equal(body.checks.config, "ok");
   assert.equal(body.checks.providers.ai, "degraded");
+  assert.ok(lastReaddirPath.endsWith("prisma/migrations"));
+});
+
+test("GET /api/ready uses the migration directory next to PRISMA_SCHEMA_PATH", async () => {
+  process.env.DATABASE_URL = "postgresql://db.example/readwise";
+  process.env.PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
+  repositoryMigrations = ["20260623000000_postgresql_baseline"];
+  appliedMigrations = [...repositoryMigrations];
+
+  const res = await getReadyResponse();
+  const body = await res.json();
+
+  assert.equal(res.status, 200);
+  assert.equal(body.status, "ready");
+  assert.equal(body.checks.migrations, "ok");
+  assert.ok(lastReaddirPath.endsWith("prisma/postgresql/migrations"));
 });
 
 test("GET /api/ready returns unavailable when DB connectivity fails", async () => {

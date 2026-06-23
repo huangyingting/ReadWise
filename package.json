@@ -9,6 +9,7 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "test": "NODE_ENV=test node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
+    "test:db": "NODE_ENV=test RUN_DB_INTEGRATION=1 node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/db/**/*.test.ts\"",
     "test:e2e:smoke": "playwright test --config=playwright.config.ts",
     "scrape": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/scrape.ts",
     "process": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/process.ts",
@@ -16,7 +17,9 @@
     "seed": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/seed.ts",
     "push-reminders": "node --experimental-strip-types --import ./scripts/register-ts.mjs scripts/push-reminders.ts",
     "prisma:generate": "prisma generate",
+    "prisma:generate:pg": "prisma generate --schema prisma/postgresql/schema.prisma",
     "prisma:migrate": "prisma migrate dev",
+    "prisma:migrate:pg": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
     "postinstall": "prisma generate"
   },
   "dependencies": {
