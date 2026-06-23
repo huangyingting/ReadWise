@@ -57,7 +57,7 @@ schema explicitly:
 
 ```bash
 docker compose up -d postgres redis
-export DATABASE_URL="postgresql://readwise@localhost:55432/readwise?schema=public"
+export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run dev
@@ -110,7 +110,7 @@ Copy `.env.example` to `.env.local` and fill in real values.
 
 | Variable | Description |
 |----------|-------------|
-| `DATABASE_URL` | Prisma datasource URL. Default local: `file:./dev.db`; PostgreSQL parity: `postgresql://readwise@localhost:55432/readwise?schema=public` |
+| `DATABASE_URL` | Prisma datasource URL. Default local: `file:./dev.db`; PostgreSQL parity: `postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public` |
 | `NEXTAUTH_SECRET` | Random secret for signing sessions; at least 32 characters (generate with `openssl rand -hex 32`) |
 | `NEXTAUTH_URL` | Canonical URL of the app, e.g. `http://localhost:3000` |
 
