@@ -1,0 +1,206 @@
+import assert from "node:assert/strict";
+import { randomUUID } from "node:crypto";
+import { after, afterEach, test } from "node:test";
+import { ArticleStatus } from "@prisma/client";
+import { prisma } from "@/lib/prisma";
+
+const enabled = process.env.RUN_DB_INTEGRATION === "1";
+const databaseUrl = process.env.DATABASE_URL ?? "";
+const isPostgres = databaseUrl.startsWith("postgresql://") || databaseUrl.startsWith("postgres://");
+const PREFIX = "dbit_";
+
+function id(label: string): string {
+  return `${PREFIX}${label}_${randomUUID().replace(/-/g, "")}`;
+}
+
+async function cleanIntegrationRows(): Promise<void> {
+  await prisma.savedWord.deleteMany({ where: { userId: { startsWith: PREFIX } } });
+  await prisma.article.deleteMany({ where: { id: { startsWith: PREFIX } } });
+  await prisma.tag.deleteMany({ where: { id: { startsWith: PREFIX } } });
+  await prisma.user.deleteMany({ where: { id: { startsWith: PREFIX } } });
+}
+
+afterEach(async () => {
+  if (enabled) await cleanIntegrationRows();
+});
+
+after(async () => {
+  await prisma.$disconnect();
+});
+
+test("PostgreSQL migrations are applied and include the article FTS index", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const migrations = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null }>>`
+    SELECT migration_name, finished_at
+    FROM "_prisma_migrations"
+    WHERE rolled_back_at IS NULL
+  `;
+
+  assert.ok(
+    migrations.some((migration) => migration.migration_name === "20260623000000_postgresql_baseline"),
+    "PostgreSQL baseline migration should be recorded",
+  );
+  assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
+
+  const indexes = await prisma.$queryRaw<Array<{ indexname: string }>>`
+    SELECT indexname
+    FROM pg_indexes
+    WHERE schemaname = 'public'
+      AND tablename = 'Article'
+      AND indexname = 'Article_search_vector_idx'
+  `;
+  assert.equal(indexes.length, 1);
+});
+
+test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const ownerA = id("owner_a");
+  const ownerB = id("owner_b");
+  const sourceUrl = `https://example.invalid/${id("source")}`;
+
+  await prisma.user.createMany({
+    data: [
+      { id: ownerA, name: "DB Integration Owner A", role: "Reader" },
+      { id: ownerB, name: "DB Integration Owner B", role: "Reader" },
+    ],
+  });
+
+  await prisma.article.create({
+    data: { id: id("article_a"), title: "Owned Article A", content: "Body", sourceUrl, ownerId: ownerA },
+  });
+
+  await assert.rejects(
+    prisma.article.create({
+      data: { id: id("article_dup"), title: "Duplicate Owner Article", content: "Body", sourceUrl, ownerId: ownerA },
+    }),
+    /Unique constraint failed|Unique constraint|duplicate key value/,
+  );
+
+  await prisma.article.create({
+    data: { id: id("article_b"), title: "Owned Article B", content: "Body", sourceUrl, ownerId: ownerB },
+  });
+});
+
+test("article deletes cascade derived data but keep saved-word study history", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const userId = id("cascade_user");
+  const articleId = id("cascade_article");
+  const tagId = id("cascade_tag");
+
+  await prisma.user.create({ data: { id: userId, name: "DB Integration User", role: "Reader" } });
+  await prisma.article.create({
+    data: {
+      id: articleId,
+      title: "Cascade Article",
+      content: "A long enough body for derived data.",
+      status: ArticleStatus.PUBLISHED,
+      publishedAt: new Date(),
+      ownerId: userId,
+    },
+  });
+  await prisma.tag.create({ data: { id: tagId, name: `Integration ${tagId}`, slug: tagId } });
+
+  await Promise.all([
+    prisma.articleTag.create({ data: { articleId, tagId } }),
+    prisma.translation.create({ data: { articleId, targetLang: "es", content: "Texto" } }),
+    prisma.sentenceTranslation.create({
+      data: { articleId, sourceHash: id("hash"), targetLang: "es", sourceText: "Hello", translation: "Hola" },
+    }),
+    prisma.vocabularyItem.create({ data: { articleId, word: "cascade", explanation: "test", example: "cascade test" } }),
+    prisma.quizQuestion.create({ data: { articleId, question: "Question?", options: "[\"A\",\"B\"]", correctIndex: 0 } }),
+    prisma.articleSpeech.create({
+      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", audioBase64: "AA==", spokenText: "Hello", words: "[]" },
+    }),
+    prisma.readingProgress.create({ data: { userId, articleId, percent: 50 } }),
+    prisma.readingList.create({ data: { id: id("list"), userId, name: "Integration List", items: { create: { articleId } } } }),
+    prisma.highlight.create({ data: { userId, articleId, quote: "long", startOffset: 0, endOffset: 4 } }),
+    prisma.tutorMessage.create({ data: { userId, articleId, role: "user", content: "Explain this." } }),
+    prisma.quizAttempt.create({ data: { userId, articleId, correctCount: 1, totalQuestions: 2, scorePct: 50 } }),
+    prisma.pronunciationAttempt.create({
+      data: { userId, articleId, referenceText: "Hello", accuracyScore: 90, fluencyScore: 90, completenessScore: 90, pronScore: 90 },
+    }),
+    prisma.grammarExplanation.create({ data: { articleId, phrase: "because of", explanation: "Grammar note" } }),
+    prisma.articleDifficultyFeedback.create({ data: { userId, articleId, vote: "just_right" } }),
+    prisma.savedWord.create({ data: { userId, word: "cascade", articleId, explanation: "study item" } }),
+  ]);
+
+  await prisma.article.delete({ where: { id: articleId } });
+
+  const [
+    articleTags,
+    translations,
+    sentenceTranslations,
+    vocabulary,
+    quizQuestions,
+    speech,
+    progress,
+    readingListItems,
+    highlights,
+    tutorMessages,
+    quizAttempts,
+    pronunciationAttempts,
+    grammarExplanations,
+    difficultyFeedback,
+    savedWord,
+  ] = await Promise.all([
+    prisma.articleTag.count({ where: { articleId } }),
+    prisma.translation.count({ where: { articleId } }),
+    prisma.sentenceTranslation.count({ where: { articleId } }),
+    prisma.vocabularyItem.count({ where: { articleId } }),
+    prisma.quizQuestion.count({ where: { articleId } }),
+    prisma.articleSpeech.count({ where: { articleId } }),
+    prisma.readingProgress.count({ where: { articleId } }),
+    prisma.readingListItem.count({ where: { articleId } }),
+    prisma.highlight.count({ where: { articleId } }),
+    prisma.tutorMessage.count({ where: { articleId } }),
+    prisma.quizAttempt.count({ where: { articleId } }),
+    prisma.pronunciationAttempt.count({ where: { articleId } }),
+    prisma.grammarExplanation.count({ where: { articleId } }),
+    prisma.articleDifficultyFeedback.count({ where: { articleId } }),
+    prisma.savedWord.findUnique({ where: { userId_word: { userId, word: "cascade" } } }),
+  ]);
+
+  assert.deepEqual(
+    [
+      articleTags,
+      translations,
+      sentenceTranslations,
+      vocabulary,
+      quizQuestions,
+      speech,
+      progress,
+      readingListItems,
+      highlights,
+      tutorMessages,
+      quizAttempts,
+      pronunciationAttempts,
+      grammarExplanations,
+      difficultyFeedback,
+    ],
+    Array(14).fill(0),
+  );
+  assert.equal(savedWord?.articleId, articleId);
+});
+
+test("PostgreSQL full-text article search is case-insensitive", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const articleId = id("fts_article");
+  await prisma.article.create({
+    data: {
+      id: articleId,
+      title: "Galactic Lanterns",
+      content: "Astronomers study bright lantern-like stars.",
+      status: ArticleStatus.PUBLISHED,
+      publishedAt: new Date(),
+    },
+  });
+
+  const { searchPublishedArticles } = await import("@/lib/articles");
+  const results = await searchPublishedArticles("galactic", { limit: 5 });
+
+  assert.ok(results.articles.some((article) => article.id === articleId));
+});

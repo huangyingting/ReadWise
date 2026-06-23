@@ -339,10 +339,15 @@ export function buildFtsQuery(raw: string): string | null {
 
 type FtsRow = { id: string; rank: number };
 
+function isPostgresDatabase(): boolean {
+  const url = process.env.DATABASE_URL ?? "";
+  return url.startsWith("postgresql://") || url.startsWith("postgres://");
+}
+
 /**
- * Full-text search over published articles via SQLite FTS5 (article_fts).
- * Results are ranked by bm25() relevance (most relevant first). Degrades
- * gracefully to a Prisma LIKE fallback when FTS5 is unavailable.
+ * Full-text search over published articles via the active database engine.
+ * SQLite uses FTS5 (article_fts); PostgreSQL uses a tsvector expression index.
+ * Degrades gracefully to a Prisma LIKE fallback when FTS is unavailable.
  *
  * When `userId` is supplied the search is extended to also surface articles
  * that the user has highlighted/annotated or saved vocabulary words from —
@@ -413,19 +418,39 @@ export async function searchPublishedArticles(
   const ftsQuery = buildFtsQuery(q);
   if (ftsQuery) {
     try {
-      // bm25() returns negative values — ORDER BY ASC puts best matches first.
-      // We fetch offset + limit + 1 + extra user IDs to handle merging and
-      // hasMore detection. The actual pagination window is applied after merge.
-      const ftsRows = await prisma.$queryRaw<FtsRow[]>`
-        SELECT a.id, bm25(article_fts) AS rank
-        FROM article_fts
-        JOIN "Article" a ON a.rowid = article_fts.rowid
-        WHERE article_fts MATCH ${ftsQuery}
-          AND a.status = 'published'
-          AND a.visibility = 'PUBLIC'
-        ORDER BY rank ASC, a."publishedAt" DESC
-        LIMIT ${limit + 1 + userArticleIds.length} OFFSET ${offset}
-      `;
+      const take = limit + 1 + userArticleIds.length;
+      const ftsRows = isPostgresDatabase()
+        ? await prisma.$queryRaw<FtsRow[]>`
+            WITH ranked AS (
+              SELECT
+                a.id,
+                ts_rank_cd(
+                  to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.excerpt, '') || ' ' || coalesce(a.content, '')),
+                  plainto_tsquery('english', ${q})
+                ) AS rank,
+                a."publishedAt"
+              FROM "Article" a
+              WHERE to_tsvector('english', coalesce(a.title, '') || ' ' || coalesce(a.excerpt, '') || ' ' || coalesce(a.content, ''))
+                    @@ plainto_tsquery('english', ${q})
+                AND a.status = 'published'
+                AND a.visibility = 'PUBLIC'
+            )
+            SELECT id, rank
+            FROM ranked
+            ORDER BY rank DESC, "publishedAt" DESC
+            LIMIT ${take} OFFSET ${offset}
+          `
+        : await prisma.$queryRaw<FtsRow[]>`
+           -- bm25() returns negative values — ORDER BY ASC puts best matches first.
+           SELECT a.id, bm25(article_fts) AS rank
+           FROM article_fts
+           JOIN "Article" a ON a.rowid = article_fts.rowid
+           WHERE article_fts MATCH ${ftsQuery}
+             AND a.status = 'published'
+             AND a.visibility = 'PUBLIC'
+           ORDER BY rank ASC, a."publishedAt" DESC
+           LIMIT ${take} OFFSET ${offset}
+          `;
 
       // Build ordered id list: FTS-ranked ids first, then per-user extras not
       // already in the ranked set. Annotation IDs are only appended on the

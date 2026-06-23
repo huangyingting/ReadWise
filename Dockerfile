@@ -3,8 +3,10 @@
 # ReadWise — multi-stage production Dockerfile
 #
 # Required runtime environment variables (set via docker run -e or compose):
-#   DATABASE_URL        - SQLite path, e.g. file:/data/readwise.db
-#                         Mount a persistent volume at /data for the DB file.
+#   DATABASE_URL        - Prisma datasource URL. Use PostgreSQL for production
+#                         parity, e.g. postgresql://<user>:<password>@<host>:5432/<database>?schema=public
+#   PRISMA_SCHEMA_PATH  - Optional schema path; set to
+#                         prisma/postgresql/schema.prisma for PostgreSQL images.
 #   NEXTAUTH_SECRET     - Random secret for NextAuth session signing (required)
 #   NEXTAUTH_URL        - Public URL of the app, e.g. https://readwise.example.com
 #
@@ -30,12 +32,13 @@ RUN npm ci
 # ---- Stage 2: build the Next.js application -----------------------------
 FROM node:22-alpine AS build
 WORKDIR /app
+ARG PRISMA_SCHEMA_PATH=prisma/schema.prisma
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
 # Generate Prisma client for the current platform
-RUN npx prisma generate
+RUN npx prisma generate --schema "$PRISMA_SCHEMA_PATH"
 
 # Build produces .next/standalone (output:"standalone" in next.config.ts)
 RUN npm run build
@@ -47,6 +50,8 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
+ARG PRISMA_SCHEMA_PATH=prisma/schema.prisma
+ENV PRISMA_SCHEMA_PATH=$PRISMA_SCHEMA_PATH
 
 # Non-root user for security
 RUN addgroup --system --gid 1001 nodejs \
@@ -60,8 +65,8 @@ COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
 # Prisma generated client + native query engine binary.
 # The standalone tracer does not follow dynamic requires used by @prisma/client,
 # so we copy both packages explicitly from the full deps stage.
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/.prisma        ./node_modules/.prisma
-COPY --from=deps --chown=nextjs:nodejs /app/node_modules/@prisma/client  ./node_modules/@prisma/client
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/.prisma        ./node_modules/.prisma
+COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma/client  ./node_modules/@prisma/client
 
 # Prisma CLI (needed for `prisma migrate deploy` in the entrypoint) and
 # migration files (the schema + SQL migration history).

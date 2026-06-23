@@ -259,12 +259,27 @@ function isValidVapidSubject(subject: string): boolean {
   return /^(mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https?:\/\/.+)/i.test(subject);
 }
 
+function isValidDatabaseUrl(value: string): boolean {
+  if (value.startsWith("file:")) {
+    return value.length > "file:".length;
+  }
+
+  try {
+    const { protocol } = new URL(value);
+    return protocol === "postgresql:" || protocol === "postgres:";
+  } catch {
+    return false;
+  }
+}
+
 function validateRuntimeSections() {
   const database = evaluateRequired(["DATABASE_URL"], [
     (values) =>
-      values.DATABASE_URL.startsWith("file:") && values.DATABASE_URL.length > "file:".length
+      isValidDatabaseUrl(values.DATABASE_URL)
         ? null
-        : issue("error", "invalid_database_url", "DATABASE_URL must be a non-empty SQLite file: URL.", ["DATABASE_URL"]),
+        : issue("error", "invalid_database_url", "DATABASE_URL must be a SQLite file: URL or PostgreSQL URL.", [
+            "DATABASE_URL",
+          ]),
   ]);
 
   const auth = evaluateRequired(["NEXTAUTH_SECRET", "NEXTAUTH_URL"], [
