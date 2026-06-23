@@ -23,6 +23,12 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { submitMutation } from "@/lib/offline-mutations";
+
+/** True for a not-yet-persisted (optimistic) highlight id. */
+function isOptimisticId(id: string): boolean {
+  return id.startsWith("optimistic-");
+}
 
 // ---------------------------------------------------------------------------
 // Types
@@ -175,7 +181,10 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
           body: JSON.stringify(input),
         });
         if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
+          // Server rejected (validation/permission) — revert the optimistic mark.
+          setHighlights((prev) => prev.filter((h) => h.id !== tempId));
+          announce("Failed to save highlight");
+          return null;
         }
         const data = (await res.json()) as { highlight: Highlight };
         const real = data.highlight;
@@ -187,10 +196,17 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
         announce("Highlight added");
         return real;
       } catch {
-        // Revert
-        setHighlights((prev) => prev.filter((h) => h.id !== tempId));
-        announce("Failed to save highlight");
-        return null;
+        // Network/offline — queue the create (idempotent server-side upsert by
+        // anchor offsets) and KEEP the optimistic mark so the user isn't blocked
+        // (RW-042). It reconciles to a real id on the next load after sync.
+        void submitMutation({
+          type: "highlight.create",
+          endpoint: `/api/reader/${articleId}/highlights`,
+          method: "POST",
+          body: input,
+        });
+        announce("Highlight saved offline");
+        return optimistic;
       }
     },
     [articleId],
@@ -204,6 +220,9 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
       setHighlights((hs) =>
         hs.map((h) => (h.id === id ? { ...h, color } : h)),
       );
+      // An unsaved (optimistic) highlight has no server id yet — its queued
+      // create already carries the colour. Skip the remote update.
+      if (isOptimisticId(id)) return;
       try {
         const res = await fetch(`/api/highlights/${id}`, {
           method: "PATCH",
@@ -216,8 +235,14 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
           hs.map((h) => (h.id === id ? data.highlight : h)),
         );
       } catch {
-        // Revert
-        setHighlights((hs) => hs.map((h) => (h.id === id ? prev : h)));
+        // Offline — queue and keep the optimistic colour (RW-042).
+        void submitMutation({
+          type: "highlight.color",
+          endpoint: `/api/highlights/${id}`,
+          method: "PATCH",
+          body: { color },
+          dedupeKey: `hl-color:${id}`,
+        });
       }
     },
     [highlights],
@@ -231,21 +256,36 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
       setHighlights((hs) =>
         hs.map((h) => (h.id === id ? { ...h, note } : h)),
       );
+      if (isOptimisticId(id)) return;
+      // RW-043 — send the updatedAt we based this edit on so the server can
+      // detect a concurrent change and MERGE (never silently drop note text).
+      const body = { note, baseUpdatedAt: prev.updatedAt };
       try {
         const res = await fetch(`/api/highlights/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ note }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = (await res.json()) as { highlight: Highlight };
+        const data = (await res.json()) as { highlight: Highlight; conflict?: boolean };
         setHighlights((hs) =>
           hs.map((h) => (h.id === id ? data.highlight : h)),
         );
-        announce("Note saved");
+        announce(
+          data.conflict
+            ? "Note merged — your text and another device's edit were both kept"
+            : "Note saved",
+        );
       } catch {
-        setHighlights((hs) => hs.map((h) => (h.id === id ? prev : h)));
-        announce("Failed to save note");
+        // Offline — queue and keep the optimistic note (RW-042/RW-043).
+        void submitMutation({
+          type: "highlight.note",
+          endpoint: `/api/highlights/${id}`,
+          method: "PATCH",
+          body,
+          dedupeKey: `hl-note:${id}`,
+        });
+        announce("Note saved offline");
       }
     },
     [highlights],
@@ -262,16 +302,26 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
         next.delete(id);
         return next;
       });
+      // An optimistic highlight only ever existed locally — nothing to delete
+      // server-side (a queued create for it will still replay, but that's an
+      // accepted edge of offline create-then-delete).
+      if (isOptimisticId(id)) {
+        announce("Highlight deleted");
+        return;
+      }
       try {
         const res = await fetch(`/api/highlights/${id}`, { method: "DELETE" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         announce("Highlight deleted");
       } catch {
-        // Revert
-        setHighlights((hs) =>
-          [...hs, prev].sort((a, b) => a.startOffset - b.startOffset),
-        );
-        announce("Failed to delete highlight");
+        // Offline — queue the delete (idempotent) and keep it removed locally.
+        void submitMutation({
+          type: "highlight.delete",
+          endpoint: `/api/highlights/${id}`,
+          method: "DELETE",
+          dedupeKey: `hl-delete:${id}`,
+        });
+        announce("Highlight deleted offline");
       }
     },
     [highlights],

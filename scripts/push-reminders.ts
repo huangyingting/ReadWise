@@ -79,6 +79,7 @@ async function main() {
     usersWithDue: result.usersWithDue,
     sent: result.sent,
     skipped: result.skipped,
+    suppressed: result.suppressed,
   });
 }
 

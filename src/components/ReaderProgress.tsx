@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { markArticleVisited } from "@/lib/visited";
+import { submitMutation } from "@/lib/offline-mutations";
 
 const THROTTLE_MS = 1000;
 
@@ -34,16 +35,35 @@ export default function ReaderProgress({
     // Record this article as visited so listings refresh its progress.
     markArticleVisited(articleId);
 
-    function send(value: number) {
+    function send(value: number, useKeepalive = false) {
       lastSentRef.current = Date.now();
       lastSentValueRef.current = value;
-      void fetch(`/api/reader/${articleId}/progress`, {
+      const endpoint = `/api/reader/${articleId}/progress`;
+      const queueOffline = () =>
+        void submitMutation({
+          type: "progress",
+          endpoint,
+          method: "POST",
+          body: { percent: value },
+          // Collapse to the latest position — the server is forward-only so an
+          // older queued percent would be a no-op anyway (RW-042/RW-043).
+          dedupeKey: `progress:${articleId}`,
+        });
+
+      // Offline: enqueue for background sync instead of a doomed fetch.
+      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+        queueOffline();
+        return;
+      }
+      void fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ percent: value }),
-        keepalive: true,
+        keepalive: useKeepalive,
       }).catch(() => {
-        /* best-effort; progress will be retried on next scroll */
+        // Online send failed (flaky network) — queue it; server stays
+        // forward-only so a later replay never lowers progress.
+        queueOffline();
       });
     }
 
@@ -101,7 +121,7 @@ export default function ReaderProgress({
       }
       // Final flush so the latest position is persisted on navigation away.
       if (percentRef.current > lastSentValueRef.current) {
-        send(percentRef.current);
+        send(percentRef.current, true);
       }
     };
   }, [articleId]);
