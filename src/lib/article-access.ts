@@ -10,9 +10,9 @@ import {
 /**
  * Central article access rules.
  *
- * Public-listable: `visibility === PUBLIC && status === PUBLISHED`; visible in
- * anonymous metadata, public/library feeds, browse, tags, and unauthenticated
- * lookups.
+ * Public-listable: `visibility === PUBLIC && status === PUBLISHED && ownerId === null`;
+ * visible in anonymous metadata, public/library feeds, browse, tags, and
+ * unauthenticated lookups.
  * Readable: Admin/System can read any article; an authenticated reader can read
  * public-listable articles plus articles they own; anonymous callers can read
  * only public-listable articles.
@@ -52,7 +52,11 @@ export function isArticleOperator(context?: ArticleAccessContext | null): boolea
 type ArticleVisibilityShape = Pick<Article, "status" | "visibility" | "ownerId">;
 
 export function isPublicListableArticle(article: ArticleVisibilityShape): boolean {
-  return article.visibility === ArticleVisibility.PUBLIC && article.status === ArticleStatus.PUBLISHED;
+  return (
+    article.visibility === ArticleVisibility.PUBLIC &&
+    article.status === ArticleStatus.PUBLISHED &&
+    article.ownerId === null
+  );
 }
 
 export function canReadArticle(
@@ -109,6 +113,7 @@ export function publicListableArticleWhere(
     ...(extra ?? {}),
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
+    ownerId: null,
   };
 }
 
@@ -122,7 +127,7 @@ export function ownedArticleWhere(
 export function publicLibraryArticleWhere(
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), visibility: ArticleVisibility.PUBLIC };
+  return { ...(extra ?? {}), visibility: ArticleVisibility.PUBLIC, ownerId: null };
 }
 
 export function readableArticleWhere(
@@ -133,7 +138,7 @@ export function readableArticleWhere(
   if (context?.userId) {
     const access = {
       OR: [
-        { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED },
+        { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
         { visibility: ArticleVisibility.PRIVATE, ownerId: context.userId },
       ],
     };

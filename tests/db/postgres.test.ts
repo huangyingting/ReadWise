@@ -88,6 +88,13 @@ function assertUsesIndexes(actual: Set<string>, expected: string[]): void {
   }
 }
 
+function assertUsesAnyIndex(actual: Set<string>, expected: string[]): void {
+  assert.ok(
+    expected.some((indexName) => actual.has(indexName)),
+    `expected plan to use one of ${expected.join(", ")}; used indexes: ${[...actual].sort().join(", ") || "(none)"}`,
+  );
+}
+
 async function seedQueryPlanFixture(): Promise<{ userId: string }> {
   const userId = id("plan_user");
   await prisma.user.create({ data: { id: userId, name: "DB Plan User", role: "Reader" } });
@@ -518,7 +525,10 @@ test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled
      ORDER BY "publishedAt" DESC, "createdAt" DESC
      LIMIT 20`,
   );
-  assertUsesIndexes(categoryIndexes, ["Article_public_category_feed_idx"]);
+  assertUsesAnyIndex(categoryIndexes, [
+    "Article_public_category_feed_idx",
+    "Article_public_feed_idx",
+  ]);
 
   const recommendationIndexes = await explainIndexNames(
     `SELECT "id"

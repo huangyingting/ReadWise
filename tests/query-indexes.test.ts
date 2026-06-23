@@ -71,6 +71,16 @@ test("PostgreSQL migrations create the same production query indexes", () => {
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "ReadingProgress_user_completedAt_idx"/);
 });
 
+test("public feed predicate matches ownerless partial-index contract", () => {
+  const articleAccess = read("src/lib/article-access.ts");
+  const docs = read("docs/search-and-indexing.md");
+  const migration = readAllMigrations("prisma/postgresql/migrations");
+
+  assert.match(articleAccess, /publicListableArticleWhere[\s\S]{0,250}ownerId:\s*null/);
+  assert.match(docs, /ownerId IS NULL/);
+  assert.match(migration, /"ownerId" IS NULL/);
+});
+
 test("search strategy docs capture scaling assumptions and PostgreSQL follow-up", () => {
   const docs = read("docs/search-and-indexing.md");
   assert.match(docs, /ArticleSearchProvider/);
