@@ -12,7 +12,11 @@
  */
 import { NextResponse } from "next/server";
 import type { Session } from "next-auth";
-import { requireAdminApi, requireSessionApi } from "@/lib/api-auth";
+// Namespace import (not named) so test mocks that only stub a subset of
+// `@/lib/api-auth`'s exports don't fail ESM named-binding resolution. The
+// capability path is only invoked for capability-gated routes.
+import * as apiAuth from "@/lib/api-auth";
+import type { Capability } from "@/lib/rbac";
 import type { Schema } from "@/lib/validation";
 import {
   createLogger,
@@ -42,7 +46,7 @@ export class ApiError extends Error {
 /** Request-scoped logger handed to every handler (see {@link createLogger}). */
 export type RequestLogger = StructuredLogger;
 
-type AuthMode = "public" | "session" | "admin";
+type AuthMode = "public" | "session" | "admin" | "capability";
 
 type RouteContext = { params?: Promise<Record<string, string>> };
 
@@ -122,6 +126,7 @@ function build<B, P, Q, S extends Session | null>(
   auth: AuthMode,
   config: HandlerConfig<B, P, Q>,
   handler: Handler<B, P, Q, S>,
+  capability?: Capability,
 ) {
   return async (req: Request, routeCtx?: unknown): Promise<Response> => {
     const ctx = (routeCtx ?? {}) as RouteContext;
@@ -189,10 +194,15 @@ function build<B, P, Q, S extends Session | null>(
               return complete(jsonError(403, "Cross-site request blocked", requestId));
             }
 
-            // 1) Authentication — public routes are explicitly exempt.
+            // 1) Authentication — public routes are explicitly exempt. Admin
+            //    and capability routes share the same audit/security treatment
+            //    (a denied capability check is a denied admin-area access).
             let session: Session | null = null;
-            if (auth === "admin") {
-              const result = await requireAdminApi();
+            if (auth === "admin" || auth === "capability") {
+              const result =
+                auth === "capability" && capability
+                  ? await apiAuth.requireCapabilityApi(capability)
+                  : await apiAuth.requireAdminApi();
               if (result.error) {
                 await tryRecordAuditLog({
                   action: AUDIT_ACTIONS.securityAdminAccessDenied,
@@ -201,7 +211,11 @@ function build<B, P, Q, S extends Session | null>(
                   targetType: "route",
                   targetId: routeGroup,
                   requestId,
-                  metadata: { status: result.error.status, method: req.method },
+                  metadata: {
+                    status: result.error.status,
+                    method: req.method,
+                    ...(capability ? { capability } : {}),
+                  },
                   ...auditRequestInfo(req),
                 });
                 recordStatusSecurityEvent({
@@ -215,7 +229,7 @@ function build<B, P, Q, S extends Session | null>(
               }
               session = result.session;
             } else if (auth === "session") {
-              const result = await requireSessionApi();
+              const result = await apiAuth.requireSessionApi();
               if (result.error) {
                 recordStatusSecurityEvent({
                   status: result.error.status,
@@ -270,10 +284,11 @@ function build<B, P, Q, S extends Session | null>(
               log,
             });
 
-            // A successful admin mutation is a security-relevant change — record
-            // it for monitoring (it is also audited inside the route handler).
+            // A successful admin/capability mutation is a security-relevant
+            // change — record it for monitoring (it is also audited inside the
+            // route handler).
             if (
-              auth === "admin" &&
+              (auth === "admin" || auth === "capability") &&
               isStateChangingMethod(req.method) &&
               response.status < 400
             ) {
@@ -349,4 +364,20 @@ export function createPublicHandler<B = undefined, P = Record<string, never>, Q 
   handler: Handler<B, P, Q, null>,
 ) {
   return build("public", config, handler);
+}
+
+/**
+ * Capability-gated handler (RW-011/RW-051+). Requires the session to hold the
+ * named {@link Capability}: an unauthenticated request gets 401, an
+ * authenticated request lacking the capability gets 403 — both BEFORE the
+ * handler runs. Use this for admin-area routes that should be gated on a
+ * specific capability (e.g. `analytics.view`, `support.assist`) instead of the
+ * umbrella admin role. `ctx.session` is guaranteed non-null in the handler.
+ */
+export function createCapabilityHandler<B = undefined, P = Record<string, never>, Q = Record<string, never>>(
+  capability: Capability,
+  config: HandlerConfig<B, P, Q>,
+  handler: Handler<B, P, Q, Session>,
+) {
+  return build("capability", config, handler, capability);
 }

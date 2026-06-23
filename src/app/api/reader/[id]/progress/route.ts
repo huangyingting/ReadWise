@@ -6,6 +6,7 @@ import { articleAccessContext, getReadableArticleById } from "@/lib/article-acce
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 
 const bodySchema = object({ percent: number({ min: 0, max: 100 }) });
 
@@ -26,6 +27,17 @@ export const POST = createHandler(
         recordSkillEvidence(session.user.id, "reading", progress.percent / 100, 0.5),
       ),
     ]);
+    // Product analytics (RW-051): emit progress_complete when the article first
+    // reaches completion. saveProgress is forward-only + sticky, so this fires
+    // around the completion transition. Metadata only.
+    if (progress.completed) {
+      await recordEvent({
+        type: ANALYTICS_EVENT_TYPES.progressComplete,
+        userId: session.user.id,
+        articleId: article.id,
+        properties: { percent: progress.percent, category: article.category },
+      });
+    }
     return NextResponse.json({
       percent: progress.percent,
       completed: progress.completed,

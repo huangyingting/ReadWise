@@ -4,6 +4,7 @@ import { object, nonEmptyString, optional, string } from "@/lib/validation";
 import { saveWord } from "@/lib/vocabulary";
 import { recordWordExposure } from "@/lib/word-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 
 const bodySchema = object({
   word: nonEmptyString(200),
@@ -27,5 +28,13 @@ export const POST = createHandler({ body: bodySchema }, async ({ body, session }
       articleId: body.articleId ?? undefined,
     }),
   );
+  // Product analytics (RW-051): saving a word is a key activation signal.
+  // Metadata only — the saved word and its explanation are NEVER stored.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.saveWord,
+    userId: session.user.id,
+    articleId: body.articleId ?? null,
+    properties: { hasArticle: Boolean(body.articleId) },
+  });
   return NextResponse.json({ word: body.word, saved: true });
 });

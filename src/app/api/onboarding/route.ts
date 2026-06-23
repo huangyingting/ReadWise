@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
 import { parseProfileInput, type ProfileInput } from "@/lib/profile";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -24,6 +25,16 @@ export const POST = createHandler({ body: profileSchema }, async ({ body, sessio
     where: { userId: session.user.id },
     create: { userId: session.user.id, ...data },
     update: data,
+  });
+  // Product analytics (RW-051): onboarding completion is the funnel entry point.
+  // Metadata only — never the user's free-text answers.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.onboardingComplete,
+    userId: session.user.id,
+    properties: {
+      englishLevel: body.englishLevel,
+      topicCount: Array.isArray(body.topics) ? body.topics.length : 0,
+    },
   });
   return NextResponse.json({ ok: true });
 });

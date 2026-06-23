@@ -977,3 +977,30 @@ export function securityEventBufferSize(): number {
   const v = positiveIntEnv("SECURITY_EVENT_BUFFER_SIZE", 200);
   return Math.min(v, 2000);
 }
+
+// ---------------------------------------------------------------------------
+// Product analytics (RW-051)
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether the product analytics event stream persists events to the database.
+ * Defaults OFF under NODE_ENV=test (unit tests mock prisma and opt in via
+ * ANALYTICS_ENABLED=1) and ON otherwise. Set ANALYTICS_ENABLED=0 to disable
+ * ingestion entirely (e.g. a privacy-sensitive deployment).
+ */
+export function analyticsEnabled(): boolean {
+  const raw = (process.env.ANALYTICS_ENABLED ?? "").trim().toLowerCase();
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  return process.env.NODE_ENV !== "test";
+}
+
+/**
+ * Retention window (in days) for {@link import("@/lib/analytics").pruneOldEvents}.
+ * Analytics events older than this are eligible for deletion. Defaults to 400
+ * days (~13 months, enough for year-over-year + cohort analysis). Set via
+ * `ANALYTICS_RETENTION_DAYS`.
+ */
+export function analyticsRetentionDays(): number {
+  return positiveIntEnv("ANALYTICS_RETENTION_DAYS", 400);
+}
