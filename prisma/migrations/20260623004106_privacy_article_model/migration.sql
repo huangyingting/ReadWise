@@ -77,7 +77,51 @@ INSERT INTO "new_Tag" (
     "id", "name", "slug", "createdAt", "updatedAt", "scope", "namespace", "ownerId", "orgId"
 )
 SELECT "id", "name", "slug", "createdAt", "updatedAt", 'PUBLIC', 'public', NULL, NULL
-FROM "Tag";
+FROM "Tag" AS "t"
+WHERE EXISTS (
+    SELECT 1
+    FROM "ArticleTag" AS "at"
+    JOIN "Article" AS "a" ON "a"."id" = "at"."articleId"
+    WHERE "at"."tagId" = "t"."id"
+      AND "a"."ownerId" IS NULL
+)
+OR NOT EXISTS (
+    SELECT 1
+    FROM "ArticleTag" AS "at"
+    WHERE "at"."tagId" = "t"."id"
+);
+
+INSERT INTO "new_Tag" (
+    "id", "name", "slug", "createdAt", "updatedAt", "scope", "namespace", "ownerId", "orgId"
+)
+SELECT
+    "t"."id" || ':private:' || "a"."ownerId",
+    "t"."name",
+    "t"."slug",
+    MIN("t"."createdAt"),
+    MAX("t"."updatedAt"),
+    'PRIVATE',
+    'user:' || "a"."ownerId",
+    "a"."ownerId",
+    NULL
+FROM "Tag" AS "t"
+JOIN "ArticleTag" AS "at" ON "at"."tagId" = "t"."id"
+JOIN "Article" AS "a" ON "a"."id" = "at"."articleId"
+WHERE "a"."ownerId" IS NOT NULL
+GROUP BY "t"."id", "t"."name", "t"."slug", "a"."ownerId";
+
+UPDATE "ArticleTag"
+SET "tagId" = "tagId" || ':private:' || (
+    SELECT "ownerId"
+    FROM "Article"
+    WHERE "Article"."id" = "ArticleTag"."articleId"
+)
+WHERE EXISTS (
+    SELECT 1
+    FROM "Article"
+    WHERE "Article"."id" = "ArticleTag"."articleId"
+      AND "Article"."ownerId" IS NOT NULL
+);
 
 DROP TABLE "Tag";
 ALTER TABLE "new_Tag" RENAME TO "Tag";
@@ -100,21 +144,25 @@ CREATE VIRTUAL TABLE IF NOT EXISTS "article_fts" USING fts5(
 CREATE TRIGGER IF NOT EXISTS article_ai
 AFTER INSERT ON "Article" BEGIN
   INSERT INTO article_fts(rowid, title, excerpt, content)
-  VALUES (new.rowid, new.title, COALESCE(new.excerpt, ''), COALESCE(new.content, ''));
+  SELECT new.rowid, new.title, COALESCE(new.excerpt, ''), COALESCE(new.content, '')
+  WHERE new.visibility = 'PUBLIC' AND new.status = 'published';
 END;
 
 CREATE TRIGGER IF NOT EXISTS article_ad
 AFTER DELETE ON "Article" BEGIN
   INSERT INTO article_fts(article_fts, rowid, title, excerpt, content)
-  VALUES ('delete', old.rowid, old.title, COALESCE(old.excerpt, ''), COALESCE(old.content, ''));
+  SELECT 'delete', old.rowid, old.title, COALESCE(old.excerpt, ''), COALESCE(old.content, '')
+  WHERE old.visibility = 'PUBLIC' AND old.status = 'published';
 END;
 
 CREATE TRIGGER IF NOT EXISTS article_au
 AFTER UPDATE ON "Article" BEGIN
   INSERT INTO article_fts(article_fts, rowid, title, excerpt, content)
-  VALUES ('delete', old.rowid, old.title, COALESCE(old.excerpt, ''), COALESCE(old.content, ''));
+  SELECT 'delete', old.rowid, old.title, COALESCE(old.excerpt, ''), COALESCE(old.content, '')
+  WHERE old.visibility = 'PUBLIC' AND old.status = 'published';
   INSERT INTO article_fts(rowid, title, excerpt, content)
-  VALUES (new.rowid, new.title, COALESCE(new.excerpt, ''), COALESCE(new.content, ''));
+  SELECT new.rowid, new.title, COALESCE(new.excerpt, ''), COALESCE(new.content, '')
+  WHERE new.visibility = 'PUBLIC' AND new.status = 'published';
 END;
 
 INSERT INTO article_fts(rowid, title, excerpt, content)
