@@ -41,7 +41,7 @@ export const POST = createPublicHandler(
     // IP-based rate limit: silently absorbs excess but still returns 204
     // (best-effort, keep returning 204 to avoid leaking the limit to clients).
     try {
-      checkRateLimitByKey(clientIpKey(req), "public");
+      await checkRateLimitByKey(clientIpKey(req), "public");
     } catch {
       return new NextResponse(null, { status: 204 });
     }

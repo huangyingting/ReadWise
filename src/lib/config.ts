@@ -194,6 +194,9 @@ function evaluateTuning(): ConfigCheckReport {
     "RATE_LIMIT_AI_REQUESTS",
     "RATE_LIMIT_LOOKUP_REQUESTS",
     "RATE_LIMIT_PUBLIC_REQUESTS",
+    "RATE_LIMIT_IMPORT_REQUESTS",
+    "RATE_LIMIT_ADMIN_JOB_REQUESTS",
+    "RATE_LIMIT_AUTH_REQUESTS",
     "RATE_LIMIT_WINDOW_MS",
     "LOG_LEVEL",
   ];
@@ -214,6 +217,9 @@ function evaluateTuning(): ConfigCheckReport {
   positiveInt("RATE_LIMIT_AI_REQUESTS");
   positiveInt("RATE_LIMIT_LOOKUP_REQUESTS");
   positiveInt("RATE_LIMIT_PUBLIC_REQUESTS");
+  positiveInt("RATE_LIMIT_IMPORT_REQUESTS");
+  positiveInt("RATE_LIMIT_ADMIN_JOB_REQUESTS");
+  positiveInt("RATE_LIMIT_AUTH_REQUESTS");
   positiveInt("RATE_LIMIT_WINDOW_MS");
 
   const retries = envValue("AI_MAX_RETRIES");
@@ -407,6 +413,77 @@ export function aiMaxRetries(): number {
 }
 
 // ---------------------------------------------------------------------------
+// AI invocation ledger + cost estimation (RW-019)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-1K-token USD rates used to estimate AI invocation cost for the ledger.
+ * `byModel` keys are matched case-insensitively as substrings of the model /
+ * deployment name (e.g. a "gpt-4o" key matches deployment "my-gpt-4o-prod").
+ * Defaults are intentionally conservative; override per deployment via env.
+ *
+ * Env:
+ *   AI_COST_PROMPT_PER_1K      — default prompt rate     (default 0.00015)
+ *   AI_COST_COMPLETION_PER_1K  — default completion rate (default 0.0006)
+ *   AI_COST_RATES              — optional JSON map, e.g.
+ *     {"gpt-4o":{"prompt":0.0025,"completion":0.01}}
+ */
+export type AiCostRate = { prompt: number; completion: number };
+export type AiCostConfig = { default: AiCostRate; byModel: Record<string, AiCostRate> };
+
+const DEFAULT_AI_COST_PROMPT_PER_1K = 0.00015;
+const DEFAULT_AI_COST_COMPLETION_PER_1K = 0.0006;
+
+function nonNegativeFloatEnv(name: string, fallback: number): number {
+  const v = Number(process.env[name]);
+  return Number.isFinite(v) && v >= 0 ? v : fallback;
+}
+
+function parseCostRateMap(raw: string | undefined): Record<string, AiCostRate> {
+  if (!raw || !raw.trim()) return {};
+  try {
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    const out: Record<string, AiCostRate> = {};
+    for (const [model, value] of Object.entries(parsed)) {
+      if (value && typeof value === "object") {
+        const rate = value as { prompt?: unknown; completion?: unknown };
+        const prompt = Number(rate.prompt);
+        const completion = Number(rate.completion);
+        if (Number.isFinite(prompt) && prompt >= 0 && Number.isFinite(completion) && completion >= 0) {
+          out[model.toLowerCase()] = { prompt, completion };
+        }
+      }
+    }
+    return out;
+  } catch {
+    return {};
+  }
+}
+
+/** Resolved per-1K-token cost rates (default + optional per-model overrides). */
+export function aiCostConfig(): AiCostConfig {
+  return {
+    default: {
+      prompt: nonNegativeFloatEnv("AI_COST_PROMPT_PER_1K", DEFAULT_AI_COST_PROMPT_PER_1K),
+      completion: nonNegativeFloatEnv("AI_COST_COMPLETION_PER_1K", DEFAULT_AI_COST_COMPLETION_PER_1K),
+    },
+    byModel: parseCostRateMap(process.env.AI_COST_RATES),
+  };
+}
+
+/**
+ * Whether the AI invocation ledger persists records to the database.
+ * Defaults OFF under NODE_ENV=test (unit tests mock prisma and opt in via
+ * AI_LEDGER_ENABLED=1) and ON otherwise. Set AI_LEDGER_ENABLED=0 to disable.
+ */
+export function aiLedgerEnabled(): boolean {
+  const raw = (process.env.AI_LEDGER_ENABLED ?? "").trim().toLowerCase();
+  if (raw === "1" || raw === "true") return true;
+  if (raw === "0" || raw === "false") return false;
+  return process.env.NODE_ENV !== "test";
+}
+
+// ---------------------------------------------------------------------------
 // Azure Speech (TTS)
 // ---------------------------------------------------------------------------
 
@@ -481,30 +558,66 @@ export const pushConfig: FeatureConfig<PushConfig> = defineFeatureConfig(() => {
 const DEFAULT_RATE_LIMIT_AI = 20;
 const DEFAULT_RATE_LIMIT_LOOKUP = 60;
 const DEFAULT_RATE_LIMIT_PUBLIC = 30;
+const DEFAULT_RATE_LIMIT_IMPORT = 10;
+const DEFAULT_RATE_LIMIT_ADMIN_JOB = 30;
+const DEFAULT_RATE_LIMIT_AUTH = 10;
 const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
+
+function positiveIntEnv(name: string, fallback: number): number {
+  const v = parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(v) && v > 0 ? v : fallback;
+}
 
 /** Max requests per key per window for the "ai" scope (default 20). */
 export function rateLimitAiRequests(): number {
-  const v = parseInt(process.env.RATE_LIMIT_AI_REQUESTS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_RATE_LIMIT_AI;
+  return positiveIntEnv("RATE_LIMIT_AI_REQUESTS", DEFAULT_RATE_LIMIT_AI);
 }
 
 /** Max requests per key per window for the "lookup" scope (default 60). */
 export function rateLimitLookupRequests(): number {
-  const v = parseInt(process.env.RATE_LIMIT_LOOKUP_REQUESTS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_RATE_LIMIT_LOOKUP;
+  return positiveIntEnv("RATE_LIMIT_LOOKUP_REQUESTS", DEFAULT_RATE_LIMIT_LOOKUP);
 }
 
 /** Max requests per key per window for the "public" scope (default 30). */
 export function rateLimitPublicRequests(): number {
-  const v = parseInt(process.env.RATE_LIMIT_PUBLIC_REQUESTS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_RATE_LIMIT_PUBLIC;
+  return positiveIntEnv("RATE_LIMIT_PUBLIC_REQUESTS", DEFAULT_RATE_LIMIT_PUBLIC);
+}
+
+/** Max requests per key per window for the "import" scope (default 10). */
+export function rateLimitImportRequests(): number {
+  return positiveIntEnv("RATE_LIMIT_IMPORT_REQUESTS", DEFAULT_RATE_LIMIT_IMPORT);
+}
+
+/** Max requests per key per window for the "admin-job" scope (default 30). */
+export function rateLimitAdminJobRequests(): number {
+  return positiveIntEnv("RATE_LIMIT_ADMIN_JOB_REQUESTS", DEFAULT_RATE_LIMIT_ADMIN_JOB);
+}
+
+/** Max requests per key per window for the "auth" scope (default 10). */
+export function rateLimitAuthRequests(): number {
+  return positiveIntEnv("RATE_LIMIT_AUTH_REQUESTS", DEFAULT_RATE_LIMIT_AUTH);
 }
 
 /** Rate-limit window length in ms (RATE_LIMIT_WINDOW_MS, default 60000). */
 export function rateLimitWindowMs(): number {
-  const v = parseInt(process.env.RATE_LIMIT_WINDOW_MS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_RATE_LIMIT_WINDOW_MS;
+  return positiveIntEnv("RATE_LIMIT_WINDOW_MS", DEFAULT_RATE_LIMIT_WINDOW_MS);
+}
+
+export type RateLimitStoreMode = "auto" | "database" | "memory";
+
+/**
+ * Backing store for the shared rate limiter (RATE_LIMIT_STORE, default "auto").
+ *   - "auto"     — use the DB-backed shared store, falling back to in-memory on
+ *                  any store error (graceful degradation for dev / tests).
+ *   - "database" — always use the DB store (still falls back to memory on error).
+ *   - "memory"   — never touch the DB; use the process-local limiter only.
+ */
+export function rateLimitStoreMode(): RateLimitStoreMode {
+  const raw = (process.env.RATE_LIMIT_STORE ?? "").trim().toLowerCase();
+  if (raw === "database" || raw === "memory" || raw === "auto") return raw;
+  // Default to the shared DB store in dev/prod; pure in-memory under tests so
+  // the suite never needs a live DB (a dedicated test opts in via the env var).
+  return process.env.NODE_ENV === "test" ? "memory" : "auto";
 }
 
 // ---------------------------------------------------------------------------

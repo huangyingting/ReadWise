@@ -25,7 +25,7 @@ export const POST = createHandler(
     const userId = session.user.id;
     const { endpoint } = body;
 
-    checkRateLimit(userId, "lookup");
+    await checkRateLimit(userId, "lookup");
 
     // Only delete if it belongs to the authenticated user.
     await prisma.pushSubscription.deleteMany({

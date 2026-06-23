@@ -9,7 +9,7 @@ export const POST = createHandler({ params: idParams }, async ({ params, session
   const context = articleAccessContext(session.user);
   const article = await getReadableArticleById(params.id, context);
   if (!article) throw new ApiError(404, "Article not found");
-  checkRateLimit(session.user.id, "ai");
+  await checkRateLimit(session.user.id, "ai");
   const result = await getOrCreateArticleQuiz(params.id, context);
   if (!result) {
     throw new ApiError(404, "Article not found");

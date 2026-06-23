@@ -44,7 +44,7 @@ function parseQuery(params: URLSearchParams) {
  * Errors: 401 unauthenticated.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ session, query }) => {
-  checkRateLimit(session.user.id, "lookup");
+  await checkRateLimit(session.user.id, "lookup");
 
   const cards = await getDueFlashcards(session.user.id, query.limit);
 
