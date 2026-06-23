@@ -6,6 +6,7 @@ import { object, optional, nonEmptyString, number, boolean } from "@/lib/validat
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeAndSave } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 50;
@@ -32,7 +33,7 @@ const triggerBody = object({
  */
 export const POST = createAdminHandler(
   { body: triggerBody },
-  async ({ body, log }) => {
+  async ({ req, body, session, requestId, log }) => {
     const limit = body.limit ?? DEFAULT_LIMIT;
     const scrapeAll = body.all === true;
 
@@ -101,6 +102,22 @@ export const POST = createAdminHandler(
     if (totalSaved > 0) {
       revalidateArticlesCache();
     }
+
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminScrapeTrigger,
+      targetType: "scrape",
+      targetId: scrapeAll ? "all" : providers[0]?.key ?? "unknown",
+      metadata: {
+        providerCount: providers.length,
+        providers: providers.map((p) => p.key),
+        limit,
+        totalSaved,
+        totalFailed: results.reduce((s, r) => s + r.failed, 0),
+      },
+    });
 
     return NextResponse.json({
       ok: true,

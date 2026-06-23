@@ -32,6 +32,7 @@ let ssrfThrows = false;
 let updateCalled = false;
 let createCalled = false;
 let findFirstResult: { id: string } | null = null;
+let auditCalls = 0;
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -113,6 +114,20 @@ before(() => {
       revalidateTagsCache: () => {},
     },
   });
+
+  mock.module("@/lib/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        articleImport: "article.import",
+        securityAdminAccessDenied: "security.admin_access_denied",
+      },
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async () => {
+        auditCalls++;
+      },
+      tryRecordAuditLog: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {
@@ -124,6 +139,7 @@ beforeEach(() => {
   createCalled = false;
   findFirstResult = null;
   createdId = "new-article-id";
+  auditCalls = 0;
   scrapeResult = {
     title: "My Article",
     author: null,
@@ -165,6 +181,7 @@ test("URL import succeeds with valid URL and returns article id", async () => {
   assert.equal(res.status, 201);
   const data = await res.json();
   assert.equal(data.id, createdId);
+  assert.equal(auditCalls, 1);
 });
 
 test("text import succeeds with title + text", async () => {

@@ -118,7 +118,7 @@ export async function listMembers(
 }
 
 export type UpdateMemberRoleResult =
-  | { ok: true; role: Role }
+  | { ok: true; role: Role; previousRole: Role; changed: boolean }
   | { ok: false; error: string; status: number };
 
 /**
@@ -150,7 +150,9 @@ export async function updateMemberRole(
   }
 
   // No role change — skip the DB write entirely.
-  if (user.role === role) return { ok: true, role };
+  if (user.role === role) {
+    return { ok: true, role, previousRole: user.role, changed: false };
+  }
 
   // Re-count admins inside the transaction so two concurrent demotions of the
   // last admin can never both pass the guard and leave the system adminless.
@@ -170,11 +172,11 @@ export async function updateMemberRole(
     }
     throw e;
   }
-  return { ok: true, role };
+  return { ok: true, role, previousRole: user.role, changed: true };
 }
 
 export type DeleteMemberResult =
-  | { ok: true }
+  | { ok: true; role: Role; ownedArticleCount: number }
   | { ok: false; error: string; status: number };
 
 /**
@@ -205,6 +207,7 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
   //
   // Cascade deletes on the user: accounts, sessions, profile, reading progress,
   // saved words, etc. — all onDelete: Cascade.
+  let ownedArticleCount = 0;
   try {
     await prisma.$transaction(async (tx) => {
       if (user.role === "Admin") {
@@ -213,7 +216,8 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
           throw new AdminGuardError("Cannot remove the last remaining admin", 409);
         }
       }
-      await tx.article.deleteMany({ where: { ownerId: id } });
+      const deletedArticles = await tx.article.deleteMany({ where: { ownerId: id } });
+      ownedArticleCount = deletedArticles.count;
       await tx.user.delete({ where: { id } });
     });
   } catch (e) {
@@ -222,5 +226,5 @@ export async function deleteMember(id: string): Promise<DeleteMemberResult> {
     }
     throw e;
   }
-  return { ok: true };
+  return { ok: true, role: user.role, ownedArticleCount };
 }

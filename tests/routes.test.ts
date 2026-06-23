@@ -24,6 +24,12 @@ let searchArticlesResult: unknown = { articles: [], total: 0, page: 1 };
 let deleteArticleResult = true;
 let revalidateCalls = 0;
 let lastSavedWord: unknown = null;
+let auditCalls: unknown[] = [];
+
+const AUDIT_ACTIONS = {
+  adminArticleDelete: "admin.article.delete",
+  securityAdminAccessDenied: "security.admin_access_denied",
+};
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -101,6 +107,18 @@ before(() => {
       TAGS_CACHE_TAG: "tags",
     },
   });
+  mock.module("@/lib/audit", {
+    namedExports: {
+      AUDIT_ACTIONS,
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async (input: unknown) => {
+        auditCalls.push(input);
+      },
+      tryRecordAuditLog: async (input: unknown) => {
+        auditCalls.push(input);
+      },
+    },
+  });
   mock.module("@/lib/articles", {
     namedExports: {
       getViewableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
@@ -117,6 +135,7 @@ beforeEach(() => {
   revalidateCalls = 0;
   lastSavedWord = null;
   deleteArticleResult = true;
+  auditCalls = [];
   resetMetrics();
 });
 
@@ -262,6 +281,7 @@ test("GET admin/articles returns 403 for non-admins", async () => {
   const { GET } = (await import("@/app/api/admin/articles/route")) as { GET: RouteHandler };
   const res = await GET(new Request("http://test/api/admin/articles"), undefined);
   assert.equal(res.status, 403);
+  assert.equal((auditCalls[0] as { action: string }).action, "security.admin_access_denied");
 });
 
 test("DELETE admin/articles/[id] deletes and revalidates cache", async () => {
@@ -270,6 +290,8 @@ test("DELETE admin/articles/[id] deletes and revalidates cache", async () => {
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true });
   assert.equal(revalidateCalls, 1);
+  assert.equal((auditCalls[0] as { action: string; targetId: string }).action, "admin.article.delete");
+  assert.equal((auditCalls[0] as { targetId: string }).targetId, "a1");
 });
 
 test("DELETE admin/articles/[id] returns 404 when not found", async () => {

@@ -23,6 +23,7 @@ let importExisting: { id: string } | null = null;
 let assertSafeCalls: string[] = [];
 let assertSafeThrows = false;
 let scrapeCalls: string[] = [];
+let auditCalls = 0;
 
 const scrapedArticle = {
   title: "Scraped article",
@@ -245,6 +246,20 @@ before(() => {
       TAGS_CACHE_TAG: "tags",
     },
   });
+
+  mock.module("@/lib/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        articleImport: "article.import",
+        securityAdminAccessDenied: "security.admin_access_denied",
+      },
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async () => {
+        auditCalls++;
+      },
+      tryRecordAuditLog: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {
@@ -260,6 +275,7 @@ beforeEach(() => {
   assertSafeCalls = [];
   assertSafeThrows = false;
   scrapeCalls = [];
+  auditCalls = 0;
 });
 
 function jsonReq(body: unknown, url = "http://test/api/route"): Request {

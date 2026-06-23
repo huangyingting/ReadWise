@@ -6,6 +6,7 @@ import { object, nonEmptyString } from "@/lib/validation";
 import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
 const ingestBody = object({ url: nonEmptyString(2000) });
 
@@ -15,7 +16,7 @@ const ingestBody = object({ url: nonEmptyString(2000) });
  */
 export const POST = createAdminHandler(
   { body: ingestBody },
-  async ({ body }) => {
+  async ({ req, body, session, requestId }) => {
     const url = body.url;
 
     let scraped;
@@ -54,6 +55,15 @@ export const POST = createAdminHandler(
       throw new ApiError(422, `Save failed: ${outcome.reason}`);
     }
 
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminArticleIngest,
+      targetType: "article",
+      targetId: outcome.id,
+      metadata: { status: "saved" },
+    });
     revalidateArticlesCache();
     return NextResponse.json(
       { status: "saved", id: outcome.id },

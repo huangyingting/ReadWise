@@ -3,12 +3,13 @@ import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/admin-members";
 import type { Role } from "@prisma/client";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
 const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
 
 export const PATCH = createAdminHandler(
   { params: idParams, body: roleBody },
-  async ({ params, body, session }) => {
+  async ({ req, params, body, session, requestId }) => {
     if (params.id === session.user.id && body.role !== "Admin") {
       throw new ApiError(409, "You cannot remove your own admin role");
     }
@@ -16,13 +17,26 @@ export const PATCH = createAdminHandler(
     if (!result.ok) {
       throw new ApiError(result.status, result.error);
     }
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminMemberRoleUpdate,
+      targetType: "user",
+      targetId: params.id,
+      metadata: {
+        previousRole: result.previousRole,
+        role: result.role,
+        changed: result.changed,
+      },
+    });
     return NextResponse.json({ ok: true, role: result.role });
   },
 );
 
 export const DELETE = createAdminHandler(
   { params: idParams },
-  async ({ params, session }) => {
+  async ({ req, params, session, requestId }) => {
     if (params.id === session.user.id) {
       throw new ApiError(409, "You cannot remove your own account");
     }
@@ -30,6 +44,18 @@ export const DELETE = createAdminHandler(
     if (!result.ok) {
       throw new ApiError(result.status, result.error);
     }
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminMemberDelete,
+      targetType: "user",
+      targetId: params.id,
+      metadata: {
+        role: result.role,
+        ownedArticleCount: result.ownedArticleCount,
+      },
+    });
     return NextResponse.json({ ok: true });
   },
 );

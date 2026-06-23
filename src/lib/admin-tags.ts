@@ -99,7 +99,11 @@ export async function listAdminTags(
 }
 
 export type DeleteTagResult =
-  | { ok: true }
+  | { ok: true; articleCount: number }
+  | { ok: false; error: string; status: number };
+
+export type RenameTagResult =
+  | { ok: true; changed: boolean }
   | { ok: false; error: string; status: number };
 
 /**
@@ -110,11 +114,11 @@ export type DeleteTagResult =
 export async function renameTag(
   id: string,
   newName: string,
-): Promise<DeleteTagResult> {
+): Promise<RenameTagResult> {
   const trimmed = newName.trim();
   if (!trimmed) return { ok: false, error: "Name is required", status: 400 };
 
-  const tag = await prisma.tag.findUnique({ where: { id }, select: { id: true } });
+  const tag = await prisma.tag.findUnique({ where: { id }, select: { id: true, slug: true } });
   if (!tag) return { ok: false, error: "Not found", status: 404 };
 
   const newSlug = slugifyTag(trimmed);
@@ -130,8 +134,13 @@ export async function renameTag(
     };
   }
 
+  if (tag.slug === newSlug) {
+    await prisma.tag.update({ where: { id }, data: { name: trimmed, slug: newSlug } });
+    return { ok: true, changed: false };
+  }
+
   await prisma.tag.update({ where: { id }, data: { name: trimmed, slug: newSlug } });
-  return { ok: true };
+  return { ok: true, changed: true };
 }
 
 export type MergeTagsResult =
@@ -205,12 +214,12 @@ export async function mergeTags(
 export async function deleteTag(id: string): Promise<DeleteTagResult> {
   const tag = await prisma.tag.findUnique({
     where: { id },
-    select: { id: true },
+    select: { id: true, _count: { select: { articles: true } } },
   });
   if (!tag) {
     return { ok: false, error: "Not found", status: 404 };
   }
 
   await prisma.tag.delete({ where: { id } });
-  return { ok: true };
+  return { ok: true, articleCount: tag._count.articles };
 }

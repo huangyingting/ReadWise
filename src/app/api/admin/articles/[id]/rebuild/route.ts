@@ -4,12 +4,22 @@ import { idParams } from "@/lib/validation";
 import { rebuildArticleAi } from "@/lib/admin-articles";
 import { revalidateTagsCache } from "@/lib/cache";
 import { articleAccessContext } from "@/lib/article-access";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
-export const POST = createAdminHandler({ params: idParams }, async ({ params, session }) => {
+export const POST = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
   const result = await rebuildArticleAi(params.id, articleAccessContext(session.user));
   if (!result) {
     throw new ApiError(404, "Not found");
   }
+  await recordAuditFromRequest({
+    req,
+    session,
+    requestId,
+    action: AUDIT_ACTIONS.adminArticleRebuild,
+    targetType: "article",
+    targetId: params.id,
+    metadata: result.cleared,
+  });
   revalidateTagsCache();
   return NextResponse.json({ ok: true, ...result });
 });
