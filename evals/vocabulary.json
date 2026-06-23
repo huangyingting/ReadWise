@@ -1,0 +1,24 @@
+{
+  "feature": "vocabulary",
+  "description": "Vocabulary extraction must parse to a JSON array of items that each carry a non-empty word and explanation, with no duplicate words. Tolerant of code fences.",
+  "cases": [
+    {
+      "name": "science-article-plain-json",
+      "input": {
+        "title": "How Coral Reefs Recover",
+        "source": "Coral reefs are resilient ecosystems. After bleaching events, some corals can regenerate if water temperatures stabilize. Scientists monitor larvae settlement and the abundance of herbivorous fish that keep algae in check."
+      },
+      "modelOutput": "[{\"word\":\"resilient\",\"explanation\":\"able to recover quickly from difficulties\",\"example\":\"Coral reefs are resilient ecosystems.\"},{\"word\":\"bleaching\",\"explanation\":\"when coral loses its colour due to stress\",\"example\":\"Bleaching events can damage reefs.\"},{\"word\":\"regenerate\",\"explanation\":\"to grow or be renewed again\",\"example\":\"Some corals can regenerate over time.\"},{\"word\":\"larvae\",\"explanation\":\"the early life stage of some animals\",\"example\":\"Scientists track coral larvae settlement.\"},{\"word\":\"herbivorous\",\"explanation\":\"feeding on plants\",\"example\":\"Herbivorous fish keep algae in check.\"}]",
+      "expect": { "minItems": 4 }
+    },
+    {
+      "name": "fenced-json-with-prose",
+      "input": {
+        "title": "The Economics of Remote Work",
+        "source": "Remote work has reshaped commuting patterns and office demand. Employers weigh productivity against collaboration, while cities adapt their transit and tax revenue expectations."
+      },
+      "modelOutput": "Here are the words:\n```json\n[{\"word\":\"commuting\",\"explanation\":\"travelling regularly to and from work\",\"example\":\"Remote work changed commuting patterns.\"},{\"word\":\"productivity\",\"explanation\":\"how much useful work is done\",\"example\":\"Employers measure productivity carefully.\"},{\"word\":\"collaboration\",\"explanation\":\"working together with others\",\"example\":\"Offices encourage collaboration.\"},{\"word\":\"transit\",\"explanation\":\"public transport systems\",\"example\":\"Cities adapt their transit plans.\"}]\n```",
+      "expect": { "minItems": 3 }
+    }
+  ]
+}

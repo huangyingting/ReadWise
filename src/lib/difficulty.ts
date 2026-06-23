@@ -3,6 +3,7 @@ import { chatComplete, isAiConfigured } from "@/lib/ai";
 import type { Prisma } from "@prisma/client";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";
 import {
   getAiProcessableArticleById,
@@ -139,22 +140,12 @@ async function aiAssessLevel(
 ): Promise<DifficultyLevel | null> {
   const source = boundedSampleForFeature(htmlToPlainText(content), "difficulty");
   const completion = await chatComplete(
-    [
-      {
-        role: "system",
-        content:
-          "You assess the reading difficulty of English texts for language " +
-          "learners using the CEFR scale. Reply with exactly one level from " +
-          "A1, A2, B1, B2, C1, C2 — the level a learner needs to comfortably " +
-          "read the text. Respond with the two-character level only, no other " +
-          "words.",
-      },
-      {
-        role: "user",
-        content: `Title: ${title}\n\n${source}`,
-      },
-    ],
-    { maxOutputTokens: 16, feature: "difficulty", promptVersion: "difficulty/v1" },
+    renderPrompt("difficulty", { title, source }),
+    {
+      maxOutputTokens: promptModelParams("difficulty").maxOutputTokens,
+      feature: "difficulty",
+      promptVersion: activePromptVersion("difficulty"),
+    },
   );
   if (!completion) {
     return null;

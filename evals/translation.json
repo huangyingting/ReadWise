@@ -1,0 +1,39 @@
+{
+  "feature": "translation",
+  "description": "Article translation must be non-empty, fence-free, and preserve the source paragraph count. Outputs are representative samples, not golden strings.",
+  "cases": [
+    {
+      "name": "two-paragraph-news-es",
+      "input": {
+        "title": "City Opens New Riverside Park",
+        "targetLang": "es",
+        "targetLangLabel": "Spanish",
+        "source": "The city opened a new riverside park on Saturday morning.\n\nThousands of residents attended the opening ceremony along the water."
+      },
+      "modelOutput": "La ciudad inauguró un nuevo parque junto al río el sábado por la mañana.\n\nMiles de residentes asistieron a la ceremonia de apertura a la orilla del agua.",
+      "expect": { "paragraphs": 2 }
+    },
+    {
+      "name": "three-paragraph-feature-fr",
+      "input": {
+        "title": "A Quiet Revolution in Farming",
+        "targetLang": "fr",
+        "targetLangLabel": "French",
+        "source": "Small farms are adopting new sensors to save water.\n\nThe technology measures soil moisture every few minutes.\n\nEarly results suggest yields can rise while costs fall."
+      },
+      "modelOutput": "Les petites exploitations adoptent de nouveaux capteurs pour économiser l'eau.\n\nLa technologie mesure l'humidité du sol toutes les quelques minutes.\n\nLes premiers résultats suggèrent que les rendements peuvent augmenter tandis que les coûts diminuent.",
+      "expect": { "paragraphs": 3 }
+    },
+    {
+      "name": "single-paragraph-de",
+      "input": {
+        "title": "Trains Return to the Mountain Line",
+        "targetLang": "de",
+        "targetLangLabel": "German",
+        "source": "After two years of repairs, passenger trains are once again crossing the mountain line."
+      },
+      "modelOutput": "Nach zwei Jahren Reparatur fahren wieder Personenzüge über die Bergstrecke.",
+      "expect": { "paragraphs": 1 }
+    }
+  ]
+}

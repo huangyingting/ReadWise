@@ -1,0 +1,36 @@
+{
+  "feature": "grammar",
+  "description": "Grammar-in-context explanations must be non-empty plain text (no HTML) and pass the safety check. Outputs are representative learner-level explanations.",
+  "cases": [
+    {
+      "name": "phrasal-verb",
+      "input": {
+        "phrase": "run into",
+        "context": "I happened to run into an old friend at the station.",
+        "level": "B1"
+      },
+      "modelOutput": "\"Run into\" is a phrasal verb that means to meet someone unexpectedly. In this sentence it shows a chance meeting at the station. For example: I ran into my teacher at the supermarket.",
+      "expect": {}
+    },
+    {
+      "name": "idiom",
+      "input": {
+        "phrase": "break the ice",
+        "context": "She told a joke to break the ice at the meeting.",
+        "level": "B2"
+      },
+      "modelOutput": "\"Break the ice\" is an idiom. It means to do or say something to make people feel relaxed at the start of a social situation. For example: A quick game can break the ice on the first day of class.",
+      "expect": {}
+    },
+    {
+      "name": "collocation",
+      "input": {
+        "phrase": "make a decision",
+        "context": "We need to make a decision before Friday.",
+        "level": "A2"
+      },
+      "modelOutput": "\"Make a decision\" is a common collocation, meaning to decide something. We say \"make\" rather than \"do\" with the word decision. For example: It is hard to make a decision when you are tired.",
+      "expect": {}
+    }
+  ]
+}
