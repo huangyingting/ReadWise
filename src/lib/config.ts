@@ -621,6 +621,92 @@ export function rateLimitStoreMode(): RateLimitStoreMode {
 }
 
 // ---------------------------------------------------------------------------
+// AI budgets / quotas (RW-022)
+// ---------------------------------------------------------------------------
+
+/**
+ * Per-user, per-feature and global AI usage quotas, used to cap provider usage
+ * for cost control. Counted over a fixed window (default 24h). A limit of
+ * `null` (env unset or <= 0) means UNLIMITED, so dev/CI degrade gracefully with
+ * no quotas configured.
+ *
+ * Env:
+ *   AI_QUOTA_WINDOW_MS                  — window length (ms)        (default 86400000 = 24h)
+ *   AI_QUOTA_USER_DAILY                 — per-user interactive cap  (default unlimited)
+ *   AI_QUOTA_GLOBAL_DAILY               — global interactive cap    (default unlimited)
+ *   AI_QUOTA_BACKGROUND_DAILY           — global background/worker cap (default unlimited)
+ *   AI_QUOTA_FEATURE_DEFAULT_DAILY      — default per-feature cap   (default unlimited)
+ *   AI_QUOTA_FEATURE_<FEATURE>_DAILY    — per-feature override (FEATURE upper-cased,
+ *                                         non-alphanumerics → "_"; e.g.
+ *                                         AI_QUOTA_FEATURE_SENTENCE_TRANSLATION_DAILY)
+ */
+export type AiQuotaConfig = {
+  /** Window length in ms over which quotas are counted. */
+  windowMs: number;
+  /** Per-user interactive daily cap, or null when unlimited. */
+  userDaily: number | null;
+  /** Global interactive daily cap, or null when unlimited. */
+  globalDaily: number | null;
+  /** Global background/worker daily cap, or null when unlimited. */
+  backgroundDaily: number | null;
+  /** Default per-feature daily cap, or null when unlimited. */
+  featureDefaultDaily: number | null;
+  /** Resolve the daily cap for a feature (override → default → null). */
+  featureDaily(feature: string): number | null;
+};
+
+const DEFAULT_AI_QUOTA_WINDOW_MS = 86_400_000; // 24h
+
+/** Read a positive-int env var, returning null when unset / invalid / <= 0. */
+function optionalPositiveIntEnv(name: string): number | null {
+  const raw = process.env[name];
+  if (raw === undefined || raw.trim() === "") return null;
+  const v = parseInt(raw, 10);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+/** Normalize a feature label to the env-var token used for its override. */
+export function aiQuotaFeatureEnvName(feature: string): string {
+  const token = feature
+    .toUpperCase()
+    .replace(/[^A-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "");
+  return `AI_QUOTA_FEATURE_${token}_DAILY`;
+}
+
+/** Resolved AI usage quotas (env-driven; null limits mean unlimited). */
+export function aiQuotaConfig(): AiQuotaConfig {
+  const featureDefaultDaily = optionalPositiveIntEnv("AI_QUOTA_FEATURE_DEFAULT_DAILY");
+  return {
+    windowMs: positiveIntEnv("AI_QUOTA_WINDOW_MS", DEFAULT_AI_QUOTA_WINDOW_MS),
+    userDaily: optionalPositiveIntEnv("AI_QUOTA_USER_DAILY"),
+    globalDaily: optionalPositiveIntEnv("AI_QUOTA_GLOBAL_DAILY"),
+    backgroundDaily: optionalPositiveIntEnv("AI_QUOTA_BACKGROUND_DAILY"),
+    featureDefaultDaily,
+    featureDaily(feature: string): number | null {
+      return optionalPositiveIntEnv(aiQuotaFeatureEnvName(feature)) ?? featureDefaultDaily;
+    },
+  };
+}
+
+/**
+ * Best-effort list of feature labels that have an explicit per-feature override
+ * configured via AI_QUOTA_FEATURE_<FEATURE>_DAILY. The display name is derived
+ * from the env token (lower-cased, "_" → "-"); admin reporting unions this with
+ * the real feature labels seen in the ledger.
+ */
+export function configuredAiQuotaFeatures(): string[] {
+  const out: string[] = [];
+  for (const key of Object.keys(process.env)) {
+    const match = /^AI_QUOTA_FEATURE_(.+)_DAILY$/.exec(key);
+    if (!match || match[1] === "DEFAULT") continue;
+    if (optionalPositiveIntEnv(key) === null) continue;
+    out.push(match[1].toLowerCase().replace(/_/g, "-"));
+  }
+  return out;
+}
+
+// ---------------------------------------------------------------------------
 // Logging
 // ---------------------------------------------------------------------------
 

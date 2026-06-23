@@ -14,6 +14,7 @@ import { createLogger } from "@/lib/logger";
 import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
+import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
 
 const log = createLogger("ai");
 
@@ -38,6 +39,14 @@ export type ChatOptions = {
   promptVersion?: string | null;
   /** Marks the record as a cache hit. Defaults false (provider call). */
   cacheHit?: boolean;
+  /**
+   * Whether this is an interactive user request or background enrichment, used
+   * for AI budget/quota enforcement (RW-022). Defaults from the ambient AI
+   * context ({@link "@/lib/ai-budget".runWithAiContext}) or "interactive".
+   * Interactive over-quota throws ApiError(429); background over-quota skips
+   * the call (returns null) so enrichment degrades gracefully.
+   */
+  kind?: AiBudgetKind;
 };
 
 /** Token usage reported by Azure OpenAI in the response body. */
@@ -114,6 +123,29 @@ export async function chatCompleteWithMeta(
     recordAiCall({ feature, outcome: "unconfigured" });
     await logLedger("unconfigured");
     return null;
+  }
+
+  // Enforce AI budgets/quotas BEFORE the provider call (RW-022). Interactive
+  // paths throw ApiError(429) (surfaced as a clean 429 by the api-handler);
+  // background paths skip gracefully (return null) so enrichment degrades to the
+  // helper's fallback instead of crashing the worker.
+  const budgetKind: AiBudgetKind = options.kind ?? getAiContext()?.kind ?? "interactive";
+  if (budgetKind === "background") {
+    const decision = await checkAiBudget({ feature, userId: options.userId, kind: "background" });
+    if (!decision.allowed) {
+      log.warn("ai.quota_skipped", {
+        feature,
+        kind: "background",
+        scope: decision.scope,
+        limit: decision.limit,
+        used: decision.used,
+      });
+      await logLedger("fallback", { errorMessage: `quota_exceeded:${decision.scope}` });
+      return null;
+    }
+  } else {
+    // Throws ApiError(429) when a per-user/per-feature/global-interactive cap is hit.
+    await assertAiQuota({ feature, userId: options.userId, kind: "interactive" });
   }
 
   const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
