@@ -307,6 +307,25 @@ export function recordContentProcessingStep(input: {
   });
 }
 
+/**
+ * Records a captured application error (RW-033). Labels are low-cardinality on
+ * purpose: `source` (server/client/worker), `severity`, and an `alert` flag set
+ * when the error fingerprint crossed the high-frequency alert threshold. The
+ * fingerprint itself is NOT a label (unbounded) — it lives in the structured
+ * `error.captured` log line for correlation.
+ */
+export function recordErrorCaptured(input: {
+  source: string;
+  severity: string;
+  alert?: boolean;
+}): void {
+  incCounter("readwise_errors_captured_total", "Captured application errors by source and severity.", {
+    source: input.source,
+    severity: input.severity,
+    alert: input.alert ? "true" : "false",
+  });
+}
+
 const JOB_QUEUE_EVENTS = [
   "enqueued",
   "claimed",

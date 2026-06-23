@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string } from "@/lib/validation";
 import { checkRateLimitByKey, clientIpKey } from "@/lib/rate-limit";
+import { captureError } from "@/lib/error-reporting";
 
 /**
  * Client-side error sink (US-029). The browser error reporter
@@ -50,6 +51,19 @@ export const POST = createPublicHandler(
       clientSource: body.source ?? "window",
       clientStack: body.stack ? scrubClientText(body.stack) : undefined,
       clientUrl: body.url ? stripUrlSensitive(body.url) : undefined,
+    });
+    // Also funnel into the backend-agnostic aggregator so client exceptions are
+    // grouped/fingerprinted + alertable alongside server errors. Build a
+    // synthetic Error from the (already scrubbed) client report — captureError
+    // re-scrubs, fingerprints, and increments the error metric.
+    const clientError = new Error(scrubClientText(body.message));
+    clientError.name = "ClientError";
+    if (body.stack) clientError.stack = scrubClientText(body.stack);
+    captureError(clientError, {
+      source: "client",
+      severity: "error",
+      route: body.url ? stripUrlSensitive(body.url) : undefined,
+      extra: { clientSource: body.source ?? "window" },
     });
     return new NextResponse(null, { status: 204 });
   },

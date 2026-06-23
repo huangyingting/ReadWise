@@ -4,6 +4,7 @@ import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
 import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
 import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
+import { withSpan } from "@/lib/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
 
 const WORDS_PER_MINUTE = 200;
@@ -38,6 +39,15 @@ function pinnedDispatcher(pin: PinnedAddress): Agent {
 
 /** Fetches a URL as text with a desktop UA, a hard timeout and a body-size cap. Throws on non-2xx or unsafe target. */
 export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Promise<string> {
+  let host = "unknown";
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    // keep "unknown" — never put a raw/invalid URL on a span attribute
+  }
+  // Child span around the provider fetch. Only the hostname (low cardinality,
+  // no path/query) is recorded so no article URL/content leaks into traces.
+  return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
   const maxBytes = scraperMaxBytes();
   // A single AbortController bounds the TOTAL request budget — connect, every
   // redirect hop AND the streamed body read all share `controller.signal`, so a
@@ -100,6 +110,7 @@ export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Pr
   } finally {
     clearTimeout(timer);
   }
+  });
 }
 
 type FetchResponse = Awaited<ReturnType<typeof undiciFetch>>;
