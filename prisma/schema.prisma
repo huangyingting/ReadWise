@@ -84,6 +84,9 @@ model User {
   difficultyFeedback      ArticleDifficultyFeedback[]
   ownedArticles           Article[]                   @relation("OwnedArticles")
   ownedTags               Tag[]                       @relation("OwnedTags")
+  wordMastery             WordMastery[]
+  articleMastery          ArticleMastery[]
+  skillMastery            SkillMastery[]
 
   @@index([role, createdAt], map: "User_role_created_idx")
 }
@@ -147,6 +150,7 @@ model Article {
   difficultyFeedback        ArticleDifficultyFeedback[]
   grammarExplanations       GrammarExplanation[]
   processingSteps           ArticleProcessingStep[]
+  articleMastery            ArticleMastery[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
@@ -678,4 +682,97 @@ model RateLimitCounter {
 
   @@id([bucketKey, windowStart])
   @@index([expiresAt])
+}
+
+// ===========================================================================
+// Learning mastery foundation (Epic RW-E007 — RW-036/037/038).
+//
+// Durable, query-able representations of how well a user knows each WORD,
+// ARTICLE, and SKILL. These complement (never replace) the activity tables
+// they are derived from (SavedWord, ReadingProgress, QuizAttempt,
+// PronunciationAttempt, ArticleDifficultyFeedback, GrammarExplanation): the
+// raw activity remains the source of truth, while these models cache a rolled-
+// up mastery estimate that SRS, recommendations and leveling can read cheaply.
+// All updates are best-effort side-effects — a write failure here must never
+// break the underlying user action.
+// ===========================================================================
+
+// RW-036 — Per-user word mastery keyed by a normalized lemma (base form).
+// Lemma normalization reuses the dictionary lemmatizer (normalizeCandidates)
+// so inflections collapse onto a single row. `familiarity`/`confidence` are
+// 0–1 transparent scores blended from exposures + review accuracy.
+// `sourceArticleIds` is a JSON array of the (most recent) article ids the word
+// was encountered in (bounded). Cascades with the user.
+model WordMastery {
+  id               String    @id @default(cuid())
+  userId           String
+  lemma            String
+  familiarity      Float     @default(0)
+  exposures        Int       @default(0)
+  correctReviews   Int       @default(0)
+  incorrectReviews Int       @default(0)
+  confidence       Float     @default(0)
+  sourceArticleIds Json      @default("[]")
+  lastSeenAt       DateTime  @default(now())
+  lastReviewedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lemma])
+  @@index([userId])
+  @@index([userId, familiarity])
+  @@index([userId, lastSeenAt])
+}
+
+// RW-037 — Per-user, per-article comprehension state. A single durable
+// representation of how well a user understood an article, combining reading
+// completion, best quiz score, dictionary lookup density, time spent and the
+// user's difficulty vote into a transparent `comprehensionScore` (0–1).
+// Cascades with both the user AND the article.
+model ArticleMastery {
+  id                 String    @id @default(cuid())
+  userId             String
+  articleId          String
+  readingCompletion  Float     @default(0)
+  quizScore          Float?
+  lookupDensity      Float?
+  timeSpentMs        Int?
+  difficultyFeedback String?
+  comprehensionScore Float     @default(0)
+  lastActivityAt     DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+  @@index([articleId])
+  @@index([userId, lastActivityAt])
+}
+
+// RW-038 — Per-user skill confidence across the six learning dimensions
+// (reading, vocabulary, grammar, listening, pronunciation, comprehension).
+// `confidence` is an internal 0–1 numeric tracked with an exponential moving
+// average; CEFR stays the user-facing output. `recentEvidence` is a small
+// bounded JSON array of recent {outcome, weight, at} summaries (NO sensitive
+// content). Cascades with the user.
+model SkillMastery {
+  id             String   @id @default(cuid())
+  userId         String
+  skill          String
+  confidence     Float    @default(0)
+  evidenceCount  Int      @default(0)
+  recentEvidence Json     @default("[]")
+  lastUpdatedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skill])
+  @@index([userId])
 }

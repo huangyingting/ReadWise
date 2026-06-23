@@ -4,6 +4,8 @@ import { object, nonEmptyString, clampedInt, optional } from "@/lib/validation";
 import { recordPronunciationAttempt } from "@/lib/pronunciation";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { recordSkillEvidence } from "@/lib/skill-mastery";
+import { bestEffortMastery } from "@/lib/mastery";
 
 /**
  * Pronunciation scores are computed CLIENT-SIDE by the Azure Speech SDK (by
@@ -40,5 +42,15 @@ export const POST = createHandler({ body: bodySchema }, async ({ session, body }
   }
 
   const result = await recordPronunciationAttempt(session.user.id, body);
+  // Best-effort mastery: pronunciation score feeds the pronunciation skill;
+  // accuracy is a (weaker) listening signal. Never break the attempt write.
+  await Promise.all([
+    bestEffortMastery("pronunciation.skill", () =>
+      recordSkillEvidence(session.user.id, "pronunciation", body.pronScore / 100),
+    ),
+    bestEffortMastery("pronunciation.listening_skill", () =>
+      recordSkillEvidence(session.user.id, "listening", body.accuracyScore / 100, 0.5),
+    ),
+  ]);
   return NextResponse.json(result);
 });
