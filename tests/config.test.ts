@@ -1,6 +1,6 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { validateRuntimeConfig } from "@/lib/config";
+import { pushConfig, validateRuntimeConfig } from "@/lib/config";
 
 const ENV_KEYS = [
   "DATABASE_URL",
@@ -94,6 +94,21 @@ test("partial optional providers degrade without blocking readiness", () => {
   assert.equal(report.optional.ai.status, "degraded");
   assert.equal(report.optional.push.status, "degraded");
   assert.ok(report.warnings.some((warn) => warn.code === "partial_optional_provider"));
+});
+
+test("malformed VAPID subject degrades and disables push config", () => {
+  setRequiredEnv();
+  process.env.VAPID_PUBLIC_KEY = "public-key";
+  process.env.VAPID_PRIVATE_KEY = "private-key";
+  process.env.VAPID_SUBJECT = "not-a-contact";
+
+  const report = validateRuntimeConfig();
+
+  assert.equal(report.ready, true);
+  assert.equal(report.optional.push.status, "degraded");
+  assert.equal(pushConfig.get(), null);
+  assert.equal(pushConfig.isConfigured(), false);
+  assert.ok(report.warnings.some((warn) => warn.code === "invalid_vapid_subject"));
 });
 
 test("malformed required values block readiness", () => {

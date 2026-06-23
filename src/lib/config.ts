@@ -255,6 +255,10 @@ const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-48khz-96kbitrate-mono-mp3",
 ]);
 
+function isValidVapidSubject(subject: string): boolean {
+  return /^(mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https?:\/\/.+)/i.test(subject);
+}
+
 function validateRuntimeSections() {
   const database = evaluateRequired(["DATABASE_URL"], [
     (values) =>
@@ -312,7 +316,7 @@ function validateRuntimeSections() {
 
   const push = evaluateOptional(["VAPID_PUBLIC_KEY", "VAPID_PRIVATE_KEY", "VAPID_SUBJECT"], [
     (values) =>
-      values.VAPID_SUBJECT && !/^(mailto:[^@\s]+@[^@\s]+\.[^@\s]+|https?:\/\/.+)/i.test(values.VAPID_SUBJECT)
+      values.VAPID_SUBJECT && !isValidVapidSubject(values.VAPID_SUBJECT)
         ? issue("warning", "invalid_vapid_subject", "VAPID_SUBJECT should be a mailto: address or URL.", ["VAPID_SUBJECT"])
         : null,
   ]);
@@ -447,6 +451,9 @@ export const pushConfig: FeatureConfig<PushConfig> = defineFeatureConfig(() => {
   const privateKey = envValue("VAPID_PRIVATE_KEY");
   const subject = envValue("VAPID_SUBJECT");
   if (!publicKey || !privateKey || !subject) {
+    return null;
+  }
+  if (!isValidVapidSubject(subject)) {
     return null;
   }
   return { publicKey, privateKey, subject };

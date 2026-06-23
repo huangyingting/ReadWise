@@ -1,3 +1,5 @@
+import { readdir } from "node:fs/promises";
+import { join } from "node:path";
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
@@ -5,6 +7,20 @@ import { validateRuntimeConfig } from "@/lib/config";
 
 // Prisma requires the Node.js runtime (uses native bindings).
 export const runtime = "nodejs";
+
+type MigrationRow = {
+  migration_name: string;
+  finished_at: Date | string | null;
+};
+
+async function listRepositoryMigrationNames(): Promise<string[]> {
+  const migrationDir = join(process.cwd(), "prisma", "migrations");
+  const entries = await readdir(migrationDir, { withFileTypes: true });
+  return entries
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => entry.name)
+    .sort();
+}
 
 /**
  * GET /api/ready — readiness probe.
@@ -17,6 +33,8 @@ export const GET = createPublicHandler({}, async () => {
   let dbStatus: "ok" | "error" = "ok";
   let migrationStatus: "ok" | "error" = "ok";
   let migrationPending = 0;
+  let migrationUnfinished = 0;
+  let unappliedMigrationNames: string[] = [];
 
   try {
     await prisma.$queryRaw`SELECT 1`;
@@ -26,10 +44,15 @@ export const GET = createPublicHandler({}, async () => {
 
   if (dbStatus === "ok") {
     try {
-      const rows = await prisma.$queryRawUnsafe<Array<{ pending: bigint | number }>>(
-        'SELECT COUNT(*) AS pending FROM "_prisma_migrations" WHERE rolled_back_at IS NULL AND finished_at IS NULL',
+      const rows = await prisma.$queryRawUnsafe<MigrationRow[]>(
+        'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE rolled_back_at IS NULL',
       );
-      migrationPending = Number(rows[0]?.pending ?? 0);
+      const repositoryMigrations = await listRepositoryMigrationNames();
+      const trackedMigrations = new Set(rows.map((row) => row.migration_name));
+
+      migrationUnfinished = rows.filter((row) => !row.finished_at).length;
+      unappliedMigrationNames = repositoryMigrations.filter((name) => !trackedMigrations.has(name));
+      migrationPending = migrationUnfinished + unappliedMigrationNames.length;
       if (migrationPending > 0) {
         migrationStatus = "error";
       }
@@ -59,7 +82,12 @@ export const GET = createPublicHandler({}, async () => {
           azureAdOAuth: config.optional.azureAdOAuth.status,
         },
       },
-      migrations: { pending: migrationPending },
+      migrations: {
+        pending: migrationPending,
+        unfinished: migrationUnfinished,
+        unapplied: unappliedMigrationNames.length,
+        unappliedNames: unappliedMigrationNames,
+      },
       config: {
         required: config.required,
         optional: config.optional,
