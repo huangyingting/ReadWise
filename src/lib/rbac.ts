@@ -49,6 +49,8 @@ export const CAPABILITIES = {
   securityView: "security.view",
   /** Moderate user-visible content (future Moderator role; Admin has it now). */
   contentModerate: "content.moderate",
+  /** Manage content sources / provider governance (enable/disable, health). */
+  sourcesManage: "sources.manage",
   /** Assist members via support tooling (future SupportAgent role). */
   supportAssist: "support.assist",
 
@@ -188,6 +190,7 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.analyticsView,
   CAPABILITIES.securityView,
   CAPABILITIES.contentModerate,
+  CAPABILITIES.sourcesManage,
   CAPABILITIES.supportAssist,
 ];
 

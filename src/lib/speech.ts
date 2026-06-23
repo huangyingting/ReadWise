@@ -9,6 +9,7 @@ import {
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/config";
 import { createLogger } from "@/lib/logger";
+import { getMediaStorage } from "@/lib/storage";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
@@ -267,6 +268,37 @@ function fallbackResult(voice: string): SpeechResult {
   };
 }
 
+/** Largest word `end` timing (seconds) — used as the audio duration. */
+function lastWordEnd(words: SpeechWord[]): number | undefined {
+  let max = 0;
+  for (const w of words) if (w.end > max) max = w.end;
+  return max > 0 ? max : undefined;
+}
+
+/**
+ * Resolves a playable `data:` URL for a stored speech row regardless of where
+ * the audio lives. Prefers the legacy base64 column; otherwise reads the bytes
+ * back from object storage via the configured backend. Returns null when the
+ * audio cannot be located (e.g. storage unconfigured after a migration).
+ */
+async function resolveStoredAudioUrl(row: {
+  mimeType: string;
+  audioBase64: string | null;
+  storageKey: string | null;
+}): Promise<string | null> {
+  if (row.audioBase64) {
+    return `data:${row.mimeType};base64,${row.audioBase64}`;
+  }
+  if (row.storageKey) {
+    const storage = getMediaStorage();
+    if (!storage) return null;
+    const bytes = await storage.get(row.storageKey);
+    if (!bytes) return null;
+    return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
+  }
+  return null;
+}
+
 /**
  * Returns cached narration audio + word timings for an article, generating and
  * caching them via Azure Speech on a cache miss. Degrades gracefully (no cache)
@@ -300,7 +332,7 @@ export async function getOrCreateArticleSpeech(
       return getOrCreateArticleSpeech(articleId, context);
     }
     return {
-      audio: `data:${cached.mimeType};base64,${cached.audioBase64}`,
+      audio: await resolveStoredAudioUrl(cached),
       mimeType: cached.mimeType,
       spokenText: cached.spokenText,
       words,
@@ -341,7 +373,62 @@ export async function getOrCreateArticleSpeech(
   }
 
   const { mimeType } = resolveOutputFormat(config.format);
-  const audioBase64 = output.audio.toString("base64");
+
+  // Persist the audio: to object storage when configured (recording a
+  // MediaAsset), else inline as base64 (the graceful default). Either way the
+  // row carries enough to serve playback in both modes.
+  let audioBase64: string | null = output.audio.toString("base64");
+  let storageKey: string | null = null;
+  let mediaAssetId: string | null = null;
+
+  const storage = getMediaStorage();
+  if (storage) {
+    try {
+      const put = await storage.put({
+        data: output.audio,
+        mimeType,
+        keyHint: `speech/${articleId}`,
+      });
+      const durationSec = lastWordEnd(output.words);
+      const asset = await prisma.mediaAsset.upsert({
+        where: { storageKey: put.storageKey },
+        update: {
+          kind: "speech",
+          mimeType,
+          sizeBytes: put.sizeBytes,
+          checksum: put.checksum,
+          durationSec,
+          voice: config.voice,
+          format: config.format,
+          articleId,
+        },
+        create: {
+          storageKey: put.storageKey,
+          kind: "speech",
+          mimeType,
+          sizeBytes: put.sizeBytes,
+          checksum: put.checksum,
+          durationSec,
+          voice: config.voice,
+          format: config.format,
+          articleId,
+        },
+        select: { id: true },
+      });
+      storageKey = put.storageKey;
+      mediaAssetId = asset.id;
+      audioBase64 = null; // durably stored externally
+    } catch (err) {
+      log.error("speech.storage_write_failed", {
+        articleId,
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // Fall back to inline base64 so narration still works.
+      storageKey = null;
+      mediaAssetId = null;
+      audioBase64 = output.audio.toString("base64");
+    }
+  }
 
   await prisma.articleSpeech.upsert({
     where: { articleId },
@@ -350,6 +437,8 @@ export async function getOrCreateArticleSpeech(
       format: config.format,
       mimeType,
       audioBase64,
+      storageKey,
+      mediaAssetId,
       spokenText,
       words: output.words,
     },
@@ -359,13 +448,15 @@ export async function getOrCreateArticleSpeech(
       format: config.format,
       mimeType,
       audioBase64,
+      storageKey,
+      mediaAssetId,
       spokenText,
       words: output.words,
     },
   });
 
   return {
-    audio: `data:${mimeType};base64,${audioBase64}`,
+    audio: `data:${mimeType};base64,${output.audio.toString("base64")}`,
     mimeType,
     spokenText,
     words: output.words,

@@ -9,6 +9,7 @@ import {
   scrapeAndSave,
   type SaveOutcome,
 } from "@/lib/scraper";
+import { isProviderEnabled, recordCrawlRun } from "@/lib/content-sources";
 import type { Provider } from "@/lib/scraper/types";
 
 type Args = {
@@ -154,10 +155,51 @@ async function runUrls(urls: string[], dryRun: boolean): Promise<SaveOutcome[]> 
 }
 
 async function runProvider(provider: Provider, limit: number, dryRun: boolean): Promise<SaveOutcome[]> {
+  if (!(await isProviderEnabled(provider.key))) {
+    console.log(`Skipping ${provider.name} — content source is disabled.`);
+    return [];
+  }
+
   console.log(`Discovering up to ${limit} articles from ${provider.name}…`);
-  const urls = await discoverProviderUrls(provider, limit);
+  let urls: string[] = [];
+  let discoverError: string | null = null;
+  try {
+    urls = await discoverProviderUrls(provider, limit);
+  } catch (err) {
+    discoverError = err instanceof Error ? err.message : String(err);
+  }
   console.log(`Found ${urls.length} article URL(s).`);
-  return runUrls(urls, dryRun);
+
+  const outcomes = await runUrls(urls, dryRun);
+
+  // Record provider health + ingestion quality from this run (RW-050). Dry runs
+  // are excluded — they don't represent real ingestion.
+  if (!dryRun) {
+    const scraped = outcomes.filter((o) => o.status === "saved").length;
+    const failed = outcomes.filter((o) => o.status === "failed").length;
+    const duplicates = outcomes.filter(
+      (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
+    ).length;
+    const rejected = outcomes.filter(
+      (o) => o.status === "failed" && /extract/i.test(o.reason),
+    ).length;
+    try {
+      await recordCrawlRun(provider.key, {
+        discovered: urls.length,
+        scraped,
+        failed,
+        duplicates,
+        rejected,
+        error: discoverError,
+      });
+    } catch (err) {
+      console.warn(
+        `  ! could not record crawl health: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  return outcomes;
 }
 
 async function main(): Promise<number> {

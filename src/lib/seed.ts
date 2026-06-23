@@ -1,6 +1,7 @@
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
 import { processArticle, type ArticleProcessResult, type ProcessOptions } from "@/lib/processor";
+import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/content-sources";
 import type { Provider } from "@/lib/scraper/types";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 
@@ -25,6 +26,8 @@ export type SeedDeps = {
   scrapeAndSave: (url: string) => Promise<SaveOutcome>;
   resolveArticleId: (sourceUrl: string) => Promise<string | null>;
   process: (articleId: string, opts: ProcessOptions) => Promise<ArticleProcessResult | null>;
+  /** Records per-provider crawl health/ingestion metrics (RW-050). */
+  recordCrawl: (providerKey: string, outcome: CrawlRunOutcome) => Promise<void>;
 };
 
 const defaultDeps: SeedDeps = {
@@ -35,6 +38,9 @@ const defaultDeps: SeedDeps = {
     return existing?.id ?? null;
   },
   process: processArticle,
+  recordCrawl: async (providerKey, outcome) => {
+    await recordCrawlRun(providerKey, outcome);
+  },
 };
 
 export type SeedOptions = {
@@ -103,24 +109,48 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
   for (const provider of providers) {
     logger.info(`Discovering up to ${limit} article(s) from ${provider.name}…`);
     let urls: string[] = [];
+    let discoverError: string | null = null;
     try {
       urls = await deps.discover(provider, limit);
     } catch (err) {
-      logger.error(`Discovery failed for ${provider.name}: ${errorMessage(err)}`);
-      continue;
+      discoverError = errorMessage(err);
+      logger.error(`Discovery failed for ${provider.name}: ${discoverError}`);
     }
     logger.info(`Found ${urls.length} article URL(s) from ${provider.name}.`);
+
+    let providerScraped = 0;
+    let providerDuplicates = 0;
+    let providerFailed = 0;
 
     for (const url of urls) {
       if (seen.has(url)) continue;
       seen.add(url);
       stats.discovered++;
 
-      const articleId = await scrapeOne(url, deps, stats, logger);
+      const { articleId, scrapeOutcome } = await scrapeOne(url, deps, stats, logger);
+      if (scrapeOutcome === "saved") providerScraped++;
+      else if (scrapeOutcome === "duplicate") providerDuplicates++;
+      else providerFailed++;
       if (!articleId) continue;
 
       const enriched = await enrichOne(articleId, enrichOpts, deps, stats, logger);
       if (enriched) stats.articleIds.push(articleId);
+    }
+
+    // Record provider health + ingestion quality for this run (RW-050).
+    try {
+      await deps.recordCrawl(provider.key, {
+        discovered: urls.length,
+        scraped: providerScraped,
+        failed: providerFailed,
+        duplicates: providerDuplicates,
+        rejected: 0,
+        error: discoverError,
+      });
+    } catch (err) {
+      logger.warn(
+        `Could not record crawl health for ${provider.name}: ${errorMessage(err)}`,
+      );
     }
   }
 
@@ -150,31 +180,31 @@ async function scrapeOne(
   deps: SeedDeps,
   stats: SeedStats,
   logger: SeedLogger,
-): Promise<string | null> {
+): Promise<{ articleId: string | null; scrapeOutcome: "saved" | "duplicate" | "failed" }> {
   let outcome: SaveOutcome;
   try {
     outcome = await deps.scrapeAndSave(url);
   } catch (err) {
     stats.failed++;
     logger.error(`✗ scrape failed: ${url} — ${errorMessage(err)}`);
-    return null;
+    return { articleId: null, scrapeOutcome: "failed" };
   }
 
   if (outcome.status === "saved") {
     stats.saved++;
     logger.info(`✓ saved draft: ${outcome.article.title}`);
-    return outcome.id;
+    return { articleId: outcome.id, scrapeOutcome: "saved" };
   }
 
   if (outcome.status === "skipped") {
     stats.duplicates++;
     logger.info(`• already exists: ${url}`);
-    return deps.resolveArticleId(url);
+    return { articleId: await deps.resolveArticleId(url), scrapeOutcome: "duplicate" };
   }
 
   stats.failed++;
   logger.warn(`✗ could not scrape ${url}: ${outcome.reason}`);
-  return null;
+  return { articleId: null, scrapeOutcome: "failed" };
 }
 
 /** Runs the full enrichment pipeline on one article id. */

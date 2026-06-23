@@ -256,6 +256,11 @@ export async function rebuildArticleAi(
         tx.articleSpeech.deleteMany({ where: { articleId: id } }),
       ]);
 
+    // Speech audio is being regenerated, so drop any object-storage MediaAsset
+    // pointers for this article too (RW-049). The underlying storage objects are
+    // content-addressed and overwritten on the next synthesis.
+    await tx.mediaAsset.deleteMany({ where: { articleId: id, kind: "speech" } });
+
     // Reset the durable step state for the cleared features (RW-016) so the
     // admin timeline reflects the post-rebuild reality. Difficulty is NOT
     // cleared by a rebuild, so its step row is preserved.

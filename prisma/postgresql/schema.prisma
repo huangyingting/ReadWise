@@ -138,6 +138,15 @@ model Article {
   /// Nullable FK to User. Public library articles are explicit (`visibility = PUBLIC`);
   /// private imports use `visibility = PRIVATE` plus a non-null ownerId.
   ownerId         String?
+  /// Content rights & takedown (RW-047). `canonicalUrl` records the upstream
+  /// canonical link; `takedownState` is one of active/unpublished/archived/takedown;
+  /// `rightsNote` holds a free-text licensing/usage note. `reviewState` and
+  /// `qualityFlags` (RW-048) drive the moderation workflow.
+  canonicalUrl    String?
+  takedownState   String            @default("active")
+  rightsNote      String?
+  reviewState     String            @default("unreviewed")
+  qualityFlags    Json              @default("[]")
   /// Nullable SOFT tenant-scope reference (RW-060). NOT a foreign key — mirrors the
   /// AnalyticsEvent/AuditLog plain-string ref convention so existing global/public
   /// articles are unaffected (null = global/public, never appears in org feeds) and
@@ -161,6 +170,8 @@ model Article {
   grammarExplanations       GrammarExplanation[]
   processingSteps           ArticleProcessingStep[]
   articleMastery            ArticleMastery[]
+  reviews                   ContentReview[]
+  mediaAssets               MediaAsset[]
   assignments               Assignment[]
 
   @@unique([sourceUrl, ownerId])
@@ -173,6 +184,8 @@ model Article {
   @@index([ownerId, status, createdAt], map: "Article_owner_status_created_idx")
   @@index([status, createdAt], map: "Article_status_created_idx")
   @@index([visibility, status, ownerId, difficulty, difficultyScore, publishedAt], map: "Article_level_feed_idx")
+  @@index([takedownState])
+  @@index([reviewState])
 }
 
 model Tag {
@@ -215,7 +228,9 @@ model ArticleSpeech {
   voice       String
   format      String
   mimeType    String
-  audioBase64 String
+  audioBase64 String?
+  storageKey   String?
+  mediaAssetId String?
   spokenText  String
   words       Json
   createdAt   DateTime @default(now())
@@ -852,6 +867,90 @@ model AnalyticsEvent {
   @@index([type, occurredAt])
   @@index([userId, occurredAt])
   @@index([occurredAt])
+}
+
+// ===========================================================================
+// Content source governance & operational state (Epic RW-E009 — RW-046/050).
+//
+// Provider EXTRACTION logic stays in code (src/lib/scraper/providers.ts). This
+// model holds only OPERATIONAL state for each registered provider: whether it
+// is enabled, its crawl policy, last-crawl health, and cumulative ingestion
+// quality counters used to flag drift (zero-discovery / high-failure runs).
+// Rows are synced from the code registry via syncContentSources(); the scraper
+// reads `enabled` to skip disabled providers. `providerKey` matches the code
+// registry key (NON-FK by nature — it references provider keys, not rows).
+// ===========================================================================
+model ContentSource {
+  id                       String    @id @default(cuid())
+  providerKey              String    @unique
+  displayName              String
+  baseUrl                  String?
+  enabled                  Boolean   @default(true)
+  crawlPolicy              Json      @default("{}")
+  healthStatus             String    @default("unknown")
+  lastError                String?
+  lastCrawledAt            DateTime?
+  lastDiscoveryCount       Int       @default(0)
+  totalDiscovered          Int       @default(0)
+  totalScraped             Int       @default(0)
+  totalFailed              Int       @default(0)
+  totalDuplicates          Int       @default(0)
+  totalRejected            Int       @default(0)
+  consecutiveFailures      Int       @default(0)
+  consecutiveZeroDiscovery Int       @default(0)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([healthStatus])
+}
+
+// Content quality review & moderation history (Epic RW-E009 — RW-048). An
+// append-only trail of moderation actions on an article (review-state changes,
+// field corrections, takedown/unpublish/archive). `reviewerId` is a plain
+// string (NOT an FK, like AuditLog.actorId) so history survives a reviewer's
+// account deletion. `changes` holds a small metadata diff of what was
+// corrected. Cascades with the article.
+model ContentReview {
+  id         String   @id @default(cuid())
+  articleId  String
+  reviewerId String?
+  action     String
+  note       String?
+  changes    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt])
+  @@index([action, createdAt])
+}
+
+// Media object-storage metadata (Epic RW-E009 — RW-049). When object storage is
+// configured (MEDIA_STORAGE), generated audio is written OUTSIDE the relational
+// DB and this row records the pointer + metadata (storageKey, mime, size,
+// checksum, duration, voice, format). `ArticleSpeech.storageKey/mediaAssetId`
+// reference it; `ArticleSpeech.audioBase64` is kept as a graceful fallback when
+// storage is unconfigured. Cascades with the article. `kind` distinguishes
+// asset types (e.g. speech).
+model MediaAsset {
+  id          String   @id @default(cuid())
+  storageKey  String   @unique
+  kind        String   @default("speech")
+  mimeType    String
+  sizeBytes   Int
+  checksum    String
+  durationSec Float?
+  voice       String?
+  format      String?
+  articleId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([kind, createdAt])
 }
 
 // ===========================================================================

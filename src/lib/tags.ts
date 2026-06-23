@@ -163,6 +163,61 @@ export async function getOrCreateArticleTags(
   );
 }
 
+/**
+ * Replaces an article's tag links with the given tag names (admin moderation —
+ * RW-048). Names are slugified + de-duped (blanks dropped); tags are upserted
+ * into the article's scope/namespace and the `ArticleTag` links are reconciled
+ * (added/removed) so the final set matches exactly. Returns the resulting tags,
+ * or null for an unknown article id.
+ */
+export async function setArticleTags(
+  articleId: string,
+  tagNames: string[],
+): Promise<TagView[] | null> {
+  const article = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { visibility: true, ownerId: true },
+  });
+  if (!article) return null;
+
+  const scope = tagScopeForArticle(article);
+
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const raw of tagNames) {
+    const slug = slugifyTag(raw ?? "");
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    names.push(raw.trim());
+  }
+
+  const desiredTagIds = new Set<string>();
+  for (const name of names) {
+    const tag = await upsertTag(name, scope.scope, scope.ownerId, scope.namespace);
+    desiredTagIds.add(tag.id);
+  }
+
+  const existingLinks = await prisma.articleTag.findMany({
+    where: { articleId },
+    select: { tagId: true },
+  });
+  const existingIds = new Set(existingLinks.map((link) => link.tagId));
+
+  const toAdd = [...desiredTagIds].filter((id) => !existingIds.has(id));
+  const toRemove = [...existingIds].filter((id) => !desiredTagIds.has(id));
+
+  if (toRemove.length) {
+    await prisma.articleTag.deleteMany({
+      where: { articleId, tagId: { in: toRemove } },
+    });
+  }
+  for (const tagId of toAdd) {
+    await prisma.articleTag.create({ data: { articleId, tagId } });
+  }
+
+  return getArticleTags(articleId);
+}
+
 /** A tag plus the count of published articles carrying it. */
 export type TagWithCount = TagView & { articleCount: number };
 

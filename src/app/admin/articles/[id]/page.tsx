@@ -1,13 +1,25 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/session";
-import { CAPABILITIES } from "@/lib/rbac";
+import { CAPABILITIES, hasCapability } from "@/lib/rbac";
 import { getAdminArticleDetail } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
 import { readingMinutesFor } from "@/lib/articles";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { articleAccessContext } from "@/lib/article-access";
+import {
+  listContentReviews,
+  REVIEW_STATES,
+  REVIEW_STATE_LABELS,
+  QUALITY_FLAGS,
+  parseQualityFlags,
+  type ReviewState,
+} from "@/lib/content-review";
+import { TAKEDOWN_STATES, TAKEDOWN_STATE_LABELS, type TakedownState } from "@/lib/content-policy";
+import { getArticleTags } from "@/lib/tags";
 import AdminArticleActions from "@/components/AdminArticleActions";
+import AdminArticleReview from "@/components/AdminArticleReview";
+import AdminArticleTakedown from "@/components/AdminArticleTakedown";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 
@@ -42,6 +54,13 @@ export default async function AdminArticleDetailPage({
 
   const { article, counts, difficultyFeedback, processingSteps } = detail;
   const minutes = readingMinutesFor(article);
+
+  const canModerate = hasCapability(session.user, CAPABILITIES.contentModerate);
+  const [reviews, articleTags] = canModerate
+    ? await Promise.all([listContentReviews(article.id), getArticleTags(article.id)])
+    : [[], []];
+  const currentFlags = parseQualityFlags(article.qualityFlags);
+
   const aiItems: { label: string; value: number }[] = [
     { label: "Translations", value: counts.translations },
     { label: "Vocabulary", value: counts.vocabulary },
@@ -64,6 +83,25 @@ export default async function AdminArticleDetailPage({
         <Badge variant={statusBadgeVariant(article.status)}>
           {article.status}
         </Badge>
+        {article.reviewState && article.reviewState !== "unreviewed" && (
+          <Badge
+            variant={
+              article.reviewState === "approved"
+                ? "success"
+                : article.reviewState === "rejected"
+                  ? "danger"
+                  : "warning"
+            }
+          >
+            {REVIEW_STATE_LABELS[article.reviewState as ReviewState] ?? article.reviewState}
+          </Badge>
+        )}
+        {article.takedownState && article.takedownState !== "active" && (
+          <Badge variant="danger">
+            {TAKEDOWN_STATE_LABELS[article.takedownState as TakedownState] ??
+              article.takedownState}
+          </Badge>
+        )}
         {article.difficulty &&
           (CEFR_LEVELS as readonly string[]).includes(article.difficulty) ? (
             <CefrBadge level={article.difficulty as CefrLevel} />
@@ -105,6 +143,102 @@ export default async function AdminArticleDetailPage({
           <AdminArticleActions articleId={article.id} redirectOnDelete="/admin/articles" />
         </div>
       </Card>
+
+      {canModerate && (
+        <Card>
+          <div className="stack">
+            <CardTitle level="h3">Moderation &amp; review</CardTitle>
+            <p className="muted" style={{ margin: 0 }}>
+              Correct metadata, set the review verdict, and adjust quality flags.
+              Every save is recorded in the review history below.
+            </p>
+            <AdminArticleReview
+              articleId={article.id}
+              reviewStateOptions={REVIEW_STATES.map((s) => ({
+                value: s,
+                label: REVIEW_STATE_LABELS[s],
+              }))}
+              qualityFlagOptions={[...QUALITY_FLAGS]}
+              initial={{
+                title: article.title,
+                excerpt: article.excerpt ?? "",
+                category: article.category ?? "",
+                difficulty: article.difficulty ?? "",
+                status: article.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
+                reviewState: article.reviewState ?? "unreviewed",
+                qualityFlags: currentFlags,
+                tags: articleTags.map((t) => t.name).join(", "),
+              }}
+            />
+          </div>
+        </Card>
+      )}
+
+      {canModerate && (
+        <Card>
+          <div className="stack">
+            <CardTitle level="h3">Rights &amp; takedown</CardTitle>
+            <p className="muted" style={{ margin: 0 }}>
+              Track content rights and respond to takedown requests. Unpublishing,
+              archiving or taking down moves the article out of public feeds.
+            </p>
+            {article.canonicalUrl && (
+              <p className="muted" style={{ margin: 0 }}>
+                Canonical:{" "}
+                <a href={article.canonicalUrl} target="_blank" rel="noopener noreferrer nofollow">
+                  {article.canonicalUrl}
+                </a>
+              </p>
+            )}
+            <AdminArticleTakedown
+              articleId={article.id}
+              currentState={article.takedownState ?? "active"}
+              stateOptions={TAKEDOWN_STATES.map((s) => ({
+                value: s,
+                label: TAKEDOWN_STATE_LABELS[s],
+              }))}
+              currentRightsNote={article.rightsNote ?? ""}
+            />
+          </div>
+        </Card>
+      )}
+
+      {canModerate && reviews.length > 0 && (
+        <Card>
+          <div className="stack">
+            <CardTitle level="h3">Review history</CardTitle>
+            <div
+              className="admin-table-wrap"
+              tabIndex={0}
+              aria-label="Review history table (scrollable)"
+            >
+              <table className="admin-table">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Action</th>
+                    <th>Changes</th>
+                    <th>Note</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {reviews.map((r) => (
+                    <tr key={r.id}>
+                      <td className="muted">{new Date(r.createdAt).toLocaleString()}</td>
+                      <td className="font-medium">{r.action}</td>
+                      <td className="muted text-[length:var(--text-sm)]">
+                        {Object.keys((r.changes as Record<string, unknown>) ?? {}).join(", ") ||
+                          "—"}
+                      </td>
+                      <td className="muted text-[length:var(--text-sm)]">{r.note ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="stack">
