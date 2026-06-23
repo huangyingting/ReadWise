@@ -33,6 +33,8 @@ import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import WordLookupHint from "@/components/WordLookupHint";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import OfflineDownloadButton from "@/components/OfflineDownloadButton";
+import ReaderReadingBlockTracker from "@/components/reader/ReaderReadingBlockTracker";
+import ReaderTimeTracker from "@/components/reader/ReaderTimeTracker";
 
 export async function generateMetadata({
   params,
@@ -320,6 +322,12 @@ export default async function ReaderPage({
                 {/* Prose — bilingual-capable wrapper (falls back to normal WordLookup when disabled) */}
                 <BilingualBody html={cleanBody} articleId={article.id} languages={SUPPORTED_LANGUAGES} />
               </article>
+
+              {/* #376 — Observe the prose to track current reading block.
+                  #378 — Track active reading time for WPM analytics.
+                  Both render null and must be inside ReaderToolsProvider. */}
+              <ReaderReadingBlockTracker />
+              <ReaderTimeTracker articleId={article.id} />
 
               {/* Difficulty feedback widget (#124) */}
               <ArticleDifficultyFeedback
