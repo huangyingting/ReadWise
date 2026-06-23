@@ -121,5 +121,6 @@ test("PUT /api/profile preserves other fields alongside dailyGoal", async () => 
   assert.equal(update.englishLevel, "B1");
   assert.equal(update.ageRange, "25-34");
   assert.equal(update.gender, "Female");
+  assert.deepEqual(update.topics, ["tech"]);
   assert.equal(update.dailyGoal, 3);
 });

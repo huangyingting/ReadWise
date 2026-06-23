@@ -16,7 +16,7 @@ export const POST = createHandler({ body: profileSchema }, async ({ body, sessio
     ageRange: body.ageRange,
     gender: body.gender,
     englishLevel: body.englishLevel,
-    topics: JSON.stringify(body.topics),
+    topics: body.topics,
     completedAt: new Date(),
     ...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {}),
   };

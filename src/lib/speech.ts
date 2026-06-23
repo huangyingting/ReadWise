@@ -1,4 +1,5 @@
 import * as sdk from "microsoft-cognitiveservices-speech-sdk";
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { htmlToPlainText } from "@/lib/translation";
 import {
@@ -37,6 +38,56 @@ export type SpeechResult = {
   cached: boolean;
   fallback: boolean;
 };
+
+function finiteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+/** Parses stored word timings from Json fields or legacy JSON-string rows. */
+export function parseStoredSpeechWords(
+  raw: Prisma.JsonValue | string | null | undefined,
+): SpeechWord[] | null {
+  if (raw == null) {
+    return null;
+  }
+
+  let parsed: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return null;
+  }
+
+  const words: SpeechWord[] = [];
+  for (const item of parsed) {
+    if (item == null || typeof item !== "object" || Array.isArray(item)) {
+      return null;
+    }
+    const record = item as Record<string, unknown>;
+    const { textOffset, length, start, end } = record;
+    if (
+      !finiteNumber(textOffset) ||
+      !finiteNumber(length) ||
+      !finiteNumber(start) ||
+      !finiteNumber(end) ||
+      textOffset < 0 ||
+      length < 0 ||
+      start < 0 ||
+      end < start
+    ) {
+      return null;
+    }
+    words.push({ textOffset, length, start, end });
+  }
+
+  return words;
+}
 
 function readSpeechConfig(): AzureSpeechConfig | null {
   return speechConfig.get();
@@ -238,16 +289,13 @@ export async function getOrCreateArticleSpeech(
     where: { articleId },
   });
   if (cached) {
-    let words: SpeechWord[];
-    try {
-      words = JSON.parse(cached.words) as SpeechWord[];
-    } catch (err) {
+    const words = parseStoredSpeechWords(cached.words);
+    if (!words) {
       log.error("speech.cache_parse_failure", {
         articleId,
-        error: String(err),
+        error: "Malformed cached word timings",
       });
       // Treat the corrupt row as a cache miss — fall through to regenerate.
-      words = [];
       await prisma.articleSpeech.delete({ where: { articleId } });
       return getOrCreateArticleSpeech(articleId, context);
     }
@@ -303,7 +351,7 @@ export async function getOrCreateArticleSpeech(
       mimeType,
       audioBase64,
       spokenText,
-      words: JSON.stringify(output.words),
+      words: output.words,
     },
     create: {
       articleId,
@@ -312,7 +360,7 @@ export async function getOrCreateArticleSpeech(
       mimeType,
       audioBase64,
       spokenText,
-      words: JSON.stringify(output.words),
+      words: output.words,
     },
   });
 

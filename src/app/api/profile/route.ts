@@ -19,7 +19,7 @@ export const PUT = createHandler({ body: profileSchema }, async ({ body, session
     ageRange: body.ageRange,
     gender: body.gender,
     englishLevel: body.englishLevel,
-    topics: JSON.stringify(body.topics),
+    topics: body.topics,
     ...(body.dailyGoal !== undefined ? { dailyGoal: body.dailyGoal } : {}),
     // Record when the level is explicitly changed by the user.
     ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
@@ -42,4 +42,3 @@ export const PUT = createHandler({ body: profileSchema }, async ({ body, session
 
   return NextResponse.json({ ok: true });
 });
-

@@ -56,7 +56,10 @@ test("empty/blank optional fields normalize to null", () => {
   }
 });
 
-test("parseTopics tolerates malformed JSON", () => {
+test("parseTopics accepts Json arrays and legacy JSON strings", () => {
+  assert.deepEqual(parseTopics(["a", "b"]), ["a", "b"]);
+  assert.deepEqual(parseTopics(["a", 1, null, "b"]), ["a", "b"]);
+  assert.deepEqual(parseTopics([]), []);
   assert.deepEqual(parseTopics('["a","b"]'), ["a", "b"]);
   assert.deepEqual(parseTopics("not json"), []);
   assert.deepEqual(parseTopics(null), []);
