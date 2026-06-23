@@ -445,7 +445,12 @@ test("personal text import stores sanitized private content owned by the caller"
       title: "Pasted",
       text:
         'Hello <img src="javascript:alert(1)" onerror="alert(2)">\n\n' +
-        '<script>alert(3)</script>World',
+        '<script>alert(3)</script>World\n\n' +
+        "This pasted personal article contains more than fifty words so that it " +
+        "satisfies the minimum length requirement for text imports while still " +
+        "exercising the HTML sanitization path thoroughly with several additional " +
+        "sentences of harmless filler content that the sanitizer should preserve " +
+        "verbatim as plain readable paragraph text here today and even more.",
     }),
   );
 
