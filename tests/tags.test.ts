@@ -6,13 +6,30 @@ import {
   TagScope,
 } from "@prisma/client";
 
-type Tag = { id: string; name: string; slug: string; scope: TagScope; namespace: string; ownerId: string | null };
+type Tag = {
+  id: string;
+  name: string;
+  slug: string;
+  scope: TagScope;
+  namespace: string;
+  ownerId: string | null;
+};
 
 let aiConfigured = false;
 let aiReply: string | null = null;
-const articles = new Map<string, { id: string; title: string; content: string; visibility: ArticleVisibility; ownerId: string | null }>();
+const articles = new Map<
+  string,
+  {
+    id: string;
+    title: string;
+    content: string;
+    visibility: ArticleVisibility;
+    ownerId: string | null;
+  }
+>();
 let tags: Tag[] = [];
 let articleTags: { articleId: string; tagId: string }[] = [];
+let tagFindManyCalls: Array<{ where?: { scope?: TagScope } }> = [];
 let articleRows: {
   id: string;
   status: ArticleStatus;
@@ -23,6 +40,16 @@ let articleRows: {
 let tagSeq = 0;
 
 before(() => {
+  mock.module("@/lib/api-auth", {
+    namedExports: {
+      requireAdminApi: async () => ({
+        session: { user: { id: "admin-1", role: "Admin" } },
+      }),
+      requireSessionApi: async () => ({
+        session: { user: { id: "user-1", role: "Reader" } },
+      }),
+    },
+  });
   mock.module("@/lib/ai", {
     namedExports: {
       isAiConfigured: () => aiConfigured,
@@ -59,8 +86,9 @@ before(() => {
               t.scope === a.where.scope &&
               articleTags.some((at) => at.tagId === t.id)
             ) ?? null,
-          findMany: async (a: { where?: { scope?: TagScope }; select?: { _count?: unknown } }) =>
-            tags
+          findMany: async (a: { where?: { scope?: TagScope }; select?: { _count?: unknown } }) => {
+            tagFindManyCalls.push(a);
+            return tags
               .filter((t) => !a.where?.scope || t.scope === a.where.scope)
               .map((t) => ({
                 ...t,
@@ -76,7 +104,8 @@ before(() => {
                       }).length,
                     }
                   : undefined,
-              })),
+              }));
+          },
           upsert: async (a: {
             where: { scope_namespace_slug: { scope: TagScope; namespace: string; slug: string } };
             create: { name: string; slug: string; scope: TagScope; namespace: string; ownerId: string | null };
@@ -143,6 +172,7 @@ beforeEach(() => {
   articles.clear();
   tags = [];
   articleTags = [];
+  tagFindManyCalls = [];
   articleRows = [];
   tagSeq = 0;
   articles.set("a1", {
@@ -231,6 +261,35 @@ test("listTagsWithCounts excludes private-only tags from public listings", async
   const listed = await listTagsWithCounts();
 
   assert.deepEqual(listed.map((t) => t.slug), ["shared"]);
+});
+
+test("admin merge target API excludes private tags", async () => {
+  tags = [
+    {
+      id: "public-tag",
+      name: "Shared",
+      slug: "shared",
+      scope: TagScope.PUBLIC,
+      namespace: "public",
+      ownerId: null,
+    },
+    {
+      id: "private-tag",
+      name: "Private Import",
+      slug: "private-import",
+      scope: TagScope.PRIVATE,
+      namespace: "user:user-1",
+      ownerId: "user-1",
+    },
+  ];
+  const { GET } = await import("@/app/api/admin/tags/route");
+
+  const res = await GET(new Request("http://test/api/admin/tags"));
+  const body = (await res.json()) as Array<{ name: string }>;
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(body.map((t) => t.name), ["Shared"]);
+  assert.equal(tagFindManyCalls.at(-1)?.where?.scope, TagScope.PUBLIC);
 });
 
 test("listRelatedArticles ranks by shared-tag overlap", async () => {
