@@ -304,3 +304,19 @@ test("search paginates ranked candidates and reports hasMore", async () => {
   assert.deepEqual(page2.articles.map((a) => a.id), ["a3"]);
   assert.equal(page2.hasMore, false);
 });
+
+test("search does not report hasMore after the capped broad candidate window is exhausted", async () => {
+  const { SEARCH_CANDIDATE_LIMIT, searchPublishedArticles } = await import("@/lib/article-search");
+  articleRows = Array.from({ length: SEARCH_CANDIDATE_LIMIT + 25 }, (_, index) =>
+    buildArticle({
+      id: `broad-${index}`,
+      title: `Climate broad match ${index}`,
+      publishedAt: new Date(`2026-02-${String((index % 28) + 1).padStart(2, "0")}T00:00:00Z`),
+    }),
+  );
+
+  const page = await searchPublishedArticles("climate", { offset: SEARCH_CANDIDATE_LIMIT, limit: 20 });
+
+  assert.deepEqual(page.articles, []);
+  assert.equal(page.hasMore, false);
+});

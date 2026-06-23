@@ -122,6 +122,19 @@ test("GET search advances offset when a non-zero offset is provided", async () =
   assert.equal(body.offset, 3); // 2 + 1 article
 });
 
+test("GET search never returns an empty page with hasMore true", async () => {
+  searchResult = { articles: [], hasMore: true };
+
+  const { GET } = (await import("@/app/api/search/route")) as { GET: RouteHandler };
+  const res = await GET(searchReq("news", "&offset=500"), undefined);
+  assert.equal(res.status, 200);
+
+  const body = await res.json();
+  assert.deepEqual(body.articles, []);
+  assert.equal(body.hasMore, false);
+  assert.equal(body.offset, 500);
+});
+
 // ---- auth -----------------------------------------------------------------
 test("GET search returns 401 when unauthenticated", async () => {
   authState = "unauth";

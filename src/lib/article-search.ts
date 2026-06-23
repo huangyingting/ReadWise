@@ -365,9 +365,10 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
 
     const ranked = sortCandidates([...candidates.values()], q, terms);
     const page = ranked.slice(offset, offset + limit);
+    const reachableTextMatchCount = Math.min(textMatchCount, SEARCH_CANDIDATE_LIMIT);
     return {
       articles: page.map((candidate) => candidate.article),
-      hasMore: ranked.length > offset + limit || textMatchCount > offset + limit,
+      hasMore: ranked.length > offset + limit || reachableTextMatchCount > offset + limit,
     };
   }
 }

@@ -59,11 +59,12 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
     session.user.id,
     page.articles.map((a) => a.id),
   );
+  const nextOffset = offset + page.articles.length;
 
   return NextResponse.json({
     articles: page.articles.map(toListingArticle),
     progress,
-    hasMore: page.hasMore,
-    offset: offset + page.articles.length,
+    hasMore: page.articles.length > 0 && page.hasMore,
+    offset: nextOffset,
   });
 });
