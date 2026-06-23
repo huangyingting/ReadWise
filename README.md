@@ -58,6 +58,7 @@ schema explicitly:
 ```bash
 docker compose up -d postgres redis
 export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run dev
@@ -111,6 +112,7 @@ Copy `.env.example` to `.env.local` and fill in real values.
 | Variable | Description |
 |----------|-------------|
 | `DATABASE_URL` | Prisma datasource URL. Default local: `file:./dev.db`; PostgreSQL parity: `postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public` |
+| `PRISMA_SCHEMA_PATH` | Prisma schema used by runtime readiness/migration checks. Default local: `prisma/schema.prisma`; PostgreSQL parity: `prisma/postgresql/schema.prisma` |
 | `NEXTAUTH_SECRET` | Random secret for signing sessions; at least 32 characters (generate with `openssl rand -hex 32`) |
 | `NEXTAUTH_URL` | Canonical URL of the app, e.g. `http://localhost:3000` |
 
@@ -183,7 +185,7 @@ npm run typecheck     # TypeScript type-check (tsc --noEmit)
 npm run lint          # ESLint via Next.js lint
 npm test              # Run all tests (Node built-in runner, no framework)
 npm run test:e2e:smoke # Playwright smoke flows with direct DB session seeding
-npm run test:db       # PostgreSQL migration/integration tests (requires DATABASE_URL + generated PostgreSQL client)
+npm run test:db       # PostgreSQL migration/integration tests (requires DATABASE_URL, PRISMA_SCHEMA_PATH + generated PostgreSQL client)
 
 # Content pipeline
 npm run scrape -- --provider nbcnews --limit 5   # Scrape articles from a provider

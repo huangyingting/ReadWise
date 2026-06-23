@@ -9,6 +9,7 @@ Prisma client.
 ```bash
 docker compose up -d postgres redis
 export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run dev
@@ -23,6 +24,7 @@ default client:
 
 ```bash
 export DATABASE_URL="file:./dev.db"
+export PRISMA_SCHEMA_PATH="prisma/schema.prisma"
 npm run prisma:generate
 ```
 
@@ -34,6 +36,7 @@ This removes the local PostgreSQL volume and all local data:
 docker compose down -v
 docker compose up -d postgres redis
 export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
 npm run prisma:migrate:pg
 ```
 
@@ -44,6 +47,7 @@ against a disposable PostgreSQL database:
 
 ```bash
 export DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"
+export PRISMA_SCHEMA_PATH="prisma/postgresql/schema.prisma"
 npm run prisma:generate:pg
 npm run prisma:migrate:pg
 npm run test:db
@@ -79,8 +83,9 @@ Recommended safe path for a one-time migration:
 5. Import those CSVs with `psql \copy`, preserving IDs and timestamps.
 6. Compare row counts table-by-table, then run `npm run test:db` against the
    migrated database.
-7. Start the app with the PostgreSQL `DATABASE_URL` and PostgreSQL-generated
-   Prisma client.
+7. Start the app with the PostgreSQL `DATABASE_URL`,
+   `PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma`, and
+   PostgreSQL-generated Prisma client.
 
 CSV exports can contain user emails, names, auth/session-related rows, saved
 study data, highlights, and other private reading activity. Treat export files
