@@ -4,6 +4,7 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
 import { object, nonEmptyString } from "@/lib/validation";
+import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
 
@@ -31,6 +32,7 @@ before(() => {
 
 beforeEach(() => {
   authState = "ok";
+  resetMetrics();
 });
 
 // ---- unhandled error / production guard ----------------------------------
@@ -184,4 +186,20 @@ test("createHandler returns 401 when unauthenticated", async () => {
   const handler = createHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
   const res = await handler(new Request("http://test/api/test"));
   assert.equal(res.status, 401);
+});
+
+test("createPublicHandler records API metrics with sanitized route group", async () => {
+  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const handler = createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+  const res = await handler(new Request("http://test/api/reader/raw-article-id-123456/progress"));
+  assert.equal(res.status, 200);
+
+  const apiMetric = getMetricsSnapshot().counters.find(
+    (point) =>
+      point.name === "readwise_api_requests_total" &&
+      point.labels.method === "get" &&
+      point.labels.route === "/api/reader/[id]/progress" &&
+      point.labels.status === "200",
+  );
+  assert.equal(apiMetric?.value, 1);
 });

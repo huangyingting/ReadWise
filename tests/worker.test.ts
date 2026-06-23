@@ -1,13 +1,18 @@
-import { test } from "node:test";
+import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import { sleep, backoffDelay, runWorker } from "@/lib/worker";
 import type { ArticleProcessResult } from "@/lib/processor";
+import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
 
 const silentLogger = {
   info: () => {},
   warn: () => {},
   error: () => {},
 };
+
+beforeEach(() => {
+  resetMetrics();
+});
 
 test("backoffDelay grows exponentially and is capped", () => {
   const base = 100;
@@ -51,6 +56,10 @@ test("runWorker --once drains the queue then stops", async () => {
   assert.equal(stats.processed, 2);
   assert.equal(stats.published, 2);
   assert.equal(stats.failed, 0);
+  const metric = getMetricsSnapshot().counters.find(
+    (point) => point.name === "readwise_worker_jobs_total" && point.labels.outcome === "success",
+  );
+  assert.equal(metric?.value, 2);
 });
 
 test("runWorker retries a failing article then counts it failed", async () => {
@@ -81,6 +90,10 @@ test("runWorker retries a failing article then counts it failed", async () => {
   assert.equal(attempts, 3);
   assert.equal(stats.failed, 1);
   assert.equal(stats.retried, 1);
+  const attemptsMetric = getMetricsSnapshot().counters.find(
+    (point) => point.name === "readwise_worker_job_attempts_total" && point.labels.outcome === "failed",
+  );
+  assert.equal(attemptsMetric?.value, 3);
 });
 
 test("runWorker quarantines a permanently-failing article instead of looping forever", async () => {

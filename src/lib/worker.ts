@@ -5,6 +5,7 @@ import {
   type ProcessOptions,
 } from "@/lib/processor";
 import { createLogger } from "@/lib/logger";
+import { recordWorkerJob } from "@/lib/metrics";
 
 export type WorkerLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
@@ -263,18 +264,37 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
           stats.stoppedBySignal = true;
           break;
         }
-        const { result, attempts } = await processWithRetry(id, {
-          maxRetries,
-          baseBackoffMs,
-          maxBackoffMs,
-          process: options.process,
-          logger,
-          signal,
-          processArticleFn: processFn,
-          sleepFn,
-        });
+        const jobStartedAt = Date.now();
+        let result: ArticleProcessResult | null;
+        let attempts: number;
+        try {
+          ({ result, attempts } = await processWithRetry(id, {
+            maxRetries,
+            baseBackoffMs,
+            maxBackoffMs,
+            process: options.process,
+            logger,
+            signal,
+            processArticleFn: processFn,
+            sleepFn,
+          }));
+        } catch (err) {
+          if (isAbort(err)) {
+            recordWorkerJob({
+              outcome: "aborted",
+              attempts: 1,
+              durationMs: Date.now() - jobStartedAt,
+            });
+          }
+          throw err;
+        }
         if (attempts > 1) stats.retried++;
         if (result === null) {
+          recordWorkerJob({
+            outcome: "missing",
+            attempts,
+            durationMs: Date.now() - jobStartedAt,
+          });
           logger.warn("article skipped (missing or unrecoverable)", { articleId: id, attempts });
           stats.failed++;
           quarantineUntil.set(id, Date.now() + quarantineMs);
@@ -284,11 +304,23 @@ export async function runWorker(options: WorkerOptions = {}): Promise<WorkerStat
         stats.processed++;
         if (result.published) stats.published++;
         if (!result.ok) {
+          recordWorkerJob({
+            outcome: "failed",
+            attempts,
+            published: result.published,
+            durationMs: Date.now() - jobStartedAt,
+          });
           stats.failed++;
           quarantineUntil.set(id, Date.now() + quarantineMs);
           stats.quarantined++;
           continue;
         }
+        recordWorkerJob({
+          outcome: "success",
+          attempts,
+          published: result.published,
+          durationMs: Date.now() - jobStartedAt,
+        });
         logger.info("article processed", {
           articleId: id,
           published: result.published,

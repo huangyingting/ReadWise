@@ -1,12 +1,16 @@
-import { test, before, after } from "node:test";
+import { test, before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
 import { isAiConfigured, aiModelName, chatComplete, chatCompleteWithMeta } from "@/lib/ai";
+import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
 import { enableAi, disableAi } from "./helpers";
 
 // Disable retries for backward-compat tests to keep them fast.
 before(() => {
   process.env.AI_MAX_RETRIES = "0";
   process.env.AI_REQUEST_TIMEOUT_MS = "5000";
+});
+beforeEach(() => {
+  resetMetrics();
 });
 after(() => {
   delete process.env.AI_MAX_RETRIES;
@@ -101,6 +105,18 @@ test("chatCompleteWithMeta returns usage + model metadata", async (t) => {
   assert.deepEqual(result.usage, { promptTokens: 8, completionTokens: 3, totalTokens: 11 });
   assert.equal(result.model, "gpt-test-deploy");
   assert.ok(result.durationMs >= 0);
+  const callMetric = getMetricsSnapshot().counters.find(
+    (point) =>
+      point.name === "readwise_ai_calls_total" &&
+      point.labels.feature === "quiz" &&
+      point.labels.outcome === "success" &&
+      point.labels.status_class === "2xx",
+  );
+  assert.equal(callMetric?.value, 1);
+  const tokenMetric = getMetricsSnapshot().counters.find(
+    (point) => point.name === "readwise_ai_tokens_total" && point.labels.feature === "quiz" && point.labels.type === "total",
+  );
+  assert.equal(tokenMetric?.value, 11);
 });
 
 test("chatComplete retries on 429 then succeeds", async (t) => {
@@ -148,4 +164,3 @@ test("chatComplete returns null after exhausting retries", async (t) => {
   assert.equal(result, null);
   assert.equal(calls, 2); // 1 initial + 1 retry
 });
-

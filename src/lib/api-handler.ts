@@ -20,6 +20,7 @@ import {
   setRequestContext,
   type StructuredLogger,
 } from "@/lib/logger";
+import { recordApiRequest, routeGroupFromPath } from "@/lib/metrics";
 
 
 /** Throw from a handler to return a controlled, client-safe error response. */
@@ -96,18 +97,35 @@ function build<B, P, Q, S extends Session | null>(
     async function handleRequest(): Promise<Response> {
       const log = createLogger("api");
       const startedAt = Date.now();
+      const routeGroup = routeGroupFromPath(url.pathname);
       log.info("request.start");
+
+      const complete = (response: Response): Response => {
+        const durationMs = Date.now() - startedAt;
+        recordApiRequest({
+          method: req.method,
+          route: url.pathname,
+          status: response.status,
+          durationMs,
+        });
+        log.info("request.complete", {
+          routeGroup,
+          status: response.status,
+          durationMs,
+        });
+        return withRequestId(response, requestId);
+      };
 
       try {
         // 1) Authentication — public routes are explicitly exempt.
         let session: Session | null = null;
         if (auth === "admin") {
           const result = await requireAdminApi();
-          if (result.error) return withRequestId(result.error, requestId);
+          if (result.error) return complete(result.error);
           session = result.session;
         } else if (auth === "session") {
           const result = await requireSessionApi();
-          if (result.error) return withRequestId(result.error, requestId);
+          if (result.error) return complete(result.error);
           session = result.session;
         }
         if (session?.user?.id) setRequestContext({ userId: session.user.id });
@@ -117,7 +135,7 @@ function build<B, P, Q, S extends Session | null>(
         if (config.params) {
           const raw = ctx.params ? await ctx.params : {};
           const res = config.params(raw);
-          if (!res.ok) return jsonError(400, res.error, requestId);
+          if (!res.ok) return complete(jsonError(400, res.error, requestId));
           params = res.value;
         }
 
@@ -125,7 +143,7 @@ function build<B, P, Q, S extends Session | null>(
         let query = {} as Q;
         if (config.query) {
           const res = config.query(url.searchParams);
-          if (!res.ok) return jsonError(400, res.error, requestId);
+          if (!res.ok) return complete(jsonError(400, res.error, requestId));
           query = res.value;
         }
 
@@ -136,10 +154,10 @@ function build<B, P, Q, S extends Session | null>(
           try {
             raw = await req.json();
           } catch {
-            return jsonError(400, "Invalid JSON body", requestId);
+            return complete(jsonError(400, "Invalid JSON body", requestId));
           }
           const res = config.body(raw);
-          if (!res.ok) return jsonError(400, res.error, requestId);
+          if (!res.ok) return complete(jsonError(400, res.error, requestId));
           body = res.value;
         }
 
@@ -152,11 +170,7 @@ function build<B, P, Q, S extends Session | null>(
           requestId,
           log,
         });
-        log.info("request.complete", {
-          status: response.status,
-          durationMs: Date.now() - startedAt,
-        });
-        return withRequestId(response, requestId);
+        return complete(response);
       } catch (err) {
         if (err instanceof ApiError) {
           log.warn("request.handled_error", {
@@ -164,7 +178,7 @@ function build<B, P, Q, S extends Session | null>(
             error: err.message,
             durationMs: Date.now() - startedAt,
           });
-          return jsonError(err.status, err.message, requestId);
+          return complete(jsonError(err.status, err.message, requestId));
         }
         // Unexpected: log internals, return a generic response in production.
         log.error("request.unhandled_error", {
@@ -177,7 +191,7 @@ function build<B, P, Q, S extends Session | null>(
           : err instanceof Error
             ? err.message
             : "Internal server error";
-        return jsonError(500, message, requestId);
+        return complete(jsonError(500, message, requestId));
       }
     }
   };
