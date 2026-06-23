@@ -11,8 +11,22 @@ import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { pushConfig } from "@/lib/config";
+import {
+  getReminderPreferenceMap,
+  shouldSendNow,
+  localHourInTimeZone,
+  DEFAULT_REMINDER_PREFERENCE,
+  type ReminderPreference,
+} from "@/lib/reminder-preferences";
 
 const log = createLogger("push");
+
+/**
+ * Consecutive transient failures tolerated before an endpoint is pruned even
+ * without an explicit 404/410. Guards against endpoints that are permanently
+ * unreachable but never return a clean "gone" status (RW-045).
+ */
+const MAX_CONSECUTIVE_FAILURES = 8;
 
 // ---------------------------------------------------------------------------
 // Config
@@ -83,11 +97,22 @@ export interface PushPayload {
 // Send to one user
 // ---------------------------------------------------------------------------
 
-type SubRow = { id: string; userId?: string; endpoint: string; p256dh: string; auth: string };
+type SubRow = {
+  id: string;
+  userId?: string;
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+  /** Consecutive transient failures recorded so far (RW-045). */
+  failureCount?: number;
+};
 
 /**
  * Sends a push notification to a pre-loaded list of subscriptions.
- * Dead subscriptions (404 / 410 from the push service) are pruned automatically.
+ * Delivery is tracked per subscription (RW-045): successes reset the failure
+ * counter and stamp `lastSuccessAt`; transient failures increment it and stamp
+ * `lastFailureAt`; endpoints are pruned on 404/410 OR once they exceed
+ * {@link MAX_CONSECUTIVE_FAILURES} consecutive transient failures.
  * Returns the number of successfully delivered pushes.
  *
  * Used internally by both `sendPushToUser` and the batched `sendDueReminders`
@@ -101,6 +126,8 @@ async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<number> {
   if (subs.length === 0) return 0;
 
   const deadIds: string[] = [];
+  const successIds: string[] = [];
+  const failIds: string[] = [];
   let sent = 0;
 
   await Promise.all(
@@ -111,6 +138,7 @@ async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<number> {
           payloadStr,
         );
         sent++;
+        successIds.push(sub.id);
       } catch (err: unknown) {
         const status = (err as { statusCode?: number }).statusCode;
         if (status === 404 || status === 410) {
@@ -119,9 +147,19 @@ async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<number> {
             subId: sub.id,
             status,
           });
+        } else if ((sub.failureCount ?? 0) + 1 >= MAX_CONSECUTIVE_FAILURES) {
+          // Too many consecutive failures — prune the unhealthy endpoint.
+          deadIds.push(sub.id);
+          log.warn("push subscription exceeded failure threshold — pruning", {
+            subId: sub.id,
+            status: status ?? null,
+            failures: (sub.failureCount ?? 0) + 1,
+          });
         } else {
+          failIds.push(sub.id);
           log.error("failed to send push notification", {
             subId: sub.id,
+            status: status ?? null,
             error: String(err),
           });
         }
@@ -129,8 +167,21 @@ async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<number> {
     }),
   );
 
+  const now = new Date();
   if (deadIds.length > 0) {
     await prisma.pushSubscription.deleteMany({ where: { id: { in: deadIds } } });
+  }
+  if (successIds.length > 0) {
+    await prisma.pushSubscription.updateMany({
+      where: { id: { in: successIds } },
+      data: { failureCount: 0, lastSuccessAt: now },
+    });
+  }
+  if (failIds.length > 0) {
+    await prisma.pushSubscription.updateMany({
+      where: { id: { in: failIds } },
+      data: { failureCount: { increment: 1 }, lastFailureAt: now },
+    });
   }
 
   return sent;
@@ -152,7 +203,7 @@ export async function sendPushToUser(
 
   const subs = await prisma.pushSubscription.findMany({
     where: { userId },
-    select: { id: true, endpoint: true, p256dh: true, auth: true },
+    select: { id: true, endpoint: true, p256dh: true, auth: true, failureCount: true },
   });
 
   return sendToSubs(subs, JSON.stringify(payload));
@@ -165,20 +216,27 @@ export async function sendPushToUser(
 export interface ReminderResult {
   usersWithDue: number;
   sent: number;
+  /** Users with due cards but no active subscription. */
   skipped: number;
+  /** Users suppressed by their preferences (disabled / quiet hours / off-hour). */
+  suppressed: number;
 }
 
 /**
  * Finds every user who has at least one SRS card due right now AND has an
- * active push subscription, then sends a single "cards due" notification.
+ * active push subscription, then sends a single "cards due" notification —
+ * respecting each user's reminder preferences (RW-045): disabled users, those
+ * inside their quiet hours, and those whose preferred send-hour isn't the
+ * current local hour are suppressed (not sent).
  *
- * Designed to be called once per day (e.g. from a cron job or the reminder CLI).
- * Returns counts for observability; returns all-zeros when VAPID unconfigured.
+ * Designed to be called hourly (so per-user `preferredHour` can be honoured) or
+ * daily. Returns counts for observability; returns all-zeros when VAPID
+ * unconfigured.
  */
 export async function sendDueReminders(): Promise<ReminderResult> {
   if (!isPushConfigured()) {
     log.info("sendDueReminders: VAPID unconfigured — no-op");
-    return { usersWithDue: 0, sent: 0, skipped: 0 };
+    return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
   }
 
   const now = new Date();
@@ -195,7 +253,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   });
 
   if (dueGroups.length === 0) {
-    return { usersWithDue: 0, sent: 0, skipped: 0 };
+    return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
   }
 
   const dueUserIds = dueGroups.map((g) => g.userId);
@@ -205,7 +263,14 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   // once per user.
   const allSubs = await prisma.pushSubscription.findMany({
     where: { userId: { in: dueUserIds } },
-    select: { id: true, userId: true, endpoint: true, p256dh: true, auth: true },
+    select: {
+      id: true,
+      userId: true,
+      endpoint: true,
+      p256dh: true,
+      auth: true,
+      failureCount: true,
+    },
   });
 
   // Group subscriptions by userId.
@@ -218,15 +283,42 @@ export async function sendDueReminders(): Promise<ReminderResult> {
 
   const subscribedUserIds = [...subsByUser.keys()];
 
+  // Load preferences + profile timezones for the subscribed cohort (RW-045).
+  const [prefMap, profiles] = await Promise.all([
+    getReminderPreferenceMap(subscribedUserIds),
+    prisma.profile.findMany({
+      where: { userId: { in: subscribedUserIds } },
+      select: { userId: true, timezone: true },
+    }),
+  ]);
+  const tzByUser = new Map(profiles.map((p) => [p.userId, p.timezone]));
+
   const result: ReminderResult = {
     usersWithDue: dueGroups.length,
     sent: 0,
     skipped: dueGroups.length - subscribedUserIds.length,
+    suppressed: 0,
   };
 
   const dueCountMap = new Map(dueGroups.map((g) => [g.userId, g._count.id]));
 
   for (const userId of subscribedUserIds) {
+    const pref: ReminderPreference = prefMap.get(userId) ?? {
+      ...DEFAULT_REMINDER_PREFERENCE,
+    };
+    const tz = pref.timezone ?? tzByUser.get(userId) ?? null;
+    const localHour = localHourInTimeZone(now, tz);
+    const decision = shouldSendNow(pref, localHour);
+    if (!decision.send) {
+      result.suppressed++;
+      log.info("reminder suppressed by preference", {
+        userId,
+        reason: decision.reason,
+        localHour,
+      });
+      continue;
+    }
+
     const count = dueCountMap.get(userId) ?? 0;
     const payload: PushPayload = {
       title: "Time to review! 📚",

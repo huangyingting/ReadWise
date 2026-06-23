@@ -134,12 +134,36 @@ export const TENANT_ROLES = [
 ] as const;
 export type TenantRole = (typeof TENANT_ROLES)[number];
 
+/**
+ * Roles assignable on a {@link Membership} row (RW-060). These map 1:1 onto the
+ * Prisma `MembershipRole` enum. `OrgAdmin`/`Teacher` reuse the tenant capability
+ * grants above; `Member`/`Student` carry only the base reader capabilities (a
+ * plain org member is not privileged beyond the global single-user experience).
+ */
+export const MEMBERSHIP_ROLES = [
+  "OrgAdmin",
+  "Teacher",
+  "Member",
+  "Student",
+] as const;
+export type MembershipRoleName = (typeof MEMBERSHIP_ROLES)[number];
+
+/**
+ * Roles assignable on a {@link ClassroomMembership} row (RW-061). Maps 1:1 onto
+ * the Prisma `ClassroomRole` enum. A classroom `Teacher` can manage the roster
+ * and assignments for THAT classroom; a `Student` only receives assignments.
+ */
+export const CLASSROOM_ROLES = ["Teacher", "Student"] as const;
+export type ClassroomRoleName = (typeof CLASSROOM_ROLES)[number];
+
 /** Every role name known to the model. */
 export type RoleName =
   | ActiveRole
   | typeof SYSTEM_ROLE
   | PlannedSystemRole
-  | TenantRole;
+  | TenantRole
+  | "Member"
+  | "Student";
 
 /** Roles that are documented but not yet assignable. */
 export const PLANNED_ROLES: readonly RoleName[] = [
@@ -221,6 +245,11 @@ export const ROLE_CAPABILITIES: Record<RoleName, readonly Capability[]> = {
     CAPABILITIES.classroomAssignmentsManage,
     CAPABILITIES.classroomStudentsManage,
   ],
+  // Plain tenant membership roles — base reader capabilities only. A Member or
+  // Student is not privileged beyond the global single-user experience; their
+  // tenant scoping is enforced by org/classroom membership lookups, not caps.
+  Member: BASE_READER_CAPABILITIES,
+  Student: BASE_READER_CAPABILITIES,
 };
 
 /** A principal whose capabilities we want to resolve (e.g. a session user). */
@@ -263,4 +292,26 @@ export function hasCapability(
   capability: Capability,
 ): boolean {
   return roleHasCapability(principal?.role, capability);
+}
+
+/**
+ * Resolves the capabilities granted by a tenant {@link Membership} /
+ * {@link ClassroomMembership} role (RW-060/061). This is the integration point
+ * for tenant authorization: an org/classroom role is resolved through the SAME
+ * capability table as global roles, so a Teacher membership yields
+ * `classroom.manage` etc. Unknown roles resolve to no capabilities
+ * (deny-by-default). A null membership (no tenant relationship) yields none.
+ */
+export function membershipCapabilities(
+  role: MembershipRoleName | ClassroomRoleName | string | null | undefined,
+): readonly Capability[] {
+  return capabilitiesForRole(role);
+}
+
+/** Returns true if a tenant membership role grants a specific capability. */
+export function membershipHasCapability(
+  role: MembershipRoleName | ClassroomRoleName | string | null | undefined,
+  capability: Capability,
+): boolean {
+  return roleHasCapability(role, capability);
 }
