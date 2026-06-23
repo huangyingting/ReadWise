@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { ArticleVisibility, TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
+import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { validateTags } from "@/lib/ai/validation";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "@/lib/article-access";
 
@@ -17,9 +19,6 @@ export type ArticleTagsResult = {
   tags: TagView[];
   fallback: boolean;
 };
-
-/** Max characters of source text sent to the model (keeps token use bounded). */
-const MAX_SOURCE_CHARS = 6000;
 
 /** How many topic tags to request from the model. */
 const TARGET_TAGS = 5;
@@ -39,42 +38,12 @@ export function slugifyTag(name: string): string {
 }
 
 /**
- * Parses the model's JSON response into a deduped list of tag names, tolerating
- * markdown code fences and surrounding prose. Returns [] when nothing usable.
+ * Parses the model's JSON response into a deduped list of Title-Cased tag names
+ * via the shared strict validator (RW-024): tolerant of code fences/prose,
+ * rejects empties and dedups by slug. Returns [] when nothing usable is found.
  */
 export function parseTagsJson(raw: string): string[] {
-  const fenced = raw.replace(/```(?:json)?/gi, "").trim();
-  const start = fenced.indexOf("[");
-  const end = fenced.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) {
-    return [];
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fenced.slice(start, end + 1));
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const row of parsed) {
-    const name = typeof row === "string" ? row.trim() : "";
-    if (!name) {
-      continue;
-    }
-    const slug = slugifyTag(name);
-    if (!slug || seen.has(slug)) {
-      continue;
-    }
-    seen.add(slug);
-    names.push(name);
-  }
-  return names;
+  return validateTags(raw, slugifyTag).items;
 }
 
 function toView(tag: { id: string; name: string; slug: string; scope: TagScope }): TagView {
@@ -166,7 +135,7 @@ export async function getOrCreateArticleTags(
         return tags.length > 0 ? tags : null;
       },
       buildMessages: (article) => {
-        const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+        const source = boundedSampleForFeature(htmlToPlainText(article.content), "tags");
         return [
           {
             role: "system",

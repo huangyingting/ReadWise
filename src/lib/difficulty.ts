@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import type { Prisma } from "@prisma/client";
 import { htmlToPlainText } from "@/lib/translation";
+import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";
 import {
   getAiProcessableArticleById,
@@ -20,9 +21,6 @@ import {
 export type DifficultyLevel = EnglishLevel;
 
 export const DIFFICULTY_LEVELS = ENGLISH_LEVELS;
-
-/** Max characters of source text sent to the model (keeps token use bounded). */
-const MAX_SOURCE_CHARS = 6000;
 
 export function isDifficultyLevel(value: unknown): value is DifficultyLevel {
   return (
@@ -139,7 +137,7 @@ async function aiAssessLevel(
   title: string,
   content: string,
 ): Promise<DifficultyLevel | null> {
-  const source = htmlToPlainText(content).slice(0, MAX_SOURCE_CHARS);
+  const source = boundedSampleForFeature(htmlToPlainText(content), "difficulty");
   const completion = await chatComplete(
     [
       {
@@ -156,7 +154,7 @@ async function aiAssessLevel(
         content: `Title: ${title}\n\n${source}`,
       },
     ],
-    { maxOutputTokens: 16, feature: "difficulty" },
+    { maxOutputTokens: 16, feature: "difficulty", promptVersion: "difficulty/v1" },
   );
   if (!completion) {
     return null;

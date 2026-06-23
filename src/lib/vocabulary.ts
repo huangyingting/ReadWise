@@ -1,6 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
+import { boundedSampleForFeature } from "@/lib/ai/chunking";
+import { validateVocabulary } from "@/lib/ai/validation";
 import type { ArticleAccessContext } from "@/lib/article-access";
 
 export type VocabularyEntry = {
@@ -19,57 +21,16 @@ export type ArticleVocabularyResult = {
   fallback: boolean;
 };
 
-/** Max characters of source text sent to the model (keeps token use bounded). */
-const MAX_SOURCE_CHARS = 8000;
-
 /** How many vocabulary entries to request from the model. */
 const TARGET_WORDS = 10;
 
 /**
- * Parses the model's JSON response into vocabulary entries, tolerating markdown
- * code fences and surrounding prose. Returns [] when nothing usable is found.
+ * Parses the model's JSON response into vocabulary entries via the shared strict
+ * validator (RW-024): tolerant of code fences/prose, rejects malformed/empty
+ * items and dedups by word. Returns [] when nothing usable is found.
  */
 function parseVocabularyJson(raw: string): VocabularyEntry[] {
-  const fenced = raw.replace(/```(?:json)?/gi, "").trim();
-  const start = fenced.indexOf("[");
-  const end = fenced.lastIndexOf("]");
-  if (start === -1 || end === -1 || end <= start) {
-    return [];
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(fenced.slice(start, end + 1));
-  } catch {
-    return [];
-  }
-  if (!Array.isArray(parsed)) {
-    return [];
-  }
-
-  const seen = new Set<string>();
-  const entries: VocabularyEntry[] = [];
-  for (const row of parsed) {
-    if (!row || typeof row !== "object") {
-      continue;
-    }
-    const record = row as Record<string, unknown>;
-    const word = typeof record.word === "string" ? record.word.trim() : "";
-    const explanation =
-      typeof record.explanation === "string" ? record.explanation.trim() : "";
-    const example =
-      typeof record.example === "string" ? record.example.trim() : "";
-    if (!word || !explanation) {
-      continue;
-    }
-    const key = word.toLowerCase();
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    entries.push({ word, explanation, example });
-  }
-  return entries;
+  return validateVocabulary(raw).items;
 }
 
 /**
@@ -124,7 +85,7 @@ export async function getOrCreateArticleVocabulary(
       return entries.length > 0 ? entries : null;
       },
       buildMessages: (article) => {
-      const source = htmlToPlainText(article.content).slice(0, MAX_SOURCE_CHARS);
+      const source = boundedSampleForFeature(htmlToPlainText(article.content), "vocabulary");
       return [
         {
           role: "system",

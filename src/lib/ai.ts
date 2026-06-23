@@ -1,21 +1,35 @@
 /**
- * Thin Azure OpenAI chat-completions client built on `fetch` (no SDK dependency).
- * Mirrors the project's graceful-fallback convention: when credentials are
- * absent every helper degrades to a safe no-op instead of throwing.
+ * Provider-agnostic chat-completions client (RW-023).
  *
- * Features:
+ * This module is the single, stable entry point the rest of the app uses for AI
+ * (`chatComplete` / `chatCompleteWithMeta`). It owns the cross-cutting
+ * orchestration and delegates the actual transport to a pluggable
+ * {@link import("@/lib/ai/provider").AiProvider} resolved via
+ * {@link import("@/lib/ai/registry").getAiProvider} (default Azure OpenAI). The
+ * provider performs a single attempt and normalizes its outcome; this module
+ * layers everything else on top.
+ *
+ * Mirrors the project's graceful-fallback convention: when credentials are
+ * absent every helper degrades to a safe no-op (null) instead of throwing.
+ *
+ * Orchestration owned here (NOT in the provider):
  *   - Per-request timeout via AbortSignal (AI_REQUEST_TIMEOUT_MS, default 30s)
- *   - Bounded retry with exponential backoff + jitter on 429/5xx/network errors
- *     (AI_MAX_RETRIES, default 2). Honors Retry-After header on 429.
+ *   - Bounded retry with exponential backoff + jitter on retryable provider
+ *     errors (rate-limit / 5xx / timeout / network; AI_MAX_RETRIES, default 2).
+ *     Honors a provider Retry-After hint.
+ *   - AI budgets/quotas (RW-022), the invocation ledger (RW-019), metrics, and
+ *     tracing.
  *   - Per-call structured logging: model, token usage, durationMs, outcome.
  */
 
 import { createLogger } from "@/lib/logger";
-import { aiConfig, aiMaxRetries, aiTimeoutMs } from "@/lib/config";
+import { aiMaxRetries, aiTimeoutMs } from "@/lib/config";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 import { withSpan, setSpanAttributes } from "@/lib/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
 import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
+import { getAiProvider } from "@/lib/ai/registry";
+import type { AiErrorKind, AiProviderCapabilities } from "@/lib/ai/provider";
 
 const log = createLogger("ai");
 
@@ -65,18 +79,23 @@ export type AiResult = {
   durationMs: number;
 };
 
-function readAzureConfig() {
-  return aiConfig.get();
-}
-
-/** Whether the Azure OpenAI chat completion provider is configured. */
+/** Whether the active AI chat-completion provider is configured. */
 export function isAiConfigured(): boolean {
-  return aiConfig.isConfigured();
+  return getAiProvider().isConfigured();
 }
 
 /** The configured deployment/model name, or null when unconfigured. */
 export function aiModelName(): string | null {
-  return aiConfig.get()?.deployment ?? null;
+  return getAiProvider().modelName();
+}
+
+/**
+ * Capability metadata for the active provider/model (context window, token
+ * field, temperature support). Used by long-text chunking (RW-025) to keep
+ * prompts within the model context limit.
+ */
+export function aiProviderCapabilities(): AiProviderCapabilities {
+  return getAiProvider().capabilities();
 }
 
 function getTimeoutMs(): number {
@@ -102,15 +121,16 @@ export async function chatCompleteWithMeta(
   messages: ChatMessage[],
   options: ChatOptions = {},
 ): Promise<AiResult | null> {
-  const config = readAzureConfig();
+  const provider = getAiProvider();
   const feature = options.feature ?? "unknown";
+  const modelName = provider.modelName();
 
   // Best-effort ledger writer shared by every outcome path (RW-019). Never
-  // throws; metadata-only. `model` defaults to the configured deployment.
+  // throws; metadata-only. `model` defaults to the active deployment.
   const logLedger = (status: AiInvocationStatus, extra: Partial<AiInvocationInput> = {}) =>
     recordAiInvocation({
       feature,
-      model: config?.deployment ?? null,
+      model: modelName,
       userId: options.userId ?? null,
       articleId: options.articleId ?? null,
       promptVersion: options.promptVersion ?? null,
@@ -120,7 +140,7 @@ export async function chatCompleteWithMeta(
       ...extra,
     });
 
-  if (!config) {
+  if (!provider.isConfigured()) {
     recordAiCall({ feature, outcome: "unconfigured" });
     await logLedger("unconfigured");
     return null;
@@ -149,7 +169,6 @@ export async function chatCompleteWithMeta(
     await assertAiQuota({ feature, userId: options.userId, kind: "interactive" });
   }
 
-  const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
   const maxRetries = getMaxRetries();
 
   // Child span around the provider interaction so AI calls show up as nested
@@ -159,176 +178,142 @@ export async function chatCompleteWithMeta(
     "ai.chat_completion",
     { "readwise.feature": feature, "readwise.kind": budgetKind },
     async (span) => {
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const start = Date.now();
-    const timeoutSignal = AbortSignal.timeout(getTimeoutMs());
-    const signal = options.signal
-      ? AbortSignal.any([options.signal, timeoutSignal])
-      : timeoutSignal;
+      for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        // Build the per-attempt deadline; combine with any caller signal so the
+        // provider's single fetch honors both the timeout and a caller abort.
+        const timeoutSignal = AbortSignal.timeout(getTimeoutMs());
+        const signal = options.signal
+          ? AbortSignal.any([options.signal, timeoutSignal])
+          : timeoutSignal;
 
-    let status = 0;
-    try {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "api-key": config.apiKey,
-        },
-        body: JSON.stringify({
+        const response = await provider.chat({
           messages,
-          max_completion_tokens: options.maxOutputTokens ?? 4096,
-        }),
-        signal,
-      });
+          maxOutputTokens: options.maxOutputTokens,
+          signal,
+        });
+        const durationMs = response.durationMs;
 
-      status = res.status;
-      const durationMs = Date.now() - start;
+        if (response.ok) {
+          const usage = response.usage;
+          log.info("ai.call", {
+            feature,
+            model: response.model,
+            durationMs,
+            finishReason: response.finishReason,
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            totalTokens: usage?.totalTokens,
+            ok: true,
+          });
+          recordAiCall({
+            feature,
+            outcome: "success",
+            status: response.status,
+            durationMs,
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            totalTokens: usage?.totalTokens,
+          });
+          await logLedger("success", {
+            model: response.model,
+            latencyMs: durationMs,
+            promptTokens: usage?.promptTokens,
+            completionTokens: usage?.completionTokens,
+            totalTokens: usage?.totalTokens,
+          });
+          setSpanAttributes(span, {
+            "readwise.outcome": "success",
+            "readwise.duration_ms": durationMs,
+          });
+          return { text: response.text, usage, model: response.model, durationMs };
+        }
 
-      if (!res.ok) {
-        // Retry on 429 (rate-limit) or 5xx (server error)
-        const retryable = status === 429 || status >= 500;
-        if (retryable && attempt < maxRetries) {
-          let delay = backoffMs(attempt + 1);
-          // Honor Retry-After if present (seconds)
-          const retryAfter = res.headers.get("Retry-After");
-          if (retryAfter) {
-            const seconds = parseInt(retryAfter, 10);
-            if (Number.isFinite(seconds)) delay = Math.min(seconds * 1000, 60_000);
-          }
-          recordAiRetry({ feature, reason: status === 429 ? "rate_limited" : status >= 500 ? "server_error" : "http" });
-          log.warn("ai.retry", { feature, model: config.deployment, attempt, status, delayMs: delay });
+        const error = response.error;
+
+        // 2xx with no usable content (empty completion or a content-filter
+        // refusal). Not retryable; degrade gracefully to null.
+        if (error.kind === "empty" || error.kind === "content_filter") {
+          recordAiCall({ feature, outcome: "empty", status: error.status, durationMs });
+          log.warn(error.kind === "content_filter" ? "ai.content_filter" : "ai.empty", {
+            feature,
+            model: modelName,
+            durationMs,
+            finishReason: error.finishReason,
+          });
+          await logLedger("empty", {
+            latencyMs: durationMs,
+            promptTokens: error.usage?.promptTokens,
+            completionTokens: error.usage?.completionTokens,
+            totalTokens: error.usage?.totalTokens,
+          });
+          return null;
+        }
+
+        // Caller-initiated abort: stop immediately, do not retry.
+        if (error.kind === "aborted" && options.signal?.aborted) {
+          recordAiCall({ feature, outcome: "aborted", durationMs });
+          log.warn("ai.aborted", { feature, model: modelName, durationMs });
+          await logLedger("aborted", { latencyMs: durationMs });
+          return null;
+        }
+
+        // Retry retryable failures (rate-limit / 5xx / timeout / network) while
+        // attempts remain, honoring any provider Retry-After hint.
+        if (error.retryable && attempt < maxRetries) {
+          const delay = error.retryAfterMs ?? backoffMs(attempt + 1);
+          recordAiRetry({ feature, reason: retryReason(error.kind) });
+          log.warn("ai.retry", {
+            feature,
+            model: modelName,
+            attempt,
+            status: error.status,
+            reason: error.kind,
+            delayMs: delay,
+          });
           await new Promise<void>((resolve) => setTimeout(resolve, delay));
           continue;
         }
-        recordAiCall({ feature, outcome: "error", status, durationMs });
-        log.warn("ai.error", { feature, model: config.deployment, status, durationMs, attempt });
-        await logLedger("error", { latencyMs: durationMs, errorMessage: `HTTP ${status}` });
-        return null;
-      }
 
-      const data = (await res.json()) as {
-        choices?: { message?: { content?: string }; finish_reason?: string }[];
-        usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
-        model?: string;
-      };
-
-      const choice = data.choices?.[0];
-      const content = choice?.message?.content;
-      const finishReason = choice?.finish_reason ?? "unknown";
-      if (typeof content !== "string" || !content.trim()) {
-        recordAiCall({ feature, outcome: "empty", status, durationMs });
-        log.warn("ai.empty", {
+        // Terminal failure: record + return null (graceful fallback).
+        const errorStatus =
+          error.status ?? (error.kind === "timeout" ? "timeout" : "network");
+        recordAiCall({ feature, outcome: "error", status: errorStatus, durationMs });
+        log.warn("ai.error", {
           feature,
-          model: config.deployment,
+          model: modelName,
+          status: error.status,
           durationMs,
-          finishReason,
-          contentType: typeof content,
-          contentLength: typeof content === "string" ? content.length : null,
-        });
-        await logLedger("empty", {
-          latencyMs: durationMs,
-          promptTokens: data.usage?.prompt_tokens,
-          completionTokens: data.usage?.completion_tokens,
-          totalTokens: data.usage?.total_tokens,
-        });
-        return null;
-      }
-
-      const usage: AiUsage | null = data.usage
-        ? {
-            promptTokens: data.usage.prompt_tokens ?? 0,
-            completionTokens: data.usage.completion_tokens ?? 0,
-            totalTokens: data.usage.total_tokens ?? 0,
-          }
-        : null;
-
-      log.info("ai.call", {
-        feature,
-        model: data.model ?? config.deployment,
-        durationMs,
-        finishReason,
-        promptTokens: usage?.promptTokens,
-        completionTokens: usage?.completionTokens,
-        totalTokens: usage?.totalTokens,
-        ok: true,
-      });
-
-      recordAiCall({
-        feature,
-        outcome: "success",
-        status,
-        durationMs,
-        promptTokens: usage?.promptTokens,
-        completionTokens: usage?.completionTokens,
-        totalTokens: usage?.totalTokens,
-      });
-      await logLedger("success", {
-        model: data.model ?? config.deployment,
-        latencyMs: durationMs,
-        promptTokens: usage?.promptTokens,
-        completionTokens: usage?.completionTokens,
-        totalTokens: usage?.totalTokens,
-      });
-      setSpanAttributes(span, {
-        "readwise.outcome": "success",
-        "readwise.duration_ms": durationMs,
-      });
-      return { text: content.trim(), usage, model: data.model ?? config.deployment, durationMs };
-    } catch (err) {
-      const durationMs = Date.now() - start;
-      const isTimeout = err instanceof Error && err.name === "TimeoutError";
-      const isAbort = err instanceof Error && err.name === "AbortError";
-
-      // If the caller aborted, do not retry
-      if (isAbort && options.signal?.aborted) {
-        recordAiCall({ feature, outcome: "aborted", durationMs });
-        log.warn("ai.aborted", { feature, model: config.deployment, durationMs });
-        await logLedger("aborted", { latencyMs: durationMs });
-        return null;
-      }
-
-      if (attempt < maxRetries && !isAbort) {
-        const delay = backoffMs(attempt + 1);
-        recordAiRetry({ feature, reason: isTimeout ? "timeout" : "network" });
-        log.warn("ai.retry", {
-          feature,
-          model: config.deployment,
           attempt,
-          reason: isTimeout ? "timeout" : String(err),
-          delayMs: delay,
+          reason: error.kind,
         });
-        await new Promise<void>((resolve) => setTimeout(resolve, delay));
-        continue;
+        await logLedger("error", {
+          latencyMs: durationMs,
+          errorMessage: error.status ? `HTTP ${error.status}` : error.message,
+        });
+        setSpanAttributes(span, {
+          "readwise.outcome": "error",
+          "readwise.duration_ms": durationMs,
+        });
+        return null;
       }
-
-      recordAiCall({
-        feature,
-        outcome: "error",
-        status: isTimeout ? "timeout" : "network",
-        durationMs,
-      });
-      log.warn("ai.error", {
-        feature,
-        model: config.deployment,
-        durationMs,
-        attempt,
-        reason: isTimeout ? "timeout" : String(err),
-      });
-      await logLedger("error", {
-        latencyMs: durationMs,
-        errorMessage: isTimeout ? "timeout" : "network error",
-      });
-      setSpanAttributes(span, {
-        "readwise.outcome": "error",
-        "readwise.duration_ms": durationMs,
-      });
-      return null;
-    }
-  }
 
       return null;
     },
   );
+}
+
+/** Maps a normalized provider error kind to a retry-metric reason label. */
+function retryReason(kind: AiErrorKind): string {
+  switch (kind) {
+    case "rate_limit":
+      return "rate_limited";
+    case "server":
+      return "server_error";
+    case "timeout":
+      return "timeout";
+    default:
+      return "network";
+  }
 }
 
 /**
