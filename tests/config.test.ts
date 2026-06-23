@@ -82,6 +82,19 @@ test("validateRuntimeConfig is ready with required env and absent optional provi
   assert.equal(report.errors.length, 0);
 });
 
+test("validateRuntimeConfig accepts PostgreSQL DATABASE_URL protocols", () => {
+  for (const databaseUrl of ["postgresql://db.example/readwise", "postgres://db.example/readwise"]) {
+    setRequiredEnv();
+    process.env.DATABASE_URL = databaseUrl;
+
+    const report = validateRuntimeConfig();
+
+    assert.equal(report.ready, true);
+    assert.equal(report.required.database.status, "ok");
+    assert.equal(report.errors.some((err) => err.code === "invalid_database_url"), false);
+  }
+});
+
 test("partial optional providers degrade without blocking readiness", () => {
   setRequiredEnv();
   process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
@@ -112,7 +125,7 @@ test("malformed VAPID subject degrades and disables push config", () => {
 });
 
 test("malformed required values block readiness", () => {
-  process.env.DATABASE_URL = "postgres://db.example/readwise";
+  process.env.DATABASE_URL = "mysql://db.example/readwise";
   process.env.NEXTAUTH_SECRET = "replace-with-a-random-secret";
   process.env.NEXTAUTH_URL = "not-a-url";
 
