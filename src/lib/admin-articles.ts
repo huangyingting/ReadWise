@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, type Article } from "@prisma/client";
 import { readingMinutesFor } from "@/lib/articles";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   adminVisibleArticleWhere,
@@ -186,20 +187,28 @@ export async function getAdminArticleDetail(
 export async function deleteArticle(
   id: string,
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+  audit?: AuditRequestInput,
 ): Promise<boolean> {
-  const existing = await getAdminVisibleArticleById(id, context, {
-    select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.article.findFirst({
+      where: adminVisibleArticleWhere(context, { id }),
+      select: { id: true },
+    });
+    if (!existing) {
+      return false;
+    }
+    await tx.article.delete({ where: { id } });
+    if (audit) {
+      await recordAuditFromRequest(audit, tx);
+    }
+    return true;
   });
-  if (!existing) {
-    return false;
-  }
-  await prisma.article.delete({ where: { id } });
-  return true;
 }
 
 export type RebuildResult = {
   cleared: AdminArticleAiCounts;
 };
+type RebuildAuditFactory = (result: RebuildResult) => AuditRequestInput;
 
 /**
  * Triggers a rebuild of an article's AI-derived content by clearing the cached
@@ -211,31 +220,39 @@ export type RebuildResult = {
 export async function rebuildArticleAi(
   id: string,
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+  audit?: RebuildAuditFactory,
 ): Promise<RebuildResult | null> {
-  const existing = await getAdminVisibleArticleById(id, context, {
-    select: { id: true },
+  return prisma.$transaction(async (tx) => {
+    const existing = await tx.article.findFirst({
+      where: adminVisibleArticleWhere(context, { id }),
+      select: { id: true },
+    });
+    if (!existing) {
+      return null;
+    }
+
+    const [translations, vocabulary, quizQuestions, tags, speech] =
+      await Promise.all([
+        tx.translation.deleteMany({ where: { articleId: id } }),
+        tx.vocabularyItem.deleteMany({ where: { articleId: id } }),
+        tx.quizQuestion.deleteMany({ where: { articleId: id } }),
+        tx.articleTag.deleteMany({ where: { articleId: id } }),
+        tx.articleSpeech.deleteMany({ where: { articleId: id } }),
+      ]);
+
+    const result = {
+      cleared: {
+        translations: translations.count,
+        vocabulary: vocabulary.count,
+        quizQuestions: quizQuestions.count,
+        tags: tags.count,
+        speech: speech.count,
+        readingProgress: 0,
+      },
+    };
+    if (audit) {
+      await recordAuditFromRequest(audit(result), tx);
+    }
+    return result;
   });
-  if (!existing) {
-    return null;
-  }
-
-  const [translations, vocabulary, quizQuestions, tags, speech] =
-    await prisma.$transaction([
-      prisma.translation.deleteMany({ where: { articleId: id } }),
-      prisma.vocabularyItem.deleteMany({ where: { articleId: id } }),
-      prisma.quizQuestion.deleteMany({ where: { articleId: id } }),
-      prisma.articleTag.deleteMany({ where: { articleId: id } }),
-      prisma.articleSpeech.deleteMany({ where: { articleId: id } }),
-    ]);
-
-  return {
-    cleared: {
-      translations: translations.count,
-      vocabulary: vocabulary.count,
-      quizQuestions: quizQuestions.count,
-      tags: tags.count,
-      speech: speech.count,
-      readingProgress: 0,
-    },
-  };
 }

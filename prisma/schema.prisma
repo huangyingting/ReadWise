@@ -522,3 +522,25 @@ model ArticleDifficultyFeedback {
   @@unique([userId, articleId])
   @@index([articleId])
 }
+
+// Durable security/admin audit event store. Actor/target ids are stored as
+// immutable string identifiers (not FKs) so deleting users/articles/tags never
+// erases the investigation trail.
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  actorId    String?
+  actorRole  String?
+  targetType String
+  targetId   String?
+  metadata   String   @default("{}")
+  requestId  String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}

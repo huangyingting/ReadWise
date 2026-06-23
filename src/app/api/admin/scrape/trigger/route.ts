@@ -4,8 +4,9 @@ import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { object, optional, nonEmptyString, number, boolean } from "@/lib/validation";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
-import { discoverProviderUrls, scrapeAndSave } from "@/lib/scraper";
+import { discoverProviderUrls, scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 50;
@@ -32,7 +33,7 @@ const triggerBody = object({
  */
 export const POST = createAdminHandler(
   { body: triggerBody },
-  async ({ body, log }) => {
+  async ({ req, body, session, requestId, log }) => {
     const limit = body.limit ?? DEFAULT_LIMIT;
     const scrapeAll = body.all === true;
 
@@ -51,6 +52,21 @@ export const POST = createAdminHandler(
     } else {
       throw new ApiError(400, "Specify a `provider` key or set `all: true`.");
     }
+
+    await recordAuditFromRequest({
+      req,
+      session,
+      requestId,
+      action: AUDIT_ACTIONS.adminScrapeTrigger,
+      targetType: "scrape",
+      targetId: scrapeAll ? "all" : providers[0]?.key ?? "unknown",
+      metadata: {
+        providerCount: providers.length,
+        providers: providers.map((p) => p.key),
+        limit,
+        phase: "requested",
+      },
+    });
 
     type ProviderResult = {
       provider: string;
@@ -76,7 +92,18 @@ export const POST = createAdminHandler(
       let saved = 0, skipped = 0, failed = 0;
       for (const url of urls) {
         try {
-          const outcome = await scrapeAndSave(url);
+          const article = await scrapeUrl(url);
+          const outcome = article
+            ? await saveDraftArticle(article, (created) => ({
+                req,
+                session,
+                requestId,
+                action: AUDIT_ACTIONS.adminArticleIngest,
+                targetType: "article",
+                targetId: created.id,
+                metadata: { source: "scrape.trigger", provider: provider.key },
+              }))
+            : { status: "failed" as const, reason: "could not extract article content", sourceUrl: url };
           if (outcome.status === "saved") saved++;
           else if (outcome.status === "skipped") skipped++;
           else failed++;

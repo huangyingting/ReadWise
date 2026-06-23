@@ -1,6 +1,7 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
+import type { Session } from "next-auth";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import {
   object,
@@ -28,6 +29,7 @@ import {
   ownedArticleWhere,
   privateImportedArticleCreateFields,
 } from "@/lib/article-access";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;
@@ -79,17 +81,17 @@ async function assertWithinDailyQuota(userId: string): Promise<void> {
  */
 export const POST = createHandler(
   { body: importBody },
-  async ({ body, session }) => {
+  async ({ req, body, session, requestId }) => {
     const userId = session.user.id;
 
     // --- Branch: URL import or text paste --------------------------------
     if (body.url) {
-      return handleUrlImport(body.url, userId);
+      return handleUrlImport(body.url, userId, req, session, requestId);
     }
 
     if (body.text !== undefined && body.text !== null) {
       const title = body.title?.trim() || "Untitled import";
-      return handleTextImport(title, body.text, userId);
+      return handleTextImport(title, body.text, userId, req, session, requestId);
     }
 
     throw new ApiError(400, "Provide either `url` or `text` in the request body.");
@@ -136,7 +138,13 @@ export const GET = createHandler(
   },
 );
 
-async function handleUrlImport(rawUrl: string, userId: string): Promise<Response> {
+async function handleUrlImport(
+  rawUrl: string,
+  userId: string,
+  req: Request,
+  session: Session,
+  requestId: string,
+): Promise<Response> {
   // SSRF guard — must not be bypassed.
   try {
     await assertSafeUrl(rawUrl);
@@ -191,23 +199,39 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
 
   let article;
   try {
-    article = await prisma.article.create({
-      data: {
-        title: scraped.title,
-        author: scraped.author,
-        source: scraped.source,
-        sourceUrl: scraped.sourceUrl,
-        heroImage: scraped.heroImage,
-        excerpt: scraped.excerpt,
-        content: scraped.content,
-        category: scraped.category,
-        wordCount: scraped.wordCount,
-        readingMinutes: scraped.readingMinutes,
-        status: ArticleStatus.PUBLISHED,
-        publishedAt: scraped.publishedAt ?? new Date(),
-        ...privateImportedArticleCreateFields(userId),
-      },
-      select: { id: true },
+    article = await prisma.$transaction(async (tx) => {
+      const created = await tx.article.create({
+        data: {
+          title: scraped.title,
+          author: scraped.author,
+          source: scraped.source,
+          sourceUrl: scraped.sourceUrl,
+          heroImage: scraped.heroImage,
+          excerpt: scraped.excerpt,
+          content: scraped.content,
+          category: scraped.category,
+          wordCount: scraped.wordCount,
+          readingMinutes: scraped.readingMinutes,
+          status: ArticleStatus.PUBLISHED,
+          publishedAt: scraped.publishedAt ?? new Date(),
+          ...privateImportedArticleCreateFields(userId),
+        },
+        select: { id: true },
+      });
+      await applyHeuristicDifficulty(created.id, scraped.content, tx);
+      await recordAuditFromRequest(
+        {
+          req,
+          session,
+          requestId,
+          action: AUDIT_ACTIONS.articleImport,
+          targetType: "article",
+          targetId: created.id,
+          metadata: { importType: "url" },
+        },
+        tx,
+      );
+      return created;
     });
   } catch (err) {
     // A concurrent import of the same URL won the race between the dedupe
@@ -220,9 +244,6 @@ async function handleUrlImport(rawUrl: string, userId: string): Promise<Response
     }
     throw err;
   }
-
-  // Heuristic difficulty assessment (cheap, no AI needed).
-  await applyHeuristicDifficulty(article.id, scraped.content);
 
   return NextResponse.json({ id: article.id }, { status: 201 });
 }
@@ -248,6 +269,9 @@ async function handleTextImport(
   title: string,
   text: string,
   userId: string,
+  req: Request,
+  session: Session,
+  requestId: string,
 ): Promise<Response> {
   if (!text.trim()) {
     throw new ApiError(400, "text must not be empty.");
@@ -267,21 +291,35 @@ async function handleTextImport(
   const wordCount = countWords(content);
   const readingMinutes = Math.max(1, Math.round(wordCount / 200));
 
-  const article = await prisma.article.create({
-    data: {
-      title,
-      source: "Personal",
-      content,
-      wordCount,
-      readingMinutes,
-      status: ArticleStatus.PUBLISHED,
-      publishedAt: new Date(),
-      ...privateImportedArticleCreateFields(userId),
-    },
-    select: { id: true },
+  const article = await prisma.$transaction(async (tx) => {
+    const created = await tx.article.create({
+      data: {
+        title,
+        source: "Personal",
+        content,
+        wordCount,
+        readingMinutes,
+        status: ArticleStatus.PUBLISHED,
+        publishedAt: new Date(),
+        ...privateImportedArticleCreateFields(userId),
+      },
+      select: { id: true },
+    });
+    await applyHeuristicDifficulty(created.id, content, tx);
+    await recordAuditFromRequest(
+      {
+        req,
+        session,
+        requestId,
+        action: AUDIT_ACTIONS.articleImport,
+        targetType: "article",
+        targetId: created.id,
+        metadata: { importType: "text" },
+      },
+      tx,
+    );
+    return created;
   });
-
-  await applyHeuristicDifficulty(article.id, content);
 
   return NextResponse.json({ id: article.id }, { status: 201 });
 }
@@ -290,10 +328,11 @@ async function handleTextImport(
 async function applyHeuristicDifficulty(
   articleId: string,
   content: string,
+  client: Pick<Prisma.TransactionClient, "article"> = prisma,
 ): Promise<void> {
   try {
     const { level: difficulty, score: difficultyScore } = heuristicDifficulty(content);
-    await prisma.article.update({
+    await client.article.update({
       where: { id: articleId },
       data: { difficulty, difficultyScore },
     });

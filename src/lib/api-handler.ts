@@ -21,6 +21,7 @@ import {
   type StructuredLogger,
 } from "@/lib/logger";
 import { recordApiRequest, routeGroupFromPath } from "@/lib/metrics";
+import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/audit";
 
 
 /** Throw from a handler to return a controlled, client-safe error response. */
@@ -121,7 +122,19 @@ function build<B, P, Q, S extends Session | null>(
         let session: Session | null = null;
         if (auth === "admin") {
           const result = await requireAdminApi();
-          if (result.error) return complete(result.error);
+          if (result.error) {
+            await tryRecordAuditLog({
+              action: AUDIT_ACTIONS.securityAdminAccessDenied,
+              actorId: result.session?.user?.id ?? null,
+              actorRole: result.session?.user?.role ?? null,
+              targetType: "route",
+              targetId: routeGroup,
+              requestId,
+              metadata: { status: result.error.status, method: req.method },
+              ...auditRequestInfo(req),
+            });
+            return complete(result.error);
+          }
           session = result.session;
         } else if (auth === "session") {
           const result = await requireSessionApi();

@@ -32,6 +32,8 @@ let ssrfThrows = false;
 let updateCalled = false;
 let createCalled = false;
 let findFirstResult: { id: string } | null = null;
+let auditCalls = 0;
+let prismaStub: Record<string, unknown>;
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -47,17 +49,24 @@ before(() => {
     },
   });
 
+  prismaStub = {
+    article: {
+      count: async () => countResult,
+      findFirst: async () => findFirstResult,
+      create: async () => { createCalled = true; return { id: createdId }; },
+      update: async () => { updateCalled = true; return { id: createdId }; },
+      findMany: async () => [],
+    },
+    $transaction: async (fn: unknown) => {
+      if (typeof fn === "function") {
+        return (fn as (tx: unknown) => Promise<unknown>)(prismaStub);
+      }
+      return Promise.all(fn as Promise<unknown>[]);
+    },
+  };
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
-        article: {
-          count: async () => countResult,
-          findFirst: async () => findFirstResult,
-          create: async () => { createCalled = true; return { id: createdId }; },
-          update: async () => { updateCalled = true; return { id: createdId }; },
-          findMany: async () => [],
-        },
-      },
+      prisma: prismaStub,
     },
   });
 
@@ -113,6 +122,20 @@ before(() => {
       revalidateTagsCache: () => {},
     },
   });
+
+  mock.module("@/lib/audit", {
+    namedExports: {
+      AUDIT_ACTIONS: {
+        articleImport: "article.import",
+        securityAdminAccessDenied: "security.admin_access_denied",
+      },
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async () => {
+        auditCalls++;
+      },
+      tryRecordAuditLog: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {
@@ -124,6 +147,7 @@ beforeEach(() => {
   createCalled = false;
   findFirstResult = null;
   createdId = "new-article-id";
+  auditCalls = 0;
   scrapeResult = {
     title: "My Article",
     author: null,
@@ -165,6 +189,7 @@ test("URL import succeeds with valid URL and returns article id", async () => {
   assert.equal(res.status, 201);
   const data = await res.json();
   assert.equal(data.id, createdId);
+  assert.equal(auditCalls, 1);
 });
 
 test("text import succeeds with title + text", async () => {

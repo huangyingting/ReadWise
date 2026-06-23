@@ -4,6 +4,7 @@ import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle, fetchHtml } from "@/lib/scraper/extract";
 import { providerForUrl } from "@/lib/scraper/providers";
 import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 
 export type SaveOutcome =
   | { status: "saved"; id: string; article: ScrapedArticle }
@@ -24,30 +25,39 @@ export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
  * then surfaces a Prisma P2002, which is caught and reported as `skipped`
  * (re-resolving the winner's id) rather than bubbling up as a 500.
  */
-export async function saveDraftArticle(article: ScrapedArticle): Promise<SaveOutcome> {
+export async function saveDraftArticle(
+  article: ScrapedArticle,
+  audit?: (created: { id: string }) => AuditRequestInput,
+): Promise<SaveOutcome> {
   const existing = await findPublicLibraryArticleBySourceUrl(article.sourceUrl);
   if (existing) {
     return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
   }
 
   try {
-    const created = await prisma.article.create({
-      data: {
-        title: article.title,
-        author: article.author,
-        source: article.source,
-        sourceUrl: article.sourceUrl,
-        heroImage: article.heroImage,
-        excerpt: article.excerpt,
-        content: article.content,
-        category: article.category,
-        wordCount: article.wordCount,
-        readingMinutes: article.readingMinutes,
-        status: ArticleStatus.DRAFT,
-        ...PUBLIC_ARTICLE_CREATE_FIELDS,
-        publishedAt: article.publishedAt,
-      },
-      select: { id: true },
+    const created = await prisma.$transaction(async (tx) => {
+      const row = await tx.article.create({
+        data: {
+          title: article.title,
+          author: article.author,
+          source: article.source,
+          sourceUrl: article.sourceUrl,
+          heroImage: article.heroImage,
+          excerpt: article.excerpt,
+          content: article.content,
+          category: article.category,
+          wordCount: article.wordCount,
+          readingMinutes: article.readingMinutes,
+          status: ArticleStatus.DRAFT,
+          ...PUBLIC_ARTICLE_CREATE_FIELDS,
+          publishedAt: article.publishedAt,
+        },
+        select: { id: true },
+      });
+      if (audit) {
+        await recordAuditFromRequest(audit(row), tx);
+      }
+      return row;
     });
     return { status: "saved", id: created.id, article };
   } catch (err) {

@@ -39,6 +39,7 @@ before(() => {
       },
     },
     article: {
+      count: async () => 0,
       deleteMany: async (args: { where: Record<string, unknown> }) => {
         deleteManyArgs = args;
         return { count: 0 };
