@@ -7,6 +7,7 @@ export default function ForbiddenPage() {
       <EmptyState
         icon={ShieldX}
         title="Access denied"
+        titleAs="h1"
         description="You don't have permission to access this area. Admin access is required."
         action={{ label: "← Back to dashboard", href: "/dashboard" }}
       />

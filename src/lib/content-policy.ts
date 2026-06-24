@@ -8,11 +8,13 @@
  *
  * The states form a clear progression:
  *   - `active`      — normal; visibility follows `status`.
- *   - `unpublished` — temporarily withheld (e.g. quality/rights review); the
- *     article is forced to DRAFT so it leaves public feeds.
- *   - `archived`    — retired from the library but retained; forced to DRAFT.
- *   - `takedown`    — a formal rights/DMCA takedown; forced to DRAFT and flagged
- *     so it is never re-published without a deliberate restore.
+ *   - `unpublished` — temporarily withheld (e.g. quality/rights review); if the
+ *     article is PUBLISHED it is forced to DRAFT so it leaves public feeds.
+ *   - `archived`    — retired from the library but retained; PUBLISHED articles
+ *     are forced to DRAFT; other statuses (DRAFT/FAILED) are preserved.
+ *   - `takedown`    — a formal rights/DMCA takedown; PUBLISHED articles are
+ *     forced to DRAFT and the article is flagged so it is never re-published
+ *     without a deliberate restore. DRAFT/FAILED/ARCHIVED status is preserved.
  *
  * Applying any non-active state DRAFTS the article (defense in depth — feeds
  * already filter on status). Restoring to `active` does NOT auto-publish; an
@@ -45,7 +47,7 @@ export const TAKEDOWN_STATE_LABELS: Record<TakedownState, string> = {
   takedown: "Takedown",
 };
 
-/** A non-active state forces the article out of public feeds (DRAFT). */
+/** A non-active state should force a PUBLISHED article out of public feeds. */
 export function takedownForcesDraft(state: TakedownState): boolean {
   return state !== "active";
 }
@@ -70,11 +72,14 @@ export type ApplyTakedownResult =
 
 /**
  * Applies a takedown/rights transition to an article, records a
- * {@link ContentReview} history row, and (for any non-active state) forces the
- * article to DRAFT so it leaves public feeds. Restoring to `active` leaves the
- * status untouched (an editor must re-publish deliberately). Returns a
- * structured error for an unknown id or invalid state — never throws for the
- * normal not-found / validation paths.
+ * {@link ContentReview} history row, and (for any non-active state applied to
+ * a PUBLISHED article) forces the article to DRAFT so it leaves public feeds.
+ * DRAFT/FAILED/ARCHIVED articles are already out of public feeds, so their
+ * status is preserved even on a non-active transition — this avoids silently
+ * converting a FAILED article to DRAFT and losing that status information.
+ * Restoring to `active` leaves the status untouched (an editor must re-publish
+ * deliberately). Returns a structured error for an unknown id or invalid state
+ * — never throws for the normal not-found / validation paths.
  */
 export async function applyTakedown(
   input: ApplyTakedownInput,
@@ -94,7 +99,14 @@ export async function applyTakedown(
 
     const previousState = (existing.takedownState as TakedownState) ?? "active";
     const forcesDraft = takedownForcesDraft(input.state);
-    const nextStatus = forcesDraft ? ArticleStatus.DRAFT : existing.status;
+    // Only force DRAFT when the article is currently PUBLISHED — PUBLISHED is
+    // the only status that appears in public feeds. DRAFT/FAILED/ARCHIVED are
+    // already non-public, so demoting them to DRAFT would silently erase their
+    // status (e.g. FAILED → DRAFT makes it look re-processable).
+    const nextStatus =
+      forcesDraft && existing.status === ArticleStatus.PUBLISHED
+        ? ArticleStatus.DRAFT
+        : existing.status;
 
     await tx.article.update({
       where: { id: input.articleId },

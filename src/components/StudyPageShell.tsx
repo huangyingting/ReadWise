@@ -56,7 +56,7 @@ export default function StudyPageShell({
               className={buttonVariants({ variant: "ghost", size: "sm" }) + " inline-flex items-center gap-[var(--space-1)]"}
             >
               <BookOpen size={15} aria-hidden />
-              Manage words
+              Vocabulary journal
             </Link>
             {words.length > 0 && <VocabularyExportButtons />}
           </div>

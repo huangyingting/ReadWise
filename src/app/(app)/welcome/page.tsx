@@ -10,6 +10,8 @@ export default async function WelcomePage() {
 
   return (
     <div className="welcome-page">
+      {/* Visually hidden page h1 — the tour card uses <h2> for its step title */}
+      <h1 className="sr-only">Welcome to ReadWise</h1>
       <WelcomeTour />
     </div>
   );

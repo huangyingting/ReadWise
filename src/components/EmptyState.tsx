@@ -10,6 +10,12 @@ export interface EmptyStateProps {
   /** Optional CTA rendered as an M1 primary Button-styled Link. */
   action?: { label: string; href: string };
   className?: string;
+  /**
+   * HTML element used to render the title. Defaults to `"p"` to avoid
+   * introducing an unexpected heading in listing contexts. Pass `"h1"` on
+   * pages where EmptyState IS the primary page heading (e.g. /forbidden).
+   */
+  titleAs?: "h1" | "h2" | "h3" | "p";
 }
 
 /**
@@ -23,6 +29,7 @@ export default function EmptyState({
   description,
   action,
   className,
+  titleAs: TitleTag = "p",
 }: EmptyStateProps) {
   return (
     <div
@@ -45,9 +52,9 @@ export default function EmptyState({
         <Icon size={20} />
       </div>
 
-      <p className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-lg)] text-text m-0">
+      <TitleTag className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-lg)] text-text m-0">
         {title}
-      </p>
+      </TitleTag>
 
       {description ? (
         <p className="text-text-muted text-[length:var(--text-sm)] max-w-[40ch] m-0">
