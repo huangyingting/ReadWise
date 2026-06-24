@@ -21,8 +21,7 @@
     "push-reminders": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/push-reminders.ts",
     "prisma:generate": "prisma generate",
     "postinstall": "prisma generate",
-    "migrate-storage": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/migrate-storage.ts",
-    "migrate-speech": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/migrate-speech.ts"
+    "migrate-storage": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/migrate-storage.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
