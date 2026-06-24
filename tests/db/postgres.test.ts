@@ -277,7 +277,7 @@ async function seedQueryPlanFixture(): Promise<{ userId: string }> {
   return { userId };
 }
 
-test("PostgreSQL migrations are applied and include the article FTS index", { skip: !enabled }, async () => {
+test("PostgreSQL baseline migration is applied and includes the article FTS index", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
   const migrations = await prisma.$queryRaw<Array<{ migration_name: string; finished_at: Date | null }>>`
@@ -287,20 +287,8 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
   `;
 
   assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260623000000_postgresql_baseline"),
+    migrations.some((migration) => migration.migration_name === "20260625010000_init"),
     "PostgreSQL baseline migration should be recorded",
-  );
-  assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260623004106_privacy_article_model"),
-    "PostgreSQL privacy migration should be recorded separately from the baseline",
-  );
-  assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260623004100_add_audit_logs"),
-    "PostgreSQL audit-log migration should be recorded",
-  );
-  assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260623035600_query_plan_indexes"),
-    "PostgreSQL query-plan index migration should be recorded",
   );
   assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
 
@@ -342,11 +330,11 @@ test("PostgreSQL migrations are applied and include the article FTS index", { sk
   );
 });
 
-test("PostgreSQL migrations apply from scratch and preserve representative legacy rows", { skip: !enabled }, async () => {
+test("PostgreSQL baseline applies from scratch with representative rows", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
   const migrations = await readPostgresMigrations();
-  assert.equal(migrations[0]?.name, "20260623000000_postgresql_baseline");
+  assert.equal(migrations[0]?.name, "20260625010000_init");
   const schemaName = `dbit_schema_${randomUUID().replace(/-/g, "")}`;
   const quotedSchema = quoteIdentifier(schemaName);
 
@@ -364,7 +352,7 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
           ('legacy-owner-b', 'Legacy Owner B', 'legacy-b@example.invalid', 'Reader', CURRENT_TIMESTAMP);
 
         INSERT INTO "Article" (
-          "id", "slug", "title", "excerpt", "content", "sourceUrl", "status", "createdAt", "updatedAt", "ownerId"
+          "id", "slug", "title", "excerpt", "content", "sourceUrl", "visibility", "sourceType", "status", "createdAt", "updatedAt", "ownerId"
         ) VALUES
           (
             'legacy-public',
@@ -373,6 +361,8 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
             'Public excerpt',
             'Migrated public article body',
             'https://example.invalid/legacy-public',
+            'PUBLIC',
+            'SCRAPED',
             'published',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP,
@@ -385,6 +375,8 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
             'Private excerpt',
             'Migrated private article body',
             'https://example.invalid/legacy-private',
+            'PRIVATE',
+            'IMPORTED',
             'draft',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP,
@@ -397,6 +389,8 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
             'Private excerpt',
             'Migrated private article body',
             'https://example.invalid/legacy-private',
+            'PRIVATE',
+            'IMPORTED',
             'published',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP,
@@ -421,7 +415,7 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
         VALUES ('legacy-quiz-a', 'legacy-private-a', 'Ready?', '["Yes","No"]', 0, CURRENT_TIMESTAMP);
 
         INSERT INTO "ArticleSpeech" (
-          "id", "articleId", "voice", "format", "mimeType", "audioBase64", "spokenText", "words", "updatedAt"
+          "id", "articleId", "voice", "format", "mimeType", "audioBase64", "plainText", "words", "updatedAt"
         )
         VALUES (
           'legacy-speech-a',
@@ -613,17 +607,8 @@ test("audit logs are retained when actor or target rows are deleted", { skip: !e
   assert.equal(await prisma.article.count({ where: { id: articleId } }), 0);
 });
 
-test("PostgreSQL JSON fields migrate to jsonb columns", { skip: !enabled }, async () => {
+test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
-
-  const migrations = await prisma.$queryRaw<Array<{ migration_name: string }>>`
-    SELECT migration_name
-    FROM "_prisma_migrations"
-    WHERE migration_name = '20260623023200_json_field_parity'
-      AND rolled_back_at IS NULL
-      AND finished_at IS NOT NULL
-  `;
-  assert.equal(migrations.length, 1);
 
   const columns = await prisma.$queryRaw<
     Array<{ table_name: string; column_name: string; data_type: string; column_default: string | null }>

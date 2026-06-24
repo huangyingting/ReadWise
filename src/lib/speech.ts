@@ -378,7 +378,7 @@ export async function getOrCreateArticleSpeech(
       const put = await storage.put({
         data: output.audio,
         mimeType,
-        keyHint: `speech/${articleId}`,
+        keyHint: "speech",
       });
       const durationSec = lastWordEnd(output.words);
       const asset = await prisma.mediaAsset.upsert({
