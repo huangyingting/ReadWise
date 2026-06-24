@@ -152,11 +152,12 @@ test("AzureBlobMediaStorage put uploads with correct container/key/content-type"
   assert.ok(storage);
 
   const data = Buffer.from("test-audio-bytes");
-  const result = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech/art1" });
+  const result = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
 
   assert.ok(uploadDataCalled, "uploadData should have been called");
   assert.equal(uploadDataContentType, "audio/mpeg");
-  assert.ok(result.storageKey.startsWith("speech/art1/"));
+  assert.ok(result.storageKey.startsWith("speech/"));
+  assert.equal(result.storageKey.split("/").length, 2);
   assert.ok(result.storageKey.includes(sha256Hex(data)));
   assert.equal(result.sizeBytes, data.byteLength);
   assert.equal(result.checksum, sha256Hex(data));
@@ -171,7 +172,7 @@ test("AzureBlobMediaStorage get returns bytes from storage", async () => {
   assert.ok(storage);
 
   downloadBytes = Buffer.from("hello-audio");
-  const bytes = await storage!.get("speech/art1/abc123.mp3");
+  const bytes = await storage!.get("speech/abc123.mp3");
   assert.ok(bytes);
   assert.equal(bytes!.toString(), "hello-audio");
 });
@@ -184,7 +185,7 @@ test("AzureBlobMediaStorage get returns null on 404 (blob not found)", async () 
   assert.ok(storage);
 
   downloadShouldFail = true;
-  const bytes = await storage!.get("speech/art1/missing.mp3");
+  const bytes = await storage!.get("speech/missing.mp3");
   assert.equal(bytes, null);
 });
 
@@ -195,9 +196,9 @@ test("AzureBlobMediaStorage delete is idempotent (uses deleteIfExists)", async (
   const storage = getMediaStorage();
   assert.ok(storage);
 
-  await storage!.delete("speech/art1/abc123.mp3");
+  await storage!.delete("speech/abc123.mp3");
   assert.ok(deleteIfExistsCalled);
-  assert.equal(deleteIfExistsKey, "speech/art1/abc123.mp3");
+  assert.equal(deleteIfExistsKey, "speech/abc123.mp3");
 });
 
 test("AzureBlobMediaStorage put returns content-addressed key (same bytes → same key)", async () => {
@@ -208,7 +209,7 @@ test("AzureBlobMediaStorage put returns content-addressed key (same bytes → sa
   assert.ok(storage);
 
   const data = Buffer.from("idempotent-bytes");
-  const r1 = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech/a1" });
-  const r2 = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech/a1" });
+  const r1 = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
+  const r2 = await storage!.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
   assert.equal(r1.storageKey, r2.storageKey);
 });

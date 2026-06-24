@@ -96,7 +96,7 @@ test("FilesystemMediaStorage put/get/delete round-trips content-addressed bytes"
   if (!storage) return;
 
   const data = Buffer.from("hello-audio-bytes");
-  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech/a1" });
+  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
   assert.equal(put.checksum, sha256Hex(data));
   assert.equal(put.sizeBytes, data.length);
   assert.ok(put.storageKey.includes(put.checksum));
@@ -106,7 +106,7 @@ test("FilesystemMediaStorage put/get/delete round-trips content-addressed bytes"
   assert.equal(read?.toString(), "hello-audio-bytes");
 
   // Content-addressed: same bytes => same key.
-  const put2 = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech/a1" });
+  const put2 = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
   assert.equal(put2.storageKey, put.storageKey);
 
   await storage.delete(put.storageKey);
@@ -168,6 +168,7 @@ test("migrateArticleSpeechToStorage migrates base64 to storage and is idempotent
   const row = speechRows[0];
   assert.equal(row.audioBase64, null, "base64 cleared after migration");
   assert.ok(row.storageKey, "storage key recorded");
+  assert.equal(row.storageKey?.split("/").length, 2, "speech storage key is flat");
   assert.ok(row.mediaAssetId, "media asset linked");
   assert.equal(mediaAssets.size, 1);
 

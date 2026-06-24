@@ -130,7 +130,7 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
   speechRow = {
     mimeType: "audio/mpeg",
     audioBase64: null,
-    storageKey: "speech/a1/abc123.mp3",
+    storageKey: "speech/abc123.mp3",
   };
   const res = await callGet("a1");
   assert.equal(res.status, 200);
@@ -144,7 +144,7 @@ test("GET /speech/audio returns 404 when storageKey set but storage unavailable 
   speechRow = {
     mimeType: "audio/mpeg",
     audioBase64: null,
-    storageKey: "speech/a1/abc123.mp3",
+    storageKey: "speech/abc123.mp3",
   };
   const res = await callGet("a1");
   assert.equal(res.status, 404);

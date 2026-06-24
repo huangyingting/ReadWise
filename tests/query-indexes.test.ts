@@ -39,36 +39,29 @@ test("Prisma schema records indexes for core feed/search/admin/worker flows", ()
   }
 });
 
-test("search index migration removes SQLite FTS5 and creates production query indexes", () => {
-  const migrationDirs = readdirSync(join(ROOT, "prisma/migrations"));
-  const searchMigration = migrationDirs.find((dir) => dir.endsWith("_search_indexes"));
-  assert.ok(searchMigration, "search_indexes migration missing");
-  const migration = read(`prisma/migrations/${searchMigration}/migration.sql`);
-
-  assert.match(migration, /DROP TABLE IF EXISTS "article_fts"/);
-  assert.match(migration, /DROP TRIGGER IF EXISTS article_ai/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_visibility_feed_idx"/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "SavedWord_due_idx"/);
-
+test("SQLite baseline creates production query indexes", () => {
   const allMigrations = readAllMigrations("prisma/migrations");
+  assert.match(allMigrations, /CREATE INDEX "Article_visibility_feed_idx"/);
+  assert.match(allMigrations, /CREATE INDEX "Article_category_feed_idx"/);
+  assert.match(allMigrations, /CREATE INDEX "Article_level_feed_idx"/);
   assert.match(allMigrations, /CREATE INDEX IF NOT EXISTS "Article_public_feed_idx"/);
   assert.match(allMigrations, /CREATE INDEX IF NOT EXISTS "Article_public_category_feed_idx"/);
   assert.match(allMigrations, /CREATE INDEX IF NOT EXISTS "Article_public_level_feed_idx"/);
-  assert.match(allMigrations, /CREATE INDEX IF NOT EXISTS "SavedWord_user_created_idx"/);
-  assert.match(allMigrations, /CREATE INDEX IF NOT EXISTS "ReadingProgress_user_completedAt_idx"/);
+  assert.match(allMigrations, /CREATE INDEX "SavedWord_user_created_idx"/);
+  assert.match(allMigrations, /CREATE INDEX "ReadingProgress_user_completedAt_idx"/);
 });
 
 test("PostgreSQL migrations create the same production query indexes", () => {
   const migration = readAllMigrations("prisma/postgresql/migrations");
 
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_visibility_feed_idx"/);
+  assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "Article_visibility_feed_idx"/);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_public_feed_idx"/);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_public_category_feed_idx"/);
   assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_public_level_feed_idx"/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Article_level_feed_idx"/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "Highlight_user_created_idx"/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "SavedWord_user_created_idx"/);
-  assert.match(migration, /CREATE INDEX IF NOT EXISTS "ReadingProgress_user_completedAt_idx"/);
+  assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "Article_level_feed_idx"/);
+  assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "Highlight_user_created_idx"/);
+  assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "SavedWord_user_created_idx"/);
+  assert.match(migration, /CREATE INDEX(?: IF NOT EXISTS)? "ReadingProgress_user_completedAt_idx"/);
 });
 
 test("public feed predicate matches ownerless partial-index contract", () => {

@@ -126,11 +126,11 @@ npx prisma migrate status --schema prisma/postgresql/schema.prisma
 The normal `npm test` suite remains mocked and DB-free; `npm run test:db` is the
 real-engine coverage for migrations and representative constraints.
 
-Current PostgreSQL integration coverage applies the PostgreSQL migration history
-from scratch in CI, replays the post-baseline migrations in an isolated schema
-with representative legacy rows, and verifies ownership/privacy constraints,
-scoped uniqueness/null behavior, cascades, audit-log retention, JSONB columns,
-article search indexes/FTS, and the current article-state worker selection.
+Current PostgreSQL integration coverage applies the single PostgreSQL baseline
+from scratch in CI against an isolated schema and verifies ownership/privacy
+constraints, scoped uniqueness/null behavior, cascades, audit-log retention,
+JSONB columns, article search indexes/FTS, and the current article-state worker
+selection.
 
 Job-locking assertions are intentionally scoped out until ADR-0005 is
 implemented: there is no persistent job table or `locked_by`/`locked_until`
@@ -182,5 +182,5 @@ secret stores.
 The default `prisma/schema.prisma` is still SQLite to avoid breaking current
 local and CI workflows in the same PR that introduces PostgreSQL coverage. The
 remaining flip is to make the PostgreSQL schema the default, archive or replace
-the SQLite migration history, and require the PostgreSQL path in all deployment
+the SQLite baseline, and require the PostgreSQL path in all deployment
 pipelines after a dry-run data migration succeeds.

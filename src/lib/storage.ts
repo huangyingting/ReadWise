@@ -40,7 +40,7 @@ export type PutMediaInput = {
   /** Raw bytes to persist. */
   data: Buffer;
   mimeType: string;
-  /** Logical key prefix hint (e.g. `speech/<articleId>`); a content hash is appended. */
+  /** Logical key prefix hint (e.g. `speech`); a content hash is appended. */
   keyHint?: string;
   /** Optional explicit extension (e.g. `.mp3`); inferred from `mimeType` otherwise. */
   extension?: string;
@@ -456,7 +456,7 @@ export async function migrateArticleSpeechToStorage(
       const put = await storage.put({
         data: buffer,
         mimeType: row.mimeType,
-        keyHint: `speech/${row.articleId}`,
+        keyHint: "speech",
       });
       const durationSec = durationFromWords(row.words);
 

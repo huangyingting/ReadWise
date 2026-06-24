@@ -90,7 +90,7 @@ beforeEach(() => {
   migrationFails = false;
   migrationFsFails = false;
   lastReaddirPath = "";
-  repositoryMigrations = ["20260618084048_init_auth", "20260618085521_add_profile"];
+  repositoryMigrations = ["20260625010000_init"];
   appliedMigrations = [...repositoryMigrations];
   unfinishedMigrations = [];
 });
@@ -129,7 +129,7 @@ test("GET /api/ready returns ready when DB, migrations, and required config are 
 test("GET /api/ready uses the migration directory next to PRISMA_SCHEMA_PATH", async () => {
   process.env.DATABASE_URL = "postgresql://db.example/readwise";
   process.env.PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
-  repositoryMigrations = ["20260623000000_postgresql_baseline"];
+  repositoryMigrations = ["20260625010000_init"];
   appliedMigrations = [...repositoryMigrations];
 
   const res = await getReadyResponse();
@@ -180,7 +180,7 @@ test("GET /api/ready returns unavailable when migrations are unfinished", async 
 });
 
 test("GET /api/ready returns unavailable when migration files are unapplied", async () => {
-  const unapplied = "20260618090355_add_article";
+  const unapplied = "20260625020000_future_change";
   repositoryMigrations = [...repositoryMigrations, unapplied];
   appliedMigrations = repositoryMigrations.filter((name) => name !== unapplied);
 

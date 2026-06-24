@@ -65,6 +65,9 @@ Both the filesystem and Azure implementations are:
 - **content-addressed** — the object key embeds the sha-256 of the bytes
   (`<keyHint>/<sha256><ext>`), so identical audio de-duplicates and writes are
   idempotent.
+- **flat for speech assets** — narration uses `speech/<sha256><ext>` instead of
+  per-article subdirectories because article ownership is tracked in the
+  database and object keys are already unique.
 - **traversal-safe** — filesystem: every key is resolved and confined to the base
   directory. Azure: SDK handles container scoping; storageKey is sanitized before
   use.
