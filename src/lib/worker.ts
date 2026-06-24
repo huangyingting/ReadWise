@@ -8,6 +8,7 @@ import { createLogger } from "@/lib/logger";
 import { recordWorkerJob } from "@/lib/metrics";
 import { withSpan } from "@/lib/tracing";
 import { captureError } from "@/lib/error-reporting";
+import { jitteredExponentialBackoff } from "@/lib/backoff";
 import {
   claimNextJob,
   completeJob,
@@ -175,9 +176,7 @@ async function processWithRetry(
 
 /** Exponential backoff with jitter, capped at maxBackoffMs. */
 export function backoffDelay(attempt: number, base: number, max: number): number {
-  const exp = Math.min(max, base * 2 ** (attempt - 1));
-  const jitter = Math.floor(Math.random() * Math.min(base, exp));
-  return Math.min(max, exp + jitter);
+  return jitteredExponentialBackoff({ attempt, baseMs: base, maxMs: max });
 }
 
 /**

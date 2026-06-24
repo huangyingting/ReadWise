@@ -122,8 +122,10 @@ which avoids embedding large data-URIs in the initial page payload.
 - **Graceful** — when object storage is unconfigured it is a no-op
   (`skippedNoStorage: true`).
 
-It returns `{ storageKind, skippedNoStorage, scanned, migrated, alreadyMigrated,
-failed }` and accepts an optional `limit` for batched runs.
+It returns `{ storageKind, skippedNoStorage, scanned, migrated, failed }` and
+accepts an optional `limit` for batched runs. `scanned` is the number of eligible
+rows found in that run; already-migrated rows are intentionally excluded by the
+idempotency predicate.
 
 ### Running the migration
 

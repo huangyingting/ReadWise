@@ -398,7 +398,6 @@ export type SpeechStorageMigrationResult = {
   skippedNoStorage: boolean;
   scanned: number;
   migrated: number;
-  alreadyMigrated: number;
   failed: number;
 };
 
@@ -427,7 +426,6 @@ export async function migrateArticleSpeechToStorage(
       skippedNoStorage: true,
       scanned: 0,
       migrated: 0,
-      alreadyMigrated: 0,
       failed: 0,
     };
   }
@@ -511,7 +509,6 @@ export async function migrateArticleSpeechToStorage(
     skippedNoStorage: false,
     scanned: rows.length,
     migrated,
-    alreadyMigrated: 0,
     failed,
   };
 }
