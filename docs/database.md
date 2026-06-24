@@ -21,7 +21,7 @@ npm run dev
 4. Deterministic local seed data
 
 The helper injects the local-only environment values below so it does not need
-to read `.env.local`:
+to read `.env`:
 
 ```bash
 DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public"

@@ -15,8 +15,7 @@ Spawned agents have read access to the entire repository, including `.env` files
 ### Prohibited File Reads
 
 **NEVER read these files:**
-- `.env` (production secrets)
-- `.env.local` (local dev secrets)
+- `.env` (local or production secrets)
 - `.env.production` (production environment)
 - `.env.development` (development environment)
 - `.env.staging` (staging environment)
