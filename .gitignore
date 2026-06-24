@@ -53,5 +53,8 @@ next-env.d.ts
 # Dev server log (accidental artifact)
 dev-server.log
 
+# Local media storage
+.media/
+
 # Copilot CLI per-session scratch state (never commit)
 .copilot/session-state/
