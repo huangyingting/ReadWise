@@ -191,17 +191,21 @@ function buildProseWordMap(container: HTMLElement): ProseWord[] {
 // forEach; the actual Map-like interface has set/delete too).
 type CssHighlightRegistry = { set(k: string, v: Highlight): void; delete(k: string): void };
 
-function createMarkElement(hl: RwHighlight): HTMLElement {
+function createMarkElement(hl: RwHighlight, isFirstSegment: boolean): HTMLElement {
   const mark = document.createElement("mark");
   mark.className = "rw-hl";
   mark.dataset.hlId = hl.id;
   mark.dataset.hlColor = hl.color ?? "yellow";
   if (hl.note) {
     mark.dataset.hlHasNote = "true";
-    const sr = document.createElement("span");
-    sr.className = "sr-only";
-    sr.textContent = "(has note)";
-    mark.appendChild(sr);
+    // Only announce "(has note)" once per highlight — on the first text-node
+    // segment so a multi-segment highlight doesn't repeat the announcement.
+    if (isFirstSegment) {
+      const sr = document.createElement("span");
+      sr.className = "sr-only";
+      sr.textContent = "(has note)";
+      mark.appendChild(sr);
+    }
   }
   return mark;
 }
@@ -240,17 +244,23 @@ function applyHighlightMarks(
 
   // 3. Build segments
   const textNodes = collectTextNodes(container);
-  interface Segment { tnIdx: number; from: number; to: number; hl: RwHighlight }
+  interface Segment { tnIdx: number; from: number; to: number; hl: RwHighlight; isFirst: boolean }
   const segments: Segment[] = [];
+  // Track which highlight IDs have already been assigned a "first" segment so
+  // that only one segment per highlight carries the sr-only "(has note)" note.
+  const seenHlIds = new Set<string>();
   for (let ti = 0; ti < textNodes.length; ti++) {
     const tn = textNodes[ti];
     for (const r of resolved) {
       if (r.end <= tn.start || r.start >= tn.end) continue;
+      const isFirst = !seenHlIds.has(r.hl.id);
+      if (isFirst) seenHlIds.add(r.hl.id);
       segments.push({
         tnIdx: ti,
         from: Math.max(r.start - tn.start, 0),
         to: Math.min(r.end - tn.start, tn.end - tn.start),
         hl: r.hl,
+        isFirst,
       });
     }
   }
@@ -264,7 +274,7 @@ function applyHighlightMarks(
     // earlier splits to shorten the node — skip rather than throw IndexSizeError.
     if (seg.from < 0 || seg.from >= seg.to) continue;
     if (seg.from > tn.length) continue;
-    const mark = createMarkElement(seg.hl);
+    const mark = createMarkElement(seg.hl, seg.isFirst);
     const target = tn.splitText(seg.from);
     const clampedLen = Math.min(seg.to - seg.from, target.length);
     if (clampedLen < target.length) target.splitText(clampedLen);
@@ -360,7 +370,7 @@ export default function WordLookup({
   const [grammarPhrase, setGrammarPhrase] = useState<string>("");
   const [grammarSelectionRect, setGrammarSelectionRect] = useState<DOMRect | null>(null);
 
-  const { highlights, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
+  const { highlights, loading: hlLoading, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
   const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
 
   // TTS prose highlighting
@@ -904,9 +914,20 @@ export default function WordLookup({
 
   return (
     <>
+      {/* Subtle loading affordance while highlights are fetched — prevents the
+          marks from visibly popping in with no context for the user. */}
+      {hlLoading && (
+        <p
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          Loading highlights…
+        </p>
+      )}
       <div
         ref={proseRef}
-        className="prose word-lookup-prose"
+        className={`prose word-lookup-prose${hlLoading ? " rw-hl-loading" : ""}`}
         tabIndex={-1}
         onMouseUp={handleSelect}
         dangerouslySetInnerHTML={innerHtml}

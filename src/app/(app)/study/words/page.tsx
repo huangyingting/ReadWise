@@ -75,7 +75,7 @@ export default async function StudyWordsPage({
         className={buttonVariants({ variant: "ghost", size: "sm" }) + " mb-[var(--space-4)] inline-flex items-center gap-[var(--space-1)]"}
       >
         <ChevronLeft size={16} aria-hidden />
-        Back to Study
+        Back to Study hub
       </Link>
 
       <div className="flex items-center justify-between flex-wrap gap-[var(--space-3)] mb-[var(--space-6)]">
