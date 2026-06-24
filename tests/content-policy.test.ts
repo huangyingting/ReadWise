@@ -109,3 +109,45 @@ test("applyTakedown rejects an invalid state with 400", async () => {
   if (result.ok) return;
   assert.equal(result.status, 400);
 });
+
+test("applyTakedown on a FAILED article preserves FAILED status", async () => {
+  articles.set("a1", { id: "a1", takedownState: "active", status: "FAILED", rightsNote: null });
+  const { applyTakedown } = await import("@/lib/content-policy");
+  const result = await applyTakedown({ articleId: "a1", state: "takedown" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  // FAILED is already non-public — status must NOT be forced to DRAFT
+  assert.equal(result.status, "FAILED");
+  assert.equal(articles.get("a1")?.status, "FAILED");
+  assert.equal(articles.get("a1")?.takedownState, "takedown");
+});
+
+test("applyTakedown on an ARCHIVED article preserves ARCHIVED status", async () => {
+  articles.set("a1", { id: "a1", takedownState: "active", status: "ARCHIVED", rightsNote: null });
+  const { applyTakedown } = await import("@/lib/content-policy");
+  const result = await applyTakedown({ articleId: "a1", state: "unpublished" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.status, "ARCHIVED");
+  assert.equal(articles.get("a1")?.status, "ARCHIVED");
+});
+
+test("applyTakedown on a DRAFT article preserves DRAFT status", async () => {
+  articles.set("a1", { id: "a1", takedownState: "active", status: "DRAFT", rightsNote: null });
+  const { applyTakedown } = await import("@/lib/content-policy");
+  const result = await applyTakedown({ articleId: "a1", state: "archived" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.status, "DRAFT");
+  assert.equal(articles.get("a1")?.status, "DRAFT");
+});
+
+test("restoring a FAILED article to active leaves status as FAILED", async () => {
+  articles.set("a1", { id: "a1", takedownState: "takedown", status: "FAILED", rightsNote: null });
+  const { applyTakedown } = await import("@/lib/content-policy");
+  const result = await applyTakedown({ articleId: "a1", state: "active" });
+  assert.equal(result.ok, true);
+  if (!result.ok) return;
+  assert.equal(result.status, "FAILED");
+  assert.equal(articles.get("a1")?.takedownState, "active");
+});

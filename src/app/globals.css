@@ -2698,6 +2698,23 @@ body {
  * ================================================================= */
 
 /* ---- In-prose <mark> ---- */
+
+/* While highlights are loading, marks are not yet applied. Once they appear,
+   a brief fade-in avoids visible popping. The prose wrapper gets .rw-hl-loading
+   removed when hlLoading transitions to false. */
+.word-lookup-prose .rw-hl {
+  animation: rw-hl-appear var(--duration-base, 200ms) var(--ease-standard, ease) both;
+}
+@keyframes rw-hl-appear {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .word-lookup-prose .rw-hl {
+    animation: none;
+  }
+}
+
 .rw-hl {
   background-color: var(--hl-yellow);
   color: var(--reading-text, var(--text));
