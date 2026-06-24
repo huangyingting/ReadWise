@@ -141,8 +141,8 @@ No storage secrets are emitted in readiness JSON.
 - Use `/api/ready` for readiness/startup gates and Kubernetes readiness probes.
 - Treat optional provider degradation as an operator warning, not an outage, unless
   your deployment explicitly requires that feature.
-- For local PostgreSQL parity, use `npm run local:pg:setup` so DB, schema,
-  migrations, and deterministic seed data stay aligned.
+- For local development, use `npm run db:migrate` after pulling schema changes
+  and `npm run db:reset` when you intentionally want a clean SQLite database.
 - For Docker production, set both `DATABASE_URL` and `PRISMA_SCHEMA_PATH` through
   the platform secret/config mechanism.
 

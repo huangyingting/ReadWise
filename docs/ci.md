@@ -100,7 +100,6 @@ npx prisma migrate deploy
 rm -rf .next && npm run build
 
 # PostgreSQL migrate / integration (needs a running PostgreSQL — see docs/database.md)
-#   npm run local:pg:setup   # start + migrate + seed local PostgreSQL
 npm run test:db
 
 # E2E smoke (Playwright) — installs the matching Chromium on first run
