@@ -35,6 +35,11 @@ import SentenceTranslatePopover, {
 import GrammarPopover, { type GrammarResult } from "./GrammarPopover";
 import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
 import { Badge } from "@/components/ui/Badge";
+import {
+  buildTokenAlignment,
+  createComparableKey,
+  createWordRegex,
+} from "@/lib/speech-timing";
 
 const POPOVER_WIDTH = 340;
 const POPOVER_HEIGHT = 400;
@@ -163,27 +168,101 @@ function collectTextNodes(container: HTMLElement): TextNodeEntry[] {
 // TTS prose word map
 // ---------------------------------------------------------------------------
 
-type ProseWord = { node: Text; start: number; end: number };
+type ProseWord = {
+  startNode: Text;
+  start: number;
+  endNode: Text;
+  end: number;
+  scrollElement: Element | null;
+};
 
-/**
- * Walks the prose container's text nodes and returns a flat array of
- * non-whitespace token positions. The N-th entry corresponds to the N-th
- * word fired by the Azure Speech SDK (word-walk alignment — pragmatic, not
- * offset-exact). Rebuilt whenever highlight marks change text node structure.
- */
-function buildProseWordMap(container: HTMLElement): ProseWord[] {
-  const result: ProseWord[] = [];
+type ProseToken = {
+  node: Text;
+  nodeStart: number;
+  nodeEnd: number;
+  value: string;
+  normalized: string;
+};
+
+function shouldSkipTtsTextNode(node: Text): boolean {
+  return Boolean(node.parentElement?.closest(".sr-only"));
+}
+
+function collectVisibleTtsTextNodes(container: HTMLElement): TextNodeEntry[] {
+  const entries: TextNodeEntry[] = [];
   const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT);
+  let offset = 0;
   let n: Node | null;
   while ((n = walker.nextNode())) {
-    const text = n as Text;
-    const content = text.textContent ?? "";
-    const re = /\S+/g;
+    const tn = n as Text;
+    if (shouldSkipTtsTextNode(tn)) continue;
+    entries.push({ start: offset, end: offset + tn.length, node: tn });
+    offset += tn.length;
+  }
+  return entries;
+}
+
+function buildProseTokens(entries: TextNodeEntry[]): ProseToken[] {
+  const result: ProseToken[] = [];
+  for (const entry of entries) {
+    const content = entry.node.textContent ?? "";
+    const re = createWordRegex();
     let m: RegExpExecArray | null;
     while ((m = re.exec(content)) !== null) {
-      result.push({ node: text, start: m.index, end: m.index + m[0].length });
+      const value = m[0];
+      const nodeStart = m.index;
+      result.push({
+        node: entry.node,
+        nodeStart,
+        nodeEnd: nodeStart + value.length,
+        value,
+        normalized: createComparableKey(value),
+      });
     }
   }
+  return result;
+}
+
+function rangeFromProseTokens(
+  firstToken: ProseToken,
+  lastToken: ProseToken,
+): ProseWord {
+  return {
+    startNode: firstToken.node,
+    start: firstToken.nodeStart,
+    endNode: lastToken.node,
+    end: lastToken.nodeEnd,
+    scrollElement: firstToken.node.parentElement,
+  };
+}
+
+/**
+ * Builds an active-word range map for prose highlighting by aligning TTS
+ * { word, offset, duration } entries to visible DOM tokens in reading order.
+ */
+function buildProseWordMap(
+  container: HTMLElement,
+  words: Array<{ word: string }>,
+): Array<ProseWord | null> {
+  const result: Array<ProseWord | null> = new Array(words.length).fill(null);
+  if (words.length === 0) return result;
+
+  const entries = collectVisibleTtsTextNodes(container);
+  const proseTokens = buildProseTokens(entries);
+  const { alignment, spanLengths } = buildTokenAlignment(proseTokens, words);
+
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+    const tokenIndex = alignment[wordIndex];
+    if (tokenIndex == null) continue;
+
+    const spanLength = Math.max(1, spanLengths[wordIndex] ?? 1);
+    const firstToken = proseTokens[tokenIndex];
+    const lastToken = proseTokens[tokenIndex + spanLength - 1] ?? firstToken;
+    if (firstToken && lastToken) {
+      result[wordIndex] = rangeFromProseTokens(firstToken, lastToken);
+    }
+  }
+
   return result;
 }
 
@@ -375,7 +454,7 @@ export default function WordLookup({
 
   // TTS prose highlighting
   const readerAudio = useReaderAudio();
-  const ttsWordMapRef = useRef<ProseWord[]>([]);
+  const ttsWordMapRef = useRef<Array<ProseWord | null>>([]);
 
   const closeAll = useCallback(() => {
     setOpenSurface(null);
@@ -417,8 +496,11 @@ export default function WordLookup({
       ttsWordMapRef.current = [];
       return;
     }
-    ttsWordMapRef.current = buildProseWordMap(proseRef.current);
-  }, [readerAudio.words.length, highlights]);
+    ttsWordMapRef.current = buildProseWordMap(
+      proseRef.current,
+      readerAudio.words,
+    );
+  }, [readerAudio.words, highlights]);
 
   // Apply / clear the TTS active-word highlight in the main prose using the
   // CSS Custom Highlight API (graceful degradation — no highlight on unsupported
@@ -438,12 +520,17 @@ export default function WordLookup({
       return;
     }
 
-    const { node, start, end } = map[idx];
+    const active = map[idx];
+    if (!active) {
+      cssh.delete("tts-active");
+      return;
+    }
+
     let range: Range;
     try {
       range = new Range();
-      range.setStart(node, start);
-      range.setEnd(node, Math.min(end, node.length));
+      range.setStart(active.startNode, active.start);
+      range.setEnd(active.endNode, Math.min(active.end, active.endNode.length));
     } catch {
       cssh.delete("tts-active");
       return;
@@ -457,7 +544,7 @@ export default function WordLookup({
         const viewTop = window.innerHeight * 0.2;
         const viewBottom = window.innerHeight * 0.75;
         if (rect.top < viewTop || rect.bottom > viewBottom) {
-          node.parentElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+          active.scrollElement?.scrollIntoView({ behavior: "smooth", block: "center" });
         }
       }
     }
@@ -465,7 +552,7 @@ export default function WordLookup({
     return () => {
       cssh.delete("tts-active");
     };
-  }, [readerAudio.activeIndex, readerAudio.listenActive]);
+  }, [readerAudio.activeIndex, readerAudio.listenActive, readerAudio.words, highlights]);
 
   // Seed translate language from localStorage after mount
   useEffect(() => {

@@ -103,13 +103,13 @@ export default function ArticleDictation({
   // When audio is already loaded (Listen tab was visited), compute segments.
   useEffect(() => {
     if (audio.isLoaded && !audio.isFallback && audio.words.length > 0 && segments.length === 0) {
-      const segs = segmentDictation(plainText, audio.words);
+      const segs = segmentDictation(audio.plainText || plainText, audio.words);
       setSegments(segs);
       setPhase(segs.length > 0 ? "idle" : "fallback");
     } else if (audio.isFallback && phase === "warming") {
       setPhase("fallback");
     }
-  }, [audio.isLoaded, audio.isFallback, audio.words, plainText, segments.length, phase]);
+  }, [audio.isLoaded, audio.isFallback, audio.words, audio.plainText, plainText, segments.length, phase]);
 
   // Warm narration lazily on first render if not already loaded.
   useEffect(() => {
@@ -133,7 +133,7 @@ export default function ArticleDictation({
       const body = (await res.json()) as {
         audio: string | null;
         mimeType: string | null;
-        spokenText: string;
+        plainText: string;
         words: typeof audio.words;
         voice: string;
         cached: boolean;
@@ -153,8 +153,8 @@ export default function ArticleDictation({
       const blobUrl = URL.createObjectURL(blob);
       if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
       blobUrlRef.current = blobUrl;
-      audio.loadAudio(blobUrl, body.words, body.voice, body.cached, plainText);
-      const segs = segmentDictation(plainText, body.words);
+      audio.loadAudio(blobUrl, body.words, body.voice, body.cached, body.plainText);
+      const segs = segmentDictation(body.plainText || plainText, body.words);
       setSegments(segs);
       setPhase(segs.length > 0 ? "idle" : "fallback");
     } catch (err) {

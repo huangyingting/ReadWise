@@ -71,7 +71,7 @@ CREATE TABLE "ArticleSpeech" ("id" TEXT NOT NULL, "words" TEXT NOT NULL);
 INSERT INTO "Profile" ("id", "topics") VALUES ('profile-1', '[]');
 INSERT INTO "QuizQuestion" ("id", "options") VALUES ('quiz-1', '["Yes","No"]');
 INSERT INTO "ArticleSpeech" ("id", "words")
-VALUES ('speech-1', '[{"textOffset":0,"length":4,"start":0.1}]');
+VALUES ('speech-1', '[{"word":"Hello","offset":0}]');
 
 ${validationSql}
 `);

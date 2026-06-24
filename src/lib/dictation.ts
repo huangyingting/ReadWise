@@ -9,6 +9,15 @@
  *   segmentDictation(text, words) — sentence segmentation with audio timing ranges.
  */
 
+import {
+  buildTokenAlignment,
+  extractTextTokens,
+  timingEndSeconds,
+  timingStartSeconds,
+  type TextToken,
+  type WordTiming,
+} from "@/lib/speech-timing";
+
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type WordStatus = "correct" | "wrong" | "missing" | "extra";
@@ -28,12 +37,7 @@ export interface DictationGrade {
   accuracy: number;
 }
 
-export interface SpeechWordTiming {
-  textOffset: number;
-  length: number;
-  start: number; // seconds
-  end: number;   // seconds
-}
+export type SpeechWordTiming = WordTiming;
 
 export interface DictationSegment {
   text: string;
@@ -149,7 +153,7 @@ const MIN_WORDS = 3;
 const MAX_CHARS = 300;
 
 /**
- * Splits spokenText into practisable sentence segments, each annotated with
+ * Splits plainText into practisable sentence segments, each annotated with
  * the audio start/end time derived from word-boundary timings.
  *
  * Only sentences that have matching word timings are returned (sentences
@@ -160,14 +164,23 @@ const MAX_CHARS = 300;
  * so both tools produce the same segmentation from the same input.
  */
 export function segmentDictation(
-  spokenText: string,
+  plainText: string,
   words: SpeechWordTiming[],
 ): DictationSegment[] {
-  const sentences = splitSentences(spokenText);
+  const sentences = splitSentences(plainText);
   const segments: DictationSegment[] = [];
+  const tokens = extractTextTokens(plainText);
+  const { alignment, spanLengths } = buildTokenAlignment(tokens, words);
 
   for (const sentence of sentences) {
-    const range = findSentenceRange(sentence, spokenText, words);
+    const range = findSentenceRange(
+      sentence,
+      plainText,
+      words,
+      tokens,
+      alignment,
+      spanLengths,
+    );
     if (range) {
       segments.push({ text: sentence, startTime: range.startTime, endTime: range.endTime });
     }
@@ -226,21 +239,38 @@ function findSentenceRange(
   sentence: string,
   plainText: string,
   words: SpeechWordTiming[],
+  tokens: TextToken[],
+  alignment: Array<number | null>,
+  spanLengths: number[],
 ): { startTime: number; endTime: number } | null {
-  if (words.length === 0 || !sentence) return null;
+  if (words.length === 0 || !sentence || tokens.length === 0) return null;
 
   const needle = sentence.slice(0, Math.min(30, sentence.length));
   const sentStart = plainText.indexOf(needle);
   if (sentStart === -1) return null;
 
   const sentEnd = sentStart + sentence.length;
-  const matching = words.filter(
-    (w) => w.textOffset >= sentStart && w.textOffset < sentEnd,
-  );
+  const matching: SpeechWordTiming[] = [];
+
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+    const tokenIndex = alignment[wordIndex];
+    if (tokenIndex == null) continue;
+
+    const spanLength = Math.max(1, spanLengths[wordIndex] ?? 1);
+    const firstToken = tokens[tokenIndex];
+    const lastToken = tokens[tokenIndex + spanLength - 1] ?? firstToken;
+    if (!firstToken || !lastToken) continue;
+
+    if (lastToken.end > sentStart && firstToken.start < sentEnd) {
+      const word = words[wordIndex];
+      if (word) matching.push(word);
+    }
+  }
+
   if (matching.length === 0) return null;
 
   return {
-    startTime: matching[0].start,
-    endTime: matching[matching.length - 1].end,
+    startTime: timingStartSeconds(matching[0]),
+    endTime: timingEndSeconds(matching[matching.length - 1]),
   };
 }

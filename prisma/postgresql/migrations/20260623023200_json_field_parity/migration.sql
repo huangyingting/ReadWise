@@ -68,19 +68,16 @@ BEGIN
        WHERE CASE
          WHEN jsonb_typeof(word.value) <> 'object' THEN TRUE
          WHEN NOT (
-           word.value ? 'textOffset'
-           AND word.value ? 'length'
-           AND word.value ? 'start'
-           AND word.value ? 'end'
+           word.value ? 'word'
+           AND word.value ? 'offset'
+           AND word.value ? 'duration'
          ) THEN TRUE
-         WHEN jsonb_typeof(word.value->'textOffset') <> 'number'
-           OR jsonb_typeof(word.value->'length') <> 'number'
-           OR jsonb_typeof(word.value->'start') <> 'number'
-           OR jsonb_typeof(word.value->'end') <> 'number' THEN TRUE
-         WHEN (word.value->>'textOffset')::numeric < 0
-           OR (word.value->>'length')::numeric < 0
-           OR (word.value->>'start')::numeric < 0 THEN TRUE
-         WHEN (word.value->>'end')::numeric < (word.value->>'start')::numeric THEN TRUE
+         WHEN jsonb_typeof(word.value->'word') <> 'string'
+           OR jsonb_typeof(word.value->'offset') <> 'number'
+           OR jsonb_typeof(word.value->'duration') <> 'number' THEN TRUE
+         WHEN length(btrim(word.value->>'word')) = 0 THEN TRUE
+         WHEN (word.value->>'offset')::numeric < 0
+           OR (word.value->>'duration')::numeric < 0 THEN TRUE
          ELSE FALSE
        END
      )

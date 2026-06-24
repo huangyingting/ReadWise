@@ -231,7 +231,7 @@ model ArticleSpeech {
   audioBase64 String?
   storageKey   String?
   mediaAssetId String?
-  spokenText  String
+  plainText   String
   words       Json
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt

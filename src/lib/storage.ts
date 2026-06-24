@@ -370,22 +370,23 @@ export function isObjectStorageConfigured(): boolean {
   return getMediaStorage() !== null;
 }
 
-/** Largest `end` timing (seconds) across word boundaries, or undefined. */
+/** Largest timing end (seconds) across word boundaries, or undefined. */
 function durationFromWords(raw: unknown): number | undefined {
-  let parsed: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return undefined;
-    }
-  }
-  if (!Array.isArray(parsed)) return undefined;
+  if (!Array.isArray(raw)) return undefined;
   let max = 0;
-  for (const item of parsed) {
-    if (item && typeof item === "object" && "end" in item) {
-      const end = (item as { end?: unknown }).end;
-      if (typeof end === "number" && Number.isFinite(end) && end > max) max = end;
+  for (const item of raw) {
+    if (item && typeof item === "object" && "offset" in item && "duration" in item) {
+      const offset = (item as { offset?: unknown }).offset;
+      const duration = (item as { duration?: unknown }).duration;
+      if (
+        typeof offset === "number" &&
+        Number.isFinite(offset) &&
+        typeof duration === "number" &&
+        Number.isFinite(duration)
+      ) {
+        const endSeconds = (offset + duration) / 1000;
+        if (endSeconds > max) max = endSeconds;
+      }
     }
   }
   return max > 0 ? max : undefined;

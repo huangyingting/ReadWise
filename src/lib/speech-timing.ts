@@ -1,24 +1,18 @@
 /**
- * Pure speech timing alignment helpers shared by server-side narration parsing
- * and client-side prose highlighting.
+ * ReadWise speech timing helpers.
  *
- * ReadingX stores timing as audio-time words: { word, offset, duration }.
- * ReadWise keeps the public contract as source-text ranges plus audio time:
- * { textOffset, length, start, end }.
+ * Runtime speech timings are audio-time words: { word, offset, duration }, with
+ * offset/duration in milliseconds. Text highlighting maps those timings to the
+ * current article content using word-token alignment.
  */
 
-export type SpeechWord = {
-  textOffset: number;
-  length: number;
-  start: number;
-  end: number;
-};
-
-export type ReadingXWordTiming = {
+export type WordTiming = {
   word: string;
   offset: number;
   duration: number;
 };
+
+export type SpeechWord = WordTiming;
 
 export type TextToken = {
   start: number;
@@ -73,8 +67,7 @@ export function extractTextTokens(text: string): TextToken[] {
 
 /**
  * Builds a forward-only alignment from TTS word timing entries to source text
- * tokens. This ports the ReadingX matching strategy while keeping it pure and
- * framework-agnostic.
+ * tokens.
  */
 export function buildTokenAlignment(
   tokens: ComparableToken[],
@@ -198,45 +191,14 @@ export function buildTokenAlignment(
   return { alignment, spanLengths };
 }
 
-function readingXMillisecondsToSeconds(milliseconds: number): number {
+function millisecondsToSeconds(milliseconds: number): number {
   return milliseconds / 1000;
 }
 
-export function alignReadingXTimingsToSpeechWords(
-  spokenText: string,
-  timings: ReadingXWordTiming[],
-): SpeechWord[] {
-  const tokens = extractTextTokens(spokenText);
-  if (!tokens.length || !timings.length) return [];
+export function timingStartSeconds(timing: WordTiming): number {
+  return millisecondsToSeconds(timing.offset);
+}
 
-  const { alignment, spanLengths } = buildTokenAlignment(tokens, timings);
-  const words: SpeechWord[] = [];
-
-  for (let timingIndex = 0; timingIndex < timings.length; timingIndex++) {
-    const timing = timings[timingIndex];
-    if (!timing || timing.duration < 0) continue;
-
-    const tokenIndex = alignment[timingIndex];
-    if (tokenIndex == null) continue;
-
-    const spanLength = Math.max(1, spanLengths[timingIndex] ?? 1);
-    const firstToken = tokens[tokenIndex];
-    const lastToken = tokens[tokenIndex + spanLength - 1] ?? firstToken;
-    if (!firstToken || !lastToken) continue;
-
-    const start = readingXMillisecondsToSeconds(timing.offset);
-    const end = readingXMillisecondsToSeconds(timing.offset + timing.duration);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || start < 0 || end < start) {
-      continue;
-    }
-
-    words.push({
-      textOffset: firstToken.start,
-      length: lastToken.end - firstToken.start,
-      start,
-      end,
-    });
-  }
-
-  return words.sort((a, b) => a.start - b.start);
+export function timingEndSeconds(timing: WordTiming): number {
+  return millisecondsToSeconds(timing.offset + timing.duration);
 }

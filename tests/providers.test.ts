@@ -129,7 +129,7 @@ test("getProvider is case-insensitive", () => {
   assert.ok(getProvider("nbc"));
 });
 
-test("ReadingX-derived providers are registered", () => {
+test("source-derived providers are registered", () => {
   for (const key of [
     "bbc",
     "smithsonian",
@@ -146,7 +146,7 @@ test("ReadingX-derived providers are registered", () => {
   }
 });
 
-test("ReadingX-derived provider URL patterns match article URLs", () => {
+test("source-derived provider URL patterns match article URLs", () => {
   assert.ok(getProviderOrFail("bbc").articleUrlPattern.test("https://www.bbc.com/news/articles/c1234567890"));
   assert.ok(
     getProviderOrFail("smithsonian").articleUrlPattern.test(
@@ -169,7 +169,7 @@ test("ReadingX-derived provider URL patterns match article URLs", () => {
   assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/2026/06/23/example-story/"));
 });
 
-test("ReadingX-derived URL filters reject non-article pages", () => {
+test("source-derived URL filters reject non-article pages", () => {
   const bbc = getProviderOrFail("bbc");
   assert.equal(bbc.articleUrlFilter?.("https://www.bbc.com/news/live/c1234567890"), false);
 

@@ -36,18 +36,15 @@ WHERE EXISTS (
   SELECT 1
   FROM json_each(s."words") AS w
   WHERE w."type" <> 'object'
-     OR json_type(w."value", '$.textOffset') IS NULL
-     OR json_type(w."value", '$.length') IS NULL
-     OR json_type(w."value", '$.start') IS NULL
-     OR json_type(w."value", '$.end') IS NULL
-     OR json_type(w."value", '$.textOffset') NOT IN ('integer', 'real')
-     OR json_type(w."value", '$.length') NOT IN ('integer', 'real')
-     OR json_type(w."value", '$.start') NOT IN ('integer', 'real')
-     OR json_type(w."value", '$.end') NOT IN ('integer', 'real')
-     OR json_extract(w."value", '$.textOffset') < 0
-     OR json_extract(w."value", '$.length') < 0
-     OR json_extract(w."value", '$.start') < 0
-     OR json_extract(w."value", '$.end') < json_extract(w."value", '$.start')
+      OR json_type(w."value", '$.word') IS NULL
+      OR json_type(w."value", '$.offset') IS NULL
+      OR json_type(w."value", '$.duration') IS NULL
+      OR json_type(w."value", '$.word') <> 'text'
+      OR json_type(w."value", '$.offset') NOT IN ('integer', 'real')
+      OR json_type(w."value", '$.duration') NOT IN ('integer', 'real')
+      OR length(trim(json_extract(w."value", '$.word'))) = 0
+      OR json_extract(w."value", '$.offset') < 0
+      OR json_extract(w."value", '$.duration') < 0
 );
 
 DROP TRIGGER "_JsonFieldMigrationInvalid_abort";
