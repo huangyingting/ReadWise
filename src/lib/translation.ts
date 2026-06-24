@@ -4,6 +4,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-access";
+import TurndownService from "turndown";
 import {
   languageLabel,
   isSupportedLanguage,
@@ -12,6 +13,13 @@ import {
 
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
+
+const htmlToMarkdownService = new TurndownService({
+  headingStyle: "atx",
+});
+
+htmlToMarkdownService.remove("script");
+htmlToMarkdownService.remove("style");
 
 export type TranslationResult = {
   lang: string;
@@ -22,25 +30,29 @@ export type TranslationResult = {
 };
 
 /**
- * Converts stored article HTML into plain text with blank-line paragraph
- * separators, suitable as model input and for paragraph-wise rendering.
+ * Converts stored article HTML into the canonical ReadWise plain-text form.
+ *
+ * This intentionally uses the canonical stripHtml pipeline so
+ * articlePlainText, TTS generation/import, dictation, pronunciation and AI
+ * processing all share one text basis instead of maintaining parallel HTML
+ * cleanup implementations.
  */
 export function htmlToPlainText(html: string): string {
-  return html
-    .replace(/<(script|style)[^>]*>[\s\S]*?<\/\1>/gi, " ")
-    .replace(/<\/(p|div|section|article|li|h[1-6]|blockquote)>/gi, "\n\n")
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<[^>]+>/g, " ")
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">")
-    .replace(/&quot;/gi, '"')
-    .replace(/&#39;/gi, "'")
-    .replace(/[ \t]+/g, " ")
-    .replace(/\n{3,}/g, "\n\n")
-    .replace(/[ \t]*\n[ \t]*/g, "\n")
-    .trim();
+  try {
+    const markdown = htmlToMarkdownService.turndown(html);
+    return markdown
+      .replace(/```[\s\S]*?```/g, " ")
+      .replace(/`[^`]*`/g, " ")
+      .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
+      .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
+      .replace(/^#+\s+/gm, "")
+      .replace(/^[\s]*[-+*]\s+/gm, "")
+      .replace(/[*_~`>]/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  } catch {
+    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+  }
 }
 
 function fallbackText(label: string): string {

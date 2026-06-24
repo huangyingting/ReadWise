@@ -132,7 +132,7 @@ test("migrateArticleSpeechToStorage is a no-op when storage is unconfigured", as
     voice: null,
     format: null,
     audioBase64: Buffer.from("x").toString("base64"),
-    words: "[]",
+    words: [],
     storageKey: null,
     mediaAssetId: null,
   });
@@ -154,7 +154,7 @@ test("migrateArticleSpeechToStorage migrates base64 to storage and is idempotent
     voice: "en-US",
     format: "mp3",
     audioBase64: Buffer.from("audio-1").toString("base64"),
-    words: JSON.stringify([{ end: 1.5 }]),
+    words: [{ word: "audio", offset: 0, duration: 1500 }],
     storageKey: null,
     mediaAssetId: null,
   });

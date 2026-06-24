@@ -68,7 +68,7 @@ test("htmlToPlainText / language helpers", async () => {
   const { htmlToPlainText, isSupportedLanguage, languageLabel } = await import(
     "@/lib/translation"
   );
-  assert.equal(htmlToPlainText("<p>Hello</p><p>World</p>"), "Hello\n\nWorld");
+  assert.equal(htmlToPlainText("<p>Hello</p><p>World</p>"), "Hello World");
   assert.equal(isSupportedLanguage("es"), true);
   assert.equal(isSupportedLanguage("zz"), false);
   assert.equal(languageLabel("es"), "Spanish");

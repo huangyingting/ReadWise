@@ -93,6 +93,44 @@ npm run worker -- --jobs --lock-ttl 600000
 Without `--jobs`, the worker still supports the older article-state polling path.
 Use `--jobs` when you want the persistent queue semantics.
 
+### Speech migration
+
+External speech data can be imported as a one-time migration. The runtime
+`ArticleSpeech.words` contract is ReadWise-native:
+`{ word, offset, duration }`, where `offset` and `duration` are milliseconds.
+ReadWise uses canonical plain text and word-token alignment for playback
+highlighting.
+
+Prepare a JSON export from speech rows, for example:
+
+```json
+[
+  {
+    "originalUrl": "https://example.com/article",
+    "audioUrl": "abc.mp3",
+    "mimeType": "audio/mpeg",
+    "wordTimings": [{ "word": "Hello", "offset": 0, "duration": 250 }]
+  }
+]
+```
+
+Then run a dry run first:
+
+```bash
+npm run migrate-speech -- --input ./speech-export.json --audio-dir ./data/tts --dry-run
+```
+
+If the counts look correct, run the migration:
+
+```bash
+npm run migrate-speech -- --input ./speech-export.json --audio-dir ./data/tts
+```
+
+Use `--overwrite` only when intentionally repairing existing ReadWise speech
+rows from imported timings. Existing ReadWise audio storage is preserved; only
+`plainText` and `words` are updated for existing rows. The script logs counts
+only; it does not print article text, timing payloads, or audio contents.
+
 ### Admin actions
 
 `runJobAction(jobId, action)` enforces safe transitions:

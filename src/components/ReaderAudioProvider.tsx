@@ -9,7 +9,7 @@
  *
  * Architecture:
  *  - ArticleSpeech fetches speech data on first tab activation, then calls
- *    `loadAudio(src, words, voice, cached, spokenText)` to seed the provider.
+ *    `loadAudio(src, words, voice, cached, plainText)` to seed the provider.
  *  - ReaderMiniPlayer reads `audioRef` to drive transport controls.
  *  - Both components read `activeIndex` for highlight / time display.
  *  - updateActiveWord (binary-search) is MOVED here from ArticleSpeech so
@@ -32,20 +32,18 @@ import {
   type DictationSegment,
   type SpeechWordTiming,
 } from "@/lib/dictation";
+import { timingEndSeconds, timingStartSeconds, type SpeechWord } from "@/lib/speech-timing";
 
-export type SpeechWord = {
-  textOffset: number;
-  length: number;
-  start: number;
-  end: number;
-};
+export type { SpeechWord } from "@/lib/speech-timing";
 
 export type AudioContextValue = {
   /** The shared audio element ref — ReaderMiniPlayer drives it. */
   audioRef: React.RefObject<HTMLAudioElement | null>;
   /** The word-timing array for the loaded article. */
   words: SpeechWord[];
-  /** Sentence-level segments derived from the spoken text + word timings. */
+  /** Canonical plain text used to generate or import the narration. */
+  plainText: string;
+  /** Sentence-level segments derived from the plain text + word timings. */
   segments: DictationSegment[];
   /** Index of the currently highlighted word (-1 = none). */
   activeIndex: number;
@@ -65,7 +63,7 @@ export type AudioContextValue = {
   setListenActive: (v: boolean) => void;
   /**
    * Called by ArticleSpeech after a successful fetch to seed the provider
-   * with the audio src + word timings + spoken text (for segment computation).
+    * with the audio src + word timings + plain text (for segment computation).
    * Idempotent (safe to call on re-fetch).
    */
   loadAudio: (
@@ -73,7 +71,7 @@ export type AudioContextValue = {
     ws: SpeechWord[],
     voice: string,
     cached: boolean,
-    spokenText: string,
+    plainText: string,
   ) => void;
   /** Mark fallback so the mini-player never appears. */
   markFallback: () => void;
@@ -104,6 +102,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
 
   const [audioSrc, setAudioSrc] = useState<string | null>(null);
   const [words, setWords] = useState<SpeechWord[]>([]);
+  const [plainTextState, setPlainTextState] = useState("");
   const [segments, setSegments] = useState<DictationSegment[]>([]);
   const [activeIndex, setActiveIndex] = useState(-1);
   const [isLoaded, setIsLoaded] = useState(false);
@@ -121,7 +120,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     setListenActiveState(v);
   }, []);
 
-  /** Binary-search: find the last word whose start <= currentTime. */
+  /** Binary-search: find the last word whose offset <= currentTime. */
   const updateActiveWord = useCallback(
     (time: number) => {
       if (!words || words.length === 0) return;
@@ -130,7 +129,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         found = -1;
       while (lo <= hi) {
         const mid = (lo + hi) >> 1;
-        if (words[mid].start <= time) {
+        if (timingStartSeconds(words[mid]) <= time) {
           found = mid;
           lo = mid + 1;
         } else {
@@ -138,9 +137,9 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         }
       }
       // If we're sitting in trailing silence well past the last word, clear.
-      if (found !== -1 && time >= words[found].end + 0.4) {
+      if (found !== -1 && time >= timingEndSeconds(words[found]) + 0.4) {
         const next = words[found + 1];
-        if (!next || time < next.start) {
+        if (!next || time < timingStartSeconds(next)) {
           found = -1;
         }
       }
@@ -170,12 +169,13 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       ws: SpeechWord[],
       voice: string,
       cached: boolean,
-      spokenText: string,
+      plainText: string,
     ) => {
       setAudioSrc(src);
       setWords(ws);
-      // Compute sentence segments from spoken text + word timings.
-      const segs = segmentDictation(spokenText, ws as SpeechWordTiming[]);
+      setPlainTextState(plainText);
+      // Compute sentence segments from plain text + word timings.
+      const segs = segmentDictation(plainText, ws as SpeechWordTiming[]);
       setSegments(segs);
       setIsLoaded(true);
       setIsFallback(false);
@@ -190,6 +190,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   const markFallback = useCallback(() => {
     setIsLoaded(true);
     setIsFallback(true);
+    setPlainTextState("");
   }, []);
 
   // ── Narration fetch (moved here from ArticleSpeech so the chrome Listen
@@ -220,7 +221,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
         const body = (await res.json()) as {
           audio: string | null;
           mimeType: string | null;
-          spokenText: string;
+          plainText: string;
           words: SpeechWord[];
           voice: string;
           cached: boolean;
@@ -240,7 +241,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           const blobUrl = URL.createObjectURL(blob);
           if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
           blobUrlRef.current = blobUrl;
-          loadAudio(blobUrl, body.words, body.voice, body.cached, body.spokenText);
+          loadAudio(blobUrl, body.words, body.voice, body.cached, body.plainText);
         }
       } catch (err) {
         // Allow a retry on failure.
@@ -303,6 +304,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       value={{
         audioRef,
         words,
+        plainText: plainTextState,
         segments,
         activeIndex,
         isLoaded,

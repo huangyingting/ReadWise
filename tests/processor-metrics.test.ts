@@ -62,7 +62,7 @@ before(() => {
   });
   mock.module("@/lib/speech", {
     namedExports: {
-      getOrCreateArticleSpeech: async () => ({ words: [{ textOffset: 0, length: 7, start: 0, end: 1 }], fallback: false }),
+      getOrCreateArticleSpeech: async () => ({ words: [{ word: "metrics", offset: 0, duration: 1000 }], fallback: false }),
     },
   });
   mock.module("@/lib/cache", {

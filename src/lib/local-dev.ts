@@ -92,8 +92,8 @@ export type LocalSeedDataset = {
     format: string;
     mimeType: string;
     audioBase64: string;
-    spokenText: string;
-    words: { textOffset: number; length: number; start: number; end: number }[];
+    plainText: string;
+    words: { word: string; offset: number; duration: number }[];
   }[];
   readingLists: { id: string; userId: string; name: string; isDefault: boolean }[];
   readingListItems: { id: string; listId: string; articleId: string }[];
@@ -409,11 +409,11 @@ export const LOCAL_SEED_DATASET: LocalSeedDataset = {
       format: "audio-24khz-96kbitrate-mono-mp3",
       mimeType: "audio/mpeg",
       audioBase64: "SUQzBAAAAAAA",
-      spokenText: "Small autonomous robots map a reef.",
+      plainText: "Small autonomous robots map a reef.",
       words: [
-        { textOffset: 0, length: 5, start: 0, end: 0.4 },
-        { textOffset: 6, length: 10, start: 0.4, end: 1.1 },
-        { textOffset: 17, length: 6, start: 1.1, end: 1.5 },
+        { word: "Small", offset: 0, duration: 400 },
+        { word: "autonomous", offset: 400, duration: 700 },
+        { word: "robots", offset: 1100, duration: 400 },
       ],
     },
   ],

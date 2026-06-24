@@ -11,6 +11,10 @@ import {
 import { createLogger } from "@/lib/logger";
 import { getMediaStorage } from "@/lib/storage";
 import {
+  timingEndSeconds,
+  type SpeechWord,
+} from "@/lib/speech-timing";
+import {
   getAiProcessableArticleById,
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
@@ -22,18 +26,12 @@ const log = createLogger("speech");
 /** Max characters of article text synthesized (bounds audio size / latency). */
 const MAX_TTS_CHARS = 5000;
 
-/** A single spoken word with timings (seconds) and source-text position. */
-export type SpeechWord = {
-  textOffset: number;
-  length: number;
-  start: number;
-  end: number;
-};
+export type { SpeechWord } from "@/lib/speech-timing";
 
 export type SpeechResult = {
   audio: string | null;
   mimeType: string | null;
-  spokenText: string;
+  plainText: string;
   words: SpeechWord[];
   voice: string;
   cached: boolean;
@@ -44,50 +42,39 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
-/** Parses stored word timings from Json fields or legacy JSON-string rows. */
+/** Parses stored word timings from Prisma Json fields. */
 export function parseStoredSpeechWords(
-  raw: Prisma.JsonValue | string | null | undefined,
+  raw: Prisma.JsonValue | null | undefined,
 ): SpeechWord[] | null {
   if (raw == null) {
     return null;
   }
 
-  let parsed: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return null;
-    }
-  }
-
-  if (!Array.isArray(parsed)) {
+  if (!Array.isArray(raw)) {
     return null;
   }
 
   const words: SpeechWord[] = [];
-  for (const item of parsed) {
+  for (const item of raw) {
     if (item == null || typeof item !== "object" || Array.isArray(item)) {
       return null;
     }
     const record = item as Record<string, unknown>;
-    const { textOffset, length, start, end } = record;
+    const { word, offset, duration } = record;
     if (
-      !finiteNumber(textOffset) ||
-      !finiteNumber(length) ||
-      !finiteNumber(start) ||
-      !finiteNumber(end) ||
-      textOffset < 0 ||
-      length < 0 ||
-      start < 0 ||
-      end < start
+      typeof word !== "string" ||
+      !word.trim() ||
+      !finiteNumber(offset) ||
+      !finiteNumber(duration) ||
+      offset < 0 ||
+      duration < 0
     ) {
       return null;
     }
-    words.push({ textOffset, length, start, end });
+    words.push({ word, offset, duration });
   }
 
-  return words;
+  return words.sort((a, b) => a.offset - b.offset);
 }
 
 function readSpeechConfig(): AzureSpeechConfig | null {
@@ -137,9 +124,9 @@ function resolveOutputFormat(format: string): {
   );
 }
 
-/** Ticks (100-nanosecond units) to seconds. */
-function ticksToSeconds(ticks: number): number {
-  return ticks / 1e7;
+/** Ticks (100-nanosecond units) to milliseconds. */
+function ticksToMilliseconds(ticks: number): number {
+  return ticks / 1e4;
 }
 
 type SynthesisOutput = {
@@ -180,11 +167,16 @@ function synthesize(
         if (e.boundaryType !== sdk.SpeechSynthesisBoundaryType.Word) {
           return;
         }
+        const eventText = (e as { text?: unknown }).text;
+        const word =
+          typeof eventText === "string" && eventText.trim()
+            ? eventText
+            : text.slice(e.textOffset, e.textOffset + e.wordLength);
+        if (!word.trim()) return;
         words.push({
-          textOffset: e.textOffset,
-          length: e.wordLength,
-          start: ticksToSeconds(e.audioOffset),
-          end: ticksToSeconds(e.audioOffset + e.duration),
+          word,
+          offset: ticksToMilliseconds(e.audioOffset),
+          duration: ticksToMilliseconds(e.duration),
         });
       };
 
@@ -198,7 +190,7 @@ function synthesize(
           synthesizer?.close();
           synthesizer = null;
           if (ok && audioData && audioData.byteLength > 0) {
-            words.sort((a, b) => a.start - b.start);
+            words.sort((a, b) => a.offset - b.offset);
             log.info("speech.synthesis_success", {
               articleId,
               durationMs: Date.now() - start,
@@ -260,7 +252,7 @@ function fallbackResult(voice: string): SpeechResult {
   return {
     audio: null,
     mimeType: null,
-    spokenText: "",
+    plainText: "",
     words: [],
     voice,
     cached: false,
@@ -268,10 +260,13 @@ function fallbackResult(voice: string): SpeechResult {
   };
 }
 
-/** Largest word `end` timing (seconds) — used as the audio duration. */
+/** Largest word end timing (seconds) — used as the audio duration. */
 function lastWordEnd(words: SpeechWord[]): number | undefined {
   let max = 0;
-  for (const w of words) if (w.end > max) max = w.end;
+  for (const w of words) {
+    const end = timingEndSeconds(w);
+    if (end > max) max = end;
+  }
   return max > 0 ? max : undefined;
 }
 
@@ -334,7 +329,7 @@ export async function getOrCreateArticleSpeech(
     return {
       audio: await resolveStoredAudioUrl(cached),
       mimeType: cached.mimeType,
-      spokenText: cached.spokenText,
+      plainText: cached.plainText,
       words,
       voice: cached.voice,
       cached: true,
@@ -357,17 +352,13 @@ export async function getOrCreateArticleSpeech(
     return fallbackResult(DEFAULT_SPEECH_VOICE);
   }
 
-  const spokenText = htmlToPlainText(article.content)
-    .replace(/\n+/g, " ")
-    .replace(/\s+/g, " ")
-    .trim()
-    .slice(0, MAX_TTS_CHARS);
+  const plainText = htmlToPlainText(article.content).slice(0, MAX_TTS_CHARS);
 
-  if (!spokenText) {
+  if (!plainText) {
     return fallbackResult(config.voice);
   }
 
-  const output = await synthesize(spokenText, config, articleId);
+  const output = await synthesize(plainText, config, articleId);
   if (!output) {
     return fallbackResult(config.voice);
   }
@@ -439,7 +430,7 @@ export async function getOrCreateArticleSpeech(
       audioBase64,
       storageKey,
       mediaAssetId,
-      spokenText,
+      plainText,
       words: output.words,
     },
     create: {
@@ -450,7 +441,7 @@ export async function getOrCreateArticleSpeech(
       audioBase64,
       storageKey,
       mediaAssetId,
-      spokenText,
+      plainText,
       words: output.words,
     },
   });
@@ -458,7 +449,7 @@ export async function getOrCreateArticleSpeech(
   return {
     audio: `data:${mimeType};base64,${output.audio.toString("base64")}`,
     mimeType,
-    spokenText,
+    plainText,
     words: output.words,
     voice: config.voice,
     cached: false,

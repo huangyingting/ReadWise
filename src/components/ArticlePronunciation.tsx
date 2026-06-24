@@ -52,6 +52,12 @@ import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useReaderAudio, type SpeechWord } from "@/components/ReaderAudioProvider";
+import {
+  buildTokenAlignment,
+  extractTextTokens,
+  timingEndSeconds,
+  timingStartSeconds,
+} from "@/lib/speech-timing";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -193,8 +199,8 @@ function splitSentences(plainText: string): string[] {
 
 /**
  * Finds the start/end audio times for a sentence using TTS word timings.
- * Matches the sentence by searching for its first ~30 chars in plainText;
- * plainText === spokenText (both are htmlToPlainText(article.content)).
+ * Matches timings to text tokens using the same forward alignment as prose
+ * playback highlighting.
  */
 function findSentenceRange(
   sentence: string,
@@ -209,16 +215,27 @@ function findSentenceRange(
   if (sentStart === -1) return null;
 
   const sentEnd = sentStart + sentence.length;
+  const tokens = extractTextTokens(plainText);
+  const { alignment, spanLengths } = buildTokenAlignment(tokens, words);
+  const matching: SpeechWord[] = [];
 
-  // Collect words whose textOffset falls inside [sentStart, sentEnd).
-  const matching = words.filter(
-    (w) => w.textOffset >= sentStart && w.textOffset < sentEnd,
-  );
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+    const tokenIndex = alignment[wordIndex];
+    if (tokenIndex == null) continue;
+    const spanLength = Math.max(1, spanLengths[wordIndex] ?? 1);
+    const firstToken = tokens[tokenIndex];
+    const lastToken = tokens[tokenIndex + spanLength - 1] ?? firstToken;
+    if (!firstToken || !lastToken) continue;
+    if (lastToken.end > sentStart && firstToken.start < sentEnd) {
+      const word = words[wordIndex];
+      if (word) matching.push(word);
+    }
+  }
   if (matching.length === 0) return null;
 
   return {
-    startTime: matching[0].start,
-    endTime: matching[matching.length - 1].end,
+    startTime: timingStartSeconds(matching[0]),
+    endTime: timingEndSeconds(matching[matching.length - 1]),
   };
 }
 
@@ -968,7 +985,7 @@ export default function ArticlePronunciation({
       if (!res.ok) { audio.markFallback(); return; }
       const body = (await res.json()) as {
         audio: string | null;
-        spokenText: string;
+        plainText: string;
         words: SpeechWord[];
         voice: string;
         cached: boolean;
@@ -977,7 +994,7 @@ export default function ArticlePronunciation({
       if (body.fallback || !body.audio) {
         audio.markFallback();
       } else {
-        audio.loadAudio(body.audio, body.words, body.voice, body.cached, body.spokenText);
+        audio.loadAudio(body.audio, body.words, body.voice, body.cached, body.plainText);
       }
     } catch {
       // Silent — "Hear it" just won't work.

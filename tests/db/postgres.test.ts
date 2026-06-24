@@ -431,7 +431,7 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
           'audio/mpeg',
           'AA==',
           'Hello',
-          '[{"textOffset":0,"length":5,"start":0,"end":0.5}]',
+          '[{"word":"Hello","offset":0,"duration":500}]',
           CURRENT_TIMESTAMP
         );
 
@@ -485,7 +485,7 @@ test("PostgreSQL migrations apply from scratch and preserve representative legac
       `);
       assert.deepEqual(jsonRows[0]?.topics, ["science", "technology"]);
       assert.deepEqual(jsonRows[0]?.options, ["Yes", "No"]);
-      assert.deepEqual(jsonRows[0]?.words, [{ textOffset: 0, length: 5, start: 0, end: 0.5 }]);
+      assert.deepEqual(jsonRows[0]?.words, [{ word: "Hello", offset: 0, duration: 500 }]);
 
       const scopedTagCounts = await tx.$queryRawUnsafe<
         Array<{ public_shared: number; private_owner_a: number; private_owner_b: number; wrong_links: number }>
@@ -672,13 +672,13 @@ test("PostgreSQL JSON fields migrate to jsonb columns", { skip: !enabled }, asyn
       format: "mp3",
       mimeType: "audio/mpeg",
       audioBase64: "AA==",
-      spokenText: "Hello",
-      words: [{ textOffset: 0, length: 5, start: 0, end: 0.5 }],
+      plainText: "Hello",
+      words: [{ word: "Hello", offset: 0, duration: 500 }],
     },
   });
   const jsonbMatches = await prisma.$queryRaw<Array<{ speech_matches: number; quiz_matches: number }>>`
     SELECT
-      (SELECT COUNT(*)::int FROM "ArticleSpeech" WHERE "articleId" = ${articleId} AND "words" @> '[{"textOffset":0,"length":5}]'::jsonb) AS speech_matches,
+      (SELECT COUNT(*)::int FROM "ArticleSpeech" WHERE "articleId" = ${articleId} AND "words" @> '[{"word":"Hello","offset":0}]'::jsonb) AS speech_matches,
       (SELECT COUNT(*)::int FROM "QuizQuestion" WHERE "articleId" = ${articleId} AND "options" @> '["Hello"]'::jsonb) AS quiz_matches
   `;
   assert.deepEqual(jsonbMatches[0], { speech_matches: 1, quiz_matches: 1 });
@@ -889,7 +889,7 @@ test("article deletes cascade derived data but keep saved-word study history", {
     prisma.vocabularyItem.create({ data: { articleId, word: "cascade", explanation: "test", example: "cascade test" } }),
     prisma.quizQuestion.create({ data: { articleId, question: "Question?", options: ["A", "B"], correctIndex: 0 } }),
     prisma.articleSpeech.create({
-      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", audioBase64: "AA==", spokenText: "Hello", words: [] },
+      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", audioBase64: "AA==", plainText: "Hello", words: [] },
     }),
     prisma.readingProgress.create({ data: { userId, articleId, percent: 50 } }),
     prisma.readingList.create({ data: { id: id("list"), userId, name: "Integration List", items: { create: { articleId } } } }),

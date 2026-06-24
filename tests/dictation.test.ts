@@ -120,11 +120,10 @@ describe("gradeDictation", () => {
 
 describe("segmentDictation", () => {
   const makeWord = (
-    textOffset: number,
-    length: number,
-    start: number,
-    end: number,
-  ) => ({ textOffset, length, start, end });
+    word: string,
+    offset: number,
+    duration: number,
+  ) => ({ word, offset, duration });
 
   test("returns empty array for empty text", () => {
     assert.deepEqual(segmentDictation("", []), []);
@@ -140,16 +139,16 @@ describe("segmentDictation", () => {
     //                                                            ^45
     // "The cat sat on the mat." = 0..22  (23 chars)
     // "The dog barked loudly." = 24..45 (22 chars)
-    const w1 = makeWord(0, 3, 0.0, 0.3);   // The
-    const w2 = makeWord(4, 3, 0.4, 0.7);   // cat
-    const w3 = makeWord(8, 3, 0.8, 1.1);   // sat
-    const w4 = makeWord(12, 2, 1.2, 1.4);  // on
-    const w5 = makeWord(15, 3, 1.5, 1.8);  // the
-    const w6 = makeWord(19, 3, 1.9, 2.2);  // mat
-    const w7 = makeWord(24, 3, 2.5, 2.8);  // The (2nd sentence)
-    const w8 = makeWord(28, 3, 2.9, 3.2);  // dog
-    const w9 = makeWord(32, 6, 3.3, 3.8);  // barked
-    const w10 = makeWord(39, 6, 3.9, 4.3); // loudly
+    const w1 = makeWord("The", 0, 300);
+    const w2 = makeWord("cat", 400, 300);
+    const w3 = makeWord("sat", 800, 300);
+    const w4 = makeWord("on", 1200, 200);
+    const w5 = makeWord("the", 1500, 300);
+    const w6 = makeWord("mat", 1900, 300);
+    const w7 = makeWord("The", 2500, 300);
+    const w8 = makeWord("dog", 2900, 300);
+    const w9 = makeWord("barked", 3300, 500);
+    const w10 = makeWord("loudly", 3900, 400);
 
     const segs = segmentDictation(text, [w1, w2, w3, w4, w5, w6, w7, w8, w9, w10]);
     assert.ok(segs.length >= 1, `Expected at least 1 segment, got ${segs.length}`);
@@ -165,15 +164,15 @@ describe("segmentDictation", () => {
     // Either way, no 1- or 2-word segment should appear.
     const text = "The cat ran fast. The dog barked loudly today.";
     const words = [
-      makeWord(0, 3, 0.0, 0.3),   // The
-      makeWord(4, 3, 0.4, 0.7),   // cat
-      makeWord(8, 3, 0.8, 1.1),   // ran
-      makeWord(12, 4, 1.2, 1.5),  // fast
-      makeWord(18, 3, 1.8, 2.0),  // The (2nd sentence)
-      makeWord(22, 3, 2.1, 2.4),  // dog
-      makeWord(26, 6, 2.5, 2.9),  // barked
-      makeWord(33, 6, 3.0, 3.4),  // loudly
-      makeWord(40, 5, 3.5, 3.8),  // today
+      makeWord("The", 0, 300),
+      makeWord("cat", 400, 300),
+      makeWord("ran", 800, 300),
+      makeWord("fast", 1200, 300),
+      makeWord("The", 1800, 200),
+      makeWord("dog", 2100, 300),
+      makeWord("barked", 2500, 400),
+      makeWord("loudly", 3000, 400),
+      makeWord("today", 3500, 300),
     ];
     const segs = segmentDictation(text, words);
     // No segment should be fewer than 3 words
