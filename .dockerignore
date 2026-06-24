@@ -10,10 +10,8 @@ build
 
 # Local environment files (NEVER bake secrets into the image)
 .env
-.env.local
-.env*.local
-.env.development
-.env.production
+.env.*
+!.env.example
 
 # Database files (use a mounted volume at runtime)
 *.db

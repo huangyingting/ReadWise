@@ -150,7 +150,7 @@ No storage secrets are emitted in readiness JSON.
 
 | Symptom | Likely cause | Fix |
 | --- | --- | --- |
-| `status: unavailable`, `checks.config = error` | Missing/placeholder `NEXTAUTH_SECRET`, bad `NEXTAUTH_URL`, or bad `DATABASE_URL`. | Compare `.env.local` with `.env.example`; generate a real secret. |
+| `status: unavailable`, `checks.config = error` | Missing/placeholder `NEXTAUTH_SECRET`, bad `NEXTAUTH_URL`, or bad `DATABASE_URL`. | Compare `.env` with `.env.example`; generate a real secret. |
 | `checks.db = error` | Database unreachable or wrong URL. | Check `DATABASE_URL`, local compose status, or managed DB networking. |
 | `checks.migrations = error`, `unapplied > 0` | Repo has migration directories not present in `_prisma_migrations`. | Run the correct migration command for the configured schema. |
 | `checks.providers.ai = degraded` | Some but not all Azure OpenAI env vars are set. | Fill all four vars or clear unused placeholders. |

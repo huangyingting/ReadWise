@@ -6,7 +6,7 @@
  *   npm run push-reminders -- --dry-run
  *
  * Designed to be cron'd daily, e.g.:
- *   0 9 * * * cd /app && set -a && . .env.local && set +a && npm run push-reminders
+ *   0 9 * * * cd /app && npm run push-reminders
  *
  * Uses the same TS-CLI harness as worker.ts / scrape.ts.
  */

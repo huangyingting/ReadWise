@@ -126,7 +126,7 @@ failed }` and accepts an optional `limit` for batched runs.
 
 ```bash
 # Load env first (sets MEDIA_STORAGE, credentials, DATABASE_URL, etc.)
-set -a && . ./.env.local && set +a
+set -a && . ./.env && set +a
 
 # Migrate all eligible rows
 npm run migrate-storage

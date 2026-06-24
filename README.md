@@ -88,7 +88,7 @@ OpenTelemetry) degrades gracefully when it is not configured.
 
 ## Prerequisites
 
-- Node.js **22+** and npm **10+**.
+- Node.js **22.9+** and npm **10+** (`--env-file-if-exists` is used by CLI scripts).
 - No database server is required for the default SQLite workflow.
 - Docker Compose is optional, but recommended when testing PostgreSQL/Redis
   parity locally.
@@ -101,10 +101,10 @@ OpenTelemetry) degrades gracefully when it is not configured.
 git clone https://github.com/huangyingting/ReadWise.git
 cd ReadWise
 npm install
-cp .env.example .env.local
+cp .env.example .env
 ```
 
-Edit `.env.local` and replace at least:
+Edit `.env` and replace at least:
 
 - `DATABASE_URL` — keep `file:./dev.db` for SQLite.
 - `PRISMA_SCHEMA_PATH` — keep `prisma/schema.prisma` for SQLite.
@@ -114,10 +114,9 @@ Edit `.env.local` and replace at least:
 - Clear optional provider placeholders that you are not using; fake Azure/OAuth
   values are still non-empty values and may make the app try those providers.
 
-Then load the env file for Prisma/CLI commands, initialize, and run:
+Then initialize and run:
 
 ```bash
-set -a && . ./.env.local && set +a
 npx prisma migrate dev --name init
 npm run local:seed
 npm run dev
@@ -257,9 +256,10 @@ crash startup.
 | `npm run prisma:migrate:pg` | Deploy PostgreSQL migrations. |
 | `npm run migrate-storage -- --limit 100` | Move existing narration audio from DB base64 into configured media storage. |
 
-All TypeScript CLIs use Node's type-stripping harness:
-`node --experimental-strip-types --import ./scripts/register-ts.mjs ...`. The
-register hook also resolves the `@/*` alias for scripts.
+All TypeScript CLIs use Node's type-stripping harness and auto-load `.env` when
+it exists:
+`node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs ...`.
+The register hook also resolves the `@/*` alias for scripts.
 
 ## Architecture overview
 
@@ -332,12 +332,10 @@ evals/                          # AI prompt/evaluation fixtures
 
 ### Loading environment variables
 
-Next.js reads `.env.local` automatically. When running CLIs directly in a shell,
-load the same file first if your shell does not already export the values:
-
-```bash
-set -a && . ./.env.local && set +a
-```
+Use `.env` for local configuration. Next.js and Prisma load it automatically;
+the package scripts that run TypeScript CLIs use Node's built-in
+`--env-file-if-exists=.env` flag. If you run one-off Node commands outside
+`package.json`, pass the same flag or export the variables in your shell.
 
 ### Do not run build and dev concurrently
 
