@@ -7,7 +7,7 @@ import {
   resolveTimeRange,
   TIME_RANGE_PRESETS,
   type AnalyticsSegment,
-} from "@/lib/analytics-queries";
+} from "@/lib/analytics/product";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import { BarChart } from "@/components/admin/BarChart";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";

@@ -6,7 +6,7 @@ import { articleAccessContext, getReadableArticleById } from "@/lib/article-acce
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const bodySchema = object({ percent: number({ min: 0, max: 100 }) });
 

@@ -3,7 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, oneOf } from "@/lib/validation";
 import { gradeFlashcard, getReviewSummary } from "@/lib/flashcards";
 import type { Grade } from "@/lib/srs";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const GRADES = ["again", "hard", "good", "easy"] as const;
 
