@@ -51,7 +51,7 @@ function decodeHtmlEntities(input: string): string {
  * Converts stored article HTML into the canonical reader text basis.
  *
  * This intentionally mirrors the sanitized reader prose's visible text rather
- * than Turndown/Markdown output. TTS, dictation, pronunciation, highlight
+ * than Markdown conversion output. TTS, dictation, pronunciation, highlight
  * anchoring and reader tools should share this DOM-like text basis so speech
  * word-boundary alignment maps back to the actual reader content.
  */
