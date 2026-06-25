@@ -7,7 +7,7 @@ import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProv
 import {
   buildTokenAlignment,
   createComparableKey,
-  createWordRegex,
+  createSpeechBoundaryRegex,
 } from "@/lib/speech-timing";
 import { collectTextNodes, type TextNodeEntry } from "@/components/reader/wordLookup/highlightMarks";
 
@@ -41,7 +41,7 @@ function buildProseTokens(entries: TextNodeEntry[]): ProseToken[] {
   const result: ProseToken[] = [];
   for (const entry of entries) {
     const content = entry.node.textContent ?? "";
-    const re = createWordRegex();
+    const re = createSpeechBoundaryRegex();
     let m: RegExpExecArray | null;
     while ((m = re.exec(content)) !== null) {
       const value = m[0];

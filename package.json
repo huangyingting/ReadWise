@@ -19,6 +19,7 @@
     "db:migrate": "prisma migrate deploy && prisma generate",
     "db:reset": "prisma migrate reset --force --skip-seed && prisma generate",
     "push-reminders": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/push-reminders.ts",
+    "analyze:speech-alignment": "NODE_ENV=test node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/analyze-speech-alignment.ts",
     "prisma:generate": "prisma generate",
     "prisma:generate:pg": "prisma generate --schema prisma/postgresql/schema.prisma",
     "prisma:migrate:pg": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
