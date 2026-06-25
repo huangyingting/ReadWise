@@ -1,7 +1,7 @@
 import { Bookmark } from "lucide-react";
 import { requireSession } from "@/lib/session";
 import { getUserLists, getListWithArticles } from "@/lib/article-library";
-import { getProgressMap } from "@/lib/progress";
+import { getProgressMap } from "@/lib/engagement/progress";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";

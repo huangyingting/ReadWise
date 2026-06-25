@@ -9,7 +9,7 @@ import { buttonVariants } from "@/components/ui";
 import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
 import MasteryWidget from "@/components/MasteryWidget";
-import type { StreakSummary } from "@/lib/activity";
+import type { StreakSummary } from "@/lib/engagement/streak";
 import type { QuizMastery } from "@/lib/learning/quiz-mastery";
 
 interface DashboardProgressBandProps {

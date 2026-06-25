@@ -179,13 +179,13 @@ function enablePush() {
 // ---------------------------------------------------------------------------
 
 test("isPushConfigured returns false when env vars are missing", async () => {
-  const { isPushConfigured } = await import("@/lib/push");
+  const { isPushConfigured } = await import("@/lib/push/provider");
   assert.equal(isPushConfigured(), false);
 });
 
 test("isPushConfigured returns true when all VAPID env vars are set", async () => {
   enablePush();
-  const { isPushConfigured } = await import("@/lib/push");
+  const { isPushConfigured } = await import("@/lib/push/provider");
   assert.equal(isPushConfigured(), true);
 });
 
@@ -194,7 +194,8 @@ test("isPushConfigured returns false when web-push rejects VAPID details", async
   process.env.VAPID_PUBLIC_KEY = "BDifferentRejectedPublicKey";
   setVapidThrows = true;
 
-  const { isPushConfigured, sendPushToUser } = await import("@/lib/push");
+  const { isPushConfigured } = await import("@/lib/push/provider");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
 
   assert.equal(isPushConfigured(), false);
   const sent = await sendPushToUser("user-1", { title: "Hi", body: "Test" });
@@ -207,13 +208,13 @@ test("isPushConfigured returns false when web-push rejects VAPID details", async
 // ---------------------------------------------------------------------------
 
 test("vapidPublicKey returns null when unconfigured", async () => {
-  const { vapidPublicKey } = await import("@/lib/push");
+  const { vapidPublicKey } = await import("@/lib/push/provider");
   assert.equal(vapidPublicKey(), null);
 });
 
 test("vapidPublicKey returns the public key string when configured", async () => {
   enablePush();
-  const { vapidPublicKey } = await import("@/lib/push");
+  const { vapidPublicKey } = await import("@/lib/push/provider");
   assert.equal(vapidPublicKey(), "BFakePubKey1234567890abcdef");
 });
 
@@ -222,7 +223,7 @@ test("vapidPublicKey returns the public key string when configured", async () =>
 // ---------------------------------------------------------------------------
 
 test("sendPushToUser returns 0 and no-ops when VAPID unconfigured", async () => {
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   const sent = await sendPushToUser("user-1", { title: "Hi", body: "Test" });
   assert.equal(sent, 0);
   assert.equal(sendCalls.length, 0);
@@ -230,7 +231,7 @@ test("sendPushToUser returns 0 and no-ops when VAPID unconfigured", async () => 
 
 test("sendPushToUser returns 0 when the user has no subscriptions", async () => {
   enablePush();
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   const sent = await sendPushToUser("user-no-subs", { title: "Hi", body: "Test" });
   assert.equal(sent, 0);
   assert.equal(sendCalls.length, 0);
@@ -242,7 +243,7 @@ test("sendPushToUser sends to all subscriptions of a user", async () => {
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/1", p256dh: "k1", auth: "a1" },
     { id: "s2", userId: "u1", endpoint: "https://push.example.com/2", p256dh: "k2", auth: "a2" },
   ];
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   const sent = await sendPushToUser("u1", { title: "Review", body: "3 words due" });
   assert.equal(sent, 2);
   assert.equal(sendCalls.length, 2);
@@ -277,7 +278,7 @@ test("sendPushToUser prunes dead 410 subscriptions", async () => {
 
   // Reset and do a direct test: all subscriptions fail with 410
   sendShouldFail = 410;
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   const sent = await sendPushToUser("u1", { title: "T", body: "B" });
 
   // All failed with 410 → sent = 0, both pruned
@@ -294,7 +295,7 @@ test("sendPushToUser does not prune 500-error subscriptions", async () => {
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/err", p256dh: "k1", auth: "a1" },
   ];
   sendShouldFail = 500;
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   await sendPushToUser("u1", { title: "T", body: "B" });
   // 500 is a server error, not a dead endpoint — don't prune
   assert.equal(deletedSubIds.length, 0);
@@ -306,7 +307,7 @@ test("sendPushToUser does not prune 500-error subscriptions", async () => {
 // ---------------------------------------------------------------------------
 
 test("sendDueReminders returns zeros when VAPID unconfigured", async () => {
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.usersWithDue, 0);
   assert.equal(result.sent, 0);
@@ -316,7 +317,7 @@ test("sendDueReminders returns zeros when VAPID unconfigured", async () => {
 test("sendDueReminders returns zeros when no users have due cards", async () => {
   enablePush();
   savedWordGroups = []; // no due cards
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.usersWithDue, 0);
   assert.equal(result.sent, 0);
@@ -326,7 +327,7 @@ test("sendDueReminders skips users without subscriptions", async () => {
   enablePush();
   savedWordGroups = [{ userId: "user-no-sub", _count: { id: 5 } }];
   mockSubs = []; // no subscriptions at all
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.usersWithDue, 1);
   assert.equal(result.sent, 0);
@@ -343,7 +344,7 @@ test("sendDueReminders sends to subscribed users with due cards", async () => {
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
     { id: "s2", userId: "u2", endpoint: "https://push.example.com/u2", p256dh: "k", auth: "a" },
   ];
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.usersWithDue, 2);
   assert.equal(result.sent, 2);
@@ -362,7 +363,7 @@ test("sendDueReminders payload includes /study url", async () => {
   mockSubs = [
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
   ];
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   await sendDueReminders();
   const payload = JSON.parse(sendCalls[0].payload);
   assert.equal(payload.url, "/study");
@@ -377,7 +378,7 @@ test("successful send resets failureCount and stamps lastSuccessAt", async () =>
   mockSubs = [
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/ok", p256dh: "k", auth: "a", failureCount: 3 },
   ];
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   await sendPushToUser("u1", { title: "T", body: "B" });
 
   const success = updatedManyCalls.find(
@@ -394,7 +395,7 @@ test("transient failure increments failureCount without pruning (below threshold
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/err", p256dh: "k", auth: "a", failureCount: 0 },
   ];
   sendShouldFail = 500;
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   await sendPushToUser("u1", { title: "T", body: "B" });
 
   const failUpdate = updatedManyCalls.find((c) => c.ids?.includes("s1"));
@@ -410,7 +411,7 @@ test("transient failure at the threshold prunes the unhealthy endpoint", async (
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/dying", p256dh: "k", auth: "a", failureCount: 7 },
   ];
   sendShouldFail = 500; // NOT a 404/410 — pruning is driven purely by the threshold
-  const { sendPushToUser } = await import("@/lib/push");
+  const { sendPushToUser } = await import("@/lib/push/delivery");
   await sendPushToUser("u1", { title: "T", body: "B" });
 
   assert.ok(deletedSubIds.flat().includes("s1"), "sub at the failure threshold should be pruned");
@@ -429,7 +430,7 @@ test("sendDueReminders suppresses users who disabled reminders", async () => {
   mockReminderPrefs = [
     { userId: "u1", enabled: false, preferredHour: null, quietHoursStart: null, quietHoursEnd: null, timezone: null },
   ];
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.usersWithDue, 1);
   assert.equal(result.sent, 0);
@@ -445,7 +446,7 @@ test("sendDueReminders still sends to users with default (enabled) preferences",
     { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
   ];
   // No stored preference → defaults (enabled, any hour, no quiet hours).
-  const { sendDueReminders } = await import("@/lib/push");
+  const { sendDueReminders } = await import("@/lib/push/scheduler");
   const result = await sendDueReminders();
   assert.equal(result.sent, 1);
   assert.equal(result.suppressed, 0);

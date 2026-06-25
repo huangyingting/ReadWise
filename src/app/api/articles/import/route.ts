@@ -6,7 +6,7 @@ import {
   listPersonalArticlesPage,
   toListingArticle,
 } from "@/lib/article-library";
-import { getProgressSummaries } from "@/lib/progress";
+import { getProgressSummaries } from "@/lib/engagement/progress";
 import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
 import { importBody, parseListQuery } from "@/lib/import/schemas";
 

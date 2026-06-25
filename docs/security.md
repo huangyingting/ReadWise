@@ -62,8 +62,7 @@ request headers according to an explicit trusted-proxy model, instead of
 blindly trusting the leftmost XFF hop. It is the single source of client
 identity for:
 
-- rate limiting — `clientIpKey(req)` (`src/lib/security/rate-limit` re-exports it
-  and the shim `src/lib/rate-limit.ts` re-exports both),
+- rate limiting — `clientIpKey(req)` from `src/lib/security/rate-limit`,
 - audit logs — `auditRequestInfo` in `src/lib/security/audit.ts`,
 - security events — the `ip` field on every `recordSecurityEvent(...)`.
 
@@ -177,8 +176,7 @@ Session lifetime stays governed by `session.maxAge` / `updateAge`.
 Destructive admin routes (`DELETE /api/admin/articles/[id]`, member/tag
 deletes, rebuild, scrape-trigger, …) already:
 
-- require an authenticated **admin** session via `requireAdminApi()`
-  (`401` unauth / `403` non-admin),
+- require `CAPABILITIES.adminAccess` (`401` unauth / `403` non-admin),
 - are recorded in the `AuditLog` (`src/lib/security/audit.ts`),
 - keep their existing inline UI confirmations.
 

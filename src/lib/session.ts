@@ -8,7 +8,7 @@
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { isUserOnboarded } from "@/features/profile-preferences/repository";
-import { CAPABILITIES, type Capability } from "@/lib/rbac";
+import type { Capability } from "@/lib/rbac";
 import { loadSession, sessionHasCapability } from "@/lib/auth-core";
 
 export async function requireSession(callbackUrl: string): Promise<Session> {
@@ -46,6 +46,3 @@ export async function requireCapability(
   return session;
 }
 
-export async function requireAdmin(callbackUrl: string): Promise<Session> {
-  return requireCapability(CAPABILITIES.adminAccess, callbackUrl);
-}

@@ -4,7 +4,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import { GoalMetIcon } from "@/components/GoalMetIcon";
-import type { StreakSummary } from "@/lib/activity";
+import type { StreakSummary } from "@/lib/engagement/streak";
 
 interface DailyGoalProps {
   streak: StreakSummary;

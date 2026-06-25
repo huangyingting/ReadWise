@@ -31,11 +31,14 @@ function makeRow(data: { userId: string; articleId: string; percent: number; com
 }
 
 before(() => {
-  mock.module("@/lib/activity", {
+  mock.module("@/lib/engagement/activity", {
     namedExports: { recordReadingActivity: async () => {} },
   });
   mock.module("@/lib/article-library", {
-    namedExports: { toListingArticle: (a: unknown) => a },
+    namedExports: {
+      publicListableArticleWhere: () => ({}),
+      toListingArticle: (a: unknown) => a,
+    },
   });
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -89,7 +92,7 @@ beforeEach(() => {
 // ---- forward-only / sticky semantics ------------------------------------
 
 test("saveProgress creates a new row on first write", async () => {
-  const { saveProgress } = await import("@/lib/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
   const result = await saveProgress("u1", "a1", 42);
   assert.equal(result.percent, 42);
   assert.equal(result.completed, false);
@@ -97,21 +100,21 @@ test("saveProgress creates a new row on first write", async () => {
 });
 
 test("saveProgress never lowers the stored percent (forward-only)", async () => {
-  const { saveProgress } = await import("@/lib/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
   await saveProgress("u1", "a1", 60);
   const result = await saveProgress("u1", "a1", 25);
   assert.equal(result.percent, 60);
 });
 
 test("saveProgress marks completed at/above the threshold", async () => {
-  const { saveProgress, COMPLETION_THRESHOLD } = await import("@/lib/progress");
+  const { saveProgress, COMPLETION_THRESHOLD } = await import("@/lib/engagement/progress");
   const result = await saveProgress("u1", "a1", COMPLETION_THRESHOLD);
   assert.equal(result.completed, true);
   assert.ok(result.completedAt instanceof Date);
 });
 
 test("completion is sticky and percent is not lowered after completing", async () => {
-  const { saveProgress } = await import("@/lib/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
   const done = await saveProgress("u1", "a1", 98);
   assert.equal(done.completed, true);
   const completedAt = done.completedAt;
@@ -124,7 +127,7 @@ test("completion is sticky and percent is not lowered after completing", async (
 // ---- race safety ---------------------------------------------------------
 
 test("saveProgress recovers from a concurrent first-write P2002 (no 500 / no lost write)", async () => {
-  const { saveProgress } = await import("@/lib/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
   // The first create() will throw P2002 after a concurrent writer persisted 40.
   concurrentCreatePercent = 40;
   const result = await saveProgress("u1", "a1", 70);
@@ -134,7 +137,7 @@ test("saveProgress recovers from a concurrent first-write P2002 (no 500 / no los
 });
 
 test("concurrent P2002 where the other writer is ahead keeps the higher percent", async () => {
-  const { saveProgress } = await import("@/lib/progress");
+  const { saveProgress } = await import("@/lib/engagement/progress");
   // Concurrent writer persisted 90; our incoming 50 must not lower it.
   concurrentCreatePercent = 90;
   const result = await saveProgress("u1", "a1", 50);

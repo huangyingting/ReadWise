@@ -65,10 +65,14 @@ before(() => {
       DEFAULT_SEED_LIMIT: 5,
     },
   });
-  mock.module("@/lib/push", {
+  mock.module("@/lib/push/provider", {
+    namedExports: {
+      isPushConfigured: () => false,
+    },
+  });
+  mock.module("@/lib/push/scheduler", {
     namedExports: {
       sendDueReminders: async () => ({ usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 }),
-      isPushConfigured: () => false,
     },
   });
   mock.module("@/lib/observability/logger", {

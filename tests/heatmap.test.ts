@@ -4,7 +4,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { heatLevel, buildHeatmapCells } from "@/lib/activity";
+import { heatLevel, buildHeatmapCells } from "@/lib/engagement/heatmap";
 
 // ---- heatLevel -----------------------------------------------------------
 

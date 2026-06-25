@@ -58,7 +58,7 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/progress", {
+  mock.module("@/lib/engagement/progress", {
     namedExports: {
       saveProgress: async () => saveProgressResult,
       getProgressSummaries: async () => progressSummaries,

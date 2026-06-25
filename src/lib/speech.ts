@@ -26,9 +26,6 @@ const MAX_TTS_CHARS = 5000;
 
 export type { SpeechWord } from "@/lib/speech-timing";
 
-// Re-export so existing callers of `@/lib/speech` keep working.
-export { parseStoredSpeechWords } from "@/lib/speech/repository";
-
 export type SpeechResult = {
   audio: string | null;
   mimeType: string | null;

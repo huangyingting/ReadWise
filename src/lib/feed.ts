@@ -34,9 +34,6 @@ import {
   levelProximityScore,
   freshnessScore,
 } from "@/lib/discovery-ranking";
-export type { ArticleTagRow } from "@/lib/discovery-ranking";
-// Re-export the shared primitives so existing callers importing from @/lib/feed continue to work.
-export { buildTagMap, levelProximityScore, freshnessScore };
 
 const log = createLogger("feed");
 
@@ -122,13 +119,13 @@ export const SCORE_WEIGHTS = {
 // Pure scoring helpers
 // ---------------------------------------------------------------------------
 
-// levelProximityScore, freshnessScore — defined in @/lib/discovery-ranking, re-exported above.
+// levelProximityScore and freshnessScore are defined in @/lib/discovery-ranking.
 
 // ---------------------------------------------------------------------------
 // Tag map helper
 // ---------------------------------------------------------------------------
 
-// buildTagMap, ArticleTagRow — defined in @/lib/discovery-ranking, re-exported above.
+// buildTagMap and ArticleTagRow are defined in @/lib/discovery-ranking.
 
 // ---------------------------------------------------------------------------
 // Article scorer

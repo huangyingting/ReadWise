@@ -11,7 +11,7 @@ import { Prisma } from "@prisma/client";
 import type { ReadingProgress } from "@prisma/client";
 import { toListingArticle, type ListingArticle } from "@/lib/article-library";
 import { publicListableArticleWhere } from "@/lib/article-library";
-import { recordReadingActivity } from "@/lib/activity";
+import { recordReadingActivity } from "@/lib/engagement/activity";
 import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("progress");

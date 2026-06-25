@@ -3,7 +3,7 @@
  *
  * Covers: 400 bad endpoint URL, 409 subscription cap, and happy-path 201.
  *
- * Mocks: @/lib/api-auth, @/lib/push, @/lib/prisma, @/lib/rate-limit.
+ * Mocks: @/lib/api-auth, @/lib/push/provider, @/lib/prisma, rate limit.
  * No real DB or push service touched.
  */
 process.env.LOG_LEVEL = "error";
@@ -34,7 +34,7 @@ before(() => {
     namedExports: sessionAuthExports(() => "ok"),
   });
 
-  mock.module("@/lib/push", {
+  mock.module("@/lib/push/provider", {
     namedExports: {
       isPushConfigured: () => pushEnabled,
       vapidPublicKey: () => (pushEnabled ? "BFakePubKey" : null),

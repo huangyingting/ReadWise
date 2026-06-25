@@ -50,14 +50,6 @@ export const MAX_BACKFILL_BATCH_CAP = 500;
 /** Max candidate articles scanned per run (operator re-runs to continue). */
 export const MAX_BACKFILL_SCAN = 1000;
 
-/**
- * Type guard for backfill feature keys.
- * Alias for {@link isFeatureKey} from the registry; preserved for backward compat.
- */
-export function isBackfillFeature(value: string): value is BackfillFeature {
-  return isFeatureKey(value);
-}
-
 export type BackfillFilter = {
   status?: string;
   category?: string;

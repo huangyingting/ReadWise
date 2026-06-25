@@ -132,8 +132,7 @@ The auth guard modules form a layered hierarchy:
 ### Pages
 
 - `requireCapability(capability, callbackUrl)` — page guard for global
-  capabilities.
-- `requireAdmin(callbackUrl)` — compatibility wrapper for `admin.access`.
+  capabilities. Use `CAPABILITIES.adminAccess` for the top-level admin shell.
 - `requireOrgMembership(orgId, callbackUrl)` — page guard for tenant membership.
 - `requireOrgCapability(orgId, capability, callbackUrl)` — page guard for tenant
   capabilities.
@@ -147,7 +146,8 @@ redirect to `/forbidden`.
 - `loadSession()` in `src/lib/auth-core.ts` — bare session fetch (no side effects).
 - `sessionHasCapability(session, capability)` in `src/lib/auth-core.ts` — inline capability check.
 - `requireCapabilityApi(capability)` — route helper returning 401/403 responses.
-- `requireAdminApi()` — compatibility wrapper for `admin.access`.
+- `createAdminHandler(...)` — shared wrapper for routes gated by
+  `CAPABILITIES.adminAccess`.
 - `createCapabilityHandler(capability, config, handler)` — shared API wrapper
   for capability-gated routes.
 - `requireOrgCapabilityApi(session, orgId, capability)` — tenant route guard.

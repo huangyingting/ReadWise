@@ -1,6 +1,6 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
-import { isPushConfigured } from "@/lib/push";
+import { isPushConfigured } from "@/lib/push/provider";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { subscribeBody } from "@/lib/push/schemas";
 
