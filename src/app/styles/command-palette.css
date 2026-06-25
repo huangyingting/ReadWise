@@ -1,0 +1,70 @@
+/*
+ * ReadWise — Command palette styles
+ *
+ * Entrance animation keyframes and @layer utilities for the global
+ * command palette (⌘K / Ctrl+K):
+ *   .rw-cmdk-scrim  — overlay scrim fade-in.
+ *   .rw-cmdk-panel  — panel entrance (mobile: slide-up; desktop: fade+rise).
+ *   .kbd            — keyboard shortcut keycap chip (used in the palette hint line).
+ *
+ * prefers-reduced-motion: fully suppressed via the cross-cutting override in base.css.
+ */
+
+/* ============================================================
+ * M9 — Command palette entrance keyframes
+ * ============================================================ */
+@keyframes rw-cmdk-overlay-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Desktop panel: fade + rise + slight scale */
+@keyframes rw-cmdk-panel-desktop-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+/* Mobile panel: fade + slide up */
+@keyframes rw-cmdk-panel-mobile-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@layer utilities {
+  /* ---- M9 — Command palette animations ---- */
+
+  .rw-cmdk-scrim {
+    animation: rw-cmdk-overlay-in var(--duration-fast) var(--ease-standard) both;
+  }
+
+  /* Mobile panel (default, < 640px) */
+  .rw-cmdk-panel {
+    animation: rw-cmdk-panel-mobile-in var(--duration-base) var(--ease-emphasized) both;
+  }
+
+  /* Desktop panel (≥ 640px) */
+  @media (min-width: 640px) {
+    .rw-cmdk-panel {
+      animation: rw-cmdk-panel-desktop-in var(--duration-base) var(--ease-emphasized) both;
+    }
+  }
+
+  /* ---- M9 — kbd keycap chip ---- */
+  .kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 20px;
+    padding: 0 var(--space-1);
+    font-family: var(--font-sans);
+    font-size: var(--text-xs);
+    line-height: 1;
+    color: var(--text-subtle);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+  }
+
+}

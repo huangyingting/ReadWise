@@ -1,25 +1,25 @@
 /*
  * ReadWise Design Tokens — Direction B "Studio"
- * Single source of truth for the design system (M1 foundation).
+ * Single source of truth for the design system.
  *
  * Structure:
  *   1. Theme-invariant scales (type / spacing / radii / motion) on :root.
  *   2. Semantic color + elevation tokens — LIGHT is the :root default,
  *      DARK via :root[data-theme="dark"] and a prefers-color-scheme fallback.
- *   3. Legacy-compat aliases so the existing hand-written globals.css keeps
- *      resolving its var(--panel/--muted/--accent/...) names unchanged.
+ *   3. Legacy-compat aliases so base.css keeps resolving its
+ *      var(--panel/--muted/--accent/...) names unchanged.
  *
- * Values are Saul's Studio token spec (.squad/decisions/inbox/saul-studio-tokens.md).
+ * Values are the Studio token spec (.squad/decisions/inbox/saul-studio-tokens.md).
  *
  * NOTE on --accent: the legacy CSS uses `--accent` as the brand/link colour, so
- * per the locked architecture it aliases to the indigo `--primary`. Saul's teal
+ * per the locked architecture it aliases to the indigo `--primary`. The teal
  * "accent" lives under the distinct `--teal*` tokens (exposed to new components
- * via the Tailwind `accent` colour utility in globals.css). No legacy edit needed.
+ * via the Tailwind `accent` colour utility in base.css). No legacy edit needed.
  */
 
 :root {
   /* ---- Layout constants ---- */
-  /* AppHeader height — referenced by globals.css sticky offsets (search "var(--header-height)"). */
+  /* AppHeader height — referenced by reader-layout.css and base.css sticky offsets (search "var(--header-height)"). */
   --header-height: 56px;
   /* Mobile BottomTabBar height (<md only) — main content reserves this as bottom padding. */
   --bottom-bar-h: 56px;
@@ -169,7 +169,8 @@
   --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.16), 0 12px 24px rgba(15, 23, 42, 0.1);
 
   /* ============================================================
-   * Legacy-compat aliases (keep the 957-line globals.css working)
+   * Legacy-compat aliases — preserve hand-written class names in base.css
+   * that reference the older --panel / --muted / --accent variable names.
    *   --panel  -> --surface
    *   --muted  -> --text-muted
    *   --accent -> --primary  (legacy brand/link colour)
@@ -179,7 +180,7 @@
   --muted: var(--text-muted);
   --accent: var(--primary);
 
-  /* ---- Semantic teal accent aliases (M2) ----
+  /* ---- Semantic teal accent aliases (reading-state only) ----
    * Teal signals reading state ONLY (progress fills, CEFR badges, active-nav
    * underline) — never a clickable affordance. Expose the existing --teal*
    * tokens under intention-revealing names for new components. */
@@ -348,7 +349,7 @@
 }
 
 /* ============================================================
- * M5 — Reading surface tokens (reader-scoped via data-reading-mode)
+ * Reading surface tokens (reader-scoped via data-reading-mode)
  *
  * Applied to the reader root div only — never <html>. The reading
  * column, Tools rail, mini-player, and popover read --reading-*
@@ -357,7 +358,7 @@
  *
  * Light/dark use LITERAL hex values (not var(--surface)) so that
  * a dark-chrome + light-reading combo renders correctly.
- * Sepia introduces the only new raw colors in M5 (WCAG-verified).
+ * Sepia introduces the only new raw colors (WCAG-verified).
  * ============================================================ */
 
 [data-reading-mode="light"] {
@@ -382,7 +383,7 @@
   --reading-accent:       #2dd4bf;   /* teal-text dark (reading-state) */
 }
 
-/* SEPIA — the ONLY new raw colors in M5 (warm paper, all WCAG-verified). */
+/* SEPIA — the ONLY new raw colors (warm paper, all WCAG-verified). */
 [data-reading-mode="sepia"] {
   --reading-bg:           #f4ecd8;   /* paper — base surface */
   --reading-surface:      #faf4e4;   /* raised cards/panels on sepia */
@@ -433,7 +434,7 @@
  * A11y — Reading line/letter spacing tokens (data-reading-spacing, WCAG 1.4.12)
  *
  * CSS custom properties --reading-line-height and --reading-letter-spacing
- * are read by the .reader-column .word-lookup-prose selector in globals.css.
+ * are read by the .reader-column .word-lookup-prose selector in reader-layout.css.
  * ============================================================ */
 
 /* Normal (default — no-op) */
@@ -453,7 +454,7 @@
 }
 
 /* ============================================================
- * M11 — Highlight color tokens (user-content metadata family)
+ * Highlight color tokens (user-content metadata family)
  *
  * --hl-* is a SEPARATE semantic family from teal (reading-state)
  * and indigo (interactive). These are user-authored highlight
@@ -489,7 +490,7 @@
 }
 
 /* ============================================================
- * M16 — Per-word pronunciation feedback tokens (--pron-*)
+ * Per-word pronunciation feedback tokens (--pron-*)
  *
  * A status-palette family (good=success, fair=warning,
  * poor=danger). Used ONLY for the text-decoration underline
