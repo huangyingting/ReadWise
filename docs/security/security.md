@@ -8,7 +8,7 @@ This document covers the three hardening pieces shipped in Epic **RW-E005**:
 
 It also explains how those signals relate to the durable `AuditLog` table used
 for admin/security history. Operational job/source/audit workflows are covered
-in [`admin-operations.md`](./admin-operations.md).
+in [`admin-operations.md`](../operations/admin-operations.md).
 
 Everything here is **graceful and opt-in**: with nothing configured the app
 behaves exactly as before — but several controls are *weaker* (or spoofable)
@@ -198,12 +198,12 @@ failure inside monitoring must not break the request path) and, for each event:
 1. emits a structured **`security.event`** log line carrying the ambient
    request id, actor, route, status, and normalized client IP (from §1),
 2. increments the `readwise_security_events_total` metric
-   (`src/lib/metrics.ts`, exported via `GET /api/admin/metrics`),
+  (`src/lib/metrics/`, exported via `GET /api/admin/metrics`),
 3. appends to a bounded in-memory **ring buffer** (no new DB table —
    provider-agnostic), and
 4. for **HIGH/CRITICAL** severity **or** a detected **spike**, escalates
    through the existing `captureError` alert seam
-   (`src/lib/error-reporting.ts`) so deployments get alerts with **no new
+  (`src/lib/observability/errors.ts`) so deployments get alerts with **no new
    alerting code**.
 
 ### Event types

@@ -2,7 +2,7 @@
 
 This document describes the learner-facing analytics and mastery systems in the
 current ReadWise codebase. These are distinct from product analytics events in
-[`analytics.md`](./analytics.md): product analytics measures product usage,
+[`analytics.md`](../analytics/analytics.md): product analytics measures product usage,
 whereas the systems here compute a learner's progress, confidence, level, and
 study recommendations.
 
@@ -10,15 +10,15 @@ study recommendations.
 
 | Model / table | Purpose | Main code |
 | --- | --- | --- |
-| `ReadingProgress` | Per-user article percent/completion; progress is forward-only and completion is sticky. | `src/lib/progress.ts` |
-| `DailyActivity` | Distinct articles progressed per local calendar day; powers streaks and heatmap. | `src/lib/activity.ts` |
+| `ReadingProgress` | Per-user article percent/completion; progress is forward-only and completion is sticky. | `src/lib/engagement/progress.ts` |
+| `DailyActivity` | Distinct articles progressed per local calendar day; powers streaks and heatmap. | `src/lib/engagement/activity.ts` |
 | `LevelHistory` | Timestamped CEFR changes for a user's profile level. | `src/lib/progress-helpers.ts` |
-| `SavedWord` | Explicit user study list and SM-2 schedule fields. | `src/lib/vocabulary.ts`, `src/lib/flashcards.ts` |
-| `QuizAttempt` | Per-user quiz history with score percentage and idempotency key for offline sync. | `src/lib/quiz-mastery.ts`, `src/lib/quiz-grading.ts` |
-| `WordMastery` | Durable familiarity/confidence estimate per user + lemma. | `src/lib/word-mastery.ts` |
-| `ArticleMastery` | Durable comprehension score per user + article. | `src/lib/article-mastery.ts` |
-| `SkillMastery` | Confidence per skill dimension. | `src/lib/skill-mastery.ts` |
-| `ArticleDifficultyFeedback` | Per-user article vote: `too_easy`, `just_right`, `too_hard`. | `src/lib/leveling.ts` |
+| `SavedWord` | Explicit user study list and SM-2 schedule fields. | `src/lib/lexical/saved-words.ts`, `src/lib/learning/flashcards.ts` |
+| `QuizAttempt` | Per-user quiz history with score percentage and idempotency key for offline sync. | `src/lib/learning/quiz-mastery.ts`, `src/lib/quiz-grading.ts` |
+| `WordMastery` | Durable familiarity/confidence estimate per user + lemma. | `src/lib/learning/word-mastery.ts` |
+| `ArticleMastery` | Durable comprehension score per user + article. | `src/lib/learning/article-mastery.ts` |
+| `SkillMastery` | Confidence per skill dimension. | `src/lib/learning/skill-mastery.ts` |
+| `ArticleDifficultyFeedback` | Per-user article vote: `too_easy`, `just_right`, `too_hard`. | `src/lib/leveling/` |
 | `PronunciationAttempt` | Pronunciation scores persisted from client-side Azure Speech assessment. | `src/lib/pronunciation.ts` |
 
 All writes are user-scoped. Mastery writes are best-effort side effects: if a
@@ -28,7 +28,7 @@ mastery update fails, the underlying user action still succeeds.
 
 `WordMastery` estimates how familiar a learner is with a word, keyed by a
 normalized lemma so case/possessive/punctuation variants merge. Lemma
-normalization reuses `normalizeCandidates()` from `src/lib/dictionary-normalize.ts`.
+normalization reuses `normalizeCandidates()` from `src/lib/lexical/normalize.ts`.
 
 ### Fields
 
@@ -178,7 +178,7 @@ explicit user action.
 
 ## Adaptive CEFR recommendation
 
-`src/lib/leveling.ts` contains two layers:
+`src/lib/leveling/` contains two layers:
 
 1. A pure quiz/completion recommendation used by focused level-change checks.
 2. The richer adaptive recommender used by level recommendation UI.
@@ -210,7 +210,7 @@ $$
 
 ## Learner analytics page
 
-`src/lib/learner-analytics.ts` powers `/progress` and is scoped to a single
+`src/lib/analytics/learner.ts` powers `/progress` and is scoped to a single
 `userId`.
 
 It returns:
@@ -278,4 +278,4 @@ append-only stream. User deletion cascades through user-owned data such as
 progress, saved words, daily activity, highlights, quiz attempts, and
 pronunciation attempts. Product analytics events are non-FK rows and must be
 handled through the retention/erasure helpers documented in
-[`analytics.md`](./analytics.md).
+[`analytics.md`](../analytics/analytics.md).

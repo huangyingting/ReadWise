@@ -37,7 +37,7 @@ test("PostgreSQL Prisma schema stays in parity with the default schema", async (
           `Schema drift at line ${i + 1}.\n` +
             `  Expected (normalized sqlite): ${JSON.stringify(sqliteLines[i])}\n` +
             `  Actual   (postgres):          ${JSON.stringify(pgLines[i])}\n` +
-            "Run `npm run schema:check-parity` for details. See docs/database.md §Schema governance for the schema-change workflow.",
+            "Run `npm run schema:check-parity` for details. See docs/platform/database.md §Schema governance for the schema-change workflow.",
         );
       }
     }
@@ -79,13 +79,13 @@ test("SQLite and PostgreSQL migration directories contain the same named migrati
     onlyInSqlite,
     [],
     `Migrations in ${SQLITE_MIGRATIONS} but not ${POSTGRES_MIGRATIONS}: ${onlyInSqlite.join(", ")}. ` +
-      "Add a corresponding migration to both directories. See docs/database.md §Schema governance for the schema-change workflow.",
+      "Add a corresponding migration to both directories. See docs/platform/database.md §Schema governance for the schema-change workflow.",
   );
 
   assert.deepEqual(
     onlyInPostgres,
     [],
     `Migrations in ${POSTGRES_MIGRATIONS} but not ${SQLITE_MIGRATIONS}: ${onlyInPostgres.join(", ")}. ` +
-      "Add a corresponding migration to both directories. See docs/database.md §Schema governance for the schema-change workflow.",
+      "Add a corresponding migration to both directories. See docs/platform/database.md §Schema governance for the schema-change workflow.",
   );
 });

@@ -1,0 +1,93 @@
+# Reader recommendations and scored picks
+
+Recommendations power the personalized scored "Picks" feed. The system is
+transparent by design: every article receives component scores, a final score,
+and a human-readable reason.
+
+## Code map
+
+| Area | Code | Purpose |
+| --- | --- | --- |
+| Candidate loading | `src/lib/recommendations/picks.ts` | Cached public candidate set and paginated scored picks. |
+| Context loading | `src/lib/recommendations/context.ts` | Per-user profile, adaptive level, mastery, progress, and vocabulary signals. |
+| Scoring | `src/lib/recommendations/scoring.ts` | Pure component scorers and weighted base score. |
+| Diversity | `src/lib/recommendations/diversity.ts` | Greedy category-spread penalty. |
+| Explanations | `src/lib/recommendations/explanations.ts` | Headline reason and detailed score notes. |
+| Types/weights | `src/lib/recommendations/types.ts` | Shared score shapes and component weights. |
+
+## Candidate boundary
+
+Candidates are public-listable articles only: `visibility = PUBLIC`,
+`status = PUBLISHED`, and `ownerId = null`. Private imports and drafts are never
+recommendation candidates.
+
+The candidate fetch is cached and user-agnostic. It selects card-level metadata
+and tag slugs only, capped at `MAX_CANDIDATES = 400`. Per-user scoring happens
+after the cache boundary so no user data enters a shared cache key.
+
+## User context
+
+`buildRecommendationContext(userId, candidateIds)` loads:
+
+- adaptive recommended CEFR level,
+- profile topics,
+- completed/in-progress progress for candidate articles,
+- article mastery for candidate articles,
+- difficulty-feedback bias,
+- weakest skill,
+- word-mastery aggregate familiarity and known word count.
+
+New users degrade gracefully: neutral level/topic/bias, empty mastery, empty
+vocabulary strength, and every article treated as novel.
+
+## Score components
+
+Every component is normalized to `0..1` and then weighted into a `0..100` base
+score.
+
+| Component | Weight | Signal |
+| --- | ---: | --- |
+| `levelFit` | 0.26 | Article CEFR rank relative to the user's recommended level. |
+| `topicInterest` | 0.20 | Category/tag overlap with profile topics. |
+| `masteryGap` | 0.14 | Opportunity to learn; boosted for weakest-skill alignment. |
+| `novelty` | 0.12 | Penalizes completed, in-progress, and very recently seen articles. |
+| `wordLoad` | 0.12 | Estimated unknown-word comfort from level delta and vocabulary strength. |
+| `freshness` | 0.08 | Recent publication date. |
+| `difficultyFeedback` | 0.08 | Nudge based on whether the user tends to prefer easier or harder articles. |
+
+Scoring functions are pure. Database reads belong in `context.ts`, not in
+`scoring.ts`.
+
+## Diversity pass
+
+`rankWithDiversity(scored)` greedily selects the best remaining item, subtracting
+`6` points per previous same-category pick, up to `18` points. The penalty is
+recorded in each result and included in the final score/explanation.
+
+This prevents a single category from dominating the top of the feed while still
+allowing excellent same-category articles to appear.
+
+## Pagination and UI contract
+
+`listScoredPicksPage(userId, opts)` returns:
+
+- listing-card articles,
+- `hasMore`,
+- `reasons` keyed by article id,
+- full `scored` objects keyed by article id.
+
+Routes/components can display the headline reason without exposing raw user
+profile data.
+
+## Privacy
+
+Recommendation context is computed per request and not stored as a separate
+profile. Do not log component inputs, topic lists, mastery rows, or article text.
+Aggregate score outputs are safe for UI/debug tests, but production logs should
+keep only low-cardinality metadata.
+
+## Tests
+
+Relevant tests include recommendation scoring/diversity/context tests,
+`tests/article-mastery.test.ts`, `tests/leveling*.test.ts`, and article listing
+tests.

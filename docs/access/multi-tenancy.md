@@ -63,7 +63,7 @@ Referential integrity for org ownership is enforced in application code.
 > public listing and cache key behaves identically after the migration. Tenancy
 > is purely opt-in.
 
-### Helpers — `src/lib/org.ts`
+### Helpers — `src/lib/org/`
 
 - `createOrganization(input, creatorUserId)` — creates the org and seats the
   creator as its first `OrgAdmin`, in one transaction.
@@ -82,7 +82,7 @@ Referential integrity for org ownership is enforced in application code.
 
 ## 2. Classrooms, assignments & teacher workflows (RW-061)
 
-### Authorization layers (`src/lib/classroom.ts`)
+### Authorization layers (`src/lib/classroom/`)
 
 - A **system admin** manages any classroom.
 - An **org admin** (`org.manage`) manages any classroom in their org.
@@ -171,7 +171,7 @@ orgId/userId in their key parts) so the tenant dimension is part of the key.
 
 ## 4. Tenant-aware analytics & privacy (RW-063)
 
-`src/lib/tenant-analytics.ts` is the single source of truth for who can see what,
+`src/lib/analytics/tenant.ts` is the single source of truth for who can see what,
 class-level aggregation, and redaction.
 
 ### Visibility matrix

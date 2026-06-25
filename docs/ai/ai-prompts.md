@@ -3,7 +3,7 @@
 This document describes the prompt template / version registry added in Epic
 **RW-E004 / RW-020**. It builds on the provider abstraction (RW-023), the AI
 ledger (`src/lib/ai-ledger.ts`, which already carries a `promptVersion` column),
-and the backfill/rebuild orchestration (`src/lib/backfill.ts`). For output
+and the backfill/rebuild orchestration (`src/lib/processing/backfill.ts`). For output
 validation/moderation see [`ai-safety.md`](./ai-safety.md); for context/chunking
 see [`ai-context.md`](./ai-context.md); for the evaluation harness see
 [`ai-evals.md`](./ai-evals.md).
@@ -19,7 +19,7 @@ Prompt text used to live **inline** inside each AI feature helper
 2. Telling whether a quality change came from a **prompt edit** vs. a model or
    parsing change.
 
-`src/lib/ai/prompts.ts` is now the single, code-based **source of truth** for
+`src/lib/ai/prompts/` is now the single, code-based **source of truth** for
 every feature's prompt. Per feature it defines a `PromptTemplate`:
 
 ```ts
@@ -60,7 +60,8 @@ intentionally out of scope here.
 | `PROMPT_FEATURES` / `isPromptFeature(x)` | The registered feature keys + a type guard. |
 | `TARGET_VOCABULARY_WORDS` / `TARGET_QUIZ_QUESTIONS` / `TARGET_TAGS` | Shared generation targets so the prompt text and the helpers that slice/validate against the count never drift. |
 
-`prompts.ts` imports **nothing** (it is a pure, dependency-free module), so it
+`src/lib/ai/prompts/` imports **nothing** from server-only modules (it is a pure,
+dependency-free registry), so it
 can be imported anywhere — feature helpers, the chunking layer, and the eval
 harness — without circular-dependency risk.
 
@@ -77,7 +78,7 @@ label, so cached derived content and existing tests stay valid.
 | `translation` | `translation/v1` | provider default | `src/lib/translation.ts` |
 | `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary.ts` |
 | `quiz` | `quiz/v1` | provider default | `src/lib/quiz.ts` |
-| `tags` | `tags/v1` | provider default | `src/lib/tags.ts` |
+| `tags` | `tags/v1` | provider default | `src/lib/article-library/collections/index.ts` |
 | `difficulty` | `difficulty/v1` | 16 | `src/lib/difficulty.ts` |
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
@@ -129,8 +130,8 @@ Bumping a feature's active prompt is the trigger for a targeted rebuild:
    `featuresWithStalePrompts(...)`:
 
    ```ts
-   import { featuresWithStalePrompts } from "@/lib/ai/prompts";
-   import { runBackfill } from "@/lib/backfill";
+  import { featuresWithStalePrompts } from "@/lib/ai/prompts";
+  import { runBackfill } from "@/lib/processing/backfill";
 
    const stale = featuresWithStalePrompts({ quiz: "quiz/v1" /* recorded */ });
    // → ["quiz"] once the active version is "quiz/v2"

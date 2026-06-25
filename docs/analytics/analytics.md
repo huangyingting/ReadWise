@@ -7,7 +7,7 @@ canonical description of the event schema, its version, and the privacy /
 retention rules that govern it.
 
 > **Schema version: `1`** (see `ANALYTICS_SCHEMA_VERSION` in
-> `src/lib/analytics.ts`). Every stored event stamps `properties._v` with the
+> `src/lib/analytics/events/catalog.ts`). Every stored event stamps `properties._v` with the
 > version it was written under.
 
 ## Why a separate event stream?
@@ -27,7 +27,7 @@ denormalized log of product-significant moments** optimized for aggregation
 
 Learner-facing progress analytics, mastery scores, streaks, heatmaps and
 adaptive level recommendations are documented separately in
-[`learning-and-mastery.md`](./learning-and-mastery.md). Those are derived from
+[`learning-and-mastery.md`](../learning/learning-and-mastery.md). Those are derived from
 user-owned domain tables and are not part of this append-only product-event
 stream.
 
@@ -50,7 +50,7 @@ shapes the funnel / retention / prune queries use.
 
 ## Canonical event types (v1)
 
-Defined in `ANALYTICS_EVENT_TYPES` (`src/lib/analytics.ts`):
+Defined in `ANALYTICS_EVENT_TYPES` (`src/lib/analytics/events/catalog.ts`):
 
 | Type                  | Emitted when                                  | Typical metadata                         |
 | --------------------- | --------------------------------------------- | ---------------------------------------- |
@@ -127,7 +127,8 @@ sites without a schema change.
 - **No sensitive content** is ever stored (enforced by the sanitizer + the
   metadata-only contract).
 - **Retention window.** Events older than `ANALYTICS_RETENTION_DAYS` (default
-  **400 days**, see `analyticsRetentionDays()` in `src/lib/config.ts`) are
+  **400 days**, see `analyticsRetentionDays()` in
+  `src/lib/runtime-config/analytics.ts`) are
   prunable via `pruneOldEvents(olderThanDays?)`. Run it from a scheduled job/CLI.
 - **Per-user erasure.** Because events do not cascade with the user, call
   `deleteEventsForUser(userId)` when erasing a user's data (GDPR / account
@@ -138,7 +139,7 @@ sites without a schema change.
 
 ## Querying & dashboards
 
-- `src/lib/analytics-queries.ts` aggregates events into the funnel / activation
+- `src/lib/analytics/queries/` aggregates events into the funnel / activation
   / reading-completion / study-conversion / feature-usage overview and weekly
   retention cohorts, with time-range (`days`) and segment (`level`, `topic`)
   filters. Segments resolve matching `userId`s from `Profile` (topic interests
@@ -149,4 +150,4 @@ sites without a schema change.
 - `/admin/analytics/ai` (gated `analytics.view`) renders AI cost / volume /
   latency / fallback dashboards (from the `AiInvocation` ledger) and content-ops
   health (from `ArticleProcessingStep` + the job queue) — see
-  `src/lib/admin-ai-ops.ts`.
+  `src/lib/ai-usage-summary.ts` and `src/lib/processing/state.ts`.

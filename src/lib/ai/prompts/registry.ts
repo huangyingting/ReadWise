@@ -82,7 +82,7 @@ export function renderPrompt<F extends PromptFeature>(
  * (RW-020): bump a template's `version`, feed the previously-recorded versions
  * (e.g. from the AI ledger's `promptVersion` column) through this helper, and
  * enqueue a rebuild for the returned features via `runBackfill({ features,
- * mode: "rebuild", reason })`. See docs/ai-prompts.md.
+ * mode: "rebuild", reason })`. See docs/ai/ai-prompts.md.
  */
 export function featuresWithStalePrompts(
   producedVersions: Partial<Record<string, string | null | undefined>>,

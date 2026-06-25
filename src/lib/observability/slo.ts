@@ -90,7 +90,7 @@ export type SloReport = {
 
 /**
  * The SLI catalog. Targets are intentionally conservative initial values to be
- * refined with production data (see docs/observability.md).
+ * refined with production data (see docs/observability/observability.md).
  */
 export const SLI_CATALOG: SliDefinition[] = [
   {

@@ -118,7 +118,7 @@ async function main() {
 
   if (!schemaOk || !migrationOk) {
     console.error(
-      "\nSee docs/database.md §Schema governance for the schema-change workflow.",
+      "\nSee docs/platform/database.md §Schema governance for the schema-change workflow.",
     );
     process.exit(1);
   }

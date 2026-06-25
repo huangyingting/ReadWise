@@ -20,8 +20,8 @@ gets a safe result and nothing bad is cached or persisted.
 | Concern | Module | Used by |
 | --- | --- | --- |
 | Provider abstraction & error normalization | `src/lib/ai/provider.ts`, `src/lib/ai/azure-provider.ts`, `src/lib/ai/registry.ts` | `src/lib/ai.ts` |
-| Structured-output validation | `src/lib/ai/validation.ts` | vocabulary, quiz, tags |
-| Free-text moderation | `src/lib/ai/moderation.ts` | tutor, grammar |
+| Structured-output validation | `src/lib/ai/output/validators.ts` | vocabulary, quiz, tags |
+| Free-text moderation | `src/lib/ai/output/moderation.ts` | tutor, grammar |
 | Cache-first lifecycle (don't cache fallbacks) | `src/lib/ai-cache.ts` | all per-article AI helpers |
 
 The public AI surface (`chatComplete` / `chatCompleteWithMeta` in `src/lib/ai.ts`)
@@ -32,7 +32,7 @@ is **unchanged** — all of this lives behind it.
 ## 2. Structured-output validation (RW-024)
 
 Vocabulary, quiz and tag generation return **structured JSON** that is shown to
-learners and cached per article. `src/lib/ai/validation.ts` is the single source
+learners and cached per article. `src/lib/ai/output/validators.ts` is the single source
 of truth for validating that output **before it is persisted**:
 
 | Feature | Validator | Rules |
@@ -59,7 +59,7 @@ feature follows the same strict output contract.
 ## 3. Free-text moderation (RW-024)
 
 The AI **tutor** and **grammar-in-context** features exchange free text with the
-model, which can't be schema-validated. `src/lib/ai/moderation.ts` adds a cheap,
+model, which can't be schema-validated. `src/lib/ai/output/moderation.ts` adds a cheap,
 **dependency-free, synchronous** safety net:
 
 - `moderateText(text)` screens against a high-signal denylist across a small set

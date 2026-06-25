@@ -1,6 +1,6 @@
 # Continuous Integration & release readiness
 
-CI is defined in [`.github/workflows/ci.yml`](../.github/workflows/ci.yml). It is
+CI is defined in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml). It is
 **tiered**: cheap, high-signal checks run on every pull request, while slower or
 flakier checks are categorized so they don't make every PR painful. This document
 describes the tiers, what runs when, how to reproduce each gate locally, and the
@@ -99,7 +99,7 @@ npm test
 npx prisma migrate deploy
 rm -rf .next && npm run build
 
-# PostgreSQL migrate / integration (needs a running PostgreSQL — see docs/database.md)
+# PostgreSQL migrate / integration (needs a running PostgreSQL — see docs/platform/database.md)
 npm run test:db
 
 # E2E smoke (Playwright) — installs the matching Chromium on first run

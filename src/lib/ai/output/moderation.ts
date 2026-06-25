@@ -11,7 +11,7 @@
  * content via a high-signal denylist. When something is flagged the caller
  * returns a safe fallback instead of the model text and persists nothing.
  *
- * Scope & limitations (documented in `docs/ai-safety.md`):
+ * Scope & limitations (documented in `docs/ai/ai-safety.md`):
  *   - This is a SAFETY NET, not a full moderation system. It targets a small set
  *     of unambiguous, high-harm categories to minimize false positives.
  *   - A real provider moderation endpoint (e.g. Azure AI Content Safety) can be

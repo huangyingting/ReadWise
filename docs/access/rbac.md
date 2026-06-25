@@ -106,9 +106,9 @@ Helpers:
 - `membershipCapabilities(role)` resolves capabilities for membership/classroom
   roles.
 - `membershipHasCapability(role, capability)` performs tenant-role checks.
-- `hasOrgCapability(membership, capability)` in `src/lib/org.ts` wraps this for
+- `hasOrgCapability(membership, capability)` in `src/lib/org/guards.ts` wraps this for
   organization membership rows.
-- `canCreateClassroom` and `canManageClassroom` in `src/lib/classroom.ts` apply
+- `canCreateClassroom` and `canManageClassroom` in `src/lib/classroom/guards.ts` apply
   classroom rules.
 
 ## Enforcement helpers

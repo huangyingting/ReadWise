@@ -14,7 +14,7 @@ export const dynamic = "force-dynamic";
  * Admin security overview (RW-029) — shows the current trusted-proxy / CSRF
  * posture plus the most recent security events from the in-process ring buffer.
  * For durable history, forward the structured `security.event` logs / metrics to
- * a SIEM (see docs/security.md). Lives at /admin/security (admin-gated).
+ * a SIEM (see docs/security/security.md). Lives at /admin/security (admin-gated).
  */
 export default async function AdminSecurityPage() {
   await requireCapability(CAPABILITIES.securityView, "/admin/security");

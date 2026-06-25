@@ -23,7 +23,7 @@
  *
  * Behavior today is identical to the previous `role === "Admin"` checks because
  * `Admin` is granted every current admin capability and `Reader` is granted only
- * the base reader capabilities. See `docs/rbac.md` for the migration path.
+ * the base reader capabilities. See `docs/access/rbac.md` for the migration path.
  */
 
 /**
@@ -113,7 +113,7 @@ export const SYSTEM_ROLE = "System" as const;
 /**
  * System-level roles planned for a later migration. Documented here so the model
  * is reviewable in code, but NOT yet present in the DB enum — no user can hold
- * one until the migration described in `docs/rbac.md` lands.
+ * one until the migration described in `docs/access/rbac.md` lands.
  */
 export const PLANNED_SYSTEM_ROLES = [
   "Moderator",

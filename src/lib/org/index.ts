@@ -14,7 +14,7 @@
  * is not a ReadWise system admin, and a system admin is treated as a super-user
  * across every org (defense-in-depth).
  *
- * See `docs/multi-tenancy.md` for the full tenancy model.
+ * See `docs/access/multi-tenancy.md` for the full tenancy model.
  */
 export { slugifyOrg } from "./slugs";
 export {

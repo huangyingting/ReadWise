@@ -58,7 +58,7 @@ persisted counters and recomputes `healthStatus`:
 A run counts as a failure when it records an explicit error, or when it
 discovered URLs but saved zero articles. A zero-discovery run increments only the
 zero-discovery streak. Every recorded crawl also emits ingestion metrics. See
-[`admin-operations.md`](./admin-operations.md) for the operator view.
+[`admin-operations.md`](../operations/admin-operations.md) for the operator view.
 
 ### robots.txt & crawl restrictions
 
@@ -91,7 +91,7 @@ Each `Article` carries rights metadata:
 
 Use the **Rights & takedown** panel on `/admin/articles/[id]` (gated on
 `content.moderate`) or `POST /api/admin/articles/[id]/takedown`
-(`{ state, note?, rightsNote? }`). The action (`src/lib/content-policy.ts`
+(`{ state, note?, rightsNote? }`). The action (`src/lib/article-library/moderation.ts`
 `applyTakedown`):
 
 1. Any **non-active** state forces the article to `DRAFT` so it leaves public

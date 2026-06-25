@@ -17,7 +17,7 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
-# Tiers (see docs/ci.md):
+# Tiers (see docs/platform/ci.md):
 #   fast-checks     — typecheck + lint        (every PR, fails fast)
 #   unit-tests      — npm test                (every PR)
 #   build           — npm run build           (every PR)

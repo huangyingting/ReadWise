@@ -2,7 +2,7 @@
  * API catalog drift-detection test (REF-070).
  *
  * Regenerates the API catalog in-memory and compares the route/method
- * inventory against the committed `docs/api-catalog.json`.  The test fails
+ * inventory against the committed `docs/platform/api-catalog.json`.  The test fails
  * when:
  *   - A new route.ts file is added without running `npm run api-catalog`.
  *   - An existing route changes its handler wrapper (auth mode) without
@@ -23,7 +23,7 @@ import { buildCatalog } from "@/lib/api-catalog";
 import type { ApiCatalog, RouteEntry, MethodEntry } from "@/lib/api-catalog";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
-const CATALOG_PATH = join(ROOT, "docs", "api-catalog.json");
+const CATALOG_PATH = join(ROOT, "docs", "platform", "api-catalog.json");
 
 // ── Helpers ───────────────────────────────────────────────────────────────
 
@@ -40,24 +40,24 @@ function methodKey(r: RouteEntry, m: MethodEntry): string {
 
 // ── Tests ─────────────────────────────────────────────────────────────────
 
-test("docs/api-catalog.json exists and is valid JSON", () => {
+test("docs/platform/api-catalog.json exists and is valid JSON", () => {
   let raw: string;
   try {
     raw = readFileSync(CATALOG_PATH, "utf8");
   } catch {
     assert.fail(
-      `docs/api-catalog.json not found — run \`npm run api-catalog\` and commit the result`,
+      `docs/platform/api-catalog.json not found — run \`npm run api-catalog\` and commit the result`,
     );
   }
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch {
-    assert.fail("docs/api-catalog.json is not valid JSON");
+    assert.fail("docs/platform/api-catalog.json is not valid JSON");
   }
   assert.ok(
     parsed && typeof parsed === "object" && "routes" in (parsed as object),
-    "docs/api-catalog.json is missing the 'routes' field",
+    "docs/platform/api-catalog.json is missing the 'routes' field",
   );
 });
 
@@ -87,7 +87,7 @@ test("api-catalog: committed catalog matches current route files (drift detectio
     assert.fail(
       `API catalog is stale — route count changed from ${committedNorm.routeCount} to ${currentNorm.routeCount}.\n` +
         details +
-        "\nFix: run `npm run api-catalog` and commit docs/api-catalog.json",
+        "\nFix: run `npm run api-catalog` and commit docs/platform/api-catalog.json",
     );
   }
 
@@ -95,7 +95,7 @@ test("api-catalog: committed catalog matches current route files (drift detectio
   if (committedNorm.methodCount !== currentNorm.methodCount) {
     assert.fail(
       `API catalog is stale — method count changed from ${committedNorm.methodCount} to ${currentNorm.methodCount}.\n` +
-        "Fix: run `npm run api-catalog` and commit docs/api-catalog.json",
+        "Fix: run `npm run api-catalog` and commit docs/platform/api-catalog.json",
     );
   }
 
@@ -168,7 +168,7 @@ test("api-catalog: committed catalog matches current route files (drift detectio
     assert.fail(
       "API catalog is stale — the following changes were detected:\n" +
         drifted.join("\n") +
-        "\n\nFix: run `npm run api-catalog` and commit docs/api-catalog.json + docs/api-catalog.md",
+        "\n\nFix: run `npm run api-catalog` and commit docs/platform/api-catalog.json + docs/platform/api-catalog.md",
     );
   }
 });
