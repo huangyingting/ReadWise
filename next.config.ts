@@ -2,6 +2,16 @@ import type { NextConfig } from "next";
 
 const isProduction = process.env.NODE_ENV === "production";
 
+const DEV_WATCH_IGNORES = [
+  "**/prisma/*.db",
+  "**/prisma/*.db-*",
+  "**/prisma/*.db-journal",
+  "**/prisma/*.db-shm",
+  "**/prisma/*.db-wal",
+  "**/backups/**",
+  "**/.media/**",
+];
+
 // Baseline HTTP security headers applied to every route (US-024).
 // CSP uses 'unsafe-inline'+'unsafe-eval' for script-src so Next.js hydration
 // and the blocking no-flash theme script in layout.tsx keep working without
@@ -77,6 +87,15 @@ const nextConfig: NextConfig = {
       { protocol: "https", hostname: "lh3.googleusercontent.com" },
       { protocol: "https", hostname: "avatars.githubusercontent.com" },
     ],
+  },
+  webpack(config, { dev }) {
+    if (dev) {
+      config.watchOptions = {
+        ...config.watchOptions,
+        ignored: DEV_WATCH_IGNORES,
+      };
+    }
+    return config;
   },
   async headers() {
     return [
