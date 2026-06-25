@@ -2,7 +2,7 @@
  * Tenant analytics & privacy tests (RW-063).
  *
  * Exercises the PURE access model, aggregation and redaction in
- * `@/lib/tenant-analytics`. `@/lib/org` and `@/lib/classroom` are mocked to the
+ * `@/lib/analytics/tenant`. `@/lib/org` and `@/lib/classroom` are mocked to the
  * minimum the module imports (so the heavy prisma/auth chain isn't loaded); the
  * functions under test take plain data and return plain data.
  */
@@ -10,7 +10,7 @@ import { test, before, mock } from "node:test";
 import assert from "node:assert/strict";
 import { AssignmentStatus } from "@prisma/client";
 
-type TA = typeof import("@/lib/tenant-analytics");
+type TA = typeof import("@/lib/analytics/tenant");
 let ta: TA;
 
 before(async () => {
@@ -25,7 +25,7 @@ before(async () => {
       getClassroomProgressData: async () => null,
     },
   });
-  ta = await import("@/lib/tenant-analytics");
+  ta = await import("@/lib/analytics/tenant");
 });
 
 function sampleData(): import("@/lib/classroom").ClassroomProgressData {

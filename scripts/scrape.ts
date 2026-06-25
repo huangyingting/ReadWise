@@ -3,8 +3,8 @@ import { readFile } from "node:fs/promises";
 import { prisma } from "@/lib/prisma";
 import { PROVIDERS, getProvider, providerForUrl } from "@/lib/scraper/providers";
 import { extractArticle } from "@/lib/scraper/extract";
+import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import {
-  discoverProviderUrls,
   saveDraftArticle,
   scrapeAndSave,
   type SaveOutcome,

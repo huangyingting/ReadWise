@@ -222,7 +222,7 @@ Prefer roll-forward fixes for additive migrations. Prisma does not generate safe
 down migrations automatically.
 
 - **Code-only failure:** redeploy the previous application image/commit. Keep the
-  migrated schema if it is backward compatible.
+  migrated schema only if the previous application can read it safely.
 - **Additive schema failure:** ship a new migration that fixes the schema or data.
 - **Destructive or corrupting migration:** stop app and workers, restore the
   pre-migration backup into a new database, point the app at the restored

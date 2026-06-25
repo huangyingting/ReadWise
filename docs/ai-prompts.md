@@ -107,8 +107,8 @@ the prompt text moved.
 
 ### Cache-key linkage (no schema change)
 
-`src/lib/ai/chunking.ts` derives `PROMPT_VERSIONS` and `promptVersionFor(feature)`
-from the registry (`activePromptVersion`). The content cache key
+`src/lib/ai/chunking.ts` derives `promptVersionFor(feature)` from the registry
+(`activePromptVersion`). The content cache key
 (`aiContentCacheKey`) already includes the prompt version, so cached derived
 content is implicitly partitioned by prompt version, and the AI ledger row
 records the exact `promptVersion` that produced each invocation. This is the

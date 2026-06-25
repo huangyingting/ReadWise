@@ -1,8 +1,7 @@
 /**
  * Organizations & memberships — public API (Epic RW-E012 — RW-060).
  *
- * This barrel re-exports the focused sub-modules so existing imports of
- * `@/lib/org` continue to work without modification:
+ * This barrel is the public organization API over the focused sub-modules:
  *
  *   - {@link ./slugs}    — slug helpers (`slugifyOrg`)
  *   - {@link ./guards}   — capability helpers + session guards

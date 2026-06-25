@@ -65,9 +65,8 @@ beforeEach(() => {
 });
 
 test("reader text / language helpers", async () => {
-  const { articleHtmlToReaderText, isSupportedLanguage, languageLabel } = await import(
-    "@/lib/translation"
-  );
+  const { isSupportedLanguage, languageLabel } = await import("@/lib/translation");
+  const { articleHtmlToReaderText } = await import("@/lib/content-pipeline");
   assert.equal(articleHtmlToReaderText("<p>Hello</p><p>World</p>"), "Hello World");
   assert.equal(
     articleHtmlToReaderText('<p>Read <a href="https://example.com/path">the source</a>.</p>'),

@@ -5,7 +5,7 @@
  */
 import { Card } from "@/components/ui/Card";
 import { MiniBar } from "@/components/analytics/MiniBar";
-import type { LearnerAnalytics } from "@/lib/learner-analytics";
+import type { LearnerAnalytics } from "@/lib/analytics/learner";
 
 interface LevelDistributionSectionProps {
   completedByLevel: LearnerAnalytics["completedByLevel"];

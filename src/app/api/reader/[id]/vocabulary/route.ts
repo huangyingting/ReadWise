@@ -15,7 +15,7 @@ export const POST = createHandler(
     }
     // Annotate each vocabulary item with its server-computed frequency tier.
     // @/lib/frequency is SERVER-ONLY (imports heavy word-frequency-data); it
-    // must never move into a client component or lib shim.
+    // must never move into client-side code.
     return NextResponse.json({
       ...result,
       items: result.items.map((item) => ({

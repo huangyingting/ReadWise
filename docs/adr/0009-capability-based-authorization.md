@@ -22,9 +22,8 @@ named capabilities (e.g. `articles.manage`) instead of roles. The module defines
 the capabilities, the full near-term + future role set (active, planned system,
 and tenant roles), and a role → capability mapping. `hasCapability(principal,
 capability)` is the single runtime check; `requireCapability` (pages) and
-`requireCapabilityApi` (routes) wrap it. The umbrella `requireAdmin` /
-`requireAdminApi` are reimplemented in terms of `admin.access`, so all existing
-call sites keep working. **No Prisma migration** ships: the `Role` enum stays
+`requireCapabilityApi` (routes) wrap it. Top-level admin access uses the
+`admin.access` capability directly. **No Prisma migration** ships: the `Role` enum stays
 `{ Admin, Reader }`, capabilities live in code, and the DB-backed migration path
 is documented (`docs/rbac.md`). A compile-time guard keeps `ACTIVE_ROLES` in sync
 with the Prisma enum.

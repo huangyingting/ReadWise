@@ -2,7 +2,7 @@
  * Tests for src/lib/media-blob.ts (REF-030).
  *
  * base64ToBlobUrl and revokeBlobUrl are pure helpers that rely on Web APIs
- * (atob, Blob, URL.createObjectURL, URL.revokeObjectURL).  We shim the
+ * (atob, Blob, URL.createObjectURL, URL.revokeObjectURL).  We provide the
  * missing browser globals so the tests run in Node.
  */
 
@@ -10,7 +10,7 @@ import { test, describe, before, after } from "node:test";
 import assert from "node:assert/strict";
 
 // ---------------------------------------------------------------------------
-// Browser API shims
+// Browser API test doubles
 // ---------------------------------------------------------------------------
 
 let revokedUrls: string[] = [];

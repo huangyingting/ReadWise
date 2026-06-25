@@ -44,7 +44,7 @@ before(() => {
         authOk
           ? { session }
           : { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
-      requireAdminApi: async () =>
+      requireCapabilityApi: async () =>
         authOk
           ? { session }
           : { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },

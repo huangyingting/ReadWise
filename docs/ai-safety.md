@@ -53,9 +53,8 @@ Design rules:
   **nothing** to the cache whenever `isEmpty(parsed)` is true — so a malformed or
   empty response can be replaced by a real one on a later request.
 
-The previous per-feature parsers (`parseVocabularyJson`, `parseQuizJson`,
-`parseTagsJson`) are kept as thin wrappers that delegate to these validators, so
-existing callers and tests are unaffected.
+Vocabulary, quiz, and tag generation use these validators directly so each
+feature follows the same strict output contract.
 
 ## 3. Free-text moderation (RW-024)
 

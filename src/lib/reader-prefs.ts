@@ -5,7 +5,7 @@
  * Mirrors the pattern of `src/lib/theme.ts`:
  *  - SSR-safe (guards `window`/`document`)
  *  - React-free
- *  - Compatible with the blocking no-flash inline script in the reader page
+ *  - Mirrored by the blocking no-flash inline script in the reader page
  *    which reads `localStorage["readwise:reader-prefs"]` and sets
  *    `data-reading-mode` + `--reading-font-scale` pre-paint.
  *

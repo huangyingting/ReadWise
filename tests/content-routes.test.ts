@@ -44,7 +44,7 @@ before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: {
       requireSessionApi: async () => gate(),
-      requireAdminApi: async () => gate(),
+      requireCapabilityApi: async () => gate(),
       requireCapabilityApi: async () => gate(),
     },
   });

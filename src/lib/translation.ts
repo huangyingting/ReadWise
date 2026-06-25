@@ -14,11 +14,6 @@ import {
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
 
-// Re-export content transformation helper so that existing callers of
-// `@/lib/translation` continue to work without changes.
-// Canonical imports should use `@/lib/content-pipeline` directly.
-export { articleHtmlToReaderText } from "@/lib/content-pipeline";
-
 export type TranslationResult = {
   lang: string;
   languageLabel: string;

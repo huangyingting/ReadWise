@@ -75,6 +75,8 @@ before(() => {
         const i = levels.indexOf(max);
         return i < 0 ? [] : levels.slice(0, i + 1);
       },
+      parseLevel: (v: string | null | undefined) =>
+        ["A1", "A2", "B1", "B2", "C1", "C2"].includes(v ?? "") ? v : null,
       ensureArticleDifficulties: async () => new Map(),
       heuristicDifficulty: (_content: string) => ({ level: "B1", score: 50 }),
     },

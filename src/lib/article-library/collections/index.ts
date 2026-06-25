@@ -26,7 +26,6 @@ import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "../policy";
 import { slugifyTag, tagScopeForArticle } from "@/lib/taxonomy/scope";
 
-// Re-export so existing consumers (admin-tags, tests, routes) keep working.
 export { slugifyTag } from "@/lib/taxonomy/scope";
 
 // ---------------------------------------------------------------------------
@@ -45,15 +44,6 @@ export type ArticleTagsResult = {
   tags: TagView[];
   fallback: boolean;
 };
-
-/**
- * Parses the model's JSON response into a deduped list of Title-Cased tag names
- * via the shared strict validator (RW-024): tolerant of code fences/prose,
- * rejects empties and dedups by slug. Returns [] when nothing usable is found.
- */
-export function parseTagsJson(raw: string): string[] {
-  return validateTags(raw, slugifyTag).items;
-}
 
 function toView(tag: { id: string; name: string; slug: string; scope: TagScope }): TagView {
   return { id: tag.id, name: tag.name, slug: tag.slug, scope: tag.scope };
@@ -123,7 +113,7 @@ export async function getOrCreateArticleTags(
         const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "tags");
         return renderPrompt("tags", { title: article.title, source });
       },
-      parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),
+      parse: (completion) => validateTags(completion, slugifyTag).items.slice(0, TARGET_TAGS),
       isEmpty: (names) => names.length === 0,
       persist: async (id, names) => {
         const article = await prisma.article.findUnique({
