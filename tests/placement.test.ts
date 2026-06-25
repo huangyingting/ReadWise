@@ -10,6 +10,7 @@ import {
   suggestLevel,
   getPlacementQuestions,
   placementLevelRank,
+  computePlacementScore,
 } from "@/lib/placement";
 import type { EnglishLevel } from "@/lib/profile";
 
@@ -120,4 +121,37 @@ test("all questions have at least 2 options", () => {
       assert.ok(q.options.length >= 2, `Question ${q.id} should have at least 2 options`);
     }
   }
+});
+
+// ---------------------------------------------------------------------------
+// computePlacementScore
+// ---------------------------------------------------------------------------
+
+test("computePlacementScore returns 0 when all answers are null", () => {
+  const questions = getPlacementQuestions("B1");
+  assert.equal(computePlacementScore([null, null, null], questions), 0);
+});
+
+test("computePlacementScore counts only correct answers", () => {
+  const questions = getPlacementQuestions("B1");
+  // All correct
+  const allCorrect = questions.map((q) => q.correctIndex);
+  assert.equal(computePlacementScore(allCorrect, questions), 3);
+});
+
+test("computePlacementScore counts partially correct answers", () => {
+  const questions = getPlacementQuestions("B1");
+  // First correct, rest wrong (use index 999 which is out of range so always wrong)
+  const partial: (number | null)[] = [questions[0].correctIndex, 999, 999];
+  assert.equal(computePlacementScore(partial, questions), 1);
+});
+
+test("computePlacementScore ignores null slots", () => {
+  const questions = getPlacementQuestions("A2");
+  const answers: (number | null)[] = [questions[0].correctIndex, null, questions[2].correctIndex];
+  assert.equal(computePlacementScore(answers, questions), 2);
+});
+
+test("computePlacementScore returns 0 for empty arrays", () => {
+  assert.equal(computePlacementScore([], []), 0);
 });
