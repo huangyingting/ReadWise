@@ -1,5 +1,5 @@
 /**
- * Tests for fetchHtml redirect handling (src/lib/scraper/extract.ts).
+ * Tests for fetchHtml redirect handling (src/lib/scraper/fetch.ts).
  * The SSRF guard (resolveAndPin) and undici's fetch/Agent are mocked so no
  * DNS/network is touched. Verifies that EVERY redirect hop's host is
  * re-validated + IP-pinned through the SSRF guard (no DNS-rebinding / SSRF via
@@ -73,7 +73,7 @@ beforeEach(() => {
 });
 
 test("fetchHtml rejects a redirect hop pointing at a private/metadata address", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = {
     "https://safe.example/start": { status: 302, location: "http://169.254.169.254/latest/meta-data" },
   };
@@ -86,7 +86,7 @@ test("fetchHtml rejects a redirect hop pointing at a private/metadata address", 
 });
 
 test("fetchHtml follows a safe redirect chain and validates each hop", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = {
     "https://safe.example/start": { status: 301, location: "https://safe2.example/page" },
     "https://safe2.example/page": { status: 200, body: "HELLO" },
@@ -97,7 +97,7 @@ test("fetchHtml follows a safe redirect chain and validates each hop", async () 
 });
 
 test("fetchHtml resolves relative redirect Location against the current URL", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = {
     "https://safe.example/start": { status: 302, location: "/moved" },
     "https://safe.example/moved": { status: 200, body: "MOVED" },
@@ -108,7 +108,7 @@ test("fetchHtml resolves relative redirect Location against the current URL", as
 });
 
 test("fetchHtml bounds the number of redirects", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   // A redirect loop that always points to the next safe hop.
   routes = {};
   for (let i = 0; i <= 10; i++) {
@@ -121,7 +121,7 @@ test("fetchHtml bounds the number of redirects", async () => {
 });
 
 test("fetchHtml rejects a non-2xx final response", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = { "https://safe.example/missing": { status: 404 } };
   await assert.rejects(fetchHtml("https://safe.example/missing"), /HTTP 404/);
 });

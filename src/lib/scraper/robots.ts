@@ -14,7 +14,7 @@
  * precedence (Allow wins ties). The pure helpers ({@link parseRobots},
  * {@link isPathAllowed}) are unit tested without any network.
  */
-import { fetchHtml } from "@/lib/scraper/extract";
+import { fetchHtml } from "@/lib/scraper/fetch";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("robots");
