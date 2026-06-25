@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useMutation } from "@/hooks/useMutation";
+import { useTeacherMutation } from "@/hooks/useTeacherMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -14,17 +13,16 @@ import { Field } from "@/components/ui/Field";
  * date, and optional instructions. Posts to `/api/classrooms/[id]/assignments`.
  */
 export default function AssignArticleForm({ classroomId }: { classroomId: string }) {
-  const router = useRouter();
   const [articleId, setArticleId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [instructions, setInstructions] = useState("");
-  const { busy, error, run } = useMutation("Failed to assign article");
+  const { busy, error, execute } = useTeacherMutation("Failed to assign article");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmedArticleId = articleId.trim();
     if (!trimmedArticleId) return;
-    await run(async () => {
+    await execute(async () => {
       await postJson(`/api/classrooms/${classroomId}/assignments`, {
         articleId: trimmedArticleId,
         dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
@@ -33,7 +31,6 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
       setArticleId("");
       setDueDate("");
       setInstructions("");
-      router.refresh();
     });
   }
 
