@@ -4,7 +4,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { EnglishLevel } from "@/lib/profile";
+import type { EnglishLevel } from "@/lib/option-registries";
 
 // ---------------------------------------------------------------------------
 // Level history (#97)

@@ -5,10 +5,6 @@
  * sums, estimated cost) for admin analytics and budget-status reporting.
  * Purely a READ side — it never writes ledger records. For writing, see
  * {@link "@/lib/ai-ledger"}.
- *
- * Extracted from `@/lib/ai-ledger` to separate the ledger write-path from the
- * read/aggregation path. `@/lib/ai-ledger` re-exports this module's public
- * API so existing callers are unaffected.
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";

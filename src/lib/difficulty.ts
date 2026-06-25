@@ -25,16 +25,12 @@ import {
  * configured and degrades gracefully to a deterministic readability heuristic.
  *
  * CEFR rank/range primitives (`levelRank`, `levelsAtOrBelow`, `isDifficultyLevel`)
- * live in `@/lib/leveling/cefr-primitives` and are re-exported here for
- * backward compatibility.
+ * live in `@/lib/leveling/cefr-primitives`.
  */
 
 export type DifficultyLevel = EnglishLevel;
 
 export const DIFFICULTY_LEVELS = ENGLISH_LEVELS;
-
-// Re-export shared CEFR primitives so existing callers continue to work.
-export { levelRank, levelsAtOrBelow, isDifficultyLevel };
 
 export type DifficultySource = "cache" | "ai" | "heuristic";
 

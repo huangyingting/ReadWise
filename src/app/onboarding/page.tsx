@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/session";
-import { getProfile, isOnboarded, parseTopics } from "@/lib/profile";
+import { getProfile, isOnboarded } from "@/features/profile-preferences/repository";
+import { parseTopics } from "@/features/profile-preferences/schema";
 import { Wordmark } from "@/components/marketing/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import OnboardingForm from "./OnboardingForm";

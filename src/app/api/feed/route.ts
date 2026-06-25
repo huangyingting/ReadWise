@@ -3,7 +3,8 @@ import { createHandler } from "@/lib/api-handler";
 import { queryInt, queryString } from "@/lib/validation";
 import { FEED_PAGE_SIZE, FEED_MAX_LIMIT, getPersonalizedFeed } from "@/lib/feed";
 import { getProgressSummaries } from "@/lib/progress";
-import { isDifficultyLevel, type DifficultyLevel } from "@/lib/difficulty";
+import type { DifficultyLevel } from "@/lib/difficulty";
+import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 
 type FeedQuery = {
   offset: number;

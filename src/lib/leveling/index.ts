@@ -22,7 +22,8 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { ENGLISH_LEVELS, getProfile, type EnglishLevel } from "@/lib/profile";
+import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/option-registries";
+import { getProfile } from "@/features/profile-preferences/repository";
 import { levelRank } from "./cefr-primitives";
 import { getSkillProfile } from "@/lib/learning/skill-mastery";
 import { publicListableArticleWhere } from "@/lib/article-library";

@@ -5,27 +5,7 @@ import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-library";
-import {
-  getSavedWordSet,
-  getSavedWords,
-  getFilteredSavedWords,
-  getArticleTitlesForWords,
-  saveWord,
-  unsaveWord,
-  WORDS_PAGE_SIZE,
-} from "@/lib/lexical/saved-words";
-
-// Re-export saved-word repository for backward compatibility.
-export type { SavedWordView, FilteredWordsResult } from "@/lib/lexical/saved-words";
-export {
-  getSavedWordSet,
-  getSavedWords,
-  getFilteredSavedWords,
-  getArticleTitlesForWords,
-  saveWord,
-  unsaveWord,
-  WORDS_PAGE_SIZE,
-};
+import { getSavedWordSet } from "@/lib/lexical/saved-words";
 
 export type VocabularyEntry = {
   word: string;

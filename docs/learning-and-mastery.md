@@ -180,7 +180,7 @@ explicit user action.
 
 `src/lib/leveling.ts` contains two layers:
 
-1. A pure quiz-only recommendation for legacy flows.
+1. A pure quiz/completion recommendation used by focused level-change checks.
 2. The richer adaptive recommender used by level recommendation UI.
 
 Adaptive evidence includes:

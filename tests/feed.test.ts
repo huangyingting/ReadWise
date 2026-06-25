@@ -57,14 +57,9 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/profile", {
+  mock.module("@/features/profile-preferences/repository", {
     namedExports: {
       getProfile: async () => mockProfile,
-      parseTopics: (raw: import("@prisma/client").Prisma.JsonValue | null | undefined) => {
-        if (raw == null) return [];
-        if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === "string");
-        return [];
-      },
     },
   });
 

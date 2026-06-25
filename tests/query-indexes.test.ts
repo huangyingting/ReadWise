@@ -65,8 +65,7 @@ test("PostgreSQL migrations create the same production query indexes", () => {
 });
 
 test("public feed predicate matches ownerless partial-index contract", () => {
-  // After REF-040, the implementation lives in article-library/policy.ts;
-  // article-access.ts is a thin re-export shim.
+  // The implementation lives in article-library/policy.ts.
   const articlePolicy = read("src/lib/article-library/policy.ts");
   const docs = read("docs/search-and-indexing.md");
   const migration = readAllMigrations("prisma/postgresql/migrations");

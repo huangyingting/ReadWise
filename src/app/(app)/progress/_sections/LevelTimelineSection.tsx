@@ -5,7 +5,7 @@
 import { Card } from "@/components/ui/Card";
 import LevelTimeline from "@/components/LevelTimeline";
 import type { LevelEntry } from "@/lib/progress-helpers";
-import type { EnglishLevel } from "@/lib/profile";
+import type { EnglishLevel } from "@/lib/option-registries";
 
 interface LevelTimelineSectionProps {
   levelHistory: LevelEntry[];

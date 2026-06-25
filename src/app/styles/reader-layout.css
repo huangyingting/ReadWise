@@ -27,16 +27,10 @@
  * ============================================================ */
 
 /* ---- Reading surface overrides (scoped to data-reading-mode) ---- */
-/* Re-point blockquote border + tts active to reading-mode tokens     */
+/* Re-point blockquote border to reading-mode tokens                  */
 [data-reading-mode] .word-lookup-prose blockquote {
   border-left-color: var(--reading-accent, var(--bg-accent));
   color: var(--reading-text-muted, var(--text-muted));
-}
-
-[data-reading-mode] .tts-word.is-active {
-  background: color-mix(in srgb, var(--reading-accent, var(--teal)) 25%, transparent);
-  color: var(--reading-text, var(--text));
-  font-weight: 600;
 }
 
 /* Per-reading-mode highlight colour for the CSS Custom Highlight API. */

@@ -5,7 +5,7 @@
  * is a JSON string array (no portable SQL filter).
  */
 import { prisma } from "@/lib/prisma";
-import { parseTopics } from "@/lib/profile";
+import { parseTopics } from "@/features/profile-preferences/schema";
 
 type ProfileClient = Pick<typeof prisma, "profile">;
 

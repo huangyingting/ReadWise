@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getSavedWords } from "@/lib/vocabulary";
+import { getSavedWords } from "@/lib/lexical/saved-words";
 import { parseExportQuery } from "@/lib/vocabulary/schemas";
 
 /** Escape a single value for RFC-4180 CSV (wrap in quotes, double inner quotes). */

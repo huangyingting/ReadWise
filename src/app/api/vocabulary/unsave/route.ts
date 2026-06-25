@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { unsaveWord } from "@/lib/vocabulary";
+import { unsaveWord } from "@/lib/lexical/saved-words";
 import { unsaveWordBody } from "@/lib/vocabulary/schemas";
 
 export const POST = createHandler({ body: unsaveWordBody }, async ({ body, session }) => {

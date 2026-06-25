@@ -101,7 +101,7 @@ test("parses fenced JSON from the model, dedups, and caches", async () => {
 });
 
 test("saveWord upserts a trimmed word for the user", async () => {
-  const { saveWord } = await import("@/lib/vocabulary");
+  const { saveWord } = await import("@/lib/lexical/saved-words");
   await saveWord("user-1", { word: "  curious  ", explanation: "eager" });
   const args = lastSaveUpsert as {
     where: { userId_word: { userId: string; word: string } };
@@ -113,7 +113,7 @@ test("saveWord upserts a trimmed word for the user", async () => {
 });
 
 test("saveWord is a no-op for a blank word", async () => {
-  const { saveWord } = await import("@/lib/vocabulary");
+  const { saveWord } = await import("@/lib/lexical/saved-words");
   await saveWord("user-1", { word: "   " });
   assert.equal(lastSaveUpsert, null);
 });

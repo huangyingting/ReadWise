@@ -1,11 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
-import {
-  SEARCH_PAGE_SIZE,
-  SEARCH_MAX_LIMIT,
-  searchReadableArticles,
-} from "@/lib/article-search";
+import { SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT } from "@/lib/search/query";
+import { searchReadableArticles } from "@/lib/search/providers";
 import { toListingArticle } from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/progress";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";

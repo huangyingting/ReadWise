@@ -2,8 +2,7 @@
  * AI provider error classification (REF-067).
  *
  * Part of the AI safety/output package (`@/lib/ai/output`). Canonical home for
- * provider-error classification helpers. Backward-compatible re-exports are
- * provided by `@/lib/ai/provider`.
+ * provider-error classification helpers.
  *
  * Every vendor-specific failure (HTTP status, SDK error, network error) is
  * mapped onto a small, typed {@link AiErrorKind} enum so the orchestration

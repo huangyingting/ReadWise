@@ -1,5 +1,7 @@
 import { requireOnboardedSession } from "@/lib/session";
-import { getProfile, parseTopics, DAILY_GOAL_DEFAULT } from "@/lib/profile";
+import { DAILY_GOAL_DEFAULT } from "@/lib/option-registries";
+import { getProfile } from "@/features/profile-preferences/repository";
+import { parseTopics } from "@/features/profile-preferences/schema";
 import {
   Card,
   CardHeader,

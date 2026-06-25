@@ -19,11 +19,6 @@ import {
   ArticleMeta,
 } from "./CommandPaletteItems";
 
-// ---- Re-export for backward compatibility --------------------------------
-// Consumers that previously imported SelectableItem from CommandPalette can
-// still do so; the canonical definition has moved to command-items.ts.
-export type { SelectableItem };
-
 // ---- Props ---------------------------------------------------------------
 
 export interface CommandPaletteProps {

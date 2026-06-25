@@ -31,10 +31,9 @@ groups all security-sensitive subsystems with narrow public boundaries:
 | Rate limit | `src/lib/security/rate-limit/index.ts` | Fixed-window limiter with shared store (RW-026) |
 | Rate limit store | `src/lib/security/rate-limit/store.ts` | DB-backed counter store with circuit-breaker |
 
-The original `src/lib/{client-ip,csrf,security-events,audit,rate-limit,rate-limit-store}.ts`
-files are backward-compatible re-export shims so existing callers continue to
-work. New code should import from `src/lib/security/*` directly. The barrel
-`src/lib/security/index.ts` exports the full public surface.
+Use the focused modules under `src/lib/security/*` directly. The barrel
+`src/lib/security/index.ts` exports the full public surface for code that needs
+multiple security helpers.
 
 **Throwing vs best-effort:**
 

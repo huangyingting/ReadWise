@@ -4,9 +4,8 @@ import {
   fleschReadingEase,
   heuristicDifficulty,
   parseLevel,
-  levelRank,
-  isDifficultyLevel,
 } from "@/lib/difficulty";
+import { levelRank, isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 
 test("fleschReadingEase returns null for too-little text", () => {
   assert.equal(fleschReadingEase("Short text."), null);

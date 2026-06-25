@@ -1,5 +1,5 @@
 import { requireSession } from "@/lib/session";
-import { getSavedWords } from "@/lib/vocabulary";
+import { getSavedWords } from "@/lib/lexical/saved-words";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 import { generateStudyPlan } from "@/lib/learning/study-plan";

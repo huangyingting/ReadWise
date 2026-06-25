@@ -8,9 +8,8 @@
  */
 import { prisma } from "@/lib/prisma";
 import { type Article, type Prisma } from "@prisma/client";
+import { levelRank, levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
 import {
-  levelRank,
-  levelsAtOrBelow,
   ensureArticleDifficulties,
   type DifficultyLevel,
 } from "@/lib/difficulty";

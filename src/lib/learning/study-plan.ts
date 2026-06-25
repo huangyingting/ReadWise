@@ -22,7 +22,7 @@ import {
   getAdaptiveLevelRecommendation,
   type AdaptiveLevelRecommendation,
 } from "@/lib/leveling";
-import { listScoredPicksPage } from "@/lib/recommendations";
+import { listScoredPicksPage } from "@/lib/recommendations/picks";
 
 // ---------------------------------------------------------------------------
 // Types

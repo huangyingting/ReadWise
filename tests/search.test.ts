@@ -27,11 +27,15 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/article-search", {
+  mock.module("@/lib/search/query", {
     namedExports: {
-      searchReadableArticles: async () => searchResult,
       SEARCH_PAGE_SIZE: 20,
       SEARCH_MAX_LIMIT: 50,
+    },
+  });
+  mock.module("@/lib/search/providers", {
+    namedExports: {
+      searchReadableArticles: async () => searchResult,
     },
   });
 

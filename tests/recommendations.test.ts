@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import type {
   RecommendationCandidate,
   RecommendationContext,
-} from "@/lib/recommendations";
+} from "@/lib/recommendations/types";
 
 // ---------------------------------------------------------------------------
 // Mutable prisma state (driven by the mock below)
@@ -139,7 +139,7 @@ function baseContext(partial: Partial<RecommendationContext> = {}): Recommendati
 // ---------------------------------------------------------------------------
 
 test("levelFitScore: perfect match scores highest; too-hard penalised more than easy", async () => {
-  const { levelFitScore } = await import("@/lib/recommendations");
+  const { levelFitScore } = await import("@/lib/discovery-ranking");
   // rank 2 = B1 user
   assert.equal(levelFitScore(2, 2), 1); // exact
   assert.ok(levelFitScore(1, 2) > levelFitScore(3, 2)); // one-easier > one-harder
@@ -149,7 +149,7 @@ test("levelFitScore: perfect match scores highest; too-hard penalised more than 
 });
 
 test("topicInterestScore: category match is full credit, tags partial, no topics neutral", async () => {
-  const { topicInterestScore } = await import("@/lib/recommendations");
+  const { topicInterestScore } = await import("@/lib/discovery-ranking");
   const topics = new Set(["science", "technology"]);
   assert.equal(topicInterestScore("science", [], topics), 1);
   assert.equal(topicInterestScore("sports", ["technology"], topics), 0.4);
@@ -158,7 +158,7 @@ test("topicInterestScore: category match is full credit, tags partial, no topics
 });
 
 test("noveltyScore: completed=0, in-progress mid, never-seen=1, mastery decays by age", async () => {
-  const { noveltyScore } = await import("@/lib/recommendations");
+  const { noveltyScore } = await import("@/lib/recommendations/scoring");
   const completed = new Set(["done"]);
   const inProgress = new Map([["mid", 40]]);
   const recent = new Date(NOW.getTime() - 1 * 86_400_000);
@@ -177,7 +177,7 @@ test("noveltyScore: completed=0, in-progress mid, never-seen=1, mastery decays b
 });
 
 test("difficultyFeedbackScore: negative bias rewards easier, positive rewards harder", async () => {
-  const { difficultyFeedbackScore } = await import("@/lib/recommendations");
+  const { difficultyFeedbackScore } = await import("@/lib/recommendations/scoring");
   // user keeps finding articles too hard → bias negative → easier article scores higher
   assert.ok(difficultyFeedbackScore(1, 2, -1) > difficultyFeedbackScore(3, 2, -1));
   // wants harder → bias positive → harder scores higher
@@ -186,7 +186,7 @@ test("difficultyFeedbackScore: negative bias rewards easier, positive rewards ha
 });
 
 test("freshnessScore01: decays with publication age", async () => {
-  const { freshnessScore01 } = await import("@/lib/recommendations");
+  const { freshnessScore01 } = await import("@/lib/discovery-ranking");
   const recent = new Date(NOW.getTime() - 2 * 86_400_000);
   const old = new Date(NOW.getTime() - 365 * 86_400_000);
   assert.equal(freshnessScore01(recent, NOW), 1);
@@ -197,7 +197,7 @@ test("freshnessScore01: decays with publication age", async () => {
 });
 
 test("masteryGapScore: unmastered articles score higher; weakest-skill boost applies", async () => {
-  const { masteryGapScore } = await import("@/lib/recommendations");
+  const { masteryGapScore } = await import("@/lib/recommendations/scoring");
   const mastery = new Map([
     ["mastered", { comprehensionScore: 0.95, lastActivityAt: NOW }],
     ["weak", { comprehensionScore: 0.1, lastActivityAt: NOW }],
@@ -217,7 +217,8 @@ test("masteryGapScore: unmastered articles score higher; weakest-skill boost app
 // ---------------------------------------------------------------------------
 
 test("scoreCandidate returns component sub-scores, a reason, and per-component explanation", async () => {
-  const { scoreCandidate, COMPONENT_WEIGHTS } = await import("@/lib/recommendations");
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const { COMPONENT_WEIGHTS } = await import("@/lib/recommendations/types");
   const ctx = baseContext({ userLevel: "B1", userLevelRank: 2, topicSet: new Set(["science"]) });
   const result = scoreCandidate(
     candidate({ id: "a1", category: "science", difficulty: "B1" }),
@@ -233,7 +234,7 @@ test("scoreCandidate returns component sub-scores, a reason, and per-component e
 });
 
 test("ranking changes for different learner profiles", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations");
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
   const sci = candidate({ id: "sci", category: "science", difficulty: "B1" });
   const sport = candidate({ id: "sport", category: "sports", difficulty: "A2" });
 
@@ -247,7 +248,7 @@ test("ranking changes for different learner profiles", async () => {
 });
 
 test("novelty effect: an unread article outranks an otherwise-identical completed one", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations");
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
   const ctx = baseContext({
     userLevel: "B1",
     userLevelRank: 2,
@@ -263,7 +264,8 @@ test("novelty effect: an unread article outranks an otherwise-identical complete
 // ---------------------------------------------------------------------------
 
 test("rankWithDiversity spreads categories instead of clustering the top one", async () => {
-  const { scoreCandidate, rankWithDiversity } = await import("@/lib/recommendations");
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const { rankWithDiversity } = await import("@/lib/recommendations/diversity");
   const ctx = baseContext({ userLevel: "B1", userLevelRank: 2 });
   // 4 science + 1 sports, science slightly higher base.
   const scored = [
@@ -289,7 +291,7 @@ test("rankWithDiversity spreads categories instead of clustering the top one", a
 // ---------------------------------------------------------------------------
 
 test("scoreAndRankArticles is graceful for a brand-new user (no profile / no mastery)", async () => {
-  const { scoreAndRankArticles } = await import("@/lib/recommendations");
+  const { scoreAndRankArticles } = await import("@/lib/recommendations/picks");
   const ranked = await scoreAndRankArticles("new-user", [
     candidate({ id: "a1", category: "science", difficulty: "B1" }),
     candidate({ id: "a2", category: "sports", difficulty: "A2" }),
@@ -306,7 +308,7 @@ test("scoreAndRankArticles is graceful for a brand-new user (no profile / no mas
 });
 
 test("scoreAndRankArticles reflects the adaptive level: repeated too_hard favours easier", async () => {
-  const { scoreAndRankArticles } = await import("@/lib/recommendations");
+  const { scoreAndRankArticles } = await import("@/lib/recommendations/picks");
   // B1 profile, but repeated "too hard" feedback → adaptive engine targets A2.
   profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
   feedbackRows = [{ vote: "too_hard", _count: { _all: 5 } }];
@@ -320,7 +322,7 @@ test("scoreAndRankArticles reflects the adaptive level: repeated too_hard favour
 });
 
 test("listScoredPicksPage paginates scored candidates and carries reasons + explanations", async () => {
-  const { listScoredPicksPage } = await import("@/lib/recommendations");
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
   articleRows = [
     { id: "a1", title: "A1", author: "x", source: "s", category: "science", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: NOW, heroImage: null },
     { id: "a2", title: "A2", author: "x", source: "s", category: "sports", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: NOW, heroImage: null },
@@ -338,7 +340,7 @@ test("listScoredPicksPage paginates scored candidates and carries reasons + expl
 });
 
 test("listScoredPicksPage returns an empty page when there are no candidates", async () => {
-  const { listScoredPicksPage } = await import("@/lib/recommendations");
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
   articleRows = [];
   const page = await listScoredPicksPage("u1", { limit: 6 });
   assert.deepEqual(page.articles, []);

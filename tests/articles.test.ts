@@ -7,7 +7,7 @@ import {
   toListingArticle,
   rankPicks,
 } from "@/lib/article-library";
-import { buildSearchTerms } from "@/lib/article-search";
+import { buildSearchTerms } from "@/lib/search/query";
 import { buildArticle } from "./helpers";
 
 test("countWords ignores HTML tags", () => {

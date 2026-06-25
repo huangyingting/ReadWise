@@ -10,7 +10,7 @@ import type { HeatCell } from "@/lib/activity";
 import { getLearnerAnalytics } from "@/lib/analytics/learner";
 import { getActivityHeatmap } from "@/lib/activity";
 import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
-import { getReadingSpeedStats } from "@/lib/reading-speed-stats";
+import { getReadingSpeedStats } from "@/lib/engagement/reading-speed-repo";
 
 export type { LearnerAnalytics };
 

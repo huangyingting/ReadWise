@@ -12,7 +12,8 @@
  * {@link AiProvider} from `@/lib/ai/provider`, never on a concrete
  * implementation such as AzureOpenAiProvider.
  */
-import type { AiProvider, AiErrorKind, AiUsage, AiChatMessage } from "@/lib/ai/provider";
+import type { AiErrorKind } from "@/lib/ai/output/error-classifier";
+import type { AiProvider, AiUsage, AiChatMessage } from "@/lib/ai/provider";
 
 // ---------------------------------------------------------------------------
 // Runner options and callback

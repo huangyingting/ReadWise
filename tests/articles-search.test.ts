@@ -139,14 +139,14 @@ beforeEach(() => {
 });
 
 test("buildSearchTerms normalizes punctuation and deduplicates", async () => {
-  const { buildSearchTerms } = await import("@/lib/article-search");
+  const { buildSearchTerms } = await import("@/lib/search/query");
 
   assert.deepEqual(buildSearchTerms("  Climate, climate-change!  "), ["climate", "change"]);
   assert.deepEqual(buildSearchTerms("   "), []);
 });
 
 test("search ranks title matches ahead of body/source matches and then by recency", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [
     buildArticle({ id: "body", title: "Other", content: "climate", publishedAt: new Date("2026-01-03") }),
     buildArticle({ id: "title-old", title: "Climate policy", publishedAt: new Date("2026-01-01") }),
@@ -160,7 +160,7 @@ test("search ranks title matches ahead of body/source matches and then by recenc
 });
 
 test("older title matches are not hidden behind the recency-capped body candidate window", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [
     ...Array.from({ length: 30 }, (_, index) =>
       buildArticle({
@@ -195,7 +195,7 @@ test("older title matches are not hidden behind the recency-capped body candidat
 });
 
 test("search returns empty for blank query without touching Prisma", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
 
   const result = await searchReadableArticles("  ");
 
@@ -206,7 +206,7 @@ test("search returns empty for blank query without touching Prisma", async () =>
 });
 
 test("anonymous/public search never leaks owned or draft articles", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [
     buildArticle({ id: "public", title: "Climate", ownerId: null, status: ArticleStatus.PUBLISHED }),
     buildArticle({
@@ -226,7 +226,7 @@ test("anonymous/public search never leaks owned or draft articles", async () => 
 });
 
 test("authenticated search includes the user's own private imports but not another user's imports", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [
     buildArticle({ id: "public", title: "Import guide", ownerId: null, status: ArticleStatus.PUBLISHED }),
     buildArticle({
@@ -251,7 +251,7 @@ test("authenticated search includes the user's own private imports but not anoth
 });
 
 test("highlight/note matches are scoped to the requesting user and final article readability", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [
     buildArticle({
       id: "mine",
@@ -280,7 +280,7 @@ test("highlight/note matches are scoped to the requesting user and final article
 });
 
 test("saved vocabulary matches can surface readable articles", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = [buildArticle({ id: "article", title: "General news", ownerId: null, status: ArticleStatus.PUBLISHED })];
   savedWordRows = [{ userId: "user-1", articleId: "article", word: "photosynthesis" }];
 
@@ -291,7 +291,7 @@ test("saved vocabulary matches can surface readable articles", async () => {
 });
 
 test("search paginates ranked candidates and reports hasMore", async () => {
-  const { searchReadableArticles } = await import("@/lib/article-search");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = ["a1", "a2", "a3"].map((id, index) =>
     buildArticle({ id, title: `Climate ${id}`, publishedAt: new Date(`2026-01-0${3 - index}T00:00:00Z`) }),
   );
@@ -306,7 +306,8 @@ test("search paginates ranked candidates and reports hasMore", async () => {
 });
 
 test("search does not report hasMore after the capped broad candidate window is exhausted", async () => {
-  const { SEARCH_CANDIDATE_LIMIT, searchReadableArticles } = await import("@/lib/article-search");
+  const { SEARCH_CANDIDATE_LIMIT } = await import("@/lib/search/query");
+  const { searchReadableArticles } = await import("@/lib/search/providers");
   articleRows = Array.from({ length: SEARCH_CANDIDATE_LIMIT + 25 }, (_, index) =>
     buildArticle({
       id: `broad-${index}`,

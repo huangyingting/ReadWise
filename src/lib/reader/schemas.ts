@@ -2,11 +2,6 @@
  * Feature-owned schema module for reader routes (REF-043).
  * Exports body schemas, query parsers, and inferred TypeScript types so both
  * route handlers and tests can import the contracts directly.
- *
- * Note: tutor.ts and sentence-translation.ts import SYSTEM_ARTICLE_CONTEXT
- * from @/lib/article-access, which causes load failures in test environments
- * that mock that module. Constants from those modules are inlined here to
- * avoid the transitive dependency. Values must stay in sync with the source.
  */
 
 import {

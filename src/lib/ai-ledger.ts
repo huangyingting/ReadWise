@@ -170,16 +170,3 @@ export async function recordAiCacheHit(
     client,
   );
 }
-
-// ---------------------------------------------------------------------------
-// Usage summary read model — re-exported for backward compatibility.
-// The implementation lives in @/lib/ai-usage-summary (REF-026).
-// ---------------------------------------------------------------------------
-
-export type {
-  AiUsageFilter,
-  AiUsageTotals,
-  AiUsageGroup,
-  AiUsageSummary,
-} from "@/lib/ai-usage-summary";
-export { summarizeAiUsage } from "@/lib/ai-usage-summary";

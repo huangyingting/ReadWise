@@ -17,7 +17,8 @@ import { getStreakSummary } from "@/lib/activity";
 import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
-import { getProfile, parseTopics } from "@/lib/profile";
+import { getProfile } from "@/features/profile-preferences/repository";
+import { parseTopics } from "@/features/profile-preferences/schema";
 import { getPersonalizedFeed } from "@/lib/feed";
 
 export interface DashboardUser {

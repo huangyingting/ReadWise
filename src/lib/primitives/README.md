@@ -82,8 +82,8 @@ directory as the feature).
 
 - Domain services (article processing, AI orchestration, SRS logic).
 - Any module that imports Prisma models in its public API.
-- Wrappers that are purely compatibility shims (keep those in the module they
-  wrap until the old path is deleted).
+- Temporary wrappers for moved APIs (delete the old path instead of adding it
+   to primitives).
 
 ---
 
