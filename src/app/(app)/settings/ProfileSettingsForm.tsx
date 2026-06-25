@@ -12,7 +12,7 @@ import {
   DAILY_GOAL_MIN,
   DAILY_GOAL_MAX,
   LEVEL_HINTS,
-} from "@/lib/profile";
+} from "@/lib/option-registries";
 import { Button } from "@/components/ui/Button";
 import { Card, CardHeader, CardMeta, CardBody } from "@/components/ui/Card";
 import { Field, Label } from "@/components/ui/Field";

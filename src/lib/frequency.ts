@@ -15,22 +15,14 @@
 
 import { normalizeCandidates } from "@/lib/dictionary-normalize";
 import { WORD_FREQUENCY } from "@/data/word-frequency-data";
+import {
+  type FrequencyTier,
+  TIER_LABELS,
+  TIER_VARIANTS,
+} from "@/lib/option-registries";
 
-export type FrequencyTier = "top1k" | "top5k" | "academic";
-
-/** Human-readable label for a frequency tier. */
-export const TIER_LABELS: Record<FrequencyTier, string> = {
-  top1k: "Top 1K",
-  top5k: "Top 5K",
-  academic: "Academic",
-};
-
-/** Badge variant for each tier (maps to ui/Badge variants). */
-export const TIER_VARIANTS: Record<FrequencyTier, "success" | "primary" | "warning"> = {
-  top1k: "success",
-  top5k: "primary",
-  academic: "warning",
-};
+export type { FrequencyTier };
+export { TIER_LABELS, TIER_VARIANTS };
 
 /**
  * Returns the frequency tier for a word (or null when not in the list).
