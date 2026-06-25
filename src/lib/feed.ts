@@ -28,6 +28,14 @@ import { getProfile, parseTopics } from "@/lib/profile";
 import { toListingArticle, type ListingArticle } from "@/lib/articles";
 import { createLogger } from "@/lib/logger";
 import { publicListableArticleWhere } from "@/lib/article-access";
+import {
+  buildTagMap,
+  levelProximityScore,
+  freshnessScore,
+} from "@/lib/discovery-ranking";
+export type { ArticleTagRow } from "@/lib/discovery-ranking";
+// Re-export the shared primitives so existing callers importing from @/lib/feed continue to work.
+export { buildTagMap, levelProximityScore, freshnessScore };
 
 const log = createLogger("feed");
 
@@ -113,59 +121,13 @@ export const SCORE_WEIGHTS = {
 // Pure scoring helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Returns a 0–30 score for how well an article's difficulty matches the user's
- * level. `delta = articleRank - userRank`; positive = article is harder than
- * the user's level. Too-hard articles are penalised more steeply than
- * slightly-easy ones (per spec), so the user always gets readable content
- * ahead of content that's a stretch.
- */
-export function levelProximityScore(articleRank: number, userRank: number): number {
-  const delta = articleRank - userRank;
-  if (delta === 0) return 30; // perfect match
-  if (delta === -1) return 18; // slightly easy  — minor penalty
-  if (delta === -2) return 10; // easy            — moderate penalty
-  if (delta <= -3) return 5; //  way too easy    — large penalty (but still shown)
-  if (delta === 1) return 12; // slightly hard   — bigger penalty than slightly easy
-  if (delta === 2) return 3; //  hard            — strong penalty
-  return 0; //                  way too hard    — still shown via fallback base
-}
-
-/**
- * Returns a 0–10 freshness bonus based on how recently the article was published.
- */
-export function freshnessScore(publishedAt: Date | null, now: Date): number {
-  if (!publishedAt) return 0;
-  const ageDays = (now.getTime() - publishedAt.getTime()) / 86_400_000;
-  if (ageDays <= 7) return 10;
-  if (ageDays <= 30) return 7;
-  if (ageDays <= 90) return 4;
-  if (ageDays <= 180) return 2;
-  return 0;
-}
+// levelProximityScore, freshnessScore — defined in @/lib/discovery-ranking, re-exported above.
 
 // ---------------------------------------------------------------------------
 // Tag map helper
 // ---------------------------------------------------------------------------
 
-type ArticleTagRow = { articleId: string; tag: { slug: string } };
-
-/**
- * Builds a map of `articleId → tag slugs[]` from a flat list of ArticleTag
- * join rows (the shape returned by a single `prisma.articleTag.findMany`).
- */
-export function buildTagMap(rows: ArticleTagRow[]): Map<string, string[]> {
-  const map = new Map<string, string[]>();
-  for (const row of rows) {
-    const existing = map.get(row.articleId);
-    if (existing) {
-      existing.push(row.tag.slug);
-    } else {
-      map.set(row.articleId, [row.tag.slug]);
-    }
-  }
-  return map;
-}
+// buildTagMap, ArticleTagRow — defined in @/lib/discovery-ranking, re-exported above.
 
 // ---------------------------------------------------------------------------
 // Article scorer
