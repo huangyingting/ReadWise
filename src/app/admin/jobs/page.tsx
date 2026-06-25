@@ -18,6 +18,7 @@ import {
   AdminTableWrap,
   AdminPagination,
 } from "@/components/admin";
+import { formatDateTime, formatLockAge } from "@/lib/display-format";
 
 type SearchParams = {
   status?: string;
@@ -37,19 +38,6 @@ function statusVariant(status: string): BadgeProps["variant"] {
   if (status === JobStatus.DEAD_LETTER || status === JobStatus.FAILED) return "danger";
   if (status === JobStatus.RUNNING || status === JobStatus.CLAIMED) return "warning";
   return "neutral";
-}
-
-function fmtTime(value: Date | null): string {
-  return value ? new Date(value).toLocaleString() : "—";
-}
-
-function fmtAge(ms: number | null): string {
-  if (ms == null) return "—";
-  const s = Math.round(ms / 1000);
-  if (s < 60) return `${s}s`;
-  const m = Math.round(s / 60);
-  if (m < 60) return `${m}m`;
-  return `${Math.round(m / 60)}h`;
 }
 
 function buildHref(sp: Record<string, string | number | undefined>): string {
@@ -107,8 +95,8 @@ function JobsTable({ jobs }: { jobs: AdminJobRow[] }) {
                 <td>
                   {job.attempts}/{job.maxAttempts}
                 </td>
-                <td className="muted">{fmtAge(job.lockAgeMs)}</td>
-                <td className="muted">{fmtTime(job.createdAt)}</td>
+                <td className="muted">{formatLockAge(job.lockAgeMs)}</td>
+                <td className="muted">{formatDateTime(job.createdAt)}</td>
                 <td className="text-danger-text text-[length:var(--text-sm)]">
                   {job.lastError ?? "—"}
                 </td>
