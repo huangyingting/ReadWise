@@ -18,6 +18,7 @@ import { useRef, type ReactNode } from "react";
 import { BookOpen, CircleCheck, Keyboard, Mic, Highlighter, Sparkles } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { useReaderTools, type ToolTabId } from "./ReaderToolsProvider";
+import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
 import ArticleDictation from "./ArticleDictation";
@@ -52,20 +53,12 @@ export default function ReaderTools({
   const currentBlockText = currentBlock?.text;
   const tabListRef = useRef<HTMLDivElement | null>(null);
 
-  function handleKeyDown(e: React.KeyboardEvent, index: number) {
-    const list = tabListRef.current;
-    if (!list) return;
-    const buttons = Array.from(list.querySelectorAll<HTMLButtonElement>("[role='tab']"));
-    let nextIndex: number | null = null;
-    if (e.key === "ArrowRight" || e.key === "ArrowDown") nextIndex = (index + 1) % TOOL_TABS.length;
-    else if (e.key === "ArrowLeft" || e.key === "ArrowUp") nextIndex = (index - 1 + TOOL_TABS.length) % TOOL_TABS.length;
-    else if (e.key === "Home") nextIndex = 0;
-    else if (e.key === "End") nextIndex = TOOL_TABS.length - 1;
-    if (nextIndex === null) return;
-    e.preventDefault();
-    buttons[nextIndex]?.focus();
-    activate(TOOL_TABS[nextIndex].id);
-  }
+  const { handleKeyDown } = useRovingTabindex(tabListRef, {
+    selector: "[role='tab']",
+    vertical: true,
+    homeEnd: true,
+    onNavigate: (i) => activate(TOOL_TABS[i].id),
+  });
 
   return (
     <div className="reader-tools">

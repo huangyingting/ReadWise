@@ -4,12 +4,12 @@ import {
   createContext,
   useCallback,
   useContext,
-  useEffect,
   useRef,
   useState,
   type ReactNode,
 } from "react";
 import CommandPalette from "./CommandPalette";
+import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import type { ShellUser } from "@/components/shell/types";
 
 // ---- Context ----------------------------------------------------------
@@ -72,33 +72,34 @@ export default function CommandPaletteProvider({
     });
   }, []);
 
-  // ---- Global keyboard listener ----------------------------------------
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      // ⌘K (macOS) / Ctrl+K (win/linux) — toggle
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+  // ---- Global keyboard listeners ----------------------------------------
+  // ⌘K (macOS) / Ctrl+K (win/linux) — toggle
+  useKeyboardShortcut(
+    "k",
+    useCallback(
+      (e) => {
         e.preventDefault();
         toggle();
-        return;
-      }
+      },
+      [toggle],
+    ),
+    { requireMeta: true },
+  );
 
-      // "/" — open only when focus is not in an editable field
-      if (e.key === "/" && !isOpen) {
-        const target = e.target as Element | null;
-        const inEditable =
-          target instanceof HTMLInputElement ||
-          target instanceof HTMLTextAreaElement ||
-          (target instanceof HTMLElement && target.isContentEditable);
-        if (!inEditable) {
+  // "/" — open only when focus is not in an editable field
+  useKeyboardShortcut(
+    "/",
+    useCallback(
+      (e) => {
+        if (!isOpen) {
           e.preventDefault();
           open();
         }
-      }
-    }
-
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [isOpen, toggle, open]);
+      },
+      [isOpen, open],
+    ),
+    { suppressInInput: true },
+  );
 
   const ctx: CommandPaletteCtx = { isOpen, open, close, toggle };
 

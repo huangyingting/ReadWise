@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
-import { getTabbable } from "@/lib/focus-trap";
+import { useFocusTrap } from "@/lib/focus-trap";
 
 export interface SheetProps {
   /** Whether the sheet is rendered. When false, nothing renders. */
@@ -40,51 +40,7 @@ export function Sheet({
 }: SheetProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
 
-  React.useEffect(() => {
-    if (!open) return;
-
-    const previouslyFocused = document.activeElement as HTMLElement | null;
-
-    // Move focus into the panel: first focusable, else the panel itself.
-    const first = getTabbable(panelRef.current)[0];
-    if (first) {
-      first.focus();
-    } else {
-      panelRef.current?.focus();
-    }
-
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        return;
-      }
-      if (event.key !== "Tab") return;
-      const list = getTabbable(panelRef.current);
-      if (list.length === 0) {
-        // Keep focus on the panel when there is nothing else to tab to.
-        event.preventDefault();
-        panelRef.current?.focus();
-        return;
-      }
-      const firstEl = list[0];
-      const lastEl = list[list.length - 1];
-      const active = document.activeElement;
-      if (event.shiftKey && (active === firstEl || active === panelRef.current)) {
-        event.preventDefault();
-        lastEl.focus();
-      } else if (!event.shiftKey && active === lastEl) {
-        event.preventDefault();
-        firstEl.focus();
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("keydown", onKeyDown);
-      previouslyFocused?.focus();
-    };
-  }, [open, onClose]);
+  useFocusTrap(panelRef, open, onClose, { restoreFocus: true });
 
   if (!open) return null;
 
