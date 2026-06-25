@@ -156,3 +156,37 @@ test("featuresWithStalePrompts flags only features whose recorded version differ
   // Nothing recorded → nothing stale.
   assert.deepEqual(featuresWithStalePrompts({}), []);
 });
+
+// ---------------------------------------------------------------------------
+// Registry contract: every feature module must satisfy the full contract.
+// ---------------------------------------------------------------------------
+
+test("registry contract: every prompt feature has a version, modelParams, render function, and non-empty description", () => {
+  for (const feature of PROMPT_FEATURES) {
+    const tmpl = PROMPT_TEMPLATES[feature];
+
+    // Feature identity
+    assert.equal(typeof tmpl.feature, "string", `${feature}: .feature must be a string`);
+    assert.equal(tmpl.feature, feature, `${feature}: .feature must equal the registry key`);
+
+    // Version is a non-empty string in the conventional <feature>/vN format
+    assert.equal(typeof tmpl.version, "string", `${feature}: .version must be a string`);
+    assert.match(tmpl.version, /^[a-z-]+\/v\d+$/, `${feature}: .version must match <feature>/vN`);
+
+    // Active flag
+    assert.equal(tmpl.active, true, `${feature}: active template must have active=true`);
+
+    // Model params is a plain object (may be empty)
+    assert.equal(typeof tmpl.modelParams, "object", `${feature}: .modelParams must be an object`);
+    assert.notEqual(tmpl.modelParams, null, `${feature}: .modelParams must not be null`);
+
+    // Description is non-empty
+    assert.ok(
+      typeof tmpl.description === "string" && tmpl.description.length > 0,
+      `${feature}: .description must be a non-empty string`,
+    );
+
+    // Render is callable and returns at least two messages with roles
+    assert.equal(typeof tmpl.render, "function", `${feature}: .render must be a function`);
+  }
+});
