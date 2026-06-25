@@ -16,6 +16,7 @@
  */
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { reportClientError } from "@/lib/client-error-reporter";
 
 interface Props {
   /** Human label for the wrapped tool, used in the fallback copy + logs. */
@@ -35,30 +36,14 @@ export default class ReaderPanelErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    // Report to the structured server logs via the same beacon the global
-    // error boundary uses (client-safe — never throws).
-    try {
-      const url =
-        typeof window !== "undefined"
-          ? window.location.origin + window.location.pathname
-          : undefined;
-      const stack = [error.stack, info.componentStack]
-        .filter(Boolean)
-        .join("\n");
-      void fetch("/api/client-errors", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          message: error.message || "Reader panel render error",
-          source: `reader-panel:${this.props.label}`,
-          stack: stack || undefined,
-          url,
-        }),
-        keepalive: true,
-      }).catch(() => {});
-    } catch {
-      // Reporting must never throw.
-    }
+    const stack = [error.stack, info.componentStack]
+      .filter(Boolean)
+      .join("\n");
+    reportClientError({
+      message: error.message || "Reader panel render error",
+      source: `reader-panel:${this.props.label}`,
+      stack: stack || undefined,
+    });
   }
 
   private reset = (): void => {
