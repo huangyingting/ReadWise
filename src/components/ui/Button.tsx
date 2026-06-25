@@ -49,6 +49,21 @@ export interface ButtonProps
   trailingIcon?: React.ReactNode;
 }
 
+/**
+ * General-purpose action button.
+ *
+ * Keyboard: native `<button>` — Space and Enter activate.
+ * Focus: embeds `focusRing` (outline-none + focus-visible box-shadow ring).
+ * Accessibility: pass `aria-label` when the visible label is icon-only.
+ * Loading state: sets `aria-busy` and `disabled`; prevents double-submission.
+ *
+ * Variants: `primary` | `secondary` | `ghost` | `danger` | `danger-ghost` | `outline`.
+ * Sizes: `sm` (h-8) | `md` (h-10, default) | `lg` (h-12).
+ *
+ * @example
+ * <Button variant="secondary" size="sm" onClick={handler}>Save</Button>
+ */
+
 export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   function Button(
     {

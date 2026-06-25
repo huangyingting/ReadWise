@@ -39,6 +39,24 @@ export interface InputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size">,
     VariantProps<typeof inputVariants> {}
 
+/**
+ * Single-line text input field.
+ *
+ * Keyboard: native `<input>` — standard browser behavior.
+ * Focus: inline focus-visible ring (token-driven, AA-compliant).
+ * Accessibility: always pair with a `<Label>` via `<Field>` or explicit `htmlFor`/`id`.
+ *   Sets `aria-invalid` when `invalid=true` so assistive tech announces the error state.
+ *
+ * Sizes: `sm` (h-8) | `md` (h-10, default).
+ * Validation: `invalid` — switches border and focus ring to danger color; pair with
+ *   `<Field error={msg}>` to surface the error message.
+ *
+ * @example
+ * <Field label="Email" error={errors.email}>
+ *   <Input type="email" invalid={!!errors.email} />
+ * </Field>
+ */
+
 export const Input = React.forwardRef<HTMLInputElement, InputProps>(
   function Input({ inputSize, invalid, className, ...props }, ref) {
     return (
