@@ -11,6 +11,7 @@
 import { createLogger } from "@/lib/logger";
 import { normalizeCandidates } from "@/lib/dictionary-normalize";
 import { providerFetch } from "@/lib/http/provider-client";
+import type { FrequencyTier } from "@/lib/option-registries";
 
 const log = createLogger("dictionary");
 
@@ -33,6 +34,8 @@ export type DictionaryResult = {
   phonetic?: string;
   audio?: string;
   meanings: DictionaryMeaning[];
+  /** Pre-computed frequency tier (server-resolved); null when not in the list. */
+  frequencyTier?: FrequencyTier | null;
 };
 
 const DICTIONARY_ENDPOINT =

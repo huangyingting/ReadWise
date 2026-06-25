@@ -5,6 +5,8 @@ import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-access";
+import { frequencyTier } from "@/lib/frequency";
+import type { FrequencyTier } from "@/lib/option-registries";
 
 export type VocabularyEntry = {
   word: string;
@@ -14,6 +16,8 @@ export type VocabularyEntry = {
 
 export type VocabularyItemResult = VocabularyEntry & {
   saved: boolean;
+  /** Pre-computed frequency tier (server-resolved); null when not in the list. */
+  frequencyTier: FrequencyTier | null;
 };
 
 export type ArticleVocabularyResult = {
@@ -54,6 +58,7 @@ export async function getOrCreateArticleVocabulary(
       items: entries.map((e) => ({
         ...e,
         saved: savedSet.has(e.word.toLowerCase()),
+        frequencyTier: frequencyTier(e.word),
       })),
       fallback,
     };
