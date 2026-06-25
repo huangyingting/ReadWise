@@ -21,7 +21,8 @@ import { htmlToPlainText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/output/validators";
-import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
+import { createCachedListing } from "@/lib/cache";
+import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "../policy";
 import { slugifyTag, tagScopeForArticle } from "@/lib/taxonomy/scope";
 
@@ -237,8 +238,8 @@ function listArticlesByTagUncached(slug: string, limit = 24): Promise<Article[]>
 
 const cachedListArticlesByTag = createCachedListing(
   listArticlesByTagUncached,
-  ["tags:articles-by-tag"],
-  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+  LISTING_KEYS.articlesByTag,
+  LISTING_TAGS.articlesAndTags,
 );
 
 /**
@@ -305,8 +306,8 @@ async function listRelatedArticlesUncached(
 
 const cachedListRelatedArticles = createCachedListing(
   listRelatedArticlesUncached,
-  ["tags:related-articles"],
-  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+  LISTING_KEYS.relatedArticles,
+  LISTING_TAGS.articlesAndTags,
 );
 
 /** All tags that have at least one published article, with their counts. */
@@ -335,8 +336,8 @@ async function listTagsWithCountsUncached(): Promise<TagWithCount[]> {
 
 const cachedListTagsWithCounts = createCachedListing(
   listTagsWithCountsUncached,
-  ["tags:with-counts"],
-  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+  LISTING_KEYS.tagsWithCounts,
+  LISTING_TAGS.articlesAndTags,
 );
 
 // ---------------------------------------------------------------------------

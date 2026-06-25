@@ -43,9 +43,8 @@ import {
 import { publicListableArticleWhere } from "@/lib/article-access";
 import {
   createCachedListing,
-  ARTICLES_CACHE_TAG,
-  TAGS_CACHE_TAG,
 } from "@/lib/cache";
+import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { getSkillProfile, type Skill } from "@/lib/skill-mastery";
 import { clamp01 } from "@/lib/mastery";
@@ -571,8 +570,8 @@ async function loadPicksCandidatesImpl(
  */
 const loadPicksCandidates = createCachedListing(
   loadPicksCandidatesImpl,
-  ["recommendations:picks-candidates"],
-  [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
+  LISTING_KEYS.picksCandidates,
+  LISTING_TAGS.articlesAndTags,
 );
 
 export type ScoredPicksPage = {

@@ -14,7 +14,8 @@ import {
   ensureArticleDifficulties,
   type DifficultyLevel,
 } from "@/lib/difficulty";
-import { createCachedListing, ARTICLES_CACHE_TAG } from "@/lib/cache";
+import { createCachedListing } from "@/lib/cache";
+import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import {
   getPublicListableArticleById,
   getReadableArticleById,
@@ -58,8 +59,8 @@ function listPublishedArticlesUncached(limit = 12): Promise<Article[]> {
 
 const cachedListPublishedArticles = createCachedListing(
   listPublishedArticlesUncached,
-  ["articles:published"],
-  [ARTICLES_CACHE_TAG],
+  LISTING_KEYS.published,
+  LISTING_TAGS.articles,
 );
 
 /**
@@ -158,8 +159,8 @@ async function listCategoryPageImpl(
 
 const cachedListCategoryPage = createCachedListing(
   listCategoryPageImpl,
-  ["articles:category-page"],
-  [ARTICLES_CACHE_TAG],
+  LISTING_KEYS.categoryPage,
+  LISTING_TAGS.articles,
 );
 
 /**
@@ -234,8 +235,8 @@ async function listPicksPageImpl(
 
 const cachedListPicksPage = createCachedListing(
   listPicksPageImpl,
-  ["articles:picks-page"],
-  [ARTICLES_CACHE_TAG],
+  LISTING_KEYS.picksPage,
+  LISTING_TAGS.articles,
 );
 
 /**
