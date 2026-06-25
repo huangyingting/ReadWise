@@ -17,7 +17,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseTopics } from "@/lib/profile";
-import { ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { percentage as pct } from "@/lib/aggregation";
 
 const T = ANALYTICS_EVENT_TYPES;

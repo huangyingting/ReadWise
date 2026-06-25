@@ -5,7 +5,7 @@ import { lookupWord } from "@/lib/dictionary";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { recordWordExposure } from "@/lib/word-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const bodySchema = object({ word: nonEmptyString(200) });
 

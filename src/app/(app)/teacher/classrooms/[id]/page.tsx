@@ -6,7 +6,7 @@ import { CAPABILITIES } from "@/lib/rbac";
 import {
   getClassroomAnalytics,
   viewerRoleForClassroom,
-} from "@/lib/tenant-analytics";
+} from "@/lib/analytics/tenant";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";

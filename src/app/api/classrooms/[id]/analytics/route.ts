@@ -7,7 +7,7 @@ import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import {
   getClassroomAnalytics,
   viewerRoleForClassroom,
-} from "@/lib/tenant-analytics";
+} from "@/lib/analytics/tenant";
 
 /**
  * Returns a classroom's analytics scoped to the caller's role (RW-061/063):
