@@ -5,9 +5,11 @@ export {
   importArticleFromText,
   type TextImportInput,
   type TextImportResult,
+  type TextImportDeps,
 } from "@/lib/import/text-import";
 export {
   importArticleFromUrl,
   type UrlImportInput,
   type ImportResult,
+  type UrlImportDeps,
 } from "@/lib/import/url-import";
