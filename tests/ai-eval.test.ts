@@ -86,6 +86,17 @@ test("a missing modelOutput is reported as a failed property in offline mode", a
   assert.equal(report.cases[0].properties[0].name, "provider-returned-output");
 });
 
+test("evaluating a dataset with an unknown feature throws", async () => {
+  const unknown: EvalDataset = {
+    feature: "nonexistent-feature",
+    cases: [{ name: "x", input: {}, modelOutput: "anything" }],
+  };
+  await assert.rejects(
+    () => evaluateDataset(unknown, { live: false }),
+    /No evaluator registered for feature "nonexistent-feature"/,
+  );
+});
+
 test("live mode routes through an injected model caller and re-checks the output", async () => {
   const dataset: EvalDataset = {
     feature: "difficulty",
