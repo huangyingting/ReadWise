@@ -1,12 +1,10 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
-
-const PROTECTED_PREFIXES = ["/dashboard", "/reader", "/settings", "/onboarding", "/admin", "/study", "/tags", "/browse", "/lists", "/notes", "/progress", "/offline", "/import", "/teacher", "/assignments"];
-
-const SESSION_COOKIES = [
-  "next-auth.session-token",
-  "__Secure-next-auth.session-token",
-];
+import {
+  PROTECTED_PREFIXES,
+  SESSION_COOKIES,
+  MIDDLEWARE_MATCHER,
+} from "@/lib/route-policy";
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
@@ -38,5 +36,5 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/", "/dashboard/:path*", "/reader/:path*", "/settings/:path*", "/onboarding/:path*", "/admin/:path*", "/study/:path*", "/tags/:path*", "/browse/:path*", "/lists/:path*", "/lists", "/notes/:path*", "/notes", "/progress/:path*", "/progress", "/offline/:path*", "/offline", "/import", "/import/:path*", "/teacher", "/teacher/:path*", "/assignments", "/assignments/:path*"],
+  matcher: MIDDLEWARE_MATCHER,
 };
