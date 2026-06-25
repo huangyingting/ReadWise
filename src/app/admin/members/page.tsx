@@ -2,7 +2,7 @@ import Link from "next/link";
 import Avatar from "@/components/ui/Avatar";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { listMembers } from "@/lib/admin-members";
+import { listMembers } from "@/lib/account-lifecycle";
 import AdminMemberActions from "@/components/AdminMemberActions";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
