@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { updateArticleMastery } from "@/lib/article-mastery";
+import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { clampActiveTime } from "@/lib/reading-speed";
 import { readingTimeBody } from "@/lib/reader/schemas";
 

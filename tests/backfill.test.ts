@@ -71,7 +71,7 @@ function makeDeps(candidates: Candidate[], activeKeys: string[] = []) {
 }
 
 test("dry-run reports the plan but enqueues and clears nothing", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls, clearCalls } = makeDeps([candidate()]);
 
   const result = await runBackfill({
@@ -90,7 +90,7 @@ test("dry-run reports the plan but enqueues and clears nothing", async () => {
 });
 
 test("missing mode enqueues ARTICLE_PROCESS jobs only for missing features", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls } = makeDeps([candidate()]);
 
   const result = await runBackfill({
@@ -110,7 +110,7 @@ test("missing mode enqueues ARTICLE_PROCESS jobs only for missing features", asy
 });
 
 test("idempotency: an active dedupeKey is skipped", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls } = makeDeps(
     [candidate()],
     ["backfill:tags:article-1"],
@@ -131,7 +131,7 @@ test("idempotency: an active dedupeKey is skipped", async () => {
 });
 
 test("batch cap limits how many jobs are enqueued", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const candidates = Array.from({ length: 5 }, (_, i) =>
     candidate({ id: `article-${i}`, _count: { tags: 0, vocabulary: 1, quizQuestions: 1, grammarExplanations: 1 } }),
   );
@@ -152,7 +152,7 @@ test("batch cap limits how many jobs are enqueued", async () => {
 });
 
 test("rebuild mode clears derived caches and enqueues AI_REBUILD jobs", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls, clearCalls } = makeDeps([candidate()]);
 
   const result = await runBackfill({
@@ -172,7 +172,7 @@ test("rebuild mode clears derived caches and enqueues AI_REBUILD jobs", async ()
 });
 
 test("rebuild clearing never targets user-owned study data", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, clearCalls } = makeDeps([candidate()]);
 
   await runBackfill({
@@ -194,7 +194,7 @@ test("rebuild clearing never targets user-owned study data", async () => {
 });
 
 test("translation backfill scopes work to each missing language", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls } = makeDeps([
     candidate({ translations: [{ targetLang: "es" }] }),
   ]);
@@ -212,7 +212,7 @@ test("translation backfill scopes work to each missing language", async () => {
 });
 
 test("speech backfill carries the tts flag in the payload", async () => {
-  const { runBackfill } = await import("@/lib/backfill");
+  const { runBackfill } = await import("@/lib/processing/backfill");
   const { deps, enqueueCalls } = makeDeps([candidate({ speech: null })]);
 
   await runBackfill({ features: ["speech"], reason: "narrate", deps });
@@ -222,7 +222,7 @@ test("speech backfill carries the tts flag in the payload", async () => {
 });
 
 test("runBackfill rejects an empty feature set", async () => {
-  const { runBackfill, BackfillError } = await import("@/lib/backfill");
+  const { runBackfill, BackfillError } = await import("@/lib/processing/backfill");
   await assert.rejects(
     () => runBackfill({ features: [], reason: "x" }),
     (err: unknown) => err instanceof BackfillError,
@@ -230,7 +230,7 @@ test("runBackfill rejects an empty feature set", async () => {
 });
 
 test("runBackfill requires a reason", async () => {
-  const { runBackfill, BackfillError } = await import("@/lib/backfill");
+  const { runBackfill, BackfillError } = await import("@/lib/processing/backfill");
   await assert.rejects(
     () => runBackfill({ features: ["tags"], reason: "  " }),
     (err: unknown) => err instanceof BackfillError,

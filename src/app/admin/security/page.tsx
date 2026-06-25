@@ -1,6 +1,6 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { getRecentSecurityEvents } from "@/lib/security-events";
+import { getRecentSecurityEvents } from "@/lib/security/events";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import {
   csrfEnforceSameOrigin,

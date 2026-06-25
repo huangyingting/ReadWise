@@ -3,7 +3,7 @@ import { aiModelName } from "@/lib/ai";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
-import type { ArticleAccessContext } from "@/lib/article-access";
+import type { ArticleAccessContext } from "@/lib/article-library";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   languageLabel,

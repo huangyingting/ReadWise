@@ -1,6 +1,6 @@
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { ArticleProcessResult } from "@/lib/processor";
+import type { ArticleProcessResult } from "@/lib/processing/processor";
 import type { Job } from "@/lib/jobs";
 
 process.env.LOG_LEVEL = "error";

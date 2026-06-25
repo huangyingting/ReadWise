@@ -3,8 +3,8 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { explainGrammar } from "@/lib/grammar";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
-import { recordSkillEvidence } from "@/lib/skill-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import { grammarBody } from "@/lib/reader/schemas";
 
 export const POST = createHandler(

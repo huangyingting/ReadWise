@@ -6,7 +6,7 @@ import {
   listCategoryPage,
   toListingArticle,
   type ListingArticle,
-} from "@/lib/articles";
+} from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations";
 import { getProgressSummaries } from "@/lib/progress";
 import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";

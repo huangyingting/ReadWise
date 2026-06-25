@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string } from "@/lib/validation";
-import { checkRateLimitByKey, clientIpKey } from "@/lib/rate-limit";
-import { captureError } from "@/lib/error-reporting";
+import { checkRateLimitByKey, clientIpKey } from "@/lib/security/rate-limit/index";
+import { captureError } from "@/lib/observability/errors";
 
 /**
  * Client-side error sink (US-029). The browser error reporter

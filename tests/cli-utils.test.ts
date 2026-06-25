@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 
 before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: { $disconnect: async () => {} } } });
-  mock.module("@/lib/processor", {
+  mock.module("@/lib/processing/processor", {
     namedExports: {
       processArticle: async () => null,
       listUnprocessedArticleIds: async () => [],
@@ -71,7 +71,7 @@ before(() => {
       isPushConfigured: () => false,
     },
   });
-  mock.module("@/lib/logger", {
+  mock.module("@/lib/observability/logger", {
     namedExports: {
       createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
     },
@@ -362,11 +362,6 @@ describe("worker.ts parseArgs", async () => {
 
   test("--lock-ttl value", () => {
     assert.equal(parseArgs(["--lock-ttl", "300000"]).lockTtlMs, 300000);
-  });
-
-  test("--jobs is a no-op (backward compat)", () => {
-    const args = parseArgs(["--jobs"]);
-    assert.equal(args.once, false);
   });
 
   test("--help sets help flag", () => {

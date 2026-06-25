@@ -16,8 +16,7 @@
  * request. `recordSecurityEvent`, `recordAuditLog`, and `tryRecordAuditLog`
  * are best-effort monitoring side effects and NEVER throw to the caller.
  *
- * Backward-compatible re-exports live in the original `src/lib/` files so
- * existing callers continue to work without import changes.
+ * Import specific helpers from this barrel or from the focused submodules.
  */
 export * from "@/lib/security/client-ip";
 export * from "@/lib/security/csrf";

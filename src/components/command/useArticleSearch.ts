@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState } from "react";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 
 export type SearchStatus = "idle" | "loading" | "done" | "error";
 

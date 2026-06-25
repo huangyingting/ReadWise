@@ -15,7 +15,7 @@ import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
 import Sparkline from "@/components/Sparkline";
-import type { QuizMastery } from "@/lib/quiz-mastery";
+import type { QuizMastery } from "@/lib/learning/quiz-mastery";
 
 interface MasteryWidgetProps {
   mastery: QuizMastery;

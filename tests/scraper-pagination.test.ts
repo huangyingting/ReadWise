@@ -18,13 +18,13 @@ before(() => {
   mock.module("@/lib/scraper/robots", {
     namedExports: { isUrlAllowed: async () => true },
   });
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       findPublicLibraryArticleBySourceUrl: async () => null,
       PUBLIC_ARTICLE_CREATE_FIELDS: {},
     },
   });
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: { recordAuditFromRequest: async () => {} },
   });
 });

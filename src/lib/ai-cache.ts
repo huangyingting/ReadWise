@@ -42,7 +42,7 @@ import {
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";

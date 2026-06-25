@@ -1,4 +1,4 @@
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import type { MediaStorageKind } from "@/lib/storage/types";
 
 const log = createLogger("storage");

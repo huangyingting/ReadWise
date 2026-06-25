@@ -5,10 +5,10 @@ import {
   SEARCH_PAGE_SIZE,
   SEARCH_MAX_LIMIT,
   searchReadableArticles,
-  toListingArticle,
-} from "@/lib/articles";
+} from "@/lib/article-search";
+import { toListingArticle } from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/progress";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
 const SEARCH_QUERY_MAX_LENGTH = 200;
 

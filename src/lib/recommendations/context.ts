@@ -10,7 +10,7 @@ import { prisma } from "@/lib/prisma";
 import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
-import { getSkillProfile } from "@/lib/skill-mastery";
+import { getSkillProfile } from "@/lib/learning/skill-mastery";
 import type { RecommendationContext } from "./types";
 
 /**

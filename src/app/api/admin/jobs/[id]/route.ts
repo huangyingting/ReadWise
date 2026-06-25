@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { runJobAction, JOB_ACTIONS, type JobActionName } from "@/lib/admin-jobs";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const actionBody = object({ action: oneOf<JobActionName>(JOB_ACTIONS) });
 

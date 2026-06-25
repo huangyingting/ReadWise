@@ -5,7 +5,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import {
   listPersonalArticlesPage,
   toListingArticle,
-} from "@/lib/articles";
+} from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/progress";
 import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
 import { importBody, parseListQuery } from "@/lib/import/schemas";

@@ -1,5 +1,5 @@
 /**
- * Unit tests for src/lib/account.ts deleteOwnAccount (Issue #235).
+ * Unit tests for account-lifecycle deleteOwnAccount (Issue #235).
  * Prisma is mocked — no real DB is touched.
  *
  * The key behaviour under test: deleting a user relies on the Article.owner
@@ -102,7 +102,7 @@ beforeEach(() => {
 });
 
 test("deleteOwnAccount deletes the user and relies on DB cascade for owned articles", async () => {
-  const { deleteOwnAccount } = await import("@/lib/account");
+  const { deleteOwnAccount } = await import("@/lib/account-lifecycle/account-commands");
   const result = await deleteOwnAccount("user-1");
 
   assert.equal(result.ok, true);
@@ -114,7 +114,7 @@ test("deleteOwnAccount deletes the user and relies on DB cascade for owned artic
 
 test("deleteOwnAccount rolls back deletion when the required audit write fails", async () => {
   auditCreateThrows = true;
-  const { deleteOwnAccount } = await import("@/lib/account");
+  const { deleteOwnAccount } = await import("@/lib/account-lifecycle/account-commands");
 
   await assert.rejects(
     deleteOwnAccount("user-1", {
@@ -136,7 +136,7 @@ test("deleteOwnAccount rolls back deletion when the required audit write fails",
 test("deleteOwnAccount returns 404 when the account does not exist", async () => {
   stubUser = null;
 
-  const { deleteOwnAccount } = await import("@/lib/account");
+  const { deleteOwnAccount } = await import("@/lib/account-lifecycle/account-commands");
   const result = await deleteOwnAccount("missing");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -147,7 +147,7 @@ test("deleteOwnAccount refuses to delete the last remaining admin", async () => 
   stubUser = { id: "admin-1", role: "Admin" };
   stubAdminCount = 1;
 
-  const { deleteOwnAccount } = await import("@/lib/account");
+  const { deleteOwnAccount } = await import("@/lib/account-lifecycle/account-commands");
   const result = await deleteOwnAccount("admin-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
@@ -163,7 +163,7 @@ test("deleteOwnAccount last-admin guard is re-counted inside the transaction (at
   stubUser = { id: "admin-1", role: "Admin" };
   stubAdminCount = 1; // would be 0 after deletion — guard must fire
 
-  const { deleteOwnAccount } = await import("@/lib/account");
+  const { deleteOwnAccount } = await import("@/lib/account-lifecycle/account-commands");
   const result = await deleteOwnAccount("admin-1");
 
   // Transaction entered (count evaluated inside it)

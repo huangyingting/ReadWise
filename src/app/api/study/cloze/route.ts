@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getDueFlashcards } from "@/lib/flashcards";
-import { buildCloze } from "@/lib/cloze";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { getDueFlashcards } from "@/lib/learning/flashcards";
+import { buildCloze } from "@/lib/learning/cloze";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { parseClozeQuery } from "@/lib/study/schemas";
 
 /**

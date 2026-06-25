@@ -25,9 +25,9 @@ import type { Prisma } from "@prisma/client";
 import { isDifficultyLevel, levelRank, levelsAtOrBelow } from "@/lib/difficulty";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { getProfile, parseTopics } from "@/lib/profile";
-import { toListingArticle, type ListingArticle } from "@/lib/articles";
-import { createLogger } from "@/lib/logger";
-import { publicListableArticleWhere } from "@/lib/article-access";
+import { toListingArticle, type ListingArticle } from "@/lib/article-library";
+import { createLogger } from "@/lib/observability/logger";
+import { publicListableArticleWhere } from "@/lib/article-library";
 import {
   buildTagMap,
   levelProximityScore,

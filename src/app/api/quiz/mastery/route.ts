@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getQuizMastery } from "@/lib/quiz-mastery";
+import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 
 /**
  * GET /api/quiz/mastery

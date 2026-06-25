@@ -50,7 +50,7 @@ beforeEach(() => {
 });
 
 test("beginStep marks the step running and increments attempts", async () => {
-  const { beginStep } = await import("@/lib/processing-state");
+  const { beginStep } = await import("@/lib/processing/state");
   await beginStep("article-1", "tags");
 
   assert.ok(upsertArgs);
@@ -67,7 +67,7 @@ test("beginStep marks the step running and increments attempts", async () => {
 });
 
 test("finishStep records a generated step with the model name and no error", async () => {
-  const { finishStep } = await import("@/lib/processing-state");
+  const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "quiz", "generated", { modelName: "gpt-test" });
 
   assert.ok(upsertArgs);
@@ -78,7 +78,7 @@ test("finishStep records a generated step with the model name and no error", asy
 });
 
 test("finishStep skipped creates a row with zero attempts", async () => {
-  const { finishStep } = await import("@/lib/processing-state");
+  const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "speech", "skipped");
 
   assert.ok(upsertArgs);
@@ -88,7 +88,7 @@ test("finishStep skipped creates a row with zero attempts", async () => {
 });
 
 test("finishStep failed persists the (clamped) error message", async () => {
-  const { finishStep } = await import("@/lib/processing-state");
+  const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "vocabulary", "failed", { lastError: "boom" });
 
   assert.ok(upsertArgs);
@@ -97,7 +97,7 @@ test("finishStep failed persists the (clamped) error message", async () => {
 });
 
 test("finishStep only stores lastError for failed steps", async () => {
-  const { finishStep } = await import("@/lib/processing-state");
+  const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "tags", "fallback", { lastError: "ignored" });
 
   assert.ok(upsertArgs);
@@ -109,20 +109,20 @@ test("beginStep is best-effort: a Prisma failure does not throw", async () => {
   upsertImpl = async () => {
     throw new Error("db down");
   };
-  const { beginStep } = await import("@/lib/processing-state");
+  const { beginStep } = await import("@/lib/processing/state");
   await assert.doesNotReject(() => beginStep("article-1", "tags"));
 });
 
 test("getArticleProcessingSteps returns the stored rows", async () => {
   findManyResult = [{ id: "s1", step: "tags", status: "generated" }];
-  const { getArticleProcessingSteps } = await import("@/lib/processing-state");
+  const { getArticleProcessingSteps } = await import("@/lib/processing/state");
   const rows = await getArticleProcessingSteps("article-1");
   assert.equal(rows.length, 1);
   assert.equal(rows[0].step, "tags");
 });
 
 test("resetProcessingSteps clears only the requested steps", async () => {
-  const { resetProcessingSteps } = await import("@/lib/processing-state");
+  const { resetProcessingSteps } = await import("@/lib/processing/state");
   const count = await resetProcessingSteps("article-1", ["tags", "quiz"]);
   assert.equal(count, 3);
   assert.deepEqual(deleteManyArgs!.where, {
@@ -132,12 +132,12 @@ test("resetProcessingSteps clears only the requested steps", async () => {
 });
 
 test("resetProcessingSteps without steps clears the whole article", async () => {
-  const { resetProcessingSteps } = await import("@/lib/processing-state");
+  const { resetProcessingSteps } = await import("@/lib/processing/state");
   await resetProcessingSteps("article-1");
   assert.deepEqual(deleteManyArgs!.where, { articleId: "article-1" });
 });
 
 test("translationStepKey scopes the step to a language", async () => {
-  const { translationStepKey } = await import("@/lib/processing-state");
+  const { translationStepKey } = await import("@/lib/processing/state");
   assert.equal(translationStepKey("es"), "translation:es");
 });

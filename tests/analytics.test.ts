@@ -66,7 +66,7 @@ const FORBIDDEN_KEYS = [
 
 test("recordEvent writes a metadata-only event with the schema version", async () => {
   const { recordEvent, ANALYTICS_EVENT_TYPES, ANALYTICS_SCHEMA_VERSION } = await import(
-    "@/lib/analytics"
+    "@/lib/analytics/events"
   );
   await recordEvent({
     type: ANALYTICS_EVENT_TYPES.articleView,
@@ -86,7 +86,7 @@ test("recordEvent writes a metadata-only event with the schema version", async (
 });
 
 test("recordEvent drops sensitive keys from properties", async () => {
-  const { recordEvent } = await import("@/lib/analytics");
+  const { recordEvent } = await import("@/lib/analytics/events");
   await recordEvent({
     type: "article_view",
     userId: "user-1",
@@ -113,7 +113,7 @@ test("recordEvent drops sensitive keys from properties", async () => {
 });
 
 test("sanitizeEventProperties truncates long strings and drops nested objects", async () => {
-  const { sanitizeEventProperties } = await import("@/lib/analytics");
+  const { sanitizeEventProperties } = await import("@/lib/analytics/events");
   const props = sanitizeEventProperties({
     long: "x".repeat(500),
     nested: { a: 1 },
@@ -129,7 +129,7 @@ test("sanitizeEventProperties truncates long strings and drops nested objects", 
 });
 
 test("recordEvent never throws when the write fails (best-effort)", async () => {
-  const { recordEvent } = await import("@/lib/analytics");
+  const { recordEvent } = await import("@/lib/analytics/events");
   failWrite = true;
   await assert.doesNotReject(() =>
     recordEvent({ type: "lookup", userId: "user-1", properties: { found: true } }),
@@ -138,7 +138,7 @@ test("recordEvent never throws when the write fails (best-effort)", async () => 
 });
 
 test("recordEvent is a no-op when analytics is disabled", async () => {
-  const { recordEvent } = await import("@/lib/analytics");
+  const { recordEvent } = await import("@/lib/analytics/events");
   process.env.ANALYTICS_ENABLED = "0";
   try {
     await recordEvent({ type: "lookup", userId: "user-1" });
@@ -149,7 +149,7 @@ test("recordEvent is a no-op when analytics is disabled", async () => {
 });
 
 test("pruneOldEvents deletes events older than the cutoff", async () => {
-  const { pruneOldEvents } = await import("@/lib/analytics");
+  const { pruneOldEvents } = await import("@/lib/analytics/events");
   deleteManyCount = 7;
   const now = new Date("2026-06-01T00:00:00Z");
   const removed = await pruneOldEvents(30, undefined, now);
@@ -162,7 +162,7 @@ test("pruneOldEvents deletes events older than the cutoff", async () => {
 });
 
 test("deleteEventsForUser purges a single user's events", async () => {
-  const { deleteEventsForUser } = await import("@/lib/analytics");
+  const { deleteEventsForUser } = await import("@/lib/analytics/events");
   deleteManyCount = 3;
   const removed = await deleteEventsForUser("user-9");
   assert.equal(removed, 3);
@@ -171,7 +171,7 @@ test("deleteEventsForUser purges a single user's events", async () => {
 });
 
 test("deleteEventsForUser is a no-op for an empty id", async () => {
-  const { deleteEventsForUser } = await import("@/lib/analytics");
+  const { deleteEventsForUser } = await import("@/lib/analytics/events");
   const removed = await deleteEventsForUser("");
   assert.equal(removed, 0);
   assert.equal(deleteManyArgs.length, 0);

@@ -64,7 +64,7 @@ beforeEach(() => {
   articles.set("a1", { title: "Title", content: "<p>Hello world</p>" });
 });
 
-test("htmlToPlainText / language helpers", async () => {
+test("reader text / language helpers", async () => {
   const { articleHtmlToReaderText, isSupportedLanguage, languageLabel } = await import(
     "@/lib/translation"
   );

@@ -10,8 +10,8 @@ import { ArticleStatus, Prisma } from "@prisma/client";
 import type { ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle } from "@/lib/scraper/extract";
 import { fetchHtml } from "@/lib/scraper/fetch";
-import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
-import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 
 // Re-export the discovery layer so existing callers of `@/lib/scraper` see
 // `discoverProviderUrls`, `discoverLinks`, and `DiscoverDeps` unchanged.

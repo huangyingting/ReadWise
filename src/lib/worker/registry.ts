@@ -1,4 +1,4 @@
-import { type processArticle, type ProcessOptions } from "@/lib/processor";
+import { type processArticle, type ProcessOptions } from "@/lib/processing/processor";
 import { JobError, JobType, type Job } from "@/lib/jobs";
 import type { WorkerLogger, JobHandler } from "./types";
 

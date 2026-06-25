@@ -13,7 +13,7 @@
  * a failure.
  */
 import { prisma } from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { rateLimitStoreMode } from "@/lib/runtime-config/rate-limit";
 
 const log = createLogger("rate-limit-store");

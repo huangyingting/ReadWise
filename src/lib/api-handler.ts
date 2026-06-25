@@ -23,10 +23,10 @@ import {
   runWithRequestContext,
   setRequestContext,
   type StructuredLogger,
-} from "@/lib/logger";
+} from "@/lib/observability/logger";
 import { recordApiRequest, routeGroupFromPath } from "@/lib/metrics";
-import { withSpan, setSpanAttributes, recordSpanError } from "@/lib/tracing";
-import { captureError } from "@/lib/error-reporting";
+import { withSpan, setSpanAttributes, recordSpanError } from "@/lib/observability/tracing";
+import { captureError } from "@/lib/observability/errors";
 import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/security/audit";
 import { checkSameOrigin, isStateChangingMethod } from "@/lib/security/csrf";
 import { clientIp } from "@/lib/security/client-ip";

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback } from "react";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/progress";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";

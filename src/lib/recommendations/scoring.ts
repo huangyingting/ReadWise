@@ -11,13 +11,13 @@
  */
 
 import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
-import { clamp01 } from "@/lib/mastery";
+import { clamp01 } from "@/lib/learning/primitives";
 import {
   levelFitScore,
   freshnessScore01,
   topicInterestScore,
 } from "@/lib/discovery-ranking";
-import type { Skill } from "@/lib/skill-mastery";
+import type { Skill } from "@/lib/learning/skill-mastery";
 import type {
   RecommendationCandidate,
   ScoreComponents,

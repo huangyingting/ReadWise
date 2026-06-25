@@ -13,7 +13,7 @@
 import { test, describe, before } from "node:test";
 import assert from "node:assert/strict";
 
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 
 // ---------------------------------------------------------------------------
 // Module import stubs

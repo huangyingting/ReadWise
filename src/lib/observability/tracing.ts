@@ -13,7 +13,7 @@
  * id so traces correlate with the structured logs.
  *
  * Part of the observability package (REF-053). This is the canonical
- * implementation; `@/lib/tracing` is a re-export shim for backward compatibility.
+ * implementation.
  */
 import {
   SpanStatusCode,

@@ -1,5 +1,5 @@
 import { renderPrompt } from "@/lib/ai/prompts";
-import { moderateText } from "@/lib/ai/moderation";
+import { moderateText } from "@/lib/ai/output/moderation";
 import { str, pass, containsHtml } from "@/lib/ai/evals/assertions";
 import type { FeatureEvaluator, EvalPropertyResult } from "@/lib/ai/evals/types";
 

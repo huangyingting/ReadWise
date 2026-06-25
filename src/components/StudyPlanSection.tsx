@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Target, ArrowRight, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui";
-import type { StudyPlan } from "@/lib/study-plan";
+import type { StudyPlan } from "@/lib/learning/study-plan";
 
 /**
  * Renders the learner's weakness diagnostics + weekly study plan (RW-041).

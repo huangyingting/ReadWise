@@ -20,9 +20,9 @@
  * error aggregation — article text, selected text, prompts, tokens, cookies,
  * and other secrets can NEVER reach a security event.
  */
-import { createLogger, getRequestContext } from "@/lib/logger";
+import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import { recordSecurityEventMetric } from "@/lib/metrics";
-import { captureError, scrubContext } from "@/lib/error-reporting";
+import { captureError, scrubContext } from "@/lib/observability/errors";
 import {
   securityEventAlertThreshold,
   securityEventBufferSize,
@@ -61,7 +61,7 @@ export type SecurityEventInput = {
   status?: number;
   /** Opaque actor (user) id — never PII. */
   actorId?: string | null;
-  /** Normalized client IP from {@link "@/lib/client-ip"}. */
+  /** Normalized client IP from {@link "@/lib/security/client-ip"}. */
   ip?: string | null;
   /** Override the request id (defaults to the ambient logger context). */
   requestId?: string;

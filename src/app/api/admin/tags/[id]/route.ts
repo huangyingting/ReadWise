@@ -3,7 +3,7 @@ import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
 import { deleteTag, renameTag } from "@/lib/admin-tags";
 import { revalidateTagsCache } from "@/lib/cache";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 const renameBody = object({ name: nonEmptyString(200) });
 

@@ -19,7 +19,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createLogger, getRequestContext } from "@/lib/logger";
+import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import { analyticsEnabled } from "@/lib/runtime-config/analytics";
 import type { AnalyticsEventType } from "@/lib/analytics/events/catalog";
 import { sanitizeEventProperties } from "@/lib/analytics/events/sanitize";

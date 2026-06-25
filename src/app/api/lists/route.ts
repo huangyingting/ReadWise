@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
-import { getUserLists, createList } from "@/lib/bookmarks";
+import { getUserLists, createList } from "@/lib/article-library";
 
 const createBodySchema = object({ name: nonEmptyString(200) });
 

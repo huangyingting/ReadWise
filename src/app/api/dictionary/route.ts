@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
-import { lookupWord } from "@/lib/dictionary";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { recordWordExposure } from "@/lib/word-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { lookupWord } from "@/lib/lexical/lookup";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import { recordWordExposure } from "@/lib/learning/word-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { frequencyTier } from "@/lib/frequency";
 

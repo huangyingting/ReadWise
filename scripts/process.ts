@@ -4,7 +4,7 @@ import {
   listUnprocessedArticleIds,
   type ArticleProcessResult,
   type ProcessOptions,
-} from "@/lib/processor";
+} from "@/lib/processing/processor";
 import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";

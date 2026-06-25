@@ -13,11 +13,7 @@
  *   support-commands  — Operator support: revokeMemberSessions, exportMemberData,
  *                       triggerMemberRepair, resendSignInHelp
  *
- * Backward-compatible shims remain at the original paths for importers that
- * have not yet migrated:
- *   @/lib/account           → account-commands
- *   @/lib/admin-members     → member-list + member-commands
- *   @/lib/admin-member-detail → member-detail + support-commands
+ * Importers should use this barrel or the focused modules above directly.
  */
 
 export * from "./account-commands";

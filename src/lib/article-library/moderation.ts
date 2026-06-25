@@ -18,7 +18,7 @@ import { prisma } from "@/lib/prisma";
 import { ArticleStatus, type Prisma } from "@prisma/client";
 import { isValidCategorySlug } from "@/lib/categories";
 import { parseLevel } from "@/lib/difficulty";
-import { getArticleTags, setArticleTags } from "@/lib/tags";
+import { getArticleTags, setArticleTags } from "@/lib/article-library/collections";
 
 // ---------------------------------------------------------------------------
 // Review state

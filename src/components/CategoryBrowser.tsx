@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Inbox, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";

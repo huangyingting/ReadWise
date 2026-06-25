@@ -6,7 +6,7 @@ import {
   validateVocabulary,
   validateQuiz,
   validateTags,
-} from "@/lib/ai/validation";
+} from "@/lib/ai/output/validators";
 
 /** Minimal slug rule used to exercise tag dedup (mirrors slugifyTag shape). */
 function slugify(name: string): string {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useState } from "react";
-import type { DictionaryResult } from "@/lib/dictionary";
+import type { DictionaryResult } from "@/lib/lexical/provider";
 
 export function useDictionaryLookup() {
   const [word, setWord] = useState("");

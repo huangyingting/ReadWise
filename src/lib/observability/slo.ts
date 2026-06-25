@@ -18,7 +18,7 @@
  * alert.
  *
  * Part of the observability package (REF-053). This is the canonical
- * implementation; `@/lib/slo` is a re-export shim for backward compatibility.
+ * implementation.
  */
 import {
   getMetricsSnapshot,

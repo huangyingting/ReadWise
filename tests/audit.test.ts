@@ -34,7 +34,7 @@ beforeEach(() => {
 });
 
 test("recordAuditLog persists actor, target, request id and sanitized metadata", async () => {
-  const { recordAuditLog } = await import("@/lib/audit");
+  const { recordAuditLog } = await import("@/lib/security/audit");
 
   await recordAuditLog({
     action: "admin.member.role_update",
@@ -67,7 +67,7 @@ test("recordAuditLog persists actor, target, request id and sanitized metadata",
 });
 
 test("sanitizeAuditMetadata redacts secrets and PII-like values recursively", async () => {
-  const { sanitizeAuditMetadata } = await import("@/lib/audit");
+  const { sanitizeAuditMetadata } = await import("@/lib/security/audit");
 
   const sanitized = sanitizeAuditMetadata({
     safe: "role-change",
@@ -94,7 +94,7 @@ test("sanitizeAuditMetadata redacts secrets and PII-like values recursively", as
 });
 
 test("auditRequestInfo extracts bounded IP and user agent from request headers", async () => {
-  const { auditRequestInfo } = await import("@/lib/audit");
+  const { auditRequestInfo } = await import("@/lib/security/audit");
 
   const info = auditRequestInfo(
     new Request("http://test", {
@@ -112,7 +112,7 @@ test("auditRequestInfo extracts bounded IP and user agent from request headers",
 });
 
 test("recordAuditLog throws when durable persistence fails", async () => {
-  const { recordAuditLog } = await import("@/lib/audit");
+  const { recordAuditLog } = await import("@/lib/security/audit");
   createThrows = true;
 
   const originalError = console.error;
@@ -133,7 +133,7 @@ test("recordAuditLog throws when durable persistence fails", async () => {
 });
 
 test("recordAuditLog can write through a transaction client", async () => {
-  const { recordAuditLog } = await import("@/lib/audit");
+  const { recordAuditLog } = await import("@/lib/security/audit");
   const tx = {
     auditLog: {
       create: async (args: { data: Record<string, unknown> }) => {
@@ -158,7 +158,7 @@ test("recordAuditLog can write through a transaction client", async () => {
 });
 
 test("listAuditLogs returns parsed metadata without exposing invalid JSON", async () => {
-  const { listAuditLogs } = await import("@/lib/audit");
+  const { listAuditLogs } = await import("@/lib/security/audit");
   rows = [
     {
       id: "audit-1",

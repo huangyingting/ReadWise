@@ -13,7 +13,7 @@ import {
   type Schema,
 } from "@/lib/validation";
 import { MAX_TEXT_BYTES } from "@/lib/import";
-import { IMPORTS_PAGE_SIZE, IMPORTS_MAX_LIMIT } from "@/lib/articles";
+import { IMPORTS_PAGE_SIZE, IMPORTS_MAX_LIMIT } from "@/lib/article-library";
 
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;

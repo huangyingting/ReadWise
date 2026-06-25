@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/profile";
-import { publicListableArticleWhere } from "@/lib/article-access";
+import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
 
 export type BucketCount = { key: string; label: string; count: number };

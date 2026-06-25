@@ -16,9 +16,9 @@ import {
   type Schema,
   type ValidationResult,
 } from "@/lib/validation";
-import { ARTICLE_STATUSES } from "@/lib/article-access";
-import { REVIEW_STATES, type ReviewState } from "@/lib/content-review";
-import { TAKEDOWN_STATES, type TakedownState } from "@/lib/content-policy";
+import { ARTICLE_STATUSES } from "@/lib/article-library";
+import { REVIEW_STATES, type ReviewState } from "@/lib/article-library";
+import { TAKEDOWN_STATES, type TakedownState } from "@/lib/article-library";
 
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;

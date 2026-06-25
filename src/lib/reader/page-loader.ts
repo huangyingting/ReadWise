@@ -10,13 +10,13 @@
  */
 import type { Session } from "next-auth";
 import type { Article, ReadingProgress } from "@prisma/client";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
 import { getProgress, getProgressMap } from "@/lib/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
-import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
-import type { TagView } from "@/lib/tags";
-import { listCategoryPage, readingMinutesFor } from "@/lib/articles";
-import { getArticleListMembership } from "@/lib/bookmarks";
+import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/article-library";
+import type { TagView } from "@/lib/article-library";
+import { listCategoryPage, readingMinutesFor } from "@/lib/article-library";
+import { getArticleListMembership } from "@/lib/article-library";
 import { sanitizeArticleHtml, articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";

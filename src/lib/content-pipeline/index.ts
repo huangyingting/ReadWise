@@ -39,8 +39,6 @@
  * plain text from this function so that word-boundary positions are consistent
  * across features.
  *
- * `htmlToPlainText` was a deprecated backwards-compatible alias; removed in REF-009.
- *
  * ### Stage 5 — Paragraph splitting  (bilingual/parallel view)
  * `splitHtmlParagraphs`, `splitTranslationParagraphs`, and `alignParagraphs`
  * split sanitized HTML and translated text into block-level chunks for the

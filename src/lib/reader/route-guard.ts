@@ -11,8 +11,8 @@ import {
   articleAccessContext,
   getReadableArticleById,
   type ArticleAccessContext,
-} from "@/lib/article-access";
-import { checkRateLimit } from "@/lib/rate-limit";
+} from "@/lib/article-library";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
 /** Minimal user shape compatible with Session["user"] from createHandler. */
 export type ReaderUser = { id: string; role?: string | null };

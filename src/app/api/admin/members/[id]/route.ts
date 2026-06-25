@@ -3,7 +3,7 @@ import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/account-lifecycle";
 import type { Role } from "@prisma/client";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
 

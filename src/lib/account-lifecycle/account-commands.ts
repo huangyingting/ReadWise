@@ -11,7 +11,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import type { Prisma } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────

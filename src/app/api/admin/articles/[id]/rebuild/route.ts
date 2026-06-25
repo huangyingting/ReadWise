@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { rebuildArticleAi } from "@/lib/admin-articles";
+import { rebuildArticleAi } from "@/lib/article-library";
 import { revalidateTagsCache } from "@/lib/cache";
-import { articleAccessContext } from "@/lib/article-access";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { articleAccessContext } from "@/lib/article-library";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 export const POST = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
   const result = await rebuildArticleAi(params.id, articleAccessContext(session.user), (auditResult) => ({

@@ -2,8 +2,7 @@
  * Smoke tests for the observability package barrel (REF-053).
  *
  * Verifies that the `@/lib/observability` barrel re-exports every public symbol
- * expected from the package surface, and that the compatibility shims at the
- * old paths still resolve to the same runtime values (not duplicates).
+ * expected from the package surface.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -45,35 +44,6 @@ test("observability barrel exports SLO catalog and evaluator", async () => {
   assert.ok(Array.isArray(pkg.SLI_CATALOG));
   assert.ok(pkg.SLI_CATALOG.length > 0);
   assert.equal(typeof pkg.evaluateSlos, "function");
-});
-
-test("@/lib/logger shim resolves to the same createLogger as observability package", async () => {
-  const shim = await import("@/lib/logger");
-  const pkg = await import("@/lib/observability/logger");
-  // Both point to the same module singleton.
-  assert.equal(shim.createLogger, pkg.createLogger);
-  assert.equal(shim.runWithRequestContext, pkg.runWithRequestContext);
-});
-
-test("@/lib/error-reporting shim resolves to the same captureError as observability package", async () => {
-  const shim = await import("@/lib/error-reporting");
-  const pkg = await import("@/lib/observability/errors");
-  assert.equal(shim.captureError, pkg.captureError);
-  assert.equal(shim.fingerprint, pkg.fingerprint);
-});
-
-test("@/lib/tracing shim resolves to the same withSpan as observability package", async () => {
-  const shim = await import("@/lib/tracing");
-  const pkg = await import("@/lib/observability/tracing");
-  assert.equal(shim.withSpan, pkg.withSpan);
-  assert.equal(shim.sanitizeAttributes, pkg.sanitizeAttributes);
-});
-
-test("@/lib/slo shim resolves to the same SLI_CATALOG as observability package", async () => {
-  const shim = await import("@/lib/slo");
-  const pkg = await import("@/lib/observability/slo");
-  assert.equal(shim.SLI_CATALOG, pkg.SLI_CATALOG);
-  assert.equal(shim.evaluateSlos, pkg.evaluateSlos);
 });
 
 test("observability logger creates working structured logger via barrel", async () => {

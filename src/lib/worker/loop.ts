@@ -1,6 +1,6 @@
 import { recordWorkerJob } from "@/lib/metrics";
-import { withSpan } from "@/lib/tracing";
-import { captureError } from "@/lib/error-reporting";
+import { withSpan } from "@/lib/observability/tracing";
+import { captureError } from "@/lib/observability/errors";
 import {
   claimNextJob,
   completeJob,

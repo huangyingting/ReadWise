@@ -14,7 +14,7 @@ import {
   isArticleOperator,
   readableArticleWhere,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_MAX_LIMIT,

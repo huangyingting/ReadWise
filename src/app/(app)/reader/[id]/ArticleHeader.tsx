@@ -9,7 +9,7 @@
 import Link from "next/link";
 import { TagScope } from "@prisma/client";
 import type { Article, ReadingProgress } from "@prisma/client";
-import type { TagView } from "@/lib/tags";
+import type { TagView } from "@/lib/article-library";
 import { type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import OfflineDownloadButton from "@/components/OfflineDownloadButton";

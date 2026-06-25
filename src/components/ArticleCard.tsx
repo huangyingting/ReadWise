@@ -1,5 +1,5 @@
 import type { Article } from "@prisma/client";
-import { toListingArticle } from "@/lib/articles";
+import { toListingArticle } from "@/lib/article-library";
 import ArticleCardView, { type ArticleCardProgress } from "@/components/ArticleCardView";
 
 export type { ArticleCardProgress };

@@ -10,7 +10,7 @@ import StreakWidget from "@/components/StreakWidget";
 import DailyGoal from "@/components/DailyGoal";
 import MasteryWidget from "@/components/MasteryWidget";
 import type { StreakSummary } from "@/lib/activity";
-import type { QuizMastery } from "@/lib/quiz-mastery";
+import type { QuizMastery } from "@/lib/learning/quiz-mastery";
 
 interface DashboardProgressBandProps {
   streak: StreakSummary;

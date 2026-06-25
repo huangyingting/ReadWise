@@ -88,45 +88,45 @@ const validAnchor = {
 // ---------------------------------------------------------------------------
 
 test("validateAnchor rejects empty quote", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "  ", startOffset: 0, endOffset: 5 });
   assert.equal(r.ok, false);
 });
 
 test("validateAnchor rejects startOffset >= endOffset", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "hello", startOffset: 10, endOffset: 10 });
   assert.equal(r.ok, false);
   if (!r.ok) assert.match(r.error, /startOffset/);
 });
 
 test("validateAnchor rejects negative startOffset", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "hello", startOffset: -1, endOffset: 5 });
   assert.equal(r.ok, false);
 });
 
 test("validateAnchor rejects invalid color", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "hello", startOffset: 0, endOffset: 5, color: "purple" });
   assert.equal(r.ok, false);
   if (!r.ok) assert.match(r.error, /color/);
 });
 
 test("validateAnchor accepts valid anchor without optional fields", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "hello", startOffset: 0, endOffset: 5 });
   assert.equal(r.ok, true);
 });
 
 test("validateAnchor accepts valid anchor with color", async () => {
-  const { validateAnchor } = await import("@/lib/highlights");
+  const { validateAnchor } = await import("@/lib/annotations");
   const r = validateAnchor({ quote: "hello", startOffset: 0, endOffset: 5, color: "yellow" });
   assert.equal(r.ok, true);
 });
 
 test("createHighlight returns 400 for invalid anchor", async () => {
-  const { createHighlight } = await import("@/lib/highlights");
+  const { createHighlight } = await import("@/lib/annotations");
   const result = await createHighlight("user-1", "art-1", {
     quote: "",
     startOffset: 0,
@@ -146,7 +146,7 @@ test("createHighlight uses upsert for idempotent creation on valid input", async
     updatedAt: new Date(),
   };
   stubCreated = expectedRow;
-  const { createHighlight } = await import("@/lib/highlights");
+  const { createHighlight } = await import("@/lib/annotations");
   const result = await createHighlight("user-1", "art-1", validAnchor);
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.highlight.id, "h-1");
@@ -154,7 +154,7 @@ test("createHighlight uses upsert for idempotent creation on valid input", async
 
 test("updateHighlight returns 404 when not owner", async () => {
   stubFindFirst = null; // ownership check fails
-  const { updateHighlight } = await import("@/lib/highlights");
+  const { updateHighlight } = await import("@/lib/annotations");
   const result = await updateHighlight("h-99", "user-1", { note: "My note" });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -162,7 +162,7 @@ test("updateHighlight returns 404 when not owner", async () => {
 
 test("updateHighlight returns 400 for invalid color", async () => {
   stubFindFirst = { id: "h-1" };
-  const { updateHighlight } = await import("@/lib/highlights");
+  const { updateHighlight } = await import("@/lib/annotations");
   const result = await updateHighlight("h-1", "user-1", { color: "rainbow" });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
@@ -178,7 +178,7 @@ test("updateHighlight succeeds for owner with valid note", async () => {
     createdAt: new Date(),
     updatedAt: new Date(),
   };
-  const { updateHighlight } = await import("@/lib/highlights");
+  const { updateHighlight } = await import("@/lib/annotations");
   const result = await updateHighlight("h-1", "user-1", { note: "My note" });
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.highlight.note, "My note");
@@ -186,7 +186,7 @@ test("updateHighlight succeeds for owner with valid note", async () => {
 
 test("deleteHighlight returns 404 when not owner", async () => {
   stubFindFirst = null;
-  const { deleteHighlight } = await import("@/lib/highlights");
+  const { deleteHighlight } = await import("@/lib/annotations");
   const result = await deleteHighlight("h-99", "user-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -194,7 +194,7 @@ test("deleteHighlight returns 404 when not owner", async () => {
 
 test("deleteHighlight succeeds for owner", async () => {
   stubFindFirst = { id: "h-1" };
-  const { deleteHighlight } = await import("@/lib/highlights");
+  const { deleteHighlight } = await import("@/lib/annotations");
   const result = await deleteHighlight("h-1", "user-1");
   assert.equal(result.ok, true);
 });

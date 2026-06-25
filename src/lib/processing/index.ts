@@ -11,8 +11,6 @@
  *   processing/admin-ops.ts  — content-ops read model (getContentOpsOverview)
  *
  * External importers may use this barrel or the individual sub-modules directly.
- * The old module paths (src/lib/processor.ts, src/lib/processing-state.ts,
- * src/lib/backfill.ts) are backward-compatible shims that re-export from here.
  */
 export * from "./registry";
 export * from "./state";

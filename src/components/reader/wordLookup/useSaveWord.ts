@@ -2,7 +2,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { RefObject } from "react";
-import type { DictionaryResult } from "@/lib/dictionary";
+import type { DictionaryResult } from "@/lib/lexical/provider";
 import { extractContextSentence } from "./selectionHelpers";
 
 /**

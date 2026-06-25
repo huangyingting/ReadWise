@@ -7,7 +7,7 @@
  * `src/lib/learning/`; they must stay pure (no Prisma, no I/O).
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("learning");
 

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { throwIfFailed } from "@/lib/result";
 import { object, nonEmptyString } from "@/lib/validation";
-import { removeFromList } from "@/lib/bookmarks";
+import { removeFromList } from "@/lib/article-library";
 
 /** Validates both the list id and the article id from the URL path. */
 const itemParams = object({

@@ -47,7 +47,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/flashcards", {
+  mock.module("@/lib/learning/flashcards", {
     namedExports: {
       getDueFlashcards: async () => flashcards,
       gradeFlashcard: async (_uid: string, _id: string, _grade: string) => gradeResult,

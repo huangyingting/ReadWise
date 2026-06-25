@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { getArticleQuizHistory } from "@/lib/quiz-mastery";
+import { getArticleQuizHistory } from "@/lib/learning/quiz-mastery";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 
 /**

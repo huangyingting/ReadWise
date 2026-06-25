@@ -17,7 +17,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { PROVIDERS } from "@/lib/scraper/providers";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { recordIngestionRun } from "@/lib/metrics";
 
 const log = createLogger("content-sources");

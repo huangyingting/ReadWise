@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { gradeFlashcard, getReviewSummary } from "@/lib/flashcards";
-import type { Grade } from "@/lib/srs";
+import { gradeFlashcard, getReviewSummary } from "@/lib/learning/flashcards";
+import type { Grade } from "@/lib/learning/srs";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { flashcardGradeBody } from "@/lib/study/schemas";
 

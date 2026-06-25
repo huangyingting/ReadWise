@@ -85,10 +85,10 @@ before(() => {
   mock.module("@/lib/quiz", {
     namedExports: { getOrCreateArticleQuiz: async () => quizResult },
   });
-  mock.module("@/lib/dictionary", {
+  mock.module("@/lib/lexical/lookup", {
     namedExports: { lookupWord: async () => dictionaryResult },
   });
-  mock.module("@/lib/admin-articles", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       searchArticles: async () => searchArticlesResult,
       deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
@@ -96,6 +96,7 @@ before(() => {
         if (audit) auditCalls.push(audit);
         return true;
       },
+      getViewableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
     },
   });
   mock.module("@/lib/cache", {
@@ -112,7 +113,7 @@ before(() => {
       TAGS_CACHE_TAG: "tags",
     },
   });
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS,
       auditRequestInfo: () => ({}),
@@ -136,11 +137,6 @@ before(() => {
       tryRecordAuditLog: async (input: unknown) => {
         auditCalls.push(input);
       },
-    },
-  });
-  mock.module("@/lib/articles", {
-    namedExports: {
-      getViewableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
     },
   });
 });

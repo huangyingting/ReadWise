@@ -5,7 +5,7 @@ import {
   isTextSafe,
   isRemoteModerationEnabled,
   MODERATION_FALLBACK_MESSAGE,
-} from "@/lib/ai/moderation";
+} from "@/lib/ai/output/moderation";
 
 afterEach(() => {
   delete process.env.AI_MODERATION_ENABLED;

@@ -1,5 +1,5 @@
 import type { MetadataRoute } from "next";
-import { listPublishedArticles } from "@/lib/articles";
+import { listPublishedArticles } from "@/lib/article-library";
 
 const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??

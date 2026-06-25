@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getStreakSummary } from "@/lib/activity";
-import { getReviewSummary } from "@/lib/flashcards";
+import { getReviewSummary } from "@/lib/learning/flashcards";
 
 /**
  * GET /api/gamification/summary

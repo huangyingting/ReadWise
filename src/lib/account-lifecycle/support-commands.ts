@@ -20,13 +20,13 @@ import { prisma } from "@/lib/prisma";
 import {
   recordAuditFromRequest,
   type AuditRequestInput,
-} from "@/lib/audit";
+} from "@/lib/security/audit";
 import { exportUserData } from "./account-commands";
 import {
   runBackfill,
   BACKFILL_FEATURES,
   type BackfillResult,
-} from "@/lib/backfill";
+} from "@/lib/processing/backfill";
 
 type AuditFactory<T> = (result: T) => AuditRequestInput;
 

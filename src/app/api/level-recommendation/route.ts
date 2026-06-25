@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
 /**
  * GET /api/level-recommendation

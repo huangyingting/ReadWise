@@ -48,7 +48,7 @@ before(() => {
       requireCapabilityApi: async () => gate(),
     },
   });
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS: {
         adminSourceToggle: "admin.source.toggle",
@@ -91,17 +91,13 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/content-policy", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       TAKEDOWN_STATES: ["active", "unpublished", "archived", "takedown"],
       applyTakedown: async (input: unknown) => {
         takedownCalls.push(input);
         return takedownResult;
       },
-    },
-  });
-  mock.module("@/lib/content-review", {
-    namedExports: {
       REVIEW_STATES: ["unreviewed", "approved", "needs_work", "rejected"],
       reviewArticle: async (input: unknown) => {
         reviewCalls.push(input);

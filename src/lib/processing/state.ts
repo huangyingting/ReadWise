@@ -19,7 +19,7 @@
  *     target language ("translation:es") so each language has its own timeline.
  */
 import { prisma } from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { FEATURE_KEYS, type FeatureKey } from "./registry";
 
 const log = createLogger("processing-state");

@@ -4,7 +4,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma, JobType, type Job } from "@prisma/client";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { recordJobLockAge, recordJobQueueEvent } from "@/lib/metrics";
 
 const log = createLogger("jobs");

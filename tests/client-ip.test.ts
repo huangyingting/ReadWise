@@ -13,7 +13,7 @@ import {
   resolveClientIp,
   clientIp,
   clientIpKey,
-} from "@/lib/client-ip";
+} from "@/lib/security/client-ip";
 
 const TRUSTED_ENV = [
   "TRUSTED_PROXY_HOPS",

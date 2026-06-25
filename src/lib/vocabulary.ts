@@ -4,7 +4,7 @@ import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
-import type { ArticleAccessContext } from "@/lib/article-access";
+import type { ArticleAccessContext } from "@/lib/article-library";
 import {
   getSavedWordSet,
   getSavedWords,

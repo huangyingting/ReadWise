@@ -1,5 +1,5 @@
-import { processArticle } from "@/lib/processor";
-import { createLogger } from "@/lib/logger";
+import { processArticle } from "@/lib/processing/processor";
+import { createLogger } from "@/lib/observability/logger";
 import { claimNextJob, completeJob, failJob, startJob, type JobType } from "@/lib/jobs";
 import { sleep } from "./sleep";
 import { createDefaultRegistry } from "./registry";

@@ -11,7 +11,7 @@ import {
   speechTimeoutMs,
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/runtime-config/speech";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import type { SpeechWord } from "@/lib/speech-timing";
 
 const log = createLogger("speech");

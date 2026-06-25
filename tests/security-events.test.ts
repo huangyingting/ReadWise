@@ -37,9 +37,9 @@ beforeEach(async () => {
   authState = "ok";
   delete process.env.SECURITY_EVENT_ALERT_THRESHOLD;
   delete process.env.SECURITY_EVENT_WINDOW_MS;
-  const { resetSecurityEvents } = await import("@/lib/security-events");
+  const { resetSecurityEvents } = await import("@/lib/security/events");
   const { resetErrorReporting, resetMetrics } = {
-    ...(await import("@/lib/error-reporting")),
+    ...(await import("@/lib/observability/errors")),
     ...(await import("@/lib/metrics")),
   };
   resetSecurityEvents();
@@ -54,7 +54,7 @@ afterEach(() => {
 // ---- field capture + redaction -------------------------------------------
 
 test("a 403 event captures the expected fields and redacts sensitive metadata", async () => {
-  const { recordSecurityEvent, getRecentSecurityEvents } = await import("@/lib/security-events");
+  const { recordSecurityEvent, getRecentSecurityEvents } = await import("@/lib/security/events");
 
   recordSecurityEvent({
     type: "auth.forbidden",
@@ -86,7 +86,7 @@ test("a 403 event captures the expected fields and redacts sensitive metadata", 
 });
 
 test("getRecentSecurityEvents returns newest-first and respects the limit", async () => {
-  const { recordSecurityEvent, getRecentSecurityEvents } = await import("@/lib/security-events");
+  const { recordSecurityEvent, getRecentSecurityEvents } = await import("@/lib/security/events");
   recordSecurityEvent({ type: "auth.unauthorized", severity: "low", actorId: "a" });
   recordSecurityEvent({ type: "rate_limit.exceeded", severity: "medium", actorId: "b" });
   const events = getRecentSecurityEvents(1);
@@ -97,7 +97,7 @@ test("getRecentSecurityEvents returns newest-first and respects the limit", asyn
 // ---- metric --------------------------------------------------------------
 
 test("recording an event increments the security metric", async () => {
-  const { recordSecurityEvent } = await import("@/lib/security-events");
+  const { recordSecurityEvent } = await import("@/lib/security/events");
   const { getMetricsSnapshot } = await import("@/lib/metrics");
   recordSecurityEvent({ type: "auth.forbidden", severity: "medium", status: 403 });
   const point = getMetricsSnapshot().counters.find(
@@ -114,8 +114,8 @@ test("recording an event increments the security metric", async () => {
 test("repeated events past the threshold fire the alert hook", async () => {
   process.env.SECURITY_EVENT_ALERT_THRESHOLD = "3";
   process.env.SECURITY_EVENT_WINDOW_MS = "60000";
-  const { recordSecurityEvent } = await import("@/lib/security-events");
-  const { setAlertHook } = await import("@/lib/error-reporting");
+  const { recordSecurityEvent } = await import("@/lib/security/events");
+  const { setAlertHook } = await import("@/lib/observability/errors");
 
   let alerts = 0;
   restores.push(setAlertHook(() => { alerts += 1; }));
@@ -129,8 +129,8 @@ test("repeated events past the threshold fire the alert hook", async () => {
 });
 
 test("a HIGH severity event is routed through the error-reporting seam", async () => {
-  const { recordSecurityEvent } = await import("@/lib/security-events");
-  const { setErrorSink } = await import("@/lib/error-reporting");
+  const { recordSecurityEvent } = await import("@/lib/security/events");
+  const { setErrorSink } = await import("@/lib/observability/errors");
 
   const captured: Array<{ name: string; source: string }> = [];
   restores.push(setErrorSink((record) => captured.push(record)));
@@ -147,8 +147,8 @@ test("a HIGH severity event is routed through the error-reporting seam", async (
 });
 
 test("a single LOW severity event does not escalate", async () => {
-  const { recordSecurityEvent } = await import("@/lib/security-events");
-  const { setErrorSink } = await import("@/lib/error-reporting");
+  const { recordSecurityEvent } = await import("@/lib/security/events");
+  const { setErrorSink } = await import("@/lib/observability/errors");
   const captured: unknown[] = [];
   restores.push(setErrorSink((record) => captured.push(record)));
   const record = recordSecurityEvent({ type: "auth.unauthorized", severity: "low" });
@@ -161,7 +161,7 @@ test("a single LOW severity event does not escalate", async () => {
 test("an unauthenticated request emits an auth.unauthorized event", async () => {
   authState = "unauth";
   const { createHandler } = await import("@/lib/api-handler");
-  const { getRecentSecurityEvents } = await import("@/lib/security-events");
+  const { getRecentSecurityEvents } = await import("@/lib/security/events");
   const handler = createHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
 
   const res = await handler(new Request("http://app.example/api/secret"));
@@ -183,7 +183,7 @@ test("GET /api/admin/security/events requires an admin (403 for non-admin)", asy
 });
 
 test("GET /api/admin/security/events returns buffered events for an admin", async () => {
-  const { recordSecurityEvent } = await import("@/lib/security-events");
+  const { recordSecurityEvent } = await import("@/lib/security/events");
   recordSecurityEvent({ type: "rate_limit.exceeded", severity: "medium", status: 429 });
 
   const { GET } = (await import("@/app/api/admin/security/events/route")) as { GET: RouteHandler };

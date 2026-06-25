@@ -14,7 +14,7 @@ let auditCalls: { action: string }[] = [];
 
 before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: {} } });
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS: {},
       recordAuditFromRequest: async (input: { action: string }) => {
@@ -22,10 +22,10 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/account", {
+  mock.module("@/lib/account-lifecycle/account-commands", {
     namedExports: { exportUserData: async (id: string) => ({ user: { id } }) },
   });
-  mock.module("@/lib/backfill", {
+  mock.module("@/lib/processing/backfill", {
     namedExports: {
       BACKFILL_FEATURES: ["difficulty", "tags"],
       runBackfill: async () => ({ enqueued: 1, skippedExisting: 0 }),
@@ -82,7 +82,7 @@ function detailClient(user: unknown) {
 }
 
 test("getMemberDetail assembles profile, progress, imports and audit", async () => {
-  const { getMemberDetail } = await import("@/lib/admin-member-detail");
+  const { getMemberDetail } = await import("@/lib/account-lifecycle/member-detail");
   const user = {
     id: "u1",
     name: "Ada",
@@ -119,13 +119,13 @@ test("getMemberDetail assembles profile, progress, imports and audit", async () 
 });
 
 test("getMemberDetail returns null for a missing user", async () => {
-  const { getMemberDetail } = await import("@/lib/admin-member-detail");
+  const { getMemberDetail } = await import("@/lib/account-lifecycle/member-detail");
   const detail = await getMemberDetail("nope", detailClient(null) as never);
   assert.equal(detail, null);
 });
 
 test("revokeMemberSessions deletes sessions and audits", async () => {
-  const { revokeMemberSessions } = await import("@/lib/admin-member-detail");
+  const { revokeMemberSessions } = await import("@/lib/account-lifecycle/support-commands");
   let deletedFor: string | null = null;
   const client = {
     user: { findUnique: async () => ({ id: "u1" }) },
@@ -147,7 +147,7 @@ test("revokeMemberSessions deletes sessions and audits", async () => {
 });
 
 test("revokeMemberSessions returns 404 for a missing user", async () => {
-  const { revokeMemberSessions } = await import("@/lib/admin-member-detail");
+  const { revokeMemberSessions } = await import("@/lib/account-lifecycle/support-commands");
   const client = {
     user: { findUnique: async () => null },
     session: { deleteMany: async () => ({ count: 0 }) },

@@ -56,7 +56,7 @@ beforeEach(() => {
 });
 
 test("applyTakedown unpublishes a published article and records history", async () => {
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({
     articleId: "a1",
     state: "takedown",
@@ -82,7 +82,7 @@ test("applyTakedown unpublishes a published article and records history", async 
 
 test("restoring to active does NOT auto-publish", async () => {
   articles.set("a1", { id: "a1", takedownState: "takedown", status: "DRAFT", rightsNote: null });
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "active" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -92,7 +92,7 @@ test("restoring to active does NOT auto-publish", async () => {
 });
 
 test("applyTakedown returns 404 for an unknown article", async () => {
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "missing", state: "unpublished" });
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -100,7 +100,7 @@ test("applyTakedown returns 404 for an unknown article", async () => {
 });
 
 test("applyTakedown rejects an invalid state with 400", async () => {
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({
     articleId: "a1",
     state: "bogus" as unknown as "active",
@@ -112,7 +112,7 @@ test("applyTakedown rejects an invalid state with 400", async () => {
 
 test("applyTakedown on a FAILED article preserves FAILED status", async () => {
   articles.set("a1", { id: "a1", takedownState: "active", status: "FAILED", rightsNote: null });
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "takedown" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -124,7 +124,7 @@ test("applyTakedown on a FAILED article preserves FAILED status", async () => {
 
 test("applyTakedown on an ARCHIVED article preserves ARCHIVED status", async () => {
   articles.set("a1", { id: "a1", takedownState: "active", status: "ARCHIVED", rightsNote: null });
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "unpublished" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -134,7 +134,7 @@ test("applyTakedown on an ARCHIVED article preserves ARCHIVED status", async () 
 
 test("applyTakedown on a DRAFT article preserves DRAFT status", async () => {
   articles.set("a1", { id: "a1", takedownState: "active", status: "DRAFT", rightsNote: null });
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "archived" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -144,7 +144,7 @@ test("applyTakedown on a DRAFT article preserves DRAFT status", async () => {
 
 test("restoring a FAILED article to active leaves status as FAILED", async () => {
   articles.set("a1", { id: "a1", takedownState: "takedown", status: "FAILED", rightsNote: null });
-  const { applyTakedown } = await import("@/lib/content-policy");
+  const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "active" });
   assert.equal(result.ok, true);
   if (!result.ok) return;

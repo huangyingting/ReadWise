@@ -9,11 +9,11 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, type Article } from "@prisma/client";
 import { readingMinutesFor } from "./mapper";
-import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import {
   getArticleProcessingSteps,
   type StepRow,
-} from "@/lib/processing-state";
+} from "@/lib/processing/state";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   adminVisibleArticleWhere,

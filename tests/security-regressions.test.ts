@@ -54,7 +54,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: (user: MockUser): MockAccessContext => ({
         userId: user?.id ?? null,
@@ -75,11 +75,6 @@ before(() => {
         sourceType: ArticleSourceType.IMPORTED,
         ownerId,
       }),
-    },
-  });
-
-  mock.module("@/lib/articles", {
-    namedExports: {
       getViewableArticleById: async (id: string, role?: string | null, userId?: string | null) => {
         viewableCalls.push({ id, role, userId });
         return viewableArticle;
@@ -90,10 +85,14 @@ before(() => {
       toListingArticle: (article: unknown) => article,
       IMPORTS_PAGE_SIZE: 20,
       IMPORTS_MAX_LIMIT: 50,
+      getOrCreateArticleTags: async () => {
+        helperCalls.push("tags");
+        return { articleId: "private-article", tags: [], fallback: false };
+      },
     },
   });
 
-  mock.module("@/lib/rate-limit", {
+  mock.module("@/lib/security/rate-limit/index", {
     namedExports: {
       checkRateLimit: (userId: string, scope: string) => {
         rateLimitCalls.push({ userId, scope });
@@ -139,15 +138,6 @@ before(() => {
       getOrCreateArticleSpeech: async () => {
         helperCalls.push("speech");
         return { audioBase64: "AAAA", mimeType: "audio/mpeg", words: [] };
-      },
-    },
-  });
-
-  mock.module("@/lib/tags", {
-    namedExports: {
-      getOrCreateArticleTags: async () => {
-        helperCalls.push("tags");
-        return { articleId: "private-article", tags: [], fallback: false };
       },
     },
   });
@@ -261,7 +251,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS: {
         articleImport: "article.import",

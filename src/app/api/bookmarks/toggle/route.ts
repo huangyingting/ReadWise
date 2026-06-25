@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { throwIfFailed } from "@/lib/result";
-import { toggleBookmark } from "@/lib/bookmarks";
-import { toggleBookmarkBody } from "@/lib/bookmarks/schemas";
+import { toggleBookmark } from "@/lib/article-library";
+import { toggleBookmarkBody } from "@/lib/article-library/collections/schemas";
 
 /**
  * POST /api/bookmarks/toggle — toggles the article in the user's default

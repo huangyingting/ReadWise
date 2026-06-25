@@ -16,7 +16,7 @@ import {
 } from "@/components/ui/Badge";
 import { CATEGORIES } from "@/lib/categories";
 import { cn } from "@/lib/cn";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 import type { SelectableItem } from "./command-items";
 
 // ---- OptionRow -----------------------------------------------------------

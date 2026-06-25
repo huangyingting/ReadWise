@@ -37,7 +37,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: (user: { id: string; role: string }) => ({
         userId: user.id,

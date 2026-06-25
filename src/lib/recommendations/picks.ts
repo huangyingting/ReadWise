@@ -14,8 +14,8 @@ import {
   readingMinutesFor,
   type ArticleCardSource,
   type ListingArticle,
-} from "@/lib/articles";
-import { publicListableArticleWhere } from "@/lib/article-access";
+} from "@/lib/article-library";
+import { publicListableArticleWhere } from "@/lib/article-library";
 import {
   createCachedListing,
   ARTICLES_CACHE_TAG,

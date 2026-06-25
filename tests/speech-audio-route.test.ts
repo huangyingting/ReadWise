@@ -45,7 +45,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: (user: unknown) => ({ userId: (user as { id?: string })?.id ?? null, role: (user as { role?: string })?.role ?? null }),
       getReadableArticleById: async () =>

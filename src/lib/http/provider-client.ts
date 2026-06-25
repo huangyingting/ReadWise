@@ -22,7 +22,7 @@
  *  - `client`     → src/lib/client-fetch.ts (browser-side)
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { jitteredExponentialBackoff } from "@/lib/backoff";
 
 const log = createLogger("http.provider");

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { exportUserData } from "@/lib/account-lifecycle";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 export const GET = createHandler({}, async ({ req, session, requestId }) => {
   const data = await exportUserData(session.user.id, {

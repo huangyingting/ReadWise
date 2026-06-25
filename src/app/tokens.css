@@ -6,15 +6,8 @@
  *   1. Theme-invariant scales (type / spacing / radii / motion) on :root.
  *   2. Semantic color + elevation tokens — LIGHT is the :root default,
  *      DARK via :root[data-theme="dark"] and a prefers-color-scheme fallback.
- *   3. Legacy-compat aliases so base.css keeps resolving its
- *      var(--panel/--muted/--accent/...) names unchanged.
  *
  * Values are the Studio token spec (.squad/decisions/inbox/saul-studio-tokens.md).
- *
- * NOTE on --accent: the legacy CSS uses `--accent` as the brand/link colour, so
- * per the locked architecture it aliases to the indigo `--primary`. The teal
- * "accent" lives under the distinct `--teal*` tokens (exposed to new components
- * via the Tailwind `accent` colour utility in base.css). No legacy edit needed.
  */
 
 :root {
@@ -105,7 +98,7 @@
   --on-primary: #ffffff;
   --primary-text: #4f46e5;
 
-  /* Accent — Teal (Studio decorative accent; see --accent alias note above) */
+  /* Accent — Teal (Studio decorative accent) */
   --teal: #0d9488;
   --teal-hover: #0f766e;
   --teal-text: #0f766e;
@@ -167,11 +160,6 @@
   --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08), 0 2px 4px rgba(15, 23, 42, 0.06);
   --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12), 0 6px 12px rgba(15, 23, 42, 0.08);
   --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.16), 0 12px 24px rgba(15, 23, 42, 0.1);
-
-  /* --accent aliases --primary (the brand/link colour) for selectors that use it.
-   * --panel and --muted legacy aliases were removed in REF-009; selectors now
-   * reference --surface and --text-muted directly. */
-  --accent: var(--primary);
 
   /* ---- Semantic teal accent aliases (reading-state only) ----
    * Teal signals reading state ONLY (progress fills, CEFR badges, active-nav
