@@ -1,214 +1,29 @@
-import { TrendingUp, BookOpen, Zap, Star, Brain, BookMarked } from "lucide-react";
+import { TrendingUp } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { getLearnerAnalytics } from "@/lib/analytics/learner";
-import { getActivityHeatmap } from "@/lib/activity";
-import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
-import { getReadingSpeedStats } from "@/lib/reading-speed-stats";
-import { Card } from "@/components/ui/Card";
 import EmptyState from "@/components/EmptyState";
-import Sparkline from "@/components/Sparkline";
-import ActivityHeatmap from "@/components/ActivityHeatmap";
-import LevelTimeline from "@/components/LevelTimeline";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { progress } from "@/lib/copy/pages";
+import { loadProgressViewModel } from "@/app/(app)/progress/view-model";
+import { ProgressOverviewSection } from "@/app/(app)/progress/_sections/ProgressOverviewSection";
+import { ReadingActivitySection } from "@/app/(app)/progress/_sections/ReadingActivitySection";
+import { VocabularyGrowthSection } from "@/app/(app)/progress/_sections/VocabularyGrowthSection";
+import { QuizTrendSection } from "@/app/(app)/progress/_sections/QuizTrendSection";
+import { LevelDistributionSection } from "@/app/(app)/progress/_sections/LevelDistributionSection";
+import { HeatmapSection } from "@/app/(app)/progress/_sections/HeatmapSection";
+import { LevelTimelineSection } from "@/app/(app)/progress/_sections/LevelTimelineSection";
 
 export const metadata = progress;
 
-// ---------------------------------------------------------------------------
-// Mini bar-chart (pure CSS/div — no chart lib needed)
-// ---------------------------------------------------------------------------
-function MiniBar({
-  value,
-  max,
-  label,
-  color = "var(--teal)",
-}: {
-  value: number;
-  max: number;
-  label: string;
-  color?: string;
-}) {
-  const pct = max > 0 ? Math.round((value / max) * 100) : 0;
-  return (
-    <div className="flex items-center gap-[var(--space-2)]" title={label}>
-      <div
-        className="flex-1 rounded-full overflow-hidden"
-        style={{ height: 8, backgroundColor: "var(--border)" }}
-        role="presentation"
-      >
-        <div
-          style={{ width: `${pct}%`, height: "100%", backgroundColor: color, borderRadius: 9999 }}
-        />
-      </div>
-      <span
-        className="text-[length:var(--text-xs)] text-text-subtle tabular-nums"
-        style={{ minWidth: "2ch", textAlign: "right" }}
-        aria-label={`${value} ${label}`}
-      >
-        {value}
-      </span>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Weekly bar chart (12 bars)
-// ---------------------------------------------------------------------------
-function WeeklyBars({
-  buckets,
-  label,
-  color = "var(--teal)",
-}: {
-  buckets: { week: string; count: number }[];
-  label: string;
-  color?: string;
-}) {
-  const max = Math.max(...buckets.map((b) => b.count), 1);
-  const CHART_H = 64;
-  return (
-    <figure aria-label={label}>
-      <figcaption className="sr-only">{label}</figcaption>
-
-      {/* Bar chart — baseline rendered via border-b */}
-      <div
-        className="flex items-end gap-[var(--space-1)] border-b border-border"
-        style={{ height: CHART_H }}
-      >
-        {buckets.map((b) => {
-          const barH =
-            b.count > 0
-              ? Math.max(Math.round((b.count / max) * (CHART_H - 8)), 4)
-              : CHART_H; // ghost bar: full height, very faint
-          const weekLabel = `Week of ${b.week.replace(/^\d{4}-/, "")}: ${b.count}`;
-          return (
-            <div
-              key={b.week}
-              className="flex-1 rounded-t-sm transition-all"
-              style={{
-                height: barH,
-                backgroundColor: b.count > 0 ? color : "var(--border)",
-                opacity: b.count > 0 ? 1 : 0.12,
-              }}
-              role="img"
-              aria-label={weekLabel}
-              title={`${b.week}: ${b.count}`}
-            />
-          );
-        })}
-      </div>
-
-      {/* Week axis labels — first and last only */}
-      <div className="flex justify-between mt-1">
-        <span className="text-[length:var(--text-xs)] text-text-subtle">
-          {buckets[0]?.week.replace(/^\d{4}-/, "")}
-        </span>
-        <span className="text-[length:var(--text-xs)] text-text-subtle">
-          {buckets[buckets.length - 1]?.week.replace(/^\d{4}-/, "")}
-        </span>
-      </div>
-
-      {/* Visually-hidden data table for screen readers */}
-      <table className="sr-only">
-        <caption>{label}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Week</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buckets.map((b) => (
-            <tr key={b.week}>
-              <td>{b.week}</td>
-              <td>{b.count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </figure>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Stat card
-// ---------------------------------------------------------------------------
-function StatCard({
-  icon: Icon,
-  label,
-  value,
-  sub,
-  color = "var(--teal)",
-}: {
-  icon: typeof TrendingUp;
-  label: string;
-  value: string | number;
-  sub?: string;
-  color?: string;
-}) {
-  return (
-    <Card>
-      <div className="flex items-start gap-[var(--space-3)]">
-        <span
-          className="shrink-0 rounded-[var(--radius-md)] p-[var(--space-2)]"
-          style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}
-          aria-hidden
-        >
-          <Icon size={20} style={{ color }} />
-        </span>
-        <div>
-          <p className="text-[length:var(--text-sm)] text-text-subtle">{label}</p>
-          <p
-            className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text leading-tight"
-          >
-            {value}
-          </p>
-          {sub && <p className="text-[length:var(--text-xs)] text-text-subtle mt-[var(--space-1)]">{sub}</p>}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Page
-// ---------------------------------------------------------------------------
 export default async function ProgressPage() {
   const session = await requireOnboardedSession("/progress");
-  const [analytics, heatmapCells, levelHistory, currentLevel, speedStats] = await Promise.all([
-    getLearnerAnalytics(session.user.id),
-    getActivityHeatmap(session.user.id),
-    getLevelHistory(session.user.id),
-    getCurrentLevel(session.user.id),
-    getReadingSpeedStats(session.user.id),
-  ]);
-
-  const {
-    totalCompleted,
-    totalInProgress,
-    totalSavedWords,
-    totalQuizAttempts,
-    averageQuizScore,
-    completionsByWeek,
-    wordsByWeek,
-    quizScoreTrend,
-    completedByLevel,
-    currentStreak,
-    longestStreak,
-  } = analytics;
-
-  const hasAnyData = totalCompleted + totalInProgress + totalSavedWords + totalQuizAttempts > 0;
-
-  const sparkLabel =
-    quizScoreTrend.length > 0
-      ? `Recent quiz scores oldest to newest: ${quizScoreTrend.join(", ")} percent.`
-      : "No quiz attempts yet.";
+  const vm = await loadProgressViewModel(session.user.id);
 
   return (
     <PageShell variant="listing">
       <PageHeader title="My Progress" />
 
-      {!hasAnyData && !currentLevel ? (
+      {!vm.hasAnyData && !vm.currentLevel ? (
         <EmptyState
           icon={TrendingUp}
           title="Nothing to show yet"
@@ -218,231 +33,26 @@ export default async function ProgressPage() {
       ) : (
         <div className="flex flex-col gap-[var(--space-7)]">
 
-          {hasAnyData && (
+          {vm.hasAnyData && (
             <>
-          {/* ── Stat overview ── */}
-          <section aria-labelledby="overview-h">
-            <h2
-              id="overview-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-            >
-              Overview
-            </h2>
-            <div className="grid grid-cols-2 gap-[var(--space-4)] sm:grid-cols-3 lg:grid-cols-4">
-              <StatCard
-                icon={BookOpen}
-                label="Articles completed"
-                value={totalCompleted}
-                color="var(--teal)"
+              <ProgressOverviewSection analytics={vm.analytics} speedStats={vm.speedStats} />
+              <ReadingActivitySection completionsByWeek={vm.analytics.completionsByWeek} />
+              <VocabularyGrowthSection
+                wordsByWeek={vm.analytics.wordsByWeek}
+                totalSavedWords={vm.analytics.totalSavedWords}
               />
-              <StatCard
-                icon={BookMarked}
-                label="In progress"
-                value={totalInProgress}
-                color="var(--primary)"
+              <QuizTrendSection
+                quizScoreTrend={vm.analytics.quizScoreTrend}
+                averageQuizScore={vm.analytics.averageQuizScore}
+                totalQuizAttempts={vm.analytics.totalQuizAttempts}
+                sparkLabel={vm.sparkLabel}
               />
-              <StatCard
-                icon={Brain}
-                label="Words saved"
-                value={totalSavedWords}
-                color="var(--stat-vocab)"
-              />
-              <StatCard
-                icon={Zap}
-                label="Current streak"
-                value={`${currentStreak}d`}
-                sub={`Best: ${longestStreak} day${longestStreak !== 1 ? "s" : ""}`}
-                color="var(--stat-streak)"
-              />
-              {averageQuizScore !== null && (
-                <StatCard
-                  icon={Star}
-                  label="Avg quiz score"
-                  value={`${averageQuizScore}%`}
-                  sub={`${totalQuizAttempts} attempt${totalQuizAttempts !== 1 ? "s" : ""}`}
-                  color="var(--stat-quiz)"
-                />
-              )}
-              {speedStats.averageWpm !== null && (
-                <StatCard
-                  icon={TrendingUp}
-                  label="Reading speed"
-                  value={`${speedStats.averageWpm} wpm`}
-                  sub={
-                    speedStats.recentWpm !== null && speedStats.recentWpm !== speedStats.averageWpm
-                      ? `Recent: ${speedStats.recentWpm} wpm (${speedStats.recentWpm > speedStats.averageWpm ? "↑ faster" : "↓ slower"})`
-                      : `${speedStats.sessionCount} session${speedStats.sessionCount !== 1 ? "s" : ""}`
-                  }
-                  color="var(--primary)"
-                />
-              )}
-            </div>
-          </section>
-
-          {/* ── Reading activity chart ── */}
-          <section aria-labelledby="reading-h">
-            <h2
-              id="reading-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-            >
-              Reading activity
-              <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
-                last 12 weeks
-              </span>
-            </h2>
-            <Card>
-              <WeeklyBars
-                buckets={completionsByWeek}
-                label="Articles completed per week over the last 12 weeks"
-                color="var(--teal)"
-              />
-              <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
-                Completed articles per week
-              </p>
-            </Card>
-          </section>
-
-          {/* ── Vocabulary growth ── */}
-          {totalSavedWords > 0 && (
-            <section aria-labelledby="vocab-h">
-              <h2
-                id="vocab-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-              >
-                Vocabulary growth
-                <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
-                  last 12 weeks
-                </span>
-              </h2>
-              <Card>
-                <WeeklyBars
-                  buckets={wordsByWeek}
-                  label="Words saved per week over the last 12 weeks"
-                  color="var(--stat-vocab)"
-                />
-                <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
-                  Words saved per week
-                </p>
-              </Card>
-            </section>
+              <LevelDistributionSection completedByLevel={vm.analytics.completedByLevel} />
+            </>
           )}
 
-          {/* ── Quiz score trend ── */}
-          {quizScoreTrend.length > 0 && (
-            <section aria-labelledby="quiz-h">
-              <h2
-                id="quiz-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-              >
-                Quiz performance
-              </h2>
-              <Card>
-                <div className="flex items-center gap-[var(--space-6)]">
-                  <div>
-                    <p className="text-[length:var(--text-sm)] text-text-subtle">Average score</p>
-                    <p className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] text-text">
-                      {averageQuizScore ?? "—"}
-                      {averageQuizScore !== null && (
-                        <span className="text-[length:var(--text-xl)]">%</span>
-                      )}
-                    </p>
-                    <p className="text-[length:var(--text-xs)] text-text-subtle">
-                      {totalQuizAttempts} attempt{totalQuizAttempts !== 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <div className="flex-1">
-                    <figure>
-                      <figcaption className="sr-only">{sparkLabel}</figcaption>
-                      <Sparkline
-                        values={quizScoreTrend}
-                        label={sparkLabel}
-                        coordWidth={240}
-                        height={48}
-                        accentVar="var(--primary)"
-                      />
-                    </figure>
-                    <p className="text-[length:var(--text-xs)] text-text-subtle mt-1">
-                      Recent attempts (oldest → newest)
-                    </p>
-                  </div>
-                </div>
-              </Card>
-            </section>
-          )}
-
-          {/* ── Level distribution ── */}
-          {completedByLevel.length > 0 && (
-            <section aria-labelledby="level-h">
-              <h2
-                id="level-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-              >
-                Level distribution
-                <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
-                  completed articles
-                </span>
-              </h2>
-              <Card>
-                <div className="flex flex-col gap-[var(--space-3)]">
-                  {completedByLevel.map((b) => {
-                    const maxCount = Math.max(...completedByLevel.map((x) => x.count), 1);
-                    return (
-                      <div key={b.level} className="flex items-center gap-[var(--space-3)]">
-                        <span
-                          className="shrink-0 text-[length:var(--text-sm)] font-semibold text-text-subtle tabular-nums"
-                          style={{ minWidth: "3ch" }}
-                        >
-                          {b.level}
-                        </span>
-                        <div className="flex-1">
-                          <MiniBar
-                            value={b.count}
-                            max={maxCount}
-                            label={`${b.level} articles`}
-                            color="var(--teal)"
-                          />
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </Card>
-            </section>
-          )}
-
-          </>
-          )}
-
-          {/* ── Activity heatmap (#96) ── */}
-          <section aria-labelledby="heatmap-h">
-            <h2
-              id="heatmap-h"
-              className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-            >
-              Reading streak
-              <span className="ml-2 text-[length:var(--text-sm)] font-normal text-text-subtle">
-                last 52 weeks
-              </span>
-            </h2>
-            <Card>
-              <ActivityHeatmap cells={heatmapCells} />
-            </Card>
-          </section>
-
-          {/* ── CEFR level timeline (#97) ── */}
-          {currentLevel && (
-            <section aria-labelledby="timeline-h">
-              <h2
-                id="timeline-h"
-                className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text mb-[var(--space-4)]"
-              >
-                Level progression
-              </h2>
-              <Card>
-                <LevelTimeline history={levelHistory} currentLevel={currentLevel} />
-              </Card>
-            </section>
-          )}
+          <HeatmapSection heatmapCells={vm.heatmapCells} />
+          <LevelTimelineSection levelHistory={vm.levelHistory} currentLevel={vm.currentLevel} />
 
         </div>
       )}
