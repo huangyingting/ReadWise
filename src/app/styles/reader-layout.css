@@ -66,7 +66,7 @@
 }
 
 [data-reading-mode] .word-lookup-pos {
-  color: var(--reading-link, var(--accent));
+  color: var(--reading-link, var(--primary));
 }
 
 /* ---- Reader root ---- */

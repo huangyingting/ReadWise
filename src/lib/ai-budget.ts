@@ -14,7 +14,7 @@
  *
  * Storage / accounting:
  *   - ENFORCEMENT uses cheap fixed-window COUNTERS via the shared (DB-backed)
- *     rate-limit store ({@link "@/lib/rate-limit-store"}) so limits hold across
+ *     rate-limit store ({@link "@/lib/security/rate-limit/store"}) so limits hold across
  *     app instances, with the same in-memory FALLBACK + circuit breaker the
  *     rate limiter uses (graceful degradation for dev / tests / DB outage).
  *   - REPORTING ({@link getAiBudgetStatus}) reads real usage from the AI
@@ -32,7 +32,7 @@
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { ApiError } from "@/lib/api-handler";
-import { createLogger, getRequestContext } from "@/lib/logger";
+import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import {
   aiQuotaConfig,
   configuredAiQuotaFeatures,
@@ -42,7 +42,7 @@ import {
   incrementSharedCounter,
   isSharedStoreEnabled,
   windowStartFor,
-} from "@/lib/rate-limit-store";
+} from "@/lib/security/rate-limit/store";
 import { summarizeAiUsage } from "@/lib/ai-usage-summary";
 
 const log = createLogger("ai-budget");

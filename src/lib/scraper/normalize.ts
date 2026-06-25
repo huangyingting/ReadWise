@@ -20,7 +20,7 @@
  * specific noise category; the full list is small and stable.
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("scraper:normalize");
 

@@ -185,26 +185,26 @@ beforeEach(() => {
 });
 
 test("slugifyTag normalizes names to url slugs", async () => {
-  const { slugifyTag } = await import("@/lib/tags");
+  const { slugifyTag } = await import("@/lib/article-library");
   assert.equal(slugifyTag("Climate Change"), "climate-change");
   assert.equal(slugifyTag("Café & Crème"), "cafe-and-creme");
   assert.equal(slugifyTag("  Multiple   Spaces  "), "multiple-spaces");
 });
 
 test("parseTagsJson dedups by slug and tolerates fences", async () => {
-  const { parseTagsJson } = await import("@/lib/tags");
+  const { parseTagsJson } = await import("@/lib/article-library");
   const result = parseTagsJson('```json ["Tech", "tech", "AI", ""] ```');
   assert.deepEqual(result, ["Tech", "AI"]);
   assert.deepEqual(parseTagsJson("garbage"), []);
 });
 
 test("getOrCreateArticleTags returns null for a missing article", async () => {
-  const { getOrCreateArticleTags } = await import("@/lib/tags");
+  const { getOrCreateArticleTags } = await import("@/lib/article-library");
   assert.equal(await getOrCreateArticleTags("missing"), null);
 });
 
 test("getOrCreateArticleTags falls back without persisting when AI unconfigured", async () => {
-  const { getOrCreateArticleTags } = await import("@/lib/tags");
+  const { getOrCreateArticleTags } = await import("@/lib/article-library");
   const result = await getOrCreateArticleTags("a1");
   assert.equal(result?.fallback, true);
   assert.equal(result?.tags.length, 0);
@@ -214,7 +214,7 @@ test("getOrCreateArticleTags falls back without persisting when AI unconfigured"
 test("getOrCreateArticleTags extracts, creates tags and links them", async () => {
   aiConfigured = true;
   aiReply = '["Climate Change", "Science"]';
-  const { getOrCreateArticleTags } = await import("@/lib/tags");
+  const { getOrCreateArticleTags } = await import("@/lib/article-library");
   const result = await getOrCreateArticleTags("a1");
   assert.equal(result?.fallback, false);
   assert.equal(result?.tags.length, 2);
@@ -232,7 +232,7 @@ test("getOrCreateArticleTags scopes private article tags to the owner namespace"
   });
   aiConfigured = true;
   aiReply = '["Climate Change"]';
-  const { getOrCreateArticleTags } = await import("@/lib/tags");
+  const { getOrCreateArticleTags } = await import("@/lib/article-library");
 
   const result = await getOrCreateArticleTags("private-a1");
 
@@ -256,7 +256,7 @@ test("listTagsWithCounts excludes private-only tags from public listings", async
     { id: "public-a1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
     { id: "private-a1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, publishedAt: now, createdAt: now },
   ];
-  const { listTagsWithCounts } = await import("@/lib/tags");
+  const { listTagsWithCounts } = await import("@/lib/article-library");
 
   const listed = await listTagsWithCounts();
 
@@ -309,12 +309,12 @@ test("listRelatedArticles ranks by shared-tag overlap", async () => {
     { id: "rel1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
     { id: "rel2", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
   ];
-  const { listRelatedArticles } = await import("@/lib/tags");
+  const { listRelatedArticles } = await import("@/lib/article-library");
   const related = await listRelatedArticles("a1");
   assert.deepEqual(related.map((a) => a.id), ["rel2", "rel1"]);
 });
 
 test("listRelatedArticles returns [] when the article has no tags", async () => {
-  const { listRelatedArticles } = await import("@/lib/tags");
+  const { listRelatedArticles } = await import("@/lib/article-library");
   assert.deepEqual(await listRelatedArticles("a1"), []);
 });

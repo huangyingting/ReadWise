@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { mediaStorageKind } from "@/lib/storage/config";
 import { getMediaStorage } from "@/lib/storage/runtime";
 import type { MediaMigrationResult, MediaStorage } from "@/lib/storage/types";

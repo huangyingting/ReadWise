@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
-import { AUDIT_ACTIONS, listAuditLogs, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS, listAuditLogs, recordAuditFromRequest } from "@/lib/security/audit";
 import { queryInt, queryString } from "@/lib/validation";
 
 type AuditLogQuery = {

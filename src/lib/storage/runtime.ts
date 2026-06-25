@@ -1,4 +1,4 @@
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { azureStorageConfig, AzureBlobMediaStorage } from "@/lib/storage/azure";
 import { mediaStorageKind } from "@/lib/storage/config";
 import { mediaStorageDir, FilesystemMediaStorage } from "@/lib/storage/filesystem";

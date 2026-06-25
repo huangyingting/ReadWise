@@ -4,13 +4,13 @@ import {
   listCategoryPage,
   toListingArticle,
   type ListingArticle,
-} from "@/lib/articles";
+} from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations";
 import { getProgressSummaries } from "@/lib/progress";
 import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/difficulty";
-import { getBookmarkedArticleIds } from "@/lib/bookmarks";
+import { getBookmarkedArticleIds } from "@/lib/article-library";
 import CategoryBrowser from "@/components/CategoryBrowser";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";

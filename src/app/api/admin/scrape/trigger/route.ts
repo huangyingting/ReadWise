@@ -6,9 +6,9 @@ import { object, optional, nonEmptyString, number, boolean } from "@/lib/validat
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
-import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
-import { clientIp } from "@/lib/client-ip";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
+import { clientIp } from "@/lib/security/client-ip";
 
 const DEFAULT_LIMIT = 5;
 const MAX_LIMIT = 50;

@@ -2,7 +2,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { SLI_CATALOG, evaluateSlos } from "@/lib/slo";
+import { SLI_CATALOG, evaluateSlos } from "@/lib/observability/slo";
 import type { MetricsSnapshot } from "@/lib/metrics";
 
 // ---- catalog coverage ----------------------------------------------------

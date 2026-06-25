@@ -17,7 +17,7 @@ import {
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 
 /** Max characters of article plain-text sent to the model as grounding. */
 const MAX_ARTICLE_CHARS = 7000;

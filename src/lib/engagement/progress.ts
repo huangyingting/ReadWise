@@ -9,10 +9,10 @@
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import type { ReadingProgress } from "@prisma/client";
-import { toListingArticle, type ListingArticle } from "@/lib/articles";
-import { publicListableArticleWhere } from "@/lib/article-access";
+import { toListingArticle, type ListingArticle } from "@/lib/article-library";
+import { publicListableArticleWhere } from "@/lib/article-library";
 import { recordReadingActivity } from "@/lib/activity";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("progress");
 

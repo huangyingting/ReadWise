@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
 import { syncContentSources } from "@/lib/content-sources";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 /**
  * Syncs `ContentSource` rows from the code provider registry (RW-046):

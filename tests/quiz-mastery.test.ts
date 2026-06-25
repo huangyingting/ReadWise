@@ -125,7 +125,7 @@ beforeEach(() => {
 
 test("recordQuizAttempt computes scorePct correctly and returns best", async () => {
   maxAggResult = { _max: { scorePct: 80 } };
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   const { attempt, best } = await recordQuizAttempt("user-1", "a1", 4, 5);
   assert.equal(attempt.scorePct, 80); // round(4/5*100) = 80
   assert.equal(attempt.correctCount, 4);
@@ -135,30 +135,30 @@ test("recordQuizAttempt computes scorePct correctly and returns best", async () 
 
 test("recordQuizAttempt: 0 correct → scorePct 0", async () => {
   maxAggResult = { _max: { scorePct: 0 } };
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   const { attempt } = await recordQuizAttempt("user-1", "a1", 0, 5);
   assert.equal(attempt.scorePct, 0);
 });
 
 test("recordQuizAttempt: all correct → scorePct 100", async () => {
   maxAggResult = { _max: { scorePct: 100 } };
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   const { attempt } = await recordQuizAttempt("user-1", "a1", 5, 5);
   assert.equal(attempt.scorePct, 100);
 });
 
 test("recordQuizAttempt throws on totalQuestions = 0", async () => {
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   await assert.rejects(() => recordQuizAttempt("user-1", "a1", 0, 0), /totalQuestions/);
 });
 
 test("recordQuizAttempt throws when correctCount > totalQuestions", async () => {
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   await assert.rejects(() => recordQuizAttempt("user-1", "a1", 6, 5), /correctCount/);
 });
 
 test("recordQuizAttempt throws on negative correctCount", async () => {
-  const { recordQuizAttempt } = await import("@/lib/quiz-mastery");
+  const { recordQuizAttempt } = await import("@/lib/learning/quiz-mastery");
   await assert.rejects(() => recordQuizAttempt("user-1", "a1", -1, 5), /correctCount/);
 });
 
@@ -171,7 +171,7 @@ test("getArticleQuizHistory returns attempts newest-first, computes best/last/co
     { id: "a2", correctCount: 4, totalQuestions: 5, scorePct: 80, completedAt: new Date("2026-02-01") },
     { id: "a1", correctCount: 3, totalQuestions: 5, scorePct: 60, completedAt: new Date("2026-01-01") },
   ];
-  const { getArticleQuizHistory } = await import("@/lib/quiz-mastery");
+  const { getArticleQuizHistory } = await import("@/lib/learning/quiz-mastery");
   const history = await getArticleQuizHistory("user-1", "a1");
   assert.equal(history.attemptCount, 2);
   assert.equal(history.best, 80);
@@ -181,7 +181,7 @@ test("getArticleQuizHistory returns attempts newest-first, computes best/last/co
 
 test("getArticleQuizHistory returns nulls when no attempts exist", async () => {
   findManyRows = [];
-  const { getArticleQuizHistory } = await import("@/lib/quiz-mastery");
+  const { getArticleQuizHistory } = await import("@/lib/learning/quiz-mastery");
   const history = await getArticleQuizHistory("user-1", "no-attempts");
   assert.equal(history.best, null);
   assert.equal(history.lastScore, null);
@@ -204,7 +204,7 @@ test("getQuizMastery aggregates correctly", async () => {
     { completedAt: new Date("2026-01-02"), scorePct: 80 },
     { completedAt: new Date("2026-01-01"), scorePct: 60 },
   ];
-  const { getQuizMastery } = await import("@/lib/quiz-mastery");
+  const { getQuizMastery } = await import("@/lib/learning/quiz-mastery");
   const mastery = await getQuizMastery("user-1");
   assert.equal(mastery.totalAttempts, 5);
   assert.equal(mastery.articlesQuizzed, 2);
@@ -219,7 +219,7 @@ test("getQuizMastery returns null averageScore when no attempts", async () => {
   aggregateResult = { _count: { id: 0 }, _avg: { scorePct: null } };
   groupByRows = [];
   findManyRows = [];
-  const { getQuizMastery } = await import("@/lib/quiz-mastery");
+  const { getQuizMastery } = await import("@/lib/learning/quiz-mastery");
   const mastery = await getQuizMastery("user-1");
   assert.equal(mastery.totalAttempts, 0);
   assert.equal(mastery.articlesQuizzed, 0);

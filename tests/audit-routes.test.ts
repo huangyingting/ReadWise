@@ -43,7 +43,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS,
       auditRequestInfo: (req: Request) => ({
@@ -97,7 +97,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/admin-articles", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
         if (!deleteArticleResult) return false;
@@ -105,11 +105,6 @@ before(() => {
         if (audit) auditCalls.push(audit);
         return true;
       },
-    },
-  });
-
-  mock.module("@/lib/article-access", {
-    namedExports: {
       articleAccessContext: () => ({ role: "Admin", userId: "admin-1" }),
     },
   });

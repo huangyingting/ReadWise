@@ -40,8 +40,7 @@
   --color-on-primary: var(--on-primary);
   --color-primary-text: var(--primary-text);
 
-  /* `accent` utility = Studio teal for NEW components (legacy CSS var --accent
-     remains the indigo brand alias; see tokens.css). */
+    /* `accent` utility = Studio teal for reading-state/decorative accents. */
   --color-accent: var(--teal);
   --color-accent-hover: var(--teal-hover);
   --color-accent-text: var(--teal-text);
@@ -90,7 +89,7 @@ body {
 
 @layer base {
   a {
-    color: var(--accent);
+    color: var(--primary);
     text-decoration: none;
   }
 
@@ -245,7 +244,7 @@ body {
 }
 
 .tag-chip:hover {
-  border-color: var(--accent, #4f46e5);
+  border-color: var(--primary);
 }
 
 /* Coarse-pointer / touch: 44px minimum hit area for tag links (WCAG 2.5.8) */
@@ -286,7 +285,7 @@ body {
 .prose blockquote {
   margin: 1.1rem 0;
   padding: 0.25rem 1rem;
-  border-left: 3px solid var(--accent);
+  border-left: 3px solid var(--primary);
   color: var(--text-muted);
 }
 
@@ -322,7 +321,7 @@ body {
 
 .reading-progress-bar {
   height: 100%;
-  background: var(--accent);
+  background: var(--bg-accent);
   transition: width 0.15s ease;
 }
 
@@ -395,13 +394,13 @@ body {
 }
 
 .category-tab:hover {
-  border-color: var(--accent);
+  border-color: var(--primary);
   text-decoration: none;
 }
 
 .category-tab--active {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--primary);
+  border-color: var(--primary);
   color: var(--on-primary);
 }
 
@@ -421,7 +420,7 @@ body {
 }
 
 .article-card:hover {
-  border-color: var(--accent);
+  border-color: var(--primary);
   text-decoration: none;
 }
 

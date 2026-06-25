@@ -82,7 +82,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/articles", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       toListingArticle: (a: { id: string }) => ({
         id: a.id,
@@ -116,7 +116,7 @@ beforeEach(() => {
 
 test("getOrCreateDefaultList creates a new list when none exists", async () => {
   stubDefaultList = null; // no default list yet
-  const { getOrCreateDefaultList } = await import("@/lib/bookmarks");
+  const { getOrCreateDefaultList } = await import("@/lib/article-library");
   const result = await getOrCreateDefaultList("user-1");
   assert.equal(result.name, "Saved");
   assert.equal(result.isDefault, true);
@@ -124,7 +124,7 @@ test("getOrCreateDefaultList creates a new list when none exists", async () => {
 
 test("getOrCreateDefaultList returns existing list without creating", async () => {
   stubDefaultList = { id: "list-existing", name: "Saved", isDefault: true };
-  const { getOrCreateDefaultList } = await import("@/lib/bookmarks");
+  const { getOrCreateDefaultList } = await import("@/lib/article-library");
   const result = await getOrCreateDefaultList("user-1");
   assert.equal(result.id, "list-existing");
 });
@@ -138,7 +138,7 @@ test("toggleBookmark adds article to default list and returns bookmarked:true", 
   stubDefaultList = { id: "list-1", name: "Saved", isDefault: true };
   stubItemExists = null; // not yet in list
 
-  const { toggleBookmark } = await import("@/lib/bookmarks");
+  const { toggleBookmark } = await import("@/lib/article-library");
   const result = await toggleBookmark("user-1", "a1");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.bookmarked, true);
@@ -149,7 +149,7 @@ test("toggleBookmark removes article from default list and returns bookmarked:fa
   stubDefaultList = { id: "list-1", name: "Saved", isDefault: true };
   stubItemExists = { id: "item-1", listId: "list-1", articleId: "a1" };
 
-  const { toggleBookmark } = await import("@/lib/bookmarks");
+  const { toggleBookmark } = await import("@/lib/article-library");
   const result = await toggleBookmark("user-1", "a1");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.bookmarked, false);
@@ -158,7 +158,7 @@ test("toggleBookmark removes article from default list and returns bookmarked:fa
 test("toggleBookmark returns 404 when article does not exist", async () => {
   stubArticle = null;
 
-  const { toggleBookmark } = await import("@/lib/bookmarks");
+  const { toggleBookmark } = await import("@/lib/article-library");
   const result = await toggleBookmark("user-1", "missing");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -172,7 +172,7 @@ test("addToList succeeds for an owned list with a valid article", async () => {
   stubListById = { id: "list-1", name: "My List", isDefault: false };
   stubArticle = { id: "a1" };
 
-  const { addToList } = await import("@/lib/bookmarks");
+  const { addToList } = await import("@/lib/article-library");
   const result = await addToList("list-1", "user-1", "a1");
   assert.equal(result.ok, true);
 });
@@ -180,7 +180,7 @@ test("addToList succeeds for an owned list with a valid article", async () => {
 test("addToList returns 404 when list belongs to another user", async () => {
   stubListById = null; // ownership check fails — list not found for this user
 
-  const { addToList } = await import("@/lib/bookmarks");
+  const { addToList } = await import("@/lib/article-library");
   const result = await addToList("other-list", "user-1", "a1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -190,7 +190,7 @@ test("addToList returns 404 when article does not exist", async () => {
   stubListById = { id: "list-1", name: "My List", isDefault: false };
   stubArticle = null;
 
-  const { addToList } = await import("@/lib/bookmarks");
+  const { addToList } = await import("@/lib/article-library");
   const result = await addToList("list-1", "user-1", "missing");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -203,7 +203,7 @@ test("addToList returns 404 when article does not exist", async () => {
 test("removeFromList succeeds for an owned list", async () => {
   stubListById = { id: "list-1", name: "My List", isDefault: false };
 
-  const { removeFromList } = await import("@/lib/bookmarks");
+  const { removeFromList } = await import("@/lib/article-library");
   const result = await removeFromList("list-1", "user-1", "a1");
   assert.equal(result.ok, true);
 });
@@ -211,7 +211,7 @@ test("removeFromList succeeds for an owned list", async () => {
 test("removeFromList returns 404 when list belongs to another user", async () => {
   stubListById = null;
 
-  const { removeFromList } = await import("@/lib/bookmarks");
+  const { removeFromList } = await import("@/lib/article-library");
   const result = await removeFromList("other-list", "user-1", "a1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -224,7 +224,7 @@ test("removeFromList returns 404 when list belongs to another user", async () =>
 test("deleteList refuses to delete the default list and returns 409", async () => {
   stubListById = { id: "list-1", name: "Saved", isDefault: true };
 
-  const { deleteList } = await import("@/lib/bookmarks");
+  const { deleteList } = await import("@/lib/article-library");
   const result = await deleteList("list-1", "user-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
@@ -233,7 +233,7 @@ test("deleteList refuses to delete the default list and returns 409", async () =
 test("deleteList returns 404 for a missing list", async () => {
   stubListById = null;
 
-  const { deleteList } = await import("@/lib/bookmarks");
+  const { deleteList } = await import("@/lib/article-library");
   const result = await deleteList("list-99", "user-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -242,7 +242,7 @@ test("deleteList returns 404 for a missing list", async () => {
 test("deleteList succeeds for a non-default owned list", async () => {
   stubListById = { id: "list-2", name: "Favorites", isDefault: false };
 
-  const { deleteList } = await import("@/lib/bookmarks");
+  const { deleteList } = await import("@/lib/article-library");
   const result = await deleteList("list-2", "user-1");
   assert.equal(result.ok, true);
 });
@@ -252,7 +252,7 @@ test("deleteList succeeds for a non-default owned list", async () => {
 // ---------------------------------------------------------------------------
 
 test("getBookmarkedArticleIds returns empty set when articleIds is empty", async () => {
-  const { getBookmarkedArticleIds } = await import("@/lib/bookmarks");
+  const { getBookmarkedArticleIds } = await import("@/lib/article-library");
   const result = await getBookmarkedArticleIds("user-1", []);
   assert.equal(result.size, 0);
 });
@@ -260,7 +260,7 @@ test("getBookmarkedArticleIds returns empty set when articleIds is empty", async
 test("getBookmarkedArticleIds returns empty set when user has no lists", async () => {
   stubUserLists = [];
 
-  const { getBookmarkedArticleIds } = await import("@/lib/bookmarks");
+  const { getBookmarkedArticleIds } = await import("@/lib/article-library");
   const result = await getBookmarkedArticleIds("user-1", ["a1", "a2"]);
   assert.equal(result.size, 0);
 });
@@ -269,7 +269,7 @@ test("getBookmarkedArticleIds returns only the bookmarked article ids", async ()
   stubUserLists = [{ id: "list-1" }];
   stubBookmarkedItems = [{ articleId: "a1" }]; // a1 is bookmarked, a2 is not
 
-  const { getBookmarkedArticleIds } = await import("@/lib/bookmarks");
+  const { getBookmarkedArticleIds } = await import("@/lib/article-library");
   const result = await getBookmarkedArticleIds("user-1", ["a1", "a2"]);
   assert.equal(result.size, 1);
   assert.ok(result.has("a1"));
@@ -287,7 +287,7 @@ test("addToList returns 404 when the article is not viewable", async () => {
   stubListById = { id: "list-1", name: "My List", isDefault: false };
   stubArticle = null; // getViewableArticleById sees draft/foreign import
 
-  const { addToList } = await import("@/lib/bookmarks");
+  const { addToList } = await import("@/lib/article-library");
   const result = await addToList("list-1", "user-1", "draft-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -296,7 +296,7 @@ test("addToList returns 404 when the article is not viewable", async () => {
 test("toggleBookmark returns 404 when the article is not viewable", async () => {
   stubArticle = null; // getViewableArticleById sees draft/foreign import
 
-  const { toggleBookmark } = await import("@/lib/bookmarks");
+  const { toggleBookmark } = await import("@/lib/article-library");
   const result = await toggleBookmark("user-1", "foreign-import");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -305,7 +305,7 @@ test("toggleBookmark returns 404 when the article is not viewable", async () => 
 test("getArticleListMembership returns null when the article is not viewable", async () => {
   stubArticle = null; // getViewableArticleById sees draft/foreign import
 
-  const { getArticleListMembership } = await import("@/lib/bookmarks");
+  const { getArticleListMembership } = await import("@/lib/article-library");
   const result = await getArticleListMembership("user-1", "draft-1");
   assert.equal(result, null);
 });

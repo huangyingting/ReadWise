@@ -71,7 +71,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("first evidence sets the confidence baseline to the outcome", async () => {
-  const { recordSkillEvidence } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
   const rec = await recordSkillEvidence("u1", "reading", 0.7);
   assert.ok(rec);
   assert.equal(rec!.skill, "reading");
@@ -81,7 +81,7 @@ test("first evidence sets the confidence baseline to the outcome", async () => {
 });
 
 test("subsequent evidence blends in via an EMA (moves toward new outcomes)", async () => {
-  const { recordSkillEvidence } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
   await recordSkillEvidence("u1", "reading", 0.2);
   const rec = await recordSkillEvidence("u1", "reading", 1);
   assert.ok(rec!.confidence > 0.2 && rec!.confidence < 1, `EMA between (${rec!.confidence})`);
@@ -89,7 +89,7 @@ test("subsequent evidence blends in via an EMA (moves toward new outcomes)", asy
 });
 
 test("an unknown skill name is ignored (returns null)", async () => {
-  const { recordSkillEvidence } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
   // @ts-expect-error intentionally invalid skill
   const rec = await recordSkillEvidence("u1", "telepathy", 1);
   assert.equal(rec, null);
@@ -100,7 +100,7 @@ test("an unknown skill name is ignored (returns null)", async () => {
 // ---------------------------------------------------------------------------
 
 test("getSkillProfile reports all six skills; un-evidenced ones are 0/hasEvidence:false", async () => {
-  const { recordSkillEvidence, getSkillProfile, SKILLS } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, getSkillProfile, SKILLS } = await import("@/lib/learning/skill-mastery");
   await recordSkillEvidence("u1", "reading", 0.8);
   await recordSkillEvidence("u1", "vocabulary", 0.4);
   await recordSkillEvidence("u1", "comprehension", 0.6);
@@ -118,7 +118,7 @@ test("getSkillProfile reports all six skills; un-evidenced ones are 0/hasEvidenc
 });
 
 test("skill updates accumulate across multiple activity types", async () => {
-  const { recordSkillEvidence, getSkillProfile } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, getSkillProfile } = await import("@/lib/learning/skill-mastery");
   // Simulate quiz → comprehension/reading, vocabulary review, pronunciation, grammar.
   await recordSkillEvidence("u1", "comprehension", 0.9);
   await recordSkillEvidence("u1", "reading", 0.9, 0.5);
@@ -137,7 +137,7 @@ test("skill updates accumulate across multiple activity types", async () => {
 // ---------------------------------------------------------------------------
 
 test("recommendLevelChange holds and explains when evidence is insufficient", async () => {
-  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/learning/skill-mastery");
   await recordSkillEvidence("u1", "reading", 0.9);
   const rec = await recommendLevelChange("u1");
   assert.equal(rec.suggestion, "hold");
@@ -146,7 +146,7 @@ test("recommendLevelChange holds and explains when evidence is insufficient", as
 });
 
 test("recommendLevelChange suggests UP with reasons citing strong skills", async () => {
-  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/learning/skill-mastery");
   // Two skills, ≥4 total evidence, all high confidence, none weak.
   await recordSkillEvidence("u1", "reading", 0.9);
   await recordSkillEvidence("u1", "reading", 0.9);
@@ -165,7 +165,7 @@ test("recommendLevelChange suggests UP with reasons citing strong skills", async
 });
 
 test("recommendLevelChange suggests DOWN when overall confidence is low", async () => {
-  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/learning/skill-mastery");
   await recordSkillEvidence("u1", "reading", 0.2);
   await recordSkillEvidence("u1", "reading", 0.2);
   await recordSkillEvidence("u1", "vocabulary", 0.2);
@@ -179,7 +179,7 @@ test("recommendLevelChange suggests DOWN when overall confidence is low", async 
 });
 
 test("recommendLevelChange asks the user to onboard when there is no profile", async () => {
-  const { recommendLevelChange } = await import("@/lib/skill-mastery");
+  const { recommendLevelChange } = await import("@/lib/learning/skill-mastery");
   profileRow = null;
   const rec = await recommendLevelChange("u1");
   assert.equal(rec.suggestion, "hold");
@@ -187,7 +187,7 @@ test("recommendLevelChange asks the user to onboard when there is no profile", a
 });
 
 test("recommendLevelChange never recommends past the top of the CEFR scale", async () => {
-  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/skill-mastery");
+  const { recordSkillEvidence, recommendLevelChange } = await import("@/lib/learning/skill-mastery");
   profileRow = { userId: "u1", englishLevel: "C2", completedAt: new Date() };
   await recordSkillEvidence("u1", "reading", 0.95);
   await recordSkillEvidence("u1", "reading", 0.95);

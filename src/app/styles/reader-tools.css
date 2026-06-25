@@ -201,12 +201,12 @@
 .vocabulary-pronounce:hover {
   background: var(--bg-subtle);
   color: var(--text);
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .vocabulary-pronounce.is-speaking {
-  color: var(--accent);
-  border-color: var(--accent);
+  color: var(--primary);
+  border-color: var(--primary);
   background: var(--bg-subtle);
 }
 
@@ -284,7 +284,7 @@
 }
 
 .quiz-option-label.is-selected {
-  border-color: var(--accent);
+  border-color: var(--primary);
 }
 
 .quiz-option-label.is-correct {
@@ -520,7 +520,7 @@
   font-size: 0.75rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--accent);
+  color: var(--primary);
   margin-bottom: 0.25rem;
 }
 
@@ -658,7 +658,7 @@
 }
 
 .tts-word.is-active {
-  background: var(--accent);
+  background: var(--primary);
   color: var(--on-primary);
   font-weight: 600;
 }
@@ -666,7 +666,7 @@
 /* CSS Custom Highlight API — active TTS word in the main article prose.
  * Works in Chrome/Edge 105+, Safari 17.2+; silently absent elsewhere. */
 ::highlight(tts-active) {
-  background-color: var(--accent);
+  background-color: var(--primary);
   color: var(--on-primary);
 }
 

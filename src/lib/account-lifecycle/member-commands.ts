@@ -11,7 +11,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
-import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 
 type AuditFactory<T> = (result: T) => AuditRequestInput;
 

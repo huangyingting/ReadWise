@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { getAiCostOverview, getContentOpsOverview } from "@/lib/admin-ai-ops";
+import { getAiCostOverview, getContentOpsOverview } from "@/lib/processing/admin-ops";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { Card } from "@/components/ui/Card";

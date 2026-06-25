@@ -9,7 +9,7 @@
  * are the shared vocabulary for the entire lexical subsystem.
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { providerFetch } from "@/lib/http";
 import type { FrequencyTier } from "@/lib/option-registries";
 

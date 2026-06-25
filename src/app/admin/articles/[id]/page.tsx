@@ -2,11 +2,11 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES, hasCapability } from "@/lib/rbac";
-import { getAdminArticleDetail } from "@/lib/admin-articles";
+import { getAdminArticleDetail } from "@/lib/article-library";
 import { statusBadgeVariant } from "@/lib/admin";
-import { readingMinutesFor } from "@/lib/articles";
+import { readingMinutesFor } from "@/lib/article-library";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
-import { articleAccessContext } from "@/lib/article-access";
+import { articleAccessContext } from "@/lib/article-library";
 import {
   listContentReviews,
   REVIEW_STATES,
@@ -14,9 +14,9 @@ import {
   QUALITY_FLAGS,
   parseQualityFlags,
   type ReviewState,
-} from "@/lib/content-review";
-import { TAKEDOWN_STATES, TAKEDOWN_STATE_LABELS, type TakedownState } from "@/lib/content-policy";
-import { getArticleTags } from "@/lib/tags";
+} from "@/lib/article-library";
+import { TAKEDOWN_STATES, TAKEDOWN_STATE_LABELS, type TakedownState } from "@/lib/article-library";
+import { getArticleTags } from "@/lib/article-library";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";

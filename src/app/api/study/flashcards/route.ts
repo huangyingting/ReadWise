@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getDueFlashcards, getReviewSummary } from "@/lib/flashcards";
+import { getDueFlashcards, getReviewSummary } from "@/lib/learning/flashcards";
 
 /**
  * GET /api/study/flashcards

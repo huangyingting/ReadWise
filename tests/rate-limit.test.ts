@@ -53,7 +53,7 @@ function uniqueKey(label: string): string {
 }
 
 async function resetStore(): Promise<void> {
-  const { resetRateLimitStore } = await import("@/lib/rate-limit-store");
+  const { resetRateLimitStore } = await import("@/lib/security/rate-limit/store");
   resetRateLimitStore();
 }
 
@@ -73,7 +73,7 @@ beforeEach(async () => {
 test("allows requests under the configured limit (memory fallback)", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "3";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const key = uniqueKey("allow");
   await assert.doesNotReject(() => checkRateLimitByKey(key, "ai"));
   await assert.doesNotReject(() => checkRateLimitByKey(key, "ai"));
@@ -83,7 +83,7 @@ test("allows requests under the configured limit (memory fallback)", async () =>
 test("blocks with ApiError(429) when the limit is reached (memory)", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "2";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("block");
   await checkRateLimitByKey(key, "ai");
@@ -101,7 +101,7 @@ test("blocks with ApiError(429) when the limit is reached (memory)", async () =>
 test("error message mentions the configured limit", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("msg");
   await checkRateLimitByKey(key, "ai");
@@ -119,7 +119,7 @@ test("separate scopes are independent", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_LOOKUP_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const key = uniqueKey("scopes");
   await checkRateLimitByKey(key, "ai"); // fills "ai"
   // Same key, different scope — must NOT be blocked.
@@ -129,7 +129,7 @@ test("separate scopes are independent", async () => {
 test("lookup scope uses RATE_LIMIT_LOOKUP_REQUESTS env var", async () => {
   process.env.RATE_LIMIT_LOOKUP_REQUESTS = "2";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("lookup");
   await checkRateLimitByKey(key, "lookup");
@@ -147,7 +147,7 @@ test("lookup scope uses RATE_LIMIT_LOOKUP_REQUESTS env var", async () => {
 test("resets count after the window elapses (memory)", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_MS = "50";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("reset");
   await checkRateLimitByKey(key, "ai");
@@ -165,7 +165,7 @@ test("resets count after the window elapses (memory)", async () => {
 test("checkRateLimit delegates to checkRateLimitByKey using userId", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimit } = await import("@/lib/rate-limit");
+  const { checkRateLimit } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const userId = `u-${uniqueKey("rl")}`;
   await checkRateLimit(userId, "ai");
@@ -185,7 +185,7 @@ test("shared store increments the counter via prisma and blocks at the limit", a
   process.env.RATE_LIMIT_STORE = "database";
   process.env.RATE_LIMIT_AI_REQUESTS = "2";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("shared");
   await checkRateLimitByKey(key, "ai"); // count → 1
@@ -206,7 +206,7 @@ test("shared store keeps scopes independent in the DB store", async () => {
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_LOOKUP_REQUESTS = "5";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const key = uniqueKey("shared-scope");
   await checkRateLimitByKey(key, "ai"); // fills "ai" (limit 1)
   await assert.doesNotReject(() => checkRateLimitByKey(key, "lookup"));
@@ -214,7 +214,7 @@ test("shared store keeps scopes independent in the DB store", async () => {
 
 test("incrementSharedCounter returns increasing counts for the same window", async () => {
   process.env.RATE_LIMIT_STORE = "database";
-  const { incrementSharedCounter, windowStartFor } = await import("@/lib/rate-limit-store");
+  const { incrementSharedCounter, windowStartFor } = await import("@/lib/security/rate-limit/store");
   const windowMs = 60000;
   const ws = windowStartFor(Date.now(), windowMs);
   const key = uniqueKey("incr");
@@ -230,7 +230,7 @@ test("falls back to the in-memory limiter when the shared store throws", async (
   process.env.RATE_LIMIT_AI_REQUESTS = "1";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
   storeThrows = true; // DB is "down"
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const { ApiError } = await import("@/lib/api-handler");
   const key = uniqueKey("fallback");
   // First call: store throws → falls back to memory (allowed, count 1).
@@ -252,7 +252,7 @@ test("auto mode trips a circuit breaker and stops hitting a dead store", async (
   process.env.RATE_LIMIT_AI_REQUESTS = "100";
   process.env.RATE_LIMIT_WINDOW_MS = "60000";
   storeThrows = true;
-  const { checkRateLimitByKey } = await import("@/lib/rate-limit");
+  const { checkRateLimitByKey } = await import("@/lib/security/rate-limit/index");
   const key = uniqueKey("breaker");
   await checkRateLimitByKey(key, "ai"); // attempts store, fails, trips breaker
   const callsAfterFirst = upsertCalls;
@@ -264,7 +264,7 @@ test("auto mode trips a circuit breaker and stops hitting a dead store", async (
 // ---- clientIpKey (still synchronous) ----------------------------------------
 
 test("clientIpKey extracts first IP from x-forwarded-for", async () => {
-  const { clientIpKey } = await import("@/lib/rate-limit");
+  const { clientIpKey } = await import("@/lib/security/rate-limit/index");
   const req = new Request("http://test/", {
     headers: { "x-forwarded-for": "1.2.3.4, 5.6.7.8" },
   });
@@ -272,7 +272,7 @@ test("clientIpKey extracts first IP from x-forwarded-for", async () => {
 });
 
 test("clientIpKey falls back to ip:unknown when header is absent", async () => {
-  const { clientIpKey } = await import("@/lib/rate-limit");
+  const { clientIpKey } = await import("@/lib/security/rate-limit/index");
   const req = new Request("http://test/");
   assert.equal(clientIpKey(req), "ip:unknown");
 });

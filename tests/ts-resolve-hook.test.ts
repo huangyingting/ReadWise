@@ -38,10 +38,10 @@ describe("@/* alias resolution", async () => {
     assert.equal(result.shortCircuit, true);
   });
 
-  test("resolves @/lib/logger to src/lib/logger.ts", async () => {
-    const result = await resolve("@/lib/logger", {}, passthrough);
+  test("resolves @/lib/observability/logger to src/lib/observability/logger.ts", async () => {
+    const result = await resolve("@/lib/observability/logger", {}, passthrough);
     assert.ok(
-      result.url.endsWith("src/lib/logger.ts"),
+      result.url.endsWith("src/lib/observability/logger.ts"),
       `expected logger.ts, got ${result.url}`,
     );
     assert.equal(result.shortCircuit, true);

@@ -15,7 +15,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { normalizeCandidates } from "@/lib/dictionary-normalize";
+import { normalizeCandidates } from "@/lib/lexical/normalize";
 import { clamp01, parseStringArray } from "./primitives";
 
 /** Max source article ids retained per word (most-recent-first, bounded). */

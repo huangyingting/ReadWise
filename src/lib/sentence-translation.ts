@@ -7,7 +7,7 @@ import {
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 import { getOrCreateSelectionAi } from "@/lib/ai-cache";
 
 /** Maximum source text length accepted for sentence translation. */

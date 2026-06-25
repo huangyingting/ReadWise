@@ -47,7 +47,7 @@ before(() => {
       getOrCreateArticleQuiz: async () => ({ questions: [{ question: "Q" }], fallback: false }),
     },
   });
-  mock.module("@/lib/tags", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       getOrCreateArticleTags: async () => ({
         tags: [{ id: "t1", name: "Metrics", slug: "metrics", scope: TagScope.PUBLIC }],
@@ -79,7 +79,7 @@ beforeEach(() => {
 });
 
 test("processArticle records content processing metrics without article ids", async () => {
-  const { processArticle } = (await import("@/lib/processor")) as typeof import("@/lib/processor");
+  const { processArticle } = (await import("@/lib/processing/processor")) as typeof import("@/lib/processing/processor");
   const result = await processArticle("secret-article-id-123456", { translateLangs: ["es"], tts: true });
 
   assert.equal(result?.ok, true);

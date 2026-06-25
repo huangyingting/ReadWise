@@ -4,7 +4,7 @@ import {
   listPersonalArticlesPage,
   toListingArticle,
   IMPORTS_PAGE_SIZE,
-} from "@/lib/articles";
+} from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/progress";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";

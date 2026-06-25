@@ -109,7 +109,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/articles", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       countWords: (text: string) => text.split(/\s+/).filter(Boolean).length,
       toListingArticle: (a: { id: string }) => a,
@@ -138,7 +138,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS: {
         articleImport: "article.import",

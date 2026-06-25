@@ -16,7 +16,7 @@ import {
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 
 /**
  * Difficulty / English level assessment for articles. Levels reuse the CEFR

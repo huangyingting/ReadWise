@@ -38,7 +38,7 @@ before(() => {
 });
 
 test("getAiCostOverview ranks features by cost and flags high fallback", async () => {
-  const { getAiCostOverview } = await import("@/lib/admin-ai-ops");
+  const { getAiCostOverview } = await import("@/lib/processing/admin-ops");
 
   const client = {
     aiInvocation: {
@@ -91,7 +91,7 @@ test("getAiCostOverview ranks features by cost and flags high fallback", async (
 });
 
 test("getContentOpsOverview rolls up step status counts + problem articles", async () => {
-  const { getContentOpsOverview } = await import("@/lib/admin-ai-ops");
+  const { getContentOpsOverview } = await import("@/lib/processing/admin-ops");
 
   const client = {
     articleProcessingStep: {

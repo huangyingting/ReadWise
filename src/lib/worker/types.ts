@@ -1,4 +1,4 @@
-import type { ProcessOptions, processArticle } from "@/lib/processor";
+import type { ProcessOptions, processArticle } from "@/lib/processing/processor";
 import type { claimNextJob, completeJob, failJob, startJob, Job, JobType } from "@/lib/jobs";
 
 export type WorkerLogger = {

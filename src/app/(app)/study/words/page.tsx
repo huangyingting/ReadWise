@@ -1,6 +1,6 @@
 import { requireOnboardedSession } from "@/lib/session";
 import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
-import { articleAccessContext } from "@/lib/article-access";
+import { articleAccessContext } from "@/lib/article-library";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/Button";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";

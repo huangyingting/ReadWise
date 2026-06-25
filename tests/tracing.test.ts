@@ -8,7 +8,7 @@ import {
   setSpanAttributes,
   sanitizeAttributes,
   activeTraceId,
-} from "@/lib/tracing";
+} from "@/lib/observability/tracing";
 
 // These tests run with NO OpenTelemetry SDK registered, so the OTel API is a
 // no-op. Everything here must therefore be a safe pass-through.

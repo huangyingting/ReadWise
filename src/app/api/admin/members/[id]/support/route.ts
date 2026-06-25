@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, oneOf } from "@/lib/validation";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 import {
   revokeMemberSessions,
   exportMemberData,

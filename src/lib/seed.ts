@@ -1,9 +1,9 @@
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls, scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
-import { processArticle, type ArticleProcessResult, type ProcessOptions } from "@/lib/processor";
+import { processArticle, type ArticleProcessResult, type ProcessOptions } from "@/lib/processing/processor";
 import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/content-sources";
 import type { Provider } from "@/lib/scraper/types";
-import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
+import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 
 export type SeedLogger = {
   info: (msg: string) => void;

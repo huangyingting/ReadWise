@@ -4,7 +4,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma, JobStatus, type Job } from "@prisma/client";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { recordJobQueueEvent } from "@/lib/metrics";
 import { retryPolicyFor, jobBackoffDelay, type RetryPolicy } from "./retry-policy";
 import { classifyJobError, type JobErrorKind } from "./errors";

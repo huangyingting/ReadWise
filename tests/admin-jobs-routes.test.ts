@@ -74,7 +74,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS,
       auditRequestInfo: (req: Request) => ({
@@ -112,7 +112,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/backfill", {
+  mock.module("@/lib/processing/backfill", {
     namedExports: {
       BACKFILL_FEATURES: [
         "difficulty",

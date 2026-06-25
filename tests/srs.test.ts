@@ -1,12 +1,12 @@
 /**
- * Unit tests for the SM-2 SRS engine (src/lib/srs.ts).
+ * Unit tests for the SM-2 SRS engine.
  * Pure functions — no mocking needed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applySm2 } from "@/lib/srs";
+import { applySm2 } from "@/lib/learning/srs";
 
-const BASE: import("@/lib/srs").SrsState = {
+const BASE: import("@/lib/learning/srs").SrsState = {
   intervalDays: 0,
   easeFactor: 2.5,
   repetitions: 0,

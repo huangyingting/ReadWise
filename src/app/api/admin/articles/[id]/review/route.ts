@@ -2,8 +2,8 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { reviewArticle, type ReviewState } from "@/lib/content-review";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { reviewArticle, type ReviewState } from "@/lib/article-library";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { revalidateArticlesCache, revalidateTagsCache } from "@/lib/cache";
 import { reviewBody } from "@/lib/admin/articles/schemas";
 

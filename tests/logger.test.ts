@@ -32,7 +32,7 @@ beforeEach(() => {
 // ---- runWithRequestContext / getRequestId / getRequestContext ------------
 
 test("runWithRequestContext binds requestId for getRequestId inside fn", async () => {
-  const { runWithRequestContext, getRequestId } = await import("@/lib/logger");
+  const { runWithRequestContext, getRequestId } = await import("@/lib/observability/logger");
   let captured: string | undefined;
   runWithRequestContext({ requestId: "req-abc-123" }, () => {
     captured = getRequestId();
@@ -41,14 +41,14 @@ test("runWithRequestContext binds requestId for getRequestId inside fn", async (
 });
 
 test("getRequestId returns undefined outside a request context", async () => {
-  const { getRequestId } = await import("@/lib/logger");
+  const { getRequestId } = await import("@/lib/observability/logger");
   // Outside runWithRequestContext there is no ambient context.
   const id = getRequestId();
   assert.equal(id, undefined);
 });
 
 test("runWithRequestContext binds full context for getRequestContext", async () => {
-  const { runWithRequestContext, getRequestContext } = await import("@/lib/logger");
+  const { runWithRequestContext, getRequestContext } = await import("@/lib/observability/logger");
   let captured: ReturnType<typeof getRequestContext>;
   runWithRequestContext(
     { requestId: "req-xyz", userId: "user-42", method: "GET", path: "/api/foo" },
@@ -65,14 +65,14 @@ test("runWithRequestContext binds full context for getRequestContext", async () 
 });
 
 test("getRequestContext returns undefined outside a request context", async () => {
-  const { getRequestContext } = await import("@/lib/logger");
+  const { getRequestContext } = await import("@/lib/observability/logger");
   assert.equal(getRequestContext(), undefined);
 });
 
 // ---- setRequestContext ---------------------------------------------------
 
 test("setRequestContext mutates userId within an active scope", async () => {
-  const { runWithRequestContext, setRequestContext, getRequestContext } = await import("@/lib/logger");
+  const { runWithRequestContext, setRequestContext, getRequestContext } = await import("@/lib/observability/logger");
   let afterSet: ReturnType<typeof getRequestContext>;
   runWithRequestContext({ requestId: "req-set-1" }, () => {
     setRequestContext({ userId: "user-99" });
@@ -83,7 +83,7 @@ test("setRequestContext mutates userId within an active scope", async () => {
 });
 
 test("setRequestContext is a no-op outside a request scope", async () => {
-  const { setRequestContext, getRequestContext } = await import("@/lib/logger");
+  const { setRequestContext, getRequestContext } = await import("@/lib/observability/logger");
   // Should not throw; no ambient store to mutate.
   assert.doesNotThrow(() => setRequestContext({ userId: "should-not-stick" }));
   assert.equal(getRequestContext(), undefined);
@@ -93,7 +93,7 @@ test("setRequestContext is a no-op outside a request scope", async () => {
 
 test("createLogger auto-merges requestId and userId into log lines", async () => {
   process.env.LOG_LEVEL = "info";
-  const { runWithRequestContext, createLogger } = await import("@/lib/logger");
+  const { runWithRequestContext, createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     runWithRequestContext({ requestId: "req-merge-1", userId: "u-77" }, () => {
       const log = createLogger("test-scope");
@@ -111,7 +111,7 @@ test("createLogger auto-merges requestId and userId into log lines", async () =>
 
 test("createLogger includes base fields in every line", async () => {
   process.env.LOG_LEVEL = "info";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     const log = createLogger("worker", { component: "processor" });
     log.info("processing");
@@ -123,7 +123,7 @@ test("createLogger includes base fields in every line", async () => {
 
 test("createLogger merges per-call meta on top of base and context", async () => {
   process.env.LOG_LEVEL = "info";
-  const { runWithRequestContext, createLogger } = await import("@/lib/logger");
+  const { runWithRequestContext, createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     runWithRequestContext({ requestId: "req-meta" }, () => {
       const log = createLogger("api", { base: "yes" });
@@ -140,7 +140,7 @@ test("createLogger merges per-call meta on top of base and context", async () =>
 
 test("LOG_LEVEL=warn drops debug and info lines", async () => {
   process.env.LOG_LEVEL = "warn";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     const log = createLogger("filter-test");
     log.debug("debug-msg");
@@ -158,7 +158,7 @@ test("LOG_LEVEL=warn drops debug and info lines", async () => {
 
 test("LOG_LEVEL=error drops debug, info, and warn lines", async () => {
   process.env.LOG_LEVEL = "error";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     const log = createLogger("filter-error-test");
     log.debug("debug");
@@ -174,7 +174,7 @@ test("LOG_LEVEL=error drops debug, info, and warn lines", async () => {
 
 test("LOG_LEVEL=debug emits all levels", async () => {
   process.env.LOG_LEVEL = "debug";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     const log = createLogger("all-levels");
     log.debug("d");
@@ -187,7 +187,7 @@ test("LOG_LEVEL=debug emits all levels", async () => {
 
 test("LOG_LEVEL=info drops only debug", async () => {
   process.env.LOG_LEVEL = "info";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     const log = createLogger("info-test");
     log.debug("dropped");
@@ -204,7 +204,7 @@ test("LOG_LEVEL=info drops only debug", async () => {
 
 test("log lines contain ts, level, scope, message fields", async () => {
   process.env.LOG_LEVEL = "info";
-  const { createLogger } = await import("@/lib/logger");
+  const { createLogger } = await import("@/lib/observability/logger");
   const lines = await captureConsole(() => {
     createLogger("struct-test").info("structure check");
   });

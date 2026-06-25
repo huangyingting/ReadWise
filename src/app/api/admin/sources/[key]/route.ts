@@ -3,7 +3,7 @@ import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, boolean } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
 import { setContentSourceEnabled, summarizeSourceHealth } from "@/lib/content-sources";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const keyParams = object({ key: nonEmptyString(200) });
 const toggleBody = object({ enabled: boolean() });

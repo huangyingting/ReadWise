@@ -11,7 +11,7 @@
  * Uses the same TS-CLI harness as worker.ts / scrape.ts.
  */
 import { sendDueReminders, isPushConfigured } from "@/lib/push";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { runScript, isMain, parseFlag } from "./lib/cli";
 
 const log = createLogger("push-reminders");

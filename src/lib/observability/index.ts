@@ -13,9 +13,8 @@
  *
  *   import { startTracing } from "@/lib/observability/tracing-node"
  *
- * Existing public paths (`@/lib/logger`, `@/lib/tracing`, `@/lib/error-reporting`,
- * `@/lib/slo`) remain stable re-export shims so all current call sites keep
- * working without modification.
+ * Import domain-specific helpers from this barrel or from the focused
+ * submodules above.
  */
 
 // Logger + request context

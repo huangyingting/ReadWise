@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { searchArticles, getAdminArticleStatuses } from "@/lib/admin-articles";
+import { searchArticles, getAdminArticleStatuses } from "@/lib/article-library";
 import { statusBadgeVariant } from "@/lib/admin";
-import { articleAccessContext } from "@/lib/article-access";
+import { articleAccessContext } from "@/lib/article-library";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";

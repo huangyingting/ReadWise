@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { throwIfFailed } from "@/lib/result";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
-import { addToList } from "@/lib/bookmarks";
+import { addToList } from "@/lib/article-library";
 
 const bodySchema = object({ articleId: nonEmptyString(200) });
 

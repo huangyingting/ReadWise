@@ -3,8 +3,8 @@ import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { prisma } from "@/lib/prisma";
-import { updateArticleMastery } from "@/lib/article-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { updateArticleMastery } from "@/lib/learning/article-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import { difficultyFeedbackBody, type VoteValue } from "@/lib/reader/schemas";
 
 /**

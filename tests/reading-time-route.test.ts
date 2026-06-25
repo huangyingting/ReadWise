@@ -45,7 +45,7 @@ before(() => {
     namedExports: sessionAuthExports(() => authState),
   });
 
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: () => ({ userId: session.user.id }),
       getReadableArticleById: async () =>
@@ -53,7 +53,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/article-mastery", {
+  mock.module("@/lib/learning/article-mastery", {
     namedExports: {
       updateArticleMastery: async (
         userId: string,

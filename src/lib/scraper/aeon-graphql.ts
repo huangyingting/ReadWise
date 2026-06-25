@@ -13,7 +13,7 @@
  */
 
 import type { ExtractorFetch } from "@/lib/scraper/types";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("scraper.aeon");
 

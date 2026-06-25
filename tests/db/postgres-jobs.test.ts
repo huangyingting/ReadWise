@@ -70,7 +70,7 @@ test("worker/processor selection uses article state for the derived queue", { sk
     prisma.quizQuestion.create({ data: { articleId: enrichedId, question: "Done?", options: ["Yes", "No"], correctIndex: 0 } }),
   ]);
 
-  const { listUnprocessedArticleIds } = await import("@/lib/processor");
+  const { listUnprocessedArticleIds } = await import("@/lib/processing/processor");
   const draftsOnly = await listUnprocessedArticleIds();
   assert.deepEqual(
     draftsOnly.filter((articleId) => [draftOldId, draftNewId, publishedMissingId, enrichedId].includes(articleId)),

@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCloze, gradeCloze } from "@/lib/cloze";
+import { buildCloze, gradeCloze } from "@/lib/learning/cloze";
 
 // ── buildCloze — no_example ────────────────────────────────────────────────
 

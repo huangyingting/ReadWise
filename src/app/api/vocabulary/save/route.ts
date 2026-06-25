@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { saveWord } from "@/lib/vocabulary";
-import { recordWordExposure } from "@/lib/word-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { recordWordExposure } from "@/lib/learning/word-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { saveWordBody } from "@/lib/vocabulary/schemas";
 

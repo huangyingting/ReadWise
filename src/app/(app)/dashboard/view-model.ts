@@ -8,15 +8,15 @@
 import type { Role } from "@prisma/client";
 import type { Profile } from "@prisma/client";
 import type { StreakSummary } from "@/lib/activity";
-import type { QuizMastery } from "@/lib/quiz-mastery";
+import type { QuizMastery } from "@/lib/learning/quiz-mastery";
 import type { InProgressEntry, ProgressSummary } from "@/lib/progress";
 import type { FeedPage } from "@/lib/feed";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { listInProgressArticles, getProgressSummaries } from "@/lib/progress";
 import { getStreakSummary } from "@/lib/activity";
-import { getQuizMastery } from "@/lib/quiz-mastery";
-import { getReviewSummary } from "@/lib/flashcards";
-import { getBookmarkedArticleIds } from "@/lib/bookmarks";
+import { getQuizMastery } from "@/lib/learning/quiz-mastery";
+import { getReviewSummary } from "@/lib/learning/flashcards";
+import { getBookmarkedArticleIds } from "@/lib/article-library";
 import { getProfile, parseTopics } from "@/lib/profile";
 import { getPersonalizedFeed } from "@/lib/feed";
 

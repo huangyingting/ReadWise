@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { getArticleListMembership } from "@/lib/bookmarks";
-import { parseMembershipQuery } from "@/lib/bookmarks/schemas";
+import { getArticleListMembership } from "@/lib/article-library";
+import { parseMembershipQuery } from "@/lib/article-library/collections/schemas";
 
 /**
  * GET /api/bookmarks/membership?articleId=<id>

@@ -7,7 +7,7 @@ process.env.LOG_LEVEL = "error"; // silence request + security logs
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
-import { checkSameOrigin, isStateChangingMethod } from "@/lib/csrf";
+import { checkSameOrigin, isStateChangingMethod } from "@/lib/security/csrf";
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
 

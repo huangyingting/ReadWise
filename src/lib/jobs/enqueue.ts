@@ -3,7 +3,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { Prisma, JobStatus, JobType, type Job } from "@prisma/client";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { recordJobQueueEvent } from "@/lib/metrics";
 import { retryPolicyFor } from "./retry-policy";
 import { ACTIVE_STATUSES, type JobPayload, type ArticleJobPayload, type ArticleIngestPayload, type PushReminderPayload } from "./types";

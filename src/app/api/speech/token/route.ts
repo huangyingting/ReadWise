@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { isSpeechConfigured } from "@/lib/speech";
 import { speechConfig } from "@/lib/runtime-config/speech";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { providerFetch } from "@/lib/http/provider-client";
 
 // Azure Speech SDK has Node-only native bindings.

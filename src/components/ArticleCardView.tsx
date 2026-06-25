@@ -1,5 +1,5 @@
 import { Check, ChevronRight } from "lucide-react";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/progress";
 import { Sparkles } from "lucide-react";
 import { CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";

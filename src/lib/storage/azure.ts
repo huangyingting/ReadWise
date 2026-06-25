@@ -1,4 +1,4 @@
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/types";
 import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
 

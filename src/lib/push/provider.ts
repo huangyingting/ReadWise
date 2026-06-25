@@ -8,7 +8,7 @@
  * Server-only — never import from a Client Component or the SW script.
  */
 import webpush from "web-push";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { pushConfig } from "@/lib/runtime-config/push";
 
 const log = createLogger("push");

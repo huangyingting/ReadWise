@@ -23,7 +23,7 @@ function stat(type: string, users: string[]): Stat[] {
 }
 
 test("computeOverview builds a descending funnel of distinct users", async () => {
-  const { computeOverview } = await import("@/lib/analytics-queries");
+  const { computeOverview } = await import("@/lib/analytics/queries");
   const stats: Stat[] = [
     ...stat("onboarding_complete", ["u1", "u2", "u3", "u4"]),
     ...stat("article_view", ["u1", "u2", "u3"]),
@@ -60,7 +60,7 @@ test("computeOverview builds a descending funnel of distinct users", async () =>
 });
 
 test("computeOverview handles an empty stream without dividing by zero", async () => {
-  const { computeOverview } = await import("@/lib/analytics-queries");
+  const { computeOverview } = await import("@/lib/analytics/queries");
   const overview = computeOverview([]);
   assert.equal(overview.totals.events, 0);
   assert.equal(overview.activation.ratePct, 0);
@@ -68,7 +68,7 @@ test("computeOverview handles an empty stream without dividing by zero", async (
 });
 
 test("computeRetentionCohorts groups users by first-active week", async () => {
-  const { computeRetentionCohorts } = await import("@/lib/analytics-queries");
+  const { computeRetentionCohorts } = await import("@/lib/analytics/queries");
   const now = new Date("2026-06-22T00:00:00Z"); // a Monday
   const ev = (userId: string, date: string) => ({
     userId,
@@ -97,7 +97,7 @@ test("computeRetentionCohorts groups users by first-active week", async () => {
 });
 
 test("getAnalyticsOverview groups events and respects an empty segment", async () => {
-  const { getAnalyticsOverview } = await import("@/lib/analytics-queries");
+  const { getAnalyticsOverview } = await import("@/lib/analytics/queries");
   let groupByArgs: unknown = null;
   const client = {
     analyticsEvent: {
@@ -131,7 +131,7 @@ test("getAnalyticsOverview groups events and respects an empty segment", async (
 });
 
 test("resolveSegmentUserIds filters profiles by level and topic", async () => {
-  const { resolveSegmentUserIds } = await import("@/lib/analytics-queries");
+  const { resolveSegmentUserIds } = await import("@/lib/analytics/queries");
   const profiles = [
     { userId: "u1", englishLevel: "B1", topics: ["science", "tech"] },
     { userId: "u2", englishLevel: "B1", topics: ["health"] },

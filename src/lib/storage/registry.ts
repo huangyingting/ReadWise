@@ -8,7 +8,7 @@
  *   3. Contract tests for the new adapter.
  * No other modules need to change.
  */
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { CLOUD_SEAMS, type MediaStorage, type MediaStorageKind } from "@/lib/storage/types";
 
 const log = createLogger("storage");

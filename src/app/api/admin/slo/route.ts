@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
-import { evaluateSlos, SLI_CATALOG } from "@/lib/slo";
+import { evaluateSlos, SLI_CATALOG } from "@/lib/observability/slo";
 
 /**
  * Admin-gated SLO status (RW-034). Returns the SLI catalog + the current

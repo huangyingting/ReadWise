@@ -12,7 +12,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, array, nonEmptyString } from "@/lib/validation";
-import { getBookmarkedArticleIds } from "@/lib/bookmarks";
+import { getBookmarkedArticleIds } from "@/lib/article-library";
 
 const bodySchema = object({ ids: array(nonEmptyString(200), { max: 200 }) });
 

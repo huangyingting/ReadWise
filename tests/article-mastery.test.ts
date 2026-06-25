@@ -92,7 +92,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("computeComprehensionScore: reading alone is capped (no quiz)", async () => {
-  const { computeComprehensionScore } = await import("@/lib/article-mastery");
+  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
   const full = computeComprehensionScore({
     readingCompletion: 1,
     quizScore: null,
@@ -103,7 +103,7 @@ test("computeComprehensionScore: reading alone is capped (no quiz)", async () =>
 });
 
 test("computeComprehensionScore: a quiz is the strongest comprehension signal", async () => {
-  const { computeComprehensionScore } = await import("@/lib/article-mastery");
+  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
   const pass = computeComprehensionScore({
     readingCompletion: 1,
     quizScore: 0.9,
@@ -114,7 +114,7 @@ test("computeComprehensionScore: a quiz is the strongest comprehension signal", 
 });
 
 test("computeComprehensionScore: too_hard lowers, too_easy raises", async () => {
-  const { computeComprehensionScore } = await import("@/lib/article-mastery");
+  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
   const base = { readingCompletion: 1, quizScore: 0.8, lookupDensity: null };
   const neutral = computeComprehensionScore({ ...base, difficultyFeedback: null });
   const hard = computeComprehensionScore({ ...base, difficultyFeedback: "too_hard" });
@@ -128,7 +128,7 @@ test("computeComprehensionScore: too_hard lowers, too_easy raises", async () => 
 // ---------------------------------------------------------------------------
 
 test("partial read without a quiz yields a low comprehension score", async () => {
-  const { updateArticleMastery } = await import("@/lib/article-mastery");
+  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
   progressPercent = 40;
   const rec = await updateArticleMastery("u1", "a1");
   assert.ok(Math.abs(rec!.readingCompletion - 0.4) < 1e-9);
@@ -137,14 +137,14 @@ test("partial read without a quiz yields a low comprehension score", async () =>
 });
 
 test("completed read without a quiz reaches the reading-only ceiling", async () => {
-  const { updateArticleMastery } = await import("@/lib/article-mastery");
+  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
   progressPercent = 100;
   const rec = await updateArticleMastery("u1", "a1");
   assert.ok(Math.abs(rec!.comprehensionScore - 0.6) < 1e-9, `(${rec!.comprehensionScore})`);
 });
 
 test("a passing quiz pushes comprehension high; a failing quiz keeps it modest", async () => {
-  const { updateArticleMastery } = await import("@/lib/article-mastery");
+  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
   progressPercent = 100;
   maxScorePct = 90;
   const pass = await updateArticleMastery("u-pass", "a1");
@@ -157,7 +157,7 @@ test("a passing quiz pushes comprehension high; a failing quiz keeps it modest",
 });
 
 test("lookup density applies a bounded penalty", async () => {
-  const { updateArticleMastery } = await import("@/lib/article-mastery");
+  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
   progressPercent = 100;
   maxScorePct = 100;
   wordCount = 100;
@@ -170,7 +170,7 @@ test("lookup density applies a bounded penalty", async () => {
 });
 
 test("difficulty feedback recomputes and persists into the same row", async () => {
-  const { updateArticleMastery, getArticleMastery } = await import("@/lib/article-mastery");
+  const { updateArticleMastery, getArticleMastery } = await import("@/lib/learning/article-mastery");
   progressPercent = 100;
   maxScorePct = 80;
   const before = await updateArticleMastery("u1", "a1");
@@ -185,6 +185,6 @@ test("difficulty feedback recomputes and persists into the same row", async () =
 });
 
 test("getArticleMastery returns null when nothing recorded", async () => {
-  const { getArticleMastery } = await import("@/lib/article-mastery");
+  const { getArticleMastery } = await import("@/lib/learning/article-mastery");
   assert.equal(await getArticleMastery("u1", "missing"), null);
 });

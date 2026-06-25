@@ -45,7 +45,7 @@ test("PostgreSQL full-text article search is case-insensitive and privacy-filter
     },
   });
 
-  const { searchReadableArticles } = await import("@/lib/articles");
+  const { searchReadableArticles } = await import("@/lib/article-search");
   const results = await searchReadableArticles("galactic", { limit: 5 });
   const rawFts = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id"

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { throwIfFailed } from "@/lib/result";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
-import { renameList, deleteList } from "@/lib/bookmarks";
+import { renameList, deleteList } from "@/lib/article-library";
 
 const renameBodySchema = object({ name: nonEmptyString(200) });
 

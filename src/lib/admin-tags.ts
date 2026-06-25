@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { slugifyTag } from "@/lib/taxonomy/scope";
-import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
-import { publicListableArticleWhere } from "@/lib/article-access";
+import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
+import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
 
 /** Page size for the admin tag listing. */

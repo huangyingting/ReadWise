@@ -67,12 +67,6 @@ import { requireSession } from "@/lib/session";
 export default function Widget() { return null; }
 `.trim();
 
-const CLIENT_IMPORTS_LOGGER = `
-"use client";
-import { createLogger } from "@/lib/logger";
-export default function Widget() { return null; }
-`.trim();
-
 const CLIENT_IMPORTS_RUNTIME_CONFIG = `
 "use client";
 import * as runtimeConfig from "@/lib/runtime-config";
@@ -146,12 +140,6 @@ describe("readwise/no-server-imports-in-client", () => {
     const messages = lint(CLIENT_IMPORTS_SESSION);
     assert.ok(messages.length > 0, "Expected at least one lint error");
     assert.ok(messages.some((m) => m.message.includes("@/lib/session")));
-  });
-
-  test("reports error when 'use client' file imports @/lib/logger", () => {
-    const messages = lint(CLIENT_IMPORTS_LOGGER);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/logger")));
   });
 
   test("reports error when 'use client' file imports @/lib/runtime-config", () => {

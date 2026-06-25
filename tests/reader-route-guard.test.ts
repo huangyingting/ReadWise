@@ -23,7 +23,7 @@ let rateLimitShouldThrow = false;
 let returnArticle: unknown = null;
 
 before(() => {
-  mock.module("@/lib/article-access", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       articleAccessContext: (u: { id?: string | null; role?: string | null }) => ({
         userId: u?.id ?? null,
@@ -36,7 +36,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/rate-limit", {
+  mock.module("@/lib/security/rate-limit/index", {
     namedExports: {
       checkRateLimit: async (userId: string, scope: string) => {
         rateLimitCalls.push({ userId, scope });

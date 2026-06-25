@@ -47,7 +47,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/audit", {
+  mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS,
       auditRequestInfo: (req: Request) => ({

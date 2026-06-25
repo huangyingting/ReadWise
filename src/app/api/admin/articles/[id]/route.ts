@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { deleteArticle } from "@/lib/admin-articles";
+import { deleteArticle } from "@/lib/article-library";
 import { revalidateTagsCache } from "@/lib/cache";
-import { articleAccessContext } from "@/lib/article-access";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { articleAccessContext } from "@/lib/article-library";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 export const DELETE = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
   const ok = await deleteArticle(params.id, articleAccessContext(session.user), {

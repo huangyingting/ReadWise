@@ -12,7 +12,7 @@
  *
  * Server-only — never import from a Client Component.
  */
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { prisma } from "@/lib/prisma";
 import {
   getReminderPreferenceMap,

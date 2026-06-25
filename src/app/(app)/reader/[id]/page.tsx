@@ -4,7 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader";
 import ReaderProgress from "@/components/ReaderProgress";

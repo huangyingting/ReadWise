@@ -4,8 +4,8 @@ import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
-import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
-import { AUDIT_ACTIONS } from "@/lib/audit";
+import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
+import { AUDIT_ACTIONS } from "@/lib/security/audit";
 import { ingestBody } from "@/lib/admin/articles/schemas";
 
 /**

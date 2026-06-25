@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { normalizeCandidates, lookupWord } from "@/lib/dictionary";
+import { normalizeCandidates } from "@/lib/lexical/normalize";
+import { lookupWord } from "@/lib/lexical/lookup";
 
 test("normalizeCandidates expands contractions", () => {
   assert.ok(normalizeCandidates("don't").includes("do"));

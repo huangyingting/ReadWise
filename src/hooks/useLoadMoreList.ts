@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useRef, useState } from "react";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/progress";
 
 /** Minimum shape that a page response must satisfy. */

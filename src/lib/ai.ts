@@ -22,10 +22,10 @@
  * and exponential backoff independently of observability concerns.
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { aiMaxRetries, aiTimeoutMs } from "@/lib/runtime-config/ai";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
-import { withSpan, setSpanAttributes } from "@/lib/tracing";
+import { withSpan, setSpanAttributes } from "@/lib/observability/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
 import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
 import { getAiProvider } from "@/lib/ai/registry";

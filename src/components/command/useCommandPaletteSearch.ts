@@ -13,7 +13,7 @@ import {
 } from "./command-items";
 import { useArticleSearch, type SearchStatus } from "./useArticleSearch";
 import type { ShellUser } from "@/components/shell/types";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 
 export interface UseCommandPaletteSearchOptions {
   user: ShellUser | null;

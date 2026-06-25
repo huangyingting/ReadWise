@@ -1,8 +1,8 @@
 import { requireSession } from "@/lib/session";
 import { getSavedWords } from "@/lib/vocabulary";
-import { getReviewSummary } from "@/lib/flashcards";
-import { getQuizMastery } from "@/lib/quiz-mastery";
-import { generateStudyPlan } from "@/lib/study-plan";
+import { getReviewSummary } from "@/lib/learning/flashcards";
+import { getQuizMastery } from "@/lib/learning/quiz-mastery";
+import { generateStudyPlan } from "@/lib/learning/study-plan";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
 import { Card } from "@/components/ui/Card";

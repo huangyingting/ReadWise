@@ -19,8 +19,7 @@
  * without touching any call site. NO provider dependency is hard-added.
  *
  * Part of the observability package (REF-053). This is the canonical
- * implementation; `@/lib/error-reporting` is a re-export shim for backward
- * compatibility.
+ * implementation.
  */
 import { createLogger, getRequestContext } from "./logger";
 import { recordErrorCaptured } from "@/lib/metrics";

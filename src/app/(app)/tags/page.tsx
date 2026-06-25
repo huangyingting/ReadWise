@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Hash } from "lucide-react";
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
-import { listTagsWithCounts } from "@/lib/tags";
+import { listTagsWithCounts } from "@/lib/article-library";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import EmptyState from "@/components/EmptyState";

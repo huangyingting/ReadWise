@@ -14,6 +14,11 @@
  */
 import { prisma } from "@/lib/prisma";
 import {
+  summarizeAiUsage,
+  type AiUsageSummary,
+  type AiUsageGroup,
+} from "@/lib/ai-usage-summary";
+import {
   getJobDashboard,
   type JobDashboard,
 } from "@/lib/admin-jobs";
@@ -23,10 +28,175 @@ import {
   type ProcessingStepStatus,
 } from "./state";
 
+/** Prisma surface the AI cost helper needs (injectable in tests). */
+type AiClient = Pick<typeof prisma, "aiInvocation">;
 /** Prisma surfaces the helper needs (injectable in tests). */
 type StepClient = Pick<typeof prisma, "articleProcessingStep" | "article">;
 
+const DEFAULT_WINDOW_HOURS = 24 * 7;
 const TOP_LIMIT = 10;
+
+export type LatencyStats = {
+  avgMs: number | null;
+  maxMs: number | null;
+};
+
+/** A per-entity AI usage row with the fallback rate broken out. */
+export type AiEntityUsage = AiUsageGroup & {
+  fallbackCount: number;
+  fallbackRatePct: number;
+};
+
+export type AiCostOverview = {
+  windowHours: number;
+  range: { since: string; until: string };
+  summary: AiUsageSummary;
+  latency: LatencyStats;
+  byFeatureCost: AiEntityUsage[];
+  topUsers: AiEntityUsage[];
+  topArticles: AiEntityUsage[];
+  highFallbackFeatures: AiEntityUsage[];
+};
+
+function pct(numerator: number, denominator: number): number {
+  if (denominator <= 0) return 0;
+  return Math.round((numerator / denominator) * 1000) / 10;
+}
+
+function roundCost(value: number | null | undefined): number {
+  if (!value || !Number.isFinite(value)) return 0;
+  return Math.round(value * 1e6) / 1e6;
+}
+
+export async function getAiCostOverview(
+  opts: { hours?: number; now?: Date; client?: AiClient } = {},
+): Promise<AiCostOverview> {
+  const client = opts.client ?? prisma;
+  const now = opts.now ?? new Date();
+  const windowHours =
+    Number.isFinite(opts.hours) && (opts.hours ?? 0) > 0
+      ? Math.floor(opts.hours as number)
+      : DEFAULT_WINDOW_HOURS;
+  const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
+  const where = { createdAt: { gte: since, lt: now } } as const;
+
+  const [summary, latencyAgg, byFeatureFallback, byUser, byUserFallback, byArticle] =
+    await Promise.all([
+      summarizeAiUsage({ since, until: now }, client),
+      client.aiInvocation.aggregate({
+        where,
+        _avg: { latencyMs: true },
+        _max: { latencyMs: true },
+      }),
+      client.aiInvocation.groupBy({
+        by: ["feature"],
+        where: { ...where, fallback: true },
+        _count: { _all: true },
+      }),
+      client.aiInvocation.groupBy({
+        by: ["userId"],
+        where,
+        _count: { _all: true },
+        _sum: {
+          promptTokens: true,
+          completionTokens: true,
+          totalTokens: true,
+          estimatedCostUsd: true,
+        },
+      }),
+      client.aiInvocation.groupBy({
+        by: ["userId"],
+        where: { ...where, fallback: true },
+        _count: { _all: true },
+      }),
+      client.aiInvocation.groupBy({
+        by: ["articleId"],
+        where,
+        _count: { _all: true },
+        _sum: {
+          promptTokens: true,
+          completionTokens: true,
+          totalTokens: true,
+          estimatedCostUsd: true,
+        },
+      }),
+    ]);
+
+  const fallbackByFeature = new Map<string, number>();
+  for (const row of byFeatureFallback) {
+    fallbackByFeature.set(row.feature ?? "unknown", row._count._all);
+  }
+
+  const byFeatureCost: AiEntityUsage[] = summary.byFeature
+    .map((g) => {
+      const fallbackCount = fallbackByFeature.get(g.key) ?? 0;
+      return {
+        ...g,
+        estimatedCostUsd: roundCost(g.estimatedCostUsd),
+        fallbackCount,
+        fallbackRatePct: pct(fallbackCount, g.count),
+      };
+    })
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+
+  const highFallbackFeatures = byFeatureCost
+    .filter((g) => g.count >= 3 && g.fallbackRatePct >= 25)
+    .sort((a, b) => b.fallbackRatePct - a.fallbackRatePct);
+
+  const fallbackByUser = new Map<string, number>();
+  for (const row of byUserFallback) {
+    fallbackByUser.set(row.userId ?? "—", row._count._all);
+  }
+
+  const mapGroup = (
+    rows: Array<{
+      _count: { _all: number };
+      _sum: {
+        promptTokens: number | null;
+        completionTokens: number | null;
+        totalTokens: number | null;
+        estimatedCostUsd: number | null;
+      };
+    } & Record<string, unknown>>,
+    field: string,
+    fallbackMap?: Map<string, number>,
+  ): AiEntityUsage[] =>
+    rows
+      .map((row) => {
+        const key = (row[field] as string | null) ?? "—";
+        const count = row._count._all;
+        const fallbackCount = fallbackMap?.get(key) ?? 0;
+        return {
+          key,
+          count,
+          promptTokens: row._sum.promptTokens ?? 0,
+          completionTokens: row._sum.completionTokens ?? 0,
+          totalTokens: row._sum.totalTokens ?? 0,
+          estimatedCostUsd: roundCost(row._sum.estimatedCostUsd),
+          fallbackCount,
+          fallbackRatePct: pct(fallbackCount, count),
+        };
+      })
+      .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd || b.count - a.count)
+      .slice(0, TOP_LIMIT);
+
+  return {
+    windowHours,
+    range: { since: since.toISOString(), until: now.toISOString() },
+    summary,
+    latency: {
+      avgMs:
+        latencyAgg._avg.latencyMs != null
+          ? Math.round(latencyAgg._avg.latencyMs)
+          : null,
+      maxMs: latencyAgg._max.latencyMs ?? null,
+    },
+    byFeatureCost,
+    topUsers: mapGroup(byUser, "userId", fallbackByUser),
+    topArticles: mapGroup(byArticle, "articleId").filter((g) => g.key !== "—"),
+    highFallbackFeatures,
+  };
+}
 
 export type StepStatusCounts = Record<ProcessingStepStatus, number> & {
   total: number;

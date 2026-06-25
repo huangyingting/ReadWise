@@ -4,14 +4,14 @@ import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
 } from "@/lib/runtime-config/speech";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import type { SpeechWord } from "@/lib/speech-timing";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 import { synthesize, resolveMimeType } from "@/lib/speech/provider-azure";
 import {
   parseStoredSpeechWords,

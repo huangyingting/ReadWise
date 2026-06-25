@@ -8,7 +8,7 @@
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { getMediaStorage } from "@/lib/storage";
 import { timingEndSeconds, type SpeechWord } from "@/lib/speech-timing";
 

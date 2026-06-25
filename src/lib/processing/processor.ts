@@ -17,7 +17,7 @@ import { ArticleStatus } from "@prisma/client";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleVocabulary } from "@/lib/vocabulary";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
-import { getOrCreateArticleTags } from "@/lib/tags";
+import { getOrCreateArticleTags } from "@/lib/article-library";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
@@ -28,7 +28,7 @@ import {
   SYSTEM_ARTICLE_CONTEXT,
   aiProcessableArticleWhere,
   getAiProcessableArticleById,
-} from "@/lib/article-access";
+} from "@/lib/article-library";
 import { recordContentProcessingRun, recordContentProcessingStep } from "@/lib/metrics";
 import { FEATURE_REGISTRY, type FeatureKey } from "./registry";
 

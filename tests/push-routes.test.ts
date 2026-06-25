@@ -57,7 +57,7 @@ before(() => {
   });
 
   // Allow rate limit through without hitting the limit in tests.
-  mock.module("@/lib/rate-limit", {
+  mock.module("@/lib/security/rate-limit/index", {
     namedExports: {
       checkRateLimit: () => {},
       checkRateLimitByKey: () => {},

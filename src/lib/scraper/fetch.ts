@@ -12,7 +12,7 @@
  */
 import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
 import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
-import { withSpan } from "@/lib/tracing";
+import { withSpan } from "@/lib/observability/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
 
 const USER_AGENT =

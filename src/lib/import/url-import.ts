@@ -9,10 +9,10 @@ import { heuristicDifficulty } from "@/lib/difficulty";
 import {
   findOwnedArticleBySourceUrl,
   privateImportedArticleCreateFields,
-} from "@/lib/article-access";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
-import { recordSecurityEvent, SECURITY_EVENT_TYPES, type SecurityEventInput } from "@/lib/security-events";
-import { clientIp } from "@/lib/client-ip";
+} from "@/lib/article-library";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES, type SecurityEventInput } from "@/lib/security/events";
+import { clientIp } from "@/lib/security/client-ip";
 import { recordEvent, ANALYTICS_EVENT_TYPES, type AnalyticsEventInput } from "@/lib/analytics/events";
 import { assertWithinDailyQuota } from "@/lib/import/quota";
 

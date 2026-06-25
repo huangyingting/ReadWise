@@ -3,10 +3,10 @@ import { ApiError } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
-import { countWords } from "@/lib/articles";
+import { countWords } from "@/lib/article-library";
 import { heuristicDifficulty } from "@/lib/difficulty";
-import { privateImportedArticleCreateFields } from "@/lib/article-access";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+import { privateImportedArticleCreateFields } from "@/lib/article-library";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { recordEvent, ANALYTICS_EVENT_TYPES, type AnalyticsEventInput } from "@/lib/analytics/events";
 import { assertWithinDailyQuota } from "@/lib/import/quota";
 

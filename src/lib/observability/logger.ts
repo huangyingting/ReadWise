@@ -9,7 +9,7 @@
  * threading it through every function signature.
  *
  * Part of the observability package (REF-053). This is the canonical
- * implementation; `@/lib/logger` is a re-export shim for backward compatibility.
+ * implementation.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
 import { logLevel, type LogLevel } from "@/lib/runtime-config/observability";

@@ -5,9 +5,9 @@
  * layer of the subsystem without creating circular references.
  */
 
-import type { ArticleCardSource } from "@/lib/articles";
+import type { ArticleCardSource } from "@/lib/article-library";
 import type { DifficultyLevel } from "@/lib/difficulty";
-import type { Skill } from "@/lib/skill-mastery";
+import type { Skill } from "@/lib/learning/skill-mastery";
 
 // ---------------------------------------------------------------------------
 // Candidate and score types

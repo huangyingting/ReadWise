@@ -1,6 +1,6 @@
 /**
  * Tests for the RW-041 weakness diagnostics & study-plan generation in
- * `@/lib/study-plan`. The diagnosis ({@link diagnoseWeakAreas}) and plan
+ * `@/lib/learning/study-plan`. The diagnosis ({@link diagnoseWeakAreas}) and plan
  * synthesis ({@link buildWeeklyPlan}) are pure functions over a
  * {@link StudyDiagnostics} snapshot, so they're tested directly. A couple of
  * integration tests drive {@link generateStudyPlan} through a mocked prisma.
@@ -9,8 +9,8 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { StudyDiagnostics } from "@/lib/study-plan";
-import type { SkillSummary, Skill } from "@/lib/skill-mastery";
+import type { StudyDiagnostics } from "@/lib/learning/study-plan";
+import type { SkillSummary, Skill } from "@/lib/learning/skill-mastery";
 
 const SKILL_LIST: Skill[] = [
   "reading",
@@ -129,7 +129,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("diagnoseWeakAreas surfaces weak vocabulary grounded in saved-word numbers", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
   const areas = diagnoseWeakAreas(
     diag({ vocab: { weakCount: 8, dueCount: 5, totalSaved: 10 } }),
   );
@@ -141,7 +141,7 @@ test("diagnoseWeakAreas surfaces weak vocabulary grounded in saved-word numbers"
 });
 
 test("diagnoseWeakAreas surfaces comprehension from low quiz average", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
   const areas = diagnoseWeakAreas(
     diag({ quiz: { averageScore: 45, totalAttempts: 6 }, comprehension: { lowCount: 3, assessedCount: 5 } }),
   );
@@ -151,7 +151,7 @@ test("diagnoseWeakAreas surfaces comprehension from low quiz average", async () 
 });
 
 test("diagnoseWeakAreas surfaces pronunciation + listening/grammar from skill confidence", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
   const areas = diagnoseWeakAreas(
     diag({
       pronunciation: { avgScore: 40, attempts: 4 },
@@ -167,12 +167,12 @@ test("diagnoseWeakAreas surfaces pronunciation + listening/grammar from skill co
 });
 
 test("diagnoseWeakAreas is empty for a learner with no recorded weaknesses", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
   assert.deepEqual(diagnoseWeakAreas(diag()), []);
 });
 
 test("diagnoseWeakAreas sorts by severity (weakest first)", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
   const areas = diagnoseWeakAreas(
     diag({
       vocab: { weakCount: 1, dueCount: 1, totalSaved: 10 }, // low severity
@@ -190,7 +190,7 @@ test("diagnoseWeakAreas sorts by severity (weakest first)", async () => {
 // ---------------------------------------------------------------------------
 
 test("buildWeeklyPlan links weak vocabulary to flashcard review when words are due", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
   const d = diag({ vocab: { weakCount: 4, dueCount: 3, totalSaved: 8 } });
   const items = buildWeeklyPlan(diagnoseWeakAreas(d), d);
   const review = items.find((i) => i.kind === "vocabulary");
@@ -200,7 +200,7 @@ test("buildWeeklyPlan links weak vocabulary to flashcard review when words are d
 });
 
 test("buildWeeklyPlan returns a sensible STARTER plan for a brand-new learner", async () => {
-  const { buildWeeklyPlan } = await import("@/lib/study-plan");
+  const { buildWeeklyPlan } = await import("@/lib/learning/study-plan");
   const items = buildWeeklyPlan([], diag());
   assert.ok(items.length > 0);
   assert.ok(items.some((i) => i.href === "/browse?view=picks"));
@@ -209,7 +209,7 @@ test("buildWeeklyPlan returns a sensible STARTER plan for a brand-new learner", 
 });
 
 test("buildWeeklyPlan appends the top reading recommendation when available", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
   const d = diag({
     vocab: { weakCount: 4, dueCount: 0, totalSaved: 8 },
     readingRec: { id: "art-9", title: "Coral Reefs", reason: "Right for your B1 level" },
@@ -222,7 +222,7 @@ test("buildWeeklyPlan appends the top reading recommendation when available", as
 });
 
 test("buildWeeklyPlan stays focused (caps the number of items)", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
   const d = diag({
     vocab: { weakCount: 9, dueCount: 9, totalSaved: 10 },
     quiz: { averageScore: 30, totalAttempts: 9 },
@@ -243,7 +243,7 @@ test("buildWeeklyPlan stays focused (caps the number of items)", async () => {
 // ---------------------------------------------------------------------------
 
 test("generateStudyPlan returns a starter plan for a brand-new user", async () => {
-  const { generateStudyPlan } = await import("@/lib/study-plan");
+  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
   const plan = await generateStudyPlan("new-user");
   assert.equal(plan.isStarter, true);
   assert.deepEqual(plan.weakAreas, []);
@@ -252,7 +252,7 @@ test("generateStudyPlan returns a starter plan for a brand-new user", async () =
 });
 
 test("generateStudyPlan reflects synthetic weak areas and updates with new data", async () => {
-  const { generateStudyPlan } = await import("@/lib/study-plan");
+  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
   profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
 
   // Round 1: lots of weak words + low quiz average → vocabulary + comprehension.
@@ -278,7 +278,7 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
 });
 
 test("generateStudyPlan surfaces a reading recommendation from the picks engine", async () => {
-  const { generateStudyPlan } = await import("@/lib/study-plan");
+  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
   profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
   weakWordCount = 5;
   dueCount = 0;

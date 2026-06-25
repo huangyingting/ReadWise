@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { createLogger, getRequestContext } from "@/lib/logger";
+import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import { clientIp } from "@/lib/security/client-ip";
 import type { Prisma } from "@prisma/client";
 

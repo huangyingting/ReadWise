@@ -2,10 +2,10 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, clampedInt, optional } from "@/lib/validation";
 import { recordPronunciationAttempt } from "@/lib/pronunciation";
-import { checkRateLimit } from "@/lib/rate-limit";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
-import { recordSkillEvidence } from "@/lib/skill-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
+import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 
 /**
  * Pronunciation scores are computed CLIENT-SIDE by the Azure Speech SDK (by

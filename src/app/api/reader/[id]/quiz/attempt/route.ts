@@ -1,13 +1,13 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { recordQuizAttempt } from "@/lib/quiz-mastery";
+import { recordQuizAttempt } from "@/lib/learning/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { updateArticleMastery } from "@/lib/article-mastery";
-import { recordSkillEvidence } from "@/lib/skill-mastery";
-import { bestEffortMastery } from "@/lib/mastery";
+import { updateArticleMastery } from "@/lib/learning/article-mastery";
+import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody } from "@/lib/reader/schemas";
 

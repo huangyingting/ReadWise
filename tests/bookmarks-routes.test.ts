@@ -38,7 +38,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/bookmarks", {
+  mock.module("@/lib/article-library", {
     namedExports: {
       getUserLists: async () => stubGetUserLists,
       createList: async () => stubCreateList,

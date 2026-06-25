@@ -1,5 +1,5 @@
 import { renderPrompt } from "@/lib/ai/prompts";
-import { validateQuiz } from "@/lib/ai/validation";
+import { validateQuiz } from "@/lib/ai/output/validators";
 import { str, num, pass } from "@/lib/ai/evals/assertions";
 import type { FeatureEvaluator } from "@/lib/ai/evals/types";
 

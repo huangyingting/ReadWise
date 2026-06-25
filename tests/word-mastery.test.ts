@@ -2,7 +2,7 @@
  * Tests for word mastery lib (RW-036).
  *
  * Mocks: @/lib/prisma (in-memory wordMastery store). The dictionary lemmatizer
- * (@/lib/dictionary-normalize) and scoring helpers run for real — no DB or
+ * lexical normalization and scoring helpers run for real — no DB or
  * network is touched.
  */
 process.env.LOG_LEVEL = "error"; // silence best-effort warn logs
@@ -59,7 +59,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("computeFamiliarity: exposure-only saturates toward a 0.6 ceiling", async () => {
-  const { computeFamiliarity } = await import("@/lib/word-mastery");
+  const { computeFamiliarity } = await import("@/lib/learning/word-mastery");
   assert.equal(computeFamiliarity(0, 0, 0), 0);
   const one = computeFamiliarity(1, 0, 0);
   const many = computeFamiliarity(50, 0, 0);
@@ -68,7 +68,7 @@ test("computeFamiliarity: exposure-only saturates toward a 0.6 ceiling", async (
 });
 
 test("computeFamiliarity: correct reviews raise, incorrect reviews lower the score", async () => {
-  const { computeFamiliarity } = await import("@/lib/word-mastery");
+  const { computeFamiliarity } = await import("@/lib/learning/word-mastery");
   const allCorrect = computeFamiliarity(5, 5, 0);
   const allWrong = computeFamiliarity(5, 0, 5);
   assert.ok(allCorrect > allWrong, `${allCorrect} > ${allWrong}`);
@@ -76,13 +76,13 @@ test("computeFamiliarity: correct reviews raise, incorrect reviews lower the sco
 });
 
 test("computeConfidence grows with total evidence", async () => {
-  const { computeConfidence } = await import("@/lib/word-mastery");
+  const { computeConfidence } = await import("@/lib/learning/word-mastery");
   assert.equal(computeConfidence(0, 0, 0), 0);
   assert.ok(computeConfidence(10, 0, 0) > computeConfidence(1, 0, 0));
 });
 
 test("lemmaFor normalizes case, possessives and trailing punctuation to one key", async () => {
-  const { lemmaFor } = await import("@/lib/word-mastery");
+  const { lemmaFor } = await import("@/lib/learning/word-mastery");
   assert.equal(lemmaFor("Test"), "test");
   assert.equal(lemmaFor("test."), "test");
   assert.equal(lemmaFor("dog's"), "dog");
@@ -94,7 +94,7 @@ test("lemmaFor normalizes case, possessives and trailing punctuation to one key"
 // ---------------------------------------------------------------------------
 
 test("recordWordExposure: a new word starts with one exposure and no reviews", async () => {
-  const { recordWordExposure } = await import("@/lib/word-mastery");
+  const { recordWordExposure } = await import("@/lib/learning/word-mastery");
   const rec = await recordWordExposure("u1", "serendipity");
   assert.ok(rec);
   assert.equal(rec!.lemma, "serendipity");
@@ -107,7 +107,7 @@ test("recordWordExposure: a new word starts with one exposure and no reviews", a
 });
 
 test("recordWordExposure: records the source article id (bounded, most-recent-first)", async () => {
-  const { recordWordExposure } = await import("@/lib/word-mastery");
+  const { recordWordExposure } = await import("@/lib/learning/word-mastery");
   await recordWordExposure("u1", "ephemeral", { articleId: "a1" });
   const rec = await recordWordExposure("u1", "ephemeral", { articleId: "a2" });
   assert.deepEqual(rec!.sourceArticleIds, ["a2", "a1"]);
@@ -115,7 +115,7 @@ test("recordWordExposure: records the source article id (bounded, most-recent-fi
 });
 
 test("repeated encounters of inflections collapse onto a single lemma row", async () => {
-  const { recordWordExposure, getWordMastery } = await import("@/lib/word-mastery");
+  const { recordWordExposure, getWordMastery } = await import("@/lib/learning/word-mastery");
   await recordWordExposure("u1", "Test");
   await recordWordExposure("u1", "test");
   await recordWordExposure("u1", "test.");
@@ -129,7 +129,7 @@ test("repeated encounters of inflections collapse onto a single lemma row", asyn
 // ---------------------------------------------------------------------------
 
 test("recordWordReview(correct) increments correctReviews and sets lastReviewedAt", async () => {
-  const { recordWordReview } = await import("@/lib/word-mastery");
+  const { recordWordReview } = await import("@/lib/learning/word-mastery");
   const rec = await recordWordReview("u1", "lucid", true);
   assert.equal(rec!.correctReviews, 1);
   assert.equal(rec!.incorrectReviews, 0);
@@ -138,14 +138,14 @@ test("recordWordReview(correct) increments correctReviews and sets lastReviewedA
 });
 
 test("recordWordReview(incorrect) increments incorrectReviews", async () => {
-  const { recordWordReview } = await import("@/lib/word-mastery");
+  const { recordWordReview } = await import("@/lib/learning/word-mastery");
   const rec = await recordWordReview("u1", "lucid", false);
   assert.equal(rec!.correctReviews, 0);
   assert.equal(rec!.incorrectReviews, 1);
 });
 
 test("a correct review raises familiarity above a failed one for the same word", async () => {
-  const { recordWordReview } = await import("@/lib/word-mastery");
+  const { recordWordReview } = await import("@/lib/learning/word-mastery");
   const good = await recordWordReview("u-good", "verbose", true);
   const bad = await recordWordReview("u-bad", "verbose", false);
   assert.ok(good!.familiarity > bad!.familiarity, `${good!.familiarity} > ${bad!.familiarity}`);
@@ -156,12 +156,12 @@ test("a correct review raises familiarity above a failed one for the same word",
 // ---------------------------------------------------------------------------
 
 test("getWordMastery returns null for a never-seen word", async () => {
-  const { getWordMastery } = await import("@/lib/word-mastery");
+  const { getWordMastery } = await import("@/lib/learning/word-mastery");
   assert.equal(await getWordMastery("u1", "unheard"), null);
 });
 
 test("estimateFamiliarity works even when the word is not in the saved study list", async () => {
-  const { recordWordExposure, estimateFamiliarity } = await import("@/lib/word-mastery");
+  const { recordWordExposure, estimateFamiliarity } = await import("@/lib/learning/word-mastery");
   // No SavedWord row exists; mastery is tracked purely from exposure.
   assert.equal(await estimateFamiliarity("u1", "nascent"), 0, "unknown → 0");
   await recordWordExposure("u1", "nascent");

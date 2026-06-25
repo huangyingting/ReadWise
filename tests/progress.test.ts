@@ -34,7 +34,7 @@ before(() => {
   mock.module("@/lib/activity", {
     namedExports: { recordReadingActivity: async () => {} },
   });
-  mock.module("@/lib/articles", {
+  mock.module("@/lib/article-library", {
     namedExports: { toListingArticle: (a: unknown) => a },
   });
   mock.module("@/lib/prisma", {

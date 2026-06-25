@@ -9,7 +9,7 @@ import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { fetchHtml, fetchText } from "@/lib/scraper/fetch";
 import { isProviderEnabled } from "@/lib/content-sources";
 import { isUrlAllowed } from "@/lib/scraper/robots";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("scraper.discover");
 

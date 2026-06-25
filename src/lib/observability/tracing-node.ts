@@ -12,8 +12,7 @@
  * needs no collector — at build time or in CI.
  *
  * Part of the observability package (REF-053). This is the canonical
- * implementation; `@/lib/tracing-node` is a re-export shim for backward
- * compatibility.
+ * implementation.
  */
 import { tracingConfig } from "@/lib/runtime-config/observability";
 import { createLogger } from "./logger";

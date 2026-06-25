@@ -4,7 +4,7 @@ import { queryInt, queryString } from "@/lib/validation";
 import {
   getRecentSecurityEvents,
   type SecuritySeverity,
-} from "@/lib/security-events";
+} from "@/lib/security/events";
 
 const SEVERITIES: readonly SecuritySeverity[] = ["low", "medium", "high", "critical"];
 

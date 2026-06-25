@@ -2,7 +2,7 @@
  * Next.js instrumentation hook (RW-032). Next calls {@link register} once per
  * server process at startup. We start the OpenTelemetry Node SDK here, but ONLY
  * in the Node.js runtime and ONLY when tracing is configured (see
- * `src/lib/tracing-node.ts`). In the Edge runtime or when unconfigured this is
+ * `src/lib/observability/tracing-node.ts`). In the Edge runtime or when unconfigured this is
  * a no-op, so the build and tests stay green without a collector.
  */
 export async function register(): Promise<void> {
@@ -15,7 +15,7 @@ export async function register(): Promise<void> {
   // guard does NOT get tree-shaken reliably and breaks `next dev`/Edge compile
   // with "Can't resolve 'stream'".
   if (process.env.NEXT_RUNTIME === "nodejs") {
-    const { startTracing } = await import("@/lib/tracing-node");
+    const { startTracing } = await import("@/lib/observability/tracing-node");
     await startTracing();
   }
 }

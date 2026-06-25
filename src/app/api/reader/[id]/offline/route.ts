@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { readingMinutesFor } from "@/lib/articles";
+import { readingMinutesFor } from "@/lib/article-library";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { contentHash, makeArticleVersion } from "@/lib/cache-version";

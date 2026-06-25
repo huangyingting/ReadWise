@@ -7,7 +7,7 @@
  * provider is unreachable.
  */
 
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { normalizeCandidates } from "@/lib/lexical/normalize";
 import {
   defaultProvider,

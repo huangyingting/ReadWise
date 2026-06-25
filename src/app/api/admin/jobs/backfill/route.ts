@@ -6,8 +6,8 @@ import {
   BackfillError,
   BACKFILL_FEATURES,
   type BackfillFeature,
-} from "@/lib/backfill";
-import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
+} from "@/lib/processing/backfill";
+import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const backfillBody = object({
   features: array(oneOf<BackfillFeature>(BACKFILL_FEATURES), { max: BACKFILL_FEATURES.length }),

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { FileText, StickyNote } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { listAllUserHighlights, HIGHLIGHT_COLORS } from "@/lib/highlights";
+import { listAllUserHighlights, HIGHLIGHT_COLORS } from "@/lib/annotations";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
 import EmptyState from "@/components/EmptyState";

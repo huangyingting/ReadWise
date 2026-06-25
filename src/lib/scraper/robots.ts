@@ -15,7 +15,7 @@
  * {@link isPathAllowed}) are unit tested without any network.
  */
 import { fetchHtml } from "@/lib/scraper/fetch";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("robots");
 

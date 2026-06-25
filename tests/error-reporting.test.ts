@@ -10,9 +10,9 @@ import {
   setAlertHook,
   resetErrorReporting,
   type CapturedError,
-} from "@/lib/error-reporting";
+} from "@/lib/observability/errors";
 import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
-import { runWithRequestContext } from "@/lib/logger";
+import { runWithRequestContext } from "@/lib/observability/logger";
 
 function counterValue(name: string, labels: Record<string, string>): number {
   const point = getMetricsSnapshot().counters.find((candidate) => {

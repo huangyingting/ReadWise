@@ -27,12 +27,17 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/articles", {
+  mock.module("@/lib/article-search", {
     namedExports: {
       searchReadableArticles: async () => searchResult,
-      toListingArticle: (a: unknown) => a,
       SEARCH_PAGE_SIZE: 20,
       SEARCH_MAX_LIMIT: 50,
+    },
+  });
+
+  mock.module("@/lib/article-library", {
+    namedExports: {
+      toListingArticle: (a: unknown) => a,
     },
   });
 

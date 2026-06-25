@@ -5,7 +5,7 @@
  * Backed by a SHARED (DB-backed) store (RW-026) so limits are enforced
  * consistently across app instances. The in-memory limiter remains a graceful
  * FALLBACK for dev/tests and whenever the shared store is unavailable — see
- * {@link "@/lib/rate-limit-store"}.
+ * {@link "@/lib/security/rate-limit/store"}.
  *
  * Keyed by an arbitrary string `key` + `scope`. On each call within the current
  * window the counter increments; when it exceeds the limit an {@link ApiError}
@@ -26,7 +26,7 @@
  *   RATE_LIMIT_STORE               — auto | database | memory
  */
 import { ApiError } from "@/lib/api-handler";
-import { createLogger } from "@/lib/logger";
+import { createLogger } from "@/lib/observability/logger";
 import { clientIpKey } from "@/lib/security/client-ip";
 import {
   rateLimitAdminJobRequests,
@@ -150,7 +150,7 @@ export async function checkRateLimit(userId: string, scope: string): Promise<voi
 
 /**
  * Extracts a client IP rate-limit key from a Request using the trusted-proxy
- * aware resolver in {@link "@/lib/client-ip"}. Re-exported here so existing call
+ * aware resolver in {@link "@/lib/security/client-ip"}. Re-exported here so existing call
  * sites keep importing it from `@/lib/rate-limit`. See `docs/security.md` for
  * how to configure trusted proxies; with none configured this is a SOFT
  * (spoofable) per-IP identity suitable only for best-effort limits.

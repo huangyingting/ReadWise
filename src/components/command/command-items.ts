@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { PRIMARY_NAV } from "@/components/shell/nav-items";
 import { toggleTheme } from "@/lib/theme";
-import type { ListingArticle } from "@/lib/articles";
+import type { ListingArticle } from "@/lib/article-library";
 
 // ---- Item types -------------------------------------------------------
 
