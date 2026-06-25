@@ -36,6 +36,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import EmptyState from "@/components/EmptyState";
 import AiBadge from "@/components/AiBadge";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
+import { useAudioRangePlayback } from "@/components/reader/useAudioRangePlayback";
 import {
   segmentDictation,
   gradeDictation,
@@ -75,30 +76,15 @@ export default function ArticleDictation({
   const [grade, setGrade] = useState<ReturnType<typeof gradeDictation> | null>(null);
 
   const warmStartedRef = useRef(false);
-  const stopPlayRef = useRef<(() => void) | null>(null);
-  /** Blob URL created for dictation audio — revoked on unmount. */
-  const blobUrlRef = useRef<string | null>(null);
-
-  // Revoke blob URL on unmount to avoid memory leaks.
-  useEffect(() => {
-    return () => {
-      if (blobUrlRef.current) {
-        URL.revokeObjectURL(blobUrlRef.current);
-        blobUrlRef.current = null;
-      }
-      stopPlayRef.current?.();
-    };
-  }, []);
+  const { playRange, stopRange } = useAudioRangePlayback(audio.audioRef);
 
   // Stop sentence playback when the tab becomes hidden or the overlay closes
   // (`active` is `open && activeTab === "dictate"`) (#210).
   useEffect(() => {
     if (active) return;
-    stopPlayRef.current?.();
-    stopPlayRef.current = null;
-    audio.audioRef.current?.pause();
+    stopRange({ pause: true });
     setPhase((p) => (p === "playing" ? "idle" : p));
-  }, [active, audio]);
+  }, [active, stopRange]);
 
   // When audio is already loaded (Listen tab was visited), compute segments.
   useEffect(() => {
@@ -108,98 +94,31 @@ export default function ArticleDictation({
       setPhase(segs.length > 0 ? "idle" : "fallback");
     } else if (audio.isFallback && phase === "warming") {
       setPhase("fallback");
+    } else if (audio.warmError && phase === "warming") {
+      setErrorMsg(audio.warmError);
+      setPhase("error");
     }
-  }, [audio.isLoaded, audio.isFallback, audio.words, audio.plainText, plainText, segments.length, phase]);
+  }, [audio.isLoaded, audio.isFallback, audio.words, audio.plainText, audio.warmError, plainText, segments.length, phase]);
 
   // Warm narration lazily on first render if not already loaded.
   useEffect(() => {
     if (warmStartedRef.current || audio.isLoaded) return;
     warmStartedRef.current = true;
-    void warmNarration();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function warmNarration() {
-    try {
-      const res = await fetch(`/api/reader/${articleId}/speech`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!res.ok) {
-        const body = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(body?.error ?? "Could not load narration");
-      }
-      const body = (await res.json()) as {
-        audio: string | null;
-        mimeType: string | null;
-        plainText: string;
-        words: typeof audio.words;
-        voice: string;
-        cached: boolean;
-        fallback: boolean;
-      };
-
-      if (body.fallback || !body.audio) {
-        audio.markFallback();
-        setPhase("fallback");
-        return;
-      }
-
-      // Convert base64 → Blob URL (CSP-safe, avoids data: URI restriction).
-      const base64 = body.audio.includes(",") ? body.audio.split(",")[1] : body.audio;
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: body.mimeType ?? "audio/mpeg" });
-      const blobUrl = URL.createObjectURL(blob);
-      if (blobUrlRef.current) URL.revokeObjectURL(blobUrlRef.current);
-      blobUrlRef.current = blobUrl;
-      audio.loadAudio(blobUrl, body.words, body.voice, body.cached, body.plainText);
-      const segs = segmentDictation(body.plainText || plainText, body.words);
-      setSegments(segs);
-      setPhase(segs.length > 0 ? "idle" : "fallback");
-    } catch (err) {
-      setErrorMsg(err instanceof Error ? err.message : "Could not load narration");
-      setPhase("error");
-    }
-  }
+    void audio.warmNarration(articleId);
+  }, [articleId, audio]);
 
   const currentSegment = segments[currentIdx] ?? null;
 
   function handlePlay() {
     if (!currentSegment) return;
-    const audioEl = audio.audioRef.current;
-    if (!audioEl) return;
-
-    // Cancel any running range playback.
-    stopPlayRef.current?.();
-
-    let cancelled = false;
-    function onTimeUpdate() {
-      if (cancelled) return;
-      if (audioEl!.currentTime >= currentSegment!.endTime + 0.05) {
-        cancelled = true;
-        audioEl!.pause();
-        audioEl!.removeEventListener("timeupdate", onTimeUpdate);
-        stopPlayRef.current = null;
-        setPhase((p) => (p === "playing" ? "idle" : p));
-      }
-    }
-
-    audioEl.addEventListener("timeupdate", onTimeUpdate);
-    stopPlayRef.current = () => {
-      cancelled = true;
-      audioEl.removeEventListener("timeupdate", onTimeUpdate);
-    };
-
-    audioEl.currentTime = currentSegment.startTime;
-    void audioEl.play();
-    setPhase("playing");
+    const started = playRange(currentSegment, {
+      onEnd: () => setPhase((p) => (p === "playing" ? "idle" : p)),
+    });
+    if (started) setPhase("playing");
   }
 
   function handleStop() {
-    stopPlayRef.current?.();
-    stopPlayRef.current = null;
-    audio.audioRef.current?.pause();
+    stopRange({ pause: true });
     setPhase("idle");
   }
 
@@ -212,15 +131,13 @@ export default function ArticleDictation({
   function handleCheck(e: FormEvent) {
     e.preventDefault();
     if (!currentSegment || !typed.trim()) return;
-    stopPlayRef.current?.();
-    audio.audioRef.current?.pause();
+    stopRange({ pause: true });
     setGrade(gradeDictation(currentSegment.text, typed));
     setPhase("graded");
   }
 
   function handleReset() {
-    stopPlayRef.current?.();
-    audio.audioRef.current?.pause();
+    stopRange({ pause: true });
     setTyped("");
     setGrade(null);
     setPhase("idle");
