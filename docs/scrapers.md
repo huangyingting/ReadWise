@@ -258,8 +258,12 @@ npm run scrape -- --list-providers
 
 ```sh
 npm run process -- --all [--include-published] [--limit N] [--tts] [--translate es,fr]
+npm run process -- --all --enqueue [--limit N] [--tts] [--translate es,fr]
 npm run process -- <article-id-1> <article-id-2>
 ```
+
+Use `--enqueue` when you want durable worker semantics (locks, retries and
+dead-letter handling) instead of inline processing in the current terminal.
 
 ### Worker (background continuous processing)
 
