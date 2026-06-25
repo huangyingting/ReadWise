@@ -5,6 +5,25 @@ import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-access";
+import {
+  getSavedWordSet,
+  getSavedWords,
+  getFilteredSavedWords,
+  saveWord,
+  unsaveWord,
+  WORDS_PAGE_SIZE,
+} from "@/lib/lexical/saved-words";
+
+// Re-export saved-word repository for backward compatibility.
+export type { SavedWordView, FilteredWordsResult } from "@/lib/lexical/saved-words";
+export {
+  getSavedWordSet,
+  getSavedWords,
+  getFilteredSavedWords,
+  saveWord,
+  unsaveWord,
+  WORDS_PAGE_SIZE,
+};
 
 export type VocabularyEntry = {
   word: string;
@@ -116,174 +135,4 @@ export async function getOrCreateArticleVocabulary(
     },
     context,
   );
-}
-
-/**
- * Returns the lowercased set of words from `words` that the user has saved.
- * Matching is case-insensitive against the stored saved words.
- */
-export async function getSavedWordSet(
-  userId: string,
-  words: string[],
-): Promise<Set<string>> {
-  if (words.length === 0) {
-    return new Set();
-  }
-  const saved = await prisma.savedWord.findMany({
-    where: { userId },
-    select: { word: true },
-  });
-  const savedLower = new Set(saved.map((s) => s.word.toLowerCase()));
-  const result = new Set<string>();
-  for (const w of words) {
-    if (savedLower.has(w.toLowerCase())) {
-      result.add(w.toLowerCase());
-    }
-  }
-  return result;
-}
-
-export type SavedWordView = {
-  id: string;
-  word: string;
-  explanation: string | null;
-  example: string | null;
-  contextSentence: string | null;
-  articleId: string | null;
-  createdAt: Date;
-  dueAt: Date | null;
-};
-
-const SAVED_WORD_SELECT = {
-  id: true,
-  word: true,
-  explanation: true,
-  example: true,
-  contextSentence: true,
-  articleId: true,
-  createdAt: true,
-  dueAt: true,
-} as const;
-
-/** All of a user's saved vocabulary, newest first. */
-export async function getSavedWords(userId: string): Promise<SavedWordView[]> {
-  return prisma.savedWord.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    select: SAVED_WORD_SELECT,
-  });
-}
-
-export const WORDS_PAGE_SIZE = 20;
-
-export type FilteredWordsResult = {
-  words: SavedWordView[];
-  total: number;
-  page: number;
-  totalPages: number;
-};
-
-/**
- * Paginated, searchable list of a user's saved words.
- *
- * @param search  - filter by word text or explanation (case-insensitive LIKE)
- * @param articleId - filter by the article the word was saved from
- * @param filter  - "due" = SRS due now; "new" = never reviewed; "all" (default)
- * @param page    - 1-based page index
- */
-export async function getFilteredSavedWords(
-  userId: string,
-  opts: {
-    search?: string;
-    articleId?: string;
-    filter?: "all" | "due" | "new";
-    page?: number;
-  } = {},
-): Promise<FilteredWordsResult> {
-  const { search, articleId, filter = "all", page = 1 } = opts;
-  const skip = (Math.max(1, page) - 1) * WORDS_PAGE_SIZE;
-
-  const now = new Date();
-
-  const where = {
-    userId,
-    ...(search
-      ? {
-          OR: [
-            { word: { contains: search } },
-            { explanation: { contains: search } },
-          ],
-        }
-      : {}),
-    ...(articleId ? { articleId } : {}),
-    ...(filter === "due"
-      ? { OR: [{ dueAt: null }, { dueAt: { lte: now } }] }
-      : filter === "new"
-        ? { dueAt: null }
-        : {}),
-  };
-
-  const [total, words] = await Promise.all([
-    prisma.savedWord.count({ where }),
-    prisma.savedWord.findMany({
-      where,
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: WORDS_PAGE_SIZE,
-      select: SAVED_WORD_SELECT,
-    }),
-  ]);
-
-  return {
-    words,
-    total,
-    page: Math.max(1, page),
-    totalPages: Math.max(1, Math.ceil(total / WORDS_PAGE_SIZE)),
-  };
-}
-
-/**
- * Saves a word to the user's study list. Idempotent: an existing entry for the
- * same (user, word) is updated rather than duplicated (enforced by @@unique).
- */
-export async function saveWord(
-  userId: string,
-  entry: {
-    word: string;
-    explanation?: string | null;
-    example?: string | null;
-    contextSentence?: string | null;
-    articleId?: string | null;
-  },
-): Promise<void> {
-  const word = entry.word.trim();
-  if (!word) {
-    return;
-  }
-  await prisma.savedWord.upsert({
-    where: { userId_word: { userId, word } },
-    update: {
-      explanation: entry.explanation ?? undefined,
-      example: entry.example ?? undefined,
-      contextSentence: entry.contextSentence ?? undefined,
-      articleId: entry.articleId ?? undefined,
-    },
-    create: {
-      userId,
-      word,
-      explanation: entry.explanation ?? null,
-      example: entry.example ?? null,
-      contextSentence: entry.contextSentence ?? null,
-      articleId: entry.articleId ?? null,
-    },
-  });
-}
-
-/** Removes a word from the user's study list. No-op if it isn't saved. */
-export async function unsaveWord(userId: string, word: string): Promise<void> {
-  const trimmed = word.trim();
-  if (!trimmed) {
-    return;
-  }
-  await prisma.savedWord.deleteMany({ where: { userId, word: trimmed } });
 }
