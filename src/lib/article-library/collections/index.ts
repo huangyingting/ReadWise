@@ -1,14 +1,18 @@
 /**
  * Article collections — taxonomy/tags and reading-list/bookmarks
- * (article-library subsystem, REF-040).
+ * (article-library subsystem, REF-040, REF-042).
  *
  * Tag scope rules are security-sensitive: private imports must not leak into
  * public tag namespaces. All public tag queries are restricted to PUBLIC-scope
  * tags on public-listable articles via {@link publicListableArticleWhere}.
  *
- * List operations are ownership-checked: callers supply both the list id and
- * the user id, and a missing-or-wrong-owner list always surfaces as a 404 so
- * IDOR is impossible.
+ * Reading-list/bookmark logic is split into focused sub-modules (REF-042):
+ *   default-list-policy  — DEFAULT_LIST_NAME and lazy-upsert for "Saved"
+ *   commands             — createList, renameList, deleteList, addToList,
+ *                          removeFromList, toggleBookmark
+ *   read-models          — getUserLists, getListWithArticles,
+ *                          getBookmarkedArticleIds
+ *   membership           — getArticleListMembership
  */
 import { prisma } from "@/lib/prisma";
 import { TagScope, type Article } from "@prisma/client";
@@ -18,10 +22,8 @@ import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/output/validators";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
-import { publicListableArticleWhere, type ArticleAccessContext } from "./policy";
+import { publicListableArticleWhere, type ArticleAccessContext } from "../policy";
 import { slugifyTag, tagScopeForArticle } from "@/lib/taxonomy/scope";
-import { toListingArticle, type ListingArticle } from "./mapper";
-import { getReadableArticleById } from "./policy";
 
 // Re-export so existing consumers (admin-tags, tests, routes) keep working.
 export { slugifyTag } from "@/lib/taxonomy/scope";
@@ -338,247 +340,9 @@ const cachedListTagsWithCounts = createCachedListing(
 );
 
 // ---------------------------------------------------------------------------
-// Reading lists / bookmarks
+// Reading lists / bookmarks — re-exported from focused sub-modules (REF-042)
 // ---------------------------------------------------------------------------
-
-const DEFAULT_LIST_NAME = "Saved";
-
-export type UserList = {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  count: number;
-};
-
-export type ListWithArticles = {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  articles: ListingArticle[];
-};
-
-type ErrResult = { ok: false; error: string; status: number };
-type SimpleResult = { ok: true } | ErrResult;
-type DataResult<T extends object> = ({ ok: true } & T) | ErrResult;
-
-/**
- * Returns the user's default "Saved" list, creating it lazily if it does not
- * yet exist.
- */
-export async function getOrCreateDefaultList(
-  userId: string,
-): Promise<{ id: string; name: string; isDefault: boolean }> {
-  return prisma.readingList.upsert({
-    where: { userId_name: { userId, name: DEFAULT_LIST_NAME } },
-    create: { userId, name: DEFAULT_LIST_NAME, isDefault: true },
-    update: {},
-  });
-}
-
-/**
- * Returns all lists for a user, default list first, then oldest-first.
- * Each list includes the number of items it contains.
- */
-export async function getUserLists(userId: string): Promise<UserList[]> {
-  const rows = await prisma.readingList.findMany({
-    where: { userId },
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: { _count: { select: { items: true } } },
-  });
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    isDefault: row.isDefault,
-    count: row._count.items,
-  }));
-}
-
-/**
- * Returns a list and its articles, ownership-checked. Returns `null` when the
- * list does not exist or belongs to a different user.
- */
-export async function getListWithArticles(
-  listId: string,
-  userId: string,
-): Promise<ListWithArticles | null> {
-  const row = await prisma.readingList.findFirst({
-    where: { id: listId, userId },
-    include: {
-      items: {
-        orderBy: { addedAt: "desc" },
-        include: { article: true },
-      },
-    },
-  });
-  if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    isDefault: row.isDefault,
-    articles: row.items.map((item) => toListingArticle(item.article)),
-  };
-}
-
-/** Creates a new (non-default) named list for the user. */
-export async function createList(
-  userId: string,
-  name: string,
-): Promise<{ id: string; name: string; isDefault: boolean }> {
-  return prisma.readingList.create({
-    data: { userId, name, isDefault: false },
-  });
-}
-
-/** Renames a list. Ownership-checked; 404 if missing or not owned. */
-export async function renameList(
-  listId: string,
-  userId: string,
-  name: string,
-): Promise<DataResult<{ list: { id: string; name: string } }>> {
-  const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!existing) return { ok: false, error: "List not found", status: 404 };
-  const updated = await prisma.readingList.update({ where: { id: listId }, data: { name } });
-  return { ok: true, list: { id: updated.id, name: updated.name } };
-}
-
-/**
- * Deletes a list. Ownership-checked. Refuses (409) to delete the default list.
- */
-export async function deleteList(
-  listId: string,
-  userId: string,
-): Promise<SimpleResult> {
-  const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!existing) return { ok: false, error: "List not found", status: 404 };
-  if (existing.isDefault) {
-    return { ok: false, error: "Cannot delete the default list", status: 409 };
-  }
-  await prisma.readingList.delete({ where: { id: listId } });
-  return { ok: true };
-}
-
-/**
- * Adds an article to a list. Idempotent. Both the list ownership and the
- * article's visibility are checked: the article must be viewable by the caller
- * via {@link getReadableArticleById}.
- */
-export async function addToList(
-  listId: string,
-  userId: string,
-  articleId: string,
-  role?: string | null,
-): Promise<SimpleResult> {
-  const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!list) return { ok: false, error: "List not found", status: 404 };
-  const article = await getReadableArticleById(articleId, { role, userId });
-  if (!article) return { ok: false, error: "Article not found", status: 404 };
-  await prisma.readingListItem.upsert({
-    where: { listId_articleId: { listId, articleId } },
-    create: { listId, articleId },
-    update: {},
-  });
-  return { ok: true };
-}
-
-/**
- * Removes an article from a list. Idempotent. List ownership is checked.
- */
-export async function removeFromList(
-  listId: string,
-  userId: string,
-  articleId: string,
-): Promise<SimpleResult> {
-  const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!list) return { ok: false, error: "List not found", status: 404 };
-  await prisma.readingListItem.deleteMany({ where: { listId, articleId } });
-  return { ok: true };
-}
-
-/**
- * Toggles an article in the user's default "Saved" list. Visibility is
- * enforced via {@link getReadableArticleById} so drafts/foreign imports can't
- * be bookmarked or used as an existence oracle.
- */
-export async function toggleBookmark(
-  userId: string,
-  articleId: string,
-  role?: string | null,
-): Promise<DataResult<{ bookmarked: boolean }>> {
-  const article = await getReadableArticleById(articleId, { role, userId });
-  if (!article) return { ok: false, error: "Article not found", status: 404 };
-
-  const defaultList = await getOrCreateDefaultList(userId);
-  const existing = await prisma.readingListItem.findUnique({
-    where: { listId_articleId: { listId: defaultList.id, articleId } },
-  });
-
-  if (existing) {
-    await prisma.readingListItem.delete({ where: { id: existing.id } });
-    return { ok: true, bookmarked: false };
-  } else {
-    await prisma.readingListItem.create({ data: { listId: defaultList.id, articleId } });
-    return { ok: true, bookmarked: true };
-  }
-}
-
-/**
- * Returns the subset of `articleIds` that the user has bookmarked in any of
- * their reading lists. Call once per page render with all visible article ids.
- */
-export async function getBookmarkedArticleIds(
-  userId: string,
-  articleIds: string[],
-): Promise<Set<string>> {
-  if (articleIds.length === 0) return new Set();
-
-  const lists = await prisma.readingList.findMany({
-    where: { userId },
-    select: { id: true },
-  });
-  if (lists.length === 0) return new Set();
-
-  const listIds = lists.map((l) => l.id);
-  const items = await prisma.readingListItem.findMany({
-    where: { listId: { in: listIds }, articleId: { in: articleIds } },
-    select: { articleId: true },
-  });
-  return new Set(items.map((i) => i.articleId));
-}
-
-export type ListMembership = {
-  id: string;
-  name: string;
-  isDefault: boolean;
-  hasArticle: boolean;
-};
-
-/**
- * Returns all of the user's lists annotated with whether a given article is in
- * each list. Returns null when the article does not exist or is not viewable.
- */
-export async function getArticleListMembership(
-  userId: string,
-  articleId: string,
-  role?: string | null,
-): Promise<ListMembership[] | null> {
-  const article = await getReadableArticleById(articleId, { role, userId });
-  if (!article) return null;
-
-  const lists = await prisma.readingList.findMany({
-    where: { userId },
-    orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
-    include: {
-      items: {
-        where: { articleId },
-        select: { id: true },
-      },
-    },
-  });
-
-  return lists.map((l) => ({
-    id: l.id,
-    name: l.name,
-    isDefault: l.isDefault,
-    hasArticle: l.items.length > 0,
-  }));
-}
+export * from "./default-list-policy";
+export * from "./read-models";
+export * from "./commands";
+export * from "./membership";
