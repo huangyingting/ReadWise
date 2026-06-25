@@ -1,45 +1,16 @@
 import type { NextAuthOptions } from "next-auth";
 import type { Adapter } from "next-auth/adapters";
-import GoogleProviderImport from "next-auth/providers/google";
-import AzureADProviderImport from "next-auth/providers/azure-ad";
-// Under Node native ESM (CLI harness) these CJS modules resolve to a namespace
-// object { default: fn }; Next.js/SWC esModuleInterop masks this so the app
-// works with bare default imports. Use the interop pattern so both runtimes
-// get the callable function.
-const GoogleProvider = (GoogleProviderImport as unknown as { default?: typeof GoogleProviderImport }).default ?? GoogleProviderImport;
-const AzureADProvider = (AzureADProviderImport as unknown as { default?: typeof AzureADProviderImport }).default ?? AzureADProviderImport;
 import { PrismaAdapter } from "@auth/prisma-adapter";
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
+import { buildProviders } from "@/lib/auth-providers";
+import { bootstrapFirstUser } from "@/lib/auth-bootstrap";
+import { SESSION_COOKIES } from "@/lib/route-policy";
 
-function buildProviders() {
-  const providers: NextAuthOptions["providers"] = [];
-
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
-    providers.push(
-      GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      }),
-    );
-  }
-
-  if (
-    process.env.AZURE_AD_CLIENT_ID &&
-    process.env.AZURE_AD_CLIENT_SECRET &&
-    process.env.AZURE_AD_TENANT_ID
-  ) {
-    providers.push(
-      AzureADProvider({
-        clientId: process.env.AZURE_AD_CLIENT_ID,
-        clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
-        tenantId: process.env.AZURE_AD_TENANT_ID,
-      }),
-    );
-  }
-
-  return providers;
-}
+// SESSION_COOKIES = ["next-auth.session-token", "__Secure-next-auth.session-token"]
+// Index 0 → development, index 1 → production (matches useSecureCookies posture).
+const SESSION_COOKIE_NAME =
+  process.env.NODE_ENV === "production" ? SESSION_COOKIES[1] : SESSION_COOKIES[0];
 
 export const authOptions: NextAuthOptions = {
   adapter: PrismaAdapter(prisma) as Adapter,
@@ -52,15 +23,12 @@ export const authOptions: NextAuthOptions = {
   // Explicit, production-safe cookie posture (RW-028). The session cookie is
   // HttpOnly (no JS access), SameSite=Lax (sent on top-level navigations but
   // withheld from cross-site sub-requests — a baseline CSRF mitigation), and
-  // Secure + `__Secure-` prefixed in production. The names match the
-  // SESSION_COOKIES list in `middleware.ts`.
+  // Secure + `__Secure-` prefixed in production. Cookie names are sourced from
+  // SESSION_COOKIES in `@/lib/route-policy` so middleware and NextAuth stay in sync.
   useSecureCookies: process.env.NODE_ENV === "production",
   cookies: {
     sessionToken: {
-      name:
-        process.env.NODE_ENV === "production"
-          ? "__Secure-next-auth.session-token"
-          : "next-auth.session-token",
+      name: SESSION_COOKIE_NAME,
       options: {
         httpOnly: true,
         sameSite: "lax",
@@ -83,13 +51,7 @@ export const authOptions: NextAuthOptions = {
   },
   events: {
     async createUser({ user }) {
-      const userCount = await prisma.user.count();
-      if (userCount === 1) {
-        await prisma.user.update({
-          where: { id: user.id },
-          data: { role: "Admin" },
-        });
-      }
+      await bootstrapFirstUser(user.id);
     },
   },
 };
