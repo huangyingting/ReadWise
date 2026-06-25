@@ -5,7 +5,7 @@ import { CAPABILITIES, hasCapability } from "@/lib/rbac";
 import { getAdminArticleDetail } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
 import { readingMinutesFor } from "@/lib/articles";
-import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { articleAccessContext } from "@/lib/article-access";
 import {
   listContentReviews,

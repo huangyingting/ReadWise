@@ -2,7 +2,7 @@ import type { Session } from "next-auth";
 import { ApiError } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
-import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { countWords } from "@/lib/articles";
 import { heuristicDifficulty } from "@/lib/difficulty";
 import { privateImportedArticleCreateFields } from "@/lib/article-access";

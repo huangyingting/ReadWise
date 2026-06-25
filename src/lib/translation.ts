@@ -4,7 +4,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-access";
-import { sanitizeArticleHtml } from "@/lib/sanitize";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import {
   languageLabel,
   isSupportedLanguage,
@@ -14,6 +14,12 @@ import {
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
 
+// Re-export content transformation helpers so that existing callers of
+// `@/lib/translation` continue to work without changes.
+// Canonical imports should use `@/lib/content-pipeline` directly.
+// These aliases will be removed through REF-009.
+export { articleHtmlToReaderText, htmlToPlainText } from "@/lib/content-pipeline";
+
 export type TranslationResult = {
   lang: string;
   languageLabel: string;
@@ -21,52 +27,6 @@ export type TranslationResult = {
   cached: boolean;
   fallback: boolean;
 };
-
-function decodeHtmlEntities(input: string): string {
-  return input
-    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
-      try {
-        return String.fromCodePoint(parseInt(hex, 16));
-      } catch {
-        return "";
-      }
-    })
-    .replace(/&#(\d+);/g, (_, dec: string) => {
-      try {
-        return String.fromCodePoint(parseInt(dec, 10));
-      } catch {
-        return "";
-      }
-    })
-    .replace(/&nbsp;/gi, " ")
-    .replace(/&amp;/gi, "&")
-    .replace(/&quot;/gi, '"')
-    .replace(/&apos;/gi, "'")
-    .replace(/&#39;/g, "'")
-    .replace(/&lt;/gi, "<")
-    .replace(/&gt;/gi, ">");
-}
-
-/**
- * Converts stored article HTML into the canonical reader text basis.
- *
- * This intentionally mirrors the sanitized reader prose's visible text rather
- * than Markdown conversion output. TTS, dictation, pronunciation, highlight
- * anchoring and reader tools should share this DOM-like text basis so speech
- * word-boundary alignment maps back to the actual reader content.
- */
-export function articleHtmlToReaderText(html: string): string {
-  return decodeHtmlEntities(sanitizeArticleHtml(html).replace(/<[^>]*>/g, " "))
-    .replace(/\s+/g, " ")
-    .replace(/\s+([,.;:!?%\)\]\}])/g, "$1")
-    .replace(/([\(\[\{])\s+/g, "$1")
-    .trim();
-}
-
-/** Backwards-compatible name for the canonical reader text converter. */
-export function htmlToPlainText(html: string): string {
-  return articleHtmlToReaderText(html);
-}
 
 function fallbackText(label: string): string {
   return (

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,

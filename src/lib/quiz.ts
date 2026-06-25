@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateQuiz } from "@/lib/ai/output/validators";

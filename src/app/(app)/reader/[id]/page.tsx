@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader";
 import ReaderProgress from "@/components/ReaderProgress";
 import ReaderShell from "./ReaderShell";
