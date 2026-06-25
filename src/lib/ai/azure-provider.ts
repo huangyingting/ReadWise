@@ -10,7 +10,7 @@
  * are owned by `@/lib/ai`).
  */
 
-import { aiConfig, aiMaxContextTokens, aiDefaultMaxOutputTokens } from "@/lib/config";
+import { aiConfig, aiMaxContextTokens, aiDefaultMaxOutputTokens } from "@/lib/runtime-config/ai";
 import {
   classifyHttpStatus,
   classifyThrownError,

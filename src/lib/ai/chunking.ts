@@ -17,10 +17,10 @@
  *     version dimensions so caches can key on "which text / which prompt".
  *
  * Budgets are expressed in tokens and clamped to the active provider's context
- * window (see {@link import("@/lib/config").aiMaxContextTokens}).
+ * window (see {@link import("@/lib/runtime-config/ai").aiMaxContextTokens}).
  */
 import { createHash } from "crypto";
-import { aiMaxContextTokens } from "@/lib/config";
+import { aiMaxContextTokens } from "@/lib/runtime-config/ai";
 import { activePromptVersion, PROMPT_FEATURES } from "@/lib/ai/prompts";
 
 /** Average characters per token for the heuristic estimator (no tokenizer). */

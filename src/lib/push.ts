@@ -10,7 +10,7 @@
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import { pushConfig } from "@/lib/config";
+import { pushConfig } from "@/lib/runtime-config/push";
 import {
   getReminderPreferenceMap,
   shouldSendNow,

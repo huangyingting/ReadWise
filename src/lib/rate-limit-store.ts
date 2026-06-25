@@ -14,7 +14,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
-import { rateLimitStoreMode } from "@/lib/config";
+import { rateLimitStoreMode } from "@/lib/runtime-config/rate-limit";
 
 const log = createLogger("rate-limit-store");
 

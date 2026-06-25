@@ -26,6 +26,8 @@ yarn-error.log*
 
 # database
 *.db
+*.db.bak
+*.db.bak-*
 *.db-journal
 /prisma/dev.db
 /prisma/*.db

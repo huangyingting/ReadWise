@@ -23,7 +23,7 @@
  */
 
 import { createLogger } from "@/lib/logger";
-import { aiMaxRetries, aiTimeoutMs } from "@/lib/config";
+import { aiMaxRetries, aiTimeoutMs } from "@/lib/runtime-config/ai";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 import { withSpan, setSpanAttributes } from "@/lib/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";

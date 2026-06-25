@@ -37,7 +37,7 @@ import {
   aiQuotaConfig,
   configuredAiQuotaFeatures,
   type AiQuotaConfig,
-} from "@/lib/config";
+} from "@/lib/runtime-config/ai";
 import {
   incrementSharedCounter,
   isSharedStoreEnabled,

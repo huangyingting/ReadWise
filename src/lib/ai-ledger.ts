@@ -20,7 +20,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext, getRequestId } from "@/lib/logger";
-import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/config";
+import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/runtime-config/ai";
 
 const logger = createLogger("ai-ledger");
 

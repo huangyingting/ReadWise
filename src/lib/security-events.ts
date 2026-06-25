@@ -27,7 +27,7 @@ import {
   securityEventAlertThreshold,
   securityEventBufferSize,
   securityEventWindowMs,
-} from "@/lib/config";
+} from "@/lib/runtime-config/security";
 
 const log = createLogger("security");
 

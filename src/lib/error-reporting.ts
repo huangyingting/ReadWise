@@ -24,7 +24,7 @@ import {
   appVersion,
   errorAlertThreshold,
   errorReportingProvider,
-} from "@/lib/config";
+} from "@/lib/runtime-config/observability";
 
 const log = createLogger("errors");
 
