@@ -113,6 +113,22 @@ Helpers:
 
 ## Enforcement helpers
 
+### Guard layer (REF-044)
+
+The auth guard modules form a layered hierarchy:
+
+| Module | Role |
+| --- | --- |
+| `src/lib/rbac.ts` | Pure capability/role model — no I/O. |
+| `src/lib/auth-core.ts` | Shared core: session loading (`loadSession`) and capability check (`sessionHasCapability`). No redirect or response side effects. |
+| `src/lib/session.ts` | Page guards — redirect to `/signin` or `/forbidden` on failure. |
+| `src/lib/api-auth.ts` | API guards — return `NextResponse` 401/403 on failure. |
+
+**When a session is missing:**
+- In a server-component page → redirect to `/signin` (page guards).
+- In an API/route handler → return 401 (API guards).
+- In a service utility → call `loadSession()` and handle `null` as needed.
+
 ### Pages
 
 - `requireCapability(capability, callbackUrl)` — page guard for global
@@ -128,6 +144,8 @@ redirect to `/forbidden`.
 
 ### APIs
 
+- `loadSession()` in `src/lib/auth-core.ts` — bare session fetch (no side effects).
+- `sessionHasCapability(session, capability)` in `src/lib/auth-core.ts` — inline capability check.
 - `requireCapabilityApi(capability)` — route helper returning 401/403 responses.
 - `requireAdminApi()` — compatibility wrapper for `admin.access`.
 - `createCapabilityHandler(capability, config, handler)` — shared API wrapper
@@ -171,11 +189,13 @@ Tenant roles do **not** belong in `User.role`; keep them on membership rows.
 
 ## Tests
 
-`tests/rbac.test.ts`, tenant/classroom tests, admin route tests, and API handler
-tests verify:
+`tests/rbac.test.ts`, `tests/auth-core.test.ts`, tenant/classroom tests, admin
+route tests, and API handler tests verify:
 
 - Admin vs Reader behavior remains preserved.
 - Unknown roles are denied by default.
 - Planned roles are defined but not globally assignable.
 - Tenant roles are separate from system admin access.
 - Capability/page/API guards return the expected redirect, 401, or 403.
+- `loadSession` returns null for missing/malformed sessions.
+- `sessionHasCapability` correctly delegates to the capability model.

@@ -1,16 +1,12 @@
-import { getServerSession } from "next-auth";
+import { CAPABILITIES, type Capability } from "@/lib/rbac";
+import { loadSession, sessionHasCapability, type AuthResult } from "@/lib/auth-core";
 import { NextResponse } from "next/server";
-import type { Session } from "next-auth";
-import { authOptions } from "@/lib/auth";
-import { CAPABILITIES, hasCapability, type Capability } from "@/lib/rbac";
 
-type AuthResult =
-  | { session: Session; error?: undefined }
-  | { session?: Session; error: NextResponse };
+export type { AuthResult };
 
 export async function requireSessionApi(): Promise<AuthResult> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const session = await loadSession();
+  if (!session) {
     return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
   }
   return { session };
@@ -28,7 +24,7 @@ export async function requireCapabilityApi(
   if (result.error) {
     return result;
   }
-  if (!hasCapability(result.session.user, capability)) {
+  if (!sessionHasCapability(result.session, capability)) {
     return {
       session: result.session,
       error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
