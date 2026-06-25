@@ -29,7 +29,7 @@
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/logger";
-import { analyticsEnabled, analyticsRetentionDays } from "@/lib/config";
+import { analyticsEnabled, analyticsRetentionDays } from "@/lib/runtime-config/analytics";
 
 const logger = createLogger("analytics");
 

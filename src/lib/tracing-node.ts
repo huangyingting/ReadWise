@@ -11,7 +11,7 @@
  * SDK, leaving the OTel API as a no-op. Tracing therefore costs nothing — and
  * needs no collector — at build time or in CI.
  */
-import { tracingConfig } from "@/lib/config";
+import { tracingConfig } from "@/lib/runtime-config/observability";
 import { createLogger } from "@/lib/logger";
 
 const log = createLogger("tracing");
