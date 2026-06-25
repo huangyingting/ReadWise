@@ -11,6 +11,7 @@
 
 import { createLogger } from "@/lib/logger";
 import { providerFetch } from "@/lib/http";
+import type { FrequencyTier } from "@/lib/option-registries";
 
 const log = createLogger("lexical.provider");
 
@@ -37,6 +38,8 @@ export type DictionaryResult = {
   phonetic?: string;
   audio?: string;
   meanings: DictionaryMeaning[];
+  /** Pre-computed frequency tier (server-resolved); null when not in the list. */
+  frequencyTier?: FrequencyTier | null;
 };
 
 // ---------------------------------------------------------------------------

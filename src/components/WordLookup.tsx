@@ -35,7 +35,7 @@ import SelectionToolbar from "./SelectionToolbar";
 import HighlightEditPopover from "./HighlightEditPopover";
 import SentenceTranslatePopover from "./SentenceTranslatePopover";
 import GrammarPopover from "./GrammarPopover";
-import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
+import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import { Badge } from "@/components/ui/Badge";
 import {
   applyHighlightMarks,
@@ -471,7 +471,7 @@ export default function WordLookup({
             <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
               <strong className="word-lookup-word">{word}</strong>
               {(() => {
-                const tier = frequencyTier(word);
+                const tier = result?.frequencyTier ?? null;
                 if (!tier) return null;
                 return (
                   <Badge

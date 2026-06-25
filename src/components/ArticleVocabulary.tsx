@@ -6,7 +6,7 @@ import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
-import { frequencyTier, TIER_LABELS, TIER_VARIANTS } from "@/lib/frequency";
+import { TIER_LABELS, TIER_VARIANTS, type FrequencyTier } from "@/lib/option-registries";
 import AiBadge from "@/components/AiBadge";
 
 type VocabularyItem = {
@@ -14,6 +14,7 @@ type VocabularyItem = {
   explanation: string;
   example: string;
   saved: boolean;
+  frequencyTier: FrequencyTier | null;
 };
 
 type VocabularyResponse = {
@@ -146,7 +147,7 @@ export default function ArticleVocabulary({
           </div>
           <ul className="vocabulary-list">
           {items.map((item) => {
-            const tier = frequencyTier(item.word);
+            const tier = item.frequencyTier;
             return (
               <li key={item.word} className="vocabulary-item">
                 <div className="vocabulary-item-main">

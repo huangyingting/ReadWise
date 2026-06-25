@@ -1,4 +1,13 @@
-/** Auto-generated word frequency tier map. Do not edit manually. */
+/**
+ * Auto-generated word frequency tier map. Do not edit manually.
+ *
+ * SERVER-ONLY: This module contains ~3,000 entries (~29 KB) and MUST NOT be
+ * imported in client-bundle code ("use client" components or their
+ * dependencies). Import `@/lib/frequency` (also server-only) for the
+ * `frequencyTier` helper, or read the pre-computed tier from API responses.
+ *
+ * To regenerate: update `word-frequency.json` and re-run the data build step.
+ */
 export const WORD_FREQUENCY: Record<string, string> = {
   "the": "top1k",
   "be": "top1k",
