@@ -118,7 +118,7 @@ test("limits module honors env overrides with safe floors", async () => {
 });
 
 test("fetchHtml rejects when declared Content-Length exceeds the cap", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = {
     "https://safe.example/huge": { status: 200, contentLength: "999999", chunks: ["x"] },
   };
@@ -126,7 +126,7 @@ test("fetchHtml rejects when declared Content-Length exceeds the cap", async () 
 });
 
 test("fetchHtml aborts a streamed body that exceeds the cap (lying/absent Content-Length)", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   // 4 chunks of 512 bytes = 2048 > 1024 cap; no content-length header at all.
   const chunk = "a".repeat(512);
   routes = {
@@ -136,7 +136,7 @@ test("fetchHtml aborts a streamed body that exceeds the cap (lying/absent Conten
 });
 
 test("fetchHtml returns a body within the cap", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = {
     "https://safe.example/ok": { status: 200, chunks: ["<html>", "ok", "</html>"] },
   };
@@ -145,13 +145,13 @@ test("fetchHtml returns a body within the cap", async () => {
 });
 
 test("fetchHtml aborts a stalled connect via the timeout", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = { "https://slow.example/connect": { status: 200, hangConnect: true } };
   await assert.rejects(fetchHtml("https://slow.example/connect", 30), /connect aborted/);
 });
 
 test("fetchHtml aborts a stalled body read via the timeout", async () => {
-  const { fetchHtml } = await import("@/lib/scraper/extract");
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
   routes = { "https://slow.example/body": { status: 200, hangBody: true } };
   await assert.rejects(fetchHtml("https://slow.example/body", 30), /body aborted/);
 });

@@ -40,7 +40,7 @@ Valid slugs are defined in `src/lib/categories.ts`:
 `world`, `politics`, `business`, `health`, `science`, `tech`, `sports`, `culture`,
 `entertainment`.
 
-`mapSectionToCategory(section)` (in `providers.ts`) maps free-form strings to slugs.
+`mapSectionToCategory(section)` (in `providers/shared.ts`) maps free-form strings to slugs.
 `categoryFromRules(url, section, rules, fallback)` is the multi-rule variant used by
 most providers.
 
@@ -103,7 +103,7 @@ type ExtractorFetch = (
 ) => Promise<string>;
 ```
 
-In production, `fetchText` from `extract.ts` (SSRF-safe, supports GET and POST) is used.
+In production, `fetchText` from `src/lib/scraper/fetch.ts` (SSRF-safe, supports GET and POST) is used.
 In tests, inject a synchronous stub — no real HTTP needed.
 
 ---
@@ -116,7 +116,7 @@ Fetches each category's BBC RSS feed (`feeds.bbci.co.uk`). `parseRssUrls` extrac
 from `<link>` text nodes and `<guid isPermaLink="true">` elements, strips query strings
 and fragments, and deduplicates.
 
-Category → feed mapping defined in `BBC_RSS_FEEDS` inside `providers.ts`.
+Category → feed mapping defined in `BBC_RSS_FEEDS` inside `src/lib/scraper/providers/bbc.ts`.
 
 ### Nautilus – WordPress REST API (`src/lib/scraper/wp-api.ts`)
 
@@ -139,41 +139,52 @@ when the schema drifts.
 
 ## Adding a new provider — checklist
 
+Each provider lives in its own file under `src/lib/scraper/providers/`. Adding a
+provider means creating that file and registering it in the index — no changes to
+any existing provider module are required.
+
 1. **Choose a strategy**: RSS/API/GraphQL → use `urlExtractor`; static HTML → use seeds
    (add `paginateSeed`/`maxSeedPages` if needed).
-2. **Register in `PROVIDERS` array** (`src/lib/scraper/providers.ts`):
-   - Set all required fields: `key`, `name`, `hostnames`, `seeds`, `articleUrlPattern`,
-     `defaultCategory`.
+2. **Create a provider module** in `src/lib/scraper/providers/<key>.ts`:
+   - Import helpers from `./shared` (`mapSectionToCategory`, `categoryFromRules`,
+     `categoryFromFirstSegment`, `excludes`).
+   - Import extractor helpers (e.g. `fetchNautilusUrls`) from the appropriate module.
+   - Export a single `Provider` object as the default export.
+   - Set all required fields: `key`, `name`, `hostnames`, `seeds`,
+     `articleUrlPattern`, `defaultCategory`.
    - Add `articleUrlFilter` to exclude live blogs, video pages, author pages, etc.
    - Add `categoryFor` using `categoryFromRules` or `mapSectionToCategory`.
-3. **Verify `articleUrlPattern`**: test against real URLs (positive and negative):
+3. **Register the provider** in `src/lib/scraper/providers/index.ts`:
+   - Add an `import` for the new module.
+   - Add the imported provider to the `PROVIDERS` array.
+4. **Verify `articleUrlPattern`**: test against real URLs (positive and negative):
    ```sh
    node -e "console.log(/YOUR_PATTERN/.test('https://...'))"
    ```
-4. **Implement `urlExtractor`** (if applicable):
+5. **Implement `urlExtractor`** (if applicable):
    - Put helpers in `src/lib/scraper/<name>-<strategy>.ts`.
    - Export a `fetch<Name>Urls(limit, fetchFn)` function for testability.
    - Wrap with `try/catch` — extractor errors must never propagate.
-5. **Add tests** (`tests/<provider-name>.test.ts`):
+6. **Add tests** (`tests/<provider-key>.test.ts`):
    - Inject fetch with fixture data — no real network.
    - Cover: happy path, pagination, error/degradation, dedup, type filtering.
-6. **Run typecheck + tests**:
+7. **Run typecheck + tests**:
    ```sh
    npm run typecheck
    npm test
    ```
-7. **Dry-run discovery**:
+8. **Dry-run discovery**:
    ```sh
    npm run scrape -- --provider <key> --dry-run --limit 5
    ```
-8. **Scrape and inspect**:
+9. **Scrape and inspect**:
    ```sh
    npm run scrape -- --provider <key> --limit 3
    ```
-9. **Sync content sources** (first run adds the DB row, operator can enable/disable):
-   ```sh
-   npm run process -- --all  # or visit /admin/content-sources
-   ```
+10. **Sync content sources** (first run adds the DB row, operator can enable/disable):
+    ```sh
+    npm run process -- --all  # or visit /admin/content-sources
+    ```
 
 ---
 
@@ -221,7 +232,8 @@ Schema drift (field renamed, query structure changed) is the usual culprit. Upda
 
 **Step 7 – For HTML providers – check `articleUrlPattern`:**
 Major sites occasionally change article URL formats (e.g. Time moved from
-`/NNNN/slug/` to `/article/YYYY/MM/DD/slug/`). Update the pattern in `providers.ts`.
+`/NNNN/slug/` to `/article/YYYY/MM/DD/slug/`). Update the pattern in the provider's
+module under `src/lib/scraper/providers/<key>.ts`.
 
 **Step 8 – Dry-run with verbose output:**
 ```sh
@@ -288,7 +300,7 @@ npm run seed -- --translate es,fr      # include translations
 
 | Concern | Implementation |
 |---------|---------------|
-| SSRF | `resolveAndPin` in `extract.ts` — every outbound request validates the resolved IP |
+| SSRF | `resolveAndPin` in `fetch.ts` — every outbound request validates the resolved IP |
 | XSS  | `sanitizeArticleHtml` — applied to all scraped HTML before persistence |
 | Body size | `scraperMaxBytes()` cap — streaming abort if response is too large |
 | Timeout | `scraperTimeoutMs()` — AbortController shared across all redirect hops |
