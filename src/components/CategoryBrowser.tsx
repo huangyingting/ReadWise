@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Inbox, Sparkles } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
@@ -12,9 +12,9 @@ import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleCardView from "@/components/ArticleCardView";
-import ListingProgressSync from "@/components/ListingProgressSync";
-import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import ListingSync from "@/components/ListingSync";
 import EmptyState from "@/components/EmptyState";
+import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
 type Tab = { key: string; label: string; href: string };
 
@@ -82,49 +82,30 @@ export default function CategoryBrowser({
   initialLevel?: string | null;
 }) {
   const router = useRouter();
-  const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
-  const [progress, setProgress] = useState<Record<string, ProgressSummary>>(initialProgress);
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
-  const [offset, setOffset] = useState<number>(initialOffset);
-  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  // Ref-tracked loading flag so loadMore never reads a stale closure value —
-  // avoids the edge-case where a click fires just before the state update lands.
-  const loadingRef = useRef(false);
 
   const level = initialLevel ?? null;
   const tabs = buildTabs(level);
 
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current || !hasMore) {
-      return;
-    }
-    loadingRef.current = true;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const res = await fetch(`/api/articles?${queryFor(activeView, offset, level)}`);
-      if (!res.ok) {
-        setLoadError("Couldn't load more articles — please try again.");
-        return;
-      }
-      const data = (await res.json()) as FeedResponse;
-      const next = data.articles ?? [];
-      setArticles((prev) => {
-        const seen = new Set(prev.map((a) => a.id));
-        return [...prev, ...next.filter((a) => !seen.has(a.id))];
-      });
-      setProgress((prev) => ({ ...prev, ...(data.progress ?? {}) }));
-      setOffset(data.offset ?? offset + next.length);
-      setHasMore(Boolean(data.hasMore));
-    } catch {
-      setLoadError("Couldn't load more articles — please try again.");
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [activeView, offset, hasMore, level]);
+  const fetchPage = useCallback(
+    async (nextOffset: number): Promise<FeedResponse> => {
+      const res = await fetch(
+        `/api/articles?${queryFor(activeView, nextOffset, level)}`,
+      );
+      if (!res.ok) throw new Error("fetch failed");
+      return (await res.json()) as FeedResponse;
+    },
+    [activeView, level],
+  );
+
+  const { articles, progress, hasMore, loading, loadError, loadMore } =
+    useLoadMoreList({
+      initialArticles,
+      initialProgress,
+      initialHasMore,
+      initialOffset,
+      fetchPage,
+    });
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newLevel = e.target.value || null;
@@ -260,8 +241,7 @@ export default function CategoryBrowser({
         </>
       )}
 
-      <ListingProgressSync articleIds={articles.map((a) => a.id)} />
-      <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
+      <ListingSync articleIds={articles.map((a) => a.id)} />
     </div>
   );
 }
