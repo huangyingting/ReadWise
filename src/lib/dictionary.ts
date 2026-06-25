@@ -10,6 +10,7 @@
 
 import { createLogger } from "@/lib/logger";
 import { normalizeCandidates } from "@/lib/dictionary-normalize";
+import { providerFetch } from "@/lib/http/provider-client";
 
 const log = createLogger("dictionary");
 
@@ -58,9 +59,10 @@ type Entry = Pick<DictionaryResult, "phonetic" | "audio" | "meanings">;
 async function fetchEntry(word: string): Promise<Entry | null> {
   let data: unknown;
   try {
-    const res = await fetch(
+    const res = await providerFetch(
       `${DICTIONARY_ENDPOINT}${encodeURIComponent(word)}`,
-      { signal: AbortSignal.timeout(8000) },
+      {},
+      { timeoutMs: 8000, provider: "dictionary" },
     );
     if (!res.ok) {
       return null;
