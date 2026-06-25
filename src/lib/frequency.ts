@@ -1,16 +1,16 @@
 /**
  * Word frequency tier lookup (US-123).
  *
- * Returns a tier label for a word based on a compact static frequency list
- * derived from public-domain corpus data (COCA / BNC / wordfreq).
+ * SERVER-ONLY: This module imports `@/data/word-frequency-data` (~29 KB) and
+ * MUST NOT be pulled into client bundles. Use `@/lib/option-registries` for
+ * client-safe tier metadata (`FrequencyTier`, `TIER_LABELS`, `TIER_VARIANTS`).
+ * Frequency tiers for user-facing UI are provided via API responses.
  *
  * Tiers (ordered highest→lowest frequency):
  *   "top1k"    — top 1,000 most frequent English words (essential vocabulary)
  *   "top5k"    — top 5,000 most frequent English words (everyday vocabulary)
  *   "academic" — Oxford Academic Word List words not already in top 5k
  *   null       — not in the frequency data (specialized / rare)
- *
- * Safe to import in both server and client components.
  */
 
 import { normalizeCandidates } from "@/lib/lexical/normalize";

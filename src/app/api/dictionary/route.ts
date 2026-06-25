@@ -6,6 +6,7 @@ import { checkRateLimit } from "@/lib/rate-limit";
 import { recordWordExposure } from "@/lib/word-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import { frequencyTier } from "@/lib/frequency";
 
 const bodySchema = object({ word: nonEmptyString(200) });
 
@@ -23,5 +24,5 @@ export const POST = createHandler({ body: bodySchema }, async ({ body, session }
     userId: session.user.id,
     properties: { found: result.found },
   });
-  return NextResponse.json(result);
+  return NextResponse.json({ ...result, frequencyTier: frequencyTier(body.word) });
 });
