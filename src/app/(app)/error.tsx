@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { AlertTriangle } from "lucide-react";
-import { reportClientError } from "@/lib/client-error-reporter";
-import ErrorScreen from "@/components/ErrorScreen";
+import { SegmentError } from "@/components/route-states";
 
 /**
  * Segment-level error boundary for the authenticated (app) route group.
@@ -18,21 +16,14 @@ export default function AppError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    reportClientError({
-      message: error.message || "App render error",
-      source: "app-error",
-      digest: error.digest,
-      stack: error.stack,
-    });
-  }, [error]);
-
   return (
-    <ErrorScreen
+    <SegmentError
+      error={error}
+      reset={reset}
+      source="app-error"
       icon={AlertTriangle}
       title="Something went wrong"
       description="An unexpected error occurred. You can try again or return to the dashboard."
-      reset={reset}
       secondaryAction={{ label: "Back to dashboard", href: "/dashboard" }}
     />
   );
