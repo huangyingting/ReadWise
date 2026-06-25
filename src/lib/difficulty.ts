@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import type { Prisma } from "@prisma/client";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";

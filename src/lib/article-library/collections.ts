@@ -13,7 +13,7 @@
 import { prisma } from "@/lib/prisma";
 import { TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/output/validators";

@@ -8,7 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { getProfile } from "@/lib/profile";
