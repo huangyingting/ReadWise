@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
+import { throwIfFailed } from "@/lib/result";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
 import { renameList, deleteList } from "@/lib/bookmarks";
 
@@ -10,7 +11,7 @@ export const PATCH = createHandler(
   { params: idParams, body: renameBodySchema },
   async ({ params, body, session }) => {
     const result = await renameList(params.id, session.user.id, body.name);
-    if (!result.ok) throw new ApiError(result.status, result.error);
+    throwIfFailed(result);
     return NextResponse.json({ list: result.list });
   },
 );
@@ -20,7 +21,7 @@ export const DELETE = createHandler(
   { params: idParams },
   async ({ params, session }) => {
     const result = await deleteList(params.id, session.user.id);
-    if (!result.ok) throw new ApiError(result.status, result.error);
+    throwIfFailed(result);
     return NextResponse.json({ ok: true });
   },
 );
