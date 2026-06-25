@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { deleteJson, getJson, patchJson, postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -46,8 +47,7 @@ export default function AdminTagActions({
     if (!tagOptions) {
       setLoadingTags(true);
       try {
-        const res = await fetch("/api/admin/tags");
-        const data = (await res.json()) as TagOption[];
+        const data = await getJson<TagOption[]>("/api/admin/tags");
         const others = data.filter((t) => t.id !== tagId);
         setTagOptions(others);
         setMergeTargetId(others[0]?.id ?? "");
@@ -63,17 +63,7 @@ export default function AdminTagActions({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/tags/${tagId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: newName }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(data?.error ?? `Rename failed (${res.status})`);
-      }
+      await patchJson(`/api/admin/tags/${tagId}`, { name: newName });
       setOpenPanel(null);
       router.refresh();
     } catch (err) {
@@ -88,17 +78,7 @@ export default function AdminTagActions({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/tags/${tagId}/merge`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ targetId: mergeTargetId }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(data?.error ?? `Merge failed (${res.status})`);
-      }
+      await postJson(`/api/admin/tags/${tagId}/merge`, { targetId: mergeTargetId });
       setOpenPanel(null);
       router.refresh();
     } catch (err) {
@@ -112,13 +92,7 @@ export default function AdminTagActions({
     setBusy(true);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/tags/${tagId}`, { method: "DELETE" });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(data?.error ?? `Delete failed (${res.status})`);
-      }
+      await deleteJson(`/api/admin/tags/${tagId}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Delete failed");

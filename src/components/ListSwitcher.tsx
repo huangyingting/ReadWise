@@ -19,6 +19,7 @@ import { useState, useRef, useId, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Check, X, MoreHorizontal } from "lucide-react";
+import { deleteJson, patchJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -85,12 +86,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
     setRenamePending(true);
     setRenameError(null);
     try {
-      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (!res.ok) throw new Error("Failed");
+      await patchJson(`/api/lists/${encodeURIComponent(list.id)}`, { name: trimmed });
       setRenaming(false);
       onRenameSuccess();
     } catch {
@@ -104,10 +100,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
     setDeletePending(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed");
+      await deleteJson(`/api/lists/${encodeURIComponent(list.id)}`);
       onDeleteSuccess(list.id);
     } catch {
       setDeleteError("Couldn't delete — try again");
@@ -276,12 +269,7 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
     setRenamePending(true);
     setRenameError(null);
     try {
-      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (!res.ok) throw new Error("Failed");
+      await patchJson(`/api/lists/${encodeURIComponent(list.id)}`, { name: trimmed });
       onRenameSuccess();
     } catch {
       setRenameError("Couldn't rename — try again");
@@ -294,10 +282,7 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
     setDeletePending(true);
     setDeleteError(null);
     try {
-      const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) throw new Error("Failed");
+      await deleteJson(`/api/lists/${encodeURIComponent(list.id)}`);
       onDeleteSuccess(list.id);
     } catch {
       setDeleteError("Couldn't delete — try again");
@@ -446,13 +431,9 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
     setCreatePending(true);
     setCreateError(null);
     try {
-      const res = await fetch("/api/lists", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
+      const data = await postJson<{ list: { id: string } }>("/api/lists", {
+        name: trimmed,
       });
-      if (!res.ok) throw new Error("Failed");
-      const data = (await res.json()) as { list: { id: string } };
       setCreating(false);
       setNewListName("");
       // Navigate to new list

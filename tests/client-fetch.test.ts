@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import {
   postJson,
   getJson,
+  putJson,
+  patchJson,
+  deleteJson,
+  requestJson,
   ApiResponseError,
   DEFAULT_TIMEOUT_MS,
 } from "@/lib/client-fetch";
@@ -107,4 +111,65 @@ test("a caller-supplied aborted signal aborts the request", async () => {
 
 test("DEFAULT_TIMEOUT_MS is a positive number", () => {
   assert.ok(DEFAULT_TIMEOUT_MS > 0);
+});
+
+test("putJson sends a PUT request with a JSON body", async () => {
+  stubFetch(async () => jsonResponse({ ok: true }));
+  const out = await putJson<{ ok: boolean }>("/api/put", { value: 1 });
+  assert.deepEqual(out, { ok: true });
+  assert.equal(calls[0].init.method, "PUT");
+  assert.equal(calls[0].init.body, JSON.stringify({ value: 1 }));
+  assert.equal(
+    (calls[0].init.headers as Record<string, string>)["Content-Type"],
+    "application/json",
+  );
+});
+
+test("patchJson sends a PATCH request with a JSON body", async () => {
+  stubFetch(async () => jsonResponse({ ok: true }));
+  const out = await patchJson<{ ok: boolean }>("/api/patch", { value: 2 });
+  assert.deepEqual(out, { ok: true });
+  assert.equal(calls[0].init.method, "PATCH");
+  assert.equal(calls[0].init.body, JSON.stringify({ value: 2 }));
+  assert.equal(
+    (calls[0].init.headers as Record<string, string>)["Content-Type"],
+    "application/json",
+  );
+});
+
+test("deleteJson omits Content-Type without a body and sets it with a body", async () => {
+  stubFetch(async () => jsonResponse({ ok: true }));
+  const noBody = await deleteJson<{ ok: boolean }>("/api/delete");
+  assert.deepEqual(noBody, { ok: true });
+  assert.equal(calls[0].init.method, "DELETE");
+  assert.equal(calls[0].init.body, undefined);
+  assert.equal(calls[0].init.headers, undefined);
+
+  stubFetch(async () => jsonResponse({ ok: true }));
+  const withBody = await deleteJson<{ ok: boolean }>("/api/delete", { force: true });
+  assert.deepEqual(withBody, { ok: true });
+  assert.equal(calls[0].init.method, "DELETE");
+  assert.equal(calls[0].init.body, JSON.stringify({ force: true }));
+  const headers = calls[0].init.headers as Record<string, string> | undefined;
+  assert.equal(
+    headers?.["Content-Type"],
+    "application/json",
+  );
+});
+
+test("requestJson is exported and works as the base request helper", async () => {
+  stubFetch(async () => jsonResponse({ ok: true, method: "custom" }));
+  const out = await requestJson<{ ok: boolean; method: string }>(
+    "/api/base",
+    { method: "POST", headers: { Accept: "application/json" } },
+  );
+  assert.deepEqual(out, { ok: true, method: "custom" });
+  assert.equal(calls[0].init.method, "POST");
+});
+
+test("keepalive is passed through to fetch init", async () => {
+  stubFetch(async () => jsonResponse({ ok: true }));
+  const out = await getJson<{ ok: boolean }>("/api/keepalive", { keepalive: true });
+  assert.deepEqual(out, { ok: true });
+  assert.equal(calls[0].init.keepalive, true);
 });

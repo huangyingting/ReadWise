@@ -21,6 +21,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { Bookmark } from "lucide-react";
+import { deleteJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
@@ -68,14 +69,11 @@ export default function CardBookmarkButton({
       // Remove from specific list — animate card out via data attribute on wrapper
       const wrapper = buttonRef.current?.closest<HTMLElement>("[data-card-wrapper]");
       try {
-        const res = await fetch(
+        await deleteJson(
           `/api/lists/${encodeURIComponent(removeListId)}/items/${encodeURIComponent(articleId)}`,
-          { method: "DELETE" },
         );
-        if (res.ok) {
-          // Trigger CSS fade-out on the card wrapper
-          wrapper?.setAttribute("data-card-removed", "true");
-        }
+        // Trigger CSS fade-out on the card wrapper
+        wrapper?.setAttribute("data-card-removed", "true");
       } catch {
         // silent — card stays visible
       } finally {
@@ -87,13 +85,9 @@ export default function CardBookmarkButton({
       setSaved(newSaved);
 
       try {
-        const res = await fetch("/api/bookmarks/toggle", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ articleId }),
+        const data = await postJson<{ bookmarked: boolean }>("/api/bookmarks/toggle", {
+          articleId,
         });
-        if (!res.ok) throw new Error("Failed");
-        const data = (await res.json()) as { bookmarked: boolean };
         setSaved(data.bookmarked);
         markBookmarkChanged(articleId);
       } catch {

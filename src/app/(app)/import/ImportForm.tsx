@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { ApiResponseError, postJson } from "@/lib/client-fetch";
 import { Card, CardBody } from "@/components/ui";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -54,18 +55,10 @@ export default function ImportForm() {
           ? { url: url.trim() }
           : { title: title.trim() || undefined, text };
 
-      const res = await fetch("/api/articles/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setError(data?.error ?? "Import failed. Please try again.");
-        return;
-      }
+      const data = await postJson<{ duplicate?: boolean; id: string }>(
+        "/api/articles/import",
+        body,
+      );
 
       if (data.duplicate) {
         // Re-import of an existing article — let the user know before opening.
@@ -78,8 +71,12 @@ export default function ImportForm() {
       } else {
         router.push(`/reader/${data.id}`);
       }
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      if (err instanceof ApiResponseError) {
+        setError(err.message || "Import failed. Please try again.");
+      } else {
+        setError("Network error. Please try again.");
+      }
     } finally {
       setLoading(false);
     }

@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Check, X, ArrowLeft, ArrowRight } from "lucide-react";
+import { ApiResponseError, postJson } from "@/lib/client-fetch";
 import { CATEGORIES } from "@/lib/categories";
 import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS, type EnglishLevel } from "@/lib/profile";
 import {
@@ -561,23 +562,16 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
     setError(null);
     setSubmitting(true);
     try {
-      const res = await fetch("/api/onboarding", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ageRange, gender, englishLevel, topics }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        setError(data?.error ?? "Something went wrong. Please try again.");
-        setSubmitting(false);
-        return;
-      }
+      await postJson("/api/onboarding", { ageRange, gender, englishLevel, topics });
       router.push("/welcome");
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      if (err instanceof ApiResponseError) {
+        setError(err.message || "Something went wrong. Please try again.");
+      } else {
+        setError("Network error. Please try again.");
+      }
+    } finally {
       setSubmitting(false);
     }
   }

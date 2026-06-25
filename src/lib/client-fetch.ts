@@ -39,11 +39,14 @@ export interface ClientFetchOptions {
   timeoutMs?: number;
   /** Caller signal — composed with the internal timeout signal. */
   signal?: AbortSignal;
+  /** Forwarded to fetch for unload-safe best-effort requests. */
+  keepalive?: boolean;
 }
 
 /** Build an AbortSignal that fires when the timeout elapses OR the caller aborts. */
 function withTimeout(opts: ClientFetchOptions | undefined): {
   signal: AbortSignal;
+  keepalive?: boolean;
   cleanup: () => void;
 } {
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -63,6 +66,7 @@ function withTimeout(opts: ClientFetchOptions | undefined): {
 
   return {
     signal: controller.signal,
+    keepalive: opts?.keepalive,
     cleanup: () => {
       clearTimeout(timeoutId);
       if (external && onAbort) external.removeEventListener("abort", onAbort);
@@ -88,17 +92,19 @@ function messageFor(status: number, body: unknown): string {
   return `Request failed (HTTP ${status})`;
 }
 
-async function request<T>(
+export async function requestJson<T>(
   url: string,
   init: RequestInit,
   opts?: ClientFetchOptions,
 ): Promise<T> {
-  const { signal, cleanup } = withTimeout(opts);
+  const { signal, keepalive, cleanup } = withTimeout(opts);
   try {
-    const res = await fetch(url, { ...init, signal });
+    const res = await fetch(url, { ...init, signal, keepalive });
     const body = await safeJson(res);
     if (!res.ok) {
-      throw new ApiResponseError(res.status, messageFor(res.status, body));
+      throw Object.assign(new ApiResponseError(res.status, messageFor(res.status, body)), {
+        cause: body,
+      });
     }
     return body as T;
   } finally {
@@ -112,7 +118,7 @@ export function postJson<T>(
   body?: unknown,
   opts?: ClientFetchOptions,
 ): Promise<T> {
-  return request<T>(
+  return requestJson<T>(
     url,
     {
       method: "POST",
@@ -125,5 +131,56 @@ export function postJson<T>(
 
 /** GET a JSON response. Throws {@link ApiResponseError} on non-OK. */
 export function getJson<T>(url: string, opts?: ClientFetchOptions): Promise<T> {
-  return request<T>(url, { method: "GET", headers: { Accept: "application/json" } }, opts);
+  return requestJson<T>(url, { method: "GET", headers: { Accept: "application/json" } }, opts);
+}
+
+/** PUT a JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
+export function putJson<T>(
+  url: string,
+  body?: unknown,
+  opts?: ClientFetchOptions,
+): Promise<T> {
+  return requestJson<T>(
+    url,
+    {
+      method: "PUT",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    opts,
+  );
+}
+
+/** PATCH a JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
+export function patchJson<T>(
+  url: string,
+  body?: unknown,
+  opts?: ClientFetchOptions,
+): Promise<T> {
+  return requestJson<T>(
+    url,
+    {
+      method: "PATCH",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    opts,
+  );
+}
+
+/** DELETE an optional JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
+export function deleteJson<T>(
+  url: string,
+  body?: unknown,
+  opts?: ClientFetchOptions,
+): Promise<T> {
+  return requestJson<T>(
+    url,
+    {
+      method: "DELETE",
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    },
+    opts,
+  );
 }

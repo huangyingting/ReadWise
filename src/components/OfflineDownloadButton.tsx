@@ -64,6 +64,7 @@ export default function OfflineDownloadButton({
   async function revalidateCachedCopy() {
     try {
       const stored = await getOfflineArticleVersion(articleId);
+      // binary/offline content: response may not be JSON; routed through raw fetch
       const res = await fetch(`/api/reader/${articleId}/offline?meta=1`);
       if (res.status === 404) {
         await removeOfflineArticle(articleId);

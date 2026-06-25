@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { ApiResponseError, requestJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
@@ -25,34 +26,33 @@ export default function AdminArticleIngest() {
     if (!trimmed) return;
     setState({ status: "loading" });
     try {
-      const res = await fetch("/api/admin/articles/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
-      });
-      const data = (await res.json()) as {
+      const data = await requestJson<{
         status?: string;
         id?: string | null;
         message?: string;
         error?: string;
-      };
-      if (res.status === 201) {
-        setState({ status: "saved", id: data.id! });
-        setUrl("");
-        router.refresh();
-      } else if (res.status === 409) {
+      }>("/api/admin/articles/ingest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: trimmed }),
+      });
+      setState({ status: "saved", id: data.id! });
+      setUrl("");
+      router.refresh();
+    } catch (err) {
+      if (err instanceof ApiResponseError && err.status === 409) {
+        const duplicate = (err as ApiResponseError & { cause?: unknown }).cause;
+        const data =
+          duplicate && typeof duplicate === "object"
+            ? (duplicate as { id?: string | null; message?: string })
+            : null;
         setState({
           status: "duplicate",
-          id: data.id ?? null,
-          message: data.message ?? "Article already exists.",
+          id: data?.id ?? null,
+          message: data?.message ?? "Article already exists.",
         });
-      } else {
-        setState({
-          status: "error",
-          message: data.error ?? `Ingest failed (${res.status})`,
-        });
+        return;
       }
-    } catch (err) {
       setState({
         status: "error",
         message: err instanceof Error ? err.message : "Ingest failed",

@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
@@ -14,31 +16,20 @@ import { Field } from "@/components/ui/Field";
 export default function AddStudentForm({ classroomId }: { classroomId: string }) {
   const router = useRouter();
   const [userId, setUserId] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Failed to add student");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!userId.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/classrooms/${classroomId}/members`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userId: userId.trim(), role: "Student" }),
+    const trimmedUserId = userId.trim();
+    if (!trimmedUserId) return;
+    await run(async () => {
+      await postJson(`/api/classrooms/${classroomId}/members`, {
+        userId: trimmedUserId,
+        role: "Student",
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Failed (${res.status})`);
-      }
       setUserId("");
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to add student");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

@@ -12,6 +12,7 @@
  */
 
 import { useEffect, useState } from "react";
+import { getJson, putJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -49,17 +50,16 @@ export default function ReminderPreferencesForm() {
 
   useEffect(() => {
     let cancelled = false;
-    fetch("/api/push/preferences")
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: { preference: Preference }) => {
+    void (async () => {
+      try {
+        const data = await getJson<{ preference: Preference }>("/api/push/preferences");
         if (!cancelled) setPref(data.preference);
-      })
-      .catch(() => {
+      } catch {
         if (!cancelled) setPref(null);
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) setLoading(false);
-      });
+      }
+    })();
     return () => {
       cancelled = true;
     };
@@ -83,13 +83,7 @@ export default function ReminderPreferencesForm() {
         quietHoursEnd: pref.quietHoursEnd,
         timezone: detectTimezone(),
       };
-      const res = await fetch("/api/push/preferences", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const data = (await res.json()) as { preference: Preference };
+      const data = await putJson<{ preference: Preference }>("/api/push/preferences", body);
       setPref(data.preference);
       setStatus("saved");
     } catch {

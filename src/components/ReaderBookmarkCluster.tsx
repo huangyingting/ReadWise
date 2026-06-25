@@ -20,6 +20,7 @@
 
 import { useState, useRef, useId, useCallback } from "react";
 import { Bookmark, ListPlus } from "lucide-react";
+import { postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import ListPickerPopover from "@/components/ListPickerPopover";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
@@ -48,13 +49,9 @@ export default function ReaderBookmarkCluster({
     setStatusMsg(null);
 
     try {
-      const res = await fetch("/api/bookmarks/toggle", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ articleId }),
+      const data = await postJson<{ bookmarked: boolean }>("/api/bookmarks/toggle", {
+        articleId,
       });
-      if (!res.ok) throw new Error("Failed");
-      const data = (await res.json()) as { bookmarked: boolean };
       setSaved(data.bookmarked);
       markBookmarkChanged(articleId);
     } catch {

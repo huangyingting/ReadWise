@@ -27,6 +27,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
+import { postJson } from "@/lib/client-fetch";
 import {
   segmentDictation,
   type DictationSegment,
@@ -207,18 +208,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
       setIsWarming(true);
       setWarmError(null);
       try {
-        const res = await fetch(`/api/reader/${articleId}/speech`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        });
-        if (!res.ok) {
-          const errBody = (await res.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(errBody?.error ?? "Could not load narration");
-        }
-        const body = (await res.json()) as {
+        const body = await postJson<{
           audio: string | null;
           mimeType: string | null;
           plainText: string;
@@ -226,7 +216,7 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           voice: string;
           cached: boolean;
           fallback: boolean;
-        };
+        }>(`/api/reader/${articleId}/speech`, {});
         if (body.fallback || !body.audio) {
           markFallback();
         } else {

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { patchJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 
 /**
@@ -27,15 +28,9 @@ export default function AdminSourceActions({
     const prev = on;
     setOn(next);
     try {
-      const res = await fetch(`/api/admin/sources/${encodeURIComponent(providerKey)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: next }),
+      await patchJson(`/api/admin/sources/${encodeURIComponent(providerKey)}`, {
+        enabled: next,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Update failed (${res.status})`);
-      }
       router.refresh();
     } catch (err) {
       setOn(prev);

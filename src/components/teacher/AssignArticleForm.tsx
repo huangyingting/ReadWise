@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -16,37 +18,23 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
   const [articleId, setArticleId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [instructions, setInstructions] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Failed to assign article");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!articleId.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/classrooms/${classroomId}/assignments`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          articleId: articleId.trim(),
-          dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-          instructions: instructions.trim() || undefined,
-        }),
+    const trimmedArticleId = articleId.trim();
+    if (!trimmedArticleId) return;
+    await run(async () => {
+      await postJson(`/api/classrooms/${classroomId}/assignments`, {
+        articleId: trimmedArticleId,
+        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+        instructions: instructions.trim() || undefined,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Failed (${res.status})`);
-      }
       setArticleId("");
       setDueDate("");
       setInstructions("");
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to assign article");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

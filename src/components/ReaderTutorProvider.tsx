@@ -25,6 +25,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
+import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -106,20 +107,22 @@ export function ReaderTutorProvider({ articleId, children, paragraphContext }: P
     let cancelled = false;
     const controller = new AbortController();
     setFetching(true);
-    fetch(`/api/reader/${articleId}/tutor`, { signal: controller.signal })
-      .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((data: { messages: TutorMessage[] }) => {
+    void (async () => {
+      try {
+        const data = await getJson<{ messages: TutorMessage[] }>(
+          `/api/reader/${articleId}/tutor`,
+          { signal: controller.signal },
+        );
         if (!cancelled) setMessages(data.messages ?? []);
-      })
-      .catch(() => {
+      } catch {
         /* silently degrade — empty conversation shown */
-      })
-      .finally(() => {
+      } finally {
         if (!cancelled) {
           setFetching(false);
           setLoaded(true);
         }
-      });
+      }
+    })();
     return () => {
       cancelled = true;
       controller.abort();
@@ -144,30 +147,17 @@ export function ReaderTutorProvider({ articleId, children, paragraphContext }: P
       setTransient([userItem, { kind: "thinking", id: "t-thinking" }]);
 
       try {
-        const res = await fetch(`/api/reader/${articleId}/tutor`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            question: q,
-            // #377 — Privacy: only the current paragraph of the article the
-            // user is reading is sent as optional context. Capped at 500 chars
-            // on the server. No other user data is included.
-            ...(paragraphContext ? { paragraphContext } : {}),
-          }),
-        });
-
-        if (!res.ok) {
-          const data = (await res.json().catch(() => null)) as {
-            error?: string;
-          } | null;
-          throw new Error(data?.error ?? `HTTP ${res.status}`);
-        }
-
-        const data = (await res.json()) as {
+        const data = await postJson<{
           answer: string;
           fallback: boolean;
           messages: TutorMessage[];
-        };
+        }>(`/api/reader/${articleId}/tutor`, {
+          question: q,
+          // #377 — Privacy: only the current paragraph of the article the
+          // user is reading is sent as optional context. Capped at 500 chars
+          // on the server. No other user data is included.
+          ...(paragraphContext ? { paragraphContext } : {}),
+        });
 
         // Replace persisted messages with server's authoritative list.
         setMessages(data.messages ?? []);
@@ -212,12 +202,7 @@ export function ReaderTutorProvider({ articleId, children, paragraphContext }: P
     setClearLoading(true);
     setClearError(null);
     try {
-      const res = await fetch(`/api/reader/${articleId}/tutor`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}`);
-      }
+      await deleteJson(`/api/reader/${articleId}/tutor`);
       setMessages([]);
       setTransient([]);
       return true;
