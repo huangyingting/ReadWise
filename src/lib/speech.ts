@@ -1,25 +1,23 @@
-import * as sdk from "microsoft-cognitiveservices-speech-sdk";
-import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { htmlToPlainText } from "@/lib/translation";
 import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
-  speechTimeoutMs,
-  type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/runtime-config/speech";
 import { createLogger } from "@/lib/logger";
-import { getMediaStorage } from "@/lib/storage";
-import {
-  timingEndSeconds,
-  type SpeechWord,
-} from "@/lib/speech-timing";
+import type { SpeechWord } from "@/lib/speech-timing";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
 } from "@/lib/article-access";
+import { synthesize, resolveMimeType } from "@/lib/speech/provider-azure";
+import {
+  parseStoredSpeechWords,
+  resolveStoredAudioUrl,
+  saveSpeechResult,
+} from "@/lib/speech/repository";
 
 const log = createLogger("speech");
 
@@ -27,6 +25,9 @@ const log = createLogger("speech");
 const MAX_TTS_CHARS = 5000;
 
 export type { SpeechWord } from "@/lib/speech-timing";
+
+// Re-export so existing callers of `@/lib/speech` keep working.
+export { parseStoredSpeechWords } from "@/lib/speech/repository";
 
 export type SpeechResult = {
   audio: string | null;
@@ -38,214 +39,9 @@ export type SpeechResult = {
   fallback: boolean;
 };
 
-function finiteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
-/** Parses stored word timings from Prisma Json fields. */
-export function parseStoredSpeechWords(
-  raw: Prisma.JsonValue | null | undefined,
-): SpeechWord[] | null {
-  if (raw == null) {
-    return null;
-  }
-
-  if (!Array.isArray(raw)) {
-    return null;
-  }
-
-  const words: SpeechWord[] = [];
-  for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) {
-      return null;
-    }
-    const record = item as Record<string, unknown>;
-    const { word, offset, duration } = record;
-    if (
-      typeof word !== "string" ||
-      !word.trim() ||
-      !finiteNumber(offset) ||
-      !finiteNumber(duration) ||
-      offset < 0 ||
-      duration < 0
-    ) {
-      return null;
-    }
-    words.push({ word, offset, duration });
-  }
-
-  return words.sort((a, b) => a.offset - b.offset);
-}
-
-function readSpeechConfig(): AzureSpeechConfig | null {
-  return speechConfig.get();
-}
-
 /** Whether Azure Speech credentials are configured. */
 export function isSpeechConfigured(): boolean {
   return speechConfig.isConfigured();
-}
-
-/** Maps the configured output-format string to an SDK enum + MIME type. */
-function resolveOutputFormat(format: string): {
-  enum: sdk.SpeechSynthesisOutputFormat;
-  mimeType: string;
-} {
-  const map: Record<
-    string,
-    { enum: sdk.SpeechSynthesisOutputFormat; mimeType: string }
-  > = {
-    "audio-16khz-32kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-16khz-128kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-24khz-48kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-24khz-96kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-48khz-96kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-  };
-  return (
-    map[format] ?? {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    }
-  );
-}
-
-/** Ticks (100-nanosecond units) to milliseconds. */
-function ticksToMilliseconds(ticks: number): number {
-  return ticks / 1e4;
-}
-
-type SynthesisOutput = {
-  audio: Buffer;
-  words: SpeechWord[];
-};
-
-/**
- * Synthesizes `text` via Azure Speech, collecting word-boundary timings.
- * Resolves null on any failure so callers can degrade gracefully.
- * Includes a configurable timeout (SPEECH_TIMEOUT_MS) to prevent hangs.
- */
-function synthesize(
-  text: string,
-  config: AzureSpeechConfig,
-  articleId: string,
-): Promise<SynthesisOutput | null> {
-  const start = Date.now();
-  const synthesizeTimeoutMs = speechTimeoutMs();
-  log.info("speech.synthesis_start", { articleId, textLength: text.length });
-
-  const inner = new Promise<SynthesisOutput | null>((resolve) => {
-    let synthesizer: sdk.SpeechSynthesizer | null = null;
-    try {
-      const speechConfig = sdk.SpeechConfig.fromSubscription(
-        config.key,
-        config.region,
-      );
-      speechConfig.speechSynthesisVoiceName = config.voice;
-      speechConfig.speechSynthesisOutputFormat = resolveOutputFormat(
-        config.format,
-      ).enum;
-
-      synthesizer = new sdk.SpeechSynthesizer(speechConfig, null);
-
-      const words: SpeechWord[] = [];
-      synthesizer.wordBoundary = (_s, e) => {
-        if (e.boundaryType !== sdk.SpeechSynthesisBoundaryType.Word) {
-          return;
-        }
-        const eventText = (e as { text?: unknown }).text;
-        const word =
-          typeof eventText === "string" && eventText.trim()
-            ? eventText
-            : text.slice(e.textOffset, e.textOffset + e.wordLength);
-        if (!word.trim()) return;
-        words.push({
-          word,
-          offset: ticksToMilliseconds(e.audioOffset),
-          duration: ticksToMilliseconds(e.duration),
-        });
-      };
-
-      synthesizer.speakTextAsync(
-        text,
-        (result) => {
-          const ok =
-            result.reason ===
-            sdk.ResultReason.SynthesizingAudioCompleted;
-          const audioData = result.audioData;
-          synthesizer?.close();
-          synthesizer = null;
-          if (ok && audioData && audioData.byteLength > 0) {
-            words.sort((a, b) => a.offset - b.offset);
-            log.info("speech.synthesis_success", {
-              articleId,
-              durationMs: Date.now() - start,
-              audioBytes: audioData.byteLength,
-              wordCount: words.length,
-            });
-            resolve({ audio: Buffer.from(audioData), words });
-          } else {
-            log.warn("speech.synthesis_failure", {
-              articleId,
-              reason: "incomplete_or_empty_audio",
-              resultReason: result.reason,
-              durationMs: Date.now() - start,
-            });
-            resolve(null);
-          }
-        },
-        (errorMessage) => {
-          synthesizer?.close();
-          synthesizer = null;
-          log.error("speech.synthesis_failure", {
-            articleId,
-            reason: "error_callback",
-            error: String(errorMessage),
-            durationMs: Date.now() - start,
-          });
-          resolve(null);
-        },
-      );
-    } catch (err) {
-      synthesizer?.close();
-      log.error("speech.synthesis_failure", {
-        articleId,
-        reason: "exception",
-        error: String(err),
-        durationMs: Date.now() - start,
-      });
-      resolve(null);
-    }
-  });
-
-  const timeout = new Promise<SynthesisOutput | null>((resolve) => {
-    const timer = setTimeout(() => {
-      log.error("speech.synthesis_failure", {
-        articleId,
-        reason: "timeout",
-        timeoutMs: synthesizeTimeoutMs,
-        durationMs: Date.now() - start,
-      });
-      resolve(null);
-    }, synthesizeTimeoutMs);
-    inner.then(() => clearTimeout(timer)).catch(() => clearTimeout(timer));
-  });
-
-  return Promise.race([inner, timeout]);
 }
 
 function fallbackResult(voice: string): SpeechResult {
@@ -258,40 +54,6 @@ function fallbackResult(voice: string): SpeechResult {
     cached: false,
     fallback: true,
   };
-}
-
-/** Largest word end timing (seconds) — used as the audio duration. */
-function lastWordEnd(words: SpeechWord[]): number | undefined {
-  let max = 0;
-  for (const w of words) {
-    const end = timingEndSeconds(w);
-    if (end > max) max = end;
-  }
-  return max > 0 ? max : undefined;
-}
-
-/**
- * Resolves a playable `data:` URL for a stored speech row regardless of where
- * the audio lives. Prefers the legacy base64 column; otherwise reads the bytes
- * back from object storage via the configured backend. Returns null when the
- * audio cannot be located (e.g. storage unconfigured after a migration).
- */
-async function resolveStoredAudioUrl(row: {
-  mimeType: string;
-  audioBase64: string | null;
-  storageKey: string | null;
-}): Promise<string | null> {
-  if (row.audioBase64) {
-    return `data:${row.mimeType};base64,${row.audioBase64}`;
-  }
-  if (row.storageKey) {
-    const storage = getMediaStorage();
-    if (!storage) return null;
-    const bytes = await storage.get(row.storageKey);
-    if (!bytes) return null;
-    return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
-  }
-  return null;
 }
 
 /**
@@ -356,7 +118,7 @@ export async function getOrCreateArticleSpeech(
     return null;
   }
 
-  const config = readSpeechConfig();
+  const config = speechConfig.get();
   if (!config) {
     return fallbackResult(DEFAULT_SPEECH_VOICE);
   }
@@ -372,87 +134,16 @@ export async function getOrCreateArticleSpeech(
     return fallbackResult(config.voice);
   }
 
-  const { mimeType } = resolveOutputFormat(config.format);
+  const mimeType = resolveMimeType(config.format);
 
-  // Persist the audio: to object storage when configured (recording a
-  // MediaAsset), else inline as base64 (the graceful default). Either way the
-  // row carries enough to serve playback in both modes.
-  let audioBase64: string | null = output.audio.toString("base64");
-  let storageKey: string | null = null;
-  let mediaAssetId: string | null = null;
-
-  const storage = getMediaStorage();
-  if (storage) {
-    try {
-      const put = await storage.put({
-        data: output.audio,
-        mimeType,
-        keyHint: "speech",
-      });
-      const durationSec = lastWordEnd(output.words);
-      const asset = await prisma.mediaAsset.upsert({
-        where: { storageKey: put.storageKey },
-        update: {
-          kind: "speech",
-          mimeType,
-          sizeBytes: put.sizeBytes,
-          checksum: put.checksum,
-          durationSec,
-          voice: config.voice,
-          format: config.format,
-          articleId,
-        },
-        create: {
-          storageKey: put.storageKey,
-          kind: "speech",
-          mimeType,
-          sizeBytes: put.sizeBytes,
-          checksum: put.checksum,
-          durationSec,
-          voice: config.voice,
-          format: config.format,
-          articleId,
-        },
-        select: { id: true },
-      });
-      storageKey = put.storageKey;
-      mediaAssetId = asset.id;
-      audioBase64 = null; // durably stored externally
-    } catch (err) {
-      log.error("speech.storage_write_failed", {
-        articleId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Fall back to inline base64 so narration still works.
-      storageKey = null;
-      mediaAssetId = null;
-      audioBase64 = output.audio.toString("base64");
-    }
-  }
-
-  await prisma.articleSpeech.upsert({
-    where: { articleId },
-    update: {
-      voice: config.voice,
-      format: config.format,
-      mimeType,
-      audioBase64,
-      storageKey,
-      mediaAssetId,
-      plainText,
-      words: output.words,
-    },
-    create: {
-      articleId,
-      voice: config.voice,
-      format: config.format,
-      mimeType,
-      audioBase64,
-      storageKey,
-      mediaAssetId,
-      plainText,
-      words: output.words,
-    },
+  await saveSpeechResult({
+    articleId,
+    audio: output.audio,
+    mimeType,
+    voice: config.voice,
+    format: config.format,
+    plainText,
+    words: output.words,
   });
 
   return {
