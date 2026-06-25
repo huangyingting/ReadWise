@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { deleteJson, patchJson } from "@/lib/client-fetch";
 import { Select } from "@/components/ui/Select";
 import ConfirmAction from "@/components/ConfirmAction";
+import { useAdminAction } from "@/hooks/useAdminAction";
 
 type Role = "Admin" | "Reader";
 
@@ -17,36 +16,7 @@ export default function AdminMemberActions({
   role: Role;
   isSelf: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState<"role" | "delete" | null>(null);
-  const [error, setError] = useState<string | null>(null);
-
-  async function changeRole(nextRole: Role) {
-    if (nextRole === role) return;
-    setBusy("role");
-    setError(null);
-    try {
-      await patchJson(`/api/admin/members/${memberId}`, { role: nextRole });
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Role change failed");
-    } finally {
-      setBusy(null);
-    }
-  }
-
-  async function runDelete() {
-    setBusy("delete");
-    setError(null);
-    try {
-      await deleteJson(`/api/admin/members/${memberId}`);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Remove failed");
-    } finally {
-      setBusy(null);
-    }
-  }
+  const { busy, error, run } = useAdminAction<"role" | "delete">();
 
   return (
     <div className="admin-actions">
@@ -58,7 +28,13 @@ export default function AdminMemberActions({
             aria-label="Member role"
             value={role}
             disabled={busy !== null || isSelf}
-            onChange={(e) => changeRole(e.target.value as Role)}
+            onChange={(e) =>
+              run("role", () =>
+                patchJson(`/api/admin/members/${memberId}`, {
+                  role: e.target.value,
+                }),
+              )
+            }
           >
             <option value="Reader">Reader</option>
             <option value="Admin">Admin</option>
@@ -70,7 +46,7 @@ export default function AdminMemberActions({
           confirmVariant="danger"
           confirmLabel="Confirm remove"
           confirmMessage="Permanently remove this member and all of their progress, saved words and sessions? This cannot be undone."
-          onConfirm={runDelete}
+          onConfirm={() => run("delete", () => deleteJson(`/api/admin/members/${memberId}`))}
           loading={busy === "delete"}
           disabled={isSelf || busy === "role"}
           disabledTitle={
