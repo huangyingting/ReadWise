@@ -307,7 +307,7 @@ evals/                          # AI prompt/evaluation fixtures
 - Use the singleton `prisma` from `src/lib/prisma.ts`; do not instantiate a new
   `PrismaClient` in app code.
 - Server pages must guard access explicitly with `requireSession`,
-  `requireOnboardedSession`, `requireAdmin`, or capability/RBAC helpers.
+  `requireOnboardedSession`, or capability/RBAC helpers.
 - `middleware.ts` performs the lightweight session-cookie redirect for protected
   prefixes; server/API guards remain the source of truth.
 - API routes should use `createHandler`, `createAdminHandler`,
