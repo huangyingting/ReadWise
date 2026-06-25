@@ -253,3 +253,21 @@ const BANK: Record<EnglishLevel, PlacementQuestion[]> = {
 export function getPlacementQuestions(level: EnglishLevel): PlacementQuestion[] {
   return BANK[level] ?? BANK.B1;
 }
+
+/**
+ * Pure function. Computes the number of correct answers from a set of user
+ * answers against a question bank.
+ *
+ * @param answers - Array of selected option indices (or null if unanswered).
+ * @param questions - The placement questions corresponding to each answer slot.
+ * @returns Number of correct answers.
+ */
+export function computePlacementScore(
+  answers: (number | null)[],
+  questions: PlacementQuestion[],
+): number {
+  return answers.reduce<number>(
+    (acc, a, i) => acc + (a !== null && a === questions[i]?.correctIndex ? 1 : 0),
+    0,
+  );
+}
