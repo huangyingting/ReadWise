@@ -3,7 +3,7 @@
 This document describes the long-text / context-management work added in Epic
 **RW-E004 / RW-025**, and how it builds on the provider abstraction from
 **RW-023**. For output validation and moderation see
-[`ai-safety.md`](./ai-safety.md).
+[`safety.md`](./safety.md).
 
 Long articles can exceed a model's context window or degrade output quality when
 sent as one giant prompt. The goal here is to keep every AI prompt **bounded**

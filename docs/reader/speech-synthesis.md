@@ -4,7 +4,7 @@ Speech synthesis generates cached narration audio and word timings for reader
 playback. It is an optional feature: when Azure Speech is unconfigured or fails,
 the reader receives a graceful fallback instead of an error.
 
-For object-storage details, see [`../media/media-storage.md`](../media/media-storage.md).
+For object-storage details, see [`../media/storage.md`](../media/storage.md).
 
 ## Code map
 
@@ -77,7 +77,7 @@ the article has one active `ArticleSpeech` row.
 - Do not expose storage keys directly to clients.
 - Treat missing Azure Speech config as normal unless narration is a deployment
   requirement.
-- Use `/api/ready` for provider status and [`../media/media-storage.md`](../media/media-storage.md)
+- Use `/api/ready` for provider status and [`../media/storage.md`](../media/storage.md)
   for storage troubleshooting.
 
 ## Tests

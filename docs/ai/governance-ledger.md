@@ -6,8 +6,8 @@ analytics without storing prompts, responses, selected text, or article bodies.
 
 This document expands the ADR in
 [`../architecture/0006-ai-governance-ledger-and-budgets.md`](../architecture/0006-ai-governance-ledger-and-budgets.md)
-and should be read with [`ai-context.md`](./ai-context.md),
-[`ai-prompts.md`](./ai-prompts.md), and [`ai-safety.md`](./ai-safety.md).
+and should be read with [`context-management.md`](./context-management.md),
+[`prompts.md`](./prompts.md), and [`safety.md`](./safety.md).
 
 ## Code map
 
@@ -97,12 +97,12 @@ one deliberately.
 
 ## Operational checklist
 
-- Keep prompt version labels aligned with [`ai-prompts.md`](./ai-prompts.md).
+- Keep prompt version labels aligned with [`prompts.md`](./prompts.md).
 - Configure quotas only where enforcement is desired; unset quota env vars mean
   unlimited for that scope.
 - Treat optional provider unconfiguration as normal local/test behavior.
 - Investigate high fallback rates by feature first, then correlate request ids
-  with logs/traces from [`../observability/observability.md`](../observability/observability.md).
+  with logs/traces from [`../observability/overview.md`](../observability/overview.md).
 
 ## Tests
 

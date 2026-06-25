@@ -19,7 +19,7 @@
  * feature helpers previously embedded, and keep the existing `<feature>/v1`
  * version labels, so cached content and existing tests stay valid. Bumping a
  * template's `version` is the documented trigger for a targeted rebuild/backfill
- * (see {@link featuresWithStalePrompts} and docs/ai/ai-prompts.md).
+ * (see {@link featuresWithStalePrompts} and docs/ai/prompts.md).
  *
  * Module layout:
  *   prompts/types.ts              — shared types, constants, and variable shapes

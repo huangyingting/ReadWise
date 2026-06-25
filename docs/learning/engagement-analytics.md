@@ -2,7 +2,7 @@
 
 Engagement analytics are learner-facing signals derived from user-owned domain
 tables. They are not the append-only product analytics stream described in
-[`../analytics/analytics.md`](../analytics/analytics.md).
+[`../analytics/product-analytics.md`](../analytics/product-analytics.md).
 
 ## Code map
 

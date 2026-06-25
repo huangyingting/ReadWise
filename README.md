@@ -379,14 +379,14 @@ manager.
 - `docs/platform/health-readiness.md` — health/readiness probes and runtime config validation.
 - `docs/operations/admin-operations.md` — admin jobs, audit logs, processing steps, provider operations.
 - `docs/learning/learning-and-mastery.md` — learner analytics, mastery models, adaptive leveling, SRS.
-- `docs/reader/reader-annotations.md` — highlights, notes, anchor revalidation, offline note merge.
+- `docs/reader/annotations.md` — highlights, notes, anchor revalidation, offline note merge.
 - `docs/platform/database-runbooks.md` — backup, restore, rollback, and DR runbooks.
 - `docs/platform/ci.md` — CI quality gates and failure triage.
-- `docs/security/security.md` — trusted proxy, CSRF, security events, audit logs.
-- `docs/observability/observability.md` — logs, metrics, tracing, and error reporting.
-- `docs/media/media-storage.md` — filesystem/Azure media storage and migration guide.
-- `docs/analytics/analytics.md` — product analytics event schema and retention.
-- `docs/ai/ai-context.md`, `docs/ai/ai-prompts.md`, `docs/ai/ai-safety.md`, `docs/ai/ai-evals.md` — AI prompt governance and evaluations.
+- `docs/security/overview.md` — trusted proxy, CSRF, security events, audit logs.
+- `docs/observability/overview.md` — logs, metrics, tracing, and error reporting.
+- `docs/media/storage.md` — filesystem/Azure media storage and migration guide.
+- `docs/analytics/product-analytics.md` — product analytics event schema and retention.
+- `docs/ai/context-management.md`, `docs/ai/prompts.md`, `docs/ai/safety.md`, `docs/ai/evaluations.md` — AI prompt governance and evaluations.
 - `docs/content/content-policy.md` — source governance, provider health, rights, and takedown policy.
 - `docs/content/scrapers.md` — scraper provider architecture and drift handling.
 - `docs/reader/offline-sync.md` — offline queue and conflict-resolution design.

@@ -59,7 +59,7 @@ passes it to `captureError` with context:
 
 The backend aggregator computes a fingerprint, increments error metrics, emits
 structured logs, and triggers the configured alert hook when thresholds are met.
-See [`observability.md`](./observability.md) for the broader error pipeline.
+See [`overview.md`](./overview.md) for the broader error pipeline.
 
 ## Operational checks
 

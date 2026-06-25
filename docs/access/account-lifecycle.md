@@ -52,7 +52,7 @@ Important invariants:
 - **Ledgers are intentionally non-cascading.** Audit logs, product analytics,
   AI invocation rows, and jobs store plain ids for investigation/reporting. Use
   the explicit retention/erasure helpers documented in
-  [`../analytics/analytics.md`](../analytics/analytics.md) when a data-erasure
+  [`../analytics/product-analytics.md`](../analytics/product-analytics.md) when a data-erasure
   workflow must remove analytics rows too.
 
 Deletion returns structured domain results (`ok`, `error`, `status`) so route
