@@ -7,7 +7,7 @@
  * `onChange` auto-submits the form so users don't need a separate "Go" button.
  */
 
-import { ENGLISH_LEVELS } from "@/lib/profile";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { buttonVariants } from "@/components/ui/Button";
 
 export default function DashboardLevelFilter({

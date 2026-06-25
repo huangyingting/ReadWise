@@ -9,6 +9,8 @@ import {
   ENGLISH_LEVELS,
   GENDERS,
   LEVEL_HINTS,
+} from "@/lib/option-registries";
+import {
   TopicSelector,
   DailyGoalStepper,
 } from "@/features/profile-preferences";

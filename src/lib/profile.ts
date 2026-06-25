@@ -7,11 +7,19 @@
  */
 import { prisma } from "@/lib/prisma";
 import type { Profile } from "@prisma/client";
+import {
+  AGE_RANGES,
+  GENDERS,
+  ENGLISH_LEVELS,
+  LEVEL_HINTS,
+  DAILY_GOAL_MIN,
+  DAILY_GOAL_MAX,
+  DAILY_GOAL_DEFAULT,
+  type AgeRange,
+  type Gender,
+  type EnglishLevel,
+} from "@/lib/option-registries";
 
-// Re-export value definitions and schema from the profile-preferences subsystem.
-// Import directly from the TS-only modules (not the barrel index) so that
-// Node.js test runners that strip TypeScript but cannot process TSX do not
-// attempt to load the React UI components.
 export {
   AGE_RANGES,
   GENDERS,
@@ -23,7 +31,12 @@ export {
   type AgeRange,
   type Gender,
   type EnglishLevel,
-} from "@/features/profile-preferences/values";
+};
+
+// Re-export schema from the profile-preferences subsystem.
+// Import directly from the TS-only module (not the barrel index) so that
+// Node.js test runners that strip TypeScript but cannot process TSX do not
+// attempt to load the React UI components.
 export {
   type ProfileInput,
   type ProfileInputResult,

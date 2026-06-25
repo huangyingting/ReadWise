@@ -1,5 +1,6 @@
 import type { MetadataRoute } from "next";
 import { SITE_NAME, MANIFEST_DESCRIPTION } from "@/lib/copy/site";
+import { ICON_SVG, ICON_192, ICON_512 } from "@/lib/assets";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
@@ -13,23 +14,23 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#ffffff",
     icons: [
       {
-        src: "/icon.svg",
+        src: ICON_SVG,
         sizes: "any",
         type: "image/svg+xml",
         purpose: "any",
       },
       {
-        src: "/icons/icon-192.png",
+        src: ICON_192,
         sizes: "192x192",
         type: "image/png",
       },
       {
-        src: "/icons/icon-512.png",
+        src: ICON_512,
         sizes: "512x512",
         type: "image/png",
       },
       {
-        src: "/icons/icon-512.png",
+        src: ICON_512,
         sizes: "512x512",
         type: "image/png",
         purpose: "maskable",
