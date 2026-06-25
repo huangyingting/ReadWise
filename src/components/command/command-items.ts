@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { PRIMARY_NAV } from "@/components/shell/nav-items";
 import { toggleTheme } from "@/lib/theme";
+import type { ListingArticle } from "@/lib/articles";
 
 // ---- Item types -------------------------------------------------------
 
@@ -113,6 +114,25 @@ export const ACTION_ITEMS: ActionItem[] = [
     href: "/settings",
   },
 ];
+
+// ---- Selectable item shapes -------------------------------------------
+// Selectable items are the item types with an `ariaId` added for ARIA
+// active-descendant tracking. They live here so hooks and tests can import
+// them independently of the full palette UI.
+
+export type PageSelectable = PageItem & { ariaId: string };
+export type ActionSelectable = ActionItem & { ariaId: string };
+export type ArticleSelectable = {
+  kind: "article";
+  ariaId: string;
+  article: ListingArticle;
+};
+export type MoreSelectable = { kind: "more"; ariaId: string; offset: number };
+export type SelectableItem =
+  | PageSelectable
+  | ActionSelectable
+  | ArticleSelectable
+  | MoreSelectable;
 
 // ---- Fuzzy matcher ----------------------------------------------------
 
