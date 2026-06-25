@@ -45,8 +45,8 @@ test("PostgreSQL full-text article search is case-insensitive and privacy-filter
     },
   });
 
-  const { searchPublishedArticles } = await import("@/lib/articles");
-  const results = await searchPublishedArticles("galactic", { limit: 5 });
+  const { searchReadableArticles } = await import("@/lib/articles");
+  const results = await searchReadableArticles("galactic", { limit: 5 });
   const rawFts = await prisma.$queryRaw<Array<{ id: string }>>`
     SELECT "id"
     FROM "Article"
@@ -58,12 +58,12 @@ test("PostgreSQL full-text article search is case-insensitive and privacy-filter
   assert.ok(results.articles.some((article) => article.id === articleId));
   assert.deepEqual(rawFts, [{ id: articleId }]);
 
-  const anonymousPrivateResults = await searchPublishedArticles(privateToken, { limit: 5 });
+  const anonymousPrivateResults = await searchReadableArticles(privateToken, { limit: 5 });
   assert.equal(
     anonymousPrivateResults.articles.some((article) => article.id === privateArticleId),
     false,
   );
-  const ownerPrivateResults = await searchPublishedArticles(privateToken, { limit: 5 }, ownerId);
+  const ownerPrivateResults = await searchReadableArticles(privateToken, { limit: 5 }, ownerId);
   assert.equal(
     ownerPrivateResults.articles.some((article) => article.id === privateArticleId),
     true,

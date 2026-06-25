@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
@@ -95,7 +95,7 @@ export async function getOrCreateArticleSpeech(
         select: { content: true },
       }));
     const plainText = articleForReaderText?.content
-      ? htmlToPlainText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
+      ? articleHtmlToReaderText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
       : cached.plainText;
     return {
       audio: await resolveStoredAudioUrl(cached),
@@ -123,7 +123,7 @@ export async function getOrCreateArticleSpeech(
     return fallbackResult(DEFAULT_SPEECH_VOICE);
   }
 
-  const plainText = htmlToPlainText(article.content).slice(0, MAX_TTS_CHARS);
+  const plainText = articleHtmlToReaderText(article.content).slice(0, MAX_TTS_CHARS);
 
   if (!plainText) {
     return fallbackResult(config.voice);

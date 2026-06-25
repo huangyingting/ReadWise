@@ -75,20 +75,16 @@ test("getOrCreateArticleQuiz returns cached questions, parsing stored options", 
   assert.equal(quizUpserts, 0);
 });
 
-test("parseStoredOptions supports empty, Json, and legacy string shapes", async () => {
+test("parseStoredOptions supports empty and Json array shapes", async () => {
   const { parseStoredOptions } = await import("@/lib/quiz");
   assert.deepEqual(parseStoredOptions([]), []);
   assert.deepEqual(parseStoredOptions(["a", "b"]), ["a", "b"]);
   assert.deepEqual(parseStoredOptions(["a", 1, "b"]), ["a", "b"]);
-  assert.deepEqual(parseStoredOptions(JSON.stringify(["legacy", "row"])), [
-    "legacy",
-    "row",
-  ]);
-  assert.deepEqual(parseStoredOptions("not json"), []);
+  assert.deepEqual(parseStoredOptions(null), []);
 });
 
-test("getOrCreateArticleQuiz remains compatible with legacy string rows", async () => {
-  quizRows = [{ question: "Q?", options: JSON.stringify(["a", "b"]), correctIndex: 0 }];
+test("getOrCreateArticleQuiz parses native Json array options", async () => {
+  quizRows = [{ question: "Q?", options: ["a", "b"], correctIndex: 0 }];
   const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
   const result = await getOrCreateArticleQuiz("a1");
   assert.deepEqual(result?.questions[0].options, ["a", "b"]);

@@ -9,8 +9,7 @@
  *
  * This file re-exports the full public surface so existing callers (articles.ts,
  * /api/search, and tests) continue to resolve `@/lib/article-search` without
- * changes. Rename `searchPublishedArticles` only through REF-009 cleanup after
- * callers migrate.
+ * changes.
  */
 export {
   SEARCH_PAGE_SIZE,
@@ -36,5 +35,5 @@ export {
   type ArticleSearchProvider,
   PrismaArticleSearchProvider,
   getArticleSearchProvider,
-  searchPublishedArticles,
+  searchReadableArticles,
 } from "@/lib/search/providers";

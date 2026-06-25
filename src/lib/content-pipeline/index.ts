@@ -39,8 +39,7 @@
  * plain text from this function so that word-boundary positions are consistent
  * across features.
  *
- * `htmlToPlainText` is a deprecated backwards-compatible alias that will be
- * removed through REF-009.
+ * `htmlToPlainText` was a deprecated backwards-compatible alias; removed in REF-009.
  *
  * ### Stage 5 — Paragraph splitting  (bilingual/parallel view)
  * `splitHtmlParagraphs`, `splitTranslationParagraphs`, and `alignParagraphs`
@@ -126,12 +125,3 @@ export function articleHtmlToReaderText(html: string): string {
     .trim();
 }
 
-/**
- * Backwards-compatible alias for `articleHtmlToReaderText`.
- *
- * @deprecated Use `articleHtmlToReaderText` from `@/lib/content-pipeline`.
- *             This alias will be removed through REF-009.
- */
-export function htmlToPlainText(html: string): string {
-  return articleHtmlToReaderText(html);
-}

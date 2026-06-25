@@ -17,7 +17,7 @@ import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/tags";
 import type { TagView } from "@/lib/tags";
 import { listCategoryPage, readingMinutesFor } from "@/lib/articles";
 import { getArticleListMembership } from "@/lib/bookmarks";
-import { sanitizeArticleHtml, htmlToPlainText } from "@/lib/content-pipeline";
+import { sanitizeArticleHtml, articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
@@ -126,7 +126,7 @@ export async function loadReaderPageData(
       (existingFeedback?.vote as "too_easy" | "just_right" | "too_hard" | null) ?? null,
     readingMinutes: readingMinutesFor(article),
     cleanBody: sanitizeArticleHtml(article.content),
-    articlePlainText: htmlToPlainText(article.content),
+    articlePlainText: articleHtmlToReaderText(article.content),
     hadRelated,
   };
 }

@@ -112,7 +112,7 @@ before(() => {
         helperCalls.push("translation");
         return { lang: "es", content: "Hola", cached: false, fallback: false };
       },
-      htmlToPlainText: (html: string) => html,
+      articleHtmlToReaderText: (html: string) => html,
     },
   });
 
