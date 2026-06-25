@@ -94,6 +94,11 @@ before(() => {
   });
   mock.module("@/lib/article-library", {
     namedExports: {
+      ARTICLE_STATUSES: ["draft", "processing", "published", "failed", "archived"],
+      REVIEW_STATES: ["pending", "approved", "rejected"],
+      TAKEDOWN_STATES: ["none", "requested", "removed"],
+      articleAccessContext: () => ({ kind: "user", userId: session.user.id, role: session.user.role }),
+      getReadableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
       searchArticles: async () => searchArticlesResult,
       deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
         if (!deleteArticleResult) return false;
@@ -117,20 +122,6 @@ before(() => {
       TAGS_CACHE_TAG: "tags",
     },
   });
-  mock.module("@/lib/security/audit", {
-    namedExports: {
-      AUDIT_ACTIONS,
-      auditRequestInfo: () => ({}),
-      recordAuditFromRequest: async (input: unknown) => {
-        auditCalls.push(input);
-      },
-      tryRecordAuditLog: async (input: unknown) => {
-        auditCalls.push(input);
-      },
-    },
-  });
-  // api-handler.ts imports directly from @/lib/security/audit; mirror the same
-  // mock so tryRecordAuditLog calls from the handler are captured in auditCalls.
   mock.module("@/lib/security/audit", {
     namedExports: {
       AUDIT_ACTIONS,

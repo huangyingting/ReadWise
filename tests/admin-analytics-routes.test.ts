@@ -43,7 +43,6 @@ before(() => {
           ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
           : { session },
       requireCapabilityApi: async () => gate(),
-      requireCapabilityApi: async () => gate(),
     },
   });
 

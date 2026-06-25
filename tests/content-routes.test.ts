@@ -45,7 +45,6 @@ before(() => {
     namedExports: {
       requireSessionApi: async () => gate(),
       requireCapabilityApi: async () => gate(),
-      requireCapabilityApi: async () => gate(),
     },
   });
   mock.module("@/lib/security/audit", {
@@ -93,6 +92,7 @@ before(() => {
   });
   mock.module("@/lib/article-library", {
     namedExports: {
+      ARTICLE_STATUSES: ["draft", "processing", "published", "failed", "archived"],
       TAKEDOWN_STATES: ["active", "unpublished", "archived", "takedown"],
       applyTakedown: async (input: unknown) => {
         takedownCalls.push(input);
