@@ -66,6 +66,34 @@ export function isOfflineStale(
   return storedVersion !== serverVersion;
 }
 
+// ---------------------------------------------------------------------------
+// Service-worker messaging constants
+// ---------------------------------------------------------------------------
+
+/**
+ * Background Sync tag registered by the client and handled by the service
+ * worker to trigger an offline mutation queue flush (RW-042).
+ *
+ * MUST stay in sync with `SYNC_TAG` in `public/sw.js`.
+ */
+export const SYNC_TAG = "readwise-mutations" as const;
+
+/**
+ * Message type posted to open clients by the SW (Background Sync) and also
+ * listened for by the page to flush the offline mutation queue.
+ *
+ * MUST stay in sync with `FLUSH_MESSAGE` in `public/sw.js`.
+ */
+export const FLUSH_MESSAGE = "readwise:flush-queue" as const;
+
+/**
+ * Message type posted to the active service worker to drop all readwise-*
+ * runtime caches on sign-out / account deletion (privacy purge).
+ *
+ * MUST stay in sync with the message handler in `public/sw.js`.
+ */
+export const PURGE_CACHES_MESSAGE = "readwise:purge-caches" as const;
+
 /**
  * Given the existing cache names and the current cache name, return the names
  * that should be deleted (every readwise-* cache that isn't current). Foreign

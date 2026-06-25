@@ -252,7 +252,7 @@
         return;
       }
 
-      var req = indexedDB.open(DB_NAME, 1);
+      var req = indexedDB.open(DB_NAME, 2);
       req.onerror = function () { show("idb-error"); };
       req.onsuccess = function (e) {
         var db = e.target.result;
