@@ -7,7 +7,7 @@ import { useCallback, useRef, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { CATEGORIES } from "@/lib/categories";
-import { ENGLISH_LEVELS } from "@/lib/profile";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { cn, focusRing } from "@/lib/cn";

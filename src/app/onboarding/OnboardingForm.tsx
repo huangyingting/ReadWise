@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Check, X, ArrowLeft, ArrowRight } from "lucide-react";
 import { ApiResponseError, postJson } from "@/lib/client-fetch";
 import { CATEGORIES } from "@/lib/categories";
-import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS, type EnglishLevel } from "@/lib/profile";
+import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
 import {
   getPlacementQuestions,
   suggestLevel,

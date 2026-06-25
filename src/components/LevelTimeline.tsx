@@ -8,7 +8,7 @@
  * with the current level and guidance.
  */
 
-import { ENGLISH_LEVELS, LEVEL_HINTS, type EnglishLevel } from "@/lib/profile";
+import { ENGLISH_LEVELS, LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
 import { CefrBadge } from "@/components/ui/Badge";
 import type { LevelEntry } from "@/lib/progress-helpers";
 
