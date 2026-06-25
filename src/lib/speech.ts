@@ -7,7 +7,7 @@ import {
   speechConfig,
   speechTimeoutMs,
   type SpeechConfig as AzureSpeechConfig,
-} from "@/lib/config";
+} from "@/lib/runtime-config/speech";
 import { createLogger } from "@/lib/logger";
 import { getMediaStorage } from "@/lib/storage";
 import {

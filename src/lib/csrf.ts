@@ -21,7 +21,7 @@
  *   - Enforcement can be disabled via `CSRF_ENFORCE=false` for deployments that
  *     terminate CSRF elsewhere.
  */
-import { csrfAllowedOrigins, csrfEnforceSameOrigin } from "@/lib/config";
+import { csrfAllowedOrigins, csrfEnforceSameOrigin } from "@/lib/runtime-config/security";
 
 const STATE_CHANGING_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 

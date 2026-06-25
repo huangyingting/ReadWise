@@ -3,7 +3,7 @@ import { dirname, isAbsolute, join } from "node:path";
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
-import { validateRuntimeConfig } from "@/lib/config";
+import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 // Prisma requires the Node.js runtime (uses native bindings).
 export const runtime = "nodejs";

@@ -23,7 +23,7 @@
  * "who is the client" — rate limiting and audit logging both consume it.
  */
 import net from "node:net";
-import { trustedProxyConfig } from "@/lib/config";
+import { trustedProxyConfig } from "@/lib/runtime-config/security";
 
 /** Platform single-value client-IP headers, in best-effort fallback order. */
 const PLATFORM_HEADERS = ["cf-connecting-ip", "true-client-ip", "x-real-ip"] as const;

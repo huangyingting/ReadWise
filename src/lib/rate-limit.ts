@@ -36,7 +36,7 @@ import {
   rateLimitLookupRequests,
   rateLimitPublicRequests,
   rateLimitWindowMs,
-} from "@/lib/config";
+} from "@/lib/runtime-config/rate-limit";
 import {
   incrementSharedCounter,
   isSharedStoreEnabled,

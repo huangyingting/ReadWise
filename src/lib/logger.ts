@@ -9,7 +9,7 @@
  * threading it through every function signature.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { logLevel, type LogLevel } from "@/lib/config";
+import { logLevel, type LogLevel } from "@/lib/runtime-config/observability";
 
 export type { LogLevel };
 

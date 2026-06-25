@@ -6,7 +6,7 @@ import {
   csrfEnforceSameOrigin,
   isTrustedProxyConfigured,
   trustedProxyConfig,
-} from "@/lib/config";
+} from "@/lib/runtime-config/security";
 
 export const dynamic = "force-dynamic";
 
