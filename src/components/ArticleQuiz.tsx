@@ -5,6 +5,7 @@ import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import AiBadge from "@/components/AiBadge";
 import { submitMutation, newClientMutationId } from "@/lib/offline/sync-runtime";
+import { formatRelativeTime } from "@/lib/display-format";
 
 type QuizQuestion = {
   question: string;
@@ -40,22 +41,6 @@ type AttemptResponse = {
 };
 
 type SavedNote = "idle" | "saving" | "saved" | "failed" | "queued";
-
-/** Formats a Date/ISO string into a human-readable relative time. */
-function relativeDate(iso: string): string {
-  const d = new Date(iso);
-  const diffMs = Date.now() - d.getTime();
-  const diffSec = Math.floor(diffMs / 1000);
-  if (diffSec < 60) return "Just now";
-  const diffMin = Math.floor(diffSec / 60);
-  if (diffMin < 60) return `${diffMin} min ago`;
-  const diffHr = Math.floor(diffMin / 60);
-  if (diffHr < 24) return `${diffHr}h ago`;
-  const diffDay = Math.floor(diffHr / 24);
-  if (diffDay === 1) return "Yesterday";
-  if (diffDay < 7) return `${diffDay} days ago`;
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
-}
 
 /**
  * ArticleQuiz (M5 refactor, M14 attempt recording + history)
@@ -385,7 +370,7 @@ export default function ArticleQuiz({
                             className={`quiz-history-item${isBestRow ? " is-best" : ""}`}
                           >
                             <span className="quiz-history-date">
-                              {relativeDate(a.completedAt)}
+                              {formatRelativeTime(a.completedAt)}
                             </span>
                             <span
                               className="quiz-attempt-bar"
