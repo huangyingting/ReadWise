@@ -49,6 +49,14 @@ import {
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { getSkillProfile, type Skill } from "@/lib/skill-mastery";
 import { clamp01 } from "@/lib/mastery";
+import {
+  buildTagMap,
+  levelFitScore,
+  freshnessScore01,
+  topicInterestScore,
+} from "@/lib/discovery-ranking";
+// Re-export shared primitives so existing callers importing from @/lib/recommendations continue to work.
+export { levelFitScore, freshnessScore01, topicInterestScore } from "@/lib/discovery-ranking";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -131,53 +139,12 @@ export const SCORED_PICKS_PAGE_SIZE = 6;
 // Pure component scorers
 // ---------------------------------------------------------------------------
 
+// levelFitScore, freshnessScore01, topicInterestScore — defined in
+// @/lib/discovery-ranking, re-exported above.
+
 /** Clamps a CEFR delta into the [-3, 3] band used by the scorers. */
 function clampDelta(delta: number): number {
   return Math.max(-3, Math.min(3, delta));
-}
-
-/**
- * CEFR proximity (0–1). Perfect match = 1; too-hard is penalised more steeply
- * than slightly-easy so readers always get accessible content first. Returns a
- * neutral 0.5 when either rank is unknown.
- */
-export function levelFitScore(
-  articleRank: number | null,
-  userRank: number | null,
-): number {
-  if (articleRank == null || articleRank < 0 || userRank == null) return 0.5;
-  const delta = articleRank - userRank;
-  switch (delta) {
-    case 0:
-      return 1;
-    case -1:
-      return 0.78;
-    case 1:
-      return 0.62;
-    case -2:
-      return 0.5;
-    case 2:
-      return 0.32;
-    default:
-      return delta < 0 ? 0.2 : 0.12;
-  }
-}
-
-/**
- * Topic interest (0–1) from the article's category + tags vs the user's topics.
- * A category match is full credit; otherwise each matching tag adds 0.4 (capped
- * at 0.8). Returns a neutral 0.5 when the user has selected no topics.
- */
-export function topicInterestScore(
-  category: string | null,
-  tagSlugs: string[],
-  topicSet: Set<string>,
-): number {
-  if (topicSet.size === 0) return 0.5;
-  if (category && topicSet.has(category)) return 1;
-  const matches = tagSlugs.filter((slug) => topicSet.has(slug)).length;
-  if (matches > 0) return Math.min(0.8, 0.4 + (matches - 1) * 0.4);
-  return 0;
 }
 
 /**
@@ -245,21 +212,6 @@ export function wordLoadScore(
   const expectedLoad = clamp01(0.35 + 0.18 * delta - 0.25 * vocabStrength);
   // Comfort peaks around a 0.3 load; fall off in both directions.
   return clamp01(1 - Math.abs(expectedLoad - 0.3) / 0.7);
-}
-
-/** Content freshness (0–1) from how recently the article was published. */
-export function freshnessScore01(
-  publishedAt: Date | string | null,
-  now: Date,
-): number {
-  if (!publishedAt) return 0.1;
-  const ageDays =
-    (now.getTime() - new Date(publishedAt).getTime()) / 86_400_000;
-  if (ageDays <= 7) return 1;
-  if (ageDays <= 30) return 0.75;
-  if (ageDays <= 90) return 0.5;
-  if (ageDays <= 180) return 0.3;
-  return 0.1;
 }
 
 /**
@@ -607,12 +559,7 @@ async function loadPicksCandidatesImpl(
     where: { articleId: { in: rows.map((r) => r.id) } },
     select: { articleId: true, tag: { select: { slug: true } } },
   });
-  const tagMap = new Map<string, string[]>();
-  for (const row of tagRows) {
-    const list = tagMap.get(row.articleId);
-    if (list) list.push(row.tag.slug);
-    else tagMap.set(row.articleId, [row.tag.slug]);
-  }
+  const tagMap = buildTagMap(tagRows);
 
   return rows.map((r) => ({ ...r, tagSlugs: tagMap.get(r.id) ?? [] }));
 }
