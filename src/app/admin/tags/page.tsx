@@ -4,7 +4,14 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminTags } from "@/lib/admin-tags";
 import AdminTagActions from "@/components/AdminTagActions";
 import { Input } from "@/components/ui/Input";
-import { Button, buttonVariants } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
+import {
+  AdminPageHeader,
+  AdminFilterBar,
+  AdminResultCount,
+  AdminTableWrap,
+  AdminPagination,
+} from "@/components/admin";
 
 type SearchParams = {
   q?: string;
@@ -32,24 +39,15 @@ export default async function AdminTagsPage({
 
   const result = await listAdminTags({ query, page });
 
-  const showingFrom =
-    result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
-  const showingTo = Math.min(result.page * result.pageSize, result.total);
-
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Global tags
-      </h1>
+      <AdminPageHeader>Global tags</AdminPageHeader>
       <p className="muted" style={{ margin: 0 }}>
         This tool manages public-library tags only. Private import tags stay scoped
         to their owner and are not listed here.
       </p>
 
-      <form
-        method="get"
-        className="flex flex-wrap gap-[var(--space-2)] items-center"
-      >
+      <AdminFilterBar>
         <Input
           type="search"
           name="q"
@@ -62,86 +60,55 @@ export default async function AdminTagsPage({
         <Button type="submit" variant="primary" size="md" className="w-auto">
           Search
         </Button>
-      </form>
+      </AdminFilterBar>
 
-      <p className="muted" style={{ margin: 0 }}>
-        {result.total === 0
-          ? "No tags match."
-          : `Showing ${showingFrom}–${showingTo} of ${result.total}`}
-      </p>
+      <AdminResultCount
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        noun="tags"
+      />
 
       {result.tags.length > 0 && (
-        <div
-          className="admin-table-wrap"
-          tabIndex={0}
-          aria-label="Tags table (scrollable)"
-        >
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Tag</th>
-                <th>Slug</th>
-                <th>Usage</th>
-                <th>Manage</th>
+        <AdminTableWrap ariaLabel="Tags table (scrollable)">
+          <thead>
+            <tr>
+              <th>Tag</th>
+              <th>Slug</th>
+              <th>Usage</th>
+              <th>Manage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.tags.map((t) => (
+              <tr key={t.id}>
+                <td>{t.name}</td>
+                <td>
+                  <Link
+                    href={`/tags/${t.slug}`}
+                    className="text-text-subtle hover:text-text text-[length:var(--text-sm)]"
+                  >
+                    {t.slug}
+                  </Link>
+                </td>
+                <td className="muted">
+                  {t.articleCount} article{t.articleCount === 1 ? "" : "s"} ·{" "}
+                  {t.publishedCount} published
+                </td>
+                <td>
+                  <AdminTagActions tagId={t.id} tagName={t.name} />
+                </td>
               </tr>
-            </thead>
-            <tbody>
-              {result.tags.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.name}</td>
-                  <td>
-                    <Link
-                      href={`/tags/${t.slug}`}
-                      className="text-text-subtle hover:text-text text-[length:var(--text-sm)]"
-                    >
-                      {t.slug}
-                    </Link>
-                  </td>
-                  <td className="muted">
-                    {t.articleCount} article{t.articleCount === 1 ? "" : "s"} ·{" "}
-                    {t.publishedCount} published
-                  </td>
-                  <td>
-                    <AdminTagActions tagId={t.id} tagName={t.name} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </AdminTableWrap>
       )}
 
-      {result.totalPages > 1 && (
-        <div className="admin-pagination">
-          {result.page > 1 ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({ q: query, page: result.page - 1 })}
-            >
-              ← Previous
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              ← Previous
-            </Button>
-          )}
-          <span className="muted">
-            Page {result.page} of {result.totalPages}
-          </span>
-          {result.page < result.totalPages ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({ q: query, page: result.page + 1 })}
-            >
-              Next →
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Next →
-            </Button>
-          )}
-        </div>
-      )}
+      <AdminPagination
+        page={result.page}
+        totalPages={result.totalPages}
+        buildHref={(p) => buildHref({ q: query, page: p })}
+      />
     </section>
   );
 }

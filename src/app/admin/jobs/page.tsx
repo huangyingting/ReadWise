@@ -8,9 +8,16 @@ import AdminBackfillForm from "@/components/AdminBackfillForm";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Button, buttonVariants } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Badge, type BadgeProps } from "@/components/ui/Badge";
 import { Card, CardTitle } from "@/components/ui/Card";
+import {
+  AdminPageHeader,
+  AdminFilterBar,
+  AdminResultCount,
+  AdminTableWrap,
+  AdminPagination,
+} from "@/components/admin";
 
 type SearchParams = {
   status?: string;
@@ -58,9 +65,8 @@ function buildHref(sp: Record<string, string | number | undefined>): string {
 
 function JobsTable({ jobs }: { jobs: AdminJobRow[] }) {
   return (
-    <div className="admin-table-wrap" tabIndex={0} aria-label="Jobs table (scrollable)">
-      <table className="admin-table">
-        <thead>
+    <AdminTableWrap ariaLabel="Jobs table (scrollable)">
+      <thead>
           <tr>
             <th>Type / Article</th>
             <th>Status</th>
@@ -118,8 +124,7 @@ function JobsTable({ jobs }: { jobs: AdminJobRow[] }) {
             );
           })}
         </tbody>
-      </table>
-    </div>
+    </AdminTableWrap>
   );
 }
 
@@ -143,14 +148,9 @@ export default async function AdminJobsPage({
     getJobDashboard(),
   ]);
 
-  const showingFrom = result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
-  const showingTo = Math.min(result.page * result.pageSize, result.total);
-
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Jobs
-      </h1>
+      <AdminPageHeader>Jobs</AdminPageHeader>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
         <AdminStatCard label="Total jobs" value={dashboard.total} />
@@ -172,7 +172,7 @@ export default async function AdminJobsPage({
         </div>
       </Card>
 
-      <form method="get" className="flex flex-wrap gap-[var(--space-2)] items-center">
+      <AdminFilterBar>
         <Select
           name="status"
           defaultValue={status}
@@ -226,61 +226,31 @@ export default async function AdminJobsPage({
         <Button type="submit" variant="primary" size="md" className="w-auto">
           Filter
         </Button>
-      </form>
+      </AdminFilterBar>
 
-      <p className="muted" style={{ margin: 0 }}>
-        {result.total === 0
-          ? "No jobs match."
-          : `Showing ${showingFrom}–${showingTo} of ${result.total}`}
-      </p>
+      <AdminResultCount
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        noun="jobs"
+      />
 
       {result.jobs.length > 0 && <JobsTable jobs={result.jobs} />}
 
-      {result.totalPages > 1 && (
-        <div className="admin-pagination">
-          {result.page > 1 ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({
-                status,
-                type,
-                articleId,
-                reason,
-                stuck: stuck ? 1 : undefined,
-                page: result.page - 1,
-              })}
-            >
-              ← Previous
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              ← Previous
-            </Button>
-          )}
-          <span className="muted">
-            Page {result.page} of {result.totalPages}
-          </span>
-          {result.page < result.totalPages ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({
-                status,
-                type,
-                articleId,
-                reason,
-                stuck: stuck ? 1 : undefined,
-                page: result.page + 1,
-              })}
-            >
-              Next →
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Next →
-            </Button>
-          )}
-        </div>
-      )}
+      <AdminPagination
+        page={result.page}
+        totalPages={result.totalPages}
+        buildHref={(p) =>
+          buildHref({
+            status,
+            type,
+            articleId,
+            reason,
+            stuck: stuck ? 1 : undefined,
+            page: p,
+          })
+        }
+      />
 
       {dashboard.deadLetter.length > 0 && (
         <Card>

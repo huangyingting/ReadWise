@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { deleteJson, postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
+import { useAdminAction } from "@/hooks/useAdminAction";
 
 export default function AdminArticleActions({
   articleId,
@@ -12,19 +12,13 @@ export default function AdminArticleActions({
   articleId: string;
   redirectOnDelete?: string;
 }) {
-  const router = useRouter();
-  const [busyRebuild, setBusyRebuild] = useState(false);
-  const [busyDelete, setBusyDelete] = useState(false);
+  const { busy, error, openPanel, setOpenPanel, run, router } =
+    useAdminAction<"rebuild" | "delete">();
   const [message, setMessage] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  // Only one confirm panel open at a time
-  const [openPanel, setOpenPanel] = useState<"rebuild" | "delete" | null>(null);
 
   async function runRebuild() {
-    setBusyRebuild(true);
-    setError(null);
     setMessage(null);
-    try {
+    await run("rebuild", async () => {
       const data = await postJson<{
         cleared?: Record<string, number>;
       }>(`/api/admin/articles/${articleId}/rebuild`);
@@ -34,30 +28,17 @@ export default function AdminArticleActions({
       setMessage(
         `Rebuild queued — cleared ${total} cached item(s); AI content will regenerate on next read.`,
       );
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Rebuild failed");
-    } finally {
-      setBusyRebuild(false);
-    }
+    });
   }
 
   async function runDelete() {
-    setBusyDelete(true);
-    setError(null);
     setMessage(null);
-    try {
+    await run("delete", async () => {
       await deleteJson(`/api/admin/articles/${articleId}`);
       if (redirectOnDelete) {
         router.push(redirectOnDelete);
-      } else {
-        router.refresh();
       }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
-    } finally {
-      setBusyDelete(false);
-    }
+    }, { skipRefresh: !!redirectOnDelete });
   }
 
   return (
@@ -70,8 +51,8 @@ export default function AdminArticleActions({
           confirmLabel="Confirm rebuild"
           confirmMessage="Clear cached translations, vocabulary, quiz, narration and tags for this article? They will be regenerated on the next read."
           onConfirm={runRebuild}
-          loading={busyRebuild}
-          disabled={busyDelete}
+          loading={busy === "rebuild"}
+          disabled={busy === "delete"}
           open={openPanel === "rebuild"}
           onOpenChange={(v) => setOpenPanel(v ? "rebuild" : null)}
         />
@@ -82,8 +63,8 @@ export default function AdminArticleActions({
           confirmLabel="Confirm delete"
           confirmMessage="Permanently delete this article and all related AI content, tags and reader progress? This cannot be undone."
           onConfirm={runDelete}
-          loading={busyDelete}
-          disabled={busyRebuild}
+          loading={busy === "delete"}
+          disabled={busy === "rebuild"}
           open={openPanel === "delete"}
           onOpenChange={(v) => setOpenPanel(v ? "delete" : null)}
         />
