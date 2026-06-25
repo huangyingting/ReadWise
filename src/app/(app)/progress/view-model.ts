@@ -5,7 +5,7 @@
  * thin composition root, and section components can be rendered with fixture
  * data without database access.
  */
-import type { LearnerAnalytics } from "@/lib/learner-analytics";
+import type { LearnerAnalytics } from "@/lib/analytics/learner";
 import type { HeatCell } from "@/lib/engagement/heatmap";
 import { getLearnerAnalytics } from "@/lib/analytics/learner";
 import { getActivityHeatmap } from "@/lib/engagement/heatmap-repo";

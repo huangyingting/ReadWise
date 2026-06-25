@@ -5,7 +5,7 @@
  * To add a new provider: create a focused module here, add it to `PROVIDERS`,
  * and add focused tests — no changes to existing provider modules needed.
  *
- * Public API (re-exported for backward compat with all existing importers):
+ * Public API:
  *   PROVIDERS         — ordered registry of all active providers
  *   getProvider       — look up a provider by key (case-insensitive)
  *   providerForUrl    — resolve the provider that owns a given URL

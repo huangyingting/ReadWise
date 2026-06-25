@@ -3,7 +3,7 @@
  */
 import { Card } from "@/components/ui/Card";
 import { WeeklyBars } from "@/components/analytics/WeeklyBars";
-import type { LearnerAnalytics } from "@/lib/learner-analytics";
+import type { LearnerAnalytics } from "@/lib/analytics/learner";
 
 interface ReadingActivitySectionProps {
   completionsByWeek: LearnerAnalytics["completionsByWeek"];

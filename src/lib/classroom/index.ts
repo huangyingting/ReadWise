@@ -1,8 +1,7 @@
 /**
  * Classrooms, assignments & teacher workflows — public API (Epic RW-E012 — RW-061).
  *
- * This barrel re-exports the focused sub-modules so existing imports of
- * `@/lib/classroom` continue to work without modification:
+ * This barrel is the public classroom API over the focused sub-modules:
  *
  *   - {@link ./guards}        — boolean authorization helpers
  *   - {@link ./queries}       — classroom and roster reads

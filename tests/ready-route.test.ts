@@ -30,7 +30,7 @@ before(() => {
       requireSessionApi: async () => ({
         error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       }),
-      requireAdminApi: async () => ({
+      requireCapabilityApi: async () => ({
         error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       }),
     },

@@ -294,8 +294,7 @@ function retryReason(kind: AiErrorKind): string {
  * Returns the assistant message text, or null when the provider is not
  * configured or the request fails (after retries).
  *
- * All existing callers remain unchanged. For token-usage metadata use
- * {@link chatCompleteWithMeta} directly.
+ * For token-usage metadata use {@link chatCompleteWithMeta} directly.
  */
 export async function chatComplete(
   messages: ChatMessage[],

@@ -171,7 +171,7 @@ export async function getOrCreateArticleAi<
   // when TArticle extends ArticleText with extra fields the caller must supply a
   // loader; when TArticle IS ArticleText (structurally) the field is optional and
   // the default loadArticleText is safe.  The single `as` cast is valid because
-  // the conditional type in the spec guarantees compatibility at the call site.
+  // the conditional type in the spec guarantees the required shape at the call site.
   const rawArticle = article ?? (spec.loadArticle !== undefined
     ? await spec.loadArticle(articleId, context)
     : await loadArticleText(articleId, context));

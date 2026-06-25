@@ -2,8 +2,7 @@
  * Public barrel for the scraper subsystem.
  *
  * Persistence (saveDraftArticle, scrapeAndSave, scrapeUrl) lives here.
- * Discovery (discoverProviderUrls, discoverLinks, DiscoverDeps) is in
- * `./discovery` and re-exported so the public API is unchanged.
+ * Discovery lives in `@/lib/scraper/discovery`.
  */
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
@@ -12,10 +11,6 @@ import { extractArticle } from "@/lib/scraper/extract";
 import { fetchHtml } from "@/lib/scraper/fetch";
 import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
-
-// Re-export the discovery layer so existing callers of `@/lib/scraper` see
-// `discoverProviderUrls`, `discoverLinks`, and `DiscoverDeps` unchanged.
-export { discoverProviderUrls, discoverLinks, type DiscoverDeps } from "@/lib/scraper/discovery";
 
 export type SaveOutcome =
   | { status: "saved"; id: string; article: ScrapedArticle }

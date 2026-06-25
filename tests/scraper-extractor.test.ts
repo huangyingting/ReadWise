@@ -63,7 +63,7 @@ const FILTERED_URL = "https://test.example.com/video/something";
 // ---------------------------------------------------------------------------
 
 test("urlExtractor: disabled provider skips extractor entirely", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   let called = false;
   const provider = makeProvider({
@@ -84,7 +84,7 @@ test("urlExtractor: disabled provider skips extractor entirely", async () => {
 });
 
 test("urlExtractor: deduplicates candidate URLs", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     urlExtractor: async () => [VALID_URL_1, VALID_URL_1, VALID_URL_1],
@@ -100,7 +100,7 @@ test("urlExtractor: deduplicates candidate URLs", async () => {
 });
 
 test("urlExtractor: filters URLs that don't belong to the provider", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     urlExtractor: async () => [NON_PROVIDER_URL, VALID_URL_1],
@@ -116,7 +116,7 @@ test("urlExtractor: filters URLs that don't belong to the provider", async () =>
 });
 
 test("urlExtractor: filters URLs that don't match articleUrlPattern", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   // articleUrlPattern only matches /articles/… not /section/…
   const PATTERN_MISS = "https://test.example.com/section/politics";
@@ -134,7 +134,7 @@ test("urlExtractor: filters URLs that don't match articleUrlPattern", async () =
 });
 
 test("urlExtractor: applies articleUrlFilter", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     // articleUrlFilter accepts only URLs that do NOT contain /video/
@@ -152,7 +152,7 @@ test("urlExtractor: applies articleUrlFilter", async () => {
 });
 
 test("urlExtractor: robots-disallowed URLs are excluded", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     urlExtractor: async () => [VALID_URL_1, VALID_URL_2],
@@ -169,7 +169,7 @@ test("urlExtractor: robots-disallowed URLs are excluded", async () => {
 });
 
 test("urlExtractor: throwing extractor degrades gracefully to empty list", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     urlExtractor: async () => {
@@ -187,7 +187,7 @@ test("urlExtractor: throwing extractor degrades gracefully to empty list", async
 });
 
 test("urlExtractor: extractor returning non-array-of-strings degrades gracefully", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     // Return some garbage mixed with valid URLs
@@ -207,7 +207,7 @@ test("urlExtractor: extractor returning non-array-of-strings degrades gracefully
 });
 
 test("urlExtractor: respects the limit", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     urlExtractor: async () => [VALID_URL_1, VALID_URL_2, VALID_URL_3],
@@ -223,7 +223,7 @@ test("urlExtractor: respects the limit", async () => {
 });
 
 test("urlExtractor: strips #fragments from candidate URLs", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const withFragment = VALID_URL_1 + "#section-2";
   const provider = makeProvider({
@@ -240,7 +240,7 @@ test("urlExtractor: strips #fragments from candidate URLs", async () => {
 });
 
 test("seed-HTML discovery works when no urlExtractor is defined", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const provider = makeProvider({
     // No urlExtractor — use seed HTML crawl.

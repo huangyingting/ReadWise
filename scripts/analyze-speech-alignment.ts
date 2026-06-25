@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { articleHtmlToReaderText } from "@/lib/translation";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { getMediaStorage, mediaStorageKind } from "@/lib/storage";
 import {
   buildTokenAlignment,

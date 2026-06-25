@@ -4,7 +4,7 @@ import { isAiConfigured, aiModelName, chatComplete, chatCompleteWithMeta } from 
 import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
 import { enableAi, disableAi } from "./helpers";
 
-// Disable retries for backward-compat tests to keep them fast.
+// Disable retries so failure-path tests stay fast.
 before(() => {
   process.env.AI_MAX_RETRIES = "0";
   process.env.AI_REQUEST_TIMEOUT_MS = "5000";

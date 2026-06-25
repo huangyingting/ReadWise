@@ -4,7 +4,7 @@
  * Returns `namedExports` objects suitable for `mock.module("@/lib/api-auth", ...)`
  * that honour a mutable `authState` variable supplied by the test file.
  *
- * The named-export shape is kept compatible with the namespace-import pattern
+ * The named-export shape matches the namespace-import pattern
  * used by `src/lib/api-handler.ts` (`import * as apiAuth from "@/lib/api-auth"`),
  * so partial mocks work correctly with --experimental-test-module-mocks.
  *
@@ -56,16 +56,16 @@ export function sessionAuthExports(
 
 /**
  * Build `namedExports` for `mock.module("@/lib/api-auth", ...)` that expose
- * both `requireSessionApi` and `requireAdminApi`.
+ * both `requireSessionApi` and `requireCapabilityApi`.
  *
  * - "ok"        → returns `{ session }` from both
  * - "unauth"    → both return a 401 error
- * - "forbidden" → `requireAdminApi` returns a 403 error; `requireSessionApi`
+ * - "forbidden" → `requireCapabilityApi` returns a 403 error; `requireSessionApi`
  *                 still returns `{ session }` (matching the real implementation)
  *
  * @param getState    Getter for the current auth state.
  * @param session     Session returned on authenticated reads (default: readerSession).
- * @param adminSess   Session returned from requireAdminApi on "ok" (default: adminSession).
+ * @param adminSess   Session returned from requireCapabilityApi on "ok" (default: adminSession).
  */
 export function fullAuthExports(
   getState: () => AuthState,
@@ -79,7 +79,7 @@ export function fullAuthExports(
       }
       return { session };
     },
-    requireAdminApi: async () => {
+    requireCapabilityApi: async () => {
       if (getState() === "unauth") {
         return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
       }

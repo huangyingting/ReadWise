@@ -21,7 +21,7 @@
  */
 import { createHash } from "crypto";
 import { aiMaxContextTokens } from "@/lib/runtime-config/ai";
-import { activePromptVersion, PROMPT_FEATURES } from "@/lib/ai/prompts";
+import { activePromptVersion } from "@/lib/ai/prompts";
 
 /** Average characters per token for the heuristic estimator (no tokenizer). */
 const CHARS_PER_TOKEN = 4;
@@ -252,17 +252,6 @@ function trailingForOverlap(segments: string[], overlap: number): string[] {
 export function hashContent(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex").slice(0, 16);
 }
-
-/**
- * Per-feature prompt version, derived from the versioned prompt registry
- * (RW-020, {@link import("@/lib/ai/prompts").PROMPT_TEMPLATES}). Bump a
- * feature's active template version there so the invocation ledger (and any
- * content-versioned cache) can distinguish outputs produced by different prompt
- * revisions. Kept as a map for backwards compatibility with earlier callers.
- */
-export const PROMPT_VERSIONS: Record<string, string> = Object.fromEntries(
-  PROMPT_FEATURES.map((feature) => [feature, activePromptVersion(feature)]),
-);
 
 /** Returns the prompt version label for a feature (or a `<feature>/v1` default). */
 export function promptVersionFor(feature: string): string {

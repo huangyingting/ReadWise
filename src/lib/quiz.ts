@@ -20,16 +20,6 @@ export type ArticleQuizResult = {
 };
 
 /**
- * Parses the model's JSON response into quiz questions via the shared strict
- * validator (RW-024): tolerant of code fences/prose, rejects questions without
- * a prompt, with fewer than two options, or with an out-of-range correctIndex.
- * Returns [] when nothing usable is found.
- */
-export function parseQuizJson(raw: string): QuizQuestion[] {
-  return validateQuiz(raw).items;
-}
-
-/**
  * Returns the cached comprehension quiz for an article, generating and caching
  * it via the AI provider on a cache miss. When AI is unconfigured or the request
  * yields nothing, returns an empty list flagged as a fallback and caches nothing
@@ -67,7 +57,7 @@ export async function getOrCreateArticleQuiz(
         const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "quiz");
         return renderPrompt("quiz", { title: article.title, source });
       },
-      parse: parseQuizJson,
+      parse: (completion) => validateQuiz(completion).items,
       isEmpty: (questions) => questions.length === 0,
       persist: async (id, generated) => {
         await Promise.all(

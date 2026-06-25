@@ -86,19 +86,19 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
         tx,
         `
         INSERT INTO "User" ("id", "name", "email", "role", "updatedAt") VALUES
-          ('legacy-owner-a', 'Legacy Owner A', 'legacy-a@example.invalid', 'Reader', CURRENT_TIMESTAMP),
-          ('legacy-owner-b', 'Legacy Owner B', 'legacy-b@example.invalid', 'Reader', CURRENT_TIMESTAMP);
+          ('fixture-owner-a', 'Fixture Owner A', 'fixture-a@example.invalid', 'Reader', CURRENT_TIMESTAMP),
+          ('fixture-owner-b', 'Fixture Owner B', 'fixture-b@example.invalid', 'Reader', CURRENT_TIMESTAMP);
 
         INSERT INTO "Article" (
           "id", "slug", "title", "excerpt", "content", "sourceUrl", "visibility", "sourceType", "status", "createdAt", "updatedAt", "ownerId"
         ) VALUES
           (
-            'legacy-public',
-            'legacy-public',
-            'Legacy Public Article',
+            'fixture-public',
+            'fixture-public',
+            'Fixture Public Article',
             'Public excerpt',
             'Migrated public article body',
-            'https://example.invalid/legacy-public',
+            'https://example.invalid/fixture-public',
             'PUBLIC',
             'SCRAPED',
             'published',
@@ -107,57 +107,57 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
             NULL
           ),
           (
-            'legacy-private-a',
-            'legacy-private-a',
-            'Legacy Private Article A',
+            'fixture-private-a',
+            'fixture-private-a',
+            'Fixture Private Article A',
             'Private excerpt',
             'Migrated private article body',
-            'https://example.invalid/legacy-private',
+            'https://example.invalid/fixture-private',
             'PRIVATE',
             'IMPORTED',
             'draft',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP,
-            'legacy-owner-a'
+            'fixture-owner-a'
           ),
           (
-            'legacy-private-b',
-            'legacy-private-b',
-            'Legacy Private Article B',
+            'fixture-private-b',
+            'fixture-private-b',
+            'Fixture Private Article B',
             'Private excerpt',
             'Migrated private article body',
-            'https://example.invalid/legacy-private',
+            'https://example.invalid/fixture-private',
             'PRIVATE',
             'IMPORTED',
             'published',
             CURRENT_TIMESTAMP,
             CURRENT_TIMESTAMP,
-            'legacy-owner-b'
+            'fixture-owner-b'
           );
 
         INSERT INTO "Tag" ("id", "name", "slug", "createdAt", "updatedAt") VALUES
-          ('legacy-tag-shared', 'Shared', 'shared', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-          ('legacy-tag-secret', 'Secret', 'secret', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-          ('legacy-tag-orphan', 'Orphan', 'orphan', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+          ('fixture-tag-shared', 'Shared', 'shared', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('fixture-tag-secret', 'Secret', 'secret', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
+          ('fixture-tag-orphan', 'Orphan', 'orphan', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
 
         INSERT INTO "ArticleTag" ("articleId", "tagId") VALUES
-          ('legacy-public', 'legacy-tag-shared'),
-          ('legacy-private-a', 'legacy-tag-shared'),
-          ('legacy-private-a', 'legacy-tag-secret'),
-          ('legacy-private-b', 'legacy-tag-secret');
+          ('fixture-public', 'fixture-tag-shared'),
+          ('fixture-private-a', 'fixture-tag-shared'),
+          ('fixture-private-a', 'fixture-tag-secret'),
+          ('fixture-private-b', 'fixture-tag-secret');
 
         INSERT INTO "Profile" ("id", "userId", "englishLevel", "topics", "updatedAt")
-        VALUES ('legacy-profile-a', 'legacy-owner-a', 'B1', '["science","technology"]', CURRENT_TIMESTAMP);
+        VALUES ('fixture-profile-a', 'fixture-owner-a', 'B1', '["science","technology"]', CURRENT_TIMESTAMP);
 
         INSERT INTO "QuizQuestion" ("id", "articleId", "question", "options", "correctIndex", "updatedAt")
-        VALUES ('legacy-quiz-a', 'legacy-private-a', 'Ready?', '["Yes","No"]', 0, CURRENT_TIMESTAMP);
+        VALUES ('fixture-quiz-a', 'fixture-private-a', 'Ready?', '["Yes","No"]', 0, CURRENT_TIMESTAMP);
 
         INSERT INTO "ArticleSpeech" (
           "id", "articleId", "voice", "format", "mimeType", "audioBase64", "plainText", "words", "updatedAt"
         )
         VALUES (
-          'legacy-speech-a',
-          'legacy-private-a',
+          'fixture-speech-a',
+          'fixture-private-a',
           'test-voice',
           'mp3',
           'audio/mpeg',
@@ -168,7 +168,7 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
         );
 
         INSERT INTO "ReadingProgress" ("id", "userId", "articleId", "percent", "createdAt", "updatedAt")
-        VALUES ('legacy-progress-a', 'legacy-owner-a', 'legacy-private-a', 60, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
+        VALUES ('fixture-progress-a', 'fixture-owner-a', 'fixture-private-a', 60, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
       `,
       );
       for (const migration of migrations.slice(1)) {
@@ -184,21 +184,21 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       `);
       assert.deepEqual(rows, [
         {
-          id: "legacy-private-a",
+          id: "fixture-private-a",
           visibility: "PRIVATE",
           source_type: "IMPORTED",
           status: "draft",
-          ownerId: "legacy-owner-a",
+          ownerId: "fixture-owner-a",
         },
         {
-          id: "legacy-private-b",
+          id: "fixture-private-b",
           visibility: "PRIVATE",
           source_type: "IMPORTED",
           status: "published",
-          ownerId: "legacy-owner-b",
+          ownerId: "fixture-owner-b",
         },
         {
-          id: "legacy-public",
+          id: "fixture-public",
           visibility: "PUBLIC",
           source_type: "SCRAPED",
           status: "published",
@@ -211,9 +211,9 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       >(`
         SELECT p."topics", q."options", s."words"
         FROM "Profile" p
-        JOIN "QuizQuestion" q ON q."id" = 'legacy-quiz-a'
-        JOIN "ArticleSpeech" s ON s."id" = 'legacy-speech-a'
-        WHERE p."id" = 'legacy-profile-a'
+        JOIN "QuizQuestion" q ON q."id" = 'fixture-quiz-a'
+        JOIN "ArticleSpeech" s ON s."id" = 'fixture-speech-a'
+        WHERE p."id" = 'fixture-profile-a'
       `);
       assert.deepEqual(jsonRows[0]?.topics, ["science", "technology"]);
       assert.deepEqual(jsonRows[0]?.options, ["Yes", "No"]);
@@ -224,8 +224,8 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
       >(`
         SELECT
           COUNT(*) FILTER (WHERE "slug" = 'shared' AND "scope"::text = 'PUBLIC' AND "namespace" = 'public')::int AS "public_shared",
-          COUNT(*) FILTER (WHERE "scope"::text = 'PRIVATE' AND "namespace" = 'user:legacy-owner-a' AND "ownerId" = 'legacy-owner-a')::int AS "private_owner_a",
-          COUNT(*) FILTER (WHERE "scope"::text = 'PRIVATE' AND "namespace" = 'user:legacy-owner-b' AND "ownerId" = 'legacy-owner-b')::int AS "private_owner_b",
+          COUNT(*) FILTER (WHERE "scope"::text = 'PRIVATE' AND "namespace" = 'user:fixture-owner-a' AND "ownerId" = 'fixture-owner-a')::int AS "private_owner_a",
+          COUNT(*) FILTER (WHERE "scope"::text = 'PRIVATE' AND "namespace" = 'user:fixture-owner-b' AND "ownerId" = 'fixture-owner-b')::int AS "private_owner_b",
           (
             SELECT COUNT(*)::int
             FROM "ArticleTag" at
@@ -260,18 +260,18 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
         tx,
         `
         INSERT INTO "AuditLog" ("id", "action", "actorId", "actorRole", "targetType", "targetId", "metadata")
-        VALUES ('legacy-audit-a', 'article.delete', 'legacy-owner-a', 'Reader', 'Article', 'legacy-private-a', '{"source":"migration-fixture"}');
-        DELETE FROM "User" WHERE "id" = 'legacy-owner-a';
+        VALUES ('fixture-audit-a', 'article.delete', 'fixture-owner-a', 'Reader', 'Article', 'fixture-private-a', '{"source":"migration-fixture"}');
+        DELETE FROM "User" WHERE "id" = 'fixture-owner-a';
       `,
       );
       const postDelete = await tx.$queryRawUnsafe<
         Array<{ audit_logs: number; owner_articles: number; owner_tags: number; progress: number }>
       >(`
         SELECT
-          (SELECT COUNT(*)::int FROM "AuditLog" WHERE "id" = 'legacy-audit-a') AS "audit_logs",
-          (SELECT COUNT(*)::int FROM "Article" WHERE "ownerId" = 'legacy-owner-a') AS "owner_articles",
-          (SELECT COUNT(*)::int FROM "Tag" WHERE "ownerId" = 'legacy-owner-a') AS "owner_tags",
-          (SELECT COUNT(*)::int FROM "ReadingProgress" WHERE "userId" = 'legacy-owner-a') AS "progress"
+          (SELECT COUNT(*)::int FROM "AuditLog" WHERE "id" = 'fixture-audit-a') AS "audit_logs",
+          (SELECT COUNT(*)::int FROM "Article" WHERE "ownerId" = 'fixture-owner-a') AS "owner_articles",
+          (SELECT COUNT(*)::int FROM "Tag" WHERE "ownerId" = 'fixture-owner-a') AS "owner_tags",
+          (SELECT COUNT(*)::int FROM "ReadingProgress" WHERE "userId" = 'fixture-owner-a') AS "progress"
       `);
       assert.deepEqual(postDelete[0], {
         audit_logs: 1,

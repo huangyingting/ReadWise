@@ -59,8 +59,8 @@ export function parseStoredSpeechWords(
 
 /**
  * Resolves a playable `data:` URL for a stored speech row regardless of where
- * the audio lives.  Prefers the legacy base64 column; otherwise reads the
- * bytes back from object storage via the configured backend.  Returns null
+ * the audio lives. Prefers the inline base64 fallback column; otherwise reads
+ * the bytes back from object storage via the configured backend. Returns null
  * when the audio cannot be located (e.g. storage unconfigured after a
  * migration).
  *

@@ -4,7 +4,7 @@
  */
 import { TrendingUp, BookOpen, Zap, Star, Brain, BookMarked } from "lucide-react";
 import { StatCard } from "@/components/analytics/StatCard";
-import type { LearnerAnalytics } from "@/lib/learner-analytics";
+import type { LearnerAnalytics } from "@/lib/analytics/learner";
 import type { ProgressSpeedStats } from "@/app/(app)/progress/view-model";
 
 interface ProgressOverviewSectionProps {

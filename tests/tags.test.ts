@@ -42,7 +42,7 @@ let tagSeq = 0;
 before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: {
-      requireAdminApi: async () => ({
+      requireCapabilityApi: async () => ({
         session: { user: { id: "admin-1", role: "Admin" } },
       }),
       requireSessionApi: async () => ({
@@ -191,11 +191,12 @@ test("slugifyTag normalizes names to url slugs", async () => {
   assert.equal(slugifyTag("  Multiple   Spaces  "), "multiple-spaces");
 });
 
-test("parseTagsJson dedups by slug and tolerates fences", async () => {
-  const { parseTagsJson } = await import("@/lib/article-library");
-  const result = parseTagsJson('```json ["Tech", "tech", "AI", ""] ```');
+test("validateTags dedups by slug and tolerates fences", async () => {
+  const { slugifyTag } = await import("@/lib/article-library");
+  const { validateTags } = await import("@/lib/ai/output/validators");
+  const result = validateTags('```json ["Tech", "tech", "AI", ""] ```', slugifyTag).items;
   assert.deepEqual(result, ["Tech", "AI"]);
-  assert.deepEqual(parseTagsJson("garbage"), []);
+  assert.deepEqual(validateTags("garbage", slugifyTag).items, []);
 });
 
 test("getOrCreateArticleTags returns null for a missing article", async () => {

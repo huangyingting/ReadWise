@@ -1,7 +1,7 @@
 /**
  * Theme module (M2) — the single source of truth for theme get/apply/set/toggle.
  *
- * Stays compatible with the blocking no-flash script in `src/app/layout.tsx`,
+ * Mirrors the blocking no-flash script in `src/app/layout.tsx`,
  * which reads `localStorage["readwise:theme"]`: a stored "light"/"dark" forces
  * `data-theme` pre-paint, while anything else (incl. "system" or absent) falls
  * back to `prefers-color-scheme`.

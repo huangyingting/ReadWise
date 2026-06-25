@@ -39,11 +39,13 @@ before(() => {
   mock.module("@/lib/scraper/extract", { namedExports: { extractArticle: () => null } });
   mock.module("@/lib/scraper", {
     namedExports: {
-      discoverProviderUrls: async () => [],
       saveDraftArticle: async () => ({ status: "saved", id: "a1", article: {} }),
       scrapeAndSave: async () => ({ status: "saved", id: "a1", article: {} }),
       scrapeUrl: async () => null,
     },
+  });
+  mock.module("@/lib/scraper/discovery", {
+    namedExports: { discoverProviderUrls: async () => [] },
   });
   mock.module("@/lib/content-sources", {
     namedExports: {

@@ -4,7 +4,7 @@
  */
 import { Card } from "@/components/ui/Card";
 import Sparkline from "@/components/Sparkline";
-import type { LearnerAnalytics } from "@/lib/learner-analytics";
+import type { LearnerAnalytics } from "@/lib/analytics/learner";
 
 interface QuizTrendSectionProps {
   quizScoreTrend: LearnerAnalytics["quizScoreTrend"];

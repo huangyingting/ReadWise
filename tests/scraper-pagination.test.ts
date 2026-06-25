@@ -64,7 +64,7 @@ function seedHtml(seed: string, page: number, count: number): string {
 // ---------------------------------------------------------------------------
 
 test("pagination: collects articles from multiple pages", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider(
@@ -89,7 +89,7 @@ test("pagination: collects articles from multiple pages", async () => {
 });
 
 test("pagination: stops when limit is reached mid-pagination", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 5, (s, p) => `${s}?page=${p}`);
@@ -112,7 +112,7 @@ test("pagination: stops when limit is reached mid-pagination", async () => {
 });
 
 test("pagination: stops at maxSeedPages regardless of content", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 2, (s, p) => `${s}?page=${p}`);
@@ -134,7 +134,7 @@ test("pagination: stops at maxSeedPages regardless of content", async () => {
 });
 
 test("pagination: stops after 2 consecutive empty pages", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 10, (s, p) => `${s}?page=${p}`);
@@ -158,7 +158,7 @@ test("pagination: stops after 2 consecutive empty pages", async () => {
 });
 
 test("pagination: robots check applied to every paginated seed URL", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 3, (s, p) => `${s}?page=${p}`);
@@ -186,7 +186,7 @@ test("pagination: robots check applied to every paginated seed URL", async () =>
 });
 
 test("pagination: robots-disallowed paginated seed URL skips that page", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 3, (s, p) => `${s}?page=${p}`);
@@ -213,7 +213,7 @@ test("pagination: robots-disallowed paginated seed URL skips that page", async (
 });
 
 test("pagination: paginateSeed returning null stops pagination for that seed", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider(
@@ -241,7 +241,7 @@ test("pagination: paginateSeed returning null stops pagination for that seed", a
 });
 
 test("pagination: deduplicates articles found on multiple pages", async () => {
-  const { discoverProviderUrls } = await import("@/lib/scraper/index");
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
 
   const seed = "https://page.example.com/news";
   const provider = makePaginatedProvider([seed], 3, (s, p) => `${s}?page=${p}`);

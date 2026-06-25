@@ -47,7 +47,7 @@ before(() => {
         authState === "unauth"
           ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
           : { session },
-      requireAdminApi: async () =>
+      requireCapabilityApi: async () =>
         authState === "unauth"
           ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
           : { session },

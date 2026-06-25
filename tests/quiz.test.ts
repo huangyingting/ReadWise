@@ -46,24 +46,24 @@ beforeEach(() => {
   articles.set("a1", { title: "Title", content: "<p>Some article body text.</p>" });
 });
 
-test("parseQuizJson validates options and correctIndex", async () => {
-  const { parseQuizJson } = await import("@/lib/quiz");
-  const ok = parseQuizJson(
+test("validateQuiz validates options and correctIndex", async () => {
+  const { validateQuiz } = await import("@/lib/ai/output/validators");
+  const ok = validateQuiz(
     '[{"question":"Q1?","options":["a","b","c"],"correctIndex":1}]',
-  );
+  ).items;
   assert.equal(ok.length, 1);
   assert.equal(ok[0].correctIndex, 1);
 
   // fewer than 2 options / out-of-range index are dropped
   assert.equal(
-    parseQuizJson('[{"question":"Q","options":["only"],"correctIndex":0}]').length,
+    validateQuiz('[{"question":"Q","options":["only"],"correctIndex":0}]').items.length,
     0,
   );
   assert.equal(
-    parseQuizJson('[{"question":"Q","options":["a","b"],"correctIndex":5}]').length,
+    validateQuiz('[{"question":"Q","options":["a","b"],"correctIndex":5}]').items.length,
     0,
   );
-  assert.equal(parseQuizJson("not json at all").length, 0);
+  assert.equal(validateQuiz("not json at all").items.length, 0);
 });
 
 test("getOrCreateArticleQuiz returns cached questions, parsing stored options", async () => {

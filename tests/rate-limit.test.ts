@@ -22,7 +22,7 @@ before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: {
       requireSessionApi: async () => ({ session: { user: { id: "u1", role: "Reader" } } }),
-      requireAdminApi: async () => ({ session: { user: { id: "u1", role: "Admin" } } }),
+      requireCapabilityApi: async () => ({ session: { user: { id: "u1", role: "Admin" } } }),
     },
   });
   mock.module("@/lib/prisma", {

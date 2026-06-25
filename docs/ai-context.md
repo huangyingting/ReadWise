@@ -70,7 +70,7 @@ than added as columns:
 | Helper | Purpose |
 | --- | --- |
 | `hashContent(text)` | Stable 16-char content hash. Identical source text shares a hash; an edit changes it. |
-| `promptVersionFor(feature)` | The prompt revision label (`PROMPT_VERSIONS`), bumped when a feature's prompt changes. |
+| `promptVersionFor(feature)` | The prompt revision label from the prompt registry, bumped when a feature's prompt changes. |
 | `aiContentCacheKey(feature, scope, content)` | `"<promptVersion>:<scope>:<contentHash>"` — a deterministic key that is stable for repeated interactions over unchanged content and changes on an edit or a prompt bump. |
 
 How each cache currently handles versioning:

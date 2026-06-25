@@ -2,8 +2,7 @@
  * AI output validators — structured-output safety contracts (REF-067).
  *
  * Part of the AI safety/output package (`@/lib/ai/output`). Canonical home for
- * all structured AI output validators: vocabulary, quiz, and tags. Backward-
- * compatible re-exports are provided by `@/lib/ai/validation`.
+ * all structured AI output validators: vocabulary, quiz, and tags.
  *
  * Structured AI outputs (vocabulary, quiz, tags) are shown to learners and must
  * never be cached/persisted unless they pass strict, schema-level validation.
