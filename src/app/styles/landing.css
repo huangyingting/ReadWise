@@ -1,0 +1,76 @@
+/*
+ * ReadWise — Landing entrance + scroll-reveal motion
+ *
+ * Keyframes and utility classes for the landing page hero animations,
+ * scroll-reveal (IntersectionObserver), and auth/onboarding step entrance.
+ *
+ * Keyframes: rw-fade-up, rw-fade-out-up, rw-step
+ * Utilities: .rw-fade-up, .rw-dismiss-out, .rw-step, .rw-reveal, .rw-revealed
+ *
+ * prefers-reduced-motion: fully suppressed via the cross-cutting override
+ * in base.css — the --duration-* token collapse alone is a belt-and-suspenders.
+ */
+
+/* ============================================================
+ * M3 Landing — entrance + scroll-reveal motion + brand text clip
+ * Element keyframes live at top level; helper/utility classes in
+ * @layer utilities. A prefers-reduced-motion override fully no-ops
+ * all of it (the --duration-* tokens already collapse in M1).
+ * ============================================================ */
+@keyframes rw-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes rw-fade-out-up {
+  from {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes rw-step {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@layer utilities {
+  /* Staggered entrance: apply with an inline animation-delay. */
+  .rw-fade-up {
+    animation: rw-fade-up var(--duration-slow) var(--ease-emphasized) both;
+  }
+
+  /* Dismiss exit: fade + rise — add class, call handler on animationend. */
+  .rw-dismiss-out {
+    animation: rw-fade-out-up var(--duration-base) var(--ease-emphasized) both;
+  }
+
+  /* Step panel entrance (onboarding wizard, auth card). */
+  .rw-step { animation: rw-step var(--duration-base) var(--ease-emphasized) both; }
+
+  /* IntersectionObserver scroll reveal: hidden until .rw-revealed is added. */
+  .rw-reveal {
+    opacity: 0;
+    transform: translateY(24px);
+    transition:
+      opacity var(--duration-slow) var(--ease-emphasized),
+      transform var(--duration-slow) var(--ease-emphasized);
+    will-change: opacity, transform;
+  }
+
+  .rw-revealed {
+    opacity: 1;
+    transform: none;
+  }
+
+}
