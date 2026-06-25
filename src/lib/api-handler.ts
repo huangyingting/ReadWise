@@ -16,7 +16,7 @@ import type { Session } from "next-auth";
 // `@/lib/api-auth`'s exports don't fail ESM named-binding resolution. The
 // capability path is only invoked for capability-gated routes.
 import * as apiAuth from "@/lib/api-auth";
-import type { Capability } from "@/lib/rbac";
+import { CAPABILITIES, type Capability } from "@/lib/rbac";
 import type { Schema } from "@/lib/validation";
 import {
   createLogger,
@@ -202,7 +202,7 @@ function build<B, P, Q, S extends Session | null>(
               const result =
                 auth === "capability" && capability
                   ? await apiAuth.requireCapabilityApi(capability)
-                  : await apiAuth.requireAdminApi();
+                  : await apiAuth.requireCapabilityApi(CAPABILITIES.adminAccess);
               if (result.error) {
                 await tryRecordAuditLog({
                   action: AUDIT_ACTIONS.securityAdminAccessDenied,

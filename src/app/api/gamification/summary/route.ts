@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getStreakSummary } from "@/lib/activity";
+import { getStreakSummary } from "@/lib/engagement/streak";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 
 /**

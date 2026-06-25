@@ -6,7 +6,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { getStreakSummary } from "@/lib/activity";
+import { getStreakSummary } from "@/lib/engagement/streak";
 import {
   fillWeekBuckets,
   isoWeek,

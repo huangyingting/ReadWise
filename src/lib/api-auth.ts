@@ -4,7 +4,7 @@
  * @server-only — Must never be imported from a "use client" file.
  * For API route handlers only. See docs/refactoring.md § REF-076.
  */
-import { CAPABILITIES, type Capability } from "@/lib/rbac";
+import type { Capability } from "@/lib/rbac";
 import { loadSession, sessionHasCapability, type AuthResult } from "@/lib/auth-core";
 import { NextResponse } from "next/server";
 
@@ -39,6 +39,3 @@ export async function requireCapabilityApi(
   return result;
 }
 
-export async function requireAdminApi(): Promise<AuthResult> {
-  return requireCapabilityApi(CAPABILITIES.adminAccess);
-}

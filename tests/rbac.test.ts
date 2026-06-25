@@ -204,17 +204,17 @@ test("requireCapabilityApi: allows an admin holding the capability", async () =>
   assert.equal(res.session?.user.id, "a1");
 });
 
-test("requireAdminApi preserves prior behavior (401/403/allow)", async () => {
-  const { requireAdminApi } = await import("@/lib/api-auth");
+test("requireCapabilityApi with admin.access gates admin APIs", async () => {
+  const { requireCapabilityApi } = await import("@/lib/api-auth");
 
   sessionState = null;
-  assert.equal((await requireAdminApi()).error?.status, 401);
+  assert.equal((await requireCapabilityApi(CAPABILITIES.adminAccess)).error?.status, 401);
 
   sessionState = makeSession("Reader", "r1");
-  assert.equal((await requireAdminApi()).error?.status, 403);
+  assert.equal((await requireCapabilityApi(CAPABILITIES.adminAccess)).error?.status, 403);
 
   sessionState = makeSession("Admin", "a1");
-  const ok = await requireAdminApi();
+  const ok = await requireCapabilityApi(CAPABILITIES.adminAccess);
   assert.equal(ok.error, undefined);
   assert.equal(ok.session?.user.id, "a1");
 });
@@ -235,19 +235,22 @@ test("requireCapability (page): allows an admin and returns the session", async 
   assert.equal(session.user.id, "a1");
 });
 
-test("requireAdmin (page) preserves prior behavior", async () => {
-  const { requireAdmin } = await import("@/lib/session");
+test("requireCapability with admin.access gates admin pages", async () => {
+  const { requireCapability } = await import("@/lib/session");
 
   sessionState = null;
   await assert.rejects(
-    () => requireAdmin("/admin"),
+    () => requireCapability(CAPABILITIES.adminAccess, "/admin"),
     /REDIRECT:\/signin\?callbackUrl=/,
   );
 
   sessionState = makeSession("Reader", "r1");
-  await assert.rejects(() => requireAdmin("/admin"), /REDIRECT:\/forbidden/);
+  await assert.rejects(
+    () => requireCapability(CAPABILITIES.adminAccess, "/admin"),
+    /REDIRECT:\/forbidden/,
+  );
 
   sessionState = makeSession("Admin", "a1");
-  const session = await requireAdmin("/admin");
+  const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
   assert.equal(session.user.id, "a1");
 });

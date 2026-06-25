@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseStoredSpeechWords } from "@/lib/speech";
+import { parseStoredSpeechWords } from "@/lib/speech/repository";
 
 test("parseStoredSpeechWords accepts empty and non-empty Json arrays", () => {
   assert.deepEqual(parseStoredSpeechWords([]), []);

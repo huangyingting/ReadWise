@@ -1,5 +1,5 @@
 import { createPublicHandler } from "@/lib/api-handler";
-import { vapidPublicKey } from "@/lib/push";
+import { vapidPublicKey } from "@/lib/push/provider";
 
 /**
  * GET /api/push/vapid-public-key

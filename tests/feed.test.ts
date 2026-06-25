@@ -94,12 +94,13 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("levelProximityScore: perfect match returns 30 (LEVEL_PERFECT)", async () => {
-  const { levelProximityScore, SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { levelProximityScore } = await import("@/lib/discovery-ranking");
   assert.equal(levelProximityScore(2, 2), SCORE_WEIGHTS.LEVEL_PERFECT);
 });
 
 test("levelProximityScore: slightly hard penalises more than slightly easy", async () => {
-  const { levelProximityScore } = await import("@/lib/feed");
+  const { levelProximityScore } = await import("@/lib/discovery-ranking");
   // delta=-1 (article easier than user) → score 18
   // delta=+1 (article harder than user) → score 12
   const slightlyEasy = levelProximityScore(1, 2);
@@ -108,12 +109,12 @@ test("levelProximityScore: slightly hard penalises more than slightly easy", asy
 });
 
 test("levelProximityScore: way-too-hard article returns 0", async () => {
-  const { levelProximityScore } = await import("@/lib/feed");
+  const { levelProximityScore } = await import("@/lib/discovery-ranking");
   assert.equal(levelProximityScore(5, 0), 0); // C2 article for A1 reader
 });
 
 test("levelProximityScore: way-too-easy article returns 5 (not dropped)", async () => {
-  const { levelProximityScore } = await import("@/lib/feed");
+  const { levelProximityScore } = await import("@/lib/discovery-ranking");
   assert.equal(levelProximityScore(0, 5), 5); // A1 article for C2 reader
 });
 
@@ -122,14 +123,15 @@ test("levelProximityScore: way-too-easy article returns 5 (not dropped)", async 
 // ---------------------------------------------------------------------------
 
 test("freshnessScore: article within 7 days returns max freshness bonus", async () => {
-  const { freshnessScore, SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { freshnessScore } = await import("@/lib/discovery-ranking");
   const now = new Date("2026-01-10T00:00:00Z");
   const published = new Date("2026-01-08T00:00:00Z"); // 2 days ago
   assert.equal(freshnessScore(published, now), SCORE_WEIGHTS.FRESHNESS_RECENT);
 });
 
 test("freshnessScore: article over 6 months old returns 0", async () => {
-  const { freshnessScore } = await import("@/lib/feed");
+  const { freshnessScore } = await import("@/lib/discovery-ranking");
   const now = new Date("2026-01-01T00:00:00Z");
   const old = new Date("2025-01-01T00:00:00Z"); // 1 year ago
   assert.equal(freshnessScore(null, now), 0);
@@ -137,7 +139,8 @@ test("freshnessScore: article over 6 months old returns 0", async () => {
 });
 
 test("freshnessScore: 16-day-old article returns intermediate value", async () => {
-  const { freshnessScore, SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { SCORE_WEIGHTS } = await import("@/lib/feed");
+  const { freshnessScore } = await import("@/lib/discovery-ranking");
   const now = new Date("2026-01-31T00:00:00Z");
   const published = new Date("2026-01-15T00:00:00Z"); // 16 days ago
   const score = freshnessScore(published, now);
@@ -149,7 +152,7 @@ test("freshnessScore: 16-day-old article returns intermediate value", async () =
 // ---------------------------------------------------------------------------
 
 test("buildTagMap groups tag slugs by articleId", async () => {
-  const { buildTagMap } = await import("@/lib/feed");
+  const { buildTagMap } = await import("@/lib/discovery-ranking");
   const rows = [
     { articleId: "a1", tag: { slug: "tech" } },
     { articleId: "a1", tag: { slug: "ai" } },

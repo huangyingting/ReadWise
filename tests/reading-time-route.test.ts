@@ -125,7 +125,7 @@ test("returns 400 when activeMs is negative", async () => {
 });
 
 test("returns 400 when activeMs exceeds MAX_ACTIVE_TIME_MS", async () => {
-  const { MAX_ACTIVE_TIME_MS } = await import("@/lib/reading-speed");
+  const { MAX_ACTIVE_TIME_MS } = await import("@/lib/engagement/reading-speed");
   const res = await callRoute({ activeMs: MAX_ACTIVE_TIME_MS + 1 });
   assert.strictEqual(res.status, 400);
 });
@@ -161,7 +161,7 @@ test("returns timeSpentMs:null when mastery record is null", async () => {
 });
 
 test("accepts activeMs at MAX_ACTIVE_TIME_MS boundary (exact)", async () => {
-  const { MAX_ACTIVE_TIME_MS } = await import("@/lib/reading-speed");
+  const { MAX_ACTIVE_TIME_MS } = await import("@/lib/engagement/reading-speed");
   masteryTimeSpentMs = MAX_ACTIVE_TIME_MS;
   const res = await callRoute({ activeMs: MAX_ACTIVE_TIME_MS });
   assert.strictEqual(res.status, 200);

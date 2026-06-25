@@ -1,11 +1,12 @@
-import { requireAdmin } from "@/lib/session";
+import { requireCapability } from "@/lib/session";
+import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminOverview, statusBadgeVariant } from "@/lib/admin";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { AdminStatCard } from "@/components/AdminStatCard";
 
 export default async function AdminPage() {
-  const session = await requireAdmin("/admin");
+  const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
   const overview = await getAdminOverview();
 
   return (

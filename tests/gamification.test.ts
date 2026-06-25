@@ -41,7 +41,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/activity", {
+  mock.module("@/lib/engagement/streak", {
     namedExports: {
       getStreakSummary: async () => streakResult,
     },

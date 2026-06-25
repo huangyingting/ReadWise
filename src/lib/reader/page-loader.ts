@@ -11,7 +11,7 @@
 import type { Session } from "next-auth";
 import type { Article, ReadingProgress } from "@prisma/client";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
-import { getProgress, getProgressMap } from "@/lib/progress";
+import { getProgress, getProgressMap } from "@/lib/engagement/progress";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
 import { getOrCreateArticleTags, listRelatedArticles } from "@/lib/article-library";
 import type { TagView } from "@/lib/article-library";

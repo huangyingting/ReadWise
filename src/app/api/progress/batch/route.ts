@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, array, string } from "@/lib/validation";
-import { getProgressSummaries } from "@/lib/progress";
+import { getProgressSummaries } from "@/lib/engagement/progress";
 
 /** Cap to keep a single batch request bounded. */
 const MAX_IDS = 200;

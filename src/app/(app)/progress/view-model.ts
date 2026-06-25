@@ -6,9 +6,9 @@
  * data without database access.
  */
 import type { LearnerAnalytics } from "@/lib/learner-analytics";
-import type { HeatCell } from "@/lib/activity";
+import type { HeatCell } from "@/lib/engagement/heatmap";
 import { getLearnerAnalytics } from "@/lib/analytics/learner";
-import { getActivityHeatmap } from "@/lib/activity";
+import { getActivityHeatmap } from "@/lib/engagement/heatmap-repo";
 import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
 import { getReadingSpeedStats } from "@/lib/engagement/reading-speed-repo";
 
