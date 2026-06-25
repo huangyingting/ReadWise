@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { slugifyTag } from "@/lib/tags";
+import { slugifyTag } from "@/lib/taxonomy/scope";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/audit";
 import { publicListableArticleWhere } from "@/lib/article-access";
 import { TagScope } from "@prisma/client";
