@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/logger";
 import { mediaStorageKind } from "@/lib/storage/config";
 import { getMediaStorage } from "@/lib/storage/runtime";
-import type { MediaStorage, MediaStorageKind } from "@/lib/storage/types";
+import type { MediaMigrationResult, MediaStorage } from "@/lib/storage/types";
 
 const log = createLogger("storage");
 
@@ -28,14 +28,11 @@ function durationFromWords(raw: unknown): number | undefined {
   return max > 0 ? max : undefined;
 }
 
-export type SpeechStorageMigrationResult = {
-  storageKind: MediaStorageKind;
-  /** True when no external storage is configured (nothing to migrate to). */
-  skippedNoStorage: boolean;
-  scanned: number;
-  migrated: number;
-  failed: number;
-};
+/**
+ * Backward-compatible alias.
+ * @deprecated Use {@link MediaMigrationResult} directly.
+ */
+export type SpeechStorageMigrationResult = MediaMigrationResult;
 
 type MigrationDeps = {
   storage?: MediaStorage | null;
@@ -52,7 +49,7 @@ type MigrationDeps = {
  */
 export async function migrateArticleSpeechToStorage(
   deps: MigrationDeps = {},
-): Promise<SpeechStorageMigrationResult> {
+): Promise<MediaMigrationResult> {
   const storage = deps.storage !== undefined ? deps.storage : getMediaStorage();
   const storageKind = mediaStorageKind();
 
@@ -60,6 +57,7 @@ export async function migrateArticleSpeechToStorage(
     return {
       storageKind,
       skippedNoStorage: true,
+      mediaKind: "speech",
       scanned: 0,
       migrated: 0,
       failed: 0,
@@ -142,6 +140,7 @@ export async function migrateArticleSpeechToStorage(
   return {
     storageKind,
     skippedNoStorage: false,
+    mediaKind: "speech",
     scanned: rows.length,
     migrated,
     failed,
