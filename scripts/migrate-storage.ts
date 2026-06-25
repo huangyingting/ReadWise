@@ -9,25 +9,32 @@
  * Base64 is cleared ONLY after the storage write and MediaAsset record succeed.
  */
 import { migrateArticleSpeechToStorage } from "@/lib/storage";
+import { runScript, isMain, parseString } from "./lib/cli";
 
-async function main() {
-  const args = process.argv.slice(2);
-  const limitIdx = args.indexOf("--limit");
-  const limit =
-    limitIdx >= 0 && args[limitIdx + 1]
-      ? parseInt(args[limitIdx + 1]!, 10)
-      : undefined;
+type Args = {
+  limit: number | undefined;
+};
 
-  console.log("Starting storage migration...", limit ? `(limit ${limit})` : "(all eligible)");
+function parseArgs(argv: string[]): Args {
+  const limitStr = parseString(argv, "--limit");
+  return {
+    limit: limitStr !== null ? parseInt(limitStr, 10) : undefined,
+  };
+}
 
-  const result = await migrateArticleSpeechToStorage({ limit });
+async function main(): Promise<number> {
+  const args = parseArgs(process.argv.slice(2));
+
+  console.log("Starting storage migration...", args.limit ? `(limit ${args.limit})` : "(all eligible)");
+
+  const result = await migrateArticleSpeechToStorage({ limit: args.limit });
 
   if (result.skippedNoStorage) {
     console.log(
       "Skipped: no object storage configured (MEDIA_STORAGE is database/unset).",
     );
     console.log("Set MEDIA_STORAGE=filesystem or MEDIA_STORAGE=azure and configure credentials.");
-    process.exit(0);
+    return 0;
   }
 
   console.log(`Storage kind: ${result.storageKind}`);
@@ -37,13 +44,16 @@ async function main() {
 
   if (result.failed > 0) {
     console.error(`${result.failed} row(s) failed — check logs for details.`);
-    process.exit(1);
+    return 1;
   }
 
   console.log("Migration complete.");
+  return 0;
 }
 
-main().catch((err) => {
-  console.error("Fatal:", err);
-  process.exit(1);
-});
+export { parseArgs };
+
+if (isMain(import.meta.url)) {
+  runScript(main, "Fatal");
+}
+
