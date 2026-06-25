@@ -231,6 +231,7 @@ crash startup.
 | `npm run scrape -- --all --limit 3` | Scrape every enabled provider. |
 | `npm run scrape -- <url>` | Scrape one or more explicit article URLs. |
 | `npm run process -- --all` | Enrich draft articles and publish them. |
+| `npm run process -- --all --enqueue` | Enqueue durable article-processing jobs for the worker. |
 | `npm run process -- <articleId> --tts --translate es,fr` | Process specific articles with optional TTS/translations. |
 | `npm run worker` | Drain the durable `Job` table with locking/retries/dead letters. |
 | `npm run worker -- --once` | Drain the durable `Job` queue once and exit. |
