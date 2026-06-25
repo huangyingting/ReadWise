@@ -3,7 +3,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
-import { validateQuiz } from "@/lib/ai/validation";
+import { validateQuiz } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-access";
 import type { Prisma } from "@prisma/client";
 

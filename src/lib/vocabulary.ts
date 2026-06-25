@@ -3,7 +3,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
-import { validateVocabulary } from "@/lib/ai/validation";
+import { validateVocabulary } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-access";
 
 export type VocabularyEntry = {
