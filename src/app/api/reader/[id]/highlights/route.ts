@@ -16,7 +16,7 @@ import {
 } from "@/lib/annotations";
 import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { htmlToPlainText } from "@/lib/translation";
+import { htmlToPlainText } from "@/lib/content-pipeline";
 
 const createBody = object({
   quote: nonEmptyString(10_000),
