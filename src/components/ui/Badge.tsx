@@ -1,6 +1,9 @@
 import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
+import { CEFR_LEVELS, type CefrLevel } from "@/lib/option-registries";
+
+export { CEFR_LEVELS, type CefrLevel };
 
 const badgeBase = cn(
   "inline-flex items-center justify-center gap-[var(--space-1)]",
@@ -48,9 +51,6 @@ export function Badge({
 }
 
 /** CEFR difficulty levels with verified-AA light/dark colour pairs (Saul §8). */
-export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
-export type CefrLevel = (typeof CEFR_LEVELS)[number];
-
 const CEFR_CLASSES: Record<CefrLevel, string> = {
   A1: "bg-[var(--cefr-a1-bg)] text-[var(--cefr-a1-text)]",
   A2: "bg-[var(--cefr-a2-bg)] text-[var(--cefr-a2-text)]",
