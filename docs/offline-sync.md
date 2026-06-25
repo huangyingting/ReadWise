@@ -169,10 +169,10 @@ removes the cached copy on a `404` (deleted article).
 
 `purgeOfflineUserData()` (in `offline-mutations.ts`) clears the IndexedDB stores
 **and** messages the service worker to drop private caches. It runs **before**
-`signOut()` (`SignOutButton`) and from the account-deletion flow
-(`AccountDangerZone`), so private/offline content never lingers after a user
-leaves. Server-side, `ReminderPreference` (and all other per-user rows) cascade
-on account deletion — no extra cleanup code needed.
+client sign-out flows and from the account-deletion flow (`AccountDangerZone`),
+so private/offline content never lingers after a user leaves. Server-side,
+`ReminderPreference` (and all other per-user rows) cascade on account deletion —
+no extra cleanup code needed.
 
 ---
 

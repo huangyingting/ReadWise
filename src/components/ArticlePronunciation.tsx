@@ -53,16 +53,12 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useReaderAudio, type SpeechWord } from "@/components/ReaderAudioProvider";
 import {
-  buildTokenAlignment,
-  extractTextTokens,
-  timingEndSeconds,
-  timingStartSeconds,
-} from "@/lib/speech-timing";
+  findSpeechSentenceRange,
+  splitPracticeSentences,
+} from "@/lib/speech-practice";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const MAX_REFERENCE_CHARS = 300;
-const MIN_WORDS = 3;
 const MAX_RECORD_MS = 20_000; // 20 s auto-stop safety net
 const COUNTDOWN_START_S = 5; // show countdown in last N seconds
 const RING_R = 28;
@@ -137,106 +133,6 @@ function bandSrLabel(band: WordBand): string {
     case "poor":    return "mispronounced";
     case "omitted": return "skipped word";
   }
-}
-
-/**
- * Splits article plain text into practisable sentences.
- * Returns sentence strings that are exact substrings of plainText so that
- * indexOf() can reliably locate them for TTS word-timing lookup.
- * - Skips sentences < MIN_WORDS words or > MAX_REFERENCE_CHARS chars.
- * - Guards common abbreviations (Mr./Dr./etc.) via short preceding-word check.
- */
-function splitSentences(plainText: string): string[] {
-  const results: string[] = [];
-
-  // Split paragraphs at double newlines first.
-  const paragraphs = plainText.split(/\n{2,}/);
-
-  for (const para of paragraphs) {
-    // Collapse single newlines / excess whitespace within the paragraph.
-    const p = para.replace(/\s+/g, " ").trim();
-    if (!p) continue;
-
-    let cursor = 0;
-    // Find sentence boundaries: [.!?]+ followed by space(s) + capital/quote.
-    const re = /[.!?]+\s+(?=[A-Z"'"'])/g;
-    let m: RegExpExecArray | null;
-
-    while ((m = re.exec(p)) !== null) {
-      const punctLen = (m[0].match(/^[.!?]+/) ?? [""])[0].length;
-      const segEnd = m.index + punctLen; // include punctuation, exclude whitespace
-      const raw = p.slice(cursor, segEnd);
-
-      // Abbreviation guard: last word ≤ 2 chars starting with capital.
-      const segWords = raw.trim().split(/\s+/).filter(Boolean);
-      const lastWord = segWords.at(-1)?.replace(/[.!?]+$/, "") ?? "";
-      const isAbbrev = lastWord.length <= 2 && /^[A-Z]/.test(lastWord);
-      const isDecimal = /\d$/.test(raw.trimEnd().slice(0, -1) || "");
-
-      if (!isAbbrev && !isDecimal) {
-        const trimmed = raw.trim();
-        const wc = trimmed.split(/\s+/).filter(Boolean).length;
-        if (wc >= MIN_WORDS && trimmed.length <= MAX_REFERENCE_CHARS) {
-          results.push(trimmed);
-        }
-        // Advance cursor past the whitespace separator.
-        cursor = m.index + m[0].length;
-      }
-    }
-
-    // Remaining tail of the paragraph.
-    const remaining = p.slice(cursor).trim();
-    if (remaining) {
-      const wc = remaining.split(/\s+/).filter(Boolean).length;
-      if (wc >= MIN_WORDS && remaining.length <= MAX_REFERENCE_CHARS) {
-        results.push(remaining);
-      }
-    }
-  }
-
-  return results;
-}
-
-/**
- * Finds the start/end audio times for a sentence using TTS word timings.
- * Matches timings to text tokens using the same forward alignment as prose
- * playback highlighting.
- */
-function findSentenceRange(
-  sentence: string,
-  plainText: string,
-  words: SpeechWord[],
-): { startTime: number; endTime: number } | null {
-  if (words.length === 0 || !sentence) return null;
-
-  // Find the sentence start position in the plain text.
-  const needle = sentence.slice(0, Math.min(30, sentence.length));
-  const sentStart = plainText.indexOf(needle);
-  if (sentStart === -1) return null;
-
-  const sentEnd = sentStart + sentence.length;
-  const tokens = extractTextTokens(plainText);
-  const { alignment, spanLengths } = buildTokenAlignment(tokens, words);
-  const matching: SpeechWord[] = [];
-
-  for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
-    const tokenIndex = alignment[wordIndex];
-    if (tokenIndex == null) continue;
-    const spanLength = Math.max(1, spanLengths[wordIndex] ?? 1);
-    const firstToken = tokens[tokenIndex];
-    const lastToken = tokens[tokenIndex + spanLength - 1] ?? firstToken;
-    if (!firstToken || !lastToken) continue;
-    if (lastToken.end > sentStart && firstToken.start < sentEnd) {
-      const word = words[wordIndex];
-      if (word) matching.push(word);
-    }
-  }
-  if (matching.length === 0) return null;
-
-  return {
-    startTime: timingStartSeconds(matching[0]),
-    endTime: timingEndSeconds(matching[matching.length - 1]),
-  };
 }
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
@@ -524,7 +420,7 @@ export default function ArticlePronunciation({
   const audio = useReaderAudio();
 
   // ── Sentence stepper ──────────────────────────────────────────────────────
-  const sentences = useMemo(() => splitSentences(plainText), [plainText]);
+  const sentences = useMemo(() => splitPracticeSentences(plainText), [plainText]);
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const currentSentence = sentences[currentIndex] ?? "";
@@ -945,7 +841,7 @@ export default function ArticlePronunciation({
     const audioEl = audio.audioRef.current;
     if (!audioEl) return;
 
-    const range = findSentenceRange(currentSentence, plainText, audio.words);
+    const range = findSpeechSentenceRange(currentSentence, plainText, audio.words);
     if (!range) return;
 
     // Cancel any previous range play cleanup.

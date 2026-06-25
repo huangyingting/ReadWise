@@ -264,10 +264,10 @@ npm run process -- <article-id-1> <article-id-2>
 ### Worker (background continuous processing)
 
 ```sh
-npm run worker
-npm run worker -- --once               # drain queue then exit
+npm run worker                         # durable Job queue worker
+npm run worker -- --once               # drain durable queue then exit
 npm run worker -- --interval 30000     # poll every 30 s
-npm run worker -- --batch 5            # process 5 at a time
+npm run worker -- --legacy-article-polling --batch 5
 ```
 
 ### Seed (full pipeline: discover → scrape → process)

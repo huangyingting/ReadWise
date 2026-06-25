@@ -23,6 +23,7 @@ import { prisma } from "@/lib/prisma";
 import { Prisma, JobStatus, JobType, type Job } from "@prisma/client";
 import { createLogger } from "@/lib/logger";
 import { recordJobLockAge, recordJobQueueEvent } from "@/lib/metrics";
+import { jitteredExponentialBackoff } from "@/lib/backoff";
 
 export { JobStatus, JobType };
 export type { Job };
@@ -85,10 +86,7 @@ export function retryPolicyFor(type: JobType): RetryPolicy {
  * `backoffDelay` in `src/lib/worker.ts` (now applied to persisted state).
  */
 export function jobBackoffDelay(attempt: number, base: number, max: number): number {
-  if (base <= 0) return 0;
-  const exp = Math.min(max, base * 2 ** Math.max(0, attempt - 1));
-  const jitter = Math.floor(Math.random() * Math.min(base, exp));
-  return Math.min(max, exp + jitter);
+  return jitteredExponentialBackoff({ attempt, baseMs: base, maxMs: max });
 }
 
 // ---------------------------------------------------------------------------

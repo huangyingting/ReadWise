@@ -33,7 +33,6 @@ async function main() {
   console.log(`Storage kind: ${result.storageKind}`);
   console.log(`Scanned:          ${result.scanned}`);
   console.log(`Migrated:         ${result.migrated}`);
-  console.log(`Already migrated: ${result.alreadyMigrated}`);
   console.log(`Failed:           ${result.failed}`);
 
   if (result.failed > 0) {

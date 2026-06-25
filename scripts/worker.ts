@@ -21,6 +21,7 @@ type Args = {
   tts: boolean;
   translateLangs: string[];
   jobs: boolean;
+  legacyArticlePolling: boolean;
   lockTtlMs: number;
   help: boolean;
 };
@@ -36,7 +37,8 @@ function parseArgs(argv: string[]): Args {
     once: false,
     tts: false,
     translateLangs: [],
-    jobs: false,
+    jobs: true,
+    legacyArticlePolling: false,
     lockTtlMs: 600000,
     help: false,
   };
@@ -60,6 +62,11 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--jobs":
         args.jobs = true;
+        args.legacyArticlePolling = false;
+        break;
+      case "--legacy-article-polling":
+        args.jobs = false;
+        args.legacyArticlePolling = true;
         break;
       case "--lock-ttl":
         args.lockTtlMs = Math.max(0, Number(argv[++i]) || 0);
@@ -94,16 +101,16 @@ function parseArgs(argv: string[]): Args {
 function printHelp(): void {
   console.log(`ReadWise background processing worker
 
-Continuously polls the article queue and enriches unprocessed (draft) articles
-with AI content (difficulty, tags, vocabulary, quiz, optional translation + TTS)
-via the idempotent processor, retrying transient failures with backoff. Stops
-safely on SIGINT/SIGTERM (Ctrl-C) after finishing the current article, and
-resumes any remaining work on restart.
+Continuously drains the durable Job table and enriches articles with AI content
+(difficulty, tags, vocabulary, quiz, optional translation + TTS) via the
+idempotent processor, retrying transient failures with persisted backoff. Stops
+safely on SIGINT/SIGTERM (Ctrl-C) after finishing the current job, and resumes
+remaining work on restart.
 
 Usage:
-  npm run worker                 Run continuously (poll forever)
+  npm run worker                 Drain the persistent Job table (poll forever)
   npm run worker -- --once       Drain the queue once, then exit
-  npm run worker -- --jobs       Drain the persistent Job table instead
+  npm run worker -- --jobs       Explicitly select the persistent Job table
 
 Options:
   --interval <ms>       Idle wait between polls when empty (default 5000)
@@ -111,8 +118,11 @@ Options:
   --max-retries <n>     Retry attempts per article on failure (default 3)
   --backoff <ms>        Base delay for exponential backoff (default 1000)
   --quarantine <ms>     Cooldown before re-trying a poison article (default 300000)
-  --jobs                Drain the persistent Job table (DB-backed queue) with
-                        multi-worker locking + dead-letter/retry policy
+  --jobs                Drain the persistent Job table (default; kept for
+                        compatibility with existing runbooks)
+  --legacy-article-polling
+                        Use the older article-state polling worker during the
+                        transition period only
   --lock-ttl <ms>       Stale-lock recovery threshold for --jobs (default 600000)
   --include-published   Also enrich published articles missing content
   --once                Process the queue until empty, then stop

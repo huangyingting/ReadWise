@@ -7,16 +7,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { getStreakSummary } from "@/lib/activity";
+import {
+  fillWeekBuckets,
+  isoWeek,
+  lastNWeeks,
+  type WeekBucket,
+} from "@/lib/aggregation";
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
-
-export type WeekBucket = {
-  /** ISO YYYY-[W]WW label, e.g. "2025-W23". */
-  week: string;
-  count: number;
-};
 
 export type LevelBucket = {
   level: string; // CEFR string or "Unknown"
@@ -47,41 +47,6 @@ export type LearnerAnalytics = {
   currentStreak: number;
   longestStreak: number;
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** ISO year+week string e.g. "2025-W03" for any Date. */
-function isoWeek(d: Date): string {
-  // Use the Thursday-based ISO week calculation
-  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
-  date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
-  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
-  return `${date.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
-}
-
-/** Produce a zero-filled series of weekly buckets for the last N weeks. */
-function lastNWeeks(n: number): WeekBucket[] {
-  const buckets: WeekBucket[] = [];
-  const now = new Date();
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 7 * 86_400_000);
-    buckets.push({ week: isoWeek(d), count: 0 });
-  }
-  return buckets;
-}
-
-/** Merge raw date+count pairs into pre-built weekly buckets. */
-function fillWeekBuckets(
-  buckets: WeekBucket[],
-  rows: { date: Date; count: number }[],
-): WeekBucket[] {
-  const map = new Map<string, number>();
-  for (const r of rows) map.set(isoWeek(r.date), (map.get(isoWeek(r.date)) ?? 0) + r.count);
-  return buckets.map((b) => ({ ...b, count: map.get(b.week) ?? 0 }));
-}
 
 // ---------------------------------------------------------------------------
 // Public API
