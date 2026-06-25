@@ -1078,8 +1078,67 @@ CREATE INDEX "AssignmentCompletion_assignmentId_status_idx" ON "AssignmentComple
 -- CreateIndex
 CREATE UNIQUE INDEX "AssignmentCompletion_assignmentId_studentId_key" ON "AssignmentCompletion"("assignmentId", "studentId");
 
--- AddForeignKey
 ALTER TABLE "Profile" ADD CONSTRAINT "Profile_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- Scope private-article tag links defensively at the database boundary.
+-- Legacy/import paths can insert a PUBLIC tag id into ArticleTag for a private
+-- article; this trigger rewrites that link to an owner-scoped PRIVATE tag copy
+-- so tag visibility stays aligned with article visibility.
+CREATE OR REPLACE FUNCTION "rw_scope_article_tag"()
+RETURNS TRIGGER AS $$
+DECLARE
+    article_owner TEXT;
+    source_tag RECORD;
+    scoped_tag_id TEXT;
+BEGIN
+    SELECT "ownerId" INTO article_owner
+    FROM "Article"
+    WHERE "id" = NEW."articleId";
+
+    IF article_owner IS NULL THEN
+        RETURN NEW;
+    END IF;
+
+    SELECT * INTO source_tag
+    FROM "Tag"
+    WHERE "id" = NEW."tagId";
+
+    IF source_tag."scope"::text = 'PRIVATE'
+        AND source_tag."namespace" = 'user:' || article_owner
+        AND source_tag."ownerId" = article_owner THEN
+        RETURN NEW;
+    END IF;
+
+    scoped_tag_id := 'tag_private_' || md5(article_owner || ':' || source_tag."slug");
+
+    INSERT INTO "Tag" (
+        "id", "name", "slug", "scope", "namespace", "ownerId", "orgId", "createdAt", "updatedAt"
+    ) VALUES (
+        scoped_tag_id,
+        source_tag."name",
+        source_tag."slug",
+        'PRIVATE'::"TagScope",
+        'user:' || article_owner,
+        article_owner,
+        NULL,
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+    )
+    ON CONFLICT ("scope", "namespace", "slug") DO UPDATE SET
+        "name" = EXCLUDED."name",
+        "ownerId" = EXCLUDED."ownerId",
+        "updatedAt" = CURRENT_TIMESTAMP
+    RETURNING "id" INTO scoped_tag_id;
+
+    NEW."tagId" := scoped_tag_id;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER "ArticleTag_scope_private_tags"
+BEFORE INSERT ON "ArticleTag"
+FOR EACH ROW
+EXECUTE FUNCTION "rw_scope_article_tag"();
 
 -- AddForeignKey
 ALTER TABLE "Article" ADD CONSTRAINT "Article_ownerId_fkey" FOREIGN KEY ("ownerId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
