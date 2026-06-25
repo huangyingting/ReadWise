@@ -4,7 +4,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
-import { validateTags } from "@/lib/ai/validation";
+import { validateTags } from "@/lib/ai/output/validators";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "@/lib/article-access";
 

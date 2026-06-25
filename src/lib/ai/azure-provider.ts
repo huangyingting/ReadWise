@@ -15,6 +15,8 @@ import {
   classifyHttpStatus,
   classifyThrownError,
   parseRetryAfterMs,
+} from "@/lib/ai/output/error-classifier";
+import {
   type AiChatRequest,
   type AiChatResponse,
   type AiProvider,

@@ -31,9 +31,9 @@ import {
   activePromptVersion,
   type PromptMessage,
 } from "@/lib/ai/prompts";
-import { validateVocabulary, validateQuiz } from "@/lib/ai/validation";
+import { validateVocabulary, validateQuiz } from "@/lib/ai/output/validators";
 import { parseLevel, isDifficultyLevel } from "@/lib/difficulty";
-import { moderateText } from "@/lib/ai/moderation";
+import { moderateText } from "@/lib/ai/output/moderation";
 
 // ---------------------------------------------------------------------------
 // Dataset & report shapes

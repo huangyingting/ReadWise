@@ -11,7 +11,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
-import { moderateText } from "@/lib/ai/moderation";
+import { moderateText } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 
 export type GrammarResult = {
