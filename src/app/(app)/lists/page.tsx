@@ -4,8 +4,7 @@ import { getUserLists, getListWithArticles } from "@/lib/bookmarks";
 import { getProgressMap } from "@/lib/progress";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import ArticleCardView from "@/components/ArticleCardView";
-import ListingProgressSync from "@/components/ListingProgressSync";
-import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import ListingSync from "@/components/ListingSync";
 import EmptyState from "@/components/EmptyState";
 import ListSwitcher from "@/components/ListSwitcher";
 import { PageShell } from "@/components/shell/PageShell";
@@ -107,8 +106,7 @@ export default async function ListsPage({
                 })}
               </div>
 
-              <ListingProgressSync articleIds={articleIds} />
-              <ListingBookmarkSync articleIds={articleIds} />
+              <ListingSync articleIds={articleIds} />
             </>
           )}
         </div>

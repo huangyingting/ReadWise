@@ -8,8 +8,7 @@ import { getProgressMap } from "@/lib/progress";
 import { ensureArticleDifficulties } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/bookmarks";
 import ArticleCard from "@/components/ArticleCard";
-import ListingProgressSync from "@/components/ListingProgressSync";
-import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import ListingSync from "@/components/ListingSync";
 import EmptyState from "@/components/EmptyState";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
@@ -88,8 +87,7 @@ export default async function TagPage({
         </div>
       )}
 
-      <ListingProgressSync articleIds={articles.map((a) => a.id)} />
-      <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
+      <ListingSync articleIds={articles.map((a) => a.id)} />
     </PageShell>
   );
 }

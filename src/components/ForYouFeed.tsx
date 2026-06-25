@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { Compass, CheckCircle2 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { getJson } from "@/lib/client-fetch";
 import ArticleCardView from "@/components/ArticleCardView";
-import ListingProgressSync from "@/components/ListingProgressSync";
-import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import ListingSync from "@/components/ListingSync";
 import EmptyState from "@/components/EmptyState";
+import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
 /** Shape returned by GET /api/feed */
 type FeedApiResponse = {
@@ -56,48 +56,42 @@ export default function ForYouFeed({
   /** Active CEFR level cap — threaded to /api/feed so Load more stays filtered. */
   level?: string | null;
 }) {
-  const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
-  const [progress, setProgress] = useState<Record<string, ProgressSummary>>(initialProgress);
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
   const [reasons, setReasons] = useState<Record<string, string>>(initialReasons ?? {});
-  const [offset, setOffset] = useState<number>(initialOffset);
-  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  // Ref-tracked loading flag so loadMore never reads a stale closure value —
-  // mirrors CategoryBrowser's double-tap guard.
-  const loadingRef = useRef(false);
   // live-region text for a11y ("N more articles loaded")
   const [announcement, setAnnouncement] = useState<string>("");
 
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current || !hasMore) return;
-    loadingRef.current = true;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const params = new URLSearchParams({ offset: String(offset), limit: "6" });
-      if (level) params.set("level", level);
-      const data = await getJson<FeedApiResponse>(`/api/feed?${params.toString()}`);
-      const next = data.articles ?? [];
-      setArticles((prev) => {
-        const seen = new Set(prev.map((a) => a.id));
-        return [...prev, ...next.filter((a) => !seen.has(a.id))];
+  const fetchPage = useCallback(
+    async (nextOffset: number): Promise<FeedApiResponse> => {
+      const params = new URLSearchParams({
+        offset: String(nextOffset),
+        limit: "6",
       });
-      setProgress((prev) => ({ ...prev, ...(data.progress ?? {}) }));
-      setReasons((prev) => ({ ...prev, ...(data.reasons ?? {}) }));
-      setOffset(data.offset ?? offset + next.length);
-      setHasMore(Boolean(data.hasMore));
-      if (next.length > 0) {
-        setAnnouncement(`${next.length} more article${next.length === 1 ? "" : "s"} loaded`);
-      }
-    } catch {
-      setLoadError("Couldn't load more articles — please try again.");
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [offset, hasMore, level]);
+      if (level) params.set("level", level);
+      return getJson<FeedApiResponse>(`/api/feed?${params.toString()}`);
+    },
+    [level],
+  );
+
+  const { articles, progress, hasMore, loading, loadError, loadMore } =
+    useLoadMoreList({
+      initialArticles,
+      initialProgress,
+      initialHasMore,
+      initialOffset,
+      fetchPage,
+      onPageLoaded: useCallback(
+        (page: FeedApiResponse, newArticles: ListingArticle[]) => {
+          setReasons((prev) => ({ ...prev, ...(page.reasons ?? {}) }));
+          if (newArticles.length > 0) {
+            setAnnouncement(
+              `${newArticles.length} more article${newArticles.length === 1 ? "" : "s"} loaded`,
+            );
+          }
+        },
+        [],
+      ),
+    });
 
   const articleIds = articles.map((a) => a.id);
 
@@ -178,8 +172,7 @@ export default function ForYouFeed({
       )}
 
       {/* Progress + bookmark sync over the growing article id set */}
-      <ListingProgressSync articleIds={articleIds} />
-      <ListingBookmarkSync articleIds={articleIds} />
+      <ListingSync articleIds={articleIds} />
     </div>
   );
 }
