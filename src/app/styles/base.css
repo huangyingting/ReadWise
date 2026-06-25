@@ -191,14 +191,14 @@ body {
 }
 
 .card {
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.5rem;
 }
 
 .muted {
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .stack > * + * {
@@ -223,7 +223,7 @@ body {
   padding: 0.15rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--panel);
+  background: var(--surface);
 }
 
 .tag-list {
@@ -239,7 +239,7 @@ body {
   padding: 0.15rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--panel);
+  background: var(--surface);
   font-size: 0.85rem;
   text-decoration: none;
 }
@@ -287,7 +287,7 @@ body {
   margin: 1.1rem 0;
   padding: 0.25rem 1rem;
   border-left: 3px solid var(--accent);
-  color: var(--muted);
+  color: var(--text-muted);
 }
 
 .prose img {
@@ -388,7 +388,7 @@ body {
   padding: 0.35rem 0.85rem;
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--panel);
+  background: var(--surface);
   color: var(--text);
   text-decoration: none;
   font-size: 0.9rem;
@@ -413,7 +413,7 @@ body {
 
 .article-card {
   display: block;
-  background: var(--panel);
+  background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 1.1rem;

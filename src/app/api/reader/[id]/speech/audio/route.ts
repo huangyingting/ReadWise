@@ -12,9 +12,10 @@ export const runtime = "nodejs";
  * Streams the narration audio for an article. Requires the caller to be
  * authenticated and able to read the article (same access gate as the speech
  * POST route). Serves bytes from object storage when a storageKey exists, or
- * falls back to the legacy audioBase64 column. Returns 404 when no audio has
- * been generated yet, and private Cache-Control so shared caches never serve
- * one user's audio to another.
+ * falls back to the `audioBase64` column (retained as the DB fallback when
+ * object storage is not configured — see REF-009 decision). Returns 404 when
+ * no audio has been generated yet, and private Cache-Control so shared caches
+ * never serve one user's audio to another.
  */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
   await requireReadableArticle(params.id, session.user);
@@ -40,7 +41,10 @@ export const GET = createHandler({ params: idParams }, async ({ params, session 
     }
   }
 
-  // Fall back to legacy base64 column.
+  // Fall back to the audioBase64 column when object storage is unavailable.
+  // Intentionally retained per REF-009 decision: object storage is OPTIONAL
+  // in local/test environments (per AGENTS.md), so DB base64 is the
+  // documented fallback. Removal requires a migration + backfill.
   if (!audioBytes && speechRow.audioBase64) {
     audioBytes = Buffer.from(speechRow.audioBase64, "base64");
   }

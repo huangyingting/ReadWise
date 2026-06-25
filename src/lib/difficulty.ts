@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import type { Prisma } from "@prisma/client";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import {
@@ -94,7 +94,7 @@ function easeToLevel(ease: number): DifficultyLevel {
 export function heuristicDifficulty(
   content: string,
 ): { level: DifficultyLevel; score: number } {
-  const text = htmlToPlainText(content);
+  const text = articleHtmlToReaderText(content);
   const ease = fleschReadingEase(text);
   if (ease == null) {
     // Not enough text to judge; assume a middle-of-the-road level.
@@ -124,7 +124,7 @@ async function aiAssessLevel(
   title: string,
   content: string,
 ): Promise<DifficultyLevel | null> {
-  const source = boundedSampleForFeature(htmlToPlainText(content), "difficulty");
+  const source = boundedSampleForFeature(articleHtmlToReaderText(content), "difficulty");
   const completion = await chatComplete(
     renderPrompt("difficulty", { title, source }),
     {

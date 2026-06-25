@@ -93,7 +93,7 @@ test("getMemberDetail assembles profile, progress, imports and audit", async () 
     createdAt: new Date("2026-01-01T00:00:00Z"),
     profile: {
       englishLevel: "B1",
-      topics: JSON.stringify(["science", "tech"]),
+      topics: ["science", "tech"],
       ageRange: null,
       gender: null,
       dailyGoal: 2,

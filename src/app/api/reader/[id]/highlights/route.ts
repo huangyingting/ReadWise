@@ -8,7 +8,7 @@ import {
 } from "@/lib/annotations";
 import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { createHighlightBody } from "@/lib/reader/schemas";
 
 export const GET = createHandler(
@@ -18,7 +18,7 @@ export const GET = createHandler(
     const highlights = await listHighlights(session.user.id, params.id);
     // RW-043 — flag highlights whose anchor no longer matches the current
     // content as stale (revalidation), without dropping any.
-    const plainText = htmlToPlainText(article.content ?? "");
+    const plainText = articleHtmlToReaderText(article.content ?? "");
     const annotated = annotateHighlightAnchors(highlights, plainText);
     return NextResponse.json({ highlights: annotated });
   },

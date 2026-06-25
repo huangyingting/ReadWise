@@ -33,7 +33,7 @@ before(() => {
   mock.module("@/lib/translation", {
     namedExports: {
       isSupportedLanguage: () => supportedLang,
-      htmlToPlainText: (html: string) => html,
+      articleHtmlToReaderText: (html: string) => html,
     },
   });
 

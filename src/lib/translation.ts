@@ -4,7 +4,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-access";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import {
   languageLabel,
   isSupportedLanguage,
@@ -14,11 +14,10 @@ import {
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
 
-// Re-export content transformation helpers so that existing callers of
+// Re-export content transformation helper so that existing callers of
 // `@/lib/translation` continue to work without changes.
 // Canonical imports should use `@/lib/content-pipeline` directly.
-// These aliases will be removed through REF-009.
-export { articleHtmlToReaderText, htmlToPlainText } from "@/lib/content-pipeline";
+export { articleHtmlToReaderText } from "@/lib/content-pipeline";
 
 export type TranslationResult = {
   lang: string;
@@ -66,7 +65,7 @@ export async function getOrCreateTranslation(
         return cached ? { content: cached.content } : null;
       },
       generate: async (article, { callModel }) => {
-        const chunks = chunkForFeature(htmlToPlainText(article.content), "translation");
+        const chunks = chunkForFeature(articleHtmlToReaderText(article.content), "translation");
         if (chunks.length === 0) {
           return null;
         }
