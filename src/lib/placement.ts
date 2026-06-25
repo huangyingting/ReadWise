@@ -8,7 +8,7 @@
  * level (or the nearest available level). `suggestLevel` is a pure function
  * that decides whether to suggest a lower CEFR level based on the score.
  */
-import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";
+import { ENGLISH_LEVELS, levelRank, type EnglishLevel } from "@/lib/leveling/cefr-primitives";
 
 export interface PlacementQuestion {
   id: string;
@@ -18,9 +18,10 @@ export interface PlacementQuestion {
   correctIndex: number;
 }
 
-/** levelRank without importing difficulty (avoids server-only deps from client). */
+/** Returns the ordinal rank of a CEFR level (A1 = 0 … C2 = 5). Delegates to
+ * the shared primitive from `@/lib/leveling/cefr-primitives`. */
 export function placementLevelRank(level: string): number {
-  return ENGLISH_LEVELS.indexOf(level as EnglishLevel);
+  return levelRank(level);
 }
 
 /**

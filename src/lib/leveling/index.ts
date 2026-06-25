@@ -23,7 +23,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { ENGLISH_LEVELS, getProfile, type EnglishLevel } from "@/lib/profile";
-import { levelRank } from "@/lib/difficulty";
+import { levelRank } from "./cefr-primitives";
 import { getSkillProfile } from "@/lib/skill-mastery";
 import { publicListableArticleWhere } from "@/lib/article-access";
 

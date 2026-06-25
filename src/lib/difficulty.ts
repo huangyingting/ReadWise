@@ -4,7 +4,13 @@ import type { Prisma } from "@prisma/client";
 import { htmlToPlainText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
-import { ENGLISH_LEVELS, type EnglishLevel } from "@/lib/profile";
+import {
+  ENGLISH_LEVELS,
+  levelRank,
+  levelsAtOrBelow,
+  isDifficultyLevel,
+  type EnglishLevel,
+} from "@/lib/leveling/cefr-primitives";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
@@ -17,38 +23,18 @@ import {
  * scale (A1–C2) shared with reader profiles so recommendations can be matched
  * to a reader's self-reported level. Assessment prefers the AI provider when
  * configured and degrades gracefully to a deterministic readability heuristic.
+ *
+ * CEFR rank/range primitives (`levelRank`, `levelsAtOrBelow`, `isDifficultyLevel`)
+ * live in `@/lib/leveling/cefr-primitives` and are re-exported here for
+ * backward compatibility.
  */
 
 export type DifficultyLevel = EnglishLevel;
 
 export const DIFFICULTY_LEVELS = ENGLISH_LEVELS;
 
-export function isDifficultyLevel(value: unknown): value is DifficultyLevel {
-  return (
-    typeof value === "string" &&
-    (DIFFICULTY_LEVELS as readonly string[]).includes(value)
-  );
-}
-
-/**
- * Ordinal rank of a CEFR level (A1 = 0 … C2 = 5). Returns -1 for unknown
- * values. Used to sort and compare levels numerically.
- */
-export function levelRank(level: string): number {
-  return (DIFFICULTY_LEVELS as readonly string[]).indexOf(level);
-}
-
-/**
- * Returns every CEFR level at or below `maxLevel` (inclusive), in ascending
- * order. Useful for building DB `difficulty IN (...)` filters that keep
- * level-appropriate articles without loading the whole corpus into memory.
- * Returns an empty array for an unknown level.
- */
-export function levelsAtOrBelow(maxLevel: DifficultyLevel): DifficultyLevel[] {
-  const max = levelRank(maxLevel);
-  if (max < 0) return [];
-  return DIFFICULTY_LEVELS.filter((_, i) => i <= max);
-}
+// Re-export shared CEFR primitives so existing callers continue to work.
+export { levelRank, levelsAtOrBelow, isDifficultyLevel };
 
 export type DifficultySource = "cache" | "ai" | "heuristic";
 
