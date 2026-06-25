@@ -35,6 +35,22 @@ export interface TextareaProps
   extends Omit<React.TextareaHTMLAttributes<HTMLTextAreaElement>, "size">,
     VariantProps<typeof textareaVariants> {}
 
+/**
+ * Multi-line text input (non-resizable by default).
+ *
+ * Keyboard: native `<textarea>` — Enter inserts a newline; Tab moves focus out.
+ * Focus: inline focus-visible ring (token-driven, AA-compliant).
+ * Accessibility: always pair with a `<Label>` via `<Field>` or explicit `htmlFor`/`id`.
+ *   Sets `aria-invalid` when `invalid=true`.
+ *
+ * Validation: `invalid` — switches border and focus ring to danger color.
+ *
+ * @example
+ * <Field label="Bio" error={errors.bio}>
+ *   <Textarea rows={4} invalid={!!errors.bio} />
+ * </Field>
+ */
+
 export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
   function Textarea({ invalid, className, ...props }, ref) {
     return (
