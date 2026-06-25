@@ -1,11 +1,11 @@
 import type { MetadataRoute } from "next";
+import { SITE_NAME, MANIFEST_DESCRIPTION } from "@/lib/copy/site";
 
 export default function manifest(): MetadataRoute.Manifest {
   return {
-    name: "ReadWise",
-    short_name: "ReadWise",
-    description:
-      "AI-assisted English learning reader with real news articles, CEFR leveling, translation, vocabulary, and narration.",
+    name: SITE_NAME,
+    short_name: SITE_NAME,
+    description: MANIFEST_DESCRIPTION,
     start_url: "/",
     display: "standalone",
     // Brand primary color from tokens.css: --primary: #4f46e5

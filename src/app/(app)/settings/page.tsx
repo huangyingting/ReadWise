@@ -15,10 +15,9 @@ import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
+import { settings } from "@/lib/copy/pages";
 
-export const metadata = {
-  title: "Settings — ReadWise",
-};
+export const metadata = settings;
 
 export default async function SettingsPage() {
   const session = await requireOnboardedSession("/settings");

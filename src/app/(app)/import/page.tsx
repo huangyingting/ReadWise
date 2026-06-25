@@ -10,10 +10,9 @@ import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import ImportForm from "./ImportForm";
 import PersonalImports from "./PersonalImports";
+import { importPage } from "@/lib/copy/pages";
 
-export const metadata: Metadata = {
-  title: "Import Article — ReadWise",
-};
+export const metadata: Metadata = importPage;
 
 export default async function ImportPage() {
   const session = await requireOnboardedSession("/import");

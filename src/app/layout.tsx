@@ -5,6 +5,14 @@ import Providers from "./providers";
 import ClientErrorReporter from "@/components/ClientErrorReporter";
 import ServiceWorkerRegister from "@/components/ServiceWorkerRegister";
 import OfflineSyncIndicator from "@/components/OfflineSyncIndicator";
+import {
+  TITLE_TEMPLATE,
+  SITE_DEFAULT_TITLE,
+  SITE_DESCRIPTION,
+  OG_TITLE,
+  OG_DESCRIPTION,
+  SITE_NAME,
+} from "@/lib/copy/site";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -40,23 +48,20 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: {
-    template: "%s | ReadWise",
-    default: "ReadWise — AI-Assisted English Learning Reader",
+    template: TITLE_TEMPLATE,
+    default: SITE_DEFAULT_TITLE,
   },
-  description:
-    "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, narration, and CEFR leveling. Learn English from real news.",
+  description: SITE_DESCRIPTION,
   openGraph: {
     type: "website",
-    siteName: "ReadWise",
-    title: "ReadWise — AI-Assisted English Learning Reader",
-    description:
-      "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration. Improve your English with real news.",
+    siteName: SITE_NAME,
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: "ReadWise — AI-Assisted English Learning Reader",
-    description:
-      "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration. Improve your English with real news.",
+    title: OG_TITLE,
+    description: OG_DESCRIPTION,
   },
   icons: {
     icon: "/icon.svg",
