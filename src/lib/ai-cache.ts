@@ -1,8 +1,9 @@
 /**
- * Shared cache-first AI lifecycle for per-article derived content.
+ * Shared cache-first AI lifecycle for per-article and selection-level features.
  *
- * Every AI helper that enriches a single article (translation, vocabulary, quiz,
- * tags, ...) follows the same lifecycle:
+ * ## Article-level features (translation, vocabulary, quiz, tags, …)
+ *
+ * Every AI helper that enriches a single article follows the same lifecycle:
  *
  *   1. Read a per-article cache row; on a hit, return it (no AI call).
  *   2. Load the article's text; if it doesn't exist, return null.
@@ -16,6 +17,21 @@
  * declare the parts that differ (cache shape, prompt, parser, persistence, and how
  * to build their public result). The "don't cache fallbacks" rule and the `feature`
  * plumbing live here so they can't drift between helpers.
+ *
+ * ## Selection-level features (sentence translation, grammar explanation, …)
+ *
+ * Features that operate on a selected text or phrase follow a parallel lifecycle:
+ *
+ *   1. Read the selection-level cache row; on a hit, return it.
+ *   2. If the AI provider is unconfigured, return a graceful fallback (NOT cached).
+ *   3. Call the AI provider; on failure return a graceful fallback (NOT cached).
+ *   4. Optionally validate/moderate the response; if rejected return a fallback
+ *      (NOT cached).
+ *   5. Persist and return the result.
+ *
+ * {@link getOrCreateSelectionAi} captures that flow. Article access enforcement is
+ * the caller's responsibility — call it only after verifying the article exists and
+ * the current user can access it.
  */
 
 import { prisma } from "@/lib/prisma";
@@ -204,4 +220,91 @@ export async function getOrCreateArticleAi<
 
   const stored = await spec.persist(articleId, parsed, article);
   return spec.toResult(stored, { cached: false });
+}
+
+/**
+ * Declares the feature-specific pieces of the shared cache-first AI lifecycle
+ * for selection-scoped (text/phrase-level) AI features such as sentence
+ * translation and grammar explanation.
+ *
+ * @typeParam TResult - the helper's public return value
+ */
+export type SelectionAiSpec<TResult> = {
+  /** Short label for structured AI logs (e.g. "sentence-translation", "grammar"). */
+  feature: string;
+  /** Prompt version recorded in the ledger; defaults from the feature name. */
+  promptVersion?: string;
+  /** Optional articleId for ledger metadata. */
+  articleId?: string;
+  /** Optional cap on output tokens for the provider call. */
+  maxOutputTokens?: number;
+  /** Reads the selection-level cache; return null to signal a miss. */
+  readCache: () => Promise<TResult | null>;
+  /**
+   * Calls the AI provider and returns the raw text response, or null on
+   * failure. Returning null signals a generation failure → graceful fallback,
+   * not cached.
+   */
+  generate: (callModel: CallModel) => Promise<string | null>;
+  /**
+   * Optional post-generation validation/moderation gate. Return false to
+   * reject the AI response → graceful fallback, not cached. Used to prevent
+   * unsafe or malformed free-text outputs from being persisted.
+   */
+  validate?: (text: string) => boolean;
+  /** Persists the validated text and returns the feature result. */
+  persist: (text: string) => Promise<TResult>;
+  /** Builds the graceful fallback result (never cached). */
+  fallback: () => TResult;
+};
+
+/**
+ * Runs the shared cache-first AI lifecycle for a selection-scoped feature.
+ *
+ * Flow: check cache → on miss call AI → validate → persist.
+ * Never caches failures, empty responses, or validation-rejected output.
+ *
+ * Article access enforcement is the caller's responsibility — call this only
+ * after verifying the article exists and the current user can access it.
+ */
+export async function getOrCreateSelectionAi<TResult>(
+  spec: SelectionAiSpec<TResult>,
+): Promise<TResult> {
+  const cached = await spec.readCache();
+  if (cached !== null) {
+    return cached;
+  }
+
+  if (!isAiConfigured()) {
+    return spec.fallback();
+  }
+
+  const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
+  const callModel: CallModel = (messages, override) => {
+    const options: {
+      feature: string;
+      promptVersion: string;
+      articleId?: string;
+      maxOutputTokens?: number;
+    } = { feature: spec.feature, promptVersion };
+    if (spec.articleId != null) {
+      options.articleId = spec.articleId;
+    }
+    const maxOutputTokens = override?.maxOutputTokens ?? spec.maxOutputTokens;
+    if (maxOutputTokens != null) {
+      options.maxOutputTokens = maxOutputTokens;
+    }
+    return chatComplete(messages, options);
+  };
+
+  const text = await spec.generate(callModel);
+  if (!text) {
+    return spec.fallback();
+  }
+
+  if (spec.validate && !spec.validate(text)) {
+    return spec.fallback();
+  }
+
+  return spec.persist(text);
 }

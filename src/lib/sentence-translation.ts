@@ -1,6 +1,5 @@
 import { createHash } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { isSupportedLanguage, languageLabel } from "@/lib/translation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import {
@@ -9,6 +8,7 @@ import {
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
 } from "@/lib/article-access";
+import { getOrCreateSelectionAi } from "@/lib/ai-cache";
 
 /** Maximum source text length accepted for sentence translation. */
 export const MAX_SENTENCE_CHARS = 1000;
@@ -60,17 +60,7 @@ export async function translateSentence(
     return null;
   }
 
-  // 1) Cache hit — the FK cascade guarantees the article still exists.
-  const cached = await prisma.sentenceTranslation.findUnique({
-    where: {
-      articleId_sourceHash_targetLang: { articleId, sourceHash, targetLang: lang },
-    },
-  });
-  if (cached) {
-    return { translation: cached.translation, fallback: false };
-  }
-
-  // 2) Verify the article exists (gives caller a proper 404 on miss).
+  // Verify the article exists (gives caller a proper 404 on miss).
   const article =
     allowedArticle ??
     (await prisma.article.findUnique({
@@ -79,31 +69,29 @@ export async function translateSentence(
     }));
   if (!article) return null;
 
-  // 3) AI unavailable → graceful fallback, nothing cached.
-  if (!isAiConfigured()) {
-    return { translation: null, fallback: true };
-  }
-
   const label = languageLabel(lang);
-  const completion = await chatComplete(
-    renderPrompt("sentence-translation", { label, text: normalized }),
-    {
-      maxOutputTokens: promptModelParams("sentence-translation").maxOutputTokens,
-      feature: "sentence-translation",
-      promptVersion: activePromptVersion("sentence-translation"),
-      articleId,
+
+  return getOrCreateSelectionAi<SentenceTranslationResult>({
+    feature: "sentence-translation",
+    promptVersion: activePromptVersion("sentence-translation"),
+    articleId,
+    maxOutputTokens: promptModelParams("sentence-translation").maxOutputTokens,
+    readCache: async () => {
+      const cached = await prisma.sentenceTranslation.findUnique({
+        where: {
+          articleId_sourceHash_targetLang: { articleId, sourceHash, targetLang: lang },
+        },
+      });
+      return cached ? { translation: cached.translation, fallback: false } : null;
     },
-  );
-
-  // 4) AI configured but request failed → graceful fallback, nothing cached.
-  if (!completion) {
-    return { translation: null, fallback: true };
-  }
-
-  // 5) Persist the new translation.
-  await prisma.sentenceTranslation.create({
-    data: { articleId, sourceHash, targetLang: lang, sourceText: normalized, translation: completion },
+    generate: (callModel) =>
+      callModel(renderPrompt("sentence-translation", { label, text: normalized })),
+    persist: async (completion) => {
+      await prisma.sentenceTranslation.create({
+        data: { articleId, sourceHash, targetLang: lang, sourceText: normalized, translation: completion },
+      });
+      return { translation: completion, fallback: false };
+    },
+    fallback: () => ({ translation: null, fallback: true }),
   });
-
-  return { translation: completion, fallback: false };
 }

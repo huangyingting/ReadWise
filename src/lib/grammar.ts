@@ -10,9 +10,9 @@
  * the cache.
  */
 import { prisma } from "@/lib/prisma";
-import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { moderateText } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
+import { getOrCreateSelectionAi } from "@/lib/ai-cache";
 
 export type GrammarResult = {
   explanation: string | null;
@@ -32,8 +32,9 @@ function normalizePhrase(phrase: string): string {
  *
  * 1. Checks the `GrammarExplanation` cache (articleId + normalised phrase).
  * 2. On a miss, calls the AI provider with a level-appropriate prompt.
- * 3. Caches and returns the result on success; returns a graceful fallback on
- *    failure / missing credentials.
+ * 3. Validates the response against the safety denylist.
+ * 4. Caches and returns the result on success; returns a graceful fallback on
+ *    failure, missing credentials, or a moderation rejection.
  */
 export async function explainGrammar(
   articleId: string,
@@ -46,49 +47,32 @@ export async function explainGrammar(
     return { explanation: null, fallback: true };
   }
 
-  // 1. Cache hit
-  const cached = await prisma.grammarExplanation.findUnique({
-    where: { articleId_phrase: { articleId, phrase: normalized } },
-  });
-  if (cached) {
-    return { explanation: cached.explanation, fallback: false };
-  }
-
-  // 2. AI generation
-  if (!isAiConfigured()) {
-    return { explanation: null, fallback: true };
-  }
-
   const ctx = contextSentence.trim().slice(0, MAX_CONTEXT_CHARS);
   const levelLabel = level || "B1";
 
-  const messages = renderPrompt("grammar", {
-    phrase,
-    context: ctx,
-    level: levelLabel,
-  });
-
-  const text = await chatComplete(messages, {
-    maxOutputTokens: promptModelParams("grammar").maxOutputTokens,
+  return getOrCreateSelectionAi<GrammarResult>({
     feature: "grammar",
     promptVersion: activePromptVersion("grammar"),
     articleId,
+    maxOutputTokens: promptModelParams("grammar").maxOutputTokens,
+    readCache: async () => {
+      const cached = await prisma.grammarExplanation.findUnique({
+        where: { articleId_phrase: { articleId, phrase: normalized } },
+      });
+      return cached ? { explanation: cached.explanation, fallback: false } : null;
+    },
+    generate: (callModel) =>
+      callModel(renderPrompt("grammar", { phrase, context: ctx, level: levelLabel })),
+    // Safety: don't cache or surface an unsafe explanation (RW-024).
+    validate: (text) => !moderateText(text).flagged,
+    persist: async (text) => {
+      await prisma.grammarExplanation.upsert({
+        where: { articleId_phrase: { articleId, phrase: normalized } },
+        create: { articleId, phrase: normalized, explanation: text },
+        update: { explanation: text },
+      });
+      return { explanation: text, fallback: false };
+    },
+    fallback: () => ({ explanation: null, fallback: true }),
   });
-  if (!text) {
-    return { explanation: null, fallback: true };
-  }
-
-  // Safety: don't cache or surface an unsafe explanation (RW-024).
-  if (moderateText(text).flagged) {
-    return { explanation: null, fallback: true };
-  }
-
-  // 3. Cache the result
-  await prisma.grammarExplanation.upsert({
-    where: { articleId_phrase: { articleId, phrase: normalized } },
-    create: { articleId, phrase: normalized, explanation: text },
-    update: { explanation: text },
-  });
-
-  return { explanation: text, fallback: false };
 }
