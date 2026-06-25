@@ -6,3 +6,10 @@ export * as observability from "@/lib/runtime-config/observability";
 export * as security from "@/lib/runtime-config/security";
 export * as analytics from "@/lib/runtime-config/analytics";
 export * as runtime from "@/lib/runtime-config/runtime";
+export type {
+  FeatureConfig,
+  ConfigIssue,
+  ConfigCheckStatus,
+  ConfigCheckReport,
+  RuntimeConfigReport,
+} from "@/lib/runtime-config/env";

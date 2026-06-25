@@ -1,6 +1,7 @@
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { pushConfig, validateRuntimeConfig } from "@/lib/config";
+import { pushConfig } from "@/lib/runtime-config/push";
+import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 const ENV_KEYS = [
   "DATABASE_URL",

@@ -6,7 +6,7 @@
 
 import { test, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
-import { validateRuntimeConfig } from "@/lib/config";
+import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 const STORAGE_ENV_KEYS = [
   "MEDIA_STORAGE",
