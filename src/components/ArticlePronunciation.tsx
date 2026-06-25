@@ -21,12 +21,7 @@
  *   active    — true when the Speak tab is the currently visible panel
  */
 
-// SDK types only — erased at compile time, never bundled for SSR.
-// Used for SpeechRecognitionResult in the recognizeOnceAsync callback.
-import type { SpeechRecognitionResult } from "microsoft-cognitiveservices-speech-sdk";
-
 import {
-  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -53,6 +48,13 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import { useAudioRangePlayback } from "@/components/reader/useAudioRangePlayback";
+import { useMicLevelMeter } from "@/components/reader/useMicLevelMeter";
+import { usePronunciationAssessment } from "@/components/reader/usePronunciationAssessment";
+import { usePronunciationHistory } from "@/components/reader/usePronunciationHistory";
+import { usePronunciationPersistence } from "@/components/reader/usePronunciationPersistence";
+import { useRecordingCountdown } from "@/components/reader/useRecordingCountdown";
+import { useSpeechToken } from "@/components/reader/useSpeechToken";
+import type { AssessResult, WordBand, WordResult } from "@/components/reader/pronunciationTypes";
 import {
   findSpeechSentenceRange,
   splitPracticeSentences,
@@ -78,39 +80,7 @@ type Phase =
   | "no-device"   // NotFoundError
   | "error";      // transient network/SDK error
 
-type WordBand = "good" | "fair" | "poor" | "omitted";
-
-interface WordResult {
-  word: string;
-  score: number;
-  errorType: string;
-  band: WordBand;
-}
-
-interface AssessResult {
-  accuracyScore: number;
-  fluencyScore: number;
-  completenessScore: number;
-  pronScore: number;
-  words: WordResult[];
-}
-
-interface SentenceHistory {
-  best: number | null;
-  last: number | null;
-}
-
-type SavedNote = "idle" | "saving" | "saved" | "failed";
-
 // ─── Utilities ────────────────────────────────────────────────────────────────
-
-/** Returns the band for a word given its accuracy score and error type. */
-function getWordBand(score: number, errorType: string): WordBand {
-  if (errorType === "Omission") return "omitted";
-  if (score >= 80) return "good";
-  if (score >= 60) return "fair";
-  return "poor";
-}
 
 /** One-word qualitative label for the overall score. */
 function scoreLabel(score: number): string {
@@ -434,35 +404,17 @@ export default function ArticlePronunciation({
   // ── Assessment result ─────────────────────────────────────────────────────
   const [result, setResult] = useState<AssessResult | null>(null);
 
-  // ── Mic level meter ───────────────────────────────────────────────────────
-  const [meterLevel, setMeterLevel] = useState(0); // 0–1
-  const analyserRef = useRef<AnalyserNode | null>(null);
-  const audioCtxRef = useRef<AudioContext | null>(null);
-  const meterStreamRef = useRef<MediaStream | null>(null);
-  const meterAnimRef = useRef<number | null>(null);
+  const { meterLevel, startMeter, stopMeter } = useMicLevelMeter();
+  const { runPronunciationAssessment, closeRecognizer } = usePronunciationAssessment();
+  const { rememberToken, fetchToken } = useSpeechToken();
+  const { secondsRemaining, startAutoStop, stopCountdown, cancelAutoStop } = useRecordingCountdown({
+    maxRecordMs: MAX_RECORD_MS,
+    countdownStartSeconds: COUNTDOWN_START_S,
+  });
+  const { sentenceHistory, loadHistory, addAttempt } = usePronunciationHistory(currentSentence);
+  const { savedNote, isNewBest, resetPersistence, persistAttempt } = usePronunciationPersistence();
 
-  // ── Recording / SDK ───────────────────────────────────────────────────────
-  // Stored as a duck-typed "closeable" to avoid bundling MSDK type at module level.
-  const recognizerRef = useRef<{ close: () => void } | null>(null);
   const hasFetchedToken = useRef(false);
-  const [tokenCache, setTokenCache] = useState<{ token: string; region: string } | null>(null);
-
-  // ── Countdown ─────────────────────────────────────────────────────────────
-  const [secondsRemaining, setSecondsRemaining] = useState<number | null>(null);
-  const autoStopTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const recordingStartRef = useRef<number>(0);
-
-  // ── Per-sentence history ──────────────────────────────────────────────────
-  const [allAttempts, setAllAttempts] = useState<
-    Array<{ referenceText: string; pronScore: number; createdAt: string }>
-  >([]);
-  const historyLoaded = useRef(false);
-
-  // ── Attempt persistence ───────────────────────────────────────────────────
-  const recordedRef = useRef(false);
-  const [savedNote, setSavedNote] = useState<SavedNote>("idle");
-  const [isNewBest, setIsNewBest] = useState(false);
 
   // ── "Hear it" range play cleanup ──────────────────────────────────────────
   const { playRange, stopRange } = useAudioRangePlayback(audio.audioRef);
@@ -503,9 +455,7 @@ export default function ArticlePronunciation({
       if (phase === "result" || phase === "recording" || phase === "processing") {
         setPhase("idle");
         setResult(null);
-        setSavedNote("idle");
-        setIsNewBest(false);
-        recordedRef.current = false;
+        resetPersistence();
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -517,8 +467,7 @@ export default function ArticlePronunciation({
       stopMeter();
       cancelAutoStop();
       stopRange();
-      recognizerRef.current?.close();
-      recognizerRef.current = null;
+      closeRecognizer();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stopRange]);
@@ -536,19 +485,6 @@ export default function ArticlePronunciation({
     stopRange({ pause: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, stopRange]);
-
-  // ── Per-sentence history derived from allAttempts ─────────────────────────
-  const sentenceHistory = useMemo<SentenceHistory>(() => {
-    if (allAttempts.length === 0 || !currentSentence) return { best: null, last: null };
-    const matching = allAttempts.filter(
-      (a) => a.referenceText.trim() === currentSentence.trim(),
-    );
-    if (matching.length === 0) return { best: null, last: null };
-    // newest-first from API → last = matching[0].pronScore
-    const last = matching[0].pronScore;
-    const best = Math.max(...matching.map((a) => a.pronScore));
-    return { best, last };
-  }, [allAttempts, currentSentence]);
 
   // ─────────────────────────────────────────────────────────────────────────
   // Core async handlers
@@ -569,52 +505,8 @@ export default function ArticlePronunciation({
       }
       return;
     }
-    setTokenCache({ token: tokenResult.token, region: tokenResult.region });
+    rememberToken(tokenResult.token, tokenResult.region);
     setPhase("idle");
-  }
-
-  type TokenResult =
-    | { status: "ok"; token: string; region: string }
-    | { status: "unconfigured" }
-    | { status: "transient"; message?: string };
-
-  async function fetchToken(): Promise<TokenResult> {
-    try {
-      const res = await fetch("/api/speech/token");
-      if (!res.ok) {
-        const msg =
-          res.status === 502
-            ? "Speech service is temporarily unavailable. Try again shortly."
-            : undefined;
-        return { status: "transient", message: msg };
-      }
-      const data = (await res.json()) as
-        | { configured: false }
-        | { configured: true; token: string; region: string }
-        | { configured: true; error: string };
-      if (!data.configured) return { status: "unconfigured" };
-      if ("error" in data) {
-        return { status: "transient", message: "Speech service is temporarily unavailable." };
-      }
-      return { status: "ok", token: data.token, region: data.region };
-    } catch {
-      return { status: "transient" };
-    }
-  }
-
-  async function loadHistory() {
-    if (historyLoaded.current) return;
-    historyLoaded.current = true;
-    try {
-      const res = await fetch("/api/pronunciation/history?limit=100");
-      if (!res.ok) return;
-      const data = (await res.json()) as {
-        attempts: Array<{ referenceText: string; pronScore: number; createdAt: string }>;
-      };
-      setAllAttempts(data.attempts ?? []);
-    } catch {
-      // Silent — history is best-effort context.
-    }
   }
 
   async function handleRecord() {
@@ -629,7 +521,7 @@ export default function ArticlePronunciation({
       }
       return;
     }
-    setTokenCache({ token: freshToken.token, region: freshToken.region });
+    rememberToken(freshToken.token, freshToken.region);
 
     // Pause any playing narration before recording.
     const audioEl = audio.audioRef.current;
@@ -639,19 +531,16 @@ export default function ArticlePronunciation({
 
     setPhase("recording");
     setResult(null);
-    setSavedNote("idle");
-    setIsNewBest(false);
-    recordedRef.current = false;
+    resetPersistence();
 
     // Start Web Audio level meter (separate getUserMedia — mic permission already
     // granted, browser reuses the device without a second dialog).
     await startMeter();
 
     // Start countdown + auto-stop safety timer.
-    startCountdown();
-    autoStopTimerRef.current = setTimeout(() => {
+    startAutoStop(() => {
       void stopRecording(true);
-    }, MAX_RECORD_MS);
+    });
 
     // Run assessment.
     try {
@@ -668,7 +557,13 @@ export default function ArticlePronunciation({
       setResult(assessment);
       setPhase("result");
       // Fire-and-forget persist.
-      void persistAttempt(assessment, currentSentence);
+      void persistAttempt({
+        articleId,
+        assessment,
+        referenceText: currentSentence,
+        priorBest: sentenceHistory.best,
+        onSaved: addAttempt,
+      });
     } catch (err) {
       cancelAutoStop();
       stopMeter();
@@ -689,132 +584,12 @@ export default function ArticlePronunciation({
     stopCountdown();
     stopMeter();
     if (!andProcess) {
-      recognizerRef.current?.close();
-      recognizerRef.current = null;
+      closeRecognizer();
       setPhase("idle");
       return;
     }
     // Allow the SDK's recognizeOnceAsync to resolve naturally after closing.
-    recognizerRef.current?.close();
-  }
-
-  /**
-   * Dynamically imports the Speech SDK (browser-only, never runs during SSR)
-   * and runs pronunciation assessment for the given sentence.
-   */
-  async function runPronunciationAssessment(
-    token: string,
-    region: string,
-    referenceText: string,
-  ): Promise<AssessResult> {
-    // Dynamic import — the only place the SDK is loaded at runtime.
-    const sdk = await import("microsoft-cognitiveservices-speech-sdk");
-
-    const speechConfig = sdk.SpeechConfig.fromAuthorizationToken(token, region);
-    speechConfig.speechRecognitionLanguage = "en-US";
-
-    const audioConfig = sdk.AudioConfig.fromDefaultMicrophoneInput();
-
-    const pronConfig = new sdk.PronunciationAssessmentConfig(
-      referenceText,
-      sdk.PronunciationAssessmentGradingSystem.HundredMark,
-      sdk.PronunciationAssessmentGranularity.Word,
-      true, // enableMiscue
-    );
-
-    const recognizer = new sdk.SpeechRecognizer(speechConfig, audioConfig);
-    pronConfig.applyTo(recognizer);
-
-    // Store for manual Stop.
-    recognizerRef.current = recognizer;
-
-    return new Promise<AssessResult>((resolve, reject) => {
-      recognizer.recognizeOnceAsync(
-        (speechResult: SpeechRecognitionResult) => {
-          recognizerRef.current = null;
-          try {
-            recognizer.close();
-          } catch { /* ignore close errors */ }
-
-          const assessment = sdk.PronunciationAssessmentResult.fromResult(speechResult);
-          if (!assessment) {
-            reject(new Error("No assessment data in result"));
-            return;
-          }
-
-          const detailWords = assessment.detailResult?.Words ?? [];
-          const wordResults: WordResult[] = detailWords.map(
-            // SDK's WordResult type is not exported; use unknown cast.
-            (w: unknown) => {
-              const wd = w as {
-                Word: string;
-                PronunciationAssessment?: { AccuracyScore: number; ErrorType: string };
-              };
-              const score = wd.PronunciationAssessment?.AccuracyScore ?? 100;
-              const errorType = wd.PronunciationAssessment?.ErrorType ?? "None";
-              return {
-                word: wd.Word,
-                score: Math.round(score),
-                errorType,
-                band: getWordBand(score, errorType),
-              };
-            },
-          );
-
-          resolve({
-            accuracyScore: Math.round(assessment.accuracyScore),
-            fluencyScore: Math.round(assessment.fluencyScore),
-            completenessScore: Math.round(assessment.completenessScore),
-            pronScore: Math.round(assessment.pronunciationScore),
-            words: wordResults,
-          });
-        },
-        (err: string | Error) => {
-          recognizerRef.current = null;
-          try { recognizer.close(); } catch { /* ignore */ }
-          const msg = typeof err === "string" ? err : (err?.message ?? "Recognition failed");
-          reject(new Error(msg));
-        },
-      );
-    });
-  }
-
-  async function persistAttempt(a: AssessResult, refText: string) {
-    if (recordedRef.current) return;
-    recordedRef.current = true;
-    setSavedNote("saving");
-
-    // Capture prior best for "New best!" detection.
-    const priorBest = sentenceHistory.best;
-
-    try {
-      const res = await fetch("/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          referenceText: refText,
-          accuracyScore: a.accuracyScore,
-          fluencyScore: a.fluencyScore,
-          completenessScore: a.completenessScore,
-          pronScore: a.pronScore,
-          articleId,
-        }),
-      });
-      if (!res.ok) throw new Error("save failed");
-
-      const data = (await res.json()) as { attempt: { referenceText: string; pronScore: number; createdAt: string } };
-      setSavedNote("saved");
-
-      // Prepend new attempt to local history for instant per-sentence update.
-      setAllAttempts((prev) => [data.attempt, ...prev]);
-
-      // "New best!" detection.
-      if (priorBest === null || a.pronScore > priorBest) {
-        setIsNewBest(true);
-      }
-    } catch {
-      setSavedNote("failed");
-    }
+    closeRecognizer();
   }
 
   // ─── "Hear it" ────────────────────────────────────────────────────────────
@@ -839,81 +614,6 @@ export default function ArticlePronunciation({
     playRange(range);
   }
 
-  // ─── Level meter ──────────────────────────────────────────────────────────
-
-  async function startMeter() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      meterStreamRef.current = stream;
-      const ctx = new AudioContext();
-      audioCtxRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
-      const analyser = ctx.createAnalyser();
-      analyser.fftSize = 256;
-      source.connect(analyser);
-      analyserRef.current = analyser;
-      const buf = new Uint8Array(analyser.frequencyBinCount);
-
-      function tick() {
-        analyser.getByteTimeDomainData(buf);
-        let sum = 0;
-        for (const v of buf) {
-          const n = (v - 128) / 128;
-          sum += n * n;
-        }
-        const rms = Math.sqrt(sum / buf.length);
-        setMeterLevel(Math.min(1, rms * 5));
-        meterAnimRef.current = requestAnimationFrame(tick);
-      }
-      meterAnimRef.current = requestAnimationFrame(tick);
-    } catch {
-      // Meter unavailable — degrade gracefully (just no meter visuals).
-    }
-  }
-
-  function stopMeter() {
-    if (meterAnimRef.current !== null) {
-      cancelAnimationFrame(meterAnimRef.current);
-      meterAnimRef.current = null;
-    }
-    audioCtxRef.current?.close().catch(() => {/* ignore */});
-    audioCtxRef.current = null;
-    analyserRef.current = null;
-    meterStreamRef.current?.getTracks().forEach((t) => t.stop());
-    meterStreamRef.current = null;
-    setMeterLevel(0);
-  }
-
-  // ─── Countdown ────────────────────────────────────────────────────────────
-
-  function startCountdown() {
-    recordingStartRef.current = Date.now();
-    countdownIntervalRef.current = setInterval(() => {
-      const elapsed = Date.now() - recordingStartRef.current;
-      const remaining = Math.ceil((MAX_RECORD_MS - elapsed) / 1000);
-      if (remaining <= COUNTDOWN_START_S) {
-        setSecondsRemaining(Math.max(0, remaining));
-      }
-      if (remaining <= 0) stopCountdown();
-    }, 500);
-  }
-
-  function stopCountdown() {
-    if (countdownIntervalRef.current !== null) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
-    setSecondsRemaining(null);
-  }
-
-  function cancelAutoStop() {
-    if (autoStopTimerRef.current !== null) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
-    stopCountdown();
-  }
-
   // ─── Sentence navigation ──────────────────────────────────────────────────
 
   function goPrev() {
@@ -928,9 +628,7 @@ export default function ArticlePronunciation({
   function handleRecordAgain() {
     setResult(null);
     setPhase("idle");
-    setSavedNote("idle");
-    setIsNewBest(false);
-    recordedRef.current = false;
+    resetPersistence();
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1207,7 +905,7 @@ export default function ArticlePronunciation({
                 setErrorMsg(null);
                 // Re-fetch a fresh token on retry.
                 const t = await fetchToken();
-                if (t.status === "ok") setTokenCache({ token: t.token, region: t.region });
+                if (t.status === "ok") rememberToken(t.token, t.region);
               }}
             >
               Retry
