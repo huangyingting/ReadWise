@@ -4,10 +4,9 @@ import { getProfile, isOnboarded, parseTopics } from "@/lib/profile";
 import { Wordmark } from "@/components/marketing/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import OnboardingForm from "./OnboardingForm";
+import { onboarding } from "@/lib/copy/pages";
 
-export const metadata = {
-  title: "Welcome — ReadWise",
-};
+export const metadata = onboarding;
 
 export default async function OnboardingPage() {
   const session = await requireSession("/onboarding");

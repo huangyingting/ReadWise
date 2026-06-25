@@ -6,10 +6,9 @@ import { listTagsWithCounts } from "@/lib/tags";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import EmptyState from "@/components/EmptyState";
+import { tags } from "@/lib/copy/pages";
 
-export const metadata: Metadata = {
-  title: "Tags",
-};
+export const metadata: Metadata = tags;
 
 export default async function TagsPage() {
   await requireSession("/tags");

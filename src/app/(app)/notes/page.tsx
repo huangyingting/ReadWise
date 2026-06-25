@@ -10,8 +10,9 @@ import ReferrerLink from "@/components/ReferrerLink";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
+import { notes } from "@/lib/copy/pages";
 
-export const metadata = { title: "Notes & Highlights — ReadWise" };
+export const metadata = notes;
 
 // Map colour label → CSS custom-highlight colour token (graceful fallback)
 const COLOR_DOT: Record<string, string> = {

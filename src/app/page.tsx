@@ -18,12 +18,9 @@ import { MockReaderCard } from "@/components/marketing/MockReaderCard";
 import { FeatureCard } from "@/components/marketing/FeatureCard";
 import { StepCard } from "@/components/marketing/StepCard";
 import { Reveal } from "@/components/marketing/Reveal";
+import { landing } from "@/lib/copy/pages";
 
-export const metadata: Metadata = {
-  title: "ReadWise — Learn English from Real News",
-  description:
-    "AI-powered English learning reader. Real articles from NBC News, National Geographic, Time, and HuffPost — with dictionary, translation, vocabulary, quizzes, narration, and CEFR leveling.",
-};
+export const metadata: Metadata = landing;
 
 const CONTAINER =
   "mx-auto max-w-[1200px] px-[clamp(var(--space-6),5vw,var(--space-8))]";

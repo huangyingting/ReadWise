@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { privacy } from "@/lib/copy/pages";
 
-export const metadata: Metadata = {
-  title: "Privacy Policy",
-  description: "ReadWise Privacy Policy — how we collect, use, and protect your data.",
-};
+export const metadata: Metadata = privacy;
 
 export default function PrivacyPage() {
   return (

@@ -18,6 +18,7 @@ import {
   DEFAULT_REMINDER_PREFERENCE,
   type ReminderPreference,
 } from "@/lib/reminder-preferences";
+import { reminder as reminderCopy } from "@/lib/copy/push";
 
 const log = createLogger("push");
 
@@ -321,13 +322,10 @@ export async function sendDueReminders(): Promise<ReminderResult> {
 
     const count = dueCountMap.get(userId) ?? 0;
     const payload: PushPayload = {
-      title: "Time to review! 📚",
-      body:
-        count === 1
-          ? "You have 1 word due for review in ReadWise."
-          : `You have ${count} words due for review in ReadWise.`,
-      url: "/study",
-      icon: "/icons/icon-192.png",
+      title: reminderCopy.title,
+      body: reminderCopy.body(count),
+      url: reminderCopy.url,
+      icon: reminderCopy.icon,
     };
     const delivered = await sendToSubs(subsByUser.get(userId) ?? [], JSON.stringify(payload));
     if (delivered > 0) result.sent++;
