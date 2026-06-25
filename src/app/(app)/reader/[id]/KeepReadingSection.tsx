@@ -7,8 +7,7 @@
  */
 import type { Article, ReadingProgress } from "@prisma/client";
 import ArticleCard from "@/components/ArticleCard";
-import ListingProgressSync from "@/components/ListingProgressSync";
-import ListingBookmarkSync from "@/components/ListingBookmarkSync";
+import ListingSync from "@/components/ListingSync";
 
 type Props = {
   articles: Article[];
@@ -54,8 +53,7 @@ export default function KeepReadingSection({
           );
         })}
       </div>
-      <ListingProgressSync articleIds={articles.map((a) => a.id)} />
-      <ListingBookmarkSync articleIds={articles.map((a) => a.id)} />
+      <ListingSync articleIds={articles.map((a) => a.id)} />
     </section>
   );
 }

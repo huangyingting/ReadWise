@@ -1,11 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback } from "react";
 import type { ListingArticle } from "@/lib/articles";
 import type { ProgressSummary } from "@/lib/progress";
 import ArticleCardView from "@/components/ArticleCardView";
-import ListingProgressSync from "@/components/ListingProgressSync";
+import ListingSync from "@/components/ListingSync";
 import { Button } from "@/components/ui/Button";
+import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
 type ImportsResponse = {
   articles?: ListingArticle[];
@@ -31,43 +32,25 @@ export default function PersonalImports({
   initialHasMore: boolean;
   initialOffset: number;
 }) {
-  const [articles, setArticles] = useState<ListingArticle[]>(initialArticles);
-  const [progress, setProgress] =
-    useState<Record<string, ProgressSummary>>(initialProgress);
-  const [offset, setOffset] = useState<number>(initialOffset);
-  const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
-  const [loading, setLoading] = useState<boolean>(false);
-  const [loadError, setLoadError] = useState<string | null>(null);
-  const loadingRef = useRef(false);
-
-  const loadMore = useCallback(async () => {
-    if (loadingRef.current || !hasMore) return;
-    loadingRef.current = true;
-    setLoading(true);
-    setLoadError(null);
-    try {
-      const params = new URLSearchParams({ offset: String(offset) });
+  const fetchPage = useCallback(
+    async (nextOffset: number): Promise<ImportsResponse> => {
+      const params = new URLSearchParams({ offset: String(nextOffset) });
       const res = await fetch(`/api/articles/import?${params.toString()}`);
-      if (!res.ok) {
-        setLoadError("Couldn't load more imports — please try again.");
-        return;
-      }
-      const data = (await res.json()) as ImportsResponse;
-      const next = data.articles ?? [];
-      setArticles((prev) => {
-        const seen = new Set(prev.map((a) => a.id));
-        return [...prev, ...next.filter((a) => !seen.has(a.id))];
-      });
-      setProgress((prev) => ({ ...prev, ...(data.progress ?? {}) }));
-      setOffset(data.offset ?? offset + next.length);
-      setHasMore(Boolean(data.hasMore));
-    } catch {
-      setLoadError("Couldn't load more imports — please try again.");
-    } finally {
-      loadingRef.current = false;
-      setLoading(false);
-    }
-  }, [offset, hasMore]);
+      if (!res.ok) throw new Error("fetch failed");
+      return (await res.json()) as ImportsResponse;
+    },
+    [],
+  );
+
+  const { articles, progress, hasMore, loading, loadError, loadMore } =
+    useLoadMoreList({
+      initialArticles,
+      initialProgress,
+      initialHasMore,
+      initialOffset,
+      fetchPage,
+      errorMessage: "Couldn't load more imports — please try again.",
+    });
 
   if (articles.length === 0) return null;
 
@@ -100,14 +83,14 @@ export default function PersonalImports({
             variant="secondary"
             size="md"
             loading={loading}
-            onClick={() => void loadMore()}
+            onClick={() => loadMore()}
           >
             {loadError ? "Retry" : "Load more"}
           </Button>
         </div>
       ) : null}
 
-      <ListingProgressSync articleIds={articles.map((a) => a.id)} />
+      <ListingSync articleIds={articles.map((a) => a.id)} />
     </section>
   );
 }
