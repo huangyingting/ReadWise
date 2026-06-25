@@ -14,7 +14,7 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 import { htmlToPlainText } from "@/lib/translation";
 import { getArticleListMembership } from "@/lib/bookmarks";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
 import { CEFR_LEVELS, type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderProgress from "@/components/ReaderProgress";

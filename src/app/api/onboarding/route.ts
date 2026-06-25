@@ -3,7 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
 import { parseProfileInput, type ProfileInput } from "@/lib/profile";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {

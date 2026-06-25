@@ -32,7 +32,7 @@ import {
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
 import { clientIp } from "@/lib/client-ip";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 /** Max personal imports per user per calendar day. */
 const DAILY_IMPORT_LIMIT = 5;

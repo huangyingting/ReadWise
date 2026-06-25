@@ -1067,7 +1067,7 @@ export function analyticsEnabled(): boolean {
 }
 
 /**
- * Retention window (in days) for {@link import("@/lib/analytics").pruneOldEvents}.
+ * Retention window (in days) for {@link import("@/lib/analytics/events").pruneOldEvents}.
  * Analytics events older than this are eligible for deletion. Defaults to 400
  * days (~13 months, enough for year-over-year + cohort analysis). Set via
  * `ANALYTICS_RETENTION_DAYS`.

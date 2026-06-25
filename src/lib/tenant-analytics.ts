@@ -16,7 +16,7 @@
  *   - system admin → everything, unredacted.
  *
  * Data retention & export: per-event retention/erasure is enforced by
- * `@/lib/analytics` (`pruneOldEvents`, `deleteEventsForUser`). Class analytics
+ * `@/lib/analytics/events` (`pruneOldEvents`, `deleteEventsForUser`). Class analytics
  * are DERIVED (computed on read from AssignmentCompletion), so erasing a learner
  * removes them from aggregates automatically once their rows cascade-delete.
  *

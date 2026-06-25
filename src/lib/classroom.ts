@@ -12,7 +12,7 @@
  *   - A classroom's own teacher manages that classroom.
  *   - Students only receive assignments and report their own completion.
  *
- * Aggregated, privacy-aware class analytics live in `@/lib/tenant-analytics`;
+ * Aggregated, privacy-aware class analytics live in `@/lib/analytics/tenant`;
  * this module owns the CRUD + raw progress fetch they build on.
  */
 import {

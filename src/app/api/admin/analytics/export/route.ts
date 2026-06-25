@@ -7,7 +7,7 @@ import {
   getRetentionCohorts,
   resolveTimeRange,
   type AnalyticsSegment,
-} from "@/lib/analytics-queries";
+} from "@/lib/analytics/product";
 
 type ExportQuery = {
   format: "csv" | "json";

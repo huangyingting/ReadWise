@@ -4,7 +4,7 @@ import { object, nonEmptyString, optional, string } from "@/lib/validation";
 import { saveWord } from "@/lib/vocabulary";
 import { recordWordExposure } from "@/lib/word-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const bodySchema = object({
   word: nonEmptyString(200),

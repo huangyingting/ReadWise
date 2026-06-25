@@ -1,6 +1,6 @@
 import { TrendingUp, BookOpen, Zap, Star, Brain, BookMarked } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { getLearnerAnalytics } from "@/lib/learner-analytics";
+import { getLearnerAnalytics } from "@/lib/analytics/learner";
 import { getActivityHeatmap } from "@/lib/activity";
 import { getLevelHistory, getCurrentLevel } from "@/lib/progress-helpers";
 import { getReadingSpeedStats } from "@/lib/reading-speed-stats";

@@ -1,5 +1,5 @@
 import { Card } from "@/components/ui/Card";
-import type { RetentionCohort } from "@/lib/analytics-queries";
+import type { RetentionCohort } from "@/lib/analytics/product";
 
 /**
  * Weekly retention cohort grid. Each row is a cohort (users grouped by the week
