@@ -1,7 +1,6 @@
 import { requireOnboardedSession } from "@/lib/session";
-import { getFilteredSavedWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
-import { prisma } from "@/lib/prisma";
-import { articleAccessContext, readableArticleWhere } from "@/lib/article-access";
+import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
+import { articleAccessContext } from "@/lib/article-access";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/Button";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
@@ -43,16 +42,7 @@ export default async function StudyWordsPage({
     ...new Set(result.words.map((w) => w.articleId).filter(Boolean) as string[]),
   ];
 
-  const articles: Record<string, string> = {};
-  if (articleIds.length > 0) {
-    const rows = await prisma.article.findMany({
-      where: readableArticleWhere(context, { id: { in: articleIds } }),
-      select: { id: true, title: true },
-    });
-    for (const row of rows) {
-      articles[row.id] = row.title;
-    }
-  }
+  const articles = await getArticleTitlesForWords(articleIds, context);
 
   const initial = {
     words: result.words.map((w) => ({

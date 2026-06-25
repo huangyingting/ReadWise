@@ -1,3 +1,10 @@
+/**
+ * Session guards — page-level auth helpers.
+ *
+ * @server-only — Must never be imported from a "use client" file.
+ * For server components and RSC-aware pages/layouts only.
+ * See docs/refactoring.md § REF-076.
+ */
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { isUserOnboarded } from "@/lib/profile";

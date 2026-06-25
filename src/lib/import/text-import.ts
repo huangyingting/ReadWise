@@ -22,7 +22,6 @@ export const MAX_TEXT_BYTES = 200_000;
  * full `$transaction` signature and keeps the dep type easy to stub in tests.
  */
 type ImportDb = {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   $transaction<R>(fn: (tx: any) => Promise<R>): Promise<R>;
 };
 

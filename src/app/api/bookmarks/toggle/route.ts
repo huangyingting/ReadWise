@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
+import { throwIfFailed } from "@/lib/result";
 import { toggleBookmark } from "@/lib/bookmarks";
 import { toggleBookmarkBody } from "@/lib/bookmarks/schemas";
 
@@ -10,6 +11,6 @@ import { toggleBookmarkBody } from "@/lib/bookmarks/schemas";
  */
 export const POST = createHandler({ body: toggleBookmarkBody }, async ({ body, session }) => {
   const result = await toggleBookmark(session.user.id, body.articleId, session.user.role);
-  if (!result.ok) throw new ApiError(result.status, result.error);
+  throwIfFailed(result);
   return NextResponse.json({ bookmarked: result.bookmarked });
 });

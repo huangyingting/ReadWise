@@ -229,6 +229,23 @@ export async function deleteArticle(
   });
 }
 
+/**
+ * Returns the distinct processing-status values visible to the given access
+ * context, sorted alphabetically. Used to populate the status filter dropdown
+ * on the admin articles listing page.
+ */
+export async function getAdminArticleStatuses(
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
+): Promise<string[]> {
+  const rows = await prisma.article.findMany({
+    where: adminVisibleArticleWhere(context),
+    distinct: ["status"],
+    select: { status: true },
+    orderBy: { status: "asc" },
+  });
+  return rows.map((r) => r.status);
+}
+
 export type RebuildResult = {
   cleared: AdminArticleAiCounts;
 };
