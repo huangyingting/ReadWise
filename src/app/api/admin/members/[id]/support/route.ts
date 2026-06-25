@@ -8,7 +8,7 @@ import {
   exportMemberData,
   triggerMemberRepair,
   resendSignInHelp,
-} from "@/lib/admin-member-detail";
+} from "@/lib/account-lifecycle";
 
 const SUPPORT_ACTIONS = ["revoke_sessions", "export", "repair", "resend_help"] as const;
 type SupportAction = (typeof SUPPORT_ACTIONS)[number];

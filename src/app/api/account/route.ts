@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { deleteOwnAccount } from "@/lib/account";
+import { deleteOwnAccount } from "@/lib/account-lifecycle";
 import { AUDIT_ACTIONS } from "@/lib/audit";
 
 export const DELETE = createHandler({}, async ({ req, session, requestId }) => {
