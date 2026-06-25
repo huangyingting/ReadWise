@@ -1,13 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { idParams, object, number } from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/article-mastery";
-import { clampActiveTime, MAX_ACTIVE_TIME_MS } from "@/lib/reading-speed";
-
-const bodySchema = object({
-  activeMs: number({ min: 0, max: MAX_ACTIVE_TIME_MS }),
-});
+import { clampActiveTime } from "@/lib/reading-speed";
+import { readingTimeBody } from "@/lib/reader/schemas";
 
 /**
  * POST /api/reader/[id]/reading-time (#378)
@@ -23,7 +20,7 @@ const bodySchema = object({
  * Errors:  401 (unauthenticated) · 404 (article not found / access denied)
  */
 export const POST = createHandler(
-  { params: idParams, body: bodySchema },
+  { params: idParams, body: readingTimeBody },
   async ({ params, body, session }) => {
     await requireReadableArticle(params.id, session.user);
 

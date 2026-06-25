@@ -1,12 +1,8 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { isPushConfigured } from "@/lib/push";
 import { checkRateLimit } from "@/lib/rate-limit";
-
-const unsubscribeBody = object({
-  endpoint: nonEmptyString(2048),
-});
+import { unsubscribeBody } from "@/lib/push/schemas";
 
 /**
  * POST /api/push/unsubscribe
