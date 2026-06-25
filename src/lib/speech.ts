@@ -326,10 +326,19 @@ export async function getOrCreateArticleSpeech(
       await prisma.articleSpeech.delete({ where: { articleId } });
       return getOrCreateArticleSpeech(articleId, context);
     }
+    const articleForReaderText =
+      allowedArticle ??
+      (await prisma.article.findUnique({
+        where: { id: articleId },
+        select: { content: true },
+      }));
+    const plainText = articleForReaderText?.content
+      ? htmlToPlainText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
+      : cached.plainText;
     return {
       audio: await resolveStoredAudioUrl(cached),
       mimeType: cached.mimeType,
-      plainText: cached.plainText,
+      plainText,
       words,
       voice: cached.voice,
       cached: true,

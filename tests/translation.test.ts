@@ -65,10 +65,14 @@ beforeEach(() => {
 });
 
 test("htmlToPlainText / language helpers", async () => {
-  const { htmlToPlainText, isSupportedLanguage, languageLabel } = await import(
+  const { articleHtmlToReaderText, htmlToPlainText, isSupportedLanguage, languageLabel } = await import(
     "@/lib/translation"
   );
   assert.equal(htmlToPlainText("<p>Hello</p><p>World</p>"), "Hello World");
+  assert.equal(
+    articleHtmlToReaderText('<p>Read <a href="https://example.com/path">the source</a>.</p>'),
+    "Read the source.",
+  );
   assert.equal(isSupportedLanguage("es"), true);
   assert.equal(isSupportedLanguage("zz"), false);
   assert.equal(languageLabel("es"), "Spanish");

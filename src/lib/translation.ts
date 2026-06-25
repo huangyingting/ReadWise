@@ -4,7 +4,7 @@ import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-access";
-import TurndownService from "turndown";
+import { sanitizeArticleHtml } from "@/lib/sanitize";
 import {
   languageLabel,
   isSupportedLanguage,
@@ -14,13 +14,6 @@ import {
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
 
-const htmlToMarkdownService = new TurndownService({
-  headingStyle: "atx",
-});
-
-htmlToMarkdownService.remove("script");
-htmlToMarkdownService.remove("style");
-
 export type TranslationResult = {
   lang: string;
   languageLabel: string;
@@ -29,30 +22,50 @@ export type TranslationResult = {
   fallback: boolean;
 };
 
+function decodeHtmlEntities(input: string): string {
+  return input
+    .replace(/&#x([0-9a-f]+);/gi, (_, hex: string) => {
+      try {
+        return String.fromCodePoint(parseInt(hex, 16));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&#(\d+);/g, (_, dec: string) => {
+      try {
+        return String.fromCodePoint(parseInt(dec, 10));
+      } catch {
+        return "";
+      }
+    })
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
 /**
- * Converts stored article HTML into the canonical ReadWise plain-text form.
+ * Converts stored article HTML into the canonical reader text basis.
  *
- * This intentionally uses the canonical stripHtml pipeline so
- * articlePlainText, TTS generation/import, dictation, pronunciation and AI
- * processing all share one text basis instead of maintaining parallel HTML
- * cleanup implementations.
+ * This intentionally mirrors the sanitized reader prose's visible text rather
+ * than Turndown/Markdown output. TTS, dictation, pronunciation, highlight
+ * anchoring and reader tools should share this DOM-like text basis so speech
+ * word-boundary alignment maps back to the actual reader content.
  */
+export function articleHtmlToReaderText(html: string): string {
+  return decodeHtmlEntities(sanitizeArticleHtml(html).replace(/<[^>]*>/g, " "))
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?%\)\]\}])/g, "$1")
+    .replace(/([\(\[\{])\s+/g, "$1")
+    .trim();
+}
+
+/** Backwards-compatible name for the canonical reader text converter. */
 export function htmlToPlainText(html: string): string {
-  try {
-    const markdown = htmlToMarkdownService.turndown(html);
-    return markdown
-      .replace(/```[\s\S]*?```/g, " ")
-      .replace(/`[^`]*`/g, " ")
-      .replace(/!\[[^\]]*]\([^)]+\)/g, " ")
-      .replace(/\[([^\]]+)]\([^)]+\)/g, "$1")
-      .replace(/^#+\s+/gm, "")
-      .replace(/^[\s]*[-+*]\s+/gm, "")
-      .replace(/[*_~`>]/g, " ")
-      .replace(/\s+/g, " ")
-      .trim();
-  } catch {
-    return html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
-  }
+  return articleHtmlToReaderText(html);
 }
 
 function fallbackText(label: string): string {
