@@ -106,7 +106,7 @@ type _AssertActiveRolesMatchPrisma = Expect<Equals<ActiveRole, PrismaRoleName>>;
  * Trusted non-user principal used by server/CLI contexts (e.g. the article
  * processing pipeline). It is NOT stored in the DB and is never assigned to a
  * sign-in; it simply grants full capability to system automation. Mirrors the
- * `"System"` role already used by `@/lib/article-access`.
+ * `"System"` role used by `@/lib/article-library` access policy helpers.
  */
 export const SYSTEM_ROLE = "System" as const;
 
@@ -262,7 +262,7 @@ export function isKnownRole(role: string | null | undefined): role is RoleName {
 
 /**
  * Resolves the capability set granted to a role. Unknown roles resolve to no
- * capabilities (deny-by-default), so a malformed/legacy role string can never
+ * capabilities (deny-by-default), so a malformed or stale role string can never
  * accidentally escalate.
  */
 export function capabilitiesForRole(

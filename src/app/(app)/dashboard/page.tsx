@@ -1,5 +1,5 @@
 import { requireOnboardedSession } from "@/lib/session";
-import { isDifficultyLevel } from "@/lib/difficulty";
+import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import LevelRecommendationBanner from "@/components/LevelRecommendationBanner";
 import DashboardWelcomeBanner from "@/components/DashboardWelcomeBanner";
 import { PageShell } from "@/components/shell/PageShell";

@@ -4,8 +4,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ENGLISH_LEVELS } from "@/lib/profile";
-import { levelRank } from "@/lib/difficulty";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
+import { levelRank } from "@/lib/leveling/cefr-primitives";
 
 // ---- ENGLISH_LEVELS ordering ────────────────────────────────────────────
 

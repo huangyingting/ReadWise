@@ -6,7 +6,6 @@
  *   - Onboarding flow (src/app/onboarding/)
  *   - Profile settings form (src/app/(app)/settings/)
  *   - Profile API routes (src/app/api/profile/, src/app/api/onboarding/)
- *     — via re-exports in src/lib/profile.ts for backward compatibility
  *
  * Reminder preferences and reader display preferences (font size, theme, TTS)
  * are intentionally kept separate: see src/components/ReminderPreferencesForm.tsx

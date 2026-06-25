@@ -74,6 +74,10 @@ before(() => {
   mock.module("@/lib/vocabulary", {
     namedExports: {
       getOrCreateArticleVocabulary: async () => vocabularyResult,
+    },
+  });
+  mock.module("@/lib/lexical/saved-words", {
+    namedExports: {
       saveWord: async (_userId: string, entry: unknown) => {
         lastSavedWord = entry;
       },

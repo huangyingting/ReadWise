@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { parseProfileInput, parseTopics, isOnboarded } from "@/lib/profile";
+import { parseProfileInput, parseTopics } from "@/features/profile-preferences/schema";
+import { isOnboarded } from "@/features/profile-preferences/repository";
 
 test("parseProfileInput requires a valid English level", () => {
   assert.equal(parseProfileInput({}).ok, false);

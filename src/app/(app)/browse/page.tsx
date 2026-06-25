@@ -5,11 +5,13 @@ import {
   toListingArticle,
   type ListingArticle,
 } from "@/lib/article-library";
-import { listScoredPicksPage } from "@/lib/recommendations";
+import { listScoredPicksPage } from "@/lib/recommendations/picks";
 import { getProgressSummaries } from "@/lib/progress";
-import { getProfile, parseTopics, ENGLISH_LEVELS } from "@/lib/profile";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
+import { getProfile } from "@/features/profile-preferences/repository";
+import { parseTopics } from "@/features/profile-preferences/schema";
 import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
-import { isDifficultyLevel } from "@/lib/difficulty";
+import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import CategoryBrowser from "@/components/CategoryBrowser";
 import { PageShell } from "@/components/shell/PageShell";

@@ -20,17 +20,9 @@
  *
  * No prompt or response *content* ever leaves this layer except as the returned
  * assistant text; errors carry only low-cardinality metadata.
- *
- * Error classification helpers ({@link classifyHttpStatus}, {@link classifyThrownError},
- * {@link parseRetryAfterMs}) and the {@link AiErrorKind} type have moved to
- * `@/lib/ai/output/error-classifier` (REF-067); they are re-exported here for
- * backward compatibility.
  */
 
-// Re-export error classification from the AI output package (REF-067).
 import type { AiErrorKind } from "./output/error-classifier";
-export type { AiErrorKind } from "./output/error-classifier";
-export { classifyHttpStatus, classifyThrownError, parseRetryAfterMs } from "./output/error-classifier";
 
 /** A single chat message exchanged with a model. */
 export type AiChatMessage = {

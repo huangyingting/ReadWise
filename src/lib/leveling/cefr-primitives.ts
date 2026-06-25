@@ -6,10 +6,6 @@
  * from the option-registries (REF-084); this module adds the COMPUTATION layer
  * so that `difficulty.ts`, `placement.ts`, and the leveling subsystem can share
  * the same rank arithmetic without each defining its own level array.
- *
- * Consumers that currently import `levelRank`, `levelsAtOrBelow`, or
- * `isDifficultyLevel` from `@/lib/difficulty` may switch to importing from
- * here; `difficulty.ts` re-exports them for backward compatibility.
  */
 
 import {

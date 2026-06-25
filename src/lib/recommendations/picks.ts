@@ -8,7 +8,8 @@
  */
 
 import type { Prisma } from "@prisma/client";
-import { levelsAtOrBelow, type DifficultyLevel } from "@/lib/difficulty";
+import type { DifficultyLevel } from "@/lib/difficulty";
+import { levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
 import {
   toListingArticle,
   readingMinutesFor,
@@ -128,8 +129,8 @@ export async function scoreAndRankArticles(
 /**
  * Personalized, transparently-scored "Picks" feed. Fetches a cached candidate
  * set (optionally capped at `maxLevel`), scores + diversity-ranks it for the
- * user, then paginates. Preserves the same `maxLevel`/`topics` contract as the
- * legacy picks feed so it is a drop-in upgrade.
+ * user, then paginates. Preserves the public `maxLevel`/`topics` contract used
+ * by article-listing callers.
  */
 export async function listScoredPicksPage(
   userId: string,

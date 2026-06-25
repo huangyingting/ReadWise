@@ -239,11 +239,11 @@ test("urlExtractor: strips #fragments from candidate URLs", async () => {
   assert.deepEqual(result, [VALID_URL_1]);
 });
 
-test("legacy seed-HTML path still works when no urlExtractor is defined", async () => {
+test("seed-HTML discovery works when no urlExtractor is defined", async () => {
   const { discoverProviderUrls } = await import("@/lib/scraper/index");
 
   const provider = makeProvider({
-    // No urlExtractor — should fall back to seed HTML crawl
+    // No urlExtractor — use seed HTML crawl.
   });
 
   const seedHtml = `

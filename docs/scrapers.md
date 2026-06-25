@@ -48,9 +48,9 @@ most providers.
 
 ## Discovery strategies
 
-### 1. Seed-HTML discovery (legacy)
+### 1. Seed-HTML discovery
 
-The default path. `discoverProviderUrls` fetches each `seeds` URL, parses `<a href>` tags
+The static-HTML path. `discoverProviderUrls` fetches each `seeds` URL, parses `<a href>` tags
 via `discoverLinks`, and applies pattern + filter + robots checks. No extra code needed.
 
 **Pagination** (optional): set `maxSeedPages > 1` and provide `paginateSeed`:

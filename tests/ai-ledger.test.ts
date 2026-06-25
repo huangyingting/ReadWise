@@ -261,7 +261,7 @@ test("a ledger write failure does not break chatComplete", async (t) => {
 // ---- summarizeAiUsage --------------------------------------------------------
 
 test("summarizeAiUsage returns zeroed totals when there are no records", async () => {
-  const { summarizeAiUsage } = await import("@/lib/ai-ledger");
+  const { summarizeAiUsage } = await import("@/lib/ai-usage-summary");
   const summary = await summarizeAiUsage({ since: new Date("2026-01-01T00:00:00Z") });
   assert.equal(summary.total.count, 0);
   assert.equal(summary.total.estimatedCostUsd, 0);
@@ -279,7 +279,7 @@ test("summarizeAiUsage aggregates grouped counts and token sums", async () => {
     { feature: "translation", _count: { _all: 2 }, _sum: { promptTokens: 20, completionTokens: 8, totalTokens: 28, estimatedCostUsd: 0.3 } },
     { feature: "quiz", _count: { _all: 1 }, _sum: { promptTokens: 10, completionTokens: 4, totalTokens: 14, estimatedCostUsd: 0.2 } },
   ];
-  const { summarizeAiUsage } = await import("@/lib/ai-ledger");
+  const { summarizeAiUsage } = await import("@/lib/ai-usage-summary");
   const summary = await summarizeAiUsage();
   assert.equal(summary.total.count, 3);
   assert.equal(summary.total.totalTokens, 42);

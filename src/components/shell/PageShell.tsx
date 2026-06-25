@@ -4,8 +4,7 @@ import { cn } from "@/lib/cn";
 export interface PageShellProps {
   /**
    * Content width preset:
-   *  - `"listing"` (default) — wide discovery/listing width (~1200px, matching
-   *    the legacy `.listing-container`).
+    *  - `"listing"` (default) — wide discovery/listing width (~1200px).
    *  - `"narrow"` — reading/settings width (~720px, matching the settings page).
    */
   variant?: "listing" | "narrow";
@@ -27,7 +26,7 @@ const VARIANT_MAX_WIDTH = {
  * horizontal/vertical page padding tokens (`--space-5` inline, `--space-7`
  * block) shared by existing pages. Choose a `variant` to match the documented
  * content widths:
- *  - `"listing"` ≈ 1200px (parity with `.listing-container`)
+ *  - `"listing"` ≈ 1200px
  *  - `"narrow"` ≈ 720px (parity with the settings page)
  *
  * Renders a plain `<div>`; purely presentational and additive.

@@ -4,7 +4,8 @@
  * Section A exercises the PURE capability model in `@/lib/rbac` (no mocks): role
  * → capability resolution, allow/deny, and that the full near-term + future role
  * set is defined. Section B imports the REAL `@/lib/api-auth` and `@/lib/session`
- * guards with only `next-auth`, `@/lib/auth`, `@/lib/profile` and `next/navigation`
+ * guards with only `next-auth`, `@/lib/auth`, profile-preferences repository,
+ * and `next/navigation`
  * mocked, proving the capability-backed `requireAdmin*` helpers behave EXACTLY
  * like the previous `role === "Admin"` checks (behavior-preserving).
  */
@@ -163,7 +164,7 @@ before(() => {
     namedExports: { getServerSession: async () => sessionState },
   });
   mock.module("@/lib/auth", { namedExports: { authOptions: {} } });
-  mock.module("@/lib/profile", {
+  mock.module("@/features/profile-preferences/repository", {
     namedExports: { isUserOnboarded: async () => true },
   });
   mock.module("next/navigation", {

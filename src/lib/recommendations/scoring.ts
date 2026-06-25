@@ -10,7 +10,7 @@
  * (context.ts) to assemble the RecommendationContext before calling these.
  */
 
-import { isDifficultyLevel, levelRank } from "@/lib/difficulty";
+import { isDifficultyLevel, levelRank } from "@/lib/leveling/cefr-primitives";
 import { clamp01 } from "@/lib/learning/primitives";
 import {
   levelFitScore,

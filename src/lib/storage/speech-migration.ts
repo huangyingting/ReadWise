@@ -28,12 +28,6 @@ function durationFromWords(raw: unknown): number | undefined {
   return max > 0 ? max : undefined;
 }
 
-/**
- * Backward-compatible alias.
- * @deprecated Use {@link MediaMigrationResult} directly.
- */
-export type SpeechStorageMigrationResult = MediaMigrationResult;
-
 type MigrationDeps = {
   storage?: MediaStorage | null;
   /** Maximum rows to process in one pass (default: all eligible). */

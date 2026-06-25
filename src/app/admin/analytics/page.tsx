@@ -15,7 +15,7 @@ import { RetentionTable } from "@/components/admin/RetentionTable";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button, buttonVariants } from "@/components/ui/Button";
-import { ENGLISH_LEVELS } from "@/lib/profile";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { CATEGORIES } from "@/lib/categories";
 
 type SearchParams = {

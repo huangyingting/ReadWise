@@ -1,7 +1,7 @@
 /**
  * Tests for the RW-040 evidence-based adaptive leveling layer in
  * `@/lib/leveling` (the pure {@link computeAdaptiveLevel} + the DB-backed
- * {@link getAdaptiveLevelRecommendation}). The original quiz-only
+ * {@link getAdaptiveLevelRecommendation}). The quiz/completion-only
  * {@link recommendLevelChange} is covered by `leveling.test.ts`.
  */
 process.env.LOG_LEVEL = "error";

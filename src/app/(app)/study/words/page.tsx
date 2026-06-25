@@ -1,5 +1,5 @@
 import { requireOnboardedSession } from "@/lib/session";
-import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
+import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
 import { articleAccessContext } from "@/lib/article-library";
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui/Button";

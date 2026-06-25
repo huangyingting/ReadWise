@@ -1,6 +1,6 @@
 /**
  * Tests for src/lib/tutor.ts — the M12 AI tutor data layer.
- * Mocks @/lib/prisma, @/lib/ai, and @/lib/profile.
+ * Mocks @/lib/prisma, @/lib/ai, and profile-preferences repository.
  * No DB / network is touched.
  */
 process.env.LOG_LEVEL = "error";
@@ -91,9 +91,9 @@ before(() => {
     },
   });
 
-  // getProfile calls prisma.profile.findUnique — stub the module so the
+  // getProfile calls prisma.profile.findUnique — stub the repository so the
   // import chain resolves without touching the real DB.
-  mock.module("@/lib/profile", {
+  mock.module("@/features/profile-preferences/repository", {
     namedExports: {
       getProfile: async () => mockProfile,
       isOnboarded: (p: ProfileRow | null) => Boolean(p),

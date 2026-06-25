@@ -2,7 +2,8 @@
  * Tests for skill mastery & CEFR confidence tracking (RW-038).
  *
  * Mocks: @/lib/prisma (in-memory skillMastery store + controllable profile).
- * @/lib/profile runs for real (it only reads prisma.profile). No DB/network.
+ * profile-preferences repository runs for real (it only reads prisma.profile).
+ * No DB/network.
  */
 process.env.LOG_LEVEL = "error";
 

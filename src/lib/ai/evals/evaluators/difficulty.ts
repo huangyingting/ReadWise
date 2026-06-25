@@ -1,5 +1,6 @@
 import { renderPrompt } from "@/lib/ai/prompts";
-import { parseLevel, isDifficultyLevel } from "@/lib/difficulty";
+import { parseLevel } from "@/lib/difficulty";
+import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { str, pass } from "@/lib/ai/evals/assertions";
 import type { FeatureEvaluator, EvalPropertyResult } from "@/lib/ai/evals/types";
 

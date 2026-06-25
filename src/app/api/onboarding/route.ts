@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
-import { parseProfileInput, type ProfileInput } from "@/lib/profile";
+import { parseProfileInput, type ProfileInput } from "@/features/profile-preferences/schema";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
 const profileSchema: Schema<ProfileInput> = (value) => {

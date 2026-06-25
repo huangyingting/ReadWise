@@ -2,8 +2,7 @@
  * AI text moderation — safety contracts for free-text outputs (REF-067).
  *
  * Part of the AI safety/output package (`@/lib/ai/output`). Canonical home for
- * text moderation. Backward-compatible re-exports are provided by
- * `@/lib/ai/moderation`.
+ * text moderation.
  *
  * Interactive features (the AI tutor, grammar-in-context) exchange free text
  * with the model, so their inputs and outputs can't be schema-validated the way

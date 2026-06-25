@@ -2,7 +2,8 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
-import { parseProfileInput, getProfile, type ProfileInput } from "@/lib/profile";
+import { parseProfileInput, type ProfileInput } from "@/features/profile-preferences/schema";
+import { getProfile } from "@/features/profile-preferences/repository";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {

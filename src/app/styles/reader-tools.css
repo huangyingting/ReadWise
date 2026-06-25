@@ -622,45 +622,9 @@
   gap: 0.75rem;
 }
 
-.tts-heading {
-  margin: 0;
-}
-
-.tts-panel {
-  margin-top: 1.25rem;
-}
-
-.tts-error {
-  margin-top: 0.75rem;
-  color: var(--danger-text);
-}
-
-.tts-audio {
-  width: 100%;
-  margin-top: 0.5rem;
-}
-
 .tts-meta {
   margin: 0.5rem 0 0;
   font-size: 0.85rem;
-}
-
-.tts-text {
-  /* Retired: the transcript block was removed in favour of CSS Custom
-   * Highlight API highlighting on the main article prose (#7). Kept as a
-   * no-op to avoid stale references causing parse errors. */
-}
-
-.tts-word {
-  /* Retained for any legacy fallback references. */
-  border-radius: 4px;
-  padding: 0 1px;
-}
-
-.tts-word.is-active {
-  background: var(--primary);
-  color: var(--on-primary);
-  font-weight: 600;
 }
 
 /* CSS Custom Highlight API — active TTS word in the main article prose.

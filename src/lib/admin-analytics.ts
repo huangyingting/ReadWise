@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { CATEGORIES } from "@/lib/categories";
-import { ENGLISH_LEVELS } from "@/lib/profile";
+import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
 

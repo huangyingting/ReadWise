@@ -42,24 +42,13 @@ export async function bestEffortMastery<T>(
 }
 
 /**
- * Parses a JSON/string column that should hold a `string[]`. Tolerates a
- * native JSON array (Prisma `Json`), a JSON-encoded string (legacy/SQLite), or
- * null — always returning a clean `string[]`.
+ * Parses a JSON column that should hold a `string[]`. Accepts native Prisma
+ * `Json` arrays or null — always returning a clean `string[]`.
  */
 export function parseStringArray(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) {
     return value.filter((v): v is string => typeof v === "string");
-  }
-  if (typeof value === "string") {
-    try {
-      const parsed: unknown = JSON.parse(value);
-      if (Array.isArray(parsed)) {
-        return parsed.filter((v): v is string => typeof v === "string");
-      }
-    } catch {
-      // fall through
-    }
   }
   return [];
 }

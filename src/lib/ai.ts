@@ -30,7 +30,8 @@ import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } f
 import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
 import { getAiProvider } from "@/lib/ai/registry";
 import { runAiRequest } from "@/lib/ai/runner";
-import type { AiErrorKind, AiProviderCapabilities } from "@/lib/ai/provider";
+import type { AiErrorKind } from "@/lib/ai/output/error-classifier";
+import type { AiProviderCapabilities } from "@/lib/ai/provider";
 
 const log = createLogger("ai");
 

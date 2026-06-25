@@ -22,9 +22,10 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Prisma } from "@prisma/client";
-import { isDifficultyLevel, levelRank, levelsAtOrBelow } from "@/lib/difficulty";
 import type { DifficultyLevel } from "@/lib/difficulty";
-import { getProfile, parseTopics } from "@/lib/profile";
+import { isDifficultyLevel, levelRank, levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
+import { getProfile } from "@/features/profile-preferences/repository";
+import { parseTopics } from "@/features/profile-preferences/schema";
 import { toListingArticle, type ListingArticle } from "@/lib/article-library";
 import { createLogger } from "@/lib/observability/logger";
 import { publicListableArticleWhere } from "@/lib/article-library";

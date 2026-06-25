@@ -27,5 +27,4 @@ export {
   getMediaStorage,
   isObjectStorageConfigured,
 } from "@/lib/storage/runtime";
-export type { SpeechStorageMigrationResult } from "@/lib/storage/speech-migration";
 export { migrateArticleSpeechToStorage } from "@/lib/storage/speech-migration";

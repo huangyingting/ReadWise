@@ -1,10 +1,9 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getFilteredSavedWords } from "@/lib/vocabulary";
+import { getFilteredSavedWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
 import { prisma } from "@/lib/prisma";
 import { articleAccessContext, readableArticleWhere } from "@/lib/article-library";
 import { parseWordsQuery } from "@/lib/study/schemas";
-import { WORDS_PAGE_SIZE } from "@/lib/vocabulary";
 
 /**
  * GET /api/study/words
