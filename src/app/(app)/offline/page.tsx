@@ -20,7 +20,7 @@ import {
   getAllOfflineArticles,
   removeOfflineArticle,
   type OfflineArticle,
-} from "@/lib/offline-db";
+} from "@/lib/offline/article-store";
 
 export default function OfflineLibraryPage() {
   const [articles, setArticles] = useState<OfflineArticle[] | null>(null);

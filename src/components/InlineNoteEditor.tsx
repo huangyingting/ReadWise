@@ -4,7 +4,7 @@ import { useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { patchJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
-import { submitMutation } from "@/lib/offline-mutations";
+import { submitMutation } from "@/lib/offline/sync-runtime";
 
 interface Props {
   highlightId: string;

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import AiBadge from "@/components/AiBadge";
-import { submitMutation, newClientMutationId } from "@/lib/offline-mutations";
+import { submitMutation, newClientMutationId } from "@/lib/offline/sync-runtime";
 
 type QuizQuestion = {
   question: string;

@@ -6,7 +6,7 @@ import { deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
-import { purgeOfflineUserData } from "@/lib/offline-mutations";
+import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 
 export default function AccountDangerZone() {
   const [deleteBusy, setDeleteBusy] = useState(false);

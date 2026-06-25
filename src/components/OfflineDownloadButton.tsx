@@ -21,8 +21,8 @@ import {
   getOfflineArticleVersion,
   MAX_OFFLINE_ARTICLES,
   getAllOfflineArticles,
-} from "@/lib/offline-db";
-import type { OfflineArticle } from "@/lib/offline-db";
+} from "@/lib/offline/article-store";
+import type { OfflineArticle } from "@/lib/offline/article-store";
 
 type State = "idle" | "loading" | "saved" | "error" | "unsupported";
 
