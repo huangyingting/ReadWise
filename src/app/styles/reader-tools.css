@@ -668,6 +668,7 @@
 ::highlight(tts-active) {
   background-color: var(--accent);
   color: var(--on-primary);
+}
 
 
 /* ---- #153 unified responsive Tools surface (single mounted instance) ---- */
