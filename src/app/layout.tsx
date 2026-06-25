@@ -13,6 +13,7 @@ import {
   OG_DESCRIPTION,
   SITE_NAME,
 } from "@/lib/copy/site";
+import { ICON_SVG, APPLE_TOUCH_ICON } from "@/lib/assets";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -64,8 +65,8 @@ export const metadata: Metadata = {
     description: OG_DESCRIPTION,
   },
   icons: {
-    icon: "/icon.svg",
-    apple: "/icons/apple-touch-icon.png",
+    icon: ICON_SVG,
+    apple: APPLE_TOUCH_ICON,
   },
 };
 
