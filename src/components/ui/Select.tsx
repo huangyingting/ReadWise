@@ -39,6 +39,26 @@ export interface SelectProps
   extends Omit<React.SelectHTMLAttributes<HTMLSelectElement>, "size">,
     VariantProps<typeof selectVariants> {}
 
+/**
+ * Native `<select>` wrapper with a ChevronDown decorative icon.
+ *
+ * Keyboard: native browser select behavior (Arrow keys open/navigate the option list).
+ * Focus: inline focus-visible ring (token-driven, AA-compliant).
+ * Accessibility: always pair with a `<Label>` via `<Field>` or explicit `htmlFor`/`id`.
+ *   Sets `aria-invalid` when `invalid=true`. The ChevronDown icon is `aria-hidden`.
+ *
+ * Sizes: `sm` (h-8) | `md` (h-10, default).
+ * Validation: `invalid` — switches border and focus ring to danger color.
+ *
+ * @example
+ * <Field label="Language">
+ *   <Select>
+ *     <option value="en">English</option>
+ *     <option value="zh">Chinese</option>
+ *   </Select>
+ * </Field>
+ */
+
 export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
   function Select({ selectSize, invalid, className, children, ...props }, ref) {
     return (
