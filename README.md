@@ -235,7 +235,6 @@ crash startup.
 | `npm run process -- <articleId> --tts --translate es,fr` | Process specific articles with optional TTS/translations. |
 | `npm run worker` | Drain the durable `Job` table with locking/retries/dead letters. |
 | `npm run worker -- --once` | Drain the durable `Job` queue once and exit. |
-| `npm run worker -- --legacy-article-polling` | Temporarily run the older article-state polling worker. |
 | `npm run seed -- --provider nbc --limit 3` | Scrape + process + publish sample articles end-to-end. |
 | `npm run push-reminders -- --dry-run` | Check SRS push-reminder configuration without sending. |
 

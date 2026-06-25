@@ -271,7 +271,6 @@ dead-letter handling) instead of inline processing in the current terminal.
 npm run worker                         # durable Job queue worker
 npm run worker -- --once               # drain durable queue then exit
 npm run worker -- --interval 30000     # poll every 30 s
-npm run worker -- --legacy-article-polling --batch 5
 ```
 
 ### Seed (full pipeline: discover → scrape → process)

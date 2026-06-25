@@ -91,11 +91,8 @@ npm run worker -- --jobs --lock-ttl 600000
 ```
 
 `npm run worker` uses the persistent queue by default. The older article-state
-polling path is available only as an explicit transition mode:
-
-```bash
-npm run worker -- --legacy-article-polling
-```
+polling path has been removed; enqueue article work with `npm run process -- --enqueue`
+or the admin backfill controls, then drain it with `npm run worker`.
 
 ### Admin actions
 
