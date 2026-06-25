@@ -1,6 +1,10 @@
 /**
  * Media object-storage abstraction (Epic RW-E009 — RW-049).
  *
+ * @server-only — Must never be imported from a "use client" file.
+ * Adapters use Azure Blob SDK and Node.js `fs` — not available in browsers.
+ * See docs/refactoring.md § REF-076.
+ *
  * Public facade for the storage package. Keep imports pointed at
  * `@/lib/storage`; implementation details live in `@/lib/storage/*` modules.
  */

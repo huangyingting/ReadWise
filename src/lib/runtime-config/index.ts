@@ -1,3 +1,10 @@
+/**
+ * Runtime configuration barrel — server-side environment feature flags.
+ *
+ * @server-only — Must never be imported from a "use client" file.
+ * All sub-modules read from `process.env` at call time and are Node.js-only.
+ * See docs/refactoring.md § REF-076.
+ */
 export * as ai from "@/lib/runtime-config/ai";
 export * as speech from "@/lib/runtime-config/speech";
 export * as push from "@/lib/runtime-config/push";
