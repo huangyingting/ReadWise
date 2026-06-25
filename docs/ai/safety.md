@@ -2,7 +2,7 @@
 
 This document describes the AI output-safety controls added in Epic **RW-E004**:
 
-- **RW-023** — provider/model abstraction (see [`ai-context.md`](./ai-context.md)
+- **RW-023** — provider/model abstraction (see [`context-management.md`](./context-management.md)
   for the context-management half)
 - **RW-024** — output validation, safe fallbacks, and a free-text moderation
   policy

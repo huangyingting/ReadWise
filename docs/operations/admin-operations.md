@@ -242,7 +242,7 @@ When an article or provider looks unhealthy:
 3. Check `/admin/sources` for provider health/counter drift.
 4. Use audit logs to find recent admin actions against the article/provider/job.
 5. Use request ids from audit/security/error logs to correlate with structured
-  logs and traces (see [`observability.md`](../observability/observability.md)).
+  logs and traces (see [`overview.md`](../observability/overview.md)).
 
 When performing destructive actions:
 

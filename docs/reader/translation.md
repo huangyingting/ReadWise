@@ -52,8 +52,8 @@ Article existence and access are checked before the selection AI lifecycle runs.
 
 Both features record active prompt versions through the AI lifecycle and ledger.
 Full-article cache rows are partitioned by table key, while content/prompt
-versioning for generated features is documented in [`../ai/ai-context.md`](../ai/ai-context.md)
-and [`../ai/ai-prompts.md`](../ai/ai-prompts.md).
+versioning for generated features is documented in [`../ai/context-management.md`](../ai/context-management.md)
+and [`../ai/prompts.md`](../ai/prompts.md).
 
 When changing translation prompt wording, bump the prompt version and plan a
 targeted rebuild/backfill for stale translations.

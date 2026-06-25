@@ -31,17 +31,17 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 
 | Document | Scope |
 | --- | --- |
-| [`ai/ai-context.md`](./ai/ai-context.md) | AI provider abstraction, long-context chunking, cache versioning, and graceful fallbacks. |
-| [`ai/ai-prompts.md`](./ai/ai-prompts.md) | Prompt registry, prompt versions, and backfill/rebuild guidance. |
-| [`ai/ai-safety.md`](./ai/ai-safety.md) | Structured output validation, moderation, provider error normalization, and safe fallbacks. |
-| [`ai/ai-evals.md`](./ai/ai-evals.md) | Offline/live AI evaluation harness and datasets. |
-| [`ai/ai-governance-ledger.md`](./ai/ai-governance-ledger.md) | AI invocation ledger, budgets/quotas, usage summaries, cost estimates, and privacy boundaries. |
+| [`ai/context-management.md`](./ai/context-management.md) | AI provider abstraction, long-context chunking, cache versioning, and graceful fallbacks. |
+| [`ai/prompts.md`](./ai/prompts.md) | Prompt registry, prompt versions, and backfill/rebuild guidance. |
+| [`ai/safety.md`](./ai/safety.md) | Structured output validation, moderation, provider error normalization, and safe fallbacks. |
+| [`ai/evaluations.md`](./ai/evaluations.md) | Offline/live AI evaluation harness and datasets. |
+| [`ai/governance-ledger.md`](./ai/governance-ledger.md) | AI invocation ledger, budgets/quotas, usage summaries, cost estimates, and privacy boundaries. |
 
 ### Analytics
 
 | Document | Scope |
 | --- | --- |
-| [`analytics/analytics.md`](./analytics/analytics.md) | Product analytics event stream, retention, dashboards, and privacy rules. |
+| [`analytics/product-analytics.md`](./analytics/product-analytics.md) | Product analytics event stream, retention, dashboards, and privacy rules. |
 
 ### Architecture
 
@@ -70,14 +70,14 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 
 | Document | Scope |
 | --- | --- |
-| [`media/media-storage.md`](./media/media-storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
+| [`media/storage.md`](./media/storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
 
 ### Observability
 
 | Document | Scope |
 | --- | --- |
 | [`observability/client-error-reporting.md`](./observability/client-error-reporting.md) | Browser runtime error sink, scrubbing, rate limiting, aggregation, and alerting behavior. |
-| [`observability/observability.md`](./observability/observability.md) | Tracing, error aggregation, metrics, SLOs, and investigation workflow. |
+| [`observability/overview.md`](./observability/overview.md) | Tracing, error aggregation, metrics, SLOs, and investigation workflow. |
 
 ### Operations
 
@@ -105,20 +105,20 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`reader/bookmarks-and-lists.md`](./reader/bookmarks-and-lists.md) | Default Saved list, custom reading lists, list membership, IDOR protections, and export/deletion behavior. |
-| [`reader/import-system.md`](./reader/import-system.md) | URL/text personal imports, SSRF and sanitization controls, de-duplication, daily quota, audit, and analytics metadata. |
+| [`reader/imports.md`](./reader/imports.md) | URL/text personal imports, SSRF and sanitization controls, de-duplication, daily quota, audit, and analytics metadata. |
 | [`reader/lexical-dictionary.md`](./reader/lexical-dictionary.md) | Dictionary lookup provider seam, word normalization, saved-word persistence, mastery exposure, and privacy rules. |
 | [`reader/offline-sync.md`](./reader/offline-sync.md) | Offline mutation queue, conflict resolution, cache versioning, background-sync resilience, and push reminders. |
-| [`reader/reader-annotations.md`](./reader/reader-annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
+| [`reader/annotations.md`](./reader/annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
 | [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |
 | [`reader/search-and-indexing.md`](./reader/search-and-indexing.md) | Search and indexing strategy. |
 | [`reader/speech-synthesis.md`](./reader/speech-synthesis.md) | Narration access checks, Azure Speech provider seam, speech cache lifecycle, storage fallback, and streaming playback. |
-| [`reader/translation-service.md`](./reader/translation-service.md) | Full-article and sentence translation cache keys, chunking, prompt versions, fallbacks, and privacy boundaries. |
+| [`reader/translation.md`](./reader/translation.md) | Full-article and sentence translation cache keys, chunking, prompt versions, fallbacks, and privacy boundaries. |
 
 ### Security
 
 | Document | Scope |
 | --- | --- |
-| [`security/security.md`](./security/security.md) | Trusted proxy/IP handling, CSRF, destructive-action protections, security events, and audit-log relationship. |
+| [`security/overview.md`](./security/overview.md) | Trusted proxy/IP handling, CSRF, destructive-action protections, security events, and audit-log relationship. |
 
 ## Maintenance rules
 

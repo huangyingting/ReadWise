@@ -6,7 +6,7 @@
  * unless the deployment sits behind a reverse proxy that sets it correctly.
  *
  * This module resolves a trustworthy client IP from forwarding headers using a
- * configurable {@link trustedProxyConfig} model (see `docs/security/security.md`):
+ * configurable {@link trustedProxyConfig} model (see `docs/security/overview.md`):
  *
  *   - `TRUSTED_PROXY_LIST`   — trusted proxy IPs/CIDRs. Walk the XFF chain from
  *                              the RIGHT, returning the first hop NOT in the set.

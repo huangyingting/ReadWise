@@ -4,8 +4,8 @@ This document describes the AI evaluation harness added in Epic
 **RW-E004 / RW-021**. It catches prompt/model/parsing regressions in the AI
 features by running each feature's real parsers/validators against small curated
 datasets of representative inputs + expected **invariants**. See
-[`ai-prompts.md`](./ai-prompts.md) for the prompt registry the live mode renders
-through, and [`ai-safety.md`](./ai-safety.md) for the validators the checks reuse.
+[`prompts.md`](./prompts.md) for the prompt registry the live mode renders
+through, and [`safety.md`](./safety.md) for the validators the checks reuse.
 
 ---
 
@@ -44,7 +44,7 @@ are caught in CI without secrets. This is what `tests/ai-eval.test.ts` runs.
 ### Live (optional — staging/manual)
 
 With `--live`, the active prompt for each case is rendered via the
-[prompt registry](./ai-prompts.md) and sent to the configured provider; the
+[prompt registry](./prompts.md) and sent to the configured provider; the
 **same** property checks run against the live output. Live mode lazily imports
 `@/lib/ai`, so offline/CI never pulls the provider stack.
 

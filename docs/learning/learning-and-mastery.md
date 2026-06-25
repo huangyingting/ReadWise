@@ -2,7 +2,7 @@
 
 This document describes the learner-facing analytics and mastery systems in the
 current ReadWise codebase. These are distinct from product analytics events in
-[`analytics.md`](../analytics/analytics.md): product analytics measures product usage,
+[`product-analytics.md`](../analytics/product-analytics.md): product analytics measures product usage,
 whereas the systems here compute a learner's progress, confidence, level, and
 study recommendations.
 
@@ -278,4 +278,4 @@ append-only stream. User deletion cascades through user-owned data such as
 progress, saved words, daily activity, highlights, quiz attempts, and
 pronunciation attempts. Product analytics events are non-FK rows and must be
 handled through the retention/erasure helpers documented in
-[`analytics.md`](../analytics/analytics.md).
+[`product-analytics.md`](../analytics/product-analytics.md).
