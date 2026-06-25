@@ -3,7 +3,7 @@
  * (RW-052 / RW-053). Verifies capability gating (a session lacking the
  * capability gets 403 and the underlying lib is never called), and that the
  * happy paths invoke the lib + record an audit entry. `@/lib/api-auth`,
- * `@/lib/audit`, `@/lib/analytics-queries` and `@/lib/admin-member-detail` are
+ * `@/lib/audit`, `@/lib/analytics-queries` and `@/lib/account-lifecycle` are
  * mocked — no DB, no real auth.
  */
 process.env.LOG_LEVEL = "error";
@@ -97,7 +97,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/admin-member-detail", {
+  mock.module("@/lib/account-lifecycle", {
     namedExports: {
       revokeMemberSessions: async (_id: string, audit?: (r: unknown) => { action: string }) => {
         revokeCalls++;

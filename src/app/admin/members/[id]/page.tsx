@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import Avatar from "@/components/ui/Avatar";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { getMemberDetail } from "@/lib/admin-member-detail";
+import { getMemberDetail } from "@/lib/account-lifecycle";
 import AdminMemberSupportActions from "@/components/AdminMemberSupportActions";
 import { AdminStatCard } from "@/components/AdminStatCard";
 import { Card } from "@/components/ui/Card";
