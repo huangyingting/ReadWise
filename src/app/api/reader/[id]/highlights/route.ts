@@ -13,8 +13,8 @@ import {
   createHighlight,
   annotateHighlightAnchors,
   HIGHLIGHT_NOTE_MAX,
-} from "@/lib/highlights";
-import type { HighlightColor } from "@/lib/highlights";
+} from "@/lib/annotations";
+import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { htmlToPlainText } from "@/lib/translation";
 
