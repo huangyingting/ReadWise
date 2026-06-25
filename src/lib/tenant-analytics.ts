@@ -29,6 +29,7 @@ import {
   getClassroomProgressData,
   type ClassroomProgressData,
 } from "@/lib/classroom";
+import { averageRounded as average, wholePercentage as rate } from "@/lib/aggregation";
 
 // ---------------------------------------------------------------------------
 // Access model
@@ -145,17 +146,6 @@ export type ClassroomAnalytics = {
   /** True when individual learner rows were stripped (aggregate-only view). */
   redacted: boolean;
 };
-
-function rate(numerator: number, denominator: number): number {
-  if (denominator <= 0) return 0;
-  return Math.round((numerator / denominator) * 100);
-}
-
-function average(values: number[]): number | null {
-  if (values.length === 0) return null;
-  const sum = values.reduce((acc, v) => acc + v, 0);
-  return Math.round(sum / values.length);
-}
 
 /**
  * Aggregates a classroom's raw progress matrix into class-, assignment- and

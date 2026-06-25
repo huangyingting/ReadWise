@@ -18,6 +18,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { parseTopics } from "@/lib/profile";
 import { ANALYTICS_EVENT_TYPES } from "@/lib/analytics";
+import { percentage as pct } from "@/lib/aggregation";
 
 const T = ANALYTICS_EVENT_TYPES;
 
@@ -131,11 +132,6 @@ export type AnalyticsOverview = {
   featureUsage: FeatureUsage[];
   totals: { events: number; users: number };
 };
-
-function pct(numerator: number, denominator: number): number {
-  if (denominator <= 0) return 0;
-  return Math.round((numerator / denominator) * 1000) / 10;
-}
 
 /** Builds a `type -> Set<userId>` map of DISTINCT (non-null) users per type. */
 function usersByType(stats: EventUserStat[]): Map<string, Set<string>> {
