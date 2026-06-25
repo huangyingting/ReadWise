@@ -8,6 +8,7 @@ import {
 import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";
+import { enqueueArticleProcess } from "@/lib/jobs";
 
 type Args = {
   ids: string[];
@@ -16,6 +17,7 @@ type Args = {
   limit: number | null;
   tts: boolean;
   translateLangs: string[];
+  enqueue: boolean;
   help: boolean;
 };
 
@@ -27,6 +29,7 @@ function parseArgs(argv: string[]): Args {
     limit: null,
     tts: false,
     translateLangs: [],
+    enqueue: false,
     help: false,
   };
   for (let i = 0; i < argv.length; i++) {
@@ -43,6 +46,9 @@ function parseArgs(argv: string[]): Args {
         break;
       case "--tts":
         args.tts = true;
+        break;
+      case "--enqueue":
+        args.enqueue = true;
         break;
       case "--translate": {
         const value = argv[++i] ?? "";
@@ -76,6 +82,7 @@ already-completed steps are skipped.
 Usage:
   npm run process -- <id> [<id> ...]      Process specific article ids
   npm run process -- --all                Process all unprocessed (draft) articles
+  npm run process -- --all --enqueue      Enqueue durable ARTICLE_PROCESS jobs
   npm run process -- --all --include-published
                                           Also enrich published articles missing content
 
@@ -83,6 +90,7 @@ Options:
   --limit N             Cap the number of articles processed in --all mode
   --tts                 Also generate text-to-speech narration (slow)
   --translate <codes>   Pre-generate translations (comma-separated, e.g. es,fr)
+  --enqueue             Enqueue durable jobs instead of processing inline
   --help                Show this help`);
 }
 
@@ -141,6 +149,25 @@ async function main(): Promise<number> {
     tts: args.tts,
     translateLangs: args.translateLangs,
   };
+
+  if (args.enqueue) {
+    console.log(`Enqueuing ${ids.length} ARTICLE_PROCESS job(s)…\n`);
+    let enqueued = 0;
+    let failed = 0;
+    for (const id of ids) {
+      try {
+        const job = await enqueueArticleProcess(id, opts);
+        console.log(`✓ ${id} → job ${job.id} (${job.status})`);
+        enqueued++;
+      } catch (err) {
+        console.error(`✗ could not enqueue ${id}: ${err instanceof Error ? err.message : String(err)}`);
+        failed++;
+      }
+    }
+    console.log(`\nDone. enqueued=${enqueued} failed=${failed}`);
+    console.log("Run `npm run worker` to drain the durable Job queue.");
+    return failed > 0 ? 1 : 0;
+  }
 
   console.log(`Processing ${ids.length} article(s)…\n`);
 
