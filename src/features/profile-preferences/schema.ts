@@ -104,9 +104,7 @@ export function parseProfileInput(body: {
   };
 }
 
-export function parseTopics(
-  topics: Prisma.JsonValue | string | null | undefined,
-): string[] {
+export function parseTopics(topics: Prisma.JsonValue | null | undefined): string[] {
   if (topics == null) {
     return [];
   }
@@ -115,18 +113,5 @@ export function parseTopics(
     return topics.filter((t): t is string => typeof t === "string");
   }
 
-  // Backwards compatibility for rows written before Profile.topics became Json.
-  if (typeof topics !== "string") {
-    return [];
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(topics);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((t): t is string => typeof t === "string");
-    }
-  } catch {
-    // ignore malformed JSON and fall through
-  }
   return [];
 }

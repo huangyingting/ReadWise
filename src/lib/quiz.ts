@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateQuiz } from "@/lib/ai/output/validators";
@@ -64,7 +64,7 @@ export async function getOrCreateArticleQuiz(
         return questions.length > 0 ? questions : null;
       },
       buildMessages: (article) => {
-        const source = boundedSampleForFeature(htmlToPlainText(article.content), "quiz");
+        const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "quiz");
         return renderPrompt("quiz", { title: article.title, source });
       },
       parse: parseQuizJson,
@@ -98,10 +98,8 @@ export async function getOrCreateArticleQuiz(
   );
 }
 
-/** Parses stored option JSON values (or legacy JSON strings) into strings. */
-export function parseStoredOptions(
-  raw: Prisma.JsonValue | string | null | undefined,
-): string[] {
+/** Parses stored option JSON values into strings. */
+export function parseStoredOptions(raw: Prisma.JsonValue | null | undefined): string[] {
   if (raw == null) {
     return [];
   }
@@ -110,17 +108,5 @@ export function parseStoredOptions(
     return raw.filter((o): o is string => typeof o === "string");
   }
 
-  if (typeof raw !== "string") {
-    return [];
-  }
-
-  try {
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((o): o is string => typeof o === "string");
-    }
-  } catch {
-    // fall through
-  }
   return [];
 }

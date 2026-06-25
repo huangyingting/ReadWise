@@ -8,7 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { getProfile } from "@/lib/profile";
@@ -129,7 +129,7 @@ export async function askTutor(
   }
 
   // Build grounding context from article plain text, capped for token safety.
-  const plainText = htmlToPlainText(article.content);
+  const plainText = articleHtmlToReaderText(article.content);
   const truncated = plainText.length > MAX_ARTICLE_CHARS;
   const articleText = truncated
     ? plainText.slice(0, MAX_ARTICLE_CHARS) +

@@ -68,7 +68,7 @@ before(() => {
     namedExports: {
       getOrCreateTranslation: async () => translationResult,
       isSupportedLanguage: () => supportedLang,
-      htmlToPlainText: (html: string) => html,
+      articleHtmlToReaderText: (html: string) => html,
     },
   });
   mock.module("@/lib/vocabulary", {

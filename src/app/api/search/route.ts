@@ -4,7 +4,7 @@ import { queryString, queryInt } from "@/lib/validation";
 import {
   SEARCH_PAGE_SIZE,
   SEARCH_MAX_LIMIT,
-  searchPublishedArticles,
+  searchReadableArticles,
   toListingArticle,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
@@ -53,7 +53,7 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
 
   const { q, offset, limit } = query;
 
-  const page = await searchPublishedArticles(q, { offset, limit }, session.user.id);
+  const page = await searchReadableArticles(q, { offset, limit }, session.user.id);
 
   const progress = await getProgressSummaries(
     session.user.id,

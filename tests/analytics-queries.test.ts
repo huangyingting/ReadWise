@@ -133,9 +133,9 @@ test("getAnalyticsOverview groups events and respects an empty segment", async (
 test("resolveSegmentUserIds filters profiles by level and topic", async () => {
   const { resolveSegmentUserIds } = await import("@/lib/analytics-queries");
   const profiles = [
-    { userId: "u1", englishLevel: "B1", topics: JSON.stringify(["science", "tech"]) },
-    { userId: "u2", englishLevel: "B1", topics: JSON.stringify(["health"]) },
-    { userId: "u3", englishLevel: "C1", topics: JSON.stringify(["science"]) },
+    { userId: "u1", englishLevel: "B1", topics: ["science", "tech"] },
+    { userId: "u2", englishLevel: "B1", topics: ["health"] },
+    { userId: "u3", englishLevel: "C1", topics: ["science"] },
   ];
   const client = {
     profile: {

@@ -64,7 +64,7 @@ describe("sanitizeArticleHtml", async () => {
 // ---------------------------------------------------------------------------
 
 describe("articleHtmlToReaderText", async () => {
-  const { articleHtmlToReaderText, htmlToPlainText } = await import("@/lib/content-pipeline");
+  const { articleHtmlToReaderText } = await import("@/lib/content-pipeline");
 
   test("strips tags and normalises whitespace", () => {
     assert.equal(articleHtmlToReaderText("<p>Hello</p><p>World</p>"), "Hello World");
@@ -99,10 +99,6 @@ describe("articleHtmlToReaderText", async () => {
     assert.match(text, /Article body/);
   });
 
-  test("htmlToPlainText is a backwards-compat alias", () => {
-    const html = "<p>Test content</p>";
-    assert.equal(htmlToPlainText(html), articleHtmlToReaderText(html));
-  });
 });
 
 // ---------------------------------------------------------------------------

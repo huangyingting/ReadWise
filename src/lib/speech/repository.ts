@@ -63,6 +63,12 @@ export function parseStoredSpeechWords(
  * bytes back from object storage via the configured backend.  Returns null
  * when the audio cannot be located (e.g. storage unconfigured after a
  * migration).
+ *
+ * NOTE (REF-009): `ArticleSpeech.audioBase64` is intentionally retained.
+ * Per AGENTS.md, object storage is OPTIONAL in local and test environments,
+ * and DB base64 is the documented fallback when storage is not configured.
+ * Removing this field would require a migration + backfill and break
+ * local/test setups that never configure object storage.
  */
 export async function resolveStoredAudioUrl(row: {
   mimeType: string;

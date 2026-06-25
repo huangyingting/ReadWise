@@ -33,9 +33,6 @@ function parseArgs(argv: string[]): Args {
       case "--interval":
         args.intervalMs = Math.max(0, Number(argv[++i]) || 0);
         break;
-      case "--jobs":
-        // Backward-compatible no-op: the durable Job table is the only worker.
-        break;
       case "--lock-ttl":
         args.lockTtlMs = Math.max(0, Number(argv[++i]) || 0);
         break;
@@ -73,12 +70,10 @@ remaining work on restart.
 Usage:
   npm run worker                 Drain the persistent Job table (poll forever)
   npm run worker -- --once       Drain the queue once, then exit
-  npm run worker -- --jobs       Explicitly select the persistent Job table
 
 Options:
   --interval <ms>       Idle wait between polls when empty (default 5000)
-  --jobs                Backward-compatible no-op; durable Job mode is the only mode
-  --lock-ttl <ms>       Stale-lock recovery threshold for --jobs (default 600000)
+  --lock-ttl <ms>       Stale-lock recovery threshold (default 600000)
   --once                Process the queue until empty, then stop
   --tts                 Also generate text-to-speech narration (slow)
   --translate <codes>   Pre-generate translations (comma-separated, e.g. es,fr)

@@ -85,9 +85,9 @@ retryable unless attempts are exhausted. Permanent or exhausted jobs move to
 ### CLI usage
 
 ```bash
-npm run worker -- --jobs
-npm run worker -- --jobs --once
-npm run worker -- --jobs --lock-ttl 600000
+npm run worker
+npm run worker -- --once
+npm run worker -- --lock-ttl 600000
 ```
 
 `npm run worker` uses the persistent queue by default. The older article-state

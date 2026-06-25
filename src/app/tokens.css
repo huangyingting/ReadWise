@@ -168,16 +168,9 @@
   --shadow-lg: 0 12px 28px rgba(15, 23, 42, 0.12), 0 6px 12px rgba(15, 23, 42, 0.08);
   --shadow-xl: 0 24px 48px rgba(15, 23, 42, 0.16), 0 12px 24px rgba(15, 23, 42, 0.1);
 
-  /* ============================================================
-   * Legacy-compat aliases — preserve hand-written class names in base.css
-   * that reference the older --panel / --muted / --accent variable names.
-   *   --panel  -> --surface
-   *   --muted  -> --text-muted
-   *   --accent -> --primary  (legacy brand/link colour)
-   * --bg / --text / --border are kept as first-class semantic tokens above.
-   * ============================================================ */
-  --panel: var(--surface);
-  --muted: var(--text-muted);
+  /* --accent aliases --primary (the brand/link colour) for selectors that use it.
+   * --panel and --muted legacy aliases were removed in REF-009; selectors now
+   * reference --surface and --text-muted directly. */
   --accent: var(--primary);
 
   /* ---- Semantic teal accent aliases (reading-state only) ----

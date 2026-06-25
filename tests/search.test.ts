@@ -29,7 +29,7 @@ before(() => {
 
   mock.module("@/lib/articles", {
     namedExports: {
-      searchPublishedArticles: async () => searchResult,
+      searchReadableArticles: async () => searchResult,
       toListingArticle: (a: unknown) => a,
       SEARCH_PAGE_SIZE: 20,
       SEARCH_MAX_LIMIT: 50,

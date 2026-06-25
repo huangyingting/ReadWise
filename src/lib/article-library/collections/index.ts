@@ -17,7 +17,7 @@
 import { prisma } from "@/lib/prisma";
 import { TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/output/validators";
@@ -120,7 +120,7 @@ export async function getOrCreateArticleTags(
         return tags.length > 0 ? tags : null;
       },
       buildMessages: (article) => {
-        const source = boundedSampleForFeature(htmlToPlainText(article.content), "tags");
+        const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "tags");
         return renderPrompt("tags", { title: article.title, source });
       },
       parse: (completion) => parseTagsJson(completion).slice(0, TARGET_TAGS),

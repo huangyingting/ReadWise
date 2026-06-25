@@ -60,16 +60,9 @@ before(() => {
   mock.module("@/lib/profile", {
     namedExports: {
       getProfile: async () => mockProfile,
-      parseTopics: (raw: string | string[] | null | undefined) => {
+      parseTopics: (raw: import("@prisma/client").Prisma.JsonValue | null | undefined) => {
         if (raw == null) return [];
         if (Array.isArray(raw)) return raw.filter((t): t is string => typeof t === "string");
-        try {
-          const parsed: unknown = JSON.parse(raw);
-          if (Array.isArray(parsed))
-            return parsed.filter((t): t is string => typeof t === "string");
-        } catch {
-          /* empty */
-        }
         return [];
       },
     },

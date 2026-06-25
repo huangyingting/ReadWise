@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
-import { htmlToPlainText } from "@/lib/translation";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
@@ -105,7 +105,7 @@ export async function getOrCreateArticleVocabulary(
       return entries.length > 0 ? entries : null;
       },
       buildMessages: (article) => {
-      const source = boundedSampleForFeature(htmlToPlainText(article.content), "vocabulary");
+      const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "vocabulary");
       return renderPrompt("vocabulary", { title: article.title, source });
       },
       parse: parseVocabularyJson,

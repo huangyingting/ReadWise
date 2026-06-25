@@ -56,14 +56,11 @@ test("empty/blank optional fields normalize to null", () => {
   }
 });
 
-test("parseTopics accepts Json arrays and legacy JSON strings", () => {
+test("parseTopics accepts Json arrays", () => {
   assert.deepEqual(parseTopics(["a", "b"]), ["a", "b"]);
   assert.deepEqual(parseTopics(["a", 1, null, "b"]), ["a", "b"]);
   assert.deepEqual(parseTopics([]), []);
-  assert.deepEqual(parseTopics('["a","b"]'), ["a", "b"]);
-  assert.deepEqual(parseTopics("not json"), []);
   assert.deepEqual(parseTopics(null), []);
-  assert.deepEqual(parseTopics('{"a":1}'), []);
 });
 
 test("isOnboarded checks completedAt", () => {

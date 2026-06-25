@@ -194,12 +194,12 @@ export function getArticleSearchProvider(): ArticleSearchProvider {
 }
 
 /**
- * Backwards-compatible article search entry point used by `/api/search`.
- * Despite the historical name, authenticated users may also see their own
+ * Article search entry point used by `/api/search`.
+ * Searches readable articles — authenticated users may also see their own
  * imported articles and their own annotation/vocabulary matches; all results
  * pass through `readableArticleWhere` to preserve Wave 1 visibility rules.
  */
-export function searchPublishedArticles(
+export function searchReadableArticles(
   query: string,
   opts: SearchOptions = {},
   userId?: string,

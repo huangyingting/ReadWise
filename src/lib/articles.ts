@@ -10,6 +10,6 @@ export {
   SEARCH_PAGE_SIZE,
   buildSearchTerms,
   getArticleSearchProvider,
-  searchPublishedArticles,
+  searchReadableArticles,
   scoreArticleSearchCandidate,
 } from "@/lib/article-search";

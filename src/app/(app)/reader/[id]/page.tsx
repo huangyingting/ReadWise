@@ -5,7 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
-import { htmlToPlainText } from "@/lib/content-pipeline";
+import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader";
 import ReaderProgress from "@/components/ReaderProgress";
 import ReaderShell from "./ReaderShell";
@@ -25,7 +25,7 @@ export async function generateMetadata({
     return { title: "Article" };
   }
 
-  const description = htmlToPlainText(article.content)
+  const description = articleHtmlToReaderText(article.content)
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 160);
