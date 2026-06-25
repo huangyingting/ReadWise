@@ -3,18 +3,14 @@
  *
  * All write operations live here. Last-admin guards are enforced at this layer
  * to prevent a tenant from accidentally losing its only administrator. Commands
- * return {@link OrgMutationResult} so callers can act on failures without
- * catching exceptions.
+ * return {@link DomainResult} so callers can act on failures without catching
+ * exceptions.
  */
 import type { MembershipRole, Organization, Membership, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import { type DomainResult, ok, notFound, conflict } from "@/lib/result";
 import { getMembership } from "./queries";
 import { slugifyOrg, ensureUniqueOrgSlug } from "./slugs";
-
-/** Result shape for guarded mutations (mirrors the admin-members convention). */
-export type OrgMutationResult<T = unknown> =
-  | ({ ok: true } & T)
-  | { ok: false; error: string; status: number };
 
 export type CreateOrganizationInput = {
   name: string;
@@ -82,35 +78,35 @@ export async function updateMemberRole(
   orgId: string,
   userId: string,
   role: MembershipRole,
-): Promise<OrgMutationResult<{ role: MembershipRole }>> {
+): Promise<DomainResult<{ role: MembershipRole }>> {
   const membership = await getMembership(userId, orgId);
-  if (!membership) return { ok: false, error: "Membership not found", status: 404 };
+  if (!membership) return notFound("Membership not found");
   if (membership.role === "OrgAdmin" && role !== "OrgAdmin") {
     const admins = await countOrgAdmins(orgId);
     if (admins <= 1) {
-      return { ok: false, error: "Cannot demote the last organization admin", status: 409 };
+      return conflict("Cannot demote the last organization admin");
     }
   }
   await prisma.membership.update({
     where: { userId_orgId: { userId, orgId } },
     data: { role },
   });
-  return { ok: true, role };
+  return ok({ role });
 }
 
 /** Removes a member, refusing to remove the LAST OrgAdmin. */
 export async function removeMember(
   orgId: string,
   userId: string,
-): Promise<OrgMutationResult> {
+): Promise<DomainResult> {
   const membership = await getMembership(userId, orgId);
-  if (!membership) return { ok: false, error: "Membership not found", status: 404 };
+  if (!membership) return notFound("Membership not found");
   if (membership.role === "OrgAdmin") {
     const admins = await countOrgAdmins(orgId);
     if (admins <= 1) {
-      return { ok: false, error: "Cannot remove the last organization admin", status: 409 };
+      return conflict("Cannot remove the last organization admin");
     }
   }
   await prisma.membership.delete({ where: { userId_orgId: { userId, orgId } } });
-  return { ok: true };
+  return ok();
 }

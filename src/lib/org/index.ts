@@ -36,10 +36,16 @@ export {
   listOrgMembers,
 } from "./queries";
 export {
-  type OrgMutationResult,
   type CreateOrganizationInput,
   createOrganization,
   addMember,
   updateMemberRole,
   removeMember,
 } from "./commands";
+
+/**
+ * Backward-compat type alias — new code should import `DomainResult` from
+ * `@/lib/result` directly. Kept so existing consumers (routes, tests) that
+ * reference `OrgMutationResult` continue to compile without changes.
+ */
+export type { DomainResult as OrgMutationResult } from "@/lib/result";
