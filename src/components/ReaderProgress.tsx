@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { markArticleVisited } from "@/lib/visited";
-import { submitMutation } from "@/lib/offline-mutations";
+import { submitMutation } from "@/lib/offline/sync-runtime";
 
 const THROTTLE_MS = 1000;
 

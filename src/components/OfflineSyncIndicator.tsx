@@ -17,7 +17,7 @@ import {
   subscribeSyncState,
   flushOfflineQueue,
   type SyncState,
-} from "@/lib/offline-mutations";
+} from "@/lib/offline/sync-runtime";
 
 export default function OfflineSyncIndicator() {
   const [sync, setSync] = useState<SyncState>({
