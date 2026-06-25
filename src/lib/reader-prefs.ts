@@ -169,3 +169,20 @@ export function fontScaleLabel(scale: number): string {
   };
   return map[scale] ?? "Default";
 }
+
+/**
+ * Returns the minified no-flash bootstrap script text for inline injection.
+ *
+ * The script reads the reader prefs from localStorage and applies them to
+ * `document.currentScript.parentElement` before the first paint, preventing a
+ * flash of default (un-preferenced) reader appearance.
+ *
+ * Using the `READER_PREFS_KEY` constant keeps the key byte-for-byte consistent
+ * with the rest of the module. Callers inject the return value via
+ * `dangerouslySetInnerHTML` inside a `<script>` tag.
+ *
+ * Intended for use in `ReaderPrefsScript.tsx` and for unit testing.
+ */
+export function buildBootstrapScript(): string {
+  return `(function(){try{var raw=localStorage.getItem('${READER_PREFS_KEY}');var prefs=raw?JSON.parse(raw):null;var el=document.currentScript&&document.currentScript.parentElement;if(!el)return;var mode=prefs&&prefs.mode?prefs.mode:(document.documentElement.dataset.theme==='dark'?'dark':'light');el.dataset.readingMode=mode;var scale=prefs&&typeof prefs.fontScale==='number'?prefs.fontScale:1;el.style.setProperty('--reading-font-scale',String(scale));var font=prefs&&prefs.fontFamily?prefs.fontFamily:'serif';el.dataset.readingFont=font;var spacing=prefs&&prefs.lineSpacing?prefs.lineSpacing:'normal';el.dataset.readingSpacing=spacing;}catch(e){}})();`;
+}
