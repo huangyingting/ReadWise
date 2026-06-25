@@ -6,6 +6,7 @@ import { Check, X, ArrowLeft, ArrowRight } from "lucide-react";
 import { ApiResponseError, postJson } from "@/lib/client-fetch";
 import { CATEGORIES } from "@/lib/categories";
 import { AGE_RANGES, ENGLISH_LEVELS, GENDERS, LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
+import { TopicSelector } from "@/features/profile-preferences";
 import {
   getPlacementQuestions,
   suggestLevel,
@@ -276,43 +277,7 @@ function StepTopics({
       <p className="text-text-subtle text-xs mb-[var(--space-4)]">
         Pick any that interest you — or none.
       </p>
-      <div
-        role="group"
-        aria-label="Topics you enjoy"
-        className="flex flex-wrap gap-[var(--space-2)]"
-      >
-        {CATEGORIES.map((cat) => {
-          const selected = topics.includes(cat.slug);
-          return (
-            <button
-              key={cat.slug}
-              type="button"
-              aria-pressed={selected}
-              onClick={() => toggleTopic(cat.slug)}
-              className={cn(
-                "inline-flex items-center gap-[var(--space-1)]",
-                "min-h-[40px] px-[var(--space-4)]",
-                "text-[length:var(--text-sm)] rounded-[var(--radius-full)]",
-                "border transition-[background-color,border-color,color]",
-                "[transition-duration:var(--duration-fast)]",
-                "outline-none focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
-                selected
-                  ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-primary-text border-primary"
-                  : "bg-bg-subtle text-text-muted border-border hover:border-border-strong",
-              )}
-            >
-              {selected && (
-                <Check
-                  size={14}
-                  aria-hidden
-                  className="rw-pop shrink-0"
-                />
-              )}
-              {cat.label}
-            </button>
-          );
-        })}
-      </div>
+      <TopicSelector topics={topics} onToggle={toggleTopic} />
     </div>
   );
 }
