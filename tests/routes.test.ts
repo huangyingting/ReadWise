@@ -124,6 +124,20 @@ before(() => {
       },
     },
   });
+  // api-handler.ts imports directly from @/lib/security/audit; mirror the same
+  // mock so tryRecordAuditLog calls from the handler are captured in auditCalls.
+  mock.module("@/lib/security/audit", {
+    namedExports: {
+      AUDIT_ACTIONS,
+      auditRequestInfo: () => ({}),
+      recordAuditFromRequest: async (input: unknown) => {
+        auditCalls.push(input);
+      },
+      tryRecordAuditLog: async (input: unknown) => {
+        auditCalls.push(input);
+      },
+    },
+  });
   mock.module("@/lib/articles", {
     namedExports: {
       getViewableArticleById: async () => (articleExists ? { id: "a1", status: "published" } : null),
