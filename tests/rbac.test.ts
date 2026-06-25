@@ -6,8 +6,8 @@
  * set is defined. Section B imports the REAL `@/lib/api-auth` and `@/lib/session`
  * guards with only `next-auth`, `@/lib/auth`, profile-preferences repository,
  * and `next/navigation`
- * mocked, proving the capability-backed `requireAdmin*` helpers behave EXACTLY
- * like the previous `role === "Admin"` checks (behavior-preserving).
+ * mocked, proving the capability-backed guards preserve the former
+ * Admin-access behavior without raw role checks.
  */
 process.env.LOG_LEVEL = "error";
 
