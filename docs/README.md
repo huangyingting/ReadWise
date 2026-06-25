@@ -1,64 +1,132 @@
 # ReadWise documentation index
 
 This directory contains the durable reference documentation for the current
-ReadWise codebase. Keep feature docs aligned with code under `src/`, the Prisma
-schemas under `prisma/`, and scripts in `package.json` / `scripts/`.
+ReadWise codebase. Documentation is organized by subsystem. Each subsystem
+directory stays flat: add documents directly under the subsystem directory rather
+than creating nested folders.
+
+Keep feature docs aligned with code under `src/`, the Prisma schemas under
+`prisma/`, and scripts in `package.json` / `scripts/`.
 
 ## Start here
 
 | Document | Scope |
 | --- | --- |
 | [`../README.md`](../README.md) | Project overview, local setup, scripts, deployment, and high-level architecture. |
-| [`database.md`](./database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
-| [`operations/database-runbooks.md`](./operations/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
-| [`ci.md`](./ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
+| [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
+| [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
+| [`platform/ci.md`](./platform/ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
 
-## Product and learning systems
+## Subsystems
 
-| Document | Scope |
-| --- | --- |
-| [`learning-and-mastery.md`](./learning-and-mastery.md) | Word/article/skill mastery, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
-| [`reader-annotations.md`](./reader-annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
-| [`offline-sync.md`](./offline-sync.md) | Offline mutation queue, conflict resolution, cache versioning, background-sync resilience, and push reminders. |
-| [`search-and-indexing.md`](./search-and-indexing.md) | Search and indexing strategy. |
-| [`analytics.md`](./analytics.md) | Product analytics event stream, retention, dashboards, and privacy rules. |
-| [`multi-tenancy.md`](./multi-tenancy.md) | Organizations, memberships, classrooms, assignments, tenant-aware cache keys, and tenant analytics privacy. |
-| [`rbac.md`](./rbac.md) | Capability-based authorization for global roles and tenant/classroom memberships. |
-
-## AI, content, and operations
+### Access and tenancy
 
 | Document | Scope |
 | --- | --- |
-| [`ai-context.md`](./ai-context.md) | AI provider abstraction, long-context chunking, cache versioning, and graceful fallbacks. |
-| [`ai-prompts.md`](./ai-prompts.md) | Prompt registry, prompt versions, and backfill/rebuild guidance. |
-| [`ai-safety.md`](./ai-safety.md) | Structured output validation, moderation, provider error normalization, and safe fallbacks. |
-| [`ai-evals.md`](./ai-evals.md) | Offline/live AI evaluation harness and datasets. |
-| [`content-policy.md`](./content-policy.md) | Source governance, provider health, rights metadata, review, and takedown workflow. |
-| [`scrapers.md`](./scrapers.md) | Scraper providers, discovery/extraction, SSRF/robots controls, and provider drift handling. |
-| [`media-storage.md`](./media-storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
-| [`admin-operations.md`](./admin-operations.md) | Persistent job queue, processing-step state, audit logs, provider operations, admin endpoints, and operator workflows. |
-| [`health-readiness.md`](./health-readiness.md) | `/api/health`, `/api/ready`, runtime config validation, migrations, and optional-provider degradation. |
+| [`access/account-lifecycle.md`](./access/account-lifecycle.md) | Account export, self-service deletion, admin member deletion/role changes, support actions, cascades, and last-admin guards. |
+| [`access/multi-tenancy.md`](./access/multi-tenancy.md) | Organizations, memberships, classrooms, assignments, tenant-aware cache keys, and tenant analytics privacy. |
+| [`access/rbac.md`](./access/rbac.md) | Capability-based authorization for global roles and tenant/classroom memberships. |
 
-## Security and observability
+### AI
 
 | Document | Scope |
 | --- | --- |
-| [`security.md`](./security.md) | Trusted proxy/IP handling, CSRF, destructive-action protections, security events, and audit-log relationship. |
-| [`observability.md`](./observability.md) | Tracing, error aggregation, metrics, SLOs, and investigation workflow. |
+| [`ai/ai-context.md`](./ai/ai-context.md) | AI provider abstraction, long-context chunking, cache versioning, and graceful fallbacks. |
+| [`ai/ai-prompts.md`](./ai/ai-prompts.md) | Prompt registry, prompt versions, and backfill/rebuild guidance. |
+| [`ai/ai-safety.md`](./ai/ai-safety.md) | Structured output validation, moderation, provider error normalization, and safe fallbacks. |
+| [`ai/ai-evals.md`](./ai/ai-evals.md) | Offline/live AI evaluation harness and datasets. |
+| [`ai/ai-governance-ledger.md`](./ai/ai-governance-ledger.md) | AI invocation ledger, budgets/quotas, usage summaries, cost estimates, and privacy boundaries. |
 
-## Architecture decisions
+### Analytics
 
 | Document | Scope |
 | --- | --- |
-| [`adr/`](./adr/) | Architecture decision records. Start with [`adr/README.md`](./adr/README.md). |
+| [`analytics/analytics.md`](./analytics/analytics.md) | Product analytics event stream, retention, dashboards, and privacy rules. |
+
+### Architecture
+
+| Document | Scope |
+| --- | --- |
+| [`architecture/`](./architecture/) | Architecture decision records. Start with [`architecture/README.md`](./architecture/README.md). |
+
+### Content ingestion and policy
+
+| Document | Scope |
+| --- | --- |
+| [`content/article-library.md`](./content/article-library.md) | Article access policy, lifecycle axes, public/private listings, admin article operations, moderation, and content safety boundaries. |
+| [`content/content-policy.md`](./content/content-policy.md) | Source governance, provider health, rights metadata, review, and takedown workflow. |
+| [`content/legal-content.md`](./content/legal-content.md) | Legal/static content responsibilities. |
+| [`content/scrapers.md`](./content/scrapers.md) | Scraper providers, discovery/extraction, SSRF/robots controls, and provider drift handling. |
+
+### Learning
+
+| Document | Scope |
+| --- | --- |
+| [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
+| [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
+
+### Media
+
+| Document | Scope |
+| --- | --- |
+| [`media/media-storage.md`](./media/media-storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
+
+### Observability
+
+| Document | Scope |
+| --- | --- |
+| [`observability/client-error-reporting.md`](./observability/client-error-reporting.md) | Browser runtime error sink, scrubbing, rate limiting, aggregation, and alerting behavior. |
+| [`observability/observability.md`](./observability/observability.md) | Tracing, error aggregation, metrics, SLOs, and investigation workflow. |
+
+### Operations
+
+| Document | Scope |
+| --- | --- |
+| [`operations/admin-operations.md`](./operations/admin-operations.md) | Persistent job queue, processing-step state, audit logs, provider operations, admin endpoints, and operator workflows. |
+
+### Platform
+
+| Document | Scope |
+| --- | --- |
+| [`platform/api-catalog.md`](./platform/api-catalog.md) | Generated API catalog. |
+| [`platform/api-catalog.json`](./platform/api-catalog.json) | Machine-readable generated API catalog. |
+| [`platform/authentication.md`](./platform/authentication.md) | NextAuth provider registry, database sessions, first-user admin bootstrap, cookie posture, and auth guard layering. |
+| [`platform/ci.md`](./platform/ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
+| [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
+| [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
+| [`platform/dependency-injection.md`](./platform/dependency-injection.md) | Dependency injection seams and testing guidance. |
+| [`platform/health-readiness.md`](./platform/health-readiness.md) | `/api/health`, `/api/ready`, runtime config validation, migrations, and optional-provider degradation. |
+| [`platform/push-notifications.md`](./platform/push-notifications.md) | Web Push configuration, subscription lifecycle, reminder scheduling, delivery health, and privacy. |
+| [`platform/static-assets.md`](./platform/static-assets.md) | Static asset and public file guidance. |
+
+### Reader
+
+| Document | Scope |
+| --- | --- |
+| [`reader/bookmarks-and-lists.md`](./reader/bookmarks-and-lists.md) | Default Saved list, custom reading lists, list membership, IDOR protections, and export/deletion behavior. |
+| [`reader/import-system.md`](./reader/import-system.md) | URL/text personal imports, SSRF and sanitization controls, de-duplication, daily quota, audit, and analytics metadata. |
+| [`reader/lexical-dictionary.md`](./reader/lexical-dictionary.md) | Dictionary lookup provider seam, word normalization, saved-word persistence, mastery exposure, and privacy rules. |
+| [`reader/offline-sync.md`](./reader/offline-sync.md) | Offline mutation queue, conflict resolution, cache versioning, background-sync resilience, and push reminders. |
+| [`reader/reader-annotations.md`](./reader/reader-annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
+| [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |
+| [`reader/search-and-indexing.md`](./reader/search-and-indexing.md) | Search and indexing strategy. |
+| [`reader/speech-synthesis.md`](./reader/speech-synthesis.md) | Narration access checks, Azure Speech provider seam, speech cache lifecycle, storage fallback, and streaming playback. |
+| [`reader/translation-service.md`](./reader/translation-service.md) | Full-article and sentence translation cache keys, chunking, prompt versions, fallbacks, and privacy boundaries. |
+
+### Security
+
+| Document | Scope |
+| --- | --- |
+| [`security/security.md`](./security/security.md) | Trusted proxy/IP handling, CSRF, destructive-action protections, security events, and audit-log relationship. |
 
 ## Maintenance rules
 
 - Prefer updating these durable docs over adding ad-hoc notes.
 - Historical spikes belong under `docs/spikes/` only while they are actively
-  useful. Delete or promote them once code/ADR/reference docs supersede them.
+  useful. Delete or promote them once code/architecture/reference docs supersede
+  them.
 - Keep environment-variable tables consistent with `.env.example` and
-  `src/lib/config.ts`.
+  `src/lib/runtime-config/`.
 - Keep script examples consistent with `package.json` and `scripts/*.ts` help
   output.
 - Keep schema/model descriptions consistent with both `prisma/schema.prisma` and

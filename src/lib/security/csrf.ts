@@ -9,7 +9,7 @@
  * cross-site `Origin` on a POST/PUT/PATCH/DELETE is rejected.
  *
  * Design rules (kept deliberately conservative so legitimate traffic is never
- * broken — see `docs/security.md`):
+ * broken — see `docs/security/security.md`):
  *   - Only state-changing methods are checked (safe GET/HEAD/OPTIONS pass).
  *   - A request with NO `Origin` header is treated as same-origin and ALLOWED
  *     (server-to-server, health checks, non-browser `fetch`, some `sendBeacon`,

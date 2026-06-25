@@ -25,7 +25,7 @@ capability)` is the single runtime check; `requireCapability` (pages) and
 `requireCapabilityApi` (routes) wrap it. Top-level admin access uses the
 `admin.access` capability directly. **No Prisma migration** ships: the `Role` enum stays
 `{ Admin, Reader }`, capabilities live in code, and the DB-backed migration path
-is documented (`docs/rbac.md`). A compile-time guard keeps `ACTIVE_ROLES` in sync
+is documented (`docs/access/rbac.md`). A compile-time guard keeps `ACTIVE_ROLES` in sync
 with the Prisma enum.
 
 ## Alternatives considered
@@ -44,7 +44,7 @@ with the Prisma enum.
 - Trade-off: capabilities are static in code until a future migration; per-user
   custom grants are not possible yet.
 - Risk: the in-code map and the Prisma enum could drift — mitigated by the
-  compile-time guard and `docs/rbac.md`.
+  compile-time guard and `docs/access/rbac.md`.
 
 ## Follow-up work
 

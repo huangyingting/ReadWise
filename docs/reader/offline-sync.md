@@ -4,7 +4,7 @@ This document describes the offline-first work added in Epic **RW-E008**
 (**RW-042** offline mutation queue, **RW-043** conflict resolution, **RW-044**
 cache versioning & invalidation, **RW-045** push reminder / background-sync
 resilience). It builds on the existing PWA infra (`public/sw.js`,
-`src/lib/offline-db.ts`, the offline article download) rather than replacing it.
+`src/lib/offline/idb.ts`, the offline article download) rather than replacing it.
 
 The design goal: a reader can keep reading, highlighting, note-taking, saving
 words and finishing quizzes **while offline**, and have those changes converge
@@ -16,7 +16,7 @@ breaking offline reading across a service-worker upgrade.
 
 ## 1. Client-side mutation queue (RW-042)
 
-### Storage — `src/lib/offline-db.ts`
+### Storage — `src/lib/offline/idb.ts`
 
 The existing IndexedDB helper (`readwise-offline`) is bumped to `DB_VERSION = 2`
 and gains a `mutations` object store alongside the existing offline-article
@@ -42,7 +42,7 @@ store. Each queued mutation row is:
 latest reading-progress value for an article needs to survive — older percents
 are forward-only-dominated anyway).
 
-### Sync engine — `src/lib/offline-sync.ts` (pure) + `src/lib/offline-mutations.ts` (glue)
+### Sync engine — `src/lib/offline-sync.ts` (pure) + `src/lib/offline/sync-runtime.ts` / `src/lib/offline/mutation-store.ts` (glue)
 
 `offline-sync.ts` holds the **pure, unit-tested** flush logic with no IndexedDB
 or `fetch` imports:
@@ -178,7 +178,7 @@ no extra cleanup code needed.
 
 ## 4. Push reminder & background-sync resilience (RW-045)
 
-### Delivery tracking & pruning — `src/lib/push.ts`
+### Delivery tracking & pruning — `src/lib/push/`
 
 `PushSubscription` gained additive columns `failureCount`, `lastSuccessAt`,
 `lastFailureAt`. `sendToSubs` now:

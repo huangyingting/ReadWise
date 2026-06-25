@@ -1,7 +1,7 @@
 # Database backup, restore, migration, and rollback runbooks
 
 These runbooks cover the current SQLite deployment and the planned
-PostgreSQL production target from [ADR-0001](../adr/0001-postgresql-primary-database.md).
+PostgreSQL production target from [ADR-0001](../architecture/0001-postgresql-primary-database.md).
 They are intentionally secret-safe: examples use placeholders only.
 
 ## Ownership, frequency, and retention

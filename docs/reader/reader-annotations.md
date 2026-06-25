@@ -31,7 +31,7 @@ Anchors are immutable after creation. Only `note` and `color` can be edited.
 This prevents a client from changing the selected text silently and keeps
 annotation history stable.
 
-Validation in `src/lib/highlights.ts` enforces:
+Validation in `src/lib/annotations/commands.ts` enforces:
 
 | Constraint | Value |
 | --- | --- |
@@ -89,7 +89,7 @@ Progress and saved-word conflict policies are documented in
 
 ## API and library operations
 
-Library functions in `src/lib/highlights.ts`:
+Library functions in `src/lib/annotations/`:
 
 | Function | Behavior |
 | --- | --- |

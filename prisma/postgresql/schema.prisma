@@ -852,7 +852,7 @@ model ReminderPreference {
 //   - BEST-EFFORT. Writes never throw — an analytics write must never break the
 //     user action that emitted it.
 //
-// See `docs/analytics.md` for the versioned event schema + retention rules.
+// See `docs/analytics/analytics.md` for the versioned event schema + retention rules.
 model AnalyticsEvent {
   id          String   @id @default(cuid())
   type        String
@@ -958,7 +958,7 @@ model MediaAsset {
 // (Epic RW-E012 — RW-060/061). Additive and NULLABLE by design: an account
 // with no Membership is unchanged (the global single-user experience). Tenant
 // roles are SEPARATE from the global Role enum (Admin/Reader) — an OrgAdmin is
-// not a ReadWise system admin (see docs/multi-tenancy.md + src/lib/rbac.ts).
+// not a ReadWise system admin (see docs/access/multi-tenancy.md + src/lib/rbac.ts).
 // ===========================================================================
 
 /// Tenant role inside an Organization. Resolved to capabilities per-membership

@@ -156,7 +156,7 @@ docker compose down
 docker compose down -v  # destructive reset of local PostgreSQL/Redis volumes
 ```
 
-See `docs/database.md` and `docs/operations/database-runbooks.md` for migration,
+See `docs/platform/database.md` and `docs/platform/database-runbooks.md` for migration,
 backup, restore, reset, and SQLite-to-PostgreSQL notes.
 
 ## Environment variables
@@ -374,22 +374,22 @@ manager.
 
 ## Documentation map
 
-- `docs/database.md` — SQLite/PostgreSQL workflows, migration tests, local DB helper.
+- `docs/platform/database.md` — SQLite/PostgreSQL workflows, migration tests, local DB helper.
 - `docs/README.md` — full documentation index.
-- `docs/health-readiness.md` — health/readiness probes and runtime config validation.
-- `docs/admin-operations.md` — admin jobs, audit logs, processing steps, provider operations.
-- `docs/learning-and-mastery.md` — learner analytics, mastery models, adaptive leveling, SRS.
-- `docs/reader-annotations.md` — highlights, notes, anchor revalidation, offline note merge.
-- `docs/operations/database-runbooks.md` — backup, restore, rollback, and DR runbooks.
-- `docs/ci.md` — CI quality gates and failure triage.
-- `docs/security.md` — trusted proxy, CSRF, security events, audit logs.
-- `docs/observability.md` — logs, metrics, tracing, and error reporting.
-- `docs/media-storage.md` — filesystem/Azure media storage and migration guide.
-- `docs/analytics.md` — product analytics event schema and retention.
-- `docs/ai-context.md`, `docs/ai-prompts.md`, `docs/ai-safety.md`, `docs/ai-evals.md` — AI prompt governance and evaluations.
-- `docs/content-policy.md` — source governance, provider health, rights, and takedown policy.
-- `docs/scrapers.md` — scraper provider architecture and drift handling.
-- `docs/offline-sync.md` — offline queue and conflict-resolution design.
-- `docs/search-and-indexing.md` — search/indexing strategy.
-- `docs/rbac.md` and `docs/multi-tenancy.md` — capability model, organizations, classrooms, and assignments.
+- `docs/platform/health-readiness.md` — health/readiness probes and runtime config validation.
+- `docs/operations/admin-operations.md` — admin jobs, audit logs, processing steps, provider operations.
+- `docs/learning/learning-and-mastery.md` — learner analytics, mastery models, adaptive leveling, SRS.
+- `docs/reader/reader-annotations.md` — highlights, notes, anchor revalidation, offline note merge.
+- `docs/platform/database-runbooks.md` — backup, restore, rollback, and DR runbooks.
+- `docs/platform/ci.md` — CI quality gates and failure triage.
+- `docs/security/security.md` — trusted proxy, CSRF, security events, audit logs.
+- `docs/observability/observability.md` — logs, metrics, tracing, and error reporting.
+- `docs/media/media-storage.md` — filesystem/Azure media storage and migration guide.
+- `docs/analytics/analytics.md` — product analytics event schema and retention.
+- `docs/ai/ai-context.md`, `docs/ai/ai-prompts.md`, `docs/ai/ai-safety.md`, `docs/ai/ai-evals.md` — AI prompt governance and evaluations.
+- `docs/content/content-policy.md` — source governance, provider health, rights, and takedown policy.
+- `docs/content/scrapers.md` — scraper provider architecture and drift handling.
+- `docs/reader/offline-sync.md` — offline queue and conflict-resolution design.
+- `docs/reader/search-and-indexing.md` — search/indexing strategy.
+- `docs/access/rbac.md` and `docs/access/multi-tenancy.md` — capability model, organizations, classrooms, and assignments.
 - `docs/adr/` — architecture decision records.

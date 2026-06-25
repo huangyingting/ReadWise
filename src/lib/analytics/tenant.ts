@@ -9,7 +9,7 @@
  *   3. REDACTION of out-of-scope individual data (org admins get aggregates, not
  *      named per-learner rows).
  *
- * Visibility matrix (see `docs/multi-tenancy.md` for the full table):
+ * Visibility matrix (see `docs/access/multi-tenancy.md` for the full table):
  *   - learner      → own data only (`self`).
  *   - teacher      → their classroom, INCLUDING per-student rows (pedagogical).
  *   - org admin    → their org, AGGREGATED only (no named per-learner rows).

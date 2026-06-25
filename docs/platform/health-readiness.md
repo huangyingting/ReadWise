@@ -81,7 +81,7 @@ SQLite schema path (or vice versa) gives misleading readiness/migration results.
 
 ## Runtime config validation
 
-`src/lib/config.ts` is the server-only source of truth. Required sections:
+`src/lib/runtime-config/` is the server-only source of truth. Required sections:
 
 | Section | Env | Notes |
 | --- | --- | --- |

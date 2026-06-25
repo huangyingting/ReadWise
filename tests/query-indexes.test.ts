@@ -67,7 +67,7 @@ test("PostgreSQL migrations create the same production query indexes", () => {
 test("public feed predicate matches ownerless partial-index contract", () => {
   // The implementation lives in article-library/policy.ts.
   const articlePolicy = read("src/lib/article-library/policy.ts");
-  const docs = read("docs/search-and-indexing.md");
+  const docs = read("docs/reader/search-and-indexing.md");
   const migration = readAllMigrations("prisma/postgresql/migrations");
 
   assert.match(articlePolicy, /publicListableArticleWhere[\s\S]{0,250}ownerId:\s*null/);
@@ -76,7 +76,7 @@ test("public feed predicate matches ownerless partial-index contract", () => {
 });
 
 test("search strategy docs capture scaling assumptions and PostgreSQL follow-up", () => {
-  const docs = read("docs/search-and-indexing.md");
+  const docs = read("docs/reader/search-and-indexing.md");
   assert.match(docs, /ArticleSearchProvider/);
   assert.match(docs, /Article_search_vector_idx/);
   assert.match(docs, /Core query-plan evidence \(#263\)/);

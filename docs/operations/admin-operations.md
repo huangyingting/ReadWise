@@ -158,7 +158,7 @@ never erases the investigation trail.
 
 ### Action taxonomy
 
-`AUDIT_ACTIONS` in `src/lib/audit.ts` is the source of truth. Current groups:
+`AUDIT_ACTIONS` in `src/lib/security/audit.ts` is the source of truth. Current groups:
 
 - Articles: `admin.article.delete`, `admin.article.rebuild_ai`,
   `admin.article.ingest`, `admin.article.review`, `admin.article.takedown`.
@@ -184,7 +184,7 @@ audit persistence failure must not change the auth response.
 
 ## Content-source operations
 
-Provider extraction logic remains in code (`src/lib/scraper/providers.ts`). The
+Provider extraction logic remains in code (`src/lib/scraper/providers/`). The
 `ContentSource` table stores operator-controlled state and crawl health.
 
 ### Registry sync
@@ -224,7 +224,7 @@ Each recorded crawl also emits ingestion metrics.
 
 ## Article moderation and takedown
 
-Article moderation is documented in [`content-policy.md`](./content-policy.md).
+Article moderation is documented in [`content-policy.md`](../content/content-policy.md).
 Operationally:
 
 - Review/takedown actions write `ContentReview` history rows.
@@ -242,7 +242,7 @@ When an article or provider looks unhealthy:
 3. Check `/admin/sources` for provider health/counter drift.
 4. Use audit logs to find recent admin actions against the article/provider/job.
 5. Use request ids from audit/security/error logs to correlate with structured
-   logs and traces (see [`observability.md`](./observability.md)).
+  logs and traces (see [`observability.md`](../observability/observability.md)).
 
 When performing destructive actions:
 

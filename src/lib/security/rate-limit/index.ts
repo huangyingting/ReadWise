@@ -150,7 +150,7 @@ export async function checkRateLimit(userId: string, scope: string): Promise<voi
 
 /**
  * Extracts a client IP rate-limit key from a Request using the trusted-proxy
- * aware resolver in {@link "@/lib/security/client-ip"}. See `docs/security.md`
+ * aware resolver in {@link "@/lib/security/client-ip"}. See `docs/security/security.md`
  * for how to configure trusted proxies; with none configured this is a SOFT
  * (spoofable) per-IP identity suitable only for best-effort limits.
  */

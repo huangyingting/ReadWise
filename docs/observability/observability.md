@@ -18,8 +18,8 @@ slower build. You turn each pillar on with environment variables.
 
 | Piece | File | Role |
 | --- | --- | --- |
-| SDK bootstrap | `src/instrumentation.ts` → `src/lib/tracing-node.ts` | Next.js calls `register()` once per server process; we start the OpenTelemetry **Node SDK** there, but only in the Node.js runtime and only when configured. |
-| API-only helpers | `src/lib/tracing.ts` | `withSpan` / `startChildSpan` / `setSpanAttributes`. Safe to import anywhere — the OTel API is a **no-op** until an SDK is registered, so these cost nothing when tracing is off. |
+| SDK bootstrap | `src/instrumentation.ts` → `src/lib/observability/tracing-node.ts` | Next.js calls `register()` once per server process; we start the OpenTelemetry **Node SDK** there, but only in the Node.js runtime and only when configured. |
+| API-only helpers | `src/lib/observability/tracing.ts` | `withSpan` / `startChildSpan` / `setSpanAttributes`. Safe to import anywhere — the OTel API is a **no-op** until an SDK is registered, so these cost nothing when tracing is off. |
 
 Spans are created around the major flows:
 
@@ -27,19 +27,19 @@ Spans are created around the major flows:
   `"<METHOD> <routeGroup>"` span and records unhandled errors on it.
 - **AI provider calls** — `src/lib/ai.ts` adds a child `ai.chat_completion`
   span around the Azure OpenAI request.
-- **Worker jobs** — `src/lib/worker.ts` wraps article processing
+- **Worker jobs** — `src/lib/worker/` wraps article processing
   (`worker.process_article`) and queue jobs (`worker.job`).
 - **Scraper fetches** — `src/lib/scraper/extract.ts` wraps the provider fetch
   (`scraper.fetch`) with the **hostname only**.
 
-The ambient **request id** (from `src/lib/logger.ts`’s `AsyncLocalStorage`) is
+The ambient **request id** (from `src/lib/observability/logger.ts`’s `AsyncLocalStorage`) is
 set as the `readwise.request_id` span attribute so a trace lines up with the
 structured logs.
 
 ### Privacy
 
 Span attributes go through an **allow-list** (`sanitizeAttributes` in
-`src/lib/tracing.ts`). Only low-cardinality, content-free keys
+`src/lib/observability/tracing.ts`). Only low-cardinality, content-free keys
 (`readwise.feature`, `readwise.route`, `readwise.host`, status, ids, …) survive;
 any other key — or any object/array value — is dropped. **Article text,
 selected text, and prompts can never reach a span.**
@@ -84,7 +84,7 @@ search for traces. AI and scraper calls appear as child spans.
 
 ### How it works
 
-`src/lib/error-reporting.ts` exposes a single seam — `captureError(error,
+`src/lib/observability/errors.ts` exposes a single seam — `captureError(error,
 context)` — that every error path funnels through:
 
 - **Server errors** — the api-handler’s unhandled-error path calls it.
@@ -141,9 +141,9 @@ bootstrap — **no provider dependency is hard-added**. Select a provider name v
 
 ## 3. SLIs & SLOs (RW-034)
 
-`src/lib/slo.ts` is the single source of truth: an SLI **catalog**
+`src/lib/observability/slo.ts` is the single source of truth: an SLI **catalog**
 (`SLI_CATALOG`) plus an evaluator (`evaluateSlos`) that computes the current
-status from the in-process metrics snapshot (`src/lib/metrics.ts`). It is
+status from the in-process metrics snapshot (`src/lib/metrics/`). It is
 surfaced at **`GET /api/admin/slo`** (admin-gated) alongside the existing
 Prometheus endpoint at `GET /api/admin/metrics`.
 

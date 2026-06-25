@@ -95,7 +95,7 @@ test("LegalPageShell component file exists", () => {
 // Legal content governance documentation exists
 // ---------------------------------------------------------------------------
 
-test("docs/legal-content.md exists", () => {
-  const path = resolve(ROOT, "docs/legal-content.md");
+test("docs/content/legal-content.md exists", () => {
+  const path = resolve(ROOT, "docs/content/legal-content.md");
   assert.ok(existsSync(path), `Missing governance doc: ${path}`);
 });
