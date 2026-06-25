@@ -1,28 +1,34 @@
 "use client";
 
 /**
- * WordLookup (M11 — highlights + M1 dictionary, combined)
+ * WordLookup — thin orchestrator for the reader interaction subsystems.
  *
  * ONE floating surface is open at a time, chosen by gesture:
  *
  *   Gesture                   | Surface
  *   ─────────────────────────────────────────────────────────
- *   Click/tap a word           | Dictionary popover (unchanged)
- *   Click a <mark.rw-hl>       | Highlight edit popover (new)
- *   Drag-select text           | Selection toolbar (new)
+ *   Click/tap a word           | Dictionary popover
+ *   Click a <mark.rw-hl>       | Highlight edit popover
+ *   Drag-select text           | Selection toolbar
  *   Cmd/Ctrl+E w/ selection    | Selection toolbar (keyboard a11y)
+ *
+ * Subsystems:
+ *   selectionHelpers   — pure DOM helpers (wordAtPoint, extractContextSentence)
+ *   useSurfaceController — surface state reducer (single-surface invariant)
+ *   useSaveWord        — save/unsave vocabulary with session-level cache
+ *   useHighlightActions — highlight + add-note with overlap merge
+ *   useDictionaryLookup, useSentenceTranslation, useGrammarExplanation,
+ *   useTtsProseHighlight, highlightMarks — prior extracted subsystems
  *
  * The mark renderer (useEffect) walks text nodes via TreeWalker to wrap
  * matching ranges in <mark class="rw-hl">. It NEVER re-sanitizes or
  * sets innerHTML — it operates on the existing, already-sanitized nodes.
  */
 
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef } from "react";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import {
   useHighlights,
-  type Highlight as RwHighlight,
-  type HighlightColor,
 } from "./ReaderHighlightsProvider";
 import { useReaderAudio } from "./ReaderAudioProvider";
 import SelectionToolbar from "./SelectionToolbar";
@@ -34,85 +40,22 @@ import { Badge } from "@/components/ui/Badge";
 import {
   applyHighlightMarks,
   computeAnchor,
-  overlapsAny,
 } from "@/components/reader/wordLookup/highlightMarks";
 import { useDictionaryLookup } from "@/components/reader/wordLookup/useDictionaryLookup";
 import { useGrammarExplanation } from "@/components/reader/wordLookup/useGrammarExplanation";
 import { useSentenceTranslation } from "@/components/reader/wordLookup/useSentenceTranslation";
 import { useTtsProseHighlight } from "@/components/reader/wordLookup/useTtsProseHighlight";
+import {
+  wordAtPoint,
+  extractContextSentence,
+} from "@/components/reader/wordLookup/selectionHelpers";
+import { useSaveWord } from "@/components/reader/wordLookup/useSaveWord";
+import { useHighlightActions } from "@/components/reader/wordLookup/useHighlightActions";
+import { useSurfaceController } from "@/components/reader/wordLookup/useSurfaceController";
 
 const POPOVER_WIDTH = 340;
 const POPOVER_HEIGHT = 400;
 const MINI_PLAYER_HEIGHT = 56;
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function wordAtPoint(x: number, y: number): string | null {
-  const doc = document as Document & {
-    caretPositionFromPoint?: (
-      x: number,
-      y: number,
-    ) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
-
-  let node: Node | null = null;
-  let offset = 0;
-
-  if (typeof doc.caretRangeFromPoint === "function") {
-    const range = doc.caretRangeFromPoint(x, y);
-    if (range) { node = range.startContainer; offset = range.startOffset; }
-  } else if (typeof doc.caretPositionFromPoint === "function") {
-    const pos = doc.caretPositionFromPoint(x, y);
-    if (pos) { node = pos.offsetNode; offset = pos.offset; }
-  }
-
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
-
-  const text = node.textContent ?? "";
-  const isWordChar = (c: string) => /[A-Za-z'''-]/.test(c);
-  let start = Math.min(offset, text.length);
-  let end = start;
-  while (start > 0 && isWordChar(text[start - 1])) start--;
-  while (end < text.length && isWordChar(text[end])) end++;
-  return text.slice(start, end).trim() || null;
-}
-
-/**
- * Extracts the sentence containing `word` from the prose element's text content.
- * Splits on `.`, `?`, `!` followed by whitespace/end, and on paragraph breaks.
- * Returns the trimmed sentence or null when not found.
- */
-function extractContextSentence(proseEl: HTMLElement, word: string): string | null {
-  const text = proseEl.textContent ?? "";
-  if (!text || !word) return null;
-  // Split on sentence-ending punctuation (. ? !) followed by whitespace or EOL
-  const sentences = text.split(/(?<=[.?!])\s+/);
-  const lower = word.toLowerCase();
-  for (const sentence of sentences) {
-    if (sentence.toLowerCase().includes(lower)) {
-      const trimmed = sentence.trim();
-      if (trimmed.length > 0 && trimmed.length <= 400) return trimmed;
-    }
-  }
-  return null;
-}
-// ---------------------------------------------------------------------------
-// Component
-// ---------------------------------------------------------------------------
-
-type OpenSurface = "dictionary" | "toolbar" | "popover" | "translate" | "grammar" | null;
-
-interface SavedAnchor {
-  quote: string;
-  startOffset: number;
-  endOffset: number;
-  prefix: string;
-  suffix: string;
-  selectionWord: string;
-}
 
 export default function WordLookup({
   html,
@@ -123,6 +66,7 @@ export default function WordLookup({
   articleId: string;
   languages: SupportedLanguage[];
 }) {
+  // DOM refs
   const proseRef = useRef<HTMLDivElement>(null);
   const popoverRef = useRef<HTMLDivElement>(null);
   const dictCloseRef = useRef<HTMLButtonElement>(null);
@@ -132,30 +76,28 @@ export default function WordLookup({
   const grammarPopoverRef = useRef<HTMLDivElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
-  const [openSurface, setOpenSurface] = useState<OpenSurface>(null);
+  // Surface state controller (single-surface-open invariant, selection anchor)
+  const surface = useSurfaceController();
+  const {
+    openSurface,
+    dictAnchor,
+    toolbarRect,
+    toolbarColor,
+    toolbarShowDefine,
+    toolbarShowGrammar,
+    editHlId,
+    editMarkEl,
+    savedAnchorRef,
+  } = surface;
 
-  // Dictionary
-  const [dictAnchor, setDictAnchor] = useState<{ x: number; y: number } | null>(null);
-  const { word, setWord, loading, result, dictError, resetDictionary, runLookup } = useDictionaryLookup();
+  // Dictionary lookup
+  const { word, setWord, loading, result, dictError, resetDictionary, runLookup } =
+    useDictionaryLookup();
 
-  // Save word from popover (issue #107)
-  const [wordSaved, setWordSaved] = useState(false);
-  const [savePending, setSavePending] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
-  // Session-level cache: word -> saved state (avoids re-fetching on re-open)
-  const savedCacheRef = useRef<Map<string, boolean>>(new Map());
+  // Save / unsave vocabulary
+  const saveWord = useSaveWord(word, result, articleId, proseRef);
 
-  // Toolbar
-  const [toolbarRect, setToolbarRect] = useState<DOMRect | null>(null);
-  const [toolbarColor, setToolbarColor] = useState<HighlightColor>("yellow");
-  const [toolbarShowDefine, setToolbarShowDefine] = useState(false);
-  const [toolbarShowGrammar, setToolbarShowGrammar] = useState(false);
-  const savedAnchorRef = useRef<SavedAnchor | null>(null);
-
-  // Edit popover
-  const [editHlId, setEditHlId] = useState<string | null>(null);
-  const [editMarkEl, setEditMarkEl] = useState<HTMLElement | null>(null);
-
+  // Sentence translation
   const {
     translateLang,
     translateLoading,
@@ -172,8 +114,10 @@ export default function WordLookup({
     retryTranslation,
   } = useSentenceTranslation(articleId);
 
+  // Grammar explanation
   const contextSentenceFor = useCallback(
-    (phrase: string) => proseRef.current ? extractContextSentence(proseRef.current, phrase) ?? "" : "",
+    (phrase: string) =>
+      proseRef.current ? extractContextSentence(proseRef.current, phrase) ?? "" : "",
     [],
   );
   const {
@@ -189,26 +133,33 @@ export default function WordLookup({
     retryGrammar,
   } = useGrammarExplanation(articleId, contextSentenceFor);
 
-  const { highlights, loading: hlLoading, add, updateColor, updateNote, remove, markOrphaned } = useHighlights();
-  const editHighlight = editHlId ? (highlights.find((h) => h.id === editHlId) ?? null) : null;
+  // Highlights
+  const { highlights, loading: hlLoading, add, updateColor, updateNote, remove, markOrphaned } =
+    useHighlights();
+  const editHighlight = editHlId
+    ? (highlights.find((h) => h.id === editHlId) ?? null)
+    : null;
 
   // TTS prose highlighting
   const readerAudio = useReaderAudio();
   useTtsProseHighlight(proseRef, readerAudio, highlights);
 
+  // Highlight toolbar actions (overlap merge logic)
+  const { handleHighlight, handleAddNote } = useHighlightActions(
+    highlights,
+    add,
+    remove,
+    proseRef,
+  );
+
+  // Global close: resets surface controller + all subsystem states
   const closeAll = useCallback(() => {
-    setOpenSurface(null);
-    setDictAnchor(null);
-    setToolbarRect(null);
-    setEditHlId(null);
-    setEditMarkEl(null);
-    savedAnchorRef.current = null;
+    surface.closeAll();
     resetDictionary();
-    setSaveError(null);
-    setSavePending(false);
+    saveWord.resetSaveError();
     resetTranslation();
     resetGrammar();
-  }, [resetDictionary, resetGrammar, resetTranslation]);
+  }, [surface, resetDictionary, saveWord, resetTranslation, resetGrammar]);
 
   // Mark rendering
   useEffect(() => {
@@ -227,16 +178,12 @@ export default function WordLookup({
       // rendered height and clamps/flips so the whole popover (incl. Save) stays
       // on-screen above the mini-player. A fixed POPOVER_HEIGHT estimate is unsafe
       // because the real max-height is 60vh, far taller than the old 400px guess.
-      setDictAnchor({ x: clientX, y: clientY });
+      surface.openDictionary(clientX, clientY);
       setWord(candidate);
-      setOpenSurface("dictionary");
-      setSaveError(null);
-      // Restore saved state from session cache immediately
-      const cached = savedCacheRef.current.get(candidate.toLowerCase());
-      setWordSaved(cached ?? false);
+      saveWord.openForWord(candidate);
       void runLookup(candidate);
     },
-    [runLookup, setWord],
+    [surface, runLookup, setWord, saveWord],
   );
 
   // Clamp/flip the dictionary popover using its REAL measured height so the whole
@@ -285,58 +232,8 @@ export default function WordLookup({
     };
   }, [openSurface]);
 
-  // Toggle save/unsave a word from the dictionary popover
-  const handleToggleSave = useCallback(async () => {
-    if (savePending) return;
-    setSavePending(true);
-    setSaveError(null);
-
-    const isSaved = wordSaved;
-    // Optimistic update
-    setWordSaved(!isSaved);
-    savedCacheRef.current.set(word.toLowerCase(), !isSaved);
-
-    try {
-      const endpoint = isSaved ? "/api/vocabulary/unsave" : "/api/vocabulary/save";
-      const body: Record<string, unknown> = { word };
-
-      if (!isSaved) {
-        // Build explanation/example from dictionary result
-        const firstMeaning = result?.found ? result.meanings[0] : null;
-        const firstDef = firstMeaning?.definitions[0];
-        if (firstDef?.definition) {
-          body.explanation = `(${firstMeaning!.partOfSpeech}) ${firstDef.definition}`;
-        }
-        if (firstDef?.example) {
-          body.example = firstDef.example;
-        }
-        // Context sentence from prose
-        const prose = proseRef.current;
-        if (prose) {
-          const ctx = extractContextSentence(prose, word);
-          if (ctx) body.contextSentence = ctx;
-        }
-        body.articleId = articleId;
-      }
-
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      if (!res.ok) {
-        const d = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(d?.error ?? "Could not update study list");
-      }
-    } catch (err) {
-      // Revert on error
-      setWordSaved(isSaved);
-      savedCacheRef.current.set(word.toLowerCase(), isSaved);
-      setSaveError(err instanceof Error ? err.message : "Could not update study list");
-    } finally {
-      setSavePending(false);
-    }
-  }, [savePending, wordSaved, word, result, articleId]);
+  // Toggle save/unsave — delegated entirely to useSaveWord
+  const handleToggleSave = saveWord.handleToggleSave;
 
   // Main selection handler
   const handleSelect = useCallback(
@@ -356,21 +253,22 @@ export default function WordLookup({
         const isShortPhrase = wordCount >= 2 && wordCount <= 5;
         savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
         const stored = typeof window !== "undefined" ? localStorage.getItem("readwise:last-hl-color") : null;
-        if (stored && ["yellow", "green", "blue", "pink"].includes(stored)) setToolbarColor(stored as HighlightColor);
-        setToolbarRect(rect);
-        setToolbarShowDefine(isSingleWord);
-        setToolbarShowGrammar(isShortPhrase);
-        setOpenSurface("toolbar");
+        const color = (stored && ["yellow", "green", "blue", "pink"].includes(stored))
+          ? (stored as Parameters<typeof surface.openToolbar>[3])
+          : undefined;
+        surface.openToolbar(rect, isSingleWord, isShortPhrase, color);
         return;
       }
 
       const target = e.target as Element;
       const markEl = target.closest<HTMLElement>("mark.rw-hl");
       if (markEl?.dataset.hlId) {
-        closeAll();
-        setEditHlId(markEl.dataset.hlId);
-        setEditMarkEl(markEl);
-        setOpenSurface("popover");
+        surface.closeAll();
+        resetDictionary();
+        saveWord.resetSaveError();
+        resetTranslation();
+        resetGrammar();
+        surface.openEditPopover(markEl.dataset.hlId, markEl);
         return;
       }
 
@@ -380,7 +278,7 @@ export default function WordLookup({
       closeAll();
       openDictionary(candidate, e.clientX, e.clientY);
     },
-    [closeAll, openDictionary],
+    [surface, closeAll, openDictionary, resetDictionary, saveWord, resetTranslation, resetGrammar],
   );
 
   // Cmd/Ctrl+E keyboard summon
@@ -399,14 +297,11 @@ export default function WordLookup({
       const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
       const isShortPhrase = wordCount >= 2 && wordCount <= 5;
       savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
-      setToolbarRect(rect);
-      setToolbarShowDefine(isSingleWord);
-      setToolbarShowGrammar(isShortPhrase);
-      setOpenSurface("toolbar");
+      surface.openToolbar(rect, isSingleWord, isShortPhrase);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, []);
+  }, [surface]);
 
   // selectionchange → dismiss toolbar when selection collapses
   useEffect(() => {
@@ -416,12 +311,15 @@ export default function WordLookup({
       clearTimeout(timer);
       timer = setTimeout(() => {
         const s = window.getSelection();
-        if (!s || s.isCollapsed) setOpenSurface((v) => (v === "toolbar" ? null : v));
+        if (!s || s.isCollapsed) surface.dismissToolbar();
       }, 120);
     };
     document.addEventListener("selectionchange", onSelChange);
-    return () => { clearTimeout(timer); document.removeEventListener("selectionchange", onSelChange); };
-  }, [openSurface]);
+    return () => {
+      clearTimeout(timer);
+      document.removeEventListener("selectionchange", onSelChange);
+    };
+  }, [openSurface, surface]);
 
   // Outside-click / Escape
   useEffect(() => {
@@ -449,63 +347,27 @@ export default function WordLookup({
     };
   }, [openSurface, closeAll]);
 
-  // Toolbar: create highlight
-  const handleHighlight = useCallback(async () => {
-    const saved = savedAnchorRef.current;
-    const prose = proseRef.current;
-    if (!saved || !prose) return;
-    const color = toolbarColor;
-    localStorage.setItem("readwise:last-hl-color", color);
-    window.getSelection()?.removeAllRanges();
-    const { quote, startOffset, endOffset, prefix, suffix } = saved;
-    const overlapping = overlapsAny(startOffset, endOffset, highlights);
-    if (overlapping.length > 0) {
-      const fullText = prose.textContent ?? "";
-      const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
-      const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
-      const mergedNote = overlapping.filter((h) => h.note).sort((a, b) => a.startOffset - b.startOffset)[0]?.note ?? null;
-      for (const h of overlapping) await remove(h.id);
-      await add({ quote: fullText.slice(ns, ne), startOffset: ns, endOffset: ne,
-        prefix: fullText.slice(Math.max(0, ns - 32), ns),
-        suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)),
-        color, note: mergedNote ?? undefined });
-    } else {
-      await add({ quote, startOffset, endOffset, prefix, suffix, color });
-    }
-    closeAll();
-  }, [toolbarColor, highlights, add, remove, closeAll]);
-
-  // Toolbar: add note
-  const handleAddNote = useCallback(async () => {
+  // Toolbar: create highlight — delegates overlap merge to useHighlightActions
+  const handleHighlightAction = useCallback(async () => {
     const saved = savedAnchorRef.current;
     if (!saved) return;
-    const color = toolbarColor;
-    localStorage.setItem("readwise:last-hl-color", color);
+    localStorage.setItem("readwise:last-hl-color", toolbarColor);
     window.getSelection()?.removeAllRanges();
-    setOpenSurface(null);
-    setToolbarRect(null);
-    const { quote, startOffset, endOffset, prefix, suffix } = saved;
-    const overlapping = overlapsAny(startOffset, endOffset, highlights);
-    let newHl: RwHighlight | null = null;
-    if (overlapping.length > 0) {
-      const fullText = proseRef.current?.textContent ?? "";
-      const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
-      const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
-      for (const h of overlapping) await remove(h.id);
-      newHl = await add({ quote: fullText.slice(ns, ne), startOffset: ns, endOffset: ne,
-        prefix: fullText.slice(Math.max(0, ns - 32), ns),
-        suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)), color });
-    } else {
-      newHl = await add({ quote, startOffset, endOffset, prefix, suffix, color });
-    }
-    if (newHl) {
-      const hlId = newHl.id;
-      setTimeout(() => {
-        const markEl = document.querySelector<HTMLElement>(`mark.rw-hl[data-hl-id="${hlId}"]`);
-        if (markEl) { setEditHlId(hlId); setEditMarkEl(markEl); setOpenSurface("popover"); }
-      }, 80);
-    }
-  }, [toolbarColor, highlights, add, remove]);
+    await handleHighlight(saved, toolbarColor);
+    closeAll();
+  }, [savedAnchorRef, toolbarColor, handleHighlight, closeAll]);
+
+  // Toolbar: add note — delegates overlap merge to useHighlightActions
+  const handleAddNoteAction = useCallback(async () => {
+    const saved = savedAnchorRef.current;
+    if (!saved) return;
+    localStorage.setItem("readwise:last-hl-color", toolbarColor);
+    window.getSelection()?.removeAllRanges();
+    surface.closeAll();
+    await handleAddNote(saved, toolbarColor, (hlId, markEl) => {
+      surface.openEditPopover(hlId, markEl);
+    });
+  }, [savedAnchorRef, toolbarColor, handleAddNote, surface]);
 
   // Toolbar: define
   const handleDefine = useCallback(() => {
@@ -527,10 +389,9 @@ export default function WordLookup({
     // Transition from toolbar → translate surface (does NOT call closeAll, preserving state)
     setTranslateText(text);
     setTranslateSelectionRect(rect);
-    setOpenSurface("translate");
-    setToolbarRect(null);
+    surface.transitionToTranslate();
     void runSentenceTranslate(text, translateLang);
-  }, [toolbarRect, translateLang, runSentenceTranslate, setTranslateSelectionRect, setTranslateText]);
+  }, [toolbarRect, translateLang, runSentenceTranslate, setTranslateSelectionRect, setTranslateText, surface]);
 
   const handleGrammar = useCallback(() => {
     const saved = savedAnchorRef.current;
@@ -540,13 +401,12 @@ export default function WordLookup({
     if (!phrase) return;
     setGrammarPhrase(phrase);
     setGrammarSelectionRect(rect);
-    setOpenSurface("grammar");
-    setToolbarRect(null);
+    surface.transitionToGrammar();
     void runGrammarExplain(phrase);
-  }, [toolbarRect, runGrammarExplain, setGrammarPhrase, setGrammarSelectionRect]);
+  }, [toolbarRect, runGrammarExplain, setGrammarPhrase, setGrammarSelectionRect, surface]);
 
-  // Edit popover
-  const handleEditColorChange = useCallback((color: HighlightColor) => {
+  // Edit popover handlers
+  const handleEditColorChange = useCallback((color: Parameters<typeof updateColor>[1]) => {
     if (!editHlId) return;
     void updateColor(editHlId, color);
   }, [editHlId, updateColor]);
@@ -673,18 +533,18 @@ export default function WordLookup({
           </div>
           {/* Save word footer */}
           <div className="word-lookup-footer">
-            {saveError ? (
-              <p className="word-lookup-error" role="alert" style={{ fontSize: "0.75rem", margin: 0 }}>{saveError}</p>
+            {saveWord.saveError ? (
+              <p className="word-lookup-error" role="alert" style={{ fontSize: "0.75rem", margin: 0 }}>{saveWord.saveError}</p>
             ) : null}
             <button
               type="button"
-              className={`word-lookup-save-btn${wordSaved ? " word-lookup-save-btn--saved" : ""}`}
+              className={`word-lookup-save-btn${saveWord.wordSaved ? " word-lookup-save-btn--saved" : ""}`}
               onClick={() => void handleToggleSave()}
-              disabled={savePending || loading}
-              aria-pressed={wordSaved}
-              aria-label={wordSaved ? `Remove "${word}" from study list` : `Save "${word}" to study list`}
+              disabled={saveWord.savePending || loading}
+              aria-pressed={saveWord.wordSaved}
+              aria-label={saveWord.wordSaved ? `Remove "${word}" from study list` : `Save "${word}" to study list`}
             >
-              {savePending ? "…" : wordSaved ? "✓ Saved" : "Save word"}
+              {saveWord.savePending ? "…" : saveWord.wordSaved ? "✓ Saved" : "Save word"}
             </button>
           </div>
         </div>
@@ -697,9 +557,9 @@ export default function WordLookup({
           color={toolbarColor}
           showDefine={toolbarShowDefine}
           showGrammar={toolbarShowGrammar}
-          onColorChange={setToolbarColor}
-          onHighlight={() => void handleHighlight()}
-          onAddNote={() => void handleAddNote()}
+          onColorChange={surface.setToolbarColor}
+          onHighlight={() => void handleHighlightAction()}
+          onAddNote={() => void handleAddNoteAction()}
           onTranslate={handleTranslate}
           onDefine={handleDefine}
           onGrammar={handleGrammar}
