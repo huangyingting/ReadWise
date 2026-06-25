@@ -64,6 +64,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | --- | --- |
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
 | [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
+| [`learning/profile-preferences.md`](./learning/profile-preferences.md) | Onboarding/profile validation, CEFR/topics/daily-goal preferences, level history, and personalization consumers. |
 
 ### Media
 
