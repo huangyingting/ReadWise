@@ -15,6 +15,7 @@ import {
   AdminTableWrap,
   AdminPagination,
 } from "@/components/admin";
+import { formatShortDate } from "@/lib/display-format";
 
 type SearchParams = {
   q?: string;
@@ -29,14 +30,6 @@ function buildHref(params: { q: string; role: string; page: number }): string {
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/members?${qs}` : "/admin/members";
-}
-
-function dateLabel(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
 }
 
 export default async function AdminMembersPage({
@@ -141,7 +134,7 @@ export default async function AdminMembersPage({
                       {m.role}
                     </Badge>
                   </td>
-                  <td className="muted">{dateLabel(m.createdAt)}</td>
+                  <td className="muted">{formatShortDate(m.createdAt)}</td>
                   <td className="muted">
                     {m.articlesStarted} started · {m.articlesCompleted} done ·{" "}
                     {m.savedWords} words

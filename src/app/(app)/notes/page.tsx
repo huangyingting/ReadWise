@@ -11,6 +11,7 @@ import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { cn } from "@/lib/cn";
 import { notes } from "@/lib/copy/pages";
+import { formatShortDate } from "@/lib/display-format";
 
 export const metadata = notes;
 
@@ -171,11 +172,7 @@ export default async function NotesPage({
 
                         {/* Meta row */}
                         <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
-                          {new Date(h.createdAt).toLocaleDateString(undefined, {
-                            year: "numeric",
-                            month: "short",
-                            day: "numeric",
-                          })}
+                          {formatShortDate(h.createdAt)}
                           {h.color && (
                             <span
                               className="ml-[var(--space-2)] capitalize"

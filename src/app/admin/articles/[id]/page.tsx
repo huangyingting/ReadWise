@@ -22,6 +22,7 @@ import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
+import { formatDateTime } from "@/lib/display-format";
 
 /** Maps a processing-step status to a Badge variant. */
 function stepStatusVariant(
@@ -32,11 +33,6 @@ function stepStatusVariant(
   if (status === "failed") return "danger";
   if (status === "running") return "warning";
   return "neutral";
-}
-
-function formatStepTime(value: Date | null): string {
-  if (!value) return "—";
-  return new Date(value).toLocaleString();
 }
 
 export default async function AdminArticleDetailPage({
@@ -224,7 +220,7 @@ export default async function AdminArticleDetailPage({
                 <tbody>
                   {reviews.map((r) => (
                     <tr key={r.id}>
-                      <td className="muted">{new Date(r.createdAt).toLocaleString()}</td>
+                      <td className="muted">{formatDateTime(r.createdAt)}</td>
                       <td className="font-medium">{r.action}</td>
                       <td className="muted text-[length:var(--text-sm)]">
                         {Object.keys((r.changes as Record<string, unknown>) ?? {}).join(", ") ||
@@ -281,8 +277,8 @@ export default async function AdminArticleDetailPage({
                       </td>
                       <td>{step.attempts}</td>
                       <td className="muted">{step.modelName ?? "—"}</td>
-                      <td className="muted">{formatStepTime(step.startedAt)}</td>
-                      <td className="muted">{formatStepTime(step.completedAt)}</td>
+                      <td className="muted">{formatDateTime(step.startedAt)}</td>
+                      <td className="muted">{formatDateTime(step.completedAt)}</td>
                       <td className="text-danger-text text-[length:var(--text-sm)]">
                         {step.lastError ?? "—"}
                       </td>

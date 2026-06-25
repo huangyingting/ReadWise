@@ -9,14 +9,7 @@ import { AdminStatCard } from "@/components/AdminStatCard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
-
-function dateLabel(d: Date): string {
-  return d.toLocaleDateString("en-US", {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-  });
-}
+import { formatShortDate } from "@/lib/display-format";
 
 export default async function AdminMemberDetailPage({
   params,
@@ -73,7 +66,7 @@ export default async function AdminMemberDetailPage({
             </span>
             <span className="muted">{detail.user.email ?? "no email"}</span>
             <span className="muted text-[length:var(--text-sm)]">
-              Joined {dateLabel(detail.user.createdAt)} ·{" "}
+              Joined {formatShortDate(detail.user.createdAt)} ·{" "}
               {detail.user.emailVerified ? "email verified" : "email unverified"} ·{" "}
               {detail.sessions.active} active session(s)
             </span>
@@ -116,7 +109,7 @@ export default async function AdminMemberDetailPage({
               <dt className="muted text-[length:var(--text-sm)]">Onboarded</dt>
               <dd className="m-0 font-semibold">
                 {detail.profile.completedAt
-                  ? dateLabel(detail.profile.completedAt)
+                  ? formatShortDate(detail.profile.completedAt)
                   : "No"}
               </dd>
             </div>
@@ -159,7 +152,7 @@ export default async function AdminMemberDetailPage({
                     <td>
                       <Badge variant="neutral">{imp.status}</Badge>
                     </td>
-                    <td className="muted">{dateLabel(imp.createdAt)}</td>
+                    <td className="muted">{formatShortDate(imp.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -204,7 +197,7 @@ export default async function AdminMemberDetailPage({
               <tbody>
                 {detail.auditTrail.map((entry) => (
                   <tr key={entry.id}>
-                    <td className="muted">{dateLabel(entry.createdAt)}</td>
+                    <td className="muted">{formatShortDate(entry.createdAt)}</td>
                     <td>{entry.action}</td>
                     <td className="muted">
                       {entry.actorRole ?? "—"}

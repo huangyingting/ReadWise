@@ -11,17 +11,11 @@
 import { ENGLISH_LEVELS, LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
 import { CefrBadge } from "@/components/ui/Badge";
 import type { LevelEntry } from "@/lib/progress-helpers";
+import { formatMonthYear } from "@/lib/display-format";
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-function formatDate(isoStr: string): string {
-  return new Date(isoStr).toLocaleDateString("en-US", {
-    month: "short",
-    year: "numeric",
-  });
-}
 
 /** Width percentage for a CEFR level in the timeline scale. */
 function levelPct(level: EnglishLevel): number {
@@ -228,7 +222,7 @@ export default function LevelTimeline({
   // Build step nodes: each history entry + the "current" marker.
   const nodes: StepNode[] = history.map((entry) => ({
     level: entry.level,
-    date: formatDate(entry.changedAt),
+    date: formatMonthYear(entry.changedAt),
     isoStr: entry.changedAt,
     isCurrent: false,
   }));
@@ -236,7 +230,7 @@ export default function LevelTimeline({
   // Append a "now" current marker.
   nodes.push({
     level: currentLevel,
-    date: formatDate(new Date().toISOString()),
+    date: formatMonthYear(new Date().toISOString()),
     isoStr: new Date().toISOString(),
     isCurrent: true,
   });

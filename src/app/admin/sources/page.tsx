@@ -9,6 +9,7 @@ import AdminSourceActions from "@/components/AdminSourceActions";
 import AdminSourceSync from "@/components/AdminSourceSync";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { formatDateTime } from "@/lib/display-format";
 
 function healthBadgeVariant(
   status: SourceHealthStatus,
@@ -93,7 +94,7 @@ export default async function AdminSourcesPage() {
                   </td>
                   <td className="muted text-[length:var(--text-sm)]">
                     {source.lastCrawledAt
-                      ? new Date(source.lastCrawledAt).toLocaleString()
+                      ? formatDateTime(source.lastCrawledAt)
                       : "never"}
                   </td>
                   <td className="muted">

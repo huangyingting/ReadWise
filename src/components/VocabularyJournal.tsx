@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { getJson, postJson } from "@/lib/client-fetch";
+import { formatShortDate } from "@/lib/display-format";
 
 export type WordEntry = {
   id: string;
@@ -350,7 +351,7 @@ export default function VocabularyJournal({
                       dateTime={word.createdAt}
                       className="text-[length:var(--text-xs)] text-text-muted whitespace-nowrap"
                     >
-                      {new Date(word.createdAt).toLocaleDateString()}
+                      {formatShortDate(word.createdAt)}
                     </time>
                   </td>
                   <td>
@@ -360,7 +361,7 @@ export default function VocabularyJournal({
                       <Badge variant="warning" className="text-[length:var(--text-xs)]">Due</Badge>
                     ) : (
                       <Badge variant="neutral" className="text-[length:var(--text-xs)] whitespace-nowrap">
-                        {new Date(word.dueAt).toLocaleDateString()}
+                        {formatShortDate(word.dueAt)}
                       </Badge>
                     )}
                   </td>

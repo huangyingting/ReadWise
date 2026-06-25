@@ -8,11 +8,7 @@ import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import EmptyState from "@/components/EmptyState";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
-
-function formatDue(date: Date | null): string | null {
-  if (!date) return null;
-  return new Intl.DateTimeFormat("en", { dateStyle: "medium" }).format(date);
-}
+import { formatMediumDate } from "@/lib/display-format";
 
 /**
  * Student assignments (RW-061). Shows the signed-in student's assigned readings
@@ -39,7 +35,7 @@ export default async function AssignmentsPage() {
       ) : (
         <ul className="flex flex-col gap-[var(--space-3)]">
           {assignments.map((a) => {
-            const due = formatDue(a.dueDate);
+            const due = formatMediumDate(a.dueDate);
             const completed = a.status === "COMPLETED";
             return (
               <li key={a.assignmentId}>

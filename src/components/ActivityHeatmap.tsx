@@ -12,6 +12,7 @@
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
 import type { HeatCell } from "@/lib/activity";
+import { formatUTCDateLabel } from "@/lib/display-format";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -22,13 +23,6 @@ const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "
 
 /** Day-of-week abbreviations Sunday-first */
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-
-/** Format a YYYY-MM-DD string as a human-readable label. */
-function formatDateLabel(dateStr: string): string {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(Date.UTC(y, m - 1, d));
-  return date.toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric", timeZone: "UTC" });
-}
 
 type Column = {
   /** The 7 cells in this column (index 0 = Sunday, 6 = Saturday). */
@@ -177,8 +171,8 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                     }
                     const label =
                       cell.count === 0
-                        ? `No articles on ${formatDateLabel(cell.date)}`
-                        : `${cell.count} article${cell.count !== 1 ? "s" : ""} on ${formatDateLabel(cell.date)}`;
+                        ? `No articles on ${formatUTCDateLabel(cell.date)}`
+                        : `${cell.count} article${cell.count !== 1 ? "s" : ""} on ${formatUTCDateLabel(cell.date)}`;
                     return (
                       <button
                         key={cell.date}
@@ -218,8 +212,8 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
           aria-atomic
         >
           {tooltip.count === 0
-            ? `No articles on ${formatDateLabel(tooltip.date)}`
-            : `${tooltip.count} article${tooltip.count !== 1 ? "s" : ""} on ${formatDateLabel(tooltip.date)}`}
+            ? `No articles on ${formatUTCDateLabel(tooltip.date)}`
+            : `${tooltip.count} article${tooltip.count !== 1 ? "s" : ""} on ${formatUTCDateLabel(tooltip.date)}`}
         </p>
       )}
 

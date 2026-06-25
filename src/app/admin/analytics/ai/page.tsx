@@ -8,6 +8,7 @@ import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import { formatUSD } from "@/lib/display-format";
 
 type SearchParams = { hours?: string };
 
@@ -16,10 +17,6 @@ const HOUR_PRESETS = [
   { hours: 168, label: "Last 7 days" },
   { hours: 720, label: "Last 30 days" },
 ];
-
-function usd(value: number): string {
-  return `$${value.toFixed(value < 1 ? 4 : 2)}`;
-}
 
 export default async function AdminAiOpsPage({
   searchParams,
@@ -72,7 +69,7 @@ export default async function AdminAiOpsPage({
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[var(--space-4)]">
         <AdminStatCard label="Total calls" value={ai.summary.total.count} />
-        <AdminStatCard label="Est. cost" value={usd(ai.summary.total.estimatedCostUsd)} />
+        <AdminStatCard label="Est. cost" value={formatUSD(ai.summary.total.estimatedCostUsd)} />
         <AdminStatCard label="Total tokens" value={ai.summary.total.totalTokens} />
         <AdminStatCard label="Fallbacks" value={ai.summary.total.fallbackCount} />
         <AdminStatCard label="Cache hits" value={ai.summary.total.cacheHitCount} />
@@ -127,7 +124,7 @@ export default async function AdminAiOpsPage({
                     <td>{f.key}</td>
                     <td>{f.count}</td>
                     <td>{f.totalTokens}</td>
-                    <td>{usd(f.estimatedCostUsd)}</td>
+                    <td>{formatUSD(f.estimatedCostUsd)}</td>
                     <td className={f.fallbackRatePct >= 25 ? "text-danger-text" : "muted"}>
                       {f.fallbackRatePct}%
                     </td>
@@ -168,7 +165,7 @@ export default async function AdminAiOpsPage({
                           )}
                         </td>
                         <td>{u.count}</td>
-                        <td>{usd(u.estimatedCostUsd)}</td>
+                        <td>{formatUSD(u.estimatedCostUsd)}</td>
                       </tr>
                     ))
                   )}
@@ -202,7 +199,7 @@ export default async function AdminAiOpsPage({
                           <Link href={`/admin/articles/${a.key}`}>{a.key.slice(0, 12)}…</Link>
                         </td>
                         <td>{a.count}</td>
-                        <td>{usd(a.estimatedCostUsd)}</td>
+                        <td>{formatUSD(a.estimatedCostUsd)}</td>
                       </tr>
                     ))
                   )}

@@ -2,6 +2,7 @@ import { Flame, Award } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
 import type { StreakSummary } from "@/lib/activity";
+import { formatWeekdayUTC } from "@/lib/display-format";
 
 const WEEKDAY_INITIALS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
@@ -78,10 +79,7 @@ export default function StreakWidget({
           const isToday = i === 6;
           const dateObj = new Date(day.date + "T00:00:00Z");
           const weekdayInitial = WEEKDAY_INITIALS[dateObj.getUTCDay()];
-          const weekdayFull = dateObj.toLocaleDateString("en-US", {
-            weekday: "long",
-            timeZone: "UTC",
-          });
+          const weekdayFull = formatWeekdayUTC(dateObj);
           const label = `${weekdayFull}: ${day.active ? "read" : "no reading"}`;
 
           return (
