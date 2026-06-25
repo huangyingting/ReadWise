@@ -4,10 +4,19 @@
  * Adds per-user attempt persistence on top of the existing per-article
  * QuizQuestion AI cache. The cache + quiz grading flow are UNCHANGED; this
  * module only records completed attempts and surfaces aggregated stats.
+ *
+ * Score validation, count-to-percentage computation, idempotency, and
+ * TrendPoint are provided by the shared practice-attempts helpers (REF-051).
  */
 
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
+import {
+  validateCountScore,
+  computeCountScorePct,
+  findOrCreateIdempotent,
+  type TrendPoint,
+} from "@/lib/learning/practice-attempts";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -28,26 +37,12 @@ export type ArticleQuizHistory = {
   attemptCount: number;
 };
 
-export type TrendPoint = {
-  completedAt: Date; // use as x-axis label on the client
-  scorePct: number;
-};
-
 export type QuizMastery = {
   totalAttempts: number;
   articlesQuizzed: number; // distinct articleIds
   averageScore: number | null; // null when totalAttempts === 0
   recentTrend: TrendPoint[]; // last ≤10 attempts, oldest→newest (sparkline)
 };
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Computes a 0–100 integer score from raw counts. */
-function computeScorePct(correctCount: number, totalQuestions: number): number {
-  return Math.round((correctCount / totalQuestions) * 100);
-}
 
 // ---------------------------------------------------------------------------
 // Public API
@@ -69,24 +64,11 @@ export async function recordQuizAttempt(
   totalQuestions: number,
   options: { clientMutationId?: string | null } = {},
 ): Promise<{ attempt: QuizAttemptRecord; best: number }> {
-  if (
-    !Number.isInteger(totalQuestions) ||
-    totalQuestions <= 0 ||
-    !Number.isInteger(correctCount) ||
-    correctCount < 0 ||
-    correctCount > totalQuestions
-  ) {
-    throw new Error(
-      "correctCount must be 0–totalQuestions and totalQuestions must be > 0",
-    );
-  }
+  validateCountScore(correctCount, totalQuestions);
 
-  const scorePct = computeScorePct(correctCount, totalQuestions);
+  const scorePct = computeCountScorePct(correctCount, totalQuestions);
   const clientMutationId = options.clientMutationId?.trim() || null;
 
-  // Idempotency (RW-042): an offline-queued attempt may be delivered more than
-  // once. When a clientMutationId is supplied, a duplicate returns the existing
-  // attempt instead of double-recording.
   const select = {
     id: true,
     correctCount: true,
@@ -95,41 +77,21 @@ export async function recordQuizAttempt(
     completedAt: true,
   } as const;
 
-  if (clientMutationId) {
-    const existing = await prisma.quizAttempt.findUnique({
-      where: { clientMutationId },
-      select,
-    });
-    if (existing) {
-      return { attempt: existing, best: await bestScore(userId, articleId, existing.scorePct) };
-    }
-  }
-
-  let attempt: QuizAttemptRecord;
-  try {
-    attempt = await prisma.quizAttempt.create({
-      data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
-      select,
-    });
-  } catch (err) {
-    // Lost the race against a concurrent duplicate — return the winner.
-    if (
-      clientMutationId &&
-      err instanceof Prisma.PrismaClientKnownRequestError &&
-      err.code === "P2002"
-    ) {
-      const winner = await prisma.quizAttempt.findUnique({
-        where: { clientMutationId },
+  // Idempotency (RW-042): a duplicate offline delivery returns the original row.
+  const { record: attempt } = await findOrCreateIdempotent({
+    clientMutationId,
+    find: (id) =>
+      prisma.quizAttempt.findUnique({ where: { clientMutationId: id }, select }),
+    create: () =>
+      prisma.quizAttempt.create({
+        data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
         select,
-      });
-      if (winner) {
-        return { attempt: winner, best: await bestScore(userId, articleId, winner.scorePct) };
-      }
-    }
-    throw err;
-  }
+      }),
+    isUniqueConstraintViolation: (err) =>
+      err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002",
+  });
 
-  return { attempt, best: await bestScore(userId, articleId, scorePct) };
+  return { attempt, best: await bestScore(userId, articleId, attempt.scorePct) };
 }
 
 /** Best scorePct across all attempts for this user+article (>= fallback). */
