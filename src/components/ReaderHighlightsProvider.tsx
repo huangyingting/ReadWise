@@ -23,7 +23,7 @@ import {
   useCallback,
   type ReactNode,
 } from "react";
-import { submitMutation } from "@/lib/offline-mutations";
+import { submitMutation } from "@/lib/offline/sync-runtime";
 
 /** True for a not-yet-persisted (optimistic) highlight id. */
 function isOptimisticId(id: string): boolean {
