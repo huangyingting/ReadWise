@@ -3,6 +3,8 @@ import { redirect } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { authOptions } from "@/lib/auth";
+import { getConfiguredProviders } from "@/lib/auth-providers";
+import { friendlySignInError, sanitizeCallbackUrl } from "@/lib/signin-helpers";
 import { Wordmark } from "@/components/marketing/Wordmark";
 import { Wordmark as AppWordmark } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
@@ -12,40 +14,22 @@ import { signIn as signInPage } from "@/lib/copy/pages";
 
 export const metadata = signInPage;
 
-const ERROR_MESSAGES: Record<string, string> = {
-  OAuthAccountNotLinked:
-    "That email is already linked to a different sign-in method.",
-  AccessDenied: "Sign-in was cancelled or denied.",
-};
-
-function friendlyError(code: string | undefined): string | null {
-  if (!code) return null;
-  return (
-    ERROR_MESSAGES[code] ??
-    "Something went wrong signing you in. Please try again."
-  );
-}
-
 export default async function SignInPage({
   searchParams,
 }: {
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const { callbackUrl, error } = await searchParams;
-  const safeCallback =
-    callbackUrl && callbackUrl.startsWith("/") ? callbackUrl : "/dashboard";
+  const safeCallback = sanitizeCallbackUrl(callbackUrl);
 
   const session = await getServerSession(authOptions);
   if (session?.user) {
     redirect(safeCallback);
   }
 
-  const providers = (authOptions.providers ?? []).map((p) => ({
-    id: p.id,
-    name: p.name,
-  }));
+  const providers = getConfiguredProviders();
 
-  const errorMessage = friendlyError(error);
+  const errorMessage = friendlySignInError(error);
 
   return (
     <main className="min-h-[100dvh] flex flex-col bg-bg">
