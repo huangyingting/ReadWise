@@ -1,13 +1,12 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { isUserOnboarded } from "@/lib/profile";
-import { CAPABILITIES, hasCapability, type Capability } from "@/lib/rbac";
+import { CAPABILITIES, type Capability } from "@/lib/rbac";
+import { loadSession, sessionHasCapability } from "@/lib/auth-core";
 
 export async function requireSession(callbackUrl: string): Promise<Session> {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
+  const session = await loadSession();
+  if (!session) {
     redirect(`/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
   }
   return session;
@@ -34,7 +33,7 @@ export async function requireCapability(
   callbackUrl: string,
 ): Promise<Session> {
   const session = await requireSession(callbackUrl);
-  if (!hasCapability(session.user, capability)) {
+  if (!sessionHasCapability(session, capability)) {
     redirect("/forbidden");
   }
   return session;
