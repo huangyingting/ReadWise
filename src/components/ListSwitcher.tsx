@@ -13,17 +13,20 @@
  *
  * After any mutation, calls router.refresh() so the server component re-fetches
  * the updated list and article data.
+ *
+ * Shared form components (ListCreateForm, ListRenameForm, ListDeleteControl)
+ * centralise mutation logic so desktop and mobile stay in sync. REF-007.
  */
 
-import { useState, useRef, useId, Fragment } from "react";
+import { useState, useRef, Fragment } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Pencil, Plus, Check, X, MoreHorizontal } from "lucide-react";
-import { deleteJson, patchJson, postJson } from "@/lib/client-fetch";
+import { Pencil, Plus, X, MoreHorizontal } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import ConfirmAction from "@/components/ConfirmAction";
+import { ListRenameForm } from "@/components/lists/ListRenameForm";
+import { ListCreateForm } from "@/components/lists/ListCreateForm";
+import { ListDeleteControl } from "@/components/lists/ListDeleteControl";
 
 export type SwitcherList = {
   id: string;
@@ -54,60 +57,6 @@ interface ListRowProps {
 
 function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowProps) {
   const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(list.name);
-  const [renameError, setRenameError] = useState<string | null>(null);
-  const [renamePending, setRenamePending] = useState(false);
-  const [deletePending, setDeletePending] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const errorId = useId();
-
-  function startRename() {
-    setRenameValue(list.name);
-    setRenameError(null);
-    setRenaming(true);
-    setTimeout(() => inputRef.current?.focus(), 0);
-  }
-  async function submitRename(e?: React.FormEvent) {
-    e?.preventDefault();
-    const trimmed = renameValue.trim();
-    if (!trimmed) {
-      setRenameError("Name is required");
-      return;
-    }
-    if (trimmed.length > 60) {
-      setRenameError("Must be 60 characters or less");
-      return;
-    }
-    if (trimmed === list.name) {
-      setRenaming(false);
-      return;
-    }
-    setRenamePending(true);
-    setRenameError(null);
-    try {
-      await patchJson(`/api/lists/${encodeURIComponent(list.id)}`, { name: trimmed });
-      setRenaming(false);
-      onRenameSuccess();
-    } catch {
-      setRenameError("Couldn't rename — try again");
-    } finally {
-      setRenamePending(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeletePending(true);
-    setDeleteError(null);
-    try {
-      await deleteJson(`/api/lists/${encodeURIComponent(list.id)}`);
-      onDeleteSuccess(list.id);
-    } catch {
-      setDeleteError("Couldn't delete — try again");
-    } finally {
-      setDeletePending(false);
-    }
-  }
 
   const activeClasses = cn(
     "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)] text-primary-text",
@@ -120,52 +69,16 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
 
   if (renaming) {
     return (
-      <form
-        onSubmit={(e) => void submitRename(e)}
-        className="flex flex-col gap-[var(--space-1)] px-[var(--space-2)] py-[var(--space-1)]"
-      >
-        <Input
-          ref={inputRef}
-          inputSize="sm"
-          value={renameValue}
-          maxLength={60}
-          onChange={(e) => setRenameValue(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Escape") {
-              setRenaming(false);
-            }
-          }}
-          aria-label={`Rename ${list.name}`}
-          aria-describedby={renameError ? errorId : undefined}
-          invalid={renameError ? true : false}
-        />
-        {renameError ? (
-          <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
-            {renameError}
-          </p>
-        ) : null}
-        <div className="flex gap-[var(--space-1)]">
-          <Button
-            type="submit"
-            size="sm"
-            variant="primary"
-            loading={renamePending}
-            disabled={!renameValue.trim()}
-            leadingIcon={<Check size={12} aria-hidden />}
-          >
-            Save
-          </Button>
-          <Button
-            type="button"
-            size="sm"
-            variant="ghost"
-            disabled={renamePending}
-            onClick={() => setRenaming(false)}
-          >
-            Cancel
-          </Button>
-        </div>
-      </form>
+      <ListRenameForm
+        list={list}
+        autoFocus
+        className="px-[var(--space-2)] py-[var(--space-1)]"
+        onSuccess={() => {
+          setRenaming(false);
+          onRenameSuccess();
+        }}
+        onCancel={() => setRenaming(false)}
+      />
     );
   }
 
@@ -205,7 +118,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             type="button"
             aria-label={`Rename ${list.name}`}
             title="Rename list"
-            onClick={startRename}
+            onClick={() => setRenaming(true)}
             className={cn(
               "inline-flex items-center justify-center size-7 rounded-[var(--radius-sm)]",
               "text-text-subtle hover:text-text hover:bg-bg-subtle",
@@ -216,23 +129,12 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             <Pencil size={14} aria-hidden />
           </button>
 
-          <ConfirmAction
-            triggerLabel={`Delete`}
-            triggerVariant="outline"
-            size="sm"
-            confirmMessage={`Delete "${list.name}"? Saved articles stay in your library; only this list is removed.`}
-            confirmLabel="Delete"
-            cancelLabel="Keep"
-            confirmVariant="danger"
-            loading={deletePending}
-            onConfirm={handleDelete}
-            className="!p-0"
+          <ListDeleteControl
+            listId={list.id}
+            listName={list.name}
+            confirmClassName="!p-0"
+            onSuccess={() => onDeleteSuccess(list.id)}
           />
-          {deleteError ? (
-            <span role="alert" className="text-[length:var(--text-xs)] text-danger-text">
-              {deleteError}
-            </span>
-          ) : null}
         </div>
       ) : null}
     </div>
@@ -252,44 +154,6 @@ interface MobileListManagerProps {
 
 function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: MobileListManagerProps) {
   const [renaming, setRenaming] = useState(false);
-  const [renameValue, setRenameValue] = useState(list.name);
-  const [renameError, setRenameError] = useState<string | null>(null);
-  const [renamePending, setRenamePending] = useState(false);
-  const [deletePending, setDeletePending] = useState(false);
-  const [deleteError, setDeleteError] = useState<string | null>(null);
-  const inputRef = useRef<HTMLInputElement>(null);
-  const errorId = useId();
-
-  async function submitRename(e?: React.FormEvent) {
-    e?.preventDefault();
-    const trimmed = renameValue.trim();
-    if (!trimmed) { setRenameError("Name is required"); return; }
-    if (trimmed.length > 60) { setRenameError("Must be 60 characters or less"); return; }
-    if (trimmed === list.name) { setRenaming(false); return; }
-    setRenamePending(true);
-    setRenameError(null);
-    try {
-      await patchJson(`/api/lists/${encodeURIComponent(list.id)}`, { name: trimmed });
-      onRenameSuccess();
-    } catch {
-      setRenameError("Couldn't rename — try again");
-    } finally {
-      setRenamePending(false);
-    }
-  }
-
-  async function handleDelete() {
-    setDeletePending(true);
-    setDeleteError(null);
-    try {
-      await deleteJson(`/api/lists/${encodeURIComponent(list.id)}`);
-      onDeleteSuccess(list.id);
-    } catch {
-      setDeleteError("Couldn't delete — try again");
-    } finally {
-      setDeletePending(false);
-    }
-  }
 
   return (
     <div
@@ -318,69 +182,34 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
 
       {/* Rename */}
       {renaming ? (
-        <form onSubmit={(e) => void submitRename(e)} className="flex flex-col gap-[var(--space-1)]">
-          <Input
-            ref={inputRef}
-            inputSize="sm"
-            value={renameValue}
-            maxLength={60}
-            onChange={(e) => setRenameValue(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Escape") setRenaming(false); }}
-            aria-label={`Rename ${list.name}`}
-            aria-describedby={renameError ? errorId : undefined}
-            invalid={!!renameError}
-            autoFocus
-          />
-          {renameError ? (
-            <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
-              {renameError}
-            </p>
-          ) : null}
-          <div className="flex gap-[var(--space-1)]">
-            <Button
-              type="submit"
-              size="sm"
-              variant="primary"
-              loading={renamePending}
-              disabled={!renameValue.trim()}
-              leadingIcon={<Check size={12} aria-hidden />}
-            >
-              Save
-            </Button>
-            <Button type="button" size="sm" variant="ghost" disabled={renamePending} onClick={() => setRenaming(false)}>
-              Cancel
-            </Button>
-          </div>
-        </form>
+        <ListRenameForm
+          list={list}
+          autoFocus
+          onSuccess={() => {
+            setRenaming(false);
+            onRenameSuccess();
+          }}
+          onCancel={() => setRenaming(false)}
+        />
       ) : (
         <Button
           type="button"
           size="sm"
           variant="outline"
           leadingIcon={<Pencil size={14} aria-hidden />}
-          onClick={() => { setRenameValue(list.name); setRenameError(null); setRenaming(true); }}
+          onClick={() => setRenaming(true)}
         >
           Rename
         </Button>
       )}
 
       {/* Delete */}
-      <ConfirmAction
+      <ListDeleteControl
+        listId={list.id}
+        listName={list.name}
         triggerLabel="Delete list"
-        triggerVariant="outline"
-        size="sm"
-        confirmMessage={`Delete "${list.name}"? Saved articles stay in your library; only this list is removed.`}
-        confirmLabel="Delete"
-        cancelLabel="Keep"
-        confirmVariant="danger"
-        loading={deletePending}
-        onConfirm={handleDelete}
+        onSuccess={() => onDeleteSuccess(list.id)}
       />
-      {deleteError ? (
-        <p role="alert" className="text-[length:var(--text-xs)] text-danger-text m-0">
-          {deleteError}
-        </p>
-      ) : null}
     </div>
   );
 }
@@ -388,13 +217,8 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
 export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps) {
   const router = useRouter();
   const [creating, setCreating] = useState(false);
-  const [newListName, setNewListName] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createPending, setCreatePending] = useState(false);
   const [mobileManagingId, setMobileManagingId] = useState<string | null>(null);
-  const createInputRef = useRef<HTMLInputElement>(null);
   const createBtnRef = useRef<HTMLButtonElement>(null);
-  const errorId = useId();
 
   function handleRenameSuccess() {
     router.refresh();
@@ -410,39 +234,8 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
   }
 
   function showCreate() {
-    setNewListName("");
-    setCreateError(null);
     setCreating(true);
     setMobileManagingId(null);
-    setTimeout(() => createInputRef.current?.focus(), 0);
-  }
-
-  async function handleCreate(e?: React.FormEvent) {
-    e?.preventDefault();
-    const trimmed = newListName.trim();
-    if (!trimmed) {
-      setCreateError("Name is required");
-      return;
-    }
-    if (trimmed.length > 60) {
-      setCreateError("Must be 60 characters or less");
-      return;
-    }
-    setCreatePending(true);
-    setCreateError(null);
-    try {
-      const data = await postJson<{ list: { id: string } }>("/api/lists", {
-        name: trimmed,
-      });
-      setCreating(false);
-      setNewListName("");
-      // Navigate to new list
-      router.push(`/lists?list=${encodeURIComponent(data.list.id)}`);
-    } catch {
-      setCreateError("Couldn't create list — try again");
-    } finally {
-      setCreatePending(false);
-    }
   }
 
   // --- Desktop sidebar ---
@@ -469,57 +262,16 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
       {/* Create new list */}
       <div className="mt-[var(--space-2)]">
         {creating ? (
-          <form
-            onSubmit={(e) => void handleCreate(e)}
-            className="flex flex-col gap-[var(--space-1)]"
-          >
-            <Input
-              ref={createInputRef}
-              inputSize="sm"
-              placeholder="List name…"
-              value={newListName}
-              maxLength={60}
-              onChange={(e) => setNewListName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setCreating(false);
-                  createBtnRef.current?.focus();
-                }
-              }}
-              aria-label="New list name"
-              aria-describedby={createError ? errorId : undefined}
-              invalid={createError ? true : false}
-            />
-            {createError ? (
-              <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
-                {createError}
-              </p>
-            ) : null}
-            <div className="flex gap-[var(--space-1)]">
-              <Button
-                type="submit"
-                size="sm"
-                variant="primary"
-                loading={createPending}
-                disabled={!newListName.trim()}
-                leadingIcon={<Check size={12} aria-hidden />}
-              >
-                Create
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={createPending}
-                onClick={() => {
-                  setCreating(false);
-                  createBtnRef.current?.focus();
-                }}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <ListCreateForm
+            onSuccess={(list) => {
+              setCreating(false);
+              router.push(`/lists?list=${encodeURIComponent(list.id)}`);
+            }}
+            onCancel={() => {
+              setCreating(false);
+              createBtnRef.current?.focus();
+            }}
+          />
         ) : (
           <button
             ref={createBtnRef}
@@ -633,37 +385,14 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
         {pillBar}
         {/* Mobile create form (shown below bar when creating) */}
         {creating ? (
-          <form
-            onSubmit={(e) => void handleCreate(e)}
-            className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)]"
-          >
-            <Input
-              ref={createInputRef}
-              inputSize="sm"
-              placeholder="List name…"
-              value={newListName}
-              maxLength={60}
-              onChange={(e) => setNewListName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") {
-                  setCreating(false);
-                }
-              }}
-              aria-label="New list name"
-              invalid={createError ? true : false}
-            />
-            {createError ? (
-              <p className="text-[length:var(--text-xs)] text-danger-text m-0">{createError}</p>
-            ) : null}
-            <div className="flex gap-[var(--space-2)]">
-              <Button type="submit" size="sm" variant="primary" loading={createPending} disabled={!newListName.trim()}>
-                Create
-              </Button>
-              <Button type="button" size="sm" variant="ghost" disabled={createPending} onClick={() => setCreating(false)}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <ListCreateForm
+            className="mt-[var(--space-3)]"
+            onSuccess={(list) => {
+              setCreating(false);
+              router.push(`/lists?list=${encodeURIComponent(list.id)}`);
+            }}
+            onCancel={() => setCreating(false)}
+          />
         ) : null}
         {/* Mobile management panel — shown when ⋯ is tapped on a custom list */}
         {mobileManagingId && !creating ? (() => {

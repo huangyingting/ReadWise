@@ -21,12 +21,11 @@ import {
   useId,
   type RefObject,
 } from "react";
-import { Plus, Check } from "lucide-react";
+import { Plus } from "lucide-react";
 import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
-import { Input } from "@/components/ui/Input";
-import { Button } from "@/components/ui/Button";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
+import { ListCreateForm } from "@/components/lists/ListCreateForm";
 
 export type ListMembershipEntry = {
   id: string;
@@ -64,13 +63,9 @@ export default function ListPickerPopover({
 
   // Inline create state
   const [creating, setCreating] = useState(false);
-  const [newListName, setNewListName] = useState("");
-  const [createError, setCreateError] = useState<string | null>(null);
-  const [createPending, setCreatePending] = useState(false);
 
   const popoverRef = useRef<HTMLDivElement>(null);
   const firstCheckRef = useRef<HTMLInputElement>(null);
-  const newListInputRef = useRef<HTMLInputElement>(null);
   const createRowRef = useRef<HTMLButtonElement>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusId = useId();
@@ -180,60 +175,23 @@ export default function ListPickerPopover({
 
   function handleShowCreate() {
     setCreating(true);
-    setNewListName("");
-    setCreateError(null);
-    setTimeout(() => newListInputRef.current?.focus(), 0);
-  }
-
-  async function handleCreate(e?: React.FormEvent) {
-    e?.preventDefault();
-    const trimmed = newListName.trim();
-    if (!trimmed) {
-      setCreateError("Name is required");
-      return;
-    }
-    if (trimmed.length > 60) {
-      setCreateError("Name must be 60 characters or less");
-      return;
-    }
-    setCreatePending(true);
-    setCreateError(null);
-
-    try {
-      // Create list
-      const created = await postJson<{
-        list: { id: string; name: string; isDefault: boolean };
-      }>("/api/lists", { name: trimmed });
-      const newList = created.list;
-
-      // Add article to new list
-      await postJson(`/api/lists/${encodeURIComponent(newList.id)}/items`, { articleId });
-
-      // Append to list with hasArticle=true
-      setLists((prev) => [
-        ...prev,
-        {
-          id: newList.id,
-          name: newList.name,
-          isDefault: newList.isDefault,
-          hasArticle: true,
-        },
-      ]);
-      markBookmarkChanged(articleId);
-      setCreating(false);
-      setNewListName("");
-    } catch {
-      setCreateError("Couldn't create list — try again");
-    } finally {
-      setCreatePending(false);
-    }
   }
 
   function handleCancelCreate() {
     setCreating(false);
-    setNewListName("");
-    setCreateError(null);
     createRowRef.current?.focus();
+  }
+
+  async function handleCreateSuccess(newList: { id: string; name: string; isDefault: boolean }) {
+    // Add article to the newly created list
+    await postJson(`/api/lists/${encodeURIComponent(newList.id)}/items`, { articleId });
+    // Append to list with hasArticle=true
+    setLists((prev) => [
+      ...prev,
+      { id: newList.id, name: newList.name, isDefault: newList.isDefault, hasArticle: true },
+    ]);
+    markBookmarkChanged(articleId);
+    setCreating(false);
   }
 
   return (
@@ -325,47 +283,11 @@ export default function ListPickerPopover({
       {/* Inline create */}
       <div className="border-t border-border py-[var(--space-1)] px-[var(--space-1)]">
         {creating ? (
-          <form onSubmit={(e) => void handleCreate(e)} className="flex flex-col gap-[var(--space-1)] p-[var(--space-2)]">
-            <Input
-              ref={newListInputRef}
-              inputSize="sm"
-              placeholder="List name…"
-              value={newListName}
-              maxLength={60}
-              onChange={(e) => setNewListName(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Escape") handleCancelCreate();
-              }}
-              aria-label="New list name"
-              invalid={createError ? true : false}
-            />
-            {createError ? (
-              <p className="text-[length:var(--text-xs)] text-danger-text m-0">
-                {createError}
-              </p>
-            ) : null}
-            <div className="flex gap-[var(--space-1)]">
-              <Button
-                type="submit"
-                size="sm"
-                variant="primary"
-                loading={createPending}
-                disabled={!newListName.trim()}
-                leadingIcon={<Check size={14} aria-hidden />}
-              >
-                Create
-              </Button>
-              <Button
-                type="button"
-                size="sm"
-                variant="ghost"
-                disabled={createPending}
-                onClick={handleCancelCreate}
-              >
-                Cancel
-              </Button>
-            </div>
-          </form>
+          <ListCreateForm
+            className="p-[var(--space-2)]"
+            onSuccess={(list) => void handleCreateSuccess(list)}
+            onCancel={handleCancelCreate}
+          />
         ) : (
           <button
             ref={createRowRef}
