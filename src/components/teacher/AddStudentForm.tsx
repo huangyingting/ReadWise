@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useMutation } from "@/hooks/useMutation";
+import { useTeacherMutation } from "@/hooks/useTeacherMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -14,21 +13,19 @@ import { Field } from "@/components/ui/Field";
  * can layer on later; the API + roster are the foundation.
  */
 export default function AddStudentForm({ classroomId }: { classroomId: string }) {
-  const router = useRouter();
   const [userId, setUserId] = useState("");
-  const { busy, error, run } = useMutation("Failed to add student");
+  const { busy, error, execute } = useTeacherMutation("Failed to add student");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     const trimmedUserId = userId.trim();
     if (!trimmedUserId) return;
-    await run(async () => {
+    await execute(async () => {
       await postJson(`/api/classrooms/${classroomId}/members`, {
         userId: trimmedUserId,
         role: "Student",
       });
       setUserId("");
-      router.refresh();
     });
   }
 
