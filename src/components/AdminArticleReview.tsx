@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -56,8 +58,7 @@ export default function AdminArticleReview({
   const [tags, setTags] = useState(initial.tags);
   const [note, setNote] = useState("");
 
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Review failed");
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   function toggleFlag(flag: string) {
@@ -67,40 +68,26 @@ export default function AdminArticleReview({
   }
 
   async function save() {
-    setBusy(true);
-    setError(null);
-    try {
+    await run(async () => {
       const tagList = tags
         .split(",")
         .map((t) => t.trim())
         .filter(Boolean);
-      const res = await fetch(`/api/admin/articles/${articleId}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title,
-          excerpt,
-          category,
-          difficulty,
-          status,
-          reviewState,
-          qualityFlags: flags,
-          tags: tagList,
-          note: note.trim() || undefined,
-        }),
+      await postJson(`/api/admin/articles/${articleId}/review`, {
+        title,
+        excerpt,
+        category,
+        difficulty,
+        status,
+        reviewState,
+        qualityFlags: flags,
+        tags: tagList,
+        note: note.trim() || undefined,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Review failed (${res.status})`);
-      }
       setNote("");
       setSavedAt(Date.now());
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Review failed");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

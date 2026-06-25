@@ -37,6 +37,7 @@ export default function ClientErrorReporter() {
             new Blob([payload], { type: "application/json" }),
           );
         if (!sent) {
+          // sendBeacon + keepalive fetch: not routed through client-fetch to avoid recursive error reporting
           void fetch("/api/client-errors", {
             method: "POST",
             headers: { "Content-Type": "application/json" },

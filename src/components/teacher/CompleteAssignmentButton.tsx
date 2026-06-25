@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 
 /**
@@ -17,28 +18,15 @@ export default function CompleteAssignmentButton({
   completed: boolean;
 }) {
   const router = useRouter();
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Failed to update");
 
   async function complete() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/assignments/${assignmentId}/completion`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: "COMPLETED" }),
+    await run(async () => {
+      await postJson(`/api/assignments/${assignmentId}/completion`, {
+        status: "COMPLETED",
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Failed (${res.status})`);
-      }
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to update");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   if (completed) {

@@ -3,6 +3,7 @@
 import { useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Check, Minus, Plus } from "lucide-react";
+import { ApiResponseError, putJson } from "@/lib/client-fetch";
 import { CATEGORIES } from "@/lib/categories";
 import {
   AGE_RANGES,
@@ -81,30 +82,22 @@ export default function ProfileSettingsForm({
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/profile", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ageRange,
-          gender,
-          englishLevel,
-          topics,
-          dailyGoal,
-        }),
+      await putJson("/api/profile", {
+        ageRange,
+        gender,
+        englishLevel,
+        topics,
+        dailyGoal,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        setError(data?.error ?? "Something went wrong. Please try again.");
-        setSubmitting(false);
-        return;
-      }
       setSaved(true);
-      setSubmitting(false);
       router.refresh();
-    } catch {
-      setError("Network error. Please try again.");
+    } catch (err) {
+      if (err instanceof ApiResponseError) {
+        setError(err.message || "Something went wrong. Please try again.");
+      } else {
+        setError("Network error. Please try again.");
+      }
+    } finally {
       setSubmitting(false);
     }
   }

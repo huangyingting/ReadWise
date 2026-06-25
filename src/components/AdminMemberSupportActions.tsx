@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import ConfirmAction from "@/components/ConfirmAction";
 
@@ -34,20 +35,10 @@ export default function AdminMemberSupportActions({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/members/${memberId}/support`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      const data = (await res.json().catch(() => null)) as
-        | Record<string, unknown>
-        | null;
-      if (!res.ok) {
-        throw new Error(
-          (data?.error as string | undefined) ?? `Action failed (${res.status})`,
-        );
-      }
-      return data;
+      return await postJson<Record<string, unknown>>(
+        `/api/admin/members/${memberId}/support`,
+        { action },
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Action failed");
       return null;

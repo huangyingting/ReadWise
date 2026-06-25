@@ -53,6 +53,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
       const activeMs = clampActiveTime(total);
       if (activeMs <= 0) return;
 
+      // keepalive beacon: must use raw fetch with keepalive:true to survive navigation
       void fetch(`/api/reader/${articleId}/reading-time`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },

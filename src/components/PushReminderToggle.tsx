@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { Button } from "@/components/ui/Button";
+import { postJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { SkeletonText } from "@/components/ui/Skeleton";
 
@@ -49,6 +49,7 @@ export default function PushReminderToggle() {
 
       // Fetch VAPID public key from server
       try {
+        // non-standard init response: checks configured flag before JSON, not using postJson
         const res = await fetch("/api/push/vapid-public-key");
         if (!res.ok) {
           setState("unconfigured");
@@ -108,21 +109,11 @@ export default function PushReminderToggle() {
 
       // Parse the subscription to extract p256dh and auth keys
       const subJson = sub.toJSON();
-      const res = await fetch("/api/push/subscribe", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          endpoint: subJson.endpoint,
-          p256dh: subJson.keys?.p256dh,
-          auth: subJson.keys?.auth,
-        }),
+      await postJson("/api/push/subscribe", {
+        endpoint: subJson.endpoint,
+        p256dh: subJson.keys?.p256dh,
+        auth: subJson.keys?.auth,
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ message: "Failed to save subscription." }));
-        throw new Error(err.message ?? "Failed to save subscription.");
-      }
-
       setState("subscribed");
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to enable push notifications.");
@@ -140,11 +131,7 @@ export default function PushReminderToggle() {
       if (sub) {
         const endpoint = sub.endpoint;
         await sub.unsubscribe();
-        await fetch("/api/push/unsubscribe", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ endpoint }),
-        });
+        await postJson("/api/push/unsubscribe", { endpoint });
       }
       setState("idle");
     } catch (err: unknown) {

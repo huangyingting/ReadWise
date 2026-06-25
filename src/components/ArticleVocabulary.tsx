@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { BookOpen, CircleOff } from "lucide-react";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Spinner } from "@/components/ui/Spinner";
@@ -58,18 +59,10 @@ export default function ArticleVocabulary({
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/reader/${articleId}/vocabulary`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Could not load vocabulary");
-      }
-      const data = (await res.json()) as VocabularyResponse;
+      const data = await postJson<VocabularyResponse>(
+        `/api/reader/${articleId}/vocabulary`,
+        {},
+      );
       setItems(data.items);
       setFallback(data.fallback);
       setLoaded(true);
@@ -90,22 +83,12 @@ export default function ArticleVocabulary({
       ? "/api/vocabulary/unsave"
       : "/api/vocabulary/save";
     try {
-      const res = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          word: item.word,
-          explanation: item.explanation,
-          example: item.example,
-          articleId,
-        }),
+      await postJson(endpoint, {
+        word: item.word,
+        explanation: item.explanation,
+        example: item.example,
+        articleId,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Could not update study list");
-      }
       setItems((prev) =>
         prev.map((it) =>
           it.word === item.word ? { ...it, saved: !it.saved } : it,

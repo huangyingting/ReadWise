@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -17,31 +19,16 @@ export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) 
   const router = useRouter();
   const [orgId, setOrgId] = useState(orgs[0]?.id ?? "");
   const [name, setName] = useState("");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Failed to create classroom");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!orgId || !name.trim()) return;
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch("/api/classrooms", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orgId, name }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Failed (${res.status})`);
-      }
+    await run(async () => {
+      await postJson("/api/classrooms", { orgId, name });
       setName("");
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to create classroom");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

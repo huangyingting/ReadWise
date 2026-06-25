@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { deleteJson, postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 
 export default function AdminArticleActions({
@@ -24,15 +25,9 @@ export default function AdminArticleActions({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/articles/${articleId}/rebuild`, {
-        method: "POST",
-      });
-      if (!res.ok) {
-        throw new Error(`Rebuild failed (${res.status})`);
-      }
-      const data = (await res.json()) as {
+      const data = await postJson<{
         cleared?: Record<string, number>;
-      };
+      }>(`/api/admin/articles/${articleId}/rebuild`);
       const total = data.cleared
         ? Object.values(data.cleared).reduce((sum, n) => sum + n, 0)
         : 0;
@@ -52,12 +47,7 @@ export default function AdminArticleActions({
     setError(null);
     setMessage(null);
     try {
-      const res = await fetch(`/api/admin/articles/${articleId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        throw new Error(`Delete failed (${res.status})`);
-      }
+      await deleteJson(`/api/admin/articles/${articleId}`);
       if (redirectOnDelete) {
         router.push(redirectOnDelete);
       } else {

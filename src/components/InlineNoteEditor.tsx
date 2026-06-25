@@ -2,6 +2,7 @@
 
 import { useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
+import { patchJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { submitMutation } from "@/lib/offline-mutations";
 
@@ -33,15 +34,9 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
     const trimmed = draft.trim();
     setSaving(true);
     try {
-      const res = await fetch(`/api/highlights/${highlightId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ note: trimmed || null }),
-      });
-      if (res.ok) {
-        setNote(trimmed);
-        setEditing(false);
-      }
+      await patchJson(`/api/highlights/${highlightId}`, { note: trimmed || null });
+      setNote(trimmed);
+      setEditing(false);
     } catch {
       // Offline / network failure — queue the note edit and keep it locally so
       // the user's text is never lost (RW-042). Server uses last-write-wins.

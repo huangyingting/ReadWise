@@ -22,6 +22,7 @@ import {
   type RefObject,
 } from "react";
 import { Plus, Check } from "lucide-react";
+import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
@@ -84,11 +85,9 @@ export default function ListPickerPopover({
 
     void (async () => {
       try {
-        const res = await fetch(
+        const data = await getJson<MembershipResponse>(
           `/api/bookmarks/membership?articleId=${encodeURIComponent(articleId)}`,
         );
-        if (!res.ok) throw new Error("Failed to load lists");
-        const data = (await res.json()) as MembershipResponse;
         if (!cancelled) {
           const loadedLists = data.lists ?? [];
           setLists(loadedLists);
@@ -157,18 +156,11 @@ export default function ListPickerPopover({
 
     try {
       if (wasChecked) {
-        const res = await fetch(
+        await deleteJson(
           `/api/lists/${encodeURIComponent(list.id)}/items/${encodeURIComponent(articleId)}`,
-          { method: "DELETE" },
         );
-        if (!res.ok) throw new Error("Failed");
       } else {
-        const res = await fetch(`/api/lists/${encodeURIComponent(list.id)}/items`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ articleId }),
-        });
-        if (!res.ok) throw new Error("Failed");
+        await postJson(`/api/lists/${encodeURIComponent(list.id)}/items`, { articleId });
       }
       // Sync segment A if this was the default list
       if (list.isDefault) {
@@ -209,28 +201,23 @@ export default function ListPickerPopover({
 
     try {
       // Create list
-      const createRes = await fetch("/api/lists", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: trimmed }),
-      });
-      if (!createRes.ok) throw new Error("Failed to create list");
-      const created = (await createRes.json()) as {
+      const created = await postJson<{
         list: { id: string; name: string; isDefault: boolean };
-      };
+      }>("/api/lists", { name: trimmed });
       const newList = created.list;
 
       // Add article to new list
-      await fetch(`/api/lists/${encodeURIComponent(newList.id)}/items`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ articleId }),
-      });
+      await postJson(`/api/lists/${encodeURIComponent(newList.id)}/items`, { articleId });
 
       // Append to list with hasArticle=true
       setLists((prev) => [
         ...prev,
-        { id: newList.id, name: newList.name, isDefault: false, hasArticle: true },
+        {
+          id: newList.id,
+          name: newList.name,
+          isDefault: newList.isDefault,
+          hasArticle: true,
+        },
       ]);
       markBookmarkChanged(articleId);
       setCreating(false);

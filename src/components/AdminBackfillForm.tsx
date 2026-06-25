@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -61,13 +62,10 @@ export default function AdminBackfillForm() {
     setResult(null);
     try {
       const translateLangs = langs
-        .split(",")
-        .map((l) => l.trim())
-        .filter(Boolean);
-      const res = await fetch("/api/admin/jobs/backfill", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
+          .split(",")
+          .map((l) => l.trim())
+          .filter(Boolean);
+      const data = await postJson<BackfillResponse>("/api/admin/jobs/backfill", {
           features: Array.from(selected),
           mode,
           reason,
@@ -76,17 +74,10 @@ export default function AdminBackfillForm() {
           status: status || undefined,
           category: category || undefined,
           translateLangs: translateLangs.length > 0 ? translateLangs : undefined,
-        }),
       });
-      const data = (await res.json().catch(() => null)) as
-        | (BackfillResponse & { error?: string })
-        | null;
-      if (!res.ok) {
-        throw new Error(data?.error ?? `Backfill failed (${res.status})`);
-      }
       setResult(data);
-      if (data && !data.dryRun && data.enqueued > 0) {
-        router.refresh();
+      if (!data.dryRun && data.enqueued > 0) {
+          router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Backfill failed");
