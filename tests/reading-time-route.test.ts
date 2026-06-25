@@ -15,7 +15,12 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
+import {
+  withParams,
+  jsonPost,
+  readerSession,
+} from "./support/route";
+import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 
 type RouteHandler = (
   req: Request,
@@ -25,28 +30,19 @@ type RouteHandler = (
 // ---------------------------------------------------------------------------
 // Mutable state
 // ---------------------------------------------------------------------------
-let authState: "ok" | "unauth" = "ok";
+let authState: AuthState = "ok";
 let articleExists = true;
 let masteryTimeSpentMs: number | null = null;
 let lastMasteryCall: { userId: string; articleId: string; opts: Record<string, unknown> } | null = null;
 
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+const session = readerSession;
 
 // ---------------------------------------------------------------------------
 // Mock setup (before — runs once before all tests)
 // ---------------------------------------------------------------------------
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireAdminApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: sessionAuthExports(() => authState),
   });
 
   mock.module("@/lib/article-access", {
@@ -92,12 +88,8 @@ async function callRoute(
     "@/app/api/reader/[id]/reading-time/route"
   )) as { POST: RouteHandler };
   return POST(
-    new Request("http://test/api/reader/a1/reading-time", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-    { params: Promise.resolve({ id: articleId }) },
+    jsonPost("http://test/api/reader/a1/reading-time", body),
+    withParams({ id: articleId }),
   );
 }
 

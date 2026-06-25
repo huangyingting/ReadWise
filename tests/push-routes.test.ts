@@ -10,15 +10,16 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import {
+  type RouteHandler,
+  jsonPost,
+} from "./support/route";
+import { sessionAuthExports } from "./support/auth-mock";
+import { makePrisma } from "./support/prisma-mock";
 
 // ---------------------------------------------------------------------------
 // Mutable stub state
 // ---------------------------------------------------------------------------
-
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
 
 let pushEnabled = true;
 let existingSubForEndpoint: { userId: string } | null = null;
@@ -30,10 +31,7 @@ let subscriptionCount = 0;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () => ({ session }),
-      requireAdminApi: async () => ({ session }),
-    },
+    namedExports: sessionAuthExports(() => "ok"),
   });
 
   mock.module("@/lib/push", {
@@ -45,7 +43,7 @@ before(() => {
 
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
+      prisma: makePrisma({
         pushSubscription: {
           findUnique: async () => existingSubForEndpoint,
           count: async () => subscriptionCount,
@@ -54,7 +52,7 @@ before(() => {
           }) => args.create,
           deleteMany: async () => ({ count: 0 }),
         },
-      },
+      }),
     },
   });
 
@@ -83,11 +81,7 @@ function subBody(
   p256dh = "BAAAAA",
   auth = "auth123",
 ) {
-  return new Request("http://test/api/push/subscribe", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ endpoint, p256dh, auth }),
-  });
+  return jsonPost("http://test/api/push/subscribe", { endpoint, p256dh, auth });
 }
 
 // ---------------------------------------------------------------------------

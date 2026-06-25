@@ -1,13 +1,15 @@
 process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import {
+  type RouteHandler,
+  withParams,
+  jsonPost,
+} from "./support/route";
+import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 
 // Mutable auth state
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // Mutable lib return values
 let translateSentenceResult: { translation: string | null; fallback: boolean } | null = {
@@ -18,13 +20,7 @@ let supportedLang = true;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireAdminApi: async () => ({ session }),
-    },
+    namedExports: sessionAuthExports(() => authState),
   });
 
   mock.module("@/lib/sentence-translation", {
@@ -59,15 +55,11 @@ beforeEach(() => {
 });
 
 function jsonReq(body: unknown): Request {
-  return new Request("http://test/api/reader/a1/translate-sentence", {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  return jsonPost("http://test/api/reader/a1/translate-sentence", body);
 }
 
 function ctx(id = "a1") {
-  return { params: Promise.resolve({ id }) };
+  return withParams({ id });
 }
 
 test("POST translate-sentence returns translation and fallback flag", async () => {
