@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, nonEmptyString } from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import { getOrCreateTranslation, isSupportedLanguage } from "@/lib/translation";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
-
-const bodySchema = object({ lang: nonEmptyString(20) });
+import { translateBody } from "@/lib/reader/schemas";
 
 export const POST = createHandler(
-  { params: idParams, body: bodySchema },
+  { params: idParams, body: translateBody },
   async ({ params, body, session }) => {
     const { context } = await requireReadableArticleForAI(params.id, session.user);
     if (!isSupportedLanguage(body.lang)) {
