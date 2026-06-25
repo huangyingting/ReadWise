@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { Button } from "@/components/ui/Button";
 
@@ -30,15 +31,7 @@ export default function AdminJobActions({
     setBusy(action);
     setError(null);
     try {
-      const res = await fetch(`/api/admin/jobs/${jobId}`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ action }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `${action} failed (${res.status})`);
-      }
+      await postJson(`/api/admin/jobs/${jobId}`, { action });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : `${action} failed`);

@@ -66,6 +66,7 @@ export default function ListingProgressSync({
 
     void (async () => {
       try {
+        // batch DOM sync: not a user mutation, uses raw fetch for non-interactive state sync
         const res = await fetch("/api/progress/batch", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

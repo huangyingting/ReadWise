@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { BookOpen, Volume2 } from "lucide-react";
+import { postJson } from "@/lib/client-fetch";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import EmptyState from "@/components/EmptyState";
@@ -58,17 +59,7 @@ export default function StudyList({
     setPending(word.id);
     setError(null);
     try {
-      const res = await fetch("/api/vocabulary/unsave", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ word: word.word }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(data?.error ?? "Could not remove word");
-      }
+      await postJson("/api/vocabulary/unsave", { word: word.word });
       setItems((prev) => prev.filter((it) => it.id !== word.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not remove word");

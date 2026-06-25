@@ -10,6 +10,8 @@
  */
 
 import { useState } from "react";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 
 type Vote = "too_easy" | "just_right" | "too_hard";
@@ -36,29 +38,20 @@ export default function ArticleDifficultyFeedback({
   difficulty?: string | null;
 }) {
   const [vote, setVote] = useState<Vote | null>(initialVote ?? null);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy: saving, error, run } = useMutation(
+    "Couldn't save your feedback — please try again.",
+  );
 
   async function handleVote(v: Vote) {
     if (saving) return;
-    setSaving(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/reader/${articleId}/difficulty-feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ vote: v }),
-      });
-      if (!res.ok) {
-        setError("Couldn't save your feedback — please try again.");
-        return;
+    await run(async () => {
+      try {
+        await postJson(`/api/reader/${articleId}/difficulty-feedback`, { vote: v });
+      } catch {
+        throw new Error("Couldn't save your feedback — please try again.");
       }
       setVote(v);
-    } catch {
-      setError("Couldn't save your feedback — please try again.");
-    } finally {
-      setSaving(false);
-    }
+    });
   }
 
   return (

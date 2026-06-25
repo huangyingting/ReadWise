@@ -73,6 +73,7 @@ export default function ListingBookmarkSync({
 
     void (async () => {
       try {
+        // batch DOM sync: not a user mutation, uses raw fetch for non-interactive state sync
         const res = await fetch("/api/saved", {
           method: "POST",
           headers: { "Content-Type": "application/json" },

@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { deleteJson, patchJson } from "@/lib/client-fetch";
 import { Select } from "@/components/ui/Select";
 import ConfirmAction from "@/components/ConfirmAction";
 
@@ -25,17 +26,7 @@ export default function AdminMemberActions({
     setBusy("role");
     setError(null);
     try {
-      const res = await fetch(`/api/admin/members/${memberId}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ role: nextRole }),
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(data?.error ?? `Role change failed (${res.status})`);
-      }
+      await patchJson(`/api/admin/members/${memberId}`, { role: nextRole });
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Role change failed");
@@ -48,15 +39,7 @@ export default function AdminMemberActions({
     setBusy("delete");
     setError(null);
     try {
-      const res = await fetch(`/api/admin/members/${memberId}`, {
-        method: "DELETE",
-      });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as
-          | { error?: string }
-          | null;
-        throw new Error(data?.error ?? `Remove failed (${res.status})`);
-      }
+      await deleteJson(`/api/admin/members/${memberId}`);
       router.refresh();
     } catch (err) {
       setError(err instanceof Error ? err.message : "Remove failed");

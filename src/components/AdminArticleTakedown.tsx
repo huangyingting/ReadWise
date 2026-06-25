@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { useMutation } from "@/hooks/useMutation";
+import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
@@ -31,37 +33,22 @@ export default function AdminArticleTakedown({
   const [state, setState] = useState(currentState);
   const [note, setNote] = useState("");
   const [rightsNote, setRightsNote] = useState(currentRightsNote);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Takedown failed");
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   const willUnpublish = state !== "active" && state !== currentState;
 
   async function apply() {
-    setBusy(true);
-    setError(null);
-    try {
-      const res = await fetch(`/api/admin/articles/${articleId}/takedown`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          state,
-          note: note.trim() || undefined,
-          rightsNote: rightsNote.trim() || undefined,
-        }),
+    await run(async () => {
+      await postJson(`/api/admin/articles/${articleId}/takedown`, {
+        state,
+        note: note.trim() || undefined,
+        rightsNote: rightsNote.trim() || undefined,
       });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Takedown failed (${res.status})`);
-      }
       setNote("");
       setSavedAt(Date.now());
       router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Takedown failed");
-    } finally {
-      setBusy(false);
-    }
+    });
   }
 
   return (

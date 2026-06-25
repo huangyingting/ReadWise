@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { signOut } from "next-auth/react";
+import { deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
@@ -15,11 +16,7 @@ export default function AccountDangerZone() {
     setDeleteBusy(true);
     setDeleteError(null);
     try {
-      const res = await fetch("/api/account", { method: "DELETE" });
-      if (!res.ok) {
-        const data = (await res.json().catch(() => null)) as { error?: string } | null;
-        throw new Error(data?.error ?? `Deletion failed (${res.status})`);
-      }
+      await deleteJson("/api/account");
       // Session is now invalid server-side — purge offline data then sign out.
       await purgeOfflineUserData();
       await signOut({ callbackUrl: "/signin" });
