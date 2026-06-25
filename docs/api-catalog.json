@@ -1,0 +1,1648 @@
+{
+  "generatedAt": "2026-06-25T11:02:09.750Z",
+  "routeCount": 89,
+  "methodCount": 100,
+  "routes": [
+    {
+      "path": "/api/account",
+      "file": "src/app/api/account/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/account/export",
+      "file": "src/app/api/account/export/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "download-json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/ai/usage",
+      "file": "src/app/api/admin/ai/usage/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/analytics",
+      "file": "src/app/api/admin/analytics/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/analytics/export",
+      "file": "src/app/api/admin/analytics/export/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "analyticsView",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "text/csv",
+          "notes": [
+            "capability: CAPABILITIES.analyticsView"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles",
+      "file": "src/app/api/admin/articles/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}",
+      "file": "src/app/api/admin/articles/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/rebuild",
+      "file": "src/app/api/admin/articles/[id]/rebuild/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/review",
+      "file": "src/app/api/admin/articles/[id]/review/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/{id}/takedown",
+      "file": "src/app/api/admin/articles/[id]/takedown/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/articles/ingest",
+      "file": "src/app/api/admin/articles/ingest/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/audit-logs",
+      "file": "src/app/api/admin/audit-logs/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/jobs",
+      "file": "src/app/api/admin/jobs/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/jobs/{id}",
+      "file": "src/app/api/admin/jobs/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/jobs/backfill",
+      "file": "src/app/api/admin/jobs/backfill/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/members/{id}",
+      "file": "src/app/api/admin/members/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "PATCH",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/members/{id}/support",
+      "file": "src/app/api/admin/members/[id]/support/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "supportAssist",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.supportAssist"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/metrics",
+      "file": "src/app/api/admin/metrics/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "text/plain",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/scrape/trigger",
+      "file": "src/app/api/admin/scrape/trigger/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/security/events",
+      "file": "src/app/api/admin/security/events/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/slo",
+      "file": "src/app/api/admin/slo/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/sources",
+      "file": "src/app/api/admin/sources/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/sources/{key}",
+      "file": "src/app/api/admin/sources/[key]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PATCH",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/sources/sync",
+      "file": "src/app/api/admin/sources/sync/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/stats",
+      "file": "src/app/api/admin/stats/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/tags",
+      "file": "src/app/api/admin/tags/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/tags/{id}",
+      "file": "src/app/api/admin/tags/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "PATCH",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/tags/{id}/merge",
+      "file": "src/app/api/admin/tags/[id]/merge/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "admin",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/articles",
+      "file": "src/app/api/articles/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/articles/import",
+      "file": "src/app/api/articles/import/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/assignments/{id}/completion",
+      "file": "src/app/api/assignments/[id]/completion/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/auth/{...nextauth}",
+      "file": "src/app/api/auth/[...nextauth]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "nextauth",
+          "notes": [
+            "NextAuth.js handler — manages OAuth/credentials sessions"
+          ]
+        },
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "nextauth",
+          "notes": [
+            "NextAuth.js handler — manages OAuth/credentials sessions"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/bookmarks/membership",
+      "file": "src/app/api/bookmarks/membership/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/bookmarks/toggle",
+      "file": "src/app/api/bookmarks/toggle/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms",
+      "file": "src/app/api/classrooms/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/analytics",
+      "file": "src/app/api/classrooms/[id]/analytics/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/assignments",
+      "file": "src/app/api/classrooms/[id]/assignments/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/members",
+      "file": "src/app/api/classrooms/[id]/members/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/client-errors",
+      "file": "src/app/api/client-errors/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/dictionary",
+      "file": "src/app/api/dictionary/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/feed",
+      "file": "src/app/api/feed/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/gamification/summary",
+      "file": "src/app/api/gamification/summary/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/health",
+      "file": "src/app/api/health/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/highlights/{id}",
+      "file": "src/app/api/highlights/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/level-recommendation",
+      "file": "src/app/api/level-recommendation/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/lists",
+      "file": "src/app/api/lists/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/lists/{id}",
+      "file": "src/app/api/lists/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "PATCH",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/lists/{id}/items",
+      "file": "src/app/api/lists/[id]/items/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/lists/{id}/items/{articleId}",
+      "file": "src/app/api/lists/[id]/items/[articleId]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/onboarding",
+      "file": "src/app/api/onboarding/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/orgs",
+      "file": "src/app/api/orgs/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/orgs/{id}/members",
+      "file": "src/app/api/orgs/[id]/members/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/profile",
+      "file": "src/app/api/profile/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PUT",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/progress/batch",
+      "file": "src/app/api/progress/batch/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/pronunciation/attempt",
+      "file": "src/app/api/pronunciation/attempt/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/pronunciation/history",
+      "file": "src/app/api/pronunciation/history/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/push/preferences",
+      "file": "src/app/api/push/preferences/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "PUT",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/push/subscribe",
+      "file": "src/app/api/push/subscribe/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/push/unsubscribe",
+      "file": "src/app/api/push/unsubscribe/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/push/vapid-public-key",
+      "file": "src/app/api/push/vapid-public-key/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/quiz/mastery",
+      "file": "src/app/api/quiz/mastery/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/difficulty-feedback",
+      "file": "src/app/api/reader/[id]/difficulty-feedback/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/grammar",
+      "file": "src/app/api/reader/[id]/grammar/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/highlights",
+      "file": "src/app/api/reader/[id]/highlights/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/offline",
+      "file": "src/app/api/reader/[id]/offline/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/progress",
+      "file": "src/app/api/reader/[id]/progress/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/quiz",
+      "file": "src/app/api/reader/[id]/quiz/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/quiz/attempt",
+      "file": "src/app/api/reader/[id]/quiz/attempt/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/quiz/history",
+      "file": "src/app/api/reader/[id]/quiz/history/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/reading-time",
+      "file": "src/app/api/reader/[id]/reading-time/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/speech",
+      "file": "src/app/api/reader/[id]/speech/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/speech/audio",
+      "file": "src/app/api/reader/[id]/speech/audio/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "binary",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/tags",
+      "file": "src/app/api/reader/[id]/tags/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/translate",
+      "file": "src/app/api/reader/[id]/translate/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/translate-sentence",
+      "file": "src/app/api/reader/[id]/translate-sentence/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/tutor",
+      "file": "src/app/api/reader/[id]/tutor/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/reader/{id}/vocabulary",
+      "file": "src/app/api/reader/[id]/vocabulary/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/ready",
+      "file": "src/app/api/ready/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "public",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/saved",
+      "file": "src/app/api/saved/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/search",
+      "file": "src/app/api/search/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/speech/token",
+      "file": "src/app/api/speech/token/route.ts",
+      "runtime": "nodejs",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/study/cloze",
+      "file": "src/app/api/study/cloze/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/study/flashcards",
+      "file": "src/app/api/study/flashcards/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/study/flashcards/grade",
+      "file": "src/app/api/study/flashcards/grade/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/study/words",
+      "file": "src/app/api/study/words/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/vocabulary/export",
+      "file": "src/app/api/vocabulary/export/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "text/csv",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/vocabulary/save",
+      "file": "src/app/api/vocabulary/save/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/vocabulary/unsave",
+      "file": "src/app/api/vocabulary/unsave/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    },
+    {
+      "path": "/api/vocabulary/unsave-batch",
+      "file": "src/app/api/vocabulary/unsave-batch/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": []
+        }
+      ]
+    }
+  ]
+}
