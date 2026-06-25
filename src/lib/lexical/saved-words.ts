@@ -17,6 +17,10 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import {
+  readableArticleWhere,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -198,4 +202,31 @@ export async function unsaveWord(userId: string, word: string): Promise<void> {
     return;
   }
   await prisma.savedWord.deleteMany({ where: { userId, word: trimmed } });
+}
+
+/**
+ * Returns a map of article id → title for all accessible articles in
+ * `articleIds`, filtered by `context`. Articles the caller cannot read (due to
+ * visibility or status) are silently omitted. Returns an empty object when
+ * `articleIds` is empty.
+ *
+ * Used by the vocabulary-journal page to resolve display titles for words that
+ * were saved while reading a particular article.
+ */
+export async function getArticleTitlesForWords(
+  articleIds: string[],
+  context: ArticleAccessContext,
+): Promise<Record<string, string>> {
+  if (articleIds.length === 0) {
+    return {};
+  }
+  const rows = await prisma.article.findMany({
+    where: readableArticleWhere(context, { id: { in: articleIds } }),
+    select: { id: true, title: true },
+  });
+  const result: Record<string, string> = {};
+  for (const row of rows) {
+    result[row.id] = row.title;
+  }
+  return result;
 }

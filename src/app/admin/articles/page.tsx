@@ -1,10 +1,9 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { prisma } from "@/lib/prisma";
-import { searchArticles } from "@/lib/admin-articles";
+import { searchArticles, getAdminArticleStatuses } from "@/lib/admin-articles";
 import { statusBadgeVariant } from "@/lib/admin";
-import { adminVisibleArticleWhere, articleAccessContext } from "@/lib/article-access";
+import { articleAccessContext } from "@/lib/article-access";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";
@@ -47,16 +46,10 @@ export default async function AdminArticlesPage({
   const status = (sp.status ?? "").trim().toUpperCase();
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
 
-  const [result, statusRows] = await Promise.all([
+  const [result, statuses] = await Promise.all([
     searchArticles({ query, status, page, context }),
-    prisma.article.findMany({
-      where: adminVisibleArticleWhere(context),
-      distinct: ["status"],
-      select: { status: true },
-      orderBy: { status: "asc" },
-    }),
+    getAdminArticleStatuses(context),
   ]);
-  const statuses = statusRows.map((r) => r.status);
 
   return (
     <section className="stack">
