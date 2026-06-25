@@ -26,7 +26,8 @@
     "prisma:migrate:pg": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
     "postinstall": "prisma generate",
     "migrate-storage": "npm run node-ts -- scripts/migrate-storage.ts",
-    "schema:check-parity": "node --experimental-strip-types --no-warnings scripts/check-schema-parity.ts"
+    "schema:check-parity": "node --experimental-strip-types --no-warnings scripts/check-schema-parity.ts",
+    "api-catalog": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/generate-api-catalog.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",
