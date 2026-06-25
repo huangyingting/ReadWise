@@ -13,12 +13,9 @@
  * removes return ok without error.
  */
 import { prisma } from "@/lib/prisma";
+import { type DomainResult, ok, notFound, conflict } from "@/lib/result";
 import { getReadableArticleById } from "../policy";
 import { getOrCreateDefaultList } from "./default-list-policy";
-
-type ErrResult = { ok: false; error: string; status: number };
-type SimpleResult = { ok: true } | ErrResult;
-type DataResult<T extends object> = ({ ok: true } & T) | ErrResult;
 
 /** Creates a new (non-default) named list for the user. */
 export async function createList(
@@ -35,11 +32,11 @@ export async function renameList(
   listId: string,
   userId: string,
   name: string,
-): Promise<DataResult<{ list: { id: string; name: string } }>> {
+): Promise<DomainResult<{ list: { id: string; name: string } }>> {
   const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!existing) return { ok: false, error: "List not found", status: 404 };
+  if (!existing) return notFound("List not found");
   const updated = await prisma.readingList.update({ where: { id: listId }, data: { name } });
-  return { ok: true, list: { id: updated.id, name: updated.name } };
+  return ok({ list: { id: updated.id, name: updated.name } });
 }
 
 /**
@@ -48,14 +45,14 @@ export async function renameList(
 export async function deleteList(
   listId: string,
   userId: string,
-): Promise<SimpleResult> {
+): Promise<DomainResult> {
   const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!existing) return { ok: false, error: "List not found", status: 404 };
+  if (!existing) return notFound("List not found");
   if (existing.isDefault) {
-    return { ok: false, error: "Cannot delete the default list", status: 409 };
+    return conflict("Cannot delete the default list");
   }
   await prisma.readingList.delete({ where: { id: listId } });
-  return { ok: true };
+  return ok();
 }
 
 /**
@@ -68,17 +65,17 @@ export async function addToList(
   userId: string,
   articleId: string,
   role?: string | null,
-): Promise<SimpleResult> {
+): Promise<DomainResult> {
   const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!list) return { ok: false, error: "List not found", status: 404 };
+  if (!list) return notFound("List not found");
   const article = await getReadableArticleById(articleId, { role, userId });
-  if (!article) return { ok: false, error: "Article not found", status: 404 };
+  if (!article) return notFound("Article not found");
   await prisma.readingListItem.upsert({
     where: { listId_articleId: { listId, articleId } },
     create: { listId, articleId },
     update: {},
   });
-  return { ok: true };
+  return ok();
 }
 
 /**
@@ -88,11 +85,11 @@ export async function removeFromList(
   listId: string,
   userId: string,
   articleId: string,
-): Promise<SimpleResult> {
+): Promise<DomainResult> {
   const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
-  if (!list) return { ok: false, error: "List not found", status: 404 };
+  if (!list) return notFound("List not found");
   await prisma.readingListItem.deleteMany({ where: { listId, articleId } });
-  return { ok: true };
+  return ok();
 }
 
 /**
@@ -104,9 +101,9 @@ export async function toggleBookmark(
   userId: string,
   articleId: string,
   role?: string | null,
-): Promise<DataResult<{ bookmarked: boolean }>> {
+): Promise<DomainResult<{ bookmarked: boolean }>> {
   const article = await getReadableArticleById(articleId, { role, userId });
-  if (!article) return { ok: false, error: "Article not found", status: 404 };
+  if (!article) return notFound("Article not found");
 
   const defaultList = await getOrCreateDefaultList(userId);
   const existing = await prisma.readingListItem.findUnique({
@@ -115,9 +112,9 @@ export async function toggleBookmark(
 
   if (existing) {
     await prisma.readingListItem.delete({ where: { id: existing.id } });
-    return { ok: true, bookmarked: false };
+    return ok({ bookmarked: false });
   } else {
     await prisma.readingListItem.create({ data: { listId: defaultList.id, articleId } });
-    return { ok: true, bookmarked: true };
+    return ok({ bookmarked: true });
   }
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
+import { throwIfFailed } from "@/lib/result";
 import { object, nonEmptyString } from "@/lib/validation";
 import { removeFromList } from "@/lib/bookmarks";
 
@@ -14,7 +15,7 @@ export const DELETE = createHandler(
   { params: itemParams },
   async ({ params, session }) => {
     const result = await removeFromList(params.id, session.user.id, params.articleId);
-    if (!result.ok) throw new ApiError(result.status, result.error);
+    throwIfFailed(result);
     return NextResponse.json({ ok: true });
   },
 );
