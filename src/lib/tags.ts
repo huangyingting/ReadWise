@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { ArticleVisibility, TagScope, type Article } from "@prisma/client";
+import { TagScope, type Article } from "@prisma/client";
 import { getOrCreateArticleAi } from "@/lib/ai-cache";
 import { htmlToPlainText } from "@/lib/translation";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
@@ -7,6 +7,10 @@ import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";
 import { validateTags } from "@/lib/ai/output/validators";
 import { createCachedListing, ARTICLES_CACHE_TAG, TAGS_CACHE_TAG } from "@/lib/cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "@/lib/article-access";
+import { slugifyTag, tagScopeForArticle } from "@/lib/taxonomy/scope";
+
+// Re-export so existing consumers (admin-tags, tests, routes) keep working.
+export { slugifyTag } from "@/lib/taxonomy/scope";
 
 export type TagView = {
   id: string;
@@ -20,20 +24,6 @@ export type ArticleTagsResult = {
   tags: TagView[];
   fallback: boolean;
 };
-
-/**
- * Converts a free-form tag name into a URL-safe slug. Lowercases, strips
- * accents/punctuation, and collapses whitespace to single hyphens.
- */
-export function slugifyTag(name: string): string {
-  return name
-    .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-}
 
 /**
  * Parses the model's JSON response into a deduped list of Title-Cased tag names
@@ -56,31 +46,6 @@ export async function getArticleTags(articleId: string): Promise<TagView[]> {
     select: { tag: { select: { id: true, name: true, slug: true, scope: true } } },
   });
   return rows.map((r) => toView(r.tag));
-}
-
-/**
- * Finds-or-creates a Tag by name (slug derived from the name). Tag names are
- * unique case-insensitively via their slug; an existing slug match is reused.
- */
-function namespaceFor(scope: TagScope, ownerId?: string | null, orgId?: string | null): string {
-  if (scope === TagScope.PRIVATE) return `user:${ownerId ?? "unknown"}`;
-  if (scope === TagScope.ORG) return `org:${orgId ?? "unknown"}`;
-  return "public";
-}
-
-function tagScopeForArticle(article: Pick<Article, "visibility" | "ownerId">): {
-  scope: TagScope;
-  ownerId: string | null;
-  namespace: string;
-} {
-  if (article.visibility === ArticleVisibility.PRIVATE) {
-    return {
-      scope: TagScope.PRIVATE,
-      ownerId: article.ownerId,
-      namespace: namespaceFor(TagScope.PRIVATE, article.ownerId),
-    };
-  }
-  return { scope: TagScope.PUBLIC, ownerId: null, namespace: namespaceFor(TagScope.PUBLIC) };
 }
 
 /**
