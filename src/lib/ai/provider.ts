@@ -20,7 +20,17 @@
  *
  * No prompt or response *content* ever leaves this layer except as the returned
  * assistant text; errors carry only low-cardinality metadata.
+ *
+ * Error classification helpers ({@link classifyHttpStatus}, {@link classifyThrownError},
+ * {@link parseRetryAfterMs}) and the {@link AiErrorKind} type have moved to
+ * `@/lib/ai/output/error-classifier` (REF-067); they are re-exported here for
+ * backward compatibility.
  */
+
+// Re-export error classification from the AI output package (REF-067).
+import type { AiErrorKind } from "./output/error-classifier";
+export type { AiErrorKind } from "./output/error-classifier";
+export { classifyHttpStatus, classifyThrownError, parseRetryAfterMs } from "./output/error-classifier";
 
 /** A single chat message exchanged with a model. */
 export type AiChatMessage = {
@@ -48,24 +58,6 @@ export type AiUsage = {
   completionTokens: number;
   totalTokens: number;
 };
-
-/**
- * Normalized provider error categories. Every vendor-specific failure (HTTP
- * status, SDK error, network error) is mapped onto exactly one of these so the
- * orchestration layer can decide retry/fallback without provider knowledge.
- */
-export type AiErrorKind =
-  | "unconfigured" // provider has no credentials
-  | "rate_limit" // 429 / throttled — retryable
-  | "timeout" // request exceeded the deadline — retryable
-  | "server" // 5xx — retryable
-  | "auth" // 401/403 — not retryable
-  | "content_filter" // provider refused on safety grounds — not retryable
-  | "bad_request" // 4xx other than auth/rate-limit — not retryable
-  | "network" // connection error — retryable
-  | "aborted" // the caller aborted — not retryable
-  | "empty" // 2xx but no usable content — not retryable
-  | "unknown";
 
 /** A normalized provider failure. Carries only low-cardinality metadata. */
 export type AiProviderError = {
@@ -139,45 +131,4 @@ export interface AiProvider {
   capabilities(): AiProviderCapabilities;
   /** Performs one chat-completion attempt, returning a normalized response. */
   chat(request: AiChatRequest): Promise<AiChatResponse>;
-}
-
-/** Maps an HTTP status to a normalized, retryable-aware error kind. */
-export function classifyHttpStatus(status: number): {
-  kind: AiErrorKind;
-  retryable: boolean;
-} {
-  if (status === 429) return { kind: "rate_limit", retryable: true };
-  if (status === 401 || status === 403) return { kind: "auth", retryable: false };
-  if (status >= 500) return { kind: "server", retryable: true };
-  if (status >= 400) return { kind: "bad_request", retryable: false };
-  return { kind: "unknown", retryable: false };
-}
-
-/**
- * Maps a thrown transport error (fetch / AbortSignal) to a normalized error
- * kind. A `TimeoutError` (per-attempt deadline) is retryable; an `AbortError`
- * is reported as `aborted` and the orchestration layer decides whether it was a
- * caller-initiated abort (not retryable) using the caller's own signal.
- */
-export function classifyThrownError(err: unknown): {
-  kind: AiErrorKind;
-  retryable: boolean;
-  message: string;
-} {
-  const name = err instanceof Error ? err.name : "";
-  if (name === "TimeoutError") {
-    return { kind: "timeout", retryable: true, message: "timeout" };
-  }
-  if (name === "AbortError") {
-    return { kind: "aborted", retryable: false, message: "aborted" };
-  }
-  return { kind: "network", retryable: true, message: "network error" };
-}
-
-/** Parses a `Retry-After` header (seconds) into a clamped delay in ms. */
-export function parseRetryAfterMs(header: string | null): number | undefined {
-  if (!header) return undefined;
-  const seconds = parseInt(header, 10);
-  if (!Number.isFinite(seconds)) return undefined;
-  return Math.min(Math.max(0, seconds) * 1000, 60_000);
 }
