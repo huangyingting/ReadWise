@@ -36,7 +36,6 @@
     "@opentelemetry/semantic-conventions": "^1.41.1",
     "@prisma/client": "^6.2.1",
     "@types/sanitize-html": "^2.16.1",
-    "@types/turndown": "^5.0.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^1.21.0",
@@ -47,7 +46,6 @@
     "react-dom": "^19.0.0",
     "sanitize-html": "^2.17.5",
     "tailwind-merge": "^3.6.0",
-    "turndown": "^7.2.4",
     "undici": "^7.28.0",
     "web-push": "^3.6.7"
   },
