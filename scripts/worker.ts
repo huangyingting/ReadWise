@@ -1,9 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
-  runWorker,
   runJobWorker,
   createConsoleLogger,
-  type WorkerOptions,
   type JobWorkerOptions,
 } from "@/lib/worker";
 import { isAiConfigured } from "@/lib/ai";
@@ -12,16 +10,9 @@ import { isSupportedLanguage } from "@/lib/translation";
 
 type Args = {
   intervalMs: number;
-  batchSize: number;
-  maxRetries: number;
-  baseBackoffMs: number;
-  quarantineMs: number;
-  includePublished: boolean;
   once: boolean;
   tts: boolean;
   translateLangs: string[];
-  jobs: boolean;
-  legacyArticlePolling: boolean;
   lockTtlMs: number;
   help: boolean;
 };
@@ -29,16 +20,9 @@ type Args = {
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     intervalMs: 5000,
-    batchSize: 5,
-    maxRetries: 3,
-    baseBackoffMs: 1000,
-    quarantineMs: 300000,
-    includePublished: false,
     once: false,
     tts: false,
     translateLangs: [],
-    jobs: true,
-    legacyArticlePolling: false,
     lockTtlMs: 600000,
     help: false,
   };
@@ -48,31 +32,11 @@ function parseArgs(argv: string[]): Args {
       case "--interval":
         args.intervalMs = Math.max(0, Number(argv[++i]) || 0);
         break;
-      case "--batch":
-        args.batchSize = Math.max(1, Number(argv[++i]) || 1);
-        break;
-      case "--max-retries":
-        args.maxRetries = Math.max(0, Number(argv[++i]) || 0);
-        break;
-      case "--backoff":
-        args.baseBackoffMs = Math.max(0, Number(argv[++i]) || 0);
-        break;
-      case "--quarantine":
-        args.quarantineMs = Math.max(0, Number(argv[++i]) || 0);
-        break;
       case "--jobs":
-        args.jobs = true;
-        args.legacyArticlePolling = false;
-        break;
-      case "--legacy-article-polling":
-        args.jobs = false;
-        args.legacyArticlePolling = true;
+        // Backward-compatible no-op: the durable Job table is the only worker.
         break;
       case "--lock-ttl":
         args.lockTtlMs = Math.max(0, Number(argv[++i]) || 0);
-        break;
-      case "--include-published":
-        args.includePublished = true;
         break;
       case "--once":
         args.once = true;
@@ -114,17 +78,8 @@ Usage:
 
 Options:
   --interval <ms>       Idle wait between polls when empty (default 5000)
-  --batch <n>           Articles fetched per poll (default 5)
-  --max-retries <n>     Retry attempts per article on failure (default 3)
-  --backoff <ms>        Base delay for exponential backoff (default 1000)
-  --quarantine <ms>     Cooldown before re-trying a poison article (default 300000)
-  --jobs                Drain the persistent Job table (default; kept for
-                        compatibility with existing runbooks)
-  --legacy-article-polling
-                        Use the older article-state polling worker during the
-                        transition period only
+  --jobs                Backward-compatible no-op; durable Job mode is the only mode
   --lock-ttl <ms>       Stale-lock recovery threshold for --jobs (default 600000)
-  --include-published   Also enrich published articles missing content
   --once                Process the queue until empty, then stop
   --tts                 Also generate text-to-speech narration (slow)
   --translate <codes>   Pre-generate translations (comma-separated, e.g. es,fr)
@@ -170,34 +125,16 @@ async function main(): Promise<number> {
   process.on("SIGINT", () => onSignal("SIGINT"));
   process.on("SIGTERM", () => onSignal("SIGTERM"));
 
-  if (args.jobs) {
-    const jobOpts: JobWorkerOptions = {
-      pollIntervalMs: args.intervalMs,
-      lockTtlMs: args.lockTtlMs,
-      once: args.once,
-      signal: controller.signal,
-      logger,
-      process: { tts: args.tts, translateLangs: args.translateLangs },
-    };
-    await runJobWorker(jobOpts);
-    return 0;
-  }
-
-  const opts: WorkerOptions = {
+  const jobOpts: JobWorkerOptions = {
     pollIntervalMs: args.intervalMs,
-    batchSize: args.batchSize,
-    maxRetries: args.maxRetries,
-    baseBackoffMs: args.baseBackoffMs,
-    quarantineMs: args.quarantineMs,
-    includePublished: args.includePublished,
+    lockTtlMs: args.lockTtlMs,
     once: args.once,
     signal: controller.signal,
     logger,
     process: { tts: args.tts, translateLangs: args.translateLangs },
   };
-
-  const stats = await runWorker(opts);
-  return stats.stoppedBySignal && !args.once ? 0 : 0;
+  await runJobWorker(jobOpts);
+  return 0;
 }
 
 main()
