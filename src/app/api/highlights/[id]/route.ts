@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, string, optional } from "@/lib/validation";
-import { updateHighlight, deleteHighlight, HIGHLIGHT_NOTE_MAX } from "@/lib/highlights";
+import { updateHighlight, deleteHighlight, HIGHLIGHT_NOTE_MAX } from "@/lib/annotations";
 
 const patchBody = object({
   note: optional(string({ max: HIGHLIGHT_NOTE_MAX })),
