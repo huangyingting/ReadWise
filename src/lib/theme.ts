@@ -14,12 +14,14 @@
  * All functions are SSR-safe (guard `window`/`document`) and React-free.
  */
 
+import { STORAGE_KEYS } from "./storage-keys";
+
 export type Theme = "light" | "dark" | "system";
 
 /** Concrete theme actually applied to the page (never "system"). */
 export type ResolvedTheme = "light" | "dark";
 
-export const THEME_STORAGE_KEY = "readwise:theme";
+export const THEME_STORAGE_KEY = STORAGE_KEYS.THEME;
 
 const THEME_VALUES: readonly Theme[] = ["light", "dark", "system"];
 

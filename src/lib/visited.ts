@@ -4,7 +4,9 @@
  * than re-fetching the whole listing on every navigation). Backed by
  * sessionStorage so it is scoped to the current browser tab/session.
  */
-const STORAGE_KEY = "readwise:visited-articles";
+import { STORAGE_KEYS } from "./storage-keys";
+
+const STORAGE_KEY = STORAGE_KEYS.VISITED_ARTICLES;
 
 function read(): string[] {
   if (typeof window === "undefined") {

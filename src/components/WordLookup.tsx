@@ -52,6 +52,7 @@ import {
 import { useSaveWord } from "@/components/reader/wordLookup/useSaveWord";
 import { useHighlightActions } from "@/components/reader/wordLookup/useHighlightActions";
 import { useSurfaceController } from "@/components/reader/wordLookup/useSurfaceController";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 const POPOVER_WIDTH = 340;
 const POPOVER_HEIGHT = 400;
@@ -252,7 +253,7 @@ export default function WordLookup({
         const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
         const isShortPhrase = wordCount >= 2 && wordCount <= 5;
         savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
-        const stored = typeof window !== "undefined" ? localStorage.getItem("readwise:last-hl-color") : null;
+        const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.LAST_HL_COLOR) : null;
         const color = (stored && ["yellow", "green", "blue", "pink"].includes(stored))
           ? (stored as Parameters<typeof surface.openToolbar>[3])
           : undefined;
@@ -351,7 +352,7 @@ export default function WordLookup({
   const handleHighlightAction = useCallback(async () => {
     const saved = savedAnchorRef.current;
     if (!saved) return;
-    localStorage.setItem("readwise:last-hl-color", toolbarColor);
+    localStorage.setItem(STORAGE_KEYS.LAST_HL_COLOR, toolbarColor);
     window.getSelection()?.removeAllRanges();
     await handleHighlight(saved, toolbarColor);
     closeAll();
@@ -361,7 +362,7 @@ export default function WordLookup({
   const handleAddNoteAction = useCallback(async () => {
     const saved = savedAnchorRef.current;
     if (!saved) return;
-    localStorage.setItem("readwise:last-hl-color", toolbarColor);
+    localStorage.setItem(STORAGE_KEYS.LAST_HL_COLOR, toolbarColor);
     window.getSelection()?.removeAllRanges();
     surface.closeAll();
     await handleAddNote(saved, toolbarColor, (hlId, markEl) => {

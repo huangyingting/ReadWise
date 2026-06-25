@@ -18,6 +18,7 @@
  */
 
 import { getActiveTheme } from "./theme";
+import { STORAGE_KEYS } from "./storage-keys";
 
 export type ReadingMode = "light" | "sepia" | "dark";
 export type ReadingFont = "serif" | "sans" | "dyslexic";
@@ -33,7 +34,7 @@ export interface ReaderPrefs {
 /** Ordered font-scale steps (5 steps per Saul's spec). */
 export const FONT_SCALE_STEPS = [0.9, 1.0, 1.15, 1.3, 1.45] as const;
 export const DEFAULT_FONT_SCALE = 1.0;
-export const READER_PREFS_KEY = "readwise:reader-prefs";
+export const READER_PREFS_KEY = STORAGE_KEYS.READER_PREFS;
 
 const READING_MODES: readonly ReadingMode[] = ["light", "sepia", "dark"];
 const READING_FONTS: readonly ReadingFont[] = ["serif", "sans", "dyslexic"];

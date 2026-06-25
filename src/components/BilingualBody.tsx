@@ -25,8 +25,9 @@ import {
   alignParagraphs,
 } from "@/lib/bilingual";
 import type { SupportedLanguage } from "@/lib/supported-languages";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-const BILINGUAL_PREFS_KEY = "readwise:bilingual";
+const BILINGUAL_PREFS_KEY = STORAGE_KEYS.BILINGUAL_PREFS;
 
 interface BilingualPrefs {
   enabled: boolean;

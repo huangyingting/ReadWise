@@ -28,6 +28,7 @@ import {
 } from "react";
 import { usePathname } from "next/navigation";
 import type { ReadingBlock } from "@/components/reader/useCurrentReadingBlock";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 export type ToolTabId = "words" | "quiz" | "dictate" | "speak" | "notes" | "ask";
 
@@ -41,7 +42,7 @@ const TOOL_TAB_IDS: readonly ToolTabId[] = [
 ];
 
 /** localStorage key used to remember the last-used practice tab across reloads. */
-const ACTIVE_TAB_STORAGE_KEY = "readwise:reader-tools-tab";
+const ACTIVE_TAB_STORAGE_KEY = STORAGE_KEYS.READER_TOOLS_TAB;
 
 function isToolTabId(value: unknown): value is ToolTabId {
   return typeof value === "string" && TOOL_TAB_IDS.includes(value as ToolTabId);
