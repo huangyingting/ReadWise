@@ -27,10 +27,10 @@ import {
 import { recordApiRequest, routeGroupFromPath } from "@/lib/metrics";
 import { withSpan, setSpanAttributes, recordSpanError } from "@/lib/tracing";
 import { captureError } from "@/lib/error-reporting";
-import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/audit";
-import { checkSameOrigin, isStateChangingMethod } from "@/lib/csrf";
-import { clientIp } from "@/lib/client-ip";
-import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
+import { AUDIT_ACTIONS, auditRequestInfo, tryRecordAuditLog } from "@/lib/security/audit";
+import { checkSameOrigin, isStateChangingMethod } from "@/lib/security/csrf";
+import { clientIp } from "@/lib/security/client-ip";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
 
 
 /** Throw from a handler to return a controlled, client-safe error response. */

@@ -17,6 +17,35 @@ default posture and the residual risk.
 
 ---
 
+## Security governance package (REF-037)
+
+The implementation lives under `src/lib/security/` — a cohesive package that
+groups all security-sensitive subsystems with narrow public boundaries:
+
+| Submodule | Path | Description |
+| --- | --- | --- |
+| Client IP | `src/lib/security/client-ip.ts` | Trusted-proxy-aware IP resolution (RW-027) |
+| CSRF | `src/lib/security/csrf.ts` | Same-origin enforcement (RW-028) |
+| Security events | `src/lib/security/events.ts` | Ring-buffered event monitoring (RW-029) |
+| Audit | `src/lib/security/audit.ts` | Durable audit log with metadata redaction |
+| Rate limit | `src/lib/security/rate-limit/index.ts` | Fixed-window limiter with shared store (RW-026) |
+| Rate limit store | `src/lib/security/rate-limit/store.ts` | DB-backed counter store with circuit-breaker |
+
+The original `src/lib/{client-ip,csrf,security-events,audit,rate-limit,rate-limit-store}.ts`
+files are backward-compatible re-export shims so existing callers continue to
+work. New code should import from `src/lib/security/*` directly. The barrel
+`src/lib/security/index.ts` exports the full public surface.
+
+**Throwing vs best-effort:**
+
+- `checkRateLimitByKey` / `checkRateLimit` / `checkSameOrigin` (when CSRF
+  enforcement is on and the check fails) throw `ApiError` and **block** the
+  request.
+- `recordSecurityEvent`, `recordAuditLog`, `tryRecordAuditLog` are
+  **best-effort monitoring side effects** and never throw to the caller.
+
+---
+
 ## 1. Trusted proxy & client IP (RW-027)
 
 ### Why this matters
@@ -29,13 +58,14 @@ an attacker forge any IP, evade per-IP rate limits, and poison audit trails.
 
 ### How it works
 
-`src/lib/client-ip.ts` resolves a **single normalized client IP** from the
+`src/lib/security/client-ip.ts` resolves a **single normalized client IP** from the
 request headers according to an explicit trusted-proxy model, instead of
 blindly trusting the leftmost XFF hop. It is the single source of client
 identity for:
 
-- rate limiting — `clientIpKey(req)` (`src/lib/rate-limit.ts` re-exports it),
-- audit logs — `auditRequestInfo` in `src/lib/audit.ts`,
+- rate limiting — `clientIpKey(req)` (`src/lib/security/rate-limit` re-exports it
+  and the shim `src/lib/rate-limit.ts` re-exports both),
+- audit logs — `auditRequestInfo` in `src/lib/security/audit.ts`,
 - security events — the `ip` field on every `recordSecurityEvent(...)`.
 
 Resolution precedence (first configured strategy wins):
@@ -91,7 +121,7 @@ defense-in-depth **same-origin check** for the app's *own* mutation routes.
 
 ### Same-origin enforcement (defense-in-depth)
 
-`src/lib/csrf.ts` (`checkSameOrigin`) is enforced **globally** in the shared
+`src/lib/security/csrf.ts` (`checkSameOrigin`) is enforced **globally** in the shared
 mutation path (`createHandler` / `createAdminHandler` /
 `createPublicHandler` in `src/lib/api-handler.ts`) for every state-changing
 request. The decision is deliberately conservative so legitimate traffic is
@@ -150,7 +180,7 @@ deletes, rebuild, scrape-trigger, …) already:
 
 - require an authenticated **admin** session via `requireAdminApi()`
   (`401` unauth / `403` non-admin),
-- are recorded in the `AuditLog` (`src/lib/audit.ts`),
+- are recorded in the `AuditLog` (`src/lib/security/audit.ts`),
 - keep their existing inline UI confirmations.
 
 This PR additionally emits an `admin.mutation` security event on every
@@ -163,7 +193,7 @@ turned away (see §3) — without changing the existing authz or audit behaviour
 
 ### The single seam
 
-`src/lib/security-events.ts` exposes one function —
+`src/lib/security/events.ts` exposes one function —
 `recordSecurityEvent({ type, severity, route?, status?, actorId?, ip?, meta? })`
 — that every security-relevant signal funnels through. It **never throws** (a
 failure inside monitoring must not break the request path) and, for each event:
