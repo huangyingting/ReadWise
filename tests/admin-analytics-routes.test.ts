@@ -63,7 +63,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/analytics-queries", {
+  mock.module("@/lib/analytics/product", {
     namedExports: {
       resolveTimeRange: (days: number) => ({
         since: new Date("2026-06-01T00:00:00Z"),
