@@ -1,7 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useMutation } from "@/hooks/useMutation";
+import { useTeacherMutation } from "@/hooks/useTeacherMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 
@@ -17,15 +16,13 @@ export default function CompleteAssignmentButton({
   assignmentId: string;
   completed: boolean;
 }) {
-  const router = useRouter();
-  const { busy, error, run } = useMutation("Failed to update");
+  const { busy, error, execute } = useTeacherMutation("Failed to update");
 
   async function complete() {
-    await run(async () => {
+    await execute(async () => {
       await postJson(`/api/assignments/${assignmentId}/completion`, {
         status: "COMPLETED",
       });
-      router.refresh();
     });
   }
 

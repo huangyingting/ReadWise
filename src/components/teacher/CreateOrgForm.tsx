@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useMutation } from "@/hooks/useMutation";
+import { useTeacherMutation } from "@/hooks/useTeacherMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -13,17 +12,15 @@ import { Field } from "@/components/ui/Field";
  * they can then spin up classrooms. Posts to `/api/orgs` and refreshes.
  */
 export default function CreateOrgForm() {
-  const router = useRouter();
   const [name, setName] = useState("");
-  const { busy, error, run } = useMutation("Failed to create organization");
+  const { busy, error, execute } = useTeacherMutation("Failed to create organization");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!name.trim()) return;
-    await run(async () => {
+    await execute(async () => {
       await postJson("/api/orgs", { name });
       setName("");
-      router.refresh();
     });
   }
 
