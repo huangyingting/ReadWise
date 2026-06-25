@@ -92,3 +92,133 @@ local and CI workflows in the same PR that introduces PostgreSQL coverage. The
 remaining flip is to make the PostgreSQL schema the default, archive or replace
 the SQLite baseline, and require the PostgreSQL path in all deployment
 pipelines after a dry-run data migration succeeds.
+
+---
+
+## Schema governance
+
+This section records the parity contract, allowed differences, the schema-change
+workflow, and the checklist to follow for every model change.
+
+### Parity contract
+
+`prisma/schema.prisma` (SQLite) and `prisma/postgresql/schema.prisma` must be
+**byte-identical** except for a single line in the `datasource db` block:
+
+| File | datasource provider line |
+|------|--------------------------|
+| `prisma/schema.prisma` | `provider = "sqlite"` |
+| `prisma/postgresql/schema.prisma` | `provider = "postgresql"` |
+
+Every other byte — models, enums, relations, indexes, comments, whitespace —
+must match exactly. Drift is caught by `npm test` (via `tests/db-schema.test.ts`)
+and by the standalone parity script (see below).
+
+### Allowed differences
+
+Only the following differences are permitted between the two schema files:
+
+| What | SQLite value | PostgreSQL value |
+|------|-------------|-----------------|
+| `datasource db.provider` | `"sqlite"` | `"postgresql"` |
+
+Differences in migration SQL (`prisma/migrations/*/migration.sql` vs
+`prisma/postgresql/migrations/*/migration.sql`) are expected and allowed:
+PostgreSQL emits `CREATE TYPE … AS ENUM` statements that SQLite omits, and uses
+PostgreSQL-specific DDL for indexes and constraints. The migration SQL is
+engine-generated; only the migration *directory names* (timestamps + slug) must
+stay aligned between the two migration trees.
+
+If a future schema change requires a provider-specific Prisma feature (e.g.
+`@db.Text`, `@db.Uuid`, array types, or `directUrl`), record the divergence
+explicitly in this section and update `scripts/check-schema-parity.ts` to
+account for it.
+
+### Parity check script
+
+Run the parity check manually or in CI:
+
+```bash
+npm run schema:check-parity
+```
+
+The script (`scripts/check-schema-parity.ts`) is deterministic and requires no
+database connection. It exits 0 when both schemas and both migration directory
+listings are in parity, and exits 1 with a diff when drift is detected.
+
+### Schema-change workflow
+
+Follow this sequence every time you add, remove, or rename a model field,
+relation, index, enum value, or unique constraint:
+
+1. **Edit `prisma/schema.prisma`** — make the intended change.
+2. **Mirror the edit to `prisma/postgresql/schema.prisma`** — apply the
+   identical change (only the provider line should differ).
+3. **Run the parity check** — `npm run schema:check-parity` must exit 0.
+4. **Generate the SQLite migration**:
+   ```bash
+   npx prisma migrate dev --name <slug>
+   ```
+5. **Generate the PostgreSQL migration** (requires a running PostgreSQL
+   instance; see §Migration and integration checks):
+   ```bash
+   npx prisma migrate dev --schema prisma/postgresql/schema.prisma --name <slug>
+   ```
+   The migration *directory name* (timestamp + slug) generated in step 4 and
+   step 5 must match. If the timestamps differ, rename one directory so both
+   trees share the same name.
+6. **Commit all four artefacts together** — both schema files and both
+   migration directories must land in the same commit:
+   ```
+   prisma/schema.prisma
+   prisma/postgresql/schema.prisma
+   prisma/migrations/<timestamp>_<slug>/migration.sql
+   prisma/postgresql/migrations/<timestamp>_<slug>/migration.sql
+   ```
+7. **Run tests** — `npm test` (schema parity) and optionally `npm run test:db`
+   (PostgreSQL integration) must pass.
+
+### Schema-change checklist
+
+Use this checklist for every schema change before opening a pull request:
+
+- [ ] **Parity** — `npm run schema:check-parity` exits 0.
+- [ ] **Migration committed** — new migration directories are present in both
+  `prisma/migrations/` and `prisma/postgresql/migrations/` with matching names.
+- [ ] **Cascades** — foreign-key `onDelete`/`onUpdate` behaviour is intentional.
+  Hard-delete cascades that silently destroy audit or analytics rows are
+  often wrong; prefer `Restrict` or `SetNull` with an explicit design decision.
+- [ ] **Visibility / tenancy** — new content models include an `ArticleVisibility`
+  or equivalent field. Rows without an owner or visibility scope should be
+  impossible by constraint.
+- [ ] **Audit retention** — rows that record user or operator actions (audit logs,
+  AI calls, job history) must not be cascade-deleted when the parent user or
+  article is removed unless a separate retention policy explicitly allows it.
+- [ ] **Analytics retention** — analytics event rows must not vanish when the
+  source article or user is deleted. Use `SetNull` with nullable FKs, or
+  denormalize the relevant identifiers at write time.
+- [ ] **Generated media** — if the new model references generated speech, images,
+  or other binary media stored outside the database, document which storage
+  abstraction owns the lifecycle and whether deletion cascades to the storage
+  layer.
+- [ ] **Seed / test data** — if new required fields or non-nullable relations are
+  added, update `scripts/seed.ts` and any test factories accordingly.
+- [ ] **Indexes** — every column used in `WHERE`, `ORDER BY`, or `@@unique`
+  across API or worker queries has an explicit `@@index` (or `@unique`).
+- [ ] **Comments** — add a brief schema comment explaining non-obvious design
+  decisions (visibility rules, retention policies, the purpose of nullable
+  fields). Long domain narratives belong in `docs/`; keep schema comments concise.
+
+### Generated and local database artifacts
+
+The following files must not be committed as source-of-truth:
+
+| Path pattern | Reason |
+|---|---|
+| `prisma/dev.db`, `prisma/*.db` | Local development database; regenerated by `npm run db:reset` |
+| `*.db.bak`, `*.db-journal` | SQLite temporary and backup files |
+| `/backups/` | One-time data-export artefacts; treat as sensitive production data |
+
+All patterns above are already covered by `.gitignore`. If a new tool produces
+database-derived artefacts (e.g. schema dumps, ER diagrams, introspection
+output), add them to `.gitignore` before committing.
