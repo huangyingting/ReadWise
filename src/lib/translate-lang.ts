@@ -1,8 +1,7 @@
 /**
  * Shared localStorage helper for the translation target language.
- * Used by both the M5 whole-article Translate tab (ArticleTranslation)
- * and the M13 sentence-level translation popover (SentenceTranslatePopover),
- * so a reader's language choice is shared across both surfaces.
+ * Used by the sentence-level translation popover so a reader's language choice
+ * persists across selections.
  */
 
 export const TRANSLATE_LANG_KEY = "readwise:translate-lang";

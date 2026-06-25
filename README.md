@@ -117,20 +117,14 @@ Edit `.env` and replace at least:
 Then initialize and run:
 
 ```bash
-npx prisma migrate dev --name init
-npm run local:seed
+npm run db:migrate
+npm run seed -- --limit 3 --no-tts
 npm run dev
 ```
 
-Open <http://localhost:3000>. For OAuth-free local testing, the deterministic
-seeder creates reusable database sessions:
-
-```js
-document.cookie = "next-auth.session-token=readwise-local-admin-session; path=/; max-age=2592000; SameSite=Lax";
-location.href = "/admin";
-```
-
-Use `readwise-local-reader-session` instead for normal reader flows.
+Open <http://localhost:3000>. The content seeder scrapes and enriches sample
+articles; it does not create local login sessions, so configure an OAuth
+provider for browser sign-in or create test sessions through your local tooling.
 
 > AI, Speech, Push, storage, and tracing are optional. The app remains usable
 > without those credentials: AI panels show friendly fallbacks, difficulty uses
@@ -143,21 +137,23 @@ migrations, DB-backed rate limiter, and multi-worker job locking, use the local
 compose stack:
 
 ```bash
-npm run local:pg:setup
+docker compose up -d postgres redis
+DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public" \
+  npx prisma migrate deploy --schema prisma/postgresql/schema.prisma
 npm run dev
 ```
 
 This starts loopback-only PostgreSQL on `127.0.0.1:55432` and Redis on
-`127.0.0.1:6379`, generates the PostgreSQL Prisma client, deploys migrations,
-and seeds deterministic local data.
+`127.0.0.1:6379` and deploys PostgreSQL migrations.
 
 Useful parity commands:
 
 ```bash
-npm run local:pg:status
-npm run local:pg:migrate
-npm run local:pg:seed
-npm run local:pg:reset -- --yes
+docker compose ps
+DATABASE_URL="postgresql://readwise:readwise-dev-password@localhost:55432/readwise?schema=public" \
+  npx prisma migrate status --schema prisma/postgresql/schema.prisma
+docker compose down
+docker compose down -v  # destructive reset of local PostgreSQL/Redis volumes
 ```
 
 See `docs/database.md` and `docs/operations/database-runbooks.md` for migration,
@@ -236,9 +232,9 @@ crash startup.
 | `npm run scrape -- <url>` | Scrape one or more explicit article URLs. |
 | `npm run process -- --all` | Enrich draft articles and publish them. |
 | `npm run process -- <articleId> --tts --translate es,fr` | Process specific articles with optional TTS/translations. |
-| `npm run worker` | Run the article-state polling worker continuously. |
-| `npm run worker -- --once` | Drain the article-state queue once and exit. |
-| `npm run worker -- --jobs` | Drain the durable `Job` table with locking/retries/dead letters. |
+| `npm run worker` | Drain the durable `Job` table with locking/retries/dead letters. |
+| `npm run worker -- --once` | Drain the durable `Job` queue once and exit. |
+| `npm run worker -- --legacy-article-polling` | Temporarily run the older article-state polling worker. |
 | `npm run seed -- --provider nbc --limit 3` | Scrape + process + publish sample articles end-to-end. |
 | `npm run push-reminders -- --dry-run` | Check SRS push-reminder configuration without sending. |
 
@@ -246,13 +242,11 @@ crash startup.
 
 | Command | Purpose |
 | --- | --- |
-| `npm run local:seed` | Seed deterministic local users, sessions, articles, words, lists, and admin fixtures. |
-| `npm run local:seed:dry-run` | Validate the local seed plan without writing. |
-| `npm run local:pg:setup` | Start/migrate/seed the local PostgreSQL + Redis parity stack. |
-| `npm run local:pg:reset -- --yes` | Destructively reset only the local compose stack. |
-| `npm run prisma:generate` | Generate the SQLite/default Prisma client. |
+| `npm run seed -- --limit 3 --no-tts` | Scrape, process, and publish sample articles without TTS. |
+| `npm run db:migrate` | Deploy default Prisma migrations and regenerate the Prisma client. |
+| `npm run db:reset` | Destructively reset the default Prisma database and regenerate the client. |
+| `npm run prisma:generate` | Generate the default Prisma client. |
 | `npm run prisma:generate:pg` | Generate the PostgreSQL Prisma client. |
-| `npm run prisma:migrate` | Run `prisma migrate dev` for the default schema. |
 | `npm run prisma:migrate:pg` | Deploy PostgreSQL migrations. |
 | `npm run migrate-storage -- --limit 100` | Move existing narration audio from DB base64 into configured media storage. |
 

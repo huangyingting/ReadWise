@@ -20,6 +20,8 @@
     "db:reset": "prisma migrate reset --force --skip-seed && prisma generate",
     "push-reminders": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/push-reminders.ts",
     "prisma:generate": "prisma generate",
+    "prisma:generate:pg": "prisma generate --schema prisma/postgresql/schema.prisma",
+    "prisma:migrate:pg": "prisma migrate deploy --schema prisma/postgresql/schema.prisma",
     "postinstall": "prisma generate",
     "migrate-storage": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs scripts/migrate-storage.ts"
   },
