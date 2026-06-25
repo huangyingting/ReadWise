@@ -246,6 +246,8 @@ crash startup.
 | `npm run db:migrate` | Deploy default Prisma migrations and regenerate the Prisma client. |
 | `npm run db:reset` | Destructively reset the default Prisma database and regenerate the client. |
 | `npm run prisma:generate` | Generate the default Prisma client. |
+| `npm run prisma:generate:pg` | Generate the PostgreSQL Prisma client. |
+| `npm run prisma:migrate:pg` | Deploy PostgreSQL migrations. |
 | `npm run migrate-storage -- --limit 100` | Move existing narration audio from DB base64 into configured media storage. |
 
 All TypeScript CLIs use Node's type-stripping harness and auto-load `.env` when
