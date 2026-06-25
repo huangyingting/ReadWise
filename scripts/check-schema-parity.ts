@@ -22,6 +22,7 @@
  *   node --experimental-strip-types scripts/check-schema-parity.ts
  */
 import { readFile, readdir } from "node:fs/promises";
+import { runScript, isMain } from "./lib/cli";
 
 const SQLITE_SCHEMA = "prisma/schema.prisma";
 const POSTGRES_SCHEMA = "prisma/postgresql/schema.prisma";
@@ -125,7 +126,6 @@ async function main() {
   console.log("\n✔ All schema parity checks passed.");
 }
 
-main().catch((err) => {
-  console.error("Fatal error:", err);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) {
+  runScript(main, "Fatal error");
+}

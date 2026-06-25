@@ -11,6 +11,7 @@ import {
 } from "@/lib/scraper";
 import { isProviderEnabled, recordCrawlRun } from "@/lib/content-sources";
 import type { Provider } from "@/lib/scraper/types";
+import { runCli, isMain, warnUnknown } from "./lib/cli";
 
 type Args = {
   urls: string[];
@@ -66,7 +67,7 @@ function parseArgs(argv: string[]): Args {
         break;
       default:
         if (arg.startsWith("-")) {
-          console.warn(`Unknown flag: ${arg}`);
+          warnUnknown(arg);
         } else {
           args.urls.push(arg);
         }
@@ -74,6 +75,8 @@ function parseArgs(argv: string[]): Args {
   }
   return args;
 }
+
+export { parseArgs };
 
 function printHelp(): void {
   console.log(`ReadWise article scraper
@@ -252,13 +255,6 @@ async function main(): Promise<number> {
   return failed > 0 && saved === 0 ? 1 : 0;
 }
 
-main()
-  .then(async (code) => {
-    await prisma.$disconnect();
-    process.exit(code);
-  })
-  .catch(async (err) => {
-    console.error(err);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+if (isMain(import.meta.url)) {
+  runCli(main);
+}

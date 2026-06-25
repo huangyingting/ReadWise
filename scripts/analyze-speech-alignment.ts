@@ -6,6 +6,7 @@ import {
   extractSpeechBoundaryTokens,
   type ComparableToken,
 } from "@/lib/speech-timing";
+import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
 
 type SpeechTimingLike = {
   word: string;
@@ -73,9 +74,7 @@ function parseArgs(argv: string[]): Args {
     switch (arg) {
       case "--ids":
       case "--id":
-        for (const id of (argv[++i] ?? "").split(",").map((value) => value.trim()).filter(Boolean)) {
-          if (!args.ids.includes(id)) args.ids.push(id);
-        }
+        addUniqueFromCsv(args.ids, argv[++i] ?? "");
         break;
       case "--batch-size":
         args.batchSize = parsePositiveInteger(argv[++i], DEFAULT_BATCH_SIZE);
@@ -104,7 +103,7 @@ function parseArgs(argv: string[]): Args {
         break;
       default:
         if (arg.startsWith("-")) {
-          console.warn(`Unknown flag: ${arg}`);
+          warnUnknown(arg);
         } else if (!args.ids.includes(arg)) {
           args.ids.push(arg);
         }
@@ -407,10 +406,6 @@ async function main(): Promise<number> {
   }
 }
 
-main().then((code) => {
-  process.exitCode = code;
-}).catch(async (error: unknown) => {
-  console.error(error);
-  await prisma.$disconnect();
-  process.exitCode = 1;
-});
+if (isMain(import.meta.url)) {
+  runCli(main);
+}

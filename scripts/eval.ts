@@ -23,6 +23,7 @@ import {
   type EvalReport,
 } from "@/lib/ai/eval";
 import { isAiConfigured } from "@/lib/ai";
+import { runScript, isMain, warnUnknown } from "./lib/cli";
 
 type Args = {
   live: boolean;
@@ -55,7 +56,7 @@ function parseArgs(argv: string[]): Args {
         break;
       default:
         if (arg.startsWith("-")) {
-          console.warn(`Unknown flag: ${arg}`);
+          warnUnknown(arg);
         }
     }
   }
@@ -112,11 +113,11 @@ function printConsoleReport(report: EvalReport): void {
   );
 }
 
-async function main(): Promise<void> {
+async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (args.help) {
     printHelp();
-    return;
+    return 0;
   }
 
   let datasets = loadEvalDatasets();
@@ -124,15 +125,13 @@ async function main(): Promise<void> {
     datasets = datasets.filter((d) => d.feature === args.feature);
     if (datasets.length === 0) {
       console.error(`No dataset found for feature "${args.feature}".`);
-      process.exitCode = 2;
-      return;
+      return 2;
     }
   }
 
   if (args.live && !isAiConfigured()) {
     console.error("--live requires AI provider credentials (AZURE_OPENAI_*). Aborting.");
-    process.exitCode = 2;
-    return;
+    return 2;
   }
 
   const report = await runEvaluation(datasets, { live: args.live });
@@ -151,11 +150,13 @@ async function main(): Promise<void> {
   const failures = collectFailures(report);
   if (failures.length > 0) {
     console.error(`\n${failures.length} property check(s) failed.`);
-    process.exitCode = 1;
+    return 1;
   }
+  return 0;
 }
 
-main().catch((err) => {
-  console.error("eval failed:", err);
-  process.exitCode = 1;
-});
+export { parseArgs };
+
+if (isMain(import.meta.url)) {
+  runScript(main, "eval failed");
+}

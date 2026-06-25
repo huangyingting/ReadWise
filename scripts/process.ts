@@ -9,6 +9,7 @@ import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";
 import { enqueueArticleProcess } from "@/lib/jobs";
+import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
 
 type Args = {
   ids: string[];
@@ -50,20 +51,16 @@ function parseArgs(argv: string[]): Args {
       case "--enqueue":
         args.enqueue = true;
         break;
-      case "--translate": {
-        const value = argv[++i] ?? "";
-        for (const code of value.split(",").map((c) => c.trim()).filter(Boolean)) {
-          if (!args.translateLangs.includes(code)) args.translateLangs.push(code);
-        }
+      case "--translate":
+        addUniqueFromCsv(args.translateLangs, argv[++i] ?? "");
         break;
-      }
       case "-h":
       case "--help":
         args.help = true;
         break;
       default:
         if (arg.startsWith("-")) {
-          console.warn(`Unknown flag: ${arg}`);
+          warnUnknown(arg);
         } else {
           args.ids.push(arg);
         }
@@ -71,6 +68,8 @@ function parseArgs(argv: string[]): Args {
   }
   return args;
 }
+
+export { parseArgs };
 
 function printHelp(): void {
   console.log(`ReadWise article processor
@@ -192,13 +191,6 @@ async function main(): Promise<number> {
   return failed > 0 || missing > 0 ? 1 : 0;
 }
 
-main()
-  .then(async (code) => {
-    await prisma.$disconnect();
-    process.exit(code);
-  })
-  .catch(async (err) => {
-    console.error(err);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+if (isMain(import.meta.url)) {
+  runCli(main);
+}
