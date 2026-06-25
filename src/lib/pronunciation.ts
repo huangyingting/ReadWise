@@ -4,8 +4,11 @@
  * The pronunciation assessment itself runs client-side in the browser via the
  * Azure Speech SDK using a server-issued short-lived token. This module persists
  * the resulting scores and provides per-user history queries.
+ *
+ * Score validation is provided by the shared practice-attempts helpers (REF-051).
  */
 import { prisma } from "@/lib/prisma";
+import { validateBoundedScore } from "@/lib/learning/practice-attempts";
 
 const MAX_REFERENCE_TEXT = 2000;
 const DEFAULT_HISTORY_LIMIT = 20;
@@ -37,11 +40,6 @@ export type PronunciationHistorySummary = {
   averageScore: number | null;
 };
 
-function validateScore(score: number, name: string): void {
-  if (!Number.isInteger(score) || score < 0 || score > 100) {
-    throw new Error(`${name} must be an integer between 0 and 100`);
-  }
-}
 
 /**
  * Persists a pronunciation attempt and returns it along with the user's
@@ -70,10 +68,10 @@ export async function recordPronunciationAttempt(
     );
   }
 
-  validateScore(accuracyScore, "accuracyScore");
-  validateScore(fluencyScore, "fluencyScore");
-  validateScore(completenessScore, "completenessScore");
-  validateScore(pronScore, "pronScore");
+  validateBoundedScore(accuracyScore, "accuracyScore");
+  validateBoundedScore(fluencyScore, "fluencyScore");
+  validateBoundedScore(completenessScore, "completenessScore");
+  validateBoundedScore(pronScore, "pronScore");
 
   const attempt = await prisma.pronunciationAttempt.create({
     data: {
