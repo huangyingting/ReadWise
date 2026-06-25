@@ -1,23 +1,13 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { terms } from "@/lib/copy/pages";
+import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
 export const metadata: Metadata = terms;
 
 export default function TermsPage() {
   return (
-    <main className="container" style={{ maxWidth: "720px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <h1
-        className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-3xl)] text-text"
-        style={{ marginBottom: "0.5rem" }}
-      >
-        Terms of Service
-      </h1>
-      <p className="text-text-subtle text-[length:var(--text-sm)]" style={{ marginBottom: "2rem" }}>
-        Last updated: June 2025
-      </p>
+    <LegalPageShell heading="Terms of Service" lastUpdated="Last updated: June 2025">
 
-      <div className="stack">
         <section>
           <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
             1. Acceptance of terms
@@ -93,13 +83,6 @@ export default function TermsPage() {
             posted constitutes acceptance of the revised terms.
           </p>
         </section>
-      </div>
-
-      <p style={{ marginTop: "2rem" }}>
-        <Link href="/" className="text-primary-text hover:underline">
-          ← Back to ReadWise
-        </Link>
-      </p>
-    </main>
+    </LegalPageShell>
   );
 }

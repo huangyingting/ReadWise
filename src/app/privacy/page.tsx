@@ -1,23 +1,14 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { privacy } from "@/lib/copy/pages";
+import { LegalPageShell } from "@/components/legal/LegalPageShell";
 
 export const metadata: Metadata = privacy;
 
 export default function PrivacyPage() {
   return (
-    <main className="container" style={{ maxWidth: "720px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <h1
-        className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-3xl)] text-text"
-        style={{ marginBottom: "0.5rem" }}
-      >
-        Privacy Policy
-      </h1>
-      <p className="text-text-subtle text-[length:var(--text-sm)]" style={{ marginBottom: "2rem" }}>
-        Last updated: June 2025
-      </p>
+    <LegalPageShell heading="Privacy Policy" lastUpdated="Last updated: June 2025">
 
-      <div className="stack">
         <section>
           <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
             1. What we collect
@@ -87,13 +78,6 @@ export default function PrivacyPage() {
             For privacy questions or data requests, please contact the ReadWise team via GitHub Issues.
           </p>
         </section>
-      </div>
-
-      <p style={{ marginTop: "2rem" }}>
-        <Link href="/" className="text-primary-text hover:underline">
-          ← Back to ReadWise
-        </Link>
-      </p>
-    </main>
+    </LegalPageShell>
   );
 }
