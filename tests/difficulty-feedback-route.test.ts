@@ -6,14 +6,16 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import {
+  type RouteHandler,
+  withParams,
+  jsonPost,
+} from "./support/route";
+import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 
 // ---- mutable state --------------------------------------------------------
 
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 let articleExists = true;
 let lastUpsert: unknown = null;
@@ -27,13 +29,7 @@ let feedbackRows: { vote: string }[] = [
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireAdminApi: async () => ({ session }),
-    },
+    namedExports: sessionAuthExports(() => authState),
   });
 
   mock.module("@/lib/prisma", {
@@ -86,12 +82,8 @@ async function POST(body: unknown, id = "a1") {
     "@/app/api/reader/[id]/difficulty-feedback/route"
   )) as { POST: RouteHandler };
   return handler(
-    new Request("http://localhost/api/reader/a1/difficulty-feedback", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    }),
-    { params: Promise.resolve({ id }) },
+    jsonPost("http://localhost/api/reader/a1/difficulty-feedback", body),
+    withParams({ id }),
   );
 }
 

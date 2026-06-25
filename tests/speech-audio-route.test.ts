@@ -6,10 +6,11 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
+import { withParams, getReq } from "./support/route";
+import { type AuthState, sessionAuthExports } from "./support/auth-mock";
+import { makePrisma } from "./support/prisma-mock";
 
-let authState: "ok" | "unauth" | "forbidden" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // Article-access state
 let articleReadable = true;
@@ -27,21 +28,12 @@ let storageConfigured = false;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireAdminApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: sessionAuthExports(() => authState),
   });
 
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
+      prisma: makePrisma({
         articleSpeech: {
           findUnique: async () => speechRow,
         },
@@ -49,7 +41,7 @@ before(() => {
           findFirst: async () =>
             articleReadable ? { id: "a1", title: "T", content: "<p>Hi</p>" } : null,
         },
-      },
+      }),
     },
   });
 
@@ -86,9 +78,7 @@ beforeEach(() => {
 
 async function callGet(id: string) {
   const { GET } = await import("@/app/api/reader/[id]/speech/audio/route");
-  return GET(new Request(`http://test/api/reader/${id}/speech/audio`), {
-    params: Promise.resolve({ id }),
-  });
+  return GET(getReq(`http://test/api/reader/${id}/speech/audio`), withParams({ id }));
 }
 
 test("GET /speech/audio returns 401 when unauthenticated", async () => {
