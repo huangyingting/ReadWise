@@ -1,6 +1,12 @@
+/**
+ * Profile domain: value definitions, schema validation, and database access.
+ *
+ * Value definitions and schema are now maintained in the profile-preferences
+ * subsystem and re-exported here for backward compatibility with existing
+ * imports in API routes and tests.
+ */
 import { prisma } from "@/lib/prisma";
-import type { Prisma, Profile } from "@prisma/client";
-import { isValidCategorySlug } from "@/lib/categories";
+import type { Profile } from "@prisma/client";
 import {
   AGE_RANGES,
   GENDERS,
@@ -27,6 +33,19 @@ export {
   type EnglishLevel,
 };
 
+// Re-export schema from the profile-preferences subsystem.
+// Import directly from the TS-only module (not the barrel index) so that
+// Node.js test runners that strip TypeScript but cannot process TSX do not
+// attempt to load the React UI components.
+export {
+  type ProfileInput,
+  type ProfileInputResult,
+  parseProfileInput,
+  parseTopics,
+} from "@/features/profile-preferences/schema";
+
+// Database access helpers (server-side only; require Prisma).
+
 export function getProfile(userId: string): Promise<Profile | null> {
   return prisma.profile.findUnique({ where: { userId } });
 }
@@ -37,119 +56,4 @@ export function isOnboarded(profile: Profile | null): boolean {
 
 export async function isUserOnboarded(userId: string): Promise<boolean> {
   return isOnboarded(await getProfile(userId));
-}
-
-export type ProfileInput = {
-  ageRange: AgeRange | null;
-  gender: Gender | null;
-  englishLevel: EnglishLevel;
-  topics: string[];
-  /** Articles-per-day target. Present only when explicitly supplied in the request body. */
-  dailyGoal?: number;
-};
-
-export type ProfileInputResult =
-  | { ok: true; value: ProfileInput }
-  | { ok: false; error: string };
-
-export function parseProfileInput(body: {
-  ageRange?: unknown;
-  gender?: unknown;
-  englishLevel?: unknown;
-  topics?: unknown;
-  dailyGoal?: unknown;
-}): ProfileInputResult {
-  const englishLevel = body.englishLevel;
-  if (
-    typeof englishLevel !== "string" ||
-    !ENGLISH_LEVELS.includes(englishLevel as EnglishLevel)
-  ) {
-    return { ok: false, error: "A valid English level (A1-C2) is required" };
-  }
-
-  let ageRange: AgeRange | null = null;
-  if (body.ageRange != null && body.ageRange !== "") {
-    if (
-      typeof body.ageRange !== "string" ||
-      !AGE_RANGES.includes(body.ageRange as AgeRange)
-    ) {
-      return { ok: false, error: "Invalid age range" };
-    }
-    ageRange = body.ageRange as AgeRange;
-  }
-
-  let gender: Gender | null = null;
-  if (body.gender != null && body.gender !== "") {
-    if (
-      typeof body.gender !== "string" ||
-      !GENDERS.includes(body.gender as Gender)
-    ) {
-      return { ok: false, error: "Invalid gender" };
-    }
-    gender = body.gender as Gender;
-  }
-
-  const rawTopics = Array.isArray(body.topics) ? body.topics : [];
-  const topics = Array.from(
-    new Set(
-      rawTopics.filter(
-        (t): t is string => typeof t === "string" && isValidCategorySlug(t),
-      ),
-    ),
-  );
-
-  let dailyGoal: number | undefined;
-  if (body.dailyGoal != null) {
-    const raw = body.dailyGoal;
-    if (
-      typeof raw !== "number" ||
-      !Number.isInteger(raw) ||
-      raw < DAILY_GOAL_MIN ||
-      raw > DAILY_GOAL_MAX
-    ) {
-      return {
-        ok: false,
-        error: `Daily goal must be an integer between ${DAILY_GOAL_MIN} and ${DAILY_GOAL_MAX}`,
-      };
-    }
-    dailyGoal = raw;
-  }
-
-  return {
-    ok: true,
-    value: {
-      ageRange,
-      gender,
-      englishLevel: englishLevel as EnglishLevel,
-      topics,
-      ...(dailyGoal !== undefined ? { dailyGoal } : {}),
-    },
-  };
-}
-
-export function parseTopics(
-  topics: Prisma.JsonValue | string | null | undefined,
-): string[] {
-  if (topics == null) {
-    return [];
-  }
-
-  if (Array.isArray(topics)) {
-    return topics.filter((t): t is string => typeof t === "string");
-  }
-
-  // Backwards compatibility for rows written before Profile.topics became Json.
-  if (typeof topics !== "string") {
-    return [];
-  }
-
-  try {
-    const parsed: unknown = JSON.parse(topics);
-    if (Array.isArray(parsed)) {
-      return parsed.filter((t): t is string => typeof t === "string");
-    }
-  } catch {
-    // ignore malformed JSON and fall through
-  }
-  return [];
 }
