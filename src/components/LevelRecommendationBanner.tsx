@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, X, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 type Suggestion = "up" | "down" | "hold";
 
@@ -28,7 +29,7 @@ interface LevelRecommendationBannerProps {
   profile: ProfileSnapshot;
 }
 
-const DISMISS_KEY = "readwise:level-rec-dismissed";
+const DISMISS_KEY = STORAGE_KEYS.LEVEL_REC_DISMISSED;
 
 /**
  * Fetches the level recommendation from the API and shows a dismissible banner

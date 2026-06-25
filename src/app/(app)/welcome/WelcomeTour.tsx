@@ -6,8 +6,9 @@ import Link from "next/link";
 import { BookOpen, Bookmark, BarChart2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/cn";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-const WELCOME_SEEN_KEY = "readwise:welcome-seen";
+const WELCOME_SEEN_KEY = STORAGE_KEYS.WELCOME_SEEN;
 
 const STEPS = [
   {

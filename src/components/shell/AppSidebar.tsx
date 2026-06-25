@@ -12,8 +12,9 @@ import {
 import { cn, focusRing } from "@/lib/cn";
 import { PRIMARY_NAV, isActivePath } from "./nav-items";
 import type { ShellUser } from "./types";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-const SIDEBAR_STORAGE_KEY = "readwise:sidebar-collapsed";
+const SIDEBAR_STORAGE_KEY = STORAGE_KEYS.SIDEBAR_COLLAPSED;
 
 /** Read the stored collapsed preference; null when unset/invalid. */
 function getStoredCollapsed(): boolean | null {

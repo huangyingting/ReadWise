@@ -3,8 +3,9 @@
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
-const HINT_DISMISSED_KEY = "readwise:hint-dismissed";
+const HINT_DISMISSED_KEY = STORAGE_KEYS.HINT_DISMISSED;
 
 /**
  * One-shot dismissible word-lookup / reading hint.

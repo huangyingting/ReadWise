@@ -7,6 +7,8 @@
  * unit-testable, and safe to import from both server and client code.
  */
 
+import { STORAGE_KEYS } from "./storage-keys";
+
 /**
  * Format version of the stored offline article payload. Bump when the shape of
  * the cached record changes so old records are treated as stale and refreshed.
@@ -84,7 +86,7 @@ export const SYNC_TAG = "readwise-mutations" as const;
  *
  * MUST stay in sync with `FLUSH_MESSAGE` in `public/sw.js`.
  */
-export const FLUSH_MESSAGE = "readwise:flush-queue" as const;
+export const FLUSH_MESSAGE = STORAGE_KEYS.SW_FLUSH_QUEUE;
 
 /**
  * Message type posted to the active service worker to drop all readwise-*
@@ -92,7 +94,7 @@ export const FLUSH_MESSAGE = "readwise:flush-queue" as const;
  *
  * MUST stay in sync with the message handler in `public/sw.js`.
  */
-export const PURGE_CACHES_MESSAGE = "readwise:purge-caches" as const;
+export const PURGE_CACHES_MESSAGE = STORAGE_KEYS.SW_PURGE_CACHES;
 
 /**
  * Given the existing cache names and the current cache name, return the names

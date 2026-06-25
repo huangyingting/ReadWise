@@ -72,6 +72,7 @@ export const metadata: Metadata = {
 
 // Blocking, pre-paint theme resolution to avoid a light/dark flash (FOUC) and
 // to guarantee an explicit data-theme attribute exists before hydration.
+// Key literal MUST match STORAGE_KEYS.THEME in src/lib/storage-keys.ts.
 const themeScript = `(function(){try{var t=localStorage.getItem("readwise:theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
 export default function RootLayout({

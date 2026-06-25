@@ -6,6 +6,8 @@
  * family, and line spacing to `#reader-root` before the first paint —
  * preventing a flash of the default (un-preferenced) appearance.
  *
+ * Key literal MUST match STORAGE_KEYS.READER_PREFS in src/lib/storage-keys.ts.
+ *
  * Placement requirement: this component MUST be the first child of
  * `#reader-root`. `document.currentScript.parentElement` resolves to the
  * element BEFORE any of its children are painted. Using `getElementById`
