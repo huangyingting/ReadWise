@@ -21,6 +21,7 @@ import {
   ARTICLES_CACHE_TAG,
   TAGS_CACHE_TAG,
 } from "@/lib/cache";
+import { LISTING_KEYS } from "@/lib/listing-cache";
 import { prisma } from "@/lib/prisma";
 import { buildTagMap } from "@/lib/discovery-ranking";
 import { scoreCandidate } from "./scoring";
@@ -84,7 +85,7 @@ async function loadPicksCandidatesImpl(
  */
 const loadPicksCandidates = createCachedListing(
   loadPicksCandidatesImpl,
-  ["recommendations:picks-candidates"],
+  LISTING_KEYS.picksCandidates,
   [ARTICLES_CACHE_TAG, TAGS_CACHE_TAG],
 );
 
