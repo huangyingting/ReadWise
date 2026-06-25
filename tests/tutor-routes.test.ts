@@ -6,13 +6,18 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import {
+  type RouteHandler,
+  withParams,
+  makeJsonRequest,
+  getReq,
+  deleteReq,
+} from "./support/route";
+import { type AuthState, sessionAuthExports } from "./support/auth-mock";
+import { makeArticlePrisma, makePrisma } from "./support/prisma-mock";
 
 // --- mutable auth state -------------------------------------------------
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // --- mutable lib state --------------------------------------------------
 let articleExists = true;
@@ -26,26 +31,12 @@ let clearCalled = false;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireAdminApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: sessionAuthExports(() => authState),
   });
 
   mock.module("@/lib/prisma", {
     namedExports: {
-      prisma: {
-        article: {
-          findUnique: async () => (articleExists ? { id: "a1" } : null),
-          findFirst: async () => (articleExists ? { id: "a1" } : null),
-        },
-      },
+      prisma: makePrisma(makeArticlePrisma(() => articleExists)),
     },
   });
 
@@ -70,15 +61,11 @@ beforeEach(() => {
 });
 
 function ctx(id = "a1") {
-  return { params: Promise.resolve({ id }) };
+  return withParams({ id });
 }
 
 function jsonReq(method: string, body: unknown): Request {
-  return new Request("http://test/api/reader/a1/tutor", {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  return makeJsonRequest("http://test/api/reader/a1/tutor", method, body);
 }
 
 // ---- GET ----------------------------------------------------------------
@@ -88,7 +75,7 @@ test("GET tutor returns the user's messages (200)", async () => {
     { id: "1", role: "user", content: "What is this?", createdAt: new Date("2026-01-01") },
   ];
   const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/reader/a1/tutor"), ctx());
+  const res = await GET(getReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.messages.length, 1);
@@ -98,14 +85,14 @@ test("GET tutor returns the user's messages (200)", async () => {
 test("GET tutor returns 401 when unauthenticated", async () => {
   authState = "unauth";
   const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/reader/a1/tutor"), ctx());
+  const res = await GET(getReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 401);
 });
 
 test("GET tutor returns 404 when article is missing", async () => {
   articleExists = false;
   const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/reader/missing/tutor"), ctx("missing"));
+  const res = await GET(getReq("http://test/api/reader/missing/tutor"), ctx("missing"));
   assert.equal(res.status, 404);
 });
 
@@ -182,7 +169,7 @@ test("DELETE tutor clears the conversation and returns {ok:true}", async () => {
   const { DELETE } = (await import("@/app/api/reader/[id]/tutor/route")) as {
     DELETE: RouteHandler;
   };
-  const res = await DELETE(new Request("http://test/api/reader/a1/tutor", { method: "DELETE" }), ctx());
+  const res = await DELETE(deleteReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.deepEqual(body, { ok: true });
@@ -195,7 +182,7 @@ test("DELETE tutor returns 404 when article is missing", async () => {
     DELETE: RouteHandler;
   };
   const res = await DELETE(
-    new Request("http://test/api/reader/missing/tutor", { method: "DELETE" }),
+    deleteReq("http://test/api/reader/missing/tutor"),
     ctx("missing"),
   );
   assert.equal(res.status, 404);
@@ -207,7 +194,7 @@ test("DELETE tutor returns 401 when unauthenticated", async () => {
     DELETE: RouteHandler;
   };
   const res = await DELETE(
-    new Request("http://test/api/reader/a1/tutor", { method: "DELETE" }),
+    deleteReq("http://test/api/reader/a1/tutor"),
     ctx(),
   );
   assert.equal(res.status, 401);
