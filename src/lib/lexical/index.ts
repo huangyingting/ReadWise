@@ -1,15 +1,16 @@
 /**
  * Lexical subsystem — public barrel (REF-048).
  *
- * Packages dictionary provider, word normalization, saved words, and cloze
- * generation into a single cohesive namespace.
+ * Packages dictionary provider, word normalization, and saved words into a
+ * single cohesive namespace.  Cloze review helpers are owned by the learning
+ * subsystem (REF-028) and re-exported here for convenience.
  *
  * Module layout:
  *   normalize   — CONTRACTIONS, morphCandidates, normalizeCandidates, lemmaFor
  *   provider    — DictionaryProvider interface, FreeDictionaryProvider, types
  *   lookup      — lookupWord (provider-backed dictionary service)
  *   saved-words — getSavedWordSet, getSavedWords, saveWord, unsaveWord, …
- *   cloze       — buildCloze, gradeCloze
+ *   (cloze)     — re-exported from @/lib/learning/cloze (single source of truth)
  *
  * Import individual sub-modules for tree-shaking in client bundles.
  * Import this barrel for server-side code that needs multiple sub-modules.
@@ -51,6 +52,6 @@ export {
   unsaveWord,
 } from "@/lib/lexical/saved-words";
 
-export type { ClozeCard, ClozeResult } from "@/lib/lexical/cloze";
+export type { ClozeCard, ClozeResult } from "@/lib/learning/cloze";
 
-export { buildCloze, gradeCloze } from "@/lib/lexical/cloze";
+export { buildCloze, gradeCloze } from "@/lib/learning/cloze";

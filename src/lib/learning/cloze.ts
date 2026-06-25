@@ -1,18 +1,11 @@
 /**
- * Cloze (fill-in-the-blank) review helpers (REF-048, #38).
+ * Cloze (fill-in-the-blank) review helpers — #38.
  *
  * Provides:
  *   buildCloze  — masks the target word inside its example sentence.
  *   gradeCloze  — case-insensitive, punctuation-tolerant answer grading.
  *
  * All functions are pure (no I/O) and fully unit-testable.
- *
- * Alignment note: cloze grading uses an independent stem-based matcher rather
- * than the shared `normalizeCandidates` lemmatizer. This is intentional:
- * cloze should accept "runs" as a correct answer for a target of "run"
- * (inflection tolerance), whereas saved-word equality checks use exact
- * case-insensitive matching. The two behaviors are consistent where they
- * overlap (base-form equality) and intentionally differ on inflections.
  */
 
 // ---------------------------------------------------------------------------

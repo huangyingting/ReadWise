@@ -1,10 +1,6 @@
 /**
- * Cloze (fill-in-the-blank) review helpers — re-exported from the lexical
- * subsystem (REF-048, #38).
- *
- * This file is kept for backward compatibility. Prefer importing directly
- * from `@/lib/lexical/cloze` or `@/lib/lexical` in new code.
+ * Re-export shim — cloze review helpers now live in the consolidated learning
+ * subsystem (REF-028). Kept for backward compatibility with existing importers;
+ * prefer `@/lib/learning/cloze` for new code.
  */
-
-export type { ClozeCard, ClozeResult } from "@/lib/lexical/cloze";
-export { buildCloze, gradeCloze } from "@/lib/lexical/cloze";
+export * from "@/lib/learning/cloze";

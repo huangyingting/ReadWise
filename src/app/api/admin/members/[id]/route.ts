@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
-import { updateMemberRole, deleteMember } from "@/lib/admin-members";
+import { updateMemberRole, deleteMember } from "@/lib/account-lifecycle";
 import type { Role } from "@prisma/client";
 import { AUDIT_ACTIONS } from "@/lib/audit";
 

@@ -12,6 +12,7 @@
  */
 import { sendDueReminders, isPushConfigured } from "@/lib/push";
 import { createLogger } from "@/lib/logger";
+import { runScript, isMain, parseFlag } from "./lib/cli";
 
 const log = createLogger("push-reminders");
 
@@ -21,19 +22,10 @@ type Args = {
 };
 
 function parseArgs(argv: string[]): Args {
-  const args: Args = { dryRun: false, help: false };
-  for (const arg of argv) {
-    switch (arg) {
-      case "--dry-run":
-        args.dryRun = true;
-        break;
-      case "--help":
-      case "-h":
-        args.help = true;
-        break;
-    }
-  }
-  return args;
+  return {
+    dryRun: parseFlag(argv, "--dry-run"),
+    help: parseFlag(argv, "--help", "-h"),
+  };
 }
 
 function printHelp() {
@@ -55,22 +47,22 @@ Environment:
 `);
 }
 
-async function main() {
+async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   if (args.help) {
     printHelp();
-    process.exit(0);
+    return 0;
   }
 
   if (!isPushConfigured()) {
     log.warn("VAPID keys not configured — set VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY, VAPID_SUBJECT");
-    process.exit(0);
+    return 0;
   }
 
   if (args.dryRun) {
     log.info("dry-run: push is configured; would send due reminders (skipping actual send)");
-    process.exit(0);
+    return 0;
   }
 
   log.info("sending due-card push reminders…");
@@ -81,9 +73,12 @@ async function main() {
     skipped: result.skipped,
     suppressed: result.suppressed,
   });
+  return 0;
 }
 
-main().catch((err) => {
-  console.error("push-reminders failed:", err);
-  process.exit(1);
-});
+export { parseArgs };
+
+if (isMain(import.meta.url)) {
+  runScript(main, "push-reminders failed");
+}
+

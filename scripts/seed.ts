@@ -4,6 +4,7 @@ import { PROVIDERS } from "@/lib/scraper/providers";
 import { isAiConfigured } from "@/lib/ai";
 import { isSpeechConfigured } from "@/lib/speech";
 import { isSupportedLanguage } from "@/lib/translation";
+import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
 
 type Args = {
   providers: string[];
@@ -25,9 +26,7 @@ function parseArgs(argv: string[]): Args {
     const arg = argv[i];
     switch (arg) {
       case "--provider":
-        for (const key of (argv[++i] ?? "").split(",").map((c) => c.trim()).filter(Boolean)) {
-          if (!args.providers.includes(key)) args.providers.push(key);
-        }
+        addUniqueFromCsv(args.providers, argv[++i] ?? "");
         break;
       case "--all":
         args.providers = ["all"];
@@ -41,20 +40,16 @@ function parseArgs(argv: string[]): Args {
       case "--tts":
         args.tts = true;
         break;
-      case "--translate": {
-        const value = argv[++i] ?? "";
-        for (const code of value.split(",").map((c) => c.trim()).filter(Boolean)) {
-          if (!args.translateLangs.includes(code)) args.translateLangs.push(code);
-        }
+      case "--translate":
+        addUniqueFromCsv(args.translateLangs, argv[++i] ?? "");
         break;
-      }
       case "-h":
       case "--help":
         args.help = true;
         break;
       default:
         if (arg.startsWith("-")) {
-          console.warn(`Unknown flag: ${arg}`);
+          warnUnknown(arg);
         } else {
           if (!args.providers.includes(arg)) args.providers.push(arg);
         }
@@ -62,6 +57,8 @@ function parseArgs(argv: string[]): Args {
   }
   return args;
 }
+
+export { parseArgs };
 
 function printHelp(): void {
   console.log(`ReadWise database seeder
@@ -139,13 +136,6 @@ async function main(): Promise<number> {
   return stats.failed > 0 && stats.published === 0 ? 1 : 0;
 }
 
-main()
-  .then(async (code) => {
-    await prisma.$disconnect();
-    process.exit(code);
-  })
-  .catch(async (err) => {
-    console.error(err);
-    await prisma.$disconnect();
-    process.exit(1);
-  });
+if (isMain(import.meta.url)) {
+  runCli(main);
+}
