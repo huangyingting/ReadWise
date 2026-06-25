@@ -38,6 +38,7 @@ schemas under `prisma/`, and scripts in `package.json` / `scripts/`.
 | [`media-storage.md`](./media-storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
 | [`admin-operations.md`](./admin-operations.md) | Persistent job queue, processing-step state, audit logs, provider operations, admin endpoints, and operator workflows. |
 | [`health-readiness.md`](./health-readiness.md) | `/api/health`, `/api/ready`, runtime config validation, migrations, and optional-provider degradation. |
+| [`refactoring.md`](./refactoring.md) | Refactoring backlog used to shape future epics/issues around modularity, reuse, subsystem boundaries, and compatibility cleanup. |
 
 ## Security and observability
 
