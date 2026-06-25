@@ -2,8 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, string, optional } from "@/lib/validation";
 import { MAX_QUESTION_LENGTH, getTutorMessages, askTutor, clearTutor } from "@/lib/tutor";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
-import { checkRateLimit } from "@/lib/rate-limit";
+import { requireReadableArticle, requireReadableArticleForAI } from "@/lib/reader/route-guard";
 
 /** Max characters of paragraph context accepted from the client. */
 const MAX_PARAGRAPH_CONTEXT = 500;
@@ -23,11 +22,7 @@ const questionBody = object({
 
 /** GET /api/reader/[id]/tutor — returns the user's conversation for this article. */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
-  const context = articleAccessContext(session.user);
-  const article = await getReadableArticleById(params.id, context);
-  if (!article) {
-    throw new ApiError(404, "Article not found");
-  }
+  await requireReadableArticle(params.id, session.user);
   const messages = await getTutorMessages(session.user.id, params.id);
   return NextResponse.json({ messages });
 });
@@ -41,10 +36,7 @@ export const GET = createHandler({ params: idParams }, async ({ params, session 
 export const POST = createHandler(
   { params: idParams, body: questionBody },
   async ({ params, body, session }) => {
-    const context = articleAccessContext(session.user);
-    const article = await getReadableArticleById(params.id, context);
-    if (!article) throw new ApiError(404, "Article not found");
-    await checkRateLimit(session.user.id, "ai");
+    const { context } = await requireReadableArticleForAI(params.id, session.user);
     const result = await askTutor(session.user.id, params.id, body.question, context, body.paragraphContext);
     if (!result) {
       throw new ApiError(404, "Article not found");
@@ -55,10 +47,7 @@ export const POST = createHandler(
 
 /** DELETE /api/reader/[id]/tutor — clears the user's conversation for this article. */
 export const DELETE = createHandler({ params: idParams }, async ({ params, session }) => {
-  const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
-  if (!article) {
-    throw new ApiError(404, "Article not found");
-  }
+  await requireReadableArticle(params.id, session.user);
   await clearTutor(session.user.id, params.id);
   return NextResponse.json({ ok: true });
 });
