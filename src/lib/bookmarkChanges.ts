@@ -7,7 +7,9 @@
  *
  * Parallel to src/lib/visited.ts (reading-progress tracking).
  */
-const STORAGE_KEY = "readwise:bookmark-changes";
+import { STORAGE_KEYS } from "./storage-keys";
+
+const STORAGE_KEY = STORAGE_KEYS.BOOKMARK_CHANGES;
 
 function read(): string[] {
   if (typeof window === "undefined") {

@@ -4,7 +4,9 @@
  * persists across selections.
  */
 
-export const TRANSLATE_LANG_KEY = "readwise:translate-lang";
+import { STORAGE_KEYS } from "./storage-keys";
+
+export const TRANSLATE_LANG_KEY = STORAGE_KEYS.TRANSLATE_LANG;
 export const TRANSLATE_LANG_DEFAULT = "zh-Hans";
 
 /** Read the persisted translation target language (or the default). */

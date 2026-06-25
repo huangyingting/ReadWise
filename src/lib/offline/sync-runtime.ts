@@ -30,13 +30,14 @@ import {
   clearQueuedMutations,
 } from "./mutation-store";
 import { purgeOfflineData } from "./article-store";
+import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 /** Header carrying the idempotency key to the server on every send. */
 export const MUTATION_HEADER = "x-client-mutation-id";
 
 /** Service-worker Background Sync tag + message type used to trigger a flush. */
 export const SYNC_TAG = "readwise-mutations";
-const SW_FLUSH_MESSAGE = "readwise:flush-queue";
+const SW_FLUSH_MESSAGE = STORAGE_KEYS.SW_FLUSH_QUEUE;
 
 export interface MutationSpec {
   type: string;
@@ -301,7 +302,7 @@ export async function purgeOfflineUserData(): Promise<void> {
   if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
     try {
       const reg = await navigator.serviceWorker.ready;
-      reg.active?.postMessage({ type: "readwise:purge-caches" });
+      reg.active?.postMessage({ type: STORAGE_KEYS.SW_PURGE_CACHES });
     } catch {
       // ignore
     }

@@ -8,7 +8,9 @@
  * Both `ReferrerLink` (declarative) and imperative callers (e.g. the command
  * palette, which navigates via `router.push`) must use this same key/shape.
  */
-export const READER_REFERRER_KEY = "readwise:reader-referrer";
+import { STORAGE_KEYS } from "./storage-keys";
+
+export const READER_REFERRER_KEY = STORAGE_KEYS.READER_REFERRER;
 
 export interface ReaderReferrer {
   href: string;
