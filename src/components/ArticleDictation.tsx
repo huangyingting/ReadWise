@@ -1,18 +1,10 @@
 "use client";
 
 /**
- * ArticleDictation (Issue #40 — Listening & Dictation Exercise)
+ * ArticleDictation (Issue #40 — Listening & Dictation Exercise, REF-062 split)
  *
- * Listens to a single sentence from the article narration, then asks the
- * learner to type what they heard and grades the result.
- *
- * Flow:
- *   loading (warm narration) → idle → playing sentence → graded
- *
- * Requires:
- *   - ReaderAudioProvider (via useReaderAudio) to be mounted in the tree.
- *   - `plainText` prop — the same htmlToPlainText(content) that was used to
- *     generate the narration (so word offsets line up).
+ * Thin composition: data/interaction state lives in useDictationPanel;
+ * this file owns only the rendered output.
  *
  * Props:
  *   articleId  — used to lazily warm narration if the Listen tab hasn't been
@@ -21,41 +13,18 @@
  *   active     — true when this panel is the visible tab.
  */
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type ChangeEvent,
-  type FormEvent,
-} from "react";
+import { type ChangeEvent, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { Textarea } from "@/components/ui/Textarea";
 import EmptyState from "@/components/EmptyState";
 import AiBadge from "@/components/AiBadge";
-import { useReaderAudio } from "@/components/ReaderAudioProvider";
-import { useAudioRangePlayback } from "@/components/reader/useAudioRangePlayback";
 import {
-  segmentDictation,
-  gradeDictation,
+  useDictationPanel,
   type DictationSegment,
   type DiffToken,
-} from "@/lib/dictation";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-type Phase =
-  | "warming"    // narration fetch in progress
-  | "idle"       // narration loaded, waiting for user to play a sentence
-  | "playing"    // sentence audio playing
-  | "typed"      // user has typed something, not yet graded
-  | "graded"     // result shown
-  | "fallback"   // narration unavailable
-  | "error";     // network / other error
-
-// ─── Component ────────────────────────────────────────────────────────────────
+} from "@/components/reader/study/useDictationPanel";
 
 export default function ArticleDictation({
   articleId,
@@ -66,100 +35,13 @@ export default function ArticleDictation({
   plainText: string;
   active: boolean;
 }) {
-  const audio = useReaderAudio();
+  const panel = useDictationPanel(articleId, plainText, active);
 
-  const [phase, setPhase] = useState<Phase>("warming");
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-  const [segments, setSegments] = useState<DictationSegment[]>([]);
-  const [currentIdx, setCurrentIdx] = useState(0);
-  const [typed, setTyped] = useState("");
-  const [grade, setGrade] = useState<ReturnType<typeof gradeDictation> | null>(null);
-
-  const warmStartedRef = useRef(false);
-  const { playRange, stopRange } = useAudioRangePlayback(audio.audioRef);
-
-  // Stop sentence playback when the tab becomes hidden or the overlay closes
-  // (`active` is `open && activeTab === "dictate"`) (#210).
-  useEffect(() => {
-    if (active) return;
-    stopRange({ pause: true });
-    setPhase((p) => (p === "playing" ? "idle" : p));
-  }, [active, stopRange]);
-
-  // When audio is already loaded (Listen tab was visited), compute segments.
-  useEffect(() => {
-    if (audio.isLoaded && !audio.isFallback && audio.words.length > 0 && segments.length === 0) {
-      const segs = segmentDictation(audio.plainText || plainText, audio.words);
-      setSegments(segs);
-      setPhase(segs.length > 0 ? "idle" : "fallback");
-    } else if (audio.isFallback && phase === "warming") {
-      setPhase("fallback");
-    } else if (audio.warmError && phase === "warming") {
-      setErrorMsg(audio.warmError);
-      setPhase("error");
-    }
-  }, [audio.isLoaded, audio.isFallback, audio.words, audio.plainText, audio.warmError, plainText, segments.length, phase]);
-
-  // Warm narration lazily on first render if not already loaded.
-  useEffect(() => {
-    if (warmStartedRef.current || audio.isLoaded) return;
-    warmStartedRef.current = true;
-    void audio.warmNarration(articleId);
-  }, [articleId, audio]);
-
-  const currentSegment = segments[currentIdx] ?? null;
-
-  function handlePlay() {
-    if (!currentSegment) return;
-    const started = playRange(currentSegment, {
-      onEnd: () => setPhase((p) => (p === "playing" ? "idle" : p)),
-    });
-    if (started) setPhase("playing");
-  }
-
-  function handleStop() {
-    stopRange({ pause: true });
-    setPhase("idle");
-  }
-
-  function handleTyped(e: ChangeEvent<HTMLTextAreaElement>) {
-    setTyped(e.target.value);
-    if (grade) setGrade(null);
-    setPhase("typed");
-  }
-
-  function handleCheck(e: FormEvent) {
-    e.preventDefault();
-    if (!currentSegment || !typed.trim()) return;
-    stopRange({ pause: true });
-    setGrade(gradeDictation(currentSegment.text, typed));
-    setPhase("graded");
-  }
-
-  function handleReset() {
-    stopRange({ pause: true });
-    setTyped("");
-    setGrade(null);
-    setPhase("idle");
-  }
-
-  const handlePrev = useCallback(() => {
-    handleReset();
-    setCurrentIdx((i) => Math.max(0, i - 1));
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleNext = useCallback(() => {
-    handleReset();
-    setCurrentIdx((i) => Math.min(segments.length - 1, i + 1));
-  }, [segments.length]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // ─── Render ─────────────────────────────────────────────────────────────────
-
-  if (phase === "warming") {
+  if (panel.phase === "warming") {
     return <p className="muted">Loading narration…</p>;
   }
 
-  if (phase === "fallback") {
+  if (panel.phase === "fallback") {
     return (
       <EmptyState
         icon={Headphones}
@@ -169,16 +51,20 @@ export default function ArticleDictation({
     );
   }
 
-  if (phase === "error") {
+  if (panel.phase === "error") {
     return (
       <p className="tts-error" role="alert">
-        {errorMsg ?? "Could not load narration."}
+        {panel.errorMsg ?? "Could not load narration."}
       </p>
     );
   }
 
-  if (segments.length === 0) {
-    return <p className="muted">No practisable sentences found in this article.</p>;
+  if (panel.segments.length === 0) {
+    return (
+      <p className="muted">
+        No practisable sentences found in this article.
+      </p>
+    );
   }
 
   return (
@@ -189,106 +75,173 @@ export default function ArticleDictation({
       </div>
 
       {/* ── Sentence navigator ── */}
-      <div className="rw-dictate-stepper" role="navigation" aria-label="Sentence navigation">
-        <button
-          type="button"
-          className={cn("rw-dictate-stepper-btn", focusRing)}
-          onClick={handlePrev}
-          disabled={currentIdx === 0}
-          aria-label="Previous sentence"
-        >
-          <ChevronLeft size={16} aria-hidden />
-        </button>
-        <span className="rw-dictate-stepper-counter" aria-live="polite">
-          {currentIdx + 1} / {segments.length}
-        </span>
-        <button
-          type="button"
-          className={cn("rw-dictate-stepper-btn", focusRing)}
-          onClick={handleNext}
-          disabled={currentIdx === segments.length - 1}
-          aria-label="Next sentence"
-        >
-          <ChevronRight size={16} aria-hidden />
-        </button>
-      </div>
+      <SentenceNavigator
+        currentIdx={panel.currentIdx}
+        total={panel.segments.length}
+        onPrev={panel.handlePrev}
+        onNext={panel.handleNext}
+      />
 
       {/* ── Play / stop ── */}
       <div className="rw-dictate-controls">
-        {phase !== "playing" ? (
+        {panel.phase !== "playing" ? (
           <Button
             variant="primary"
             size="sm"
-            onClick={handlePlay}
+            onClick={panel.handlePlay}
             aria-label="Play sentence"
           >
             <Headphones size={14} aria-hidden />
             Play sentence
           </Button>
         ) : (
-          <Button variant="outline" size="sm" onClick={handleStop} aria-label="Stop playback">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={panel.handleStop}
+            aria-label="Stop playback"
+          >
             Stop
           </Button>
         )}
       </div>
 
       {/* ── Input form ── */}
-      <form onSubmit={handleCheck} className="rw-dictate-form">
-        <label htmlFor="dictation-input" className="rw-dictate-label">
-          Type what you heard:
-        </label>
-        <Textarea
-          id="dictation-input"
-          className={cn("rw-dictate-textarea", focusRing)}
-          value={typed}
-          onChange={handleTyped}
-          placeholder="Type the sentence here…"
-          rows={3}
-          lang="en"
-          spellCheck={false}
-          autoComplete="off"
-          aria-label="Your dictation"
-          disabled={phase === "playing"}
-        />
-        <div className="rw-dictate-form-row">
-          <Button
-            type="submit"
-            variant="primary"
-            size="sm"
-            disabled={!typed.trim() || phase === "playing"}
-          >
-            Check
-          </Button>
-          {(phase === "typed" || phase === "graded") && (
-            <button
-              type="button"
-              className={cn("rw-dictate-reset-btn", focusRing)}
-              onClick={handleReset}
-              aria-label="Try again"
-            >
-              <RotateCcw size={13} aria-hidden />
-              Try again
-            </button>
-          )}
-        </div>
-      </form>
+      <DictationForm
+        typed={panel.typed}
+        phase={panel.phase}
+        onTyped={panel.handleTyped}
+        onCheck={panel.handleCheck}
+        onReset={panel.handleReset}
+      />
 
       {/* ── Grading result ── */}
-      {phase === "graded" && grade && currentSegment && (
-        <div className="rw-dictate-result" role="region" aria-label="Dictation result">
-          <ScoreBar accuracy={grade.accuracy} />
-          <DiffDisplay tokens={grade.tokens} reference={currentSegment.text} />
+      {panel.phase === "graded" && panel.grade && panel.currentSegment && (
+        <div
+          className="rw-dictate-result"
+          role="region"
+          aria-label="Dictation result"
+        >
+          <ScoreBar accuracy={panel.grade.accuracy} />
+          <DiffDisplay
+            tokens={panel.grade.tokens}
+            reference={panel.currentSegment.text}
+          />
         </div>
       )}
     </div>
   );
 }
 
-// ─── Sub-components ───────────────────────────────────────────────────────────
+// ─── Presentational sub-components ────────────────────────────────────────────
+
+function SentenceNavigator({
+  currentIdx,
+  total,
+  onPrev,
+  onNext,
+}: {
+  currentIdx: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+}) {
+  return (
+    <div
+      className="rw-dictate-stepper"
+      role="navigation"
+      aria-label="Sentence navigation"
+    >
+      <button
+        type="button"
+        className={cn("rw-dictate-stepper-btn", focusRing)}
+        onClick={onPrev}
+        disabled={currentIdx === 0}
+        aria-label="Previous sentence"
+      >
+        <ChevronLeft size={16} aria-hidden />
+      </button>
+      <span className="rw-dictate-stepper-counter" aria-live="polite">
+        {currentIdx + 1} / {total}
+      </span>
+      <button
+        type="button"
+        className={cn("rw-dictate-stepper-btn", focusRing)}
+        onClick={onNext}
+        disabled={currentIdx === total - 1}
+        aria-label="Next sentence"
+      >
+        <ChevronRight size={16} aria-hidden />
+      </button>
+    </div>
+  );
+}
+
+function DictationForm({
+  typed,
+  phase,
+  onTyped,
+  onCheck,
+  onReset,
+}: {
+  typed: string;
+  phase: string;
+  onTyped: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  onCheck: (e: FormEvent) => void;
+  onReset: () => void;
+}) {
+  return (
+    <form onSubmit={onCheck} className="rw-dictate-form">
+      <label htmlFor="dictation-input" className="rw-dictate-label">
+        Type what you heard:
+      </label>
+      <Textarea
+        id="dictation-input"
+        className={cn("rw-dictate-textarea", focusRing)}
+        value={typed}
+        onChange={onTyped}
+        placeholder="Type the sentence here…"
+        rows={3}
+        lang="en"
+        spellCheck={false}
+        autoComplete="off"
+        aria-label="Your dictation"
+        disabled={phase === "playing"}
+      />
+      <div className="rw-dictate-form-row">
+        <Button
+          type="submit"
+          variant="primary"
+          size="sm"
+          disabled={!typed.trim() || phase === "playing"}
+        >
+          Check
+        </Button>
+        {(phase === "typed" || phase === "graded") && (
+          <button
+            type="button"
+            className={cn("rw-dictate-reset-btn", focusRing)}
+            onClick={onReset}
+            aria-label="Try again"
+          >
+            <RotateCcw size={13} aria-hidden />
+            Try again
+          </button>
+        )}
+      </div>
+    </form>
+  );
+}
 
 function ScoreBar({ accuracy }: { accuracy: number }) {
   const variant =
-    accuracy >= 90 ? "good" : accuracy >= 70 ? "fair" : accuracy >= 50 ? "poor" : "bad";
+    accuracy >= 90
+      ? "good"
+      : accuracy >= 70
+      ? "fair"
+      : accuracy >= 50
+      ? "poor"
+      : "bad";
 
   return (
     <div className="rw-dictate-score">
@@ -301,7 +254,10 @@ function ScoreBar({ accuracy }: { accuracy: number }) {
         className="rw-dictate-score-track"
       >
         <div
-          className={cn("rw-dictate-score-fill", `rw-dictate-score-fill--${variant}`)}
+          className={cn(
+            "rw-dictate-score-fill",
+            `rw-dictate-score-fill--${variant}`,
+          )}
           style={{ width: `${accuracy}%` }}
         />
       </div>
@@ -312,7 +268,13 @@ function ScoreBar({ accuracy }: { accuracy: number }) {
   );
 }
 
-function DiffDisplay({ tokens, reference }: { tokens: DiffToken[]; reference: string }) {
+function DiffDisplay({
+  tokens,
+  reference,
+}: {
+  tokens: DiffToken[];
+  reference: string;
+}) {
   return (
     <div className="rw-dictate-diff" aria-label="Word-level feedback" lang="en">
       <p className="rw-dictate-diff-hint muted">
@@ -322,7 +284,11 @@ function DiffDisplay({ tokens, reference }: { tokens: DiffToken[]; reference: st
         {tokens.map((tok, i) => {
           if (tok.status === "correct") {
             return (
-              <span key={i} className="rw-dictate-word rw-dictate-word--correct" title="Correct">
+              <span
+                key={i}
+                className="rw-dictate-word rw-dictate-word--correct"
+                title="Correct"
+              >
                 {tok.word}
               </span>
             );
@@ -336,7 +302,10 @@ function DiffDisplay({ tokens, reference }: { tokens: DiffToken[]; reference: st
                 aria-label={`"${tok.typed}" should be "${tok.word}"`}
               >
                 {tok.typed}
-                <span className="rw-dictate-correction" aria-hidden> → {tok.word}</span>
+                <span className="rw-dictate-correction" aria-hidden>
+                  {" "}
+                  → {tok.word}
+                </span>
               </span>
             );
           }
