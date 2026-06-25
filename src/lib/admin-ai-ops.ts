@@ -9,7 +9,8 @@
  *     failing, or high-fallback features stand out.
  *   - {@link getContentOpsOverview}: the enrichment pipeline's health —
  *     per-step generated/skipped/fallback/failed counts, the articles with
- *     failing steps, and the job-queue backlog.
+ *     failing steps, and the job-queue backlog. Now lives in the processing
+ *     subsystem (REF-025); re-exported here for backward compatibility.
  *
  * This module only READS those tables (it never writes the ledger / steps); it
  * reuses {@link summarizeAiUsage} for the headline rollups and adds the extra
@@ -22,19 +23,9 @@ import {
   type AiUsageSummary,
   type AiUsageGroup,
 } from "@/lib/ai-usage-summary";
-import {
-  getJobDashboard,
-  type JobDashboard,
-} from "@/lib/admin-jobs";
-import {
-  PROCESSING_STEPS,
-  PROCESSING_STEP_STATUSES,
-  type ProcessingStepStatus,
-} from "@/lib/processing-state";
 
-/** Prisma surfaces the helpers need (so they're injectable in tests). */
+/** Prisma surface the AI cost helper needs (injectable in tests). */
 type AiClient = Pick<typeof prisma, "aiInvocation">;
-type StepClient = Pick<typeof prisma, "articleProcessingStep" | "article">;
 
 const DEFAULT_WINDOW_HOURS = 24 * 7;
 const TOP_LIMIT = 10;
@@ -211,126 +202,13 @@ export async function getAiCostOverview(
 }
 
 // ---------------------------------------------------------------------------
-// Content operations (enrichment pipeline health)
+// Content operations — re-exported from the processing subsystem (REF-025)
 // ---------------------------------------------------------------------------
 
-export type StepStatusCounts = Record<ProcessingStepStatus, number> & {
-  total: number;
-};
-
-export type StepBreakdown = {
-  step: string;
-  counts: StepStatusCounts;
-};
-
-export type ProblemArticle = {
-  articleId: string;
-  title: string | null;
-  status: string;
-  failed: number;
-  fallback: number;
-  steps: { step: string; status: string; lastError: string | null }[];
-};
-
-export type ContentOpsOverview = {
-  /** Per-step status counts across the whole pipeline. */
-  steps: StepBreakdown[];
-  /** Rolled-up status totals across every step. */
-  totals: StepStatusCounts;
-  /** Articles with at least one failed/fallback step (most-problematic first). */
-  problemArticles: ProblemArticle[];
-  /** The job-queue health (backlog / failures / dead-letter). */
-  jobs: JobDashboard;
-};
-
-function emptyStepCounts(): StepStatusCounts {
-  const counts = { total: 0 } as StepStatusCounts;
-  for (const status of PROCESSING_STEP_STATUSES) counts[status] = 0;
-  return counts;
-}
-
-/**
- * Builds the content-operations overview from the durable
- * `ArticleProcessingStep` timeline + the job queue: per-step status counts, the
- * articles with failing/fallback steps, and the queue backlog.
- */
-export async function getContentOpsOverview(
-  opts: { client?: StepClient; jobDashboard?: JobDashboard } = {},
-): Promise<ContentOpsOverview> {
-  const client = opts.client ?? prisma;
-
-  const [grouped, problemRows, jobs] = await Promise.all([
-    client.articleProcessingStep.groupBy({
-      by: ["step", "status"],
-      _count: { _all: true },
-    }),
-    client.articleProcessingStep.findMany({
-      where: { status: { in: ["failed", "fallback"] } },
-      select: {
-        articleId: true,
-        step: true,
-        status: true,
-        lastError: true,
-        updatedAt: true,
-        article: { select: { title: true, status: true } },
-      },
-      orderBy: { updatedAt: "desc" },
-      take: 200,
-    }),
-    opts.jobDashboard ? Promise.resolve(opts.jobDashboard) : getJobDashboard(),
-  ]);
-
-  // Per-step + rolled-up status counts.
-  const stepMap = new Map<string, StepStatusCounts>();
-  for (const step of PROCESSING_STEPS) stepMap.set(step, emptyStepCounts());
-  const totals = emptyStepCounts();
-  for (const row of grouped) {
-    const step = row.step;
-    const status = row.status as ProcessingStepStatus;
-    const n = row._count._all;
-    let counts = stepMap.get(step);
-    if (!counts) {
-      counts = emptyStepCounts();
-      stepMap.set(step, counts);
-    }
-    if (status in counts) {
-      counts[status] += n;
-      totals[status] += n;
-    }
-    counts.total += n;
-    totals.total += n;
-  }
-  const steps: StepBreakdown[] = [...stepMap.entries()].map(([step, counts]) => ({
-    step,
-    counts,
-  }));
-
-  // Group problem rows by article (failed + fallback steps).
-  const articleMap = new Map<string, ProblemArticle>();
-  for (const row of problemRows) {
-    let entry = articleMap.get(row.articleId);
-    if (!entry) {
-      entry = {
-        articleId: row.articleId,
-        title: row.article?.title ?? null,
-        status: row.article?.status ?? "unknown",
-        failed: 0,
-        fallback: 0,
-        steps: [],
-      };
-      articleMap.set(row.articleId, entry);
-    }
-    if (row.status === "failed") entry.failed++;
-    else if (row.status === "fallback") entry.fallback++;
-    entry.steps.push({
-      step: row.step,
-      status: row.status,
-      lastError: row.lastError ?? null,
-    });
-  }
-  const problemArticles = [...articleMap.values()]
-    .sort((a, b) => b.failed - a.failed || b.fallback - a.fallback)
-    .slice(0, TOP_LIMIT);
-
-  return { steps, totals, problemArticles, jobs };
-}
+export {
+  type StepStatusCounts,
+  type StepBreakdown,
+  type ProblemArticle,
+  type ContentOpsOverview,
+  getContentOpsOverview,
+} from "@/lib/processing/admin-ops";
