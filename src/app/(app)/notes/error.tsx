@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { StickyNote } from "lucide-react";
-import { reportClientError } from "@/lib/client-error-reporter";
-import ErrorScreen from "@/components/ErrorScreen";
+import { SegmentError } from "@/components/route-states";
 
 /** Error boundary for the notes & highlights page. */
 export default function NotesError({
@@ -13,22 +11,14 @@ export default function NotesError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    reportClientError({
-      message: error.message || "Notes page render error",
-      source: "notes-error",
-      digest: error.digest,
-      stack: error.stack,
-    });
-  }, [error]);
-
   return (
-    <ErrorScreen
+    <SegmentError
+      error={error}
+      reset={reset}
+      source="notes-error"
       icon={StickyNote}
       title="Could not load your notes"
       description="Something went wrong while loading your notes and highlights. Try again or browse articles."
-      digest={error.digest}
-      reset={reset}
       secondaryAction={{ label: "Back to dashboard", href: "/dashboard" }}
     />
   );

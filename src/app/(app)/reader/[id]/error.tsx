@@ -1,9 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import { BookOpen } from "lucide-react";
-import { reportClientError } from "@/lib/client-error-reporter";
-import ErrorScreen from "@/components/ErrorScreen";
+import { SegmentError } from "@/components/route-states";
 
 /**
  * Reader-segment error boundary. Shown when the article page throws
@@ -17,22 +15,14 @@ export default function ReaderError({
   error: Error & { digest?: string };
   reset: () => void;
 }) {
-  useEffect(() => {
-    reportClientError({
-      message: error.message || "Reader render error",
-      source: "reader-error",
-      digest: error.digest,
-      stack: error.stack,
-    });
-  }, [error]);
-
   return (
-    <ErrorScreen
+    <SegmentError
+      error={error}
+      reset={reset}
+      source="reader-error"
       icon={BookOpen}
       title="Couldn't load this article"
       description="Something went wrong while loading the article. Try again or browse other content."
-      digest={error.digest}
-      reset={reset}
       secondaryAction={{ label: "Browse articles", href: "/browse" }}
     />
   );
