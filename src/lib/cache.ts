@@ -64,8 +64,8 @@ export const LISTING_REVALIDATE_SECONDS = 300;
  */
 export function createCachedListing<Args extends unknown[], T>(
   fn: (...args: Args) => Promise<T>,
-  keyParts: string[],
-  tags: string[],
+  keyParts: readonly string[],
+  tags: readonly string[],
   revalidate: number | false = LISTING_REVALIDATE_SECONDS,
 ): (...args: Args) => Promise<T> {
   const cacheName = keyParts.join(":");
@@ -74,8 +74,8 @@ export function createCachedListing<Args extends unknown[], T>(
       recordCacheMiss(cacheName);
       return fn(...args);
     },
-    keyParts,
-    { tags, revalidate },
+    [...keyParts],
+    { tags: [...tags], revalidate },
   );
   return (...args: Args) => {
     recordCacheLookup(cacheName);
@@ -102,7 +102,7 @@ function safeRevalidate(tag: string): void {
  *     key (two different orgs produce two different key arrays).
  */
 export function tenantCacheKeyParts(
-  keyParts: string[],
+  keyParts: readonly string[],
   scope: CacheScope,
   tenantId?: string | null,
 ): string[] {
@@ -115,7 +115,7 @@ export function tenantCacheKeyParts(
 function tenantCacheTags(
   scope: CacheScope,
   tenantId: string,
-  extra: string[] = [],
+  extra: readonly string[] = [],
 ): string[] {
   if (scope === "org") return [...extra, ORG_CACHE_TAG, orgCacheTag(tenantId)];
   if (scope === "user") return [...extra, userCacheTag(tenantId)];
@@ -133,9 +133,9 @@ function tenantCacheTags(
  */
 export function createTenantCachedListing<Args extends unknown[], T>(
   fn: (tenantId: string, ...args: Args) => Promise<T>,
-  keyParts: string[],
+  keyParts: readonly string[],
   scope: "user" | "org",
-  opts: { tags?: string[]; revalidate?: number | false } = {},
+  opts: { tags?: readonly string[]; revalidate?: number | false } = {},
 ): (tenantId: string, ...args: Args) => Promise<T> {
   const baseName = keyParts.join(":");
   const revalidate = opts.revalidate ?? LISTING_REVALIDATE_SECONDS;
@@ -187,4 +187,13 @@ export function revalidateOrgCache(orgId?: string | null): void {
 export function revalidateTagsCache(): void {
   safeRevalidate(TAGS_CACHE_TAG);
   safeRevalidate(ARTICLES_CACHE_TAG);
+}
+
+/**
+ * Invalidates personalized (user-scoped) feeds for a single user. Callers are
+ * responsible for ensuring `userId` comes from the server session, not from a
+ * request body.
+ */
+export function revalidateUserCache(userId: string): void {
+  safeRevalidate(userCacheTag(userId));
 }
