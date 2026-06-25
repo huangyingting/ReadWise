@@ -1,5 +1,5 @@
 /**
- * Prisma mock builder helpers (REF-033).
+ * Prisma mock builder helpers (REF-033, REF-086).
  *
  * Provides small factory functions for the Prisma delegate shapes that recur
  * across many route tests.  Intentionally lightweight: each helper covers only
@@ -66,4 +66,35 @@ export function makePrisma(
   delegates: Record<string, Record<string, unknown>>,
 ): Record<string, Record<string, unknown>> {
   return delegates;
+}
+
+// ---------------------------------------------------------------------------
+// Transaction DB stub (REF-086)
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a `{ $transaction }` stub for services that inject a `db` dep (e.g.,
+ * `UrlImportDeps.db`, `TextImportDeps.db`).
+ *
+ * The callback receives the given `delegates` map as its `tx` argument, so the
+ * test controls every model method called inside the transaction without needing
+ * a `mock.module("@/lib/prisma", …)` replacement.
+ *
+ * @example
+ *   const db = makeTransactionDb({
+ *     article: {
+ *       create: async () => ({ id: "new-id" }),
+ *       update: async () => {},
+ *     },
+ *   });
+ *   await importArticleFromUrl({ …, deps: { db, … } });
+ */
+export function makeTransactionDb(
+  delegates: Record<string, Record<string, unknown>>,
+): { $transaction<R>(fn: (tx: Record<string, unknown>) => Promise<R>): Promise<R> } {
+  return {
+    $transaction<R>(fn: (tx: Record<string, unknown>) => Promise<R>): Promise<R> {
+      return fn(delegates);
+    },
+  };
 }
