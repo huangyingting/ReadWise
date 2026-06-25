@@ -31,3 +31,19 @@ export interface MediaStorage {
   get(storageKey: string): Promise<Buffer | null>;
   delete(storageKey: string): Promise<void>;
 }
+
+/**
+ * Generalized result for any media migration run.
+ * Not speech-specific — any media kind (speech, image, …) can use this.
+ */
+export type MediaMigrationResult = {
+  /** The active storage kind during this migration run. */
+  storageKind: MediaStorageKind;
+  /** True when no object storage is configured; the run was skipped entirely. */
+  skippedNoStorage: boolean;
+  /** The media kind being migrated (e.g. "speech"). */
+  mediaKind: string;
+  scanned: number;
+  migrated: number;
+  failed: number;
+};

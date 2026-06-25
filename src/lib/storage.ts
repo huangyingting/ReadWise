@@ -5,6 +5,7 @@
  * `@/lib/storage`; implementation details live in `@/lib/storage/*` modules.
  */
 export type {
+  MediaMigrationResult,
   MediaStorage,
   MediaStorageKind,
   PutMediaInput,
@@ -14,12 +15,10 @@ export { sha256Hex } from "@/lib/storage/key";
 export type {
   AzureStorageConfig,
   AzureStorageConnectionStringConfig,
-} from "@/lib/storage/config";
-export {
-  azureStorageConfig,
-  mediaStorageDir,
-  mediaStorageKind,
-} from "@/lib/storage/config";
+} from "@/lib/storage/azure";
+export { azureStorageConfig } from "@/lib/storage/azure";
+export { mediaStorageDir } from "@/lib/storage/filesystem";
+export { mediaStorageKind } from "@/lib/storage/config";
 export {
   getMediaStorage,
   isObjectStorageConfigured,
