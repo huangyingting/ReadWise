@@ -3,6 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { getOrCreateArticleVocabulary } from "@/lib/vocabulary";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
+import { frequencyTier } from "@/lib/frequency";
 
 export const POST = createHandler(
   { params: idParams },
@@ -12,6 +13,15 @@ export const POST = createHandler(
     if (!result) {
       throw new ApiError(404, "Article not found");
     }
-    return NextResponse.json(result);
+    // Annotate each vocabulary item with its server-computed frequency tier.
+    // @/lib/frequency is SERVER-ONLY (imports heavy word-frequency-data); it
+    // must never move into a client component or lib shim.
+    return NextResponse.json({
+      ...result,
+      items: result.items.map((item) => ({
+        ...item,
+        frequencyTier: frequencyTier(item.word),
+      })),
+    });
   },
 );

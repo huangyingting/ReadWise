@@ -13,7 +13,7 @@
  *   null       — not in the frequency data (specialized / rare)
  */
 
-import { normalizeCandidates } from "@/lib/dictionary-normalize";
+import { normalizeCandidates } from "@/lib/lexical/normalize";
 import { WORD_FREQUENCY } from "@/data/word-frequency-data";
 import {
   type FrequencyTier,
