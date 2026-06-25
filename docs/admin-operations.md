@@ -90,8 +90,12 @@ npm run worker -- --jobs --once
 npm run worker -- --jobs --lock-ttl 600000
 ```
 
-Without `--jobs`, the worker still supports the older article-state polling path.
-Use `--jobs` when you want the persistent queue semantics.
+`npm run worker` uses the persistent queue by default. The older article-state
+polling path is available only as an explicit transition mode:
+
+```bash
+npm run worker -- --legacy-article-polling
+```
 
 ### Admin actions
 
