@@ -4,16 +4,56 @@ import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
 import { assertSafeUrl } from "@/lib/scraper/ssrf";
 import { scrapeUrl } from "@/lib/scraper";
+import type { ScrapedArticle } from "@/lib/scraper/types";
 import { heuristicDifficulty } from "@/lib/difficulty";
 import {
   findOwnedArticleBySourceUrl,
   privateImportedArticleCreateFields,
 } from "@/lib/article-access";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
-import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security-events";
+import { recordSecurityEvent, SECURITY_EVENT_TYPES, type SecurityEventInput } from "@/lib/security-events";
 import { clientIp } from "@/lib/client-ip";
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import { recordEvent, ANALYTICS_EVENT_TYPES, type AnalyticsEventInput } from "@/lib/analytics/events";
 import { assertWithinDailyQuota } from "@/lib/import/quota";
+
+/**
+ * Minimal Prisma client shape needed for the import transaction.
+ *
+ * Using a narrow interface avoids the union-overload issue with PrismaClient's
+ * full `$transaction` signature and keeps the dep type easy to stub in tests.
+ */
+type ImportDb = {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  $transaction<R>(fn: (tx: any) => Promise<R>): Promise<R>;
+};
+
+/**
+ * Injectable dependencies for URL import orchestration (REF-086).
+ *
+ * All fields are optional in `UrlImportInput.deps` — defaults resolve to the
+ * real implementations so production callers never pass this object.
+ *
+ * Inject narrow stubs in tests instead of broad `mock.module` replacements:
+ * each field covers exactly one external boundary (DB, network, side effect).
+ */
+export type UrlImportDeps = {
+  /** SSRF guard — throws on unsafe or disallowed URL. */
+  assertSafeUrl: (url: string) => Promise<void>;
+  /** Resolve an owned article by source URL for de-duplication. */
+  findOwnedArticleBySourceUrl: (url: string, userId: string) => Promise<{ id: string } | null>;
+  /** Article scraper — returns null when extraction fails. */
+  scrape: (url: string) => Promise<ScrapedArticle | null>;
+  /** Daily quota guard — throws ApiError(429) when the user is at their limit. */
+  assertWithinDailyQuota: (userId: string) => Promise<void>;
+  /** Prisma client used for the create-with-difficulty transaction. */
+  db: ImportDb;
+  /** Audit log writer — called inside the transaction. */
+  recordAuditFromRequest: typeof recordAuditFromRequest;
+  /** Security event emitter — called on SSRF rejection. */
+  recordSecurityEvent: (evt: SecurityEventInput) => void;
+  /** Analytics event emitter — called after a successful import. */
+  recordEvent: (input: AnalyticsEventInput) => Promise<void>;
+};
 
 export type UrlImportInput = {
   rawUrl: string;
@@ -21,6 +61,8 @@ export type UrlImportInput = {
   req: Request;
   session: Session;
   requestId: string;
+  /** Optional dep overrides for testing. Production callers omit this. */
+  deps?: Partial<UrlImportDeps>;
 };
 
 export type ImportResult =
@@ -39,18 +81,34 @@ export type ImportResult =
  *  6. Create article + apply heuristic difficulty + record audit log (in a transaction).
  *  7. On P2002 concurrent-import conflict, resolve and return the winner as duplicate.
  *  8. Record analytics event (metadata only).
+ *
+ * Pass `deps` in `input` to override external I/O callables in tests.
+ * Production callers omit `deps`; defaults resolve to the real implementations.
  */
 export async function importArticleFromUrl(
   input: UrlImportInput,
 ): Promise<ImportResult> {
   const { rawUrl, userId, req, session, requestId } = input;
 
+  // Resolve deps — production callers omit `input.deps`; defaults are real impls.
+  const assertSafe   = input.deps?.assertSafeUrl              ?? assertSafeUrl;
+  const findOwned    = input.deps?.findOwnedArticleBySourceUrl ?? findOwnedArticleBySourceUrl;
+  const scrape       = input.deps?.scrape                      ?? scrapeUrl;
+  const checkQuota   = input.deps?.assertWithinDailyQuota      ?? assertWithinDailyQuota;
+  // Cast needed: PrismaClient.$transaction has multiple overloads; we use
+  // only the function-callback form. The cast is safe because the real
+  // PrismaClient implements this overload.
+  const db: ImportDb    = (input.deps?.db                          ?? prisma) as ImportDb;
+  const recordAudit  = input.deps?.recordAuditFromRequest      ?? recordAuditFromRequest;
+  const recordSec    = input.deps?.recordSecurityEvent         ?? recordSecurityEvent;
+  const recordEvt    = input.deps?.recordEvent                 ?? recordEvent;
+
   // SSRF guard — must not be bypassed.
   try {
-    await assertSafeUrl(rawUrl);
+    await assertSafe(rawUrl);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    recordSecurityEvent({
+    recordSec({
       type: SECURITY_EVENT_TYPES.importBlocked,
       severity: "high",
       route: "/api/articles/import",
@@ -62,14 +120,14 @@ export async function importArticleFromUrl(
   }
 
   // De-dupe BEFORE scraping/creating so re-importing never consumes quota.
-  const existingByRawUrl = await findOwnedArticleBySourceUrl(rawUrl, userId);
+  const existingByRawUrl = await findOwned(rawUrl, userId);
   if (existingByRawUrl) {
     return { status: 200, id: existingByRawUrl.id, duplicate: true };
   }
 
   let scraped;
   try {
-    scraped = await scrapeUrl(rawUrl);
+    scraped = await scrape(rawUrl);
   } catch (err) {
     throw new ApiError(
       422,
@@ -86,18 +144,18 @@ export async function importArticleFromUrl(
 
   // De-dupe on canonical sourceUrl (redirects / canonicalisation may differ).
   if (scraped.sourceUrl && scraped.sourceUrl !== rawUrl) {
-    const existingByCanonical = await findOwnedArticleBySourceUrl(scraped.sourceUrl, userId);
+    const existingByCanonical = await findOwned(scraped.sourceUrl, userId);
     if (existingByCanonical) {
       return { status: 200, id: existingByCanonical.id, duplicate: true };
     }
   }
 
   // Not a duplicate — now enforce the daily quota.
-  await assertWithinDailyQuota(userId);
+  await checkQuota(userId);
 
   let article;
   try {
-    article = await prisma.$transaction(async (tx) => {
+    article = await db.$transaction(async (tx) => {
       const created = await tx.article.create({
         data: {
           title: scraped.title,
@@ -117,7 +175,7 @@ export async function importArticleFromUrl(
         select: { id: true },
       });
       await applyHeuristicDifficulty(created.id, scraped.content, tx);
-      await recordAuditFromRequest(
+      await recordAudit(
         {
           req,
           session,
@@ -135,7 +193,7 @@ export async function importArticleFromUrl(
     // A concurrent import of the same URL won the race between the dedupe
     // pre-check and this insert. The @@unique([sourceUrl, ownerId]) constraint
     // surfaces a P2002; resolve the winner's row and return it as a duplicate.
-    const existing = await resolveDuplicateOnConflict(err, scraped.sourceUrl, userId);
+    const existing = await resolveDuplicateOnConflict(err, scraped.sourceUrl, userId, findOwned);
     if (existing) {
       return { status: 200, id: existing.id, duplicate: true };
     }
@@ -143,7 +201,7 @@ export async function importArticleFromUrl(
   }
 
   // Product analytics: metadata only — never record article text.
-  await recordEvent({
+  await recordEvt({
     type: ANALYTICS_EVENT_TYPES.import,
     userId,
     articleId: article.id,
@@ -162,11 +220,12 @@ async function resolveDuplicateOnConflict(
   err: unknown,
   sourceUrl: string | null | undefined,
   userId: string,
+  findOwned: (url: string, userId: string) => Promise<{ id: string } | null>,
 ): Promise<{ id: string } | null> {
   const isP2002 =
     err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
   if (!isP2002 || !sourceUrl) return null;
-  return findOwnedArticleBySourceUrl(sourceUrl, userId);
+  return findOwned(sourceUrl, userId);
 }
 
 /** Runs heuristic (no-AI) difficulty and persists it. Non-fatal. */
