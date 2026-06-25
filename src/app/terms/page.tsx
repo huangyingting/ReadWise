@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { terms } from "@/lib/copy/pages";
 
-export const metadata: Metadata = {
-  title: "Terms of Service",
-  description: "ReadWise Terms of Service — rules for using the platform.",
-};
+export const metadata: Metadata = terms;
 
 export default function TermsPage() {
   return (

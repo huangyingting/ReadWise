@@ -8,10 +8,9 @@ import { Wordmark as AppWordmark } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Card } from "@/components/ui";
 import SignInButtons from "./SignInButtons";
+import { signIn as signInPage } from "@/lib/copy/pages";
 
-export const metadata = {
-  title: "Sign in — ReadWise",
-};
+export const metadata = signInPage;
 
 const ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:

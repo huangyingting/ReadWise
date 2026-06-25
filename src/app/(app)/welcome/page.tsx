@@ -1,9 +1,8 @@
 import { requireOnboardedSession } from "@/lib/session";
 import WelcomeTour from "./WelcomeTour";
+import { welcome } from "@/lib/copy/pages";
 
-export const metadata = {
-  title: "Welcome to ReadWise",
-};
+export const metadata = welcome;
 
 export default async function WelcomePage() {
   await requireOnboardedSession("/welcome");

@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { SkeletonText } from "@/components/ui/Skeleton";
+import { ui as pushUi } from "@/lib/copy/push";
 
 type PermissionState = "default" | "granted" | "denied";
 type ToggleState = "loading" | "unsupported" | "unconfigured" | "idle" | "subscribed" | "busy";
@@ -116,7 +117,7 @@ export default function PushReminderToggle() {
       });
       setState("subscribed");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to enable push notifications.");
+      setError(err instanceof Error ? err.message : pushUi.subscribeError);
       setState("idle");
     }
   }, [vapidKey]);
@@ -135,7 +136,7 @@ export default function PushReminderToggle() {
       }
       setState("idle");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Failed to disable push notifications.");
+      setError(err instanceof Error ? err.message : pushUi.unsubscribeError);
       setState("subscribed");
     }
   }, []);
@@ -149,7 +150,7 @@ export default function PushReminderToggle() {
   if (state === "unsupported") {
     return (
       <p className="text-[length:var(--text-sm)] text-text-muted m-0">
-        Push notifications are not supported in your browser.
+        {pushUi.unsupportedText}
       </p>
     );
   }
@@ -169,14 +170,14 @@ export default function PushReminderToggle() {
       <div className="flex items-center justify-between gap-[var(--space-4)]">
         <div>
           <div className="font-medium text-text text-[length:var(--text-sm)]">
-            Review reminders
+            {pushUi.toggleLabel}
           </div>
           <div className="text-text-muted text-[length:var(--text-xs)] mt-[var(--space-0-5)]">
             {isDenied
-              ? "Notifications are blocked. Enable them in your browser settings."
+              ? pushUi.deniedInfo
               : isSubscribed
-                ? "Push notifications are enabled. You'll get a reminder when words are ready to review — at most one reminder per day."
-                : "Get notified when words in your study list are ready to review again."}
+                ? pushUi.subscribedInfo
+                : pushUi.subscribePrompt}
           </div>
         </div>
         {isDenied ? null : (
@@ -184,14 +185,14 @@ export default function PushReminderToggle() {
             checked={isSubscribed}
             onCheckedChange={isSubscribed ? () => void unsubscribe() : () => void subscribe()}
             disabled={isBusy}
-            aria-label={isSubscribed ? "Disable review reminders" : "Enable review reminders"}
+            aria-label={isSubscribed ? pushUi.disableAriaLabel : pushUi.enableAriaLabel}
             className="shrink-0"
           />
         )}
       </div>
       {isBusy && (
         <p className="text-[length:var(--text-xs)] text-text-muted" aria-live="polite">
-          {isSubscribed ? "Disabling…" : "Enabling…"}
+          {isSubscribed ? pushUi.disablingText : pushUi.enablingText}
         </p>
       )}
       {error && (

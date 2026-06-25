@@ -11,8 +11,9 @@ import ActivityHeatmap from "@/components/ActivityHeatmap";
 import LevelTimeline from "@/components/LevelTimeline";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
+import { progress } from "@/lib/copy/pages";
 
-export const metadata = { title: "My Progress — ReadWise" };
+export const metadata = progress;
 
 // ---------------------------------------------------------------------------
 // Mini bar-chart (pure CSS/div — no chart lib needed)
