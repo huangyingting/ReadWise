@@ -12,10 +12,11 @@
  * Positioning mirrors the SelectionToolbar clamp/flip/mini-player logic.
  */
 
-import { useRef, useEffect, useCallback, useState } from "react";
+import { useRef, useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ConfirmAction from "@/components/ConfirmAction";
 import type { Highlight, HighlightColor } from "./ReaderHighlightsProvider";
 import { SWATCH_COLORS } from "./SelectionToolbar";
@@ -95,28 +96,11 @@ export default function HighlightEditPopover({
 
   // Swatch arrow-key navigation
   const swatchGroupRef = useRef<HTMLDivElement>(null);
-  const handleSwatchKey = useCallback(
-    (e: React.KeyboardEvent, index: number) => {
-      const group = swatchGroupRef.current;
-      if (!group) return;
-      const btns = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        const next = (index + 1) % btns.length;
-        btns[next]?.focus();
-        onColorChange(SWATCH_COLORS[next].color);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        const prev = (index - 1 + btns.length) % btns.length;
-        btns[prev]?.focus();
-        onColorChange(SWATCH_COLORS[prev].color);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    },
-    [onColorChange, onClose],
-  );
+  const { handleKeyDown: handleSwatchKey } = useRovingTabindex(swatchGroupRef, {
+    selector: "button",
+    onNavigate: (i) => onColorChange(SWATCH_COLORS[i].color),
+    onEscape: onClose,
+  });
 
   function handleNoteSave() {
     const trimmed = noteText.trim();

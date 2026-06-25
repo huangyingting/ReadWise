@@ -14,9 +14,10 @@
  *  - Horizontal: centered on selection, clamped with 12px gutters
  */
 
-import { useRef, useEffect, useCallback } from "react";
+import { useRef, useEffect } from "react";
 import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import type { HighlightColor } from "./ReaderHighlightsProvider";
 
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
@@ -101,31 +102,14 @@ export default function SelectionToolbar({
     el.style.top = `${top}px`;
   }, [selectionRect]);
 
-  // Tab focus management: left/right arrow for swatches (roving tabindex)
+  // Roving tabindex for color swatches
   const swatchGroupRef = useRef<HTMLDivElement>(null);
 
-  const handleSwatchKey = useCallback(
-    (e: React.KeyboardEvent, index: number) => {
-      const group = swatchGroupRef.current;
-      if (!group) return;
-      const btns = Array.from(group.querySelectorAll<HTMLButtonElement>("button"));
-      if (e.key === "ArrowRight") {
-        e.preventDefault();
-        const next = (index + 1) % btns.length;
-        btns[next]?.focus();
-        onColorChange(SWATCH_COLORS[next].color);
-      } else if (e.key === "ArrowLeft") {
-        e.preventDefault();
-        const prev = (index - 1 + btns.length) % btns.length;
-        btns[prev]?.focus();
-        onColorChange(SWATCH_COLORS[prev].color);
-      } else if (e.key === "Escape") {
-        e.preventDefault();
-        onClose();
-      }
-    },
-    [onColorChange, onClose],
-  );
+  const { handleKeyDown: handleSwatchKey } = useRovingTabindex(swatchGroupRef, {
+    selector: "button",
+    onNavigate: (i) => onColorChange(SWATCH_COLORS[i].color),
+    onEscape: onClose,
+  });
 
   return (
     <div

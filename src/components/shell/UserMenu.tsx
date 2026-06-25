@@ -7,6 +7,7 @@ import { Settings, Shield, LogOut, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import Avatar from "@/components/ui/Avatar";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
+import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import type { ShellUser } from "./types";
 
 export default function UserMenu({ user }: { user: ShellUser }) {
@@ -17,22 +18,14 @@ export default function UserMenu({ user }: { user: ShellUser }) {
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Global "?" shortcut — open the shortcuts panel when focus is not in a field.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key !== "?" || e.metaKey || e.ctrlKey || e.altKey) return;
-      const target = e.target as Element | null;
-      const inEditable =
-        target instanceof HTMLInputElement ||
-        target instanceof HTMLTextAreaElement ||
-        (target instanceof HTMLElement && target.isContentEditable);
-      if (!inEditable) {
-        e.preventDefault();
-        setShortcutsOpen(true);
-      }
-    }
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, []);
+  useKeyboardShortcut(
+    "?",
+    (e) => {
+      e.preventDefault();
+      setShortcutsOpen(true);
+    },
+    { suppressInInput: true, suppressOnModifiers: true },
+  );
 
   const isAdmin = user.role === "Admin";
 

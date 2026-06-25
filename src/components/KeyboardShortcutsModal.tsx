@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "@/lib/keyboard-shortcuts";
+import { useFocusTrap } from "@/lib/focus-trap";
 
 // ---------------------------------------------------------------------------
 // Internal sub-components
@@ -79,51 +80,13 @@ export default function KeyboardShortcutsModal({
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
-  // Focus the close button when the modal opens.
-  useEffect(() => {
-    closeButtonRef.current?.focus();
-  }, []);
-
-  // Keyboard handling: Esc to close + focus trap. Registered in the CAPTURE
-  // phase so this topmost overlay sees the key first; on Esc we
-  // stopImmediatePropagation so a background overlay (e.g. the More sheet this
-  // modal can open on top of) doesn't ALSO close on the same keypress.
-  useEffect(() => {
-    function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") {
-        e.preventDefault();
-        e.stopImmediatePropagation();
-        onClose();
-        return;
-      }
-
-      if (e.key === "Tab" && dialogRef.current) {
-        const focusable = Array.from(
-          dialogRef.current.querySelectorAll<HTMLElement>(
-            'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-          ),
-        ).filter((el) => el.tabIndex >= 0);
-        if (focusable.length === 0) return;
-        const first = focusable[0];
-        const last = focusable[focusable.length - 1];
-
-        if (e.shiftKey) {
-          if (document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          }
-        } else {
-          if (document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
-        }
-      }
-    }
-
-    document.addEventListener("keydown", onKeyDown, true);
-    return () => document.removeEventListener("keydown", onKeyDown, true);
-  }, [onClose]);
+  // Focus trap: capture phase + stopImmediatePropagation so a background overlay
+  // (e.g. the More sheet) doesn't also close when this modal handles Escape.
+  useFocusTrap(dialogRef, true, onClose, {
+    capture: true,
+    stopEscapePropagation: true,
+    initialFocusRef: closeButtonRef,
+  });
 
   return (
     /* Backdrop */
