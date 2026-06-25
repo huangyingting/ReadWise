@@ -6,8 +6,15 @@ import { listMembers } from "@/lib/admin-members";
 import AdminMemberActions from "@/components/AdminMemberActions";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
-import { Button, buttonVariants } from "@/components/ui/Button";
+import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
+import {
+  AdminPageHeader,
+  AdminFilterBar,
+  AdminResultCount,
+  AdminTableWrap,
+  AdminPagination,
+} from "@/components/admin";
 
 type SearchParams = {
   q?: string;
@@ -46,20 +53,11 @@ export default async function AdminMembersPage({
 
   const result = await listMembers({ query, role, page });
 
-  const showingFrom =
-    result.total === 0 ? 0 : (result.page - 1) * result.pageSize + 1;
-  const showingTo = Math.min(result.page * result.pageSize, result.total);
-
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Members
-      </h1>
+      <AdminPageHeader>Members</AdminPageHeader>
 
-      <form
-        method="get"
-        className="flex flex-wrap gap-[var(--space-2)] items-center"
-      >
+      <AdminFilterBar>
         <Input
           type="search"
           name="q"
@@ -85,127 +83,96 @@ export default async function AdminMembersPage({
         <Button type="submit" variant="primary" size="md" className="w-auto">
           Search
         </Button>
-      </form>
+      </AdminFilterBar>
 
-      <p className="muted" style={{ margin: 0 }}>
-        {result.total === 0
-          ? "No members match."
-          : `Showing ${showingFrom}–${showingTo} of ${result.total}`}
-      </p>
+      <AdminResultCount
+        total={result.total}
+        page={result.page}
+        pageSize={result.pageSize}
+        noun="members"
+      />
 
       {result.members.length > 0 && (
-        <div
-          className="admin-table-wrap"
-          tabIndex={0}
-          aria-label="Members table (scrollable)"
-        >
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Member</th>
-                <th>Role</th>
-                <th>Joined</th>
-                <th>Activity</th>
-                <th>Manage</th>
-              </tr>
-            </thead>
-            <tbody>
-              {result.members.map((m) => {
-                const isSelf = m.id === session.user.id;
-                return (
-                  <tr key={m.id}>
-                    <td>
-                      <div className="admin-member-cell">
-                        <Avatar
-                          src={m.image}
-                          name={m.name ?? m.email}
-                          size={32}
-                          className="admin-member-avatar"
-                        />
-                        <span className="admin-member-name">
-                          <span>
-                            <Link href={`/admin/members/${m.id}`}>
-                              {m.name ?? "—"}
-                            </Link>
-                            {isSelf && (
-                              <Badge
-                                variant="neutral"
-                                className="ml-[var(--space-1)]"
-                              >
-                                You
-                              </Badge>
-                            )}
-                          </span>
-                          <span className="muted">{m.email ?? "no email"}</span>
+        <AdminTableWrap ariaLabel="Members table (scrollable)">
+          <thead>
+            <tr>
+              <th>Member</th>
+              <th>Role</th>
+              <th>Joined</th>
+              <th>Activity</th>
+              <th>Manage</th>
+            </tr>
+          </thead>
+          <tbody>
+            {result.members.map((m) => {
+              const isSelf = m.id === session.user.id;
+              return (
+                <tr key={m.id}>
+                  <td>
+                    <div className="admin-member-cell">
+                      <Avatar
+                        src={m.image}
+                        name={m.name ?? m.email}
+                        size={32}
+                        className="admin-member-avatar"
+                      />
+                      <span className="admin-member-name">
+                        <span>
+                          <Link href={`/admin/members/${m.id}`}>
+                            {m.name ?? "—"}
+                          </Link>
+                          {isSelf && (
+                            <Badge
+                              variant="neutral"
+                              className="ml-[var(--space-1)]"
+                            >
+                              You
+                            </Badge>
+                          )}
                         </span>
-                      </div>
-                    </td>
-                    <td>
-                      <Badge
-                        variant={m.role === "Admin" ? "primary" : "neutral"}
+                        <span className="muted">{m.email ?? "no email"}</span>
+                      </span>
+                    </div>
+                  </td>
+                  <td>
+                    <Badge
+                      variant={m.role === "Admin" ? "primary" : "neutral"}
+                    >
+                      {m.role}
+                    </Badge>
+                  </td>
+                  <td className="muted">{dateLabel(m.createdAt)}</td>
+                  <td className="muted">
+                    {m.articlesStarted} started · {m.articlesCompleted} done ·{" "}
+                    {m.savedWords} words
+                  </td>
+                  <td>
+                    <div className="flex flex-col gap-[var(--space-1)] items-start">
+                      <Link
+                        className="text-[length:var(--text-sm)]"
+                        href={`/admin/members/${m.id}`}
                       >
-                        {m.role}
-                      </Badge>
-                    </td>
-                    <td className="muted">{dateLabel(m.createdAt)}</td>
-                    <td className="muted">
-                      {m.articlesStarted} started · {m.articlesCompleted} done ·{" "}
-                      {m.savedWords} words
-                    </td>
-                    <td>
-                      <div className="flex flex-col gap-[var(--space-1)] items-start">
-                        <Link
-                          className="text-[length:var(--text-sm)]"
-                          href={`/admin/members/${m.id}`}
-                        >
-                          View &amp; support →
-                        </Link>
-                        <AdminMemberActions
-                          memberId={m.id}
-                          role={m.role}
-                          isSelf={isSelf}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                        View &amp; support →
+                      </Link>
+                      <AdminMemberActions
+                        memberId={m.id}
+                        role={m.role}
+                        isSelf={isSelf}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </AdminTableWrap>
       )}
 
-      {result.totalPages > 1 && (
-        <div className="admin-pagination">
-          {result.page > 1 ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({ q: query, role, page: result.page - 1 })}
-            >
-              ← Previous
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              ← Previous
-            </Button>
-          )}
-          <span className="muted">
-            Page {result.page} of {result.totalPages}
-          </span>
-          {result.page < result.totalPages ? (
-            <Link
-              className={buttonVariants({ variant: "outline", size: "sm" })}
-              href={buildHref({ q: query, role, page: result.page + 1 })}
-            >
-              Next →
-            </Link>
-          ) : (
-            <Button variant="outline" size="sm" disabled>
-              Next →
-            </Button>
-          )}
-        </div>
-      )}
+      <AdminPagination
+        page={result.page}
+        totalPages={result.totalPages}
+        buildHref={(p) => buildHref({ q: query, role, page: p })}
+      />
     </section>
   );
 }

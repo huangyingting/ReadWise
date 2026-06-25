@@ -1,10 +1,9 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { Button } from "@/components/ui/Button";
+import { useAdminAction } from "@/hooks/useAdminAction";
 
 /**
  * Inline admin actions for a single job row. Retry is a direct (safe) action;
@@ -22,23 +21,8 @@ export default function AdminJobActions({
   canCancel: boolean;
   canArchive: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState<null | "retry" | "cancel" | "archive">(null);
-  const [error, setError] = useState<string | null>(null);
-  const [openPanel, setOpenPanel] = useState<"cancel" | "archive" | null>(null);
-
-  async function run(action: "retry" | "cancel" | "archive") {
-    setBusy(action);
-    setError(null);
-    try {
-      await postJson(`/api/admin/jobs/${jobId}`, { action });
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : `${action} failed`);
-    } finally {
-      setBusy(null);
-    }
-  }
+  const { busy, error, openPanel, setOpenPanel, run } =
+    useAdminAction<"retry" | "cancel" | "archive">();
 
   return (
     <div className="admin-actions">
@@ -49,7 +33,7 @@ export default function AdminJobActions({
             size="sm"
             loading={busy === "retry"}
             disabled={busy !== null}
-            onClick={() => run("retry")}
+            onClick={() => run("retry", () => postJson(`/api/admin/jobs/${jobId}`, { action: "retry" }))}
           >
             Retry
           </Button>
@@ -61,7 +45,7 @@ export default function AdminJobActions({
             confirmVariant="danger"
             confirmLabel="Confirm cancel"
             confirmMessage="Cancel this job? It will be moved to the dead-letter queue and stop being retried."
-            onConfirm={() => run("cancel")}
+            onConfirm={() => run("cancel", () => postJson(`/api/admin/jobs/${jobId}`, { action: "cancel" }))}
             loading={busy === "cancel"}
             disabled={busy !== null}
             open={openPanel === "cancel"}
@@ -75,7 +59,7 @@ export default function AdminJobActions({
             confirmVariant="danger"
             confirmLabel="Confirm archive"
             confirmMessage="Permanently delete this finished job record? This cannot be undone."
-            onConfirm={() => run("archive")}
+            onConfirm={() => run("archive", () => postJson(`/api/admin/jobs/${jobId}`, { action: "archive" }))}
             loading={busy === "archive"}
             disabled={busy !== null}
             open={openPanel === "archive"}
