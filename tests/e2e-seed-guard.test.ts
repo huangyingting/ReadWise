@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { assertSafeE2eDatabaseUrl } from "../e2e/support/db-guard";
+import { assertSafeE2eDatabaseUrl } from "@/lib/testing/db-guard";
 
 test("allows the default isolated Playwright database", () => {
   assert.doesNotThrow(() =>
