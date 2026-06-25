@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { idParams, object, number } from "@/lib/validation";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { clampActiveTime, MAX_ACTIVE_TIME_MS } from "@/lib/reading-speed";
 
@@ -25,13 +25,7 @@ const bodySchema = object({
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ params, body, session }) => {
-    const article = await getReadableArticleById(
-      params.id,
-      articleAccessContext(session.user),
-    );
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    await requireReadableArticle(params.id, session.user);
 
     // Belt-and-suspenders clamp (schema already enforces max, but be explicit).
     const deltaMs = clampActiveTime(body.activeMs);
