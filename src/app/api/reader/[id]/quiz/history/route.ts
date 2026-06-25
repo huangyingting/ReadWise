@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { getArticleQuizHistory } from "@/lib/quiz-mastery";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 
 /**
  * GET /api/reader/[id]/quiz/history
@@ -21,10 +21,7 @@ import { articleAccessContext, getReadableArticleById } from "@/lib/article-acce
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    const { article } = await requireReadableArticle(params.id, session.user);
 
     const history = await getArticleQuizHistory(session.user.id, article.id);
     return NextResponse.json(history);

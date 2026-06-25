@@ -4,7 +4,7 @@ import { idParams, object, number, array, optional, nonEmptyString } from "@/lib
 import { recordQuizAttempt } from "@/lib/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
@@ -40,11 +40,7 @@ const bodySchema = object({
 export const POST = createHandler(
   { params: idParams, body: bodySchema },
   async ({ req, params, body, session }) => {
-    const context = articleAccessContext(session.user);
-    const article = await getReadableArticleById(params.id, context);
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    const { article, context } = await requireReadableArticle(params.id, session.user);
 
     // Load the canonical cached quiz (already gated by article access above).
     const quiz = await getOrCreateArticleQuiz(article.id, context);

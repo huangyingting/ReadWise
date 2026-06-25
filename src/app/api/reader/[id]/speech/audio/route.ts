@@ -1,7 +1,7 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { getMediaStorage } from "@/lib/storage";
 
 export const runtime = "nodejs";
@@ -17,9 +17,7 @@ export const runtime = "nodejs";
  * one user's audio to another.
  */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
-  const context = articleAccessContext(session.user);
-  const article = await getReadableArticleById(params.id, context);
-  if (!article) throw new ApiError(404, "Article not found");
+  await requireReadableArticle(params.id, session.user);
 
   const speechRow = await prisma.articleSpeech.findUnique({
     where: { articleId: params.id },

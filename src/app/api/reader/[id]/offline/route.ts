@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { readingMinutesFor } from "@/lib/articles";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { contentHash, makeArticleVersion } from "@/lib/cache-version";
 
@@ -24,10 +24,7 @@ export const GET = createHandler(
     query: (params) => ({ ok: true, value: { meta: params.get("meta") === "1" } }),
   },
   async ({ params, query, session }) => {
-    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    const { article } = await requireReadableArticle(params.id, session.user);
 
     const sanitizedHtml = sanitizeArticleHtml(article.content);
     const hash = contentHash(sanitizedHtml);

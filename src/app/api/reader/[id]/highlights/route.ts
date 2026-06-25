@@ -12,11 +12,10 @@ import {
   listHighlights,
   createHighlight,
   annotateHighlightAnchors,
-  HIGHLIGHT_COLORS,
   HIGHLIGHT_NOTE_MAX,
 } from "@/lib/highlights";
 import type { HighlightColor } from "@/lib/highlights";
-import { articleAccessContext, getReadableArticleById } from "@/lib/article-access";
+import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { htmlToPlainText } from "@/lib/translation";
 
 const createBody = object({
@@ -32,10 +31,7 @@ const createBody = object({
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    const { article } = await requireReadableArticle(params.id, session.user);
     const highlights = await listHighlights(session.user.id, params.id);
     // RW-043 — flag highlights whose anchor no longer matches the current
     // content as stale (revalidation), without dropping any.
@@ -48,10 +44,7 @@ export const GET = createHandler(
 export const POST = createHandler(
   { params: idParams, body: createBody },
   async ({ params, body, session }) => {
-    const article = await getReadableArticleById(params.id, articleAccessContext(session.user));
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
+    await requireReadableArticle(params.id, session.user);
 
     const result = await createHighlight(session.user.id, params.id, {
       quote: body.quote,
