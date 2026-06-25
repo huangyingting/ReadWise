@@ -1,3 +1,9 @@
+/**
+ * HTML sanitizer — strips unsafe tags and attributes before rendering.
+ *
+ * @server-only — sanitize-html has Node.js dependencies; never import from
+ * a "use client" file. See docs/refactoring.md § REF-076.
+ */
 import sanitizeHtml from "sanitize-html";
 
 const ALLOWED_TAGS = [
