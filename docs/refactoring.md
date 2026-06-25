@@ -269,6 +269,276 @@ The tenth scan found additional hotspots:
   tests (`BackfillDeps`, `SeedDeps`, worker deps, query clients), while others
   mock modules directly. There is no convention for where seams belong.
 
+## Themes, epics, and index
+
+REF items are grouped by subsystem theme for planning and epic creation. Use
+this index to find related items, understand sequencing dependencies, drive
+priority-tier planning, and generate GitHub issues without re-running analysis.
+
+### Theme taxonomy
+
+Each theme maps to one or more GitHub epics labelled `area: <theme>`. Assign
+the label when creating issues from candidates below.
+
+| Theme | Description | REF items |
+|-------|-------------|-----------|
+| **platform** | Runtime config, auth/security governance, CLI tooling, import boundaries, utility modules, domain error contracts, compatibility cleanup | REF-002, REF-009, REF-037, REF-044, REF-052, REF-060, REF-064, REF-073, REF-076, REF-079, REF-082, REF-085 |
+| **api** | Route handlers, shared handler wrappers, client fetch, tenant services, validation schemas, API contracts, page data access | REF-003, REF-014, REF-024, REF-042, REF-043, REF-070, REF-081 |
+| **ai** | AI client orchestration, budgets/ledger, prompt registry, AI eval, cache-first feature services, AI output validation, tag taxonomy | REF-022, REF-023, REF-026, REF-027, REF-041, REF-047, REF-067 |
+| **reader** | Reader page shell, client providers, WordLookup, pronunciation, reader display prefs, study panels, annotation domain service | REF-004, REF-005, REF-029, REF-030, REF-050, REF-055, REF-062 |
+| **learning** | Flashcard/SRS, learning mastery, study plan, engagement/streaks, CEFR/difficulty/placement, lexical tooling, practice attempts | REF-006, REF-028, REF-045, REF-046, REF-048, REF-051 |
+| **content-ingestion** | Scraper providers, feed/recommendations, processing subsystem, article import, article search, article library, HTML safety pipeline | REF-010, REF-016, REF-017, REF-025, REF-031, REF-038, REF-040, REF-072 |
+| **data-schema** | Prisma schema parity, migrations, analytics queries, listing cache keys, analytics event stream | REF-019, REF-039, REF-049, REF-069 |
+| **observability** | Client error reporting, metrics registry, observability core (logger, tracing, SLO) | REF-015, REF-018, REF-053 |
+| **frontend** | Global CSS, reading-list UI, onboarding, command palette, offline storage UI, admin UI, app shell, UI primitives, listing cards, dashboard pages, route segment states, profile/preferences UI, product copy, legal pages, browser storage keys, keyboard shortcuts, static assets, display formatting, option registries | REF-001, REF-007, REF-011, REF-012, REF-021, REF-032, REF-054, REF-057, REF-058, REF-059, REF-063, REF-068, REF-074, REF-075, REF-077, REF-078, REF-080, REF-083, REF-084 |
+| **tests** | PostgreSQL test support, route test harnesses, seed/E2E fixtures, DI/test seam patterns | REF-013, REF-033, REF-065, REF-086 |
+| **operations** | Job queue, speech pipeline, CLI utilities, media storage, push/reminders, worker runtime, PWA/offline, word-frequency data | REF-008, REF-020, REF-034, REF-035, REF-036, REF-056, REF-061, REF-066 |
+| **planning** | Refactoring program governance, backlog organization, issue-generation workflow | REF-071 |
+
+### Priority tiers
+
+| Priority | Definition | P0 items | P1 items | P2 items | P3 items |
+|----------|-----------|----------|----------|----------|----------|
+| **P0** | Foundation blockers — address before other items in the same area can land safely | REF-001, REF-002, REF-003, REF-014, REF-016, REF-025, REF-026, REF-060, REF-069, REF-072, REF-076, REF-082 | — | — | — |
+| **P1** | High-value refactors — pick up immediately after P0 items in the same theme are complete | — | REF-004, REF-005, REF-006, REF-007, REF-008, REF-009, REF-015, REF-017, REF-018, REF-020, REF-021, REF-024(?), REF-029, REF-030, REF-031, REF-033, REF-037, REF-038, REF-040, REF-047, REF-050, REF-055, REF-056, REF-058, REF-062, REF-066, REF-071 | — | — |
+| **P2** | Normal backlog — pick up in dependency order after higher-priority items clear | — | — | REF-010, REF-011, REF-012, REF-013, REF-019, REF-022, REF-023, REF-024, REF-027, REF-028, REF-032, REF-034, REF-035, REF-036, REF-039, REF-041, REF-042, REF-043, REF-044, REF-045, REF-046, REF-048, REF-049, REF-051, REF-052, REF-053, REF-054, REF-057, REF-059, REF-063, REF-064, REF-065, REF-067, REF-068, REF-070, REF-073, REF-077, REF-078, REF-079, REF-081, REF-083, REF-084, REF-086 | — |
+| **P3** | Deferred / nice-to-have — address opportunistically | — | — | — | REF-061, REF-074, REF-075, REF-080, REF-085 |
+
+### Dependency map
+
+Items that should be completed (or substantially started) before downstream
+work begins. Arrows indicate "must precede".
+
+```
+Platform foundations
+  REF-002 (runtime config)   → REF-073 (external HTTP clients)
+  REF-076 (import boundaries) → all client-component migrations
+
+API / route foundations
+  REF-014 (client fetch layer) → REF-004, REF-007, REF-011, REF-012, REF-030, REF-058
+  REF-043 (route schemas)      → REF-003, REF-014, REF-024, REF-042
+  REF-003 (reader route guard) → REF-004, REF-005, REF-029, REF-030, REF-062
+  REF-044 (auth guards)        → REF-037, REF-052
+
+AI foundations
+  REF-026 (AI orchestration)   → REF-027 (prompt registry), REF-047 (cache-first AI), REF-067 (AI validation)
+  REF-047 (cache-first AI)     → REF-022 (tutor), REF-041 (tag taxonomy)
+
+Content ingestion chain
+  REF-016 (scraper package)    → REF-017 (feed/recommendations), REF-031 (import), REF-072 (HTML pipeline)
+  REF-025 (processing subsystem) → REF-031 (import service), REF-066 (worker runtime)
+  REF-072 (HTML pipeline)      → REF-004 (WordLookup safe render), REF-050 (annotations)
+
+Reader chain
+  REF-029 (reader page shell)  → REF-030 (reader providers), REF-055 (reader prefs), REF-062 (study panels)
+  REF-050 (annotations)        → REF-004 (WordLookup), REF-030 (reader providers)
+
+Learning chain
+  REF-028 (mastery signals)    → REF-045 (engagement), REF-051 (practice attempts)
+  REF-046 (CEFR/difficulty)    → REF-028 (mastery), REF-048 (lexical tooling)
+
+Observability chain
+  REF-053 (observability core) → REF-015 (client error reporting), REF-018 (metrics), REF-049 (analytics)
+
+Data/schema chain
+  REF-069 (Prisma parity)      → REF-009 (legacy compat removal), REF-039 (cache keys)
+
+Test infrastructure
+  REF-033 (route test harnesses) → REF-013 (postgres test support), REF-065 (seed/fixtures)
+  REF-086 (DI/seam patterns)     → REF-033, REF-065
+```
+
+### Overlapping and cross-linked candidates
+
+Items that share domain or implementation scope. When picking up a candidate,
+read all items it is cross-linked with to avoid inconsistent solutions.
+
+| Primary item | Cross-linked items | Overlap description |
+|---|---|---|
+| REF-010 | REF-017 | Both address the dual recommendation/feed engines. REF-017 is the broader consolidation. |
+| REF-015 | REF-053 | Client error reporting is a subsystem of the observability core. Start REF-053 first. |
+| REF-037 | REF-044, REF-060 | Security governance, auth guards, and CSP/headers all govern request safety. Align in one epic. |
+| REF-039 | REF-047 | Cache key centralization and cache-first AI services both need a consistent cache-key contract. |
+| REF-041 | REF-016, REF-027 | Tag taxonomy rules appear in AI tag prompts and scraper category rules. |
+| REF-046 | REF-028, REF-048 | CEFR/difficulty, mastery signals, and lexical tooling share leveling thresholds and word-form normalization. |
+| REF-054 | REF-068, REF-012 | App shell navigation, user profile preferences, and command palette all read/write shell localStorage state. |
+| REF-082 | REF-043, REF-070 | Domain command contracts, route validation schemas, and the API catalog define the same API surface. |
+| REF-083 | REF-084, REF-085 | Display formatting, option registries, and utility modules are all platform-primitive concerns. |
+| REF-085 | REF-086 | Utility module governance and DI/seam patterns are both platform hygiene items — address together. |
+
+---
+
+## Issue-generation workflow
+
+Use this workflow when converting a REF candidate into a GitHub issue or epic.
+It applies equally to manual issue creation and to automated output from
+`scripts/export-backlog.ts`.
+
+### Pre-flight checklist
+
+Before opening an issue for a REF candidate:
+
+- [ ] Read the full candidate text (problem, best strategy, detailed
+      requirements, acceptance checks, suggested issue split).
+- [ ] Check the **Overlapping candidates** table above. If the candidate
+      overlaps with others, decide whether to address them together or leave
+      explicit cross-links in the issue body.
+- [ ] Check the **Dependency map**. List any upstream items that should land
+      before this one.
+- [ ] Confirm the candidate is not already tracked in the issue tracker
+      (search by REF ID and by title keywords).
+- [ ] Choose an issue split strategy from the candidate's "Suggested issue
+      split" section.
+
+### Issue body template
+
+Paste this template when opening a GitHub issue from a REF candidate. Fill
+every field; leave no placeholder text in the opened issue.
+
+```markdown
+## Refactoring candidate <REF-NNN>
+
+Parent epic: #<epic-issue-number> — [EPIC] <epic-title>
+
+Source backlog: `docs/refactoring.md`, heading `<REF-NNN>` (anchor: `<anchor>`).
+
+## Why this matters
+
+<One paragraph copied or paraphrased from the candidate "Problem" section.>
+
+## Source backlog details
+
+Priority: <P0|P1|P2|P3>. Area: <area>. Theme: <theme>.
+
+<Full "Detailed requirements" block from the candidate.>
+
+## Dependencies
+
+Depends on: <list REF IDs or issue numbers, or "none">.
+Blocking: <list downstream REF IDs, or "none">.
+
+## Cross-links
+
+Overlaps with: <list cross-linked REF IDs with one-line note, or "none">.
+
+## Acceptance checks
+
+<Full "Acceptance checks" block from the candidate.>
+
+## Risk and validation scope
+
+Risk: <low|medium|high> — <one sentence why>.
+Validation: <narrowest useful check, e.g. "npm run typecheck && npm test">.
+Docs impact: <yes — update X / no>.
+Migration impact: <yes — describe / no>.
+Compatibility-removal gate: <describe guard condition, or "n/a">.
+
+## Suggested issue split
+
+<Full "Suggested issue split" block from the candidate.>
+
+## Coding-agent execution checklist
+
+- [ ] Read `AGENTS.md` and the source files referenced by the backlog item before editing.
+- [ ] Identify current behavior and preserve it unless this issue explicitly calls for deletion of legacy/compatibility code.
+- [ ] Make the smallest incremental refactor that creates a clearer boundary or reusable subsystem.
+- [ ] Avoid broad rewrites and unrelated formatting changes.
+- [ ] Add or update focused tests at the narrowest useful seam; mock database/network/AI/storage where appropriate.
+- [ ] Update docs if behavior, scripts, env vars, schema, runtime workflows, or operator instructions change.
+- [ ] Run the narrowest relevant validation first, then broaden if the touched area warrants it.
+- [ ] Include this issue number in the PR description and summarize any follow-up issues discovered.
+```
+
+### Epic structure
+
+Each theme gets one parent epic issue. Child issues (one per REF candidate, or
+one per "Suggested issue split" item) are linked to the parent using GitHub's
+sub-issue / parent relationship. Recommended epic labels:
+
+| Epic title | Labels |
+|---|---|
+| [EPIC] Refactor Platform Foundations | `epic`, `area: platform`, `refactoring` |
+| [EPIC] Refactor API Contracts and Route Layer | `epic`, `area: api`, `refactoring` |
+| [EPIC] Refactor AI Platform and Feature Services | `epic`, `area: ai`, `refactoring` |
+| [EPIC] Refactor Reader Shell and Providers | `epic`, `area: reader`, `refactoring` |
+| [EPIC] Refactor Learning Systems | `epic`, `area: learning`, `refactoring` |
+| [EPIC] Refactor Content Ingestion Pipeline | `epic`, `area: content-ingestion`, `refactoring` |
+| [EPIC] Refactor Data and Schema Governance | `epic`, `area: data-schema`, `refactoring` |
+| [EPIC] Refactor Observability and Error Reporting | `epic`, `area: observability`, `refactoring` |
+| [EPIC] Refactor Frontend and Design System | `epic`, `area: frontend`, `refactoring` |
+| [EPIC] Refactor Test Infrastructure | `epic`, `area: tests`, `refactoring` |
+| [EPIC] Refactor Operations and Runtime | `epic`, `area: operations`, `refactoring` |
+
+### Export for planning
+
+Run the backlog export script to generate a JSON or CSV snapshot suitable for
+spreadsheet/project-management import:
+
+```bash
+# Dry-run (prints JSON to stdout, no files written):
+node --experimental-strip-types --import ./scripts/register-ts.mjs \
+  scripts/export-backlog.ts
+
+# Write JSON file:
+node --experimental-strip-types --import ./scripts/register-ts.mjs \
+  scripts/export-backlog.ts --format json --out backlog-export.json
+
+# Write CSV file:
+node --experimental-strip-types --import ./scripts/register-ts.mjs \
+  scripts/export-backlog.ts --format csv --out backlog-export.csv
+```
+
+The script parses `docs/refactoring.md` directly and does not contact GitHub or
+write to any external service. It is safe to run in any environment.
+
+---
+
+## Closing and superseding candidates
+
+When a refactor lands, update this document to record the outcome.
+
+### Process
+
+1. **Open**: add the issue to the tracker using the template above. Leave the
+   candidate in `docs/refactoring.md` unchanged so the full rationale is
+   preserved for PR reviewers.
+
+2. **In progress**: add a "Status" line to the candidate heading:
+
+   ```markdown
+   ### REF-NNN — <title>
+
+   Status: in progress — tracked in #<issue-number>.
+   ```
+
+3. **Done**: replace the "Status" line with a "Resolved" line after the PR
+   merges:
+
+   ```markdown
+   ### REF-NNN — <title>
+
+   Status: resolved in #<pr-number> (<YYYY-MM-DD>).
+   ```
+
+   Do not delete the candidate text; it serves as an audit trail and
+   rationale for reviewers of subsequent changes.
+
+4. **Superseded / merged**: if the candidate is fully covered by another item
+   or absorbed into a broader refactor, add:
+
+   ```markdown
+   Status: superseded by REF-NNN / #<issue-number>.
+   ```
+
+5. **Won't fix / deferred indefinitely**: document the decision in a
+   "Status" line with a brief rationale so future engineers do not re-open it:
+
+   ```markdown
+   Status: deferred — <one-line reason> (<YYYY-MM-DD>).
+   ```
+
+---
+
 ## Candidate issues
 
 ### REF-001 — Split global CSS into styling subsystems
@@ -3306,6 +3576,10 @@ Suggested issue split:
 4. Add route inventory drift tests.
 
 ### REF-071 — Organize the refactoring backlog into epics, themes, and issue-generation workflow
+
+Status: resolved in #508 (2026-06-25). Theme index, dependency map, overlap
+cross-links, issue-generation workflow, closing/superseding process, and export
+script (`scripts/export-backlog.ts`) added above.
 
 Priority: P1. Area: planning/developer workflow.
 
