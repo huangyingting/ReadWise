@@ -13,6 +13,7 @@
  * modules because it contains only plain string constants.
  */
 import { SITE_NAME } from "./site";
+import { ICON_192 } from "@/lib/assets";
 
 // ---------------------------------------------------------------------------
 // Push notification payload (server-side — src/lib/push.ts)
@@ -35,7 +36,7 @@ export const reminder = {
   url: "/study",
 
   /** Icon shown in the notification (PWA icon path). */
-  icon: "/icons/icon-192.png",
+  icon: ICON_192,
 } as const satisfies {
   title: string;
   body: (count: number) => string;
