@@ -51,7 +51,8 @@ import EmptyState from "@/components/EmptyState";
 import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
-import { useReaderAudio, type SpeechWord } from "@/components/ReaderAudioProvider";
+import { useReaderAudio } from "@/components/ReaderAudioProvider";
+import { useAudioRangePlayback } from "@/components/reader/useAudioRangePlayback";
 import {
   findSpeechSentenceRange,
   splitPracticeSentences,
@@ -463,12 +464,8 @@ export default function ArticlePronunciation({
   const [savedNote, setSavedNote] = useState<SavedNote>("idle");
   const [isNewBest, setIsNewBest] = useState(false);
 
-  // ── Narration warming ─────────────────────────────────────────────────────
-  const [isWarmingNarration, setIsWarmingNarration] = useState(false);
-  const warmNarrationStartedRef = useRef(false);
-
   // ── "Hear it" range play cleanup ──────────────────────────────────────────
-  const hearItCleanupRef = useRef<(() => void) | null>(null);
+  const { playRange, stopRange } = useAudioRangePlayback(audio.audioRef);
 
   // ── First activation: fetch token + load history ──────────────────────────
   useEffect(() => {
@@ -519,12 +516,12 @@ export default function ArticlePronunciation({
     return () => {
       stopMeter();
       cancelAutoStop();
-      hearItCleanupRef.current?.();
+      stopRange();
       recognizerRef.current?.close();
       recognizerRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [stopRange]);
 
   // ── Stop mic/playback when the tab becomes hidden or the overlay closes ────
   // `active` is `open && activeTab === "speak"`, so this fires when the Speak
@@ -536,12 +533,9 @@ export default function ArticlePronunciation({
     }
     stopMeter();
     cancelAutoStop();
-    hearItCleanupRef.current?.();
-    hearItCleanupRef.current = null;
-    const audioEl = audio.audioRef.current;
-    if (audioEl && !audioEl.paused) audioEl.pause();
+    stopRange({ pause: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [active]);
+  }, [active, stopRange]);
 
   // ── Per-sentence history derived from allAttempts ─────────────────────────
   const sentenceHistory = useMemo<SentenceHistory>(() => {
@@ -640,9 +634,7 @@ export default function ArticlePronunciation({
     // Pause any playing narration before recording.
     const audioEl = audio.audioRef.current;
     if (audioEl && !audioEl.paused) {
-      audioEl.pause();
-      hearItCleanupRef.current?.();
-      hearItCleanupRef.current = null;
+      stopRange({ pause: true });
     }
 
     setPhase("recording");
@@ -833,7 +825,7 @@ export default function ArticlePronunciation({
 
     if (!audio.isLoaded && !audio.isFallback) {
       // Warm narration lazily.
-      await warmNarration();
+      await audio.warmNarration(articleId);
     }
 
     if (audio.isFallback) return; // narration unavailable
@@ -844,59 +836,7 @@ export default function ArticlePronunciation({
     const range = findSpeechSentenceRange(currentSentence, plainText, audio.words);
     if (!range) return;
 
-    // Cancel any previous range play cleanup.
-    hearItCleanupRef.current?.();
-
-    let cancelled = false;
-    function onTimeUpdate() {
-      if (cancelled) return;
-      if (audioEl!.currentTime >= range!.endTime + 0.05) {
-        cancelled = true;
-        audioEl!.pause();
-        audioEl!.removeEventListener("timeupdate", onTimeUpdate);
-        hearItCleanupRef.current = null;
-      }
-    }
-
-    audioEl.addEventListener("timeupdate", onTimeUpdate);
-    hearItCleanupRef.current = () => {
-      cancelled = true;
-      audioEl.removeEventListener("timeupdate", onTimeUpdate);
-    };
-
-    audioEl.currentTime = range.startTime;
-    void audioEl.play();
-  }
-
-  async function warmNarration(): Promise<void> {
-    if (audio.isLoaded || warmNarrationStartedRef.current) return;
-    warmNarrationStartedRef.current = true;
-    setIsWarmingNarration(true);
-    try {
-      const res = await fetch(`/api/reader/${articleId}/speech`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: "{}",
-      });
-      if (!res.ok) { audio.markFallback(); return; }
-      const body = (await res.json()) as {
-        audio: string | null;
-        plainText: string;
-        words: SpeechWord[];
-        voice: string;
-        cached: boolean;
-        fallback: boolean;
-      };
-      if (body.fallback || !body.audio) {
-        audio.markFallback();
-      } else {
-        audio.loadAudio(body.audio, body.words, body.voice, body.cached, body.plainText);
-      }
-    } catch {
-      // Silent — "Hear it" just won't work.
-    } finally {
-      setIsWarmingNarration(false);
-    }
+    playRange(range);
   }
 
   // ─── Level meter ──────────────────────────────────────────────────────────
@@ -1037,7 +977,7 @@ export default function ArticlePronunciation({
             size="sm"
             leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
-            loading={isWarmingNarration}
+            loading={audio.isWarming}
             aria-disabled={hearItDisabled || undefined}
             title={hearItTitle}
           >
@@ -1311,7 +1251,7 @@ export default function ArticlePronunciation({
             size="md"
             leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
-            loading={isWarmingNarration}
+            loading={audio.isWarming}
             disabled={hearItDisabled}
             title={hearItTitle}
             aria-label="Hear this sentence"
@@ -1329,7 +1269,7 @@ export default function ArticlePronunciation({
             size="sm"
             leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
-            loading={isWarmingNarration}
+            loading={audio.isWarming}
             disabled={hearItDisabled}
             title={hearItTitle}
             aria-label="Hear this sentence"
