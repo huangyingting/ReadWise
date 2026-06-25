@@ -21,7 +21,7 @@ import {
   summarizeAiUsage,
   type AiUsageSummary,
   type AiUsageGroup,
-} from "@/lib/ai-ledger";
+} from "@/lib/ai-usage-summary";
 import {
   getJobDashboard,
   type JobDashboard,

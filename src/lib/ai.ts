@@ -12,14 +12,14 @@
  * Mirrors the project's graceful-fallback convention: when credentials are
  * absent every helper degrades to a safe no-op (null) instead of throwing.
  *
- * Orchestration owned here (NOT in the provider):
- *   - Per-request timeout via AbortSignal (AI_REQUEST_TIMEOUT_MS, default 30s)
- *   - Bounded retry with exponential backoff + jitter on retryable provider
- *     errors (rate-limit / 5xx / timeout / network; AI_MAX_RETRIES, default 2).
- *     Honors a provider Retry-After hint.
+ * Orchestration owned here (NOT in the provider or runner):
  *   - AI budgets/quotas (RW-022), the invocation ledger (RW-019), metrics, and
  *     tracing.
  *   - Per-call structured logging: model, token usage, durationMs, outcome.
+ *
+ * Retry/timeout orchestration is delegated to {@link runAiRequest} in
+ * `@/lib/ai/runner`, which handles the retry loop, per-attempt AbortSignal,
+ * and exponential backoff independently of observability concerns.
  */
 
 import { createLogger } from "@/lib/logger";
@@ -29,6 +29,7 @@ import { withSpan, setSpanAttributes } from "@/lib/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
 import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
 import { getAiProvider } from "@/lib/ai/registry";
+import { runAiRequest } from "@/lib/ai/runner";
 import type { AiErrorKind, AiProviderCapabilities } from "@/lib/ai/provider";
 
 const log = createLogger("ai");
@@ -98,18 +99,6 @@ export function aiProviderCapabilities(): AiProviderCapabilities {
   return getAiProvider().capabilities();
 }
 
-function getTimeoutMs(): number {
-  return aiTimeoutMs();
-}
-
-function getMaxRetries(): number {
-  return aiMaxRetries();
-}
-
-function backoffMs(attempt: number, base = 1000, max = 10_000): number {
-  const exp = Math.min(max, base * 2 ** (attempt - 1));
-  return Math.min(max, exp + Math.floor(Math.random() * Math.min(base, exp)));
-}
 
 /**
  * Runs a chat completion and returns the full result including usage metadata.
@@ -169,7 +158,8 @@ export async function chatCompleteWithMeta(
     await assertAiQuota({ feature, userId: options.userId, kind: "interactive" });
   }
 
-  const maxRetries = getMaxRetries();
+  const maxRetries = aiMaxRetries();
+  const timeoutMs = aiTimeoutMs();
 
   // Child span around the provider interaction so AI calls show up as nested
   // spans under the request/job. Only low-cardinality metadata — never the
@@ -178,125 +168,107 @@ export async function chatCompleteWithMeta(
     "ai.chat_completion",
     { "readwise.feature": feature, "readwise.kind": budgetKind },
     async (span) => {
-      for (let attempt = 0; attempt <= maxRetries; attempt++) {
-        // Build the per-attempt deadline; combine with any caller signal so the
-        // provider's single fetch honors both the timeout and a caller abort.
-        const timeoutSignal = AbortSignal.timeout(getTimeoutMs());
-        const signal = options.signal
-          ? AbortSignal.any([options.signal, timeoutSignal])
-          : timeoutSignal;
-
-        const response = await provider.chat({
-          messages,
-          maxOutputTokens: options.maxOutputTokens,
-          signal,
-        });
-        const durationMs = response.durationMs;
-
-        if (response.ok) {
-          const usage = response.usage;
-          log.info("ai.call", {
-            feature,
-            model: response.model,
-            durationMs,
-            finishReason: response.finishReason,
-            promptTokens: usage?.promptTokens,
-            completionTokens: usage?.completionTokens,
-            totalTokens: usage?.totalTokens,
-            ok: true,
-          });
-          recordAiCall({
-            feature,
-            outcome: "success",
-            status: response.status,
-            durationMs,
-            promptTokens: usage?.promptTokens,
-            completionTokens: usage?.completionTokens,
-            totalTokens: usage?.totalTokens,
-          });
-          await logLedger("success", {
-            model: response.model,
-            latencyMs: durationMs,
-            promptTokens: usage?.promptTokens,
-            completionTokens: usage?.completionTokens,
-            totalTokens: usage?.totalTokens,
-          });
-          setSpanAttributes(span, {
-            "readwise.outcome": "success",
-            "readwise.duration_ms": durationMs,
-          });
-          return { text: response.text, usage, model: response.model, durationMs };
-        }
-
-        const error = response.error;
-
-        // 2xx with no usable content (empty completion or a content-filter
-        // refusal). Not retryable; degrade gracefully to null.
-        if (error.kind === "empty" || error.kind === "content_filter") {
-          recordAiCall({ feature, outcome: "empty", status: error.status, durationMs });
-          log.warn(error.kind === "content_filter" ? "ai.content_filter" : "ai.empty", {
-            feature,
-            model: modelName,
-            durationMs,
-            finishReason: error.finishReason,
-          });
-          await logLedger("empty", {
-            latencyMs: durationMs,
-            promptTokens: error.usage?.promptTokens,
-            completionTokens: error.usage?.completionTokens,
-            totalTokens: error.usage?.totalTokens,
-          });
-          return null;
-        }
-
-        // Caller-initiated abort: stop immediately, do not retry.
-        if (error.kind === "aborted" && options.signal?.aborted) {
-          recordAiCall({ feature, outcome: "aborted", durationMs });
-          log.warn("ai.aborted", { feature, model: modelName, durationMs });
-          await logLedger("aborted", { latencyMs: durationMs });
-          return null;
-        }
-
-        // Retry retryable failures (rate-limit / 5xx / timeout / network) while
-        // attempts remain, honoring any provider Retry-After hint.
-        if (error.retryable && attempt < maxRetries) {
-          const delay = error.retryAfterMs ?? backoffMs(attempt + 1);
-          recordAiRetry({ feature, reason: retryReason(error.kind) });
+      const result = await runAiRequest(
+        provider,
+        messages,
+        { maxOutputTokens: options.maxOutputTokens, externalSignal: options.signal, maxRetries, timeoutMs },
+        (retryInfo) => {
+          recordAiRetry({ feature, reason: retryReason(retryInfo.reason) });
           log.warn("ai.retry", {
             feature,
-            model: modelName,
-            attempt,
-            status: error.status,
-            reason: error.kind,
-            delayMs: delay,
+            model: retryInfo.model,
+            attempt: retryInfo.attempt,
+            status: retryInfo.status,
+            reason: retryInfo.reason,
+            delayMs: retryInfo.delayMs,
           });
-          await new Promise<void>((resolve) => setTimeout(resolve, delay));
-          continue;
-        }
+        },
+      );
 
-        // Terminal failure: record + return null (graceful fallback).
-        const errorStatus =
-          error.status ?? (error.kind === "timeout" ? "timeout" : "network");
-        recordAiCall({ feature, outcome: "error", status: errorStatus, durationMs });
-        log.warn("ai.error", {
+      if (result.outcome === "success") {
+        const { usage, model, durationMs, status, finishReason } = result;
+        log.info("ai.call", {
           feature,
-          model: modelName,
-          status: error.status,
+          model,
           durationMs,
-          attempt,
-          reason: error.kind,
+          finishReason,
+          promptTokens: usage?.promptTokens,
+          completionTokens: usage?.completionTokens,
+          totalTokens: usage?.totalTokens,
+          ok: true,
         });
-        await logLedger("error", {
+        recordAiCall({
+          feature,
+          outcome: "success",
+          status,
+          durationMs,
+          promptTokens: usage?.promptTokens,
+          completionTokens: usage?.completionTokens,
+          totalTokens: usage?.totalTokens,
+        });
+        await logLedger("success", {
+          model,
           latencyMs: durationMs,
-          errorMessage: error.status ? `HTTP ${error.status}` : error.message,
+          promptTokens: usage?.promptTokens,
+          completionTokens: usage?.completionTokens,
+          totalTokens: usage?.totalTokens,
         });
         setSpanAttributes(span, {
-          "readwise.outcome": "error",
+          "readwise.outcome": "success",
           "readwise.duration_ms": durationMs,
+        });
+        return { text: result.text, usage, model, durationMs };
+      }
+
+      if (result.outcome === "empty" || result.outcome === "content_filter") {
+        const { durationMs, model, usage, finishReason } = result;
+        recordAiCall({ feature, outcome: "empty", status: result.status, durationMs });
+        log.warn(result.outcome === "content_filter" ? "ai.content_filter" : "ai.empty", {
+          feature,
+          model,
+          durationMs,
+          finishReason,
+        });
+        await logLedger("empty", {
+          latencyMs: durationMs,
+          promptTokens: usage?.promptTokens,
+          completionTokens: usage?.completionTokens,
+          totalTokens: usage?.totalTokens,
         });
         return null;
       }
 
+      if (result.outcome === "aborted") {
+        const { durationMs } = result;
+        recordAiCall({ feature, outcome: "aborted", durationMs });
+        log.warn("ai.aborted", { feature, model: modelName, durationMs });
+        await logLedger("aborted", { latencyMs: durationMs });
+        return null;
+      }
+
+      // Terminal error (result.outcome === "error").
+      // TypeScript needs explicit narrowing here since the union is not narrowed
+      // automatically after three discriminated checks.
+      if (result.outcome !== "error") return null;
+      const { durationMs, errorKind, status, errorMessage, attemptsMade } = result;
+      const errorStatus = status ?? (errorKind === "timeout" ? "timeout" : "network");
+      recordAiCall({ feature, outcome: "error", status: errorStatus, durationMs });
+      log.warn("ai.error", {
+        feature,
+        model: modelName,
+        status,
+        durationMs,
+        attempt: attemptsMade - 1,
+        reason: errorKind,
+      });
+      await logLedger("error", {
+        latencyMs: durationMs,
+        errorMessage,
+      });
+      setSpanAttributes(span, {
+        "readwise.outcome": "error",
+        "readwise.duration_ms": durationMs,
+      });
       return null;
     },
   );
