@@ -3,6 +3,7 @@ import { createHandler } from "@/lib/api-handler";
 import { isSpeechConfigured } from "@/lib/speech";
 import { speechConfig } from "@/lib/runtime-config/speech";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { providerFetch } from "@/lib/http/provider-client";
 
 // Azure Speech SDK has Node-only native bindings.
 export const runtime = "nodejs";
@@ -34,10 +35,14 @@ export const GET = createHandler({}, async ({ session }) => {
 
   let tokenRes: Response;
   try {
-    tokenRes = await fetch(tokenUrl, {
-      method: "POST",
-      headers: { "Ocp-Apim-Subscription-Key": key },
-    });
+    tokenRes = await providerFetch(
+      tokenUrl,
+      {
+        method: "POST",
+        headers: { "Ocp-Apim-Subscription-Key": key },
+      },
+      { provider: "speech-token" },
+    );
   } catch {
     return NextResponse.json(
       { configured: true, error: "Speech service unavailable" },
