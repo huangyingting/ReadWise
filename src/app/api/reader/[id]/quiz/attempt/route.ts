@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, number, array, optional, nonEmptyString } from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import { recordQuizAttempt } from "@/lib/quiz-mastery";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { gradeQuizAnswers } from "@/lib/quiz-grading";
@@ -9,19 +9,7 @@ import { updateArticleMastery } from "@/lib/article-mastery";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
-
-const bodySchema = object({
-  answers: array(
-    object({
-      index: number({ int: true, min: 0, max: 1000 }),
-      selectedIndex: number({ int: true, min: 0, max: 1000 }),
-    }),
-    { max: 1000 },
-  ),
-  // RW-042 — optional idempotency key for offline-queued re-syncs (also accepted
-  // via the X-Client-Mutation-Id header).
-  clientMutationId: optional(nonEmptyString(100)),
-});
+import { quizAttemptBody } from "@/lib/reader/schemas";
 
 /**
  * POST /api/reader/[id]/quiz/attempt
@@ -38,7 +26,7 @@ const bodySchema = object({
  * Errors: 400 invalid/mismatched answers | 401 unauthenticated | 404 article not found
  */
 export const POST = createHandler(
-  { params: idParams, body: bodySchema },
+  { params: idParams, body: quizAttemptBody },
   async ({ req, params, body, session }) => {
     const { article, context } = await requireReadableArticle(params.id, session.user);
 

@@ -3,26 +3,12 @@ export const runtime = "nodejs";
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import {
-  object,
-  nonEmptyString,
-  optional,
-  string,
-  queryInt,
-} from "@/lib/validation";
-import {
   listPersonalArticlesPage,
   toListingArticle,
-  IMPORTS_PAGE_SIZE,
-  IMPORTS_MAX_LIMIT,
 } from "@/lib/articles";
 import { getProgressSummaries } from "@/lib/progress";
-import { MAX_TEXT_BYTES, importArticleFromUrl, importArticleFromText } from "@/lib/import";
-
-const importBody = object({
-  url: optional(nonEmptyString(2000)),
-  title: optional(nonEmptyString(500)),
-  text: optional(string({ min: 0, max: MAX_TEXT_BYTES })),
-});
+import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
+import { importBody, parseListQuery } from "@/lib/import/schemas";
 
 /**
  * POST /api/articles/import
@@ -58,20 +44,6 @@ export const POST = createHandler(
 );
 
 // ---------------------------------------------------------------------------
-
-type ImportsListQuery = { offset: number; limit: number };
-
-function parseListQuery(params: URLSearchParams) {
-  const value: ImportsListQuery = {
-    offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
-    limit: queryInt(params, "limit", {
-      fallback: IMPORTS_PAGE_SIZE,
-      min: 1,
-      max: IMPORTS_MAX_LIMIT,
-    }),
-  };
-  return { ok: true as const, value };
-}
 
 /**
  * GET /api/articles/import — paginated list of the caller's own personal

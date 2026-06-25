@@ -1,16 +1,11 @@
 import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
-import { idParams, object, optional, string, oneOf } from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { applyTakedown, TAKEDOWN_STATES, type TakedownState } from "@/lib/content-policy";
+import { applyTakedown, type TakedownState } from "@/lib/content-policy";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/audit";
 import { revalidateArticlesCache } from "@/lib/cache";
-
-const takedownBody = object({
-  state: oneOf<TakedownState>(TAKEDOWN_STATES),
-  note: optional(string({ max: 2000 })),
-  rightsNote: optional(string({ max: 2000 })),
-});
+import { takedownBody } from "@/lib/admin/articles/schemas";
 
 /**
  * Applies a rights/takedown transition to an article (RW-047). Non-active

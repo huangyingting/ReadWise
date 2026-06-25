@@ -1,32 +1,15 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import {
-  idParams,
-  object,
-  nonEmptyString,
-  string,
-  number,
-  optional,
-} from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import {
   listHighlights,
   createHighlight,
   annotateHighlightAnchors,
-  HIGHLIGHT_NOTE_MAX,
 } from "@/lib/annotations";
 import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { htmlToPlainText } from "@/lib/content-pipeline";
-
-const createBody = object({
-  quote: nonEmptyString(10_000),
-  startOffset: number({ int: true, min: 0, max: 10_000_000 }),
-  endOffset: number({ int: true, min: 1, max: 10_000_000 }),
-  prefix: optional(string({ max: 256 })),
-  suffix: optional(string({ max: 256 })),
-  note: optional(string({ max: HIGHLIGHT_NOTE_MAX })),
-  color: optional(nonEmptyString(20)),
-});
+import { createHighlightBody } from "@/lib/reader/schemas";
 
 export const GET = createHandler(
   { params: idParams },
@@ -42,7 +25,7 @@ export const GET = createHandler(
 );
 
 export const POST = createHandler(
-  { params: idParams, body: createBody },
+  { params: idParams, body: createHighlightBody },
   async ({ params, body, session }) => {
     await requireReadableArticle(params.id, session.user);
 

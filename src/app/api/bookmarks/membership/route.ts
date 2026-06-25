@@ -1,13 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { queryString } from "@/lib/validation";
 import { getArticleListMembership } from "@/lib/bookmarks";
-
-function parseQuery(params: URLSearchParams) {
-  const articleId = queryString(params, "articleId");
-  if (!articleId) return { ok: false as const, error: "articleId is required" };
-  return { ok: true as const, value: { articleId } };
-}
+import { parseMembershipQuery } from "@/lib/bookmarks/schemas";
 
 /**
  * GET /api/bookmarks/membership?articleId=<id>
@@ -18,7 +12,7 @@ function parseQuery(params: URLSearchParams) {
  *
  * Response: `{ lists: {id, name, isDefault, hasArticle}[] }`
  */
-export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
+export const GET = createHandler({ query: parseMembershipQuery }, async ({ query, session }) => {
   const result = await getArticleListMembership(session.user.id, query.articleId, session.user.role);
   if (result === null) {
     throw new ApiError(404, "Article not found");

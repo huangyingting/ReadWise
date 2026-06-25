@@ -1,15 +1,11 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { idParams, object, oneOf } from "@/lib/validation";
+import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { prisma } from "@/lib/prisma";
 import { updateArticleMastery } from "@/lib/article-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
-
-const VOTE_VALUES = ["too_easy", "just_right", "too_hard"] as const;
-type VoteValue = (typeof VOTE_VALUES)[number];
-
-const bodySchema = object({ vote: oneOf(VOTE_VALUES) });
+import { difficultyFeedbackBody, type VoteValue } from "@/lib/reader/schemas";
 
 /**
  * POST /api/reader/[id]/difficulty-feedback
@@ -21,7 +17,7 @@ const bodySchema = object({ vote: oneOf(VOTE_VALUES) });
  * Response: { vote, tooEasy, justRight, tooHard, total }
  */
 export const POST = createHandler(
-  { params: idParams, body: bodySchema },
+  { params: idParams, body: difficultyFeedbackBody },
   async ({ params, body, session }) => {
     await requireReadableArticle(params.id, session.user);
 

@@ -3,21 +3,7 @@ import { createHandler } from "@/lib/api-handler";
 import { getDueFlashcards } from "@/lib/flashcards";
 import { buildCloze } from "@/lib/cloze";
 import { checkRateLimit } from "@/lib/rate-limit";
-import { queryInt } from "@/lib/validation";
-
-const CLOZE_DEFAULT_LIMIT = 20;
-const CLOZE_MAX_LIMIT = 50;
-
-function parseQuery(params: URLSearchParams) {
-  const value = {
-    limit: queryInt(params, "limit", {
-      fallback: CLOZE_DEFAULT_LIMIT,
-      min: 1,
-      max: CLOZE_MAX_LIMIT,
-    }),
-  };
-  return { ok: true as const, value };
-}
+import { parseClozeQuery } from "@/lib/study/schemas";
 
 /**
  * GET /api/study/cloze
@@ -43,7 +29,7 @@ function parseQuery(params: URLSearchParams) {
  *
  * Errors: 401 unauthenticated.
  */
-export const GET = createHandler({ query: parseQuery }, async ({ session, query }) => {
+export const GET = createHandler({ query: parseClozeQuery }, async ({ session, query }) => {
   await checkRateLimit(session.user.id, "lookup");
 
   const cards = await getDueFlashcards(session.user.id, query.limit);

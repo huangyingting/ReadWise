@@ -1,16 +1,10 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString } from "@/lib/validation";
 import { prisma } from "@/lib/prisma";
 import { isPushConfigured } from "@/lib/push";
 import { checkRateLimit } from "@/lib/rate-limit";
+import { subscribeBody } from "@/lib/push/schemas";
 
 const MAX_SUBSCRIPTIONS_PER_USER = 10;
-
-const subscribeBody = object({
-  endpoint: nonEmptyString(2048),
-  p256dh: nonEmptyString(256),
-  auth: nonEmptyString(128),
-});
 
 /**
  * POST /api/push/subscribe

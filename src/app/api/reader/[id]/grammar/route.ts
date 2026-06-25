@@ -1,18 +1,14 @@
 import { NextResponse } from "next/server";
-import { createHandler } from "@/lib/api-handler";
-import { idParams, object, nonEmptyString, optional, string } from "@/lib/validation";
-import { explainGrammar, MAX_PHRASE_CHARS, MAX_CONTEXT_CHARS } from "@/lib/grammar";
+import { createHandler, ApiError } from "@/lib/api-handler";
+import { idParams } from "@/lib/validation";
+import { explainGrammar } from "@/lib/grammar";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
 import { recordSkillEvidence } from "@/lib/skill-mastery";
 import { bestEffortMastery } from "@/lib/mastery";
-
-const bodySchema = object({
-  phrase: nonEmptyString(MAX_PHRASE_CHARS),
-  contextSentence: optional(string({ max: MAX_CONTEXT_CHARS })),
-});
+import { grammarBody } from "@/lib/reader/schemas";
 
 export const POST = createHandler(
-  { params: idParams, body: bodySchema },
+  { params: idParams, body: grammarBody },
   async ({ params, body, session }) => {
     const { article } = await requireReadableArticleForAI(params.id, session.user);
 

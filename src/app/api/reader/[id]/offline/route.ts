@@ -5,6 +5,7 @@ import { readingMinutesFor } from "@/lib/articles";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { contentHash, makeArticleVersion } from "@/lib/cache-version";
+import { parseOfflineQuery } from "@/lib/reader/schemas";
 
 /**
  * GET /api/reader/[id]/offline
@@ -21,7 +22,7 @@ import { contentHash, makeArticleVersion } from "@/lib/cache-version";
 export const GET = createHandler(
   {
     params: idParams,
-    query: (params) => ({ ok: true, value: { meta: params.get("meta") === "1" } }),
+    query: parseOfflineQuery,
   },
   async ({ params, query, session }) => {
     const { article } = await requireReadableArticle(params.id, session.user);

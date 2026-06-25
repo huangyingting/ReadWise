@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getSavedWords } from "@/lib/vocabulary";
-import { queryString } from "@/lib/validation";
+import { parseExportQuery } from "@/lib/vocabulary/schemas";
 
 /** Escape a single value for RFC-4180 CSV (wrap in quotes, double inner quotes). */
 function csvField(value: string | null | undefined): string {
@@ -42,13 +42,7 @@ function toAnki(words: Awaited<ReturnType<typeof getSavedWords>>): string {
 
 export const GET = createHandler(
   {
-    query: (params) => {
-      const format = queryString(params, "format", "csv");
-      if (format !== "csv" && format !== "anki") {
-        return { ok: false, error: 'format must be "csv" or "anki"' };
-      }
-      return { ok: true, value: { format: format as "csv" | "anki" } };
-    },
+    query: parseExportQuery,
   },
   async ({ session, query }) => {
     const words = await getSavedWords(session.user.id);

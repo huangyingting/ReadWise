@@ -1,16 +1,9 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString, oneOf } from "@/lib/validation";
 import { gradeFlashcard, getReviewSummary } from "@/lib/flashcards";
 import type { Grade } from "@/lib/srs";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
-
-const GRADES = ["again", "hard", "good", "easy"] as const;
-
-const bodySchema = object({
-  savedWordId: nonEmptyString(200),
-  grade: oneOf(GRADES),
-});
+import { flashcardGradeBody } from "@/lib/study/schemas";
 
 /**
  * POST /api/study/flashcards/grade
@@ -28,7 +21,7 @@ const bodySchema = object({
  *   401 — unauthenticated
  *   404 — savedWordId not found or belongs to another user
  */
-export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
+export const POST = createHandler({ body: flashcardGradeBody }, async ({ body, session }) => {
   const result = await gradeFlashcard(
     session.user.id,
     body.savedWordId,

@@ -1,25 +1,10 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { queryInt, queryString } from "@/lib/validation";
-import { getFilteredSavedWords, WORDS_PAGE_SIZE } from "@/lib/vocabulary";
+import { getFilteredSavedWords } from "@/lib/vocabulary";
 import { prisma } from "@/lib/prisma";
 import { articleAccessContext, readableArticleWhere } from "@/lib/article-access";
-
-function parseQuery(params: URLSearchParams) {
-  const filter = queryString(params, "filter", "all");
-  if (filter !== "all" && filter !== "due" && filter !== "new") {
-    return { ok: false as const, error: 'filter must be "all", "due", or "new"' };
-  }
-  return {
-    ok: true as const,
-    value: {
-      q: queryString(params, "q", ""),
-      articleId: queryString(params, "articleId", ""),
-      filter: filter as "all" | "due" | "new",
-      page: queryInt(params, "page", { fallback: 1, min: 1, max: 9999 }),
-    },
-  };
-}
+import { parseWordsQuery } from "@/lib/study/schemas";
+import { WORDS_PAGE_SIZE } from "@/lib/vocabulary";
 
 /**
  * GET /api/study/words
@@ -43,7 +28,7 @@ function parseQuery(params: URLSearchParams) {
  *     pageSize: number,
  *   }
  */
-export const GET = createHandler({ query: parseQuery }, async ({ session, query }) => {
+export const GET = createHandler({ query: parseWordsQuery }, async ({ session, query }) => {
   const userId = session.user.id;
   const context = articleAccessContext(session.user);
   const result = await getFilteredSavedWords(userId, {

@@ -2,13 +2,11 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
-import { object, nonEmptyString } from "@/lib/validation";
 import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-access";
 import { AUDIT_ACTIONS } from "@/lib/audit";
-
-const ingestBody = object({ url: nonEmptyString(2000) });
+import { ingestBody } from "@/lib/admin/articles/schemas";
 
 /**
  * Scrapes a single URL and saves it as a draft article. Returns the new
