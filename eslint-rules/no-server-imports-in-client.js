@@ -4,7 +4,8 @@
  * Forbids "use client" files from importing server-only modules.
  *
  * Server-only modules include: Prisma, auth/session guards, Node APIs,
- * logger, tracing, audit, runtime-config, and server storage adapters.
+ * logger, tracing, audit, runtime-config, cache, AI internals, and server
+ * storage adapters.
  *
  * ── Legitimate exceptions ─────────────────────────────────────────────────
  * Next.js `page.tsx`, `layout.tsx`, `route.ts`, `loading.tsx`, etc. are
@@ -15,9 +16,30 @@
  *
  * To suppress a single line when there is a genuine, reviewed exception:
  *   // eslint-disable-next-line readwise/no-server-imports-in-client -- reason
+ *
+ * To document a durable exception, add an entry to
+ * eslint-rules/import-boundary-allowlist.json with the shape:
+ *   { "importer": "src/path/to/file.tsx", "privateModule": "@/lib/foo",
+ *     "reason": "...", "owner": "@handle", "removalCondition": "..." }
  */
 
 "use strict";
+
+const fs = require("fs");
+const path = require("path");
+
+// ── Load allowlist ────────────────────────────────────────────────────────────
+
+/** @type {Array<{importer: string, privateModule: string, reason: string, owner: string, removalCondition: string}>} */
+let allowlistEntries = [];
+try {
+  const allowlistPath = path.resolve(__dirname, "import-boundary-allowlist.json");
+  const raw = JSON.parse(fs.readFileSync(allowlistPath, "utf-8"));
+  allowlistEntries = Array.isArray(raw.allowlist) ? raw.allowlist : [];
+} catch {
+  // Allowlist file missing or malformed — fail closed (no exceptions granted).
+  allowlistEntries = [];
+}
 
 // ── Server-only module registry ───────────────────────────────────────────────
 
@@ -52,6 +74,16 @@ const SERVER_ONLY_EXACT = new Set([
   "@/lib/storage",
   // Server-level seed helpers
   "@/lib/seed",
+  // Next.js server cache (unstable_cache / revalidateTag — server only)
+  "@/lib/cache",
+  // AI internals: provider abstraction, registry, and runner are server-only;
+  // external code should use the stable @/lib/ai facade instead.
+  "@/lib/ai/provider",
+  "@/lib/ai/azure-provider",
+  "@/lib/ai/registry",
+  "@/lib/ai/runner",
+  "@/lib/ai/budget",
+  "@/lib/ai/ledger",
 ]);
 
 /**
@@ -82,8 +114,24 @@ function isServerOnly(source) {
   return false;
 }
 
-/** Returns true if `source` starts with the prefix (including "/"-delimited variant). */
-// (used indirectly via isServerOnly)
+/**
+ * Returns true if the given importer/module combination has an explicit
+ * allowlist entry in eslint-rules/import-boundary-allowlist.json.
+ *
+ * `importerPath` is the absolute path of the file being linted.
+ * `source` is the import specifier (e.g. "@/lib/cache").
+ */
+function isAllowlisted(importerPath, source) {
+  if (!importerPath || allowlistEntries.length === 0) return false;
+  const normalized = importerPath.replace(/\\/g, "/");
+  return allowlistEntries.some(
+    (entry) =>
+      typeof entry.importer === "string" &&
+      typeof entry.privateModule === "string" &&
+      entry.privateModule === source &&
+      normalized.endsWith(entry.importer.replace(/\\/g, "/"))
+  );
+}
 
 // ── Rule definition ───────────────────────────────────────────────────────────
 
@@ -102,8 +150,9 @@ const rule = {
       serverImportInClient:
         '"{{source}}" is a server-only module and cannot be imported in a "use client" file. ' +
         "Server-only modules include Prisma, auth/session guards, Node APIs, logger, " +
-        "tracing, audit, runtime-config, and server storage adapters. " +
-        "See docs/refactoring.md § REF-076 for the boundary taxonomy.",
+        "tracing, audit, runtime-config, cache, AI internals, and server storage adapters. " +
+        "See docs/refactoring.md § REF-076 for the boundary taxonomy. " +
+        "To document a durable exception add an entry to eslint-rules/import-boundary-allowlist.json.",
     },
     schema: [
       {
@@ -127,6 +176,12 @@ const rule = {
     // Merge in any caller-supplied additional modules.
     const options = context.options[0] || {};
     const extra = new Set(options.additionalModules || []);
+
+    // Resolve the file being linted (ESLint ≥ 8 uses context.filename).
+    const importerPath =
+      (typeof context.filename === "string" ? context.filename : null) ||
+      (typeof context.getFilename === "function" ? context.getFilename() : null) ||
+      "";
 
     function checkSource(source) {
       if (isServerOnly(source) || extra.has(source)) return true;
@@ -157,6 +212,8 @@ const rule = {
         if (!isClientFile) return;
         const source = node.source.value;
         if (typeof source === "string" && checkSource(source)) {
+          // Allow if there is an explicit allowlist entry for this file+module.
+          if (isAllowlisted(importerPath, source)) return;
           context.report({
             node: node.source,
             messageId: "serverImportInClient",
@@ -169,3 +226,4 @@ const rule = {
 };
 
 module.exports = rule;
+

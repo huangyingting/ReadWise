@@ -4,6 +4,10 @@ import { recordCacheLookup, recordCacheMiss } from "@/lib/metrics";
 /**
  * Tag-based server-side caching for expensive listing/recommendation queries.
  *
+ * @server-only — Must never be imported from a "use client" file or any module
+ * that can enter a client bundle. Uses `next/cache` APIs (unstable_cache,
+ * revalidateTag) which are server-only. See docs/refactoring.md § REF-076.
+ *
  * Listing helpers (category/picks/tag/related/published feeds) are wrapped with
  * {@link createCachedListing} so their results are cached in Next's Data Cache
  * keyed by the call arguments. When underlying content changes, the relevant
