@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { getTutorMessages, askTutor, clearTutor } from "@/lib/tutor";
+import { getTutorMessages, askTutor, clearTutor } from "@/lib/ai/tutor";
 import { requireReadableArticle, requireReadableArticleForAI } from "@/lib/reader/route-guard";
 import { tutorBody } from "@/lib/reader/schemas";
 

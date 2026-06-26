@@ -120,7 +120,7 @@ test("getTutorMessages returns messages ordered by createdAt asc", async () => {
     { id: "1", role: "user", content: "Hello?", createdAt: new Date("2026-01-01") },
     { id: "2", role: "assistant", content: "Hi!", createdAt: new Date("2026-01-02") },
   ];
-  const { getTutorMessages } = await import("@/lib/tutor");
+  const { getTutorMessages } = await import("@/lib/ai/tutor");
   const msgs = await getTutorMessages("user-1", "article-1");
   assert.equal(msgs.length, 2);
   assert.equal(msgs[0].role, "user");
@@ -128,7 +128,7 @@ test("getTutorMessages returns messages ordered by createdAt asc", async () => {
 });
 
 test("getTutorMessages returns empty array when no conversation exists", async () => {
-  const { getTutorMessages } = await import("@/lib/tutor");
+  const { getTutorMessages } = await import("@/lib/ai/tutor");
   const msgs = await getTutorMessages("user-1", "no-article");
   assert.equal(msgs.length, 0);
 });
@@ -137,7 +137,7 @@ test("getTutorMessages returns empty array when no conversation exists", async (
 
 test("askTutor returns null for a missing article", async () => {
   mockArticle = null;
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   const result = await askTutor("user-1", "missing", "What is this about?");
   assert.equal(result, null);
   assert.equal(createCalls.length, 0);
@@ -147,7 +147,7 @@ test("askTutor returns null for a missing article", async () => {
 
 test("askTutor returns fallback:true and persists nothing when AI is unconfigured", async () => {
   aiConfigured = false;
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   assert.equal(result.fallback, true);
@@ -160,7 +160,7 @@ test("askTutor returns fallback:true and persists nothing when AI is unconfigure
 test("askTutor returns fallback:true and persists nothing when chatComplete fails", async () => {
   aiConfigured = true;
   aiReply = null;
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   assert.equal(result.fallback, true);
@@ -172,7 +172,7 @@ test("askTutor returns fallback:true and persists nothing when chatComplete fail
 test("askTutor AI-configured happy path: persists user + assistant messages, returns answer", async () => {
   aiConfigured = true;
   aiReply = "The article is about testing.";
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   assert.equal(result.fallback, false);
@@ -187,7 +187,7 @@ test("askTutor AI-configured happy path: persists user + assistant messages, ret
 test("askTutor returns the updated messages list after a successful exchange", async () => {
   aiConfigured = true;
   aiReply = "The article is about testing.";
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   // After persist, messageRows has 2 entries; getTutorMessages returns them.
@@ -201,7 +201,7 @@ test("askTutor uses the user's englishLevel in the system prompt", async () => {
   aiReply = "A2 answer";
   mockProfile = { englishLevel: "A2" };
 
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   await askTutor("user-1", "article-1", "Simple question?");
 
   const systemMsg = lastChatMessages.find((m) => m.role === "system");
@@ -213,7 +213,7 @@ test("askTutor falls back to B1 when user has no profile", async () => {
   aiReply = "B1 answer";
   mockProfile = null;
 
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   await askTutor("user-1", "article-1", "What level?");
 
   const systemMsg = lastChatMessages.find((m) => m.role === "system");
@@ -227,7 +227,7 @@ test("clearTutor deletes all messages for the user+article", async () => {
     { id: "1", role: "user", content: "Q", createdAt: new Date() },
     { id: "2", role: "assistant", content: "A", createdAt: new Date() },
   ];
-  const { clearTutor } = await import("@/lib/tutor");
+  const { clearTutor } = await import("@/lib/ai/tutor");
   await clearTutor("user-1", "article-1");
   assert.equal(deleteManyCount, 1);
   assert.equal(messageRows.length, 0);
@@ -238,7 +238,7 @@ test("clearTutor deletes all messages for the user+article", async () => {
 test("askTutor uses a token budget of at least 1500 (fixes gpt-5-mini reasoning budget)", async () => {
   aiConfigured = true;
   aiReply = "Answer about the article.";
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(
     (lastChatOptions.maxOutputTokens ?? 0) >= 1500,
@@ -249,7 +249,7 @@ test("askTutor uses a token budget of at least 1500 (fixes gpt-5-mini reasoning 
 test("askTutor passes feature='tutor' to chatComplete for diagnostic logging", async () => {
   aiConfigured = true;
   aiReply = "Some answer.";
-  const { askTutor } = await import("@/lib/tutor");
+  const { askTutor } = await import("@/lib/ai/tutor");
   await askTutor("user-1", "article-1", "Hello?");
   assert.equal(lastChatOptions.feature, "tutor");
 });

@@ -7,7 +7,7 @@
  *
  * Mocks: @/lib/api-auth, @/lib/article-library, @/lib/security/rate-limit/index,
  *        @/lib/translation, @/lib/vocabulary, @/lib/quiz, @/lib/speech, @/lib/grammar,
- *        @/lib/tutor, @/lib/pronunciation, @/lib/prisma.
+ *        @/lib/ai/tutor, @/lib/pronunciation, @/lib/prisma.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -154,7 +154,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/tutor", {
+  mock.module("@/lib/ai/tutor", {
     namedExports: {
       MAX_QUESTION_LENGTH: 1000,
       getTutorMessages: async () => {
