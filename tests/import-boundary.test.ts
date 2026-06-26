@@ -14,6 +14,9 @@
  *   - Server component (no directive) importing @/lib/prisma → no violations.
  *   - Plain module (no directive) importing server-only modules → no violations.
  *   - additionalModules option → custom server-only modules are enforced.
+ *   - High-risk Phase 1 boundaries: @/lib/cache and @/lib/ai/* internals.
+ *   - Allowlisted entry is permitted (via import-boundary-allowlist.json).
+ *   - Safe primitives and feature-local helpers are not flagged.
  *
  * These tests run in Node.js using the ESLint programmatic Linter API.
  * No database, network, AI, or storage dependencies.
@@ -22,6 +25,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { Linter } from "eslint";
@@ -50,6 +54,33 @@ function lint(source: string): { messageId: string; message: string }[] {
       "readwise/no-server-imports-in-client": "error",
     },
   });
+  return messages.map((m) => ({ messageId: m.messageId ?? "", message: m.message }));
+}
+
+/** Run the rule against a source string with a specific filename (for allowlist matching). */
+function lintAs(source: string, filename: string): { messageId: string; message: string }[] {
+  // ESLint 9 flat config requires (a) `cwd` in the Linter constructor, (b) an
+  // absolute filename, and (c) at least one config `files` pattern that matches
+  // the absolute path — only then does the allowlist path check work correctly.
+  const absFilename = resolve(__dirname, "..", filename);
+  const linter = new Linter({ configType: "flat", cwd: resolve(__dirname, "..") });
+  const messages = linter.verify(
+    source,
+    {
+      files: ["**/*.{ts,tsx,js,jsx}"],
+      languageOptions: {
+        ecmaVersion: 2022,
+        sourceType: "module",
+      },
+      plugins: {
+        readwise: { rules: { "no-server-imports-in-client": ruleModule } },
+      },
+      rules: {
+        "readwise/no-server-imports-in-client": "error",
+      },
+    },
+    absFilename,
+  );
   return messages.map((m) => ({ messageId: m.messageId ?? "", message: m.message }));
 }
 
@@ -335,4 +366,86 @@ export default function Widget() { return null; }
     });
     assert.strictEqual(messages.length, 0);
   });
+
+  // ── Allowlist: documented exception is permitted ────────────────────────────
+
+  test("allowlisted file importing a server-only module is NOT flagged", () => {
+    // The test fixture path matches the allowlist entry in
+    // eslint-rules/import-boundary-allowlist.json, so no violation is reported.
+    const allowlistedSource = `
+"use client";
+import { prisma } from "@/lib/prisma";
+export default function Widget() { return null; }
+`.trim();
+
+    const messages = lintAs(allowlistedSource, "tests/fixtures/allowlist-boundary-test.tsx");
+    assert.strictEqual(
+      messages.length,
+      0,
+      `Allowlisted file must not be flagged. Got: ${JSON.stringify(messages)}`,
+    );
+  });
+
+  test("non-allowlisted file with same server-only import IS flagged", () => {
+    // A different file path — not in the allowlist — must still be caught.
+    const messages = lintAs(CLIENT_IMPORTS_PRISMA, "src/components/SomeWidget.tsx");
+    assert.ok(messages.length > 0, "Non-allowlisted file must be flagged");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/prisma")));
+  });
+
+  // ── Allowlist JSON schema validation ───────────────────────────────────────
+
+  test("import-boundary-allowlist.json is valid JSON with required entry shape", () => {
+    const allowlistPath = resolve(__dirname, "../eslint-rules/import-boundary-allowlist.json");
+    const raw = JSON.parse(readFileSync(allowlistPath, "utf-8")) as {
+      allowlist?: Array<{
+        importer?: unknown;
+        privateModule?: unknown;
+        reason?: unknown;
+        owner?: unknown;
+        removalCondition?: unknown;
+      }>;
+    };
+    assert.ok(Array.isArray(raw.allowlist), "allowlist must be an array");
+    for (const entry of raw.allowlist!) {
+      assert.ok(typeof entry.importer === "string", "importer must be a string");
+      assert.ok(typeof entry.privateModule === "string", "privateModule must be a string");
+      assert.ok(typeof entry.reason === "string", "reason must be a string");
+      assert.ok(typeof entry.owner === "string", "owner must be a string");
+      assert.ok(typeof entry.removalCondition === "string", "removalCondition must be a string");
+    }
+  });
+
+  // ── Safe feature-local helpers and pure primitives ─────────────────────────
+
+  test("no error when 'use client' file imports a feature-local hook", () => {
+    const source = `
+"use client";
+import { useLocalStorage } from "@/hooks/use-local-storage";
+export default function Widget() { return null; }
+`.trim();
+    const messages = lint(source);
+    assert.strictEqual(messages.length, 0);
+  });
+
+  test("no error when 'use client' file imports a UI utility", () => {
+    const source = `
+"use client";
+import { formatDate } from "@/lib/date-utils";
+export default function Widget() { return null; }
+`.trim();
+    const messages = lint(source);
+    assert.strictEqual(messages.length, 0);
+  });
+
+  test("no error when 'use client' file imports a client-safe @/lib/utils module", () => {
+    const source = `
+"use client";
+import { clamp, debounce } from "@/lib/utils";
+export default function Widget() { return null; }
+`.trim();
+    const messages = lint(source);
+    assert.strictEqual(messages.length, 0);
+  });
 });
+
