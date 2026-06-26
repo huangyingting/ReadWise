@@ -13,35 +13,24 @@
 
 import { ANALYTICS_SCHEMA_VERSION } from "@/lib/analytics/events/catalog";
 import { isSensitiveKey } from "@/lib/observability/redaction";
+import { truncateStr } from "@/lib/primitives/pure";
 
 const MAX_PROPERTY_KEYS = 25;
 const MAX_PROPERTY_STRING_LEN = 200;
 const MAX_PROPERTY_ARRAY_ITEMS = 20;
-
-/**
- * Keys that could carry sensitive free text / secrets are dropped from the
- * payload entirely. Analytics is metadata-only by contract; this is a backstop
- * so an accidental `{ text: article.body }` never lands in the stream.
- * Key detection is handled by {@link isSensitiveKey} from the shared
- * redaction primitive (src/lib/observability/redaction.ts).
- */
-
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max);
-}
 
 /** Coerce a single property value to a small, safe, serializable primitive. */
 function sanitizePropertyValue(value: unknown): unknown {
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
-  if (typeof value === "string") return truncate(value, MAX_PROPERTY_STRING_LEN);
+  if (typeof value === "string") return truncateStr(value, MAX_PROPERTY_STRING_LEN);
   if (Array.isArray(value)) {
     return value
       .slice(0, MAX_PROPERTY_ARRAY_ITEMS)
       .map((item) =>
         typeof item === "string"
-          ? truncate(item, MAX_PROPERTY_STRING_LEN)
+          ? truncateStr(item, MAX_PROPERTY_STRING_LEN)
           : typeof item === "number" || typeof item === "boolean"
             ? item
             : null,
@@ -67,7 +56,7 @@ export function sanitizeEventProperties(
     if (count >= MAX_PROPERTY_KEYS) break;
     if (rawKey === "_v") continue;
     if (isSensitiveKey(rawKey)) continue;
-    const key = truncate(rawKey, 60);
+    const key = truncateStr(rawKey, 60);
     out[key] = sanitizePropertyValue(value);
     count++;
   }

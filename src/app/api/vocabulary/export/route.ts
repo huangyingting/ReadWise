@@ -2,16 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getSavedWords } from "@/lib/lexical/saved-words";
 import { parseExportQuery } from "@/lib/vocabulary/schemas";
-
-/** Escape a single value for RFC-4180 CSV (wrap in quotes, double inner quotes). */
-function csvField(value: string | null | undefined): string {
-  const s = value ?? "";
-  // Wrap in double-quotes if the value contains a comma, newline, or double-quote.
-  if (s.includes('"') || s.includes(",") || s.includes("\n") || s.includes("\r")) {
-    return `"${s.replace(/"/g, '""')}"`;
-  }
-  return s;
-}
+import { csvField } from "@/lib/csv";
 
 function toCSV(words: Awaited<ReturnType<typeof getSavedWords>>): string {
   const header = "word,explanation,example,articleId,savedAt\n";

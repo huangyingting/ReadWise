@@ -20,6 +20,17 @@ before(() => {
       recordAuditFromRequest: async (input: { action: string }) => {
         auditCalls.push(input);
       },
+      parseAuditMetadata: (raw: string | null | undefined): Record<string, unknown> => {
+        if (!raw) return {};
+        try {
+          const parsed: unknown = JSON.parse(raw);
+          return parsed && typeof parsed === "object" && !Array.isArray(parsed)
+            ? (parsed as Record<string, unknown>)
+            : {};
+        } catch {
+          return {};
+        }
+      },
     },
   });
   mock.module("@/lib/account-lifecycle/account-commands", {

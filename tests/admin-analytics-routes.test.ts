@@ -52,12 +52,16 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/analytics/product", {
+  mock.module("@/lib/analytics/queries", {
     namedExports: {
       resolveTimeRange: (days: number) => ({
         since: new Date("2026-06-01T00:00:00Z"),
         until: new Date("2026-06-22T00:00:00Z"),
         days: days || 30,
+      }),
+      parseAnalyticsQuery: (params: { days?: string | null; level?: string | null; topic?: string | null }) => ({
+        days: Number.parseInt(params.days ?? "30", 10) || 30,
+        segment: undefined,
       }),
       getAnalyticsOverview: async () => ({
         funnel: [

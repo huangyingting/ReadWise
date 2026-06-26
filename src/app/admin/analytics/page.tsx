@@ -6,8 +6,8 @@ import {
   getRetentionCohorts,
   resolveTimeRange,
   TIME_RANGE_PRESETS,
-  type AnalyticsSegment,
-} from "@/lib/analytics/product";
+  parseAnalyticsQuery,
+} from "@/lib/analytics/queries";
 import { StatCard } from "@/components/analytics/StatCard";
 import { BarChart, BarChartRow, AdminTableWrap } from "@/components/admin";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
@@ -32,11 +32,9 @@ export default async function AdminAnalyticsPage({
   await requireCapability(CAPABILITIES.analyticsView, "/admin/analytics");
 
   const sp = await searchParams;
-  const days = Number.parseInt(sp.days ?? "30", 10) || 30;
-  const level = (sp.level ?? "").trim();
-  const topic = (sp.topic ?? "").trim();
-  const segment: AnalyticsSegment | undefined =
-    level || topic ? { level: level || null, topic: topic || null } : undefined;
+  const { days, segment } = parseAnalyticsQuery(sp);
+  const level = segment?.level ?? "";
+  const topic = segment?.topic ?? "";
 
   const { since, until, days: resolvedDays } = resolveTimeRange(days);
 

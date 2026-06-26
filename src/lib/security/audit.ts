@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
 import { clientIp } from "@/lib/security/client-ip";
+import { truncateStr } from "@/lib/primitives/pure";
 import type { Prisma } from "@prisma/client";
 
 export const AUDIT_ACTIONS = {
@@ -101,18 +102,14 @@ const MAX_STRING_LENGTH = 200;
 const MAX_USER_AGENT_LENGTH = 512;
 const REDACTED = "[redacted]";
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
-}
-
 function normalizeOptionalString(value: string | null | undefined, max = MAX_STRING_LENGTH): string | null {
   if (!value) return null;
   const cleaned = value.replace(/[\u0000-\u001f\u007f]/g, "").trim();
-  return cleaned ? truncate(cleaned, max) : null;
+  return cleaned ? truncateStr(cleaned, max, "…") : null;
 }
 
 function redactSensitiveString(value: string): string {
-  return truncate(scrubValue(value), MAX_STRING_LENGTH);
+  return truncateStr(scrubValue(value), MAX_STRING_LENGTH, "…");
 }
 
 function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
@@ -127,7 +124,7 @@ function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
   if (typeof value === "object") {
     const out: Record<string, AuditMetadataValue> = {};
     for (const [key, nested] of Object.entries(value).slice(0, MAX_METADATA_KEYS)) {
-      out[truncate(key, 80)] = isSensitiveKey(key)
+      out[truncateStr(key, 80, "…")] = isSensitiveKey(key)
         ? REDACTED
         : sanitizeValue(nested, depth + 1);
     }
@@ -140,7 +137,7 @@ export function sanitizeAuditMetadata(input: Record<string, unknown> | null | un
   if (!input) return {};
   const out: AuditMetadata = {};
   for (const [key, value] of Object.entries(input).slice(0, MAX_METADATA_KEYS)) {
-    out[truncate(key, 80)] = isSensitiveKey(key)
+    out[truncateStr(key, 80, "…")] = isSensitiveKey(key)
       ? REDACTED
       : sanitizeValue(value, 0);
   }
@@ -166,7 +163,8 @@ export function auditRequestInfo(req: Request): Pick<AuditLogInput, "ipAddress" 
   return { ipAddress, userAgent };
 }
 
-function parseMetadata(raw: string): AuditMetadata {
+export function parseAuditMetadata(raw: string | null | undefined): AuditMetadata {
+  if (!raw) return {};
   try {
     const parsed = JSON.parse(raw) as unknown;
     return typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)
@@ -183,10 +181,10 @@ export async function recordAuditLog(
 ): Promise<void> {
   const requestContext = getRequestContext();
   const data = {
-    action: truncate(input.action, 120),
+    action: truncateStr(input.action, 120, "…"),
     actorId: normalizeOptionalString(input.actorId, 200),
     actorRole: normalizeOptionalString(input.actorRole, 50),
-    targetType: truncate(input.targetType, 80),
+    targetType: truncateStr(input.targetType, 80, "…"),
     targetId: normalizeOptionalString(input.targetId, 200),
     metadata: JSON.stringify(sanitizeAuditMetadata(input.metadata)),
     requestId: normalizeOptionalString(input.requestId ?? requestContext?.requestId, 100),
@@ -261,7 +259,7 @@ export async function listAuditLogs(
 
   const logs: AuditLogRow[] = rows.map((row) => ({
     ...row,
-    metadata: parseMetadata(row.metadata),
+    metadata: parseAuditMetadata(row.metadata),
   }));
 
   return {

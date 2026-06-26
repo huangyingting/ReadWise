@@ -28,7 +28,7 @@ import { fetchHtml } from "@/lib/scraper/fetch";
 import { createLogger } from "@/lib/observability/logger";
 import { createTtlCache } from "@/lib/primitives/ttl-cache";
 
-const log = createLogger("robots");
+const log = createLogger("scraper.robots");
 
 /** Our crawler's product token (matches the ReadWiseBot UA in extract.ts). */
 export const ROBOTS_USER_AGENT = "ReadWiseBot";

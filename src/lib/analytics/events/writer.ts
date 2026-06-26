@@ -23,6 +23,7 @@ import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import { analyticsEnabled } from "@/lib/runtime-config/analytics";
 import type { AnalyticsEventType } from "@/lib/analytics/events/catalog";
 import { sanitizeEventProperties } from "@/lib/analytics/events/sanitize";
+import { truncateStr } from "@/lib/primitives/pure";
 
 const logger = createLogger("analytics");
 
@@ -46,14 +47,10 @@ export type AnalyticsEventInput = {
 /** Minimal prisma surface the writer needs (composable with $transaction). */
 export type AnalyticsClient = Pick<Prisma.TransactionClient, "analyticsEvent">;
 
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max);
-}
-
 function normalizeOptionalId(value: string | null | undefined): string | null {
   if (!value) return null;
   const trimmed = value.trim();
-  return trimmed ? truncate(trimmed, MAX_ID_LEN) : null;
+  return trimmed ? truncateStr(trimmed, MAX_ID_LEN) : null;
 }
 
 /**
@@ -76,7 +73,7 @@ export async function recordEvent(
       null;
     await client.analyticsEvent.create({
       data: {
-        type: truncate(input.type || "unknown", MAX_TYPE_LEN),
+        type: truncateStr(input.type || "unknown", MAX_TYPE_LEN),
         userId,
         anonymousId: normalizeOptionalId(input.anonymousId),
         articleId: normalizeOptionalId(input.articleId),

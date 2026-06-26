@@ -4,6 +4,7 @@ import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
 import { isPostgresDatabase } from "@/lib/search/query";
+import { bucketize } from "@/lib/aggregation";
 
 export type BucketCount = { key: string; label: string; count: number };
 
@@ -75,57 +76,17 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 		}),
 	]);
 
-	const categoryCounts = new Map<string | null, number>();
-	for (const g of categoryGroups) {
-		categoryCounts.set(g.category, g._count._all);
-	}
-	const articlesByCategory: BucketCount[] = CATEGORIES.map((c) => ({
-		key: c.slug,
-		label: c.label,
-		count: categoryCounts.get(c.slug) ?? 0,
-	}));
-	const uncategorized =
-		(categoryCounts.get(null) ?? 0) +
-		categoryGroups
-			.filter(
-				(g) =>
-					g.category !== null &&
-					!CATEGORIES.some((c) => c.slug === g.category),
-			)
-			.reduce((sum, g) => sum + g._count._all, 0);
-	if (uncategorized > 0) {
-		articlesByCategory.push({
-			key: "uncategorized",
-			label: "Uncategorized",
-			count: uncategorized,
-		});
-	}
+	const articlesByCategory = bucketize(
+		CATEGORIES.map((c) => ({ key: c.slug, label: c.label })),
+		categoryGroups.map((g) => ({ key: g.category, count: g._count._all })),
+		{ key: "uncategorized", label: "Uncategorized" },
+	);
 
-	const levelCounts = new Map<string | null, number>();
-	for (const g of levelGroups) {
-		levelCounts.set(g.difficulty, g._count._all);
-	}
-	const articlesByLevel: BucketCount[] = ENGLISH_LEVELS.map((lvl) => ({
-		key: lvl,
-		label: lvl,
-		count: levelCounts.get(lvl) ?? 0,
-	}));
-	const unassessed =
-		(levelCounts.get(null) ?? 0) +
-		levelGroups
-			.filter(
-				(g) =>
-					g.difficulty !== null &&
-					!ENGLISH_LEVELS.some((lvl) => lvl === g.difficulty),
-			)
-			.reduce((sum, g) => sum + g._count._all, 0);
-	if (unassessed > 0) {
-		articlesByLevel.push({
-			key: "unassessed",
-			label: "Unassessed",
-			count: unassessed,
-		});
-	}
+	const articlesByLevel = bucketize(
+		ENGLISH_LEVELS.map((lvl) => ({ key: lvl, label: lvl })),
+		levelGroups.map((g) => ({ key: g.difficulty, count: g._count._all })),
+		{ key: "unassessed", label: "Unassessed" },
+	);
 
 	const topTags: BucketCount[] = topTagRecords
 		.filter((t) => t._count.articles > 0)
