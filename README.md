@@ -190,6 +190,7 @@ crash startup.
 | AI tuning | `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, `AZURE_OPENAI_MAX_CONTEXT_TOKENS`, `AI_MAX_OUTPUT_TOKENS` | Malformed values fall back to defaults. |
 | AI ledger/cost | `AI_LEDGER_ENABLED`, `AI_COST_PROMPT_PER_1K`, `AI_COST_COMPLETION_PER_1K`, `AI_COST_RATES` | Stores metadata only; prompts/responses are not persisted. |
 | AI quotas | `AI_QUOTA_WINDOW_MS`, `AI_QUOTA_USER_DAILY`, `AI_QUOTA_GLOBAL_DAILY`, `AI_QUOTA_BACKGROUND_DAILY`, `AI_QUOTA_FEATURE_DEFAULT_DAILY`, `AI_QUOTA_FEATURE_<FEATURE>_DAILY` | Empty or non-positive limits mean unlimited. |
+| Dictionary | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` | Defaults to compact bundled local dictionaries in `dict/`; set provider to `free` for dictionaryapi.dev or `hybrid` for local-first fallback. |
 | Azure Speech | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_VOICE`, `AZURE_SPEECH_OUTPUT_FORMAT`, `SPEECH_TIMEOUT_MS` | Enables server-side narration generation. |
 | Object storage | `MEDIA_STORAGE`, `MEDIA_STORAGE_DIR`, `AZURE_STORAGE_CONNECTION_STRING`, `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY`, `AZURE_STORAGE_CONTAINER` | Default is database/base64. Use `filesystem` locally or `azure` for Azure Blob Storage. |
 
@@ -248,6 +249,8 @@ crash startup.
 | `npm run prisma:generate` | Generate the default Prisma client. |
 | `npm run prisma:generate:pg` | Generate the PostgreSQL Prisma client. |
 | `npm run prisma:migrate:pg` | Deploy PostgreSQL migrations. |
+| `npm run dict:prune -- --dry-run` | Preview cleanup of bundled local dictionary inflection variants. |
+| `npm run dict:prune` | Re-prune bundled compact `dict/` files after updating local dictionaries. |
 | `npm run migrate-storage -- --limit 100` | Move existing narration audio from DB base64 into configured media storage. |
 
 All TypeScript CLIs use Node's type-stripping harness and auto-load `.env` when

@@ -33,11 +33,10 @@ export async function lookupWord(
   const candidates = normalizeCandidates(raw);
   const start = Date.now();
 
-  log.info("lexical.lookup_start", { word: display });
+  log.info("lexical.lookup_start", { candidateCount: candidates.length });
 
   if (candidates.length === 0) {
     log.info("lexical.lookup_outcome", {
-      word: display,
       found: false,
       reason: "no_candidates",
       durationMs: Date.now() - start,
@@ -49,9 +48,8 @@ export async function lookupWord(
     const entry = await provider.fetchEntry(candidate);
     if (entry) {
       log.info("lexical.lookup_outcome", {
-        word: display,
-        lookedUp: candidate,
         found: true,
+        candidatesTried: candidates.indexOf(candidate) + 1,
         durationMs: Date.now() - start,
       });
       return {
@@ -66,7 +64,6 @@ export async function lookupWord(
   }
 
   log.info("lexical.lookup_outcome", {
-    word: display,
     found: false,
     candidatesTried: candidates.length,
     durationMs: Date.now() - start,

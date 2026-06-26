@@ -18,6 +18,7 @@ export * as analytics from "@/lib/runtime-config/analytics";
 export * as oauth from "@/lib/runtime-config/oauth";
 export * as storage from "@/lib/runtime-config/storage";
 export * as scraper from "@/lib/runtime-config/scraper";
+export * as dictionary from "@/lib/runtime-config/dictionary";
 export * as runtime from "@/lib/runtime-config/runtime";
 export type {
   FeatureConfig,

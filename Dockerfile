@@ -61,6 +61,8 @@ RUN addgroup --system --gid 1001 nodejs \
 COPY --from=build --chown=nextjs:nodejs /app/.next/standalone ./
 # Static assets served by Next.js
 COPY --from=build --chown=nextjs:nodejs /app/.next/static ./.next/static
+# Bundled local dictionary files used by LocalDictionaryProvider.
+COPY --from=build --chown=nextjs:nodejs /app/dict ./dict
 
 # Prisma generated client + native query engine binary.
 # The standalone tracer does not follow dynamic requires used by @prisma/client,

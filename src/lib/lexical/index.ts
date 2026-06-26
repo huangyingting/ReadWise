@@ -18,6 +18,7 @@
 
 export {
   CONTRACTIONS,
+  IRREGULAR_BASES,
   morphCandidates,
   normalizeCandidates,
   lemmaFor,
@@ -32,7 +33,10 @@ export type {
 } from "@/lib/lexical/provider";
 
 export {
+  FallbackDictionaryProvider,
   FreeDictionaryProvider,
+  LocalDictionaryProvider,
+  createDefaultDictionaryProvider,
   defaultProvider,
 } from "@/lib/lexical/provider";
 
