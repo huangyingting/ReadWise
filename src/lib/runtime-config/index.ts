@@ -12,6 +12,9 @@ export * as rateLimit from "@/lib/runtime-config/rate-limit";
 export * as observability from "@/lib/runtime-config/observability";
 export * as security from "@/lib/runtime-config/security";
 export * as analytics from "@/lib/runtime-config/analytics";
+export * as oauth from "@/lib/runtime-config/oauth";
+export * as storage from "@/lib/runtime-config/storage";
+export * as scraper from "@/lib/runtime-config/scraper";
 export * as runtime from "@/lib/runtime-config/runtime";
 export type {
   FeatureConfig,

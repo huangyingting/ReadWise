@@ -14,6 +14,7 @@ import {
   type RuntimeConfigReport,
 } from "@/lib/runtime-config/env";
 import { isValidVapidSubject } from "@/lib/runtime-config/push";
+import { azureStorageConfig } from "@/lib/runtime-config/storage";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-16khz-32kbitrate-mono-mp3",
@@ -141,6 +142,8 @@ function validateRuntimeSections() {
           : null,
     ],
   );
+  // AI_PROVIDER and AI_MODERATION_ENABLED are visible tuning knobs for this section.
+  ai.env.push("AI_PROVIDER", "AI_MODERATION_ENABLED");
 
   const speech = evaluateOptional(["AZURE_SPEECH_KEY", "AZURE_SPEECH_REGION"], [
     (values) =>
@@ -169,7 +172,7 @@ function validateRuntimeSections() {
   const googleOAuth = evaluateOptional(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
   const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
 
-  const storageModeRaw = (process.env.MEDIA_STORAGE ?? "").trim().toLowerCase();
+  const storageModeRaw = (envValue("MEDIA_STORAGE") ?? "").toLowerCase();
   let storage: ConfigCheckReport;
   if (!storageModeRaw || storageModeRaw === "database" || storageModeRaw === "db" || storageModeRaw === "none") {
     storage = {
@@ -190,10 +193,7 @@ function validateRuntimeSections() {
       issues: [],
     };
   } else if (storageModeRaw === "azure") {
-    const connStr = (process.env.AZURE_STORAGE_CONNECTION_STRING ?? "").trim();
-    const acct = (process.env.AZURE_STORAGE_ACCOUNT ?? "").trim();
-    const key = (process.env.AZURE_STORAGE_KEY ?? "").trim();
-    const hasCreds = Boolean(connStr || (acct && key));
+    const hasCreds = azureStorageConfig() !== null;
     if (hasCreds) {
       storage = {
         status: "configured",
@@ -209,7 +209,7 @@ function validateRuntimeSections() {
         configured: false,
         required: false,
         env: ["MEDIA_STORAGE", "AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "AZURE_STORAGE_CONTAINER"],
-        missing: connStr ? [] : ["AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY"],
+        missing: ["AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY"],
         issues: [
           issue(
             "warning",
@@ -233,11 +233,13 @@ function validateRuntimeSections() {
     };
   }
 
+  const scraper = evaluateOptional(["SCRAPER_MAX_BYTES", "SCRAPER_TIMEOUT_MS", "SCRAPER_HTML_NORMALIZE"]);
+
   const tuning = evaluateTuning();
 
   return {
     required: { database, auth },
-    optional: { ai, speech, push, googleOAuth, azureAdOAuth, storage },
+    optional: { ai, speech, push, googleOAuth, azureAdOAuth, storage, scraper },
     tuning,
   };
 }

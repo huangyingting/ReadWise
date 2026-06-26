@@ -2,12 +2,7 @@ import { promises as fs } from "node:fs";
 import path from "node:path";
 import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/types";
 import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
-
-/** Base directory for the filesystem backend (default `./.media`). */
-export function mediaStorageDir(): string {
-  const dir = (process.env.MEDIA_STORAGE_DIR ?? "").trim();
-  return dir ? path.resolve(dir) : path.resolve(process.cwd(), ".media");
-}
+export { mediaStorageDir } from "@/lib/runtime-config/storage";
 
 /** Filesystem-backed {@link MediaStorage}. Content-addressed, traversal-safe. */
 export class FilesystemMediaStorage implements MediaStorage {

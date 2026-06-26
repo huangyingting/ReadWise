@@ -1,47 +1,11 @@
 import { createLogger } from "@/lib/observability/logger";
 import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/types";
 import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
+import type { AzureStorageConfig, AzureStorageConnectionStringConfig } from "@/lib/runtime-config/storage";
+export type { AzureStorageConfig, AzureStorageConnectionStringConfig } from "@/lib/runtime-config/storage";
+export { azureStorageConfig } from "@/lib/runtime-config/storage";
 
 const log = createLogger("storage");
-
-export type AzureStorageConfig = {
-  /** Azure Storage account name (for account-key auth). */
-  accountName: string;
-  /** Azure Storage account key (for account-key auth). */
-  accountKey: string;
-  /** Blob container to store media assets in. */
-  container: string;
-};
-
-export type AzureStorageConnectionStringConfig = {
-  /** Full connection string (alternative to account-name+key). */
-  connectionString: string;
-  /** Blob container to store media assets in. */
-  container: string;
-};
-
-/**
- * Reads Azure Blob Storage configuration from environment variables.
- * Supports both connection-string and account-name+account-key auth.
- * Returns null when credentials are absent so the caller can skip Azure.
- */
-export function azureStorageConfig():
-  | AzureStorageConfig
-  | AzureStorageConnectionStringConfig
-  | null {
-  const container =
-    (process.env.AZURE_STORAGE_CONTAINER ?? "").trim() || "media";
-  const connStr = (process.env.AZURE_STORAGE_CONNECTION_STRING ?? "").trim();
-  if (connStr) {
-    return { connectionString: connStr, container };
-  }
-  const accountName = (process.env.AZURE_STORAGE_ACCOUNT ?? "").trim();
-  const accountKey = (process.env.AZURE_STORAGE_KEY ?? "").trim();
-  if (accountName && accountKey) {
-    return { accountName, accountKey, container };
-  }
-  return null;
-}
 
 /** Azure Blob Storage–backed {@link MediaStorage}. */
 export class AzureBlobMediaStorage implements MediaStorage {

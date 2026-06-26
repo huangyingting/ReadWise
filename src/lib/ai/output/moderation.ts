@@ -98,7 +98,4 @@ export function isTextSafe(text: string): boolean {
  * integration (e.g. Azure AI Content Safety) can gate on this without changing
  * callers. Off by default; the heuristic always runs regardless.
  */
-export function isRemoteModerationEnabled(): boolean {
-  const v = process.env.AI_MODERATION_ENABLED?.trim().toLowerCase();
-  return v === "1" || v === "true" || v === "on";
-}
+export { isRemoteModerationEnabled } from "@/lib/runtime-config/ai";

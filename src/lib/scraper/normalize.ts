@@ -21,6 +21,7 @@
  */
 
 import { createLogger } from "@/lib/observability/logger";
+import { scraperHtmlNormalize } from "@/lib/runtime-config/scraper";
 
 const log = createLogger("scraper:normalize");
 
@@ -107,7 +108,7 @@ export type NormalizeOptions = {
  * When disabled, returns the original HTML string without any allocation.
  */
 export function normalizeArticleHtml(html: string, opts: NormalizeOptions = {}): NormalizeResult {
-  const enabled = opts.force === true || process.env.SCRAPER_HTML_NORMALIZE === "true";
+  const enabled = opts.force === true || scraperHtmlNormalize();
   const originalLength = Buffer.byteLength(html, "utf8");
 
   if (!enabled) {
