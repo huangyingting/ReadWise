@@ -29,8 +29,9 @@ export async function recordReadingActivity(
   userId: string,
   _articleId: string,
   timezone?: string,
+  now?: Date,
 ): Promise<void> {
-  const now = new Date();
+  now = now ?? new Date();
 
   const profile = await prisma.profile.findUnique({
     where: { userId },

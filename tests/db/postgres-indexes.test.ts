@@ -1,20 +1,12 @@
 import assert from "node:assert/strict";
-import { after, afterEach, test } from "node:test";
-
-import { prisma } from "@/lib/prisma";
+import { test } from "node:test";
 
 import { enabled, isPostgres } from "./support/db-config";
-import { cleanIntegrationRows } from "./support/db-helpers";
+import { registerIntegrationCleanup } from "./support/db-helpers";
 import { assertUsesAnyIndex, assertUsesIndexes, explainIndexNames } from "./support/explain-helpers";
 import { seedQueryPlanFixture } from "./support/fixtures";
 
-afterEach(async () => {
-  if (enabled) await cleanIntegrationRows();
-});
-
-after(async () => {
-  await prisma.$disconnect();
-});
+registerIntegrationCleanup();
 
 test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
