@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
 import { idParams, object, oneOf } from "@/lib/validation";
-import { runJobAction, JOB_ACTIONS, type JobActionName } from "@/lib/admin-jobs";
+import { runJobAction, JOB_ACTIONS, type JobActionName } from "@/lib/admin/jobs";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { throwIfFailed } from "@/lib/result";
 

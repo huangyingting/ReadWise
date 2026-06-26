@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES, hasCapability } from "@/lib/rbac";
 import { getAdminArticleDetail } from "@/lib/article-library";
-import { statusBadgeVariant } from "@/lib/admin";
+import { statusBadgeVariant } from "@/lib/admin/overview";
 import { readingMinutesFor } from "@/lib/article-library";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { articleAccessContext } from "@/lib/article-library";

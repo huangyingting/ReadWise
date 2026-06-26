@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin-jobs";
+import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin/jobs";
 import { JobStatus, JobType } from "@prisma/client";
 import AdminJobActions from "@/components/AdminJobActions";
 import AdminBackfillForm from "@/components/AdminBackfillForm";
