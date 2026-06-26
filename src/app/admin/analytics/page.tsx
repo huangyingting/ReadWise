@@ -8,7 +8,7 @@ import {
   TIME_RANGE_PRESETS,
   type AnalyticsSegment,
 } from "@/lib/analytics/product";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 import { BarChart } from "@/components/admin/BarChart";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { RetentionTable } from "@/components/admin/RetentionTable";
@@ -162,13 +162,13 @@ export default async function AdminAnalyticsPage({
       </p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
-        <AdminStatCard label="Activation rate" value={`${overview.activation.ratePct}%`} />
-        <AdminStatCard
+        <StatCard label="Activation rate" value={`${overview.activation.ratePct}%`} />
+        <StatCard
           label="Reading completion"
           value={`${overview.readingCompletion.ratePct}%`}
         />
-        <AdminStatCard label="Study conversion" value={`${overview.studyConversion.ratePct}%`} />
-        <AdminStatCard label="Total events" value={overview.totals.events} />
+        <StatCard label="Study conversion" value={`${overview.studyConversion.ratePct}%`} />
+        <StatCard label="Total events" value={overview.totals.events} />
       </div>
 
       <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">

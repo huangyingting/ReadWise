@@ -9,6 +9,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
+import { Button, buttonVariants } from "@/components/ui/Button";
 
 export interface ErrorScreenAction {
   label: string;
@@ -79,18 +80,14 @@ export default function ErrorScreen({
       {(reset || secondaryAction) && (
         <div className="flex gap-[var(--space-3)] flex-wrap justify-center">
           {reset && (
-            <button
-              type="button"
-              onClick={() => reset()}
-              className="inline-flex items-center gap-[var(--space-2)] px-[var(--space-5)] py-[var(--space-3)] rounded-[var(--radius-md)] bg-primary text-on-primary font-semibold text-[length:var(--text-sm)] border-0 cursor-pointer transition-colors hover:bg-primary-hover"
-            >
+            <Button type="button" onClick={() => reset()}>
               {resetLabel}
-            </button>
+            </Button>
           )}
           {secondaryAction && (
             <a
               href={secondaryAction.href}
-              className="inline-flex items-center gap-[var(--space-2)] px-[var(--space-5)] py-[var(--space-3)] rounded-[var(--radius-md)] bg-surface text-text font-semibold text-[length:var(--text-sm)] border border-border cursor-pointer transition-colors hover:bg-bg-subtle no-underline"
+              className={buttonVariants({ variant: "outline" })}
             >
               {secondaryAction.label}
             </a>

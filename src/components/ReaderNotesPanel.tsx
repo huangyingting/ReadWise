@@ -22,6 +22,7 @@ import { cn } from "@/lib/cn";
 import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
 import EmptyState from "@/components/EmptyState";
 import ConfirmAction from "@/components/ConfirmAction";
 import {
@@ -259,9 +260,7 @@ export default function ReaderNotesPanel() {
   if (loading) {
     return (
       <div className="rw-notes-panel">
-        <p className="muted" style={{ fontSize: "var(--text-sm)", margin: 0 }}>
-          Loading…
-        </p>
+        <Spinner size="sm" className="text-text-subtle" />
       </div>
     );
   }

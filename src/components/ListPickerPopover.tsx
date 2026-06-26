@@ -25,6 +25,7 @@ import { Plus } from "lucide-react";
 import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
+import { Spinner } from "@/components/ui/Spinner";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
 
 export type ListMembershipEntry = {
@@ -221,8 +222,8 @@ export default function ListPickerPopover({
         style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
       >
         {loading ? (
-          <div className="px-[var(--space-3)] py-[var(--space-3)] text-[length:var(--text-sm)] text-text-subtle">
-            Loading…
+          <div className="flex items-center justify-center px-[var(--space-3)] py-[var(--space-3)]">
+            <Spinner size="sm" className="text-text-subtle" />
           </div>
         ) : error && lists.length === 0 ? (
           <div className="px-[var(--space-3)] py-[var(--space-3)] text-[length:var(--text-sm)] text-danger-text">

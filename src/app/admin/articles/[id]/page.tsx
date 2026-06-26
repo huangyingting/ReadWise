@@ -22,6 +22,7 @@ import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
+import { StatCard } from "@/components/analytics/StatCard";
 import { formatDateTime } from "@/lib/display-format";
 
 /** Maps a processing-step status to a Badge variant. */
@@ -128,12 +129,7 @@ export default async function AdminArticleDetailPage({
           <CardTitle level="h3">Derived content</CardTitle>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
             {aiItems.map((item) => (
-              <Card key={item.label} className="p-[var(--space-4)]">
-                <div className="text-[length:var(--text-2xl)] font-bold font-[family-name:var(--font-display)] text-text">
-                  {item.value}
-                </div>
-                <CardMeta>{item.label}</CardMeta>
-              </Card>
+              <StatCard key={item.label} label={item.label} value={item.value} />
             ))}
           </div>
           <AdminArticleActions articleId={article.id} redirectOnDelete="/admin/articles" />
