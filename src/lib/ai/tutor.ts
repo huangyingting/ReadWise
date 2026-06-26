@@ -23,6 +23,7 @@ import {
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
 } from "@/lib/article-library";
+import { t } from "@/lib/i18n";
 
 /** Max characters of article plain-text sent to the model as grounding. */
 const MAX_ARTICLE_CHARS = 7000;
@@ -35,10 +36,6 @@ export const MAX_QUESTION_LENGTH = 1000;
 
 /** Default CEFR level used when the user has no profile. */
 const DEFAULT_LEVEL = "B1";
-
-/** Friendly message returned when the AI service is unavailable. */
-const FALLBACK_ANSWER =
-  "AI feature unavailable — the AI tutor is not available right now. Please try again later.";
 
 export type TutorMessageDto = {
   id: string;
@@ -127,7 +124,7 @@ export async function askTutor(
   // Graceful fallback when AI is not configured.
   if (!isAiConfigured()) {
     return {
-      answer: FALLBACK_ANSWER,
+      answer: t("ai.tutor.unavailable"),
       fallback: true,
       messages: await getTutorMessages(userId, articleId),
     };
@@ -178,7 +175,7 @@ export async function askTutor(
   if (!completion) {
     // AI configured but request failed — graceful fallback, persist nothing.
     return {
-      answer: FALLBACK_ANSWER,
+      answer: t("ai.tutor.unavailable"),
       fallback: true,
       messages: await getTutorMessages(userId, articleId),
     };

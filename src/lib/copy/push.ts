@@ -12,8 +12,8 @@
  * code. The `ui` namespace is also safe to import from both server and client
  * modules because it contains only plain string constants.
  */
-import { SITE_NAME } from "./site";
 import { ICON_192 } from "@/lib/assets";
+import { t } from "@/lib/i18n";
 
 // ---------------------------------------------------------------------------
 // Push notification payload (server-side — src/lib/push.ts)
@@ -21,23 +21,20 @@ import { ICON_192 } from "@/lib/assets";
 
 export const reminder = {
   /** Notification title shown in the OS notification center. */
-  title: "Time to review! 📚",
+  title: t("push.reminder.title"),
 
   /**
    * Notification body text.
    * Returns singular or plural copy depending on the count of due words.
    */
-  body: (count: number): string =>
-    count === 1
-      ? `You have 1 word due for review in ${SITE_NAME}.`
-      : `You have ${count} words due for review in ${SITE_NAME}.`,
+  body: (count: number): string => t("push.reminder.body", { count }),
 
   /** Deep-link URL opened when the user taps the notification. */
   url: "/study",
 
   /** Icon shown in the notification (PWA icon path). */
   icon: ICON_192,
-} as const satisfies {
+} satisfies {
   title: string;
   body: (count: number) => string;
   url: string;

@@ -28,7 +28,19 @@ import { en } from "./en";
 
 type MessageKey = keyof MessageCatalog;
 
-type MessageParams<K extends MessageKey> = MessageCatalog[K] extends (
+/**
+ * Keys whose catalog entry takes no parameters (`() => string`).
+ * Derived automatically from the catalog interface so adding a new parameterless
+ * entry here doesn't require updating this type manually.
+ */
+type ParamlessKey = {
+  [K in MessageKey]: MessageCatalog[K] extends () => string ? K : never;
+}[MessageKey];
+
+/** Keys whose catalog entry is parameterized (`(params: {...}) => string`). */
+type ParamKey = Exclude<MessageKey, ParamlessKey>;
+
+type MessageParams<K extends ParamKey> = MessageCatalog[K] extends (
   params: infer P,
 ) => string
   ? P
@@ -40,16 +52,30 @@ type MessageParams<K extends MessageKey> = MessageCatalog[K] extends (
  * Phase 1 always uses the English catalog. The `locale` parameter is accepted
  * but unused; it exists so future phases can pass the resolved locale without
  * changing call sites.
+ *
+ * Two call signatures:
+ *   // Parameterless message:
+ *   const label = t("push.reminder.title");
+ *
+ *   // Parameterized message:
+ *   const msg = t("reader.translate.unavailable", { lang: "Spanish" });
  */
-export function t<K extends MessageKey>(
+export function t(key: ParamlessKey, _locale?: string): string;
+export function t<K extends ParamKey>(
   key: K,
   params: MessageParams<K>,
   _locale?: string,
-): string {
-  const entry = en[key];
+): string;
+export function t(key: MessageKey, paramsOrLocale?: unknown, _locale?: string): string {
+  const entry = en[key] as ((p?: unknown) => string) | undefined;
   if (typeof entry === "function") {
     try {
-      return (entry as (p: MessageParams<K>) => string)(params);
+      if (paramsOrLocale === undefined || typeof paramsOrLocale === "string") {
+        // Parameterless call — invoke with no arguments.
+        return (entry as () => string)();
+      }
+      // Parameterized call — pass the params record.
+      return (entry as (p: unknown) => string)(paramsOrLocale);
     } catch {
       return key;
     }

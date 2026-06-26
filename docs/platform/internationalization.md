@@ -163,27 +163,38 @@ Listed in approximate impact order (most visible first):
 ## Relationship to #733 (provider-fallback messages)
 
 Issue #733 adds localized messages for cases where the AI or push-notification
-provider is unavailable. It must build on the `t()` seam defined here:
+provider is unavailable. It builds on the `t()` seam defined here.
 
-```typescript
-// src/lib/translation.ts — after #733 lands
-import { t } from "@/lib/i18n";
+### Keys migrated in #733
 
-function fallbackText(lang: string): string {
-  return t("reader.translate.unavailable", { lang });
-}
-```
+| Key | Call site | Message (English) |
+|---|---|---|
+| `reader.translate.unavailable` | `src/lib/translation.ts` | "Translation into \${lang} is unavailable…" |
+| `ai.tutor.unavailable` | `src/lib/ai/tutor.ts` | "AI feature unavailable — the AI tutor is not available right now…" |
+| `ai.quiz.unavailable` | `src/components/ArticleQuiz.tsx` | "AI feature unavailable — quiz generation is not available right now…" |
+| `ai.translation.unavailable` | `src/components/BilingualBody.tsx` | "AI feature unavailable — translation is not available right now." |
+| `ai.vocabulary.unavailable.title` | `src/components/ArticleVocabulary.tsx` | "Vocabulary unavailable" |
+| `ai.vocabulary.unavailable.description` | `src/components/ArticleVocabulary.tsx` | "AI vocabulary extraction is not available right now…" |
+| `push.reminder.title` | `src/lib/copy/push.ts` | "Time to review! 📚" |
+| `push.reminder.body` | `src/lib/copy/push.ts` | "You have \${count} word(s) due for review in ReadWise." |
 
-The English default catalog entry:
+### Follow-up inventory (not yet migrated)
 
-```
-"reader.translate.unavailable": ({ lang }) =>
-  `Translation into ${lang} is unavailable right now because the AI ` +
-  `translation service is not configured. Please try again later.`
-```
+These user-facing strings were identified in #733 but deferred to a follow-up
+issue to keep this PR focused:
 
-The seam keeps `translation.ts` unchanged at the API level while making the
-message string locale-aware.
+| Surface | File | Message |
+|---|---|---|
+| Speech token transient error | `src/components/reader/useSpeechToken.ts` | "Speech service is temporarily unavailable. Try again shortly." |
+| Speech token unavailable | `src/components/reader/useSpeechToken.ts` | "Speech service is temporarily unavailable." |
+| Sentence translate error | `src/components/SentenceTranslatePopover.tsx` | "Couldn't translate that. Try again." |
+| Sentence translate fallback | `src/components/SentenceTranslatePopover.tsx` | "Translation isn't available right now. Try again in a moment." |
+| AI budget quota exceeded | `src/lib/ai/budget.ts` (quotaMessage) | "AI usage limit reached for \${subject} budget…" |
+| Moderation fallback | `src/lib/ai/output/moderation.ts` | "I can't help with that…" |
+| Narration unavailable | `src/components/ReaderListenButton.tsx` | "Narration unavailable" |
+| Microphone access denied | `src/components/pronunciation/ErrorNotice.tsx` | "ReadWise can't hear your microphone…" |
+| Push UI: denied info | `src/lib/copy/push.ts` (ui.deniedInfo) | "Notifications are blocked…" |
+| Push UI: subscribe errors | `src/lib/copy/push.ts` (ui.subscribeError etc.) | "Failed to enable push notifications." |
 
 ## Scaffolding (`src/lib/i18n/`)
 
@@ -196,8 +207,10 @@ work to adopt incrementally.
 ```
 src/lib/i18n/
   catalog.ts   — MessageCatalog interface + parameter type helpers
-  en.ts        — English default catalog (pilot: reader.translate.unavailable)
-  index.ts     — t() lookup function + re-exports
+  en.ts        — English default catalog (8 keys as of #733)
+  index.ts     — t() lookup function + re-exports; overloads for both
+                 parameterless t("key") and parameterized t("key", { ... })
+```
 ```
 
 The implementation is server/client-safe (no Node-only imports). It is a pure
@@ -209,7 +222,9 @@ TypeScript module that works in both Server Components and Client Components.
 
 - [x] Design doc at `docs/platform/internationalization.md`.
 - [x] `src/lib/i18n/` seam: `MessageCatalog` type, English catalog, `t()`.
-- [ ] #733 migrates `fallbackText()` and push-reminder copy to `t()`.
+- [x] #733 migrates `fallbackText()`, push-reminder copy, and provider-fallback
+  component strings to `t()`. 8 keys now live in the catalog; see the table
+  above for the full list.
 - [ ] `src/lib/display-format.ts` functions accept optional `locale` param.
 
 ### Phase 2 — Pilot locale (future issue)

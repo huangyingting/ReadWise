@@ -10,6 +10,7 @@ import {
   isSupportedLanguage,
   SUPPORTED_LANGUAGES,
 } from "@/lib/supported-languages";
+import { t } from "@/lib/i18n";
 
 export type { SupportedLanguage } from "@/lib/supported-languages";
 export { SUPPORTED_LANGUAGES, isSupportedLanguage, languageLabel } from "@/lib/supported-languages";
@@ -21,13 +22,6 @@ export type TranslationResult = {
   cached: boolean;
   fallback: boolean;
 };
-
-function fallbackText(label: string): string {
-  return (
-    `Translation into ${label} is unavailable right now because the AI ` +
-    `translation service is not configured. Please try again later.`
-  );
-}
 
 /**
  * Returns the cached translation for an article+language, generating and
@@ -106,7 +100,7 @@ export async function getOrCreateTranslation(
       fallback: () => ({
         lang,
         languageLabel: label,
-        content: fallbackText(label),
+        content: t("reader.translate.unavailable", { lang: label }),
         cached: false,
         fallback: true,
       }),

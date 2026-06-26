@@ -4,6 +4,7 @@ import { Check, Star } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import AiBadge from "@/components/AiBadge";
 import { formatRelativeTime } from "@/lib/display-format";
+import { t } from "@/lib/i18n";
 import {
   useArticleQuizPanel,
   type QuizQuestion,
@@ -40,10 +41,7 @@ export default function ArticleQuiz({
       ) : null}
 
       {!panel.loading && panel.loaded && panel.fallback ? (
-        <p className="muted">
-          AI feature unavailable — quiz generation is not available right now.
-          Please try again later.
-        </p>
+        <p className="muted">{t("ai.quiz.unavailable")}</p>
       ) : null}
 
       {!panel.loading && panel.loaded && !panel.fallback && panel.questions.length === 0 ? (
