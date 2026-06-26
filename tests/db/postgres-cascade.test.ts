@@ -112,3 +112,42 @@ test("article deletes cascade derived data but keep saved-word study history", {
   );
   assert.equal(savedWord?.articleId, articleId);
 });
+
+test("ArticleMastery row is cascade-deleted when its article is deleted", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const userId = id("mastery_casc_user");
+  const articleId = id("mastery_casc_article");
+
+  await prisma.user.create({ data: { id: userId, name: "DB Integration Mastery Cascade User", role: "Reader" } });
+  await prisma.article.create({
+    data: {
+      id: articleId,
+      title: "Mastery Cascade Article",
+      content: "A body long enough for reading mastery.",
+      status: ArticleStatus.PUBLISHED,
+      publishedAt: new Date(),
+      ownerId: userId,
+      visibility: ArticleVisibility.PRIVATE,
+    },
+  });
+  await prisma.articleMastery.create({
+    data: {
+      userId,
+      articleId,
+      readingCompletion: 0.75,
+      timeSpentMs: 120_000,
+      comprehensionScore: 0.8,
+    },
+  });
+
+  assert.equal(await prisma.articleMastery.count({ where: { articleId } }), 1);
+
+  await prisma.article.delete({ where: { id: articleId } });
+
+  assert.equal(
+    await prisma.articleMastery.count({ where: { articleId } }),
+    0,
+    "ArticleMastery should be cascade-deleted with its article",
+  );
+});

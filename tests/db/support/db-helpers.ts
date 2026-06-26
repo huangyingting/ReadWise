@@ -26,6 +26,10 @@ export function id(label: string): string {
 
 /** Deletes all rows created by the integration suite (identified by PREFIX). */
 export async function cleanIntegrationRows(): Promise<void> {
+  // Analytics events are not FK-linked to users; clean before user deletion.
+  await prisma.analyticsEvent.deleteMany({ where: { userId: { startsWith: PREFIX } } });
+  // Organizations cascade to Membership, Classroom, Assignment, AssignmentCompletion.
+  await prisma.organization.deleteMany({ where: { id: { startsWith: PREFIX } } });
   await prisma.auditLog.deleteMany({ where: { actorId: { startsWith: PREFIX } } });
   await prisma.savedWord.deleteMany({ where: { userId: { startsWith: PREFIX } } });
   await prisma.article.deleteMany({ where: { id: { startsWith: PREFIX } } });
