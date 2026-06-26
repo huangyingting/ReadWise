@@ -1,8 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
-import { getFilteredSavedWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
-import { prisma } from "@/lib/prisma";
-import { articleAccessContext, readableArticleWhere } from "@/lib/article-library";
+import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
+import { articleAccessContext } from "@/lib/article-library";
 import { parseWordsQuery } from "@/lib/study/schemas";
 
 /**
@@ -37,20 +36,11 @@ export const GET = createHandler({ query: parseWordsQuery }, async ({ session, q
     page: query.page,
   });
 
-  // Resolve article titles for words that have an articleId
+  // Resolve article titles for words that have an articleId.
   const articleIds = [
     ...new Set(result.words.map((w) => w.articleId).filter(Boolean) as string[]),
   ];
-  const articles: Record<string, string> = {};
-  if (articleIds.length > 0) {
-    const rows = await prisma.article.findMany({
-      where: readableArticleWhere(context, { id: { in: articleIds } }),
-      select: { id: true, title: true },
-    });
-    for (const row of rows) {
-      articles[row.id] = row.title;
-    }
-  }
+  const articles = await getArticleTitlesForWords(articleIds, context);
 
   return NextResponse.json({
     words: result.words,
