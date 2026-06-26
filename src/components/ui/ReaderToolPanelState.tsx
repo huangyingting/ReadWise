@@ -10,8 +10,7 @@ import { Spinner } from "@/components/ui/Spinner";
  * Shared presentational states for tool/study panels: loading, fallback /
  * unavailable, empty, and error. Promoted from
  * `components/reader/study/` so non-reader panels (VocabularyJournal, etc.)
- * can adopt the same primitives. The old path re-exports these for
- * backward compatibility.
+ * can adopt the same primitives.
  */
 
 export function PanelLoading({ message }: { message: string }) {

@@ -21,8 +21,6 @@ import { clamp01 } from "./primitives";
 // pulling in the full skill-mastery implementation (DB / Prisma deps).
 import { SKILLS, isSkill } from "./types";
 import type { Skill, EvidenceSummary, SkillSummary, SkillProfile } from "./types";
-export { SKILLS, isSkill } from "./types";
-export type { Skill, EvidenceSummary, SkillSummary, SkillProfile } from "./types";
 
 /** Smoothing factor for the confidence EMA (per unit weight, capped). */
 const BASE_ALPHA = 0.3;

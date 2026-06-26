@@ -10,7 +10,7 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import type { StudyDiagnostics } from "@/lib/learning/study-plan";
-import type { SkillSummary, Skill } from "@/lib/learning/skill-mastery";
+import type { SkillSummary, Skill } from "@/lib/learning/types";
 import { makeStudyDiagnostics, makeSkillSummaries } from "./support/learning-fixtures";
 
 /** Local alias to keep existing call-sites readable. */

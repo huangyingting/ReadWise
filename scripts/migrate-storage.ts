@@ -1,6 +1,6 @@
 /**
  * Storage migration CLI — moves ArticleSpeech.audioBase64 payloads into the
- * configured object-storage backend (MEDIA_STORAGE=filesystem|azure|...).
+ * configured object-storage backend (MEDIA_STORAGE=filesystem|azure).
  *
  * Usage:
  *   npm run migrate-storage -- [--limit N]

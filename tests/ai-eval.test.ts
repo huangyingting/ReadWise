@@ -11,14 +11,11 @@ process.env.LOG_LEVEL = "error";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
-import {
-  loadEvalDatasets,
-  runEvaluation,
-  evaluateDataset,
-  collectFailures,
-  EVALUABLE_FEATURES,
-  type EvalDataset,
-} from "@/lib/ai/eval";
+import { loadEvalDatasets } from "@/lib/ai/evals/datasets";
+import { evaluateDataset, runEvaluation } from "@/lib/ai/evals/live-runner";
+import { collectFailures } from "@/lib/ai/evals/report";
+import { EVALUABLE_FEATURES } from "@/lib/ai/evals/registry";
+import type { EvalDataset } from "@/lib/ai/evals/types";
 
 test("every evaluable feature has at least one curated dataset", () => {
   const datasets = loadEvalDatasets();

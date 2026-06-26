@@ -240,18 +240,6 @@ test("database mode (default) returns null from getMediaStorage", async () => {
   assert.equal(isObjectStorageConfigured(), false);
 });
 
-test("unregistered cloud seam (s3) degrades gracefully to null", async () => {
-  process.env.MEDIA_STORAGE = "s3";
-  const { getMediaStorage } = await import("@/lib/storage");
-  assert.equal(getMediaStorage(), null);
-});
-
-test("unregistered cloud seam (r2) degrades gracefully to null", async () => {
-  process.env.MEDIA_STORAGE = "r2";
-  const { getMediaStorage } = await import("@/lib/storage");
-  assert.equal(getMediaStorage(), null);
-});
-
 test("azure without credentials degrades gracefully to null", async () => {
   process.env.MEDIA_STORAGE = "azure";
   const { getMediaStorage } = await import("@/lib/storage");

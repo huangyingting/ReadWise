@@ -12,5 +12,5 @@ export { default as CompleteAssignmentButton } from "./CompleteAssignmentButton"
 export { default as CreateClassroomForm } from "./CreateClassroomForm";
 export type { TeachableOrg } from "./CreateClassroomForm";
 export { default as CreateOrgForm } from "./CreateOrgForm";
-export { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
+export { TeacherFormShell } from "./TeacherFormShell";
 export type { TeacherFormShellProps } from "./TeacherFormShell";

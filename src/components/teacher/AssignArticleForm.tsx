@@ -5,7 +5,8 @@ import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Field } from "@/components/ui/Field";
-import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
+import { useMutation } from "@/hooks/useMutation";
+import { TeacherFormShell } from "./TeacherFormShell";
 
 /**
  * Assigns an article to a classroom (RW-061): an article id, an optional due
@@ -15,7 +16,7 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
   const [articleId, setArticleId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [instructions, setInstructions] = useState("");
-  const { busy, error, run } = useTeacherMutation("Failed to assign article");
+  const { busy, error, run } = useMutation("Failed to assign article");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

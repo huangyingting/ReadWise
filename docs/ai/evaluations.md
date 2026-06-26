@@ -31,7 +31,7 @@ Each major AI feature has **≥ 1 dataset** under `evals/` (`translation.json`,
 
 ## 2. Modes
 
-The harness (`src/lib/ai/eval.ts`) runs in two modes:
+The harness (`src/lib/ai/evals/`) runs in two modes:
 
 ### Offline (default — deterministic, CI)
 

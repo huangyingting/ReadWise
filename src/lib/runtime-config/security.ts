@@ -70,8 +70,7 @@ function normalizeOriginValue(value: string | null | undefined): string | null {
  */
 export function csrfAllowedOrigins(): string[] {
   const out = new Set<string>();
-  const raw =
-    envValue("CSRF_ALLOWED_ORIGINS") ?? envValue("CSRF_TRUSTED_ORIGINS");
+  const raw = envValue("CSRF_ALLOWED_ORIGINS");
   if (raw) {
     for (const entry of raw.split(",")) {
       const origin = normalizeOriginValue(entry);

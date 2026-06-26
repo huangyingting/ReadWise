@@ -15,13 +15,11 @@
  */
 
 import { writeFileSync } from "node:fs";
-import {
-  loadEvalDatasets,
-  runEvaluation,
-  collectFailures,
-  EVALUABLE_FEATURES,
-  type EvalReport,
-} from "@/lib/ai/eval";
+import { loadEvalDatasets } from "@/lib/ai/evals/datasets";
+import { runEvaluation } from "@/lib/ai/evals/live-runner";
+import { collectFailures } from "@/lib/ai/evals/report";
+import { EVALUABLE_FEATURES } from "@/lib/ai/evals/registry";
+import type { EvalReport } from "@/lib/ai/evals/types";
 import { isAiConfigured } from "@/lib/ai";
 import { runScript, isMain, warnUnknown } from "./lib/cli";
 

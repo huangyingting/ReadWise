@@ -4,7 +4,8 @@ import { useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
-import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
+import { useMutation } from "@/hooks/useMutation";
+import { TeacherFormShell } from "./TeacherFormShell";
 
 /**
  * Creates an organization (RW-060). The creator becomes its first OrgAdmin so
@@ -12,7 +13,7 @@ import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
  */
 export default function CreateOrgForm() {
   const [name, setName] = useState("");
-  const { busy, error, run } = useTeacherMutation("Failed to create organization");
+  const { busy, error, run } = useMutation("Failed to create organization");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

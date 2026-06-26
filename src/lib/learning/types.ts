@@ -2,8 +2,6 @@
  * Shared learning domain types — extracted from skill-mastery.ts so that
  * `recommendations/` can import just the type contract without pulling in the
  * full skill-mastery implementation (which has DB / Prisma dependencies).
- *
- * `skill-mastery.ts` re-exports everything defined here for backward compat.
  */
 
 /** The six tracked skill dimensions. */

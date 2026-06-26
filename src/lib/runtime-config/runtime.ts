@@ -174,7 +174,7 @@ function validateRuntimeSections() {
 
   const storageModeRaw = (envValue("MEDIA_STORAGE") ?? "").toLowerCase();
   let storage: ConfigCheckReport;
-  if (!storageModeRaw || storageModeRaw === "database" || storageModeRaw === "db" || storageModeRaw === "none") {
+  if (!storageModeRaw || storageModeRaw === "database") {
     storage = {
       status: "unconfigured",
       configured: false,
@@ -183,7 +183,7 @@ function validateRuntimeSections() {
       missing: [],
       issues: [],
     };
-  } else if (storageModeRaw === "filesystem" || storageModeRaw === "local" || storageModeRaw === "fs") {
+  } else if (storageModeRaw === "filesystem") {
     storage = {
       status: "configured",
       configured: true,
