@@ -84,6 +84,8 @@ export default function FlashcardReview({
 
   // ── Focus management: move into session panel when session first starts ────
   const sessionStartedRef = useRef(false);
+  // Extract card count for the dep array — appState.cards only exists in session phase.
+  const cardCount = appState.phase === "session" ? appState.cards.length : undefined;
   useEffect(() => {
     if (appState.phase === "session") {
       if (sessionStartedRef.current) return;
@@ -99,7 +101,7 @@ export default function FlashcardReview({
     } else {
       sessionStartedRef.current = false;
     }
-  });
+  }, [appState.phase, cardCount, announce]);
 
   // ── Global keyboard handler ───────────────────────────────────────────────
   useEffect(() => {

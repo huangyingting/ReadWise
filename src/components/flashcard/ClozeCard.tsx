@@ -1,9 +1,10 @@
 "use client";
 
-import { Volume2 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
-import { cn, focusRing } from "@/lib/cn";
+import { Input } from "@/components/ui/Input";
+import { cn } from "@/lib/cn";
 import { GradeButtons } from "./GradeButtons";
+import { PronounceButton, ShowAnswerButton } from "./FlashcardPrimitives";
 import type { DueCard, Grade } from "./types";
 
 interface ClozeCardProps {
@@ -85,31 +86,16 @@ export function ClozeCard({
 
       {/* Audio button — disabled until the masked answer is revealed to
           preserve cloze privacy. */}
-      {speechAvailable &&
-        (() => {
-          const pronounceEnabled = !card.cloze || clozeSubmitted;
-          return (
-            <button
-              type="button"
-              onClick={() =>
-                pronounceEnabled ? onSpeak(card.word, card.id) : undefined
-              }
-              disabled={!pronounceEnabled}
-              aria-label="Play pronunciation"
-              title={pronounceEnabled ? undefined : "Available after you answer"}
-              className={cn(
-                "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
-                "min-h-[44px] px-[var(--space-2)]",
-                "text-[length:var(--text-sm)] transition-colors",
-                "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-muted",
-                focusRing,
-              )}
-            >
-              <Volume2 size={16} aria-hidden />
-              {speaking === card.id ? "Playing…" : "Pronounce"}
-            </button>
-          );
-        })()}
+      {speechAvailable && (
+        <PronounceButton
+          word={card.word}
+          cardId={card.id}
+          speaking={speaking}
+          disabled={!!card.cloze && !clozeSubmitted}
+          disabledTitle="Available after you answer"
+          onSpeak={onSpeak}
+        />
+      )}
 
       {/* Input form — only when cloze data is available and not yet submitted */}
       {card.cloze && !clozeSubmitted && (
@@ -121,7 +107,7 @@ export function ClozeCard({
           className="flex flex-col items-center gap-[var(--space-3)] w-full"
           style={{ maxWidth: "32ch" }}
         >
-          <input
+          <Input
             ref={clozeInputRef}
             type="text"
             value={clozeInput}
@@ -130,13 +116,9 @@ export function ClozeCard({
             autoComplete="off"
             spellCheck={false}
             autoFocus
-            className={cn(
-              "w-full rounded-[var(--radius-md)] border border-border-strong bg-surface",
-              "px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-base)] text-text",
-              "placeholder:text-text-subtle text-center",
-              focusRing,
-            )}
+            className="text-center"
             aria-label="Your answer"
+            invalid={clozeSubmitted && !clozeCorrect}
           />
           <Button
             type="submit"
@@ -183,24 +165,13 @@ export function ClozeCard({
       {!card.cloze && (
         <div className="flex flex-col items-center gap-[var(--space-3)] w-full">
           {!flipped ? (
-            <button
-              ref={showAnswerRef}
-              type="button"
-              onClick={onFlip}
-              aria-expanded={flipped}
-              className={cn(
-                "inline-flex items-center justify-center gap-[var(--space-2)]",
-                "h-10 px-[var(--space-4)]",
-                "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
-                "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
-                "hover:bg-bg-subtle",
-                "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-                "active:translate-y-px active:shadow-none",
-                focusRing,
-              )}
+            <ShowAnswerButton
+              showAnswerRef={showAnswerRef}
+              flipped={flipped}
+              onFlip={onFlip}
             >
               Show definition
-            </button>
+            </ShowAnswerButton>
           ) : (
             <>
               {card.explanation && (
