@@ -1,5 +1,6 @@
 import type { PromptTemplate, QuizPromptVars } from "./types";
 import { TARGET_QUIZ_QUESTIONS } from "./types";
+import { wrapUntrustedContent, CONTENT_ISOLATION_NOTICE } from "@/lib/ai/input-safety";
 
 const quizTemplate: PromptTemplate<QuizPromptVars> = {
   feature: "quiz",
@@ -18,11 +19,12 @@ const quizTemplate: PromptTemplate<QuizPromptVars> = {
         'these keys: "question" (the question text), "options" (an array of ' +
         "3 or 4 distinct answer strings), and \"correctIndex\" (the 0-based " +
         "index of the single correct option). Exactly one option is correct. " +
-        "No markdown, no commentary, JSON array only.",
+        "No markdown, no commentary, JSON array only. " +
+        CONTENT_ISOLATION_NOTICE,
     },
     {
       role: "user",
-      content: `Title: ${title}\n\n${source}`,
+      content: `Title: ${title}\n\n${wrapUntrustedContent(source)}`,
     },
   ],
 };
