@@ -77,6 +77,14 @@ If it ever starts flaking on `main`, fix it or, as a last resort, gate it behind
   common causes (including the `.next` race below) and the exact local reproduction
   steps.
 
+## Test data and fixtures
+
+Unit tests use in-memory fakes from `tests/support/`; integration tests seed
+prefixed rows (`dbit_`) via helpers in `tests/db/support/`.  See
+[test data and fixture governance](./test-data-governance.md) for the full
+policy covering shared helper usage, the `dbit_` prefix, cleanup, and privacy
+rules.
+
 ## Reproducing each gate locally
 
 ```bash

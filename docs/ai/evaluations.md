@@ -171,3 +171,7 @@ and fails fast on any AI regression.
    (e.g. `minItems`, `level`, `mustInclude`).
 3. Only features with a registered evaluator in `EVALUATORS` can be evaluated —
    add one there if you introduce a new feature.
+4. Dataset inputs must be invented or anonymised — never paste real user content,
+   prompt/response logs, or article bodies from production.  See the
+   [AI evaluation datasets section](../platform/test-data-governance.md#15-ai-evaluation-datasets)
+   of the test data governance guide for the privacy rules that apply to `evals/`.
