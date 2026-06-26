@@ -164,7 +164,7 @@ before(() => {
     namedExports: { getServerSession: async () => sessionState },
   });
   mock.module("@/lib/auth", { namedExports: { authOptions: {} } });
-  mock.module("@/features/profile-preferences/repository", {
+  mock.module("@/lib/profile", {
     namedExports: { isUserOnboarded: async () => true },
   });
   mock.module("next/navigation", {
