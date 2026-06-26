@@ -4,6 +4,7 @@ import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
 import { parseProfileInput, type ProfileInput } from "@/features/profile-preferences/schema";
 import { getProfile } from "@/features/profile-preferences/repository";
+import { revalidateUserCache } from "@/lib/cache";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -40,6 +41,9 @@ export const PUT = createHandler({ body: profileSchema }, async ({ body, session
       });
     }
   });
+
+  // Profile changes (topics, level) affect feed scoring — bust the user's feed cache.
+  revalidateUserCache(session.user.id);
 
   return NextResponse.json({ ok: true });
 });

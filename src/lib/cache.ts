@@ -123,12 +123,22 @@ function tenantCacheTags(
 }
 
 /**
+ * Maximum number of per-tenant `unstable_cache` instances kept in memory.
+ * When the limit is reached the oldest tenant entry (by insertion order) is
+ * evicted. 500 covers any realistic multi-tenant deployment while keeping the
+ * in-process footprint bounded (BE-10).
+ */
+export const MAX_TENANT_CACHE_SIZE = 500;
+
+/**
  * Tenant-aware variant of {@link createCachedListing} (RW-062). The wrapped
  * function MUST take the tenant id (orgId for `org` scope, userId for `user`
  * scope) as its FIRST argument — that id is woven into BOTH the cache key (via
  * {@link tenantCacheKeyParts}) and the invalidation tags (via
  * {@link tenantCacheTags}). A distinct `unstable_cache` instance is memoized per
- * tenant so per-org invalidation is precise. Use this for any NEW org/private
+ * tenant so per-org invalidation is precise. The memoization map is bounded at
+ * {@link MAX_TENANT_CACHE_SIZE} entries; the oldest tenant is evicted (LRU by
+ * insertion order) when the limit is hit. Use this for any NEW org/private
  * feed; keep public feeds on {@link createCachedListing}.
  */
 export function createTenantCachedListing<Args extends unknown[], T>(
@@ -147,6 +157,11 @@ export function createTenantCachedListing<Args extends unknown[], T>(
     recordCacheLookup(cacheName);
     let cached = perTenant.get(id);
     if (!cached) {
+      // Evict the oldest tenant entry when the size limit is reached.
+      if (perTenant.size >= MAX_TENANT_CACHE_SIZE) {
+        const oldest = perTenant.keys().next().value as string | undefined;
+        if (oldest !== undefined) perTenant.delete(oldest);
+      }
       cached = unstable_cache(
         async (innerId: string, ...inner: Args) => {
           recordCacheMiss(cacheName);

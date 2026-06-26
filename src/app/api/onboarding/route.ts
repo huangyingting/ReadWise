@@ -4,6 +4,7 @@ import { createHandler } from "@/lib/api-handler";
 import type { Schema } from "@/lib/validation";
 import { parseProfileInput, type ProfileInput } from "@/features/profile-preferences/schema";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import { revalidateUserCache } from "@/lib/cache";
 
 const profileSchema: Schema<ProfileInput> = (value) => {
   if (typeof value !== "object" || value === null || Array.isArray(value)) {
@@ -36,5 +37,10 @@ export const POST = createHandler({ body: profileSchema }, async ({ body, sessio
       topicCount: Array.isArray(body.topics) ? body.topics.length : 0,
     },
   });
+
+  // Onboarding creates the user profile that drives feed personalisation — bust
+  // the user's feed cache so the next request reflects the new profile.
+  revalidateUserCache(session.user.id);
+
   return NextResponse.json({ ok: true });
 });

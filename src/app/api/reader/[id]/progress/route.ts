@@ -8,6 +8,7 @@ import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { progressBody } from "@/lib/reader/schemas";
+import { revalidateUserCache } from "@/lib/cache";
 
 export const POST = createHandler(
   { params: idParams, body: progressBody },
@@ -33,6 +34,9 @@ export const POST = createHandler(
         articleId: article.id,
         properties: { percent: progress.percent, category: article.category },
       });
+      // Completed articles are hard-excluded from the personalised feed — bust
+      // the user's feed cache so the next request reflects the completion.
+      revalidateUserCache(session.user.id);
     }
     return NextResponse.json({
       percent: progress.percent,
