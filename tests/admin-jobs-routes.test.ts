@@ -10,11 +10,10 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
-
-let authState: "ok" | "unauth" | "forbidden" = "ok";
+let authState: AuthState = "ok";
 let auditCalls: { action: string }[] = [];
 
 let listCalls = 0;
@@ -31,9 +30,6 @@ let actionResult:
 };
 
 let backfillThrows = false;
-
-const session = { user: { id: "admin-1", role: "Admin", name: "Admin", email: null } };
-const readerSession = { user: { id: "reader-1", role: "Reader", name: "Reader", email: null } };
 
 const AUDIT_ACTIONS = {
   adminJobRetry: "admin.job.retry",
@@ -54,24 +50,7 @@ class BackfillError extends Error {
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () => {
-        if (authState === "unauth") {
-          return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-        }
-        if (authState === "forbidden") {
-          return {
-            session: readerSession,
-            error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-          };
-        }
-        return { session };
-      },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/security/audit", {

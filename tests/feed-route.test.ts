@@ -6,14 +6,12 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---- mutable state --------------------------------------------------------
 
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 type FeedResult = {
   articles: { id: string; title: string; author: string | null; source: string | null; category: string | null; difficulty: string | null; readingMinutes: number | null }[];
@@ -32,13 +30,7 @@ let progressResult: Record<string, { percent: number; completed: boolean }> = {}
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () => ({ session }),
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/feed", {
