@@ -1,8 +1,9 @@
 import { readdir } from "node:fs/promises";
-import { dirname, isAbsolute, join } from "node:path";
+import { dirname, join } from "node:path";
 import { NextResponse } from "next/server";
 import { createPublicHandler } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
+import { prismaSchemaPath } from "@/lib/runtime-config/database";
 import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 // Prisma requires the Node.js runtime (uses native bindings).
@@ -14,8 +15,7 @@ type MigrationRow = {
 };
 
 async function listRepositoryMigrationNames(): Promise<string[]> {
-  const configuredSchemaPath = process.env.PRISMA_SCHEMA_PATH?.trim() || "prisma/schema.prisma";
-  const schemaPath = isAbsolute(configuredSchemaPath) ? configuredSchemaPath : join(process.cwd(), configuredSchemaPath);
+  const schemaPath = prismaSchemaPath();
   const migrationDir = join(dirname(schemaPath), "migrations");
   const entries = await readdir(migrationDir, { withFileTypes: true });
   return entries
