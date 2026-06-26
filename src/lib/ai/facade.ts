@@ -24,6 +24,7 @@
 
 import { createLogger } from "@/lib/observability/logger";
 import { aiMaxRetries, aiTimeoutMs } from "@/lib/runtime-config/ai";
+import { isAiFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 import { withSpan, setSpanAttributes } from "@/lib/observability/tracing";
 import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai/ledger";
@@ -75,7 +76,7 @@ export type AiResult = {
 
 /** Whether the active AI chat-completion provider is configured. */
 export function isAiConfigured(): boolean {
-  return getAiProvider().isConfigured();
+  return isAiFeatureEnabled() && getAiProvider().isConfigured();
 }
 
 /** The configured deployment/model name, or null when unconfigured. */
@@ -122,7 +123,7 @@ export async function chatCompleteWithMeta(
       ...extra,
     });
 
-  if (!provider.isConfigured()) {
+  if (!isAiFeatureEnabled() || !provider.isConfigured()) {
     recordAiCall({ feature, outcome: "unconfigured" });
     await logLedger("unconfigured");
     return null;

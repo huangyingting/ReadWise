@@ -6,6 +6,8 @@
  * See docs/refactoring.md § REF-076.
  */
 export * as ai from "@/lib/runtime-config/ai";
+export * as featureFlags from "@/lib/runtime-config/feature-flags";
+export type { FeatureKey } from "@/lib/runtime-config/feature-flags";
 export * as database from "@/lib/runtime-config/database";
 export * as speech from "@/lib/runtime-config/speech";
 export * as push from "@/lib/runtime-config/push";
