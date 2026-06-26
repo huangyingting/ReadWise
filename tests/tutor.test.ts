@@ -93,7 +93,7 @@ before(() => {
 
   // getProfile calls prisma.profile.findUnique — stub the repository so the
   // import chain resolves without touching the real DB.
-  mock.module("@/features/profile-preferences/repository", {
+  mock.module("@/lib/profile", {
     namedExports: {
       getProfile: async () => mockProfile,
       isOnboarded: (p: ProfileRow | null) => Boolean(p),
