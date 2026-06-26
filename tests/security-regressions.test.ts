@@ -2,17 +2,15 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
 import { buildArticle } from "./helpers";
 import { ArticleSourceType, ArticleStatus, ArticleVisibility } from "@prisma/client";
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
 type MockUser = { id?: string | null; role?: string | null } | null | undefined;
 type MockAccessContext = { userId?: string | null; role?: string | null };
 
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
-
-let authState: "ok" | "unauth" = "ok";
+let authState: AuthState = "ok";
 let viewableArticle: unknown = null;
 let viewableCalls: Array<{ id: string; role?: string | null; userId?: string | null }> = [];
 let rateLimitCalls: Array<{ userId: string; scope: string }> = [];
@@ -42,16 +40,7 @@ const scrapedArticle = {
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/article-library", {

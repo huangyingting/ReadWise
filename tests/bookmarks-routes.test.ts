@@ -6,15 +6,13 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---------------------------------------------------------------------------
 // Mutable auth + stub state
 // ---------------------------------------------------------------------------
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 let stubGetUserLists: unknown = [{ id: "list-1", name: "Saved", isDefault: true, count: 3 }];
 let stubCreateList: unknown = { id: "list-2", name: "My List", isDefault: false };
@@ -26,16 +24,7 @@ let stubToggleBookmark: unknown = { ok: true, bookmarked: true };
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/article-library", {
