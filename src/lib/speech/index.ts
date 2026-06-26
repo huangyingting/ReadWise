@@ -4,6 +4,7 @@ import {
   DEFAULT_SPEECH_VOICE,
   speechConfig,
 } from "@/lib/runtime-config/speech";
+import { isTtsFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { createLogger } from "@/lib/observability/logger";
 import type { SpeechWord } from "./timing";
 import {
@@ -62,9 +63,9 @@ export type SpeechResult = {
   fallback: boolean;
 };
 
-/** Whether Azure Speech credentials are configured. */
+/** Whether Azure Speech credentials are configured and TTS is enabled. */
 export function isSpeechConfigured(): boolean {
-  return speechConfig.isConfigured();
+  return isTtsFeatureEnabled() && speechConfig.isConfigured();
 }
 
 function fallbackResult(voice: string): SpeechResult {
@@ -141,7 +142,7 @@ export async function getOrCreateArticleSpeech(
     return null;
   }
 
-  const config = speechConfig.get();
+  const config = isTtsFeatureEnabled() ? speechConfig.get() : null;
   if (!config) {
     return fallbackResult(DEFAULT_SPEECH_VOICE);
   }

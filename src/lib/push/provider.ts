@@ -10,6 +10,7 @@
 import webpush from "web-push";
 import { createLogger } from "@/lib/observability/logger";
 import { pushConfig } from "@/lib/runtime-config/push";
+import { isPushFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 
 const log = createLogger("push");
 
@@ -49,13 +50,14 @@ export function ensurePushInit(): boolean {
   return true;
 }
 
-/** Returns true when VAPID env vars are present and accepted by web-push. */
+/** Returns true when VAPID env vars are present, accepted by web-push, and push is enabled. */
 export function isPushConfigured(): boolean {
-  return pushConfig.isConfigured() && ensurePushInit();
+  return isPushFeatureEnabled() && pushConfig.isConfigured() && ensurePushInit();
 }
 
-/** The VAPID public key (safe to expose to clients), or null when unconfigured. */
+/** The VAPID public key (safe to expose to clients), or null when unconfigured or disabled. */
 export function vapidPublicKey(): string | null {
+  if (!isPushFeatureEnabled()) return null;
   return readVapidConfig()?.publicKey ?? null;
 }
 

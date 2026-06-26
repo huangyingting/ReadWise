@@ -82,6 +82,39 @@ are test/CI infrastructure that must never enter production bundles.
 
 ---
 
+## Feature kill switches
+
+`src/lib/runtime-config/feature-flags.ts` exposes env-driven kill switches for
+optional features that may need to be intentionally disabled in production (cost
+containment, incident mitigation, staged rollout) even when provider credentials
+are fully configured.
+
+### Convention
+
+| Env var | Default | Feature gated |
+| --- | --- | --- |
+| `FEATURE_AI_ENABLED` | `true` | AI chat completions, translation, quiz, vocabulary, summarisation |
+| `FEATURE_TTS_ENABLED` | `true` | Azure Speech text-to-speech narration and word timings |
+| `FEATURE_PUSH_ENABLED` | `true` | Web Push (VAPID) notification delivery |
+| `FEATURE_SCRAPER_ENABLED` | `true` | Web scraper — article import and background crawl |
+
+Set to `"false"`, `"0"`, or `"off"` to disable. Any other value (or absent) keeps
+the feature enabled. Disabled state degrades identically to the unconfigured
+provider path: callers receive `null` or a graceful fallback result; no exceptions
+are thrown. Default behavior is unchanged when the variable is absent.
+
+### Usage
+
+```ts
+import { isFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+
+if (!isFeatureEnabled("ai")) {
+  // degrade like unconfigured
+}
+```
+
+---
+
 ## Runtime-config module reference
 
 | Module | Exported as | Env vars owned |
@@ -89,6 +122,7 @@ are test/CI infrastructure that must never enter production bundles.
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES` |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | Analytics provider config |
 | `src/lib/runtime-config/database.ts` | `database` | `PRISMA_SCHEMA_PATH` |
+| `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED` |
 | `src/lib/runtime-config/oauth.ts` | `oauth` | `GOOGLE_CLIENT_*`, `AZURE_AD_*` |
 | `src/lib/runtime-config/observability.ts` | `observability` | `LOG_LEVEL`, Sentry/telemetry DSN |
 | `src/lib/runtime-config/push.ts` | `push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
