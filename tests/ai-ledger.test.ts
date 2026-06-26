@@ -76,13 +76,13 @@ function assertMetadataOnly(record: CreatedRecord): void {
 // ---- estimateAiCostUsd -------------------------------------------------------
 
 test("estimateAiCostUsd returns null when no tokens are known", async () => {
-  const { estimateAiCostUsd } = await import("@/lib/ai-ledger");
+  const { estimateAiCostUsd } = await import("@/lib/ai/ledger");
   assert.equal(estimateAiCostUsd({ model: "gpt-test" }), null);
   assert.equal(estimateAiCostUsd({ model: "gpt-test", promptTokens: null, completionTokens: null }), null);
 });
 
 test("estimateAiCostUsd computes a positive cost from tokens", async () => {
-  const { estimateAiCostUsd } = await import("@/lib/ai-ledger");
+  const { estimateAiCostUsd } = await import("@/lib/ai/ledger");
   const cost = estimateAiCostUsd({ model: "gpt-test", promptTokens: 1000, completionTokens: 1000 });
   assert.ok(typeof cost === "number" && cost > 0, "cost should be a positive number");
 });
@@ -90,7 +90,7 @@ test("estimateAiCostUsd computes a positive cost from tokens", async () => {
 test("estimateAiCostUsd honors per-model rate overrides from AI_COST_RATES", async () => {
   process.env.AI_COST_RATES = JSON.stringify({ "gpt-test": { prompt: 1, completion: 2 } });
   try {
-    const { estimateAiCostUsd } = await import("@/lib/ai-ledger");
+    const { estimateAiCostUsd } = await import("@/lib/ai/ledger");
     // (1000/1000)*1 + (1000/1000)*2 = 3
     const cost = estimateAiCostUsd({ model: "my-gpt-test-deploy", promptTokens: 1000, completionTokens: 1000 });
     assert.equal(cost, 3);
@@ -102,7 +102,7 @@ test("estimateAiCostUsd honors per-model rate overrides from AI_COST_RATES", asy
 // ---- recordAiInvocation: direct outcome paths -------------------------------
 
 test("recordAiInvocation writes a success record (metadata only)", async () => {
-  const { recordAiInvocation } = await import("@/lib/ai-ledger");
+  const { recordAiInvocation } = await import("@/lib/ai/ledger");
   await recordAiInvocation({
     feature: "translation",
     model: "gpt-test",
@@ -123,7 +123,7 @@ test("recordAiInvocation writes a success record (metadata only)", async () => {
 });
 
 test("recordAiInvocation marks non-success outcomes as fallback", async () => {
-  const { recordAiInvocation } = await import("@/lib/ai-ledger");
+  const { recordAiInvocation } = await import("@/lib/ai/ledger");
   await recordAiInvocation({ feature: "quiz", status: "unconfigured" });
   await recordAiInvocation({ feature: "quiz", status: "error", errorMessage: "HTTP 500" });
   await recordAiInvocation({ feature: "quiz", status: "empty" });
@@ -138,7 +138,7 @@ test("recordAiInvocation marks non-success outcomes as fallback", async () => {
 test("recordAiInvocation is a no-op when the ledger is disabled", async () => {
   process.env.AI_LEDGER_ENABLED = "0";
   try {
-    const { recordAiInvocation } = await import("@/lib/ai-ledger");
+    const { recordAiInvocation } = await import("@/lib/ai/ledger");
     await recordAiInvocation({ feature: "tags", status: "success" });
     assert.equal(created.length, 0);
   } finally {
@@ -148,7 +148,7 @@ test("recordAiInvocation is a no-op when the ledger is disabled", async () => {
 
 test("recordAiInvocation never throws on a write failure", async () => {
   failWrite = true;
-  const { recordAiInvocation } = await import("@/lib/ai-ledger");
+  const { recordAiInvocation } = await import("@/lib/ai/ledger");
   await assert.doesNotReject(() => recordAiInvocation({ feature: "vocab", status: "success" }));
   assert.equal(created.length, 0);
 });
@@ -261,7 +261,7 @@ test("a ledger write failure does not break chatComplete", async (t) => {
 // ---- summarizeAiUsage --------------------------------------------------------
 
 test("summarizeAiUsage returns zeroed totals when there are no records", async () => {
-  const { summarizeAiUsage } = await import("@/lib/ai-usage-summary");
+  const { summarizeAiUsage } = await import("@/lib/ai/usage-summary");
   const summary = await summarizeAiUsage({ since: new Date("2026-01-01T00:00:00Z") });
   assert.equal(summary.total.count, 0);
   assert.equal(summary.total.estimatedCostUsd, 0);
@@ -279,7 +279,7 @@ test("summarizeAiUsage aggregates grouped counts and token sums", async () => {
     { feature: "translation", _count: { _all: 2 }, _sum: { promptTokens: 20, completionTokens: 8, totalTokens: 28, estimatedCostUsd: 0.3 } },
     { feature: "quiz", _count: { _all: 1 }, _sum: { promptTokens: 10, completionTokens: 4, totalTokens: 14, estimatedCostUsd: 0.2 } },
   ];
-  const { summarizeAiUsage } = await import("@/lib/ai-usage-summary");
+  const { summarizeAiUsage } = await import("@/lib/ai/usage-summary");
   const summary = await summarizeAiUsage();
   assert.equal(summary.total.count, 3);
   assert.equal(summary.total.totalTokens, 42);

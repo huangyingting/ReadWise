@@ -43,7 +43,7 @@ import {
   isSharedStoreEnabled,
   windowStartFor,
 } from "@/lib/security/rate-limit/store";
-import { summarizeAiUsage } from "@/lib/ai-usage-summary";
+import { summarizeAiUsage } from "@/lib/ai/usage-summary";
 
 const log = createLogger("ai-budget");
 

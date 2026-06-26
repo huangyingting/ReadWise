@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getOrCreateArticleAi } from "@/lib/ai-cache";
+import { getOrCreateArticleAi } from "@/lib/ai/cache";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";

@@ -16,7 +16,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { TagScope, type Article } from "@prisma/client";
-import { getOrCreateArticleAi } from "@/lib/ai-cache";
+import { getOrCreateArticleAi } from "@/lib/ai/cache";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { boundedSampleForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams, TARGET_TAGS } from "@/lib/ai/prompts";

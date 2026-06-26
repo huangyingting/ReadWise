@@ -284,8 +284,17 @@ export function getAiProcessableArticleById<T extends Prisma.ArticleSelect>(
 
 export function loadAiProcessableArticleText(
   articleId: string,
-  context?: ArticleAccessContext | null,
+  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<{ title: string; content: string } | null> {
+  // Operators (Admin/System) bypass visibility filtering and load any article
+  // by id directly. Centralizing this short-circuit here lets AI helpers call a
+  // single loader instead of wrapping it.
+  if (isArticleOperator(context)) {
+    return prisma.article.findUnique({
+      where: { id: articleId },
+      select: { title: true, content: true },
+    });
+  }
   return getAiProcessableArticleById(articleId, context, {
     select: { title: true, content: true },
   });

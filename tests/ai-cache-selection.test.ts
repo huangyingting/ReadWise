@@ -60,7 +60,7 @@ function makeSpec(overrides: {
 }
 
 test("cache hit: returns cached result without calling AI", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   const cached: SimpleResult = { value: "cached-value", fallback: false };
   const persistCount = { n: 0 };
   const result = await getOrCreateSelectionAi(makeSpec({ cached, persistCount }));
@@ -69,7 +69,7 @@ test("cache hit: returns cached result without calling AI", async () => {
 });
 
 test("AI unconfigured: returns fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   aiConfigured = false;
   const persistCount = { n: 0 };
   const result = await getOrCreateSelectionAi(makeSpec({ persistCount }));
@@ -79,7 +79,7 @@ test("AI unconfigured: returns fallback without caching", async () => {
 });
 
 test("AI configured + null reply: returns fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   aiConfigured = true;
   aiReply = null;
   const persistCount = { n: 0 };
@@ -89,7 +89,7 @@ test("AI configured + null reply: returns fallback without caching", async () =>
 });
 
 test("AI configured + valid reply: persists and returns result", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   aiConfigured = true;
   aiReply = "generated text";
   const persistCount = { n: 0 };
@@ -100,7 +100,7 @@ test("AI configured + valid reply: persists and returns result", async () => {
 });
 
 test("validate returns false: fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   aiConfigured = true;
   aiReply = "unsafe content";
   const persistCount = { n: 0 };
@@ -112,7 +112,7 @@ test("validate returns false: fallback without caching", async () => {
 });
 
 test("validate returns true: persists and returns result", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai-cache");
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
   aiConfigured = true;
   aiReply = "safe content";
   const persistCount = { n: 0 };

@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { aiModelName } from "@/lib/ai";
-import { getOrCreateArticleAi } from "@/lib/ai-cache";
+import { getOrCreateArticleAi } from "@/lib/ai/cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-library";
