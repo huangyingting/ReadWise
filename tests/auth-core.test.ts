@@ -11,15 +11,9 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import type { Session } from "next-auth";
 import { CAPABILITIES } from "@/lib/rbac";
+import { makeSession } from "./support/auth-mock";
 
 let sessionState: Session | null = null;
-
-function makeSession(role: "Admin" | "Reader", id = "u1"): Session {
-  return {
-    user: { id, role, name: null, email: null },
-    expires: "2099-01-01T00:00:00Z",
-  };
-}
 
 before(() => {
   mock.module("next-auth", {

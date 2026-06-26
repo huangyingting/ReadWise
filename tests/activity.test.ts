@@ -285,10 +285,14 @@ test("recordReadingActivity: shield fills a 1-day gap and is consumed", async ()
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
   await recordReadingActivity("user-1", "a1", undefined, NOW);
 
-  // Transaction should have been called (fills yesterday + decrements shield)
-  assert.ok(transactionCalls.length >= 1, "transaction should fire for shield gap-fill");
-  // Today's upsert should happen as well
-  assert.ok(upsertCalls.length >= 1, "today's upsert should happen");
+  // Shield-consume fires exactly one $transaction (array form); mock does NOT dedup.
+  assert.equal(transactionCalls.length, 1, "shield gap-fill must fire exactly one $transaction");
+  // Gap-fill upsert (array form) + today's upsert (callback form) = 2 total.
+  assert.equal(upsertCalls.length, 2, "gap-fill + today's upsert should both fire");
+  // Separately assert the first-call shape: gap-fill creates a row with articlesRead: 1.
+  const gapFillUpsert = upsertCalls[0] as { update: { articlesRead: number }; create: { articlesRead: number } };
+  assert.equal(gapFillUpsert.update.articlesRead, 1);
+  assert.equal(gapFillUpsert.create.articlesRead, 1);
 });
 
 test("recordReadingActivity: shield NOT consumed when gap > 1 day", async () => {
@@ -304,7 +308,8 @@ test("recordReadingActivity: shield NOT consumed when gap > 1 day", async () => 
   // No transaction for gap-fill (gap > 1)
   assert.equal(transactionCalls.length, 0);
   // Today's upsert still fires
-  assert.ok(upsertCalls.length >= 1);
+  // Only today's upsert fires (no gap-fill); mock does NOT dedup.
+  assert.equal(upsertCalls.length, 1);
 });
 
 test("recordReadingActivity: no shield consumed when no gap (consecutive days)", async () => {
@@ -336,8 +341,11 @@ test("recordReadingActivity: earns a shield after 7 consecutive active days", as
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
   await recordReadingActivity("user-1", "a1", undefined, NOW);
 
-  // profile.update should be called to set streakShields = MAX_SHIELDS (1)
-  assert.ok(profileUpdateCalls.length >= 1, "should award shield after 7-day streak");
+  // Shield earn fires exactly one profile.update; mock does NOT dedup.
+  assert.equal(profileUpdateCalls.length, 1, "should award shield after 7-day streak");
+  // Separately assert the first-call shape: sets streakShields to MAX_SHIELDS (1).
+  const earnCall = profileUpdateCalls[0] as { data: { streakShields: number } };
+  assert.equal(earnCall.data.streakShields, 1);
 });
 
 test("recordReadingActivity: does NOT earn a shield when one is already held", async () => {

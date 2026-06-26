@@ -9,6 +9,7 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import type { LevelEvidence } from "@/lib/leveling";
+import { makeLevelEvidence as evidence } from "./support/learning-fixtures";
 
 let profileRow: Record<string, unknown> | null = null;
 let feedbackRows: Array<{ vote: string; _count: { _all: number } }> = [];
@@ -44,19 +45,6 @@ beforeEach(() => {
   completedAtLevelCount = 0;
   skillRows = [];
 });
-
-function evidence(partial: Partial<LevelEvidence> = {}): LevelEvidence {
-  return {
-    currentLevel: "B1",
-    feedback: { too_easy: 0, just_right: 0, too_hard: 0 },
-    avgQuizScore: null,
-    quizAttemptCount: 0,
-    completedAtLevel: 0,
-    skillConfidence: null,
-    skillEvidenceCount: 0,
-    ...partial,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // difficultyBiasFromFeedback (pure)

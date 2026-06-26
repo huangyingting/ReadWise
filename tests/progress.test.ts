@@ -113,6 +113,13 @@ test("saveProgress marks completed at/above the threshold", async () => {
   assert.ok(result.completedAt instanceof Date);
 });
 
+test("saveProgress does NOT mark completed just below the threshold (94%)", async () => {
+  const { saveProgress } = await import("@/lib/engagement/progress");
+  const result = await saveProgress("u1", "a1", 94);
+  assert.equal(result.completed, false);
+  assert.equal(result.completedAt, null);
+});
+
 test("completion is sticky and percent is not lowered after completing", async () => {
   const { saveProgress } = await import("@/lib/engagement/progress");
   const done = await saveProgress("u1", "a1", 98);
@@ -142,4 +149,16 @@ test("concurrent P2002 where the other writer is ahead keeps the higher percent"
   concurrentCreatePercent = 90;
   const result = await saveProgress("u1", "a1", 50);
   assert.equal(result.percent, 90);
+});
+
+// ---- clampPercent edge inputs -------------------------------------------
+
+test("clampPercent(NaN) clamps to 0", async () => {
+  const { clampPercent } = await import("@/lib/engagement/progress");
+  assert.equal(clampPercent(NaN), 0);
+});
+
+test("clampPercent(Infinity) clamps to 100", async () => {
+  const { clampPercent } = await import("@/lib/engagement/progress");
+  assert.equal(clampPercent(Infinity), 100);
 });

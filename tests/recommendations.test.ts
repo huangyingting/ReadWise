@@ -14,6 +14,10 @@ import type {
   RecommendationCandidate,
   RecommendationContext,
 } from "@/lib/recommendations/types";
+import {
+  makeRecommendationCandidate as candidate,
+  makeRecommendationContext as baseContext,
+} from "./support/learning-fixtures";
 
 // ---------------------------------------------------------------------------
 // Mutable prisma state (driven by the mock below)
@@ -95,44 +99,10 @@ beforeEach(() => {
 });
 
 // ---------------------------------------------------------------------------
-// Fixtures
+// Fixtures (NOW matches learning-fixtures.ts to keep cross-file consistency)
 // ---------------------------------------------------------------------------
 
 const NOW = new Date("2026-06-23T00:00:00Z");
-
-function candidate(
-  partial: Partial<RecommendationCandidate> & { id: string },
-): RecommendationCandidate {
-  return {
-    title: `Title ${partial.id}`,
-    author: "Author",
-    source: "Source",
-    category: null,
-    difficulty: null,
-    readingMinutes: 5,
-    wordCount: 600,
-    publishedAt: NOW,
-    heroImage: null,
-    tagSlugs: [],
-    ...partial,
-  } as RecommendationCandidate;
-}
-
-function baseContext(partial: Partial<RecommendationContext> = {}): RecommendationContext {
-  return {
-    userLevel: null,
-    userLevelRank: null,
-    topicSet: new Set<string>(),
-    completedIds: new Set<string>(),
-    inProgressPercent: new Map<string, number>(),
-    masteryByArticle: new Map(),
-    difficultyBias: 0,
-    weakestSkill: null,
-    vocab: { avgFamiliarity: 0, knownCount: 0 },
-    now: NOW,
-    ...partial,
-  };
-}
 
 // ---------------------------------------------------------------------------
 // Pure component scorers
@@ -210,6 +180,16 @@ test("masteryGapScore: unmastered articles score higher; weakest-skill boost app
   const withBoost = masteryGapScore("fresh", 1, 2, new Map(), "reading");
   const without = masteryGapScore("fresh", 1, 2, new Map(), null);
   assert.ok(withBoost > without);
+  // Exact: fully mastered article (comprehensionScore=1.0) leaves no gap → 0.
+  const fullyMastered = new Map([["done", { comprehensionScore: 1.0, lastActivityAt: NOW }]]);
+  assert.equal(masteryGapScore("done", null, null, fullyMastered, null), 0);
+});
+
+test("wordLoadScore: null article/user rank yields a near-1 neutral score", async () => {
+  const { wordLoadScore } = await import("@/lib/recommendations/scoring");
+  // null rank → delta=0, zero vocab strength → expectedLoad≈0.35 → score≈0.9286.
+  const score = wordLoadScore(null, null, { avgFamiliarity: 0, knownCount: 0 });
+  assert.equal(Math.round(score * 1e4) / 1e4, 0.9286);
 });
 
 // ---------------------------------------------------------------------------

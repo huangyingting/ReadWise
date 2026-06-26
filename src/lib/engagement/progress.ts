@@ -21,7 +21,8 @@ export const COMPLETION_THRESHOLD = 95;
 
 export function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
-    return 0;
+    // Positive infinity clamps to full; NaN / negative infinity clamp to zero.
+    return value > 0 ? 100 : 0;
   }
   return Math.min(100, Math.max(0, Math.round(value)));
 }
