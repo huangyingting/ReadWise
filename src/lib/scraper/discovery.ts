@@ -7,7 +7,7 @@
  */
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { fetchHtml, fetchText } from "@/lib/scraper/fetch";
-import { isProviderEnabled } from "@/lib/content-sources";
+import { isProviderEnabled } from "@/lib/scraper/sources";
 import { isUrlAllowed } from "@/lib/scraper/robots";
 import { createLogger } from "@/lib/observability/logger";
 

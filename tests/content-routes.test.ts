@@ -54,7 +54,7 @@ before(() => {
       revalidateTagsCache: () => {},
     },
   });
-  mock.module("@/lib/content-sources", {
+  mock.module("@/lib/scraper/sources", {
     namedExports: {
       listContentSources: async () => [
         { id: "cs1", providerKey: "nbc", displayName: "NBC", enabled: true, healthStatus: "healthy" },

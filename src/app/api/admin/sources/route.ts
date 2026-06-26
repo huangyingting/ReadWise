@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createCapabilityHandler } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
-import { listContentSources, summarizeSourceHealth } from "@/lib/content-sources";
+import { listContentSources, summarizeSourceHealth } from "@/lib/scraper/sources";
 
 /**
  * Lists content sources with their operational health (RW-046/RW-050). Gated on

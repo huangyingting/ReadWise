@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, boolean } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { setContentSourceEnabled, summarizeSourceHealth } from "@/lib/content-sources";
+import { setContentSourceEnabled, summarizeSourceHealth } from "@/lib/scraper/sources";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
 const keyParams = object({ key: nonEmptyString(200) });
