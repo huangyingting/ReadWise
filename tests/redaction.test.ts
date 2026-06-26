@@ -1,14 +1,14 @@
 /**
  * Unified redaction primitive tests (R2CI-1 / #627).
  *
- * Verifies that the shared primitive in src/lib/observability/redaction.ts
+ * Verifies that the shared primitive in src/lib/security/redaction.ts
  * covers the superset of all three prior per-module key lists, and that each
  * consuming path (audit, errors, analytics) correctly redacts keys that the
  * other paths previously missed.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { isSensitiveKey, scrubValue, SENSITIVE_KEY_RE } from "@/lib/observability/redaction";
+import { isSensitiveKey, scrubValue, SENSITIVE_KEY_RE } from "@/lib/security/redaction";
 
 // ── isSensitiveKey ────────────────────────────────────────────────────────────
 
