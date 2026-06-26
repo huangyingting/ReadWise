@@ -10,6 +10,7 @@ import { ArticleStatus, Prisma } from "@prisma/client";
 import type { ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle } from "@/lib/scraper/extract";
 import { fetchHtml } from "@/lib/scraper/fetch";
+import { isScraperFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 
@@ -18,8 +19,9 @@ export type SaveOutcome =
   | { status: "skipped"; reason: string; sourceUrl: string }
   | { status: "failed"; reason: string; sourceUrl: string };
 
-/** Fetches and parses a single article URL. Returns null when extraction fails. */
+/** Fetches and parses a single article URL. Returns null when extraction fails or scraper is disabled. */
 export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
+  if (!isScraperFeatureEnabled()) return null;
   const html = await fetchHtml(url);
   return extractArticle(html, url);
 }
@@ -78,6 +80,9 @@ export async function saveDraftArticle(
 
 /** Scrapes a single URL and saves it, capturing failures as outcomes. */
 export async function scrapeAndSave(url: string): Promise<SaveOutcome> {
+  if (!isScraperFeatureEnabled()) {
+    return { status: "failed", reason: "scraper is disabled", sourceUrl: url };
+  }
   try {
     const article = await scrapeUrl(url);
     if (!article) {
