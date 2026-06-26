@@ -3,6 +3,7 @@ import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
+import { throwIfFailed } from "@/lib/result";
 import {
   revokeMemberSessions,
   exportMemberData,
@@ -39,7 +40,7 @@ export const POST = createCapabilityHandler(
           targetId,
           metadata: { revoked },
         }));
-        if (!result.ok) throw new ApiError(result.status, result.error);
+        throwIfFailed(result);
         return NextResponse.json({ ok: true, revoked: result.revoked });
       }
 
@@ -53,7 +54,7 @@ export const POST = createCapabilityHandler(
           targetId,
           metadata: { exported: true },
         });
-        if (!result.ok) throw new ApiError(result.status, result.error);
+        throwIfFailed(result);
         return NextResponse.json({ ok: true, data: result.data });
       }
 
@@ -75,7 +76,7 @@ export const POST = createCapabilityHandler(
             },
           }),
         );
-        if (!result.ok) throw new ApiError(result.status, result.error);
+        throwIfFailed(result);
         return NextResponse.json({
           ok: true,
           articleCount: result.articleCount,
@@ -93,7 +94,7 @@ export const POST = createCapabilityHandler(
           targetId,
           metadata: { delivered },
         }));
-        if (!result.ok) throw new ApiError(result.status, result.error);
+        throwIfFailed(result);
         return NextResponse.json({
           ok: true,
           delivered: result.delivered,

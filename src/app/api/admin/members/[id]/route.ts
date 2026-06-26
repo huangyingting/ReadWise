@@ -4,6 +4,7 @@ import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/account-lifecycle";
 import type { Role } from "@prisma/client";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
+import { throwIfFailed } from "@/lib/result";
 
 const roleBody = object({ role: oneOf<Role>(["Admin", "Reader"]) });
 
@@ -26,9 +27,7 @@ export const PATCH = createAdminHandler(
         changed: auditResult.changed,
       },
     }));
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
+    throwIfFailed(result);
     return NextResponse.json({ ok: true, role: result.role });
   },
 );
@@ -51,9 +50,7 @@ export const DELETE = createAdminHandler(
         ownedArticleCount: auditResult.ownedArticleCount,
       },
     }));
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
+    throwIfFailed(result);
     return NextResponse.json({ ok: true });
   },
 );
