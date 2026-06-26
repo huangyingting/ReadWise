@@ -153,6 +153,7 @@ before(() => {
     namedExports: {
       WORDS_PAGE_SIZE: 20,
       getFilteredSavedWords: async () => savedWordsResult,
+      getArticleTitlesForWords: async () => ({}),
     },
   });
 });
