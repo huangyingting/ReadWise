@@ -27,6 +27,19 @@ let mockProfile: {
 let lastArticleFindManyArgs: { where?: Record<string, unknown>; select?: Record<string, unknown> } | null = null;
 
 before(() => {
+  // next/cache must be mocked BEFORE @/lib/feed is loaded.
+  // feed.ts now uses createTenantCachedListing (from @/lib/cache) which wraps
+  // unstable_cache. Without this mock, unstable_cache throws
+  // "Invariant: incrementalCache missing" outside a Next.js request context.
+  // The passthrough makes unstable_cache behave as a no-op wrapper so ranking
+  // tests exercise the real computation logic against mocked DB data (US-032).
+  mock.module("next/cache", {
+    namedExports: {
+      unstable_cache: (fn: (...args: unknown[]) => unknown) => fn,
+      revalidateTag: () => {},
+    },
+  });
+
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {

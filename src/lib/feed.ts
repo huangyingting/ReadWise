@@ -34,6 +34,8 @@ import {
   levelProximityScore,
   freshnessScore,
 } from "@/lib/discovery-ranking";
+import { createTenantCachedListing } from "@/lib/cache";
+import { LISTING_KEYS } from "@/lib/listing-cache";
 
 const log = createLogger("feed");
 
@@ -49,27 +51,6 @@ const MAX_FETCH = 200;
 
 /** Maximum consecutive articles from the same category before diversity kicks in. */
 const MAX_CONSECUTIVE_SAME_CATEGORY = 3;
-
-/** Short-lived per-user feed cache TTL (ms). */
-const FEED_CACHE_TTL_MS = 5 * 60 * 1000;
-
-// In-process per-user memo for the computed feed page. The feed is user-scoped
-// and reflects reading history, so it can't share Next's tag-based
-// `unstable_cache` (which also can't read the session). A small TTL map gives
-// most of the win — repeated dashboard/feed hits within a few minutes reuse the
-// ranking — while staying bounded and trivially correct. Disabled under test so
-// each test observes its own freshly-mocked data.
-const FEED_CACHE_ENABLED = process.env.NODE_ENV !== "test";
-const feedCache = new Map<string, { expires: number; value: FeedPage }>();
-
-function feedCacheKey(
-  userId: string,
-  offset: number,
-  limit: number,
-  maxLevel: DifficultyLevel | null,
-): string {
-  return `${userId}|${offset}|${limit}|${maxLevel ?? ""}`;
-}
 
 /**
  * Columns needed to score, diversify and render a feed card. Deliberately
@@ -291,9 +272,36 @@ export type FeedPage = {
  * degrades to a plain newest-first listing across all published articles —
  * never errors.
  *
+ * Results are cached in Next's Data Cache keyed by (userId × offset × limit ×
+ * maxLevel) and tagged with the user's cache tag so that profile, onboarding,
+ * and article-completion mutations can invalidate precisely via
+ * `revalidateUserCache(userId)`.
+ *
  * No migration required — ranking is computed over existing columns
  * (category, difficulty, publishedAt) + joined ReadingProgress/ArticleTag data.
  */
+
+/**
+ * Inner (non-cached) fetch — resolves defaults and calls the ranking engine.
+ * Wrapped by `cachedGetPersonalizedFeed` so Next's Data Cache handles memoisation.
+ */
+async function fetchPersonalizedFeed(
+  userId: string,
+  offset: number,
+  limit: number,
+  maxLevel: DifficultyLevel | null,
+): Promise<FeedPage> {
+  const now = new Date();
+  return computePersonalizedFeed(userId, offset, limit, maxLevel, now);
+}
+
+const cachedGetPersonalizedFeed = createTenantCachedListing(
+  fetchPersonalizedFeed,
+  LISTING_KEYS.personalizedFeed,
+  "user",
+  { revalidate: 300 },
+);
+
 export async function getPersonalizedFeed(
   userId: string,
   opts: { offset?: number; limit?: number; maxLevel?: DifficultyLevel | null } = {},
@@ -301,23 +309,7 @@ export async function getPersonalizedFeed(
   const limit = opts.limit ?? FEED_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
   const maxLevel = opts.maxLevel ?? null;
-  const now = new Date();
-
-  // Short-lived per-user memo (see FEED_CACHE_* notes above).
-  const cacheKey = feedCacheKey(userId, offset, limit, maxLevel);
-  if (FEED_CACHE_ENABLED) {
-    const hit = feedCache.get(cacheKey);
-    if (hit && hit.expires > now.getTime()) {
-      return hit.value;
-    }
-  }
-
-  const result = await computePersonalizedFeed(userId, offset, limit, maxLevel, now);
-
-  if (FEED_CACHE_ENABLED) {
-    feedCache.set(cacheKey, { value: result, expires: now.getTime() + FEED_CACHE_TTL_MS });
-  }
-  return result;
+  return cachedGetPersonalizedFeed(userId, offset, limit, maxLevel);
 }
 
 async function computePersonalizedFeed(

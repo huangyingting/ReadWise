@@ -17,7 +17,7 @@
  * | articles     | revalidateArticlesCache() | admin routes, processor, ingest            |
  * | tags         | revalidateTagsCache()     | admin tag routes                           |
  * | org feed     | revalidateOrgCache(id?)   | org admin routes                           |
- * | user feed    | revalidateUserCache(id)   | user preference / profile mutations        |
+ * | user feed    | revalidateUserCache(id)   | user profile / onboarding / article-completion mutations |
  *
  * ## CLI / worker note
  *
@@ -53,6 +53,8 @@ export const LISTING_KEYS = {
   tagsWithCounts: ["tags:with-counts"],
   /** User-agnostic candidate pool for the scored picks feed. */
   picksCandidates: ["recommendations:picks-candidates"],
+  /** Personalized "For You" feed — per user, ranked by heuristic scoring signals. */
+  personalizedFeed: ["feed:personalized"],
 } as const satisfies Record<string, readonly string[]>;
 
 /**
