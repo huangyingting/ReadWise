@@ -1,9 +1,10 @@
 /**
- * API catalog builder (REF-070).
+ * API catalog builder (REF-070, #716).
  *
  * Scans every `src/app/api/**\/route.ts` file, extracts exported HTTP methods
  * and handler metadata (auth mode, schemas, capability, runtime, response
- * format), and returns a structured {@link ApiCatalog}.
+ * format, request/response contract hints), and returns a structured
+ * {@link ApiCatalog}.
  *
  * This module is imported by:
  *   - `scripts/generate-api-catalog.ts` — CLI that writes the catalog files.
@@ -12,6 +13,30 @@
  * The implementation is pure static-analysis (regex/string scanning); it never
  * loads or evaluates route modules, so it does not require a database, Next.js
  * context, or any environment variable.
+ *
+ * ## Contract metadata extraction — known limitations
+ *
+ * - `successStatus`: reliably extracted when the route returns an explicit
+ *   `status: 204/201` literal; defaults to 200 otherwise.
+ * - `responseKeys`: extracted from the first `NextResponse.json({ ... })` call
+ *   in the handler; `null` when the argument is a variable/expression.
+ * - `queryParamNames`: extracted from `queryString/queryInt/queryBool/queryFloat`
+ *   helper calls and `params.get("name")` usages; `null` when the route
+ *   delegates query parsing to an external function with no discoverable calls.
+ * - `bodyFieldNames`: extracted from inline `object({...})` body schemas or
+ *   from a `const varName = object({...})` variable referenced in the config;
+ *   `null` for custom schema functions, Zod schemas, or opaque references.
+ *
+ * ## How the CI drift check should run (#717)
+ *
+ * ```sh
+ * npm run api-catalog          # regenerate in-place
+ * git diff --exit-code docs/platform/api-catalog.json  # fail if stale
+ * ```
+ * Or simply run the focused drift test which does the in-memory comparison:
+ * ```sh
+ * npm test -- --test-name-pattern "api-catalog"
+ * ```
  */
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -45,6 +70,26 @@ export interface MethodEntry {
   hasQuerySchema: boolean;
   responseFormat: ResponseFormat;
   notes: string[];
+  /** HTTP success status code (200 default; 201/204 when statically detected). */
+  successStatus: number;
+  /**
+   * Top-level keys of the first `NextResponse.json({ ... })` call in the
+   * handler, sorted for determinism.  `null` when the argument is not a
+   * statically-readable object literal.
+   */
+  responseKeys: string[] | null;
+  /**
+   * Query-string parameter names inferred from `queryString/queryInt/queryBool/
+   * queryFloat` helper calls and `params.get("name")` usages, sorted.
+   * `null` when none were detected (e.g. query parsing is fully delegated).
+   */
+  queryParamNames: string[] | null;
+  /**
+   * Body-schema field names inferred from inline `object({...})` schemas or a
+   * `const varName = object({...})` variable referenced in the config, sorted.
+   * `null` when the schema is a custom function / opaque reference.
+   */
+  bodyFieldNames: string[] | null;
 }
 
 export interface RouteEntry {
@@ -93,6 +138,240 @@ function fileToApiPath(filePath: string): string {
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
 
+// ── Contract-extraction helpers ───────────────────────────────────────────
+
+/**
+ * Return the content between the first balanced `{...}` pair starting at
+ * `openPos` in `source` (openPos must point at the `{` character).
+ */
+function sliceBracketContent(source: string, openPos: number): string {
+  let depth = 0;
+  let start = -1;
+  for (let i = openPos; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === "{") {
+      depth++;
+      if (depth === 1) start = i + 1;
+    } else if (ch === "}") {
+      depth--;
+      if (depth === 0) return source.slice(start, i);
+    }
+  }
+  return "";
+}
+
+/**
+ * Extract top-level property key names from a JS object literal body string
+ * (the content *between* the outer `{}`), sorted for determinism.
+ *
+ * Handles: named properties (`key: value`), shorthand properties (`key`), and
+ * spread operators (`...rest`) — spread identifiers are silently skipped.
+ * Skips string literals, comments, and nested bracket contents so value
+ * expressions do not contribute false key names.
+ */
+function extractObjectKeyNames(body: string): string[] {
+  const keys: string[] = [];
+  let depth = 0;
+  /** True after `key:` until the next top-level comma (value expression mode). */
+  let inValue = false;
+  let i = 0;
+
+  while (i < body.length) {
+    const ch = body[i];
+
+    // ── Skip quoted strings ───────────────────────────────────────────────
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < body.length) {
+        if (body[i] === "\\") { i += 2; continue; }
+        if (body[i] === q) { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < body.length) {
+        if (body[i] === "\\") { i += 2; continue; }
+        if (body[i] === "`") { i++; break; }
+        i++;
+      }
+      continue;
+    }
+    // Skip line comments.
+    if (ch === "/" && body[i + 1] === "/") {
+      while (i < body.length && body[i] !== "\n") i++;
+      continue;
+    }
+    // Skip block comments (includes JSDoc inside schema objects).
+    if (ch === "/" && body[i + 1] === "*") {
+      i += 2;
+      while (i < body.length - 1 && !(body[i] === "*" && body[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+
+    // Track bracket depth BEFORE top-level logic so that value expressions
+    // with `{`, `[`, `(` are depth-counted even while inValue is true.
+    if (ch === "{" || ch === "[" || ch === "(") { depth++; i++; continue; }
+    if (ch === "}" || ch === "]" || ch === ")") { depth--; i++; continue; }
+
+    if (depth === 0) {
+      // Comma at the top level ends the current property (key or value).
+      if (ch === ",") { inValue = false; i++; continue; }
+
+      // While parsing a value expression, skip top-level chars (nested
+      // structures are already handled by the depth counter above).
+      if (inValue) { i++; continue; }
+
+      // Skip spread operators (`...identifier`).
+      if (ch === "." && body[i + 1] === "." && body[i + 2] === ".") {
+        i += 3;
+        const m = /^[a-zA-Z_$][\w$]*/.exec(body.slice(i));
+        if (m) i += m[0].length;
+        continue;
+      }
+
+      // Match an identifier at the top level and classify as key or value.
+      if (/[a-zA-Z_$]/.test(ch)) {
+        const m = /^[a-zA-Z_$][\w$]*/.exec(body.slice(i));
+        if (m) {
+          const id = m[0];
+          const afterTrimmed = body.slice(i + id.length).trimStart();
+          if (afterTrimmed.startsWith(":")) {
+            // Named property (`key: value`) — record key, enter value mode.
+            keys.push(id);
+            inValue = true;
+          } else if (
+            afterTrimmed.startsWith(",") ||
+            afterTrimmed.startsWith("}") ||
+            afterTrimmed === "" ||
+            afterTrimmed.startsWith("\n")
+          ) {
+            // Shorthand property (`key` alone) — record key, stay in key mode.
+            keys.push(id);
+          }
+          // Otherwise part of a value expression — skip without recording.
+          i += id.length;
+          continue;
+        }
+      }
+    }
+
+    i++;
+  }
+
+  return [...new Set(keys)].sort();
+}
+
+/**
+ * Detect the HTTP success status code from a handler source window.
+ * Returns 204 when a `new (Next)Response(null, { status: 204 })` pattern is
+ * found, 201 when `NextResponse.json({...}, { status: 201 })`, otherwise 200.
+ */
+function extractSuccessStatus(handlerWindow: string): number {
+  if (
+    /new\s+(?:Next)?Response\s*\(\s*null\s*,\s*\{[^}]*\bstatus\s*:\s*204\b/.test(handlerWindow)
+  ) {
+    return 204;
+  }
+  const jsonStatus = /NextResponse\.json\([^)]+,\s*\{\s*status\s*:\s*(\d{3})\s*\}/.exec(
+    handlerWindow,
+  );
+  if (jsonStatus) return parseInt(jsonStatus[1], 10);
+  return 200;
+}
+
+/**
+ * Extract top-level response keys from the first `NextResponse.json({ ... })`
+ * call in `handlerWindow`.  Returns `null` when the argument is not a literal
+ * object (e.g. `NextResponse.json(result)`).
+ */
+function extractResponseKeys(handlerWindow: string): string[] | null {
+  const re = /NextResponse\.json\(\s*\{/g;
+  const match = re.exec(handlerWindow);
+  if (!match) return null;
+
+  const bracePos = handlerWindow.indexOf("{", match.index + "NextResponse.json(".length);
+  if (bracePos === -1) return null;
+
+  const body = sliceBracketContent(handlerWindow, bracePos);
+  if (!body.trim()) return null;
+
+  const keys = extractObjectKeyNames(body);
+  return keys.length > 0 ? keys : null;
+}
+
+/**
+ * Extract query-string parameter names from the method's source window.
+ * Detects `queryString/queryInt/queryBool/queryFloat(params, "name")` and
+ * `params.get("name")` patterns.
+ */
+function extractQueryParamNames(source: string): string[] | null {
+  const names = new Set<string>();
+
+  const helperRe = /\bquery(?:String|Int|Bool|Float)\s*\(\s*\w+\s*,\s*["'](\w+)["']/g;
+  let m: RegExpExecArray | null;
+  while ((m = helperRe.exec(source)) !== null) names.add(m[1]);
+
+  const getterRe = /\bparams\.get\(\s*["'](\w+)["']/g;
+  while ((m = getterRe.exec(source)) !== null) names.add(m[1]);
+
+  return names.size > 0 ? [...names].sort() : null;
+}
+
+/**
+ * Extract body-schema field names from the handler config window or full source.
+ *
+ * Strategy:
+ * 1. If `body: object({...})` appears inline in `configWindow`, parse the keys.
+ * 2. If `body: varName` references a variable, find `const varName = object({...})`
+ *    in the full `source` and parse its keys.
+ * 3. Otherwise return `null`.
+ */
+function extractBodyFieldNames(
+  configWindow: string,
+  fullSource: string,
+): string[] | null {
+  if (!/\bbody\s*:/.test(configWindow)) return null;
+
+  // Case 1: inline body schema — body: object({...})
+  const inlineMatch = /\bbody\s*:\s*object\s*\(/.exec(configWindow);
+  if (inlineMatch) {
+    const bracePos = configWindow.indexOf("{", inlineMatch.index + inlineMatch[0].length);
+    if (bracePos !== -1) {
+      const body = sliceBracketContent(configWindow, bracePos);
+      const keys = extractObjectKeyNames(body);
+      if (keys.length > 0) return keys;
+    }
+  }
+
+  // Case 2: body: varName — look up the variable definition in the full source.
+  const varRefMatch = /\bbody\s*:\s*([a-zA-Z_$][\w$]*)/.exec(configWindow);
+  if (varRefMatch) {
+    const varName = varRefMatch[1];
+    // Skip primitives or built-ins.
+    if (/^(?:true|false|null|undefined|\d)/.test(varName)) return null;
+
+    // Match: const varName = object({...}) or const varName: Schema<...> = object({...})
+    const varDefRe = new RegExp(
+      `const\\s+${varName}\\s*(?::[^=]+)?=\\s*object\\s*\\(`,
+    );
+    const varMatch = varDefRe.exec(fullSource);
+    if (varMatch) {
+      const bracePos = fullSource.indexOf("{", varMatch.index + varMatch[0].length);
+      if (bracePos !== -1) {
+        const body = sliceBracketContent(fullSource, bracePos);
+        const keys = extractObjectKeyNames(body);
+        if (keys.length > 0) return keys;
+      }
+    }
+  }
+
+  return null;
+}
+
 function extractMethodEntry(method: string, source: string): MethodEntry | null {
   // Match: export const METHOD = createXxxHandler(...)
   const wrapperRe = new RegExp(
@@ -123,13 +402,31 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
     }
   }
 
-  // Detect schema presence in the config window immediately after the match.
+  // Config window: 500 chars from the match start — covers the config object
+  // for all handler types (including createCapabilityHandler where the config
+  // is the second argument after the capability literal).
   const configWindow = source.slice(match.index, match.index + 500);
   const hasBodySchema = /\bbody\s*:/.test(configWindow);
   const hasParamsSchema = /\bparams\s*:/.test(configWindow);
   const hasQuerySchema = /\bquery\s*:/.test(configWindow);
 
+  // Handler window: from the export to the next method export (or +5000 chars).
+  // Used for success-status and response-key extraction.
+  const nextMethodRe =
+    /\nexport\s+const\s+(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s*=/g;
+  nextMethodRe.lastIndex = match.index + 1;
+  const nextMatch = nextMethodRe.exec(source);
+  const handlerWindow = source.slice(
+    match.index,
+    nextMatch ? nextMatch.index : Math.min(match.index + 5000, source.length),
+  );
+
   const responseFormat = detectResponseFormat(source);
+
+  const successStatus = extractSuccessStatus(handlerWindow);
+  const responseKeys = extractResponseKeys(handlerWindow);
+  const queryParamNames = hasQuerySchema ? extractQueryParamNames(handlerWindow) : null;
+  const bodyFieldNames = extractBodyFieldNames(configWindow, source);
 
   const notes: string[] = [];
   if (authMode === "capability" && capability) {
@@ -145,6 +442,10 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
     hasQuerySchema,
     responseFormat,
     notes,
+    successStatus,
+    responseKeys,
+    queryParamNames,
+    bodyFieldNames,
   };
 }
 
@@ -179,6 +480,10 @@ function parseRouteFile(filePath: string): RouteEntry | null {
       hasQuerySchema: false,
       responseFormat: "nextauth",
       notes: ["NextAuth.js handler — manages OAuth/credentials sessions"],
+      successStatus: 200,
+      responseKeys: null,
+      queryParamNames: null,
+      bodyFieldNames: null,
     });
     return {
       path: apiPath,
@@ -272,8 +577,8 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
     "",
     "## Routes",
     "",
-    "| Path | Method | Auth | Schemas | Response | Runtime | Notes |",
-    "|------|--------|------|---------|----------|---------|-------|",
+    "| Path | Method | Auth | Schemas | Status | Response | Runtime | Notes |",
+    "|------|--------|------|---------|--------|----------|---------|-------|",
   ];
 
   for (const route of catalog.routes) {
@@ -288,7 +593,7 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
       const runtime = route.runtime !== "default" ? route.runtime : "";
       const notes = m.notes.join("; ");
       lines.push(
-        `| \`${route.path}\` | ${m.method} | ${AUTH_BADGE[m.authMode]} | ${schemas || "—"} | ${FORMAT_BADGE[m.responseFormat]} | ${runtime} | ${notes} |`,
+        `| \`${route.path}\` | ${m.method} | ${AUTH_BADGE[m.authMode]} | ${schemas || "—"} | ${m.successStatus} | ${FORMAT_BADGE[m.responseFormat]} | ${runtime} | ${notes} |`,
       );
     }
   }
@@ -315,6 +620,28 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
     lines.push("| Path | Method | Format |", "|------|--------|--------|");
     for (const n of nonJson) {
       lines.push(`| \`${n.path}\` | ${n.method} | ${FORMAT_BADGE[n.format]} |`);
+    }
+  }
+
+  lines.push("", "## Contract highlights", "");
+  lines.push(
+    "> Routes where static analysis could infer request or response contract details.",
+    "> `null` fields indicate the contract was not statically discoverable (see module-level JSDoc for limitations).",
+    "",
+    "| Path | Method | Status | Response keys | Query params | Body fields |",
+    "|------|--------|--------|---------------|--------------|-------------|",
+  );
+  for (const route of catalog.routes) {
+    for (const m of route.methods) {
+      const hasContract =
+        m.responseKeys !== null || m.queryParamNames !== null || m.bodyFieldNames !== null;
+      if (!hasContract) continue;
+      const rk = m.responseKeys ? m.responseKeys.join(", ") : "—";
+      const qp = m.queryParamNames ? m.queryParamNames.join(", ") : "—";
+      const bf = m.bodyFieldNames ? m.bodyFieldNames.join(", ") : "—";
+      lines.push(
+        `| \`${route.path}\` | ${m.method} | ${m.successStatus} | ${rk} | ${qp} | ${bf} |`,
+      );
     }
   }
 

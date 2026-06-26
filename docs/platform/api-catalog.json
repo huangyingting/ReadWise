@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-25T11:02:09.750Z",
+  "generatedAt": "2026-06-26T21:50:51.383Z",
   "routeCount": 89,
   "methodCount": 100,
   "routes": [
@@ -16,7 +16,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 204,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -33,7 +37,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "download-json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -50,7 +58,17 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "budget",
+            "usage",
+            "usageSinceHours"
+          ],
+          "queryParamNames": [
+            "hours"
+          ],
+          "bodyFieldNames": null
         }
       ]
     },
@@ -67,7 +85,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -86,7 +108,21 @@
           "responseFormat": "text/csv",
           "notes": [
             "capability: CAPABILITIES.analyticsView"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "overview",
+            "range",
+            "retention",
+            "segment"
+          ],
+          "queryParamNames": [
+            "days",
+            "format",
+            "level",
+            "topic"
+          ],
+          "bodyFieldNames": null
         }
       ]
     },
@@ -103,7 +139,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -120,7 +160,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -137,7 +183,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -156,7 +208,15 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.contentModerate"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "changes",
+            "ok",
+            "reviewState"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -175,7 +235,15 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.contentModerate"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "state",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -192,7 +260,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 409,
+          "responseKeys": [
+            "id",
+            "message",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -209,7 +285,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -226,7 +306,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "dashboard"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -243,7 +329,17 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "action",
+            "job",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action"
+          ]
         }
       ]
     },
@@ -260,7 +356,21 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleIds",
+            "batchCap",
+            "category",
+            "dryRun",
+            "features",
+            "mode",
+            "reason",
+            "status",
+            "translateLangs"
+          ]
         }
       ]
     },
@@ -277,7 +387,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "PATCH",
@@ -287,7 +403,16 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "role"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "role"
+          ]
         }
       ]
     },
@@ -306,6 +431,15 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.supportAssist"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "revoked"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "action"
           ]
         }
       ]
@@ -323,7 +457,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "text/plain",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -340,7 +478,20 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "note",
+            "ok",
+            "results",
+            "totalSaved"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "all",
+            "limit",
+            "provider"
+          ]
         }
       ]
     },
@@ -357,7 +508,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "count",
+            "events"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -374,7 +532,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "catalog",
+            "report"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -393,7 +558,13 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.sourcesManage"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "sources"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -412,6 +583,15 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "source"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "enabled"
           ]
         }
       ]
@@ -431,7 +611,13 @@
           "responseFormat": "json",
           "notes": [
             "capability: CAPABILITIES.sourcesManage"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -448,7 +634,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -465,7 +655,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -482,7 +676,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "PATCH",
@@ -492,7 +692,15 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name"
+          ]
         }
       ]
     },
@@ -509,7 +717,16 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "moved",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "targetId"
+          ]
         }
       ]
     },
@@ -526,7 +743,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -543,7 +764,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -553,7 +778,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "duplicate",
+            "id"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -570,7 +802,17 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "completion",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "quizScore",
+            "status"
+          ]
         }
       ]
     },
@@ -589,7 +831,11 @@
           "responseFormat": "nextauth",
           "notes": [
             "NextAuth.js handler — manages OAuth/credentials sessions"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -601,7 +847,11 @@
           "responseFormat": "nextauth",
           "notes": [
             "NextAuth.js handler — manages OAuth/credentials sessions"
-          ]
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -618,7 +868,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "lists"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -635,7 +891,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "bookmarked"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -652,7 +914,16 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "classroom"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name",
+            "orgId"
+          ]
         }
       ]
     },
@@ -669,7 +940,14 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "analytics",
+            "role"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -686,7 +964,17 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "assignment"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleId",
+            "dueDate",
+            "instructions"
+          ]
         }
       ]
     },
@@ -703,7 +991,17 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "member",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "role",
+            "userId"
+          ]
         }
       ]
     },
@@ -720,7 +1018,16 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 204,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "message",
+            "source",
+            "stack",
+            "url"
+          ]
         }
       ]
     },
@@ -737,7 +1044,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "frequencyTier"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "word"
+          ]
         }
       ]
     },
@@ -754,7 +1069,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -771,7 +1090,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "dueCount"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -788,7 +1113,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "status",
+            "timestamp"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -805,7 +1137,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "PATCH",
@@ -815,7 +1153,18 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "conflict",
+            "highlight"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "baseUpdatedAt",
+            "color",
+            "note"
+          ]
         }
       ]
     },
@@ -832,7 +1181,19 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "confidence",
+            "currentLevel",
+            "explanation",
+            "rationale",
+            "recommendedLevel",
+            "suggestion",
+            "targetLevel"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -849,7 +1210,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "lists"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name"
+          ]
         },
         {
           "method": "POST",
@@ -859,7 +1228,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "list"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name"
+          ]
         }
       ]
     },
@@ -876,7 +1253,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "PATCH",
@@ -886,7 +1269,15 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "list"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name"
+          ]
         }
       ]
     },
@@ -903,7 +1294,15 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleId"
+          ]
         }
       ]
     },
@@ -920,7 +1319,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -937,7 +1342,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -954,7 +1365,17 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "membership",
+            "organization"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "name",
+            "slug"
+          ]
         }
       ]
     },
@@ -971,7 +1392,17 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "membership",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "role",
+            "userId"
+          ]
         }
       ]
     },
@@ -988,7 +1419,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1005,7 +1442,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "progress"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "ids"
+          ]
         }
       ]
     },
@@ -1022,7 +1467,18 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "accuracyScore",
+            "articleId",
+            "completenessScore",
+            "fluencyScore",
+            "pronScore",
+            "referenceText"
+          ]
         }
       ]
     },
@@ -1039,7 +1495,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "limit"
+          ],
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1056,7 +1518,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "preference"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "PUT",
@@ -1066,7 +1534,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "preference"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1083,7 +1557,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1100,7 +1578,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1117,7 +1599,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1134,7 +1620,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1151,7 +1641,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1168,7 +1662,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1185,7 +1683,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "highlights"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -1195,7 +1699,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "highlight"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1212,7 +1722,16 @@
           "hasParamsSchema": true,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "contentHash",
+            "id",
+            "updatedAt",
+            "version"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1229,7 +1748,14 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "completed",
+            "percent"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1246,7 +1772,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1263,7 +1793,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1280,7 +1814,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1297,7 +1835,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "timeSpentMs"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1314,7 +1858,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1331,7 +1879,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "binary",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1348,7 +1900,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1365,7 +1921,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1382,7 +1942,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1399,7 +1963,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "messages"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -1409,7 +1979,11 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         },
         {
           "method": "DELETE",
@@ -1419,7 +1993,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1436,7 +2016,13 @@
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "items"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1453,7 +2039,17 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "checks",
+            "config",
+            "migrations",
+            "status",
+            "timestamp"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1470,7 +2066,15 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "bookmarked"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "ids"
+          ]
         }
       ]
     },
@@ -1487,7 +2091,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1504,7 +2112,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 502,
+          "responseKeys": [
+            "configured"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1521,7 +2135,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "items"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1538,7 +2158,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "cards",
+            "dueCount"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1555,7 +2182,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "dueAt",
+            "dueCount"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1572,7 +2206,18 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "articles",
+            "page",
+            "pageSize",
+            "total",
+            "totalPages",
+            "words"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1589,7 +2234,11 @@
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "text/csv",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1606,7 +2255,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "saved",
+            "word"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1623,7 +2279,14 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "saved",
+            "word"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },
@@ -1640,7 +2303,13 @@
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": []
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "removed"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     }
