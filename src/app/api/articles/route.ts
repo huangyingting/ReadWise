@@ -7,8 +7,8 @@ import {
   toListingArticle,
   type ListingArticle,
 } from "@/lib/article-library";
-import { listScoredPicksPage } from "@/lib/recommendations/picks";
-import { getProgressSummaries } from "@/lib/engagement/progress";
+import { listScoredPicksPage } from "@/lib/recommendations";
+import { getProgressSummaries } from "@/lib/engagement";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";

@@ -7,7 +7,7 @@
 
 import type { ArticleCardSource } from "@/lib/article-library";
 import type { DifficultyLevel } from "@/lib/difficulty";
-import type { Skill } from "@/lib/learning/skill-mastery";
+import type { Skill } from "@/lib/learning/types";
 
 // ---------------------------------------------------------------------------
 // Candidate and score types

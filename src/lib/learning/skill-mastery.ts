@@ -17,22 +17,12 @@ import { prisma } from "@/lib/prisma";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { getProfile } from "@/lib/profile";
 import { clamp01 } from "./primitives";
-
-/** The six tracked skill dimensions. */
-export const SKILLS = [
-  "reading",
-  "vocabulary",
-  "grammar",
-  "listening",
-  "pronunciation",
-  "comprehension",
-] as const;
-
-export type Skill = (typeof SKILLS)[number];
-
-export function isSkill(value: unknown): value is Skill {
-  return typeof value === "string" && (SKILLS as readonly string[]).includes(value);
-}
+// Shared types live in ./types so recommendations/ can import them without
+// pulling in the full skill-mastery implementation (DB / Prisma deps).
+import { SKILLS, isSkill } from "./types";
+import type { Skill, EvidenceSummary, SkillSummary, SkillProfile } from "./types";
+export { SKILLS, isSkill } from "./types";
+export type { Skill, EvidenceSummary, SkillSummary, SkillProfile } from "./types";
 
 /** Smoothing factor for the confidence EMA (per unit weight, capped). */
 const BASE_ALPHA = 0.3;
@@ -49,27 +39,6 @@ const DOWN_THRESHOLD = 0.4;
 const MIN_SKILLS_WITH_EVIDENCE = 2;
 /** Minimum total evidence items before a recommendation is trustworthy. */
 const MIN_TOTAL_EVIDENCE = 4;
-
-export type EvidenceSummary = {
-  outcome: number; // 0–1
-  weight: number;
-  at: string; // ISO timestamp
-};
-
-export type SkillSummary = {
-  skill: Skill;
-  confidence: number; // 0–1
-  evidenceCount: number;
-  hasEvidence: boolean;
-};
-
-export type SkillProfile = {
-  skills: SkillSummary[];
-  overallConfidence: number; // 0–1, mean of skills that have evidence
-  totalEvidence: number;
-  weakest: Skill | null; // lowest-confidence skill that has evidence
-  strongest: Skill | null; // highest-confidence skill that has evidence
-};
 
 export type SkillLevelRecommendation = {
   suggestion: "up" | "down" | "hold";

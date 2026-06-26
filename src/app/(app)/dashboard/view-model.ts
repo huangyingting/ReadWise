@@ -7,13 +7,11 @@
  */
 import type { Role } from "@prisma/client";
 import type { Profile } from "@prisma/client";
-import type { StreakSummary } from "@/lib/engagement/streak";
+import type { StreakSummary, InProgressEntry, ProgressSummary } from "@/lib/engagement";
 import type { QuizMastery } from "@/lib/learning/quiz-mastery";
-import type { InProgressEntry, ProgressSummary } from "@/lib/engagement/progress";
 import type { FeedPage } from "@/lib/feed";
 import type { DifficultyLevel } from "@/lib/difficulty";
-import { listInProgressArticles, getProgressSummaries } from "@/lib/engagement/progress";
-import { getStreakSummary } from "@/lib/engagement/streak";
+import { listInProgressArticles, getProgressSummaries, getStreakSummary } from "@/lib/engagement";
 import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 import { getBookmarkedArticleIds } from "@/lib/article-library";

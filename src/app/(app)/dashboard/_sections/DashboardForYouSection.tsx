@@ -7,7 +7,7 @@ import EmptyState from "@/components/EmptyState";
 import ForYouFeed from "@/components/ForYouFeed";
 import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 import type { FeedPage } from "@/lib/feed";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 import type { DifficultyLevel } from "@/lib/difficulty";
 
 interface DashboardForYouSectionProps {

@@ -6,7 +6,7 @@ import ArticleCardView from "@/components/ArticleCardView";
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 import RailScroller from "@/components/RailScroller";
-import type { InProgressEntry } from "@/lib/engagement/progress";
+import type { InProgressEntry } from "@/lib/engagement";
 
 interface DashboardContinueReadingRailProps {
   inProgressEntries: InProgressEntry[];

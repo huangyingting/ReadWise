@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Inbox, Sparkles } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/article-library";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { Button } from "@/components/ui/Button";

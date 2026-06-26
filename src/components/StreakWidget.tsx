@@ -1,7 +1,7 @@
 import { Flame, Award } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/cn";
-import type { StreakSummary } from "@/lib/engagement/streak";
+import type { StreakSummary } from "@/lib/engagement";
 import { formatWeekdayUTC } from "@/lib/display-format";
 
 const WEEKDAY_INITIALS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];

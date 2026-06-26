@@ -2,7 +2,7 @@
 
 import { useCallback } from "react";
 import type { ListingArticle } from "@/lib/article-library";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
 import { Button } from "@/components/ui/Button";

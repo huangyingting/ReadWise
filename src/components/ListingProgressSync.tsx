@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 import { clearVisitedArticleIds, getVisitedArticleIds } from "@/lib/visited";
 
 type BatchResponse = {

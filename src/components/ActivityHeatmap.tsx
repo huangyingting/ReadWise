@@ -11,7 +11,7 @@
 
 import { useMemo, useState } from "react";
 import { cn } from "@/lib/cn";
-import type { HeatCell } from "@/lib/engagement/heatmap";
+import type { HeatCell } from "@/lib/engagement";
 import { formatUTCDateLabel } from "@/lib/display-format";
 
 // ---------------------------------------------------------------------------
