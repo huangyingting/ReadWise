@@ -18,12 +18,28 @@ and a human-readable reason.
 ## Candidate boundary
 
 Candidates are public-listable articles only: `visibility = PUBLIC`,
-`status = PUBLISHED`, and `ownerId = null`. Private imports and drafts are never
-recommendation candidates.
+`status = PUBLISHED`, and `ownerId = null` (Article Library articles, not
+personal imports). Private imports, owned-public articles, and drafts are
+never recommendation candidates. Specifically:
+
+| Article state | Candidate? | Reason |
+| --- | --- | --- |
+| `PUBLIC` + `PUBLISHED` + `ownerId = null` | ✅ Yes | Public library article — safe for any user. |
+| `PRIVATE` + any `ownerId` | ❌ No | User import — excluded by `ownerId = null` requirement. |
+| `PUBLIC` + `PUBLISHED` + `ownerId ≠ null` | ❌ No | Owner-linked article — excluded by `ownerId = null` requirement. |
+| any + `DRAFT` | ❌ No | Unpublished — excluded by `status = PUBLISHED` requirement. |
+
+This policy is enforced by `publicListableArticleWhere` from `@/lib/article-library`, which is **stricter** than `readableArticleWhere` (the search predicate). A user's own private imports will never appear as Picks candidates — only public library content can be recommended.
 
 The candidate fetch is cached and user-agnostic. It selects card-level metadata
 and tag slugs only, capped at `MAX_CANDIDATES = 400`. Per-user scoring happens
 after the cache boundary so no user data enters a shared cache key.
+
+### Privacy and IDOR safety
+
+The cached candidate set carries no per-user data. Because the candidate set is user-agnostic it is safe to share across requests. Cross-user IDOR is structurally impossible: the candidate query binds `publicListableArticleWhere` before the cache key is evaluated, so no private or org-restricted article can enter the candidate pool regardless of who is requesting.
+
+Regression coverage lives in `tests/recommendations-candidate-visibility.test.ts` (IDOR/visibility cases) and `tests/recommendations.test.ts` (scoring/graceful-degradation cases).
 
 ## User context
 
@@ -88,6 +104,9 @@ keep only low-cardinality metadata.
 
 ## Tests
 
-Relevant tests include recommendation scoring/diversity/context tests,
-`tests/article-mastery.test.ts`, `tests/leveling*.test.ts`, and article listing
-tests.
+Relevant tests include:
+
+- `tests/recommendations-candidate-visibility.test.ts` — IDOR/visibility regression: private imports, another user's private articles, owned-public articles, and drafts must never appear as candidates.
+- `tests/recommendations.test.ts` — scoring, diversity, context loading, and graceful new-user degradation.
+- `tests/recommendations-context.test.ts` — per-user context signal loading.
+- `tests/article-mastery.test.ts`, `tests/leveling*.test.ts` — component signal tests.
