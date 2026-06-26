@@ -67,3 +67,10 @@ export {
   countJobsByType,
 } from "./queries";
 export type { ListJobsFilter } from "./queries";
+
+export {
+  pruneTerminalJobs,
+  jobTerminalRetentionDays,
+  JOB_TERMINAL_STATUSES,
+} from "./retention";
+export type { PruneJobsClient } from "./retention";

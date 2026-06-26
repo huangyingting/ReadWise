@@ -118,3 +118,19 @@ export function securityEventBufferSize(): number {
   const v = positiveIntEnv("SECURITY_EVENT_BUFFER_SIZE", 200);
   return Math.min(v, 2000);
 }
+
+// ---------------------------------------------------------------------------
+// Audit log retention (#712-B)
+// ---------------------------------------------------------------------------
+
+/**
+ * Retention window (in days) for pruneOldAuditLogs. Defaults to 730 days
+ * (2 years), which covers common regulatory compliance windows. Operators with
+ * shorter or longer requirements can override via AUDIT_LOG_RETENTION_DAYS.
+ *
+ * Set via AUDIT_LOG_RETENTION_DAYS. Use a value ≥ 90 to satisfy most
+ * regulatory frameworks (PCI-DSS, SOC 2, GDPR recitals on legitimate interest).
+ */
+export function auditLogRetentionDays(): number {
+  return positiveIntEnv("AUDIT_LOG_RETENTION_DAYS", 730);
+}
