@@ -12,6 +12,7 @@
  */
 
 import { ANALYTICS_SCHEMA_VERSION } from "@/lib/analytics/events/catalog";
+import { isSensitiveKey } from "@/lib/observability/redaction";
 
 const MAX_PROPERTY_KEYS = 25;
 const MAX_PROPERTY_STRING_LEN = 200;
@@ -21,9 +22,9 @@ const MAX_PROPERTY_ARRAY_ITEMS = 20;
  * Keys that could carry sensitive free text / secrets are dropped from the
  * payload entirely. Analytics is metadata-only by contract; this is a backstop
  * so an accidental `{ text: article.body }` never lands in the stream.
+ * Key detection is handled by {@link isSensitiveKey} from the shared
+ * redaction primitive (src/lib/observability/redaction.ts).
  */
-export const SENSITIVE_PROPERTY_KEY_RE =
-  /(authorization|content|cookie|credential|definition|email|example|explanation|key|password|pass|pwd|phrase|prompt|response|secret|selection|sentence|session|text|token|translation|url)/i;
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : value.slice(0, max);
@@ -65,7 +66,7 @@ export function sanitizeEventProperties(
   for (const [rawKey, value] of Object.entries(input)) {
     if (count >= MAX_PROPERTY_KEYS) break;
     if (rawKey === "_v") continue;
-    if (SENSITIVE_PROPERTY_KEY_RE.test(rawKey)) continue;
+    if (isSensitiveKey(rawKey)) continue;
     const key = truncate(rawKey, 60);
     out[key] = sanitizePropertyValue(value);
     count++;
