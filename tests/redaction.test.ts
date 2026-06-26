@@ -1,9 +1,8 @@
 /**
  * Sensitive metadata redaction policy tests (#676, #679).
  *
- * Canonical policy lives at src/lib/security/redaction.ts. The backward-compat
- * shim at src/lib/observability/redaction.ts re-exports the same symbols under
- * the legacy path; both import paths are exercised here.
+ * Canonical policy lives at src/lib/security/redaction.ts, which also exports
+ * the backward-compat aliases (isSensitiveKey / scrubValue) for legacy callers.
  *
  * Coverage:
  *  - isSensitiveMetadataKey / isSensitiveKey (compat alias) across all paths
@@ -24,9 +23,9 @@ import {
   redactSensitiveObject,
   safeMetadataForPersistence,
   SENSITIVE_KEY_RE,
+  isSensitiveKey,
+  scrubValue,
 } from "@/lib/security/redaction";
-// Backward-compat shim — must remain importable and re-export the same symbols
-import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
 
 // ── isSensitiveKey ────────────────────────────────────────────────────────────
 
