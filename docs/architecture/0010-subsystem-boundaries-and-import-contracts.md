@@ -480,3 +480,65 @@ These are deliberately deferred until implementation tickets need them:
 - Which feature-level AI services should be extracted first.
 - Whether Search/Recommendations eventually deserve a first-class subsystem if
   external search, semantic ranking, or large-scale personalization grows.
+
+## Phase 1–3 execution backlog
+
+Each row maps a GitHub issue to its parent epic, owning subsystem, and a
+one-line acceptance summary. Issues are PR-sized; no single issue should be a
+mega-refactor.
+
+### Phase 1 — Highest-risk guardrails (Epic [#670](https://github.com/huangyingting/ReadWise/issues/670))
+
+| Issue | Owning subsystem | One-line acceptance |
+| --- | --- | --- |
+| [#676](https://github.com/huangyingting/ReadWise/issues/676) Introduce security-owned sensitive metadata redaction primitive | Security | One `src/lib/security/redaction.ts` policy is the sole source of sensitive-key detection and value scrubbing used by observability, analytics, audit, security events, and AI ledger. |
+| [#677](https://github.com/huangyingting/ReadWise/issues/677) Centralize runtime configuration ownership and `process.env` allowlist | Runtime Config | A documented `process.env` allowlist exists; all new business config reads use typed `src/lib/runtime-config/*` helpers. |
+| [#678](https://github.com/huangyingting/ReadWise/issues/678) Enforce high-risk import boundaries with allowlist | Platform / Security | New deep imports into AI provider/runner/registry, security redaction internals, runtime-config in client bundles, and raw storage secrets fail lint or require an explicit allowlist entry with owner, reason, and removal condition. |
+| [#679](https://github.com/huangyingting/ReadWise/issues/679) Add boundary/redaction regression coverage and docs | Security / Testing | Focused tests cover redaction edge cases and high-risk import-boundary rules; security, observability, and runtime-config docs reference the new contract. |
+
+### Phase 2 — Cross-cutting subsystem convergence (Epic [#671](https://github.com/huangyingting/ReadWise/issues/671))
+
+| Issue | Owning subsystem | One-line acceptance |
+| --- | --- | --- |
+| [#680](https://github.com/huangyingting/ReadWise/issues/680) Converge AI provider boundary behind feature-level services | AI | External callers consume feature-level AI services; provider/runner/registry/budget internals are private to `src/lib/ai`; import-boundary rule covers new violations. |
+| [#681](https://github.com/huangyingting/ReadWise/issues/681) Consolidate Operations and Background Processing contract | Operations | `jobs`, `worker`, `processing`, scripts, backfill, rebuild, and repair are documented under one Operations boundary with unified state vocabulary and an expanded `docs/operations/admin-operations.md`. |
+| [#682](https://github.com/huangyingting/ReadWise/issues/682) Integrate Observability and Metrics subsystem contracts | Observability | `src/lib/observability` and `src/lib/metrics` are documented as one subsystem owning telemetry pipelines; business fact tables (AuditLog, AiInvocation, AnalyticsEvent, Job) remain domain-owned. |
+| [#683](https://github.com/huangyingting/ReadWise/issues/683) Clarify Analytics event stream vs domain reporting ownership | Analytics | `AnalyticsEvent` catalog/writer/sanitizer/retention lives in Analytics; learner, tenant, AI-usage, and job read models are explicitly documented as domain-owned. |
+| [#684](https://github.com/huangyingting/ReadWise/issues/684) Clarify Media, Speech, and Reader asset/playback boundaries | Media / Speech / Reader | Media owns asset lifecycle, Speech owns TTS generation, Reader owns playback UX, Operations owns retry/scheduling — all four roles are documented without overlap. |
+
+### Phase 3 — Domain migrations during natural feature work (Epic [#672](https://github.com/huangyingting/ReadWise/issues/672))
+
+| Issue | Owning subsystem | One-line acceptance |
+| --- | --- | --- |
+| [#685](https://github.com/huangyingting/ReadWise/issues/685) Slim high-risk API routes into domain commands | Platform / Routes | Newly touched complex routes call domain commands/queries/services rather than owning auth, visibility, tenancy, AI, or multi-model logic directly. |
+| [#686](https://github.com/huangyingting/ReadWise/issues/686) Move multi-model data mutations into owning subsystems | Data layer | Multi-model writes, visibility predicates, tenancy scoping, and ownership predicates for touched domains live in subsystem command/repository modules, not route handlers. |
+| [#687](https://github.com/huangyingting/ReadWise/issues/687) Clean Article Library, Content Ingestion, and Reader boundaries | Article Library / Content Ingestion / Reader | Reader consumes Article Library readable boundaries; Content Ingestion creates articles through documented lifecycle semantics; Processing updates derived state without owning access policy. |
+| [#688](https://github.com/huangyingting/ReadWise/issues/688) Harden Search and Recommendations readable candidate contract | Search / Recommendations | Candidate sets are derived from Article Library readable policy; candidate caps, pagination, ranking, and private/org article safety are documented. |
+| [#689](https://github.com/huangyingting/ReadWise/issues/689) Replace ad-hoc role and owner checks with Access & Tenancy helpers | Access & Tenancy | Scattered `role === "Admin"`, membership, and owner predicates in touched domains are replaced with Access & Tenancy capability/context helpers. |
+| [#690](https://github.com/huangyingting/ReadWise/issues/690) Reduce primitive/helper drift and obsolete compatibility wrappers | Platform | Pure/client/server primitives are documented and lightweight; obsolete compatibility wrappers are removed rather than expanded. |
+
+### Dependency map
+
+The following sequencing constraints apply; issues within the same phase are
+otherwise independent and can run in parallel.
+
+```
+Phase 1 (must complete before Phase 2 that depends on them)
+  #676 (redaction) ──► #679 (regression coverage)
+  #676 (redaction) ──► #682 (observability — consumes redaction policy)
+  #676 (redaction) ──► #683 (analytics — event sanitation uses redaction)
+  #676 (redaction) ──► #680 (AI — ledger metadata uses redaction policy)
+  #677 (runtime-config) ──► #678 (import-boundary — allowlist scope requires config contract)
+  #676 + #677 + #678 ──► #679 (full Phase 1 coverage ticket)
+
+Phase 2 (must complete before Phase 3 that depends on them)
+  #681 (operations) ──► #684 (media/speech — Operations owns TTS scheduling)
+  #678 (import-boundary, Phase 1) ──► #680 (AI boundary enforcement)
+
+Phase 3 (opportunistic; triggered by natural feature work)
+  #680 (AI, Phase 2) ──► #685 (route slimming — AI routes need feature services first)
+  #686 (data mutations) and #685 (route slimming) are tightly coupled and should
+      land in the same sprint when a high-risk route is being touched.
+  #687, #688, #689, #690 are independent of each other and can be tackled in any
+      order as relevant code areas are touched.
+```
