@@ -205,7 +205,9 @@ and the [data-lifecycle matrix](../security/data-lifecycle-matrix.md).
   abstraction owns the lifecycle and whether deletion cascades to the storage
   layer.
 - [ ] **Seed / test data** — if new required fields or non-nullable relations are
-  added, update `scripts/seed.ts` and any test factories accordingly.
+  added, update `scripts/seed.ts` and any test factories accordingly.  See
+  [test data and fixture governance](./test-data-governance.md#3-schema-change-obligations)
+  for the full checklist.
 - [ ] **Indexes** — every column used in `WHERE`, `ORDER BY`, or `@@unique`
   across API or worker queries has an explicit `@@index` (or `@unique`).
 - [ ] **Comments** — add a brief schema comment explaining non-obvious design
