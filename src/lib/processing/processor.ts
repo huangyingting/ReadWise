@@ -23,7 +23,7 @@ import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { aiModelName } from "@/lib/ai";
 import { beginStep, finishStep, translationStepKey } from "./state";
-import { runWithAiContext } from "@/lib/ai-budget";
+import { runWithAiContext } from "@/lib/ai/budget";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   aiProcessableArticleWhere,
