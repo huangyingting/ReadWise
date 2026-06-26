@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getAiCostOverview, getContentOpsOverview } from "@/lib/processing/admin-ops";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
@@ -68,12 +68,12 @@ export default async function AdminAiOpsPage({
         AI usage &amp; cost
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[var(--space-4)]">
-        <AdminStatCard label="Total calls" value={ai.summary.total.count} />
-        <AdminStatCard label="Est. cost" value={formatUSD(ai.summary.total.estimatedCostUsd)} />
-        <AdminStatCard label="Total tokens" value={ai.summary.total.totalTokens} />
-        <AdminStatCard label="Fallbacks" value={ai.summary.total.fallbackCount} />
-        <AdminStatCard label="Cache hits" value={ai.summary.total.cacheHitCount} />
-        <AdminStatCard
+        <StatCard label="Total calls" value={ai.summary.total.count} />
+        <StatCard label="Est. cost" value={formatUSD(ai.summary.total.estimatedCostUsd)} />
+        <StatCard label="Total tokens" value={ai.summary.total.totalTokens} />
+        <StatCard label="Fallbacks" value={ai.summary.total.fallbackCount} />
+        <StatCard label="Cache hits" value={ai.summary.total.cacheHitCount} />
+        <StatCard
           label="Avg latency"
           value={ai.latency.avgMs !== null ? `${ai.latency.avgMs}ms` : "—"}
         />
@@ -214,12 +214,12 @@ export default async function AdminAiOpsPage({
         Content operations
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-[var(--space-4)]">
-        <AdminStatCard label="Steps generated" value={ops.totals.generated} />
-        <AdminStatCard label="Skipped" value={ops.totals.skipped} />
-        <AdminStatCard label="Fallback" value={ops.totals.fallback} />
-        <AdminStatCard label="Failed" value={ops.totals.failed} />
-        <AdminStatCard label="Pending" value={ops.totals.pending} />
-        <AdminStatCard label="Job backlog" value={ops.jobs.total} />
+        <StatCard label="Steps generated" value={ops.totals.generated} />
+        <StatCard label="Skipped" value={ops.totals.skipped} />
+        <StatCard label="Fallback" value={ops.totals.fallback} />
+        <StatCard label="Failed" value={ops.totals.failed} />
+        <StatCard label="Pending" value={ops.totals.pending} />
+        <StatCard label="Job backlog" value={ops.jobs.total} />
       </div>
 
       <h3 className="font-[family-name:var(--font-display)] font-semibold text-text">Processing steps</h3>

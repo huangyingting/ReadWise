@@ -11,6 +11,7 @@ import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
 
@@ -69,38 +70,13 @@ export default async function ClassroomDetailPage({
 
       {analytics ? (
         <section className="mb-[var(--space-6)] grid grid-cols-2 gap-[var(--space-3)] md:grid-cols-4">
-          <Card>
-            <CardBody>
-              <p className="text-[length:var(--text-sm)] text-text-muted">Students</p>
-              <p className="text-[length:var(--text-2xl)] font-semibold text-text">
-                {analytics.studentCount}
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <p className="text-[length:var(--text-sm)] text-text-muted">Assignments</p>
-              <p className="text-[length:var(--text-2xl)] font-semibold text-text">
-                {analytics.assignmentCount}
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <p className="text-[length:var(--text-sm)] text-text-muted">Completion</p>
-              <p className="text-[length:var(--text-2xl)] font-semibold text-text">
-                {pct(analytics.completionRate)}
-              </p>
-            </CardBody>
-          </Card>
-          <Card>
-            <CardBody>
-              <p className="text-[length:var(--text-sm)] text-text-muted">Avg. quiz</p>
-              <p className="text-[length:var(--text-2xl)] font-semibold text-text">
-                {analytics.averageQuizScore == null ? "—" : pct(analytics.averageQuizScore)}
-              </p>
-            </CardBody>
-          </Card>
+          <StatCard label="Students" value={analytics.studentCount} />
+          <StatCard label="Assignments" value={analytics.assignmentCount} />
+          <StatCard label="Completion" value={pct(analytics.completionRate)} />
+          <StatCard
+            label="Avg. quiz"
+            value={analytics.averageQuizScore == null ? "—" : pct(analytics.averageQuizScore)}
+          />
         </section>
       ) : null}
 

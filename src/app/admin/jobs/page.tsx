@@ -5,7 +5,7 @@ import { listAdminJobs, getJobDashboard, type AdminJobRow } from "@/lib/admin-jo
 import { JobStatus, JobType } from "@prisma/client";
 import AdminJobActions from "@/components/AdminJobActions";
 import AdminBackfillForm from "@/components/AdminBackfillForm";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -141,11 +141,11 @@ export default async function AdminJobsPage({
       <AdminPageHeader>Jobs</AdminPageHeader>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
-        <AdminStatCard label="Total jobs" value={dashboard.total} />
+        <StatCard label="Total jobs" value={dashboard.total} />
         {STATUS_VALUES.map((s) => (
-          <AdminStatCard key={s} label={s} value={dashboard.byStatus[s] ?? 0} />
+          <StatCard key={s} label={s} value={dashboard.byStatus[s] ?? 0} />
         ))}
-        <AdminStatCard label="Stuck / locked" value={dashboard.stuck} />
+        <StatCard label="Stuck / locked" value={dashboard.stuck} />
       </div>
 
       <Card>
