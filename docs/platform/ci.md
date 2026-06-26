@@ -10,12 +10,15 @@ describes the tiers, what runs when, how to reproduce each gate locally, and the
 
 | Job (check name) | What it runs | Local command |
 | --- | --- | --- |
-| **Fast checks (typecheck + lint)** | `tsc --noEmit` + `eslint .` | `npm run typecheck && npm run lint` |
+| **Fast checks (typecheck + lint)** | `tsc --noEmit` + `eslint .` + API catalog drift check | `npm run typecheck && npm run lint` |
 | **Unit tests** | Node built-in test runner (`tests/**`) | `npm test` |
 | **Build** | Production Next.js build | `npm run build` |
 | **PostgreSQL Migrate / Integration** | PG migrate + integration tests | `npm run test:db` |
 | **E2E smoke (Playwright)** | Browser smoke flows (`e2e/**`) | `npm run test:e2e:smoke` |
 | **CI summary** | Pass/fail digest in the run summary | — |
+
+The **API catalog drift check** runs as a step inside **Fast checks**. See
+[API catalog drift gate](#api-catalog-drift-gate) below for details.
 
 The jobs run in parallel (each installs dependencies with the `npm` cache warm),
 so the slowest required gate sets the wall-clock time. Fast checks finish first,
@@ -56,6 +59,38 @@ job is excluded from pull-request events entirely, so it cannot turn a PR red. I
 expected to be **green** there (it passes locally and in CI with cached Chromium).
 If it ever starts flaking on `main`, fix it or, as a last resort, gate it behind
 `workflow_dispatch`/`schedule` only — do **not** add it to the required PR checks.
+
+## API catalog drift gate
+
+The **API catalog drift check** runs as a step inside the **Fast checks** job on
+every pull request and push to `main`. It:
+
+1. Regenerates `docs/platform/api-catalog.json` and `docs/platform/api-catalog.md`
+   by running `npm run api-catalog` (pure static analysis — no database or dev
+   server required).
+2. Runs `git diff --exit-code` on both files.  If there are any differences, the
+   step fails and prints the stale lines with a fix command.
+
+The check is **deterministic**: the generator reads source files only and produces
+the same output on every run for the same route files.
+
+### When does it fail?
+
+- A new `src/app/api/**/route.ts` was added without regenerating the catalog.
+- An existing route changed its auth wrapper, capability, response format, or
+  HTTP methods without regenerating.
+- `docs/platform/api-catalog.json` or `.md` was manually edited.
+
+### How to fix it
+
+```bash
+npm run api-catalog
+git add docs/platform/api-catalog.json docs/platform/api-catalog.md
+git commit -m "chore: regenerate API catalog"
+```
+
+See [API catalog](./api-catalog.md) for the full catalog reference and
+[`src/tools/api-catalog.ts`](../../src/tools/api-catalog.ts) for the generator.
 
 ## Dependency caching
 
@@ -99,6 +134,10 @@ npx prisma generate
 # Fast checks
 npm run typecheck
 npm run lint
+
+# API catalog drift check (part of Fast checks — no DB needed)
+npm run api-catalog
+git diff --exit-code docs/platform/api-catalog.json docs/platform/api-catalog.md && echo "NO DRIFT"
 
 # Unit tests (DB-free; they mock @/lib/prisma)
 npm test

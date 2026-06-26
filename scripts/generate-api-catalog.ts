@@ -15,10 +15,11 @@
  *   --md-only    Skip writing docs/platform/api-catalog.json.
  */
 
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildCatalog, buildCatalogMarkdown } from "@/tools/api-catalog";
+import type { ApiCatalog } from "@/tools/api-catalog";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");
@@ -32,16 +33,56 @@ const mdOnly = args.includes("--md-only");
 
 const catalog = buildCatalog();
 
+/**
+ * Returns the JSON catalog with `generatedAt` removed, serialised
+ * deterministically — used to check whether the *content* has changed so the
+ * generator is idempotent: if nothing changed we reuse the existing timestamp
+ * and avoid a spurious git diff.
+ */
+function contentHash(c: ApiCatalog): string {
+  const { generatedAt: _, ...rest } = c;
+  return JSON.stringify(rest);
+}
+
 if (!dryRun) {
   if (!mdOnly) {
-    writeFileSync(CATALOG_JSON, JSON.stringify(catalog, null, 2) + "\n");
-    console.log(
-      `✓ wrote ${relative(ROOT, CATALOG_JSON)} (${catalog.routeCount} routes, ${catalog.methodCount} methods)`,
-    );
+    // Only write (and update the timestamp) when route content has changed.
+    let skipJson = false;
+    try {
+      const existing: ApiCatalog = JSON.parse(readFileSync(CATALOG_JSON, "utf8"));
+      if (contentHash(existing) === contentHash(catalog)) {
+        skipJson = true;
+        console.log(`✓ ${relative(ROOT, CATALOG_JSON)} is up to date (no route changes)`);
+      }
+    } catch {
+      // File missing or unparseable — write unconditionally.
+    }
+    if (!skipJson) {
+      writeFileSync(CATALOG_JSON, JSON.stringify(catalog, null, 2) + "\n");
+      console.log(
+        `✓ wrote ${relative(ROOT, CATALOG_JSON)} (${catalog.routeCount} routes, ${catalog.methodCount} methods)`,
+      );
+    }
   }
   if (!jsonOnly) {
-    writeFileSync(CATALOG_MD, buildCatalogMarkdown(catalog));
-    console.log(`✓ wrote ${relative(ROOT, CATALOG_MD)}`);
+    const freshMd = buildCatalogMarkdown(catalog);
+    // Same idempotency: skip writing the MD when only the timestamp line differs.
+    let skipMd = false;
+    try {
+      const existingMd = readFileSync(CATALOG_MD, "utf8");
+      // Strip the "Last generated:" line before comparing.
+      const normalize = (s: string) => s.replace(/^> Last generated: .+$/m, "");
+      if (normalize(existingMd) === normalize(freshMd)) {
+        skipMd = true;
+        console.log(`✓ ${relative(ROOT, CATALOG_MD)} is up to date (no route changes)`);
+      }
+    } catch {
+      // File missing — write unconditionally.
+    }
+    if (!skipMd) {
+      writeFileSync(CATALOG_MD, freshMd);
+      console.log(`✓ wrote ${relative(ROOT, CATALOG_MD)}`);
+    }
   }
 } else {
   console.log(JSON.stringify(catalog, null, 2));

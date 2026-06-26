@@ -65,6 +65,32 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # -----------------------------------------------------------------------
+      # API catalog drift check: regenerate the catalog from route source and
+      # fail if the committed artifacts are stale.  The generator is pure static
+      # analysis and needs no database or environment secrets.  It is also
+      # idempotent — if no routes changed, it leaves the existing timestamps in
+      # place so git diff stays clean.
+      # Fix: run `npm run api-catalog` locally and commit the updated files.
+      # -----------------------------------------------------------------------
+      - name: API catalog drift check
+        run: |
+          npm run api-catalog
+          if ! git diff --exit-code docs/platform/api-catalog.json docs/platform/api-catalog.md; then
+            echo ""
+            echo "❌  API catalog is out of date."
+            echo "    The committed catalog does not match what the generator"
+            echo "    produces from the current route files."
+            echo ""
+            echo "    Fix: run the following command and commit the result:"
+            echo "      npm run api-catalog"
+            echo "    Affected files:"
+            echo "      docs/platform/api-catalog.json"
+            echo "      docs/platform/api-catalog.md"
+            exit 1
+          fi
+          echo "✅  API catalog is up to date — no drift detected."
+
   # ---------------------------------------------------------------------------
   # Tier 2 — Unit tests: the Node built-in test runner. These are DB-free (they
   # mock @/lib/prisma) so no migration step is needed; only the generated client.
