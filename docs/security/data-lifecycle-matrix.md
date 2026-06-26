@@ -148,12 +148,12 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `AiInvocation` (feature, model, promptVersion, status, latencyMs, token counts, estimatedCostUsd, errorMessage, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. No explicit erasure helper exists yet | Not applicable | No explicit retention window configured | `errorMessage` is scrubbed via `redactSensitiveValue` before persistence; safe. Other fields (feature, status, counts) are safe |
+| `AiInvocation` (feature, model, promptVersion, status, latencyMs, token counts, estimatedCostUsd, errorMessage, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. Call `deleteAiInvocationsForUser` explicitly when erasing a user's data | Not applicable | Configurable via `AI_LEDGER_RETENTION_DAYS` (default 365 days). Prune with `pruneOldAiInvocations` (`src/lib/ai/retention.ts`) | `errorMessage` is scrubbed via `redactSensitiveValue` before persistence; safe. Other fields (feature, status, counts) are safe |
 
-> **Gap #712-A:** `AiInvocation` has no time-based retention window or
-> per-user erasure helper comparable to `pruneOldEvents` /
-> `deleteEventsForUser`. Implement retention pruning and an erasure helper for
-> GDPR Article 17 compliance.
+> **#712-A resolved:** `pruneOldAiInvocations` (time-based retention, env:
+> `AI_LEDGER_RETENTION_DAYS`, default 365 days) and `deleteAiInvocationsForUser`
+> (GDPR Article 17 per-user erasure) added in `src/lib/ai/retention.ts`.
+> Neither runs automatically — wire to a scheduled job or CLI script.
 
 ---
 
@@ -161,11 +161,13 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `AuditLog` (action, actorId?, actorRole?, targetType, targetId?, metadata, requestId, ipAddress, userAgent) | Security | **operational** | ⛔ | **Not cascading** — actor/target ids are plain string refs; the investigation trail is intentionally preserved after entity deletion | Not applicable | No explicit retention window configured | `metadata` is sanitized via `sanitizeAuditMetadata` (uses `isSensitiveMetadataKey` + `redactSensitiveValue`); `ipAddress` and `userAgent` are retained for forensics |
+| `AuditLog` (action, actorId?, actorRole?, targetType, targetId?, metadata, requestId, ipAddress, userAgent) | Security | **operational** | ⛔ | **Not cascading** — actor/target ids are plain string refs; the investigation trail is intentionally preserved after entity deletion | Not applicable | Configurable via `AUDIT_LOG_RETENTION_DAYS` (default 730 days / 2 years for regulatory compliance). Prune with `pruneOldAuditLogs` (`src/lib/security/audit.ts`) | `metadata` is sanitized via `sanitizeAuditMetadata` (uses `isSensitiveMetadataKey` + `redactSensitiveValue`); `ipAddress` and `userAgent` are retained for forensics |
 
-> **Gap #712-B:** `AuditLog` has no time-based retention window. Implement a
-> configurable prune helper (e.g. `AUDIT_LOG_RETENTION_DAYS`) for regulatory
-> compliance and storage management.
+> **#712-B resolved:** `pruneOldAuditLogs` added to `src/lib/security/audit.ts`.
+> Default retention is **730 days (2 years)** to cover common regulatory
+> frameworks (PCI-DSS, SOC 2, GDPR legitimate-interest). Override via
+> `AUDIT_LOG_RETENTION_DAYS`. Do NOT reduce below 90 days without a
+> legal/compliance review. The helper does not run automatically.
 
 ---
 
@@ -198,12 +200,14 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `Job` (type, status, payload, attempts, errors, lockedBy, timestamps) | Operations | **operational** | ⛔ | **Not cascading** — `payload` ids are plain string refs; jobs survive entity deletion | Not applicable | No explicit retention window; dead-lettered jobs (`DEAD_LETTER`) are not automatically pruned | `lastError` / `errorHistory` may contain error text; apply redaction before surfacing in UI |
+| `Job` (type, status, payload, attempts, errors, lockedBy, timestamps) | Operations | **operational** | ⛔ | **Not cascading** — `payload` ids are plain string refs; jobs survive entity deletion | Not applicable | Terminal rows (`COMPLETED`, `DEAD_LETTER`) prunable via `pruneTerminalJobs` (`src/lib/jobs/retention.ts`, env: `JOB_TERMINAL_RETENTION_DAYS`, default 90 days) | `lastError` / `errorHistory` may contain error text; apply redaction before surfacing in UI |
 | `ArticleProcessingStep` (step, status, modelName, promptVersion, lastError) | Operations / AI | **operational** | ⛔ | Cascade via article (`ArticleProcessingStep.articleId`) | Cascade via article | Deleted with article | `lastError` is metadata only; must not contain prompt/response content per schema comment |
 
-> **Gap #712-C:** `Job` rows in terminal states (`COMPLETED`, `DEAD_LETTER`)
-> are not automatically pruned. Implement a configurable retention/sweep helper
-> to control table growth.
+> **#712-C resolved:** `pruneTerminalJobs` added in `src/lib/jobs/retention.ts`.
+> Deletes `COMPLETED` and `DEAD_LETTER` rows where `updatedAt < cutoff`. Default
+> window is 90 days (env: `JOB_TERMINAL_RETENTION_DAYS`). The `statuses`
+> parameter lets operators prune a subset (e.g. `DEAD_LETTER` only). Does not
+> run automatically — wire to a scheduled job or CLI script.
 
 ---
 
@@ -256,17 +260,17 @@ behavior is invented. Gaps are called out as follow-up items.
 
 ## Summary of follow-up gaps
 
-| # | Gap | Severity |
-|---|---|---|
-| 711-A | `ReminderPreference` not in export bundle | Low |
-| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium |
-| 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium |
-| 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium |
-| 711-E | Membership, classroom, assignment completion not in export | Low |
-| 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium |
-| 712-A | `AiInvocation` has no retention window or per-user erasure helper | High |
-| 712-B | `AuditLog` has no retention window | Medium |
-| 712-C | `Job` dead-letter rows not automatically pruned | Low |
+| # | Gap | Severity | Status |
+|---|---|---|---|
+| 711-A | `ReminderPreference` not in export bundle | Low | Open |
+| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium | Open |
+| 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium | Open |
+| 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | Open |
+| 711-E | Membership, classroom, assignment completion not in export | Low | Open |
+| 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium | Open |
+| 712-A | `AiInvocation` has no retention window or per-user erasure helper | High | ✅ Resolved — `pruneOldAiInvocations` + `deleteAiInvocationsForUser` in `src/lib/ai/retention.ts` |
+| 712-B | `AuditLog` has no retention window | Medium | ✅ Resolved — `pruneOldAuditLogs` in `src/lib/security/audit.ts` (default 730 d, configurable via `AUDIT_LOG_RETENTION_DAYS`) |
+| 712-C | `Job` dead-letter rows not automatically pruned | Low | ✅ Resolved — `pruneTerminalJobs` in `src/lib/jobs/retention.ts` (default 90 d, configurable via `JOB_TERMINAL_RETENTION_DAYS`) |
 
 ---
 

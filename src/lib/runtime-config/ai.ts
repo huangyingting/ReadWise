@@ -122,6 +122,14 @@ export function aiLedgerEnabled(): boolean {
   return process.env.NODE_ENV !== "test";
 }
 
+/**
+ * Retention window (in days) for pruneOldAiInvocations. Defaults to 365 days.
+ * Set via AI_LEDGER_RETENTION_DAYS.
+ */
+export function aiLedgerRetentionDays(): number {
+  return positiveIntEnv("AI_LEDGER_RETENTION_DAYS", 365);
+}
+
 // ---------------------------------------------------------------------------
 // AI budgets / quotas (RW-022)
 // ---------------------------------------------------------------------------
