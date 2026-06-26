@@ -21,6 +21,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext, getRequestId } from "@/lib/observability/logger";
 import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/runtime-config/ai";
+import { truncateStr } from "@/lib/primitives/pure";
 
 const logger = createLogger("ai-ledger");
 
@@ -61,10 +62,6 @@ export type LedgerClient = Pick<Prisma.TransactionClient, "aiInvocation">;
 const MAX_FEATURE_LEN = 120;
 const MAX_MODEL_LEN = 120;
 const MAX_ERROR_LEN = 1000;
-
-function truncate(value: string, max: number): string {
-  return value.length <= max ? value : value.slice(0, max);
-}
 
 /** Coerce to a finite non-negative integer, else null. */
 function normInt(value: number | null | undefined): number | null {
@@ -128,8 +125,8 @@ export async function recordAiInvocation(
 
     await client.aiInvocation.create({
       data: {
-        feature: truncate(input.feature || "unknown", MAX_FEATURE_LEN),
-        model: input.model ? truncate(input.model, MAX_MODEL_LEN) : null,
+        feature: truncateStr(input.feature || "unknown", MAX_FEATURE_LEN),
+        model: input.model ? truncateStr(input.model, MAX_MODEL_LEN) : null,
         promptVersion: input.promptVersion ?? null,
         userId: input.userId ?? getRequestContext()?.userId ?? null,
         articleId: input.articleId ?? null,
@@ -142,7 +139,7 @@ export async function recordAiInvocation(
         completionTokens,
         totalTokens,
         estimatedCostUsd,
-        errorMessage: input.errorMessage ? truncate(input.errorMessage, MAX_ERROR_LEN) : null,
+        errorMessage: input.errorMessage ? truncateStr(input.errorMessage, MAX_ERROR_LEN) : null,
       },
     });
   } catch (err) {

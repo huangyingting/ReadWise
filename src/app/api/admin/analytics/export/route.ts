@@ -1,38 +1,13 @@
 import { NextResponse } from "next/server";
 import { createCapabilityHandler } from "@/lib/api-handler";
 import { CAPABILITIES } from "@/lib/rbac";
-import { queryInt, queryString } from "@/lib/validation";
 import {
   getAnalyticsOverview,
   getRetentionCohorts,
   resolveTimeRange,
-  type AnalyticsSegment,
-} from "@/lib/analytics/product";
-
-type ExportQuery = {
-  format: "csv" | "json";
-  days: number;
-  segment?: AnalyticsSegment;
-};
-
-function parseQuery(params: URLSearchParams): ExportQuery {
-  const format = queryString(params, "format", "json") === "csv" ? "csv" : "json";
-  const days = queryInt(params, "days", { fallback: 30, min: 1, max: 365 });
-  const level = queryString(params, "level").trim();
-  const topic = queryString(params, "topic").trim();
-  const segment: AnalyticsSegment | undefined =
-    level || topic ? { level: level || null, topic: topic || null } : undefined;
-  return { format, days, segment };
-}
-
-function csvEscape(value: unknown): string {
-  const s = value === null || value === undefined ? "" : String(value);
-  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-function toCsv(rows: (string | number)[][]): string {
-  return rows.map((row) => row.map(csvEscape).join(",")).join("\n");
-}
+  parseAnalyticsQuery,
+} from "@/lib/analytics/queries";
+import { csvRows } from "@/lib/csv";
 
 /**
  * Exports the product analytics aggregates (funnel / conversion / feature usage
@@ -41,7 +16,19 @@ function toCsv(rows: (string | number)[][]): string {
  */
 export const GET = createCapabilityHandler(
   CAPABILITIES.analyticsView,
-  { query: (params) => ({ ok: true, value: parseQuery(params) }) },
+  {
+    query: (params) => ({
+      ok: true,
+      value: {
+        format: params.get("format") === "csv" ? ("csv" as const) : ("json" as const),
+        ...parseAnalyticsQuery({
+          days: params.get("days"),
+          level: params.get("level"),
+          topic: params.get("topic"),
+        }),
+      },
+    }),
+  },
   async ({ query }) => {
     const { since, until, days } = resolveTimeRange(query.days);
     const [overview, cohorts] = await Promise.all([
@@ -99,7 +86,7 @@ export const GET = createCapabilityHandler(
       }
     }
 
-    const csv = toCsv(rows);
+    const csv = csvRows(rows);
     return new NextResponse(csv, {
       status: 200,
       headers: {

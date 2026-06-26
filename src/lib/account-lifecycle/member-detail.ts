@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { parseTopics } from "@/lib/profile";
+import { parseAuditMetadata } from "@/lib/security/audit";
 
 const RECENT_ACTIVITY_DAYS = 14;
 const RECENT_LIMIT = 10;
@@ -92,18 +93,6 @@ type DetailClient = Pick<
   | "session"
   | "auditLog"
 >;
-
-function safeParseMetadata(raw: string | null | undefined): Record<string, unknown> {
-  if (!raw) return {};
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? (parsed as Record<string, unknown>)
-      : {};
-  } catch {
-    return {};
-  }
-}
 
 /**
  * Assembles the support detail for a single member. Returns `null` when the
@@ -239,7 +228,7 @@ export async function getMemberDetail(
       actorId: row.actorId,
       actorRole: row.actorRole,
       createdAt: row.createdAt,
-      metadata: safeParseMetadata(row.metadata),
+      metadata: parseAuditMetadata(row.metadata),
     })),
   };
 }

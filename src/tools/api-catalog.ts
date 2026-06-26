@@ -17,6 +17,7 @@
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
+import type { AuthMode } from "@/lib/api-handler";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 /** Repo root (two levels up from src/lib). */
@@ -25,7 +26,7 @@ const API_ROOT = join(ROOT, "src", "app", "api");
 
 // ── Public types ──────────────────────────────────────────────────────────
 
-export type AuthMode = "public" | "session" | "admin" | "capability";
+export type { AuthMode } from "@/lib/api-handler";
 export type ResponseFormat =
   | "json"
   | "binary"

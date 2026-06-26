@@ -64,3 +64,45 @@ export function fillWeekBuckets(
   }
   return buckets.map((b) => ({ ...b, count: map.get(b.week) ?? 0 }));
 }
+
+/**
+ * Merges a groupBy result into an ordered registry of `{ key, label, count }`
+ * buckets. All DB rows whose key matches a registry entry are placed in that
+ * entry's bucket; everything else (including null keys and unregistered values)
+ * is accumulated as a single "spillover" bucket appended at the end.
+ *
+ * @param registry   Ordered list of known keys + display labels.
+ * @param rows       Raw groupBy rows — each must supply a `key` and `count`.
+ * @param getKey     Extracts the groupBy dimension value from a raw row.
+ * @param getCount   Extracts the count value from a raw row (default: `_all`).
+ * @param spillover  Label for the catch-all overflow bucket. Pass `null` to
+ *                   suppress the spillover entirely.
+ */
+export function bucketize<K extends { key: string; label: string }>(
+  registry: readonly K[],
+  rows: { key: string | null; count: number }[],
+  spillover: { key: string; label: string } | null = { key: "other", label: "Other" },
+): (K & { count: number })[] {
+  const countByKey = new Map<string | null, number>();
+  for (const r of rows) {
+    countByKey.set(r.key, (countByKey.get(r.key) ?? 0) + r.count);
+  }
+
+  const result: (K & { count: number })[] = registry.map((entry) => ({
+    ...entry,
+    count: countByKey.get(entry.key) ?? 0,
+  }));
+
+  if (spillover !== null) {
+    const knownKeys = new Set(registry.map((e) => e.key));
+    let extra = 0;
+    for (const [k, v] of countByKey) {
+      if (k === null || !knownKeys.has(k)) extra += v;
+    }
+    if (extra > 0) {
+      result.push({ ...(spillover as K), count: extra });
+    }
+  }
+
+  return result;
+}

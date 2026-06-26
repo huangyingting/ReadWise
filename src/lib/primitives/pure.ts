@@ -27,6 +27,7 @@ export {
   isoWeek,
   lastNWeeks,
   fillWeekBuckets,
+  bucketize,
 } from "@/lib/aggregation";
 
 // ── Retry / backoff ──────────────────────────────────────────────────────────
@@ -40,6 +41,19 @@ export { safeJsonStringify } from "@/lib/safe-json";
 
 // ── Display formatting ────────────────────────────────────────────────────────
 export { formatRelative } from "@/lib/format-relative";
+
+// ── String helpers ────────────────────────────────────────────────────────
+/**
+ * Truncates `value` to at most `max` characters. When the string is too long,
+ * appends `indicator` (default `""`). The `indicator` length is included in
+ * the output: `truncateStr("hello", 4, "…")` → `"hel…"`.
+ *
+ * Pass `indicator = "…"` to reproduce the audit-log ellipsis variant.
+ */
+export function truncateStr(value: string, max: number, indicator = ""): string {
+  if (value.length <= max) return value;
+  return value.slice(0, max - indicator.length) + indicator;
+}
 
 // ── Input validation ──────────────────────────────────────────────────────────
 export {
