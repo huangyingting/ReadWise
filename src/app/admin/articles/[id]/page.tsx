@@ -23,6 +23,7 @@ import AdminArticleTakedown from "@/components/AdminArticleTakedown";
 import { Card, CardMeta, CardTitle } from "@/components/ui/Card";
 import { Badge, CefrBadge, CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
 import { StatCard } from "@/components/analytics/StatCard";
+import { AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 
 /** Maps a processing-step status to a Badge variant. */
@@ -199,12 +200,7 @@ export default async function AdminArticleDetailPage({
         <Card>
           <div className="stack">
             <CardTitle level="h3">Review history</CardTitle>
-            <div
-              className="admin-table-wrap"
-              tabIndex={0}
-              aria-label="Review history table (scrollable)"
-            >
-              <table className="admin-table">
+            <AdminTableWrap ariaLabel="Review history table (scrollable)">
                 <thead>
                   <tr>
                     <th>When</th>
@@ -226,8 +222,7 @@ export default async function AdminArticleDetailPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </AdminTableWrap>
           </div>
         </Card>
       )}
@@ -245,13 +240,8 @@ export default async function AdminArticleDetailPage({
               this article is processed.
             </p>
           ) : (
-            <div
-              className="admin-table-wrap"
-              tabIndex={0}
-              aria-label="Processing steps table (scrollable)"
-            >
-              <table className="admin-table">
-                <thead>
+            <AdminTableWrap ariaLabel="Processing steps table (scrollable)">
+              <thead>
                   <tr>
                     <th>Step</th>
                     <th>Status</th>
@@ -281,8 +271,7 @@ export default async function AdminArticleDetailPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </AdminTableWrap>
           )}
         </div>
       </Card>

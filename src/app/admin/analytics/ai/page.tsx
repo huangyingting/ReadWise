@@ -4,6 +4,7 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { getAiCostOverview, getContentOpsOverview } from "@/lib/processing/admin-ops";
 import { StatCard } from "@/components/analytics/StatCard";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
+import { AdminTableWrap } from "@/components/admin";
 import { Card } from "@/components/ui/Card";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
@@ -100,8 +101,7 @@ export default async function AdminAiOpsPage({
 
       <h3 className="font-[family-name:var(--font-display)] font-semibold text-text">By feature</h3>
       <Card>
-        <div className="admin-table-wrap" tabIndex={0} aria-label="AI usage by feature (scrollable)">
-          <table className="admin-table">
+        <AdminTableWrap ariaLabel="AI usage by feature (scrollable)">
             <thead>
               <tr>
                 <th>Feature</th>
@@ -132,16 +132,14 @@ export default async function AdminAiOpsPage({
                 ))
               )}
             </tbody>
-          </table>
-        </div>
+          </AdminTableWrap>
       </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-[var(--space-4)]">
         <div className="stack">
           <h3 className="font-[family-name:var(--font-display)] font-semibold text-text">Top users by cost</h3>
           <Card>
-            <div className="admin-table-wrap" tabIndex={0} aria-label="Top users by AI cost (scrollable)">
-              <table className="admin-table">
+            <AdminTableWrap ariaLabel="Top users by AI cost (scrollable)">
                 <thead>
                   <tr>
                     <th>User</th>
@@ -170,16 +168,14 @@ export default async function AdminAiOpsPage({
                     ))
                   )}
                 </tbody>
-              </table>
-            </div>
+              </AdminTableWrap>
           </Card>
         </div>
 
         <div className="stack">
           <h3 className="font-[family-name:var(--font-display)] font-semibold text-text">Top articles by cost</h3>
           <Card>
-            <div className="admin-table-wrap" tabIndex={0} aria-label="Top articles by AI cost (scrollable)">
-              <table className="admin-table">
+            <AdminTableWrap ariaLabel="Top articles by AI cost (scrollable)">
                 <thead>
                   <tr>
                     <th>Article</th>
@@ -204,8 +200,7 @@ export default async function AdminAiOpsPage({
                     ))
                   )}
                 </tbody>
-              </table>
-            </div>
+              </AdminTableWrap>
           </Card>
         </div>
       </div>
@@ -224,8 +219,7 @@ export default async function AdminAiOpsPage({
 
       <h3 className="font-[family-name:var(--font-display)] font-semibold text-text">Processing steps</h3>
       <Card>
-        <div className="admin-table-wrap" tabIndex={0} aria-label="Processing steps (scrollable)">
-          <table className="admin-table">
+        <AdminTableWrap ariaLabel="Processing steps (scrollable)">
             <thead>
               <tr>
                 <th>Step</th>
@@ -254,8 +248,7 @@ export default async function AdminAiOpsPage({
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </AdminTableWrap>
       </Card>
 
       {ops.problemArticles.length > 0 && (
@@ -264,8 +257,7 @@ export default async function AdminAiOpsPage({
             Articles needing attention
           </h3>
           <Card>
-            <div className="admin-table-wrap" tabIndex={0} aria-label="Problem articles (scrollable)">
-              <table className="admin-table">
+            <AdminTableWrap ariaLabel="Problem articles (scrollable)">
                 <thead>
                   <tr>
                     <th>Article</th>
@@ -294,8 +286,7 @@ export default async function AdminAiOpsPage({
                     </tr>
                   ))}
                 </tbody>
-              </table>
-            </div>
+              </AdminTableWrap>
           </Card>
         </>
       )}
