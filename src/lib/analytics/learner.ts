@@ -13,6 +13,7 @@ import {
 	lastNWeeks,
 	type WeekBucket,
 } from "@/lib/aggregation";
+import { isPostgresDatabase } from "@/lib/search/query";
 
 export type LevelBucket = {
 	level: string;
@@ -44,6 +45,36 @@ export type LearnerAnalytics = {
 	longestStreak: number;
 };
 
+/**
+ * Returns the distribution of completed articles by difficulty using a single
+ * `GROUP BY` aggregate instead of fetching individual rows. Branching avoids
+ * the N=1000 silent cap that the previous `findMany({take:1000})` imposed.
+ *
+ * Postgres path: double-quoted identifiers; boolean literal `true`.
+ * SQLite path:   unquoted identifiers; boolean stored as integer `1`.
+ * NOTE: only the SQLite path runs locally; the Postgres path is CI-validated.
+ */
+async function getCEFRDistribution(
+	userId: string,
+): Promise<Array<{ difficulty: string | null; count: bigint | number }>> {
+	if (isPostgresDatabase()) {
+		return prisma.$queryRaw<Array<{ difficulty: string | null; count: bigint }>>`
+			SELECT a.difficulty, COUNT(*) AS count
+			FROM "ReadingProgress" r
+			JOIN "Article" a ON a.id = r."articleId"
+			WHERE r."userId" = ${userId} AND r.completed = true
+			GROUP BY a.difficulty
+		`;
+	}
+	return prisma.$queryRaw<Array<{ difficulty: string | null; count: number }>>`
+		SELECT a.difficulty, COUNT(*) AS count
+		FROM ReadingProgress r
+		JOIN Article a ON a.id = r.articleId
+		WHERE r.userId = ${userId} AND r.completed = 1
+		GROUP BY a.difficulty
+	`;
+}
+
 export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalytics> {
 	const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86_400_000);
 
@@ -54,7 +85,7 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 		recentWords,
 		quizAgg,
 		recentQuizAttempts,
-		completedWithLevel,
+		levelDistribution,
 		streakSummary,
 	] = await Promise.all([
 		prisma.readingProgress.groupBy({
@@ -88,11 +119,7 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 			select: { scorePct: true },
 		}),
 
-		prisma.readingProgress.findMany({
-			where: { userId, completed: true },
-			select: { article: { select: { difficulty: true } } },
-			take: 1000,
-		}),
+		getCEFRDistribution(userId),
 
 		getStreakSummary(userId),
 	]);
@@ -122,13 +149,8 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 			: null;
 	const quizScoreTrend = [...recentQuizAttempts].reverse().map((r) => r.scorePct);
 
-	const levelMap = new Map<string, number>();
-	for (const row of completedWithLevel) {
-		const key = row.article.difficulty ?? "Unknown";
-		levelMap.set(key, (levelMap.get(key) ?? 0) + 1);
-	}
-	const completedByLevel: LevelBucket[] = [...levelMap.entries()]
-		.map(([level, count]) => ({ level, count }))
+	const completedByLevel: LevelBucket[] = levelDistribution
+		.map((row) => ({ level: row.difficulty ?? "Unknown", count: Number(row.count) }))
 		.sort((a, b) => a.level.localeCompare(b.level));
 
 	const { currentStreak, longestStreak } = streakSummary;
