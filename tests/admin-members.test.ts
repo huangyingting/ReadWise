@@ -45,6 +45,9 @@ before(() => {
         return { count: 0 };
       },
     },
+    mediaAsset: {
+      findMany: async () => [],
+    },
     $transaction: async (opsOrFn: unknown) => {
       transactionCalled = true;
       if (typeof opsOrFn === "function") {
