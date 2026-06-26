@@ -24,7 +24,7 @@
  */
 
 import { useEffect, useRef } from "react";
-import { clampActiveTime } from "@/lib/engagement";
+import { clampActiveTime } from "@/lib/engagement/reading-speed";
 
 // Pause the timer after this many ms with no interaction.
 const IDLE_TIMEOUT_MS = 30_000; // 30 s

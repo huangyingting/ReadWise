@@ -25,7 +25,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Include published article URLs so they can be discovered/indexed.
   // The reader is auth-gated, but listing canonical URLs aids discovery and
   // lets social-preview crawlers resolve Open Graph metadata for shared links.
-  const articles = await listPublishedArticles(1000);
+  // Gracefully skip article routes when the database is unavailable (e.g.
+  // during a cold build without a live database connection).
+  let articles: Awaited<ReturnType<typeof listPublishedArticles>> = [];
+  try {
+    articles = await listPublishedArticles(1000);
+  } catch {
+    // DB unavailable at build time — return only static routes.
+  }
   const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
     url: `${siteUrl}/reader/${article.id}`,
     // publishedAt may come back as a serialized string from unstable_cache.

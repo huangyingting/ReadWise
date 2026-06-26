@@ -6,9 +6,11 @@ import type { AudioContextValue } from "@/components/ReaderAudioProvider";
 import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProvider";
 import {
   buildTokenAlignment,
+} from "@/lib/speech/timing-alignment";
+import {
   createComparableKey,
   createSpeechBoundaryRegex,
-} from "@/lib/speech";
+} from "@/lib/speech/timing";
 import { collectTextNodes, type TextNodeEntry } from "@/components/reader/wordLookup/highlightMarks";
 
 type ProseWord = {
