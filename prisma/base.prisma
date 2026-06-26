@@ -173,6 +173,7 @@ model Article {
   reviews                   ContentReview[]
   mediaAssets               MediaAsset[]
   assignments               Assignment[]
+  contentReports            ContentReport[]
 
   @@unique([sourceUrl, ownerId])
   @@index([category])
@@ -985,6 +986,32 @@ enum AssignmentStatus {
   COMPLETED   @map("completed")
 }
 
+// ===========================================================================
+// Content Reporting — user-submitted safety/quality/rights reports and admin
+// moderation queue (Epic #734 — #738). Reports reference content by articleId.
+// No raw article text, selected text, or PII is stored — only IDs and category
+// metadata.
+// ===========================================================================
+
+/// Why the user submitted the report.
+enum ContentReportReason {
+  RIGHTS_COPYRIGHT     @map("rights_copyright")
+  UNSAFE_CONTENT       @map("unsafe_content")
+  EXTRACTION_BROKEN    @map("extraction_broken")
+  WRONG_LEVEL          @map("wrong_level")
+  INACCURATE_AI        @map("inaccurate_ai")
+  CLASSROOM_CONCERN    @map("classroom_concern")
+  OTHER                @map("other")
+}
+
+/// Lifecycle of a ContentReport in the moderation queue.
+enum ContentReportStatus {
+  OPEN       @map("open")
+  REVIEWING  @map("reviewing")
+  RESOLVED   @map("resolved")
+  DISMISSED  @map("dismissed")
+}
+
 model Organization {
   id        String   @id @default(cuid())
   name      String
@@ -1082,4 +1109,26 @@ model AssignmentCompletion {
   @@unique([assignmentId, studentId])
   @@index([studentId])
   @@index([assignmentId, status])
+}
+
+// User-submitted report on a piece of content. `reporterUserId` is a plain
+// string (NOT an FK, like AuditLog.actorId) so reports survive account deletion.
+// `resolvedBy` is likewise a plain string. No raw article text or selected text
+// is stored — only the articleId + category + optional short note.
+model ContentReport {
+  id             String              @id @default(cuid())
+  reporterUserId String
+  articleId      String
+  reason         ContentReportReason
+  note           String?
+  status         ContentReportStatus @default(OPEN)
+  createdAt      DateTime            @default(now())
+  resolvedAt     DateTime?
+  resolvedBy     String?
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt])
+  @@index([status, createdAt])
+  @@index([reporterUserId, articleId])
 }

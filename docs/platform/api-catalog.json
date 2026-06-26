@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-26T21:50:51.383Z",
-  "routeCount": 89,
-  "methodCount": 100,
+  "generatedAt": "2026-06-26T22:45:57.775Z",
+  "routeCount": 92,
+  "methodCount": 103,
   "routes": [
     {
       "path": "/api/account",
@@ -462,6 +462,58 @@
           "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/reports",
+      "file": "src/app/api/admin/reports/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/reports/{id}",
+      "file": "src/app/api/admin/reports/[id]/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "PATCH",
+          "authMode": "capability",
+          "capability": "contentModerate",
+          "hasBodySchema": true,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.contentModerate"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "reportId",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "status"
+          ]
         }
       ]
     },
@@ -2050,6 +2102,34 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/reports",
+      "file": "src/app/api/reports/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 201,
+          "responseKeys": [
+            "ok",
+            "reportId"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleId",
+            "note",
+            "reason"
+          ]
         }
       ]
     },
