@@ -60,6 +60,12 @@ export type ProviderFetchOptions = {
    * "speech-token"). Never use a value that includes user content or credentials.
    */
   provider?: string;
+  /**
+   * Override the sleep function used between retries. Defaults to a real
+   * `setTimeout`-based delay. Inject `async () => {}` in tests to skip waits
+   * without mutating `global.setTimeout`.
+   */
+  sleep?: (ms: number) => Promise<void>;
 };
 
 /**
@@ -136,6 +142,8 @@ export async function providerFetch(
   const backoffBase = opts?.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
   const backoffMax = opts?.backoffMaxMs ?? DEFAULT_BACKOFF_MAX_MS;
   const provider = opts?.provider ?? "unknown";
+  const sleep =
+    opts?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
 
   // Extract host for low-cardinality logging — never include path or query.
   let host = "unknown";
@@ -201,7 +209,7 @@ export async function providerFetch(
 
     // Drain the body so the connection can be reused.
     await res.body?.cancel().catch(() => {});
-    await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+    await sleep(delayMs);
     attempt++;
   }
 }

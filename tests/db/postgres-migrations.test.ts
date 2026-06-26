@@ -1,19 +1,13 @@
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
-import { after, afterEach, test } from "node:test";
+import { test } from "node:test";
 
 import { prisma } from "@/lib/prisma";
 
 import { enabled, isPostgres } from "./support/db-config";
-import { applySql, cleanIntegrationRows, quoteIdentifier, readPostgresMigrations } from "./support/db-helpers";
+import { applySql, quoteIdentifier, readPostgresMigrations, registerIntegrationCleanup } from "./support/db-helpers";
 
-afterEach(async () => {
-  if (enabled) await cleanIntegrationRows();
-});
-
-after(async () => {
-  await prisma.$disconnect();
-});
+registerIntegrationCleanup();
 
 test("PostgreSQL baseline migration is applied and includes the article FTS index", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");

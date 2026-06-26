@@ -1,20 +1,14 @@
 import assert from "node:assert/strict";
-import { after, afterEach, test } from "node:test";
+import { test } from "node:test";
 
 import { ArticleStatus, ArticleVisibility } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
 import { enabled, isPostgres } from "./support/db-config";
-import { cleanIntegrationRows, id } from "./support/db-helpers";
+import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
-afterEach(async () => {
-  if (enabled) await cleanIntegrationRows();
-});
-
-after(async () => {
-  await prisma.$disconnect();
-});
+registerIntegrationCleanup();
 
 test("PostgreSQL full-text article search is case-insensitive and privacy-filtered", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
