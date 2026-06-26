@@ -7,6 +7,7 @@ import { recordJobQueueEvent } from "@/lib/metrics";
 import { DEFAULT_LOCK_TTL_MS } from "./types";
 import { claimNextJobPostgres } from "./claim-postgres";
 import { claimNextJobGeneric } from "./claim-generic";
+import { isPostgresDatabase } from "@/lib/db-utils";
 
 export type ClaimOptions = {
   /** Restrict to specific job types. */
@@ -16,11 +17,6 @@ export type ClaimOptions = {
   /** Override "now" (testing). */
   now?: Date;
 };
-
-function isPostgres(): boolean {
-  const url = process.env.DATABASE_URL ?? "";
-  return url.startsWith("postgresql://") || url.startsWith("postgres://");
-}
 
 /**
  * Atomically claims one runnable job for `workerId`, marking it CLAIMED with a
@@ -33,7 +29,7 @@ export async function claimNextJob(workerId: string, opts: ClaimOptions = {}): P
   const lockTtlMs = opts.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
   const staleBefore = new Date(now.getTime() - lockTtlMs);
 
-  const job = isPostgres()
+  const job = isPostgresDatabase()
     ? await claimNextJobPostgres(workerId, now, staleBefore, opts.types)
     : await claimNextJobGeneric(workerId, now, staleBefore, opts.types);
 

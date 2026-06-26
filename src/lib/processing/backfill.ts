@@ -174,6 +174,7 @@ async function defaultFindActiveDedupeKeys(keys: string[]): Promise<Set<string>>
  * Clears the DERIVED caches for the given step keys + resets their processing
  * state, atomically. NEVER touches user-owned study data (SavedWord, reading
  * progress). Used by rebuild mode so the worker regenerates fresh content.
+ * Delegates to the per-feature `clearFrom` callback in FEATURE_REGISTRY.
  */
 async function defaultClearFeatures(
   articleId: string,
@@ -181,24 +182,14 @@ async function defaultClearFeatures(
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     for (const key of stepKeys) {
-      if (key === "difficulty") {
-        await tx.article.update({
-          where: { id: articleId },
-          data: { difficulty: null, difficultyScore: null },
-        });
-      } else if (key === "tags") {
-        await tx.articleTag.deleteMany({ where: { articleId } });
-      } else if (key === "vocabulary") {
-        await tx.vocabularyItem.deleteMany({ where: { articleId } });
-      } else if (key === "quiz") {
-        await tx.quizQuestion.deleteMany({ where: { articleId } });
-      } else if (key === "speech") {
-        await tx.articleSpeech.deleteMany({ where: { articleId } });
-      } else if (key === "grammar") {
-        await tx.grammarExplanation.deleteMany({ where: { articleId } });
-      } else if (key.startsWith("translation:")) {
+      if (key.startsWith("translation:")) {
         const lang = key.slice("translation:".length);
         await tx.translation.deleteMany({ where: { articleId, targetLang: lang } });
+      } else {
+        const feature = FEATURE_REGISTRY.find((f) => f.key === key);
+        if (feature?.clearFrom) {
+          await feature.clearFrom(tx, articleId);
+        }
       }
     }
     await tx.articleProcessingStep.deleteMany({
@@ -233,23 +224,6 @@ function dedupeKeyFor(articleId: string, stepKey: string): string {
   return `backfill:${stepKey}:${articleId}`;
 }
 
-/**
- * Returns whether the given non-lang feature is missing for a candidate article.
- * Add a new case here when adding a new feature to the registry.
- */
-function candidateMissing(key: FeatureKey, article: CandidateArticle): boolean {
-  switch (key) {
-    case "difficulty":  return article.difficulty == null;
-    case "tags":        return article._count.tags === 0;
-    case "vocabulary":  return article._count.vocabulary === 0;
-    case "quiz":        return article._count.quizQuestions === 0;
-    case "grammar":     return article._count.grammarExplanations === 0;
-    case "speech":      return !article.speech;
-    case "translation": return false; // handled per-lang below
-    default:            return false;
-  }
-}
-
 /** Step keys an article is MISSING among the requested features. */
 function missingStepKeys(
   article: CandidateArticle,
@@ -263,7 +237,7 @@ function missingStepKeys(
     if (feature.supportsLangs) {
       const have = new Set(article.translations.map((t) => t.targetLang));
       for (const lang of langs) if (!have.has(lang)) out.push(`translation:${lang}`);
-    } else if (candidateMissing(key, article)) {
+    } else if (feature.isMissingFrom?.(article) ?? false) {
       out.push(key);
     }
   }

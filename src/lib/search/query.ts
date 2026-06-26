@@ -6,6 +6,8 @@
  * depend only on Prisma *types* (Prisma.ArticleWhereInput etc.).
  */
 import { type Prisma } from "@prisma/client";
+import { isPostgresDatabase } from "@/lib/db-utils";
+export { isPostgresDatabase };
 
 /** Default and maximum page sizes for the user-facing global search. */
 export const SEARCH_PAGE_SIZE = 20;
@@ -50,11 +52,6 @@ export function buildSearchTerms(raw: string): string[] {
         .slice(0, 8),
     ),
   );
-}
-
-export function isPostgresDatabase(): boolean {
-  const url = process.env.DATABASE_URL ?? "";
-  return url.startsWith("postgresql://") || url.startsWith("postgres://");
 }
 
 export function containsFilter(value: string): StringContainsFilter {
