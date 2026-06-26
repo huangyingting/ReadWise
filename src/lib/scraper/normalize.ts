@@ -23,7 +23,7 @@
 import { createLogger } from "@/lib/observability/logger";
 import { scraperHtmlNormalize } from "@/lib/runtime-config/scraper";
 
-const log = createLogger("scraper:normalize");
+const log = createLogger("scraper.normalize");
 
 // ---------------------------------------------------------------------------
 // Regex patterns

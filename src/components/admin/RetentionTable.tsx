@@ -1,6 +1,6 @@
 import { Card } from "@/components/ui/Card";
 import { AdminTableWrap } from "./AdminTableWrap";
-import type { RetentionCohort } from "@/lib/analytics/product";
+import type { RetentionCohort } from "@/lib/analytics/queries";
 
 /**
  * Weekly retention cohort grid. Each row is a cohort (users grouped by the week

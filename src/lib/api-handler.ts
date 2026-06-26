@@ -46,7 +46,17 @@ export class ApiError extends Error {
 /** Request-scoped logger handed to every handler (see {@link createLogger}). */
 export type RequestLogger = StructuredLogger;
 
-type AuthMode = "public" | "session" | "admin" | "capability";
+/**
+ * Authentication mode for API route handlers.
+ *
+ * | Value          | Who can call                          |
+ * |----------------|---------------------------------------|
+ * | `"public"`     | Anyone (no auth check)                |
+ * | `"session"`    | Authenticated users only              |
+ * | `"admin"`      | Admin role via `adminAccess` cap      |
+ * | `"capability"` | Session + specific named capability   |
+ */
+export type AuthMode = "public" | "session" | "admin" | "capability";
 
 type RouteContext = { params?: Promise<Record<string, string>> };
 
