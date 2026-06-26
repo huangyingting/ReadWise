@@ -2,6 +2,18 @@
 
 ReadWise routes user-facing search through `ArticleSearchProvider` (`src/lib/search/providers.ts`). The portable provider searches readable article fields plus the signed-in user's highlights/notes and saved vocabulary, merges results only after `readableArticleWhere`, and ranks in application code by field relevance and recency. PostgreSQL additionally has `Article_search_vector_idx`, a GIN expression index over title/excerpt/content used by the raw `postgresTextMatches` path. External search (Meilisearch/Typesense/OpenSearch) is deferred until ranking/language needs exceed PostgreSQL FTS.
 
+## Article Library visibility boundary
+
+All Prisma search queries consume `readableArticleWhere` from `@/lib/article-library` so the visibility policy is defined once. The PostgreSQL FTS path (`postgresTextMatches`) uses a raw `$queryRaw` query, which cannot embed Prisma `WhereInput` objects directly. Instead, `buildReadableArticleSqlPredicate` in `src/lib/search/fulltext.ts` is a manually maintained SQL mirror of the same policy:
+
+| Context | Prisma `readableArticleWhere` | Raw SQL `buildReadableArticleSqlPredicate` |
+| --- | --- | --- |
+| Admin/System | `{}` (no filter) | `TRUE` |
+| Authenticated user | `OR [public-listable, owned-private]` | `((status='published' AND visibility='PUBLIC') OR (visibility='PRIVATE' AND ownerId=?))` |
+| Anonymous | `{ status: PUBLISHED, visibility: PUBLIC, ownerId: null }` | `(status='published' AND visibility='PUBLIC')` |
+
+**Migration follow-up (issue #687, Phase 3):** `buildReadableArticleSqlPredicate` must be updated in the same commit whenever `readableArticleWhere` gains new predicates (e.g. tenant/org scoping). Regression coverage lives in `tests/search-sql-predicate.test.ts`.
+
 ## Core query-plan evidence (#263)
 
 `tests/db/postgres.test.ts` seeds representative Article/Progress/SavedWord rows, runs `ANALYZE`, and asserts deterministic `EXPLAIN (FORMAT JSON)` plans use these named indexes. The test sets `enable_seqscan = off` inside each plan transaction only to avoid tiny/CI fixture-size planner variance; the indexes still have to be valid for the exact production predicate/order shape.
