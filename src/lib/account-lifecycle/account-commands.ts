@@ -12,6 +12,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
+import { getMediaStorage } from "@/lib/storage/runtime";
 import type { Prisma } from "@prisma/client";
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -163,6 +164,113 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
         },
         orderBy: { createdAt: "asc" },
       },
+
+      // 711-A: reminder / push preferences
+      reminderPreference: {
+        select: {
+          enabled: true,
+          preferredHour: true,
+          quietHoursStart: true,
+          quietHoursEnd: true,
+          timezone: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+      },
+
+      // 711-C: learning mastery and level history
+      levelHistory: {
+        select: { level: true, changedAt: true },
+        orderBy: { changedAt: "asc" },
+      },
+
+      wordMastery: {
+        select: {
+          lemma: true,
+          familiarity: true,
+          confidence: true,
+          exposures: true,
+          correctReviews: true,
+          incorrectReviews: true,
+          sourceArticleIds: true,
+          lastSeenAt: true,
+          lastReviewedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { lemma: "asc" },
+      },
+
+      articleMastery: {
+        select: {
+          articleId: true,
+          readingCompletion: true,
+          quizScore: true,
+          lookupDensity: true,
+          timeSpentMs: true,
+          difficultyFeedback: true,
+          comprehensionScore: true,
+          lastActivityAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { lastActivityAt: "asc" },
+      },
+
+      skillMastery: {
+        select: {
+          skill: true,
+          confidence: true,
+          evidenceCount: true,
+          recentEvidence: true,
+          lastUpdatedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { skill: "asc" },
+      },
+
+      difficultyFeedback: {
+        select: {
+          articleId: true,
+          vote: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
+
+      // 711-E: tenant membership and assignment history
+      memberships: {
+        select: {
+          orgId: true,
+          role: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
+
+      classroomMemberships: {
+        select: {
+          classroomId: true,
+          role: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
+
+      assignmentCompletions: {
+        select: {
+          assignmentId: true,
+          status: true,
+          quizScore: true,
+          completedAt: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }
@@ -215,6 +323,16 @@ export async function deleteOwnAccount(
   // Cascade deletes on the user: accounts, sessions, profile, readingProgress,
   // savedWords, dailyActivities, readingLists (+ items), highlights,
   // tutorMessages, quizAttempts, pronunciationAttempts — all onDelete: Cascade.
+  //
+  // 711-D: Collect object-storage keys for private-article MediaAssets BEFORE
+  // the cascade so we can purge bytes from object storage after the DB delete.
+  // The query runs outside the transaction intentionally — storage I/O must not
+  // hold a DB lock.
+  const ownedAssetKeys = await prisma.mediaAsset.findMany({
+    where: { article: { ownerId: userId } },
+    select: { storageKey: true },
+  });
+
   try {
     await prisma.$transaction(async (tx) => {
       if (user.role === "Admin") {
@@ -237,5 +355,17 @@ export async function deleteOwnAccount(
     }
     throw e;
   }
+
+  // Best-effort object-storage purge — do not fail the deletion if the storage
+  // backend is down or unconfigured (DB-only mode returns null).
+  if (ownedAssetKeys.length > 0) {
+    const storage = getMediaStorage();
+    if (storage) {
+      await Promise.allSettled(
+        ownedAssetKeys.map(({ storageKey }) => storage.delete(storageKey)),
+      );
+    }
+  }
+
   return { ok: true };
 }

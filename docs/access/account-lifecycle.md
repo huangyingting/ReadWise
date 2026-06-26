@@ -20,7 +20,10 @@ what the action is allowed to change.
 
 `exportUserData(userId, audit?)` returns a JSON bundle of data owned by that
 user: profile, saved words, progress, daily activity, reading lists, highlights,
-tutor messages, quiz attempts, and pronunciation attempts.
+tutor messages, quiz attempts, pronunciation attempts, reminder preferences
+(711-A), level history, word mastery, article mastery, skill mastery, difficulty
+feedback (711-C), org memberships, classroom memberships, and assignment
+completions (711-E).
 
 Non-negotiable boundaries:
 
@@ -49,6 +52,11 @@ Important invariants:
   saved words, daily activity, reading lists/items, highlights, tutor messages,
   quiz attempts, pronunciation attempts, membership rows, and related learning
   rows are removed by Prisma/database relations.
+- **Object-storage bytes purged on deletion (711-D).** Before deleting the user,
+  `deleteOwnAccount` and `deleteMember` query `MediaAsset.storageKey` for all
+  private articles owned by that user, then call `storage.delete()` for each key
+  after the DB transaction commits. This is best-effort (`Promise.allSettled`);
+  a storage-backend failure does not abort the account deletion.
 - **Ledgers are intentionally non-cascading.** Audit logs, product analytics,
   AI invocation rows, and jobs store plain ids for investigation/reporting. Use
   the explicit retention/erasure helpers documented in
