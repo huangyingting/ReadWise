@@ -4,6 +4,7 @@ import { isSensitiveMetadataKey, redactSensitiveValue } from "@/lib/security/red
 import { clientIp } from "@/lib/security/client-ip";
 import { truncateStr } from "@/lib/primitives/pure";
 import type { Prisma } from "@prisma/client";
+import { auditLogRetentionDays } from "@/lib/runtime-config/security";
 
 export const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
@@ -269,4 +270,30 @@ export async function listAuditLogs(
     pageSize,
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
   };
+}
+
+/**
+ * Deletes audit log entries older than the retention window (#712-B).
+ * `olderThanDays` defaults to {@link auditLogRetentionDays} (env:
+ * `AUDIT_LOG_RETENTION_DAYS`, default 730 days / 2 years). Returns the number
+ * of rows removed. Intended to be run from a scheduled job or CLI script.
+ *
+ * NOTE: Audit logs serve compliance and forensic purposes. The default 2-year
+ * window covers common regulatory frameworks (PCI-DSS, SOC 2). Do NOT reduce
+ * this window without a legal/compliance review.
+ */
+export async function pruneOldAuditLogs(
+  olderThanDays: number = auditLogRetentionDays(),
+  client: AuditClient = prisma,
+  now: Date = new Date(),
+): Promise<number> {
+  const days =
+    Number.isFinite(olderThanDays) && olderThanDays > 0
+      ? Math.floor(olderThanDays)
+      : auditLogRetentionDays();
+  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const result = await client.auditLog.deleteMany({
+    where: { createdAt: { lt: cutoff } },
+  });
+  return result.count;
 }
