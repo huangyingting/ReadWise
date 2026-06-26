@@ -58,7 +58,7 @@ export function useReviewSession({
     } else {
       onSessionEnd?.();
     }
-  });
+  }, [appState.phase, onSessionStart, onSessionEnd]);
 
   // ── Actions ──────────────────────────────────────────────────────────────
 

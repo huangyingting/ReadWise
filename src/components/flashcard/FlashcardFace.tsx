@@ -1,8 +1,8 @@
 "use client";
 
-import { Volume2 } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { cn } from "@/lib/cn";
 import { GradeButtons } from "./GradeButtons";
+import { PronounceButton, ShowAnswerButton } from "./FlashcardPrimitives";
 import type { DueCard, Grade } from "./types";
 
 interface FlashcardFaceProps {
@@ -57,20 +57,12 @@ export function FlashcardFace({
           </p>
 
           {speechAvailable && (
-            <button
-              type="button"
-              onClick={() => onSpeak(card.word, card.id)}
-              aria-label={`Play pronunciation of ${card.word}`}
-              className={cn(
-                "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
-                "min-h-[44px] px-[var(--space-2)]",
-                "text-[length:var(--text-sm)] transition-colors",
-                focusRing,
-              )}
-            >
-              <Volume2 size={16} aria-hidden />
-              {speaking === card.id ? "Playing…" : "Pronounce"}
-            </button>
+            <PronounceButton
+              word={card.word}
+              cardId={card.id}
+              speaking={speaking}
+              onSpeak={onSpeak}
+            />
           )}
 
           <p className="text-[length:var(--text-sm)] text-text-subtle m-0">
@@ -80,25 +72,13 @@ export function FlashcardFace({
             </kbd>{" "}
             to reveal
           </p>
-          <button
-            ref={showAnswerRef}
-            type="button"
-            onClick={onFlip}
-            aria-expanded={flipped}
-            className={cn(
-              "inline-flex items-center justify-center gap-[var(--space-2)]",
-              "h-10 px-[var(--space-4)]",
-              "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
-              "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
-              "hover:bg-bg-subtle",
-              "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-              "active:translate-y-px active:shadow-none",
-              "disabled:opacity-50 disabled:cursor-not-allowed",
-              focusRing,
-            )}
+          <ShowAnswerButton
+            showAnswerRef={showAnswerRef}
+            flipped={flipped}
+            onFlip={onFlip}
           >
             Show answer
-          </button>
+          </ShowAnswerButton>
         </div>
 
         {/* Back face */}
@@ -114,20 +94,12 @@ export function FlashcardFace({
           </p>
 
           {speechAvailable && flipped && (
-            <button
-              type="button"
-              onClick={() => onSpeak(card.word, card.id)}
-              aria-label={`Play pronunciation of ${card.word}`}
-              className={cn(
-                "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
-                "min-h-[44px] px-[var(--space-2)]",
-                "text-[length:var(--text-sm)] transition-colors",
-                focusRing,
-              )}
-            >
-              <Volume2 size={16} aria-hidden />
-              {speaking === card.id ? "Playing…" : "Pronounce"}
-            </button>
+            <PronounceButton
+              word={card.word}
+              cardId={card.id}
+              speaking={speaking}
+              onSpeak={onSpeak}
+            />
           )}
 
           {card.explanation ? (
