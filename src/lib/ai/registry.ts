@@ -13,6 +13,9 @@
 
 import type { AiProvider } from "@/lib/ai/provider";
 import { AzureOpenAiProvider, AZURE_PROVIDER_ID } from "@/lib/ai/azure-provider";
+import { createLogger } from "@/lib/observability/logger";
+
+const log = createLogger("ai-registry");
 
 let override: AiProvider | null = null;
 let cached: AiProvider | null = null;
@@ -33,7 +36,9 @@ function createProviderFor(key: string): AiProvider {
       return new AzureOpenAiProvider();
     default:
       // Unknown selectors degrade to the supported default rather than crash —
-      // matching the project's graceful-config convention.
+      // matching the project's graceful-config convention. Log the fallback so
+      // a misconfigured AI_PROVIDER is visible (selector only; no secrets).
+      log.warn("ai.unknown_provider", { provider: key, fallback: AZURE_PROVIDER_ID });
       return new AzureOpenAiProvider();
   }
 }

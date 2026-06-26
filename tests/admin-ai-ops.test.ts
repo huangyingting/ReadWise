@@ -1,6 +1,6 @@
 /**
  * AI cost & content-ops aggregation tests (RW-054). `@/lib/prisma` and
- * `@/lib/ai-usage-summary` are mocked; the helpers' prisma surface + the job
+ * `@/lib/ai/usage-summary` are mocked; the helpers' prisma surface + the job
  * dashboard are injected so no real DB is touched. Verifies the cost overview
  * ranks features by spend + flags high-fallback features, and that the
  * content-ops overview rolls up per-step status counts and groups problem
@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 
 before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: {} } });
-  mock.module("@/lib/ai-usage-summary", {
+  mock.module("@/lib/ai/usage-summary", {
     namedExports: {
       summarizeAiUsage: async () => ({
         total: {

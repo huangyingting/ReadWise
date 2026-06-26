@@ -12,7 +12,7 @@
 import { prisma } from "@/lib/prisma";
 import { moderateText } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
-import { getOrCreateSelectionAi } from "@/lib/ai-cache";
+import { getOrCreateSelectionAi } from "@/lib/ai/cache";
 
 export type GrammarResult = {
   explanation: string | null;

@@ -4,7 +4,7 @@
  * Provides aggregated views over the `AiInvocation` ledger (counts, token
  * sums, estimated cost) for admin analytics and budget-status reporting.
  * Purely a READ side — it never writes ledger records. For writing, see
- * {@link "@/lib/ai-ledger"}.
+ * {@link "@/lib/ai/ledger"}.
  */
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";

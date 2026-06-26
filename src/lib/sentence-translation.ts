@@ -8,7 +8,7 @@ import {
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
 } from "@/lib/article-library";
-import { getOrCreateSelectionAi } from "@/lib/ai-cache";
+import { getOrCreateSelectionAi } from "@/lib/ai/cache";
 
 /** Maximum source text length accepted for sentence translation. */
 export const MAX_SENTENCE_CHARS = 1000;

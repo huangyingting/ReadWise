@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
 import { queryInt } from "@/lib/validation";
-import { summarizeAiUsage } from "@/lib/ai-usage-summary";
-import { getAiBudgetStatus } from "@/lib/ai-budget";
+import { summarizeAiUsage } from "@/lib/ai/usage-summary";
+import { getAiBudgetStatus } from "@/lib/ai/budget";
 
 /**
  * GET /api/admin/ai/usage (RW-022) — admin reporting of AI usage vs configured

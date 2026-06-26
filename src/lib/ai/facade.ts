@@ -26,19 +26,14 @@ import { createLogger } from "@/lib/observability/logger";
 import { aiMaxRetries, aiTimeoutMs } from "@/lib/runtime-config/ai";
 import { recordAiCall, recordAiRetry } from "@/lib/metrics";
 import { withSpan, setSpanAttributes } from "@/lib/observability/tracing";
-import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai-ledger";
-import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai-budget";
+import { recordAiInvocation, type AiInvocationInput, type AiInvocationStatus } from "@/lib/ai/ledger";
+import { assertAiQuota, checkAiBudget, getAiContext, type AiBudgetKind } from "@/lib/ai/budget";
 import { getAiProvider } from "@/lib/ai/registry";
 import { runAiRequest } from "@/lib/ai/runner";
 import type { AiErrorKind } from "@/lib/ai/output/error-classifier";
-import type { AiProviderCapabilities } from "@/lib/ai/provider";
+import type { AiChatMessage, AiProviderCapabilities } from "@/lib/ai/provider";
 
 const log = createLogger("ai");
-
-type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
 
 /**
  * Options for a chat completion. The ledger fields (`feature`, `userId`,
@@ -59,19 +54,16 @@ export type ChatOptions = {
   /**
    * Whether this is an interactive user request or background enrichment, used
    * for AI budget/quota enforcement (RW-022). Defaults from the ambient AI
-   * context ({@link "@/lib/ai-budget".runWithAiContext}) or "interactive".
+   * context ({@link "@/lib/ai/budget".runWithAiContext}) or "interactive".
    * Interactive over-quota throws ApiError(429); background over-quota skips
    * the call (returns null) so enrichment degrades gracefully.
    */
   kind?: AiBudgetKind;
 };
 
-/** Token usage reported by Azure OpenAI in the response body. */
-export type AiUsage = {
-  promptTokens: number;
-  completionTokens: number;
-  totalTokens: number;
-};
+/** Token usage reported by the active AI provider. Single source of truth. */
+export type { AiUsage } from "@/lib/ai/provider";
+import type { AiUsage } from "@/lib/ai/provider";
 
 /** Full result including metadata, returned by chatCompleteWithMeta. */
 export type AiResult = {
@@ -108,7 +100,7 @@ export function aiProviderCapabilities(): AiProviderCapabilities {
  * @param feature - short label for structured logs (e.g. "translation", "quiz")
  */
 export async function chatCompleteWithMeta(
-  messages: ChatMessage[],
+  messages: AiChatMessage[],
   options: ChatOptions = {},
 ): Promise<AiResult | null> {
   const provider = getAiProvider();
@@ -297,7 +289,7 @@ function retryReason(kind: AiErrorKind): string {
  * For token-usage metadata use {@link chatCompleteWithMeta} directly.
  */
 export async function chatComplete(
-  messages: ChatMessage[],
+  messages: AiChatMessage[],
   options: ChatOptions = {},
 ): Promise<string | null> {
   const result = await chatCompleteWithMeta(messages, options);

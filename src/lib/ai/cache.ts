@@ -34,9 +34,9 @@
  * the current user can access it.
  */
 
-import { prisma } from "@/lib/prisma";
 import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { promptVersionFor } from "@/lib/ai/chunking";
+import type { AiChatMessage } from "@/lib/ai/provider";
 import {
   loadAiProcessableArticleText,
   isArticleOperator,
@@ -44,14 +44,9 @@ import {
   type ArticleAccessContext,
 } from "@/lib/article-library";
 
-type ChatMessage = {
-  role: "system" | "user" | "assistant";
-  content: string;
-};
-
 /** Calls the model with the helper's feature/article/prompt-version metadata. */
 export type CallModel = (
-  messages: ChatMessage[],
+  messages: AiChatMessage[],
   override?: { maxOutputTokens?: number },
 ) => Promise<string | null>;
 
@@ -60,20 +55,6 @@ export type ArticleText = {
   title: string;
   content: string;
 };
-
-/** The default article loader: title + content by id, or null when missing. */
-export async function loadArticleText(
-  articleId: string,
-  context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
-): Promise<ArticleText | null> {
-  if (!context || !isArticleOperator(context)) {
-    return loadAiProcessableArticleText(articleId, context);
-  }
-  return prisma.article.findUnique({
-    where: { id: articleId },
-    select: { title: true, content: true },
-  });
-}
 
 /**
  * Conditional helper: makes `loadArticle` optional when `TArticle` is exactly
@@ -102,7 +83,7 @@ export type ArticleAiSpec<TArticle extends ArticleText, TParsed, TCache, TResult
     /** Reads the per-article cache; return null to signal a miss. */
     readCache: (articleId: string) => Promise<TCache | null>;
     /** Builds the chat messages sent to the provider on a cache miss. */
-    buildMessages?: (article: TArticle) => ChatMessage[];
+    buildMessages?: (article: TArticle) => AiChatMessage[];
     /** Fence-tolerant parse of the raw model response into TParsed. */
     parse?: (completion: string) => TParsed;
     /**
@@ -155,7 +136,7 @@ export async function getOrCreateArticleAi<
   if (!isArticleOperator(context)) {
     const rawArticle = spec.loadArticle !== undefined
       ? await spec.loadArticle(articleId, context)
-      : await loadArticleText(articleId, context);
+      : await loadAiProcessableArticleText(articleId, context);
     article = rawArticle as TArticle | null;
     if (article === null) {
       return null;
@@ -170,11 +151,12 @@ export async function getOrCreateArticleAi<
   // Resolve the article.  `ArticleAiSpec.loadArticle` is conditionally required:
   // when TArticle extends ArticleText with extra fields the caller must supply a
   // loader; when TArticle IS ArticleText (structurally) the field is optional and
-  // the default loadArticleText is safe.  The single `as` cast is valid because
-  // the conditional type in the spec guarantees the required shape at the call site.
+  // the default loadAiProcessableArticleText is safe.  The single `as` cast is
+  // valid because the conditional type in the spec guarantees the required shape
+  // at the call site.
   const rawArticle = article ?? (spec.loadArticle !== undefined
     ? await spec.loadArticle(articleId, context)
-    : await loadArticleText(articleId, context));
+    : await loadAiProcessableArticleText(articleId, context));
   article = rawArticle as TArticle | null;
   if (article === null) {
     return null;

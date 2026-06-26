@@ -72,7 +72,7 @@ beforeEach(async () => {
   for (const key of Object.keys(process.env)) {
     if (key.startsWith("AI_QUOTA_")) delete process.env[key];
   }
-  const { resetAiBudget } = await import("@/lib/ai-budget");
+  const { resetAiBudget } = await import("@/lib/ai/budget");
   resetAiBudget();
 });
 
@@ -85,7 +85,7 @@ function uid(label: string): string {
 
 test("per-user interactive quota blocks after N calls", async () => {
   process.env.AI_QUOTA_USER_DAILY = "2";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   const userId = uid("user");
   const feature = "translation";
   assert.equal((await checkAiBudget({ feature, userId, kind: "interactive" })).allowed, true);
@@ -98,7 +98,7 @@ test("per-user interactive quota blocks after N calls", async () => {
 
 test("per-user quota is independent across users", async () => {
   process.env.AI_QUOTA_USER_DAILY = "1";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   const a = uid("user");
   const b = uid("user");
   await checkAiBudget({ feature: "quiz", userId: a, kind: "interactive" }); // fills a
@@ -111,7 +111,7 @@ test("per-user quota is independent across users", async () => {
 
 test("per-feature quota is independent of other features", async () => {
   process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "1";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   const alpha = uid("alpha");
   const beta = uid("beta");
   assert.equal((await checkAiBudget({ feature: alpha, kind: "interactive" })).allowed, true);
@@ -125,7 +125,7 @@ test("per-feature quota is independent of other features", async () => {
 test("AI_QUOTA_FEATURE_<FEATURE>_DAILY overrides the default", async () => {
   process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "1";
   process.env.AI_QUOTA_FEATURE_TRANSLATION_DAILY = "3";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   // translation gets the higher override (3), not the default (1).
   for (let i = 0; i < 3; i++) {
     assert.equal((await checkAiBudget({ feature: "translation", kind: "interactive" })).allowed, true);
@@ -137,7 +137,7 @@ test("AI_QUOTA_FEATURE_<FEATURE>_DAILY overrides the default", async () => {
 
 test("global interactive quota blocks across users", async () => {
   process.env.AI_QUOTA_GLOBAL_DAILY = "2";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   assert.equal((await checkAiBudget({ feature: "tags", userId: uid("u"), kind: "interactive" })).allowed, true);
   assert.equal((await checkAiBudget({ feature: "tags", userId: uid("u"), kind: "interactive" })).allowed, true);
   const blocked = await checkAiBudget({ feature: "tags", userId: uid("u"), kind: "interactive" });
@@ -148,7 +148,7 @@ test("global interactive quota blocks across users", async () => {
 test("background quota uses the global-background budget", async () => {
   process.env.AI_QUOTA_BACKGROUND_DAILY = "1";
   process.env.AI_QUOTA_GLOBAL_DAILY = "100"; // interactive budget must not affect bg
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   assert.equal((await checkAiBudget({ feature: "tags", kind: "background" })).allowed, true);
   const blocked = await checkAiBudget({ feature: "tags", kind: "background" });
   assert.equal(blocked.allowed, false);
@@ -159,7 +159,7 @@ test("background quota uses the global-background budget", async () => {
 
 test("assertAiQuota throws ApiError(429) while checkAiBudget returns a decision", async () => {
   process.env.AI_QUOTA_FEATURE_DEFAULT_DAILY = "1";
-  const { assertAiQuota, checkAiBudget } = await import("@/lib/ai-budget");
+  const { assertAiQuota, checkAiBudget } = await import("@/lib/ai/budget");
   const { ApiError } = await import("@/lib/api-handler");
   const feature = uid("shared");
   // Fill the (shared) feature budget.
@@ -181,7 +181,7 @@ test("assertAiQuota throws ApiError(429) while checkAiBudget returns a decision"
 // ---- quotas disabled --------------------------------------------------------
 
 test("quotas disabled (env unset) => always allowed and never throws", async () => {
-  const { checkAiBudget, assertAiQuota } = await import("@/lib/ai-budget");
+  const { checkAiBudget, assertAiQuota } = await import("@/lib/ai/budget");
   const userId = uid("user");
   for (let i = 0; i < 50; i++) {
     const d = await checkAiBudget({ feature: "translation", userId, kind: "interactive" });
@@ -193,7 +193,7 @@ test("quotas disabled (env unset) => always allowed and never throws", async () 
 test("a zero/negative limit is treated as unlimited", async () => {
   process.env.AI_QUOTA_USER_DAILY = "0";
   process.env.AI_QUOTA_GLOBAL_DAILY = "-5";
-  const { checkAiBudget } = await import("@/lib/ai-budget");
+  const { checkAiBudget } = await import("@/lib/ai/budget");
   const userId = uid("user");
   for (let i = 0; i < 10; i++) {
     assert.equal((await checkAiBudget({ feature: "quiz", userId, kind: "interactive" })).allowed, true);
@@ -204,7 +204,7 @@ test("a zero/negative limit is treated as unlimited", async () => {
 
 test("runWithAiContext makes nested checks default to background", async () => {
   process.env.AI_QUOTA_BACKGROUND_DAILY = "1";
-  const { checkAiBudget, runWithAiContext } = await import("@/lib/ai-budget");
+  const { checkAiBudget, runWithAiContext } = await import("@/lib/ai/budget");
   await runWithAiContext({ kind: "background" }, async () => {
     assert.equal((await checkAiBudget({ feature: "tags" })).allowed, true);
     const blocked = await checkAiBudget({ feature: "tags" });
@@ -290,7 +290,7 @@ test("getAiBudgetStatus aggregates ledger usage vs configured limits", async () 
     { feature: "translation", _count: { _all: 30 }, _sum: { promptTokens: 300, completionTokens: 150, totalTokens: 450, estimatedCostUsd: 1.2 } },
     { feature: "quiz", _count: { _all: 10 }, _sum: { promptTokens: 100, completionTokens: 50, totalTokens: 150, estimatedCostUsd: 0.3 } },
   ];
-  const { getAiBudgetStatus } = await import("@/lib/ai-budget");
+  const { getAiBudgetStatus } = await import("@/lib/ai/budget");
   const status = await getAiBudgetStatus();
   assert.equal(status.totalUsed, 40);
   assert.equal(status.estimatedCostUsd, 1.5);
