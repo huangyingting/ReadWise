@@ -9,6 +9,15 @@
  * See src/lib/primitives/README.md for the full classification.
  */
 
+// ── Math / numeric helpers ───────────────────────────────────────────────────
+/** Clamps a number into the inclusive 0–1 range (NaN → 0). */
+export function clamp01(value: number): number {
+  if (!Number.isFinite(value)) return 0;
+  if (value < 0) return 0;
+  if (value > 1) return 1;
+  return value;
+}
+
 // ── Aggregation math (analytics, dashboards) ────────────────────────────────
 export {
   type WeekBucket,

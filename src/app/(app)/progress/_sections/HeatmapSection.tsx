@@ -3,7 +3,7 @@
  */
 import { Card } from "@/components/ui/Card";
 import ActivityHeatmap from "@/components/ActivityHeatmap";
-import type { HeatCell } from "@/lib/engagement/heatmap";
+import type { HeatCell } from "@/lib/engagement";
 
 interface HeatmapSectionProps {
   heatmapCells: HeatCell[];

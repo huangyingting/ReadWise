@@ -22,7 +22,6 @@ import {
   getAdaptiveLevelRecommendation,
   type AdaptiveLevelRecommendation,
 } from "@/lib/leveling";
-import { listScoredPicksPage } from "@/lib/recommendations/picks";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -415,6 +414,7 @@ export function buildWeeklyPlan(
 /** Gathers all study diagnostics for a user from recorded activity. */
 export async function gatherStudyDiagnostics(
   userId: string,
+  getArticleRecommendations: () => Promise<StudyReadingRec | null> = async () => null,
 ): Promise<StudyDiagnostics> {
   const now = new Date();
   const [
@@ -427,7 +427,6 @@ export async function gatherStudyDiagnostics(
     assessedCount,
     quizAgg,
     pronAgg,
-    picks,
   ] = await Promise.all([
     getSkillProfile(userId),
     getAdaptiveLevelRecommendation(userId),
@@ -452,17 +451,9 @@ export async function gatherStudyDiagnostics(
       _avg: { pronScore: true },
       _count: { _all: true },
     }),
-    listScoredPicksPage(userId, { limit: 1 }),
   ]);
 
-  const topPick = picks.articles[0] ?? null;
-  const readingRec: StudyReadingRec | null = topPick
-    ? {
-        id: topPick.id,
-        title: topPick.title,
-        reason: picks.reasons[topPick.id] ?? "Recommended for you",
-      }
-    : null;
+  const readingRec = await getArticleRecommendations();
 
   return {
     skills: skillProfile.skills,
@@ -498,7 +489,16 @@ function summarize(weakAreas: WeakArea[], isStarter: boolean): string {
  * new users with thin data.
  */
 export async function generateStudyPlan(userId: string): Promise<StudyPlan> {
-  const diag = await gatherStudyDiagnostics(userId);
+  // Dynamic import avoids a static learning ↔ recommendations cycle while still
+  // wiring the article-recommendation step as the default implementation.
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+  const diag = await gatherStudyDiagnostics(userId, async () => {
+    const picks = await listScoredPicksPage(userId, { limit: 1 });
+    const topPick = picks.articles[0] ?? null;
+    return topPick
+      ? { id: topPick.id, title: topPick.title, reason: picks.reasons[topPick.id] ?? "Recommended for you" }
+      : null;
+  });
   const weakAreas = diagnoseWeakAreas(diag);
   const items = buildWeeklyPlan(weakAreas, diag);
   const isStarter = weakAreas.length === 0;
