@@ -21,7 +21,7 @@
 }
 
 .translation-controls .muted {
-  font-size: 0.9rem;
+  font-size: var(--text-base);
 }
 
 .translation-controls select {
@@ -30,7 +30,7 @@
   border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 0.95rem;
+  font-size: var(--text-base);
 }
 
 .translation-error {
@@ -43,7 +43,7 @@
 }
 
 .translation-meta {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   margin-bottom: 0.5rem;
 }
 

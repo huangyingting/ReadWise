@@ -58,7 +58,7 @@
 }
 
 .vocabulary-word {
-  font-size: 1.05rem;
+  font-size: var(--text-base);
 }
 
 .vocabulary-explanation {
@@ -67,8 +67,8 @@
 
 .vocabulary-example {
   margin: 0.35rem 0 0;
+  font-size: var(--text-base);
   font-style: italic;
-  font-size: 0.9rem;
 }
 
 .vocabulary-item-actions {

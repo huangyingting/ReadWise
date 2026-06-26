@@ -79,7 +79,7 @@
   border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text);
-  font-size: 0.9rem;
+  font-size: var(--text-base);
 }
 
 /* ---- TTS panel ---- */
@@ -100,14 +100,7 @@
 
 .tts-meta {
   margin: 0.5rem 0 0;
-  font-size: 0.85rem;
-}
-
-/* CSS Custom Highlight API — active TTS word in the main article prose.
- * Works in Chrome/Edge 105+, Safari 17.2+; silently absent elsewhere. */
-::highlight(tts-active) {
-  background-color: var(--primary);
-  color: var(--on-primary);
+  font-size: var(--text-sm);
 }
 
 /* ---- #153 unified responsive Tools surface (single mounted instance) ---- */

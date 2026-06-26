@@ -15,8 +15,8 @@ export interface PageShellProps {
 
 /** Max-width per variant, kept token-adjacent to the documented page widths. */
 const VARIANT_MAX_WIDTH = {
-  listing: "max-w-[1200px]",
-  narrow: "max-w-[720px]",
+  listing: "max-w-[var(--container-listing)]",
+  narrow: "max-w-[var(--container-narrow)]",
 } as const;
 
 /**

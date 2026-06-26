@@ -100,7 +100,7 @@
 
 .quiz-feedback {
   margin: 0.6rem 0 0;
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   font-weight: 600;
 }
 
@@ -127,6 +127,6 @@
 
 .quiz-score {
   margin: 0;
-  font-size: 1.1rem;
+  font-size: var(--text-lg);
   font-weight: 600;
 }

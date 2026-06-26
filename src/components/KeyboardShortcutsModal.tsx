@@ -92,7 +92,7 @@ export default function KeyboardShortcutsModal({
     /* Backdrop */
     <div
       className="fixed inset-0 z-[var(--z-top)] flex items-center justify-center p-[var(--space-4)]"
-      style={{ backgroundColor: "rgba(0,0,0,0.55)", backdropFilter: "blur(2px)" }}
+      style={{ backgroundColor: "var(--overlay)", backdropFilter: "blur(2px)" }}
       onMouseDown={(e) => {
         // Close on backdrop click (but not on dialog click)
         if (e.target === e.currentTarget) onClose();

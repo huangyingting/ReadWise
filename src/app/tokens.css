@@ -25,6 +25,7 @@
   --font-reading: var(--font-reading-src), Georgia, "Times New Roman", serif;
 
   /* ---- Type scale (1.20 minor third, base 16px) ---- */
+  --text-display-xs: 0.625rem; /* intentional outlier: pronunciation bar labels, 8px-equivalent */
   --text-xs: 0.694rem;
   --text-sm: 0.875rem;
   --text-base: 1rem;
@@ -33,6 +34,12 @@
   --text-2xl: 1.728rem;
   --text-3xl: 2.074rem;
   --text-4xl: 2.488rem;
+
+  /* ---- Reading & container widths ---- */
+  --reading-font-size-base: 1.125rem;   /* prose base before user font-scale */
+  --container-reading:  880px;          /* reading / article pages */
+  --container-listing:  1200px;         /* discovery / listing pages */
+  --container-narrow:   720px;          /* settings / auth / onboarding */
 
   --leading-tight: 1.1;
   --leading-snug: 1.2;
@@ -287,7 +294,10 @@
 /* No-JS / system-preference fallback: apply the same dark values unless the
  * user has explicitly forced light via data-theme="light". The blocking script
  * in layout.tsx always sets an explicit attribute, so this only covers the
- * scripts-disabled path. */
+ * scripts-disabled path.
+ *
+ * Values mirror :root[data-theme="dark"] exactly — keep both in sync.
+ * [data-theme="dark"] is the canonical source; this block is the no-JS reference. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0b1020;
@@ -337,7 +347,6 @@
     --pill-done-fg: #7ee787;
     --pill-done-border: #2ea043;
 
-    /* CEFR difficulty badge palette — dark */
     --cefr-a1-bg: #053b2c;  --cefr-a1-text: #34d399;
     --cefr-a2-bg: #0a3a1f;  --cefr-a2-text: #4ade80;
     --cefr-b1-bg: #0a2e44;  --cefr-b1-text: #38bdf8;
@@ -345,18 +354,15 @@
     --cefr-c1-bg: #3a2606;  --cefr-c1-text: #fbbf24;
     --cefr-c2-bg: #3f1018;  --cefr-c2-text: #fb7185;
 
-    /* Highlight dot/swatch indicators — dark */
     --hl-dot-yellow: #fde68a;
     --hl-dot-green:  #6ee7b7;
     --hl-dot-blue:   #93c5fd;
     --hl-dot-pink:   #f9a8d4;
 
-    /* Progress page stat accent colours — dark */
     --stat-vocab:  #c084fc;
     --stat-streak: #fbbf24;
     --stat-quiz:   #f472b6;
 
-    /* Activity heatmap — dark */
     --heat-0: #1e2a3a;
     --heat-1: #14532d;
     --heat-2: #166534;
