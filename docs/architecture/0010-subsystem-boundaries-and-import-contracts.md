@@ -1,6 +1,6 @@
 # ADR-0010: Subsystem boundaries and phased import contracts
 
-- **Status:** Proposed
+- **Status:** Accepted
 - **Date:** 2026-06-26
 - **Related:** Follow-up to architecture/backend quality audits on subsystem boundaries, sensitive-data redaction, runtime configuration, import contracts, and route/data-layer ownership.
 
