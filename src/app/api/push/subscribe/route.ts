@@ -1,10 +1,8 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
-import { prisma } from "@/lib/prisma";
 import { isPushConfigured } from "@/lib/push/provider";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { subscribeBody } from "@/lib/push/schemas";
-
-const MAX_SUBSCRIPTIONS_PER_USER = 10;
+import { subscribePush } from "@/lib/push/commands";
 
 /**
  * POST /api/push/subscribe
@@ -33,25 +31,12 @@ export const POST = createHandler(
       throw new ApiError(400, "Endpoint must be an HTTPS URL");
     }
 
-    // Enforce per-user subscription cap (upserts on existing endpoint don't count).
-    const existing = await prisma.pushSubscription.findUnique({
-      where: { endpoint },
-      select: { userId: true },
-    });
-    if (!existing) {
-      const count = await prisma.pushSubscription.count({ where: { userId } });
-      if (count >= MAX_SUBSCRIPTIONS_PER_USER) {
-        throw new ApiError(409, "Too many subscriptions");
-      }
-    }
-
     await checkRateLimit(userId, "lookup");
 
-    await prisma.pushSubscription.upsert({
-      where: { endpoint },
-      update: { p256dh, auth, userId },
-      create: { userId, endpoint, p256dh, auth },
-    });
+    const result = await subscribePush(userId, endpoint, p256dh, auth);
+    if (!result.ok) {
+      throw new ApiError(result.status, result.error);
+    }
 
     log.info("push subscription saved", { userId, endpointLen: endpoint.length });
     return Response.json({ ok: true }, { status: 201 });

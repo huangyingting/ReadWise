@@ -2,7 +2,7 @@ import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { searchArticles, getAdminArticleStatuses } from "@/lib/article-library";
-import { statusBadgeVariant } from "@/lib/admin";
+import { statusBadgeVariant } from "@/lib/admin/overview";
 import { articleAccessContext } from "@/lib/article-library";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleIngest from "@/components/AdminArticleIngest";

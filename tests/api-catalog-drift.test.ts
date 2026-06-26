@@ -19,8 +19,8 @@ import { readFileSync } from "node:fs";
 import { resolve, join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { buildCatalog } from "@/lib/api-catalog";
-import type { ApiCatalog, RouteEntry, MethodEntry } from "@/lib/api-catalog";
+import { buildCatalog } from "@/tools/api-catalog";
+import type { ApiCatalog, RouteEntry, MethodEntry } from "@/tools/api-catalog";
 
 const ROOT = resolve(fileURLToPath(import.meta.url), "../..");
 const CATALOG_PATH = join(ROOT, "docs", "platform", "api-catalog.json");

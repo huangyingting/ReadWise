@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
 import { queryInt, queryString } from "@/lib/validation";
-import { listAdminJobs, getJobDashboard } from "@/lib/admin-jobs";
+import { listAdminJobs, getJobDashboard } from "@/lib/admin/jobs";
 
 type JobsAdminQuery = {
   status: string | null;

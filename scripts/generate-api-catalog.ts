@@ -18,7 +18,7 @@
 import { writeFileSync } from "node:fs";
 import { resolve, join, relative, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { buildCatalog, buildCatalogMarkdown } from "@/lib/api-catalog";
+import { buildCatalog, buildCatalogMarkdown } from "@/tools/api-catalog";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(__dirname, "..");

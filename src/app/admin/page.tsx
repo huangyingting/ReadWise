@@ -1,6 +1,6 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { getAdminOverview, statusBadgeVariant } from "@/lib/admin";
+import { getAdminOverview, statusBadgeVariant } from "@/lib/admin/overview";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { StatCard } from "@/components/analytics/StatCard";

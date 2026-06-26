@@ -21,7 +21,7 @@ import {
 import {
   getJobDashboard,
   type JobDashboard,
-} from "@/lib/admin-jobs";
+} from "@/lib/admin/jobs";
 import {
   PROCESSING_STEPS,
   PROCESSING_STEP_STATUSES,
