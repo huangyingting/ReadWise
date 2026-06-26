@@ -21,9 +21,8 @@ import { getOrCreateArticleTags } from "@/lib/article-library";
 import { getOrCreateTranslation } from "@/lib/translation";
 import { getOrCreateArticleSpeech } from "@/lib/speech";
 import { revalidateArticlesCache } from "@/lib/cache";
-import { aiModelName } from "@/lib/ai";
+import { aiModelName, runWithAiContext } from "@/lib/ai";
 import { beginStep, finishStep, translationStepKey } from "./state";
-import { runWithAiContext } from "@/lib/ai/budget";
 import {
   SYSTEM_ARTICLE_CONTEXT,
   aiProcessableArticleWhere,
