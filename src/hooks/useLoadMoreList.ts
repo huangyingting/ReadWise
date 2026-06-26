@@ -21,7 +21,7 @@
 
 import { useCallback, useRef, useState } from "react";
 import type { ListingArticle } from "@/lib/article-library";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 
 /** Minimum shape that a page response must satisfy. */
 export type LoadMorePage = {

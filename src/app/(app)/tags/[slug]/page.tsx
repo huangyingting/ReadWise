@@ -4,7 +4,7 @@ import { Tag } from "lucide-react";
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { getTagBySlug, listArticlesByTag } from "@/lib/article-library";
-import { getProgressMap } from "@/lib/engagement/progress";
+import { getProgressMap } from "@/lib/engagement";
 import { ensureArticleDifficulties } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import ArticleCard from "@/components/ArticleCard";

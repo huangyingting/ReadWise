@@ -4,7 +4,7 @@ import Link from "next/link";
 import { Compass, CheckCircle2 } from "lucide-react";
 import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/article-library";
-import type { ProgressSummary } from "@/lib/engagement/progress";
+import type { ProgressSummary } from "@/lib/engagement";
 import { Button, buttonVariants } from "@/components/ui/Button";
 import { getJson } from "@/lib/client-fetch";
 import ArticleCardView from "@/components/ArticleCardView";

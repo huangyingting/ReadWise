@@ -3,7 +3,7 @@ import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
-import { clampActiveTime } from "@/lib/engagement/reading-speed";
+import { clampActiveTime } from "@/lib/engagement";
 import { readingTimeBody } from "@/lib/reader/schemas";
 
 /**

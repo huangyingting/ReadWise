@@ -5,7 +5,7 @@ import {
   toListingArticle,
   IMPORTS_PAGE_SIZE,
 } from "@/lib/article-library";
-import { getProgressSummaries } from "@/lib/engagement/progress";
+import { getProgressSummaries } from "@/lib/engagement";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import ImportForm from "./ImportForm";
