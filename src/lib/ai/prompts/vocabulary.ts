@@ -1,5 +1,6 @@
 import type { PromptTemplate, VocabularyPromptVars } from "./types";
 import { TARGET_VOCABULARY_WORDS } from "./types";
+import { wrapUntrustedContent, CONTENT_ISOLATION_NOTICE } from "@/lib/ai/input-safety";
 
 const vocabularyTemplate: PromptTemplate<VocabularyPromptVars> = {
   feature: "vocabulary",
@@ -16,11 +17,12 @@ const vocabularyTemplate: PromptTemplate<VocabularyPromptVars> = {
         "English learner. Respond ONLY with a JSON array. Each element must be an " +
         'object with exactly these string keys: "word" (the term), "explanation" (a ' +
         'concise learner-friendly definition), and "example" (one short sample ' +
-        "sentence using the word). No markdown, no commentary, JSON array only.",
+        "sentence using the word). No markdown, no commentary, JSON array only. " +
+        CONTENT_ISOLATION_NOTICE,
     },
     {
       role: "user",
-      content: `Title: ${title}\n\n${source}`,
+      content: `Title: ${title}\n\n${wrapUntrustedContent(source)}`,
     },
   ],
 };

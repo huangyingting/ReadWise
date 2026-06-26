@@ -65,8 +65,8 @@ test("renderPrompt(translation) preserves wording, label, title, and part note",
   assert.equal(single[0].role, "system");
   assert.equal(single[1].role, "user");
   assert.match(single[0].content, /Translate the user's article into Spanish\./);
-  assert.match(single[0].content, /no markdown fences\.$/);
-  assert.equal(single[1].content, "Title: My Title\n\nHello world.");
+  assert.match(single[0].content, /no markdown fences\./);
+  assert.match(single[1].content, /^Title: My Title\n\n<article>\nHello world\.\n<\/article>$/);
 
   const part = renderPrompt("translation", {
     label: "French",
@@ -82,14 +82,14 @@ test("renderPrompt(vocabulary) requests the target count as JSON and embeds the 
   assert.equal(messages[0].role, "system");
   assert.match(messages[0].content, new RegExp(`${TARGET_VOCABULARY_WORDS} most useful`));
   assert.match(messages[0].content, /JSON array only\./);
-  assert.equal(messages[1].content, "Title: Reefs\n\nBody text.");
+  assert.match(messages[1].content, /^Title: Reefs\n\n<article>\nBody text\.\n<\/article>$/);
 });
 
 test("renderPrompt(quiz) requests the target count of multiple-choice questions", () => {
   const messages = renderPrompt("quiz", { title: "Wolves", source: "Body." });
   assert.match(messages[0].content, new RegExp(`write ${TARGET_QUIZ_QUESTIONS} multiple-choice`));
   assert.match(messages[0].content, /correctIndex/);
-  assert.equal(messages[1].content, "Title: Wolves\n\nBody.");
+  assert.match(messages[1].content, /^Title: Wolves\n\n<article>\nBody\.\n<\/article>$/);
 });
 
 test("renderPrompt(tags) requests up to the target number of Title-Case tags", () => {
