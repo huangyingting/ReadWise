@@ -8,11 +8,9 @@ import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { Button } from "@/components/ui/Button";
 import { Select } from "@/components/ui/Select";
 import { cn, focusRing } from "@/lib/cn";
-import ArticleCardView from "@/components/ArticleCardView";
-import ListingSync from "@/components/ListingSync";
+import ArticleListingGrid from "@/components/ArticleListingGrid";
 import EmptyState from "@/components/EmptyState";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
@@ -59,6 +57,9 @@ function queryFor(view: BrowseView, offset: number, level: string | null): strin
  * URL-reflected link), an optional CEFR level filter, an initial server-rendered
  * page of cards, and a "Load more" control that incrementally fetches and appends
  * the next page.
+ *
+ * Thin wrapper over {@link useLoadMoreList} + {@link ArticleListingGrid}; the
+ * shared grid owns the card markup, the Load-more control, and ListingSync.
  */
 export default function CategoryBrowser({
   activeView,
@@ -190,58 +191,32 @@ export default function CategoryBrowser({
         {heading}
       </h2>
 
-      {articles.length === 0 ? (
-        activeView === "picks" ? (
-          <EmptyState
-            icon={Sparkles}
-            title="No picks for you yet"
-            description="Read a few articles and we'll tailor recommendations to your level and topics."
-            action={{ label: "Browse all", href: "/browse" }}
-          />
-        ) : (
-          <EmptyState
-            icon={Inbox}
-            title="This category is empty"
-            description="No articles here yet — check another category."
-            action={{ label: "Browse all", href: "/browse" }}
-          />
-        )
-      ) : (
-        <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-5)] rw-fade-up">
-            {articles.map((article) => (
-              <ArticleCardView
-                key={article.id}
-                article={article}
-                progress={progress[article.id]}
-                saved={savedIds.has(article.id)}
-              />
-            ))}
-          </div>
-          {hasMore ? (
-            <div className="mt-[var(--space-7)] flex flex-col items-center gap-[var(--space-3)]">
-              {loadError ? (
-                <p
-                  role="alert"
-                  className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
-                >
-                  {loadError}
-                </p>
-              ) : null}
-              <Button
-                variant="secondary"
-                size="md"
-                loading={loading}
-                onClick={() => void loadMore()}
-              >
-                {loadError ? "Retry" : "Load more"}
-              </Button>
-            </div>
-          ) : null}
-        </>
-      )}
-
-      <ListingSync articleIds={articles.map((a) => a.id)} />
+      <ArticleListingGrid
+        articles={articles}
+        progress={progress}
+        savedIds={savedIds}
+        hasMore={hasMore}
+        loading={loading}
+        loadError={loadError}
+        onLoadMore={() => void loadMore()}
+        empty={
+          activeView === "picks" ? (
+            <EmptyState
+              icon={Sparkles}
+              title="No picks for you yet"
+              description="Read a few articles and we'll tailor recommendations to your level and topics."
+              action={{ label: "Browse all", href: "/browse" }}
+            />
+          ) : (
+            <EmptyState
+              icon={Inbox}
+              title="This category is empty"
+              description="No articles here yet — check another category."
+              action={{ label: "Browse all", href: "/browse" }}
+            />
+          )
+        }
+      />
     </div>
   );
 }

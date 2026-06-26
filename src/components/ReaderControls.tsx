@@ -21,7 +21,7 @@
  *  - All controls use focusRing.
  */
 
-import { useEffect, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { PanelRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Popover } from "@/components/ui/Popover";
@@ -33,6 +33,7 @@ import ReaderBackButton from "./ReaderBackButton";
 import { useReaderTools } from "./ReaderToolsProvider";
 import { useReaderPrefs } from "@/components/reader/useReaderPrefs";
 import { ReaderDisplayPanel } from "@/components/reader/ReaderDisplayPanel";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 export default function ReaderControls({ articleId }: { articleId: string }) {
   const { open: toolsOpen, toggle: toggleTools } = useReaderTools();
@@ -40,17 +41,8 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
     useReaderPrefs();
   const [displayOpen, setDisplayOpen] = useState(false);
   // Decided at runtime: desktop (>=sm) uses a Popover, mobile (<sm) a Sheet.
-  const [isDesktop, setIsDesktop] = useState(false);
+  const isDesktop = useMediaQuery("(min-width: 640px)");
   const aaButtonRef = useRef<HTMLButtonElement>(null);
-
-  // Track the breakpoint so we mount only the relevant overlay.
-  useEffect(() => {
-    const mq = window.matchMedia("(min-width: 640px)");
-    const update = () => setIsDesktop(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
-  }, []);
 
   function closeDisplay() {
     setDisplayOpen(false);

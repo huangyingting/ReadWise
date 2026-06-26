@@ -6,7 +6,8 @@
  * nothing when there are no articles to show.
  */
 import type { Article, ReadingProgress } from "@prisma/client";
-import ArticleCard from "@/components/ArticleCard";
+import { toListingArticle } from "@/lib/article-library";
+import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
 
 type Props = {
@@ -45,9 +46,9 @@ export default function KeepReadingSection({
         {articles.map((related) => {
           const rel = relatedProgress.get(related.id);
           return (
-            <ArticleCard
+            <ArticleCardView
               key={related.id}
-              article={related}
+              article={toListingArticle(related)}
               progress={rel ? { percent: rel.percent, completed: rel.completed } : undefined}
             />
           );

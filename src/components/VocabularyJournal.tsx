@@ -1,12 +1,16 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, useTransition } from "react";
+import { useState, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
+import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { PanelError } from "@/components/ui/ReaderToolPanelState";
+import EmptyState from "@/components/EmptyState";
 import { getJson, postJson } from "@/lib/client-fetch";
+import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 import { formatShortDate } from "@/lib/display-format";
 
 export type WordEntry = {
@@ -54,66 +58,50 @@ export default function VocabularyJournal({
   const [bulkPending, setBulkPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Cancels the in-flight words request so out-of-order responses (e.g. from
-  // fast typing) can't overwrite a newer result. Debounce ref keeps the search
-  // from firing a request on every keystroke.
-  const abortRef = useRef<AbortController | null>(null);
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Debounce + abort + stale-response guarding is delegated to useFilteredFetch.
+  const { run } = useFilteredFetch<JournalData>(300);
 
   const fetchWords = useCallback(
-    async (opts: {
-      q?: string;
-      articleId?: string;
-      filter?: "all" | "due" | "new";
-      page?: number;
-    }) => {
+    (
+      opts: {
+        q?: string;
+        articleId?: string;
+        filter?: "all" | "due" | "new";
+        page?: number;
+      },
+      debounce = false,
+    ) => {
       const params = new URLSearchParams(searchParams.toString());
       if (opts.q !== undefined) { params.set("q", opts.q); params.delete("page"); }
       if (opts.articleId !== undefined) { opts.articleId ? params.set("articleId", opts.articleId) : params.delete("articleId"); params.delete("page"); }
       if (opts.filter !== undefined) { params.set("filter", opts.filter); params.delete("page"); }
       if (opts.page !== undefined) { params.set("page", String(opts.page)); }
 
-      startTransition(() => {
-        router.replace(`/study/words?${params.toString()}`, { scroll: false });
+      const queryString = params.toString();
+
+      run({
+        immediate: !debounce,
+        fetcher: async (signal) => {
+          startTransition(() => {
+            router.replace(`/study/words?${queryString}`, { scroll: false });
+          });
+          return getJson<JournalData>(`/api/study/words?${queryString}`, { signal });
+        },
+        // Swallow failures (incl. aborts) — keep current data rather than blanking
+        // the table; only commit on a fresh, non-superseded success.
+        onResult: (json) => {
+          setData(json);
+          setSelected(new Set());
+        },
       });
-
-      // Abort any prior request so only the latest one can render.
-      abortRef.current?.abort();
-      const controller = new AbortController();
-      abortRef.current = controller;
-
-      try {
-        const json = await getJson<JournalData>(
-          `/api/study/words?${params.toString()}`,
-          { signal: controller.signal },
-        );
-        if (controller.signal.aborted) return;
-        setData(json);
-        setSelected(new Set());
-      } catch (err) {
-        // Swallow aborts (superseded by a newer request); keep current data on
-        // other failures rather than blanking the table.
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      }
     },
-    [router, searchParams],
+    [router, searchParams, run],
   );
-
-  // Cleanup: cancel any pending debounce + in-flight request on unmount.
-  useEffect(() => {
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      abortRef.current?.abort();
-    };
-  }, []);
 
   const handleSearch = useCallback(
     (value: string) => {
       setQuery(value);
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-      debounceRef.current = setTimeout(() => {
-        void fetchWords({ q: value });
-      }, 300);
+      void fetchWords({ q: value }, true);
     },
     [fetchWords],
   );
@@ -166,7 +154,7 @@ export default function VocabularyJournal({
     try {
       await postJson("/api/vocabulary/unsave-batch", { words: Array.from(selected) });
       // Re-fetch current page (may shrink)
-      await fetchWords({});
+      fetchWords({});
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not remove words");
     } finally {
@@ -274,19 +262,23 @@ export default function VocabularyJournal({
         )}
       </div>
 
-      {error ? (
-        <p className="vocabulary-error" role="alert">{error}</p>
-      ) : null}
+      {error ? <PanelError message={error} /> : null}
 
       {/* Words table */}
       {data.words.length === 0 ? (
-        <div className="text-center py-[var(--space-10)]">
-          <p className="text-text-muted text-[length:var(--text-base)] m-0">
-            {data.total === 0 && !query && !articleId
-              ? "No saved words yet. Start reading and save vocabulary to build your list."
-              : "No words match your search."}
-          </p>
-        </div>
+        <EmptyState
+          icon={BookOpen}
+          title={
+            data.total === 0 && !query && !articleId
+              ? "No saved words yet"
+              : "No words match your search"
+          }
+          description={
+            data.total === 0 && !query && !articleId
+              ? "Start reading and save vocabulary to build your list."
+              : "Try a different word or definition — or clear your filters."
+          }
+        />
       ) : (
         <div className="overflow-x-auto">
           <table className="admin-table w-full" style={{ tableLayout: "auto" }}>

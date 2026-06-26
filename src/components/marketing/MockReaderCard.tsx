@@ -3,6 +3,7 @@
 import * as React from "react";
 import { BookOpen, Volume2, Library, HelpCircle, Check } from "lucide-react";
 import { Card, CefrBadge, CategoryBadge, SkeletonText } from "@/components/ui";
+import { useMediaQuery } from "@/hooks/useMediaQuery";
 
 const TOOLS = [
   { icon: BookOpen, label: "Read" },
@@ -18,24 +19,8 @@ const TOOLS = [
  */
 export function MockReaderCard() {
   const [hovered, setHovered] = React.useState(false);
-  const [reduced, setReduced] = React.useState(false);
-  const [isDesktop, setIsDesktop] = React.useState(false);
-
-  React.useEffect(() => {
-    const motionMq = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const desktopMq = window.matchMedia("(min-width: 1024px)");
-    const update = () => {
-      setReduced(motionMq.matches);
-      setIsDesktop(desktopMq.matches);
-    };
-    update();
-    motionMq.addEventListener("change", update);
-    desktopMq.addEventListener("change", update);
-    return () => {
-      motionMq.removeEventListener("change", update);
-      desktopMq.removeEventListener("change", update);
-    };
-  }, []);
+  const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
+  const isDesktop = useMediaQuery("(min-width: 1024px)");
 
   const tilt =
     isDesktop && !reduced && !hovered

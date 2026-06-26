@@ -11,7 +11,7 @@ interface GoalMetIconProps {
 /**
  * Animated check icon for the DailyGoal card.
  *
- * Uses "use client" so the `rw-pop` class is never in the SSR HTML — the
+ * Uses the client boundary so the `rw-pop` class is never in the SSR HTML — the
  * animation does not fire on initial paint when the goal was already met.
  * It fires only on a reactive not-met → met transition within the session
  * (detected by the component going from unmounted to mounted).

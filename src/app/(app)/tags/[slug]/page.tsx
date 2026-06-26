@@ -3,11 +3,11 @@ import { notFound } from "next/navigation";
 import { Tag } from "lucide-react";
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
-import { getTagBySlug, listArticlesByTag } from "@/lib/article-library";
+import { getTagBySlug, listArticlesByTag, toListingArticle } from "@/lib/article-library";
 import { getProgressMap } from "@/lib/engagement";
 import { ensureArticleDifficulties } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
-import ArticleCard from "@/components/ArticleCard";
+import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
 import EmptyState from "@/components/EmptyState";
 import { PageShell } from "@/components/shell/PageShell";
@@ -72,9 +72,9 @@ export default async function TagPage({
           {articles.map((article) => {
             const progress = progressMap.get(article.id);
             return (
-              <ArticleCard
+              <ArticleCardView
                 key={article.id}
-                article={article}
+                article={toListingArticle(article)}
                 saved={bookmarkedIds.has(article.id)}
                 progress={
                   progress
