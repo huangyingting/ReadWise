@@ -1,6 +1,68 @@
-# Observability: tracing, error aggregation & SLOs
+# Observability subsystem
 
-This document covers the three observability pillars added in Epic **RW-E006**:
+`src/lib/observability/` and `src/lib/metrics/` together form the **Observability
+subsystem**. They are documented here as one coherent unit.
+
+The subsystem owns:
+
+- **Structured logging** — request context propagation and JSON log emission
+  (`src/lib/observability/logger.ts`)
+- **Distributed tracing** — OpenTelemetry span helpers and SDK bootstrap
+  (`src/lib/observability/tracing.ts`, `tracing-node.ts`)
+- **Error capture / alert hooks** — fingerprinting, redaction, and pluggable
+  sinks (`src/lib/observability/errors.ts`)
+- **Metrics registry / exporter / recorders** — in-process counter and histogram
+  store, Prometheus text-format export, and per-domain recorder helpers
+  (`src/lib/metrics/`)
+- **SLI/SLO catalog and evaluation** — product-critical service level definitions
+  and breach detection (`src/lib/observability/slo.ts`)
+- **Investigation workflow** — request id → logs → trace correlation
+
+See [`metrics.md`](./metrics.md) for the metrics registry, exporter, and recorder
+reference, and [`client-error-reporting.md`](./client-error-reporting.md) for the
+client-error endpoint.
+
+---
+
+## Domain ownership boundary
+
+Observability **exports and correlates signals**; it does **not** own business
+fact tables. The following records remain owned by their respective domain
+subsystems:
+
+| Record | Owned by |
+| --- | --- |
+| `AuditLog` | Security / Access & Tenancy |
+| `AiInvocation` ledger | AI subsystem |
+| `Job` state machine | Operations / Background Processing |
+| `AnalyticsEvent` stream | Analytics |
+| `ArticleProcessingStep` timeline | Operations / Background Processing |
+
+Metrics recorders derive numerical signals from these same events (e.g.
+`readwise_worker_jobs_total`) but do not store or interpret the business meaning.
+
+---
+
+## Redaction policy
+
+All telemetry metadata uses the **security-owned redaction policy** at
+`@/lib/security/redaction`. This policy was centralised in Phase 1 (#676) and is
+the single source of truth for sensitive-key detection and value scrubbing.
+
+- `src/lib/observability/errors.ts` imports `isSensitiveMetadataKey` and
+  `redactSensitiveValue` directly from `@/lib/security/redaction`.
+- `src/lib/observability/redaction.ts` is a **backward-compatibility shim**
+  that re-exports the same names under the legacy `observability/redaction` path
+  for any remaining deep imports. New code must import from
+  `@/lib/security/redaction` or `@/lib/security` directly.
+- Metric label values never carry user ids, request ids, prompts, selected text,
+  IPs, or other unbounded tokens — see [`metrics.md §Privacy rules`](./metrics.md#privacy-rules-for-labels).
+
+---
+
+## Telemetry pillars (RW-E006)
+
+This document covers three pillars added in Epic **RW-E006**:
 
 - **RW-032** — distributed tracing with OpenTelemetry
 - **RW-033** — backend-agnostic error aggregation
