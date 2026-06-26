@@ -15,15 +15,15 @@ export interface MarketingHeaderProps {
 export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
   return (
     <header
-      className="sticky top-0 z-50 border-b border-border [background:color-mix(in_srgb,var(--surface)_85%,transparent)] [backdrop-filter:blur(12px)]"
+      className="sticky top-0 z-[var(--z-overlay)] border-b border-border [background:color-mix(in_srgb,var(--surface)_85%,transparent)] [backdrop-filter:blur(12px)]"
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--space-4)] focus:top-[var(--space-3)] focus:z-50 focus:rounded-[var(--radius-md)] focus:bg-surface focus:px-[var(--space-4)] focus:py-[var(--space-2)] focus:text-text focus:shadow-[var(--shadow-md)] focus:outline-none focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]"
+        className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--space-4)] focus:top-[var(--space-3)] focus:z-[var(--z-skip)] focus:rounded-[var(--radius-md)] focus:bg-surface focus:px-[var(--space-4)] focus:py-[var(--space-2)] focus:text-text focus:shadow-[var(--shadow-md)] focus:outline-none focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]"
       >
         Skip to content
       </a>
-      <div className="mx-auto flex h-16 max-w-[1200px] items-center justify-between gap-[var(--space-4)] px-[clamp(var(--space-6),5vw,var(--space-8))]">
+      <div className="mx-auto flex h-[var(--marketing-header-h)] max-w-[var(--marketing-container-w)] items-center justify-between gap-[var(--space-4)] px-[clamp(var(--space-6),5vw,var(--space-8))]">
         <Wordmark />
         <div className="flex items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
           <ThemeToggle />

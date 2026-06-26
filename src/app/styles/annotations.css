@@ -42,7 +42,7 @@
 .rw-hl {
   background-color: var(--hl-yellow);
   color: var(--reading-text, var(--text));
-  border-radius: 3px;
+  border-radius: var(--radius-xs);
   padding: 0 0.05em;
   box-decoration-break: clone;
   -webkit-box-decoration-break: clone;
@@ -86,7 +86,7 @@
 /* ---- Selection toolbar (horizontal pill, z-60) ---- */
 .rw-sel-toolbar {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
@@ -195,7 +195,7 @@
 /* ---- Highlight edit popover ---- */
 .rw-hl-popover {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   width: min(320px, calc(100vw - 24px));
   background: var(--reading-surface, var(--surface));
   border: 1px solid var(--reading-border, var(--border));

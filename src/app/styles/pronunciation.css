@@ -118,7 +118,7 @@
   color: var(--text);
   white-space: nowrap;
   pointer-events: none;
-  z-index: 20;
+  z-index: var(--z-controls);
   box-shadow: var(--shadow-sm);
 }
 
@@ -224,7 +224,7 @@
 
 .rw-speak-pulse-dot {
   position: relative;
-  z-index: 1;
+  z-index: var(--z-base);
   width: 10px;
   height: 10px;
   border-radius: 50%;
