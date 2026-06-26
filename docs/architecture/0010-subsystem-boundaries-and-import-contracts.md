@@ -161,6 +161,50 @@ risky for the current ticket. Every allowlist entry should include:
 The allowlist should shrink over time. New allowlist entries require explicit
 review justification.
 
+### How to add an allowlist entry
+
+1. Open `eslint-rules/import-boundary-allowlist.json`.
+2. Append an object to the `allowlist` array with **all five required fields**:
+
+   ```json
+   {
+     "importer": "src/path/to/your-file.tsx",
+     "privateModule": "@/lib/some-private-module",
+     "reason": "Why this specific file needs the deep import and why it cannot use the public API.",
+     "owner": "@your-github-handle",
+     "removalCondition": "Remove once <subsystem> exposes <functionality> through its public API (Phase 2 — #issue)."
+   }
+   ```
+
+   - `importer` is matched with a **suffix check** against the absolute path of
+     the linted file (i.e. the absolute path must end with the `importer` value
+     after path normalization). A relative path like
+     `src/components/SomeWidget.tsx` will match any absolute path ending with
+     that suffix.
+   - `privateModule` is the exact `@/...` import path that would otherwise be
+     blocked by the rule.
+   - `reason` must explain the specific business constraint that makes the
+     direct import necessary today.
+   - `owner` is the GitHub handle responsible for tracking and removing the
+     entry.
+   - `removalCondition` must name a concrete action (Phase N ticket or public-API
+     milestone) that, when complete, makes the entry unnecessary.
+
+3. Commit the JSON change in the same PR as the code that introduces the import.
+   Never add an allowlist entry in a separate follow-up PR — the PR diff must
+   show both the violation and the justification.
+
+### How to remove an allowlist entry
+
+1. Verify that the underlying violation no longer exists (the direct import has
+   been replaced by a public-API call, or the file has been deleted).
+2. Delete the entry object from `allowlist` in
+   `eslint-rules/import-boundary-allowlist.json`.
+3. Run `npm run lint` and `npm test` to confirm no regressions.
+4. Commit the removal in the same PR as the code change that made it possible.
+   Add a note in the PR description: "Removes allowlist entry for \`<importer>\`
+   now that \`<privateModule>\` is accessible through the public API."
+
 ## Data and transaction contract
 
 Domain commands and repositories own data access semantics. The following rules
