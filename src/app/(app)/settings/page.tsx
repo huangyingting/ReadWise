@@ -18,6 +18,7 @@ import SettingsThemeRow from "@/components/SettingsThemeRow";
 import { PageShell } from "@/components/shell/PageShell";
 import { PageHeader } from "@/components/shell/PageHeader";
 import { settings } from "@/lib/copy/pages";
+import { pushConfig } from "@/lib/runtime-config/push";
 
 export const metadata = settings;
 
@@ -88,7 +89,7 @@ export default async function SettingsPage() {
       </Card>
 
       {/* Notifications card — hidden server-side when VAPID is not configured */}
-      {process.env.VAPID_PUBLIC_KEY ? (
+      {pushConfig.isConfigured() ? (
         <Card className="mt-[var(--space-6)]">
           <CardHeader>
             <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">

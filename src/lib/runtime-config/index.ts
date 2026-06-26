@@ -6,6 +6,7 @@
  * See docs/refactoring.md § REF-076.
  */
 export * as ai from "@/lib/runtime-config/ai";
+export * as database from "@/lib/runtime-config/database";
 export * as speech from "@/lib/runtime-config/speech";
 export * as push from "@/lib/runtime-config/push";
 export * as rateLimit from "@/lib/runtime-config/rate-limit";
