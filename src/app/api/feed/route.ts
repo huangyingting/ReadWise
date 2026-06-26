@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { queryInt, queryString } from "@/lib/validation";
 import { FEED_PAGE_SIZE, FEED_MAX_LIMIT, getPersonalizedFeed } from "@/lib/feed";
-import { getProgressSummaries } from "@/lib/engagement";
+import { buildArticleListResponse } from "@/lib/article-library";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 
@@ -53,16 +53,11 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
 
   const feed = await getPersonalizedFeed(userId, { offset, limit, maxLevel: level });
 
-  const progress = await getProgressSummaries(
-    userId,
-    feed.articles.map((a) => a.id),
+  return NextResponse.json(
+    await buildArticleListResponse(userId, feed.articles, {
+      offset,
+      hasMore: feed.hasMore,
+      reasons: feed.reasons,
+    })
   );
-
-  return NextResponse.json({
-    articles: feed.articles,
-    progress,
-    hasMore: feed.hasMore,
-    offset: offset + feed.articles.length,
-    reasons: feed.reasons,
-  });
 });

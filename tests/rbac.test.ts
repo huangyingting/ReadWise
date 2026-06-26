@@ -19,9 +19,7 @@ import {
   CAPABILITIES,
   ALL_CAPABILITIES,
   ACTIVE_ROLES,
-  PLANNED_SYSTEM_ROLES,
   TENANT_ROLES,
-  PLANNED_ROLES,
   ROLE_CAPABILITIES,
   SYSTEM_ROLE,
   capabilitiesForRole,
@@ -103,20 +101,17 @@ test("System pseudo-principal is granted every capability", () => {
 });
 
 test("full near-term + future role set is defined in the model", () => {
-  assert.deepEqual([...PLANNED_SYSTEM_ROLES], [
-    "Moderator",
-    "ContentEditor",
-    "SupportAgent",
-  ]);
+  // Planned system roles are module-private; verify via ROLE_CAPABILITIES keys.
+  const plannedSystemRoles = ["Moderator", "ContentEditor", "SupportAgent"] as const;
   assert.deepEqual([...TENANT_ROLES], [
     "OrgAdmin",
     "Teacher",
     "ClassroomInstructor",
   ]);
   // Every modeled role has an explicit capability grant.
-  for (const role of [...ACTIVE_ROLES, SYSTEM_ROLE, ...PLANNED_ROLES]) {
+  for (const role of [...ACTIVE_ROLES, SYSTEM_ROLE, ...plannedSystemRoles, ...TENANT_ROLES, "Member", "Student"]) {
     assert.ok(
-      Array.isArray(ROLE_CAPABILITIES[role]),
+      Array.isArray(ROLE_CAPABILITIES[role as keyof typeof ROLE_CAPABILITIES]),
       `${role} must have a capability mapping`,
     );
   }

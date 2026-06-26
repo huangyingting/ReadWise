@@ -5,10 +5,10 @@ import {
   BROWSE_PAGE_SIZE,
   listCategoryPage,
   toListingArticle,
+  buildArticleListResponse,
   type ListingArticle,
 } from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations";
-import { getProgressSummaries } from "@/lib/engagement";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
@@ -83,15 +83,7 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
     hasMore = page.hasMore;
   }
 
-  const progress = await getProgressSummaries(
-    session.user.id,
-    articles.map((a) => a.id),
+  return NextResponse.json(
+    await buildArticleListResponse(session.user.id, articles, { offset, hasMore })
   );
-
-  return NextResponse.json({
-    articles,
-    progress,
-    hasMore,
-    offset: offset + articles.length,
-  });
 });

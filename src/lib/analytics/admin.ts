@@ -3,7 +3,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
-import { isPostgresDatabase } from "@/lib/search/query";
+import { isPostgresDatabase } from "@/lib/db-utils";
 import { bucketize } from "@/lib/aggregation";
 
 export type BucketCount = { key: string; label: string; count: number };

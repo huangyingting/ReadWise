@@ -30,7 +30,7 @@ import {
   getAiProcessableArticleById,
 } from "@/lib/article-library";
 import { recordContentProcessingRun, recordContentProcessingStep } from "@/lib/metrics";
-import { FEATURE_REGISTRY, type FeatureKey } from "./registry";
+import { FEATURE_REGISTRY, type FeatureKey, type FeatureDefinition } from "./registry";
 
 /**
  * Placeholder user id used when generating the shared (per-article) vocabulary
@@ -154,18 +154,11 @@ async function runStep(
 
 /**
  * Returns whether a feature has already been computed for the given article
- * state. Translation is handled per-lang in the caller; grammar is on-demand
- * only and never runs here.
+ * state. Delegates to the feature's `isDoneIn` registry callback.
+ * Translation is handled per-lang in the caller; grammar is on-demand only.
  */
-function isAlreadyDone(key: FeatureKey, state: ArticleState): boolean {
-  switch (key) {
-    case "difficulty":  return state.hasDifficulty;
-    case "tags":        return state.tagCount > 0;
-    case "vocabulary":  return state.vocabCount > 0;
-    case "quiz":        return state.quizCount > 0;
-    case "speech":      return state.hasSpeech;
-    default:            return false;
-  }
+function isAlreadyDone(feature: FeatureDefinition, state: ArticleState): boolean {
+  return feature.isDoneIn?.(state) ?? false;
 }
 
 /**
@@ -281,16 +274,15 @@ async function processArticleInner(
     const runner = runners[feature.key];
     if (!runner) continue;
 
-    // The speech feature uses "tts" as the StepResult.step name for external
-    // consumers (scripts, admin UI), but persists under "speech" in the DB.
-    const stepName: StepName = feature.isTts ? "tts" : (feature.key as StepName);
+    // stepResultName from registry handles the "tts" vs "speech" naming convention.
+    const stepName: StepName = (feature.stepResultName as StepName | undefined) ?? (feature.key as StepName);
     const persistKey = feature.isTts ? "speech" : feature.key;
 
     steps.push(
       await runStep(
         articleId,
         stepName,
-        isAlreadyDone(feature.key, before),
+        isAlreadyDone(feature, before),
         runner,
         persistKey,
       ),
@@ -333,7 +325,7 @@ export async function articleNeedsProcessing(articleId: string): Promise<boolean
   if (state.status === ArticleStatus.DRAFT) return true;
   return FEATURE_REGISTRY
     .filter((f) => f.isRequired)
-    .some((f) => !isAlreadyDone(f.key, state));
+    .some((f) => !isAlreadyDone(f, state));
 }
 
 export type SelectOptions = {

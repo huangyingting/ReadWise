@@ -1,0 +1,1085 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "{{PROVIDER}}"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  Admin
+  Reader
+}
+
+enum ArticleVisibility {
+  PUBLIC
+  PRIVATE
+  UNLISTED
+  ORG
+}
+
+enum ArticleStatus {
+  DRAFT      @map("draft")
+  PROCESSING @map("processing")
+  PUBLISHED  @map("published")
+  FAILED     @map("failed")
+  ARCHIVED   @map("archived")
+}
+
+enum ArticleSourceType {
+  SCRAPED
+  IMPORTED
+  MANUAL
+  RSS
+  ASSIGNMENT
+}
+
+enum TagScope {
+  PUBLIC
+  PRIVATE
+  ORG
+}
+
+enum JobType {
+  ARTICLE_INGEST
+  ARTICLE_PROCESS
+  AI_REBUILD
+  TTS_GENERATE
+  PUSH_REMINDER
+}
+
+enum JobStatus {
+  PENDING
+  CLAIMED
+  RUNNING
+  COMPLETED
+  FAILED
+  DEAD_LETTER
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  role          Role      @default(Reader)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts              Account[]
+  sessions              Session[]
+  profile               Profile?
+  readingProgress       ReadingProgress[]
+  savedWords            SavedWord[]
+  dailyActivities       DailyActivity[]
+  levelHistory          LevelHistory[]
+  readingLists          ReadingList[]
+  highlights            Highlight[]
+  tutorMessages         TutorMessage[]
+  quizAttempts          QuizAttempt[]
+  pronunciationAttempts PronunciationAttempt[]
+  pushSubscriptions       PushSubscription[]
+  difficultyFeedback      ArticleDifficultyFeedback[]
+  ownedArticles           Article[]                   @relation("OwnedArticles")
+  ownedTags               Tag[]                       @relation("OwnedTags")
+  wordMastery             WordMastery[]
+  articleMastery          ArticleMastery[]
+  skillMastery            SkillMastery[]
+  reminderPreference      ReminderPreference?
+  memberships             Membership[]
+  taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
+  classroomMemberships    ClassroomMembership[]
+  assignmentCompletions   AssignmentCompletion[]
+
+  @@index([role, createdAt], map: "User_role_created_idx")
+}
+
+model Profile {
+  id              String    @id @default(cuid())
+  userId          String    @unique
+  ageRange        String?
+  gender          String?
+  englishLevel    String
+  topics          Json      @default("[]")
+  completedAt     DateTime?
+  dailyGoal       Int       @default(2)
+  timezone        String?
+  streakShields   Int       @default(0)
+  levelUpdatedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Article {
+  id              String    @id @default(cuid())
+  slug            String?   @unique
+  title           String
+  author          String?
+  source          String?
+  sourceUrl       String?
+  heroImage       String?
+  excerpt         String?
+  content         String
+  category        String?
+  wordCount       Int?
+  readingMinutes  Int?
+  difficulty      String?
+  difficultyScore Float?
+  visibility      ArticleVisibility @default(PUBLIC)
+  status          ArticleStatus     @default(PUBLISHED)
+  sourceType      ArticleSourceType @default(SCRAPED)
+  publishedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  /// Nullable FK to User. Public library articles are explicit (`visibility = PUBLIC`);
+  /// private imports use `visibility = PRIVATE` plus a non-null ownerId.
+  ownerId         String?
+  /// Content rights & takedown (RW-047). `canonicalUrl` records the upstream
+  /// canonical link; `takedownState` is one of active/unpublished/archived/takedown;
+  /// `rightsNote` holds a free-text licensing/usage note. `reviewState` and
+  /// `qualityFlags` (RW-048) drive the moderation workflow.
+  canonicalUrl    String?
+  takedownState   String            @default("active")
+  rightsNote      String?
+  reviewState     String            @default("unreviewed")
+  qualityFlags    Json              @default("[]")
+  /// Nullable SOFT tenant-scope reference (RW-060). NOT a foreign key — mirrors the
+  /// AnalyticsEvent/AuditLog plain-string ref convention so existing global/public
+  /// articles are unaffected (null = global/public, never appears in org feeds) and
+  /// deleting an Organization never rebuilds this table. Org/tenant feeds filter on it.
+  organizationId  String?
+
+  owner                User?                 @relation("OwnedArticles", fields: [ownerId], references: [id], onDelete: Cascade)
+  readingProgress      ReadingProgress[]
+  translations         Translation[]
+  sentenceTranslations SentenceTranslation[]
+  vocabulary           VocabularyItem[]
+  quizQuestions        QuizQuestion[]
+  quizAttempts         QuizAttempt[]
+  speech               ArticleSpeech?
+  tags                 ArticleTag[]
+  readingListItems     ReadingListItem[]
+  highlights           Highlight[]
+  tutorMessages        TutorMessage[]
+  pronunciationAttempts     PronunciationAttempt[]
+  difficultyFeedback        ArticleDifficultyFeedback[]
+  grammarExplanations       GrammarExplanation[]
+  processingSteps           ArticleProcessingStep[]
+  articleMastery            ArticleMastery[]
+  reviews                   ContentReview[]
+  mediaAssets               MediaAsset[]
+  assignments               Assignment[]
+
+  @@unique([sourceUrl, ownerId])
+  @@index([category])
+  @@index([ownerId])
+  @@index([organizationId])
+  @@index([sourceUrl], map: "Article_sourceUrl_idx")
+  @@index([visibility, status, ownerId, publishedAt, createdAt], map: "Article_visibility_feed_idx")
+  @@index([visibility, status, ownerId, category, publishedAt, createdAt], map: "Article_category_feed_idx")
+  @@index([ownerId, status, createdAt], map: "Article_owner_status_created_idx")
+  @@index([status, createdAt], map: "Article_status_created_idx")
+  @@index([visibility, status, ownerId, difficulty, difficultyScore, publishedAt], map: "Article_level_feed_idx")
+  @@index([takedownState])
+  @@index([reviewState])
+}
+
+model Tag {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String
+  scope     TagScope @default(PUBLIC)
+  /// Stable non-null namespace for uniqueness: "public" for global tags,
+  /// "user:<id>" for private tags, and future "org:<id>".
+  namespace String   @default("public")
+  ownerId   String?
+  orgId     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner    User?        @relation("OwnedTags", fields: [ownerId], references: [id], onDelete: Cascade)
+  articles ArticleTag[]
+
+  @@unique([scope, namespace, slug])
+  @@index([scope, namespace])
+  @@index([ownerId])
+}
+
+model ArticleTag {
+  articleId String
+  tagId     String
+  createdAt DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag     Tag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@index([tagId])
+  @@index([articleId])
+}
+
+model ArticleSpeech {
+  id          String   @id @default(cuid())
+  articleId   String   @unique
+  voice       String
+  format      String
+  mimeType    String
+  audioBase64 String?
+  storageKey   String?
+  mediaAssetId String?
+  plainText   String
+  words       Json
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+}
+
+model QuizQuestion {
+  id           String   @id @default(cuid())
+  articleId    String
+  question     String
+  options      Json
+  correctIndex Int
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, question])
+  @@index([articleId])
+}
+
+model VocabularyItem {
+  id          String   @id @default(cuid())
+  articleId   String
+  word        String
+  explanation String
+  example     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, word])
+  @@index([articleId])
+}
+
+model SavedWord {
+  id              String    @id @default(cuid())
+  userId          String
+  word            String
+  explanation     String?
+  example         String?
+  contextSentence String?
+  articleId       String?
+  dueAt           DateTime?
+  intervalDays    Int       @default(0)
+  easeFactor      Float     @default(2.5)
+  repetitions     Int       @default(0)
+  lastReviewedAt  DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, word])
+  @@index([userId])
+  @@index([userId, articleId], map: "SavedWord_user_article_idx")
+  @@index([userId, createdAt], map: "SavedWord_user_created_idx")
+  @@index([userId, dueAt], map: "SavedWord_due_idx")
+}
+
+model DailyActivity {
+  id           String   @id @default(cuid())
+  userId       String
+  date         DateTime
+  articlesRead Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, date])
+  @@index([userId])
+}
+
+model LevelHistory {
+  id        String   @id @default(cuid())
+  userId    String
+  level     String
+  changedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Translation {
+  id         String   @id @default(cuid())
+  articleId  String
+  targetLang String
+  content    String
+  model      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, targetLang])
+  @@index([articleId])
+}
+
+model ReadingProgress {
+  id          String    @id @default(cuid())
+  userId      String
+  articleId   String
+  percent     Int       @default(0)
+  completed   Boolean   @default(false)
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+  @@index([userId, completed, updatedAt], map: "ReadingProgress_user_completed_updated_idx")
+  @@index([userId, completed, completedAt], map: "ReadingProgress_user_completedAt_idx")
+  @@index([articleId], map: "ReadingProgress_article_idx")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId], map: "Account_user_idx")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId], map: "Session_user_idx")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model ReadingList {
+  id        String   @id @default(cuid())
+  userId    String
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user  User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items ReadingListItem[]
+
+  @@unique([userId, name])
+  @@index([userId])
+}
+
+model ReadingListItem {
+  id        String   @id @default(cuid())
+  listId    String
+  articleId String
+  addedAt   DateTime @default(now())
+
+  list    ReadingList @relation(fields: [listId], references: [id], onDelete: Cascade)
+  article Article     @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([listId, articleId])
+  @@index([articleId])
+}
+
+// M12 — AI Tutor chat
+// Per-user, per-article conversation history. Messages are persisted only on
+// successful AI responses; fallback turns are NEVER persisted.
+model TutorMessage {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  role      String   // "user" | "assistant"
+  content   String
+  createdAt DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
+}
+
+// M11 — Highlights & Notes
+// Anchors are W3C-annotation-style: quote + character offsets into the article's
+// rendered plain text (textContent), plus ±24-char prefix/suffix for re-anchoring.
+// Anchor fields are IMMUTABLE after creation; only note/color may be updated.
+model Highlight {
+  id          String   @id @default(cuid())
+  userId      String
+  articleId   String
+  // --- anchor (immutable) ---
+  quote       String   // exact highlighted text
+  startOffset Int      // char offset into article plain text (inclusive)
+  endOffset   Int      // char offset into article plain text (exclusive)
+  prefix      String   @default("") // up to 24 chars before the selection
+  suffix      String   @default("") // up to 24 chars after the selection
+  // --- editable ---
+  note        String?  // user annotation (markdown allowed)
+  color       String?  // e.g. "yellow" | "green" | "blue" | "pink"
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId, startOffset, endOffset])
+  @@index([userId, articleId])
+  @@index([userId, createdAt], map: "Highlight_user_created_idx")
+}
+
+// M13 — Sentence-level translation cache
+// Caches on-demand sentence/phrase translations so the same selection is
+// never re-sent to the AI. Keyed by article + a SHA-256 hash of the
+// normalized source text + target language. Cascade-deletes with the article.
+model SentenceTranslation {
+  id          String   @id @default(cuid())
+  articleId   String
+  sourceHash  String   // SHA-256 hex of normalized source text (stable cache key)
+  targetLang  String
+  sourceText  String   // original (normalized) text for human inspection
+  translation String
+  createdAt   DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, sourceHash, targetLang])
+  @@index([articleId])
+}
+
+// M14 — Quiz Mastery & History
+// Records each individual quiz attempt a user makes on an article.
+// scorePct is computed at write time (0–100). Multiple attempts are allowed.
+model QuizAttempt {
+  id             String   @id @default(cuid())
+  userId         String
+  articleId      String
+  correctCount   Int
+  totalQuestions Int
+  scorePct       Int      // 0–100, computed: round(correctCount / totalQuestions * 100)
+  // RW-042 — idempotency key for offline-queued re-syncs. A duplicate submit
+  // with the same key returns the existing attempt instead of double-recording.
+  clientMutationId String? @unique
+  completedAt    DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, articleId])
+  @@index([userId, completedAt])
+}
+
+// M16 — Pronunciation Practice
+// Records each pronunciation attempt a user makes (article-linked or freeform).
+// Assessment runs client-side via the Azure Speech SDK; scores are server-persisted.
+model PronunciationAttempt {
+  id                String   @id @default(cuid())
+  userId            String
+  articleId         String?  // nullable — practice may be freeform or article-linked
+  referenceText     String
+  accuracyScore     Int      // 0–100
+  fluencyScore      Int      // 0–100
+  completenessScore Int      // 0–100
+  pronScore         Int      // 0–100 overall pronunciation score
+  createdAt         DateTime @default(now())
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+// Web Push subscriptions — stored per user, pruned when endpoint returns 404/410.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  // RW-045 — delivery tracking: consecutive transient failures + last
+  // success/failure timestamps. Used to prune unhealthy endpoints reliably
+  // (in addition to immediate 404/410 pruning) and to make sends observable.
+  failureCount  Int       @default(0)
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// #114 — Per-article AI grammar explanation cache.
+// Keyed by (articleId, normalized phrase) so the same phrase in the same
+// article reuses the cached explanation instead of calling the AI again.
+model GrammarExplanation {
+  id          String   @id @default(cuid())
+  articleId   String
+  phrase      String
+  explanation String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, phrase])
+  @@index([articleId])
+}
+
+// #124 — Per-user difficulty feedback for articles.
+// Vote is one of: too_easy | just_right | too_hard.
+// @@unique enforces one vote per user per article (upsert to change vote).
+model ArticleDifficultyFeedback {
+  id        String   @id @default(cuid())
+  userId    String
+  articleId String
+  vote      String   // "too_easy" | "just_right" | "too_hard"
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([articleId])
+}
+
+// Durable security/admin audit event store. Actor/target ids are stored as
+// immutable string identifiers (not FKs) so deleting users/articles/tags never
+// erases the investigation trail.
+model AuditLog {
+  id         String   @id @default(cuid())
+  action     String
+  actorId    String?
+  actorRole  String?
+  targetType String
+  targetId   String?
+  metadata   String   @default("{}")
+  requestId  String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([action, createdAt])
+  @@index([targetType, targetId])
+}
+
+// Durable background-job queue (RW-013/014/015). DB-backed so jobs survive
+// restarts and can be claimed safely by multiple workers. `payload` references
+// (e.g. articleId) are plain strings, NOT FKs, so a job row is independent of
+// the entity it acts on (and survives its deletion, like AuditLog/SavedWord).
+// `type`/`status` are enums in the schema but TEXT columns in the migrations
+// (matching the ArticleStatus convention); claim logic uses raw SQL on
+// PostgreSQL (FOR UPDATE SKIP LOCKED) and a serialized transaction on SQLite.
+model Job {
+  id             String    @id @default(cuid())
+  type           JobType
+  status         JobStatus @default(PENDING)
+  payload        Json
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(5)
+  priority       Int       @default(0)
+  runAfter       DateTime  @default(now())
+  lockedBy       String?
+  lockedAt       DateTime?
+  lastError      String?
+  errorHistory   Json
+  dedupeKey      String?   @unique
+  startedAt      DateTime?
+  completedAt    DateTime?
+  failedAt       DateTime?
+  deadLetteredAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  @@index([status, runAfter])
+  @@index([status, type, runAfter])
+  @@index([type, status])
+  @@index([lockedBy])
+  @@index([lockedAt])
+}
+
+// Step-level article processing state (RW-016). A durable, per-article
+// per-step timeline of the enrichment pipeline so admins can answer "why is
+// this article not fully enriched?". One row per (articleId, step); `step`
+// is a feature label (difficulty|tags|vocabulary|quiz|speech|grammar) or a
+// language-scoped translation key ("translation:es"). METADATA ONLY — model
+// name / prompt version / a short error message are stored, never prompt
+// content. Cascades with the article (unlike the Job/ledger string refs, this
+// IS a real FK so step state is cleaned up with its article).
+model ArticleProcessingStep {
+  id            String    @id @default(cuid())
+  articleId     String
+  step          String
+  status        String    @default("pending")
+  attempts      Int       @default(0)
+  startedAt     DateTime?
+  completedAt   DateTime?
+  modelName     String?
+  promptVersion String?
+  lastError     String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([articleId, step])
+  @@index([articleId])
+  @@index([status])
+}
+
+// AI invocation ledger (RW-019). First-class operational record of every AI
+// provider call so cost, quota, quality, and feature usage can be analyzed.
+// METADATA ONLY — full prompts/responses are intentionally never stored.
+// `userId`/`articleId` are plain string identifiers (NOT FKs, like AuditLog/Job)
+// so the ledger survives user/article deletion and never cascades. `status`
+// reuses the AI outcome vocabulary from chatCompleteWithMeta/recordAiCall
+// (success | error | empty | unconfigured | aborted); `fallback` flags whether
+// the feature degraded to a non-AI path. Writes are best-effort and must never
+// break an AI feature.
+model AiInvocation {
+  id               String   @id @default(cuid())
+  feature          String
+  model            String?
+  promptVersion    String?
+  userId           String?
+  articleId        String?
+  requestId        String?
+  status           String
+  fallback         Boolean  @default(false)
+  cacheHit         Boolean  @default(false)
+  latencyMs        Int?
+  promptTokens     Int?
+  completionTokens Int?
+  totalTokens      Int?
+  estimatedCostUsd Float?
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  @@index([feature, createdAt])
+  @@index([model])
+  @@index([status])
+  @@index([userId])
+}
+
+// Shared (DB-backed) fixed-window rate-limit counter (RW-026). Replaces the
+// process-local limiter so limits are enforced consistently across instances.
+// Each row is one (bucketKey, windowStart) bucket; an atomic upsert increments
+// `count` within the window. `expiresAt` lets a best-effort sweep prune stale
+// rows. The in-memory limiter remains a graceful fallback when the DB store is
+// unavailable. bucketKey already encodes the scope (e.g. "u1:ai").
+model RateLimitCounter {
+  bucketKey   String
+  windowStart DateTime
+  count       Int      @default(0)
+  expiresAt   DateTime
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@id([bucketKey, windowStart])
+  @@index([expiresAt])
+}
+
+// ===========================================================================
+// Learning mastery foundation (Epic RW-E007 — RW-036/037/038).
+//
+// Durable, query-able representations of how well a user knows each WORD,
+// ARTICLE, and SKILL. These complement (never replace) the activity tables
+// they are derived from (SavedWord, ReadingProgress, QuizAttempt,
+// PronunciationAttempt, ArticleDifficultyFeedback, GrammarExplanation): the
+// raw activity remains the source of truth, while these models cache a rolled-
+// up mastery estimate that SRS, recommendations and leveling can read cheaply.
+// All updates are best-effort side-effects — a write failure here must never
+// break the underlying user action.
+// ===========================================================================
+
+// RW-036 — Per-user word mastery keyed by a normalized lemma (base form).
+// Lemma normalization reuses the dictionary lemmatizer (normalizeCandidates)
+// so inflections collapse onto a single row. `familiarity`/`confidence` are
+// 0–1 transparent scores blended from exposures + review accuracy.
+// `sourceArticleIds` is a JSON array of the (most recent) article ids the word
+// was encountered in (bounded). Cascades with the user.
+model WordMastery {
+  id               String    @id @default(cuid())
+  userId           String
+  lemma            String
+  familiarity      Float     @default(0)
+  exposures        Int       @default(0)
+  correctReviews   Int       @default(0)
+  incorrectReviews Int       @default(0)
+  confidence       Float     @default(0)
+  sourceArticleIds Json      @default("[]")
+  lastSeenAt       DateTime  @default(now())
+  lastReviewedAt   DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, lemma])
+  @@index([userId])
+  @@index([userId, familiarity])
+  @@index([userId, lastSeenAt])
+}
+
+// RW-037 — Per-user, per-article comprehension state. A single durable
+// representation of how well a user understood an article, combining reading
+// completion, best quiz score, dictionary lookup density, time spent and the
+// user's difficulty vote into a transparent `comprehensionScore` (0–1).
+// Cascades with both the user AND the article.
+model ArticleMastery {
+  id                 String    @id @default(cuid())
+  userId             String
+  articleId          String
+  readingCompletion  Float     @default(0)
+  quizScore          Float?
+  lookupDensity      Float?
+  timeSpentMs        Int?
+  difficultyFeedback String?
+  comprehensionScore Float     @default(0)
+  lastActivityAt     DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, articleId])
+  @@index([userId])
+  @@index([articleId])
+  @@index([userId, lastActivityAt])
+}
+
+// RW-038 — Per-user skill confidence across the six learning dimensions
+// (reading, vocabulary, grammar, listening, pronunciation, comprehension).
+// `confidence` is an internal 0–1 numeric tracked with an exponential moving
+// average; CEFR stays the user-facing output. `recentEvidence` is a small
+// bounded JSON array of recent {outcome, weight, at} summaries (NO sensitive
+// content). Cascades with the user.
+model SkillMastery {
+  id             String   @id @default(cuid())
+  userId         String
+  skill          String
+  confidence     Float    @default(0)
+  evidenceCount  Int      @default(0)
+  recentEvidence Json     @default("[]")
+  lastUpdatedAt  DateTime @default(now())
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skill])
+  @@index([userId])
+}
+
+// RW-045 — Per-user push reminder preferences (timing + quiet hours).
+// 1-1 with User; cascades on account deletion. Hours are 0–23 in the user's
+// local timezone (`timezone`, falling back to Profile.timezone then UTC).
+// Quiet hours suppress sends; `preferredHour` gates the daily reminder to a
+// single local hour. Appended last (additive) to minimize merge friction with
+// concurrent schema work.
+model ReminderPreference {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  enabled         Boolean  @default(true)
+  preferredHour   Int?
+  quietHoursStart Int?
+  quietHoursEnd   Int?
+  timezone        String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+// ===========================================================================
+// Product analytics event model (Epic RW-E010 — RW-051).
+//
+// A general-purpose, append-only stream of product analytics events that
+// COMPLEMENTS (never replaces) the domain/activity tables. It powers funnel,
+// activation, retention and feature-usage analysis (RW-052) without coupling
+// those dashboards to a dozen different domain tables.
+//
+// Design principles (mirroring the AiInvocation/AuditLog ledgers):
+//   - METADATA ONLY. `properties` holds small, non-sensitive metadata (counts,
+//     enums, ids) — NEVER article text, selected text, prompts, or PII. The
+//     `recordEvent` writer sanitizes + version-stamps the payload.
+//   - NON-FK REFERENCES. `userId`/`articleId` are plain string identifiers (NOT
+//     foreign keys, like AuditLog/AiInvocation/Job) so an event survives user or
+//     article deletion and never cascades. Privacy is enforced by the documented
+//     retention window (`pruneOldEvents`) and an explicit `deleteEventsForUser`.
+//   - BEST-EFFORT. Writes never throw — an analytics write must never break the
+//     user action that emitted it.
+//
+// See `docs/analytics/analytics.md` for the versioned event schema + retention rules.
+model AnalyticsEvent {
+  id          String   @id @default(cuid())
+  type        String
+  userId      String?
+  anonymousId String?
+  articleId   String?
+  sessionId   String?
+  properties  Json     @default("{}")
+  occurredAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([type, occurredAt])
+  @@index([userId, occurredAt])
+  @@index([occurredAt])
+}
+
+// ===========================================================================
+// Content source governance & operational state (Epic RW-E009 — RW-046/050).
+//
+// Provider EXTRACTION logic stays in code (src/lib/scraper/providers.ts). This
+// model holds only OPERATIONAL state for each registered provider: whether it
+// is enabled, its crawl policy, last-crawl health, and cumulative ingestion
+// quality counters used to flag drift (zero-discovery / high-failure runs).
+// Rows are synced from the code registry via syncContentSources(); the scraper
+// reads `enabled` to skip disabled providers. `providerKey` matches the code
+// registry key (NON-FK by nature — it references provider keys, not rows).
+// ===========================================================================
+model ContentSource {
+  id                       String    @id @default(cuid())
+  providerKey              String    @unique
+  displayName              String
+  baseUrl                  String?
+  enabled                  Boolean   @default(true)
+  crawlPolicy              Json      @default("{}")
+  healthStatus             String    @default("unknown")
+  lastError                String?
+  lastCrawledAt            DateTime?
+  lastDiscoveryCount       Int       @default(0)
+  totalDiscovered          Int       @default(0)
+  totalScraped             Int       @default(0)
+  totalFailed              Int       @default(0)
+  totalDuplicates          Int       @default(0)
+  totalRejected            Int       @default(0)
+  consecutiveFailures      Int       @default(0)
+  consecutiveZeroDiscovery Int       @default(0)
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@index([enabled])
+  @@index([healthStatus])
+}
+
+// Content quality review & moderation history (Epic RW-E009 — RW-048). An
+// append-only trail of moderation actions on an article (review-state changes,
+// field corrections, takedown/unpublish/archive). `reviewerId` is a plain
+// string (NOT an FK, like AuditLog.actorId) so history survives a reviewer's
+// account deletion. `changes` holds a small metadata diff of what was
+// corrected. Cascades with the article.
+model ContentReview {
+  id         String   @id @default(cuid())
+  articleId  String
+  reviewerId String?
+  action     String
+  note       String?
+  changes    Json     @default("{}")
+  createdAt  DateTime @default(now())
+
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId, createdAt])
+  @@index([action, createdAt])
+}
+
+// Media object-storage metadata (Epic RW-E009 — RW-049). When object storage is
+// configured (MEDIA_STORAGE), generated audio is written OUTSIDE the relational
+// DB and this row records the pointer + metadata (storageKey, mime, size,
+// checksum, duration, voice, format). `ArticleSpeech.storageKey/mediaAssetId`
+// reference it; `ArticleSpeech.audioBase64` is kept as a graceful fallback when
+// storage is unconfigured. Cascades with the article. `kind` distinguishes
+// asset types (e.g. speech).
+model MediaAsset {
+  id          String   @id @default(cuid())
+  storageKey  String   @unique
+  kind        String   @default("speech")
+  mimeType    String
+  sizeBytes   Int
+  checksum    String
+  durationSec Float?
+  voice       String?
+  format      String?
+  articleId   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  article Article? @relation(fields: [articleId], references: [id], onDelete: Cascade)
+
+  @@index([articleId])
+  @@index([kind, createdAt])
+}
+
+// ===========================================================================
+// Multi-tenancy: organizations, memberships, classrooms & assignments
+// (Epic RW-E012 — RW-060/061). Additive and NULLABLE by design: an account
+// with no Membership is unchanged (the global single-user experience). Tenant
+// roles are SEPARATE from the global Role enum (Admin/Reader) — an OrgAdmin is
+// not a ReadWise system admin (see docs/access/multi-tenancy.md + src/lib/rbac.ts).
+// ===========================================================================
+
+/// Tenant role inside an Organization. Resolved to capabilities per-membership
+/// in src/lib/rbac.ts (OrgAdmin/Teacher carry tenant capabilities; Member/
+/// Student carry only the base reader capabilities).
+enum MembershipRole {
+  OrgAdmin
+  Teacher
+  Member
+  Student
+}
+
+/// Role inside a single Classroom. Teachers manage the roster + assignments;
+/// students receive assigned readings.
+enum ClassroomRole {
+  Teacher
+  Student
+}
+
+/// Lifecycle of a single student's work on an Assignment.
+enum AssignmentStatus {
+  ASSIGNED    @map("assigned")
+  IN_PROGRESS @map("in_progress")
+  COMPLETED   @map("completed")
+}
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  /// Free-form tenant settings (branding, feature flags). Metadata only.
+  settings  Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  memberships Membership[]
+  classrooms  Classroom[]
+
+  @@index([slug])
+}
+
+model Membership {
+  id        String         @id @default(cuid())
+  userId    String
+  orgId     String
+  role      MembershipRole @default(Member)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+
+  user User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  org  Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, orgId])
+  @@index([userId])
+  @@index([orgId])
+  @@index([orgId, role])
+}
+
+model Classroom {
+  id        String   @id @default(cuid())
+  orgId     String
+  name      String
+  teacherId String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  org         Organization          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  teacher     User                  @relation("TaughtClassrooms", fields: [teacherId], references: [id], onDelete: Cascade)
+  members     ClassroomMembership[]
+  assignments Assignment[]
+
+  @@index([orgId])
+  @@index([teacherId])
+}
+
+model ClassroomMembership {
+  id          String        @id @default(cuid())
+  classroomId String
+  userId      String
+  role        ClassroomRole @default(Student)
+  createdAt   DateTime      @default(now())
+
+  classroom Classroom @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([classroomId, userId])
+  @@index([userId])
+  @@index([classroomId, role])
+}
+
+model Assignment {
+  id           String    @id @default(cuid())
+  classroomId  String
+  articleId    String
+  dueDate      DateTime?
+  instructions String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  classroom   Classroom              @relation(fields: [classroomId], references: [id], onDelete: Cascade)
+  article     Article                @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  completions AssignmentCompletion[]
+
+  @@index([classroomId])
+  @@index([articleId])
+}
+
+model AssignmentCompletion {
+  id           String           @id @default(cuid())
+  assignmentId String
+  studentId    String
+  status       AssignmentStatus @default(ASSIGNED)
+  quizScore    Int?
+  completedAt  DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@index([assignmentId, status])
+}

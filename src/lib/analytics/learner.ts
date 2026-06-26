@@ -13,7 +13,7 @@ import {
 	lastNWeeks,
 	type WeekBucket,
 } from "@/lib/aggregation";
-import { isPostgresDatabase } from "@/lib/search/query";
+import { isPostgresDatabase } from "@/lib/db-utils";
 
 export type LevelBucket = {
 	level: string;

@@ -111,16 +111,16 @@ type _AssertActiveRolesMatchPrisma = Expect<Equals<ActiveRole, PrismaRoleName>>;
 export const SYSTEM_ROLE = "System" as const;
 
 /**
- * System-level roles planned for a later migration. Documented here so the model
- * is reviewable in code, but NOT yet present in the DB enum — no user can hold
- * one until the migration described in `docs/access/rbac.md` lands.
+ * System-level roles planned for a later migration. Documented in
+ * `docs/access/rbac.md` and kept here as the capability grants are already
+ * wired; NOT exported because they are not yet assignable to any user.
  */
-export const PLANNED_SYSTEM_ROLES = [
+const PLANNED_SYSTEM_ROLES = [
   "Moderator",
   "ContentEditor",
   "SupportAgent",
 ] as const;
-export type PlannedSystemRole = (typeof PLANNED_SYSTEM_ROLES)[number];
+type PlannedSystemRole = (typeof PLANNED_SYSTEM_ROLES)[number];
 
 /**
  * Tenant-level (organization/classroom) roles. These are SEPARATE from global
@@ -165,8 +165,8 @@ export type RoleName =
   | "Member"
   | "Student";
 
-/** Roles that are documented but not yet assignable. */
-export const PLANNED_ROLES: readonly RoleName[] = [
+/** Roles that are documented but not yet assignable (kept module-private). */
+const PLANNED_ROLES: readonly RoleName[] = [
   ...PLANNED_SYSTEM_ROLES,
   ...TENANT_ROLES,
 ];
