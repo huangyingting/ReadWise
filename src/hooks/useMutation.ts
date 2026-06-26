@@ -33,11 +33,11 @@ export interface UseMutationState {
  * `run` accepts options:
  *   - `onSuccess(result)`    — side effect after a successful run.
  *   - `refreshOnSuccess`     — calls `router.refresh()` on success so server
- *                              components re-fetch (replaces useTeacherMutation).
+ *                              components re-fetch.
  *   - `fallbackMessage`      — per-run override of the default error message.
  *
- * This is the single source of truth for mutation state; useTeacherMutation
- * (deprecated) and useAdminAction build on top of it.
+ * This is the single source of truth for mutation state; useAdminAction builds
+ * on top of it.
  */
 export function useMutation(
   fallbackMessage = "Something went wrong",

@@ -7,11 +7,12 @@
  * needs several learning APIs together.
  *
  * Import order reflects the dependency graph (leaves first):
- *   primitives → srs / cloze → word/article/skill/quiz mastery → flashcards → study-plan
+ *   primitives/types → srs / cloze → word/article/skill/quiz mastery → flashcards → study-plan
  *   practice-attempts (shared helpers) → quiz-mastery
  */
 
 export * from "./primitives";
+export * from "./types";
 export * from "./srs";
 export * from "./cloze";
 export * from "./word-mastery";
@@ -20,7 +21,6 @@ export * from "./skill-mastery";
 export * from "./practice-attempts";
 export * from "./quiz-mastery";
 export * from "./flashcards";
-// study-plan re-exports SKILLS from skill-mastery; exclude to avoid duplicate
 export type {
   WeakAreaKind,
   WeakArea,

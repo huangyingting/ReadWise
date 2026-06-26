@@ -13,7 +13,7 @@
 
 import type { LevelEvidence } from "@/lib/leveling";
 import type { StudyDiagnostics } from "@/lib/learning/study-plan";
-import type { SkillSummary, Skill } from "@/lib/learning/skill-mastery";
+import type { SkillSummary, Skill } from "@/lib/learning/types";
 import type { RecommendationCandidate, RecommendationContext } from "@/lib/recommendations/types";
 
 // ---------------------------------------------------------------------------

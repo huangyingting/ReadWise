@@ -12,8 +12,6 @@
  * Exported:
  *  - ReaderTutorProvider — the context provider (wraps ArticleTutor)
  *  - useTutor()          — the consumer hook
- *  - TutorMessage        — the persisted message type (re-exported)
- *  - TransientItem       — union of transient UI states (re-exported)
  */
 
 import { createContext, useContext, type ReactNode } from "react";
@@ -21,9 +19,6 @@ import {
   useTutorConversation,
   type TutorConversationState,
 } from "@/components/tutor/useTutorConversation";
-
-// Re-export types so existing consumers don't need to change imports.
-export type { TutorMessage, TransientItem } from "@/components/tutor/useTutorConversation";
 
 // ---------------------------------------------------------------------------
 // Context

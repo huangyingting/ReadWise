@@ -10,7 +10,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { clamp01 } from "./primitives";
-import { SKILLS, getSkillProfile, type Skill, type SkillSummary } from "./skill-mastery";
+import { getSkillProfile } from "./skill-mastery";
+import { SKILLS, type Skill, type SkillSummary } from "./types";
 import {
   getAdaptiveLevelRecommendation,
 } from "@/lib/leveling";

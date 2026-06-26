@@ -8,13 +8,13 @@ import type { MediaStorage } from "@/lib/storage/types";
 const log = createLogger("storage");
 
 // Register built-in providers. Each provider module owns its own config
-// validation; adding a new provider only requires a new registerProvider call.
+// validation.
 registerProvider("filesystem", () => new FilesystemMediaStorage(mediaStorageDir()));
 
 registerProvider("azure", () => {
   const cfg = azureStorageConfig();
   if (cfg) return new AzureBlobMediaStorage(cfg);
-  log.warn("storage.cloud_seam_unconfigured", {
+  log.warn("storage.azure_unconfigured", {
     kind: "azure",
     hint: "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — falling back to DB base64",
   });

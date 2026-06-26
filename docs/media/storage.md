@@ -20,16 +20,15 @@ A single env var selects the backend (`src/lib/storage.ts`):
 
 | `MEDIA_STORAGE`            | Backend                          | Notes                                              |
 | ------------------------- | -------------------------------- | -------------------------------------------------- |
-| unset / `database` / `db` / `none` | **Database base64** (default) | `getMediaStorage()` returns `null`; nothing changes |
-| `filesystem` / `local` / `fs` | Local filesystem            | Files under `MEDIA_STORAGE_DIR` (default `./.media`) |
+| unset / `database`        | **Database base64** (default) | `getMediaStorage()` returns `null`; nothing changes |
+| `filesystem`              | Local filesystem            | Files under `MEDIA_STORAGE_DIR` (default `./.media`) |
 | `azure`                   | **Azure Blob Storage**           | Requires `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT`+`AZURE_STORAGE_KEY` |
-| `s3` / `r2`               | Cloud seam (reserved)            | No SDK bundled → returns `null`, logs a warning, falls back to DB |
 
 ### Filesystem mode
 
 | Variable          | Default      | Description                              |
 | ----------------- | ------------ | ---------------------------------------- |
-| `MEDIA_STORAGE`   | _(unset)_    | Set to `filesystem` or `fs`              |
+| `MEDIA_STORAGE`   | _(unset)_    | Set to `filesystem`                     |
 | `MEDIA_STORAGE_DIR` | `./.media` | Absolute or relative path for file store |
 
 ### Azure Blob Storage mode
@@ -179,7 +178,7 @@ account keys) are included in the readiness JSON.
 | Symptom | Likely cause | Resolution |
 | ------- | ------------ | ---------- |
 | `checks.providers.storage = "degraded"` in `/api/ready` | `MEDIA_STORAGE=azure` but `AZURE_STORAGE_*` creds missing | Set `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT`+`AZURE_STORAGE_KEY` |
-| `storage.cloud_seam_unconfigured` warn in logs | Same as above | Same as above |
+| `storage.azure_unconfigured` warn in logs | Same as above | Same as above |
 | `storage.azure_container_unavailable` warn in logs | Azure SDK import failed or container creation threw | Check credentials, network, and that the account/container name is valid |
 | Migration shows `failed > 0` | Storage write or DB transaction failed | Check logs for `storage.speech_migration_failed`; re-run after fixing credentials |
 | Audio 404 after migration but `storageKey` is set | Storage backend unreachable or `MEDIA_STORAGE` not set | Confirm env vars are loaded; check `GET /api/ready` storage status |

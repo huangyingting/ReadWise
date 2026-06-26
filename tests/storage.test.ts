@@ -80,13 +80,6 @@ test("getMediaStorage returns null in the default (database) mode", async () => 
   assert.equal(isObjectStorageConfigured(), false);
 });
 
-test("getMediaStorage returns null for cloud seams without an SDK", async () => {
-  process.env.MEDIA_STORAGE = "s3";
-  const { getMediaStorage, isObjectStorageConfigured } = await import("@/lib/storage");
-  assert.equal(getMediaStorage(), null);
-  assert.equal(isObjectStorageConfigured(), false);
-});
-
 test("FilesystemMediaStorage put/get/delete round-trips content-addressed bytes", async () => {
   process.env.MEDIA_STORAGE = "filesystem";
   process.env.MEDIA_STORAGE_DIR = TEST_DIR;

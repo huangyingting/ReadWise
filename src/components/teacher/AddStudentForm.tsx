@@ -4,7 +4,8 @@ import { useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
-import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
+import { useMutation } from "@/hooks/useMutation";
+import { TeacherFormShell } from "./TeacherFormShell";
 
 /**
  * Adds a student to a classroom by their user id (RW-061). Posts to
@@ -13,7 +14,7 @@ import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
  */
 export default function AddStudentForm({ classroomId }: { classroomId: string }) {
   const [userId, setUserId] = useState("");
-  const { busy, error, run } = useTeacherMutation("Failed to add student");
+  const { busy, error, run } = useMutation("Failed to add student");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

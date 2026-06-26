@@ -10,11 +10,7 @@
  * only needs to declare its own fields and submission logic.
  */
 
-import { useMutation } from "@/hooks/useMutation";
 import { Button } from "@/components/ui/Button";
-
-// Re-export so consumers can import from one place.
-export { useMutation as useTeacherMutation };
 
 export interface TeacherFormShellProps {
   /** Form submit handler — called with the native FormEvent. */

@@ -127,8 +127,8 @@ Storage modes:
 
 | Mode | Readiness status |
 | --- | --- |
-| unset / `database` / `db` / `none` | `unconfigured` — expected DB base64 fallback. |
-| `filesystem` / `local` / `fs` | `configured`. |
+| unset / `database` | `unconfigured` — expected DB base64 fallback. |
+| `filesystem` | `configured`. |
 | `azure` with `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT` + `AZURE_STORAGE_KEY` | `configured`. |
 | `azure` without credentials | `degraded` — falls back to DB base64. |
 | unknown mode | `degraded` — falls back to database. |

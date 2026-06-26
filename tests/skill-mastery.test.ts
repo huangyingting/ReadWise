@@ -101,7 +101,8 @@ test("an unknown skill name is ignored (returns null)", async () => {
 // ---------------------------------------------------------------------------
 
 test("getSkillProfile reports all six skills; un-evidenced ones are 0/hasEvidence:false", async () => {
-  const { recordSkillEvidence, getSkillProfile, SKILLS } = await import("@/lib/learning/skill-mastery");
+  const { recordSkillEvidence, getSkillProfile } = await import("@/lib/learning/skill-mastery");
+  const { SKILLS } = await import("@/lib/learning/types");
   await recordSkillEvidence("u1", "reading", 0.8);
   await recordSkillEvidence("u1", "vocabulary", 0.4);
   await recordSkillEvidence("u1", "comprehension", 0.6);

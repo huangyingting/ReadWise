@@ -5,7 +5,8 @@ import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Field } from "@/components/ui/Field";
-import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
+import { useMutation } from "@/hooks/useMutation";
+import { TeacherFormShell } from "./TeacherFormShell";
 
 export type TeachableOrg = { id: string; name: string };
 
@@ -16,7 +17,7 @@ export type TeachableOrg = { id: string; name: string };
 export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) {
   const [orgId, setOrgId] = useState(orgs[0]?.id ?? "");
   const [name, setName] = useState("");
-  const { busy, error, run } = useTeacherMutation("Failed to create classroom");
+  const { busy, error, run } = useMutation("Failed to create classroom");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

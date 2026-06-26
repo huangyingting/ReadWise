@@ -6,7 +6,7 @@
  */
 
 import type { AdaptiveLevelRecommendation } from "@/lib/leveling";
-import type { SkillSummary } from "./skill-mastery";
+import type { SkillSummary } from "./types";
 
 // ---------------------------------------------------------------------------
 // Types

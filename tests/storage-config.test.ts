@@ -63,12 +63,6 @@ test("storage reports configured for filesystem mode", () => {
   assert.equal(cfg.optional.storage.configured, true);
 });
 
-test("storage reports configured for fs alias", () => {
-  process.env.MEDIA_STORAGE = "fs";
-  const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "configured");
-});
-
 test("storage reports degraded for azure with no credentials", () => {
   process.env.MEDIA_STORAGE = "azure";
   const cfg = validateRuntimeConfig();

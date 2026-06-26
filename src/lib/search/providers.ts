@@ -44,11 +44,6 @@ export function resolveSearchProvider(): ArticleSearchProvider {
   return _provider;
 }
 
-/** @deprecated Use `resolveSearchProvider()` instead. */
-export function getArticleSearchProvider(): ArticleSearchProvider {
-  return resolveSearchProvider();
-}
-
 /**
  * Article search entry point used by `/api/search`.
  * Searches readable articles — authenticated users may also see their own

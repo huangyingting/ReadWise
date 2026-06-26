@@ -24,7 +24,6 @@ beforeEach(() => {
   authState = "ok";
   delete process.env.CSRF_ENFORCE;
   delete process.env.CSRF_ALLOWED_ORIGINS;
-  delete process.env.CSRF_TRUSTED_ORIGINS;
   delete process.env.NEXTAUTH_URL;
 });
 

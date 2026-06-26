@@ -152,7 +152,6 @@ Config:
 
 ```bash
 CSRF_ALLOWED_ORIGINS=https://app.example,https://admin.example  # extra origins
-CSRF_TRUSTED_ORIGINS=...        # alias for the same
 CSRF_ENFORCE=false              # disable (only if a separate CSRF layer fronts the API)
 # NEXTAUTH_URL / APP_URL / NEXT_PUBLIC_APP_URL origins are always trusted.
 ```

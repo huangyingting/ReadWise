@@ -1,10 +1,7 @@
 /** Shared media-storage types and contracts. */
 
 /** Storage backends selectable via `MEDIA_STORAGE`. */
-export type MediaStorageKind = "database" | "filesystem" | "s3" | "azure" | "r2";
-
-/** Cloud seams that intentionally degrade when not configured. */
-export const CLOUD_SEAMS: readonly MediaStorageKind[] = ["s3", "azure", "r2"];
+export type MediaStorageKind = "database" | "filesystem" | "azure";
 
 export type PutMediaInput = {
   /** Raw bytes to persist. */
