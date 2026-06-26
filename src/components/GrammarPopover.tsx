@@ -11,11 +11,10 @@
  * above/below the selection rect, dodge the mini-player band.
  */
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { BookMarked, RotateCcw, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-
-const MINI_PLAYER_HEIGHT = 56;
+import { usePopoverPosition } from "@/lib/use-popover-position";
 
 export interface GrammarResult {
   explanation: string | null;
@@ -45,27 +44,11 @@ export default function GrammarPopover({
 }: Props) {
   const closeRef = useRef<HTMLButtonElement>(null);
 
-  useLayoutEffect(() => {
-    const el = popoverRef.current;
-    if (!el) return;
-
-    const pw = el.offsetWidth || 360;
-    const ph = el.offsetHeight || 200;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    const anchorX = selectionRect.left;
-    const anchorY = selectionRect.bottom;
-
-    let left = Math.max(12, Math.min(anchorX, vw - pw - 12));
-    const safeBottom = vh - MINI_PLAYER_HEIGHT - ph - 12;
-    const top =
-      anchorY > safeBottom
-        ? Math.max(12, selectionRect.top - ph - 8)
-        : anchorY + 8;
-
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
+  usePopoverPosition(popoverRef, selectionRect, {
+    placement: "below",
+    estimatedHeight: 200,
+    estimatedWidth: 360,
+    deps: [selectionRect, loading, result, error],
   });
 
   // Focus the close button when the popover first opens
