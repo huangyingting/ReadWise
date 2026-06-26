@@ -26,11 +26,36 @@ export * from "./cefr-primitives";
 /**
  * Reads all level evidence for a user from the DB. Returns null when the user
  * has no profile (we cannot place them on the CEFR scale yet).
+ *
+ * Implementation notes (R2CI-8 / R2CI-9):
+ *   - Single `groupBy({by:["vote"]})` covers all feedback vote types in one
+ *     round-trip (earlier code issued two separate count queries).
+ *   - `readingProgress.count()` is used instead of `findMany()` so no full
+ *     rows are over-selected from the reading-progress table.
+ *   - Profile-independent queries (feedback, quiz, skill) are fetched in
+ *     parallel with `getProfile` to reduce total latency to 2 sequential
+ *     network round-trips instead of waiting for profile first.
  */
 export async function getLevelEvidence(
   userId: string,
 ): Promise<LevelEvidence | null> {
-  const profile = await getProfile(userId);
+  // Fetch profile concurrently with the queries that don't depend on it.
+  const [profile, feedbackRows, recentAttempts, skillProfile] = await Promise.all([
+    getProfile(userId),
+    prisma.articleDifficultyFeedback.groupBy({
+      by: ["vote"],
+      where: { userId },
+      _count: { _all: true },
+    }),
+    prisma.quizAttempt.findMany({
+      where: { userId },
+      orderBy: { completedAt: "desc" },
+      take: 20,
+      select: { scorePct: true },
+    }),
+    getSkillProfile(userId),
+  ]);
+
   if (!profile) return null;
 
   const currentLevel = (ENGLISH_LEVELS as readonly string[]).includes(
@@ -39,28 +64,14 @@ export async function getLevelEvidence(
     ? (profile.englishLevel as (typeof ENGLISH_LEVELS)[number])
     : ENGLISH_LEVELS[0];
 
-  const [feedbackRows, recentAttempts, completedAtLevel, skillProfile] =
-    await Promise.all([
-      prisma.articleDifficultyFeedback.groupBy({
-        by: ["vote"],
-        where: { userId },
-        _count: { _all: true },
-      }),
-      prisma.quizAttempt.findMany({
-        where: { userId },
-        orderBy: { completedAt: "desc" },
-        take: 20,
-        select: { scorePct: true },
-      }),
-      prisma.readingProgress.count({
-        where: {
-          userId,
-          completed: true,
-          article: { ...publicListableArticleWhere(), difficulty: currentLevel },
-        },
-      }),
-      getSkillProfile(userId),
-    ]);
+  // Separate round-trip: this query depends on `currentLevel` from profile.
+  const completedAtLevel = await prisma.readingProgress.count({
+    where: {
+      userId,
+      completed: true,
+      article: { ...publicListableArticleWhere(), difficulty: currentLevel },
+    },
+  });
 
   const feedback: FeedbackCounts = { too_easy: 0, just_right: 0, too_hard: 0 };
   for (const row of feedbackRows as Array<{ vote: string; _count: { _all: number } }>) {

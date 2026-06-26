@@ -32,7 +32,14 @@ export type {
 } from "./anchor";
 
 // Server read models
-export { listHighlights, listAllUserHighlights, getHighlightCounts } from "./queries";
+export {
+  listHighlights,
+  listAllUserHighlights,
+  listAllUserHighlightsPage,
+  getHighlightCounts,
+  HIGHLIGHTS_ALL_HARD_CAP,
+} from "./queries";
+export type { HighlightPage } from "./queries";
 
 // Server mutation commands
 export { createHighlight, updateHighlight, deleteHighlight } from "./commands";

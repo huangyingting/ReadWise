@@ -3,6 +3,7 @@ import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { TagScope } from "@prisma/client";
+import { isPostgresDatabase } from "@/lib/search/query";
 
 export type BucketCount = { key: string; label: string; count: number };
 
@@ -19,12 +20,39 @@ export type AdminAnalytics = {
 	topTags: BucketCount[];
 };
 
+/**
+ * Returns the number of distinct users who have at least one `ReadingProgress`
+ * row. Uses `COUNT(DISTINCT "userId")` — an index-only aggregate — instead of
+ * materialising every row with `groupBy({by:["userId"]})`.
+ *
+ * Branches on SQLite vs Postgres because Prisma's `queryRaw` passes results
+ * through the DB driver: Postgres returns `bigint` for COUNT, SQLite returns
+ * `number`. Both are normalised to `number` before returning.
+ *
+ * Postgres path: double-quoted identifiers (`"ReadingProgress"`, `"userId"`).
+ * SQLite path:   unquoted identifiers (SQLite is case-insensitive by default).
+ * NOTE: only the SQLite path executes locally; the Postgres path is validated
+ * in CI against a Postgres instance.
+ */
+async function countDistinctUsers(): Promise<number> {
+	if (isPostgresDatabase()) {
+		const rows = await prisma.$queryRaw<[{ count: bigint }]>`
+			SELECT COUNT(DISTINCT "userId") AS count FROM "ReadingProgress"
+		`;
+		return Number(rows[0]?.count ?? 0);
+	}
+	const rows = await prisma.$queryRaw<[{ count: number }]>`
+		SELECT COUNT(DISTINCT userId) AS count FROM ReadingProgress
+	`;
+	return Number(rows[0]?.count ?? 0);
+}
+
 export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 	const [
 		categoryGroups,
 		levelGroups,
 		totalMembers,
-		activeReaderGroups,
+		activeReaders,
 		readsTracked,
 		completedReads,
 		savedWords,
@@ -33,7 +61,7 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 		prisma.article.groupBy({ by: ["category"], _count: { _all: true } }),
 		prisma.article.groupBy({ by: ["difficulty"], _count: { _all: true } }),
 		prisma.user.count(),
-		prisma.readingProgress.groupBy({ by: ["userId"] }),
+		countDistinctUsers(),
 		prisma.readingProgress.count(),
 		prisma.readingProgress.count({ where: { completed: true } }),
 		prisma.savedWord.count(),
@@ -108,7 +136,7 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 		articlesByLevel,
 		memberActivity: {
 			totalMembers,
-			activeReaders: activeReaderGroups.length,
+			activeReaders,
 			readsTracked,
 			completedReads,
 			savedWords,
