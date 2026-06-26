@@ -42,6 +42,8 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`analytics/product-analytics.md`](./analytics/product-analytics.md) | Product analytics event stream, retention, dashboards, and privacy rules. |
+| [`analytics/domain-reporting.md`](./analytics/domain-reporting.md) | Domain reporting read models: on-demand aggregations, per-domain ownership, query boundaries, and privacy rules distinguishing domain state from the product event stream. |
+| [`analytics/tenant-reporting-privacy.md`](./analytics/tenant-reporting-privacy.md) | Teacher and admin visibility bounds, per-learner vs aggregate rules, domain ownership of reporting facts, and tenant-scoped retention and export policy. |
 
 ### Architecture
 
@@ -59,6 +61,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`content/legal-content.md`](./content/legal-content.md) | Legal/static content responsibilities. |
 | [`content/scrapers.md`](./content/scrapers.md) | Scraper providers, discovery/extraction, SSRF/robots controls, and provider drift handling. |
 | [`content/extraction-quality.md`](./content/extraction-quality.md) | Content extraction quality signals, composite score, and scraper drift triage workflow. |
+| [`content/content-reporting.md`](./content/content-reporting.md) | User content-reporting workflow, admin moderation queue, report status lifecycle, and moderation signal rules. |
 
 ### Learning
 
@@ -67,25 +70,35 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
 | [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
 | [`learning/profile-preferences.md`](./learning/profile-preferences.md) | Onboarding/profile validation, CEFR/topics/daily-goal preferences, level history, and personalization consumers. |
+| [`learning/classroom-roster-and-invitations.md`](./learning/classroom-roster-and-invitations.md) | Classroom roster import and invitation lifecycle: bulk upload, status transitions, deduplication, and email/link flows. (Status: Design) |
+| [`learning/assignment-feedback-and-rubrics.md`](./learning/assignment-feedback-and-rubrics.md) | Assignment feedback and rubric workflow: rubric schema, teacher annotation, per-learner feedback delivery, and grading signals. (Status: Design/RFC) |
+| [`learning/school-year-archival-and-retention.md`](./learning/school-year-archival-and-retention.md) | School-year archival: end-of-year close, classroom/assignment freeze, configurable data retention, and cascade rules. (Status: Design) |
 
 ### Media
 
 | Document | Scope |
 | --- | --- |
+| [`media/assets.md`](./media/assets.md) | `MediaAsset` ownership, creation, keying, serving, migration, and deletion lifecycle. |
 | [`media/storage.md`](./media/storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
 
 ### Observability
 
 | Document | Scope |
 | --- | --- |
-| [`observability/client-error-reporting.md`](./observability/client-error-reporting.md) | Browser runtime error sink, scrubbing, rate limiting, aggregation, and alerting behavior. |
 | [`observability/overview.md`](./observability/overview.md) | Tracing, error aggregation, metrics, SLOs, and investigation workflow. |
+| [`observability/metrics.md`](./observability/metrics.md) | In-process counter/histogram/cache-stat registry, Prometheus text-format exporter, per-domain recorder helpers, and route-path normalisation. |
+| [`observability/client-error-reporting.md`](./observability/client-error-reporting.md) | Browser runtime error sink, scrubbing, rate limiting, aggregation, and alerting behavior. |
 
 ### Operations
 
 | Document | Scope |
 | --- | --- |
 | [`operations/admin-operations.md`](./operations/admin-operations.md) | Persistent job queue, processing-step state, audit logs, provider operations, admin endpoints, and operator workflows. |
+| [`operations/release-management.md`](./operations/release-management.md) | End-to-end release process: preflight quality gates, migration steps for both database targets, deployment, smoke verification, rollback decision tree, and post-release monitoring. |
+| [`operations/incident-response.md`](./operations/incident-response.md) | On-call SLO breach runbooks: detection, triage, mitigation, and post-incident review workflow. |
+| [`operations/capacity-planning.md`](./operations/capacity-planning.md) | Known subsystem limits, observable signals, baseline assumptions, scaling levers, and follow-up gaps for each major ReadWise subsystem. |
+| [`operations/provider-operations.md`](./operations/provider-operations.md) | Common lifecycle model for all external providers: health states, credential rotation, outage response, and provider-drift handling. |
+| [`operations/tts-jobs.md`](./operations/tts-jobs.md) | `TTS_GENERATE` job scheduling, deduplication, retry policy, and rebuild flow under Operations ownership. |
 
 ### Platform
 
@@ -101,6 +114,12 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`platform/health-readiness.md`](./platform/health-readiness.md) | `/api/health`, `/api/ready`, runtime config validation, migrations, and optional-provider degradation. |
 | [`platform/runtime-config.md`](./platform/runtime-config.md) | Runtime configuration ownership, typed helpers, and the documented `process.env` allowlist. |
 | [`platform/push-notifications.md`](./platform/push-notifications.md) | Web Push configuration, subscription lifecycle, reminder scheduling, delivery health, and privacy. |
+| [`platform/primitives.md`](./platform/primitives.md) | Summary pointer to `src/lib/primitives/README.md`; classification table, contribution guidelines, and stability contract for shared platform primitives. |
+| [`platform/entitlements.md`](./platform/entitlements.md) | Entitlement and plan-aware feature gate design: capability checks, allowances, and billing tier boundaries. (Status: Design) |
+| [`platform/internationalization.md`](./platform/internationalization.md) | UI internationalization foundation: i18n architecture, locale loading, and separation from article-translation and learner language-preference systems. |
+| [`platform/schema-change-checklist.md`](./platform/schema-change-checklist.md) | Privacy, retention, export, and cascade checklist required for every Prisma model or migration change. |
+| [`platform/test-data-governance.md`](./platform/test-data-governance.md) | Test data and fixture governance across unit factories, Prisma/DB seeds, Playwright e2e seeds, scraper corpora, and AI evaluation datasets. |
+| [`platform/supply-chain.md`](./platform/supply-chain.md) | Dependency hygiene policy, CI vulnerability gates, and response procedures for security advisories. |
 | [`platform/static-assets.md`](./platform/static-assets.md) | Static asset and public file guidance. |
 
 ### Reader
@@ -115,6 +134,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |
 | [`reader/search-and-indexing.md`](./reader/search-and-indexing.md) | Search and indexing strategy. |
 | [`reader/speech-synthesis.md`](./reader/speech-synthesis.md) | Narration access checks, Azure Speech provider seam, speech cache lifecycle, storage fallback, and streaming playback. |
+| [`reader/playback.md`](./reader/playback.md) | `ReaderAudioProvider` context, `ReaderMiniPlayer` transport controls, word highlighting, speed/sentence-loop controls, and access-checked playback initiation. |
 | [`reader/translation.md`](./reader/translation.md) | Full-article and sentence translation cache keys, chunking, prompt versions, fallbacks, and privacy boundaries. |
 
 ### Security
@@ -122,6 +142,28 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`security/overview.md`](./security/overview.md) | Trusted proxy/IP handling, CSRF, destructive-action protections, security events, and audit-log relationship. |
+| [`security/data-lifecycle-matrix.md`](./security/data-lifecycle-matrix.md) | Data classification and retention matrix for all Prisma models and client-side ephemeral stores; gaps flagged as follow-up items. |
+| [`security/abuse-prevention.md`](./security/abuse-prevention.md) | Abuse-prevention signals, rate-limit thresholds, and mitigation hooks; distinguishes implemented controls from proposed design targets. |
+
+### Speech
+
+| Document | Scope |
+| --- | --- |
+| [`speech/generation.md`](./speech/generation.md) | TTS provider seam, request building, voice and format fallback, word-boundary collection, and `ArticleSpeech` generation semantics. |
+
+### UI
+
+| Document | Scope |
+| --- | --- |
+| [`ui/accessibility.md`](./ui/accessibility.md) | Accessibility baseline, automated axe/Playwright checks, configuration, and outstanding manual-verification gaps. |
+| [`ui/design-system-governance.md`](./ui/design-system-governance.md) | Design-system governance and visual regression plan: component ownership, token conventions, and CI screenshot gating. |
+| [`ui/mobile-reader-pwa.md`](./ui/mobile-reader-pwa.md) | Mobile/touch behavior baseline for the Reader, offline library, and PWA install surface grounded in the service worker, manifest, and Reader components. |
+
+## Redirect index
+
+| Document | Note |
+| --- | --- |
+| [`refactoring.md`](./refactoring.md) | Redirect index — subsystem boundary and import-contract rules consolidated into [`architecture/0010-subsystem-boundaries-and-import-contracts.md`](./architecture/0010-subsystem-boundaries-and-import-contracts.md). |
 
 ## Maintenance rules
 
