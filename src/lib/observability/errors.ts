@@ -22,6 +22,7 @@
  * implementation.
  */
 import { createLogger, getRequestContext } from "./logger";
+import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
 import { recordErrorCaptured } from "@/lib/metrics";
 import {
   appVersion,
@@ -77,42 +78,8 @@ export type AlertHook = (record: CapturedError) => void;
 
 // ---- redaction -----------------------------------------------------------
 
-/**
- * Keys whose VALUES must never be logged — content + secrets. Matched
- * case-insensitively as substrings so e.g. `articleContent`, `selected_text`,
- * `prompt`, `apiKey`, `authorization` are all caught.
- */
-const SENSITIVE_KEY_PATTERNS = [
-  "content",
-  "selection",
-  "selected",
-  "prompt",
-  "completion",
-  "message_body",
-  "body",
-  "text",
-  "password",
-  "secret",
-  "token",
-  "apikey",
-  "api_key",
-  "authorization",
-  "cookie",
-  "session",
-  "credential",
-];
-
-function isSensitiveKey(key: string): boolean {
-  const lower = key.toLowerCase();
-  return SENSITIVE_KEY_PATTERNS.some((pattern) => lower.includes(pattern));
-}
-
-/** Mask emails and long token-like strings inside a free-text string value. */
-function scrubString(value: string): string {
-  return value
-    .replace(/[\w.+-]+@[\w-]+\.[\w.-]+/g, "[email]")
-    .replace(/\b[A-Za-z0-9_-]{24,}\b/g, "[token]");
-}
+// isSensitiveKey and scrubValue are provided by @/lib/observability/redaction.
+// They cover the superset of all previously per-module sensitive-key lists.
 
 /**
  * Scrub an arbitrary `extra` bag: drop sensitive keys entirely, mask strings,
@@ -132,7 +99,7 @@ export function scrubContext(
     if (value === null || value === undefined) {
       out[key] = value;
     } else if (typeof value === "string") {
-      out[key] = scrubString(value).slice(0, 200);
+      out[key] = scrubValue(value).slice(0, 200);
     } else if (typeof value === "number" || typeof value === "boolean") {
       out[key] = value;
     } else {
@@ -146,7 +113,7 @@ export function scrubContext(
 // ---- fingerprinting ------------------------------------------------------
 
 function normalizeMessage(message: string): string {
-  return scrubString(message)
+  return scrubValue(message)
     // Collapse digits + hex ids so "article abc123 failed" groups with "def456".
     .replace(/0x[0-9a-f]+/gi, "0x*")
     .replace(/\b[0-9a-f]{8,}\b/gi, "*")
@@ -273,8 +240,8 @@ export function captureError(
   const base: Omit<CapturedError, "alert"> = {
     fingerprint: print,
     name: err.name || "Error",
-    message: scrubString(err.message || "").slice(0, 500),
-    stack: err.stack ? scrubString(err.stack).slice(0, 4000) : undefined,
+    message: scrubValue(err.message || "").slice(0, 500),
+    stack: err.stack ? scrubValue(err.stack).slice(0, 4000) : undefined,
     source: context.source ?? "unknown",
     severity: context.severity ?? "error",
     route: context.route ?? ambient?.path,

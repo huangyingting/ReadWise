@@ -88,9 +88,11 @@ test("sanitizeAuditMetadata redacts secrets and PII-like values recursively", as
   assert.equal(sanitized.safe, "role-change");
   assert.deepEqual(sanitized.nested, {
     secretToken: "[redacted]",
-    value: "[redacted]",
+    // key "value" is not sensitive; email in the value is masked inline
+    value: "[email]",
   });
-  assert.deepEqual(sanitized.list, ["ok", "[redacted]"]);
+  // JWT segments (24+ base64url chars) are masked inline as [token]
+  assert.deepEqual(sanitized.list, ["ok", "[token].[token].[token]"]);
 });
 
 test("auditRequestInfo extracts bounded IP and user agent from request headers", async () => {

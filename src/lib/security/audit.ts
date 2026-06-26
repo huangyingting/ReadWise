@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/observability/logger";
+import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
 import { clientIp } from "@/lib/security/client-ip";
 import type { Prisma } from "@prisma/client";
 
@@ -99,10 +100,6 @@ const MAX_ARRAY_ITEMS = 20;
 const MAX_STRING_LENGTH = 200;
 const MAX_USER_AGENT_LENGTH = 512;
 const REDACTED = "[redacted]";
-const SENSITIVE_KEY_RE =
-  /(authorization|cookie|credential|email|key|password|pass|pwd|secret|session|token|url)/i;
-const EMAIL_RE = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/;
-const TOKENISH_RE = /\b(?:bearer\s+)?(?:[A-Za-z0-9_-]{24,}\.){1,2}[A-Za-z0-9_-]{16,}\b/i;
 
 function truncate(value: string, max: number): string {
   return value.length <= max ? value : `${value.slice(0, max - 1)}…`;
@@ -115,8 +112,7 @@ function normalizeOptionalString(value: string | null | undefined, max = MAX_STR
 }
 
 function redactSensitiveString(value: string): string {
-  if (EMAIL_RE.test(value) || TOKENISH_RE.test(value)) return REDACTED;
-  return truncate(value, MAX_STRING_LENGTH);
+  return truncate(scrubValue(value), MAX_STRING_LENGTH);
 }
 
 function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
@@ -131,7 +127,7 @@ function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
   if (typeof value === "object") {
     const out: Record<string, AuditMetadataValue> = {};
     for (const [key, nested] of Object.entries(value).slice(0, MAX_METADATA_KEYS)) {
-      out[truncate(key, 80)] = SENSITIVE_KEY_RE.test(key)
+      out[truncate(key, 80)] = isSensitiveKey(key)
         ? REDACTED
         : sanitizeValue(nested, depth + 1);
     }
@@ -144,7 +140,7 @@ export function sanitizeAuditMetadata(input: Record<string, unknown> | null | un
   if (!input) return {};
   const out: AuditMetadata = {};
   for (const [key, value] of Object.entries(input).slice(0, MAX_METADATA_KEYS)) {
-    out[truncate(key, 80)] = SENSITIVE_KEY_RE.test(key)
+    out[truncate(key, 80)] = isSensitiveKey(key)
       ? REDACTED
       : sanitizeValue(value, 0);
   }
