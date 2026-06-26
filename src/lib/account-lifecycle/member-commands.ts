@@ -12,18 +12,15 @@
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
+import { type DomainResult, type DomainOk, ok, notFound, conflict } from "@/lib/result";
 
 type AuditFactory<T> = (result: T) => AuditRequestInput;
 
-export type UpdateMemberRoleResult =
-  | { ok: true; role: Role; previousRole: Role; changed: boolean }
-  | { ok: false; error: string; status: number };
-type UpdateMemberRoleSuccess = Extract<UpdateMemberRoleResult, { ok: true }>;
+export type UpdateMemberRoleResult = DomainResult<{ role: Role; previousRole: Role; changed: boolean }>;
+type UpdateMemberRoleSuccess = DomainOk<{ role: Role; previousRole: Role; changed: boolean }>;
 
-export type DeleteMemberResult =
-  | { ok: true; role: Role; ownedArticleCount: number }
-  | { ok: false; error: string; status: number };
-type DeleteMemberSuccess = Extract<DeleteMemberResult, { ok: true }>;
+export type DeleteMemberResult = DomainResult<{ role: Role; ownedArticleCount: number }>;
+type DeleteMemberSuccess = DomainOk<{ role: Role; ownedArticleCount: number }>;
 
 // Sentinel thrown inside a transaction to signal a guard condition.
 class AdminGuardError extends Error {
@@ -51,12 +48,12 @@ export async function updateMemberRole(
     select: { id: true, role: true },
   });
   if (!user) {
-    return { ok: false, error: "Not found", status: 404 };
+    return notFound();
   }
 
   // No role change — skip the DB write entirely.
   if (user.role === role) {
-    const result = { ok: true, role, previousRole: user.role, changed: false } as const;
+    const result = ok({ role, previousRole: user.role, changed: false });
     if (audit) {
       await recordAuditFromRequest(audit(result));
     }
@@ -76,18 +73,18 @@ export async function updateMemberRole(
       await tx.user.update({ where: { id }, data: { role } });
       if (audit) {
         await recordAuditFromRequest(
-          audit({ ok: true, role, previousRole: user.role, changed: true }),
+          audit(ok({ role, previousRole: user.role, changed: true })),
           tx,
         );
       }
     });
   } catch (e) {
     if (e instanceof AdminGuardError) {
-      return { ok: false, error: e.guardError, status: e.guardStatus };
+      return conflict(e.guardError);
     }
     throw e;
   }
-  return { ok: true, role, previousRole: user.role, changed: true };
+  return ok({ role, previousRole: user.role, changed: true });
 }
 
 /**
@@ -105,7 +102,7 @@ export async function deleteMember(
     select: { id: true, role: true },
   });
   if (!user) {
-    return { ok: false, error: "Not found", status: 404 };
+    return notFound();
   }
 
   // Article.owner now uses onDelete: Cascade, so deleting the user also deletes
@@ -131,16 +128,16 @@ export async function deleteMember(
       await tx.user.delete({ where: { id } });
       if (audit) {
         await recordAuditFromRequest(
-          audit({ ok: true, role: user.role, ownedArticleCount }),
+          audit(ok({ role: user.role, ownedArticleCount })),
           tx,
         );
       }
     });
   } catch (e) {
     if (e instanceof AdminGuardError) {
-      return { ok: false, error: e.guardError, status: e.guardStatus };
+      return conflict(e.guardError);
     }
     throw e;
   }
-  return { ok: true, role: user.role, ownedArticleCount };
+  return ok({ role: user.role, ownedArticleCount });
 }

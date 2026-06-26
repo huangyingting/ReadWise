@@ -27,12 +27,9 @@ import {
   BACKFILL_FEATURES,
   type BackfillResult,
 } from "@/lib/processing/backfill";
+import type { DomainResult } from "@/lib/result";
 
 type AuditFactory<T> = (result: T) => AuditRequestInput;
-
-export type SupportActionResult<T = Record<string, unknown>> =
-  | ({ ok: true } & T)
-  | { ok: false; error: string; status: number };
 
 type RevokeClient = Pick<typeof prisma, "user" | "session">;
 
@@ -45,7 +42,7 @@ export async function revokeMemberSessions(
   userId: string,
   audit?: AuditFactory<{ revoked: number }>,
   client: RevokeClient = prisma,
-): Promise<SupportActionResult<{ revoked: number }>> {
+): Promise<DomainResult<{ revoked: number }>> {
   const user = await client.user.findUnique({
     where: { id: userId },
     select: { id: true },
@@ -68,7 +65,7 @@ export async function revokeMemberSessions(
 export async function exportMemberData(
   userId: string,
   audit?: AuditRequestInput,
-): Promise<SupportActionResult<{ data: unknown }>> {
+): Promise<DomainResult<{ data: unknown }>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true },
@@ -91,7 +88,7 @@ export async function triggerMemberRepair(
   userId: string,
   operatorId: string | null,
   audit?: AuditFactory<{ result: BackfillResult; articleCount: number }>,
-): Promise<SupportActionResult<{ result: BackfillResult | null; articleCount: number }>> {
+): Promise<DomainResult<{ result: BackfillResult | null; articleCount: number }>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true },
@@ -153,7 +150,7 @@ export async function triggerMemberRepair(
 export async function resendSignInHelp(
   userId: string,
   audit?: AuditFactory<{ delivered: boolean }>,
-): Promise<SupportActionResult<{ delivered: boolean; reason: string }>> {
+): Promise<DomainResult<{ delivered: boolean; reason: string }>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
     select: { id: true, email: true },
