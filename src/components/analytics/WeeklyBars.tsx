@@ -5,6 +5,8 @@
  * database access.
  */
 
+import { AccessibleDataTable } from "@/components/admin/AccessibleDataTable";
+
 export interface WeekBucket {
   week: string;
   count: number;
@@ -65,24 +67,14 @@ export function WeeklyBars({
         </span>
       </div>
 
-      {/* Visually-hidden data table for screen readers */}
-      <table className="sr-only">
-        <caption>{label}</caption>
-        <thead>
-          <tr>
-            <th scope="col">Week</th>
-            <th scope="col">Count</th>
-          </tr>
-        </thead>
-        <tbody>
-          {buckets.map((b) => (
-            <tr key={b.week}>
-              <td>{b.week}</td>
-              <td>{b.count}</td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+      <AccessibleDataTable
+        caption={label}
+        columns={[
+          { key: "week", label: "Week" },
+          { key: "count", label: "Count" },
+        ]}
+        rows={buckets.map((b) => ({ week: b.week, count: b.count }))}
+      />
     </figure>
   );
 }

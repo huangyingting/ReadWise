@@ -77,20 +77,29 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
 
   const cols = useMemo(() => groupIntoCols(cells), [cells]);
 
-  const totalActive = cells.filter((c) => c.count > 0).length;
-  const totalArticles = cells.reduce((s, c) => s + c.count, 0);
+  const totalActive = useMemo(
+    () => cells.filter((c) => c.count > 0).length,
+    [cells],
+  );
+  const totalArticles = useMemo(
+    () => cells.reduce((s, c) => s + c.count, 0),
+    [cells],
+  );
 
   // Build month label positions: show label when the month changes.
-  const monthLabels: { colIndex: number; label: string }[] = [];
-  let lastMonth = "";
-  cols.forEach((col, idx) => {
-    const m = colMonth(col);
-    if (m && m !== lastMonth) {
-      lastMonth = m;
-      const [, mon] = m.split("-").map(Number);
-      monthLabels.push({ colIndex: idx, label: MONTHS[mon - 1] });
-    }
-  });
+  const monthLabels = useMemo(() => {
+    const labels: { colIndex: number; label: string }[] = [];
+    let lastMonth = "";
+    cols.forEach((col, idx) => {
+      const m = colMonth(col);
+      if (m && m !== lastMonth) {
+        lastMonth = m;
+        const [, mon] = m.split("-").map(Number);
+        labels.push({ colIndex: idx, label: MONTHS[mon - 1] });
+      }
+    });
+    return labels;
+  }, [cols]);
 
   return (
     <div>

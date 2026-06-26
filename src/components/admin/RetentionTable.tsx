@@ -1,4 +1,5 @@
 import { Card } from "@/components/ui/Card";
+import { AdminTableWrap } from "./AdminTableWrap";
 import type { RetentionCohort } from "@/lib/analytics/product";
 
 /**
@@ -15,13 +16,12 @@ export function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
 
   return (
     <Card>
-      <div className="admin-table-wrap" tabIndex={0} aria-label="Retention cohorts (scrollable)">
-        <table className="admin-table">
-          <caption className="sr-only">
-            Weekly retention by cohort. Each cell shows the percentage of the
-            cohort active that many weeks after their first week.
-          </caption>
-          <thead>
+      <AdminTableWrap ariaLabel="Retention cohorts (scrollable)">
+        <caption className="sr-only">
+          Weekly retention by cohort. Each cell shows the percentage of the
+          cohort active that many weeks after their first week.
+        </caption>
+        <thead>
             <tr>
               <th scope="col">Cohort week</th>
               <th scope="col">Users</th>
@@ -61,8 +61,7 @@ export function RetentionTable({ cohorts }: { cohorts: RetentionCohort[] }) {
               </tr>
             ))}
           </tbody>
-        </table>
-      </div>
+        </AdminTableWrap>
     </Card>
   );
 }

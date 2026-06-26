@@ -7,6 +7,7 @@ import {
 } from "@/lib/scraper/sources";
 import AdminSourceActions from "@/components/AdminSourceActions";
 import AdminSourceSync from "@/components/AdminSourceSync";
+import { AdminTableWrap } from "@/components/admin";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { formatDateTime } from "@/lib/display-format";
@@ -52,12 +53,7 @@ export default async function AdminSourcesPage() {
           </p>
         </Card>
       ) : (
-        <div
-          className="admin-table-wrap"
-          tabIndex={0}
-          aria-label="Content sources table (scrollable)"
-        >
-          <table className="admin-table">
+        <AdminTableWrap ariaLabel="Content sources table (scrollable)">
             <thead>
               <tr>
                 <th>Provider</th>
@@ -116,8 +112,7 @@ export default async function AdminSourcesPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </AdminTableWrap>
       )}
     </section>
   );

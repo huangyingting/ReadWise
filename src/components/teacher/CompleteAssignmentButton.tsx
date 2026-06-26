@@ -3,6 +3,7 @@
 import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
+import { Field } from "@/components/ui/Field";
 
 /**
  * Lets a student mark an assignment complete (RW-061). Posts the student's OWN
@@ -33,13 +34,10 @@ export default function CompleteAssignmentButton({
   }
 
   return (
-    <div className="flex flex-col items-end gap-1">
+    <Field error={error ?? undefined}>
       <Button type="button" size="sm" variant="secondary" disabled={busy} onClick={complete}>
         {busy ? "Saving…" : "Mark complete"}
       </Button>
-      {error ? (
-        <span className="text-[length:var(--text-xs)] text-danger-text">{error}</span>
-      ) : null}
-    </div>
+    </Field>
   );
 }

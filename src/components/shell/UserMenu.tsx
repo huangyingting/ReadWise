@@ -6,6 +6,7 @@ import { signOut } from "next-auth/react";
 import { Settings, Shield, LogOut, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import Avatar from "@/components/ui/Avatar";
+import { Popover } from "@/components/ui/Popover";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import type { ShellUser } from "./types";
@@ -13,9 +14,7 @@ import type { ShellUser } from "./types";
 export default function UserMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const menuRef = useRef<HTMLDivElement>(null);
 
   // Global "?" shortcut — open the shortcuts panel when focus is not in a field.
   useKeyboardShortcut(
@@ -29,47 +28,15 @@ export default function UserMenu({ user }: { user: ShellUser }) {
 
   const isAdmin = user.role === "Admin";
 
-  useEffect(() => {
-    if (!open) return;
-
-    function onPointerDown(event: MouseEvent) {
-      if (!containerRef.current?.contains(event.target as Node)) {
-        setOpen(false);
-      }
-    }
-    function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setOpen(false);
-        triggerRef.current?.focus();
-        return;
-      }
-      if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        event.preventDefault();
-        const items = menuRef.current?.querySelectorAll<HTMLElement>(
-          '[role="menuitem"]',
-        );
-        if (!items || items.length === 0) return;
-        const list = Array.from(items);
-        const idx = list.indexOf(document.activeElement as HTMLElement);
-        const dir = event.key === "ArrowDown" ? 1 : -1;
-        const next = list[(idx + dir + list.length) % list.length] ?? list[0];
-        next.focus();
-      }
-    }
-
-    document.addEventListener("mousedown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("mousedown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open]);
-
-  // Focus the first item when the menu opens.
+  // Focus the first menu item when the menu opens.
   useEffect(() => {
     if (open) {
-      const first = menuRef.current?.querySelector<HTMLElement>('[role="menuitem"]');
-      first?.focus();
+      // Small delay to let Popover render before querying.
+      const raf = requestAnimationFrame(() => {
+        const first = document.querySelector<HTMLElement>('[role="menuitem"]');
+        first?.focus();
+      });
+      return () => cancelAnimationFrame(raf);
     }
   }, [open]);
 
@@ -82,7 +49,7 @@ export default function UserMenu({ user }: { user: ShellUser }) {
   );
 
   return (
-    <div ref={containerRef} className="relative">
+    <div className="relative">
       <button
         ref={triggerRef}
         type="button"
@@ -105,16 +72,14 @@ export default function UserMenu({ user }: { user: ShellUser }) {
           />
       </button>
 
-      {open ? (
-        <div
-          ref={menuRef}
-          role="menu"
-          className={cn(
-            "absolute right-0 top-[calc(100%+var(--space-2))] z-[var(--z-popover)] min-w-[200px]",
-            "rounded-[var(--radius-md)] border border-border bg-surface-raised py-[var(--space-1)]",
-            "shadow-[var(--shadow-lg)]",
-          )}
-        >
+      <Popover
+        open={open}
+        onClose={() => setOpen(false)}
+        anchorRef={triggerRef}
+        label="User menu"
+        align="end"
+      >
+        <div role="menu">
           <div className="px-[var(--space-4)] py-[var(--space-2)]">
             <div className="text-[length:var(--text-sm)] font-semibold text-text truncate">
               {user.name ?? "Reader"}
@@ -178,7 +143,7 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             Sign out
           </button>
         </div>
-      ) : null}
+      </Popover>
 
       {shortcutsOpen ? (
         <KeyboardShortcutsModal onClose={() => setShortcutsOpen(false)} />
