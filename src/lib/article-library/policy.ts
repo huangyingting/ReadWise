@@ -18,6 +18,7 @@
  * is introduced, add the tenant predicate in this module so callers inherit it.
  */
 import { prisma } from "@/lib/prisma";
+import { hasCapability, CAPABILITIES } from "@/lib/rbac";
 import {
   ArticleStatus,
   ArticleVisibility,
@@ -47,7 +48,7 @@ export function articleAccessContext(user?: ArticleAccessUser | null): ArticleAc
 }
 
 export function isArticleOperator(context?: ArticleAccessContext | null): boolean {
-  return context?.role === "Admin" || context?.role === "System";
+  return hasCapability(context, CAPABILITIES.adminAccess);
 }
 
 type ArticleVisibilityShape = Pick<Article, "status" | "visibility" | "ownerId">;

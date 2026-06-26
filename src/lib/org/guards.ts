@@ -18,6 +18,7 @@ import {
   CAPABILITIES,
   membershipCapabilities,
   membershipHasCapability,
+  roleHasCapability,
   type Capability,
 } from "@/lib/rbac";
 import { getMembership } from "./queries";
@@ -41,7 +42,7 @@ export function hasOrgCapability(
 
 /** True for the global system roles that act as a super-user across every org. */
 export function isSystemAdmin(role: string | null | undefined): boolean {
-  return role === "Admin" || role === "System";
+  return roleHasCapability(role, CAPABILITIES.adminAccess);
 }
 
 /**
