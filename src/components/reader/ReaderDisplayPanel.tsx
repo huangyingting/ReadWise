@@ -21,7 +21,8 @@
 
 import { Sun, Contrast, Moon } from "lucide-react";
 import { SegmentedControl } from "@/components/ui/SegmentedControl";
-import { focusRing, cn } from "@/lib/cn";
+import { IconButton } from "@/components/ui/IconButton";
+import { cn } from "@/lib/cn";
 import {
   fontScaleLabel,
   DEFAULT_FONT_SCALE,
@@ -89,18 +90,17 @@ export function ReaderDisplayPanel({
           role="group"
           aria-labelledby="reader-textsize-label"
         >
-          <button
-            type="button"
+          <IconButton
             aria-label="Decrease text size"
             disabled={atMin}
             onClick={onScaleDown}
-            className={cn("reader-scale-btn", focusRing)}
+            className="border border-border"
           >
             <span aria-hidden="true" style={{ fontSize: "0.8em" }}>
               A
             </span>
             <span aria-hidden="true">−</span>
-          </button>
+          </IconButton>
           <span
             aria-hidden="true"
             className="reader-display-stepper-value tabular-nums select-none"
@@ -109,18 +109,17 @@ export function ReaderDisplayPanel({
               ? "1×"
               : fontScaleLabel(prefs.fontScale)}
           </span>
-          <button
-            type="button"
+          <IconButton
             aria-label="Increase text size"
             disabled={atMax}
             onClick={onScaleUp}
-            className={cn("reader-scale-btn", focusRing)}
+            className="border border-border"
           >
             <span aria-hidden="true" style={{ fontSize: "1.05em" }}>
               A
             </span>
             <span aria-hidden="true">+</span>
-          </button>
+          </IconButton>
         </div>
       </div>
 

@@ -26,7 +26,8 @@ import { PanelRight } from "lucide-react";
 import { Tooltip } from "@/components/ui/Tooltip";
 import { Popover } from "@/components/ui/Popover";
 import { Sheet } from "@/components/ui/Sheet";
-import { focusRing, cn } from "@/lib/cn";
+import { IconButton } from "@/components/ui/IconButton";
+import { cn } from "@/lib/cn";
 import ReaderListenButton from "./ReaderListenButton";
 import ReaderBackButton from "./ReaderBackButton";
 import { useReaderTools } from "./ReaderToolsProvider";
@@ -91,19 +92,18 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
         {/* Aa — opens the Display panel (Popover on desktop, Sheet on mobile) */}
         <div className="reader-display-anchor">
           <Tooltip content="Display settings" side="bottom">
-            <button
+            <IconButton
               ref={aaButtonRef}
-              type="button"
               aria-haspopup="dialog"
               aria-expanded={displayOpen}
               aria-label="Display settings"
+              context="reading"
               onClick={() => setDisplayOpen((open) => !open)}
-              className={cn("reader-tool-btn", focusRing)}
             >
               <span aria-hidden="true" className="reader-aa-glyph">
                 Aa
               </span>
-            </button>
+            </IconButton>
           </Tooltip>
 
           {isDesktop ? (
@@ -134,17 +134,20 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
         {/* Tools — opens the responsive practice-tools surface (#153):
             a docked right rail on xl, a focus-trapped bottom sheet on <xl. */}
         <Tooltip content="Practice tools" side="bottom">
-          <button
-            type="button"
+          <IconButton
             aria-haspopup="dialog"
             aria-expanded={toolsOpen}
             aria-controls="reader-tools-surface"
             aria-label="Practice tools"
+            context="reading"
             onClick={toggleTools}
-            className={cn("reader-tool-btn", toolsOpen && "is-active", focusRing)}
+            className={cn(
+              toolsOpen &&
+                "bg-[color-mix(in_srgb,var(--primary)_16%,transparent)] text-primary",
+            )}
           >
             <PanelRight size={16} aria-hidden="true" />
-          </button>
+          </IconButton>
         </Tooltip>
       </div>
     </div>
