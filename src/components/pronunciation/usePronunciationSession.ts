@@ -19,6 +19,7 @@ import type {
   AssessResult,
   SavedNote,
   SentenceHistory,
+  SpeechTokenResult,
 } from "@/components/reader/pronunciationTypes";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -193,38 +194,50 @@ export function usePronunciationSession({
   // Core async handlers
   // ─────────────────────────────────────────────────────────────────────────
 
+  /**
+   * Applies a SpeechTokenResult to shared phase/error state.
+   * Returns `true` (narrowing the token to the "ok" variant) when the token is
+   * valid and has been cached; returns `false` after setting the appropriate
+   * error phase so callers can early-return with a single guard.
+   *
+   * @param fallbackMessage - Shown when the failure is not a "transient" error
+   *   with its own server-provided message. Omit to leave errorMsg unchanged.
+   */
+  function applyTokenResult(
+    tokenResult: SpeechTokenResult,
+    fallbackMessage?: string,
+  ): tokenResult is Extract<SpeechTokenResult, { status: "ok" }> {
+    if (tokenResult.status !== "ok") {
+      if (tokenResult.status === "transient" && tokenResult.message) {
+        setErrorMsg(tokenResult.message);
+      } else if (fallbackMessage !== undefined) {
+        setErrorMsg(fallbackMessage);
+      }
+      setPhase(tokenResult.status === "unconfigured" ? "unavailable" : "error");
+      return false;
+    }
+    rememberToken(tokenResult.token, tokenResult.region);
+    return true;
+  }
+
   async function initSpeakTab() {
     setPhase("init");
     const [tokenResult] = await Promise.all([fetchToken(), loadHistory()]);
-    if (tokenResult.status !== "ok") {
-      if (tokenResult.status === "transient") {
-        if (tokenResult.message) setErrorMsg(tokenResult.message);
-        setPhase("error");
-      } else {
-        setPhase("unavailable");
-      }
-      return;
-    }
-    rememberToken(tokenResult.token, tokenResult.region);
+    if (!applyTokenResult(tokenResult)) return;
     setPhase("idle");
   }
 
   async function handleRecord() {
     // Re-fetch a fresh token on every record attempt (tokens expire in ~10 min).
     const freshToken = await fetchToken();
-    if (freshToken.status !== "ok") {
-      setPhase(freshToken.status === "unconfigured" ? "unavailable" : "error");
-      if (freshToken.status === "transient" && freshToken.message) {
-        setErrorMsg(freshToken.message);
-      } else {
-        setErrorMsg(
-          errorMsg ??
-            "Could not reach the speech service. Check your connection and try again.",
-        );
-      }
+    if (
+      !applyTokenResult(
+        freshToken,
+        errorMsg ??
+          "Could not reach the speech service. Check your connection and try again.",
+      )
+    )
       return;
-    }
-    rememberToken(freshToken.token, freshToken.region);
 
     // Pause any playing narration before opening the microphone.
     stopPlayback?.();

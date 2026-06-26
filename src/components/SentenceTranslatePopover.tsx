@@ -14,13 +14,12 @@
  * above/below the selection rect, dodge the mini-player band.
  */
 
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useEffect, useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
-
-const MINI_PLAYER_HEIGHT = 56;
+import { usePopoverPosition } from "@/lib/use-popover-position";
 
 export interface TranslateSentenceResult {
   translation: string | null;
@@ -66,27 +65,13 @@ export default function SentenceTranslatePopover({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   // Clamp/flip position — re-run after content changes height.
-  useLayoutEffect(() => {
-    const el = popoverRef.current;
-    if (!el) return;
-
-    const pw = el.offsetWidth || 360;
-    const ph = el.offsetHeight || 200;
-    const vw = window.innerWidth;
-    const vh = window.innerHeight;
-
-    // Anchor to the bottom-left of the selection rect.
-    const anchorX = selectionRect.left;
-    const anchorY = selectionRect.bottom;
-
-    const left = Math.max(12, Math.min(anchorX, vw - pw - 12));
-    const safeBottom = vh - MINI_PLAYER_HEIGHT - ph - 12;
-    let top = anchorY > safeBottom ? anchorY - ph - 12 : anchorY + 12;
-    top = Math.max(12, top);
-
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
-  }, [selectionRect, loading, result, error, popoverRef]);
+  usePopoverPosition(popoverRef, selectionRect, {
+    placement: "below",
+    estimatedHeight: 200,
+    estimatedWidth: 360,
+    gap: 12,
+    deps: [selectionRect, loading, result, error],
+  });
 
   // Move focus to the close button on open (light management — not a trap).
   useEffect(() => {

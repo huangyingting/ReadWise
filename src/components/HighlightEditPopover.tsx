@@ -18,11 +18,11 @@ import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ConfirmAction from "@/components/ConfirmAction";
+import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { Highlight, HighlightColor } from "./ReaderHighlightsProvider";
 import { SWATCH_COLORS } from "./SelectionToolbar";
 
 const POPOVER_HEIGHT = 260; // approximate
-const MINI_PLAYER_HEIGHT = 56;
 const NOTE_MAX = 2000;
 
 interface HighlightEditPopoverProps {
@@ -63,36 +63,12 @@ export default function HighlightEditPopover({
     requestAnimationFrame(() => firstFocusRef.current?.focus());
   }, []);
 
-  // Position the popover
-  useEffect(() => {
-    const el = innerRef.current;
-    if (!el) return;
-
-    const markRect = anchorEl.getBoundingClientRect();
-    const W = el.offsetWidth || 320;
-
-    // Horizontal: center on mark, clamp
-    const centerX = markRect.left + markRect.width / 2;
-    const left = Math.max(12, Math.min(centerX - W / 2, window.innerWidth - W - 12));
-
-    // Vertical: prefer above mark
-    const aboveY = markRect.top - POPOVER_HEIGHT - 8;
-    const belowY = markRect.bottom + 8;
-    const miniPlayerBand = window.innerHeight - MINI_PLAYER_HEIGHT - POPOVER_HEIGHT - 12;
-
-    let top: number;
-    if (aboveY < 12) {
-      top = belowY;
-    } else if (belowY > miniPlayerBand) {
-      top = aboveY;
-    } else {
-      top = aboveY;
-    }
-    top = Math.max(12, top);
-
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
-  }, [anchorEl]);
+  // Position the popover — anchor is the bounding rect of the <mark> element
+  usePopoverPosition(innerRef, anchorEl.getBoundingClientRect(), {
+    placement: "above",
+    estimatedHeight: POPOVER_HEIGHT,
+    deps: [anchorEl],
+  });
 
   // Swatch arrow-key navigation
   const swatchGroupRef = useRef<HTMLDivElement>(null);

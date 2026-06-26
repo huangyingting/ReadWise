@@ -14,14 +14,14 @@
  *  - Horizontal: centered on selection, clamped with 12px gutters
  */
 
-import { useRef, useEffect } from "react";
+import { useRef } from "react";
 import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
+import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "./ReaderHighlightsProvider";
 
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
-const MINI_PLAYER_HEIGHT = 56;
 
 const SWATCH_COLORS: { color: HighlightColor; label: string; cssVar: string }[] = [
   { color: "yellow", label: "Yellow", cssVar: "var(--hl-yellow)" },
@@ -65,42 +65,13 @@ export default function SelectionToolbar({
   onClose,
   toolbarRef,
 }: SelectionToolbarProps) {
-  // We use a measured width to center; approximate first render, exact after
   const innerRef = useRef<HTMLDivElement>(null);
 
-  // Compute position after mount (when we know the rendered width)
-  // We set inline styles directly for performance
-  useEffect(() => {
-    const el = innerRef.current;
-    if (!el) return;
-
-    const W = el.offsetWidth || 260;
-    const rect = selectionRect;
-    const centerX = rect.left + rect.width / 2;
-
-    // Horizontal: center on selection, clamp into viewport
-    const left = Math.max(12, Math.min(centerX - W / 2, window.innerWidth - W - 12));
-
-    // Vertical: prefer above the selection
-    const aboveY = rect.top - TOOLBAR_HEIGHT - 8;
-    const belowY = rect.bottom + 8;
-    const miniPlayerBand = window.innerHeight - MINI_PLAYER_HEIGHT - TOOLBAR_HEIGHT - 12;
-
-    let top: number;
-    if (aboveY < 12) {
-      // Can't go above — use below
-      top = belowY;
-    } else if (belowY > miniPlayerBand) {
-      // Below would land on the mini-player — force above
-      top = aboveY;
-    } else {
-      top = aboveY;
-    }
-    top = Math.max(12, top);
-
-    el.style.left = `${left}px`;
-    el.style.top = `${top}px`;
-  }, [selectionRect]);
+  usePopoverPosition(innerRef, selectionRect, {
+    placement: "above",
+    estimatedHeight: TOOLBAR_HEIGHT,
+    deps: [selectionRect],
+  });
 
   // Roving tabindex for color swatches
   const swatchGroupRef = useRef<HTMLDivElement>(null);
@@ -121,9 +92,18 @@ export default function SelectionToolbar({
       role="toolbar"
       aria-label="Text actions"
       className="rw-sel-toolbar"
-      style={{ left: 0, top: 0 }} // overridden by the useEffect above
+      style={{ left: 0, top: 0 }} // overridden by usePopoverPosition
       onMouseUp={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
+      onKeyDown={(e) => {
+        // Single container-level Escape handler. Skip if a child already
+        // handled it (e.g. the roving-tabindex swatch group calls onEscape and
+        // then e.preventDefault() before the event bubbles here).
+        if (e.key === "Escape" && !e.defaultPrevented) {
+          e.preventDefault();
+          onClose();
+        }
+      }}
     >
       {/* Swatch group */}
       <div
@@ -159,7 +139,6 @@ export default function SelectionToolbar({
         type="button"
         className={cn("rw-sel-toolbar-btn", focusRing)}
         onClick={onHighlight}
-        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
       >
         <Highlighter size={14} aria-hidden="true" />
         Highlight
@@ -170,7 +149,6 @@ export default function SelectionToolbar({
         type="button"
         className={cn("rw-sel-toolbar-btn", focusRing)}
         onClick={onTranslate}
-        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
       >
         <Languages size={14} aria-hidden="true" />
         Translate
@@ -181,7 +159,6 @@ export default function SelectionToolbar({
         type="button"
         className={cn("rw-sel-toolbar-btn", focusRing)}
         onClick={onAddNote}
-        onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
       >
         <StickyNote size={14} aria-hidden="true" />
         Add note
@@ -193,7 +170,6 @@ export default function SelectionToolbar({
           type="button"
           className={cn("rw-sel-toolbar-btn", focusRing)}
           onClick={onDefine}
-          onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
         >
           <BookText size={14} aria-hidden="true" />
           Define
@@ -206,7 +182,6 @@ export default function SelectionToolbar({
           type="button"
           className={cn("rw-sel-toolbar-btn", focusRing)}
           onClick={onGrammar}
-          onKeyDown={(e) => { if (e.key === "Escape") { e.preventDefault(); onClose(); } }}
         >
           <BookMarked size={14} aria-hidden="true" />
           Grammar
