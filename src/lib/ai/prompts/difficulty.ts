@@ -1,4 +1,5 @@
 import type { PromptTemplate, DifficultyPromptVars } from "./types";
+import { wrapUntrustedContent, CONTENT_ISOLATION_NOTICE } from "@/lib/ai/input-safety";
 
 const difficultyTemplate: PromptTemplate<DifficultyPromptVars> = {
   feature: "difficulty",
@@ -14,11 +15,12 @@ const difficultyTemplate: PromptTemplate<DifficultyPromptVars> = {
         "learners using the CEFR scale. Reply with exactly one level from " +
         "A1, A2, B1, B2, C1, C2 — the level a learner needs to comfortably " +
         "read the text. Respond with the two-character level only, no other " +
-        "words.",
+        "words. " +
+        CONTENT_ISOLATION_NOTICE,
     },
     {
       role: "user",
-      content: `Title: ${title}\n\n${source}`,
+      content: `Title: ${title}\n\n${wrapUntrustedContent(source)}`,
     },
   ],
 };
