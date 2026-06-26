@@ -13,9 +13,20 @@
  * records, Allow/Disallow with `*` wildcards and `$` end-anchors, longest-match
  * precedence (Allow wins ties). The pure helpers ({@link parseRobots},
  * {@link isPathAllowed}) are unit tested without any network.
+ *
+ * ## Caching design
+ *
+ * The robots.txt cache is an intentional **in-process network-origin TTL cache**
+ * and stays OUT of Next's Data Cache by design. robots.txt is fetched from
+ * third-party origins at scrape time; its results must not participate in
+ * tag-based invalidation (they have no relationship to our article content
+ * tags) and must not be shared across server instances (each instance maintains
+ * its own crawl-permission view). The {@link TtlCache} primitive provides
+ * expiry and bounded eviction without involving Next's request cache.
  */
 import { fetchHtml } from "@/lib/scraper/fetch";
 import { createLogger } from "@/lib/observability/logger";
+import { createTtlCache } from "@/lib/primitives/ttl-cache";
 
 const log = createLogger("robots");
 
@@ -24,6 +35,12 @@ export const ROBOTS_USER_AGENT = "ReadWiseBot";
 
 /** robots.txt cache TTL (origin-scoped). */
 const CACHE_TTL_MS = 60 * 60 * 1000;
+
+/**
+ * Maximum number of origin+UA pairs to retain in the robots.txt cache.
+ * Bounds memory when the scraper visits a large number of distinct domains.
+ */
+const MAX_ROBOTS_CACHE_SIZE = 1_000;
 
 export type RobotsRules = {
   /** Disallowed path patterns for the matched group. */
@@ -119,8 +136,11 @@ export function isPathAllowed(rules: RobotsRules, pathname: string): boolean {
   return allow >= disallow;
 }
 
-type RobotsCacheEntry = { rules: RobotsRules; fetchedAt: number };
-const robotsCache = new Map<string, RobotsCacheEntry>();
+type RobotsCacheEntry = RobotsRules;
+const robotsCache = createTtlCache<string, RobotsCacheEntry>({
+  ttlMs: CACHE_TTL_MS,
+  maxSize: MAX_ROBOTS_CACHE_SIZE,
+});
 
 /** Clears the in-process robots.txt cache (used by tests). */
 export function clearRobotsCache(): void {
@@ -141,10 +161,8 @@ async function loadRules(
   now: () => number,
 ): Promise<RobotsRules> {
   const cacheKey = `${origin}\n${userAgent.toLowerCase()}`;
-  const cached = robotsCache.get(cacheKey);
-  if (cached && now() - cached.fetchedAt < CACHE_TTL_MS) {
-    return cached.rules;
-  }
+  const cached = robotsCache.get(cacheKey, now());
+  if (cached !== undefined) return cached;
 
   let rules = EMPTY_RULES;
   try {
@@ -159,7 +177,7 @@ async function loadRules(
     rules = EMPTY_RULES;
   }
 
-  robotsCache.set(cacheKey, { rules, fetchedAt: now() });
+  robotsCache.set(cacheKey, rules, now());
   return rules;
 }
 
