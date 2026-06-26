@@ -11,38 +11,14 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import type { StudyDiagnostics } from "@/lib/learning/study-plan";
 import type { SkillSummary, Skill } from "@/lib/learning/skill-mastery";
+import { makeStudyDiagnostics, makeSkillSummaries } from "./support/learning-fixtures";
 
-const SKILL_LIST: Skill[] = [
-  "reading",
-  "vocabulary",
-  "grammar",
-  "listening",
-  "pronunciation",
-  "comprehension",
-];
+/** Local alias to keep existing call-sites readable. */
+const diag = makeStudyDiagnostics;
 
+/** Build a full set of SkillSummary rows with optional per-skill overrides. */
 function skills(overrides: Partial<Record<Skill, Partial<SkillSummary>>> = {}): SkillSummary[] {
-  return SKILL_LIST.map((skill) => ({
-    skill,
-    confidence: 0.7,
-    evidenceCount: 0,
-    hasEvidence: false,
-    ...overrides[skill],
-  }));
-}
-
-function diag(partial: Partial<StudyDiagnostics> = {}): StudyDiagnostics {
-  return {
-    skills: skills(),
-    hasSkillEvidence: false,
-    vocab: { weakCount: 0, dueCount: 0, totalSaved: 0 },
-    quiz: { averageScore: null, totalAttempts: 0 },
-    comprehension: { lowCount: 0, assessedCount: 0 },
-    pronunciation: { avgScore: null, attempts: 0 },
-    level: null,
-    readingRec: null,
-    ...partial,
-  };
+  return makeSkillSummaries(overrides);
 }
 
 // ---------------------------------------------------------------------------

@@ -29,6 +29,7 @@ import {
   hasCapability,
   isKnownRole,
 } from "@/lib/rbac";
+import { makeSession } from "./support/auth-mock";
 
 const ADMIN_ONLY_CAPS = [
   CAPABILITIES.adminAccess,
@@ -154,10 +155,6 @@ test("tenant roles are separate from system admin access", () => {
 // ---------------------------------------------------------------------------
 
 let sessionState: Session | null = null;
-
-function makeSession(role: "Admin" | "Reader", id = "u1"): Session {
-  return { user: { id, role, name: null, email: null }, expires: "2099-01-01T00:00:00Z" };
-}
 
 before(() => {
   mock.module("next-auth", {
