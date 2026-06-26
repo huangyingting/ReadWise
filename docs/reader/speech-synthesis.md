@@ -5,6 +5,10 @@ playback. It is an optional feature: when Azure Speech is unconfigured or fails,
 the reader receives a graceful fallback instead of an error.
 
 For object-storage details, see [`../media/storage.md`](../media/storage.md).
+For media asset lifecycle and ownership, see [`../media/assets.md`](../media/assets.md).
+For reader playback UX (mini-player, word highlight, sentence loop), see [`playback.md`](./playback.md).
+For TTS job scheduling and retry, see [`../operations/tts-jobs.md`](../operations/tts-jobs.md).
+For the speech generation subsystem boundary and full provider seam detail, see [`../speech/generation.md`](../speech/generation.md).
 
 ## Code map
 
