@@ -24,6 +24,7 @@ import { useRouter } from "next/navigation";
 import { Pencil, Plus, X, MoreHorizontal } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { Badge } from "@/components/ui/Badge";
 import { ListRenameForm } from "@/components/lists/ListRenameForm";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
 import { ListDeleteControl } from "@/components/lists/ListDeleteControl";
@@ -38,14 +39,6 @@ export type SwitcherList = {
 interface ListSwitcherProps {
   lists: SwitcherList[];
   activeListId: string | null;
-}
-
-function Badge({ count }: { count: number }) {
-  return (
-    <span className="ml-auto shrink-0 inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1 rounded-[var(--radius-full)] bg-bg-subtle border border-border text-[length:var(--text-xs)] text-text-muted font-medium">
-      {count}
-    </span>
-  );
 }
 
 interface ListRowProps {
@@ -102,7 +95,9 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             (default)
           </span>
         ) : (
-          <Badge count={list.count} />
+          <Badge variant="neutral" className="ml-auto shrink-0 min-w-[1.25rem] h-5 px-1 font-medium">
+            {list.count}
+          </Badge>
         )}
       </Link>
 
@@ -322,7 +317,9 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
               )}
             >
               {list.name}
-              <Badge count={list.count} />
+              <Badge variant="neutral" className="ml-auto shrink-0 min-w-[1.25rem] h-5 px-1 font-medium">
+                {list.count}
+              </Badge>
             </Link>
             {/* Per-list ⋯ manage button — only for non-default lists */}
             {!list.isDefault ? (

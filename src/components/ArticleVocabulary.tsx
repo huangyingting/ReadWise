@@ -9,7 +9,7 @@ import {
   PanelError,
   PanelFallback,
   PanelEmpty,
-} from "@/components/reader/study/ReaderToolPanelState";
+} from "@/components/ui/ReaderToolPanelState";
 import {
   useArticleVocabularyPanel,
   type VocabularyItem,

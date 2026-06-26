@@ -15,7 +15,7 @@ import { useCommandPaletteDialog } from "./useCommandPaletteDialog";
 import {
   OptionRow,
   CommandResultSkeleton,
-  GroupHeader,
+  CommandGroup,
   ArticleMeta,
 } from "./CommandPaletteItems";
 
@@ -254,10 +254,8 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
 
             {/* Pages group */}
             {filteredPages.length > 0 && (
-              <>
-                <GroupHeader id="cmdk-grp-pages" label="Pages" hasBorderTop={false} />
-                <li role="group" aria-label="Pages">
-                  {filteredPages.map((item) => {
+              <CommandGroup id="cmdk-grp-pages" label="Pages" hasBorderTop={false}>
+                {filteredPages.map((item) => {
                     const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
                     const isActive = idx === activeIndex;
                     return (
@@ -296,20 +294,17 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                       </OptionRow>
                     );
                   })}
-                </li>
-              </>
+              </CommandGroup>
             )}
 
             {/* Actions group */}
             {filteredActions.length > 0 && (
-              <>
-                <GroupHeader
-                  id="cmdk-grp-actions"
-                  label="Actions"
-                  hasBorderTop={filteredPages.length > 0}
-                />
-                <li role="group" aria-label="Actions">
-                  {filteredActions.map((item) => {
+              <CommandGroup
+                id="cmdk-grp-actions"
+                label="Actions"
+                hasBorderTop={filteredPages.length > 0}
+              >
+                {filteredActions.map((item) => {
                     const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
                     const isActive = idx === activeIndex;
                     return (
@@ -339,20 +334,17 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                       </OptionRow>
                     );
                   })}
-                </li>
-              </>
+              </CommandGroup>
             )}
 
             {/* Articles group */}
             {showArticleGroup && (
-              <>
-                <GroupHeader
-                  id="cmdk-grp-articles"
-                  label="Articles"
-                  hasBorderTop={filteredPages.length > 0 || filteredActions.length > 0}
-                />
-                <li role="group" aria-label="Articles">
-                  {/* Error state */}
+              <CommandGroup
+                id="cmdk-grp-articles"
+                label="Articles"
+                hasBorderTop={filteredPages.length > 0 || filteredActions.length > 0}
+              >
+                {/* Error state */}
                   {status === "error" && (
                     <div
                       role="option"
@@ -450,8 +442,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                         </OptionRow>
                       );
                     })()}
-                </li>
-              </>
+              </CommandGroup>
             )}
           </ul>
 
