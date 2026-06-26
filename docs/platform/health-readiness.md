@@ -5,6 +5,9 @@ containers, local parity testing, and operators. The readiness path validates
 only local dependencies and configuration; it does not make slow calls to Azure,
 OAuth providers, push services, or object storage endpoints.
 
+See also: [`runtime-config.md`](./runtime-config.md) — runtime configuration
+ownership, typed helpers, and the documented `process.env` allowlist.
+
 ## Endpoints
 
 | Endpoint | Handler | Runtime | Purpose |
