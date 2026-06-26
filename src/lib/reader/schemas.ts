@@ -20,8 +20,8 @@ import { MAX_ACTIVE_TIME_MS } from "@/lib/engagement";
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
 
-// Inlined from @/lib/tutor to avoid transitive import of SYSTEM_ARTICLE_CONTEXT
-// Keep in sync with MAX_QUESTION_LENGTH in src/lib/tutor.ts.
+// Inlined from @/lib/ai/tutor to avoid transitive import of SYSTEM_ARTICLE_CONTEXT
+// Keep in sync with MAX_QUESTION_LENGTH in src/lib/ai/tutor.ts.
 const MAX_QUESTION_LENGTH = 1000;
 
 // Inlined from @/lib/sentence-translation for the same reason.

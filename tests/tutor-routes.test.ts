@@ -1,6 +1,6 @@
 /**
  * Tests for /api/reader/[id]/tutor route handlers (GET, POST, DELETE).
- * Mocks @/lib/api-auth, @/lib/prisma, and @/lib/tutor.
+ * Mocks @/lib/api-auth, @/lib/prisma, and @/lib/ai/tutor.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -40,7 +40,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/tutor", {
+  mock.module("@/lib/ai/tutor", {
     namedExports: {
       MAX_QUESTION_LENGTH: 1000,
       getTutorMessages: async () => tutorMessages,

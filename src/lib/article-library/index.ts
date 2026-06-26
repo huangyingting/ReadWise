@@ -13,6 +13,7 @@
  *   listings         — public feeds, category pages, picks, personal imports
  *   listing-response — shared article-list response builder (BE-9)
  *   admin            — admin search, detail view, delete, AI rebuild commands
+ *   admin-tags       — admin tag listing/rename/merge/delete commands (#686)
  *   moderation       — content review workflow and takedown/rights policy
  *   collections      — taxonomy/tags and reading-list/bookmark management
  */
@@ -21,5 +22,6 @@ export * from "./mapper";
 export * from "./listings";
 export * from "./listing-response";
 export * from "./admin";
+export * from "./admin-tags";
 export * from "./moderation";
 export * from "./collections";
