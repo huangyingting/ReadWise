@@ -1,13 +1,12 @@
 process.env.LOG_LEVEL = "error"; // silence request.start/complete logs
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
 import { recordCacheAccess, resetMetrics } from "@/lib/metrics";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---- mutable auth state -------------------------------------------------
-let authState: "ok" | "unauth" | "forbidden" = "ok";
+let authState: AuthState = "ok";
 const session = { user: { id: "user-1", role: "Admin", name: "T", email: "t@e.com" } };
 
 // ---- mutable lib return values -----------------------------------------
@@ -34,19 +33,7 @@ const AUDIT_ACTIONS = {
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () => {
-        if (authState === "unauth")
-          return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
-        if (authState === "forbidden")
-          return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
-        return { session };
-      },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
   mock.module("@/lib/prisma", {
     namedExports: {

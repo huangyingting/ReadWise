@@ -312,20 +312,6 @@ describe("focus trap Tab cycling — Sheet overlay contract", () => {
 });
 
 // ---------------------------------------------------------------------------
-// useFocusTrap module exports
-// ---------------------------------------------------------------------------
-
-describe("useFocusTrap module exports", () => {
-  test("useFocusTrap is exported as a function", () => {
-    assert.equal(typeof useFocusTrap, "function");
-  });
-
-  test("getTabbable is exported as a function", () => {
-    assert.equal(typeof getTabbable, "function");
-  });
-});
-
-// ---------------------------------------------------------------------------
 // computeRovingIndex — SegmentedControl keyboard navigation
 // ---------------------------------------------------------------------------
 
@@ -434,16 +420,6 @@ describe("computeRovingIndex — SegmentedControl horizontal navigation", () => 
 
   test("single item: ArrowLeft wraps to index 0 (self)", () => {
     assert.equal(computeRovingIndex("ArrowLeft", 0, 1), 0);
-  });
-});
-
-describe("useRovingTabindex module exports", () => {
-  test("useRovingTabindex is exported as a function", () => {
-    assert.equal(typeof useRovingTabindex, "function");
-  });
-
-  test("computeRovingIndex is exported as a function", () => {
-    assert.equal(typeof computeRovingIndex, "function");
   });
 });
 

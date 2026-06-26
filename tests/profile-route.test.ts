@@ -1,13 +1,8 @@
 process.env.LOG_LEVEL = "error"; // silence request.start/complete logs
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
-
-const session = {
-  user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" },
-};
+import { type RouteHandler } from "./support/route";
+import { fullAuthExports } from "./support/auth-mock";
 
 // Capture the last upsert call's arguments so tests can inspect them.
 let lastUpsertArgs: { create?: Record<string, unknown>; update?: Record<string, unknown> } | null =
@@ -15,10 +10,7 @@ let lastUpsertArgs: { create?: Record<string, unknown>; update?: Record<string, 
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () => ({ session }),
-      requireCapabilityApi: async () => ({ session }),
-    },
+    namedExports: fullAuthExports(() => "ok"),
   });
   mock.module("@/lib/prisma", {
     namedExports: {

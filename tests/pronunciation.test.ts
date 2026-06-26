@@ -9,16 +9,14 @@ process.env.LOG_LEVEL = "error"; // silence request logs
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---------------------------------------------------------------------------
 // Mutable stub state
 // ---------------------------------------------------------------------------
 
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // Speech config mock
 let speechConfigured = true;
@@ -55,16 +53,7 @@ before(() => {
   }) as typeof fetch;
 
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/speech", {

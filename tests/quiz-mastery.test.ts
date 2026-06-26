@@ -8,14 +8,13 @@ process.env.LOG_LEVEL = "error"; // silence request logs
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---------------------------------------------------------------------------
 // Mutable stub state
 // ---------------------------------------------------------------------------
 
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // prisma.article stub
 let articleExists = true;
@@ -42,16 +41,7 @@ let quizFallback = false;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   mock.module("@/lib/prisma", {

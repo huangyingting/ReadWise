@@ -5,11 +5,10 @@ process.env.LOG_LEVEL = "error";
  */
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { NextResponse } from "next/server";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---- mutable auth state --------------------------------------------------
-let authOk = true;
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 // ---- mutable prisma stubs ------------------------------------------------
 let countResult = 0; // number of today's imports
@@ -39,16 +38,7 @@ let prismaStub: Record<string, unknown>;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authOk
-          ? { session }
-          : { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
-      requireCapabilityApi: async () =>
-        authOk
-          ? { session }
-          : { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
 
   prismaStub = {
@@ -154,7 +144,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  authOk = true;
+  authState = "ok";
   countResult = 0;
   scrapeThrows = false;
   ssrfThrows = false;
@@ -196,7 +186,7 @@ async function makeReq(body: unknown): Promise<Response> {
 // ---------------------------------------------------------------------------
 
 test("401 when not authenticated", async () => {
-  authOk = false;
+  authState = "unauth";
   const res = await makeReq({ url: "https://example.com/article" });
   assert.equal(res.status, 401);
 });

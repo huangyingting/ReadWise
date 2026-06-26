@@ -5,25 +5,15 @@ import assert from "node:assert/strict";
 import { NextResponse } from "next/server";
 import { object, nonEmptyString } from "@/lib/validation";
 import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
-
-type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
+import { type RouteHandler } from "./support/route";
+import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 // ---- mutable auth state --------------------------------------------------
-let authState: "ok" | "unauth" = "ok";
-const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" } };
+let authState: AuthState = "ok";
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireSessionApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-      requireCapabilityApi: async () =>
-        authState === "unauth"
-          ? { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) }
-          : { session },
-    },
+    namedExports: fullAuthExports(() => authState),
   });
   mock.module("@/lib/prisma", {
     namedExports: { prisma: {} },

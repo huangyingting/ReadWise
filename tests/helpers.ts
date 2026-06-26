@@ -61,14 +61,3 @@ export function buildArticle(partial: Partial<Article> = {}): Article {
   return { ...base, ...partial } as unknown as Article;
 }
 
-/**
- * A tiny configurable fake of the Prisma client. Each delegate is a plain
- * function the test supplies; unimplemented calls throw so missing stubs are
- * obvious. Cast to the real client type at the mock boundary.
- */
-export type FakePrisma = Record<string, Record<string, (...args: never[]) => unknown>>;
-
-/** Wraps a fake prisma object so it can be handed to `mock.module`. */
-export function asPrisma(fake: FakePrisma): unknown {
-  return fake;
-}

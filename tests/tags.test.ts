@@ -5,6 +5,7 @@ import {
   ArticleVisibility,
   TagScope,
 } from "@prisma/client";
+import { fullAuthExports } from "./support/auth-mock";
 
 type Tag = {
   id: string;
@@ -41,14 +42,7 @@ let tagSeq = 0;
 
 before(() => {
   mock.module("@/lib/api-auth", {
-    namedExports: {
-      requireCapabilityApi: async () => ({
-        session: { user: { id: "admin-1", role: "Admin" } },
-      }),
-      requireSessionApi: async () => ({
-        session: { user: { id: "user-1", role: "Reader" } },
-      }),
-    },
+    namedExports: fullAuthExports(() => "ok"),
   });
   mock.module("@/lib/ai", {
     namedExports: {
