@@ -8,6 +8,22 @@
  *
  * Register this provider via `registerSearchProvider` from `@/lib/search/providers`
  * when the runtime configuration requires it.
+ *
+ * ## Raw SQL predicate mirror (migration follow-up — Phase 3, #687)
+ *
+ * `buildReadableArticleSqlPredicate` (below) is a raw SQL translation of
+ * `readableArticleWhere` from `@/lib/article-library/policy`. It must be kept
+ * in sync manually because `$queryRaw` cannot embed Prisma `WhereInput` objects.
+ *
+ * Policy mapping:
+ *   - Operator (Admin/System) → `TRUE` (all articles)
+ *   - Authenticated user      → public-listable OR owned private
+ *   - Anonymous               → public-listable only
+ *
+ * IMPORTANT: If `readableArticleWhere` in `policy.ts` gains new predicates
+ * (e.g. tenant/org scoping), this function must be updated in the same commit.
+ * A follow-up migration would replace this with a generated SQL approach or
+ * a pgvector provider that can call `readableArticleWhere` in its Prisma path.
  */
 import { prisma } from "@/lib/prisma";
 import { isPostgresDatabase } from "@/lib/db-utils";
@@ -47,7 +63,20 @@ function accessContext(context?: SearchContext | null): ArticleAccessContext | n
   });
 }
 
-function postgresReadableSql(access: ArticleAccessContext | null): Prisma.Sql {
+/**
+ * Builds a raw SQL visibility predicate for the PostgreSQL FTS path that mirrors
+ * the `readableArticleWhere` logic from `@/lib/article-library/policy`.
+ *
+ * This duplication is necessary because `prisma.$queryRaw` cannot embed Prisma
+ * `WhereInput` objects directly. Exported for regression testing only —
+ * external callers should use `readableArticleWhere` for Prisma queries.
+ *
+ * Policy cases (must stay in sync with `readableArticleWhere`):
+ *   Admin/System → `TRUE` (unrestricted)
+ *   Authenticated user → public-listable OR user's own private article
+ *   Anonymous → public-listable only (status=published, visibility=PUBLIC, ownerId=null)
+ */
+export function buildReadableArticleSqlPredicate(access: ArticleAccessContext | null): Prisma.Sql {
   if (isArticleOperator(access)) return Prisma.sql`TRUE`;
   if (access?.userId) {
     return Prisma.sql`((a.status = 'published' AND a.visibility = 'PUBLIC') OR (a.visibility = 'PRIVATE' AND a."ownerId" = ${access.userId}))`;
@@ -62,7 +91,7 @@ async function postgresTextMatches(
 ): Promise<Article[]> {
   if (!isPostgresDatabase()) return [];
   try {
-    const visibility = postgresReadableSql(access);
+    const visibility = buildReadableArticleSqlPredicate(access);
     return await prisma.$queryRaw<Article[]>`
       WITH ranked AS (
         SELECT
