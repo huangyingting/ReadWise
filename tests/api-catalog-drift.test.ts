@@ -143,6 +143,27 @@ test("api-catalog: committed catalog matches current route files (drift detectio
       ) {
         drifted.push(`  ~ schema flags changed for ${methodKey(currentRoute, cur)}`);
       }
+      // Contract fields added in #716
+      if (com.successStatus !== cur.successStatus) {
+        drifted.push(
+          `  ~ success status changed for ${methodKey(currentRoute, cur)}: ${com.successStatus} → ${cur.successStatus}`,
+        );
+      }
+      if (JSON.stringify(com.responseKeys) !== JSON.stringify(cur.responseKeys)) {
+        drifted.push(
+          `  ~ response keys changed for ${methodKey(currentRoute, cur)}: ${JSON.stringify(com.responseKeys)} → ${JSON.stringify(cur.responseKeys)}`,
+        );
+      }
+      if (JSON.stringify(com.queryParamNames) !== JSON.stringify(cur.queryParamNames)) {
+        drifted.push(
+          `  ~ query params changed for ${methodKey(currentRoute, cur)}: ${JSON.stringify(com.queryParamNames)} → ${JSON.stringify(cur.queryParamNames)}`,
+        );
+      }
+      if (JSON.stringify(com.bodyFieldNames) !== JSON.stringify(cur.bodyFieldNames)) {
+        drifted.push(
+          `  ~ body fields changed for ${methodKey(currentRoute, cur)}: ${JSON.stringify(com.bodyFieldNames)} → ${JSON.stringify(cur.bodyFieldNames)}`,
+        );
+      }
     }
 
     for (const method of committedMethods.keys()) {
