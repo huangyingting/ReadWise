@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import AiBadge from "@/components/AiBadge";
+import { t } from "@/lib/i18n";
 import {
   PanelLoading,
   PanelError,
@@ -43,8 +44,8 @@ export default function ArticleVocabulary({
 
       {!loading && loaded && fallback ? (
         <PanelFallback
-          title="Vocabulary unavailable"
-          description="AI vocabulary extraction is not available right now. Please try again later."
+          title={t("ai.vocabulary.unavailable.title")}
+          description={t("ai.vocabulary.unavailable.description")}
         />
       ) : null}
 
