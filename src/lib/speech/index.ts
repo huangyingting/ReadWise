@@ -5,26 +5,52 @@ import {
   speechConfig,
 } from "@/lib/runtime-config/speech";
 import { createLogger } from "@/lib/observability/logger";
-import type { SpeechWord } from "@/lib/speech-timing";
+import type { SpeechWord } from "./timing";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
   SYSTEM_ARTICLE_CONTEXT,
   type ArticleAccessContext,
 } from "@/lib/article-library";
-import { synthesize, resolveMimeType } from "@/lib/speech/provider-azure";
+import { synthesize, resolveMimeType } from "./provider-azure";
 import {
   parseStoredSpeechWords,
   resolveStoredAudioUrl,
   saveSpeechResult,
-} from "@/lib/speech/repository";
+} from "./repository";
 
 const log = createLogger("speech");
 
 /** Max characters of article text synthesized (bounds audio size / latency). */
 const MAX_TTS_CHARS = 5000;
 
-export type { SpeechWord } from "@/lib/speech-timing";
+// ── Barrel re-exports ────────────────────────────────────────────────────────
+// Keep @/lib/speech as the single external entry for all speech subsystem APIs.
+export type {
+  WordTiming,
+  SpeechWord,
+  TextToken,
+  ComparableToken,
+} from "./timing";
+export {
+  WORD_PATTERN,
+  SPEECH_BOUNDARY_PATTERN,
+  createWordRegex,
+  createSpeechBoundaryRegex,
+  createComparableKey,
+  createAlphanumericKey,
+  extractTextTokens,
+  extractSpeechBoundaryTokens,
+  timingStartSeconds,
+  timingEndSeconds,
+} from "./timing";
+export { buildTokenAlignment } from "./timing-alignment";
+export type { PracticeSentenceOptions, SpeechPracticeSegment } from "./practice";
+export {
+  splitPracticeSentences,
+  findSpeechSentenceRange,
+  segmentSpeechPractice,
+} from "./practice";
 
 export type SpeechResult = {
   audio: string | null;

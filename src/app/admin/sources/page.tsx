@@ -4,7 +4,7 @@ import {
   listContentSources,
   summarizeSourceHealth,
   type SourceHealthStatus,
-} from "@/lib/content-sources";
+} from "@/lib/scraper/sources";
 import AdminSourceActions from "@/components/AdminSourceActions";
 import AdminSourceSync from "@/components/AdminSourceSync";
 import { Card } from "@/components/ui/Card";

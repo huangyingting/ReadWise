@@ -6,7 +6,7 @@ import {
   extractTextTokens,
   timingEndSeconds,
   timingStartSeconds,
-} from "@/lib/speech-timing";
+} from "@/lib/speech";
 
 describe("speech timing alignment", () => {
   test("aligns word timings to text tokens", () => {

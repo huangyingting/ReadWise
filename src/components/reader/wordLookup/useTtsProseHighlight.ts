@@ -8,7 +8,7 @@ import {
   buildTokenAlignment,
   createComparableKey,
   createSpeechBoundaryRegex,
-} from "@/lib/speech-timing";
+} from "@/lib/speech";
 import { collectTextNodes, type TextNodeEntry } from "@/components/reader/wordLookup/highlightMarks";
 
 type ProseWord = {

@@ -6,13 +6,13 @@
  * segmentation and audio-range alignment.
  */
 import {
-  buildTokenAlignment,
   extractTextTokens,
   timingEndSeconds,
   timingStartSeconds,
   type TextToken,
   type WordTiming,
-} from "@/lib/speech-timing";
+} from "./timing";
+import { buildTokenAlignment } from "./timing-alignment";
 
 const DEFAULT_MIN_WORDS = 3;
 const DEFAULT_MAX_CHARS = 300;

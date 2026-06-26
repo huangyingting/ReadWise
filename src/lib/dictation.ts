@@ -11,8 +11,8 @@
 
 import {
   type WordTiming,
-} from "@/lib/speech-timing";
-import { segmentSpeechPractice } from "@/lib/speech-practice";
+} from "@/lib/speech";
+import { segmentSpeechPractice } from "@/lib/speech";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

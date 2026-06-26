@@ -3,6 +3,7 @@
  *
  * Persistence (saveDraftArticle, scrapeAndSave, scrapeUrl) lives here.
  * Discovery lives in `@/lib/scraper/discovery`.
+ * Content-source governance lives in `@/lib/scraper/sources`.
  */
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus, Prisma } from "@prisma/client";
@@ -97,3 +98,26 @@ function errorMessage(err: unknown): string {
 function isUniqueConstraintError(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
+
+// ── Content-source barrel re-exports ─────────────────────────────────────────
+export type {
+  SourceHealthStatus,
+  CrawlCounters,
+  CrawlRunOutcome,
+  ContentSourceRow,
+  SyncContentSourcesResult,
+  SourceHealthSummary,
+} from "./sources";
+export {
+  HEALTH_THRESHOLDS,
+  computeHealthStatus,
+  applyCrawlOutcome,
+  summarizeSourceHealth,
+  syncContentSources,
+  listContentSources,
+  getContentSource,
+  isProviderEnabled,
+  setContentSourceEnabled,
+  recordCrawlRun,
+} from "./sources";
+

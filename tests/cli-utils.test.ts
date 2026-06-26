@@ -47,7 +47,7 @@ before(() => {
   mock.module("@/lib/scraper/discovery", {
     namedExports: { discoverProviderUrls: async () => [] },
   });
-  mock.module("@/lib/content-sources", {
+  mock.module("@/lib/scraper/sources", {
     namedExports: {
       isProviderEnabled: async () => false,
       recordCrawlRun: async () => {},

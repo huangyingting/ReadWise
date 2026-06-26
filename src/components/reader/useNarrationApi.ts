@@ -15,7 +15,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { base64ToBlobUrl, revokeBlobUrl } from "@/lib/media-blob";
-import type { SpeechWord } from "@/lib/speech-timing";
+import type { SpeechWord } from "@/lib/speech";
 
 interface UseNarrationApiOptions {
   /** Called with the resolved Blob URL and metadata when narration loads. */

@@ -2,7 +2,7 @@ import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
 import { processArticle, type ArticleProcessResult, type ProcessOptions } from "@/lib/processing/processor";
-import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/content-sources";
+import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/scraper/sources";
 import type { Provider } from "@/lib/scraper/types";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 

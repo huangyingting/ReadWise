@@ -14,7 +14,7 @@ import assert from "node:assert/strict";
 
 before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: {} } });
-  mock.module("@/lib/content-sources", {
+  mock.module("@/lib/scraper/sources", {
     namedExports: {
       isProviderEnabled: async () => true,
       syncContentSources: async () => {},

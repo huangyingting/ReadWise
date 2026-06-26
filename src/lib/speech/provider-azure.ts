@@ -12,7 +12,7 @@ import {
   type SpeechConfig as AzureSpeechConfig,
 } from "@/lib/runtime-config/speech";
 import { createLogger } from "@/lib/observability/logger";
-import type { SpeechWord } from "@/lib/speech-timing";
+import type { SpeechWord } from "./timing";
 
 const log = createLogger("speech");
 
