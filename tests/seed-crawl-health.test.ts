@@ -15,6 +15,9 @@ before(() => {
       isAiConfigured: () => false,
       aiModelName: () => null,
       chatComplete: async () => null,
+      // runWithAiContext is now re-exported from @/lib/ai; provide a pass-through
+      // so module instantiation succeeds when processor.ts imports it.
+      runWithAiContext: (_ctx: unknown, fn: () => unknown) => fn(),
     },
   });
 });
