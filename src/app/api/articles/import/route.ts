@@ -5,8 +5,8 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import {
   listPersonalArticlesPage,
   toListingArticle,
+  buildArticleListResponse,
 } from "@/lib/article-library";
-import { getProgressSummaries } from "@/lib/engagement";
 import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
 import { importBody, parseListQuery } from "@/lib/import/schemas";
 
@@ -56,15 +56,11 @@ export const GET = createHandler(
   async ({ query, session }) => {
     const { offset, limit } = query;
     const page = await listPersonalArticlesPage(session.user.id, { offset, limit });
-    const progress = await getProgressSummaries(
-      session.user.id,
-      page.articles.map((a) => a.id),
+    return NextResponse.json(
+      await buildArticleListResponse(session.user.id, page.articles.map(toListingArticle), {
+        offset,
+        hasMore: page.hasMore,
+      })
     );
-    return NextResponse.json({
-      articles: page.articles.map(toListingArticle),
-      progress,
-      hasMore: page.hasMore,
-      offset: offset + page.articles.length,
-    });
   },
 );

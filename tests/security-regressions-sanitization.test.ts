@@ -110,6 +110,12 @@ before(() => {
       SYSTEM_ARTICLE_CONTEXT: { role: "System" },
       ARTICLE_STATUSES: [],
       PUBLIC_ARTICLE_CREATE_FIELDS: {},
+      buildArticleListResponse: async (_userId: string, articles: unknown[]) => ({
+        articles,
+        progress: {},
+        hasMore: false,
+        offset: articles.length,
+      }),
     },
   });
 

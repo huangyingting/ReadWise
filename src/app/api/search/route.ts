@@ -3,8 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
 import { SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT } from "@/lib/search/query";
 import { searchReadableArticles } from "@/lib/search/providers";
-import { toListingArticle } from "@/lib/article-library";
-import { getProgressSummaries } from "@/lib/engagement";
+import { toListingArticle, buildArticleListResponse } from "@/lib/article-library";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
 const SEARCH_QUERY_MAX_LENGTH = 200;
@@ -51,17 +50,12 @@ export const GET = createHandler({ query: parseQuery }, async ({ query, session 
   const { q, offset, limit } = query;
 
   const page = await searchReadableArticles(q, { offset, limit }, session.user.id);
+  const articles = page.articles.map(toListingArticle);
 
-  const progress = await getProgressSummaries(
-    session.user.id,
-    page.articles.map((a) => a.id),
+  return NextResponse.json(
+    await buildArticleListResponse(session.user.id, articles, {
+      offset,
+      hasMore: articles.length > 0 && page.hasMore,
+    })
   );
-  const nextOffset = offset + page.articles.length;
-
-  return NextResponse.json({
-    articles: page.articles.map(toListingArticle),
-    progress,
-    hasMore: page.articles.length > 0 && page.hasMore,
-    offset: nextOffset,
-  });
 });

@@ -194,3 +194,17 @@ export function queryInt(
   const value = Number.isFinite(parsed) ? parsed : fallback;
   return Math.min(max, Math.max(min, value));
 }
+
+/**
+ * Extracts `offset` (≥ 0) and `limit` (1..maxLimit) from URL search params.
+ * Covers the standard pattern used by all article-listing and pagination routes.
+ */
+export function parsePaginationParams(
+  params: URLSearchParams,
+  opts: { defaultLimit: number; maxLimit: number },
+): { offset: number; limit: number } {
+  return {
+    offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
+    limit: queryInt(params, "limit", { fallback: opts.defaultLimit, min: 1, max: opts.maxLimit }),
+  };
+}

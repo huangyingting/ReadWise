@@ -70,12 +70,17 @@ capabilities.
 
 ### Planned system roles
 
-These are documented in code but not assignable until the global `Role` enum is
-expanded:
+These roles are **not yet assignable** (not in the Prisma `Role` enum) but their
+capability grants already exist in `ROLE_CAPABILITIES` in `src/lib/rbac.ts`. The
+role constants (`PLANNED_SYSTEM_ROLES`, `PLANNED_ROLES`) are **module-private**
+in `rbac.ts` — they are intentional implementation details, not part of the
+public API surface. Code should gate on capabilities, not on planned role names.
 
-- `Moderator`
-- `ContentEditor`
-- `SupportAgent`
+| Role | Rationale | Key capabilities |
+| --- | --- | --- |
+| `Moderator` | Future content-review role for high-volume moderation without full admin access. | `content.moderate`, `admin.access` (view only) |
+| `ContentEditor` | Future role for editorial staff who create/edit articles but do not manage members or jobs. | `articles.manage`, `tags.manage`, `admin.access` |
+| `SupportAgent` | Future support-tooling role for customer-success staff. | `support.assist`, `analytics.view`, `admin.access` |
 
 Their capability grants already exist in `ROLE_CAPABILITIES` so migration can be
 additive when product requirements need them.
