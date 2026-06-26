@@ -1,0 +1,106 @@
+/*
+ * ReadWise — Vocabulary panel
+ *
+ * Selectors: .vocabulary*
+ *
+ * Split from reader-tools.css — see reader-panel-*.css split (issue #615).
+ */
+
+.vocabulary {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.vocabulary-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.vocabulary-heading {
+  margin: 0;
+}
+
+.vocabulary-panel {
+  margin-top: 1.25rem;
+}
+
+.vocabulary-error {
+  margin-top: 0.75rem;
+  color: var(--danger-text);
+}
+
+.vocabulary-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.vocabulary-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.vocabulary-item-main {
+  min-width: 0;
+}
+
+.vocabulary-word {
+  font-size: 1.05rem;
+}
+
+.vocabulary-explanation {
+  margin: 0.35rem 0 0;
+}
+
+.vocabulary-example {
+  margin: 0.35rem 0 0;
+  font-style: italic;
+  font-size: 0.9rem;
+}
+
+.vocabulary-item-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex: 0 0 auto;
+}
+
+.vocabulary-pronounce {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background var(--duration-fast), color var(--duration-fast), border-color var(--duration-fast);
+}
+
+.vocabulary-pronounce:hover {
+  background: var(--bg-subtle);
+  color: var(--text);
+  border-color: var(--primary);
+}
+
+.vocabulary-pronounce.is-speaking {
+  color: var(--primary);
+  border-color: var(--primary);
+  background: var(--bg-subtle);
+}

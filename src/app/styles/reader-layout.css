@@ -280,41 +280,7 @@
   flex-shrink: 0;
 }
 
-/* Aa / Tools toolbar buttons */
-.reader-tool-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  height: 2rem;
-  min-width: 2rem;
-  padding-inline: var(--space-2);
-  border: none;
-  background: transparent;
-  color: var(--reading-text, var(--text));
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-weight: 600;
-  transition: background var(--duration-fast) var(--ease-standard),
-              color var(--duration-fast) var(--ease-standard);
-}
-
-.reader-tool-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--reading-text, var(--text)) 10%, transparent);
-}
-
-.reader-tool-btn[aria-expanded="true"] {
-  background: color-mix(in srgb, var(--reading-text, var(--text)) 12%, transparent);
-}
-
-.reader-tool-btn.is-active {
-  background: color-mix(in srgb, var(--primary) 16%, transparent);
-  color: var(--primary);
-}
-
-.reader-tool-btn:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
-}
+/* Aa / Tools toolbar buttons — replaced by IconButton (issue #615) */
 
 .reader-aa-glyph {
   font-size: var(--text-sm);
@@ -328,11 +294,6 @@
   .reader-controls .reader-back-btn,
   .reader-listen-btn {
     min-height: 44px;
-  }
-
-  .reader-tool-btn {
-    min-height: 44px;
-    min-width: 44px;
   }
 }
 
@@ -385,31 +346,7 @@
   color: var(--text);
 }
 
-/* Font-scale stepper buttons */
-.reader-scale-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2rem;
-  height: 2rem;
-  border: 1px solid var(--border);
-  background: transparent;
-  color: var(--text);
-  border-radius: var(--radius-sm);
-  cursor: pointer;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  transition: background var(--duration-fast) var(--ease-standard);
-}
-
-.reader-scale-btn:hover:not(:disabled) {
-  background: color-mix(in srgb, var(--text) 10%, transparent);
-}
-
-.reader-scale-btn:disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-}
+/* Font-scale stepper buttons — replaced by IconButton (issue #615) */
 
 /* ---- Listen button (ambient narration control inside the controls pill) ---- */
 .reader-listen-btn {
@@ -620,3 +557,193 @@
   border-top: 1px solid var(--reading-border, var(--border));
 }
 
+
+/* ---------------------------------------------------------------------------
+   Word-lookup dictionary (#word-lookup) — moved from reader-tools.css (#615)
+   Includes: .word-lookup-hint, .word-lookup-prose, .word-lookup-popover, etc.
+   --------------------------------------------------------------------------- */
+
+.word-lookup-hint {
+  font-size: 0.85rem;
+  margin: 0.5rem 0 1rem;
+}
+
+.word-lookup-prose {
+  cursor: pointer;
+}
+
+.word-lookup-popover {
+  position: fixed;
+  z-index: var(--z-overlay);
+  width: 340px;
+  max-width: calc(100vw - 24px);
+  max-height: 60vh;
+  overflow-y: auto;
+  padding: 0.9rem 1rem 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-lg);
+}
+
+.word-lookup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.word-lookup-word {
+  font-size: 1.15rem;
+  text-transform: capitalize;
+}
+
+.word-lookup-close {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 1.4rem;
+  line-height: 1;
+  cursor: pointer;
+  padding: 0 0.25rem;
+}
+
+.word-lookup-close:hover {
+  color: var(--text);
+}
+
+.word-lookup-status {
+  margin: 0.6rem 0 0;
+}
+
+.word-lookup-error {
+  margin: 0.6rem 0 0;
+  color: var(--danger-text);
+}
+
+.word-lookup-base {
+  margin: 0.4rem 0 0;
+  font-size: 0.85rem;
+}
+
+.word-lookup-pron {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin: 0.4rem 0 0;
+}
+
+.word-lookup-phonetic {
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.word-lookup-audio {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0;
+}
+
+.word-lookup-meanings {
+  list-style: none;
+  margin: 0.75rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.word-lookup-pos {
+  display: inline-block;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--primary);
+  margin-bottom: 0.25rem;
+}
+
+.word-lookup-defs {
+  margin: 0;
+  padding-left: 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.92rem;
+}
+
+.word-lookup-example {
+  font-style: italic;
+}
+
+.word-lookup-footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  border-top: 1px solid var(--border);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.word-lookup-save-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--bg-subtle);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  min-height: 32px;
+}
+
+.word-lookup-save-btn:hover:not(:disabled) {
+  background: var(--primary);
+  color: var(--primary-fg);
+  border-color: var(--primary);
+}
+
+.word-lookup-save-btn--saved {
+  background: color-mix(in srgb, var(--success) 12%, transparent);
+  color: var(--success-text);
+  border-color: color-mix(in srgb, var(--success) 32%, transparent);
+}
+
+.word-lookup-save-btn--saved:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--danger) 12%, transparent);
+  color: var(--danger-text);
+  border-color: color-mix(in srgb, var(--danger) 30%, transparent);
+}
+
+.word-lookup-save-btn:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+/* Coarse-pointer / touch: 44px minimum hit area for dictionary controls (WCAG 2.5.8) */
+@media (pointer: coarse) {
+  .word-lookup-close {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .word-lookup-audio {
+    min-width: 44px;
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .word-lookup-save-btn {
+    min-height: 44px;
+  }
+}

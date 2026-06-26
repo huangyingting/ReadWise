@@ -31,7 +31,7 @@ export interface AvatarProps {
  * Always passes `unoptimized` to next/image so remote OAuth provider images
  * don't require a `remotePatterns` config.
  */
-export default function Avatar({ src, name, size = 56, className }: AvatarProps) {
+export function Avatar({ src, name, size = 56, className }: AvatarProps) {
   const [imgError, setImgError] = useState(false);
   const showImage = Boolean(src) && !imgError;
   const initials = getInitials(name);
@@ -75,3 +75,5 @@ export default function Avatar({ src, name, size = 56, className }: AvatarProps)
     </div>
   );
 }
+
+export default Avatar;

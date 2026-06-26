@@ -1,0 +1,753 @@
+/*
+ * ReadWise — Tools surface, mini-player, tabs, FAB, bottom sheet,
+ *            grammar popover, and shared panel utilities.
+ *
+ * Includes:
+ *   .reader-panel-error*   — shared error-boundary fallback (any panel)
+ *   .level-filter          — shared CEFR/level filter control
+ *   .tts*                  — text-to-speech panel
+ *   .reader-tools-surface* — unified responsive tools overlay (#153, #206)
+ *   .reader-tour-banner*   — first-visit orientation banner
+ *   .reader-tab*           — grouped tab bar navigation
+ *   .reader-mini-player*   — fixed bottom audio player (#169)
+ *   .reader-seek           — seek range input
+ *   .reader-speed-select   — playback speed selector
+ *   .reader-tools-fab*     — mobile practice-tools FAB
+ *   .reader-bottom-sheet*  — tools bottom sheet (< 1100 px)
+ *   .grammar-popover*      — grammar-in-context popover
+ *   Offline download       — section reserved for #117
+ *
+ * z-index band (single source of truth — see tokens.css --z-* scale):
+ *   reader-controls toolbar .... var(--z-transport)  = 30
+ *   reader-FAB .................. var(--z-fab)        = 35
+ *   reader-mini-player .......... var(--z-panel)      = 40
+ *   reader bottom-sheet scrim ... var(--z-sheet-scrim)= 44   (non-xl)
+ *   reader bottom-sheet ......... var(--z-sheet)      = 45   (non-xl)
+ *   word-lookup / tools overlay . var(--z-overlay)    = 50
+ *   app modals / Popovers ....... var(--z-popover)    = 60
+ *
+ * Split from reader-tools.css — see reader-panel-*.css split (issue #615).
+ */
+
+/* ---- Shared panel error boundary fallback (#224) ---- */
+
+.reader-panel-error {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-subtle);
+}
+
+.reader-panel-error-text {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+
+.reader-panel-error-retry {
+  appearance: none;
+  cursor: pointer;
+  padding: 0.4rem 0.85rem;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  transition: background-color var(--duration-fast) ease,
+    border-color var(--duration-fast) ease;
+}
+
+.reader-panel-error-retry:hover {
+  background: var(--bg-subtle);
+  border-color: var(--text-subtle);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reader-panel-error-retry {
+    transition: none;
+  }
+}
+
+.level-filter select {
+  padding: 0.5rem 0.65rem;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface-raised);
+  color: var(--text);
+  font-size: 0.9rem;
+}
+
+/* ---- TTS panel ---- */
+
+.tts {
+  margin-top: 2rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid var(--border);
+}
+
+.tts-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.tts-meta {
+  margin: 0.5rem 0 0;
+  font-size: 0.85rem;
+}
+
+/* CSS Custom Highlight API — active TTS word in the main article prose.
+ * Works in Chrome/Edge 105+, Safari 17.2+; silently absent elsewhere. */
+::highlight(tts-active) {
+  background-color: var(--primary);
+  color: var(--on-primary);
+}
+
+/* ---- #153 unified responsive Tools surface (single mounted instance) ---- */
+/* Default (< 1440px, #169): a modal bottom sheet, hidden until open. */
+.reader-tools-surface {
+  display: none;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* #206 — full-screen modal overlay on every breakpoint, covering the article. */
+.reader-tools-surface[data-open="true"] {
+  display: flex;
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  background: var(--reading-bg, var(--bg));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .reader-tools-surface[data-open="true"] {
+    animation: reader-tools-overlay-in var(--duration-base) var(--ease-standard);
+  }
+}
+
+@keyframes reader-tools-overlay-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.reader-tools-surface-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--reading-border, var(--border));
+  background: var(--reading-bg, var(--bg));
+  flex-shrink: 0;
+}
+
+.reader-tools-surface-title {
+  font-family: var(--font-display);
+  font-size: var(--text-base);
+  font-weight: 700;
+  color: var(--reading-text, var(--text));
+}
+
+.reader-tools-close-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2.75rem;
+  height: 2.75rem;
+  border: none;
+  background: transparent;
+  color: var(--reading-text-muted, var(--text-muted));
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-standard),
+    color var(--duration-fast) var(--ease-standard);
+}
+
+.reader-tools-close-btn:hover {
+  background: color-mix(in srgb, var(--reading-text, var(--text)) 8%, transparent);
+  color: var(--reading-text, var(--text));
+}
+
+/* The body scrolls independently of the header; its content is centered to a
+   comfortable width within the full-screen overlay. `display:flex` + centered
+   items keep a short message (loading/empty/unavailable state) from being
+   marooned in the top-left corner. */
+.reader-tools-surface-body {
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+/* Centered loading/empty/unavailable state inside a tool panel (#210). */
+.reader-tools-panel-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-2);
+  min-height: 12rem;
+  padding: var(--space-6) var(--space-4);
+  color: var(--reading-text-muted, var(--text-muted));
+}
+
+.reader-tools-surface-body > * {
+  width: 100%;
+  max-width: 52rem;
+  margin-inline: auto;
+}
+
+/* In the overlay the tabs become a sticky segmented header above the panels. */
+.reader-tools-surface .article-study-tabs {
+  position: sticky;
+  top: 0;
+  z-index: var(--z-base);
+  background: var(--reading-bg, var(--bg));
+}
+
+.reader-tools-surface .article-study-panel {
+  padding: var(--space-4);
+}
+
+/* ---- First-visit orientation banner ---- */
+.reader-tour-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  margin-bottom: var(--space-2);
+  background: color-mix(in srgb, var(--primary) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, transparent);
+  border-radius: var(--radius-md);
+  font-size: var(--text-xs);
+  color: var(--reading-text, var(--text));
+}
+
+.reader-tour-banner-text {
+  flex: 1;
+  line-height: 1.5;
+}
+
+.reader-tour-banner-dismiss {
+  flex-shrink: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-sm);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.reader-tour-banner-dismiss:hover {
+  background: var(--primary-hover);
+}
+
+
+.reader-tabs {
+  display: flex;
+  flex-direction: column;
+  /* No bottom-border — groups use inter-group borders instead */
+}
+
+/* Each group is a stacked section */
+.reader-tab-group {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Separator between adjacent groups */
+.reader-tab-group + .reader-tab-group {
+  border-top: 1px solid var(--reading-border, var(--border));
+}
+
+/* Small uppercase label above a multi-tab group */
+.reader-tab-group-label {
+  display: block;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--reading-text-muted, var(--text-muted));
+  padding: 0.55rem var(--space-3) 0.15rem;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Tabs within a group sit in a horizontal row */
+.reader-tab-group-row {
+  display: flex;
+}
+
+.reader-tab-btn {
+  flex: 1;
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  padding: var(--space-2) var(--space-1);
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--reading-text-muted, var(--text-muted));
+  font-size: var(--text-xs);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    color var(--duration-fast) var(--ease-standard),
+    border-color var(--duration-fast) var(--ease-standard);
+  white-space: nowrap;
+  min-height: 52px;
+}
+
+.reader-tab-btn:hover {
+  color: var(--reading-text, var(--text));
+}
+
+.reader-tab-btn[aria-selected="true"] {
+  color: var(--primary-text);
+  border-bottom-color: var(--primary);
+}
+
+/* ---- Tab panel body ---- */
+.reader-tab-panels {
+  /* Tab bodies container; each panel hidden via [hidden] */
+}
+
+.reader-tab-panel {
+  padding: var(--space-4);
+}
+
+.reader-tab-panel[hidden] {
+  display: none;
+}
+
+/* ---- Mini player (fixed bottom, full-width) ---- */
+.reader-mini-player {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  z-index: var(--z-panel);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-inline: var(--space-4);
+  background: var(--reading-surface, var(--surface));
+  border-top: 1px solid var(--reading-border, var(--border));
+  box-shadow: var(--shadow-lg);
+}
+
+/* #169 — on md+ the sidebar is present, so inset the fixed mini-player past it
+   (it tracks the LIVE sidebar width published by AppSidebar, defaulting to the
+   collapsed icon-rail width since /reader auto-collapses the sidebar). Below md
+   the sidebar is hidden and the bar spans the full width. */
+@media (min-width: 768px) {
+  .reader-mini-player {
+    left: var(--app-sidebar-w, var(--sidebar-w-collapsed));
+  }
+}
+
+.reader-mini-player-left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.reader-mini-player-center {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.reader-mini-player-right {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.reader-mini-player-time {
+  font-size: var(--text-xs);
+  color: var(--reading-text-muted, var(--text-muted));
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Seek range input — teal fill for reading-state */
+.reader-seek {
+  flex: 1;
+  min-width: 60px;
+  height: 4px;
+  -webkit-appearance: none;
+  appearance: none;
+  background: linear-gradient(
+    to right,
+    var(--reading-accent, var(--teal)) 0%,
+    var(--reading-accent, var(--teal)) var(--seek-pct, 0%),
+    var(--reading-border, var(--border)) var(--seek-pct, 0%),
+    var(--reading-border, var(--border)) 100%
+  );
+  border-radius: var(--radius-full);
+  outline: none;
+  cursor: pointer;
+}
+
+.reader-seek::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--reading-surface, var(--surface));
+}
+
+.reader-seek::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--primary);
+  cursor: pointer;
+  border: 2px solid var(--reading-surface, var(--surface));
+}
+
+/* Speed select in mini player */
+.reader-speed-select {
+  font-size: var(--text-xs);
+  background: transparent;
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-sm);
+  color: var(--reading-text, var(--text));
+  padding: 2px var(--space-1);
+  cursor: pointer;
+}
+
+/* ---- Mobile: Tools FAB + bottom sheet ---- */
+.reader-tools-fab {
+  position: fixed;
+  bottom: calc(var(--header-height) + var(--space-3) + env(safe-area-inset-bottom, 0px)); /* above mini-player */
+  right: var(--space-4);
+  z-index: var(--z-fab);
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-4);
+  background: var(--primary);
+  color: var(--on-primary);
+  border: none;
+  border-radius: var(--radius-full);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+}
+
+/* FAB when mini-player is absent */
+.reader-tools-fab.no-player {
+  bottom: calc(var(--space-4) + env(safe-area-inset-bottom, 0px));
+}
+
+.reader-bottom-sheet-scrim {
+  position: fixed;
+  inset: 0;
+  background: var(--overlay);
+  z-index: var(--z-sheet-scrim);
+  animation: rw-scrim-in var(--duration-base) var(--ease-standard) both;
+}
+
+@keyframes rw-scrim-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.reader-bottom-sheet {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: var(--z-sheet);
+  max-height: 85vh;
+  background: var(--reading-surface, var(--surface));
+  border-top: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: var(--shadow-xl);
+  transform: translateY(0);
+  animation: reader-sheet-in var(--duration-base) var(--ease-emphasized) both;
+}
+
+@keyframes reader-sheet-in {
+  from {
+    transform: translateY(100%);
+    opacity: 0.8;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.reader-bottom-sheet-handle {
+  display: flex;
+  justify-content: center;
+  padding: var(--space-2) 0 var(--space-1);
+}
+
+.reader-bottom-sheet-handle::before {
+  content: "";
+  display: block;
+  width: 36px;
+  height: 4px;
+  background: var(--reading-border, var(--border));
+  border-radius: var(--radius-full);
+}
+
+.reader-bottom-sheet-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-4) var(--space-2);
+}
+
+.reader-bottom-sheet-title {
+  font-size: var(--text-base);
+  font-weight: 600;
+  color: var(--reading-text, var(--text));
+  margin: 0;
+}
+
+.reader-bottom-sheet-body {
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+
+/* Reduced-motion: collapse sheet animation to opacity only */
+@media (prefers-reduced-motion: reduce) {
+  .reader-bottom-sheet {
+    animation: none;
+  }
+  .reader-bottom-sheet-scrim {
+    animation: none;
+  }
+}
+
+/* Desktop: present the drawer as a centered, wide modal card instead of a
+   full-bleed bottom sheet, so space-hungry tools (Quiz, Dictate, Speak, Ask)
+   get room. The two scenario groups sit side by side above the panel. */
+@media (min-width: 1100px) {
+  .reader-bottom-sheet {
+    left: 0;
+    right: 0;
+    bottom: var(--space-5);
+    width: min(1000px, 94vw);
+    margin-inline: auto;
+    max-height: 78vh;
+    border-radius: var(--radius-xl);
+  }
+
+  .reader-bottom-sheet .reader-tabs {
+    flex-direction: row;
+  }
+
+  .reader-bottom-sheet .reader-tab-group {
+    flex: 1;
+  }
+
+  .reader-bottom-sheet .reader-tab-group + .reader-tab-group {
+    border-top: none;
+    border-left: 1px solid var(--reading-border, var(--border));
+  }
+}
+
+
+/* ---- Tab panel content: inherit reading-surface tokens ---- */
+.reader-tab-panel .vocabulary-item {
+  background: var(--reading-bg, var(--bg));
+  border-color: var(--reading-border, var(--border));
+}
+
+.reader-tab-panel .translation-controls select {
+  background: var(--reading-bg, var(--bg));
+  border-color: var(--reading-border, var(--border));
+  color: var(--reading-text, var(--text));
+}
+
+/* Prose inside the translation result (inside tool panel) */
+.reader-tab-panel .prose {
+  color: var(--reading-text, var(--text));
+  font-family: var(--font-reading);
+}
+
+
+/* Grouped tab bar: allow overflow scroll on very narrow widths */
+.reader-tabs {
+  overflow-y: auto;
+  scrollbar-width: none;
+}
+
+.reader-tabs::-webkit-scrollbar { display: none; }
+
+
+/* ---- Grammar-in-context popover (.grammar-*) ---- */
+
+.grammar-popover {
+  position: fixed;
+  z-index: var(--z-popover);
+  width: min(360px, calc(100vw - 24px));
+  max-height: 50vh;
+  overflow-y: auto;
+  border: 1px solid var(--reading-border, var(--border));
+  border-radius: var(--radius-md);
+  background: var(--reading-surface, var(--surface));
+  box-shadow: var(--shadow-lg);
+  animation: rw-fade-up var(--duration-fast) var(--ease-standard) both;
+}
+
+.grammar-popover-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--reading-border, var(--border));
+}
+
+.grammar-popover-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+  color: var(--reading-text-muted, var(--text-muted));
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.grammar-popover-phrase {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.grammar-popover-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--reading-text-muted, var(--text-muted));
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background var(--duration-fast), color var(--duration-fast);
+}
+
+.grammar-popover-close:hover {
+  background: var(--reading-hover, var(--bg-subtle));
+  color: var(--reading-text, var(--text));
+}
+
+.grammar-popover-body {
+  padding: var(--space-3);
+}
+
+.grammar-explanation {
+  font-size: var(--text-sm);
+  line-height: var(--leading-relaxed);
+  color: var(--reading-text, var(--text));
+}
+
+.grammar-explanation p + p {
+  margin-top: var(--space-2);
+}
+
+.grammar-fallback {
+  font-size: var(--text-sm);
+  color: var(--reading-text-muted, var(--text-muted));
+  font-style: italic;
+}
+
+.grammar-error {
+  font-size: var(--text-sm);
+  color: var(--danger-text);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.grammar-shimmer {
+  height: 0.9rem;
+  border-radius: var(--radius-sm);
+  background: var(--reading-border, var(--border));
+  animation: shimmer 1.5s ease-in-out infinite;
+  background-size: 200% 100%;
+  background-image: linear-gradient(
+    90deg,
+    var(--reading-border, var(--border)) 25%,
+    var(--reading-surface, var(--surface)) 50%,
+    var(--reading-border, var(--border)) 75%
+  );
+  margin-bottom: var(--space-2);
+}
+
+.grammar-shimmer--short {
+  width: 70%;
+}
+
+.grammar-retry-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--text-xs);
+  font-weight: 500;
+  color: var(--primary-text);
+  background: color-mix(in srgb, var(--primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--primary) 30%, transparent);
+  border-radius: var(--radius-sm);
+  padding: 3px var(--space-2);
+  cursor: pointer;
+  transition: background var(--duration-fast), border-color var(--duration-fast);
+}
+
+.grammar-retry-btn:hover {
+  background: color-mix(in srgb, var(--primary) 18%, transparent);
+  border-color: color-mix(in srgb, var(--primary) 50%, transparent);
+}
+
+/* ---------------------------------------------------------------------------
+   Offline Download Button & Offline Library (#117)
+   --------------------------------------------------------------------------- */

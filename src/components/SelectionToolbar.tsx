@@ -17,6 +17,7 @@
 import { useRef } from "react";
 import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui/IconButton";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "./ReaderHighlightsProvider";
@@ -135,57 +136,52 @@ export default function SelectionToolbar({
       <div className="rw-sel-toolbar-divider" aria-hidden="true" />
 
       {/* Highlight action */}
-      <button
-        type="button"
-        className={cn("rw-sel-toolbar-btn", focusRing)}
+      <IconButton
+        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
         onClick={onHighlight}
       >
         <Highlighter size={14} aria-hidden="true" />
         Highlight
-      </button>
+      </IconButton>
 
       {/* Translate — always shown when the toolbar is open */}
-      <button
-        type="button"
-        className={cn("rw-sel-toolbar-btn", focusRing)}
+      <IconButton
+        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
         onClick={onTranslate}
       >
         <Languages size={14} aria-hidden="true" />
         Translate
-      </button>
+      </IconButton>
 
       {/* Add note */}
-      <button
-        type="button"
-        className={cn("rw-sel-toolbar-btn", focusRing)}
+      <IconButton
+        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
         onClick={onAddNote}
       >
         <StickyNote size={14} aria-hidden="true" />
         Add note
-      </button>
+      </IconButton>
 
       {/* Define — single word only */}
       {showDefine ? (
-        <button
-          type="button"
-          className={cn("rw-sel-toolbar-btn", focusRing)}
+        <IconButton
+          className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
           onClick={onDefine}
         >
           <BookText size={14} aria-hidden="true" />
           Define
-        </button>
+        </IconButton>
       ) : null}
 
       {/* Grammar — 2–5 word phrases */}
       {showGrammar ? (
-        <button
-          type="button"
-          className={cn("rw-sel-toolbar-btn", focusRing)}
+        <IconButton
+          className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
           onClick={onGrammar}
         >
           <BookMarked size={14} aria-hidden="true" />
           Grammar
-        </button>
+        </IconButton>
       ) : null}
     </div>
   );

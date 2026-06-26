@@ -14,8 +14,12 @@
  *   utilities.css       — general @layer utilities (rail mask, why-chip, brand gradient)
  *   landing.css         — entrance and scroll-reveal motion
  *   command-palette.css — command palette (⌘K) animations and keycap chip
- *   reader-layout.css   — reader page layout, column, controls toolbar
- *   reader-tools.css    — reader tool panels (translation, vocab, quiz, tts, popovers)
+ *   reader-layout.css   — reader page layout, column, controls toolbar, word-lookup
+ *   reader-panel-translation.css — translation panel and sentence-translation popover
+ *   reader-panel-vocabulary.css  — vocabulary panel
+ *   reader-panel-quiz.css        — quiz panel
+ *   reader-panel-bilingual.css   — bilingual reading view
+ *   reader-panel-tools.css       — tools surface, mini-player, tabs, FAB, grammar popover
  *   annotations.css     — highlights, selection toolbar, notes panel
  *   tutor.css           — AI Tutor chat panel
  *   study.css           — gamification, quiz mastery/history, dictation
@@ -31,7 +35,11 @@
 @import "./styles/landing.css";
 @import "./styles/command-palette.css";
 @import "./styles/reader-layout.css";
-@import "./styles/reader-tools.css";
+@import "./styles/reader-panel-translation.css";
+@import "./styles/reader-panel-vocabulary.css";
+@import "./styles/reader-panel-quiz.css";
+@import "./styles/reader-panel-bilingual.css";
+@import "./styles/reader-panel-tools.css";
 @import "./styles/annotations.css";
 @import "./styles/tutor.css";
 @import "./styles/study.css";

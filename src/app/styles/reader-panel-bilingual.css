@@ -1,0 +1,94 @@
+/*
+ * ReadWise — Bilingual reading view (#113)
+ *
+ * Selectors: .bilingual-*, .word-lookup-prose p:has(+ .bilingual-translation)
+ *
+ * Cross-component override: the word-lookup-prose selector here tightens
+ * source-paragraph spacing specifically when a bilingual translation follows.
+ *
+ * Split from reader-tools.css — see reader-panel-*.css split (issue #615).
+ */
+
+.bilingual-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  margin-bottom: var(--space-3, 0.75rem);
+  min-height: 2rem;
+}
+
+.bilingual-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35em;
+  padding: 0.3rem 0.65rem;
+  border-radius: var(--radius-full, 9999px);
+  border: 1px solid var(--border, #ccc);
+  background: var(--surface-raised, #fff);
+  color: var(--text-subtle, #666);
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+}
+
+.bilingual-toggle-btn:hover {
+  border-color: var(--primary, #6366f1);
+  color: var(--primary-text, #6366f1);
+}
+
+.bilingual-toggle-btn--active {
+  background: color-mix(in srgb, var(--bg-accent, #6366f1) 12%, transparent);
+  border-color: var(--bg-accent, #6366f1);
+  color: var(--text-accent, #6366f1);
+}
+
+.bilingual-lang-select {
+  padding: 0.3rem 0.55rem;
+  border-radius: var(--radius-md, 6px);
+  border: 1px solid var(--border, #ccc);
+  background: var(--surface-raised, #fff);
+  color: var(--text, #111);
+  font-size: 0.8rem;
+}
+
+.bilingual-status {
+  font-size: 0.8rem;
+}
+
+.bilingual-error {
+  color: var(--danger-text, #dc2626);
+}
+
+/* Single fallback banner shown above the article body (#172) */
+.bilingual-fallback-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2, 0.5rem);
+  margin-bottom: var(--space-4, 1rem);
+  padding: var(--space-3, 0.75rem) var(--space-4, 1rem);
+  border-radius: var(--radius-md, 6px);
+  border: 1px solid color-mix(in srgb, var(--primary, #6366f1) 24%, transparent);
+  background: color-mix(in srgb, var(--primary, #6366f1) 8%, transparent);
+  color: var(--text-subtle, #666);
+  font-size: 0.85rem;
+}
+
+/* Injected translated paragraphs */
+.bilingual-translation {
+  font-size: 0.88em;
+  line-height: 1.6;
+  color: var(--text-subtle, #666);
+  border-left: 2px solid color-mix(in srgb, var(--bg-accent, #6366f1) 40%, transparent);
+  margin: 0.1rem 0 1.2rem;
+  padding: 0.3rem 0 0.3rem 0.8rem;
+  pointer-events: none; /* don't interfere with source-paragraph selection/click */
+  user-select: none;
+}
+
+/* Tighten source paragraph spacing when a translation follows it */
+.word-lookup-prose p:has(+ .bilingual-translation) {
+  margin-bottom: 0.25rem;
+}
