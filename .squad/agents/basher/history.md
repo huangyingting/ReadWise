@@ -48,3 +48,22 @@ During review 3, distinguish dev-data artifacts and expected graceful-fallback s
 
 ## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
 - When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.
+
+
+## 2026-06-25 — Codebase Quality Audit (10-pass TESTING sweep)
+
+Basher performed an exhaustive 10-pass testing audit of ReadWise as part of a five-domain quality review requested by Yingting Huang. Findings documented in `files/findings-testing.md` (16 findings: TEST-1–TEST-16).
+
+Key testing findings: shared test helper adoption gaps with mock factories duplicated across test files, missing coverage for auth boundary conditions, large test files (>500 lines) mixing unit and integration concerns, duplicated prisma mock setup across 20+ test files, missing shared fixtures for article/user/organization entities, inconsistent assertion patterns, outdated jest.mock patterns superseded by newer factory helpers, E2E coverage gaps on worker/background job paths, missing IDOR regression tests for multi-tenancy routes, inconsistent test data builders.
+
+After Rusty-1 (opus-4.8) consolidation of all 79 cross-domain findings into 15 issues: **Basher owns issues #614** (test shared-helper adoption — Phase 1), **#618** (test file splitting and coverage gaps — Phase 2), **#625** (outdated test patterns cleanup — Phase 3) on epic #610.
+
+Epic #610 + child issues #611–#625 created on huangyingting/ReadWise. No source code modified (analysis only).
+
+## 2026-06-26 — Round-2 Codebase Quality Audit (10-pass TESTING sweep)
+
+Basher-1 performed a second-wave 10-pass testing audit as a follow-up to epic #610, targeting NEW, non-overlapping issues. Read `files/findings-testing.md` and issues #611–#625 first. Focused on snapshot test drift, multi-tenancy integration coverage gaps, Playwright test isolation, error-handling branch coverage, and absence of contract/schema tests. Findings documented in `files/findings-testing-r2.md` (15 findings: TEST2-1–TEST2-15).
+
+After Rusty-3 (opus-4.8) consolidation of all 67 round-2 findings into 13 issues: **Basher owns issues #636** (Playwright test isolation and snapshot drift remediation, Phase 2), **#637** (multi-tenancy integration test coverage, Phase 2), and **#639** (contract/schema tests and error-branch coverage, Phase 3) on epic #626, follow-up to #610.
+
+No source code modified (analysis only).
