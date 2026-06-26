@@ -1,5 +1,13 @@
 {
   "$schema": "./import-boundary-allowlist.schema.json",
   "description": "Explicit exceptions to the readwise/no-server-imports-in-client boundary rule (REF-076). Each entry must be reviewed and owned. Entries should be removed when the underlying violation is fixed.",
-  "allowlist": []
+  "allowlist": [
+    {
+      "importer": "tests/fixtures/allowlist-boundary-test.tsx",
+      "privateModule": "@/lib/prisma",
+      "reason": "Test-only fixture used by tests/import-boundary.test.ts to verify the allowlist mechanism. Not a real source file; the fixture does not exist on disk.",
+      "owner": "@security-tests",
+      "removalCondition": "Remove when import-boundary allowlist tests are updated to use a different mechanism."
+    }
+  ]
 }

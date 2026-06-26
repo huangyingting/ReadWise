@@ -111,3 +111,26 @@ module that can enter a client bundle.
 4. If the var affects readiness, update `src/lib/runtime-config/runtime.ts` and
    the runtime config table in `docs/platform/health-readiness.md`.
 5. Update the module reference table above.
+
+## Import boundary enforcement
+
+All `src/lib/runtime-config/*` modules are **server-only**. Importing them from
+a `"use client"` file or any module that can enter a client bundle is blocked by
+the ESLint rule `readwise/no-server-imports-in-client` (REF-076).
+
+The rule is defined in `eslint-rules/no-server-imports-in-client.js` and
+automatically covers `@/lib/runtime-config` and all its submodules. If you add
+a new runtime-config module, verify the rule catches it:
+
+```sh
+# Verify the rule flags a client import of the new module
+npx eslint --no-eslintrc --rule '{"readwise/no-server-imports-in-client": "error"}' \
+  --rulesdir eslint-rules \
+  --stdin --stdin-filename src/components/TestWidget.tsx \
+  <<< '"use client"; import { myConfig } from "@/lib/runtime-config/my-new-module";'
+```
+
+If a file genuinely must import a runtime-config module from a client-adjacent
+path, add a justified allowlist entry to
+`eslint-rules/import-boundary-allowlist.json` following the instructions in
+[`docs/architecture/0010-subsystem-boundaries-and-import-contracts.md §How to add an allowlist entry`](../architecture/0010-subsystem-boundaries-and-import-contracts.md).

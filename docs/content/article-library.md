@@ -108,9 +108,20 @@ difficulty, and metadata all share the same text basis.
 
 Never render stored or scraped article HTML directly.
 
+## Access policy consumers
+
+All Prisma-based consumers (Reader, Search Prisma path, Import, Scraper,
+Processing) call `readableArticleWhere` / `getReadableArticleById` and related
+helpers from this module. The one known raw-SQL consumer is
+`buildReadableArticleSqlPredicate` in `src/lib/search/fulltext.ts`, which
+manually mirrors `readableArticleWhere` for the PostgreSQL FTS `$queryRaw` path.
+See `docs/reader/search-and-indexing.md` for the migration follow-up note and
+`tests/search-sql-predicate.test.ts` for regression coverage.
+
 ## Tests
 
 Important coverage includes `tests/article-access.test.ts`,
 `tests/article-visibility-regressions.test.ts`, `tests/admin-article-read-models.test.ts`,
 `tests/admin-articles*.test.ts`, `tests/articles.test.ts`,
-`tests/articles-search.test.ts`, and content policy/moderation route tests.
+`tests/articles-search.test.ts`, `tests/search-sql-predicate.test.ts`, and
+content policy/moderation route tests.
