@@ -22,6 +22,7 @@ import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext, getRequestId } from "@/lib/observability/logger";
 import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/runtime-config/ai";
 import { truncateStr } from "@/lib/primitives/pure";
+import { redactSensitiveValue } from "@/lib/security/redaction";
 
 const logger = createLogger("ai-ledger");
 
@@ -139,7 +140,7 @@ export async function recordAiInvocation(
         completionTokens,
         totalTokens,
         estimatedCostUsd,
-        errorMessage: input.errorMessage ? truncateStr(input.errorMessage, MAX_ERROR_LEN) : null,
+        errorMessage: input.errorMessage ? truncateStr(redactSensitiveValue(input.errorMessage), MAX_ERROR_LEN) : null,
       },
     });
   } catch (err) {

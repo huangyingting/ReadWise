@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger, getRequestContext } from "@/lib/observability/logger";
-import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
+import { isSensitiveMetadataKey, redactSensitiveValue } from "@/lib/security/redaction";
 import { clientIp } from "@/lib/security/client-ip";
 import { truncateStr } from "@/lib/primitives/pure";
 import type { Prisma } from "@prisma/client";
@@ -109,7 +109,7 @@ function normalizeOptionalString(value: string | null | undefined, max = MAX_STR
 }
 
 function redactSensitiveString(value: string): string {
-  return truncateStr(scrubValue(value), MAX_STRING_LENGTH, "…");
+  return truncateStr(redactSensitiveValue(value), MAX_STRING_LENGTH, "…");
 }
 
 function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
@@ -124,7 +124,7 @@ function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
   if (typeof value === "object") {
     const out: Record<string, AuditMetadataValue> = {};
     for (const [key, nested] of Object.entries(value).slice(0, MAX_METADATA_KEYS)) {
-      out[truncateStr(key, 80, "…")] = isSensitiveKey(key)
+      out[truncateStr(key, 80, "…")] = isSensitiveMetadataKey(key)
         ? REDACTED
         : sanitizeValue(nested, depth + 1);
     }
@@ -137,7 +137,7 @@ export function sanitizeAuditMetadata(input: Record<string, unknown> | null | un
   if (!input) return {};
   const out: AuditMetadata = {};
   for (const [key, value] of Object.entries(input).slice(0, MAX_METADATA_KEYS)) {
-    out[truncateStr(key, 80, "…")] = isSensitiveKey(key)
+    out[truncateStr(key, 80, "…")] = isSensitiveMetadataKey(key)
       ? REDACTED
       : sanitizeValue(value, 0);
   }
