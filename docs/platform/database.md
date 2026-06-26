@@ -180,7 +180,10 @@ relation, index, enum value, or unique constraint:
 
 ### Schema-change checklist
 
-Use this checklist for every schema change before opening a pull request:
+Use this checklist for every schema change before opening a pull request.
+For the full privacy, retention, and export guidance see
+[`docs/platform/schema-change-checklist.md`](./schema-change-checklist.md)
+and the [data-lifecycle matrix](../security/data-lifecycle-matrix.md).
 
 - [ ] **Parity** — `npm run schema:check-parity` exits 0.
 - [ ] **Migration committed** — new migration directories are present in both
