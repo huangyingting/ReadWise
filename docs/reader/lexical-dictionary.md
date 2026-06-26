@@ -11,7 +11,7 @@ two share saved-word state in the UI.
 | --- | --- | --- |
 | Public barrel | `src/lib/lexical/index.ts` | Dictionary, normalization, saved words, and cloze exports. |
 | Normalization | `src/lib/lexical/normalize.ts` | Contractions, morphology candidates, dictionary lookup candidates, lemma key. |
-| Provider seam | `src/lib/lexical/provider.ts` | `DictionaryProvider` interface and Free Dictionary API adapter. |
+| Provider seam | `src/lib/lexical/provider.ts` | `DictionaryProvider` interface, bundled local dictionary adapter, Free Dictionary API adapter, and fallback composition. |
 | Lookup service | `src/lib/lexical/lookup.ts` | Try normalized candidates against the provider; never throw on misses/provider failure. |
 | Saved words | `src/lib/lexical/saved-words.ts` | User-owned study list persistence and read models. |
 | Route | `src/app/api/dictionary/route.ts` | Auth, lookup rate limit, mastery exposure, analytics metadata, frequency tier. |
@@ -41,10 +41,43 @@ server-only imports.
 must not throw for network, non-200, or not-found conditions; the lookup service
 tries the next candidate and ultimately returns `{ found: false }`.
 
-The default provider is `FreeDictionaryProvider`, backed by
-`https://api.dictionaryapi.dev/api/v2/entries/en/` through the shared trusted
-provider HTTP client (`src/lib/http`). It logs provider/status metadata only, not
-definitions or selected text.
+The default provider is runtime-configured. ReadWise ships compact local
+dictionary files in `dict/` (`en-50k.json`, `cn-50k.json`, and the word-list
+`50k.txt`). Set `DICTIONARY_PROVIDER` to choose the backend:
+
+- `local` — use the bundled JSON dictionary only, with no external network call.
+- `free` — use `FreeDictionaryProvider`, backed by
+  `https://api.dictionaryapi.dev/api/v2/entries/en/` through the shared trusted
+  provider HTTP client (`src/lib/http`).
+- `hybrid` — try the local dictionary first, then fall back to the Free
+  Dictionary API.
+
+`LOCAL_DICTIONARY_LANGUAGE=en` returns English definitions; `cn`/`zh` returns
+Chinese definitions from `cn-50k.json`. `LOCAL_DICTIONARY_DIR` defaults to
+`dict` under the project root.
+
+The preferred local entry format is compact minified JSON:
+
+```json
+{
+  "run": ["/rʌn/", [["v.", ["To move quickly on foot..."]]]]
+}
+```
+
+At load time, `LocalDictionaryProvider` expands this compact shape back into the
+shared `DictionaryEntry` result. The runtime provider intentionally accepts only
+this compact shape; source dictionaries should be converted before being placed
+in `dict/`.
+
+Bundled compact dictionaries are pruned with `npm run dict:prune`. The pruning
+rule is deliberately conservative: it removes entries explicitly described as
+inflected forms (past tense, third-person singular, plural form, participle,
+etc.) when a base form exists. Known safe irregulars such as
+`children -> child` and `was -> be` are also removed. Lexicalized standalone
+words (`building`, `news`, `left`, `shot`, `people`) are preserved so lookups do
+not collapse to the wrong meaning.
+
+Providers log provider/status metadata only, not definitions or selected text.
 
 ## Lookup route behavior
 

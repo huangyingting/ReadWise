@@ -9,9 +9,16 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import type { DictionaryProvider, DictionaryEntry } from "@/lib/lexical/provider";
 import { lookupWord } from "@/lib/lexical/lookup";
-import { FreeDictionaryProvider } from "@/lib/lexical/provider";
+import {
+  FallbackDictionaryProvider,
+  FreeDictionaryProvider,
+  LocalDictionaryProvider,
+} from "@/lib/lexical/provider";
 
 // ---------------------------------------------------------------------------
 // Mock provider helpers
@@ -111,6 +118,82 @@ test("lookupWord never throws when provider throws", async () => {
   // mock never throws by returning null.
   const result = await lookupWord("word", fixedProvider(null));
   assert.equal(result.found, false);
+});
+
+// ---------------------------------------------------------------------------
+// LocalDictionaryProvider — compact local JSON dictionaries
+// ---------------------------------------------------------------------------
+
+function withLocalDictionaryDir(files: Record<string, unknown>): string {
+  const dir = mkdtempSync(path.join(tmpdir(), "readwise-dict-"));
+  for (const [file, data] of Object.entries(files)) {
+    writeFileSync(path.join(dir, file), JSON.stringify(data), "utf-8");
+  }
+  return dir;
+}
+
+test("LocalDictionaryProvider parses compact local entries", async (t) => {
+  const dir = withLocalDictionaryDir({
+    "en-50k.json": {
+      run: [
+        "/rʌn/",
+        [
+          ["verb", ["to move fast", "to operate"]],
+          ["noun", ["an act of running"]],
+        ],
+      ],
+    },
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const provider = new LocalDictionaryProvider({ directory: dir, dictionary: "en" });
+  const entry = await provider.fetchEntry("run");
+
+  assert.ok(entry);
+  assert.equal(entry.phonetic, "/rʌn/");
+  assert.equal(entry.meanings[0].partOfSpeech, "verb");
+  assert.equal(entry.meanings[0].definitions[1].definition, "to operate");
+  assert.equal(entry.meanings[1].definitions[0].definition, "an act of running");
+});
+
+test("LocalDictionaryProvider can read Chinese local definitions", async (t) => {
+  const dir = withLocalDictionaryDir({
+    "cn-50k.json": {
+      run: ["/rʌn/", [["v.", ["跑", "运行"]]]],
+    },
+  });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const provider = new LocalDictionaryProvider({ directory: dir, dictionary: "cn" });
+  const entry = await provider.fetchEntry("RUN");
+
+  assert.ok(entry);
+  assert.equal(entry.meanings[0].partOfSpeech, "v.");
+  assert.equal(entry.meanings[0].definitions[0].definition, "跑");
+});
+
+test("LocalDictionaryProvider returns null for missing files and misses", async (t) => {
+  const dir = withLocalDictionaryDir({ "en-50k.json": {} });
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+
+  const provider = new LocalDictionaryProvider({ directory: dir, dictionary: "en" });
+  assert.equal(await provider.fetchEntry("missing"), null);
+
+  const missingFileProvider = new LocalDictionaryProvider({
+    directory: path.join(dir, "does-not-exist"),
+    dictionary: "en",
+  });
+  assert.equal(await missingFileProvider.fetchEntry("run"), null);
+});
+
+test("FallbackDictionaryProvider tries providers in order", async () => {
+  const first = fixedProvider(null);
+  const second = fixedProvider(sampleEntry);
+  const provider = new FallbackDictionaryProvider([first, second]);
+
+  const entry = await provider.fetchEntry("run");
+
+  assert.equal(entry, sampleEntry);
 });
 
 // ---------------------------------------------------------------------------
