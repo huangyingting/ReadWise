@@ -20,7 +20,7 @@ import { getArticleListMembership } from "@/lib/article-library";
 import { sanitizeArticleHtml, articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { prisma } from "@/lib/prisma";
-import { CEFR_LEVELS, type CefrLevel } from "@/components/ui/Badge";
+import { CEFR_LEVELS, type CefrLevel } from "@/lib/option-registries";
 
 export type ReaderPageData = {
   article: Article;

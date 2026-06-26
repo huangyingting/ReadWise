@@ -11,7 +11,7 @@ import { chatComplete, isAiConfigured } from "@/lib/ai";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
-import { getProfile } from "@/features/profile-preferences/repository";
+import { getProfile } from "@/lib/profile";
 import {
   getAiProcessableArticleById,
   isArticleOperator,

@@ -57,9 +57,11 @@ before(() => {
     },
   });
 
-  mock.module("@/features/profile-preferences/repository", {
+  mock.module("@/lib/profile", {
     namedExports: {
       getProfile: async () => mockProfile,
+      parseTopics: (topics: unknown) =>
+        Array.isArray(topics) ? topics.filter((t): t is string => typeof t === "string") : [],
     },
   });
 

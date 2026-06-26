@@ -14,7 +14,7 @@
 
 import { prisma } from "@/lib/prisma";
 import type { Role } from "@prisma/client";
-import { parseTopics } from "@/features/profile-preferences/schema";
+import { parseTopics } from "@/lib/profile";
 
 const RECENT_ACTIVITY_DAYS = 14;
 const RECENT_LIMIT = 10;

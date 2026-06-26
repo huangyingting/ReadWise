@@ -8,8 +8,8 @@
 
 import { prisma } from "@/lib/prisma";
 import { isDifficultyLevel, levelRank } from "@/lib/leveling/cefr-primitives";
-import { getProfile } from "@/features/profile-preferences/repository";
-import { parseTopics } from "@/features/profile-preferences/schema";
+import { getProfile } from "@/lib/profile";
+import { parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { getSkillProfile } from "@/lib/learning/skill-mastery";
 import type { RecommendationContext } from "./types";

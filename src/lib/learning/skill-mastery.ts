@@ -15,7 +15,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { getProfile } from "@/features/profile-preferences/repository";
+import { getProfile } from "@/lib/profile";
 import { clamp01 } from "./primitives";
 
 /** The six tracked skill dimensions. */

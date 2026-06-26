@@ -7,7 +7,7 @@
  */
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";
-import { isUserOnboarded } from "@/features/profile-preferences/repository";
+import { isUserOnboarded } from "@/lib/profile";
 import type { Capability } from "@/lib/rbac";
 import { loadSession, sessionHasCapability } from "@/lib/auth-core";
 
