@@ -40,3 +40,11 @@ export {
   type SegmentedControlProps,
   type SegmentedControlOption,
 } from "./SegmentedControl";
+export {
+  IconButton,
+  iconButtonVariants,
+  type IconButtonProps,
+  type IconButtonContext,
+} from "./IconButton";
+export { Avatar, type AvatarProps } from "./Avatar";
+

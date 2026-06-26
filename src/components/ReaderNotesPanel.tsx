@@ -18,7 +18,8 @@
 
 import { useState, useCallback } from "react";
 import { Highlighter, Pencil, Trash2, AlertTriangle } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { cn } from "@/lib/cn";
+import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import EmptyState from "@/components/EmptyState";
@@ -209,14 +210,15 @@ function NoteRow({
       {/* Row actions */}
       {!editingNote && (
         <div className="rw-note-row-actions">
-          <button
-            type="button"
-            className={cn("rw-note-row-icon-btn", focusRing)}
+          <IconButton
+            size="sm"
+            context="reading"
+            className="text-text-muted hover:text-[color:var(--reading-text,var(--text))]"
             aria-label={highlight.note ? "Edit note" : "Add note"}
             onClick={() => setEditingNote(true)}
           >
             <Pencil size={14} aria-hidden="true" />
-          </button>
+          </IconButton>
 
           <ConfirmAction
             triggerLabel=""

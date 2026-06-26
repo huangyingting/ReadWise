@@ -24,6 +24,7 @@ import {
   Repeat1,
 } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui/IconButton";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
@@ -127,14 +128,13 @@ export default function ReaderMiniPlayer() {
     >
       {/* Left: skip back / play-pause / skip forward */}
       <div className="reader-mini-player-left">
-        <button
-          type="button"
+        <IconButton
           aria-label="Skip back 10 seconds"
+          context="reading"
           onClick={() => skip(-10)}
-          className={cn("reader-icon-btn", focusRing)}
         >
           <Rewind size={16} />
-        </button>
+        </IconButton>
 
         <button
           type="button"
@@ -151,14 +151,13 @@ export default function ReaderMiniPlayer() {
           {isPlaying ? <Pause size={16} /> : <Play size={16} />}
         </button>
 
-        <button
-          type="button"
+        <IconButton
           aria-label="Skip forward 10 seconds"
+          context="reading"
           onClick={() => skip(10)}
-          className={cn("reader-icon-btn", focusRing)}
         >
           <FastForward size={16} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Center: seek bar + time */}
@@ -196,34 +195,28 @@ export default function ReaderMiniPlayer() {
         </select>
 
         {/* Sentence loop toggle — disabled when no segments available */}
-        <button
-          type="button"
+        <IconButton
           aria-label={isLooping ? "Stop looping sentence" : "Loop current sentence"}
           aria-pressed={isLooping}
+          context="reading"
           onClick={toggleLoop}
           disabled={!canLoop}
-          className={cn(
-            "reader-icon-btn",
-            focusRing,
-            isLooping && "text-primary",
-            !canLoop && "opacity-40 cursor-not-allowed",
-          )}
+          className={cn(isLooping && "text-primary")}
           title={isLooping ? "Stop looping sentence" : "Loop current sentence"}
         >
           <Repeat1 size={16} />
-        </button>
+        </IconButton>
 
-        <button
-          type="button"
+        <IconButton
           aria-label="Close audio player"
+          context="reading"
           onClick={() => {
             audioRef.current?.pause();
             setDismissed(true);
           }}
-          className={cn("reader-icon-btn", focusRing)}
         >
           <X size={16} />
-        </button>
+        </IconButton>
       </div>
     </div>
   );

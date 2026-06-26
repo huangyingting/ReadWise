@@ -10,7 +10,7 @@
  */
 
 import { useMemo, useState } from "react";
-import { cn } from "@/lib/cn";
+import { cn, focusRing } from "@/lib/cn";
 import type { HeatCell } from "@/lib/engagement";
 import { formatUTCDateLabel } from "@/lib/display-format";
 
@@ -181,9 +181,9 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                         data-level={cell.level}
                         aria-label={label}
                         className={cn(
-                          "rounded-[2px] transition-[opacity,outline] [transition-duration:var(--duration-fast)]",
-                          "hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1",
-                          "focus-visible:outline-[color:var(--focus-ring)] motion-reduce:transition-none",
+                          "rounded-[2px] transition-opacity [transition-duration:var(--duration-fast)]",
+                          "hover:opacity-80 motion-reduce:transition-none",
+                          focusRing,
                         )}
                         style={{
                           width: 12,
