@@ -28,6 +28,7 @@ groups all security-sensitive subsystems with narrow public boundaries:
 | CSRF | `src/lib/security/csrf.ts` | Same-origin enforcement (RW-028) |
 | Security events | `src/lib/security/events.ts` | Ring-buffered event monitoring (RW-029) |
 | Audit | `src/lib/security/audit.ts` | Durable audit log with metadata redaction |
+| Redaction | `src/lib/security/redaction.ts` | **Sensitive metadata redaction policy (Phase 1 — #676)** |
 | Rate limit | `src/lib/security/rate-limit/index.ts` | Fixed-window limiter with shared store (RW-026) |
 | Rate limit store | `src/lib/security/rate-limit/store.ts` | DB-backed counter store with circuit-breaker |
 
@@ -224,12 +225,14 @@ touching the monitoring core.
 
 ### Redaction (critical)
 
-Event `meta` is scrubbed by the **same `scrubContext`** used by error
-aggregation, so article text, selected text, prompts, tokens, cookies, and
-other secrets can **never** reach a security event: sensitive keys
-(`content`, `selected`, `token`, `authorization`, …) are replaced with
-`[redacted]`, strings are masked + length-capped, and nested objects are
-collapsed. Only safe, low-cardinality fields (method, status, counts) are kept.
+Event `meta` is scrubbed via the **security-owned redaction policy** at
+`src/lib/security/redaction.ts` (through `scrubContext` in
+`src/lib/observability/errors.ts`), so article text, selected text, prompts,
+tokens, cookies, and other secrets can **never** reach a security event:
+sensitive keys (`content`, `selected`, `token`, `authorization`, …) are
+replaced with `[redacted]`, strings are masked + length-capped, and nested
+objects are collapsed. Only safe, low-cardinality fields (method, status,
+counts) are kept. See §5 for the full redaction policy reference.
 
 ### Spike detection & alerting
 
@@ -292,3 +295,50 @@ write failure must not change the response.
 `GET /api/admin/audit-logs` lists durable rows with filters for `action`,
 `actorId`, and `targetType`. Reading audit logs is itself audited as
 `admin.audit_logs.read`.
+
+---
+
+## 5. Sensitive metadata redaction policy
+
+**Owner: Security subsystem (`src/lib/security/`).**
+
+The **single redaction policy** lives at `src/lib/security/redaction.ts` and
+was centralised in Phase 1 (#676). Every path that persists or logs metadata
+(audit log, error reporting, analytics events, security events, AI ledger)
+**must** use this module as the sole authority for what constitutes a sensitive
+key or value. No per-module copy is permitted.
+
+### Public API
+
+| Function | Purpose |
+| --- | --- |
+| `isSensitiveMetadataKey(key)` | Returns `true` when a key name likely carries sensitive or user-private content. |
+| `redactSensitiveValue(value)` | Inline-masks embedded email addresses as `[email]` and long token-like values as `[token]`. |
+| `redactSensitiveObject(obj)` | Flat-object redactor: sensitive keys → `[redacted]`, nested objects → `[object]`, strings masked + capped at 200 chars. |
+| `safeMetadataForPersistence(input)` | Recursive sanitiser for persistent storage: redacts sensitive keys, scrubs PII/tokens, caps depth (3 levels), key count (25), array size (20), and string length (200 chars). |
+
+**Backward-compat aliases** (`isSensitiveKey`, `scrubValue`) remain in the
+`@/lib/observability/redaction` shim for existing deep imports. **New code must
+import from `@/lib/security/redaction` or `@/lib/security` directly.**
+
+### Sensitive-key superset
+
+Any key whose name (case-insensitive substring match) contains one of:
+`authorization`, `body`, `completion`, `content`, `cookie`, `credential`,
+`definition`, `email`, `example`, `explanation`, `key`, `pass`, `phrase`,
+`prompt`, `pwd`, `response`, `secret`, `select`, `sentence`, `session`,
+`text`, `token`, `translation`, `url`.
+
+This superset covers keys from all three prior per-module lists (audit, errors,
+analytics) — the regression test in `tests/redaction.test.ts` validates that no
+path narrows the superset.
+
+### Consuming paths
+
+| Path | How it uses the shared policy |
+| --- | --- |
+| `src/lib/security/audit.ts` | `isSensitiveMetadataKey` + `redactSensitiveValue` for `sanitizeAuditMetadata` |
+| `src/lib/observability/errors.ts` | `isSensitiveMetadataKey` + `redactSensitiveValue` for `scrubContext` (used by security events) |
+| `src/lib/analytics/events/sanitize.ts` | `isSensitiveMetadataKey` for `sanitizeEventProperties` (drops sensitive keys) |
+| `src/lib/ai/ledger.ts` | `redactSensitiveValue` for error messages before persistence |
+| `src/lib/security/events.ts` | via `scrubContext` from `@/lib/observability/errors` |
