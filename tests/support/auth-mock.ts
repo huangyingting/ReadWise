@@ -18,6 +18,7 @@
  */
 
 import { NextResponse } from "next/server";
+import type { Session } from "next-auth";
 import { readerSession, adminSession } from "./route";
 
 // ---------------------------------------------------------------------------
@@ -28,6 +29,21 @@ import { readerSession, adminSession } from "./route";
 export type AuthState = "ok" | "unauth" | "forbidden";
 
 type SessionShape = { user: { id: string; role: string; name: string; email: string | null } };
+
+// ---------------------------------------------------------------------------
+// Shared session fixture
+// ---------------------------------------------------------------------------
+
+/**
+ * Build a minimal next-auth Session for unit tests.
+ * Shared between auth-core.test.ts and rbac.test.ts to eliminate verbatim copies.
+ */
+export function makeSession(role: "Admin" | "Reader", id = "u1"): Session {
+  return {
+    user: { id, role, name: null, email: null },
+    expires: "2099-01-01T00:00:00Z",
+  };
+}
 
 // ---------------------------------------------------------------------------
 // Named-export builders
