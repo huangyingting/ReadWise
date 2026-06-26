@@ -10,6 +10,32 @@ retention rules that govern it.
 > `src/lib/analytics/events/catalog.ts`). Every stored event stamps `properties._v` with the
 > version it was written under.
 
+## Subsystem ownership boundary
+
+Analytics owns the **product event stream** only:
+
+| Owned by Analytics | Module |
+| --- | --- |
+| Event type catalog and schema version | `src/lib/analytics/events/catalog.ts` |
+| Event sanitizer (sensitive-key drop + value coercion) | `src/lib/analytics/events/sanitize.ts` |
+| Event writer (`recordEvent`) | `src/lib/analytics/events/writer.ts` |
+| Retention + per-user erasure (`pruneOldEvents`, `deleteEventsForUser`) | `src/lib/analytics/events/retention.ts` |
+| Funnel / activation / reading-completion / study-conversion / feature-usage queries and export contract | `src/lib/analytics/queries/` |
+
+Analytics is **not** a catch-all for every aggregation in the product. Several
+modules that ship under `src/lib/analytics/` are **domain read models** — they
+query source-domain tables directly and are composed by their respective
+dashboards. See [`domain-reporting.md`](./domain-reporting.md) for their
+ownership and privacy rules.
+
+| Domain read model | Owned by | Module |
+| --- | --- | --- |
+| Learner activity analytics (progress, vocab, quizzes, streaks) | Learning | `src/lib/analytics/learner.ts` |
+| Classroom / tenant analytics and access-control rules | Access & Tenancy | `src/lib/analytics/tenant.ts` |
+| Admin library statistics (article counts, member activity, top tags) | Article Library / Admin | `src/lib/analytics/admin.ts` |
+| AI usage ledger (cost / volume / latency / fallback) | AI | `src/lib/ai-usage-summary.ts` |
+| Job / content-processing health | Operations | `src/lib/processing/state.ts` |
+
 ## Why a separate event stream?
 
 The domain tables (`ReadingProgress`, `SavedWord`, `QuizAttempt`, …) are the
