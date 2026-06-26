@@ -48,6 +48,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`architecture/`](./architecture/) | Architecture decision records. Start with [`architecture/README.md`](./architecture/README.md). |
+| [`architecture/0010-subsystem-boundaries-and-import-contracts.md`](./architecture/0010-subsystem-boundaries-and-import-contracts.md) | First-class subsystem ownership model, public API and private import rules, allowlist strategy, and phased enforcement backlog. New work must respect the subsystem boundary contract defined here. |
 
 ### Content ingestion and policy
 
