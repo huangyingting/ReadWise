@@ -88,7 +88,7 @@
   --reader-rail-width: 360px;
 }
 
-@media (min-width: 1100px) {
+@media (min-width: 1100px) { /* var(--bp-reader) */
   .reader-layout {
     padding: var(--space-6) var(--space-6) var(--space-8);
   }
@@ -96,12 +96,13 @@
 
 /*
  * #153 — reader Tools surface z-index band (single source of truth):
- *   reader-controls toolbar ...... 30
- *   reader-mini-player ........... 40
- *   reader-tools-scrim ........... 49   (bottom-sheet backdrop, <xl only)
- *   reader-tools-surface (sheet) . 50
- *   app modals / Popovers / Sheet  60
- * On xl the surface is a non-modal sticky rail (z-index 1, no scrim).
+ *   reader-controls toolbar ...... var(--z-transport)  = 30
+ *   reader-mini-player ........... var(--z-panel)      = 40
+ *   reader bottom-sheet scrim .... var(--z-sheet-scrim)= 44  (<xl only)
+ *   reader bottom-sheet surface .. var(--z-sheet)      = 45  (<xl only)
+ *   tools/word-lookup overlay .... var(--z-overlay)    = 50
+ *   app modals / Popovers / Sheet  var(--z-popover)    = 60
+ * On xl the surface is a non-modal sticky rail (z-index var(--z-base)=1, no scrim).
  */
 
 /* xl: reserve the right-rail column ONLY while the surface is open, so the
@@ -112,7 +113,7 @@
    1280–1440 band cramped the reading column under its measure, so the Tools
    button opens the bottom sheet there instead. Keep this threshold in sync with
    ReaderToolsSurface's SHEET_MAX_WIDTH. */
-@media (min-width: 1440px) {
+@media (min-width: 1440px) { /* var(--bp-listing) */
   /* #206 — practice tools now open as a FULL-SCREEN overlay (see
      .reader-tools-surface), so the reading layout no longer reserves a rail
      column; the reading column keeps its measure width underneath the overlay. */
@@ -231,7 +232,7 @@
   position: sticky;
   /* Sit flush under the opaque AppHeader (no text-showing sliver) */
   top: var(--header-height);
-  z-index: 30;
+  z-index: var(--z-transport);
   display: flex;
   align-items: center;
   justify-content: space-between;

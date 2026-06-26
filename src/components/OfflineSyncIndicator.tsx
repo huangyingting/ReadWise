@@ -46,7 +46,7 @@ export default function OfflineSyncIndicator() {
       role="status"
       aria-live="polite"
       className={[
-        "fixed bottom-[var(--space-4)] left-1/2 -translate-x-1/2 z-50",
+        "fixed bottom-[var(--space-4)] left-1/2 -translate-x-1/2 z-[var(--z-overlay)]",
         "flex items-center gap-[var(--space-2)]",
         "rounded-[var(--radius-full,9999px)] border border-border",
         "bg-surface/95 px-[var(--space-3)] py-[var(--space-1-5,0.375rem)]",

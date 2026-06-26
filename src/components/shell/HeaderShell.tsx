@@ -21,7 +21,7 @@ export default function HeaderShell({ children }: { children: ReactNode }) {
   return (
     <header
       className={cn(
-        "sticky top-0 z-50 bg-surface",
+        "sticky top-0 z-[var(--z-overlay)] bg-surface",
         "transition-shadow [transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
         scrolled
           ? "shadow-[var(--shadow-md)] border-b border-transparent"

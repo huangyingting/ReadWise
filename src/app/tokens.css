@@ -63,6 +63,39 @@
   /* ---- Reading measure ---- */
   --measure: 76ch;
 
+  /* ---- Z-index scale ---- */
+  /* Named stacking layers. Preserve order: base < controls < transport < fab <
+   * panel < sheet-scrim < sheet < overlay < popover < scrim < modal < top < skip.
+   * CSS custom properties cannot be used inside @media queries — use the --bp-*
+   * tokens as documentation and reference them in comments next to media rules. */
+  --z-base:        1;
+  --z-controls:    20;
+  --z-transport:   30;
+  --z-fab:         35;   /* reader FAB — above toolbar, below mini-player */
+  --z-panel:       40;   /* mini-player panel */
+  --z-sheet-scrim: 44;   /* reader bottom-sheet backdrop */
+  --z-sheet:       45;   /* reader bottom-sheet */
+  --z-overlay:     50;   /* sticky overlays: progress bar, bottom tab bar, app header */
+  --z-popover:     60;   /* dropdowns, annotation bubbles, sheet drawers */
+  --z-scrim:       100;  /* command-palette / modal backdrop */
+  --z-modal:       101;  /* command-palette dialog, modals */
+  --z-top:         200;  /* top-level modals (keyboard shortcuts) */
+  --z-skip:        9999; /* skip links — always on top */
+
+  /* ---- Breakpoints (documentation only — use literal values in @media) ---- */
+  --bp-sm:      640px;
+  --bp-md:      768px;
+  --bp-reader:  1100px;  /* reader/tutor shared boundary; fixes 1099/1100 off-by-one */
+  --bp-listing: 1440px;
+
+  /* ---- Additional radius ---- */
+  --radius-xs: 4px;
+
+  /* ---- Marketing layout ---- */
+  --marketing-header-h:    64px;    /* h-16 in MarketingHeader */
+  --marketing-container-w: 1200px;
+  --on-brand-muted:        rgba(255, 255, 255, 0.85); /* muted white on brand gradient */
+
   /* ---- App sidebar (US-149) ---- */
   --sidebar-w: 240px;
   --sidebar-w-collapsed: 64px;

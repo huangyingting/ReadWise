@@ -204,7 +204,7 @@ export default function ListPickerPopover({
       className={cn(
         "absolute top-full right-0 mt-1",
         "bg-surface-raised border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-lg)]",
-        "w-64 z-50",
+        "w-64 z-[var(--z-overlay)]",
         "rw-fade-up [transform-origin:top_right]",
       )}
     >

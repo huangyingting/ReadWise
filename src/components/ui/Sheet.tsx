@@ -47,7 +47,7 @@ export function Sheet({
   const isBottom = side === "bottom";
 
   return (
-    <div className="fixed inset-0 z-[60]">
+    <div className="fixed inset-0 z-[var(--z-popover)]">
       {/* Scrim */}
       <div
         aria-hidden

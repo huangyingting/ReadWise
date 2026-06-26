@@ -19,8 +19,8 @@ const TAB_LABELS: Record<string, string> = {
  * Renders the four `PRIMARY_TABS` (Home/Browse/Study/Progress) plus a "More"
  * button that opens the `MoreSheet` (secondary + utility actions). The desktop
  * sidebar owns nav at `md+`, so this self-hides there. Sits below modal sheets
- * (z-[50] < Sheet's z-[60]). Safe-area aware via `env(safe-area-inset-bottom)`.
- */
+ * (z-[var(--z-overlay)] < Sheet's z-[var(--z-popover)]). Safe-area aware via
+ * `env(safe-area-inset-bottom)`. */
 export default function BottomTabBar({ user }: { user: ShellUser }) {
   const pathname = usePathname();
   const [moreOpen, setMoreOpen] = useState(false);
@@ -52,7 +52,7 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
       <nav
         aria-label="Primary"
         className={cn(
-          "md:hidden fixed inset-x-0 bottom-0 z-[50]",
+          "md:hidden fixed inset-x-0 bottom-0 z-[var(--z-overlay)]",
           "flex items-stretch",
           "h-[var(--bottom-bar-h)] bg-surface border-t border-border",
           "[padding-bottom:env(safe-area-inset-bottom)]",

@@ -144,14 +144,14 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
       <div
         aria-hidden
         onClick={onClose}
-        className="hidden sm:block fixed inset-0 z-[100] bg-[var(--overlay)] rw-cmdk-scrim"
+        className="hidden sm:block fixed inset-0 z-[var(--z-scrim)] bg-[var(--overlay)] rw-cmdk-scrim"
         style={{ backdropFilter: "blur(2px)" }}
       />
 
       {/* Panel positioning container */}
       <div
         className={cn(
-          "fixed inset-0 z-[101]",
+          "fixed inset-0 z-[var(--z-modal)]",
           "sm:flex sm:justify-center sm:items-start",
           "sm:pointer-events-none",
         )}

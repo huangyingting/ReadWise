@@ -96,7 +96,7 @@ export function Popover({
       role="dialog"
       aria-label={label}
       className={cn(
-        "absolute top-[calc(100%+var(--space-2))] z-[60] min-w-[200px]",
+        "absolute top-[calc(100%+var(--space-2))] z-[var(--z-popover)] min-w-[200px]",
         "rounded-[var(--radius-md)] border border-border bg-surface py-[var(--space-1)]",
         "shadow-[var(--shadow-lg)]",
         align === "end" ? "right-0" : "left-0",

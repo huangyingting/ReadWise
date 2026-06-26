@@ -18,7 +18,7 @@ import {
 import type { FeatureAccent } from "@/components/marketing/FeatureCard";
 
 export const CONTAINER =
-  "mx-auto max-w-[1200px] px-[clamp(var(--space-6),5vw,var(--space-8))]";
+  "mx-auto max-w-[var(--marketing-container-w)] px-[clamp(var(--space-6),5vw,var(--space-8))]";
 
 export const SOURCES = ["NBC News", "National Geographic", "Time", "HuffPost"] as const;
 

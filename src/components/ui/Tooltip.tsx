@@ -54,7 +54,7 @@ export function Tooltip({ content, children, side = "top" }: TooltipProps) {
           id={id}
           role="tooltip"
           className={cn(
-            "absolute z-50 px-[var(--space-2)] py-[var(--space-1)]",
+            "absolute z-[var(--z-overlay)] px-[var(--space-2)] py-[var(--space-1)]",
             "rounded-[var(--radius-sm)]",
             "text-[length:var(--text-xs)] text-text-inverted whitespace-nowrap",
             "bg-[color:var(--text)] shadow-[var(--shadow-md)]",
