@@ -9,12 +9,13 @@
 import { randomUUID } from "node:crypto";
 import { readFile, readdir } from "node:fs/promises";
 import { join } from "node:path";
+import { after, afterEach } from "node:test";
 
 import type { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
-import { PREFIX } from "./db-config";
+import { enabled, PREFIX } from "./db-config";
 
 const ROOT = process.cwd();
 
@@ -148,4 +149,21 @@ export async function readPostgresMigrations(): Promise<Array<{ name: string; sq
       sql: await readFile(join(migrationsRoot, name, "migration.sql"), "utf8"),
     })),
   );
+}
+
+/**
+ * Registers the standard `afterEach` / `after` cleanup hooks for integration
+ * tests: sweeps all `dbit_`-prefixed rows between tests and disconnects Prisma
+ * at suite teardown.
+ *
+ * Call once at the top of each `postgres-*.test.ts` file instead of repeating
+ * the identical afterEach/after block.
+ */
+export function registerIntegrationCleanup(): void {
+  afterEach(async () => {
+    if (enabled) await cleanIntegrationRows();
+  });
+  after(async () => {
+    await prisma.$disconnect();
+  });
 }

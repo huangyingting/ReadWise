@@ -43,7 +43,7 @@ export type StreakSummary = {
  *    not yet active but yesterday is, the streak anchors on yesterday.
  *  - longestStreak is the longest such run in the user's history.
  */
-export async function getStreakSummary(userId: string): Promise<StreakSummary> {
+export async function getStreakSummary(userId: string, now?: Date): Promise<StreakSummary> {
   const [activities, profile] = await Promise.all([
     prisma.dailyActivity.findMany({
       where: { userId },
@@ -66,7 +66,7 @@ export async function getStreakSummary(userId: string): Promise<StreakSummary> {
     if (a.articlesRead > 0) activeDates.add(a.date.toISOString().slice(0, 10));
   }
 
-  const now = new Date();
+  now = now ?? new Date();
   const todayStr = dateKey(now, tz);
   const yesterdayStr = dateKey(new Date(now.getTime() - 86_400_000), tz);
 

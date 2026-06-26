@@ -143,22 +143,7 @@ test("providerFetch stops retrying after exhausting retries limit and returns la
 test("providerFetch retries on 429 and respects Retry-After header", async () => {
   installFetchStub();
   let calls = 0;
-  const retryAfterMs: number[] = [];
-  const originalSetTimeout = global.setTimeout;
-
-  // Track how long we actually waited
   const waitMs: number[] = [];
-  const realSetTimeout = global.setTimeout;
-  // Override setTimeout to record delays without actually waiting
-  (global as unknown as Record<string, unknown>).setTimeout = (
-    fn: () => void,
-    ms?: number,
-  ) => {
-    waitMs.push(ms ?? 0);
-    // Immediately invoke so the test doesn't actually sleep
-    fn();
-    return 0 as unknown as ReturnType<typeof realSetTimeout>;
-  };
 
   fetchImpl = async () => {
     calls++;
@@ -174,13 +159,13 @@ test("providerFetch retries on 429 and respects Retry-After header", async () =>
   const res = await providerFetch(
     "https://api.example.com/rate-limited",
     {},
-    { retries: 1, backoffBaseMs: 0, backoffMaxMs: 0 },
+    {
+      retries: 1,
+      backoffBaseMs: 0,
+      backoffMaxMs: 0,
+      sleep: async (ms) => { waitMs.push(ms); },
+    },
   );
-
-  // Restore setTimeout
-  (global as unknown as Record<string, unknown>).setTimeout = realSetTimeout;
-  void retryAfterMs;
-  void originalSetTimeout;
 
   assert.equal(res.ok, true);
   assert.equal(calls, 2);

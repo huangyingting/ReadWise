@@ -64,9 +64,11 @@ beforeEach(() => {
 
 // ---- helpers -------------------------------------------------------------
 
-/** Build a Date at UTC midnight for a given offset from today. */
-function daysAgo(n: number): Date {
-  const now = new Date();
+/** Fixed reference point so streak tests are deterministic across UTC midnight. */
+const NOW = new Date("2026-06-25T12:00:00.000Z");
+
+/** Build a Date at UTC midnight for a given offset from a fixed reference. */
+function daysAgo(n: number, now: Date = NOW): Date {
   const d = new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()),
   );
@@ -112,7 +114,7 @@ test("recordReadingActivity is idempotent (same article twice = at most count ro
 
 test("currentStreak is 0 when no activity exists", async () => {
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.currentStreak, 0);
   assert.equal(summary.longestStreak, 0);
   assert.equal(summary.todayProgress, 0);
@@ -121,7 +123,7 @@ test("currentStreak is 0 when no activity exists", async () => {
 test("currentStreak is 1 when only today is active", async () => {
   activityRows = [{ date: daysAgo(0), articlesRead: 3 }];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.currentStreak, 1);
 });
 
@@ -133,7 +135,7 @@ test("currentStreak counts today + consecutive prior days", async () => {
     { date: daysAgo(4), articlesRead: 1 }, // gap — should not be counted
   ];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.currentStreak, 3);
 });
 
@@ -143,14 +145,14 @@ test("currentStreak anchors on yesterday when today is not yet active", async ()
     { date: daysAgo(2), articlesRead: 1 },
   ];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.currentStreak, 2);
 });
 
 test("currentStreak is 0 when most-recent active day is 2+ days ago", async () => {
   activityRows = [{ date: daysAgo(2), articlesRead: 5 }];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.currentStreak, 0);
 });
 
@@ -165,7 +167,7 @@ test("longestStreak finds the longest run in history", async () => {
     { date: daysAgo(4), articlesRead: 1 }, // run of 2
   ];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.longestStreak, 3);
 });
 
@@ -173,14 +175,14 @@ test("longestStreak finds the longest run in history", async () => {
 
 test("dailyGoal falls back to 2 when no profile exists", async () => {
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.dailyGoal, 2);
 });
 
 test("dailyGoal reads from profile", async () => {
   profileRow = { dailyGoal: 5 };
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.dailyGoal, 5);
 });
 
@@ -188,16 +190,16 @@ test("dailyGoal reads from profile", async () => {
 
 test("last7Days contains 7 entries with today last", async () => {
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.last7Days.length, 7);
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   assert.equal(summary.last7Days[6].date, todayKey);
 });
 
 test("last7Days marks active days correctly", async () => {
   activityRows = [{ date: daysAgo(1), articlesRead: 2 }];
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   // Entry at index 5 = yesterday (6-1=5 from the start, but array is oldest→newest)
   const yesterday = summary.last7Days[5];
   assert.equal(yesterday.active, true);
@@ -210,13 +212,13 @@ test("last7Days marks active days correctly", async () => {
 test("getStreakSummary returns streakShields from profile", async () => {
   profileRow = { dailyGoal: 2, streakShields: 1 };
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.streakShields, 1);
 });
 
 test("getStreakSummary defaults streakShields to 0 when no profile", async () => {
   const { getStreakSummary } = await import("@/lib/engagement/streak");
-  const summary = await getStreakSummary("user-1");
+  const summary = await getStreakSummary("user-1", NOW);
   assert.equal(summary.streakShields, 0);
 });
 
@@ -274,14 +276,14 @@ test("localDayStart UTC-5: 23:00 UTC-5 local → local date midnight", async () 
 
 test("recordReadingActivity: shield fills a 1-day gap and is consumed", async () => {
   profileRow = { streakShields: 1 };
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   const twoDaysAgoKey = subtractDays(todayKey, 2);
   // Two days ago was active, yesterday was missed (no row)
   activityRows = [{ date: new Date(twoDaysAgoKey + "T00:00:00Z"), articlesRead: 1 }];
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   // Transaction should have been called (fills yesterday + decrements shield)
   assert.ok(transactionCalls.length >= 1, "transaction should fire for shield gap-fill");
@@ -292,12 +294,12 @@ test("recordReadingActivity: shield fills a 1-day gap and is consumed", async ()
 test("recordReadingActivity: shield NOT consumed when gap > 1 day", async () => {
   profileRow = { streakShields: 1 };
   // Last active day was 3 days ago (gap = 2 days) — shield only covers 1 day
-  const threeDaysAgoKey = subtractDays(new Date().toISOString().slice(0, 10), 3);
+  const threeDaysAgoKey = subtractDays(NOW.toISOString().slice(0, 10), 3);
   activityRows = [{ date: new Date(threeDaysAgoKey + "T00:00:00Z"), articlesRead: 1 }];
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   // No transaction for gap-fill (gap > 1)
   assert.equal(transactionCalls.length, 0);
@@ -307,13 +309,13 @@ test("recordReadingActivity: shield NOT consumed when gap > 1 day", async () => 
 
 test("recordReadingActivity: no shield consumed when no gap (consecutive days)", async () => {
   profileRow = { streakShields: 1 };
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   const yesterdayKey = subtractDays(todayKey, 1);
   activityRows = [{ date: new Date(yesterdayKey + "T00:00:00Z"), articlesRead: 2 }];
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   // No gap → no transaction for shield consume
   assert.equal(transactionCalls.length, 0);
@@ -323,16 +325,16 @@ test("recordReadingActivity: no shield consumed when no gap (consecutive days)",
 
 test("recordReadingActivity: earns a shield after 7 consecutive active days", async () => {
   profileRow = { streakShields: 0 };
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   // Make the last 6 days all active
   activityRows = Array.from({ length: 6 }, (_, i) => ({
     date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
     articlesRead: 1,
   }));
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   // profile.update should be called to set streakShields = MAX_SHIELDS (1)
   assert.ok(profileUpdateCalls.length >= 1, "should award shield after 7-day streak");
@@ -340,15 +342,15 @@ test("recordReadingActivity: earns a shield after 7 consecutive active days", as
 
 test("recordReadingActivity: does NOT earn a shield when one is already held", async () => {
   profileRow = { streakShields: 1 };
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   activityRows = Array.from({ length: 6 }, (_, i) => ({
     date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
     articlesRead: 1,
   }));
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   // Shield already at max — no earn update
   assert.equal(profileUpdateCalls.length, 0);
@@ -356,16 +358,16 @@ test("recordReadingActivity: does NOT earn a shield when one is already held", a
 
 test("recordReadingActivity: does NOT earn a shield with only 5 consecutive days", async () => {
   profileRow = { streakShields: 0 };
-  const todayKey = new Date().toISOString().slice(0, 10);
+  const todayKey = NOW.toISOString().slice(0, 10);
   // Only 5 prior days active (not enough for 7-day streak)
   activityRows = Array.from({ length: 5 }, (_, i) => ({
     date: new Date(subtractDays(todayKey, i + 1) + "T00:00:00Z"),
     articlesRead: 1,
   }));
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   assert.equal(profileUpdateCalls.length, 0);
 });
@@ -379,7 +381,7 @@ test("recordReadingActivity: counts both articles read in the local day even whe
   // recompute must keep articlesRead = 2 (the old UTC-window code dropped one).
   const tz = "Etc/GMT+5";
   const { dateKey } = await import("@/lib/engagement/time");
-  const localKey = dateKey(new Date(), tz);
+  const localKey = dateKey(NOW, tz);
   // Real UTC instant of this local midnight (UTC = local + 5h for UTC-5).
   const localMidnightUTC = new Date(localKey + "T05:00:00Z").getTime();
   const beforeUtcMidnight = new Date(localMidnightUTC + 18 * 3_600_000); // 23:00Z same UTC day
@@ -400,7 +402,7 @@ test("recordReadingActivity: counts both articles read in the local day even whe
   ];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   assert.equal(upsertCalls.length, 1);
   const call = upsertCalls[0] as {
@@ -414,7 +416,7 @@ test("recordReadingActivity: counts both articles read in the local day even whe
 test("recordReadingActivity: excludes readings outside the local day", async () => {
   const tz = "Etc/GMT+5";
   const { dateKey } = await import("@/lib/engagement/time");
-  const localKey = dateKey(new Date(), tz);
+  const localKey = dateKey(NOW, tz);
   const localMidnightUTC = new Date(localKey + "T05:00:00Z").getTime();
   const inToday = new Date(localMidnightUTC + 18 * 3_600_000);
   const yesterday = new Date(localMidnightUTC - 2 * 3_600_000); // before local midnight
@@ -429,7 +431,7 @@ test("recordReadingActivity: excludes readings outside the local day", async () 
   ];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
-  await recordReadingActivity("user-1", "a1");
+  await recordReadingActivity("user-1", "a1", undefined, NOW);
 
   const call = upsertCalls[0] as { update: { articlesRead: number } };
   assert.equal(call.update.articlesRead, 1);
@@ -439,12 +441,12 @@ test("recordReadingActivity: excludes readings outside the local day", async () 
 
 test("recordReadingActivity: accepts timezone override and uses local date", async () => {
   profileRow = null; // no profile → defaults, but timezone param is passed
-  progressRows = [{ articleId: "a1", updatedAt: new Date() }];
+  progressRows = [{ articleId: "a1", updatedAt: NOW }];
 
   const { recordReadingActivity } = await import("@/lib/engagement/activity");
   // Should not throw when a timezone override is provided
   await assert.doesNotReject(
-    recordReadingActivity("user-1", "a1", "America/New_York"),
+    recordReadingActivity("user-1", "a1", "America/New_York", NOW),
   );
   assert.ok(upsertCalls.length >= 1, "upsert should still fire");
 });
