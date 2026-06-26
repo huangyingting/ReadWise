@@ -10,6 +10,7 @@ import { quizEvaluator } from "@/lib/ai/evals/evaluators/quiz";
 import { difficultyEvaluator } from "@/lib/ai/evals/evaluators/difficulty";
 import { grammarEvaluator } from "@/lib/ai/evals/evaluators/grammar";
 import { tutorEvaluator } from "@/lib/ai/evals/evaluators/tutor";
+import { safetyEvaluator } from "@/lib/ai/evals/evaluators/safety";
 
 /** Evaluators keyed by feature. Every curated dataset must have one. */
 export const EVALUATORS: Record<string, FeatureEvaluator> = {
@@ -19,6 +20,7 @@ export const EVALUATORS: Record<string, FeatureEvaluator> = {
   difficulty: difficultyEvaluator,
   grammar: grammarEvaluator,
   tutor: tutorEvaluator,
+  safety: safetyEvaluator,
 };
 
 /** Features that have an evaluator (and therefore can be evaluated). */
