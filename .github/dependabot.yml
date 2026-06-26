@@ -1,0 +1,47 @@
+version: 2
+
+updates:
+  # npm — weekly dependency updates for all ecosystems managed through package.json.
+  # Dependabot opens PRs automatically; engineers review and merge.
+  # Security updates are always opened regardless of this schedule.
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    # Keep PR noise manageable by grouping patch/minor updates together.
+    groups:
+      patch-updates:
+        update-types:
+          - "patch"
+      minor-updates:
+        update-types:
+          - "minor"
+    # Cap open PRs to avoid queue flooding; security PRs are exempt from this limit.
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "automated"
+    commit-message:
+      prefix: "chore(deps)"
+      include: "scope"
+
+  # GitHub Actions — pin action versions so the supply chain of CI itself is
+  # tracked and updated. Security updates open immediately.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "UTC"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "ci"
+      - "automated"
+    commit-message:
+      prefix: "chore(ci)"
+      include: "scope"

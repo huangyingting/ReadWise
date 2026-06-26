@@ -18,14 +18,17 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Tiers (see docs/platform/ci.md):
-#   fast-checks     — typecheck + lint        (every PR, fails fast)
-#   unit-tests      — npm test                (every PR)
-#   build           — npm run build           (every PR)
-#   db-integration  — PostgreSQL migrate/test (every PR)
-#   e2e-smoke       — Playwright smoke        (push to main + nightly + manual; NOT on PRs)
-#   ci-summary      — writes a pass/fail digest to the run summary
+#   fast-checks       — typecheck + lint          (every PR, fails fast)
+#   unit-tests        — npm test                  (every PR)
+#   build             — npm run build             (every PR)
+#   db-integration    — PostgreSQL migrate/test   (every PR)
+#   supply-chain      — lockfile + npm audit      (every PR; audit is advisory)
+#   dependency-review — new-dep vulnerability scan (PRs only, blocks on HIGH)
+#   e2e-smoke         — Playwright smoke          (push to main + nightly + manual; NOT on PRs)
+#   ci-summary        — writes a pass/fail digest to the run summary
 #
-# Required per-PR gates: fast-checks, unit-tests, build, db-integration.
+# Required per-PR gates: fast-checks, unit-tests, build, db-integration, supply-chain.
+# dependency-review is PR-only but does NOT feed ci-summary (it runs in parallel).
 # E2E is intentionally tiered off PRs so a slower/flakier browser run can never
 # block a merge — it still runs post-merge, nightly, and on demand.
 
@@ -242,7 +245,96 @@ jobs:
         run: npm run test:db
 
   # ---------------------------------------------------------------------------
-  # Tier 5 — E2E smoke (Playwright). Slower/flakier, so it is TIERED: it runs on
+  # Tier 5 — Supply-chain hygiene: lockfile integrity + npm audit.
+  #
+  # Two checks in one lightweight job:
+  #
+  # 1. Lockfile integrity — `npm ci` fails fast if package-lock.json is absent
+  #    or inconsistent with package.json (e.g. someone edited package.json without
+  #    running `npm install`). This is the deterministic, zero-false-positive gate.
+  #
+  # 2. npm audit (HIGH/CRITICAL, advisory) — reports known vulnerabilities at
+  #    high or critical severity.  `continue-on-error: true` is intentional: the
+  #    repo currently carries pre-existing transitive advisories that cannot be
+  #    fixed without breaking changes (see docs/platform/supply-chain.md).
+  #    The step ALWAYS runs and its output is visible in the job log and the run
+  #    summary so engineers can triage.  Once all pre-existing HIGH advisories
+  #    are remediated, flip this to `continue-on-error: false` to make it blocking.
+  #
+  # See docs/platform/supply-chain.md for the full policy, severity table, and
+  # how to triage or allowlist an advisory.
+  # ---------------------------------------------------------------------------
+  supply-chain:
+    name: Supply-chain hygiene (lockfile + audit)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      # -----------------------------------------------------------------------
+      # Lockfile integrity: npm ci fails if package-lock.json is missing or if
+      # it does not satisfy the version ranges in package.json.  This is a hard
+      # blocking gate — a drifted lockfile must be fixed before merging.
+      # Fix: run `npm install` locally (do NOT use --force) and commit the
+      # updated package-lock.json.
+      # -----------------------------------------------------------------------
+      - name: Lockfile integrity check (npm ci)
+        run: npm ci --ignore-scripts
+
+      # -----------------------------------------------------------------------
+      # npm audit — advisory (continue-on-error: true) until pre-existing
+      # HIGH advisories in @opentelemetry packages are remediated upstream.
+      # To promote to blocking: remove the continue-on-error line below.
+      # -----------------------------------------------------------------------
+      - name: npm audit (HIGH/CRITICAL — advisory)
+        run: |
+          echo "## npm audit report" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if npm audit --audit-level=high 2>&1 | tee audit-output.txt; then
+            echo "✅ No HIGH or CRITICAL vulnerabilities found." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "⚠️ HIGH or CRITICAL advisories detected (advisory-only — see supply-chain.md to triage):" >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+            tail -30 audit-output.txt >> "$GITHUB_STEP_SUMMARY"
+            echo '```' >> "$GITHUB_STEP_SUMMARY"
+          fi
+        continue-on-error: true  # Remove when pre-existing HIGH advisories are resolved.
+
+  # ---------------------------------------------------------------------------
+  # Dependency review — compares newly introduced npm packages against the
+  # GitHub Advisory Database.  Runs on pull_request only (requires a diff).
+  # Blocks the PR if a newly added or updated dependency carries a HIGH or
+  # CRITICAL known vulnerability.  Does NOT scan pre-existing transitive deps
+  # (that is the job of supply-chain / npm audit above).
+  # ---------------------------------------------------------------------------
+  dependency-review:
+    name: Dependency review (new deps)
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'pull_request' }}
+
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Dependency review
+        uses: actions/dependency-review-action@v4
+        with:
+          fail-on-severity: high
+          comment-summary-in-pr: always
+
+  # ---------------------------------------------------------------------------
+  # Tier 6 — E2E smoke (Playwright). Slower/flakier, so it is TIERED: it runs on
   # pushes to main, the nightly schedule, and manual dispatch — never on pull
   # requests. That keeps PR feedback fast and means a browser run can never block
   # a merge, while still giving post-merge and nightly confidence.
@@ -316,7 +408,7 @@ jobs:
   ci-summary:
     name: CI summary
     runs-on: ubuntu-latest
-    needs: [fast-checks, unit-tests, build, db-integration]
+    needs: [fast-checks, unit-tests, build, db-integration, supply-chain]
     if: ${{ always() }}
 
     steps:
@@ -326,6 +418,7 @@ jobs:
           UNIT_TESTS: ${{ needs.unit-tests.result }}
           BUILD: ${{ needs.build.result }}
           DB_INTEGRATION: ${{ needs.db-integration.result }}
+          SUPPLY_CHAIN: ${{ needs.supply-chain.result }}
         run: |
           icon() {
             case "$1" in
@@ -347,12 +440,15 @@ jobs:
             echo "| Unit tests | $(icon "$UNIT_TESTS") $UNIT_TESTS |"
             echo "| Build | $(icon "$BUILD") $BUILD |"
             echo "| PostgreSQL migrate / integration | $(icon "$DB_INTEGRATION") $DB_INTEGRATION |"
+            echo "| Supply-chain hygiene (lockfile + audit) | $(icon "$SUPPLY_CHAIN") $SUPPLY_CHAIN |"
             echo ""
-            if [ "$FAST_CHECKS" = "success" ] && [ "$UNIT_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$DB_INTEGRATION" = "success" ]; then
+            if [ "$FAST_CHECKS" = "success" ] && [ "$UNIT_TESTS" = "success" ] && [ "$BUILD" = "success" ] && [ "$DB_INTEGRATION" = "success" ] && [ "$SUPPLY_CHAIN" = "success" ]; then
               echo "All required gates passed. ✅"
             else
               echo "One or more required gates did not pass — see the table above and the failing job's logs."
             fi
             echo ""
             echo "_E2E smoke is tiered (push to main + nightly + manual) and does not run on PRs._"
+            echo "_Dependency review runs on PRs only and is not included in this summary._"
+            echo "_npm audit in supply-chain is advisory until pre-existing HIGH advisories are resolved._"
           } >> "$GITHUB_STEP_SUMMARY"

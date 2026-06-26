@@ -14,8 +14,13 @@ describes the tiers, what runs when, how to reproduce each gate locally, and the
 | **Unit tests** | Node built-in test runner (`tests/**`) | `npm test` |
 | **Build** | Production Next.js build | `npm run build` |
 | **PostgreSQL Migrate / Integration** | PG migrate + integration tests | `npm run test:db` |
+| **Supply-chain hygiene** | Lockfile integrity + `npm audit` (advisory) | `npm audit --audit-level=high` |
+| **Dependency review** | New-dep vulnerability scan (PRs only) | — (GitHub Advisory DB) |
 | **E2E smoke (Playwright)** | Browser smoke flows (`e2e/**`) | `npm run test:e2e:smoke` |
 | **CI summary** | Pass/fail digest in the run summary | — |
+
+For the supply-chain and dependency hygiene policy, severity table, and how to
+triage or allowlist an advisory, see [`supply-chain.md`](supply-chain.md).
 
 The **API catalog drift check** runs as a step inside **Fast checks**. See
 [API catalog drift gate](#api-catalog-drift-gate) below for details.
