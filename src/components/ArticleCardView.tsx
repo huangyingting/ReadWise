@@ -2,7 +2,7 @@ import { Check, ChevronRight } from "lucide-react";
 import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement/progress";
 import { Sparkles } from "lucide-react";
-import { CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
+import { Badge, CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
 import { humanizeCategorySlug } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
 import { Tooltip } from "@/components/ui/Tooltip";
@@ -144,18 +144,7 @@ export default function ArticleCardView({
             </Tooltip>
           ) : null}
           {isNew && (
-            <span
-              aria-label="New"
-              className={cn(
-                "inline-flex items-center rounded-[var(--radius-full)]",
-                "px-[var(--space-2)] py-px",
-                "text-[length:var(--text-xs)] font-semibold",
-                "bg-green-100 text-green-700 border border-green-200",
-                "dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
-              )}
-            >
-              New
-            </span>
+            <Badge variant="success" aria-label="New">New</Badge>
           )}
           {/* Meta: category + "N min read" truncate together so the line never
               overflows under the Read chip / bookmark on narrow (4-col) cards. */}

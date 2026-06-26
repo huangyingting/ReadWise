@@ -106,13 +106,17 @@
   /* Status — Success / Warning / Danger */
   --success: #059669;
   --success-text: #047857;
+  --success-bg: #f0fdf4;   /* green-50  — #047857 text: 4.76:1 AA  */
   --warning: #d97706;
   --warning-text: #b45309;
+  --warning-bg: #fffbeb;   /* amber-50  — #b45309 text: 4.68:1 AA  */
   --on-warning: #0f172a;
   --danger: #dc2626;
   --danger-hover: #b91c1c;
   --on-danger: #ffffff;
   --danger-text: #dc2626;
+  --danger-bg: #fef2f2;    /* red-50    — #dc2626 text: 4.67:1 AA  */
+  --danger-border: #fca5a5; /* red-300  — border accent, light      */
 
   /* Focus / overlay */
   --focus-ring: #6366f1;
@@ -196,13 +200,17 @@
 
   --success: #34d399;
   --success-text: #34d399;
+  --success-bg: #053b2c;   /* dark green tint — #34d399 text: 6.17:1 AA  */
   --warning: #fbbf24;
   --warning-text: #fbbf24;
+  --warning-bg: #3a2606;   /* dark amber tint — #fbbf24 text: 7.97:1 AAA */
   --on-warning: #0f172a;
   --danger: #ef4444;
   --danger-hover: #f87171;
   --on-danger: #ffffff;
   --danger-text: #f87171;
+  --danger-bg: #3f1018;    /* dark red tint   — #f87171 text: 5.57:1 AA  */
+  --danger-border: #ef4444; /* = --danger dark, 4.27:1 on surface (WCAG 1.4.11) */
 
   --focus-ring: #818cf8;
   --overlay: rgba(2, 6, 23, 0.65);
@@ -272,13 +280,17 @@
 
     --success: #34d399;
     --success-text: #34d399;
+    --success-bg: #053b2c;
     --warning: #fbbf24;
     --warning-text: #fbbf24;
+    --warning-bg: #3a2606;
     --on-warning: #0f172a;
     --danger: #ef4444;
     --danger-hover: #f87171;
     --on-danger: #ffffff;
     --danger-text: #f87171;
+    --danger-bg: #3f1018;
+    --danger-border: #ef4444;
 
     --focus-ring: #818cf8;
     --overlay: rgba(2, 6, 23, 0.65);
