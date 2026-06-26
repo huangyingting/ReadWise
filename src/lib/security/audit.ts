@@ -33,6 +33,10 @@ export const AUDIT_ACTIONS = {
   accountDelete: "account.delete",
   securityAdminAccessDenied: "security.admin_access_denied",
   adminAuditLogRead: "admin.audit_logs.read",
+  userContentReport: "user.content_report",
+  adminReportResolve: "admin.report.resolve",
+  adminReportDismiss: "admin.report.dismiss",
+  adminReportReview: "admin.report.review",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
