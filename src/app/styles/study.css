@@ -162,7 +162,7 @@
 /* min-height reserves space so the result block doesn't shift when the note appears */
 .quiz-saved-note {
   min-height: 1.5em;
-  font-size: 0.8125rem;
+  font-size: var(--text-sm);
   color: var(--reading-text-muted, var(--text-muted));
   display: flex;
   align-items: center;
@@ -303,7 +303,7 @@
   background: transparent;
   color: var(--text);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: background var(--duration-fast) var(--ease-standard);
 }
 .rw-dictate-stepper-btn:hover:not(:disabled) {
   background: var(--bg-subtle);
@@ -402,7 +402,7 @@
 .rw-dictate-score-fill {
   height: 100%;
   border-radius: var(--radius-full);
-  transition: width 0.3s ease;
+  transition: width var(--duration-slow) var(--ease-standard);
 }
 .rw-dictate-score-fill--good { background: var(--success, #16a34a); }
 .rw-dictate-score-fill--fair { background: var(--warning, #ca8a04); }

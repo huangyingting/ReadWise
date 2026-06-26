@@ -254,7 +254,7 @@
   height: 6px;
   border-radius: 2px;
   background: var(--reading-border, var(--border));
-  transition: height 80ms linear, background-color 80ms linear;
+  transition: height var(--duration-fast) linear, background-color var(--duration-fast) linear;
 }
 .rw-speak-meter-seg.is-active {
   background: var(--primary);
@@ -319,7 +319,7 @@
 }
 
 .rw-speak-ring-caption {
-  font-size: 8px;
+  font-size: var(--text-display-xs);
   font-weight: 500;
   color: var(--reading-text-muted, var(--text-muted));
   text-transform: uppercase;

@@ -20,7 +20,7 @@ export default async function OnboardingPage() {
   return (
     <main className="min-h-[100dvh] flex flex-col bg-bg">
       {/* Minimal top bar — same family as sign-in */}
-      <div className="h-16 flex items-center justify-between max-w-[1200px] w-full mx-auto px-[var(--space-6)]">
+      <div className="h-16 flex items-center justify-between max-w-[var(--container-listing)] w-full mx-auto px-[var(--space-6)]">
         <Wordmark />
         <ThemeToggle />
       </div>
