@@ -4,6 +4,7 @@
  * Groups all security-sensitive subsystems under a single, cohesive package
  * with narrow public boundaries. Submodules:
  *
+ *   - `redaction`        — security-owned sensitive metadata redaction policy (#676)
  *   - `client-ip`        — trusted-proxy-aware client IP resolution (RW-027)
  *   - `csrf`             — same-origin enforcement for mutation requests (RW-028)
  *   - `events`           — security event monitoring & alerting (RW-029)
@@ -18,6 +19,13 @@
  *
  * Import specific helpers from this barrel or from the focused submodules.
  */
+export {
+  SENSITIVE_KEY_RE,
+  isSensitiveMetadataKey,
+  redactSensitiveValue,
+  redactSensitiveObject,
+  safeMetadataForPersistence,
+} from "@/lib/security/redaction";
 export * from "@/lib/security/client-ip";
 export * from "@/lib/security/csrf";
 export * from "@/lib/security/events";
