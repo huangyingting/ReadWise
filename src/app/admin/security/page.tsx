@@ -1,7 +1,7 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getRecentSecurityEvents } from "@/lib/security/events";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 import {
   csrfEnforceSameOrigin,
   isTrustedProxyConfigured,
@@ -36,12 +36,12 @@ export default async function AdminSecurityPage() {
       </h1>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
-        <AdminStatCard
+        <StatCard
           label="Trusted proxy"
           value={isTrustedProxyConfigured() ? "configured" : "unconfigured"}
         />
-        <AdminStatCard label="Proxy mode" value={proxyMode} />
-        <AdminStatCard
+        <StatCard label="Proxy mode" value={proxyMode} />
+        <StatCard
           label="CSRF same-origin"
           value={csrfEnforceSameOrigin() ? "enforced" : "disabled"}
         />

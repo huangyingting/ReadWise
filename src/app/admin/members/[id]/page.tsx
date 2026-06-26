@@ -5,7 +5,7 @@ import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getMemberDetail } from "@/lib/account-lifecycle";
 import AdminMemberSupportActions from "@/components/AdminMemberSupportActions";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
@@ -85,10 +85,10 @@ export default async function AdminMemberDetailPage({
         Activity summary
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)]">
-        <AdminStatCard label="Articles started" value={detail.progress.started} />
-        <AdminStatCard label="Articles completed" value={detail.progress.completed} />
-        <AdminStatCard label="Saved words" value={detail.savedWords} />
-        <AdminStatCard label="Quiz attempts" value={detail.quizAttempts} />
+        <StatCard label="Articles started" value={detail.progress.started} />
+        <StatCard label="Articles completed" value={detail.progress.completed} />
+        <StatCard label="Saved words" value={detail.savedWords} />
+        <StatCard label="Quiz attempts" value={detail.quizAttempts} />
       </div>
 
       <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">

@@ -3,7 +3,7 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminOverview, statusBadgeVariant } from "@/lib/admin";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { AdminStatCard } from "@/components/AdminStatCard";
+import { StatCard } from "@/components/analytics/StatCard";
 
 export default async function AdminPage() {
   const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
@@ -23,12 +23,12 @@ export default async function AdminPage() {
         Overview
       </h2>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
-        <AdminStatCard label="Total members" value={overview.users} />
-        <AdminStatCard label="Admins" value={overview.admins} />
-        <AdminStatCard label="Articles" value={overview.articles} />
-        <AdminStatCard label="Published" value={overview.published} />
-        <AdminStatCard label="Tags" value={overview.tags} />
-        <AdminStatCard label="Reads tracked" value={overview.readingProgress} />
+        <StatCard label="Total members" value={overview.users} />
+        <StatCard label="Admins" value={overview.admins} />
+        <StatCard label="Articles" value={overview.articles} />
+        <StatCard label="Published" value={overview.published} />
+        <StatCard label="Tags" value={overview.tags} />
+        <StatCard label="Reads tracked" value={overview.readingProgress} />
       </div>
 
       <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">

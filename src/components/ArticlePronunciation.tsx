@@ -30,6 +30,7 @@ import { Mic, MicOff, Square, Star, Volume2 } from "lucide-react";
 import EmptyState from "@/components/EmptyState";
 import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
+import { Spinner } from "@/components/ui/Spinner";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import { useAudioRangePlayback } from "@/components/reader/useAudioRangePlayback";
 import { usePronunciationSession } from "@/components/pronunciation/usePronunciationSession";
@@ -131,7 +132,11 @@ export default function ArticlePronunciation({
   }
 
   if (session.phase === "init") {
-    return <p className="muted" aria-live="polite">Loading pronunciation tools…</p>;
+    return (
+      <p className="muted" aria-live="polite">
+        <Spinner size="sm" className="text-text-subtle" label="Loading pronunciation tools…" />
+      </p>
+    );
   }
 
   if (session.phase === "unavailable") {

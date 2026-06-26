@@ -39,7 +39,11 @@ export function FeatureCard({
       style={{ borderLeftWidth: "3px", borderLeftColor: accentVar }}
     >
       <span
-        className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)] text-primary-text [background:color-mix(in_srgb,var(--primary)_12%,transparent)]"
+        className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)]"
+        style={{
+          color: accentVar,
+          background: `color-mix(in srgb, ${accentVar} 12%, transparent)`,
+        }}
         aria-hidden="true"
       >
         {icon}

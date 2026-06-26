@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/Button";
-import { cn } from "@/lib/cn";
+import { adminNavLinkVariants } from "./adminNavLinkVariants";
 
 const TABS = [
   { key: "product", href: "/admin/analytics", label: "Product" },
@@ -22,17 +21,7 @@ export function AnalyticsTabs({ active }: { active: "product" | "ai" }) {
             key={tab.key}
             href={tab.href}
             aria-current={isActive ? "page" : undefined}
-            className={
-              isActive
-                ? cn(
-                    "inline-flex items-center justify-center whitespace-nowrap select-none shrink-0",
-                    "border border-primary text-primary-text",
-                    "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
-                    "rounded-[var(--radius-md)] px-[var(--space-3)] h-8",
-                    "font-semibold text-[length:var(--text-sm)]",
-                  )
-                : cn(buttonVariants({ variant: "outline", size: "sm" }), "shrink-0")
-            }
+            className={adminNavLinkVariants(isActive, "outline")}
           >
             {tab.label}
           </Link>

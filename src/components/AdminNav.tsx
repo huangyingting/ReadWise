@@ -2,8 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { buttonVariants } from "@/components/ui/Button";
-import { cn } from "@/lib/cn";
+import { adminNavLinkVariants } from "./admin/adminNavLinkVariants";
 
 const SECTIONS = [
   { href: "/admin", label: "Dashboard" },
@@ -34,34 +33,12 @@ export default function AdminNav() {
               : pathname === section.href ||
                 pathname.startsWith(`${section.href}/`);
 
-          if (isActive) {
-            return (
-              <Link
-                key={section.href}
-                href={section.href}
-                className={cn(
-                  "inline-flex items-center justify-center whitespace-nowrap select-none shrink-0",
-                  "border border-primary text-primary-text",
-                  "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
-                  "rounded-[var(--radius-md)] px-[var(--space-3)] h-8",
-                  "font-semibold text-[length:var(--text-sm)]",
-                  "transition-[background-color,border-color] [transition-duration:var(--duration-fast)]",
-                )}
-                aria-current="page"
-              >
-                {section.label}
-              </Link>
-            );
-          }
-
           return (
             <Link
               key={section.href}
               href={section.href}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                "shrink-0",
-              )}
+              className={adminNavLinkVariants(isActive)}
+              aria-current={isActive ? "page" : undefined}
             >
               {section.label}
             </Link>
