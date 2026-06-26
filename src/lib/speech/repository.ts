@@ -10,7 +10,7 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { getMediaStorage } from "@/lib/storage";
-import { timingEndSeconds, type SpeechWord } from "@/lib/speech-timing";
+import { timingEndSeconds, type SpeechWord } from "./timing";
 
 const log = createLogger("speech");
 

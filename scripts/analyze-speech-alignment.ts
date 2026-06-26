@@ -5,7 +5,7 @@ import {
   buildTokenAlignment,
   extractSpeechBoundaryTokens,
   type ComparableToken,
-} from "@/lib/speech-timing";
+} from "@/lib/speech";
 import { runCli, isMain, addUniqueFromCsv, warnUnknown } from "./lib/cli";
 
 type SpeechTimingLike = {

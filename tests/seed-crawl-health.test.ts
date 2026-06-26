@@ -1,6 +1,6 @@
 import { test, before, mock } from "node:test";
 import assert from "node:assert/strict";
-import type { CrawlRunOutcome } from "@/lib/content-sources";
+import type { CrawlRunOutcome } from "@/lib/scraper/sources";
 import type { ArticleProcessResult } from "@/lib/processing/processor";
 
 process.env.LOG_LEVEL = "error";

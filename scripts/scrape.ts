@@ -9,7 +9,7 @@ import {
   scrapeAndSave,
   type SaveOutcome,
 } from "@/lib/scraper";
-import { isProviderEnabled, recordCrawlRun } from "@/lib/content-sources";
+import { isProviderEnabled, recordCrawlRun } from "@/lib/scraper/sources";
 import type { Provider } from "@/lib/scraper/types";
 import { runCli, isMain, warnUnknown } from "./lib/cli";
 

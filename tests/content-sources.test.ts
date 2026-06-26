@@ -107,7 +107,7 @@ beforeEach(() => {
 });
 
 test("computeHealthStatus buckets by consecutive failures and zero-discovery", async () => {
-  const { computeHealthStatus } = await import("@/lib/content-sources");
+  const { computeHealthStatus } = await import("@/lib/scraper/sources");
   assert.equal(
     computeHealthStatus({ lastError: null, consecutiveFailures: 0, consecutiveZeroDiscovery: 0 }),
     "healthy",
@@ -131,7 +131,7 @@ test("computeHealthStatus buckets by consecutive failures and zero-discovery", a
 });
 
 test("applyCrawlOutcome folds counters and resets streaks on a good run", async () => {
-  const { applyCrawlOutcome } = await import("@/lib/content-sources");
+  const { applyCrawlOutcome } = await import("@/lib/scraper/sources");
   const start = {
     lastError: "old",
     lastDiscoveryCount: 0,
@@ -160,7 +160,7 @@ test("applyCrawlOutcome folds counters and resets streaks on a good run", async 
 });
 
 test("applyCrawlOutcome treats discovered-but-none-scraped and errors as failures", async () => {
-  const { applyCrawlOutcome } = await import("@/lib/content-sources");
+  const { applyCrawlOutcome } = await import("@/lib/scraper/sources");
   const zero = {
     lastError: null,
     lastDiscoveryCount: 0,
@@ -197,7 +197,7 @@ test("applyCrawlOutcome treats discovered-but-none-scraped and errors as failure
 });
 
 test("summarizeSourceHealth flags failing sources with reasons", async () => {
-  const { summarizeSourceHealth } = await import("@/lib/content-sources");
+  const { summarizeSourceHealth } = await import("@/lib/scraper/sources");
   const failing = summarizeSourceHealth({
     healthStatus: "failing",
     consecutiveFailures: 3,
@@ -222,7 +222,7 @@ test("summarizeSourceHealth flags failing sources with reasons", async () => {
 });
 
 test("syncContentSources creates one row per registry provider, idempotently", async () => {
-  const { syncContentSources } = await import("@/lib/content-sources");
+  const { syncContentSources } = await import("@/lib/scraper/sources");
   const { PROVIDERS } = await import("@/lib/scraper/providers");
 
   const first = await syncContentSources();
@@ -239,7 +239,7 @@ test("syncContentSources creates one row per registry provider, idempotently", a
 
 test("isProviderEnabled defaults to true for unsynced providers and honors the flag", async () => {
   const { isProviderEnabled, syncContentSources, setContentSourceEnabled } = await import(
-    "@/lib/content-sources"
+    "@/lib/scraper/sources"
   );
   assert.equal(await isProviderEnabled("nbc"), true);
 
@@ -253,12 +253,12 @@ test("isProviderEnabled defaults to true for unsynced providers and honors the f
 });
 
 test("setContentSourceEnabled returns null for an unknown provider", async () => {
-  const { setContentSourceEnabled } = await import("@/lib/content-sources");
+  const { setContentSourceEnabled } = await import("@/lib/scraper/sources");
   assert.equal(await setContentSourceEnabled("does-not-exist", false), null);
 });
 
 test("recordCrawlRun upserts a row and computes failing health after repeated failures", async () => {
-  const { recordCrawlRun } = await import("@/lib/content-sources");
+  const { recordCrawlRun } = await import("@/lib/scraper/sources");
 
   const failOutcome = {
     discovered: 0,

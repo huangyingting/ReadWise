@@ -41,7 +41,7 @@ import { ErrorNotice } from "@/components/pronunciation/ErrorNotice";
 import {
   findSpeechSentenceRange,
   splitPracticeSentences,
-} from "@/lib/speech-practice";
+} from "@/lib/speech";
 
 export default function ArticlePronunciation({
   articleId,
