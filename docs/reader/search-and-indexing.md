@@ -14,6 +14,48 @@ All Prisma search queries consume `readableArticleWhere` from `@/lib/article-lib
 
 **Migration follow-up (issue #687, Phase 3):** `buildReadableArticleSqlPredicate` must be updated in the same commit whenever `readableArticleWhere` gains new predicates (e.g. tenant/org scoping). Regression coverage lives in `tests/search-sql-predicate.test.ts`.
 
+## Search candidate contract
+
+### Candidate caps and pagination
+
+| Constant | Value | Purpose |
+| --- | ---: | --- |
+| `SEARCH_PAGE_SIZE` | 20 | Default articles per page. |
+| `SEARCH_MAX_LIMIT` | 50 | Maximum articles per page (enforced server-side). |
+| `SEARCH_CANDIDATE_LIMIT` | 500 | Hard cap on low-priority broad-text candidate buckets; limits in-memory ranking set size. |
+
+Priority buckets (exact title/byline/body matches) cap at `priorityTake(offset, limit)` to ensure high-relevance results are never hidden by older broad matches. The PostgreSQL FTS path uses `candidateTake(offset, limit)` which grows with offset+limit but is bounded by `SEARCH_CANDIDATE_LIMIT`. The `hasMore` flag is true when ranked candidates exceed the pagination window or when `reachableTextMatchCount > offset + limit`.
+
+### Ranking
+
+Candidates are merged and ranked entirely in application code (no DB-side `ORDER BY` survives the merge):
+
+1. Exact title match (`contains` full query)
+2. Title field match (per-term `contains`)
+3. Exact byline match (author/source)
+4. Byline field match
+5. Exact body/meta match
+6. PostgreSQL FTS rank (`ts_rank_cd` — PostgreSQL only, silently skipped on SQLite)
+7. Broad text match (all fields, per-term)
+
+Ties within each bucket are broken by `publishedAt DESC, createdAt DESC`. Annotation/vocabulary matches inject article IDs into the candidate set (boosting them) but their final page position is determined by the above ranking after merge.
+
+### External-index provider safety
+
+Any provider registered via `registerSearchProvider` in `src/lib/search/providers.ts` receives a `SearchContext` carrying `userId` and `role`. **The provider must apply the equivalent of `readableArticleWhere` before returning results.** Returning raw index hits without a visibility predicate would expose private and draft articles. The default `PrismaArticleSearchProvider` does this correctly; external index providers (pgvector, Meilisearch, Typesense, OpenSearch) must do the same — either by calling `readableArticleWhere` in a post-filter Prisma query or by embedding the equivalent ACL predicate in the index query.
+
+### Private/org article safety
+
+Search candidates are always gated by `readableArticleWhere`:
+
+| Session | Articles visible in search |
+| --- | --- |
+| Anonymous | Public-listable only (`visibility=PUBLIC`, `status=PUBLISHED`, `ownerId=null`) |
+| Authenticated user | Public-listable **plus** articles they own (`visibility=PRIVATE`, `ownerId=userId`) |
+| Admin/System | All articles (no filter) |
+
+Cross-user IDOR through the search path is prevented because every Prisma branch and the raw SQL PostgreSQL FTS path both bind the resolved `ArticleAccessContext` before execution. Regression coverage lives in `tests/articles-search.test.ts` (visibility/IDOR cases) and `tests/search-sql-predicate.test.ts` (SQL predicate structure).
+
 ## Core query-plan evidence (#263)
 
 `tests/db/postgres.test.ts` seeds representative Article/Progress/SavedWord rows, runs `ANALYZE`, and asserts deterministic `EXPLAIN (FORMAT JSON)` plans use these named indexes. The test sets `enable_seqscan = off` inside each plan transaction only to avoid tiny/CI fixture-size planner variance; the indexes still have to be valid for the exact production predicate/order shape.
