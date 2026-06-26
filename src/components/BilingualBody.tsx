@@ -26,6 +26,7 @@ import {
 } from "@/lib/bilingual";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { t } from "@/lib/i18n";
 
 const BILINGUAL_PREFS_KEY = STORAGE_KEYS.BILINGUAL_PREFS;
 
@@ -271,9 +272,7 @@ export default function BilingualBody({
       {enabled && translation?.fallback && !loading && (
         <div className="bilingual-fallback-banner" role="status" aria-live="polite">
           <AiBadge />
-          <span>
-            AI feature unavailable — translation is not available right now.
-          </span>
+          <span>{t("ai.translation.unavailable")}</span>
         </div>
       )}
 
