@@ -100,6 +100,35 @@ export function GroupHeader({ id, label, hasBorderTop }: GroupHeaderProps) {
   );
 }
 
+// ---- CommandGroup --------------------------------------------------------
+
+interface CommandGroupProps {
+  /** Stable id for the group's GroupHeader (referenced via aria where needed). */
+  id: string;
+  /** Section label — drives both the header text and the group's aria-label. */
+  label: string;
+  /** Render the top divider when a previous group precedes this one. */
+  hasBorderTop: boolean;
+  children: React.ReactNode;
+}
+
+/**
+ * Group shell for the command palette results list: a {@link GroupHeader}
+ * followed by the `<li role="group">` wrapper. Extracted so CommandPalette no
+ * longer repeats the header + group-list boilerplate for each of its Pages /
+ * Actions / Articles sections.
+ */
+export function CommandGroup({ id, label, hasBorderTop, children }: CommandGroupProps) {
+  return (
+    <>
+      <GroupHeader id={id} label={label} hasBorderTop={hasBorderTop} />
+      <li role="group" aria-label={label}>
+        {children}
+      </li>
+    </>
+  );
+}
+
 // ---- ArticleMeta ---------------------------------------------------------
 
 export function ArticleMeta({ article }: { article: ListingArticle }) {

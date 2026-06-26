@@ -1,7 +1,6 @@
 "use client";
 
 import { useCallback } from "react";
-import { useRouter } from "next/navigation";
 import { useMutation, type UseMutationState } from "@/hooks/useMutation";
 
 export interface UseTeacherMutationState extends Omit<UseMutationState, "run"> {
@@ -14,35 +13,29 @@ export interface UseTeacherMutationState extends Omit<UseMutationState, "run"> {
 }
 
 /**
- * Shared teacher-form mutation primitive. Wraps {@link useMutation} with an
- * automatic `router.refresh()` call on success so teacher forms don't need to
- * import `useRouter` and call `router.refresh()` individually.
+ * @deprecated Use {@link useMutation} directly with the `refreshOnSuccess`
+ * option instead:
  *
- * Usage:
  * ```tsx
- * const { busy, error, execute } = useTeacherMutation("Failed to create classroom");
- * await execute(async () => {
- *   await postJson("/api/classrooms", { orgId, name });
- *   resetFields();
- * });
+ * const { busy, error, run } = useMutation("Failed to create classroom");
+ * await run(async () => { await postJson("/api/classrooms", { orgId, name }); },
+ *           { refreshOnSuccess: true });
  * ```
+ *
+ * Retained as a thin compatibility shim over the unified mutation leaf so any
+ * remaining callers keep working; all in-repo teacher forms have migrated to
+ * {@link useMutation}.
  */
 export function useTeacherMutation(
   fallbackMessage = "Something went wrong",
 ): UseTeacherMutationState {
-  const router = useRouter();
-  const { busy, error, clearError, run } = useMutation(fallbackMessage);
+  const { busy, error, setError, clearError, run } = useMutation(fallbackMessage);
 
   const execute = useCallback(
-    async <T>(fn: () => Promise<T>): Promise<T | undefined> => {
-      return run(async () => {
-        const result = await fn();
-        router.refresh();
-        return result;
-      });
-    },
-    [run, router],
+    <T>(fn: () => Promise<T>): Promise<T | undefined> =>
+      run(fn, { refreshOnSuccess: true }),
+    [run],
   );
 
-  return { busy, error, clearError, execute };
+  return { busy, error, setError, clearError, execute };
 }
