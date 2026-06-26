@@ -14,6 +14,7 @@
 import type { AiProvider } from "@/lib/ai/provider";
 import { AzureOpenAiProvider, AZURE_PROVIDER_ID } from "@/lib/ai/azure-provider";
 import { createLogger } from "@/lib/observability/logger";
+import { aiProvider } from "@/lib/runtime-config/ai";
 
 const log = createLogger("ai-registry");
 
@@ -23,8 +24,7 @@ let cachedKey: string | null = null;
 
 /** The env key selecting the provider implementation. */
 function providerKey(): string {
-  const raw = process.env.AI_PROVIDER?.trim().toLowerCase();
-  return raw && raw.length > 0 ? raw : "azure";
+  return aiProvider();
 }
 
 /** Builds a provider instance for the given selector key. */

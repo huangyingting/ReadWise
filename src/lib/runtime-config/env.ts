@@ -54,6 +54,7 @@ export type RuntimeConfigReport = {
     googleOAuth: ConfigCheckReport;
     azureAdOAuth: ConfigCheckReport;
     storage: ConfigCheckReport;
+    scraper: ConfigCheckReport;
   };
   tuning: ConfigCheckReport;
   errors: ConfigIssue[];
