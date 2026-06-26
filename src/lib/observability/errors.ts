@@ -22,7 +22,7 @@
  * implementation.
  */
 import { createLogger, getRequestContext } from "./logger";
-import { isSensitiveKey, scrubValue } from "@/lib/observability/redaction";
+import { isSensitiveMetadataKey, redactSensitiveValue } from "@/lib/security/redaction";
 import { recordErrorCaptured } from "@/lib/metrics";
 import {
   appVersion,
@@ -78,7 +78,7 @@ export type AlertHook = (record: CapturedError) => void;
 
 // ---- redaction -----------------------------------------------------------
 
-// isSensitiveKey and scrubValue are provided by @/lib/observability/redaction.
+// isSensitiveMetadataKey and redactSensitiveValue are provided by @/lib/security/redaction.
 // They cover the superset of all previously per-module sensitive-key lists.
 
 /**
@@ -92,14 +92,14 @@ export function scrubContext(
   if (!extra) return undefined;
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(extra)) {
-    if (isSensitiveKey(key)) {
+    if (isSensitiveMetadataKey(key)) {
       out[key] = "[redacted]";
       continue;
     }
     if (value === null || value === undefined) {
       out[key] = value;
     } else if (typeof value === "string") {
-      out[key] = scrubValue(value).slice(0, 200);
+      out[key] = redactSensitiveValue(value).slice(0, 200);
     } else if (typeof value === "number" || typeof value === "boolean") {
       out[key] = value;
     } else {
@@ -113,7 +113,7 @@ export function scrubContext(
 // ---- fingerprinting ------------------------------------------------------
 
 function normalizeMessage(message: string): string {
-  return scrubValue(message)
+  return redactSensitiveValue(message)
     // Collapse digits + hex ids so "article abc123 failed" groups with "def456".
     .replace(/0x[0-9a-f]+/gi, "0x*")
     .replace(/\b[0-9a-f]{8,}\b/gi, "*")
@@ -240,8 +240,8 @@ export function captureError(
   const base: Omit<CapturedError, "alert"> = {
     fingerprint: print,
     name: err.name || "Error",
-    message: scrubValue(err.message || "").slice(0, 500),
-    stack: err.stack ? scrubValue(err.stack).slice(0, 4000) : undefined,
+    message: redactSensitiveValue(err.message || "").slice(0, 500),
+    stack: err.stack ? redactSensitiveValue(err.stack).slice(0, 4000) : undefined,
     source: context.source ?? "unknown",
     severity: context.severity ?? "error",
     route: context.route ?? ambient?.path,

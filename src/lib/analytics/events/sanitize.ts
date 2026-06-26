@@ -12,7 +12,7 @@
  */
 
 import { ANALYTICS_SCHEMA_VERSION } from "@/lib/analytics/events/catalog";
-import { isSensitiveKey } from "@/lib/observability/redaction";
+import { isSensitiveMetadataKey } from "@/lib/security/redaction";
 import { truncateStr } from "@/lib/primitives/pure";
 
 const MAX_PROPERTY_KEYS = 25;
@@ -55,7 +55,7 @@ export function sanitizeEventProperties(
   for (const [rawKey, value] of Object.entries(input)) {
     if (count >= MAX_PROPERTY_KEYS) break;
     if (rawKey === "_v") continue;
-    if (isSensitiveKey(rawKey)) continue;
+    if (isSensitiveMetadataKey(rawKey)) continue;
     const key = truncateStr(rawKey, 60);
     out[key] = sanitizePropertyValue(value);
     count++;
