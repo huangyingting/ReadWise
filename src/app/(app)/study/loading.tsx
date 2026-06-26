@@ -1,12 +1,10 @@
+import { ListingLoadingShell } from "@/components/route-states";
 import { Skeleton } from "@/components/ui/Skeleton";
 
 /** Suspense fallback for the study / saved-words page. */
 export default function StudyLoading() {
   return (
-    <div className="listing-container" aria-hidden>
-      <Skeleton shape="block" className="h-9 w-48 mb-[var(--space-6)]" />
-
-      {/* Word list rows */}
+    <ListingLoadingShell headingWidthClass="w-48">
       <div className="flex flex-col gap-[var(--space-3)]">
         {Array.from({ length: 8 }).map((_, i) => (
           <div
@@ -19,6 +17,6 @@ export default function StudyLoading() {
           </div>
         ))}
       </div>
-    </div>
+    </ListingLoadingShell>
   );
 }

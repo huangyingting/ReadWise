@@ -2,6 +2,7 @@ import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getRecentSecurityEvents } from "@/lib/security/events";
 import { StatCard } from "@/components/analytics/StatCard";
+import { AdminTableWrap } from "@/components/admin";
 import {
   csrfEnforceSameOrigin,
   isTrustedProxyConfigured,
@@ -55,8 +56,7 @@ export default async function AdminSecurityPage() {
           No security events recorded in this process yet.
         </p>
       ) : (
-        <div className="admin-table-wrap">
-          <table className="admin-table">
+        <AdminTableWrap ariaLabel="Recent security events (scrollable)">
             <thead>
               <tr>
                 <th>Time</th>
@@ -88,8 +88,7 @@ export default async function AdminSecurityPage() {
                 </tr>
               ))}
             </tbody>
-          </table>
-        </div>
+          </AdminTableWrap>
       )}
     </section>
   );

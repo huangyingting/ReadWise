@@ -62,7 +62,7 @@ export default function AdminArticleIngest() {
 
   if (!open) {
     return (
-      <div style={{ display: "flex", justifyContent: "flex-end" }}>
+      <div className="flex justify-end">
         <Button
           variant="primary"
           size="sm"
@@ -80,13 +80,13 @@ export default function AdminArticleIngest() {
 
   return (
     <div className="admin-confirm">
-      <p style={{ margin: 0, fontWeight: 600 }}>Add article from URL</p>
-      <p className="muted" style={{ margin: 0, fontSize: "var(--text-sm)" }}>
+      <p className="m-0 font-semibold">Add article from URL</p>
+      <p className="muted m-0 text-[length:var(--text-sm)]">
         Paste a news article URL. It will be scraped and saved as a draft, then
         enriched by the processing worker.
       </p>
-      <form onSubmit={handleSubmit} style={{ display: "contents" }}>
-        <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
+      <form onSubmit={handleSubmit} className="contents">
+        <div className="flex gap-[var(--space-2)] flex-wrap">
           <Input
             type="url"
             value={url}
@@ -124,7 +124,7 @@ export default function AdminArticleIngest() {
       </form>
 
       {state.status === "saved" && (
-        <p style={{ margin: 0 }} className="text-[length:var(--text-sm)]">
+        <p className="m-0 text-[length:var(--text-sm)]">
           ✓ Saved as draft.{" "}
           <Link
             href={`/admin/articles/${state.id}`}
@@ -135,10 +135,7 @@ export default function AdminArticleIngest() {
         </p>
       )}
       {state.status === "duplicate" && (
-        <p
-          className="text-[length:var(--text-sm)]"
-          style={{ margin: 0, color: "var(--warning-text, inherit)" }}
-        >
+        <p className="m-0 text-[length:var(--text-sm)] text-warning-text">
           {state.message}
           {state.id && (
             <>
@@ -154,10 +151,7 @@ export default function AdminArticleIngest() {
         </p>
       )}
       {state.status === "error" && (
-        <p
-          className="text-danger-text text-[length:var(--text-sm)]"
-          style={{ margin: 0 }}
-        >
+        <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
           {state.message}
         </p>
       )}

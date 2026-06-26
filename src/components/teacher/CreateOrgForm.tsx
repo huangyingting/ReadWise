@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
+import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
 
 /**
  * Creates an organization (RW-060). The creator becomes its first OrgAdmin so
@@ -13,7 +12,7 @@ import { Field } from "@/components/ui/Field";
  */
 export default function CreateOrgForm() {
   const [name, setName] = useState("");
-  const { busy, error, run } = useMutation("Failed to create organization");
+  const { busy, error, run } = useTeacherMutation("Failed to create organization");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -25,7 +24,13 @@ export default function CreateOrgForm() {
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-[var(--space-3)]">
+    <TeacherFormShell
+      onSubmit={submit}
+      busy={busy}
+      canSubmit={!!name.trim()}
+      submitLabel="Create organization"
+      busyLabel="Creating…"
+    >
       <Field label="Organization name" error={error ?? undefined}>
         <Input
           value={name}
@@ -35,11 +40,6 @@ export default function CreateOrgForm() {
           required
         />
       </Field>
-      <div>
-        <Button type="submit" disabled={busy || !name.trim()}>
-          {busy ? "Creating…" : "Create organization"}
-        </Button>
-      </div>
-    </form>
+    </TeacherFormShell>
   );
 }

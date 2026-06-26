@@ -9,6 +9,7 @@ import { StatCard } from "@/components/analytics/StatCard";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { buttonVariants } from "@/components/ui/Button";
+import { AdminTableWrap } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
 
 export default async function AdminMemberDetailPage({
@@ -134,8 +135,7 @@ export default async function AdminMemberDetailPage({
         {detail.imports.length === 0 ? (
           <p className="muted m-0">No imported articles.</p>
         ) : (
-          <div className="admin-table-wrap" tabIndex={0} aria-label="Imports (scrollable)">
-            <table className="admin-table">
+          <AdminTableWrap ariaLabel="Imports (scrollable)">
               <thead>
                 <tr>
                   <th>Title</th>
@@ -156,8 +156,7 @@ export default async function AdminMemberDetailPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </AdminTableWrap>
         )}
       </Card>
 
@@ -185,8 +184,7 @@ export default async function AdminMemberDetailPage({
         {detail.auditTrail.length === 0 ? (
           <p className="muted m-0">No admin actions recorded for this member.</p>
         ) : (
-          <div className="admin-table-wrap" tabIndex={0} aria-label="Audit trail (scrollable)">
-            <table className="admin-table">
+          <AdminTableWrap ariaLabel="Audit trail (scrollable)">
               <thead>
                 <tr>
                   <th>When</th>
@@ -206,8 +204,7 @@ export default async function AdminMemberDetailPage({
                   </tr>
                 ))}
               </tbody>
-            </table>
-          </div>
+            </AdminTableWrap>
         )}
       </Card>
     </section>

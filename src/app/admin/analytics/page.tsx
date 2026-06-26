@@ -9,7 +9,7 @@ import {
   type AnalyticsSegment,
 } from "@/lib/analytics/product";
 import { StatCard } from "@/components/analytics/StatCard";
-import { BarChart } from "@/components/admin/BarChart";
+import { BarChart, BarChartRow, AdminTableWrap } from "@/components/admin";
 import { AnalyticsTabs } from "@/components/admin/AnalyticsTabs";
 import { RetentionTable } from "@/components/admin/RetentionTable";
 import { Card } from "@/components/ui/Card";
@@ -23,37 +23,6 @@ type SearchParams = {
   level?: string;
   topic?: string;
 };
-
-function RatioRow({
-  label,
-  numerator,
-  denominator,
-  ratePct,
-}: {
-  label: string;
-  numerator: number;
-  denominator: number;
-  ratePct: number;
-}) {
-  return (
-    <div className="admin-bar-row">
-      <span className="admin-bar-label">{label}</span>
-      <span
-        role="meter"
-        aria-label={`${label}: ${ratePct}%`}
-        aria-valuenow={ratePct}
-        aria-valuemin={0}
-        aria-valuemax={100}
-        className="admin-bar-track"
-      >
-        <span className="admin-bar-fill" style={{ width: `${ratePct}%` }} />
-      </span>
-      <strong className="admin-bar-value">
-        {ratePct}% ({numerator}/{denominator})
-      </strong>
-    </div>
-  );
-}
 
 export default async function AdminAnalyticsPage({
   searchParams,
@@ -153,7 +122,7 @@ export default async function AdminAnalyticsPage({
         </Link>
       </form>
 
-      <p className="muted" style={{ margin: 0 }}>
+      <p className="muted m-0">
         {since.toISOString().slice(0, 10)} → {until.toISOString().slice(0, 10)} ·{" "}
         {overview.totals.events} events · {overview.totals.users} users
         {overview.segmentUserCount !== null
@@ -176,28 +145,26 @@ export default async function AdminAnalyticsPage({
       </h2>
       <BarChart title="Conversion funnel" buckets={funnelBuckets} />
       <Card>
-        <div className="admin-table-wrap" tabIndex={0} aria-label="Funnel detail (scrollable)">
-          <table className="admin-table">
-            <thead>
-              <tr>
-                <th>Stage</th>
-                <th>Users</th>
-                <th>From previous</th>
-                <th>From start</th>
+        <AdminTableWrap ariaLabel="Funnel detail (scrollable)">
+          <thead>
+            <tr>
+              <th>Stage</th>
+              <th>Users</th>
+              <th>From previous</th>
+              <th>From start</th>
+            </tr>
+          </thead>
+          <tbody>
+            {overview.funnel.map((s) => (
+              <tr key={s.key}>
+                <td>{s.label}</td>
+                <td>{s.users}</td>
+                <td className="muted">{s.conversionFromPrevPct}%</td>
+                <td className="muted">{s.conversionFromStartPct}%</td>
               </tr>
-            </thead>
-            <tbody>
-              {overview.funnel.map((s) => (
-                <tr key={s.key}>
-                  <td>{s.label}</td>
-                  <td>{s.users}</td>
-                  <td className="muted">{s.conversionFromPrevPct}%</td>
-                  <td className="muted">{s.conversionFromStartPct}%</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </AdminTableWrap>
       </Card>
 
       <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
@@ -205,23 +172,20 @@ export default async function AdminAnalyticsPage({
       </h2>
       <Card>
         <div className="stack">
-          <RatioRow
+          <BarChartRow
             label="Activation (onboarded → read)"
-            numerator={overview.activation.numerator}
-            denominator={overview.activation.denominator}
-            ratePct={overview.activation.ratePct}
+            valuenow={overview.activation.ratePct}
+            renderValue={`${overview.activation.ratePct}% (${overview.activation.numerator}/${overview.activation.denominator})`}
           />
-          <RatioRow
+          <BarChartRow
             label="Reading completion (read → completed)"
-            numerator={overview.readingCompletion.numerator}
-            denominator={overview.readingCompletion.denominator}
-            ratePct={overview.readingCompletion.ratePct}
+            valuenow={overview.readingCompletion.ratePct}
+            renderValue={`${overview.readingCompletion.ratePct}% (${overview.readingCompletion.numerator}/${overview.readingCompletion.denominator})`}
           />
-          <RatioRow
+          <BarChartRow
             label="Study conversion (saved → returned)"
-            numerator={overview.studyConversion.numerator}
-            denominator={overview.studyConversion.denominator}
-            ratePct={overview.studyConversion.ratePct}
+            valuenow={overview.studyConversion.ratePct}
+            renderValue={`${overview.studyConversion.ratePct}% (${overview.studyConversion.numerator}/${overview.studyConversion.denominator})`}
           />
         </div>
       </Card>

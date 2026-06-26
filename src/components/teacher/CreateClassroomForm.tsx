@@ -1,12 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Field } from "@/components/ui/Field";
+import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
 
 export type TeachableOrg = { id: string; name: string };
 
@@ -17,7 +16,7 @@ export type TeachableOrg = { id: string; name: string };
 export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) {
   const [orgId, setOrgId] = useState(orgs[0]?.id ?? "");
   const [name, setName] = useState("");
-  const { busy, error, run } = useMutation("Failed to create classroom");
+  const { busy, error, run } = useTeacherMutation("Failed to create classroom");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -29,7 +28,13 @@ export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) 
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-[var(--space-3)]">
+    <TeacherFormShell
+      onSubmit={submit}
+      busy={busy}
+      canSubmit={!!orgId && !!name.trim()}
+      submitLabel="Create classroom"
+      busyLabel="Creating…"
+    >
       <Field label="Organization">
         <Select value={orgId} onChange={(e) => setOrgId(e.target.value)}>
           {orgs.map((o) => (
@@ -48,11 +53,6 @@ export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) 
           required
         />
       </Field>
-      <div>
-        <Button type="submit" disabled={busy || !orgId || !name.trim()}>
-          {busy ? "Creating…" : "Create classroom"}
-        </Button>
-      </div>
-    </form>
+    </TeacherFormShell>
   );
 }

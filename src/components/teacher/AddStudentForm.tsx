@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
-import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
+import { TeacherFormShell, useTeacherMutation } from "./TeacherFormShell";
 
 /**
  * Adds a student to a classroom by their user id (RW-061). Posts to
@@ -14,7 +13,7 @@ import { Field } from "@/components/ui/Field";
  */
 export default function AddStudentForm({ classroomId }: { classroomId: string }) {
   const [userId, setUserId] = useState("");
-  const { busy, error, run } = useMutation("Failed to add student");
+  const { busy, error, run } = useTeacherMutation("Failed to add student");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -30,7 +29,13 @@ export default function AddStudentForm({ classroomId }: { classroomId: string })
   }
 
   return (
-    <form onSubmit={submit} className="flex flex-col gap-[var(--space-3)]">
+    <TeacherFormShell
+      onSubmit={submit}
+      busy={busy}
+      canSubmit={!!userId.trim()}
+      submitLabel="Add student"
+      busyLabel="Adding…"
+    >
       <Field label="Student user ID" error={error ?? undefined}>
         <Input
           value={userId}
@@ -40,11 +45,6 @@ export default function AddStudentForm({ classroomId }: { classroomId: string })
           required
         />
       </Field>
-      <div>
-        <Button type="submit" size="sm" disabled={busy || !userId.trim()}>
-          {busy ? "Adding…" : "Add student"}
-        </Button>
-      </div>
-    </form>
+    </TeacherFormShell>
   );
 }
