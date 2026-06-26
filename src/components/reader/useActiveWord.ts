@@ -10,7 +10,7 @@
  */
 
 import { useCallback, useState } from "react";
-import { timingStartSeconds, timingEndSeconds, type SpeechWord } from "@/lib/speech";
+import { timingStartSeconds, timingEndSeconds, type SpeechWord } from "@/lib/speech/timing";
 
 export interface ActiveWordHook {
   /** Index of the currently highlighted word (-1 = none). */

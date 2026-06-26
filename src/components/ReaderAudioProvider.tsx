@@ -31,12 +31,12 @@ import {
   type DictationSegment,
   type SpeechWordTiming,
 } from "@/lib/dictation";
-import { type SpeechWord } from "@/lib/speech";
+import { type SpeechWord } from "@/lib/speech/timing";
 import { useNarrationApi } from "@/components/reader/useNarrationApi";
 import { useActiveWord } from "@/components/reader/useActiveWord";
 import { useLoopSegment } from "@/components/reader/useLoopSegment";
 
-export type { SpeechWord } from "@/lib/speech";
+export type { SpeechWord } from "@/lib/speech/timing";
 
 export type AudioContextValue = {
   /** The shared audio element ref — ReaderMiniPlayer drives it. */

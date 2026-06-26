@@ -97,6 +97,50 @@ import { sanitizeArticleHtml } from "@/lib/primitives/server";
 export default function Widget() { return null; }
 `.trim();
 
+// ── New high-risk fixtures (Phase 1 — Issue #678) ─────────────────────────────
+
+const CLIENT_IMPORTS_CACHE = `
+"use client";
+import { createCachedListing } from "@/lib/cache";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_PROVIDER = `
+"use client";
+import { AiProvider } from "@/lib/ai/provider";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_REGISTRY = `
+"use client";
+import { getAiProvider } from "@/lib/ai/registry";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_RUNNER = `
+"use client";
+import { runWithRetry } from "@/lib/ai/runner";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_AZURE_PROVIDER = `
+"use client";
+import { AzureOpenAiProvider } from "@/lib/ai/azure-provider";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_BUDGET = `
+"use client";
+import { checkBudget } from "@/lib/ai/budget";
+export default function Widget() { return null; }
+`.trim();
+
+const CLIENT_IMPORTS_AI_LEDGER = `
+"use client";
+import { recordUsage } from "@/lib/ai/ledger";
+export default function Widget() { return null; }
+`.trim();
+
 // These are client-safe — no violation expected.
 const CLIENT_IMPORTS_STORAGE_KEYS = `
 "use client";
@@ -170,6 +214,50 @@ describe("readwise/no-server-imports-in-client", () => {
     const messages = lint(CLIENT_IMPORTS_SERVER_PRIMITIVES);
     assert.ok(messages.length > 0, "Expected at least one lint error");
     assert.ok(messages.some((m) => m.message.includes("@/lib/primitives/server")));
+  });
+
+  // ── Phase 1 high-risk boundaries (Issue #678) ───────────────────────────────
+
+  test("reports error when 'use client' file imports @/lib/cache", () => {
+    const messages = lint(CLIENT_IMPORTS_CACHE);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/cache")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/provider", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_PROVIDER);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/provider")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/registry", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_REGISTRY);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/registry")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/runner", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_RUNNER);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/runner")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/azure-provider", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_AZURE_PROVIDER);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/azure-provider")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/budget", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_BUDGET);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/budget")));
+  });
+
+  test("reports error when 'use client' file imports @/lib/ai/ledger", () => {
+    const messages = lint(CLIENT_IMPORTS_AI_LEDGER);
+    assert.ok(messages.length > 0, "Expected at least one lint error");
+    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/ledger")));
   });
 
   // ── No violations ───────────────────────────────────────────────────────────

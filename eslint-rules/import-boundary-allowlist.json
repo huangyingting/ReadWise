@@ -1,0 +1,5 @@
+{
+  "$schema": "./import-boundary-allowlist.schema.json",
+  "description": "Explicit exceptions to the readwise/no-server-imports-in-client boundary rule (REF-076). Each entry must be reviewed and owned. Entries should be removed when the underlying violation is fixed.",
+  "allowlist": []
+}

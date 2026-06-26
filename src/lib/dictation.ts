@@ -9,10 +9,8 @@
  *   segmentDictation(text, words) — sentence segmentation with audio timing ranges.
  */
 
-import {
-  type WordTiming,
-} from "@/lib/speech";
-import { segmentSpeechPractice } from "@/lib/speech";
+import { type WordTiming } from "@/lib/speech/timing";
+import { segmentSpeechPractice } from "@/lib/speech/practice";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
