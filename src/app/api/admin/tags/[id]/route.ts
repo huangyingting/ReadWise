@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
-import { deleteTag, renameTag } from "@/lib/admin-tags";
+import { deleteTag, renameTag } from "@/lib/admin/tags";
 import { revalidateTagsCache } from "@/lib/cache";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
 

@@ -69,7 +69,7 @@ before(() => {
     },
   });
 
-  mock.module("@/lib/admin-jobs", {
+  mock.module("@/lib/admin/jobs", {
     namedExports: {
       JOB_ACTIONS: ["retry", "cancel", "archive"],
       listAdminJobs: async () => {

@@ -151,7 +151,7 @@ before(() => {
   });
 
   // Admin stats
-  mock.module("@/lib/admin", {
+  mock.module("@/lib/admin/overview", {
     namedExports: {
       getAdminOverview: async () => adminOverview,
     },

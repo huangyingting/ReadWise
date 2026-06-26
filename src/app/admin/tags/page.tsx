@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { listAdminTags } from "@/lib/admin-tags";
+import { listAdminTags } from "@/lib/admin/tags";
 import AdminTagActions from "@/components/AdminTagActions";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
