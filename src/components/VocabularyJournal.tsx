@@ -2,16 +2,15 @@
 
 import { useState, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import Link from "next/link";
 import { BookOpen } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
 import { PanelError } from "@/components/ui/ReaderToolPanelState";
 import EmptyState from "@/components/EmptyState";
+import { WordTableRow } from "@/components/vocabulary/WordTableRow";
+import { JournalPagination } from "@/components/vocabulary/JournalPagination";
 import { getJson, postJson } from "@/lib/client-fetch";
 import { useFilteredFetch } from "@/hooks/useFilteredFetch";
-import { formatShortDate } from "@/lib/display-format";
 
 export type WordEntry = {
   id: string;
@@ -172,10 +171,10 @@ export default function VocabularyJournal({
   };
 
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
+    <div className="flex flex-col gap-[var(--space-5)]">
       {/* Search + filters */}
-      <div style={{ display: "flex", flexWrap: "wrap", gap: "var(--space-3)", alignItems: "flex-end" }}>
-        <div style={{ flex: "1 1 240px", minWidth: 200 }}>
+      <div className="flex flex-wrap gap-[var(--space-3)] items-end">
+        <div className="flex-[1_1_240px] min-w-[200px]">
           <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="word-search">
             Search
           </label>
@@ -189,7 +188,7 @@ export default function VocabularyJournal({
           />
         </div>
 
-        <div style={{ flex: "0 1 200px", minWidth: 150 }}>
+        <div className="flex-[0_1_200px] min-w-[150px]">
           <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="srs-filter">
             Review filter
           </label>
@@ -207,7 +206,7 @@ export default function VocabularyJournal({
         </div>
 
         {articleOptions.length > 0 && (
-          <div style={{ flex: "0 1 220px", minWidth: 160 }}>
+          <div className="flex-[0_1_220px] min-w-[160px]">
             <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="article-filter">
               Article source
             </label>
@@ -228,7 +227,7 @@ export default function VocabularyJournal({
       </div>
 
       {/* Toolbar */}
-      <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)", flexWrap: "wrap" }}>
+      <div className="flex items-center gap-[var(--space-3)] flex-wrap">
         <p className="text-[length:var(--text-sm)] text-text-muted m-0" aria-live="polite">
           {isPending ? "Loading…" : `${data.total} ${data.total === 1 ? "word" : "words"}`}
         </p>
@@ -281,7 +280,7 @@ export default function VocabularyJournal({
         />
       ) : (
         <div className="overflow-x-auto">
-          <table className="admin-table w-full" style={{ tableLayout: "auto" }}>
+          <table className="admin-table w-full table-auto">
             <thead>
               <tr>
                 <th style={{ width: 40 }}>
@@ -300,96 +299,25 @@ export default function VocabularyJournal({
             </thead>
             <tbody>
               {data.words.map((word) => (
-                <tr key={word.id}>
-                  <td>
-                    <input
-                      type="checkbox"
-                      checked={selected.has(word.word)}
-                      onChange={() => toggleSelect(word.word)}
-                      aria-label={`Select ${word.word}`}
-                      className="h-4 w-4 rounded border-border"
-                    />
-                  </td>
-                  <td>
-                    <strong className="vocabulary-word text-[length:var(--text-sm)]">{word.word}</strong>
-                    {word.contextSentence || word.example ? (
-                      <p className="text-[length:var(--text-xs)] text-text-muted m-0 mt-[var(--space-1)] italic" style={{ maxWidth: "28ch" }}>
-                        &ldquo;{word.contextSentence ?? word.example}&rdquo;
-                      </p>
-                    ) : null}
-                  </td>
-                  <td>
-                    <p className="text-[length:var(--text-sm)] text-text m-0" style={{ maxWidth: "30ch" }}>
-                      {word.explanation ?? <span className="text-text-muted">—</span>}
-                    </p>
-                  </td>
-                  <td>
-                    {word.articleId && data.articles[word.articleId] ? (
-                      <Link
-                        href={`/reader/${word.articleId}`}
-                        className="text-[length:var(--text-xs)] text-primary hover:underline"
-                        title={data.articles[word.articleId]}
-                      >
-                        {data.articles[word.articleId].length > 35
-                          ? data.articles[word.articleId].slice(0, 32) + "…"
-                          : data.articles[word.articleId]}
-                      </Link>
-                    ) : (
-                      <span className="text-text-muted text-[length:var(--text-xs)]">—</span>
-                    )}
-                  </td>
-                  <td>
-                    <time
-                      dateTime={word.createdAt}
-                      className="text-[length:var(--text-xs)] text-text-muted whitespace-nowrap"
-                    >
-                      {formatShortDate(word.createdAt)}
-                    </time>
-                  </td>
-                  <td>
-                    {word.dueAt == null ? (
-                      <Badge variant="primary" className="text-[length:var(--text-xs)]">New</Badge>
-                    ) : new Date(word.dueAt) <= new Date() ? (
-                      <Badge variant="warning" className="text-[length:var(--text-xs)]">Due</Badge>
-                    ) : (
-                      <Badge variant="neutral" className="text-[length:var(--text-xs)] whitespace-nowrap">
-                        {formatShortDate(word.dueAt)}
-                      </Badge>
-                    )}
-                  </td>
-                </tr>
+                <WordTableRow
+                  key={word.id}
+                  word={word}
+                  articles={data.articles}
+                  selected={selected.has(word.word)}
+                  onToggle={() => toggleSelect(word.word)}
+                />
               ))}
             </tbody>
           </table>
         </div>
       )}
 
-      {/* Pagination */}
-      {data.totalPages > 1 && (
-        <nav aria-label="Vocabulary journal pages" className="admin-pagination">
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={data.page <= 1 || isPending}
-            onClick={() => handlePageChange(data.page - 1)}
-          >
-            ← Previous
-          </Button>
-          <span className="text-[length:var(--text-sm)] text-text-muted">
-            Page {data.page} of {data.totalPages}
-          </span>
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            disabled={data.page >= data.totalPages || isPending}
-            onClick={() => handlePageChange(data.page + 1)}
-          >
-            Next →
-          </Button>
-        </nav>
-      )}
+      <JournalPagination
+        page={data.page}
+        totalPages={data.totalPages}
+        isPending={isPending}
+        onPageChange={handlePageChange}
+      />
     </div>
   );
 }
