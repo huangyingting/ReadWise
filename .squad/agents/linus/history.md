@@ -57,3 +57,24 @@ Client (`"use client"`) components must not import `@/lib/difficulty`, `@/lib/ai
 ## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
 - PR-body files belong in /tmp, never committed into .squad/ or the repo.
 - When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.
+
+
+## 2026-06-25 — Codebase Quality Audit (10-pass FRONTEND sweep)
+
+Linus performed an exhaustive 10-pass frontend audit of ReadWise as part of a five-domain quality review requested by Yingting Huang. Findings documented in `files/findings-frontend.md` (16 findings: FE-1–FE-16).
+
+Key frontend findings: oversized page and component files needing splitting, duplicated data-fetching patterns across pages, inline handler logic that should become custom hooks, redundant prop drilling patterns, dead exports and unused component variants, legacy CSS class usage (.btn, .admin-input) mixed with new token-based primitives, duplicate animation/transition logic, missing lazy boundaries on heavy reader sub-panels.
+
+After Rusty-1 (opus-4.8) consolidation of all 79 cross-domain findings into 15 issues: **Linus owns issues #616** (hook extraction and deduplication — Phase 2), **#617** (large file splitting — Phase 2), **#624** (dead code removal — Phase 3) on epic #610.
+
+Epic #610 + child issues #611–#625 created on huangyingting/ReadWise. No source code modified (analysis only).
+
+## 2026-06-26 — Round-2 Codebase Quality Audit (10-pass FRONTEND sweep)
+
+Linus-1 performed a second-wave 10-pass frontend audit as a follow-up to epic #610, targeting NEW, non-overlapping issues. Read `files/findings-frontend.md` and issues #611–#625 first. Focused on useEffect dependency arrays, Suspense/error boundaries, stale closure bugs, client/server component boundary violations, and missing loading.tsx skeletons. Findings documented in `files/findings-frontend-r2.md` (12 findings: FE2-1–FE2-12).
+
+Standout finding: FE2-1 (flashcard useEffect with incomplete dependency arrays causing correctness bugs) became p0 issue #628.
+
+After Rusty-3 (opus-4.8) consolidation of all 67 round-2 findings into 13 issues: **Linus owns issues #628** (p0 — flashcard effect-dependency correctness bug, Phase 1) and **#633** (Suspense boundaries, loading skeletons, and client/server boundary cleanup, Phase 2) on epic #626, follow-up to #610.
+
+No source code modified (analysis only).

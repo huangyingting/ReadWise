@@ -146,7 +146,7 @@ export default function SelectionToolbar({
             onKeyDown={(e) => handleSwatchKey(e, i)}
           >
             {color === c ? (
-              <Check size={12} aria-hidden="true" style={{ color: "rgba(0,0,0,0.6)" }} />
+              <Check size={12} aria-hidden="true" style={{ color: "var(--reading-text)" }} />
             ) : null}
           </button>
         ))}

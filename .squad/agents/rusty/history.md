@@ -57,3 +57,24 @@ Review 3 surfaced a learner-focused product backlog informed by competitor and i
 
 ## 2026-06-21 — Cross-agent lessons from #105–#126 merge wave
 - When CI is unavailable, the coordinator gates merges via local typecheck/lint/test/clean-build before squash-merge.
+
+
+## 2026-06-25 — Codebase Quality Audit (10-pass ARCHITECTURE sweep)
+
+Rusty performed an exhaustive 10-pass architecture audit of ReadWise as part of a five-domain quality review requested by Yingting Huang. Findings documented in `files/findings-architecture.md` (15 findings: ARCH-1–ARCH-15).
+
+Key architecture findings: AI provider call-site sprawl, lib dependency inversion gaps, oversized modules needing splitting, redundant compat layers for superseded payload shapes, missing subsystem boundaries (scraper/storage/speech/AI), extensibility bottlenecks, ADR coverage gaps.
+
+After Rusty-1 (opus-4.8) consolidation of all 79 cross-domain findings into 15 issues: **Rusty owns issue #613** (lib dependency inversion — Phase 1 Foundations) on epic #610.
+
+Epic #610 + child issues #611–#625 created on huangyingting/ReadWise. No source code modified (analysis only).
+
+## 2026-06-26 — Round-2 Codebase Quality Audit (10-pass ARCHITECTURE sweep)
+
+Rusty-2 performed a second-wave 10-pass architecture audit as a follow-up to epic #610, targeting NEW, non-overlapping issues. Read `files/findings-architecture.md` and issues #611–#625 first. Focused on config/env handling, sensitive-data redaction, test seams, ADR coverage, and subsystem contract enforcement. Findings documented in `files/findings-architecture-r2.md` (11 findings: ARCH2-1–ARCH2-11).
+
+Standout cross-domain finding: ARCH2-2 (divergent sensitive-key redaction) was independently corroborated by Livingston (BE2-1) — real privacy leak and AGENTS.md violation. Also corroborated: ARCH2-3 (runtime-config env scattering) with BE2-2/3.
+
+Rusty-3 (opus-4.8) consolidated all 67 round-2 findings into 13 issues. **Rusty owns issues #627** (p0 — unified sensitive-key redaction primitive, Phase 1) and **#632** (ADR and subsystem contract enforcement, Phase 1) on epic #626, follow-up to #610.
+
+No source code modified (analysis only).
