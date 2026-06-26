@@ -182,3 +182,26 @@ export function configuredAiQuotaFeatures(): string[] {
   }
   return out;
 }
+
+// ---------------------------------------------------------------------------
+// AI provider selection
+// ---------------------------------------------------------------------------
+
+/** Active AI provider selector key (AI_PROVIDER, default "azure"). */
+export function aiProvider(): string {
+  const raw = process.env.AI_PROVIDER?.trim().toLowerCase();
+  return raw && raw.length > 0 ? raw : "azure";
+}
+
+// ---------------------------------------------------------------------------
+// Remote moderation
+// ---------------------------------------------------------------------------
+
+/**
+ * Whether an optional remote moderation provider is enabled (AI_MODERATION_ENABLED).
+ * Off by default; the local heuristic always runs regardless.
+ */
+export function isRemoteModerationEnabled(): boolean {
+  const v = process.env.AI_MODERATION_ENABLED?.trim().toLowerCase();
+  return v === "1" || v === "true" || v === "on";
+}

@@ -16,6 +16,7 @@
 import type { NextAuthOptions } from "next-auth";
 import GoogleProviderImport from "next-auth/providers/google";
 import AzureADProviderImport from "next-auth/providers/azure-ad";
+import { googleOAuthConfig, azureAdOAuthConfig } from "@/lib/runtime-config/oauth";
 
 // Under Node native ESM (CLI/test harness) these CJS modules resolve to a
 // namespace object { default: fn }; Next.js/SWC esModuleInterop masks this so
@@ -32,25 +33,23 @@ const AzureADProvider = (
 export function buildProviders(): NextAuthOptions["providers"] {
   const providers: NextAuthOptions["providers"] = [];
 
-  if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
+  const google = googleOAuthConfig.get();
+  if (google) {
     providers.push(
       GoogleProvider({
-        clientId: process.env.GOOGLE_CLIENT_ID,
-        clientSecret: process.env.GOOGLE_CLIENT_SECRET,
+        clientId: google.clientId,
+        clientSecret: google.clientSecret,
       }),
     );
   }
 
-  if (
-    process.env.AZURE_AD_CLIENT_ID &&
-    process.env.AZURE_AD_CLIENT_SECRET &&
-    process.env.AZURE_AD_TENANT_ID
-  ) {
+  const azureAd = azureAdOAuthConfig.get();
+  if (azureAd) {
     providers.push(
       AzureADProvider({
-        clientId: process.env.AZURE_AD_CLIENT_ID,
-        clientSecret: process.env.AZURE_AD_CLIENT_SECRET,
-        tenantId: process.env.AZURE_AD_TENANT_ID,
+        clientId: azureAd.clientId,
+        clientSecret: azureAd.clientSecret,
+        tenantId: azureAd.tenantId,
       }),
     );
   }
