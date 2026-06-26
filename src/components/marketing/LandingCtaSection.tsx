@@ -23,7 +23,7 @@ export function LandingCtaSection({ primaryHref, primaryLabel }: LandingCtaSecti
         </h2>
         <p
           className="mx-auto mt-[var(--space-4)] max-w-[48ch] text-[length:var(--text-lg)]"
-          style={{ color: "rgba(255,255,255,0.85)" }}
+          style={{ color: "var(--on-brand-muted)" }}
         >
           Free to join. Real articles. An AI toolkit that grows with your
           English. No textbooks. No drills. Just reading.

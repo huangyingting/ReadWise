@@ -9,14 +9,16 @@
  *   .rw-tr-*      — sentence-level translation popover.
  *   .grammar-*    — grammar-in-context popover.
  *
- * z-index band (single source of truth):
- *   reader-controls toolbar .... 30
- *   reader-mini-player .......... 40
- *   reader-tools-scrim .......... 49   (bottom-sheet backdrop, non-xl)
- *   reader-tools-surface (sheet) 50
- *   app modals / Popovers ....... 60
+ * z-index band (single source of truth — see tokens.css --z-* scale):
+ *   reader-controls toolbar .... var(--z-transport)  = 30
+ *   reader-FAB .................. var(--z-fab)        = 35
+ *   reader-mini-player .......... var(--z-panel)      = 40
+ *   reader bottom-sheet scrim ... var(--z-sheet-scrim)= 44   (non-xl)
+ *   reader bottom-sheet ......... var(--z-sheet)      = 45   (non-xl)
+ *   word-lookup / tools overlay . var(--z-overlay)    = 50
+ *   app modals / Popovers ....... var(--z-popover)    = 60
  *
- * On xl the surface is a non-modal sticky rail (z-index 1, no scrim).
+ * On xl the surface is a non-modal sticky rail (z-index var(--z-base)=1, no scrim).
  */
 
 .translation {
@@ -38,7 +40,7 @@
 
 .translation-controls select {
   padding: 0.6rem 0.75rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text);
@@ -95,7 +97,7 @@
 
 .level-filter select {
   padding: 0.5rem 0.65rem;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: var(--surface-raised);
   color: var(--text);
@@ -154,7 +156,7 @@
   gap: 1rem;
   padding: 1rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--bg-subtle);
 }
 
@@ -190,7 +192,7 @@
   width: 2rem;
   height: 2rem;
   padding: 0;
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   border: 1px solid var(--border);
   background: transparent;
   color: var(--text-muted);
@@ -250,7 +252,7 @@
 .quiz-item {
   padding: 1rem;
   border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
   background: var(--surface-raised);
 }
 
@@ -279,7 +281,7 @@
   gap: 0.6rem;
   padding: 0.6rem 0.75rem;
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-sm);
   cursor: pointer;
 }
 
@@ -434,16 +436,16 @@
 
 .word-lookup-popover {
   position: fixed;
-  z-index: 50;
+  z-index: var(--z-overlay);
   width: 340px;
   max-width: calc(100vw - 24px);
   max-height: 60vh;
   overflow-y: auto;
   padding: 0.9rem 1rem 1rem;
   border: 1px solid var(--border);
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
   background: var(--surface-raised);
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+  box-shadow: var(--shadow-lg);
 }
 
 .word-lookup-header {
@@ -648,7 +650,7 @@
   display: flex;
   position: fixed;
   inset: 0;
-  z-index: 50;
+  z-index: var(--z-overlay);
   background: var(--reading-bg, var(--bg));
   padding-bottom: env(safe-area-inset-bottom, 0px);
 }
@@ -743,7 +745,7 @@
 .reader-tools-surface .article-study-tabs {
   position: sticky;
   top: 0;
-  z-index: 1;
+  z-index: var(--z-base);
   background: var(--reading-bg, var(--bg));
 }
 
@@ -875,7 +877,7 @@
   right: 0;
   height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
   padding-bottom: env(safe-area-inset-bottom, 0px);
-  z-index: 40;
+  z-index: var(--z-panel);
   display: flex;
   align-items: center;
   gap: var(--space-3);
@@ -1004,7 +1006,7 @@
   position: fixed;
   bottom: calc(var(--header-height) + var(--space-3) + env(safe-area-inset-bottom, 0px)); /* above mini-player */
   right: var(--space-4);
-  z-index: 35;
+  z-index: var(--z-fab);
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
@@ -1028,7 +1030,7 @@
   position: fixed;
   inset: 0;
   background: var(--overlay);
-  z-index: 44;
+  z-index: var(--z-sheet-scrim);
   animation: rw-scrim-in var(--duration-base) var(--ease-standard) both;
 }
 
@@ -1042,7 +1044,7 @@
   left: 0;
   right: 0;
   bottom: 0;
-  z-index: 45;
+  z-index: var(--z-sheet);
   max-height: 85vh;
   background: var(--reading-surface, var(--surface));
   border-top: 1px solid var(--reading-border, var(--border));
@@ -1179,7 +1181,7 @@
 
 .rw-tr-popover {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   width: min(360px, calc(100vw - 24px));
   max-height: 50vh;
   overflow-y: auto;
@@ -1369,7 +1371,7 @@
 
 .grammar-popover {
   position: fixed;
-  z-index: 60;
+  z-index: var(--z-popover);
   width: min(360px, calc(100vw - 24px));
   max-height: 50vh;
   overflow-y: auto;

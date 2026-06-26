@@ -110,7 +110,7 @@ export default function UserMenu({ user }: { user: ShellUser }) {
           ref={menuRef}
           role="menu"
           className={cn(
-            "absolute right-0 top-[calc(100%+var(--space-2))] z-[60] min-w-[200px]",
+            "absolute right-0 top-[calc(100%+var(--space-2))] z-[var(--z-popover)] min-w-[200px]",
             "rounded-[var(--radius-md)] border border-border bg-surface-raised py-[var(--space-1)]",
             "shadow-[var(--shadow-lg)]",
           )}

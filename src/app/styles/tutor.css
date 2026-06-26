@@ -389,8 +389,10 @@
   min-height: 40px;
 }
 
-/* Mobile sheet: use dynamic viewport height so composer clears the keyboard */
-@media (max-width: 1099px) {
+/* Mobile sheet: use dynamic viewport height so composer clears the keyboard.
+ * Boundary aligns with var(--bp-reader)=1100px; use 1099.98px to eliminate
+ * sub-pixel gaps on fractional-DPR devices. */
+@media (max-width: 1099.98px) {
   .rw-tutor {
     min-height: 50vh;
     max-height: 85dvh;
