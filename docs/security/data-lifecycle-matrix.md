@@ -50,11 +50,10 @@ behavior is invented. Gaps are called out as follow-up items.
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
 | `Profile` (ageRange, gender, englishLevel, topics, dailyGoal, timezone, streakShields) | Learning / Onboarding | **personal** | ✅ (ageRange, gender, englishLevel, topics, dailyGoal, completedAt, timestamps) | Cascade via `Profile.userId` | Not affected | Indefinite | No — ageRange, gender are PII |
-| `ReminderPreference` (enabled, preferredHour, quietHoursStart, quietHoursEnd, timezone) | Push notifications | **personal** | ⛔ not in current export | Cascade via `ReminderPreference.userId` | Not affected | Indefinite | No |
+| `ReminderPreference` (enabled, preferredHour, quietHoursStart, quietHoursEnd, timezone) | Push notifications | **personal** | ✅ enabled, preferredHour, quietHoursStart, quietHoursEnd, timezone, timestamps | Cascade via `ReminderPreference.userId` | Not affected | Indefinite | No |
 
-> **Gap #711-A:** `ReminderPreference` and push-preference settings are not
-> included in the `exportUserData` bundle. Evaluate whether user-owned scheduling
-> preferences should be exportable.
+> **Gap #711-A — RESOLVED (#711):** `ReminderPreference` is now included in the
+> `exportUserData` bundle. See `src/lib/account-lifecycle/account-commands.ts`.
 
 ---
 
@@ -115,19 +114,18 @@ behavior is invented. Gaps are called out as follow-up items.
 |---|---|---|---|---|---|---|---|
 | `ReadingProgress` (percent, completed, completedAt) | Reader / Learning | **personal** | ✅ (articleId, percent, completed, completedAt, timestamps) | Cascade via `ReadingProgress.userId` | Not affected | Deleted with user | Safe |
 | `DailyActivity` (date, articlesRead) | Learning | **personal** | ✅ (date, articlesRead, createdAt) | Cascade via `DailyActivity.userId` | Not affected | Deleted with user | Safe |
-| `LevelHistory` (level, changedAt) | Learning | **personal** | ⛔ not in current export | Cascade via `LevelHistory.userId` | Not affected | Deleted with user | Safe |
+| `LevelHistory` (level, changedAt) | Learning | **personal** | ✅ level, changedAt | Cascade via `LevelHistory.userId` | Not affected | Deleted with user | Safe |
 | `QuizAttempt` (correctCount, totalQuestions, scorePct, clientMutationId) | Learning | **personal** | ✅ (articleId, scores, completedAt; clientMutationId omitted) | Cascade via `QuizAttempt.userId` | Not affected | Deleted with user | Safe (scores only) |
 | `PronunciationAttempt` (referenceText, scores) | Learning / Speech | **personal** | ✅ all score fields | Cascade via `PronunciationAttempt.userId` | Not affected | Deleted with user | No — `referenceText` is user-spoken text; do not log |
-| `ArticleDifficultyFeedback` (vote: too_easy/just_right/too_hard) | Learning | **personal** | ⛔ not in current export | Cascade via userId | Not affected | Deleted with user | Safe |
-| `WordMastery` (familiarity, confidence, exposures, correctReviews, incorrectReviews, sourceArticleIds) | Learning | **derived** | ⛔ not in current export | Cascade via `WordMastery.userId` | Not affected | Deleted with user | Safe (aggregate scores only; sourceArticleIds are ids, not content) |
-| `ArticleMastery` (comprehensionScore, readingCompletion, quizScore, etc.) | Learning | **derived** | ⛔ not in current export | Cascade via `ArticleMastery.userId` + article | Cascade via article | Deleted with user or article | Safe |
-| `SkillMastery` (confidence, evidenceCount, recentEvidence) | Learning | **derived** | ⛔ not in current export | Cascade via `SkillMastery.userId` | Not affected | Deleted with user | `recentEvidence` is a bounded JSON array of `{outcome, weight, at}` — no sensitive content per schema comment |
+| `ArticleDifficultyFeedback` (vote: too_easy/just_right/too_hard) | Learning | **personal** | ✅ articleId, vote, timestamps | Cascade via userId | Not affected | Deleted with user | Safe |
+| `WordMastery` (familiarity, confidence, exposures, correctReviews, incorrectReviews, sourceArticleIds) | Learning | **derived** | ✅ all mastery fields, timestamps | Cascade via `WordMastery.userId` | Not affected | Deleted with user | Safe (aggregate scores only; sourceArticleIds are ids, not content) |
+| `ArticleMastery` (comprehensionScore, readingCompletion, quizScore, etc.) | Learning | **derived** | ✅ all mastery fields, timestamps | Cascade via `ArticleMastery.userId` + article | Cascade via article | Deleted with user or article | Safe |
+| `SkillMastery` (confidence, evidenceCount, recentEvidence) | Learning | **derived** | ✅ skill, confidence, evidenceCount, recentEvidence, timestamps | Cascade via `SkillMastery.userId` | Not affected | Deleted with user | `recentEvidence` is a bounded JSON array of `{outcome, weight, at}` — no sensitive content per schema comment |
 
-> **Gap #711-C:** `LevelHistory`, `WordMastery`, `ArticleMastery`,
-> `SkillMastery`, and `ArticleDifficultyFeedback` are not included in the
-> `exportUserData` bundle. Evaluate whether derived mastery data should be
-> exportable as part of a GDPR data-portability response, especially
-> `LevelHistory` and `WordMastery` which are directly user-attributable.
+> **Gap #711-C — RESOLVED (#711):** `LevelHistory`, `WordMastery`,
+> `ArticleMastery`, `SkillMastery`, and `ArticleDifficultyFeedback` are now
+> included in the `exportUserData` bundle. See
+> `src/lib/account-lifecycle/account-commands.ts`.
 
 ---
 
@@ -189,10 +187,13 @@ behavior is invented. Gaps are called out as follow-up items.
 | `ArticleSpeech` (voice, format, mimeType, audioBase64?, storageKey?, plainText, words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | `plainText` contains article narration text; do not log. `storageKey` is a content-addressed key (safe to log as an id) |
 | `MediaAsset` (storageKey, kind, mimeType, sizeBytes, checksum, durationSec, voice, format) | Media | **public** (operational pointer; no user content) | ⛔ | Cascade via `MediaAsset.articleId` | Cascade via article | Deleted with article; object-storage bytes are not automatically purged by DB cascade (see [`../media/storage.md`](../media/storage.md)) | Safe |
 
-> **Gap #711-D:** When a `MediaAsset` row is cascade-deleted (e.g. via article
-> deletion), the referenced object-storage bytes (filesystem or Azure Blob) are
-> NOT automatically removed by the DB cascade. A storage-cleanup step is needed
-> for full data erasure of generated audio.
+> **Gap #711-D — RESOLVED (#711):** `deleteOwnAccount` and `deleteMember` now
+> query `MediaAsset.storageKey` for articles owned by the user before the DB
+> cascade, then call `storage.delete()` on each key after a successful
+> transaction (best-effort via `Promise.allSettled` — storage failure does not
+> abort the deletion). Implemented in
+> `src/lib/account-lifecycle/account-commands.ts` and
+> `src/lib/account-lifecycle/member-commands.ts`.
 
 ---
 
@@ -216,15 +217,15 @@ behavior is invented. Gaps are called out as follow-up items.
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
 | `Organization` (name, slug, settings) | Access / Tenancy | **operational** | ⛔ | Not user-owned | Self (manual delete) | Indefinite | `settings` is free-form metadata; may contain tenant branding config; apply redaction |
-| `Membership` (userId, orgId, role) | Access / Tenancy | **personal** | ⛔ not in current export | Cascade via `Membership.userId` or `Membership.orgId` | Cascade via `Membership.orgId` | Deleted with user or org | Safe |
+| `Membership` (userId, orgId, role) | Access / Tenancy | **personal** | ✅ orgId, role, timestamps | Cascade via `Membership.userId` or `Membership.orgId` | Cascade via `Membership.orgId` | Deleted with user or org | Safe |
 | `Classroom` (orgId, name, teacherId) | Access / Tenancy | **operational** | ⛔ | Teacher link cascades via `Classroom.teacherId`; classroom deleted if teacher deleted | Cascade via `Classroom.orgId` | Deleted with org | Safe |
-| `ClassroomMembership` (classroomId, userId, role) | Access / Tenancy | **personal** | ⛔ | Cascade via `ClassroomMembership.userId` or classroom | Cascade via classroom → org | Deleted with user or org | Safe |
+| `ClassroomMembership` (classroomId, userId, role) | Access / Tenancy | **personal** | ✅ classroomId, role, createdAt | Cascade via `ClassroomMembership.userId` or classroom | Cascade via classroom → org | Deleted with user or org | Safe |
 | `Assignment` (classroomId, articleId, dueDate, instructions) | Access / Tenancy | **operational** | ⛔ | `instructions` may reference a deleted article; article cascade removes assignment | Cascade via classroom → org | Deleted with classroom | `instructions` is teacher-authored text; avoid logging |
-| `AssignmentCompletion` (assignmentId, studentId, status, quizScore, completedAt) | Access / Tenancy | **personal** | ⛔ not in current export | Cascade via `AssignmentCompletion.studentId` | Cascade via assignment → classroom → org | Deleted with user or org | Safe |
+| `AssignmentCompletion` (assignmentId, studentId, status, quizScore, completedAt) | Access / Tenancy | **personal** | ✅ assignmentId, status, quizScore, completedAt, timestamps | Cascade via `AssignmentCompletion.studentId` | Cascade via assignment → classroom → org | Deleted with user or org | Safe |
 
-> **Gap #711-E:** Membership, classroom enrollment, and assignment completion
-> records are not included in the `exportUserData` bundle. Evaluate whether
-> tenant role history and assignment results should be exportable.
+> **Gap #711-E — RESOLVED (#711):** Membership, classroom enrollment, and
+> assignment completion records are now included in the `exportUserData` bundle.
+> See `src/lib/account-lifecycle/account-commands.ts`.
 
 ---
 
@@ -262,15 +263,15 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | # | Gap | Severity | Status |
 |---|---|---|---|
-| 711-A | `ReminderPreference` not in export bundle | Low | Open |
-| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium | Open |
-| 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium | Open |
-| 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | Open |
-| 711-E | Membership, classroom, assignment completion not in export | Low | Open |
-| 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium | Open |
-| 712-A | `AiInvocation` has no retention window or per-user erasure helper | High | ✅ Resolved — `pruneOldAiInvocations` + `deleteAiInvocationsForUser` in `src/lib/ai/retention.ts` |
-| 712-B | `AuditLog` has no retention window | Medium | ✅ Resolved — `pruneOldAuditLogs` in `src/lib/security/audit.ts` (default 730 d, configurable via `AUDIT_LOG_RETENTION_DAYS`) |
-| 712-C | `Job` dead-letter rows not automatically pruned | Low | ✅ Resolved — `pruneTerminalJobs` in `src/lib/jobs/retention.ts` (default 90 d, configurable via `JOB_TERMINAL_RETENTION_DAYS`) |
+| 711-A | `ReminderPreference` not in export bundle | Low | ✅ Resolved (#711) — added to export |
+| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium | Follow-up — cascade on user deletion is sufficient for full-account deletion; selective erasure for GDPR Art. 17 partial requests is a dedicated task |
+| 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium | ✅ Resolved (#711) — all added to export |
+| 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | ✅ Resolved (#711) — best-effort purge in `deleteOwnAccount` and `deleteMember` |
+| 711-E | Membership, classroom, assignment completion not in export | Low | ✅ Resolved (#711) — added to export |
+| 711-F | Client-side IndexedDB not cleared on server-side account deletion | Medium | Follow-up — PWA service worker must clear offline cache on sign-out; tracked separately |
+| 712-A | `AiInvocation` has no retention window or per-user erasure helper | High | ✅ Resolved (#712) — `pruneOldAiInvocations` + `deleteAiInvocationsForUser` in `src/lib/ai/retention.ts` |
+| 712-B | `AuditLog` has no retention window | Medium | ✅ Resolved (#712) — `pruneOldAuditLogs` in `src/lib/security/audit.ts` (default 730 d, configurable via `AUDIT_LOG_RETENTION_DAYS`) |
+| 712-C | `Job` dead-letter rows not automatically pruned | Low | ✅ Resolved (#712) — `pruneTerminalJobs` in `src/lib/jobs/retention.ts` (default 90 d, configurable via `JOB_TERMINAL_RETENTION_DAYS`) |
 
 ---
 
