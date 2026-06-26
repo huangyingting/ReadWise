@@ -762,7 +762,7 @@ body {
 }
 
 .offline-btn--danger {
-  border-color: var(--danger-border, #fca5a5);
+  border-color: var(--danger-border);
   color: var(--danger-text, #dc2626);
 }
 

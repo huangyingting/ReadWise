@@ -763,3 +763,203 @@ The 22-issue count stayed within the target 18–28 range, grouped sub-threshold
 _Recorded by Scribe · 2026-06-21_
 
 GitHub Actions jobs could not start during the #105–#126 delivery wave because the account was billing-blocked (`account payments failed / spending limit`). The coordinator therefore treated CI as unavailable and gated each merge locally with the repository verification sequence: typecheck, lint, test, and clean production build. All seven squashed PRs (#127–#133) were self-verified locally before merge, and final `main` was confirmed green with 561 passing tests and a clean build.
+
+---
+
+## 2026-06-21 — UI Redesign Design Decisions
+
+### DECIDED — Global UI redesign: sidebar (desktop) + bottom tab bar (mobile) + unified reader tools
+
+**Source:** Saul (Design/UX lead) · 2026-06-21
+**Status:** DECIDED (proposal for decomposition; no feature code yet)
+**Deliverable:** `redesign-proposal.md` (session artifact) — full audit, vision, and 9 shippable issues.
+
+A holistic rethink of the ReadWise UI system (requested by Ralph / repo owner) to unify reading and practice across desktop, tablet, and mobile, prioritizing simplicity, usability, and responsive behavior. Three core design decisions:
+
+**Decision 1 — Desktop/tablet primary nav = persistent collapsible LEFT SIDEBAR (not a top bar)**
+With 8–9 destinations, a horizontal top bar cannot fit labelled links beside the wordmark/search/theme/user cluster at 1280px — that is the documented root cause of #134. A vertical sidebar (icon + label, grouped Primary/Secondary, collapsible to a 64px icon rail; collapsed-by-default on md, expanded on lg, state persisted in localStorage) restores discoverability and resolves #134 properly. The header is demoted to chrome only (wordmark · sidebar toggle · search · theme · user).
+
+**Decision 2 — Mobile primary nav = BOTTOM TAB BAR (4 primary + "More" sheet), retiring the hamburger**
+Replace the hamburger-only `MobileDrawer` with a bottom tab bar (Home · Browse · Study · Progress · More), safe-area aware, one-tap section switching. "More" opens a bottom Sheet with secondary/utility items. The drawer's focus-trap logic is extracted into a reusable `Sheet` primitive.
+
+**Decision 3 — Reader = "Aa" Display popover + slim sticky toolbar + responsive Tools surface**
+The overstuffed `ReaderControls` pill collapses into a slim sticky bar (Back · Listen · Aa · Tools); all display settings move behind an Aa popover/sheet built on a shared `SegmentedControl`. The six practice tools become one responsive Tools surface — a collapsible right rail at ≥1280px, a bottom sheet below.
+
+**Supporting decision — extract primitives, no heavy dependency**
+Build on the existing stack (Tailwind v4 tokens, lucide-react, `components/ui/*`) by extracting three primitives we already hand-roll 3× each — `Sheet`/`Popover`/`SegmentedControl` — plus `PageShell`/`PageHeader` for consistent practice-page chrome.
+
+**Decomposition (9 issues):** 1. Sheet+Popover primitives (M). 2. SegmentedControl+PageShell/PageHeader (M). 3. Nav model in nav-items.ts (S). 4. Desktop/tablet collapsible left sidebar AppSidebar (L, resolves #134). 5. Slim header to chrome (S/M). 6. Mobile bottom tab bar + More sheet (M). 7. Reader Aa Display popover + slim toolbar (M). 8. Reader unified responsive Tools surface (L). 9. Adopt PageShell/PageHeader across practice pages (M).
+
+**References:** `AppNav.tsx`/`nav-items.ts`, `MobileDrawer.tsx`, `ReaderControls.tsx`, `ArticleStudySection.tsx`, inconsistent page shells.
+
+### 2026-06-21T23-23-31: Global UI redesign delivered — issues #146–#154 shipped as merged PRs #155–#163, browser-audited across breakpoints
+**By:** Squad-Coordinator
+**References:** #134, #146-#154, #155-#163
+
+Global UI redesign for ReadWise delivered end-to-end. Saul produced a unified responsive IA proposal; Linus implemented 9 dependency-ordered issues (#146–#154) each as branch→PR→squash-merge to main (#155–#163) with typecheck+lint gates plus test/build at milestones. Three structural moves: (1) collapsible left sidebar on desktop/tablet resolving #134 + mobile bottom tab bar & More sheet; (2) header demoted to chrome only; (3) reader unified into a slim Back/Listen/Aa/Tools toolbar with Aa Display popover/sheet and responsive Tools surface. New primitives: Sheet, Popover, SegmentedControl, PageShell, PageHeader. Browser audit (dev-browser/Playwright headless, 1366/1440/820/390) found zero horizontal overflow; no follow-up gap PRs needed.
+
+---
+
+## 2026-06-22 — Wave Reviews, System Review, and Epic Wave Planning
+
+### 2026-06-22T01-42-37: Full-team browser review delivered — 6 reviewers, 11 issues (#164–#173, #186), all shipped as merged PRs (#174–#185, #187)
+**By:** Squad-Coordinator
+**References:** #164-#173, #186, #174-#185, #187
+
+Second redesign wave. All six team members performed a complete browser review of the live app (dev-browser/Playwright, realistic seeded data, light+dark, 390/820/1024/1280/1440). Findings consolidated into 11 GitHub issues; delivered as merged PRs to main.
+
+Headline fixes: Admin area brought into unified shell + responsive admin tables (#164/#175); graceful article images — ArticleHero onError fallback + listing thumbnails + next/image (#165/#174); a11y Sheet focus-trap leak with roving-tabindex, Tools-sheet aria-modal, ≥44px reader touch targets, Shortcuts-modal name, stacked-Esc (#166/#176); undefined .btn-primary → Button primitive (#167/#179); ArticleCard meta truncation + category-slug humanization + CEFR estimate tooltip (#168/#180) + Read-chip overlap (#186/#187); reader layout coherence — shared measure, focused-mode sidebar auto-collapse, mini-player sidebar overlap, rail cramping (#169/#181); sign-in Terms/Privacy + AI-generated attribution (#170/#182); inclusive onboarding — placement-quiz icon (WCAG 1.4.1), gender Other, data-use notice (#171/#183); bilingual fallback banner + self-hosted OpenDyslexic under CSP (#172/#184); /lists duplicate heading + load-more reliability + empty-state polish (#173/#185). Also fixed a test regression (#177) and stopped tracking .copilot/session-state (#178).
+
+Verification: typecheck clean, 561/561 tests pass, production build succeeds.
+
+### 2026-06-22T03-26-44: Wave-3 deep review delivered — 6 reviewers, 9 issues (#188–#196), all shipped as merged PRs (#197–#205); fixed 2 HIGH bugs (cloze answer leak, SW import privacy leak)
+**By:** Squad-Coordinator
+**References:** #188-#196, #197-#205
+
+Third redesign wave (deep review). All six team members browser-reviewed the LIVE app (dev-browser/Playwright, seeded data, light+dark) focused on LESS-TRAVELED surfaces: command palette, search, import, tags, offline/PWA, error pages, settings/danger-zone, reader tool deep interactions, flashcard/cloze flows, loading states.
+
+Two HIGH bugs fixed: (1) Cloze review LEAKED the answer — pronounce button showed+spoke the masked word before submission (#188/#197); (2) service worker omitted /import from AUTH_PATHS — private import list could be shared-cached and leaked to another user offline (#189/#198). Other fixes: import form inputs invisible (undefined .admin-input) + teal-token tabs → Input/Textarea/SegmentedControl (#190/#199); error/not-found family unified on EmptyState + authed-404 keeps shell (#191/#200); NEW /tags hub (listTagsWithCounts was dead code) + /tags/[slug] on PageShell + Topics nav entry (#192/#201); command-palette ghost ARTICLES header on zero results (#193/#202); reader dictionary popover overflow/focus/aria + 44px targets (#194/#203); RAI trust & clarity — typed-DELETE deletion, AiBadge, Privacy §4 (#195/#204); loading polish — reader skeleton, ArticleHero shimmer, SkeletonCard image slot (#196/#205).
+
+Verified: typecheck clean, 565/565 tests pass, production build succeeds.
+
+### 2026-06-22T08-24-58: Wave-4 review delivered — 6 reviewers, 5 issues (#210–#214), all shipped as merged PRs #215–#219; fixed multiple HIGH overlay/backend bugs
+**By:** Squad-Coordinator
+**References:** #210-#214, #215-#219
+
+Fourth review wave. All six team members + Coordinator browser-reviewed the live app (dev-browser/Playwright, seeded data, light+dark), focused on deeper surfaces and the new full-page practice overlay.
+
+HIGH bugs fixed: (1) Overlay focus-trap leaked because getTabbable counted focusables in hidden keep-alive panels — fixed with shared visibility-aware helper. (2) Browser/hardware Back exited the reader instead of closing the overlay — now pushes history + popstate closes. (3) Mic/audio kept running when tab was hidden or overlay closed. (4) Vocabulary auto-fired an AI request on every reader load — now empty. (5) Search returned zero for author/source/category terms (FTS early-exit before LIKE). (6) Feed pulled up to 1000 full article rows (~2.6s) — now content-free select + cap + per-user cache + DB-level filter.
+
+Plus IA (Topics→Tags rename, Saved→Saved articles, reader Back origin from Notes/palette, dashboard Review-N-due CTA, Study reorder), AI transparency badges, and visual polish (deterministic card placeholder thumbnails, accessible progress charts, 44px swatches).
+
+Verified: typecheck clean, 569/569 tests pass, build succeeds.
+
+### 2026-06-22T11-42-09: System review (2 passes) delivered — 13 issues (#220–#226, #234–#239), shipped as merged PRs (#227–#233, #240–#245); fixed SSRF DNS-rebinding, private-import data exposure, client-trusted scores, timezone corruption, races; tests 569→666
+**By:** Squad-Coordinator
+**References:** #220-#226, #234-#239, #227-#233, #240-#245
+
+Two-pass engineering system review (extensibility, robustness, observability + security/authz/data-integrity/correctness) — NO new features, only gaps/bugs. Team: Rusty (extensibility), Livingston (robustness/backend/authz/data-integrity), Linus (client/CLI + correctness/type-safety), Basher (observability + tests), Rai (logging privacy) + security-review agent + Coordinator. Test suite grew 569→666.
+
+Pass 1: typed config module (#222), AI/speech/dictionary observability + feature labels + speech parse-guard/timeout (#220), backend robustness — saveProgress upsert race, SSRF redirect-hop validation, grammar rate-limit gap, worker poison quarantine (#221), shared cache-first AI abstraction (#223), client robustness — shared client-fetch + reader error boundaries + abort/race fixes (#224), logging privacy — URL/PII redaction + closed RequestContext type + global-error throttle (#225), critical-path tests (#226).
+
+Pass 2 (deeper security/correctness): HIGH SSRF DNS-rebinding closed by IP pinning via undici dispatcher (#234); data-exposure — user-delete publishing private imports + bookmarks/lists bypassing article visibility (#235); import dedup unique constraint + migration (#236); server-side quiz grading + pronunciation clamp/rate-limit (#237); timezone bugs corrupting activity count/streak (#238); transactional last-admin guards + activity write + ai-cache type constraint (#239).
+
+Security review verified NO IDOR/SQLi/stored-XSS/auth-bypass/open-redirect. Verified: typecheck clean, 666/666 tests pass, production build succeeds.
+
+### 2026-06-22T23-40-45: Open epic delivery waves and immediate Wave 1 split
+**By:** Rusty
+**References:** #246-#258, #266-#267, #289, #293, #313, #316, #322, #324
+
+Deliver the open ReadWise epics in dependency-led waves. Wave 1 is a low-risk safety/instrumentation foundation before the large PostgreSQL/job/rate-limit migrations: #324 ADR scaffold, #322 config validation, #293 health/readiness semantics, #289 initial core metrics, #266 centralized article access service, #267 IDOR regression tests, #316 security regression coverage, and a thin #313 Playwright critical-flow smoke slice.
+
+Deferred to Wave 2 (after guardrails are green): #259 PostgreSQL, #260 explicit visibility/status/source type, #261 private lifecycle schema hardening, #270 audit logs, #271 persistent job table, #277 AI ledger, #284 shared rate limiting.
+
+Rationale: The open P0 epics are tightly coupled. Starting with observable safety rails and access/test contracts reduces regression risk before high-churn schema, queue, and distributed-infrastructure work. Keeps each PR reviewable, gives Basher/Rai security gates before auth/data mutations expand, gives Livingston/Linus stable contracts for later waves.
+
+---
+
+## 2026-06-23 — Wave 2 Planning, Gate Checklist, Multi-tenancy, ReadingX
+
+### 2026-06-23T00-39-08: Wave 2 merge-safe lane plan for issues #259 #260 #261 #262 #263 #264 #265 #268 #270 #314 #323
+**By:** Rusty
+**References:** #259, #260, #261, #262, #263, #264, #265, #268, #270, #314, #323
+
+Recommended Wave 2 plan with merge-safe lanes:
+
+1. **DB foundation lane** — #323, #259, #314. Owner: Livingston. Reviewers: Rusty (architecture), Basher (validation).
+2. **Article access model lane** — #260, #261, #268. Owner: Livingston. Reviewer: Rusty; Basher for auth/privacy tests; Rai privacy/security review. Merge order: #260 → #261 → #268.
+3. **Audit/security lane** — #270. Owner: Livingston with Linus for admin audit UI/export.
+4. **Search/performance lane** — #265, #263. Owner: Livingston. Merge order: #265 → #263.
+5. **Native JSON cleanup lane** — #262. Owner: Livingston. Depends on PostgreSQL foundation.
+6. **Ops runbook lane** — #264. Owner: Rusty, with Livingston/Basher. Final, after #259/#323.
+
+Dependencies: First merge #323/#259/#314; then article access lane in strict order; after #260 merged, #270 can merge; after foundation+visibility stable, merge #265 then #263; #262 after #314; #264 last.
+
+Split/spike recommendations: #259 too large — split into migration spike/RFC first; #260 also large/risky — split design/migration plan first; #265 should begin as strategy spike; #263 should not start until #260/#265 queries are known.
+
+### 2026-06-23T03-58-22: Gate checklist for final PostgreSQL provider flip (#259)
+**By:** Rusty
+**References:** #259, #314, #263, #323
+
+Prerequisites after #314/#263/#323: PostgreSQL integration CI is required and green; schema parity test still passes with only provider diff; PostgreSQL migrations apply from empty DB and include privacy, audit, JSONB, sourceUrl+owner uniqueness, FTS/search indexes; local compose Postgres+Redis flow documented and works.
+
+Validation: npm ci; npm run typecheck; npm run lint; npm test; docker compose up -d postgres redis; export DATABASE_URL=postgresql://...; npx prisma generate; npx prisma migrate deploy; npm run test:db; npm run build; container starts and /api/ready is green; smoke admin/login/list/search/reader/settings/study/import/worker.
+
+Rollback: pre-flip SQLite backup and Postgres dump; pause workers during cutover; code-only failure redeploy previous image; data/corruption restore dump and repoint DATABASE_URL.
+
+Reviewers: Livingston owns schema/migrations/runtime; Basher owns CI/test/db dry run; Linus quick smoke; Saul optional UX smoke; Rai reviews secret/PII handling; Rusty final architectural approval.
+
+Red flags: PR relies on PRISMA_SCHEMA_PATH to hide wrong default; postinstall generates SQLite client; Docker generate schema differs from entrypoint migrate schema; CI still defaults to SQLite only; SQLite FTS or file: URLs remain in production docs.
+
+Recommendation: one focused #259 PR if #314/#263/#323 are merged and green. Split only if the SQLite data migration tooling/runbook is not already done.
+
+### 2026-06-23T04-39: Multi-tenancy / classroom foundation (Epic RW-E012, #257)
+**By:** Livingston
+**References:** #257, #318, #319, #320, #321, PR #356
+
+Shipped ONE CI-green PR #356 closing #318 (RW-060), #319 (RW-061), #320 (RW-062), #321 (RW-063) on branch `squad/318-multi-tenancy`.
+
+Design decisions: Tenancy is additive & nullable (`organizationId == null` = global/public; any user with no Membership keeps exact pre-tenancy single-user experience). `Article.organizationId` is a soft non-FK TEXT scalar (mirrors AnalyticsEvent/AuditLog convention), so SQLite migration is a clean `ALTER TABLE ADD COLUMN` with FTS5 triggers untouched. PG keeps it as plain indexed TEXT. Tenant roles live in `Membership` rows and resolve through the same `rbac.ts` capability table as global roles. Cache public listing keys UNCHANGED; `tenantCacheKeyParts` appends `org:<id>`/`user:<id>` only for org/user scopes to prevent cross-org leaks.
+
+Models added (BOTH schemas + BOTH migration dirs): Organization, Membership, Classroom, ClassroomMembership, Assignment, AssignmentCompletion; enums MembershipRole/ClassroomRole/AssignmentStatus; soft `Article.organizationId` + index.
+
+Local gate (all PASS): npm ci · prisma generate · typecheck · lint · npm test (1215 pass / 0 fail / 16 skip; +42 new tenancy tests) · prisma migrate deploy (ci.db) · npm run build · prisma validate (SQLite + PostgreSQL).
+
+CI (all green): Unit tests, Fast checks (typecheck+lint), PostgreSQL Migrate/Integration, Build, CI summary.
+
+### 2026-06-23T13-49-37: ReadingX incremental-integration backlog completed via PR-based squad integration
+**By:** Scribe
+**References:** #359-#378, #380-#384, e4e1cbb, 2d4e998, b4bf07a, c51dca0, e622b3b
+
+Ralph coordinated the full ReadingX incremental-integration backlog using background specialist agents and PR-based merges into `main`. Livingston completed backend epics #359, #366, and #370 through PRs #381-#383, including #360/#380 URL extractor contract work; Linus completed frontend epic #375 through PR #384; Ralph landed the `instrumentation.ts` Edge-bundle tracing guard as housekeeping commit `e622b3b`. All 21 tracked issues are closed.
+
+Each PR passed Fast checks, Unit tests, Build, and PostgreSQL Migrate before squash-merge. Final `main` verification: `npm run typecheck` passed, `npm test` reported 1436 pass / 0 fail / 16 skip.
+
+Decision: treat this backlog as complete and use the PR-based wave pattern as the reference integration approach for similar multi-epic ReadingX work.
+
+---
+
+## 2026-06-25 — Codebase Quality Audit & Epic #610
+
+### 2026-06-25T23-23-23: Created refactoring/quality epic #610 + 15 child issues (#611–#625) from a five-domain codebase audit
+**By:** Squad-Coordinator
+**References:** #610, #611-#625
+
+Requested by Yingting Huang: run a repeated (10x) domain-by-domain quality audit, consolidate, and document as a GitHub epic + issues. Themes: modularization, reusability, subsystem separation, extensibility, readability, merging duplicate code, removing outdated/compat code, splitting large files, eliminating redundant compat layers.
+
+Each domain expert (Rusty/architecture, Saul/design, Linus/frontend, Livingston/backend, Basher/testing) performed an exhaustive 10-pass sweep of their own domain. This produced 79 grounded findings (ARCH 15, DSGN 14, FE 16, BE 18, TEST 16). Rusty (Lead, opus-4.8) consolidated all 79 findings into 15 right-sized, PR-scoped child issues across 3 phases, deduping cross-domain corroborations.
+
+**Phase 1 Foundations:** #611 p0 dark-mode/WCAG (Saul), #612 AI consolidation (Livingston), #613 lib dependency inversion (Rusty), #614 test shared-helper adoption (Basher).
+
+**Phase 2 Core refactors:** #615 (Saul), #616–#617 (Linus), #618 (Basher), #619–#621 (Livingston).
+
+**Phase 3 Cleanup/splits:** #622 (Livingston), #623 (Saul), #624 (Linus), #625 (Basher).
+
+Owners assigned via squad:* labels: Rusty (#613), Saul (#611, #615, #623), Linus (#616, #617, #624), Livingston (#612, #619, #620, #621, #622), Basher (#614, #618, #625).
+
+Non-goals enforced per AGENTS.md: no behavior changes, no new compat layers for superseded shapes, preserve AI/Speech/Push/OAuth/storage graceful fallbacks, keep SQLite/PG parity, no secret/PII logging. Analysis only — no source code modified this session.
+
+Session artifacts: files/findings-{architecture,design,frontend,backend,testing}.md, files/consolidated-plan.md.
+
+---
+
+## 2026-06-26 — Round-2 Codebase Quality Audit & Epic #626
+
+### 2026-06-26T01-04-57: Round-2 audit: created epic #626 + 13 child issues (#627-#639), follow-up to #610; 67 new findings, p0 sensitive-key redaction privacy leak
+**By:** Squad-Coordinator
+**References:** #626, #610, #627, #628, #629, #630, #631, #632, #633, #634, #635, #636, #637, #638, #639
+
+Second-wave (round 2) codebase quality audit, follow-up to epic #610. Each domain expert (Rusty/architecture, Saul/design, Linus/frontend, Livingston/backend, Basher/testing) ran a fresh 10-pass sweep instructed to find NEW, non-overlapping issues (each read their round-1 findings + issues #611-#625 to avoid duplicates), targeting subsystems/angles round 1 under-covered. Result: 67 new findings (ARCH2 11, DSGN2 14, FE2 12, BE2 15, TEST2 15), all confirmed zero-overlap with #610.
+
+Standout cross-domain corroboration: Rusty (ARCH2-2) and Livingston (BE2-1) independently flagged divergent sensitive-key redaction across audit.ts/errors.ts/analytics sanitize.ts with gaps in both directions (audit misses prompt/content/text; errors misses email/url) — a real privacy leak and AGENTS.md violation. Made the single highest-priority issue (p0). Also corroborated: runtime-config env scattering (ARCH2-3 + BE2-2/3).
+
+Rusty (Lead, opus-4.8) consolidated 67 findings into 13 right-sized child issues across 3 phases, each finding covered exactly once, every HIGH covered. Two p0s: #627 redaction primitive, #628 flashcard effect-deps correctness bug.
+
+Deliverables on huangyingting/ReadWise (main), cross-linked to #610:
+- Epic #626 (type:epic, security/privacy/architecture/quality labels).
+- Phase 1: #627 (p0, Rusty), #628 (p0, Linus), #629 (Livingston), #630 (Saul), #631 (Saul), #632 (Rusty).
+- Phase 2: #633 (Linus), #634 (Livingston), #635 (Livingston), #636 (Basher), #637 (Basher).
+- Phase 3: #638 (Livingston, deps #627), #639 (Basher).
+- Owners via squad:* labels (Rusty 2, Saul 2, Linus 2, Livingston 4, Basher 3).
+
+Non-goals enforced per AGENTS.md: no behavior changes, no new compat layers, preserve provider graceful fallbacks, SQLite/PG parity, no secret/PII logging. Analysis only — no source modified. Artifacts: files/findings-{architecture,design,frontend,backend,testing}-r2.md, files/consolidated-plan-r2.md.

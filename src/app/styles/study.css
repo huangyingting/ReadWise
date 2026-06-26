@@ -447,7 +447,7 @@
 
 .rw-dictate-word--correct {
   color: var(--success-text, #15803d);
-  background: var(--success-bg, #f0fdf4);
+  background: var(--success-bg);
   text-decoration: underline;
   text-decoration-color: var(--success-text, #15803d);
   text-underline-offset: 2px;
@@ -455,19 +455,19 @@
 
 .rw-dictate-word--wrong {
   color: var(--danger-text, #b91c1c);
-  background: var(--danger-bg, #fef2f2);
+  background: var(--danger-bg);
 }
 
 .rw-dictate-word--missing {
   color: var(--text-subtle);
   text-decoration: line-through;
   text-decoration-color: var(--danger, #dc2626);
-  background: var(--danger-bg, #fef2f2);
+  background: var(--danger-bg);
 }
 
 .rw-dictate-word--extra {
   color: var(--warning-text, #92400e);
-  background: var(--warning-bg, #fffbeb);
+  background: var(--warning-bg);
   text-decoration: underline wavy var(--warning, #ca8a04);
   text-underline-offset: 3px;
 }
