@@ -93,6 +93,10 @@ model User {
   classroomMemberships    ClassroomMembership[]
   assignmentCompletions   AssignmentCompletion[]
   todaySessions           TodaySession[]
+  placementResult            PlacementResult?
+  todayComprehensionFeedback TodayComprehensionFeedback[]
+  learnerCoachMemories       LearnerCoachMemory[]
+  seriesEnrollments          SeriesEnrollment[]
 
   @@index([role, createdAt], map: "User_role_created_idx")
 }
@@ -107,6 +111,7 @@ model Profile {
   completedAt     DateTime?
   dailyGoal       Int       @default(2)
   timezone        String?
+  goalPath        String?   // controlled: "daily_news" | "academic" | "business" | "exam" | "extensive" | null
   streakShields   Int       @default(0)
   levelUpdatedAt  DateTime?
   createdAt       DateTime  @default(now())
@@ -1185,4 +1190,152 @@ model ContentReport {
   @@index([articleId, createdAt])
   @@index([status, createdAt])
   @@index([reporterUserId, articleId])
+}
+
+// #806 — Lightweight reading placement result.
+// Stores STRUCTURED OUTCOMES ONLY — no passage text, answers, or PII.
+// One row per user; upserted on retake. Cascades with the user.
+model PlacementResult {
+  id                String    @id @default(cuid())
+  userId            String    @unique
+  /// Passage article id used for placement (NOT FK — survives article deletion).
+  passageArticleId  String
+  /// Self-reported seed level used to pick the passage.
+  seedLevel         String    // "A2" | "B1" | "B2"
+  /// Deterministic recommended starting level.
+  recommendedLevel  String    // "A1" | "A2" | "B1" | "B2" | "C1"
+  /// Number of questions presented (3–5).
+  questionCount     Int
+  /// Number of correct answers — no answer text stored.
+  correctCount      Int
+  /// Vocabulary lookup count during placement passage — count only.
+  lookupCount       Int
+  /// True when the learner skipped placement; recommendedLevel is null-coerced
+  /// to seedLevel when skipped = true so Today still has a starting signal.
+  skipped           Boolean   @default(false)
+  /// Controlled: "initial" | "retake"
+  attempt           String    @default("initial")
+  completedAt       DateTime?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+// #807 Phase 2 — Lightweight comprehension check outcome per Today session.
+// Stores question ids and boolean outcomes ONLY — no answer text, option text,
+// article text, or explanations.  One row per Today session.
+model TodayComprehensionFeedback {
+  id              String   @id @default(cuid())
+  userId          String
+  /// Plain string reference to TodaySession.id (NOT FK — survives session
+  /// reset; only user deletion cascades).
+  todaySessionId  String
+  /// Article id at the time of the check — non-FK, survives article deletion.
+  articleId       String
+  /// Controlled self-rating: "confident" | "partial" | "confused"
+  selfRating      String
+  /// Optional: id of the QuizQuestion that was asked (null if no MCQ shown).
+  questionId      String?
+  /// True when the MCQ was answered correctly; null when no MCQ was shown.
+  mcqCorrect      Boolean?
+  /// Controlled skill tag from the question if available:
+  /// "main_idea" | "detail" | "inference" | "vocabulary_in_context"
+  skillTag        String?
+  /// True when the learner opened the remediation card (engagement signal).
+  remediationViewed Boolean @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([userId, articleId])
+}
+
+// #810 — Structured long-term learner weakness memory for Tutor and Study Plan.
+// Stores ONLY aggregated skill signals — no prompts, article text, question
+// text, answer text, definitions, notes, or PII.
+// One row per (userId, skill). Cascades with the user.
+model LearnerCoachMemory {
+  id             String    @id @default(cuid())
+  userId         String
+  /// Controlled skill key — one of the six SkillMastery skills plus
+  /// two reading-specific dimensions:
+  /// "reading" | "vocabulary" | "grammar" | "listening" |
+  /// "pronunciation" | "comprehension" | "main_idea" | "inference"
+  skill          String
+  /// 0–1 confidence estimate blended from SkillMastery and comprehension
+  /// check outcomes. Low values indicate weakness.
+  confidence     Float     @default(0)
+  /// Count of evidence events contributing to this entry (bounded; capped
+  /// at 100 before export to prevent runaway accumulation).
+  evidenceCount  Int       @default(0)
+  /// ISO-8601 timestamp of the most recent evidence event that updated
+  /// this entry. Used for recency decay.
+  lastObservedAt DateTime  @default(now())
+  /// Controlled trend direction: "improving" | "stable" | "declining"
+  trend          String    @default("stable")
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, skill])
+  @@index([userId])
+}
+
+// #813 — Curated reading series definition.
+// A named, ordered list of article ids for themed or leveled reading paths.
+// Article ids are NOT foreign keys — series survive article deletion;
+// orphaned ids are skipped silently at read time.
+model ReadingSeries {
+  id              String    @id @default(cuid())
+  /// Slug used in URLs and analytics: "7-days-tech-news", "b1-b2-ladder"
+  slug            String    @unique
+  title           String
+  description     String?
+  /// Target CEFR level range: "A2" | "B1" | "B2" | "C1" | null (any)
+  targetLevelMin  String?
+  targetLevelMax  String?
+  /// Topic tag used for recommendation scoring (matches Article.category values)
+  topic           String?
+  /// Ordered array of Article ids — NOT FKs. Revalidated at serve time.
+  articleIds      Json      @default("[]") // string[]
+  /// Controlled: "active" | "archived"
+  status          String    @default("active")
+  /// Whether series appears in public series browser (learner-facing)
+  public          Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  enrollments  SeriesEnrollment[]
+
+  @@index([status])
+  @@index([topic])
+}
+
+// #813 — Per-user enrollment in a curated series.
+// Tracks position and completion without storing article content.
+model SeriesEnrollment {
+  id              String    @id @default(cuid())
+  userId          String
+  seriesId        String
+  /// Index of the next article to read (0-based; clamped to articleIds length).
+  nextIndex       Int       @default(0)
+  /// Controlled: "active" | "paused" | "completed"
+  status          String    @default("active")
+  startedAt       DateTime  @default(now())
+  completedAt     DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  user   User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  series ReadingSeries @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, seriesId])
+  @@index([userId])
+  @@index([userId, status])
 }
