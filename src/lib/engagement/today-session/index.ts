@@ -62,3 +62,24 @@ export {
 // ── Target-word selection (server-only) ─────────────────────────────────────
 export { selectTargetWordIds } from "./target-words";
 export type { TargetWordSelection } from "./target-words";
+
+// ── Completion tier engine + markers (#792–#795) ────────────────────────────
+export {
+  computeCompletionTier,
+  isBestAvailableComplete,
+  deriveCompletionState,
+  recomputeTodayCompletion,
+  markTodayReadingComplete,
+  markTodayReadingCompleteManual,
+  syncTodayReadingFromProgress,
+  markTodayComprehensionComplete,
+  markTodayWordReviewComplete,
+  READING_COMPLETION_PERCENT,
+  WORD_REVIEW_ALL_AT_MOST,
+  WORD_REVIEW_LARGE_THRESHOLD,
+} from "./completion";
+export type {
+  CompletionInputs,
+  CurrentCompletion,
+  CompletionDecision,
+} from "./completion";

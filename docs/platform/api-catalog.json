@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-26T22:45:57.775Z",
-  "routeCount": 92,
-  "methodCount": 103,
+  "generatedAt": "2026-06-27T05:22:31.378Z",
+  "routeCount": 93,
+  "methodCount": 104,
   "routes": [
     {
       "path": "/api/account",
@@ -2298,6 +2298,31 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/today/read-complete",
+      "file": "src/app/api/today/read-complete/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "updated"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "timezone"
+          ]
         }
       ]
     },

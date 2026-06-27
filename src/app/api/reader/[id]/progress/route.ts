@@ -9,6 +9,7 @@ import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { progressBody } from "@/lib/reader/schemas";
 import { revalidateUserCache } from "@/lib/cache";
+import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/completion";
 
 export const POST = createHandler(
   { params: idParams, body: progressBody },
@@ -38,6 +39,17 @@ export const POST = createHandler(
       // the user's feed cache so the next request reflects the completion.
       revalidateUserCache(session.user.id);
     }
+    // Best-effort: advance the learner's active Today session reading step when
+    // the primary article reaches the completion threshold. Never breaks the
+    // progress write and never mutates ReadingProgress.
+    await bestEffortMastery("progress.today_reading", () =>
+      syncTodayReadingFromProgress({
+        userId: session.user.id,
+        articleId: article.id,
+        percent: progress.percent,
+        completed: progress.completed,
+      }),
+    );
     return NextResponse.json({
       percent: progress.percent,
       completed: progress.completed,
