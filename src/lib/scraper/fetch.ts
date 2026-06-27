@@ -14,6 +14,7 @@ import { resolveAndPin, type PinnedAddress } from "@/lib/scraper/ssrf";
 import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
 import { withSpan } from "@/lib/observability/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
+import { fetchHtmlWithStrategies } from "@/lib/scraper/fetch-strategies";
 
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -21,6 +22,27 @@ const USER_AGENT =
 
 /** Max redirect hops followed before giving up. */
 const MAX_REDIRECTS = 5;
+
+/**
+ * Error thrown by {@link fetchCore} on a non-2xx final response. Carries the
+ * HTTP `status` so callers (e.g. the multi-strategy fallback chain in
+ * {@link file://./fetch-strategies.ts}) can distinguish a bot-challenge
+ * (401/403/429/451/503) — which is worth retrying with another strategy — from
+ * a genuine not-found (404/410), which must bubble up unchanged.
+ *
+ * The message format (`HTTP <status> for <url>`) is preserved for backward
+ * compatibility with existing callers/tests.
+ */
+export class FetchHttpError extends Error {
+  readonly status: number;
+  readonly url: string;
+  constructor(status: number, url: string) {
+    super(`HTTP ${status} for ${url}`);
+    this.name = "FetchHttpError";
+    this.status = status;
+    this.url = url;
+  }
+}
 
 /**
  * Builds a one-shot undici dispatcher that PINS the connection to the exact
@@ -103,11 +125,13 @@ async function readBodyWithLimit(res: FetchResponse, maxBytes: number): Promise<
 }
 
 /**
- * Core SSRF-safe fetch shared by {@link fetchHtml} and {@link fetchText}.
+ * Core SSRF-safe fetch shared by {@link fetchHtml}, {@link fetchText}, and the
+ * multi-strategy fallback chain ({@link file://./fetch-strategies.ts}).
  * Validates every redirect hop through `resolveAndPin`, enforces a hard
- * timeout, and caps the response body at `scraperMaxBytes`.
+ * timeout, and caps the response body at `scraperMaxBytes`. Throws
+ * {@link FetchHttpError} (carrying the status) on a non-2xx final response.
  */
-async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
+export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
   let host = "unknown";
   try {
     host = new URL(url).hostname;
@@ -156,7 +180,7 @@ async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): P
 
         try {
           if (!res.ok) {
-            throw new Error(`HTTP ${res.status} for ${currentUrl}`);
+            throw new FetchHttpError(res.status, currentUrl);
           }
           return await readBodyWithLimit(res, maxBytes);
         } finally {
@@ -169,9 +193,20 @@ async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): P
   });
 }
 
-/** Fetches a URL as text (GET) with a desktop UA, a hard timeout and a body-size cap. Throws on non-2xx or unsafe target. */
+/**
+ * Fetches a URL as text (GET) with a desktop UA, a hard timeout and a body-size
+ * cap. Throws on non-2xx or unsafe target.
+ *
+ * Internally this runs the multi-strategy fallback chain
+ * ({@link file://./fetch-strategies.ts}): a plain origin request first (no
+ * behavior change for pages that return 2xx), then — only when the origin is
+ * bot-challenged (401/403/429/451/503) — rotating browser profiles, the
+ * r.jina.ai reader proxy, and a Wayback Machine snapshot. The original URL is
+ * SSRF-validated before any request and genuine not-found (404/410) responses
+ * bubble up without triggering any fallback.
+ */
 export async function fetchHtml(url: string, timeoutMs = scraperTimeoutMs()): Promise<string> {
-  return fetchCore(url, {}, timeoutMs);
+  return fetchHtmlWithStrategies(url, timeoutMs);
 }
 
 /**

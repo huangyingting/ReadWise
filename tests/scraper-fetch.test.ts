@@ -125,3 +125,13 @@ test("fetchHtml rejects a non-2xx final response", async () => {
   routes = { "https://safe.example/missing": { status: 404 } };
   await assert.rejects(fetchHtml("https://safe.example/missing"), /HTTP 404/);
 });
+
+test("fetchHtml makes a single origin request for a plain 200 (chain stays dormant)", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  routes = { "https://safe.example/ok": { status: 200, body: "PLAIN-OK" } };
+  const html = await fetchHtml("https://safe.example/ok");
+  assert.equal(html, "PLAIN-OK");
+  // No profile/reader/wayback fallbacks: exactly one underlying request.
+  assert.deepEqual(fetchCalls, ["https://safe.example/ok"]);
+  assert.deepEqual(validated, ["https://safe.example/ok"]);
+});
