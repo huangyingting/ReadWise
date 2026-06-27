@@ -39,3 +39,16 @@ export function scraperTimeoutMs(): number {
 export function scraperHtmlNormalize(): boolean {
   return process.env.SCRAPER_HTML_NORMALIZE === "true";
 }
+
+/**
+ * Whether the Readability-based clean-capture body extractor is enabled
+ * (`SCRAPER_READABILITY`, default ON).
+ *
+ * Kill-switch for the linkedom + @mozilla/readability body pipeline. Unlike
+ * `SCRAPER_HTML_NORMALIZE` (opt-in), this defaults to TRUE; set
+ * `SCRAPER_READABILITY=false` to fall back to the legacy `<p>`-harvest body
+ * (the declutter pass still runs in that fallback path).
+ */
+export function scraperReadability(): boolean {
+  return process.env.SCRAPER_READABILITY !== "false";
+}

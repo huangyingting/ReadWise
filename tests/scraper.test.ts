@@ -121,3 +121,92 @@ test("extractArticle sanitizes a malicious JSON-LD headline path's body", () => 
   assert.doesNotMatch(result?.content ?? "", /<img/i);
   assert.match(result?.content ?? "", /ocean/);
 });
+
+// ---------------------------------------------------------------------------
+// Clean-capture pipeline: Readability + declutter (#838–#840 integration)
+// ---------------------------------------------------------------------------
+
+/** Builds a unique-word block so assertions can target the real body. */
+function wordBlock(n: number, seed: string): string {
+  return Array.from({ length: n }, (_, i) => `${seed}${i + 1}`).join(" ");
+}
+
+test("extractArticle (clean capture): removes the trailing author-bio paragraph but keeps the body", () => {
+  // Full page, no JSON-LD -> the raw-<p> / Readability path. The article ends
+  // with a "By Jane Doe. Jane is a senior writer at …" bio paragraph that the
+  // declutter pass must strip while the real prose is preserved end-to-end.
+  const html =
+    "<html><head><title>The Future of Cities</title>" +
+    '<meta name="author" content="Jane Doe">' +
+    "</head><body><article>" +
+    `<p>Cities are changing. ${wordBlock(40, "urban")} and more.</p>` +
+    `<p>The shift continues. ${wordBlock(40, "transit")} every day.</p>` +
+    "<p>By Jane Doe. Jane is a senior writer at Example Magazine covering urban affairs.</p>" +
+    "</article></body></html>";
+
+  const result = extractArticle(html, "https://unknown-news.example.com/article/future-cities");
+  assert.ok(result, "should extract a valid article");
+  assert.equal(result?.title, "The Future of Cities");
+  // Real article body survives.
+  assert.match(result?.content ?? "", /urban\d+/, "first body paragraph must be kept");
+  assert.match(result?.content ?? "", /transit\d+/, "second body paragraph must be kept");
+  // The trailing author byline/bio (the user's core complaint) is GONE.
+  assert.doesNotMatch(
+    result?.content ?? "",
+    /senior writer at Example Magazine/,
+    "author bio sentence must be removed",
+  );
+  assert.doesNotMatch(result?.content ?? "", /By Jane Doe/, "trailing byline must be removed");
+  // Author metadata is still captured.
+  assert.equal(result?.author, "Jane Doe");
+});
+
+test("extractArticle (clean capture): SCRAPER_READABILITY=false still yields a valid article via the legacy + declutter path", () => {
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const html =
+      "<html><head><title>Legacy Path Article</title>" +
+      '<meta name="author" content="Jane Doe">' +
+      "</head><body><article>" +
+      `<p>Cities are changing. ${wordBlock(40, "legacy")} and more.</p>` +
+      `<p>The shift continues. ${wordBlock(40, "fallback")} every day.</p>` +
+      "<p>By Jane Doe. Jane is a senior writer at Example Magazine covering urban affairs.</p>" +
+      "</article></body></html>";
+
+    const result = extractArticle(html, "https://unknown-news.example.com/article/legacy");
+    assert.ok(result, "legacy path should still extract a valid article");
+    // Full body preserved by the legacy <p>-harvest.
+    assert.match(result?.content ?? "", /legacy\d+/);
+    assert.match(result?.content ?? "", /fallback\d+/);
+    // Declutter runs in the legacy path too, so the bio is still stripped.
+    assert.doesNotMatch(result?.content ?? "", /senior writer at Example Magazine/);
+    assert.doesNotMatch(result?.content ?? "", /By Jane Doe/);
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+});
+
+test("extractArticle (clean capture): a long multi-paragraph article loses no body content", () => {
+  // Guards the never-lose-content property: every paragraph of a normal raw
+  // article must survive the Readability + declutter pipeline.
+  const paragraphs = Array.from(
+    { length: 6 },
+    (_, i) => `<p>${wordBlock(25, `block${i}`)} sentence here.</p>`,
+  );
+  const html =
+    "<html><head><title>Long Article</title></head><body><article>" +
+    paragraphs.join("") +
+    "</article></body></html>";
+
+  const result = extractArticle(html, "https://unknown-news.example.com/article/long");
+  assert.ok(result, "should extract the article");
+  for (let i = 0; i < 6; i++) {
+    assert.match(
+      result?.content ?? "",
+      new RegExp(`block${i}\\d+`),
+      `paragraph ${i} must be preserved (no body loss)`,
+    );
+  }
+});

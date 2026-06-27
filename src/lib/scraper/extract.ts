@@ -4,8 +4,22 @@ import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
 import { applyProviderCleanup } from "@/lib/scraper/cleanup";
 import { normalizeArticleHtml } from "@/lib/scraper/normalize";
+import { extractReadable } from "@/lib/scraper/readability-extract";
+import { declutterArticleHtml } from "@/lib/scraper/declutter";
+import { scraperReadability } from "@/lib/runtime-config/scraper";
 
 const WORDS_PER_MINUTE = 200;
+
+/**
+ * Maximum ratio of legacy-body words to Readability-body words before we treat
+ * Readability as having over-trimmed and keep the longer legacy body instead.
+ *
+ * Readability normally wins (it isolates the real article and strips chrome the
+ * `<p>`-harvest leaves behind). But when the legacy harvest is more than 1.5×
+ * longer than Readability's output, that gap signals Readability dropped real
+ * prose — so we fall back to legacy to guarantee no article body is lost.
+ */
+const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
 
 const ENTITIES: Record<string, string> = {
   amp: "&",
@@ -189,9 +203,17 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
  * 3. **HTML normalization** (optional, `SCRAPER_HTML_NORMALIZE=true`): strips
  *    scripts, styles, inline event handlers and style attributes to reduce
  *    noise in the HTML used for raw `<p>` body extraction.
- * 4. **Body extraction**: JSON-LD `articleBody` is preferred; falls back to
- *    `<p>` harvesting from the normalized HTML.
- * 5. **Sanitization**: `sanitizeArticleHtml` is always the final pass — it
+ * 4. **Body extraction (clean capture)**: a Readability pass
+ *    (`extractReadable`, gated by `SCRAPER_READABILITY`, default ON) isolates
+ *    the main article from the cleaned page HTML. The legacy body — JSON-LD
+ *    `articleBody` when present, otherwise a raw `<p>` harvest — is computed as
+ *    a fallback. JSON-LD `articleBody` (canonical structured text) is always
+ *    kept; for the noisier raw-`<p>` path Readability wins unless it appears to
+ *    have over-trimmed (legacy >1.5× its words), guaranteeing no body is lost.
+ * 5. **Declutter**: `declutterArticleHtml` strips residual boilerplate the
+ *    extractor leaves behind — especially the trailing author byline/bio — in
+ *    BOTH the Readability and legacy paths. Conservative (won't drop >35%).
+ * 6. **Sanitization**: `sanitizeArticleHtml` is always the final pass — it
  *    enforces the strict tag/attr allowlist and is never bypassed.
  */
 export function extractArticle(html: string, sourceUrl: string): ScrapedArticle | null {
@@ -222,7 +244,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
 
   if (!title) return null;
 
-  const author =
+  let author =
     (ld && jsonLdAuthor(ld.author)) ??
     metaContent(cleanedHtml, "author") ??
     metaContent(cleanedHtml, "article:author");
@@ -244,27 +266,63 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const publishedAt = publishedRaw ? safeDate(publishedRaw) : null;
 
   // --- Step 3: optional HTML normalization (disabled by default) -------------
-  // Strips scripts/styles/inline-attrs from the HTML used for body extraction.
-  // JSON-LD was already read in step 2, so removing <script> here is safe.
-  // When SCRAPER_HTML_NORMALIZE is not set the default path is unchanged.
+  // Strips scripts/styles/inline-attrs from the HTML used for legacy body
+  // extraction. JSON-LD was already read in step 2, so removing <script> here
+  // is safe. When SCRAPER_HTML_NORMALIZE is not set the default path is unchanged.
   const { html: bodyHtml } = normalizeArticleHtml(cleanedHtml);
 
-  // --- Step 4: build raw body from JSON-LD (preferred) or page HTML ---------
+  // --- Step 4: build the legacy body (JSON-LD articleBody or raw <p> harvest)-
+  // This is the fallback body and the canonical source when JSON-LD is present.
   const ldBody = ld && jsonLdString(ld.articleBody);
-  const rawBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml);
+  const legacyBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml);
 
-  // --- Step 5: final sanitization (always runs, never bypassed) -------------
-  const content = sanitizeArticleHtml(rawBody).trim();
+  // --- Step 5: clean-capture body via Readability (kill-switch, default ON) --
+  // Readability isolates the main article from the *cleaned* (not normalized)
+  // HTML so it sees the full document structure for scoring.
+  const readable = scraperReadability() ? extractReadable(cleanedHtml, sourceUrl) : null;
+
+  // Choose the body robustly so we never lose article content:
+  //  - JSON-LD articleBody is canonical structured text → always keep it.
+  //  - For the noisier raw-<p> harvest, prefer Readability unless the legacy
+  //    body is >1.5× longer (a sign Readability over-trimmed) or Readability
+  //    produced nothing usable — then fall back to legacy.
+  let chosenBody = legacyBody;
+  if (readable && !ldBody) {
+    const legacyWords = countWords(stripTags(legacyBody));
+    const readableWords = readable.wordCount;
+    const overTrimmed = legacyWords > readableWords * READABILITY_LEGACY_MAX_WORD_RATIO;
+    if (!overTrimmed) {
+      chosenBody = readable.contentHtml;
+    }
+  }
+
+  // --- Step 6: declutter (runs in BOTH paths) --------------------------------
+  // Removes residual boilerplate the extractor leaves behind — most importantly
+  // the trailing author byline/bio paragraph. Conservative: aborts removals
+  // that would drop >35% of the text, so real article bodies are preserved.
+  const decluttered = declutterArticleHtml(chosenBody, {
+    byline: readable?.byline ?? author,
+    authorName: author,
+  });
+
+  // --- Step 7: final sanitization (always runs, never bypassed) -------------
+  const content = sanitizeArticleHtml(decluttered).trim();
   const bodyText = stripTags(content);
 
   if (countWords(bodyText) < 50) {
     return null;
   }
 
+  // Metadata fallbacks: only fill gaps with Readability-derived values; never
+  // override existing JSON-LD/OG/meta values.
+  author = author ?? readable?.byline ?? null;
+
   const description =
     (ld && jsonLdString(ld.description)) ??
     metaContent(cleanedHtml, "og:description") ??
-    metaContent(cleanedHtml, "description");
+    metaContent(cleanedHtml, "description") ??
+    readable?.excerpt ??
+    null;
   const excerpt = description ?? bodyText.slice(0, 240).trim() + (bodyText.length > 240 ? "…" : "");
 
   const wordCount = countWords(bodyText);
