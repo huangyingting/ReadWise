@@ -140,6 +140,9 @@ export default async function TodayPage() {
             readingComplete={readingComplete}
             comprehensionComplete={vm.steps.comprehension.state === "complete"}
             active={isActive}
+            userId={session.user.id}
+            localDate={vm.localDate}
+            timezone={vm.timezone}
           />
 
           <TodayWorkflow
@@ -148,6 +151,9 @@ export default async function TodayPage() {
             readingComplete={readingComplete}
             primaryHref={primaryHref}
             completed={vm.completedAt != null}
+            userId={session.user.id}
+            localDate={vm.localDate}
+            timezone={vm.timezone}
           />
         </Stack>
       )}
