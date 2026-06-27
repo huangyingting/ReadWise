@@ -67,7 +67,7 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/article-library", {
+  mock.module("@/lib/article-library/collections", {
     namedExports: {
       getArticleTags: async (articleId: string) => tagsByArticle.get(articleId) ?? [],
       setArticleTags: async (articleId: string, names: string[]) => {
@@ -104,7 +104,7 @@ beforeEach(() => {
 });
 
 test("reviewArticle applies corrections, records a diff, and writes history", async () => {
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({
     articleId: "a1",
     reviewerId: "admin-1",
@@ -137,7 +137,7 @@ test("reviewArticle applies corrections, records a diff, and writes history", as
 
 test("reviewArticle refuses to publish a taken-down article (409)", async () => {
   articles.get("a1")!.takedownState = "takedown";
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "a1", status: "PUBLISHED" });
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -147,7 +147,7 @@ test("reviewArticle refuses to publish a taken-down article (409)", async () => 
 });
 
 test("reviewArticle publishing sets publishedAt when first published", async () => {
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "a1", status: "PUBLISHED" });
   assert.equal(result.ok, true);
   const row = articles.get("a1");
@@ -156,7 +156,7 @@ test("reviewArticle publishing sets publishedAt when first published", async () 
 });
 
 test("reviewArticle rejects an invalid category (400)", async () => {
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "a1", category: "not-a-category" });
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -164,7 +164,7 @@ test("reviewArticle rejects an invalid category (400)", async () => {
 });
 
 test("reviewArticle returns 404 for unknown article", async () => {
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "missing", reviewState: "approved" });
   assert.equal(result.ok, false);
   if (result.ok) return;
@@ -173,7 +173,7 @@ test("reviewArticle returns 404 for unknown article", async () => {
 
 test("reviewArticle replaces tags and records the change", async () => {
   tagsByArticle.set("a1", [{ id: "t-old", name: "Old", slug: "old" }]);
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "a1", tags: ["Science", "Climate"] });
   assert.equal(result.ok, true);
   if (!result.ok) return;
@@ -183,7 +183,7 @@ test("reviewArticle replaces tags and records the change", async () => {
 });
 
 test("a no-op review still records a history row", async () => {
-  const { reviewArticle } = await import("@/lib/article-library");
+  const { reviewArticle } = await import("@/lib/article-library/review");
   const result = await reviewArticle({ articleId: "a1", reviewerId: "admin-1", note: "checked" });
   assert.equal(result.ok, true);
   assert.equal(reviews.length, 1);
@@ -191,7 +191,7 @@ test("a no-op review still records a history row", async () => {
 });
 
 test("listContentReviews returns history newest-first", async () => {
-  const { reviewArticle, listContentReviews } = await import("@/lib/article-library");
+  const { reviewArticle, listContentReviews } = await import("@/lib/article-library/review");
   await reviewArticle({ articleId: "a1", reviewState: "needs_work" });
   await reviewArticle({ articleId: "a1", reviewState: "approved" });
   const history = await listContentReviews("a1");

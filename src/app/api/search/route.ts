@@ -3,7 +3,8 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { queryString, queryInt } from "@/lib/validation";
 import { SEARCH_PAGE_SIZE, SEARCH_MAX_LIMIT } from "@/lib/search/query";
 import { searchReadableArticles } from "@/lib/search/providers";
-import { toListingArticle, buildArticleListResponse } from "@/lib/article-library";
+import { toListingArticle } from "@/lib/article-library/mapper";
+import { buildArticleListResponse } from "@/lib/article-library/listing-response";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
 const SEARCH_QUERY_MAX_LENGTH = 200;

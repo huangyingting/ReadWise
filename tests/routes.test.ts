@@ -101,6 +101,7 @@ before(() => {
         revalidateCalls++;
       },
       revalidateArticlesCache: () => {},
+      revalidateUserCache: () => {},
       createCachedListing:
         <T extends unknown[], R>(fn: (...args: T) => Promise<R>) =>
         (...args: T) =>

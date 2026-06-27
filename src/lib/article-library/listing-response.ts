@@ -6,8 +6,7 @@
  * per-article progress and assembles the response so each route only needs to
  * supply the already-typed ListingArticle slice and pagination state.
  */
-import { getProgressSummaries } from "@/lib/engagement";
-import type { ProgressSummary } from "@/lib/engagement";
+import { getProgressSummaries, type ProgressSummary } from "@/lib/engagement/progress";
 import type { ListingArticle } from "./mapper";
 
 export type ArticleListResponse = {

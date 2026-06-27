@@ -109,6 +109,14 @@ before(() => {
     },
   });
 
+  mock.module("@/lib/article-library/listings", {
+    namedExports: {
+      listPersonalArticlesPage: async () => ({ articles: [], hasMore: false }),
+      IMPORTS_PAGE_SIZE: 20,
+      IMPORTS_MAX_LIMIT: 50,
+    },
+  });
+
   mock.module("@/lib/engagement/progress", {
     namedExports: {
       getProgressSummaries: async () => ({}),
@@ -125,6 +133,12 @@ before(() => {
     namedExports: {
       revalidateArticlesCache: () => {},
       revalidateTagsCache: () => {},
+      createCachedListing:
+        <T extends unknown[], R>(fn: (...args: T) => Promise<R>) =>
+        (...args: T) =>
+          fn(...args),
+      ARTICLES_CACHE_TAG: "articles",
+      TAGS_CACHE_TAG: "tags",
     },
   });
 

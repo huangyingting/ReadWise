@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { queryInt, queryString } from "@/lib/validation";
 import { FEED_PAGE_SIZE, FEED_MAX_LIMIT, getPersonalizedFeed } from "@/lib/feed";
-import { buildArticleListResponse } from "@/lib/article-library";
+import { buildArticleListResponse } from "@/lib/article-library/listing-response";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 

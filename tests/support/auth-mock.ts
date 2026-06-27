@@ -77,7 +77,9 @@ export function sessionAuthExports(
  * - "ok"        → returns `{ session }` from both
  * - "unauth"    → both return a 401 error
  * - "forbidden" → `requireCapabilityApi` returns a 403 error; `requireSessionApi`
- *                 still returns `{ session }` (matching the real implementation)
+ *                 still returns `{ session }`. The 403 result includes the
+ *                 authenticated reader session, matching the real implementation
+ *                 so denied-access audit logs can include actor metadata.
  *
  * @param getState    Getter for the current auth state.
  * @param session     Session returned on authenticated reads (default: readerSession).
@@ -100,7 +102,10 @@ export function fullAuthExports(
         return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
       }
       if (getState() === "forbidden") {
-        return { error: NextResponse.json({ error: "Forbidden" }, { status: 403 }) };
+        return {
+          session,
+          error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+        };
       }
       return { session: adminSess };
     },

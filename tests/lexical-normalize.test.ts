@@ -155,12 +155,10 @@ test("normalizeCandidates: -er comparative (no doubled consonant)", () => {
 });
 
 test("normalizeCandidates: -er with doubled consonant produces de-doubled stem in morphCandidates", () => {
-  // "bigger" → ["bigger", "bigg", "bigge"]
-  // The -er path in morphCandidates does not apply doubled-consonant dedup,
-  // so "big" is not included — this is the documented, preserved behavior.
+  // "bigger" → includes "big" via doubled-consonant dedup.
   const result = normalizeCandidates("bigger");
   assert.ok(result.includes("bigger"), "surface form included");
-  assert.ok(!result.includes("big"), "doubled-consonant -er dedup not applied");
+  assert.ok(result.includes("big"), "doubled-consonant -er dedup applied");
 });
 
 test("normalizeCandidates: -est superlative (no doubled consonant)", () => {
@@ -170,11 +168,10 @@ test("normalizeCandidates: -est superlative (no doubled consonant)", () => {
 });
 
 test("normalizeCandidates: -est with doubled consonant produces de-doubled stem in morphCandidates", () => {
-  // "biggest" → ["biggest", "bigg", "bigge"]
-  // Same as -er: doubled-consonant dedup is not applied in the -est path.
+  // "biggest" → includes "big" via doubled-consonant dedup.
   const result = normalizeCandidates("biggest");
   assert.ok(result.includes("biggest"), "surface form included");
-  assert.ok(!result.includes("big"), "doubled-consonant -est dedup not applied");
+  assert.ok(result.includes("big"), "doubled-consonant -est dedup applied");
 });
 
 test("normalizeCandidates: -ly adverb → base adjective", () => {
