@@ -14,6 +14,7 @@ import {
   isTtsFeatureEnabled,
   isPushFeatureEnabled,
   isScraperFeatureEnabled,
+  isTodaySessionFeatureEnabled,
   type FeatureKey,
 } from "@/lib/runtime-config/feature-flags";
 import { isAiConfigured, chatComplete } from "@/lib/ai";
@@ -30,6 +31,7 @@ const FLAG_VARS = [
   "FEATURE_TTS_ENABLED",
   "FEATURE_PUSH_ENABLED",
   "FEATURE_SCRAPER_ENABLED",
+  "FEATURE_TODAY_SESSION_ENABLED",
 ] as const;
 
 const AI_KEYS = [
@@ -119,11 +121,13 @@ test("convenience helpers match isFeatureEnabled", () => {
   process.env.FEATURE_TTS_ENABLED = "false";
   process.env.FEATURE_PUSH_ENABLED = "false";
   process.env.FEATURE_SCRAPER_ENABLED = "false";
+  process.env.FEATURE_TODAY_SESSION_ENABLED = "false";
 
   assert.equal(isAiFeatureEnabled(), false);
   assert.equal(isTtsFeatureEnabled(), false);
   assert.equal(isPushFeatureEnabled(), false);
   assert.equal(isScraperFeatureEnabled(), false);
+  assert.equal(isTodaySessionFeatureEnabled(), false);
 });
 
 // ---------------------------------------------------------------------------
@@ -246,7 +250,7 @@ test("scrapeAndSave returns failed outcome when FEATURE_SCRAPER_ENABLED=false", 
 // ---------------------------------------------------------------------------
 
 test("all features are enabled by default when no FEATURE_* env vars are set", () => {
-  for (const feature of ["ai", "tts", "push", "scraper"] as FeatureKey[]) {
+  for (const feature of ["ai", "tts", "push", "scraper", "todaySession"] as FeatureKey[]) {
     assert.equal(isFeatureEnabled(feature), true, `${feature} must be enabled by default`);
   }
 });
