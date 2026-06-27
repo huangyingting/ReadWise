@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T05:22:31.378Z",
-  "routeCount": 93,
-  "methodCount": 104,
+  "generatedAt": "2026-06-27T05:45:24.565Z",
+  "routeCount": 95,
+  "methodCount": 106,
   "routes": [
     {
       "path": "/api/account",
@@ -2302,6 +2302,29 @@
       ]
     },
     {
+      "path": "/api/today",
+      "file": "src/app/api/today/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 404,
+          "responseKeys": [
+            "error"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/today/read-complete",
       "file": "src/app/api/today/read-complete/route.ts",
       "runtime": "default",
@@ -2321,6 +2344,37 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": [
+            "timezone"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/today/skip",
+      "file": "src/app/api/today/skip/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "browseFallback",
+            "completionTier",
+            "limitReached",
+            "promotedBackupIds",
+            "skipped",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "skipReason",
             "timezone"
           ]
         }

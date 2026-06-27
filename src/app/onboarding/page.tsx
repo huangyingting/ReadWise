@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/session";
 import { getProfile, isOnboarded } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
+import { defaultLandingPath } from "@/lib/learner-landing";
 import { Wordmark } from "@/components/marketing/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import OnboardingForm from "./OnboardingForm";
@@ -14,7 +15,7 @@ export default async function OnboardingPage() {
   const profile = await getProfile(session.user.id);
 
   if (isOnboarded(profile)) {
-    redirect("/dashboard");
+    redirect(defaultLandingPath(session.user.role));
   }
 
   return (
