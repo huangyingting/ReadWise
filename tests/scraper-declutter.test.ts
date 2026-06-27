@@ -150,6 +150,62 @@ test("is idempotent: declutter(declutter(x)) === declutter(x)", () => {
   assert.equal(twice, once, "second pass produces identical output");
 });
 
+// ---------------------------------------------------------------------------
+// Class-stripped fixtures: mimic Readability output (NO class/id attributes).
+// The attribute detectors can't see these; the text-based detector must.
+// ---------------------------------------------------------------------------
+
+test("class-less bio + newsletter as the last two blocks: both removed (with name hint)", () => {
+  const html =
+    BODY +
+    `<p>By Jane Doe. Jane is a senior transportation writer at DailyExample covering cities. Follow her @janedoe.</p>` +
+    `<p>Subscribe to our weekly newsletter for more stories like this.</p>`;
+  const out = declutterArticleHtml(html, { byline: "Jane Doe" });
+
+  assert.ok(!out.includes("Jane Doe"), "class-less author bio removed");
+  assert.ok(!out.includes("transportation writer"), "bio sentence removed");
+  assert.ok(!out.includes("Subscribe"), "class-less newsletter CTA removed");
+  assertBodyIntact(out);
+});
+
+test("class-less bio + newsletter as the last two blocks: both removed (no hint, pattern path)", () => {
+  // No byline hint — the bio is caught by the bio pattern, the newsletter by
+  // the text-boilerplate detector, even though the CTA sits BELOW the bio.
+  const html =
+    BODY +
+    `<p>By Jane Doe. Jane is a senior transportation writer at DailyExample covering cities. Follow her @janedoe.</p>` +
+    `<p>Subscribe to our weekly newsletter for more stories like this.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Jane Doe"), "byline removed via pattern");
+  assert.ok(!out.includes("transportation writer"), "bio sentence removed");
+  assert.ok(!out.includes("Subscribe"), "class-less newsletter CTA removed");
+  assertBodyIntact(out);
+});
+
+test("a class-less newsletter / subscribe paragraph anywhere is removed", () => {
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    `<p>Sign up for our newsletter to get the latest updates.</p>` +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Sign up for our newsletter"), "class-less CTA removed");
+  assertBodyIntact(out);
+});
+
+test("guard: a long body paragraph that merely contains 'subscribe' is KEPT", () => {
+  const longPara =
+    `<p>Readers who want to subscribe to the underlying dataset can do so through ` +
+    `the public portal, but the more important point is that the methodology itself ` +
+    `was peer reviewed across several institutions before the figures were released.</p>`;
+  const html = BODY + longPara;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("subscribe to the underlying dataset"), "long prose with 'subscribe' kept");
+  assertBodyIntact(out);
+});
+
 test("returns empty / whitespace-only input unchanged", () => {
   assert.equal(declutterArticleHtml(""), "");
   assert.equal(declutterArticleHtml("   "), "   ");

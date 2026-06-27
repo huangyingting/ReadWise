@@ -40,13 +40,30 @@ const BLOCK_SELECTOR =
 const LABEL_RE =
   /^(related(\s+(articles|stories|posts|reading|content))?|more\s+(from|stories|in|on|articles)|read\s+(more|next)|recommended(\s+for\s+you)?|you\s+(may|might)\s+also\s+(like|enjoy|read)|up\s+next|newsletter|subscribe|sign\s?up|share\s+this(\s+article)?|follow\s+us(\s+on)?|comments?|trending|sponsored|advert(isement)?|around\s+the\s+web|from\s+around\s+the\s+web|most\s+(popular|read)|in\s+this\s+series)\b/i;
 
+/**
+ * Strong CTA / boilerplate phrases used for TEXT-based detection of class-less
+ * blocks. Readability strips class/id attributes, so e.g. `<div class="newsletter">`
+ * becomes a bare `<p>Subscribe to our weekly newsletter…</p>` that escapes the
+ * attribute detectors above. This catches SHORT blocks whose normalized text
+ * matches one of these phrases (word-boundary, case-insensitive).
+ */
+const TEXT_BOILERPLATE_RE =
+  /\b(subscribe|sign\s?up\s+(for|to)|newsletter|get\s+the\s+newsletter|share\s+this\s+(article|story)|follow\s+us|follow\s+me|read\s+more|more\s+from|related\s+(stories|articles|reading)|recommended\s+for\s+you|you\s+may\s+also\s+like|up\s+next|advertisement|sponsored|view\s+comments|leave\s+a\s+comment)\b/i;
+
+/**
+ * Max length of a block we are willing to flag purely on a text-boilerplate
+ * phrase. Keeps the heuristic conservative: a long paragraph that merely
+ * contains "subscribe" mid-prose must NOT be removed.
+ */
+const TEXT_BOILERPLATE_MAXLEN = 160;
+
 const HIGH = 2;
 const MEDIUM = 1;
 
 const WRAPPER_ID = "__rw_declutter_root__";
 
 /** How many trailing leaf blocks to scan when hunting the author byline. */
-const TRAILING_SCAN = 6;
+const TRAILING_SCAN = 8;
 /** Fraction of original text above which aggressive removals are aborted. */
 const MAX_REMOVAL_RATIO = 0.35;
 
@@ -156,6 +173,25 @@ function textLen(el: Element): number {
   return (el.textContent ?? "").trim().length;
 }
 
+/**
+ * TEXT-based boilerplate test for class-less blocks (Readability strips
+ * class/id). A SHORT block whose normalized text matches a strong CTA phrase is
+ * boilerplate regardless of attributes. Deliberately conservative: long
+ * paragraphs that merely mention a phrase mid-prose are never flagged.
+ */
+function isTextBoilerplate(text: string): boolean {
+  const norm = normalizeText(text);
+  if (norm.length === 0 || norm.length > TEXT_BOILERPLATE_MAXLEN) return false;
+  return TEXT_BOILERPLATE_RE.test(norm);
+}
+
+/** True when the block is empty or boilerplate by attribute OR by text. */
+function isBoilerplateBlock(el: Element, text: string): boolean {
+  if (text.length === 0) return true;
+  if (BOILERPLATE_ATTR_RE.test(attrHaystack(el))) return true;
+  return isTextBoilerplate(text);
+}
+
 /** Collect attribute-based boilerplate blocks (highest confidence). */
 function collectAttrBoilerplate(root: Element, out: Candidate[]): void {
   for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
@@ -195,6 +231,23 @@ function collectLinkDense(root: Element, out: Candidate[]): void {
   }
 }
 
+/**
+ * Collect class-less CTA / boilerplate blocks via TEXT detection. Catches
+ * residue that lost its class/id to Readability (e.g. a bare
+ * `<p>Subscribe to our weekly newsletter…</p>`). Only leaf blocks are inspected
+ * so we never flag a wrapper that also holds body prose.
+ */
+function collectTextBoilerplate(root: Element, out: Candidate[]): void {
+  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
+    if (el === root) continue;
+    if (!isLeafBlock(el)) continue;
+    const text = (el.textContent ?? "").trim();
+    if (isTextBoilerplate(text)) {
+      out.push({ el, confidence: HIGH });
+    }
+  }
+}
+
 /** Reverse-scan the trailing leaf blocks for the author byline/bio. */
 function collectTrailingByline(
   root: Element,
@@ -215,7 +268,10 @@ function collectTrailingByline(
       out.push({ el, confidence: conf });
       continue;
     }
-    // First substantial non-byline block from the end → we've reached the body.
+    // Boilerplate (CTA / newsletter / share / by-attr) can pad the tail between
+    // the body and the byline — skip it so the scan still reaches the bio above.
+    if (isBoilerplateBlock(el, text)) continue;
+    // First substantial block of genuine body prose from the end → stop.
     if (text.length > 60) break;
   }
 }
@@ -301,6 +357,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectAttrBoilerplate(root, candidates);
   collectLabelWidgets(root, candidates);
   collectLinkDense(root, candidates);
+  collectTextBoilerplate(root, candidates);
   collectTrailingByline(root, normName, candidates);
 
   const removals = selectRemovals(candidates, originalLen);
