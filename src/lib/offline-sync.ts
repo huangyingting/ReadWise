@@ -9,7 +9,7 @@
  *   - `offline-mutations.ts` — enqueue-or-send wiring + connectivity listeners.
  */
 
-export type MutationStatus = "pending" | "syncing" | "failed";
+export type MutationStatus = "pending" | "syncing" | "failed" | "conflict";
 
 /** A single durable mutation awaiting delivery to its endpoint. */
 export interface QueuedMutation {
@@ -97,6 +97,16 @@ export function isPermanentlyFailed(
   return mutation.status === "failed" && mutation.retryCount >= maxRetries;
 }
 
+/**
+ * A mutation in the terminal `conflict` state was rejected by the server with a
+ * genuine conflict (e.g. a Today action the server already resolved on another
+ * device). Retrying can never succeed, so the generic flush skips it; the UI
+ * surfaces it as a non-blocking notice instead. See `todayMutationReplayHandler`.
+ */
+export function isConflict(mutation: QueuedMutation): boolean {
+  return mutation.status === "conflict";
+}
+
 export interface FlushDeps {
   list: () => Promise<QueuedMutation[]>;
   send: (mutation: QueuedMutation) => Promise<{ status: number }>;
@@ -139,7 +149,7 @@ export async function flushQueue(
   const result = emptyResult();
 
   for (const mutation of queue) {
-    if (isPermanentlyFailed(mutation, maxRetries)) {
+    if (isPermanentlyFailed(mutation, maxRetries) || isConflict(mutation)) {
       continue;
     }
 

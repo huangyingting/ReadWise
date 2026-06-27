@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, CheckCircle2, Lightbulb, Sparkles } from "lucide-react";
 import { getJson, postJson } from "@/lib/client-fetch";
+import { submitTodayMutation, isOffline } from "@/lib/offline/today-client";
 import { Badge, Button, buttonVariants, Card, Inline, Stack } from "@/components/ui";
 
 /** Controlled self-rating answers (mirror COMPREHENSION_SELF_RATINGS). */
@@ -39,6 +40,12 @@ export interface TodayComprehensionCheckProps {
   comprehensionComplete: boolean;
   /** True while the session is still active. */
   active: boolean;
+  /** Authenticated user id — used only to key offline Today mutations. */
+  userId: string;
+  /** Learner's local calendar date, "YYYY-MM-DD" (offline mutation anchor). */
+  localDate: string;
+  /** Learner's IANA timezone snapshot for this Today session. */
+  timezone: string;
 }
 
 /**
@@ -48,11 +55,17 @@ export interface TodayComprehensionCheckProps {
  * quiz required. A wrong MCQ answer reveals a gentle remediation card linking
  * back to the article. No learning content is ever stored; only the rating,
  * the question id, and the boolean outcome leave the browser.
+ *
+ * When offline, the check-in is enqueued in the offline mutation queue (rating /
+ * question id / selected index only) and replayed when connectivity returns.
  */
 export default function TodayComprehensionCheck({
   readingComplete,
   comprehensionComplete,
   active,
+  userId,
+  localDate,
+  timezone,
 }: TodayComprehensionCheckProps) {
   const router = useRouter();
   const [check, setCheck] = useState<CheckPayload | null>(null);
@@ -61,6 +74,7 @@ export default function TodayComprehensionCheck({
   const [result, setResult] = useState<SubmitResult | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
 
   const shouldOffer = readingComplete && !comprehensionComplete && active;
 
@@ -89,7 +103,28 @@ export default function TodayComprehensionCheck({
     if (!selfRating) return;
     setBusy(true);
     setError(null);
+    setOfflineNotice(null);
     try {
+      if (isOffline()) {
+        const hasMcq = check?.question != null;
+        await submitTodayMutation(
+          "today.comprehension",
+          { userId, localDate, timezone },
+          {
+            selfRating,
+            ...(hasMcq && check?.question?.id
+              ? { questionId: check.question.id }
+              : {}),
+            ...(hasMcq && selectedIndex != null
+              ? { selectedIndex }
+              : {}),
+          },
+        );
+        setOfflineNotice(
+          "You're offline — your check-in is saved and will sync when you reconnect.",
+        );
+        return;
+      }
       const res = await postJson<SubmitResult>("/api/today/comprehension", {
         selfRating,
         questionId: check?.question?.id,
@@ -103,7 +138,7 @@ export default function TodayComprehensionCheck({
     } finally {
       setBusy(false);
     }
-  }, [check, router, selectedIndex, selfRating]);
+  }, [check, localDate, router, selectedIndex, selfRating, timezone, userId]);
 
   if (!shouldOffer) return null;
 
@@ -220,6 +255,11 @@ export default function TodayComprehensionCheck({
         {error ? (
           <p role="alert" className="m-0 text-[length:var(--text-sm)] text-danger-text">
             {error}
+          </p>
+        ) : null}
+        {offlineNotice ? (
+          <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+            {offlineNotice}
           </p>
         ) : null}
       </Stack>

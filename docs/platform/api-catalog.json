@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T09:11:38.170Z",
-  "routeCount": 101,
-  "methodCount": 114,
+  "generatedAt": "2026-06-27T09:27:53.148Z",
+  "routeCount": 102,
+  "methodCount": 115,
   "routes": [
     {
       "path": "/api/account",
@@ -2575,6 +2575,32 @@
           "queryParamNames": null,
           "bodyFieldNames": [
             "skipReason",
+            "timezone"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/today/word-review-complete",
+      "file": "src/app/api/today/word-review-complete/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "updated"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "localDate",
             "timezone"
           ]
         }
