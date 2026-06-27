@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
 const noema: Provider = {
   key: "noema",
@@ -46,6 +46,12 @@ const noema: Provider = {
       ],
       "ideas",
     ),
+  /**
+   * Discovers article URLs from Noema's RSS feed (the seed-HTML pages are
+   * blocked with 403). Candidates are validated against `articleUrlPattern`
+   * and `articleUrlFilter` by discovery.
+   */
+  urlExtractor: rssUrlExtractor(["https://www.noemamag.com/?feed=noemarss"]),
 };
 
 export default noema;

@@ -1,6 +1,8 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 import { fetchAeonUrls } from "@/lib/scraper/aeon-graphql";
+
+const aeonRssExtractor = rssUrlExtractor(["https://aeon.co/feed.rss"]);
 
 const aeon: Provider = {
   key: "aeon",
@@ -41,10 +43,15 @@ const aeon: Provider = {
       "ideas",
     ),
   /**
-   * Discovers essay URLs via Aeon's GraphQL API with cursor pagination.
-   * Filters out non-essay nodes (videos etc.). Falls back to empty on error.
+   * Discovers essay URLs via Aeon's GraphQL API with cursor pagination,
+   * falling back to the RSS feed when the API yields nothing (it currently
+   * 404s). Non-essay nodes are filtered out. Discovery validates every
+   * candidate against `articleUrlPattern` / `articleUrlFilter`.
    */
-  urlExtractor: async ({ limit, fetch: fetchFn }) => fetchAeonUrls(limit, fetchFn),
+  urlExtractor: async (ctx) => {
+    const api = await fetchAeonUrls(ctx.limit, ctx.fetch);
+    return api.length ? api : aeonRssExtractor(ctx);
+  },
 };
 
 export default aeon;

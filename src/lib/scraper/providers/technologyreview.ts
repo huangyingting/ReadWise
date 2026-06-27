@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
 const technologyreview: Provider = {
   key: "technologyreview",
@@ -43,6 +43,12 @@ const technologyreview: Provider = {
       ],
       "tech",
     ),
+  /**
+   * Discovers article URLs from MIT Technology Review's RSS feed (seed-HTML
+   * discovery matches 0 article URLs). Candidates are validated against
+   * `articleUrlPattern` and `articleUrlFilter` by discovery.
+   */
+  urlExtractor: rssUrlExtractor(["https://www.technologyreview.com/feed/"]),
 };
 
 export default technologyreview;

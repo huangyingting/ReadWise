@@ -1,6 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
-import { parseRssUrls } from "@/lib/scraper/rss";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
 /**
  * BBC News RSS feeds keyed by ReadWise category slug. Where BBC doesn't have
@@ -68,19 +67,7 @@ const bbc: Provider = {
    * Discovers article URLs from BBC News RSS feeds (one per category).
    * Falls back gracefully if individual feeds are unreachable.
    */
-  urlExtractor: async ({ limit, fetch: fetchFn }) => {
-    const urls: string[] = [];
-    for (const feedUrl of Object.values(BBC_RSS_FEEDS)) {
-      if (urls.length >= limit * 2) break;
-      try {
-        const xml = await fetchFn(feedUrl);
-        urls.push(...parseRssUrls(xml));
-      } catch {
-        // graceful degradation — a single feed failure doesn't stop discovery
-      }
-    }
-    return urls;
-  },
+  urlExtractor: rssUrlExtractor(Object.values(BBC_RSS_FEEDS)),
 };
 
 export default bbc;
