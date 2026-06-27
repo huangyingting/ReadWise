@@ -17,6 +17,8 @@ import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { moderateText, MODERATION_FALLBACK_MESSAGE } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { getProfile } from "@/lib/profile";
+import { buildTutorContext } from "@/lib/learning/coach-memory";
+import { bestEffortMastery } from "@/lib/learning/primitives";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
@@ -156,8 +158,20 @@ export async function askTutor(
     question: contextualQuestion,
   });
 
+  // #810 — append a bounded, privacy-safe coach-memory summary so the Tutor can
+  // reference broad learning patterns. ONLY the pre-formatted aggregate string
+  // is ever sent — the raw LearnerCoachMemory rows are never exposed or logged.
+  // Best-effort: a failure here must never break the tutor reply.
+  const coachContext =
+    (await bestEffortMastery("coach_memory.tutor_context", () =>
+      buildTutorContext(userId),
+    )) ?? "";
+  const groundedSystemMessage = coachContext
+    ? { ...systemMessage, content: `${systemMessage.content}\n\n${coachContext}` }
+    : systemMessage;
+
   const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
-    systemMessage,
+    groundedSystemMessage,
     ...priorMessages.map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
