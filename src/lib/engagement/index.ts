@@ -41,9 +41,17 @@ export {
   MAX_ACTIVE_TIME_MS,
   MIN_WPM,
   MAX_WPM,
+  MIN_FLUENCY_SAMPLES,
+  FLUENCY_WINDOW,
+  FLUENCY_TREND_DELTA,
   clampActiveTime,
   computeWpm,
   computeWpmTrend,
+  computeFluencyTrend,
 } from "./reading-speed";
-export type { SpeedRecord } from "./reading-speed";
-export { getReadingSpeedStats } from "./reading-speed-repo";
+export type { SpeedRecord, FluencyTrend, FluencyTrendValue } from "./reading-speed";
+export {
+  getReadingSpeedStats,
+  getFluencyTrend,
+  FLUENCY_DEFAULT_WINDOW_DAYS,
+} from "./reading-speed-repo";

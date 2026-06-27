@@ -10,6 +10,7 @@ import {
   Hash,
   GraduationCap,
   Presentation,
+  Library,
   Shield,
   type LucideIcon,
 } from "lucide-react";
@@ -62,6 +63,7 @@ export const NAV_ITEMS: NavItem[] = [
   { href: "/browse",      label: "Browse",        icon: Compass,         group: "primary",   mobileTab: true,  protected: true },
   { href: "/study",       label: "Study",         icon: BookOpen,        group: "primary",   mobileTab: true,  protected: true },
   { href: "/progress",    label: "Progress",      icon: TrendingUp,      group: "primary",   mobileTab: true,  protected: true },
+  { href: "/series",      label: "Series",        icon: Library,         group: "secondary", mobileTab: false, protected: true },
   { href: "/import",      label: "Import",        icon: Download,        group: "secondary", mobileTab: false, protected: true },
   { href: "/lists",       label: "Saved articles", icon: Bookmark,       group: "secondary", mobileTab: false, protected: true },
   { href: "/notes",       label: "Notes",         icon: StickyNote,      group: "secondary", mobileTab: false, protected: true },

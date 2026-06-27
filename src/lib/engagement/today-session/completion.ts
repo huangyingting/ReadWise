@@ -21,6 +21,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
+import { advanceSeriesOnArticleRead } from "@/lib/engagement/series";
 import {
   getTodaySession,
   updateTodaySession,
@@ -280,6 +281,24 @@ export async function recomputeTodayCompletion(
 // Marker commands
 // ---------------------------------------------------------------------------
 
+/**
+ * Best-effort series-advance wrapper (#813). Advances the learner's active
+ * series enrollment when the just-completed primary is their current series
+ * article. Never throws — a series-advance failure must never break Today's
+ * reading-completion path.
+ */
+async function advanceSeriesEnrollmentSafe(
+  userId: string,
+  articleId: string,
+  now: Date,
+): Promise<void> {
+  try {
+    await advanceSeriesOnArticleRead(userId, articleId, now);
+  } catch {
+    // Best-effort: series progress is non-critical to Today completion.
+  }
+}
+
 type MarkArgs = {
   userId: string;
   now?: Date;
@@ -312,7 +331,12 @@ export async function markTodayReadingComplete(
     await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
   }
   const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) await emitTodayReadingComplete(view, "auto");
+  if (!wasComplete && view) {
+    await emitTodayReadingComplete(view, "auto");
+    // #813 — advance the series enrollment when the just-read primary is the
+    // learner's current series article (monotonic + idempotent; best-effort).
+    await advanceSeriesEnrollmentSafe(args.userId, args.articleId, now);
+  }
   return view;
 }
 
@@ -340,7 +364,12 @@ export async function markTodayReadingCompleteManual(
     await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
   }
   const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) await emitTodayReadingComplete(view, "manual");
+  if (!wasComplete && view) {
+    await emitTodayReadingComplete(view, "manual");
+    if (view.primaryArticleId) {
+      await advanceSeriesEnrollmentSafe(args.userId, view.primaryArticleId, now);
+    }
+  }
   return view;
 }
 export async function syncTodayReadingFromProgress(args: {

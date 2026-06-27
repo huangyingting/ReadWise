@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T09:27:53.148Z",
-  "routeCount": 102,
-  "methodCount": 115,
+  "generatedAt": "2026-06-27T10:00:53.072Z",
+  "routeCount": 104,
+  "methodCount": 118,
   "routes": [
     {
       "path": "/api/account",
@@ -2277,6 +2277,69 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/series",
+      "file": "src/app/api/series/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "series"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/series/{id}/enroll",
+      "file": "src/app/api/series/[id]/enroll/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "status"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        },
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }

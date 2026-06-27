@@ -50,7 +50,10 @@ function persistedRow(data: Record<string, unknown>): Record<string, unknown> {
 
 before(() => {
   mock.module("@/lib/article-library", {
-    namedExports: { publicListableArticleWhere: () => ({}) },
+    namedExports: {
+      publicListableArticleWhere: () => ({}),
+      getPublicListableArticleById: async () => null,
+    },
   });
   mock.module("@/lib/recommendations/picks", {
     namedExports: {
@@ -110,6 +113,13 @@ before(() => {
           // #806: generator reads the placement level signal; default no row so
           // existing generator behaviour is unchanged.
           findUnique: async () => null,
+        },
+        seriesEnrollment: {
+          // #813: no active series enrollment by default so the generator's
+          // series-candidate injection is a no-op for existing scenarios.
+          findFirst: async () => null,
+          findUnique: async () => null,
+          update: async () => ({}),
         },
       },
     },

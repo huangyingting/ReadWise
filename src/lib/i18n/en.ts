@@ -55,4 +55,34 @@ export const en: MessageCatalog = {
     count === 1
       ? `You have 1 word due in your ${SITE_NAME} Today session.`
       : `You have ${count} words due in your ${SITE_NAME} Today session.`,
+
+  // ---------------------------------------------------------------------------
+  // Reading fluency feedback (#813)
+  // ---------------------------------------------------------------------------
+
+  "fluency.trend.improving": () =>
+    "Your reading speed is picking up — great momentum!",
+
+  "fluency.trend.stable": () => "Consistent reading pace — steady progress.",
+
+  "fluency.trend.declining": () =>
+    "Slower reads often mean tougher content — that's a good sign.",
+
+  "fluency.trend.insufficient_data": () =>
+    "Read a few more articles to see your fluency trend.",
+
+  // ---------------------------------------------------------------------------
+  // Curated reading series (#813)
+  // ---------------------------------------------------------------------------
+
+  "series.browser.title": () => "Reading series",
+
+  "series.browser.empty": () =>
+    "No reading series are available yet. Check back soon!",
+
+  "series.action.enroll": () => "Start series",
+
+  "series.action.unenroll": () => "Leave series",
+
+  "series.status.completed": () => "Completed",
 };

@@ -4,6 +4,7 @@ import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { progress } from "@/lib/copy/pages";
 import { loadProgressViewModel } from "@/app/(app)/progress/view-model";
 import { ProgressOverviewSection } from "@/app/(app)/progress/_sections/ProgressOverviewSection";
+import { FluencySection } from "@/app/(app)/progress/_sections/FluencySection";
 import { ReadingActivitySection } from "@/app/(app)/progress/_sections/ReadingActivitySection";
 import { VocabularyGrowthSection } from "@/app/(app)/progress/_sections/VocabularyGrowthSection";
 import { QuizTrendSection } from "@/app/(app)/progress/_sections/QuizTrendSection";
@@ -34,6 +35,7 @@ export default async function ProgressPage() {
           {vm.hasAnyData && (
             <>
               <ProgressOverviewSection analytics={vm.analytics} speedStats={vm.speedStats} />
+              <FluencySection fluencyTrend={vm.fluencyTrend} />
               <ReadingActivitySection completionsByWeek={vm.analytics.completionsByWeek} />
               <VocabularyGrowthSection
                 wordsByWeek={vm.analytics.wordsByWeek}

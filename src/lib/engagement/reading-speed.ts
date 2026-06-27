@@ -102,3 +102,113 @@ export function computeWpmTrend(
       : null;
   return { averageWpm: avg, recentWpm };
 }
+
+// ---------------------------------------------------------------------------
+// Fluency trend (#813)
+// ---------------------------------------------------------------------------
+
+/** Controlled fluency-trend outcomes shown on the Progress fluency panel. */
+export type FluencyTrendValue =
+  | "improving"
+  | "stable"
+  | "declining"
+  | "insufficient_data";
+
+/**
+ * On-demand reading-fluency trend for the Progress page. Computed from existing
+ * source rows — NEVER persisted or cached server-side. Carries an aggregate
+ * average WPM, the controlled trend enum, the sample count, and the filters the
+ * caller applied (so the UI can label the panel). It deliberately omits any
+ * per-article WPM values or article ids.
+ */
+export interface FluencyTrend {
+  /** Mean WPM across all valid samples; null when < MIN_FLUENCY_SAMPLES. */
+  avgWpm: number | null;
+  trend: FluencyTrendValue;
+  sampleCount: number;
+  /** CEFR level filter applied (null when unfiltered). */
+  levelFilter: string | null;
+  /** Topic/category filter applied (null when unfiltered). */
+  categoryFilter: string | null;
+}
+
+/**
+ * Minimum number of valid WPM samples required before a trend (other than
+ * `insufficient_data`) is reported. Below this the data is too sparse to draw a
+ * non-punitive, meaningful conclusion.
+ */
+export const MIN_FLUENCY_SAMPLES = 3;
+
+/** Window size (each side) for the recent-vs-prior moving-average comparison. */
+export const FLUENCY_WINDOW = 5;
+
+/**
+ * Relative change (fraction) at/above which a trend is called improving or
+ * declining; smaller absolute changes are reported as `stable`. Kept small so
+ * ordinary day-to-day variation does not flip the label.
+ */
+export const FLUENCY_TREND_DELTA = 0.05; // 5%
+
+/**
+ * Pure, deterministic fluency-trend classifier (no AI, no I/O).
+ *
+ * Given an ordered (oldest → newest) list of reading sessions, computes the
+ * mean WPM of the most recent {@link FLUENCY_WINDOW} VALID sessions against the
+ * mean of the prior {@link FLUENCY_WINDOW} VALID sessions:
+ *
+ *   - `insufficient_data` — fewer than {@link MIN_FLUENCY_SAMPLES} valid
+ *     sessions (a session is invalid when its `timeSpentMs` is zero / too short
+ *     or its `wordCount` is missing, i.e. {@link computeWpm} returns null).
+ *   - `improving` — recent mean exceeds prior mean by ≥ {@link FLUENCY_TREND_DELTA}.
+ *   - `declining` — recent mean is below prior mean by ≥ {@link FLUENCY_TREND_DELTA}.
+ *   - `stable` — within the delta band, or not enough history for two windows.
+ *
+ * `avgWpm` is the mean across ALL valid samples, or null when there are fewer
+ * than {@link MIN_FLUENCY_SAMPLES}. The decline framing is intentionally
+ * non-punitive in copy (slower reads often mean harder content).
+ */
+export function computeFluencyTrend(
+  records: SpeedRecord[],
+  filters: { level?: string | null; category?: string | null } = {},
+): FluencyTrend {
+  const levelFilter = filters.level ?? null;
+  const categoryFilter = filters.category ?? null;
+
+  const valid: number[] = [];
+  for (const r of records) {
+    const wpm = computeWpm(r.wordCount, r.timeSpentMs);
+    if (wpm !== null) valid.push(wpm);
+  }
+
+  const sampleCount = valid.length;
+  if (sampleCount < MIN_FLUENCY_SAMPLES) {
+    return {
+      avgWpm: null,
+      trend: "insufficient_data",
+      sampleCount,
+      levelFilter,
+      categoryFilter,
+    };
+  }
+
+  const avgWpm = Math.round(valid.reduce((a, b) => a + b, 0) / sampleCount);
+
+  // Need two non-empty windows to compare; otherwise call it stable.
+  const recent = valid.slice(-FLUENCY_WINDOW);
+  const prior = valid.slice(-(FLUENCY_WINDOW * 2), -FLUENCY_WINDOW);
+  if (prior.length === 0) {
+    return { avgWpm, trend: "stable", sampleCount, levelFilter, categoryFilter };
+  }
+
+  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
+  const recentMean = mean(recent);
+  const priorMean = mean(prior);
+  const delta = (recentMean - priorMean) / priorMean;
+
+  let trend: FluencyTrendValue;
+  if (delta >= FLUENCY_TREND_DELTA) trend = "improving";
+  else if (delta <= -FLUENCY_TREND_DELTA) trend = "declining";
+  else trend = "stable";
+
+  return { avgWpm, trend, sampleCount, levelFilter, categoryFilter };
+}

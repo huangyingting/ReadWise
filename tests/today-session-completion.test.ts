@@ -109,6 +109,14 @@ before(() => {
               .map((w) => ({ id: w.id, lastReviewedAt: w.lastReviewedAt }));
           },
         },
+        seriesEnrollment: {
+          // #813 — no active series enrollment in these tests; series-advance
+          // is a no-op so the reading-completion path is unaffected.
+          findFirst: async () => null,
+          findUnique: async () => null,
+          update: async () => ({}),
+          deleteMany: async () => ({ count: 0 }),
+        },
       },
     },
   });

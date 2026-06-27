@@ -20,6 +20,7 @@ import { prisma } from "@/lib/prisma";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations/picks";
 import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
+import { resolveNextSeriesArticle } from "@/lib/engagement/series";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import {
   createTodaySession,
@@ -110,17 +111,39 @@ async function resolvePlacementLevel(
 /**
  * Fetch ranked Picks article ids for the user, excluding any ids in `exclude`
  * (e.g. the current/primary article) so backups never duplicate the primary.
+ *
+ * `seriesCandidateId` (#813) is injected as an ADDITIONAL candidate, scored by
+ * the SAME (goal-path-adjusted) Picks scoring — never a hard override. It is
+ * already access-revalidated by the series resolver and is re-checked inside the
+ * Picks pipeline, so an inaccessible id is silently dropped.
  */
 async function fetchPickIds(
   userId: string,
   exclude: Set<string>,
   placementLevel: DifficultyLevel | null,
+  seriesCandidateId: string | null,
 ): Promise<string[]> {
   const page = await listScoredPicksPage(userId, {
     limit: PICKS_FETCH_LIMIT,
     placementLevel,
+    extraCandidateIds: seriesCandidateId ? [seriesCandidateId] : undefined,
   });
   return page.articles.map((a) => a.id).filter((id) => !exclude.has(id));
+}
+
+/**
+ * Resolve the next access-checked series article for an active enrollment, or
+ * null when the learner has no active enrollment / no remaining accessible
+ * series article. Best-effort: never breaks generation. Side effects (advancing
+ * `nextIndex` past inaccessible ids) are owned by the series resolver.
+ */
+async function resolveSeriesCandidateId(userId: string): Promise<string | null> {
+  try {
+    const resolved = await resolveNextSeriesArticle(userId);
+    return resolved?.articleId ?? null;
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -136,6 +159,7 @@ export async function buildTodayPlan(args: {
 
   const placementLevel = await resolvePlacementLevel(userId);
   const resumeArticleId = await findResumeArticleId(userId, now);
+  const seriesCandidateId = await resolveSeriesCandidateId(userId);
 
   let primaryArticleId: string | null;
   let backupArticleIds: string[];
@@ -145,12 +169,22 @@ export async function buildTodayPlan(args: {
   if (resumeArticleId) {
     primaryArticleId = resumeArticleId;
     backupArticleIds = (
-      await fetchPickIds(userId, new Set([resumeArticleId]), placementLevel)
+      await fetchPickIds(
+        userId,
+        new Set([resumeArticleId]),
+        placementLevel,
+        seriesCandidateId,
+      )
     ).slice(0, BACKUP_ARTICLE_COUNT);
     source = "resume";
     generationReasonCode = "resume_in_progress";
   } else {
-    const pickIds = await fetchPickIds(userId, new Set(), placementLevel);
+    const pickIds = await fetchPickIds(
+      userId,
+      new Set(),
+      placementLevel,
+      seriesCandidateId,
+    );
     if (pickIds.length > 0) {
       primaryArticleId = pickIds[0];
       backupArticleIds = pickIds.slice(1, 1 + BACKUP_ARTICLE_COUNT);

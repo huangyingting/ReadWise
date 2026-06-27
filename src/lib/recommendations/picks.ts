@@ -63,6 +63,17 @@ async function loadPicksCandidatesImpl(
   const where = publicListableArticleWhere(
     cap ? { difficulty: { in: levelsAtOrBelow(cap) } } : undefined,
   );
+  return loadCandidateRows(where);
+}
+
+/**
+ * Shared candidate-row loader: fetch articles for a WHERE clause and attach
+ * their tag slugs. Used by the cached level-capped candidate set and by the
+ * (uncached, access-checked) extra-candidate fetch.
+ */
+async function loadCandidateRows(
+  where: Prisma.ArticleWhereInput,
+): Promise<PicksCandidateRow[]> {
   const rows = await prisma.article.findMany({
     where,
     orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
@@ -78,6 +89,21 @@ async function loadPicksCandidatesImpl(
   const tagMap = buildTagMap(tagRows);
 
   return rows.map((r) => ({ ...r, tagSlugs: tagMap.get(r.id) ?? [] }));
+}
+
+/**
+ * Fetch additional candidate rows for explicit ids, revalidated through the
+ * public-listable access policy (#813 series candidates). Ids that are private,
+ * unpublished, deleted, or already present in `existing` are silently dropped,
+ * so an injected candidate can NEVER bypass Article Library visibility rules.
+ */
+async function loadExtraCandidateRows(
+  ids: string[],
+  existing: Set<string>,
+): Promise<PicksCandidateRow[]> {
+  const wanted = ids.filter((id) => !existing.has(id));
+  if (wanted.length === 0) return [];
+  return loadCandidateRows(publicListableArticleWhere({ id: { in: wanted } }));
 }
 
 /**
@@ -154,13 +180,27 @@ export async function listScoredPicksPage(
      * the adaptive/profile level signal untouched.
      */
     placementLevel?: DifficultyLevel | null;
+    /**
+     * Additional candidate article ids to score alongside the cached picks set
+     * (#813 series candidates). Each id is revalidated through the public
+     * access policy and merged ONLY when accessible — an inaccessible id is
+     * silently dropped. The injected candidate competes by the SAME scoring; it
+     * is never a hard override.
+     */
+    extraCandidateIds?: string[];
   } = {},
 ): Promise<ScoredPicksPage> {
   const limit = opts.limit ?? SCORED_PICKS_PAGE_SIZE;
   const offset = Math.max(0, opts.offset ?? 0);
   const cap = opts.maxLevel ?? null;
 
-  const candidates = await loadPicksCandidates(cap);
+  const base = await loadPicksCandidates(cap);
+  let candidates = base;
+  if (opts.extraCandidateIds && opts.extraCandidateIds.length > 0) {
+    const existing = new Set(base.map((c) => c.id));
+    const extra = await loadExtraCandidateRows(opts.extraCandidateIds, existing);
+    if (extra.length > 0) candidates = [...extra, ...base];
+  }
   const ranked = await scoreAndRankArticles(userId, candidates, new Date(), {
     placementLevel: opts.placementLevel ?? null,
   });

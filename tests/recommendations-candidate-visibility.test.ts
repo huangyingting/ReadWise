@@ -234,3 +234,43 @@ test("recommendations: empty page when no public library articles exist", async 
   assert.deepEqual(page.articles, [], "no candidates → empty page");
   assert.equal(page.hasMore, false);
 });
+
+// ---------------------------------------------------------------------------
+// #813 — series extra-candidate injection respects visibility (defense in depth)
+// ---------------------------------------------------------------------------
+
+test("series extra candidate: a PRIVATE id passed via extraCandidateIds is dropped", async () => {
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+
+  articleRows = [
+    buildArticle({ id: "public", visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null, publishedAt: NOW }),
+    buildArticle({ id: "series-private", visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PUBLISHED, ownerId: "user-2", publishedAt: NOW }),
+  ];
+
+  const page = await listScoredPicksPage("user-1", {
+    limit: 10,
+    extraCandidateIds: ["series-private"],
+  });
+  assert.ok(
+    !page.articles.map((a) => a.id).includes("series-private"),
+    "a private series article must never be injected as a Today candidate",
+  );
+});
+
+test("series extra candidate: an accessible public id is injected and scored", async () => {
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+
+  articleRows = [
+    buildArticle({ id: "public", visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null, publishedAt: NOW }),
+    buildArticle({ id: "series-public", visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null, publishedAt: NOW }),
+  ];
+
+  const page = await listScoredPicksPage("user-1", {
+    limit: 10,
+    extraCandidateIds: ["series-public"],
+  });
+  assert.ok(
+    page.articles.map((a) => a.id).includes("series-public"),
+    "an accessible public series article is injected as a scored candidate",
+  );
+});
