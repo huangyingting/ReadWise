@@ -32,12 +32,30 @@ export const reminder = {
   /** Deep-link URL opened when the user taps the notification. */
   url: "/study",
 
+  /**
+   * Today Session variant — title used when the Today Session feature is
+   * enabled. The reminder nudges the learner to their `/today` session.
+   */
+  todayTitle: t("push.reminder.todayTitle"),
+
+  /**
+   * Today Session variant — body used when the Today Session feature is
+   * enabled. Stays generic and content-safe (only a due-word count).
+   */
+  todayBody: (count: number): string => t("push.reminder.todayBody", { count }),
+
+  /** Deep-link URL opened when Today Session is enabled. */
+  todayUrl: "/today",
+
   /** Icon shown in the notification (PWA icon path). */
   icon: ICON_192,
 } satisfies {
   title: string;
   body: (count: number) => string;
   url: string;
+  todayTitle: string;
+  todayBody: (count: number) => string;
+  todayUrl: string;
   icon: string;
 };
 
