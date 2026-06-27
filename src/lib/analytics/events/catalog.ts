@@ -35,6 +35,10 @@ export const ANALYTICS_EVENT_TYPES = {
   todayNoCandidate: "today_no_candidate",
   todayReadingComplete: "today_reading_complete",
   todayComprehensionComplete: "today_comprehension_complete",
+  // Lightweight comprehension self-check submission (#807). Carries the
+  // controlled self-rating + skill tag, the boolean MCQ outcome, and the
+  // remediation-viewed flag ONLY — never article/question/answer text.
+  todayComprehensionSubmitted: "today_comprehension_submitted",
   todayWordReviewComplete: "today_word_review_complete",
   todaySessionComplete: "today_session_complete",
   todaySkip: "today_skip",

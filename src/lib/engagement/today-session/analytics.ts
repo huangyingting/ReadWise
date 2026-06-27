@@ -120,12 +120,43 @@ export function emitTodayReadingComplete(
 /** The Today comprehension step first completed (quiz / difficulty signal). */
 export function emitTodayComprehensionComplete(
   session: TodaySessionView,
+  selfRating?: string | null,
 ): Promise<void> {
   return recordEvent({
     type: ANALYTICS_EVENT_TYPES.todayComprehensionComplete,
     ...sessionAnchors(session),
     properties: {
       tier: session.completionTier,
+      // Controlled enum only — present only when the step completed via the
+      // lightweight self-check path (#807).
+      ...(selfRating ? { selfRating } : {}),
+    },
+  });
+}
+
+/**
+ * A lightweight comprehension self-check was submitted (#807). Metadata: the
+ * controlled self-rating, the optional controlled skill tag, the boolean MCQ
+ * outcome (null when no MCQ was answered), and whether remediation was viewed.
+ * NEVER carries article text, question text, answer/option text, or prompts.
+ */
+export function emitTodayComprehensionSubmitted(
+  session: TodaySessionView,
+  args: {
+    selfRating: string;
+    skillTag: string | null;
+    mcqCorrect: boolean | null;
+    remediationViewed: boolean;
+  },
+): Promise<void> {
+  return recordEvent({
+    type: ANALYTICS_EVENT_TYPES.todayComprehensionSubmitted,
+    ...sessionAnchors(session),
+    properties: {
+      selfRating: args.selfRating,
+      skillTag: args.skillTag,
+      mcqCorrect: args.mcqCorrect,
+      remediationViewed: args.remediationViewed,
     },
   });
 }
