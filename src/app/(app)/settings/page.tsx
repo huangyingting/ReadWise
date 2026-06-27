@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import ProfileSettingsForm from "./ProfileSettingsForm";
 import AccountDangerZone from "@/components/AccountDangerZone";
+import ClearLearningMemory from "@/components/ClearLearningMemory";
 import PushReminderToggle from "@/components/PushReminderToggle";
 import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
@@ -105,10 +106,18 @@ export default async function SettingsPage() {
         <Card>
           <CardHeader>
             <CardTitle level="h2">Privacy &amp; account</CardTitle>
-            <CardMeta>Export your data or permanently delete your account.</CardMeta>
+            <CardMeta>
+              Manage your learning memory, export your data, or permanently
+              delete your account.
+            </CardMeta>
           </CardHeader>
           <CardBody>
-            <AccountDangerZone />
+            <div className="flex flex-col gap-[var(--space-4)]">
+              <ClearLearningMemory />
+              <div className="border-t border-border pt-[var(--space-4)]">
+                <AccountDangerZone />
+              </div>
+            </div>
           </CardBody>
         </Card>
       </Stack>
