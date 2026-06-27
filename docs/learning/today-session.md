@@ -429,3 +429,11 @@ behavior without data loss.
 - No AI generation.
 - No per-article skip-and-promote: skipping is a terminal day transition, not a
   within-day re-pick (the daily plan stays immutable).
+
+## v1.1 / v2 roadmap
+
+Implementation-ready designs for the next Today milestones — reading placement
+(#806), comprehension feedback + quiz remediation (#807), Goal Paths (#809),
+privacy-safe coach memory (#810), offline mutation support (#811), and fluency
+feedback + curated reading series (#813) — are in
+[`today-session-roadmap-v1_1.md`](./today-session-roadmap-v1_1.md).

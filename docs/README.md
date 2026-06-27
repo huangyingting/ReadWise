@@ -74,6 +74,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`learning/assignment-feedback-and-rubrics.md`](./learning/assignment-feedback-and-rubrics.md) | Assignment feedback and rubric workflow: rubric schema, teacher annotation, per-learner feedback delivery, and grading signals. (Status: Design/RFC) |
 | [`learning/school-year-archival-and-retention.md`](./learning/school-year-archival-and-retention.md) | School-year archival: end-of-year close, classroom/assignment freeze, configurable data retention, and cascade rules. (Status: Design) |
 | [`learning/today-session.md`](./learning/today-session.md) | Today Session: one durable learner-local-day workflow anchor, idempotent daily generation (resume-first then Picks fallback), target saved-word selection, and timezone/local-date semantics. |
+| [`learning/today-session-roadmap-v1_1.md`](./learning/today-session-roadmap-v1_1.md) | Today v1.1/v2 roadmap designs: reading placement (#806), comprehension feedback + remediation (#807), Goal Paths (#809), coach memory (#810), offline mutations (#811), fluency feedback + curated series (#813). (Status: Design-ready) |
 
 ### Media
 
