@@ -115,12 +115,14 @@ export async function scoreAndRankArticles(
   userId: string,
   candidates: RecommendationCandidate[],
   now: Date = new Date(),
+  opts: { placementLevel?: DifficultyLevel | null } = {},
 ): Promise<ScoredRecommendation[]> {
   if (candidates.length === 0) return [];
   const ctx = await buildRecommendationContext(
     userId,
     candidates.map((c) => c.id),
     now,
+    { placementLevel: opts.placementLevel ?? null },
   );
   const scored = candidates.map((c) => scoreCandidate(c, ctx));
   return rankWithDiversity(scored);
@@ -139,6 +141,12 @@ export async function listScoredPicksPage(
     topics?: string[];
     offset?: number;
     limit?: number;
+    /**
+     * Cold-start placement override (#806). When set, becomes the centring
+     * level for scoring (see {@link buildRecommendationContext}); omitted leaves
+     * the adaptive/profile level signal untouched.
+     */
+    placementLevel?: DifficultyLevel | null;
   } = {},
 ): Promise<ScoredPicksPage> {
   const limit = opts.limit ?? SCORED_PICKS_PAGE_SIZE;
@@ -146,7 +154,9 @@ export async function listScoredPicksPage(
   const cap = opts.maxLevel ?? null;
 
   const candidates = await loadPicksCandidates(cap);
-  const ranked = await scoreAndRankArticles(userId, candidates);
+  const ranked = await scoreAndRankArticles(userId, candidates, new Date(), {
+    placementLevel: opts.placementLevel ?? null,
+  });
 
   const byId = new Map(candidates.map((c) => [c.id, c]));
   const pageScored = ranked.slice(offset, offset + limit);

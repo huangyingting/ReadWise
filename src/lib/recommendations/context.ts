@@ -8,6 +8,7 @@
 
 import { prisma } from "@/lib/prisma";
 import { isDifficultyLevel, levelRank } from "@/lib/leveling/cefr-primitives";
+import type { DifficultyLevel } from "@/lib/difficulty";
 import { getProfile } from "@/lib/profile";
 import { parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
@@ -28,6 +29,7 @@ export async function buildRecommendationContext(
   userId: string,
   candidateIds: string[],
   now: Date = new Date(),
+  opts: { placementLevel?: DifficultyLevel | null } = {},
 ): Promise<RecommendationContext> {
   const [profile, adaptive, skillProfile, vocabAgg, progressRows, masteryRows, weakWordRows] =
     await Promise.all([
@@ -67,12 +69,23 @@ export async function buildRecommendationContext(
 
   // The adaptive recommendation already factors feedback + quiz + skills, so
   // its `recommendedLevel` is the level the engine should centre on.
-  const userLevel =
+  const adaptiveLevel =
     adaptive
       ? adaptive.recommendedLevel
       : isDifficultyLevel(profile?.englishLevel)
         ? profile.englishLevel
         : null;
+
+  // Cold-start placement override (#806): when the caller supplies a placement
+  // recommendedLevel, it takes precedence as the centring level so a brand-new
+  // learner's first picks land near their measured level instead of relying on
+  // self-report alone. Absent/invalid → falls back to the adaptive/profile
+  // signal, leaving existing behaviour unchanged.
+  const placementLevel =
+    opts.placementLevel && isDifficultyLevel(opts.placementLevel)
+      ? opts.placementLevel
+      : null;
+  const userLevel = placementLevel ?? adaptiveLevel;
   const userLevelRank = userLevel ? levelRank(userLevel) : null;
 
   const completedIds = new Set<string>();

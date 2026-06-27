@@ -43,6 +43,7 @@ export const ANALYTICS_EVENT_TYPES = {
   todaySessionComplete: "today_session_complete",
   todaySkip: "today_skip",
   todayArticleSelected: "today_article_selected",
+  placementCompleted: "placement_completed",
 } as const;
 
 /** Union of all canonical event type string literals. */

@@ -15,6 +15,7 @@ import {
   Avatar,
 } from "@/components/ui";
 import ProfileSettingsForm from "./ProfileSettingsForm";
+import RetakePlacement from "./RetakePlacement";
 import AccountDangerZone from "@/components/AccountDangerZone";
 import ClearLearningMemory from "@/components/ClearLearningMemory";
 import PushReminderToggle from "@/components/PushReminderToggle";
@@ -22,6 +23,7 @@ import ReminderPreferencesForm from "@/components/ReminderPreferencesForm";
 import SettingsThemeRow from "@/components/SettingsThemeRow";
 import { settings } from "@/lib/copy/pages";
 import { pushConfig } from "@/lib/runtime-config/push";
+import { seedLevelForProfile } from "@/lib/learning/placement";
 
 export const metadata = settings;
 
@@ -45,6 +47,9 @@ export default async function SettingsPage() {
             dailyGoal: profile?.dailyGoal ?? DAILY_GOAL_DEFAULT,
           }}
         />
+
+        {/* Reading placement (#806) — retake affordance posts attempt="retake" */}
+        <RetakePlacement seedLevel={seedLevelForProfile(profile?.englishLevel)} />
 
         {/* App theme card — outside the profile form, no submit needed */}
         <Card>

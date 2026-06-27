@@ -74,6 +74,32 @@ selects which profile to modify.
 - Learning analytics and level recommendation use `LevelHistory`, quiz results,
   skill mastery, and current profile level.
 
+## Reading placement (`PlacementResult`, #806)
+
+A lightweight cold-start signal that complements self-reported CEFR level for
+brand-new learners.
+
+- **Source of truth:** the single per-user `PlacementResult` row (1:1 with
+  `User`, upserted on retake, cascades on user delete). Written by
+  `POST /api/placement`.
+- **Producer:** the placement step on the post-onboarding welcome screen
+  (skippable) and the "Retake placement" affordance in Settings (posts
+  `attempt = "retake"`). Passage + questions are served by `GET /api/placement`
+  from the public Article Library — no new content table.
+- **Scoring:** `computePlacementScore` (`src/lib/learning/placement.ts`) is a
+  pure function mapping `{ correctCount, totalCount, lookupCount, wordCount }`
+  for a seed level to a recommended starting level (`A1`–`C1`). Deterministic
+  and conservative (heavy vocabulary pressure can only nudge *down*).
+- **Consumer:** the Today generator
+  (`src/lib/engagement/today-session/generator.ts`) reads
+  `PlacementResult.recommendedLevel` and passes it as a `placementLevel`
+  override to `listScoredPicksPage` → `buildRecommendationContext`, centring the
+  first picks on the measured level. When no row exists the generator passes
+  nothing and the picks pipeline keeps its existing adaptive/`Profile.englishLevel`
+  signal, so behaviour is unchanged for learners without a placement.
+- **Skip:** a skipped placement still seeds Today — `recommendedLevel` coerces
+  to the self-reported seed level and `skipped = true` is recorded.
+
 ## Privacy
 
 Profile preferences are user-owned. Analytics may record coarse metadata such as
@@ -81,8 +107,16 @@ level and topic count, but not free-text answers or private content. Avoid
 logging demographics or topic arrays unless they are explicitly aggregated and
 sanitized.
 
+`PlacementResult` stores STRUCTURED OUTCOMES ONLY — counts (`questionCount`,
+`correctCount`, `lookupCount`), controlled levels (`seedLevel`,
+`recommendedLevel`), `skipped`, `attempt`, and timestamps. It never stores
+passage text, question/answer text, looked-up words, definitions, or PII. The
+`placement_completed` analytics event carries only `{ seedLevel,
+recommendedLevel, skipped, questionCount, correctCount }` — never article ids.
+`exportUserData` exports only the controlled columns.
+
 ## Tests
 
 Relevant tests include `tests/profile*.test.ts`, `tests/onboarding*.test.ts`,
-`tests/leveling*.test.ts`, recommendation context tests, and auth/session guard
-tests.
+`tests/leveling*.test.ts`, recommendation context tests, `tests/placement*.test.ts`,
+and auth/session guard tests.
