@@ -103,6 +103,7 @@ before(() => {
         },
         wordMastery: {
           aggregate: async () => ({ _avg: { familiarity: null }, _count: { _all: 0 } }),
+          findMany: async () => [],
         },
         articleMastery: {
           findMany: async () => [],

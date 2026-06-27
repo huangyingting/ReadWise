@@ -92,6 +92,15 @@ export type TodayViewModel = {
   cta: TodayCta;
   /** True for the no-candidate browse/import prompt state. */
   isNoCandidate: boolean;
+  /**
+   * Privacy-safe weak-word re-exposure explanation (#808). True when the day's
+   * plan includes saved words to review, so the UI can say "reviews words you
+   * saved". Carries ONLY a flag + count — never the word text, definitions, or
+   * any other learning content.
+   */
+  reviewsSavedWords: boolean;
+  /** How many saved words the day re-exposes (0 when none). Count only. */
+  savedWordCount: number;
 };
 
 /** Resolved article displays the pure builder needs (already access-checked). */
@@ -182,6 +191,7 @@ export function buildTodayViewModel(
 ): TodayViewModel {
   const steps = buildSteps(session);
   const primaryReadable = displays.primary != null;
+  const savedWordCount = session.targetSavedWordIds.length;
 
   return {
     localDate: session.localDate,
@@ -200,6 +210,8 @@ export function buildTodayViewModel(
     progress: buildProgress(steps),
     cta: buildCta(session, displays.primary),
     isNoCandidate: session.primaryArticleId == null,
+    reviewsSavedWords: savedWordCount > 0,
+    savedWordCount,
   };
 }
 

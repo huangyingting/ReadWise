@@ -30,16 +30,31 @@ export type ScoreComponents = {
   freshness: number;
 };
 
+/**
+ * Transparent breakdown of the deterministic weak-word re-exposure booster
+ * (#808). `count` is the number of the learner's distinct weak words known to
+ * appear in the article; `score` is that count normalised to 0–1; `points` is
+ * the capped bonus folded into `baseScore`. Privacy-safe: carries only counts —
+ * never word text.
+ */
+export type WeakWordReexposure = {
+  count: number;
+  score: number;
+  points: number;
+};
+
 export type ScoredRecommendation = {
   id: string;
   category: string | null;
   /** Final 0–100 score AFTER the diversity penalty. */
   score: number;
-  /** 0–100 weighted score BEFORE the diversity penalty. */
+  /** 0–100 score (7 weighted components + weak-word bonus) BEFORE diversity. */
   baseScore: number;
   /** Points removed by the diversity pass (0 when not penalised). */
   diversityPenalty: number;
   components: ScoreComponents;
+  /** Weak-word re-exposure booster breakdown (count/score/points). */
+  weakWordReexposure: WeakWordReexposure;
   /** Short headline reason (the dominant component). */
   reason: string;
   /** Detailed, per-component human-readable notes. */
@@ -58,6 +73,14 @@ export type RecommendationContext = {
   difficultyBias: number;
   weakestSkill: Skill | null;
   vocab: { avgFamiliarity: number; knownCount: number };
+  /**
+   * articleId → count of the learner's DISTINCT weak words (low familiarity)
+   * known to appear in that article (from WordMastery.sourceArticleIds). Drives
+   * the deterministic weak-word re-exposure booster (#808). Only ever holds
+   * candidate ids the learner already has weak-word evidence for; empty when the
+   * learner has no weak words, so the signal degrades to a no-op.
+   */
+  weakWordArticleIds: Map<string, number>;
   now: Date;
 };
 
@@ -74,3 +97,26 @@ export const COMPONENT_WEIGHTS: Record<keyof ScoreComponents, number> = {
   freshness: 0.08,
   difficultyFeedback: 0.08,
 };
+
+// ---------------------------------------------------------------------------
+// Weak-word re-exposure booster tuning (#808)
+// ---------------------------------------------------------------------------
+
+/**
+ * Familiarity at/above which a word is considered "known" and no longer drives
+ * re-exposure. Words below this are "weak" and worth meeting again in context.
+ */
+export const WEAK_WORD_FAMILIARITY_MAX = 0.5;
+
+/**
+ * Distinct weak-word overlap count that earns the full booster. Beyond this the
+ * signal saturates so a single dense article cannot dominate the feed.
+ */
+export const WEAK_WORD_REEXPOSURE_TARGET = 3;
+
+/**
+ * Maximum points (out of 100) the booster may add to an article's base score.
+ * Intentionally small so it nudges — never overwhelms — the seven weighted
+ * components or the comfortable word-load signal.
+ */
+export const WEAK_WORD_REEXPOSURE_MAX_POINTS = 8;

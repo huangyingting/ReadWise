@@ -40,6 +40,7 @@ let wordMasteryAgg = {
 };
 let progressRows: Array<{ articleId: string; percent: number; completed: boolean }> = [];
 let masteryRows: Array<{ articleId: string; comprehensionScore: number; lastActivityAt: Date }> = [];
+let weakWordMasteryRows: Array<{ sourceArticleIds: unknown }> = [];
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -47,6 +48,7 @@ before(() => {
       prisma: {
         wordMastery: {
           aggregate: async () => wordMasteryAgg,
+          findMany: async () => weakWordMasteryRows,
         },
         readingProgress: {
           findMany: async () => progressRows,
@@ -92,6 +94,7 @@ beforeEach(() => {
   wordMasteryAgg = { _avg: { familiarity: null }, _count: { _all: 0 } };
   progressRows = [];
   masteryRows = [];
+  weakWordMasteryRows = [];
 });
 
 // ---------------------------------------------------------------------------
