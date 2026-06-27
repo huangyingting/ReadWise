@@ -208,3 +208,41 @@ test("buildRecommendationContext: profile level used when adaptive is null", asy
   assert.strictEqual(ctx.userLevel, "C1");
   assert.ok(ctx.userLevelRank !== null, "rank should not be null for C1");
 });
+
+test("buildRecommendationContext: placementLevel override (#806) takes precedence over adaptive", async () => {
+  const { buildRecommendationContext } = await import("@/lib/recommendations/context");
+  const { levelRank } = await import("@/lib/leveling/cefr-primitives");
+
+  // Strong adaptive evidence says C1, but a fresh placement seeds B1.
+  adaptiveResult = {
+    recommendedLevel: "C1",
+    difficultyBias: 0,
+    suggestion: "hold",
+    currentLevel: "C1",
+    targetLevel: null,
+    confidence: 1,
+    explanation: [],
+    evidence: {},
+  };
+  profileRow = { userId: "u4", englishLevel: "C1", topics: "[]" };
+
+  const ctx = await buildRecommendationContext("u4", [], new Date(), {
+    placementLevel: "B1",
+  });
+
+  assert.strictEqual(ctx.userLevel, "B1");
+  assert.strictEqual(ctx.userLevelRank, levelRank("B1"));
+});
+
+test("buildRecommendationContext: invalid placementLevel falls back to adaptive/profile", async () => {
+  const { buildRecommendationContext } = await import("@/lib/recommendations/context");
+
+  adaptiveResult = null;
+  profileRow = { userId: "u5", englishLevel: "B2", topics: "[]" };
+
+  const ctx = await buildRecommendationContext("u5", [], new Date(), {
+    placementLevel: "not-a-level" as never,
+  });
+
+  assert.strictEqual(ctx.userLevel, "B2");
+});

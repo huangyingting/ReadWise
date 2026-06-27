@@ -305,6 +305,19 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
         },
         orderBy: { createdAt: "asc" },
       },
+
+      // Reading placement (#806) — CONTROLLED columns only. No passage text,
+      // question/answer text, or looked-up words are ever stored or exported.
+      placementResult: {
+        select: {
+          seedLevel: true,
+          recommendedLevel: true,
+          questionCount: true,
+          correctCount: true,
+          skipped: true,
+          completedAt: true,
+        },
+      },
     },
   });
 }
