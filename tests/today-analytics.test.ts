@@ -63,6 +63,7 @@ const ALLOWED_KEYS = new Set([
   "reviewTargetCount",
   "limitReached",
   "browseFallback",
+  "replacedGenerated",
 ]);
 
 /** Controlled-token shape: enums/ids/dates only — never free text/sentences. */
@@ -139,6 +140,7 @@ test("catalog exposes the Today event types with canonical string values", async
     todayWordReviewComplete: "today_word_review_complete",
     todaySessionComplete: "today_session_complete",
     todaySkip: "today_skip",
+    todayArticleSelected: "today_article_selected",
   };
   for (const [key, value] of Object.entries(expected)) {
     assert.equal(
@@ -285,6 +287,24 @@ test("emitTodaySkip records a controlled reason code only", async () => {
   assert.equal(props.reasonCode, "too_hard");
   assert.equal(props.limitReached, false);
   assert.equal(props.browseFallback, true);
+  assertPrivacySafe(rec);
+});
+
+test("emitTodayArticleSelected records the user-selected override (metadata only)", async () => {
+  const { emitTodayArticleSelected } = await import(
+    "@/lib/engagement/today-session/analytics"
+  );
+  await emitTodayArticleSelected(
+    makeSession({ source: "user_selected", primaryArticleId: "article-9" }),
+    { replacedGenerated: true },
+  );
+  const rec = created[0];
+  assert.equal(rec.type, "today_article_selected");
+  assert.equal(rec.userId, "user-1");
+  assert.equal(rec.articleId, "article-9");
+  const props = rec.properties as Record<string, unknown>;
+  assert.equal(props.source, "user_selected");
+  assert.equal(props.replacedGenerated, true);
   assertPrivacySafe(rec);
 });
 

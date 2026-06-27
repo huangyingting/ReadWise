@@ -13,6 +13,7 @@ import type { TagView } from "@/lib/article-library";
 import { type CefrLevel, CefrBadge, Badge } from "@/components/ui/Badge";
 import ReaderBookmarkCluster from "@/components/ReaderBookmarkCluster";
 import OfflineDownloadButton from "@/components/OfflineDownloadButton";
+import SetTodayArticleButton from "@/components/SetTodayArticleButton";
 
 type Props = {
   article: Pick<Article, "id" | "title" | "author" | "source" | "sourceUrl">;
@@ -22,6 +23,8 @@ type Props = {
   progress: ReadingProgress | null;
   isBookmarked: boolean;
   tags: TagView[];
+  /** Today Session v1.1 (#805): render the "Set as today's article" affordance. */
+  setTodayEnabled?: boolean;
 };
 
 export default function ArticleHeader({
@@ -32,6 +35,7 @@ export default function ArticleHeader({
   progress,
   isBookmarked,
   tags,
+  setTodayEnabled = false,
 }: Props) {
   return (
     <header className="reader-article-header">
@@ -75,6 +79,14 @@ export default function ArticleHeader({
 
         {/* #117 offline download button */}
         <OfflineDownloadButton articleId={article.id} />
+
+        {/* Today Session v1.1 (#805) — set this readable article as today's primary. */}
+        {setTodayEnabled ? (
+          <SetTodayArticleButton
+            articleId={article.id}
+            articleTitle={article.title}
+          />
+        ) : null}
       </div>
 
       {/* Tags */}
