@@ -99,12 +99,33 @@ export {
   emitTodaySessionViewed,
   emitTodayReadingComplete,
   emitTodayComprehensionComplete,
+  emitTodayComprehensionSubmitted,
   emitTodayWordReviewComplete,
   emitTodaySessionComplete,
   emitTodaySkip,
   emitTodayArticleSelected,
 } from "./analytics";
 export type { TodayReadingMethod } from "./analytics";
+
+// ── Lightweight comprehension feedback & remediation (#807) ──────────────────
+export {
+  COMPREHENSION_SELF_RATINGS,
+  COMPREHENSION_SKILL_TAGS,
+  isComprehensionSelfRating,
+  isComprehensionSkillTag,
+  comprehensionSkillForTag,
+  selectTodayComprehensionQuestion,
+  loadTodayComprehensionCheck,
+  submitTodayComprehension,
+} from "./comprehension";
+export type {
+  ComprehensionSelfRating,
+  ComprehensionSkillTag,
+  TodayComprehensionQuestion,
+  TodayComprehensionCheck,
+  SubmitTodayComprehensionArgs,
+  TodayComprehensionResult,
+} from "./comprehension";
 
 // ── Learner view model (#796/#797/#798) ──────────────────────────────────────
 export { buildTodayViewModel, loadTodayViewModel } from "./view-model";

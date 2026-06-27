@@ -362,13 +362,16 @@ export async function syncTodayReadingFromProgress(args: {
 
 /**
  * Mark today's comprehension step complete for `articleId`. Driven by an
- * existing quiz attempt or difficulty-feedback action on the primary article.
- * No-op when there is no Today session or `articleId` is not the current
- * primary article. Idempotent: an existing `comprehensionCompletedAt` is never
- * overwritten.
+ * existing quiz attempt or difficulty-feedback action on the primary article,
+ * or by the lightweight comprehension self-check (#807) — in which case the
+ * controlled `selfRating` is threaded into the completion analytics. Self-rating
+ * ALONE is sufficient to advance `comprehensionCompletedAt`; no full quiz is
+ * required. No-op when there is no Today session or `articleId` is not the
+ * current primary article. Idempotent: an existing `comprehensionCompletedAt` is
+ * never overwritten.
  */
 export async function markTodayComprehensionComplete(
-  args: MarkArgs & { userId: string; articleId: string },
+  args: MarkArgs & { userId: string; articleId: string; selfRating?: string | null },
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
   const { localDate } = await resolveLocalDate({
@@ -388,7 +391,7 @@ export async function markTodayComprehensionComplete(
     });
   }
   const view = await recomputeTodayCompletion(args.userId, localDate, now);
-  if (!wasComplete && view) await emitTodayComprehensionComplete(view);
+  if (!wasComplete && view) await emitTodayComprehensionComplete(view, args.selfRating);
   return view;
 }
 

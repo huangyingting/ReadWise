@@ -137,6 +137,7 @@ test("catalog exposes the Today event types with canonical string values", async
     todayNoCandidate: "today_no_candidate",
     todayReadingComplete: "today_reading_complete",
     todayComprehensionComplete: "today_comprehension_complete",
+    todayComprehensionSubmitted: "today_comprehension_submitted",
     todayWordReviewComplete: "today_word_review_complete",
     todaySessionComplete: "today_session_complete",
     todaySkip: "today_skip",

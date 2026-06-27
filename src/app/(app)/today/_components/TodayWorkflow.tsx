@@ -91,7 +91,7 @@ export default function TodayWorkflow({
     {
       key: "comprehension",
       title: "Check comprehension",
-      hint: "Take the quick quiz or rate the difficulty in the reader.",
+      hint: "Do the quick comprehension check-in below, or take the reader quiz.",
       href: primaryHref ?? undefined,
       hrefLabel: "Open reader",
     },

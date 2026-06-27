@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T08:58:27.426Z",
-  "routeCount": 99,
-  "methodCount": 110,
+  "generatedAt": "2026-06-27T09:04:23.143Z",
+  "routeCount": 100,
+  "methodCount": 112,
   "routes": [
     {
       "path": "/api/account",
@@ -2367,6 +2367,52 @@
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/today/comprehension",
+      "file": "src/app/api/today/comprehension/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "timezone"
+          ],
+          "bodyFieldNames": null
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "updated"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "questionId",
+            "remediationViewed",
+            "selectedIndex",
+            "selfRating",
+            "skillTag",
+            "timezone"
+          ]
         }
       ]
     },

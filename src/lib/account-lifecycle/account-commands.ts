@@ -255,6 +255,25 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
         orderBy: { createdAt: "asc" },
       },
 
+      // #807: lightweight Today comprehension self-check outcomes. Controlled
+      // fields ONLY — self-rating / skill tag (enums), the boolean MCQ outcome,
+      // ids, and the remediation-viewed flag. NEVER question text, answer/option
+      // text, article text, or explanations.
+      todayComprehensionFeedback: {
+        select: {
+          todaySessionId: true,
+          articleId: true,
+          selfRating: true,
+          questionId: true,
+          mcqCorrect: true,
+          skillTag: true,
+          remediationViewed: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      },
+
       // 711-E: tenant membership and assignment history
       memberships: {
         select: {
