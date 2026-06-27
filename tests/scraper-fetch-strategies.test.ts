@@ -262,3 +262,114 @@ test("per-host memory: second call to a known-reader host tries reader first", a
   assert.equal(second, "R2");
   assert.equal(fetchCalls[0], u.reader, "reader must be the first attempt on the second call");
 });
+
+// ---- content-based bot-challenge detection (HTTP 200 interstitials) -------
+
+const CLOUDFLARE_CHALLENGE =
+  "<!DOCTYPE html><html><head><meta name=\"robots\" content=\"noindex,nofollow\">" +
+  "<title>Just a moment...</title></head><body>" +
+  "<div id=\"cf-challenge\">Checking your browser before accessing.</div>" +
+  "</body></html>";
+
+const VERCEL_CHALLENGE =
+  "<!DOCTYPE html><html><head><title>Vercel Security Checkpoint</title></head>" +
+  "<body><p>We're verifying your browser.</p></body></html>";
+
+const REAL_ARTICLE =
+  "<!DOCTYPE html><html><head><title>Real Article</title>" +
+  "<meta property=\"og:title\" content=\"Real Article\"></head><body><article>" +
+  "<h1>A genuine headline</h1>" +
+  "<p>First paragraph of a real article with plenty of substantive text to read.</p>" +
+  "<p>Second paragraph continues the discussion with even more detail and context.</p>" +
+  "<p>Third paragraph wraps up the argument and offers a concluding thought.</p>" +
+  "</article></body></html>";
+
+// A genuinely SHORT but real article: <article> + a couple of paragraphs, no
+// vendor strings — must NOT be misclassified as a challenge.
+const SHORT_REAL_ARTICLE =
+  "<!DOCTYPE html><html><head><title>Short Note</title></head><body><article>" +
+  "<h1>Short note</h1><p>Brief but real content here.</p></article></body></html>";
+
+test("a 200 Cloudflare 'Just a moment...' page escalates to the next strategy", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  // origin returns a 200 challenge; a later profile returns a real article.
+  routes = {
+    [u.origin]: [
+      { status: 200, body: CLOUDFLARE_CHALLENGE },
+      { status: 200, body: REAL_ARTICLE },
+    ],
+  };
+  const html = await fetchHtml(u.origin);
+  assert.equal(html, REAL_ARTICLE);
+  // origin (challenge) then the next profile (real) → at least two attempts.
+  assert.ok(fetchCalls.length >= 2, "challenge should have triggered escalation");
+});
+
+test("a 200 Vercel 'Security Checkpoint' page escalates and reader wins", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 200, body: VERCEL_CHALLENGE },
+    [u.reader]: { status: 200, body: REAL_ARTICLE },
+  };
+  const html = await fetchHtml(u.origin);
+  assert.equal(html, REAL_ARTICLE);
+  assert.ok(fetchCalls.includes(u.reader), "reader should be reached after the 200 challenge");
+});
+
+test("a real 200 article is NOT treated as a challenge (single attempt)", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = { [u.origin]: { status: 200, body: REAL_ARTICLE } };
+  const html = await fetchHtml(u.origin);
+  assert.equal(html, REAL_ARTICLE);
+  assert.deepEqual(fetchCalls, [u.origin], "real article must not escalate");
+});
+
+test("a SHORT but real 200 article is NOT treated as a challenge", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = { [u.origin]: { status: 200, body: SHORT_REAL_ARTICLE } };
+  const html = await fetchHtml(u.origin);
+  assert.equal(html, SHORT_REAL_ARTICLE);
+  assert.deepEqual(fetchCalls, [u.origin], "short real article must not escalate");
+});
+
+test("when ALL strategies return challenge bodies, the chain THROWS a blocked error", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 200, body: CLOUDFLARE_CHALLENGE },
+    [u.reader]: { status: 200, body: CLOUDFLARE_CHALLENGE },
+    [u.wayback]: { status: 200, body: VERCEL_CHALLENGE },
+  };
+  await assert.rejects(fetchHtml(u.origin), /bot challenge not bypassed/);
+  // It must NOT return the challenge HTML; reader + wayback were both tried.
+  assert.ok(fetchCalls.includes(u.reader), "reader should be attempted");
+  assert.ok(fetchCalls.includes(u.wayback), "wayback should be attempted");
+});
+
+test("looksLikeBotChallenge: vendor strings true, real article false, tiny+noindex true", async () => {
+  const { looksLikeBotChallenge } = await import("@/lib/scraper/fetch-strategies");
+  // Named vendor markers → true.
+  assert.equal(looksLikeBotChallenge(CLOUDFLARE_CHALLENGE), true);
+  assert.equal(looksLikeBotChallenge(VERCEL_CHALLENGE), true);
+  assert.equal(looksLikeBotChallenge("<html><body>DataDome protection</body></html>"), true);
+  assert.equal(
+    looksLikeBotChallenge("<html><body>Pardon Our Interruption</body></html>"),
+    true,
+  );
+  // Real articles → false (even short).
+  assert.equal(looksLikeBotChallenge(REAL_ARTICLE), false);
+  assert.equal(looksLikeBotChallenge(SHORT_REAL_ARTICLE), false);
+  // Tiny body + noindex + no article markers → true.
+  const tiny =
+    "<html><head><meta name=\"robots\" content=\"noindex,nofollow\"></head>" +
+    "<body>verifying</body></html>";
+  assert.equal(looksLikeBotChallenge(tiny), true);
+  // A bot-challenge STATUS still short-circuits to true regardless of body.
+  assert.equal(looksLikeBotChallenge(REAL_ARTICLE, 403), true);
+  // Empty / non-string → false.
+  assert.equal(looksLikeBotChallenge(""), false);
+});

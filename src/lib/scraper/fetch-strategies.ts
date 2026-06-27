@@ -13,9 +13,14 @@
  *
  * Only a *bot-challenge* status advances the chain; a genuine not-found
  * (404/410) — or any SSRF/timeout/network error — aborts immediately and
- * bubbles up unchanged. A per-host, process-lifetime memory records the
- * winning strategy so subsequent fetches of the same host try it first and
- * skip the slow chain.
+ * bubbles up unchanged. Modern bot protection (Cloudflare / Vercel / DataDome)
+ * also answers with an HTTP 200 carrying an interstitial challenge page rather
+ * than a challenge status; `looksLikeBotChallenge` detects those by content so
+ * a 200-challenge is treated as BLOCKED and the chain escalates too. If the
+ * whole chain only ever yields challenge pages, a `BotChallengeError` is thrown
+ * so extraction never receives a challenge interstitial. A per-host,
+ * process-lifetime memory records the winning strategy so subsequent fetches of
+ * the same host try it first and skip the slow chain.
  *
  * ## Security
  *
@@ -46,6 +51,120 @@ const log = createLogger("scraper.fetch-strategies");
 
 /** Statuses that indicate a bot challenge worth retrying with another strategy. */
 const BOT_CHALLENGE_STATUSES = new Set([401, 403, 429, 451, 503]);
+
+/**
+ * Named vendor markers that uniquely identify a bot-protection interstitial
+ * (Cloudflare / Vercel / DataDome / PerimeterX / Akamai). These are returned
+ * even with an HTTP 200 status, so a status check alone never catches them.
+ * All matched case-insensitively against the raw HTML body.
+ */
+const CHALLENGE_VENDOR_MARKERS: readonly string[] = [
+  // Cloudflare
+  "just a moment...",
+  "attention required! | cloudflare",
+  "checking your browser before accessing",
+  "cf-browser-verification",
+  "cf-challenge",
+  "performing security verification",
+  "enable javascript and cookies to continue",
+  "__cf_chl",
+  // Vercel
+  "vercel security checkpoint",
+  "we're verifying your browser",
+  // DataDome / PerimeterX / Akamai
+  "datadome",
+  "px-captcha",
+  "access to this page has been denied",
+  "pardon our interruption",
+];
+
+/**
+ * A "tiny" rendered body (in visible-text characters) below which a page with a
+ * `noindex,nofollow` robots meta and no article markers is treated as a
+ * challenge. Real articles, even short ones, comfortably exceed this.
+ */
+const TINY_BODY_TEXT_CHARS = 250;
+
+/** Strips tags/scripts/styles and collapses whitespace to estimate visible text length. */
+function visibleTextLength(html: string): number {
+  const text = html
+    .replace(/<script[\s\S]*?<\/script>/gi, " ")
+    .replace(/<style[\s\S]*?<\/style>/gi, " ")
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&[a-z#0-9]+;/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return text.length;
+}
+
+/** Counts `<p ...>`/`<p>` opening tags as a cheap proxy for article paragraphs. */
+function paragraphCount(html: string): number {
+  const matches = html.match(/<p[\s>]/gi);
+  return matches ? matches.length : 0;
+}
+
+/** True when the HTML carries strong signals of a real article (suppresses false positives). */
+function hasArticleMarkers(html: string): boolean {
+  const lower = html.toLowerCase();
+  if (lower.includes("<article")) return true;
+  if (paragraphCount(html) >= 3) return true;
+  if (lower.includes('application/ld+json')) return true;
+  if (lower.includes('property="og:title"') || lower.includes("property='og:title'")) return true;
+  return false;
+}
+
+/** True when the HTML declares a `noindex` robots meta (common on challenge pages). */
+function hasNoindexMeta(html: string): boolean {
+  return /<meta[^>]+name=["']robots["'][^>]+content=["'][^"']*noindex/i.test(html);
+}
+
+/**
+ * Heuristically detects a modern bot-protection interstitial that is returned
+ * with an HTTP 200 (Cloudflare "Just a moment...", Vercel "Security Checkpoint",
+ * DataDome, etc.) so the fetch chain can treat it as BLOCKED and escalate.
+ *
+ * Conservative by design — a real (even short) article must NOT be flagged:
+ *  - If the body has an `<article>`, ≥3 `<p>`, JSON-LD, or an og:title, it is
+ *    treated as real content and is never a challenge.
+ *  - Otherwise it is a challenge when EITHER a named vendor marker is present,
+ *    OR the body is tiny (visible text < ~250 chars) with a `noindex` robots
+ *    meta and no article markers.
+ *
+ * @param html   The raw response body.
+ * @param status Optional HTTP status (already-blocked statuses short-circuit true).
+ */
+export function looksLikeBotChallenge(html: string, status?: number): boolean {
+  if (typeof status === "number" && BOT_CHALLENGE_STATUSES.has(status)) {
+    return true;
+  }
+  if (!html || typeof html !== "string") return false;
+
+  // Strong guard: anything that looks like a real article is never a challenge,
+  // even if a vendor string happens to appear in its prose.
+  if (hasArticleMarkers(html)) return false;
+
+  const lower = html.toLowerCase();
+  for (const marker of CHALLENGE_VENDOR_MARKERS) {
+    if (lower.includes(marker)) return true;
+  }
+
+  // Generic tiny-interstitial heuristic: very short body + noindex + no article.
+  if (hasNoindexMeta(html) && visibleTextLength(html) < TINY_BODY_TEXT_CHARS) {
+    return true;
+  }
+
+  return false;
+}
+
+/** Error thrown when the whole chain only ever yielded bot-challenge pages. */
+export class BotChallengeError extends Error {
+  readonly host: string;
+  constructor(host: string) {
+    super(`bot challenge not bypassed for ${host}`);
+    this.name = "BotChallengeError";
+    this.host = host;
+  }
+}
 
 /** Statuses that are genuine not-found and must NOT trigger any fallback. */
 const NOT_FOUND_STATUSES = new Set([404, 410]);
@@ -266,6 +385,10 @@ export async function fetchHtmlWithStrategies(
 
   const deadline = Date.now() + Math.max(timeoutMs, timeoutMs * OVERALL_BUDGET_FACTOR);
   let firstChallengeError: unknown = null;
+  // Tracks the most recent 200-but-challenge body so, if the whole chain only
+  // ever yields challenge pages, we throw a clear blocked error instead of
+  // handing a challenge interstitial back to extraction.
+  let sawContentChallenge = false;
 
   for (const strategy of chain) {
     const remaining = deadline - Date.now();
@@ -274,6 +397,20 @@ export async function fetchHtmlWithStrategies(
 
     try {
       const html = await strategy.run(url, attemptTimeout);
+      // A 2xx body can still be a bot-protection interstitial (HTTP 200 +
+      // challenge page). Treat that exactly like a 403: do NOT accept it as the
+      // result; escalate to the next strategy (next profile → reader → wayback).
+      if (looksLikeBotChallenge(html)) {
+        sawContentChallenge = true;
+        if (firstChallengeError === null) {
+          firstChallengeError = new BotChallengeError(host);
+        }
+        log.debug("strategy returned a 200 bot-challenge page; trying next", {
+          host,
+          strategy: strategy.id,
+        });
+        continue;
+      }
       hostStrategyMemory.set(host, strategy.id);
       return html;
     } catch (err) {
@@ -312,5 +449,8 @@ export async function fetchHtmlWithStrategies(
     }
   }
 
+  if (sawContentChallenge && firstChallengeError instanceof BotChallengeError) {
+    throw firstChallengeError;
+  }
   throw firstChallengeError ?? new Error(`All fetch strategies failed for ${url}`);
 }
