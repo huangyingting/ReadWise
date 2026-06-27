@@ -18,6 +18,7 @@ import {
 } from "@/components/ui";
 import { today as todayMeta } from "@/lib/copy/pages";
 import TodayWorkflow from "./_components/TodayWorkflow";
+import TodayComprehensionCheck from "./_components/TodayComprehensionCheck";
 
 export const metadata = todayMeta;
 
@@ -134,6 +135,12 @@ export default async function TodayPage() {
               action={{ label: "Browse articles", href: "/browse" }}
             />
           )}
+
+          <TodayComprehensionCheck
+            readingComplete={readingComplete}
+            comprehensionComplete={vm.steps.comprehension.state === "complete"}
+            active={isActive}
+          />
 
           <TodayWorkflow
             steps={vm.steps}
