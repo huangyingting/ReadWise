@@ -66,6 +66,12 @@ export const progress = {
   title: `My Progress — ${SITE_NAME}`,
 } as const;
 
+export const today = {
+  title: `Today — ${SITE_NAME}`,
+  description:
+    "Your focused daily reading task — one article to read, plus light comprehension and vocabulary review.",
+} as const;
+
 export const notes = {
   title: `Notes & Highlights — ${SITE_NAME}`,
 } as const;

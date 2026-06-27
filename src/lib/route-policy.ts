@@ -13,6 +13,7 @@
 /** Route prefixes that require an active session. */
 export const PROTECTED_PREFIXES = [
   "/dashboard",
+  "/today",
   "/reader",
   "/settings",
   "/onboarding",
@@ -52,6 +53,8 @@ export const SESSION_COOKIES = [
 export const MIDDLEWARE_MATCHER: readonly string[] = [
   "/",
   "/dashboard/:path*",
+  "/today",
+  "/today/:path*",
   "/reader/:path*",
   "/settings/:path*",
   "/onboarding/:path*",

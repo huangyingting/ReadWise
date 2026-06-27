@@ -83,3 +83,19 @@ export type {
   CurrentCompletion,
   CompletionDecision,
 } from "./completion";
+
+// ── Skip lifecycle (#797) ────────────────────────────────────────────────────
+export { skipTodaySession, TODAY_DAILY_SKIP_LIMIT } from "./skip";
+export type { SkipResult } from "./skip";
+
+// ── Learner view model (#796/#797/#798) ──────────────────────────────────────
+export { buildTodayViewModel, loadTodayViewModel } from "./view-model";
+export type {
+  TodayViewModel,
+  TodaySteps,
+  TodayStepState,
+  TodayProgress,
+  TodayCta,
+  TodayCtaKind,
+  TodayArticleDisplays,
+} from "./view-model";

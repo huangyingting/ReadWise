@@ -15,13 +15,14 @@
  * See docs/platform/runtime-config.md.
  */
 
-export type FeatureKey = "ai" | "tts" | "push" | "scraper";
+export type FeatureKey = "ai" | "tts" | "push" | "scraper" | "todaySession";
 
 const FEATURE_ENV: Record<FeatureKey, string> = {
   ai: "FEATURE_AI_ENABLED",
   tts: "FEATURE_TTS_ENABLED",
   push: "FEATURE_PUSH_ENABLED",
   scraper: "FEATURE_SCRAPER_ENABLED",
+  todaySession: "FEATURE_TODAY_SESSION_ENABLED",
 };
 
 /**
@@ -39,3 +40,13 @@ export const isAiFeatureEnabled = (): boolean => isFeatureEnabled("ai");
 export const isTtsFeatureEnabled = (): boolean => isFeatureEnabled("tts");
 export const isPushFeatureEnabled = (): boolean => isFeatureEnabled("push");
 export const isScraperFeatureEnabled = (): boolean => isFeatureEnabled("scraper");
+
+/**
+ * Today Session learner workflow (`/today`, the Dashboard Today card, and the
+ * default learner landing). Like the other kill switches this defaults to
+ * ENABLED so the feature ships on; setting `FEATURE_TODAY_SESSION_ENABLED` to a
+ * falsy value rolls every Today surface back to its pre-Today behavior (the
+ * `/today` route 404s and learners keep landing on `/dashboard`).
+ */
+export const isTodaySessionFeatureEnabled = (): boolean =>
+  isFeatureEnabled("todaySession");

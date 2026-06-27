@@ -5,15 +5,20 @@ import {
   SESSION_COOKIES,
   MIDDLEWARE_MATCHER,
 } from "@/lib/route-policy";
+import { defaultLandingPath } from "@/lib/learner-landing";
 
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
-  // Redirect authenticated users away from the landing page to the dashboard.
+  // Redirect authenticated users away from the landing page to their default
+  // landing target. When Today Session is enabled this is `/today`; otherwise it
+  // stays `/dashboard` (unchanged). Role is not available at the edge, so the
+  // root redirect uses the feature-flag default; admins keep direct access to
+  // `/dashboard` and `/admin`.
   if (pathname === "/") {
     const hasSession = SESSION_COOKIES.some((name) => req.cookies.has(name));
     if (hasSession) {
-      return NextResponse.redirect(new URL("/dashboard", req.url));
+      return NextResponse.redirect(new URL(defaultLandingPath(), req.url));
     }
     return NextResponse.next();
   }

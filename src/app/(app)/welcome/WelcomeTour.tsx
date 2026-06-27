@@ -37,20 +37,25 @@ const STEPS = [
   },
 ];
 
-export default function WelcomeTour() {
+export default function WelcomeTour({
+  landingPath = "/dashboard",
+}: {
+  /** Where the tour sends the learner when finished/skipped/already-seen. */
+  landingPath?: string;
+}) {
   const router = useRouter();
   const [step, setStep] = useState(0);
 
-  // If already seen, go straight to dashboard.
+  // If already seen, go straight to the learner's landing page.
   useEffect(() => {
     try {
       if (localStorage.getItem(WELCOME_SEEN_KEY)) {
-        router.replace("/dashboard");
+        router.replace(landingPath);
       }
     } catch {
       // Ignore storage errors.
     }
-  }, [router]);
+  }, [router, landingPath]);
 
   function markSeen() {
     try {
@@ -62,7 +67,7 @@ export default function WelcomeTour() {
 
   function handleSkip() {
     markSeen();
-    router.push("/dashboard");
+    router.push(landingPath);
   }
 
   function handleNext() {
@@ -70,7 +75,7 @@ export default function WelcomeTour() {
       setStep((s) => s + 1);
     } else {
       markSeen();
-      router.push("/dashboard");
+      router.push(landingPath);
     }
   }
 

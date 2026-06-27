@@ -5,6 +5,7 @@ import { ArrowLeft, AlertTriangle } from "lucide-react";
 import { authOptions } from "@/lib/auth";
 import { getConfiguredProviders } from "@/lib/auth-providers";
 import { friendlySignInError, sanitizeCallbackUrl } from "@/lib/signin-helpers";
+import { defaultLandingPath } from "@/lib/learner-landing";
 import { Wordmark } from "@/components/marketing/Wordmark";
 import { Wordmark as AppWordmark } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
@@ -27,12 +28,16 @@ export default async function SignInPage({
   searchParams: Promise<{ callbackUrl?: string; error?: string }>;
 }) {
   const { callbackUrl, error } = await searchParams;
-  const safeCallback = sanitizeCallbackUrl(callbackUrl);
+  // An explicit, relative callbackUrl is honored (open-redirect-safe); otherwise
+  // the learner's flag-aware default landing is used (`/today` when enabled).
+  const explicitCallback = callbackUrl ? sanitizeCallbackUrl(callbackUrl) : null;
 
   const session = await getServerSession(authOptions);
   if (session?.user) {
-    redirect(safeCallback);
+    redirect(explicitCallback ?? defaultLandingPath(session.user.role));
   }
+
+  const safeCallback = explicitCallback ?? defaultLandingPath();
 
   const providers = getConfiguredProviders();
 

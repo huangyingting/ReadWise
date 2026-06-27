@@ -145,6 +145,8 @@ export async function createTodaySession(args: {
 export type TodaySessionUpdate = {
   status?: string;
   completionTier?: string;
+  /** Stable backup article ids (ids only — never content). */
+  backupArticleIds?: string[];
   readingCompletedAt?: Date | null;
   comprehensionCompletedAt?: Date | null;
   wordReviewCompletedAt?: Date | null;
@@ -198,6 +200,12 @@ export async function updateTodaySession(
   if (update.completedAt !== undefined) data.completedAt = update.completedAt;
   if (update.skipped !== undefined) data.skipped = update.skipped;
   if (update.skippedAt !== undefined) data.skippedAt = update.skippedAt;
+  if (update.backupArticleIds !== undefined) {
+    // Defensive: persist string ids only — never content-bearing values.
+    data.backupArticleIds = update.backupArticleIds.filter(
+      (id): id is string => typeof id === "string",
+    );
+  }
 
   // updateMany scoped by BOTH userId and localDate guarantees user isolation
   // (a mismatched userId updates nothing) without trusting a request id.
