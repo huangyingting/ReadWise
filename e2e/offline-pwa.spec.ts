@@ -6,7 +6,7 @@
  *   even when IndexedDB is empty or unavailable.
  *
  * - /progress — Reading progress dashboard. Shows "My Progress" heading and,
- *   for a new user with no activity, the "Nothing to show yet" empty state.
+ *   for a new onboarded user with no activity, the reading-activity empty state.
  *
  * - /notes — Highlights & notes index. Shows "Notes & Highlights" heading and,
  *   for a user with no highlights, the "No highlights yet" empty state.
@@ -75,12 +75,14 @@ test("progress page loads and shows My Progress heading", async ({
   await expect(page.getByRole("heading", { name: "My Progress" })).toBeVisible();
 });
 
-test("progress page shows empty state for a new reader", async ({ context, page }) => {
+test("progress page shows empty activity state for a new reader", async ({ context, page }) => {
   const { sessionToken, expires } = await createUserWithSession();
   await addSessionCookie(context, sessionToken, expires);
 
   await page.goto("/progress");
-  await expect(page.getByText("Nothing to show yet")).toBeVisible();
+  await expect(
+    page.getByText(/No reading activity in the past 52 weeks/),
+  ).toBeVisible();
 });
 
 // ---------------------------------------------------------------------------

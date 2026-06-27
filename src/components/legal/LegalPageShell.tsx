@@ -14,6 +14,7 @@
 
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { PageHeader, PageShell, Stack, buttonVariants } from "@/components/ui";
 
 interface LegalPageShellProps {
   /** Page heading — e.g. "Terms of Service" or "Privacy Policy". */
@@ -30,24 +31,16 @@ export function LegalPageShell({
   children,
 }: LegalPageShellProps) {
   return (
-    <main className="container" style={{ maxWidth: "720px", margin: "0 auto", padding: "2rem 1.5rem" }}>
-      <h1
-        className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-3xl)] text-text"
-        style={{ marginBottom: "0.5rem" }}
-      >
-        {heading}
-      </h1>
-      <p className="text-text-subtle text-[length:var(--text-sm)]" style={{ marginBottom: "2rem" }}>
-        {lastUpdated}
-      </p>
+    <PageShell as="main" variant="narrow">
+      <PageHeader title={heading} description={lastUpdated} />
 
-      <div className="stack">{children}</div>
+      <Stack gap="6">{children}</Stack>
 
-      <p style={{ marginTop: "2rem" }}>
-        <Link href="/" className="text-primary-text hover:underline">
+      <p className="mt-[var(--space-7)]">
+        <Link href="/" className={buttonVariants({ variant: "ghost", size: "sm" })}>
           ← Back to ReadWise
         </Link>
       </p>
-    </main>
+    </PageShell>
   );
 }

@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Search } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button, IconButton } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { useCommandPalette } from "@/components/command/CommandPaletteProvider";
 
 /**
@@ -33,56 +34,40 @@ export default function HeaderSearch() {
   return (
     <>
       {/* Desktop/tablet: faux search-box (hidden on mobile) */}
-      <button
+      <Button
         ref={buttonRef}
-        type="button"
+        variant="outline"
+        size="sm"
         onClick={open}
         aria-label={sharedLabel}
         aria-haspopup="dialog"
         aria-keyshortcuts="Meta+K Control+K"
+        leadingIcon={<Search size={16} aria-hidden className="shrink-0" />}
+        trailingIcon={
+          modKey !== null ? (
+            <span className="kbd" aria-hidden suppressHydrationWarning>
+              {modKey === "⌘" ? "⌘K" : "Ctrl K"}
+            </span>
+          ) : undefined
+        }
         className={cn(
-          "hidden sm:inline-flex items-center gap-[var(--space-2)]",
-          "h-9 px-[var(--space-3)] min-w-[200px] max-w-[240px]",
-          "rounded-[var(--radius-md)] border border-border",
-          "bg-bg-subtle text-text-subtle",
-          "transition-[background,border-color,color] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-          "hover:bg-surface hover:border-border-strong hover:text-text-muted",
-          focusRing,
+          "hidden min-w-[200px] max-w-[240px] justify-start bg-bg-subtle text-text-muted hover:bg-surface hover:text-text sm:inline-flex",
+          "[&>span:nth-child(2)]:flex-1 [&>span:nth-child(2)]:text-left",
         )}
       >
-        <Search size={16} aria-hidden className="shrink-0" />
-        <span className="flex-1 text-left text-[length:var(--text-sm)] truncate">
-          Search…
-        </span>
-        {/* ⌘K / Ctrl+K chip — rendered client-side only to avoid hydration mismatch */}
-        {modKey !== null && (
-          <span
-            className="shrink-0 kbd"
-            aria-hidden
-            suppressHydrationWarning
-          >
-            {modKey === "⌘" ? "⌘K" : "Ctrl K"}
-          </span>
-        )}
-      </button>
+        Search…
+      </Button>
 
       {/* Mobile: icon-only button (resolves M2 N4 — search reachable below 640px) */}
-      <button
-        type="button"
+      <IconButton
         onClick={open}
         aria-label={sharedLabel}
         aria-haspopup="dialog"
         aria-keyshortcuts="Meta+K Control+K"
-        className={cn(
-          "sm:hidden inline-flex items-center justify-center h-10 w-10 shrink-0",
-          "rounded-[var(--radius-md)] text-text-muted",
-          "hover:bg-bg-subtle active:bg-bg-subtle",
-          "transition-colors [transition-duration:var(--duration-fast)]",
-          focusRing,
-        )}
+        className="h-10 w-10 rounded-[var(--radius-md)] text-text-muted hover:text-text sm:hidden"
       >
         <Search size={20} aria-hidden />
-      </button>
+      </IconButton>
     </>
   );
 }

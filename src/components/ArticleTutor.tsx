@@ -34,8 +34,7 @@ import {
   useState,
 } from "react";
 import { Send, Sparkles } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui";
 import { Textarea } from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
 import EmptyState from "@/components/EmptyState";
@@ -203,15 +202,16 @@ export default function ArticleTutor({ active }: { active: boolean }) {
               aria-label="Suggested questions"
             >
               {STARTER_QUESTIONS.map((q) => (
-                <button
+                <Button
                   key={q}
-                  type="button"
-                  className={cn("rw-tutor-chip", focusRing)}
+                  variant="ghost"
+                  size="sm"
+                  className="rw-tutor-chip"
                   onClick={() => void ask(q)}
                   disabled={asking}
                 >
                   {q}
-                </button>
+                </Button>
               ))}
             </div>
           </div>
@@ -265,13 +265,15 @@ export default function ArticleTutor({ active }: { active: boolean }) {
         {/* "↓ New answer" jump pill — sticky bottom of list */}
         {jumpVisible ? (
           <div className="rw-tutor-jump">
-            <button
+            <Button
               type="button"
-              className={cn("rw-tutor-jump-btn", focusRing)}
+              variant="secondary"
+              size="sm"
+              className="rw-tutor-jump-btn"
               onClick={scrollToBottom}
             >
               ↓ New answer
-            </button>
+            </Button>
           </div>
         ) : null}
       </div>
@@ -280,7 +282,7 @@ export default function ArticleTutor({ active }: { active: boolean }) {
       <div className="rw-tutor-composer">
         <Textarea
           ref={composerRef}
-          className={cn("rw-tutor-input", focusRing)}
+          className="rw-tutor-input"
           placeholder="Ask anything about this article…"
           value={question}
           onChange={handleInputChange}

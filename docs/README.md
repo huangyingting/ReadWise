@@ -157,6 +157,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | --- | --- |
 | [`ui/accessibility.md`](./ui/accessibility.md) | Accessibility baseline, automated axe/Playwright checks, configuration, and outstanding manual-verification gaps. |
 | [`ui/design-system-governance.md`](./ui/design-system-governance.md) | Design-system governance and visual regression plan: component ownership, token conventions, and CI screenshot gating. |
+| [`ui/design-system-v1-refactoring.md`](./ui/design-system-v1-refactoring.md) | Coding-agent runbook for the Design System v1 full-surface UI migration: phases, constraints, density rules, and verification. |
 | [`ui/mobile-reader-pwa.md`](./ui/mobile-reader-pwa.md) | Mobile/touch behavior baseline for the Reader, offline library, and PWA install surface grounded in the service worker, manifest, and Reader components. |
 
 ## Redirect index

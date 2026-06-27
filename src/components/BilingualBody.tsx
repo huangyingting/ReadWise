@@ -16,6 +16,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Languages } from "lucide-react";
+import { Button, Select } from "@/components/ui";
 import WordLookup from "@/components/WordLookup";
 import AiBadge from "@/components/AiBadge";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
@@ -222,8 +223,10 @@ export default function BilingualBody({
     <>
       {/* Bilingual toggle strip — rendered above the article prose */}
       <div className="bilingual-controls" suppressHydrationWarning>
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           className={`bilingual-toggle-btn${enabled ? " bilingual-toggle-btn--active" : ""}`}
           onClick={toggleBilingual}
           aria-pressed={enabled}
@@ -232,14 +235,15 @@ export default function BilingualBody({
         >
           <Languages size={14} aria-hidden />
           <span>Bilingual</span>
-        </button>
+        </Button>
 
         {(enabled || controlsExpanded) && (
-          <select
+          <Select
             aria-label="Translation language"
             value={lang}
             onChange={(e) => changeLang(e.target.value)}
             disabled={loading}
+            selectSize="sm"
             className="bilingual-lang-select"
           >
             {languages.map((l) => (
@@ -247,7 +251,7 @@ export default function BilingualBody({
                 {l.label}
               </option>
             ))}
-          </select>
+          </Select>
         )}
 
         {loading && (

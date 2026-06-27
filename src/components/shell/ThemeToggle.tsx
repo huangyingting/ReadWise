@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import { Sun, Moon, Monitor } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import {
   getThemePreference,
   toggleTheme,
@@ -47,22 +48,17 @@ export default function ThemeToggle({ className }: { className?: string }) {
   const Icon = ICONS[theme];
 
   return (
-    <button
-      type="button"
+    <IconButton
       onClick={handleClick}
       aria-label={mounted ? NEXT_LABEL[theme] : "Toggle theme"}
       title={mounted ? NEXT_LABEL[theme] : undefined}
       className={cn(
-        "inline-flex items-center justify-center h-11 w-11 shrink-0",
-        "rounded-[var(--radius-md)] text-text-muted",
-        "transition-colors [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-        "hover:bg-bg-subtle hover:text-text",
-        focusRing,
+        "h-11 w-11 rounded-[var(--radius-md)] text-text-muted hover:text-text",
         className,
       )}
     >
       {/* Render a stable icon until mounted to avoid a hydration mismatch. */}
       {mounted ? <Icon size={20} aria-hidden /> : <Monitor size={20} aria-hidden />}
-    </button>
+    </IconButton>
   );
 }

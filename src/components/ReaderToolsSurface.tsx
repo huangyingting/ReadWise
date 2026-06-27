@@ -22,7 +22,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
 import { getTabbable } from "@/lib/focus-trap";
 import { useReaderTools } from "./ReaderToolsProvider";
 import ReaderTools from "./ReaderTools";
@@ -131,14 +131,13 @@ export default function ReaderToolsSurface({
         <h2 id="reader-tools-title" className="reader-tools-surface-title">
           Practice tools
         </h2>
-        <button
-          type="button"
+        <IconButton
           aria-label="Close practice tools"
           onClick={closeTools}
-          className={cn("reader-tools-close-btn", focusRing)}
+          className="reader-tools-close-btn"
         >
           <X size={18} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
 
       <div className="reader-tools-surface-body">

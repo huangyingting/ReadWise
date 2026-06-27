@@ -43,7 +43,7 @@ export function StepPlacement({
         {STEP_TITLES[1]}{" "}
         <Badge variant="neutral" className="ml-[var(--space-2)]">Optional</Badge>
       </h2>
-      <p className="text-text-subtle text-xs mb-[var(--space-4)]">
+      <p className="mb-[var(--space-4)] text-text-subtle text-[length:var(--text-xs)]">
         Answer 3 quick questions to confirm your self-reported level.
         This takes about 2 minutes.
       </p>
@@ -77,9 +77,9 @@ export function StepPlacement({
                         "transition-[background-color,border-color] [transition-duration:var(--duration-fast)]",
                         "has-[:focus-visible]:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
                         isRevealed && isCorrect
-                          ? "border-success bg-[color-mix(in_srgb,var(--success,#22c55e)_8%,transparent)] text-text"
+                          ? "border-success bg-[color-mix(in_srgb,var(--success)_8%,transparent)] text-text"
                           : isRevealed && isWrong
-                          ? "border-danger-text bg-[color-mix(in_srgb,var(--danger-text,#ef4444)_8%,transparent)] text-text"
+                          ? "border-danger-text bg-[color-mix(in_srgb,var(--danger-text)_8%,transparent)] text-text"
                           : isSelected
                           ? "border-primary bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] text-text"
                           : "border-border-strong bg-surface hover:border-text-subtle text-text",
@@ -97,10 +97,10 @@ export function StepPlacement({
                       />
                       {opt}
                       {isRevealed && isCorrect && (
-                        <Check size={14} aria-hidden className="ml-auto text-[color:var(--success,#22c55e)]" />
+                        <Check size={14} aria-hidden className="ml-auto text-success-text" />
                       )}
                       {isRevealed && isWrong && (
-                        <X size={14} aria-hidden className="ml-auto text-[color:var(--danger-text,#ef4444)]" />
+                        <X size={14} aria-hidden className="ml-auto text-danger-text" />
                       )}
                     </label>
                   );

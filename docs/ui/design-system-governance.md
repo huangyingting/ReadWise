@@ -166,6 +166,15 @@ import { Button, Badge, Card } from "@/components/ui";
 | **Sheet** | `Sheet.tsx` | `open`, `onClose`, `side` | Side-panel / drawer overlays |
 | **SegmentedControl** | `SegmentedControl.tsx` | `options`, `value`, `onChange` | Mutually exclusive view-mode tabs |
 | **Avatar** | `Avatar.tsx` | `src`, `name`, `size` | User identity — initials fallback |
+| **PageShell** | `PageShell.tsx` | `variant`: listing · narrow · reading · marketing · full; `density`: default · compact · reader · marketing | Standard centred page container |
+| **PageHeader** | `PageHeader.tsx` | `density`, `align`, `title`, `description`, `actions`, `level` | Page title/description/action rows |
+| **Section** | `Section.tsx` | `surface`: plain · card · subtle; `density`, `title`, `description`, `actions` | Reusable page regions |
+| **Stack** | `Stack.tsx` | token gap + alignment variants | Vertical layout rhythm |
+| **Inline** | `Inline.tsx` | token gap, alignment, justify, wrap variants | Horizontal layout rhythm |
+| **Toolbar** | `Toolbar.tsx` | `density`, `align`, `justify`, `surface` | Related action/filter rows |
+| **TableSurface** | `TableSurface.tsx` | `density`: default · compact · reader · marketing | Tokenised scroll surface around semantic tables |
+| **FormActions** | `FormActions.tsx` | `density`, `align` | Submit/cancel action rows |
+| **EmptyState** | `EmptyState.tsx` | `icon`, `title`, `description`, `action`, `titleAs` | Empty collection/page states |
 | **PanelLoading** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel loading state |
 | **PanelError** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel error state |
 | **PanelFallback** | `ReaderToolPanelState.tsx` | `title`, `description` | Unavailable-provider state |

@@ -60,6 +60,10 @@ export type CacheScope = "public" | "user" | "org";
  */
 export const LISTING_REVALIDATE_SECONDS = 300;
 
+function isListingCacheDisabled(): boolean {
+  return process.env.READWISE_DISABLE_LISTING_CACHE === "1";
+}
+
 /**
  * Wraps an async query in Next's `unstable_cache`. The function arguments are
  * automatically part of the cache key (so paginated/per-level calls are cached
@@ -73,6 +77,13 @@ export function createCachedListing<Args extends unknown[], T>(
   revalidate: number | false = LISTING_REVALIDATE_SECONDS,
 ): (...args: Args) => Promise<T> {
   const cacheName = keyParts.join(":");
+  if (isListingCacheDisabled()) {
+    return (...args: Args) => {
+      recordCacheLookup(cacheName);
+      recordCacheMiss(cacheName);
+      return fn(...args);
+    };
+  }
   const cached = unstable_cache(
     async (...args: Args) => {
       recordCacheMiss(cacheName);
@@ -152,6 +163,15 @@ export function createTenantCachedListing<Args extends unknown[], T>(
   opts: { tags?: readonly string[]; revalidate?: number | false } = {},
 ): (tenantId: string, ...args: Args) => Promise<T> {
   const baseName = keyParts.join(":");
+  if (isListingCacheDisabled()) {
+    return (tenantId: string, ...args: Args) => {
+      const id = normalizeTenantId(tenantId);
+      const cacheName = `${baseName}:${scope}:${id}`;
+      recordCacheLookup(cacheName);
+      recordCacheMiss(cacheName);
+      return fn(id, ...args);
+    };
+  }
   const revalidate = opts.revalidate ?? LISTING_REVALIDATE_SECONDS;
   const perTenant = new Map<string, (tenantId: string, ...args: Args) => Promise<T>>();
 

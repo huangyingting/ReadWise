@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useEffect, useCallback } from "react";
-import { Card } from "@/components/ui/Card";
+import { Card, CardTitle } from "@/components/ui";
 import { useReviewSession } from "@/components/flashcard/useReviewSession";
 import { useSpeechSynthesisWord } from "@/components/flashcard/useSpeechSynthesisWord";
 import { ReviewStartCard } from "@/components/flashcard/ReviewStartCard";
@@ -90,7 +90,7 @@ export default function FlashcardReview({
     if (appState.phase === "session") {
       if (sessionStartedRef.current) return;
       sessionStartedRef.current = true;
-      announce(`Review started. Card 1 of ${appState.cards.length}.`);
+      announce(`Review started. Card 1 of ${cardCount ?? 0}.`);
       setTimeout(() => {
         const target =
           clozeInputRef.current ??
@@ -179,12 +179,11 @@ export default function FlashcardReview({
 
       {s.phase === "loading" && (
         <Card>
-          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+          <CardTitle level="h2" className="text-[length:var(--text-2xl)]">
             Flashcard review
-          </h2>
+          </CardTitle>
           <p
-            className="text-[length:var(--text-sm)] text-text-muted m-0"
-            style={{ marginTop: "var(--space-2)" }}
+            className="mt-[var(--space-2)] text-[length:var(--text-sm)] text-text-muted m-0"
           >
             Loading cards…
           </p>

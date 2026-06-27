@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/client-error-reporter";
+import { Button, buttonVariants } from "@/components/ui";
 import "./globals.css";
 
 /**
@@ -32,26 +33,11 @@ export default function GlobalError({
     <html lang="en">
       <body>
         <main
-          style={{
-            minHeight: "100dvh",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "center",
-            justifyContent: "center",
-            textAlign: "center",
-            gap: "var(--space-5)",
-            padding: "var(--space-6)",
-            background: "var(--bg)",
-            color: "var(--text)",
-          }}
+          className="flex min-h-[100dvh] flex-col items-center justify-center gap-[var(--space-5)] bg-bg p-[var(--space-6)] text-center text-text"
         >
           {/* Self-contained brand wordmark (no Link/component deps). */}
           <span
-            style={{
-              display: "inline-flex",
-              alignItems: "center",
-              gap: "var(--space-2)",
-            }}
+            className="inline-flex items-center gap-[var(--space-2)]"
           >
             <svg
               width="20"
@@ -67,42 +53,22 @@ export default function GlobalError({
               <path d="M8 4.5v7" />
             </svg>
             <span
-              style={{
-                fontFamily: "var(--font-display)",
-                fontWeight: 700,
-                fontSize: "var(--text-xl)",
-                color: "var(--text)",
-              }}
+              className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-bold text-text"
             >
               ReadWise
             </span>
           </span>
 
           <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "var(--space-2)",
-              maxWidth: "40ch",
-            }}
+            className="flex max-w-[40ch] flex-col gap-[var(--space-2)]"
           >
             <h1
-              style={{
-                margin: 0,
-                fontFamily: "var(--font-display)",
-                fontWeight: 600,
-                fontSize: "var(--text-2xl)",
-                color: "var(--text)",
-              }}
+              className="m-0 font-[family-name:var(--font-display)] text-[length:var(--text-2xl)] font-semibold text-text"
             >
               Something went wrong
             </h1>
             <p
-              style={{
-                margin: 0,
-                fontSize: "var(--text-base)",
-                color: "var(--text-muted)",
-              }}
+              className="m-0 text-[length:var(--text-base)] text-text-muted"
             >
               An unexpected error occurred and has been reported. You can reload
               the page or head back to your dashboard.
@@ -110,49 +76,17 @@ export default function GlobalError({
           </div>
 
           <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              justifyContent: "center",
-              gap: "var(--space-3)",
-            }}
+            className="flex flex-wrap justify-center gap-[var(--space-3)]"
           >
-            <button
+            <Button
               type="button"
               onClick={() => reset()}
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-                padding: "var(--space-3) var(--space-5)",
-                borderRadius: "var(--radius-md)",
-                border: 0,
-                background: "var(--primary)",
-                color: "var(--on-primary)",
-                fontFamily: "var(--font-sans)",
-                fontWeight: 600,
-                fontSize: "var(--text-sm)",
-                cursor: "pointer",
-              }}
             >
               Reload
-            </button>
+            </Button>
             <a
               href="/dashboard"
-              style={{
-                display: "inline-flex",
-                alignItems: "center",
-                gap: "var(--space-2)",
-                padding: "var(--space-3) var(--space-5)",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid var(--border)",
-                background: "var(--surface)",
-                color: "var(--text)",
-                fontFamily: "var(--font-sans)",
-                fontWeight: 600,
-                fontSize: "var(--text-sm)",
-                textDecoration: "none",
-              }}
+              className={buttonVariants({ variant: "secondary", size: "md" })}
             >
               ← Back to dashboard
             </a>

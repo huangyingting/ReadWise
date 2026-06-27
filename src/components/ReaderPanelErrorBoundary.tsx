@@ -17,6 +17,7 @@
 
 import { Component, type ErrorInfo, type ReactNode } from "react";
 import { reportClientError } from "@/lib/client-error-reporter";
+import { Button } from "@/components/ui";
 
 interface Props {
   /** Human label for the wrapped tool, used in the fallback copy + logs. */
@@ -57,13 +58,14 @@ export default class ReaderPanelErrorBoundary extends Component<Props, State> {
           <p className="reader-panel-error-text">
             This tool hit an error and couldn&apos;t be shown.
           </p>
-          <button
-            type="button"
+          <Button
+            variant="outline"
+            size="sm"
             onClick={this.reset}
             className="reader-panel-error-retry"
           >
             Try again
-          </button>
+          </Button>
         </div>
       );
     }

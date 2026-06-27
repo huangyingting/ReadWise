@@ -2,7 +2,7 @@ import { requireOnboardedSession } from "@/lib/session";
 import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from "@/lib/lexical/saved-words";
 import { articleAccessContext } from "@/lib/article-library";
 import Link from "next/link";
-import { buttonVariants } from "@/components/ui/Button";
+import { PageHeader, PageShell, Toolbar, buttonVariants } from "@/components/ui";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
 import VocabularyJournal from "@/components/VocabularyJournal";
 import { ChevronLeft } from "lucide-react";
@@ -58,7 +58,7 @@ export default async function StudyWordsPage({
   };
 
   return (
-    <div className="listing-container">
+    <PageShell variant="listing">
       {/* Back link */}
       <Link
         href="/study"
@@ -68,12 +68,10 @@ export default async function StudyWordsPage({
         Back to Study hub
       </Link>
 
-      <div className="flex items-center justify-between flex-wrap gap-[var(--space-3)] mb-[var(--space-6)]">
-        <h1 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] leading-tight text-text m-0">
-          Vocabulary journal
-        </h1>
+      <Toolbar className="mb-[var(--space-6)]">
+        <PageHeader title="Vocabulary journal" className="mb-0" />
         <VocabularyExportButtons />
-      </div>
+      </Toolbar>
 
       <VocabularyJournal
         initial={initial}
@@ -81,6 +79,6 @@ export default async function StudyWordsPage({
         initialArticleId={articleId}
         initialFilter={filter}
       />
-    </div>
+    </PageShell>
   );
 }

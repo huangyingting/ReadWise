@@ -140,7 +140,6 @@ test("offline-reader.html EXPIRY_MS matches OFFLINE_ARTICLE_EXPIRY_MS", () => {
   // Evaluate the raw expression safely (only digits, spaces, and *).
   const expr = match![1].replace(/\s+/g, "");
   assert.match(expr, /^[\d*]+$/, "EXPIRY_MS expression contains unexpected characters");
-  // eslint-disable-next-line no-new-func
   const computed = Function(`"use strict"; return (${expr});`)() as number;
   assert.equal(
     computed,

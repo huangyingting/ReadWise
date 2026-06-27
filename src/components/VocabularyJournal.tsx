@@ -3,9 +3,15 @@
 import { useState, useCallback, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen } from "lucide-react";
-import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { PanelError } from "@/components/ui/ReaderToolPanelState";
+import {
+  Button,
+  Field,
+  Input,
+  PanelError,
+  Select,
+  TableSurface,
+  Toolbar,
+} from "@/components/ui";
 import EmptyState from "@/components/EmptyState";
 import { WordTableRow } from "@/components/vocabulary/WordTableRow";
 import { JournalPagination } from "@/components/vocabulary/JournalPagination";
@@ -175,59 +181,54 @@ export default function VocabularyJournal({
       {/* Search + filters */}
       <div className="flex flex-wrap gap-[var(--space-3)] items-end">
         <div className="flex-[1_1_240px] min-w-[200px]">
-          <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="word-search">
-            Search
-          </label>
-          <Input
-            id="word-search"
-            type="search"
-            placeholder="Search by word or definition…"
-            value={query}
-            onChange={(e) => handleSearch(e.target.value)}
-            aria-label="Search saved words"
-          />
+          <Field label="Search">
+            <Input
+              id="word-search"
+              type="search"
+              placeholder="Search by word or definition…"
+              value={query}
+              onChange={(e) => handleSearch(e.target.value)}
+              aria-label="Search saved words"
+            />
+          </Field>
         </div>
 
         <div className="flex-[0_1_200px] min-w-[150px]">
-          <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="srs-filter">
-            Review filter
-          </label>
-          <select
-            id="srs-filter"
-            value={filter}
-            onChange={(e) => handleFilterChange(e.target.value as "all" | "due" | "new")}
-            className="w-full rounded-[var(--radius-md)] border border-border bg-bg text-text px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]"
-            aria-label="Filter by review status"
-          >
-            {(["all", "due", "new"] as const).map((f) => (
-              <option key={f} value={f}>{filterLabels[f]}</option>
-            ))}
-          </select>
+          <Field label="Review filter">
+            <Select
+              id="srs-filter"
+              value={filter}
+              onChange={(e) => handleFilterChange(e.target.value as "all" | "due" | "new")}
+              aria-label="Filter by review status"
+            >
+              {(["all", "due", "new"] as const).map((f) => (
+                <option key={f} value={f}>{filterLabels[f]}</option>
+              ))}
+            </Select>
+          </Field>
         </div>
 
         {articleOptions.length > 0 && (
           <div className="flex-[0_1_220px] min-w-[160px]">
-            <label className="text-[length:var(--text-sm)] text-text-muted mb-[var(--space-1)] block" htmlFor="article-filter">
-              Article source
-            </label>
-            <select
-              id="article-filter"
-              value={articleId}
-              onChange={(e) => handleArticleFilter(e.target.value)}
-              className="w-full rounded-[var(--radius-md)] border border-border bg-bg text-text px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)]"
-              aria-label="Filter by article source"
-            >
-              <option value="">All articles</option>
-              {articleOptions.map(([id, title]) => (
-                <option key={id} value={id}>{title}</option>
-              ))}
-            </select>
+            <Field label="Article source">
+              <Select
+                id="article-filter"
+                value={articleId}
+                onChange={(e) => handleArticleFilter(e.target.value)}
+                aria-label="Filter by article source"
+              >
+                <option value="">All articles</option>
+                {articleOptions.map(([id, title]) => (
+                  <option key={id} value={id}>{title}</option>
+                ))}
+              </Select>
+            </Field>
           </div>
         )}
       </div>
 
       {/* Toolbar */}
-      <div className="flex items-center gap-[var(--space-3)] flex-wrap">
+      <Toolbar justify="start">
         <p className="text-[length:var(--text-sm)] text-text-muted m-0" aria-live="polite">
           {isPending ? "Loading…" : `${data.total} ${data.total === 1 ? "word" : "words"}`}
         </p>
@@ -259,7 +260,7 @@ export default function VocabularyJournal({
             )}
           </>
         )}
-      </div>
+      </Toolbar>
 
       {error ? <PanelError message={error} /> : null}
 
@@ -279,11 +280,11 @@ export default function VocabularyJournal({
           }
         />
       ) : (
-        <div className="overflow-x-auto">
+        <TableSurface>
           <table className="admin-table w-full table-auto">
             <thead>
               <tr>
-                <th style={{ width: 40 }}>
+                <th className="w-[var(--space-10)]">
                   <span className="sr-only">Select</span>
                 </th>
                 <th>Word</th>
@@ -309,7 +310,7 @@ export default function VocabularyJournal({
               ))}
             </tbody>
           </table>
-        </div>
+        </TableSurface>
       )}
 
       <JournalPagination

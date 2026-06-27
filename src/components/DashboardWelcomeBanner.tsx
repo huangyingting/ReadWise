@@ -3,7 +3,8 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton, buttonVariants } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 const WELCOME_SEEN_KEY = STORAGE_KEYS.WELCOME_SEEN;
@@ -50,7 +51,7 @@ export default function DashboardWelcomeBanner() {
       aria-label="Welcome to ReadWise"
     >
       <span
-        className="shrink-0 text-[1.5rem] leading-none"
+        className="shrink-0 text-[length:var(--text-2xl)] leading-none"
         aria-hidden="true"
       >
         🎉
@@ -66,34 +67,21 @@ export default function DashboardWelcomeBanner() {
           <Link
             href="/browse"
             onClick={dismiss}
-            className={cn(
-              "inline-flex items-center gap-[var(--space-1)]",
-              "px-[var(--space-3)] py-[var(--space-2)]",
-              "bg-primary text-on-primary rounded-[var(--radius-md)]",
-              "text-[length:var(--text-sm)] font-semibold no-underline",
-              "transition-colors [transition-duration:var(--duration-fast)]",
-              "hover:bg-primary-hover",
-              focusRing,
-            )}
+            className={buttonVariants({ variant: "primary", size: "sm" })}
           >
             <Sparkles size={14} aria-hidden />
             Start your first article →
           </Link>
         </div>
       </div>
-      <button
-        type="button"
+      <IconButton
+        size="md"
         aria-label="Dismiss welcome banner"
         onClick={dismiss}
-        className={cn(
-          "shrink-0 inline-flex items-center justify-center",
-          "w-8 h-8 rounded-[var(--radius-md)]",
-          "text-text-muted hover:bg-bg-subtle hover:text-text",
-          focusRing,
-        )}
+        className="h-8 w-8 rounded-[var(--radius-md)] text-text-muted hover:text-text"
       >
         <X size={16} aria-hidden />
-      </button>
+      </IconButton>
     </div>
   );
 }
