@@ -10,6 +10,7 @@ import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { quizAttemptBody } from "@/lib/reader/schemas";
+import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/completion";
 
 /**
  * POST /api/reader/[id]/quiz/attempt
@@ -87,6 +88,15 @@ export const POST = createHandler(
         totalQuestions: result.attempt.totalQuestions,
       },
     });
+
+    // Best-effort: a quiz attempt on today's primary article completes the
+    // Today comprehension step. Never breaks the attempt write.
+    await bestEffortMastery("quiz.today_comprehension", () =>
+      markTodayComprehensionComplete({
+        userId: session.user.id,
+        articleId: article.id,
+      }),
+    );
 
     return NextResponse.json(result);
   },

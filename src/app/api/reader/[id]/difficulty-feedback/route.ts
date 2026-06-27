@@ -6,6 +6,7 @@ import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { difficultyFeedbackBody, type VoteValue } from "@/lib/reader/schemas";
 import { submitDifficultyVote } from "@/lib/reader/commands";
+import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/completion";
 
 /**
  * POST /api/reader/[id]/difficulty-feedback
@@ -30,6 +31,15 @@ export const POST = createHandler(
     // Best-effort: difficulty feedback influences article mastery.
     await bestEffortMastery("difficulty.article_mastery", () =>
       updateArticleMastery(session.user.id, params.id),
+    );
+
+    // Best-effort: difficulty feedback on today's primary article completes the
+    // Today comprehension step. Never breaks the feedback write.
+    await bestEffortMastery("difficulty.today_comprehension", () =>
+      markTodayComprehensionComplete({
+        userId: session.user.id,
+        articleId: params.id,
+      }),
     );
 
     return NextResponse.json(result);

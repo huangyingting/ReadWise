@@ -153,6 +153,69 @@ query requests **id and ranking columns only** (`id`, `articleId`, `dueAt`,
 handled gracefully — ids that no longer resolve are simply revalidated away at
 read/completion time.
 
+## Completion tiers & integration
+
+Today wires **existing** learning facts into step completion — it is **not** the
+source of truth for those facts. The pure tier engine and the marker commands
+live in `today-session/completion.ts`; the public functions are re-exported from
+the barrel.
+
+### Tiers (best-available)
+
+`completionTier` is a controlled string (`none` | `reading` | `comprehension` |
+`full`). The tier is computed from which step timestamps are set, with
+"best-available" semantics so a day completes at the best tier it can actually
+reach:
+
+| Reading | Comprehension | Word review | Has target words | `completionTier` | Session `status` |
+| --- | --- | --- | --- | --- | --- |
+| ✗ | – | – | – | `none` | `active` |
+| ✓ | ✗ | – | – | `reading` | `active` |
+| ✓ | ✓ | ✗ | yes | `comprehension` | `active` (review still pending) |
+| ✓ | ✓ | ✓ | yes | `full` | `completed` |
+| ✓ | ✓ | – | **no** | `comprehension` | `completed` (best available) |
+
+- `reading` requires `readingCompletedAt`.
+- `comprehension` (the "standard" tier) requires reading **plus**
+  `comprehensionCompletedAt`.
+- `full` requires comprehension **plus** `wordReviewCompletedAt`, and only
+  applies when the session has resolvable target words.
+- When **no** (resolvable) target words exist, `comprehension` is the best
+  available tier and completes the session on its own.
+- `completedAt` is set once the best-available tier is reached. Transitions are
+  **monotonic** — a recompute never downgrades the tier and never clears
+  `completedAt`; a `skipped` session is left untouched (skip is a separate
+  lifecycle, kept apart from general activity streaks).
+
+### Completion sources (idempotent, defensively hooked)
+
+Each marker resolves the learner's **current** Today session for their local day
+and re-runs the tier engine; all are **idempotent** (an earlier completion
+timestamp is never overwritten) and **no-op** when no active session exists or
+the action targets a non-primary article, so they never throw into the existing
+record path that calls them.
+
+- **Reading** (`markTodayReadingComplete`, `syncTodayReadingFromProgress`,
+  `markTodayReadingCompleteManual`). Auto-completes when the **primary** article
+  reaches `ReadingProgress.completed` or `percent >= 95`; hooked from the reader
+  progress route (covers offline progress sync after the fact). A manual,
+  Today-only fallback (`POST /api/today/read-complete`) marks the day's primary
+  read **without** reading or mutating `ReadingProgress`. Only the current
+  primary article can complete the reading step.
+- **Comprehension** (`markTodayComprehensionComplete`). Completes from an
+  existing quiz attempt **or** a difficulty-feedback vote on the primary
+  article; hooked from both routes. Actions on non-primary articles are no-ops.
+- **Word review** (`markTodayWordReviewComplete`). Recomputed after a flashcard
+  grade; completes when enough target saved words have `lastReviewedAt >=`
+  the session's `createdAt` (all targets when ≤ 3 resolvable exist, otherwise at
+  least 5). Target words deleted since selection drop out of the lookup and are
+  skipped gracefully — the effective target count shrinks rather than crashing,
+  and an emptied target set falls back to the best-available `comprehension`
+  tier.
+
+Completion writes persist **ids / timestamps / flags only** — never article
+text, word text, definitions, examples, context sentences, prompts, or notes.
+
 ## Cascade & deletion behavior
 
 - **User deletion cascades.** `TodaySession.userId` is a real FK with
@@ -184,6 +247,7 @@ src/lib/engagement/today-session/
   repository.ts   — user-scoped get/create/update + view mapping (@server-only)
   target-words.ts — privacy-safe SavedWord id selection (@server-only)
   generator.ts    — getOrCreateTodaySession orchestration (@server-only)
+  completion.ts   — tier engine + completion markers (@server-only)
   index.ts        — stable public barrel
 ```
 
@@ -194,7 +258,8 @@ bundles.
 
 ## Non-goals (v1)
 
-- No UI routes yet.
-- No completion integration hooks yet.
-- No new lightweight comprehension model.
+- No bespoke Today UI surface yet (the only completion route is the manual
+  reading fallback `POST /api/today/read-complete`).
+- No new lightweight comprehension model — comprehension reuses existing quiz
+  attempts and difficulty feedback.
 - No AI generation.
