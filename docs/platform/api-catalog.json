@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T09:04:23.143Z",
-  "routeCount": 100,
-  "methodCount": 112,
+  "generatedAt": "2026-06-27T09:11:38.170Z",
+  "routeCount": 101,
+  "methodCount": 114,
   "routes": [
     {
       "path": "/api/account",
@@ -1500,6 +1500,63 @@
           "bodyFieldNames": [
             "role",
             "userId"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/placement",
+      "file": "src/app/api/placement/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "available"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleId",
+            "attempt",
+            "correctCount",
+            "lookupCount",
+            "seedLevel",
+            "skipped",
+            "totalCount"
+          ]
+        },
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "recommendedLevel",
+            "skipped"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "articleId",
+            "attempt",
+            "correctCount",
+            "lookupCount",
+            "seedLevel",
+            "skipped",
+            "totalCount"
           ]
         }
       ]

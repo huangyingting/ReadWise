@@ -106,6 +106,11 @@ before(() => {
         savedWord: {
           findMany: async () => [],
         },
+        placementResult: {
+          // #806: generator reads the placement level signal; default no row so
+          // existing generator behaviour is unchanged.
+          findUnique: async () => null,
+        },
       },
     },
   });

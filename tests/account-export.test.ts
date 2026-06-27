@@ -141,6 +141,16 @@ const stubExportUser = {
       updatedAt: NOW,
     },
   ],
+
+  // #806 — reading placement (controlled columns only)
+  placementResult: {
+    seedLevel: "B1",
+    recommendedLevel: "B2",
+    questionCount: 4,
+    correctCount: 4,
+    skipped: false,
+    completedAt: NOW,
+  },
 };
 
 // ---------------------------------------------------------------------------
@@ -359,6 +369,34 @@ test("exportUserData includes assignmentCompletions (711-E)", async () => {
   assert.equal(data!.assignmentCompletions[0].assignmentId, "assign-1");
   assert.equal(data!.assignmentCompletions[0].status, "COMPLETED");
   assert.equal(data!.assignmentCompletions[0].quizScore, 95);
+});
+
+test("exportUserData includes PlacementResult controlled fields (#806)", async () => {
+  const { exportUserData } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const data = await exportUserData("user-1");
+  assert.ok(data);
+  assert.ok("placementResult" in data!, "placementResult key must exist in export");
+  const placement = data!.placementResult as Record<string, unknown>;
+  assert.equal(placement.seedLevel, "B1");
+  assert.equal(placement.recommendedLevel, "B2");
+  assert.equal(placement.questionCount, 4);
+  assert.equal(placement.correctCount, 4);
+  assert.equal(placement.skipped, false);
+  // Privacy: no passage/question/answer text or lookup words are ever exported.
+  for (const banned of [
+    "passageText",
+    "questionText",
+    "answers",
+    "options",
+    "lookups",
+    "lookupWords",
+    "definitions",
+    "content",
+  ]) {
+    assert.ok(!(banned in placement), `export must not contain '${banned}'`);
+  }
 });
 
 // ---------------------------------------------------------------------------

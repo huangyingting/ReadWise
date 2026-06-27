@@ -19,6 +19,8 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations/picks";
+import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
+import type { DifficultyLevel } from "@/lib/difficulty";
 import {
   createTodaySession,
   getTodaySession,
@@ -86,14 +88,38 @@ async function findResumeArticleId(
 }
 
 /**
+ * Resolve the cold-start placement level signal (#806). Returns the learner's
+ * `PlacementResult.recommendedLevel` when a row exists (and is a valid CEFR
+ * level), otherwise `null`. When null, the Picks pipeline keeps its existing
+ * adaptive/`Profile.englishLevel` level signal — so Today's behaviour is
+ * unchanged for any learner without a placement row.
+ */
+async function resolvePlacementLevel(
+  userId: string,
+): Promise<DifficultyLevel | null> {
+  const row = await prisma.placementResult.findUnique({
+    where: { userId },
+    select: { recommendedLevel: true },
+  });
+  if (row && isDifficultyLevel(row.recommendedLevel)) {
+    return row.recommendedLevel;
+  }
+  return null;
+}
+
+/**
  * Fetch ranked Picks article ids for the user, excluding any ids in `exclude`
  * (e.g. the current/primary article) so backups never duplicate the primary.
  */
 async function fetchPickIds(
   userId: string,
   exclude: Set<string>,
+  placementLevel: DifficultyLevel | null,
 ): Promise<string[]> {
-  const page = await listScoredPicksPage(userId, { limit: PICKS_FETCH_LIMIT });
+  const page = await listScoredPicksPage(userId, {
+    limit: PICKS_FETCH_LIMIT,
+    placementLevel,
+  });
   return page.articles.map((a) => a.id).filter((id) => !exclude.has(id));
 }
 
@@ -108,6 +134,7 @@ export async function buildTodayPlan(args: {
 }): Promise<TodaySessionPlan> {
   const { userId, now } = args;
 
+  const placementLevel = await resolvePlacementLevel(userId);
   const resumeArticleId = await findResumeArticleId(userId, now);
 
   let primaryArticleId: string | null;
@@ -118,12 +145,12 @@ export async function buildTodayPlan(args: {
   if (resumeArticleId) {
     primaryArticleId = resumeArticleId;
     backupArticleIds = (
-      await fetchPickIds(userId, new Set([resumeArticleId]))
+      await fetchPickIds(userId, new Set([resumeArticleId]), placementLevel)
     ).slice(0, BACKUP_ARTICLE_COUNT);
     source = "resume";
     generationReasonCode = "resume_in_progress";
   } else {
-    const pickIds = await fetchPickIds(userId, new Set());
+    const pickIds = await fetchPickIds(userId, new Set(), placementLevel);
     if (pickIds.length > 0) {
       primaryArticleId = pickIds[0];
       backupArticleIds = pickIds.slice(1, 1 + BACKUP_ARTICLE_COUNT);
