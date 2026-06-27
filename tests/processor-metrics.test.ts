@@ -47,7 +47,7 @@ before(() => {
       getOrCreateArticleQuiz: async () => ({ questions: [{ question: "Q" }], fallback: false }),
     },
   });
-  mock.module("@/lib/article-library", {
+  mock.module("@/lib/article-library/collections/tags", {
     namedExports: {
       getOrCreateArticleTags: async () => ({
         tags: [{ id: "t1", name: "Metrics", slug: "metrics", scope: TagScope.PUBLIC }],

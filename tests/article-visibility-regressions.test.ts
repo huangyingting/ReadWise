@@ -82,9 +82,9 @@ beforeEach(() => {
 });
 
 test("getViewableArticleById scopes readers to public published or self-owned articles", async () => {
-  const { getViewableArticleById } = await import("@/lib/article-library");
+  const { getReadableArticleById } = await import("@/lib/article-library/policy");
 
-  const owned = await getViewableArticleById("owner-private", "Reader", "user-1");
+  const owned = await getReadableArticleById("owner-private", { role: "Reader", userId: "user-1" });
   assert.equal(owned?.id, "owner-private");
   assert.deepEqual(findFirstWhere, {
     id: "owner-private",
@@ -94,14 +94,14 @@ test("getViewableArticleById scopes readers to public published or self-owned ar
     ],
   });
 
-  const foreign = await getViewableArticleById("foreign-private", "Reader", "user-1");
+  const foreign = await getReadableArticleById("foreign-private", { role: "Reader", userId: "user-1" });
   assert.equal(foreign, null);
 });
 
 test("getViewableArticleById hides private and draft articles from anonymous users", async () => {
-  const { getViewableArticleById } = await import("@/lib/article-library");
+  const { getReadableArticleById } = await import("@/lib/article-library/policy");
 
-  assert.equal(await getViewableArticleById("foreign-private"), null);
+  assert.equal(await getReadableArticleById("foreign-private"), null);
   assert.deepEqual(findFirstWhere, {
     id: "foreign-private",
     visibility: ArticleVisibility.PUBLIC,
@@ -109,13 +109,13 @@ test("getViewableArticleById hides private and draft articles from anonymous use
     ownerId: null,
   });
 
-  assert.equal(await getViewableArticleById("public-draft"), null);
+  assert.equal(await getReadableArticleById("public-draft"), null);
 });
 
 test("getViewableArticleById excludes owner-linked public articles from public library access", async () => {
-  const { getViewableArticleById } = await import("@/lib/article-library");
+  const { getReadableArticleById } = await import("@/lib/article-library/policy");
 
-  assert.equal(await getViewableArticleById("owned-public", "Reader", "user-1"), null);
+  assert.equal(await getReadableArticleById("owned-public", { role: "Reader", userId: "user-1" }), null);
   assert.deepEqual(findFirstWhere, {
     id: "owned-public",
     OR: [
@@ -126,12 +126,12 @@ test("getViewableArticleById excludes owner-linked public articles from public l
 });
 
 test("getViewableArticleById lets admins resolve private and draft article ids", async () => {
-  const { getViewableArticleById } = await import("@/lib/article-library");
+  const { getReadableArticleById } = await import("@/lib/article-library/policy");
 
-  const privateArticle = await getViewableArticleById("foreign-private", "Admin", "admin-1");
+  const privateArticle = await getReadableArticleById("foreign-private", { role: "Admin", userId: "admin-1" });
   assert.equal(privateArticle?.id, "foreign-private");
   assert.deepEqual(findFirstWhere, { id: "foreign-private" });
 
-  const draft = await getViewableArticleById("public-draft", "Admin", "admin-1");
+  const draft = await getReadableArticleById("public-draft", { role: "Admin", userId: "admin-1" });
   assert.equal(draft?.id, "public-draft");
 });

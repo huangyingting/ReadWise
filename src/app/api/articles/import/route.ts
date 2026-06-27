@@ -2,11 +2,9 @@ export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
-import {
-  listPersonalArticlesPage,
-  toListingArticle,
-  buildArticleListResponse,
-} from "@/lib/article-library";
+import { listPersonalArticlesPage } from "@/lib/article-library/listings";
+import { toListingArticle } from "@/lib/article-library/mapper";
+import { buildArticleListResponse } from "@/lib/article-library/listing-response";
 import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
 import { importBody, parseListQuery } from "@/lib/import/schemas";
 

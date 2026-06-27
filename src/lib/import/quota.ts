@@ -1,6 +1,6 @@
 import { ApiError } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
-import { ownedArticleWhere } from "@/lib/article-library";
+import { ownedArticleWhere } from "@/lib/article-library/policy";
 
 /** Max personal imports per user per calendar day. */
 export const DAILY_IMPORT_LIMIT = 5;

@@ -171,6 +171,15 @@ before(() => {
   mock.module("@/lib/difficulty", {
     namedExports: {
       heuristicDifficulty: () => ({ level: "B1", score: 50 }),
+      ensureArticleDifficulties: async () => {},
+    },
+  });
+
+  mock.module("@/lib/article-library/listings", {
+    namedExports: {
+      listPersonalArticlesPage: async () => ({ articles: [], hasMore: false }),
+      IMPORTS_PAGE_SIZE: 20,
+      IMPORTS_MAX_LIMIT: 50,
     },
   });
 

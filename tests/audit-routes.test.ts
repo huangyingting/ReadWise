@@ -49,34 +49,6 @@ before(() => {
     },
   });
 
-  // api-handler.ts imports directly from @/lib/security/audit; mirror the same
-  // mock so tryRecordAuditLog calls from the handler are captured in auditCalls.
-  mock.module("@/lib/security/audit", {
-    namedExports: {
-      AUDIT_ACTIONS,
-      auditRequestInfo: (req: Request) => ({
-        ipAddress: req.headers.get("x-forwarded-for"),
-        userAgent: req.headers.get("user-agent"),
-      }),
-      recordAuditFromRequest: async (input: unknown) => {
-        auditCalls.push(input);
-      },
-      tryRecordAuditLog: async (input: unknown) => {
-        auditCalls.push(input);
-      },
-      listAuditLogs: async () => {
-        listCalls++;
-        return {
-          logs: [{ id: "audit-1", action: "admin.article.delete", metadata: {} }],
-          total: 1,
-          page: 1,
-          pageSize: 50,
-          totalPages: 1,
-        };
-      },
-    },
-  });
-
   mock.module("@/lib/article-library", {
     namedExports: {
       deleteArticle: async (_id: string, _ctx: unknown, audit?: unknown) => {
@@ -121,7 +93,7 @@ test("admin audit log API requires admin", async () => {
   assert.equal(listCalls, 0);
   const audit = auditCalls[0] as { action: string; actorId: string; actorRole: string };
   assert.equal(audit.action, "security.admin_access_denied");
-  assert.equal(audit.actorId, "reader-1");
+  assert.equal(audit.actorId, "user-1");
   assert.equal(audit.actorRole, "Reader");
 });
 

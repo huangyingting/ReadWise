@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { saveProgress } from "@/lib/engagement";
+import { saveProgress } from "@/lib/engagement/progress";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { recordSkillEvidence } from "@/lib/learning/skill-mastery";

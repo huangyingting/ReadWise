@@ -9,7 +9,7 @@ import { heuristicDifficulty } from "@/lib/difficulty";
 import {
   findOwnedArticleBySourceUrl,
   privateImportedArticleCreateFields,
-} from "@/lib/article-library";
+} from "@/lib/article-library/policy";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES, type SecurityEventInput } from "@/lib/security/events";
 import { clientIp } from "@/lib/security/client-ip";
