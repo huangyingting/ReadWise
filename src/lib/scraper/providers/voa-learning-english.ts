@@ -15,6 +15,7 @@ const voaLearningEnglish: Provider = {
   // VOA Learning English article paths: /a/<slug>.html
   articleUrlPattern: /\/a\/[a-z0-9-]+\.html/i,
   defaultCategory: "world",
+  categories: ["world", "health", "science"],
   categoryFor: (url, section) => {
     const path = url.pathname.toLowerCase();
     if (/science|tech/.test(path)) return "science";

@@ -17,6 +17,7 @@ const nbc: Provider = {
   articleUrlFilter: (url) =>
     excludes(url, ["/live-blog/", "/video/", "/nbc-news-now-live-audio", "select/shopping"]),
   defaultCategory: "world",
+  categories: ["world", "politics", "business", "health", "science", "tech"],
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe", "aside"],

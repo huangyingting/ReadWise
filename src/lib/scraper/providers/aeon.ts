@@ -26,17 +26,19 @@ const aeon: Provider = {
       "/community-guidelines",
       "?utm_source",
     ]),
-  defaultCategory: "culture",
+  defaultCategory: "ideas",
+  categories: ["ideas", "science", "culture", "politics"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
       section,
       [
-        [/science|psychology/, "science"],
+        [/philosophy|idea|essay|consciousness|ethic/, "ideas"],
         [/society|politic|democracy/, "politics"],
-        [/philosophy|culture/, "culture"],
+        [/science|psychology/, "science"],
+        [/culture|art/, "culture"],
       ],
-      "culture",
+      "ideas",
     ),
   /**
    * Discovers essay URLs via Aeon's GraphQL API with cursor pagination.

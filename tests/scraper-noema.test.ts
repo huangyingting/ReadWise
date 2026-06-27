@@ -21,8 +21,8 @@ test("noema provider key is 'noema' and name is 'Noema Magazine'", () => {
   assert.equal(noema.name, "Noema Magazine");
 });
 
-test("noema defaultCategory is 'culture'", () => {
-  assert.equal(noema.defaultCategory, "culture");
+test("noema defaultCategory is 'ideas'", () => {
+  assert.equal(noema.defaultCategory, "ideas");
 });
 
 // ── Hostnames ─────────────────────────────────────────────────────────────────
@@ -194,14 +194,14 @@ test("noema categoryFor maps 'democracy' in pathname to 'politics'", () => {
   assert.equal(noema.categoryFor!(url, null), "politics");
 });
 
-test("noema categoryFor maps 'philosophy' in pathname to 'culture'", () => {
+test("noema categoryFor maps 'philosophy' in pathname to 'ideas'", () => {
   const url = new URL("https://www.noemamag.com/article-topic/philosophy-culture/");
-  assert.equal(noema.categoryFor!(url, null), "culture");
+  assert.equal(noema.categoryFor!(url, null), "ideas");
 });
 
-test("noema categoryFor falls back to 'culture' for an unrecognized slug", () => {
-  const url = new URL("https://www.noemamag.com/random-unknown-article");
-  assert.equal(noema.categoryFor!(url, null), "culture");
+test("noema categoryFor falls back to 'ideas' for an unrecognized slug", () => {
+  const url = new URL("https://www.noemamag.com/random-unknown-piece");
+  assert.equal(noema.categoryFor!(url, null), "ideas");
 });
 
 test("noema categoryFor prefers section metadata over URL pathname for category mapping", () => {

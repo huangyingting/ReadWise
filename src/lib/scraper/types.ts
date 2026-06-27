@@ -55,6 +55,11 @@ export type Provider = {
   /** Fallback category slug when one can't be inferred. */
   defaultCategory: string | null;
   /**
+   * Category slugs this provider commonly produces; used for category-aware
+   * crawling/recommendations. Must be valid CATEGORY_SLUGS.
+   */
+  categories?: string[];
+  /**
    * Optional provider-specific category resolver. Receives the article URL and
    * any section string found in metadata; returns one of our category slugs.
    */

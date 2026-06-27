@@ -30,7 +30,8 @@ const noema: Provider = {
       "/wp-",
       "/articles-search",
     ]),
-  defaultCategory: "culture",
+  defaultCategory: "ideas",
+  categories: ["ideas", "politics", "culture", "tech", "science"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
@@ -38,11 +39,12 @@ const noema: Provider = {
       [
         [/technology|digital|human/, "tech"],
         [/capitalism|business|econom/, "business"],
-        [/climate|science/, "science"],
+        [/climate|environment|science/, "science"],
+        [/philosophy|idea|essay|consciousness/, "ideas"],
         [/geopolitics|globalization|democracy|politic/, "politics"],
-        [/philosophy|culture/, "culture"],
+        [/culture/, "culture"],
       ],
-      "culture",
+      "ideas",
     ),
 };
 
