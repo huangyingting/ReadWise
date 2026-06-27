@@ -242,6 +242,40 @@ test("novelty effect: an unread article outranks an otherwise-identical complete
   assert.ok(fresh.score > seen.score);
 });
 
+test("goalPath nudge: a path-fitting article outscores it under a null path", async () => {
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const art = candidate({
+    id: "biz",
+    category: "business",
+    difficulty: "B2",
+    wordCount: 700,
+  });
+
+  const neutral = baseContext({ userLevel: "B2", userLevelRank: 3, goalPath: null });
+  const business = baseContext({ userLevel: "B2", userLevelRank: 3, goalPath: "business" });
+
+  // Same article + same level: the business path lifts the score.
+  assert.ok(scoreCandidate(art, business).score > scoreCandidate(art, neutral).score);
+  // A null path leaves scoring byte-for-byte unchanged from the default ctx.
+  assert.equal(
+    scoreCandidate(art, neutral).score,
+    scoreCandidate(art, baseContext({ userLevel: "B2", userLevelRank: 3 })).score,
+  );
+});
+
+test("goalPath nudge: a long, hard article is penalised for the extensive path", async () => {
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const longHard = candidate({
+    id: "tome",
+    category: "science",
+    difficulty: "C1",
+    wordCount: 3000,
+  });
+  const neutral = baseContext({ userLevel: "B1", userLevelRank: 2, goalPath: null });
+  const extensive = baseContext({ userLevel: "B1", userLevelRank: 2, goalPath: "extensive" });
+  assert.ok(scoreCandidate(longHard, extensive).score < scoreCandidate(longHard, neutral).score);
+});
+
 // ---------------------------------------------------------------------------
 // Diversity
 // ---------------------------------------------------------------------------

@@ -45,6 +45,7 @@ export default async function SettingsPage() {
             englishLevel: profile?.englishLevel ?? "",
             topics: parseTopics(profile?.topics),
             dailyGoal: profile?.dailyGoal ?? DAILY_GOAL_DEFAULT,
+            goalPath: profile?.goalPath ?? "",
           }}
         />
 

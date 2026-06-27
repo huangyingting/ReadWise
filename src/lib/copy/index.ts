@@ -23,3 +23,4 @@
 export * as site from "./site";
 export * as pages from "./pages";
 export * as push from "./push";
+export * as goalPath from "./goal-path";

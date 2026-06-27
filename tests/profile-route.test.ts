@@ -116,3 +116,37 @@ test("PUT /api/profile preserves other fields alongside dailyGoal", async () => 
   assert.deepEqual(update.topics, ["tech"]);
   assert.equal(update.dailyGoal, 3);
 });
+
+// ---- goalPath persistence (#809) ----------------------------------------
+
+test("PUT /api/profile persists a valid goalPath", async () => {
+  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const res = await PUT(putReq({ ...baseProfile, goalPath: "business" }));
+  assert.equal(res.status, 200);
+  assert.equal(lastUpsertArgs?.update?.goalPath, "business");
+  assert.equal(lastUpsertArgs?.create?.goalPath, "business");
+});
+
+test("PUT /api/profile clears goalPath when null", async () => {
+  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const res = await PUT(putReq({ ...baseProfile, goalPath: null }));
+  assert.equal(res.status, 200);
+  assert.equal(lastUpsertArgs?.update?.goalPath, null);
+});
+
+test("PUT /api/profile rejects an invalid goalPath with 400", async () => {
+  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const res = await PUT(putReq({ ...baseProfile, goalPath: "casual" }));
+  assert.equal(res.status, 400);
+});
+
+test("PUT /api/profile omits goalPath from upsert when not provided", async () => {
+  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const res = await PUT(putReq(baseProfile));
+  assert.equal(res.status, 200);
+  // goalPath must NOT be present so we don't overwrite an existing value
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(lastUpsertArgs?.update ?? {}, "goalPath"),
+    false,
+  );
+});

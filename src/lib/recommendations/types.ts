@@ -8,6 +8,7 @@
 import type { ArticleCardSource } from "@/lib/article-library";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import type { Skill } from "@/lib/learning/types";
+import type { GoalPath } from "@/lib/learning/goal-path";
 
 // ---------------------------------------------------------------------------
 // Candidate and score types
@@ -81,6 +82,13 @@ export type RecommendationContext = {
    * learner has no weak words, so the signal degrades to a no-op.
    */
   weakWordArticleIds: Map<string, number>;
+  /**
+   * Goal Paths (#809). The learner's controlled goal-path string, or `null`
+   * when unset. When set, the scoring layer applies a soft, capped per-path
+   * nudge AFTER the core score (content-starvation guarded). `null` leaves
+   * existing level-only behaviour completely unchanged.
+   */
+  goalPath: GoalPath | null;
   now: Date;
 };
 

@@ -13,6 +13,7 @@ import { getProfile } from "@/lib/profile";
 import { parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { getSkillProfile } from "@/lib/learning/skill-mastery";
+import { isGoalPath } from "@/lib/learning/goal-path";
 import { parseStringArray } from "@/lib/learning/primitives";
 import type { RecommendationContext } from "./types";
 import { WEAK_WORD_FAMILIARITY_MAX } from "./types";
@@ -134,6 +135,9 @@ export async function buildRecommendationContext(
       knownCount: vocabAgg._count._all ?? 0,
     },
     weakWordArticleIds,
+    // Goal Paths (#809): the learner's controlled goal-path string (or null).
+    // Only the explicitly-selected enum is read — never inferred from history.
+    goalPath: isGoalPath(profile?.goalPath) ? profile.goalPath : null,
     now,
   };
 }

@@ -54,6 +54,7 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
           englishLevel: true,
           topics: true,
           dailyGoal: true,
+          goalPath: true,
           completedAt: true,
           createdAt: true,
           updatedAt: true,

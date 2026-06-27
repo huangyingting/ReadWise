@@ -26,6 +26,7 @@ import type {
 } from "./types";
 import { COMPONENT_WEIGHTS, WEAK_WORD_REEXPOSURE_MAX_POINTS, WEAK_WORD_REEXPOSURE_TARGET } from "./types";
 import type { WeakWordReexposure } from "./types";
+import { applyGoalPathAdjustment } from "@/lib/learning/goal-path";
 import { headlineReason, buildExplanationLines } from "./explanations";
 
 // ---------------------------------------------------------------------------
@@ -209,7 +210,16 @@ export function scoreCandidate(
   for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
     weighted += components[key] * COMPONENT_WEIGHTS[key];
   }
-  const componentScore = weighted * 100; // 0–100
+
+  // Goal Paths (#809): a soft, capped per-path nudge applied AFTER the core
+  // seven-component score, on the normalised 0–1 scale (cap ±0.2). Pure and
+  // deterministic (article metadata + controlled path only — no AI). A null
+  // `ctx.goalPath` — including when the content-starvation guard relaxed it —
+  // leaves the score completely unchanged.
+  const adjusted = ctx.goalPath
+    ? applyGoalPathAdjustment(weighted, candidate, ctx.goalPath)
+    : weighted;
+  const componentScore = adjusted * 100; // 0–100
 
   // Soft, capped weak-word re-exposure booster (#808): a deterministic nudge —
   // never a hard filter — folded into the base score before diversity ranking.

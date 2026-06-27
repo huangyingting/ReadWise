@@ -28,6 +28,7 @@ import { buildTagMap } from "@/lib/discovery-ranking";
 import { scoreCandidate } from "./scoring";
 import { rankWithDiversity } from "./diversity";
 import { buildRecommendationContext } from "./context";
+import { resolveEffectiveGoalPath } from "@/lib/learning/goal-path";
 import type { RecommendationCandidate, ScoredRecommendation } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -124,7 +125,13 @@ export async function scoreAndRankArticles(
     now,
     { placementLevel: opts.placementLevel ?? null },
   );
-  const scored = candidates.map((c) => scoreCandidate(c, ctx));
+  // Content-starvation guard (#809): only keep the path tuning if at least two
+  // candidates fit it; otherwise relax to standard scoring so the feed is never
+  // starved. A null goalPath passes straight through (existing behaviour).
+  const effectiveGoalPath = resolveEffectiveGoalPath(candidates, ctx.goalPath);
+  const scoringCtx =
+    effectiveGoalPath === ctx.goalPath ? ctx : { ...ctx, goalPath: effectiveGoalPath };
+  const scored = candidates.map((c) => scoreCandidate(c, scoringCtx));
   return rankWithDiversity(scored);
 }
 
