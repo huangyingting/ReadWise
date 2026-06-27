@@ -52,3 +52,39 @@ export function scraperHtmlNormalize(): boolean {
 export function scraperReadability(): boolean {
   return process.env.SCRAPER_READABILITY !== "false";
 }
+
+/**
+ * Whether the browser-profile retry stage of the multi-strategy fetch fallback
+ * chain is enabled (`SCRAPER_FETCH_PROFILE_RETRY`, default ON).
+ *
+ * When ON, a bot-challenged origin (401/403/429/451/503) is retried with a
+ * rotation of realistic browser/bot User-Agent + header profiles before falling
+ * back to the reader/Wayback stages. Set to `false` to do only the single
+ * origin attempt.
+ */
+export function scraperFetchProfileRetry(): boolean {
+  return process.env.SCRAPER_FETCH_PROFILE_RETRY !== "false";
+}
+
+/**
+ * Whether the r.jina.ai reader-proxy fallback is enabled
+ * (`SCRAPER_FETCH_READER`, default ON).
+ *
+ * When a page stays bot-challenged after profile retries, the reader proxy
+ * (`https://r.jina.ai/<url>`) is tried with `X-Return-Format: html` (and a
+ * `Bearer` token when `JINA_API_KEY` is set). Set to `false` to skip it.
+ */
+export function scraperFetchReader(): boolean {
+  return process.env.SCRAPER_FETCH_READER !== "false";
+}
+
+/**
+ * Whether the Wayback Machine snapshot fallback is enabled
+ * (`SCRAPER_FETCH_WAYBACK`, default ON).
+ *
+ * Last-resort fallback that fetches the original (toolbar-free) archived HTML
+ * via `https://web.archive.org/web/<YYYY>id_/<url>`. Set to `false` to skip it.
+ */
+export function scraperFetchWayback(): boolean {
+  return process.env.SCRAPER_FETCH_WAYBACK !== "false";
+}
