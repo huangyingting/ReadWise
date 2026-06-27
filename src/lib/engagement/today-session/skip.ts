@@ -28,6 +28,7 @@ import { getOrCreateTodaySession } from "./generator";
 import { updateTodaySession } from "./repository";
 import { resolveLocalDate } from "./local-date";
 import { assertControlledValue, TODAY_SKIP_REASONS } from "./types";
+import { emitTodaySkip } from "./analytics";
 import type { TodaySkipReason, TodaySessionView } from "./types";
 
 /** Maximum number of skips allowed for a single local day. */
@@ -114,6 +115,13 @@ export async function skipTodaySession(args: {
   // `updateMany` matched the owning row (we just created/loaded it); fall back
   // to the loaded view defensively if a concurrent delete raced us.
   const result = updated ?? session;
+
+  // Product analytics (#802): record the skip transition with its controlled
+  // reason code. Best-effort + metadata only — fires only when THIS call
+  // actually skipped the day (never on the idempotent limit-reached no-op).
+  if (updated != null) {
+    await emitTodaySkip(result, { limitReached: false, browseFallback: true });
+  }
 
   return {
     session: result,

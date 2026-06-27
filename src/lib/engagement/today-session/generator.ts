@@ -25,6 +25,10 @@ import {
 } from "./repository";
 import { resolveLocalDate } from "./local-date";
 import { selectTargetWordIds } from "./target-words";
+import {
+  emitTodaySessionGenerated,
+  emitTodayNoCandidate,
+} from "./analytics";
 import type { TodaySessionPlan, TodaySessionView } from "./types";
 
 // ---------------------------------------------------------------------------
@@ -184,12 +188,21 @@ export async function getOrCreateTodaySession(args: {
   const plan = await buildTodayPlan({ userId, now });
 
   try {
-    return await createTodaySession({
+    const created = await createTodaySession({
       userId,
       localDate,
       timezoneSnapshot,
       plan,
     });
+    // Product analytics (#802): a fresh daily plan was generated. Best-effort +
+    // metadata only (source/reasonCode/counts) — fires once per local day on
+    // first creation, never on the idempotent re-read above. A no-candidate day
+    // additionally records the browse/import prompt branch.
+    await emitTodaySessionGenerated(created);
+    if (created.generationReasonCode === "no_candidate") {
+      await emitTodayNoCandidate(created);
+    }
+    return created;
   } catch (err) {
     // A concurrent first-load won the unique race — re-read its winning row.
     if (isUniqueConstraintError(err)) {

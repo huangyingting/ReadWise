@@ -26,6 +26,18 @@ export const ANALYTICS_EVENT_TYPES = {
   offlineSave: "offline_save",
   import: "import",
   studyReview: "study_review",
+  // Today Session funnel (#802). Metadata-only lifecycle moments for the daily
+  // reading task: generation, view, no-candidate, each step completion, the
+  // whole-session completion (with tier), and a controlled-reason skip. Payloads
+  // carry ids/enums/counts ONLY — never article/word content.
+  todaySessionGenerated: "today_session_generated",
+  todaySessionViewed: "today_session_viewed",
+  todayNoCandidate: "today_no_candidate",
+  todayReadingComplete: "today_reading_complete",
+  todayComprehensionComplete: "today_comprehension_complete",
+  todayWordReviewComplete: "today_word_review_complete",
+  todaySessionComplete: "today_session_complete",
+  todaySkip: "today_skip",
 } as const;
 
 /** Union of all canonical event type string literals. */

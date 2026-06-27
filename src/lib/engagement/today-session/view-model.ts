@@ -22,6 +22,7 @@ import {
 } from "@/lib/article-library";
 import { getOrCreateTodaySession } from "./generator";
 import { resolveLocalDate } from "./local-date";
+import { emitTodaySessionViewed } from "./analytics";
 import type {
   TodayCompletionTier,
   TodaySessionSource,
@@ -257,6 +258,11 @@ export async function loadTodayViewModel(args: {
     timezoneSnapshot: timezone,
     now,
   });
+
+  // Product analytics (#802): record a Today view (page render or summary
+  // fetch). Best-effort + metadata only (status/source/tier/flags) — never
+  // article or word content.
+  await emitTodaySessionViewed(session);
 
   const context = articleAccessContext({
     id: args.user.id,

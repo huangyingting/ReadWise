@@ -28,6 +28,13 @@ import {
 } from "./repository";
 import { resolveLocalDate } from "./local-date";
 import { TARGET_WORD_COUNT_MIN } from "./types";
+import {
+  emitTodayComprehensionComplete,
+  emitTodayReadingComplete,
+  emitTodaySessionComplete,
+  emitTodayWordReviewComplete,
+  type TodayReadingMethod,
+} from "./analytics";
 import type {
   TodayCompletionTier,
   TodaySessionStatus,
@@ -184,6 +191,7 @@ export async function recomputeTodayCompletion(
 
   let hasTargetWords = false;
   let reviewMet = false;
+  let effectiveTargetCount = 0;
   if (session.targetSavedWordIds.length > 0) {
     // ids + review timestamp ONLY — never word text or definitions.
     const rows = await prisma.savedWord.findMany({
@@ -191,6 +199,7 @@ export async function recomputeTodayCompletion(
       select: { id: true, lastReviewedAt: true },
     });
     const effectiveCount = rows.length; // deleted/inaccessible targets drop out
+    effectiveTargetCount = effectiveCount;
     hasTargetWords = effectiveCount > 0;
     if (effectiveCount > 0) {
       const windowStart = session.createdAt.getTime();
@@ -246,7 +255,25 @@ export async function recomputeTodayCompletion(
   }
 
   if (!changed) return session;
-  return updateTodaySession(userId, localDate, update);
+  const updated = await updateTodaySession(userId, localDate, update);
+
+  // Product analytics (#802): emit step/session completion the first time each
+  // milestone is reached. Best-effort + metadata only (tier/counts/flags). The
+  // word-review and whole-session transitions are detected here because they
+  // can fall out of ANY recompute (reading, comprehension, or review markers).
+  const view = updated ?? session;
+  const wordReviewFirstComplete =
+    session.wordReviewCompletedAt == null && nextWordReviewCompletedAt != null;
+  const sessionFirstComplete =
+    session.status !== "completed" && decision.status === "completed";
+  if (wordReviewFirstComplete) {
+    await emitTodayWordReviewComplete(view, effectiveTargetCount);
+  }
+  if (sessionFirstComplete) {
+    await emitTodaySessionComplete(view, hasTargetWords);
+  }
+
+  return updated;
 }
 
 // ---------------------------------------------------------------------------
@@ -280,10 +307,13 @@ export async function markTodayReadingComplete(
   if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
     return null;
   }
-  if (session.readingCompletedAt == null) {
+  const wasComplete = session.readingCompletedAt != null;
+  if (!wasComplete) {
     await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
   }
-  return recomputeTodayCompletion(args.userId, localDate, now);
+  const view = await recomputeTodayCompletion(args.userId, localDate, now);
+  if (!wasComplete && view) await emitTodayReadingComplete(view, "auto");
+  return view;
 }
 
 /**
@@ -305,10 +335,13 @@ export async function markTodayReadingCompleteManual(
   });
   const session = await getTodaySession(args.userId, localDate);
   if (!session || !session.primaryArticleId) return null;
-  if (session.readingCompletedAt == null) {
+  const wasComplete = session.readingCompletedAt != null;
+  if (!wasComplete) {
     await updateTodaySession(args.userId, localDate, { readingCompletedAt: now });
   }
-  return recomputeTodayCompletion(args.userId, localDate, now);
+  const view = await recomputeTodayCompletion(args.userId, localDate, now);
+  if (!wasComplete && view) await emitTodayReadingComplete(view, "manual");
+  return view;
 }
 export async function syncTodayReadingFromProgress(args: {
   userId: string;
@@ -348,12 +381,15 @@ export async function markTodayComprehensionComplete(
   if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
     return null;
   }
-  if (session.comprehensionCompletedAt == null) {
+  const wasComplete = session.comprehensionCompletedAt != null;
+  if (!wasComplete) {
     await updateTodaySession(args.userId, localDate, {
       comprehensionCompletedAt: now,
     });
   }
-  return recomputeTodayCompletion(args.userId, localDate, now);
+  const view = await recomputeTodayCompletion(args.userId, localDate, now);
+  if (!wasComplete && view) await emitTodayComprehensionComplete(view);
+  return view;
 }
 
 /**
