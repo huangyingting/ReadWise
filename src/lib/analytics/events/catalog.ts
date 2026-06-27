@@ -44,6 +44,10 @@ export const ANALYTICS_EVENT_TYPES = {
   todaySkip: "today_skip",
   todayArticleSelected: "today_article_selected",
   placementCompleted: "placement_completed",
+  // Goal Paths (#809). Emitted when a learner selects/changes their controlled
+  // reading goal path. Payload carries the controlled `goalPath` enum ONLY —
+  // never reading history, article content, or any inferred-goal rationale.
+  goalPathSelected: "goal_path_selected",
 } as const;
 
 /** Union of all canonical event type string literals. */

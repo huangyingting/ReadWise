@@ -246,3 +246,23 @@ test("buildRecommendationContext: invalid placementLevel falls back to adaptive/
 
   assert.strictEqual(ctx.userLevel, "B2");
 });
+
+test("buildRecommendationContext: loads a controlled goalPath from the profile", async () => {
+  const { buildRecommendationContext } = await import("@/lib/recommendations/context");
+
+  profileRow = { userId: "u6", englishLevel: "B1", topics: "[]", goalPath: "business" };
+  const ctx = await buildRecommendationContext("u6", []);
+  assert.strictEqual(ctx.goalPath, "business");
+});
+
+test("buildRecommendationContext: goalPath is null when unset or invalid", async () => {
+  const { buildRecommendationContext } = await import("@/lib/recommendations/context");
+
+  profileRow = { userId: "u7", englishLevel: "B1", topics: "[]", goalPath: "bogus" };
+  const invalid = await buildRecommendationContext("u7", []);
+  assert.strictEqual(invalid.goalPath, null);
+
+  profileRow = { userId: "u7", englishLevel: "B1", topics: "[]" };
+  const unset = await buildRecommendationContext("u7", []);
+  assert.strictEqual(unset.goalPath, null);
+});
