@@ -124,6 +124,25 @@ test("all providers have keys with valid category slugs as defaults", () => {
   }
 });
 
+test("every provider's categories[] entries are valid category slugs", () => {
+  for (const p of PROVIDERS) {
+    assert.ok(Array.isArray(p.categories), `Provider "${p.key}" must declare categories[]`);
+    assert.ok(p.categories!.length > 0, `Provider "${p.key}" categories[] must be non-empty`);
+    for (const slug of p.categories!) {
+      assert.ok(
+        CATEGORY_SLUGS.includes(slug),
+        `Provider "${p.key}" categories[] entry "${slug}" must be a valid slug`,
+      );
+    }
+  }
+});
+
+test("aeon/noema default to 'ideas' and smithsonian to 'history'", () => {
+  assert.equal(getProviderOrFail("aeon").defaultCategory, "ideas");
+  assert.equal(getProviderOrFail("noema").defaultCategory, "ideas");
+  assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
+});
+
 test("getProvider is case-insensitive", () => {
   assert.ok(getProvider("NBC"));
   assert.ok(getProvider("nbc"));
@@ -194,4 +213,24 @@ test("mapSectionToCategory handles learner-English topic strings", () => {
   assert.equal(mapSectionToCategory("technology"), "tech");
   assert.equal(mapSectionToCategory("entertainment"), "entertainment");
   assert.equal(mapSectionToCategory("unknown-topic"), null);
+});
+
+test("mapSectionToCategory routes granular sections to new categories", () => {
+  assert.equal(mapSectionToCategory("environment"), "environment");
+  assert.equal(mapSectionToCategory("climate"), "environment");
+  assert.equal(mapSectionToCategory("wildlife"), "environment");
+  assert.equal(mapSectionToCategory("history"), "history");
+  assert.equal(mapSectionToCategory("ancient"), "history");
+  assert.equal(mapSectionToCategory("travel"), "travel");
+  assert.equal(mapSectionToCategory("philosophy"), "ideas");
+  assert.equal(mapSectionToCategory("essay"), "ideas");
+});
+
+test("mapSectionToCategory regression: science/culture/entertainment buckets unchanged", () => {
+  assert.equal(mapSectionToCategory("space"), "science");
+  assert.equal(mapSectionToCategory("astronomy"), "science");
+  assert.equal(mapSectionToCategory("physics"), "science");
+  assert.equal(mapSectionToCategory("art"), "culture");
+  assert.equal(mapSectionToCategory("book"), "culture");
+  assert.equal(mapSectionToCategory("movie"), "entertainment");
 });

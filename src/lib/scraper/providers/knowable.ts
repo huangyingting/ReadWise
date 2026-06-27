@@ -16,13 +16,15 @@ const knowable: Provider = {
     /^https:\/\/(?:www\.)?knowablemagazine\.org\/(?:content\/)?article\/[a-z-]+\/\d{4}\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
   articleUrlFilter: (url) => excludes(url, ["/search", "/about", "/contact", "/subscribe"]),
   defaultCategory: "science",
+  categories: ["science", "environment", "health", "tech"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
       section,
       [
         [/technology|digital|computing/, "tech"],
-        [/living-world|physical-world|food-environment|science|environment/, "science"],
+        [/food-environment|environment|climate|sustainab|conservation|ecolog/, "environment"],
+        [/living-world|physical-world|science/, "science"],
         [/society|culture/, "culture"],
         [/health|medical/, "health"],
         [/business|econom/, "business"],

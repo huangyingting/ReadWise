@@ -9,9 +9,13 @@ export const CATEGORIES: readonly Category[] = [
   { slug: "business", label: "Business" },
   { slug: "health", label: "Health" },
   { slug: "science", label: "Science" },
+  { slug: "environment", label: "Environment" },
   { slug: "tech", label: "Tech" },
   { slug: "sports", label: "Sports" },
   { slug: "culture", label: "Culture" },
+  { slug: "history", label: "History" },
+  { slug: "travel", label: "Travel" },
+  { slug: "ideas", label: "Ideas" },
   { slug: "entertainment", label: "Entertainment" },
 ] as const;
 
@@ -24,9 +28,13 @@ export const CATEGORY_COLORS: Record<string, { from: string; to: string }> = {
   business:      { from: "#f59e0b", to: "#d97706" },
   health:        { from: "#10b981", to: "#059669" },
   science:       { from: "#6366f1", to: "#4338ca" },
+  environment:   { from: "#22c55e", to: "#15803d" },
   tech:          { from: "#8b5cf6", to: "#6d28d9" },
   sports:        { from: "#f97316", to: "#ea580c" },
   culture:       { from: "#ec4899", to: "#db2777" },
+  history:       { from: "#b45309", to: "#78350f" },
+  travel:        { from: "#06b6d4", to: "#0e7490" },
+  ideas:         { from: "#a855f7", to: "#7e22ce" },
   entertainment: { from: "#14b8a6", to: "#0d9488" },
 };
 

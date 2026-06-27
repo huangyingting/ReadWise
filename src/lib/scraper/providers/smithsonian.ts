@@ -26,16 +26,19 @@ const smithsonian: Provider = {
       "/privacy/",
       "/terms/",
     ]),
-  defaultCategory: "science",
+  defaultCategory: "history",
+  categories: ["history", "science", "culture", "travel"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
       section,
       [
+        [/history|heritage|archaeolog|ancient/, "history"],
+        [/travel|destination/, "travel"],
         [/science|nature|innovation/, "science"],
-        [/history|arts|culture|travel/, "culture"],
+        [/arts|culture/, "culture"],
       ],
-      "science",
+      "history",
     ),
 };
 

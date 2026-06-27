@@ -15,6 +15,7 @@ const huffpost: Provider = {
   articleUrlPattern: /\/entry\//i,
   articleUrlFilter: (url) => excludes(url, ["/video/", "/voices/", "/section/"]),
   defaultCategory: "world",
+  categories: ["politics", "business", "entertainment", "world", "tech", "health"],
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe"],

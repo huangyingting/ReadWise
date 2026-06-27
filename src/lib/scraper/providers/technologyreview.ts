@@ -29,6 +29,7 @@ const technologyreview: Provider = {
       "/sitemap",
     ]),
   defaultCategory: "tech",
+  categories: ["tech", "science"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
