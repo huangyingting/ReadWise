@@ -37,6 +37,7 @@ const undark: Provider = {
       "/wp-",
     ]),
   defaultCategory: "science",
+  categories: ["science", "environment", "health"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
@@ -45,7 +46,8 @@ const undark: Provider = {
         [/health|medicine|covid|drugs/, "health"],
         [/technology|innovation/, "tech"],
         [/policy|social-sciences|academia/, "politics"],
-        [/climate|environment|wildlife|physics|natural-sciences|space|science/, "science"],
+        [/climate|environment|wildlife|sustainab|ecolog/, "environment"],
+        [/physics|natural-sciences|space|science/, "science"],
       ],
       "science",
     ),

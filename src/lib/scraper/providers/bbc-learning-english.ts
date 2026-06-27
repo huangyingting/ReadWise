@@ -13,6 +13,7 @@ const bbcLearningEnglish: Provider = {
   // BBC Learning English article paths contain /learningenglish/ and end with a numeric id.
   articleUrlPattern: /\/learningenglish\/english\//i,
   defaultCategory: "culture",
+  categories: ["world", "culture"],
   categoryFor: (url, section) => {
     const path = url.pathname.toLowerCase();
     // Map BBC LE feature paths to categories.

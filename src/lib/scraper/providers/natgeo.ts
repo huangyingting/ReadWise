@@ -14,6 +14,7 @@ const natgeo: Provider = {
   ],
   articleUrlPattern: /\/article\//i,
   defaultCategory: "science",
+  categories: ["environment", "science", "history", "travel", "culture"],
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe", "aside"],

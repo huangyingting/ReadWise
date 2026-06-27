@@ -19,10 +19,14 @@ export function mapSectionToCategory(section: string | null): string | null {
     [/\b(politic|election|congress|white.?house|government|policy)/, "politics"],
     [/\b(business|money|econom|market|finance|deal|compan|industr)/, "business"],
     [/\b(health|wellness|coronavirus|covid|medic|fitness|disease)/, "health"],
-    [/\b(science|scien|environment|climate|space|nature|animal|wildlife|planet)/, "science"],
+    [/\b(idea|philosoph|essay|opinion|ethic|consciousness|metaphysic|existential|the-?conversation)/, "ideas"],
+    [/\b(histor|archaeolog|ancient|medieval|heritage|civil.?war|antiquit)/, "history"],
+    [/\b(travel|destination|tourism|vacation|expedition|journey)/, "travel"],
+    [/\b(environment|climate|sustainab|conservation|wildlife|animal|ecolog|biodiversit|pollution|carbon|emission|nature|wild|ocean|planet|earth)/, "environment"],
+    [/\b(science|scien|space|astronom|physic|cosmos|biolog|geolog|chemistr|quantum)/, "science"],
     [/\b(tech|gadget|software|hardware|\bai\b|artificial.?intelligence|internet|digital)/, "tech"],
     [/\b(sport|nfl|nba|mlb|soccer|football|olympic)/, "sports"],
-    [/\b(culture|art|book|style|travel|food|histor|fashion|design)/, "culture"],
+    [/\b(culture|art|book|style|food|fashion|design)/, "culture"],
     [/\b(entertainment|celebrit|tv|television|movie|film|music|hollywood|gaming|game)/, "entertainment"],
   ];
 

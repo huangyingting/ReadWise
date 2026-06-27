@@ -33,13 +33,17 @@ const nautilus: Provider = {
       "/concierge",
     ]),
   defaultCategory: "science",
+  categories: ["science", "ideas", "environment", "health"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
       section,
       [
+        [/environment|earth|ocean|climate|ecolog/, "environment"],
+        [/mind|consciousness|philosophy|idea/, "ideas"],
+        [/health|medic|wellness/, "health"],
         [/culture/, "culture"],
-        [/mind|biology|cosmos|earth|life|ocean|science/, "science"],
+        [/biology|cosmos|life|science/, "science"],
       ],
       "science",
     ),
