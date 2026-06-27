@@ -88,6 +88,19 @@ export type {
 export { skipTodaySession, TODAY_DAILY_SKIP_LIMIT } from "./skip";
 export type { SkipResult } from "./skip";
 
+// ── Product analytics emit helpers (#802) ────────────────────────────────────
+export {
+  emitTodaySessionGenerated,
+  emitTodayNoCandidate,
+  emitTodaySessionViewed,
+  emitTodayReadingComplete,
+  emitTodayComprehensionComplete,
+  emitTodayWordReviewComplete,
+  emitTodaySessionComplete,
+  emitTodaySkip,
+} from "./analytics";
+export type { TodayReadingMethod } from "./analytics";
+
 // ── Learner view model (#796/#797/#798) ──────────────────────────────────────
 export { buildTodayViewModel, loadTodayViewModel } from "./view-model";
 export type {
