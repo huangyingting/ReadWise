@@ -9,6 +9,7 @@ import { DashboardProgressBand } from "@/app/(app)/dashboard/_sections/Dashboard
 import { DashboardContinueReadingRail } from "@/app/(app)/dashboard/_sections/DashboardContinueReadingRail";
 import { DashboardForYouSection } from "@/app/(app)/dashboard/_sections/DashboardForYouSection";
 import { DashboardBrowseCta } from "@/app/(app)/dashboard/_sections/DashboardBrowseCta";
+import { DashboardTodayCard } from "@/app/(app)/dashboard/_sections/DashboardTodayCard";
 
 export default async function DashboardPage({
   searchParams,
@@ -26,6 +27,10 @@ export default async function DashboardPage({
       <PageHeader title="Dashboard" />
 
       <DashboardIdentityCard user={vm.user} />
+
+      {/* Today card — secondary entry point to the daily workflow (hidden when
+          the Today Session feature is disabled). */}
+      {vm.todaySummary && <DashboardTodayCard today={vm.todaySummary} />}
 
       {/* First-run welcome banner — shown once to new users (localStorage-gated client-side) */}
       {vm.isNewUser && <DashboardWelcomeBanner />}

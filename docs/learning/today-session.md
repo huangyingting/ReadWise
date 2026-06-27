@@ -248,6 +248,8 @@ src/lib/engagement/today-session/
   target-words.ts — privacy-safe SavedWord id selection (@server-only)
   generator.ts    — getOrCreateTodaySession orchestration (@server-only)
   completion.ts   — tier engine + completion markers (@server-only)
+  skip.ts         — terminal day-skip transition + 1/day limit (@server-only)
+  view-model.ts   — privacy-safe Today view model + loader (@server-only)
   index.ts        — stable public barrel
 ```
 
@@ -256,10 +258,93 @@ caller and never accept a user id from a request body. Server-only modules are
 marked with `@server-only` JSDoc (they import Prisma) and are kept out of client
 bundles.
 
+## Learner surface (UI, API, routing)
+
+The P3 vertical slice adds the learner-facing Today surface on top of the domain
+service. It is gated end-to-end by the `FEATURE_TODAY_SESSION_ENABLED` flag
+(`src/lib/runtime-config/feature-flags.ts`, `isTodaySessionFeatureEnabled()`,
+default **on**). P4 owns the flag documentation and the `.env.example` entry.
+
+### View model (`view-model.ts`)
+
+`buildTodayViewModel()` is a pure function that turns a `TodaySessionView` plus
+resolved article display cards into a privacy-safe `TodayViewModel`: session
+`status`, `source` (`new` vs `resume`), the primary article display, backups,
+target-word review state, per-step states (`reading` / `comprehension` /
+`wordReview`), completion tier/progress, a single CTA, and the `isNoCandidate`
+state. `loadTodayViewModel()` is the server loader: it resolves the learner's
+local day, calls `getOrCreateTodaySession`, and hydrates article ids to safe
+`ListingArticle` cards via `getReadableArticleById` (revalidating ids against
+Article Library access rules). The payload carries **display fields only** — no
+article body, word text, definitions, prompts, or notes.
+
+### API routes (`src/app/api/today/`)
+
+All three return `404` when the feature flag is off and scope every query to the
+authenticated session user (never a body-supplied id):
+
+- **`GET /api/today`** — returns the `TodayViewModel` summary for the learner's
+  local day. Accepts an optional `timezone` query (validated; over-long input is
+  rejected with `400`).
+- **`POST /api/today/skip`** — skips today with a controlled `skipReason`
+  (`not_interested` \| `too_busy` \| `too_hard` \| `too_easy` \| `other`);
+  invalid values are rejected with `400`. Idempotent with a 1-skip/day limit.
+- **`POST /api/today/read-complete`** — the pre-existing manual reading fallback
+  (unchanged; reused, not duplicated).
+
+### Skip semantics (`skip.ts`)
+
+`skipTodaySession()` is a **terminal day transition**, not a per-article
+re-pick: it validates the reason, sets `status = skipped`, appends the dismissed
+primary id to `backupArticleIds` (ids only), and surfaces backups for a browse
+fallback. It is idempotent and enforces `TODAY_DAILY_SKIP_LIMIT = 1` per local
+day (a second skip returns `limitReached`). The daily plan stays immutable —
+skipping does not reshuffle or generate a replacement plan. (See deviation note
+below: per-article skip-and-promote would need a new schema column and is out of
+P3 scope.)
+
+### Page (`src/app/(app)/today/page.tsx`)
+
+A server component gated by the flag (`notFound()` when off) and
+`requireOnboardedSession`. It renders the daily plan via `loadTodayViewModel`
+and branches across the no-candidate (browse/import `EmptyState`), skipped,
+active, and completed states. The interactive workflow
+(`_components/TodayWorkflow.tsx`, `"use client"`) drives the read →
+comprehension → word-review steps, showing per-step status, completion progress,
+a resume-vs-new framing, and the manual mark-read and skip actions (calling the
+API routes above). UI is composed only from `src/components/ui/*` primitives and
+design tokens (light/dark/mobile, keyboard-accessible).
+
+### Dashboard card (`dashboard/_sections/DashboardTodayCard.tsx`)
+
+A secondary entry point on the dashboard that links to `/today` and shows brief
+status. It is rendered only when the flag is on (the dashboard view model loads
+`todaySummary` conditionally) and reuses the `Card` primitive without changing
+other dashboard logic.
+
+### Default routing (`src/lib/learner-landing.ts`)
+
+`defaultLandingPath(role?)` returns `/today` for learners when the flag is on,
+and `/dashboard` otherwise; **admins always land on `/dashboard`**. It drives the
+post-sign-in redirect (`signin/page.tsx`, explicit `callbackUrl` still honored),
+the already-onboarded redirect (`onboarding/page.tsx`), and the `/welcome` tour
+destinations. When the flag is off, landing behavior is unchanged. Auth/session
+semantics are untouched — only the default landing target changes.
+
+> **Note — root redirect / middleware:** `middleware.ts` also routes the
+> authenticated landing page (`/`) through `defaultLandingPath()`, but the
+> repository's `middleware.ts` lives at the project root while the app is under
+> `src/`, so Next.js does **not** currently execute it. The learner-landing
+> behavior is therefore delivered via the page-level server redirects above
+> (which do run) and verified by unit tests. Relocating middleware to
+> `src/middleware.ts` (which would also activate centralized route protection)
+> is a pre-existing, app-wide change tracked as a separate follow-up.
+
+
 ## Non-goals (v1)
 
-- No bespoke Today UI surface yet (the only completion route is the manual
-  reading fallback `POST /api/today/read-complete`).
 - No new lightweight comprehension model — comprehension reuses existing quiz
   attempts and difficulty feedback.
 - No AI generation.
+- No per-article skip-and-promote: skipping is a terminal day transition, not a
+  within-day re-pick (the daily plan stays immutable).

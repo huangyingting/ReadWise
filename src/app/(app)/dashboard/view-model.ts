@@ -18,6 +18,8 @@ import { getBookmarkedArticleIds } from "@/lib/article-library";
 import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
 import { getPersonalizedFeed } from "@/lib/feed";
+import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import { loadTodayViewModel, type TodayViewModel } from "@/lib/engagement/today-session";
 
 export interface DashboardUser {
   id: string;
@@ -52,6 +54,8 @@ export interface DashboardViewModel {
   bookmarkedIds: Set<string>;
   feedIds: string[];
   maxLevel: DifficultyLevel | null;
+  /** Today summary for the Dashboard Today card; null when the feature is off. */
+  todaySummary: TodayViewModel | null;
 }
 
 export async function loadDashboardViewModel(
@@ -80,6 +84,12 @@ export async function loadDashboardViewModel(
     getProgressSummaries(user.id, feedIds),
     getBookmarkedArticleIds(user.id, allIds),
   ]);
+
+  // Today summary — only loaded when the feature is enabled so the Dashboard
+  // Today card can degrade away cleanly when the flag is off.
+  const todaySummary = isTodaySessionFeatureEnabled()
+    ? await loadTodayViewModel({ user: { id: user.id, role: user.role } })
+    : null;
 
   const userTopics = parseTopics(profile?.topics);
   const hasTopics = userTopics.length > 0;
@@ -117,5 +127,6 @@ export async function loadDashboardViewModel(
     bookmarkedIds,
     feedIds,
     maxLevel,
+    todaySummary,
   };
 }
