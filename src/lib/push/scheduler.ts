@@ -22,6 +22,7 @@ import {
   type ReminderPreference,
 } from "@/lib/reminder-preferences";
 import { reminder as reminderCopy } from "@/lib/copy/push";
+import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { isPushConfigured } from "./provider";
 import { type SubRow, sendToSubs, type PushPayload } from "./delivery";
 
@@ -106,6 +107,14 @@ export async function sendDueReminders(): Promise<ReminderResult> {
 
   const dueCountMap = new Map(dueGroups.map((g) => [g.userId, g._count.id]));
 
+  // Prefer the Today Session deep link + copy when that feature is enabled;
+  // otherwise keep the existing due-word reminder target unchanged. The copy
+  // stays generic (only a due-word count) — no article, word, or note content.
+  const todaySession = isTodaySessionFeatureEnabled();
+  const reminderTitle = todaySession ? reminderCopy.todayTitle : reminderCopy.title;
+  const reminderUrl = todaySession ? reminderCopy.todayUrl : reminderCopy.url;
+  const reminderBody = todaySession ? reminderCopy.todayBody : reminderCopy.body;
+
   for (const userId of subscribedUserIds) {
     const pref: ReminderPreference = prefMap.get(userId) ?? {
       ...DEFAULT_REMINDER_PREFERENCE,
@@ -125,9 +134,9 @@ export async function sendDueReminders(): Promise<ReminderResult> {
 
     const count = dueCountMap.get(userId) ?? 0;
     const payload: PushPayload = {
-      title: reminderCopy.title,
-      body: reminderCopy.body(count),
-      url: reminderCopy.url,
+      title: reminderTitle,
+      body: reminderBody(count),
+      url: reminderUrl,
       icon: reminderCopy.icon,
     };
     const delivered = await sendToSubs(subsByUser.get(userId) ?? [], JSON.stringify(payload));
