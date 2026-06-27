@@ -15,7 +15,10 @@ let pickCalls: Array<Record<string, unknown>> = [];
 
 before(() => {
   mock.module("@/lib/article-library", {
-    namedExports: { publicListableArticleWhere: () => ({}) },
+    namedExports: {
+      publicListableArticleWhere: () => ({}),
+      getPublicListableArticleById: async () => null,
+    },
   });
 
   mock.module("@/lib/recommendations/picks", {
@@ -46,6 +49,11 @@ before(() => {
         },
         readingProgress: {
           findFirst: async () => null, // no resume candidate → Picks path
+        },
+        seriesEnrollment: {
+          findFirst: async () => null,
+          findUnique: async () => null,
+          update: async () => ({}),
         },
       },
     },

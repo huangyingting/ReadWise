@@ -69,6 +69,23 @@ shared cache key. New user/org-specific feeds must include the user/org dimensio
 in the cache key, as described in
 [`../access/multi-tenancy.md`](../access/multi-tenancy.md).
 
+## Curated reading series access (#813)
+
+`ReadingSeries.articleIds` is an ordered `Json` array of article ids that are
+**NOT** foreign keys — a series survives article deletion. Series content is
+held to the same visibility/access rules as every other listing: an article id
+only surfaces (in the Today series candidate or anywhere else) after it is
+revalidated at serve time through `getPublicListableArticleById` /
+`publicListableArticleWhere`, identical to how Today backup ids are revalidated.
+
+`src/lib/engagement/series.ts` owns this resolution. When the article at the
+enrollment's `nextIndex` is private, unpublished, deleted, or otherwise
+inaccessible it is silently skipped and `nextIndex` is advanced forward past it;
+a private or inaccessible article therefore **never** appears as a Today series
+candidate and series enrollment can **never** bypass Article Library visibility.
+The Today generator injects the resolved series article as an additional
+candidate scored by the same Picks scoring — never as a hard override.
+
 ## Moderation and rights workflow
 
 `reviewArticle(...)` applies editorial corrections, review verdicts, quality

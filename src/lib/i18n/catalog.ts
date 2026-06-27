@@ -81,4 +81,47 @@ export interface MessageCatalog {
    * generic — no article titles, word text, or other private content.
    */
   "push.reminder.todayBody": (params: { count: number }) => string;
+
+  // ---------------------------------------------------------------------------
+  // Reading fluency feedback (#813)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Fluency-panel copy for an improving reading-speed trend. Encouraging,
+   * non-punitive — never exposes raw WPM in the message text.
+   */
+  "fluency.trend.improving": () => string;
+
+  /** Fluency-panel copy for a stable (consistent) reading-speed trend. */
+  "fluency.trend.stable": () => string;
+
+  /**
+   * Fluency-panel copy for a declining trend. Intentionally framed positively
+   * (slower reads often mean harder content) to avoid punitive messaging.
+   */
+  "fluency.trend.declining": () => string;
+
+  /**
+   * Fluency-panel copy when there is not yet enough data to show a trend.
+   */
+  "fluency.trend.insufficient_data": () => string;
+
+  // ---------------------------------------------------------------------------
+  // Curated reading series (#813)
+  // ---------------------------------------------------------------------------
+
+  /** Heading for the learner-facing series browser. */
+  "series.browser.title": () => string;
+
+  /** Empty-state copy when no public series are available. */
+  "series.browser.empty": () => string;
+
+  /** Enroll call-to-action label. */
+  "series.action.enroll": () => string;
+
+  /** Unenroll / leave-series call-to-action label. */
+  "series.action.unenroll": () => string;
+
+  /** Badge label shown on a series the learner has completed. */
+  "series.status.completed": () => string;
 }
