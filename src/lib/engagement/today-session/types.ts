@@ -67,6 +67,15 @@ export type TodaySkipReason = (typeof TODAY_SKIP_REASONS)[number];
 export const TARGET_WORD_COUNT_MIN = 3;
 export const TARGET_WORD_COUNT_MAX = 5;
 
+/**
+ * Prompt for the OPTIONAL "write one sentence after reading" bonus (#812). The
+ * reflection itself is stored in the existing note domain — never in the
+ * `TodaySession` row — so this constant is just display copy and carries no
+ * learning content.
+ */
+export const TODAY_REFLECTION_PROMPT =
+  "Write one sentence about what you just read.";
+
 // ---------------------------------------------------------------------------
 // Validators (reject invalid values before persistence)
 // ---------------------------------------------------------------------------

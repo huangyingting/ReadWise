@@ -1,9 +1,10 @@
 import { requireSession } from "@/lib/session";
 import { getSavedWords } from "@/lib/lexical/saved-words";
 import { getReviewSummary } from "@/lib/learning/flashcards";
+import { getReviewAssetSummary } from "@/lib/learning/review-assets";
 import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 import { generateStudyPlan } from "@/lib/learning/study-plan";
-import { GraduationCap } from "lucide-react";
+import { GraduationCap, Highlighter } from "lucide-react";
 import Link from "next/link";
 import { Card, PageHeader, PageShell, Section, Stack } from "@/components/ui";
 import Sparkline from "@/components/Sparkline";
@@ -12,9 +13,10 @@ import StudyPlanSection from "@/components/StudyPlanSection";
 
 export default async function StudyPage() {
   const session = await requireSession("/study");
-  const [words, reviewSummary, mastery, studyPlan] = await Promise.all([
+  const [words, reviewSummary, reviewAssets, mastery, studyPlan] = await Promise.all([
     getSavedWords(session.user.id),
     getReviewSummary(session.user.id),
+    getReviewAssetSummary(session.user.id),
     getQuizMastery(session.user.id),
     generateStudyPlan(session.user.id),
   ]);
@@ -58,6 +60,55 @@ export default async function StudyPage() {
 
       {/* ── Weekly study plan (RW-041) — grounded weakness diagnostics ── */}
       <StudyPlanSection plan={studyPlan} />
+
+      {/* ── Highlights & notes (#812) — aggregate, content-free counts only. ── */}
+      {reviewAssets.totalHighlights > 0 && (
+        <Section title="Highlights & notes" className="mt-[var(--space-7)]">
+          <Card>
+            <div className="flex items-start gap-[var(--space-4)]">
+              <Highlighter
+                size={20}
+                aria-hidden
+                className="text-text-subtle shrink-0 mt-[var(--space-1)]"
+              />
+              <div className="flex flex-wrap gap-x-[var(--space-6)] gap-y-[var(--space-3)]">
+                <Stack gap="1">
+                  <span className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text leading-none">
+                    {reviewAssets.totalHighlights}
+                  </span>
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    saved passage{reviewAssets.totalHighlights === 1 ? "" : "s"}
+                  </span>
+                </Stack>
+                <Stack gap="1">
+                  <span className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text leading-none">
+                    {reviewAssets.notedHighlights}
+                  </span>
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    with notes
+                  </span>
+                </Stack>
+                <Stack gap="1">
+                  <span className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text leading-none">
+                    {reviewAssets.articlesWithHighlights}
+                  </span>
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    article{reviewAssets.articlesWithHighlights === 1 ? "" : "s"} highlighted
+                  </span>
+                </Stack>
+                <Stack gap="1">
+                  <span className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-semibold text-text leading-none">
+                    {reviewAssets.weeklyHighlights}
+                  </span>
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    this week
+                  </span>
+                </Stack>
+              </div>
+            </div>
+          </Card>
+        </Section>
+      )}
 
       {/* ── Comprehension section (M14) — demoted below actionable items (#212) ── */}
       <Section title="Comprehension" className="mt-[var(--space-7)]">

@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T06:51:10.470Z",
-  "routeCount": 96,
-  "methodCount": 107,
+  "generatedAt": "2026-06-27T07:13:39.078Z",
+  "routeCount": 98,
+  "methodCount": 109,
   "routes": [
     {
       "path": "/api/account",
@@ -1221,6 +1221,31 @@
       ]
     },
     {
+      "path": "/api/highlights/{id}/review-card",
+      "file": "src/app/api/highlights/[id]/review-card/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "cardId",
+            "created",
+            "dueAt"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/level-recommendation",
       "file": "src/app/api/level-recommendation/route.ts",
       "runtime": "default",
@@ -2345,6 +2370,33 @@
           "queryParamNames": null,
           "bodyFieldNames": [
             "timezone"
+          ]
+        }
+      ]
+    },
+    {
+      "path": "/api/today/reflection",
+      "file": "src/app/api/today/reflection/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "highlightId",
+            "ok"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": [
+            "highlightId",
+            "sentence"
           ]
         }
       ]
