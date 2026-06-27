@@ -93,6 +93,14 @@ Defined in `ANALYTICS_EVENT_TYPES` (`src/lib/analytics/events/catalog.ts`):
 | `offline_save`        | An article is saved for offline reading       | —                                        |
 | `import`              | A user imports an article                     | `{ via }`                                |
 | `study_review`        | A study/flashcard review is graded            | `{ grade }`                              |
+| `today_session_generated`     | A Today daily plan is first created for a local day | `{ source, reasonCode, hasPrimary, backupCount, targetWordCount, reviewTargetCount }` |
+| `today_no_candidate`          | A no-candidate Today day shows the browse/import prompt | `{ source, reasonCode }`        |
+| `today_session_viewed`        | The learner views Today (page render or summary fetch) | `{ status, source, tier, hasPrimary, isNoCandidate, skipped }` |
+| `today_reading_complete`      | The Today reading step first completes        | `{ method, tier, hasTargetWords }`       |
+| `today_comprehension_complete`| The Today comprehension step first completes  | `{ tier }`                               |
+| `today_word_review_complete`  | The Today word-review step first completes    | `{ tier, targetCount }`                  |
+| `today_session_complete`      | The whole Today session first reaches `completed` | `{ tier, source, hadTargetWords }`   |
+| `today_skip`                  | The learner skips Today with a controlled reason | `{ reasonCode, limitReached, browseFallback, backupCount }` |
 
 These are the funnel/retention-significant moments. The list is deliberately
 small; add a new type (and bump the version if semantics change) only when a new
@@ -143,10 +151,35 @@ best-effort and non-blocking, so it never changes the outcome of the action:
 | `quiz_complete`       | `POST /api/reader/[id]/quiz/attempt`                         |
 | `import`              | `POST /api/articles/import` (url + text paths)              |
 | `study_review`        | `POST /api/study/flashcards/grade`                           |
+| `today_session_generated` / `today_no_candidate` | `getOrCreateTodaySession` (Today generator, on first create) |
+| `today_session_viewed` | `loadTodayViewModel` (the `/today` page + `GET /api/today`)  |
+| `today_reading_complete` | `markTodayReadingComplete` (progress sync) + `markTodayReadingCompleteManual` (`POST /api/today/read-complete`) |
+| `today_comprehension_complete` | `markTodayComprehensionComplete` (quiz / difficulty signal) |
+| `today_word_review_complete` / `today_session_complete` | `recomputeTodayCompletion` (Today completion engine, on first transition) |
+| `today_skip`          | `skipTodaySession` (`POST /api/today/skip`, on actual skip)  |
 
 Other types (`onboarding_start`, `quiz_start`, `translation_use`, `tutor_use`,
 `offline_save`) are part of the v1 vocabulary and can be wired at their call
 sites without a schema change.
+
+### Today Session funnel (#802)
+
+The Today events above are metadata-only and let the Today daily-reading funnel
+be computed without touching any content column:
+
+- **Article completion rate** — `today_session_complete` (with `tier`) over
+  `today_session_generated` for the day.
+- **Time to completion** — `today_session_generated`/`today_session_viewed` →
+  `today_reading_complete` / `today_session_complete` timestamps.
+- **Skip rate** — `today_skip` over `today_session_generated`.
+- **Next-day return** — distinct users with a `today_session_viewed` on
+  consecutive local days.
+
+The Today emit helpers live in
+`src/lib/engagement/today-session/analytics.ts`; their payloads are restricted
+to controlled enums (`source`, `reasonCode`, completion `tier`, reading
+`method`, lifecycle `status`), small counts, and booleans — never article/word
+content, definitions, notes, prompts, or PII.
 
 ## Privacy & retention
 
