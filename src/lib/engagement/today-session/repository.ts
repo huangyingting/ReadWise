@@ -144,7 +144,10 @@ export async function createTodaySession(args: {
 /** Fields a caller may update on an existing session. Controlled values validated. */
 export type TodaySessionUpdate = {
   status?: string;
+  source?: string;
   completionTier?: string;
+  /** Replace the day's primary article id (ids only — never content). */
+  primaryArticleId?: string | null;
   /** Stable backup article ids (ids only — never content). */
   backupArticleIds?: string[];
   readingCompletedAt?: Date | null;
@@ -174,6 +177,18 @@ export async function updateTodaySession(
       update.status,
       "status",
     );
+  }
+  if (update.source !== undefined) {
+    data.source = assertControlledValue(
+      TODAY_SESSION_SOURCES,
+      update.source,
+      "source",
+    );
+  }
+  if (update.primaryArticleId !== undefined) {
+    // Persist a string id (or explicit null) only — never a content-bearing value.
+    data.primaryArticleId =
+      typeof update.primaryArticleId === "string" ? update.primaryArticleId : null;
   }
   if (update.completionTier !== undefined) {
     data.completionTier = assertControlledValue(

@@ -26,11 +26,14 @@ export default function PersonalImports({
   initialProgress,
   initialHasMore,
   initialOffset,
+  setTodayEnabled = false,
 }: {
   initialArticles: ListingArticle[];
   initialProgress: Record<string, ProgressSummary>;
   initialHasMore: boolean;
   initialOffset: number;
+  /** Today Session v1.1 (#805): enable the "Set as today's article" card overlay. */
+  setTodayEnabled?: boolean;
 }) {
   const fetchPage = useCallback(
     async (nextOffset: number): Promise<ImportsResponse> => {
@@ -65,6 +68,7 @@ export default function PersonalImports({
             key={article.id}
             article={article}
             progress={progress[article.id]}
+            setTodayEnabled={setTodayEnabled}
           />
         ))}
       </div>

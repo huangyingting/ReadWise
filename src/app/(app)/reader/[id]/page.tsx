@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { safeJsonStringify } from "@/lib/safe-json";
 import { requireSession } from "@/lib/session";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
+import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
 import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader";
 import ReaderProgress from "@/components/ReaderProgress";
@@ -79,7 +80,7 @@ export default async function ReaderPage({
         articleId={data.article.id}
         initialPercent={data.progress?.percent ?? 0}
       />
-      <ReaderShell data={data} />
+      <ReaderShell data={data} setTodayEnabled={isTodaySessionFeatureEnabled()} />
     </>
   );
 }

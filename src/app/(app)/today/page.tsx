@@ -83,7 +83,11 @@ export default async function TodayPage() {
             <Section title="Other articles for you">
               <div className="grid grid-cols-1 gap-[var(--space-4)] sm:grid-cols-2 lg:grid-cols-3">
                 {vm.backups.map((article) => (
-                  <ArticleCardView key={article.id} article={article} />
+                  <ArticleCardView
+                    key={article.id}
+                    article={article}
+                    setTodayEnabled
+                  />
                 ))}
               </div>
             </Section>

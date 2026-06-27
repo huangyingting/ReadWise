@@ -45,9 +45,11 @@ import KeepReadingSection from "./KeepReadingSection";
 
 type Props = {
   data: ReaderPageData;
+  /** Today Session v1.1 (#805): render the "Set as today's article" affordance. */
+  setTodayEnabled?: boolean;
 };
 
-export default function ReaderShell({ data }: Props) {
+export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
   const {
     article,
     progress,
@@ -104,6 +106,7 @@ export default function ReaderShell({ data }: Props) {
                     progress={progress}
                     isBookmarked={isBookmarked}
                     tags={tags}
+                    setTodayEnabled={setTodayEnabled}
                   />
 
                   {/* Hero image — graceful 16:9 frame that collapses on error */}

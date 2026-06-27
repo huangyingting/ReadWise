@@ -101,6 +101,7 @@ Defined in `ANALYTICS_EVENT_TYPES` (`src/lib/analytics/events/catalog.ts`):
 | `today_word_review_complete`  | The Today word-review step first completes    | `{ tier, targetCount }`                  |
 | `today_session_complete`      | The whole Today session first reaches `completed` | `{ tier, source, hadTargetWords }`   |
 | `today_skip`                  | The learner skips Today with a controlled reason | `{ reasonCode, limitReached, browseFallback, backupCount }` |
+| `today_article_selected`      | The learner sets a readable article as today's primary (v1.1) | `{ source, replacedGenerated, backupCount }` |
 
 These are the funnel/retention-significant moments. The list is deliberately
 small; add a new type (and bump the version if semantics change) only when a new
@@ -157,6 +158,7 @@ best-effort and non-blocking, so it never changes the outcome of the action:
 | `today_comprehension_complete` | `markTodayComprehensionComplete` (quiz / difficulty signal) |
 | `today_word_review_complete` / `today_session_complete` | `recomputeTodayCompletion` (Today completion engine, on first transition) |
 | `today_skip`          | `skipTodaySession` (`POST /api/today/skip`, on actual skip)  |
+| `today_article_selected` | `setTodayPrimaryArticle` (`POST /api/today/set-article`, on a user-selected override) |
 
 Other types (`onboarding_start`, `quiz_start`, `translation_use`, `tutor_use`,
 `offline_save`) are part of the v1 vocabulary and can be wired at their call

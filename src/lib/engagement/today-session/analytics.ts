@@ -189,3 +189,25 @@ export function emitTodaySkip(
     },
   });
 }
+
+/**
+ * The learner set a readable article as today's primary, overriding the
+ * generated plan (v1.1, #805). `source` is always `user_selected`;
+ * `replacedGenerated` records whether a previously-generated primary id was
+ * swapped out (it is retained as a backup anchor). Metadata/flags/counts only —
+ * never the chosen article's title or content.
+ */
+export function emitTodayArticleSelected(
+  session: TodaySessionView,
+  args: { replacedGenerated: boolean },
+): Promise<void> {
+  return recordEvent({
+    type: ANALYTICS_EVENT_TYPES.todayArticleSelected,
+    ...sessionAnchors(session),
+    properties: {
+      source: session.source,
+      replacedGenerated: args.replacedGenerated,
+      backupCount: session.backupArticleIds.length,
+    },
+  });
+}

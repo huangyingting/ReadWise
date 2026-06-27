@@ -20,8 +20,16 @@
 export const TODAY_SESSION_STATUSES = ["active", "completed", "skipped"] as const;
 export type TodaySessionStatus = (typeof TODAY_SESSION_STATUSES)[number];
 
-/** How the primary article was chosen. */
-export const TODAY_SESSION_SOURCES = ["resume", "picks", "none"] as const;
+/**
+ * How the primary article was chosen. `user_selected` (v1.1, #805) marks a
+ * learner-chosen primary that overrides the generated `resume`/`picks` plan.
+ */
+export const TODAY_SESSION_SOURCES = [
+  "resume",
+  "picks",
+  "none",
+  "user_selected",
+] as const;
 export type TodaySessionSource = (typeof TODAY_SESSION_SOURCES)[number];
 
 /** How much of the daily plan the learner completed. */

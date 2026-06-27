@@ -291,6 +291,8 @@ authenticated session user (never a body-supplied id):
   invalid values are rejected with `400`. Idempotent with a 1-skip/day limit.
 - **`POST /api/today/read-complete`** — the pre-existing manual reading fallback
   (unchanged; reused, not duplicated).
+- **`POST /api/today/set-article`** — set a readable article as today's primary
+  (v1.1, #805). See "User-selected primary" below.
 
 ### Skip semantics (`skip.ts`)
 
@@ -302,6 +304,35 @@ day (a second skip returns `limitReached`). The daily plan stays immutable —
 skipping does not reshuffle or generate a replacement plan. (See deviation note
 below: per-article skip-and-promote would need a new schema column and is out of
 P3 scope.)
+
+### User-selected primary (v1.1, `set-article.ts`)
+
+`setTodayPrimaryArticle()` lets a learner **override** the generated primary with
+a readable article of their own choosing (#805). Unlike skip, this is a **plan
+mutation**: it swaps `primaryArticleId`, stamps `source = "user_selected"` (a new
+controlled `TODAY_SESSION_SOURCES` value — `source` stays a plain `String`
+column, so **no migration**), and **retains the replaced generated id** by
+appending it to the stable `backupArticleIds` list (ids only) so the prior pick
+is never lost for analytics or the browse fallback. Access is enforced through
+the Article Library policy (`getReadableArticleById`): another user's private
+article — or a missing id — resolves to nothing and surfaces as **404**
+(IDOR-safe, existence is never leaked). Only a `PUBLISHED` article qualifies; one
+still `PROCESSING` or `FAILED` is blocked with a clear `not_ready` error
+(**409**) so the UI can message it. `ReadingProgress` is **never read, deleted,
+or altered** — choosing a new primary cannot fabricate or wipe progress. The
+action is idempotent (re-selecting the active user-chosen primary is a no-op),
+always scoped to the authenticated user, and emits a metadata-only
+`today_article_selected` event.
+
+- **`POST /api/today/set-article`** — body `{ articleId, timezone? }`. Flag-gated
+  (404 when off), session-scoped, returns the refreshed `TodayViewModel`. A
+  blank/over-long `articleId` is rejected with `400`; inaccessible → `404`;
+  processing/failed → `409`.
+
+The affordance is surfaced (only when the flag is on) from the **Reader** header,
+the shared **article card** overlay (`ArticleCardView`'s `setTodayEnabled` prop —
+used on My Imports and the Today backups), via the reusable
+`SetTodayArticleButton` client primitive.
 
 ### Page (`src/app/(app)/today/page.tsx`)
 
