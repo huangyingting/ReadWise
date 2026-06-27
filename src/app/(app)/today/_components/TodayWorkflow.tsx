@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, CheckCircle2, GraduationCap, SkipForward } from "lucide-react";
 import { postJson } from "@/lib/client-fetch";
+import { submitTodayMutation, isOffline } from "@/lib/offline/today-client";
+import { subscribeTodayConflicts } from "@/lib/offline/sync-runtime";
 import {
   Badge,
   Button,
@@ -59,6 +61,12 @@ export interface TodayWorkflowProps {
   primaryHref: string | null;
   /** Whether the whole day is complete. */
   completed: boolean;
+  /** Authenticated user id — used only to key offline Today mutations. */
+  userId: string;
+  /** Learner's local calendar date, "YYYY-MM-DD" (offline mutation anchor). */
+  localDate: string;
+  /** Learner's IANA timezone snapshot for this Today session. */
+  timezone: string;
 }
 
 /**
@@ -66,6 +74,11 @@ export interface TodayWorkflowProps {
  * word-review step tracker, a manual "mark today's reading done" fallback, and
  * a controlled skip action. Mutations go through the Today API routes and then
  * refresh the server-rendered view; no learning content is sent or stored.
+ *
+ * When the device is offline, the skip / mark-read actions are enqueued in the
+ * offline mutation queue (privacy-safe: ids/enums/dates only) and replayed when
+ * connectivity returns. A replayed action the server already resolved on
+ * another device surfaces a non-blocking conflict notice — never a data loss.
  */
 export default function TodayWorkflow({
   steps,
@@ -73,12 +86,29 @@ export default function TodayWorkflow({
   readingComplete,
   primaryHref,
   completed,
+  userId,
+  localDate,
+  timezone,
 }: TodayWorkflowProps) {
   const router = useRouter();
   const [busy, setBusy] = useState<null | "read" | "skip">(null);
   const [skipReason, setSkipReason] = useState<string>(SKIP_REASON_OPTIONS[0].value);
   const [error, setError] = useState<string | null>(null);
   const [skipNotice, setSkipNotice] = useState<string | null>(null);
+  const [offlineNotice, setOfflineNotice] = useState<string | null>(null);
+  const [conflictNotice, setConflictNotice] = useState<string | null>(null);
+
+  // Surface a non-blocking notice when a replayed Today action conflicted with
+  // server state already resolved on another device (ids/status only).
+  useEffect(() => {
+    return subscribeTodayConflicts(() => {
+      setConflictNotice(
+        "Some offline actions couldn't be applied — your progress is safe.",
+      );
+    });
+  }, []);
+
+  const mutationContext = { userId, localDate, timezone };
 
   const stepViews: StepView[] = [
     {
@@ -112,7 +142,15 @@ export default function TodayWorkflow({
   async function markRead() {
     setBusy("read");
     setError(null);
+    setOfflineNotice(null);
     try {
+      if (isOffline()) {
+        await submitTodayMutation("today.read-complete", mutationContext);
+        setOfflineNotice(
+          "You're offline — we'll mark today's reading done when you reconnect.",
+        );
+        return;
+      }
       await postJson("/api/today/read-complete", {});
       router.refresh();
     } catch {
@@ -126,7 +164,15 @@ export default function TodayWorkflow({
     setBusy("skip");
     setError(null);
     setSkipNotice(null);
+    setOfflineNotice(null);
     try {
+      if (isOffline()) {
+        await submitTodayMutation("today.skip", mutationContext, { skipReason });
+        setOfflineNotice(
+          "You're offline — your skip is saved and will sync when you reconnect.",
+        );
+        return;
+      }
       const res = await postJson<{ limitReached: boolean }>("/api/today/skip", {
         skipReason,
       });
@@ -249,6 +295,16 @@ export default function TodayWorkflow({
       {skipNotice ? (
         <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
           {skipNotice}
+        </p>
+      ) : null}
+      {offlineNotice ? (
+        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+          {offlineNotice}
+        </p>
+      ) : null}
+      {conflictNotice ? (
+        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
+          {conflictNotice}
         </p>
       ) : null}
       {error ? (

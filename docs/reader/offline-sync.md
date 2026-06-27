@@ -128,6 +128,81 @@ on failure and keeps the user's text.
 
 ---
 
+## 2a. Today Session offline mutations (#811)
+
+Today Session step actions can be queued offline and replayed into the existing,
+idempotent Today API routes. The queue is **client-only** (IndexedDB) — no new
+Prisma model or server-side offline queue is introduced. The server resolves
+today's primary article from the stored `TodaySession` for the `(userId,
+localDate)` pair, so **no article/word ids or content ever enter the queue**.
+
+### Mutation types — `src/lib/offline/registry.ts`
+
+| Type | Endpoint | Method | Idempotency key | Dedupe |
+| --- | --- | --- | --- | --- |
+| `today.skip` | `/api/today/skip` | `POST` | `today-skip-{userId}-{localDate}` | append-only |
+| `today.read-complete` | `/api/today/read-complete` | `POST` | `today-read-{userId}-{localDate}` | latest-wins |
+| `today.comprehension` | `/api/today/comprehension` | `POST` | `today-comp-{userId}-{localDate}` | latest-wins |
+| `today.word-review-complete` | `/api/today/word-review-complete` | `POST` | `today-review-{userId}-{localDate}` | latest-wins |
+
+The idempotency key is derived from the mutation type, the **authenticated
+`userId`** (never read from the payload), and the learner's local date, so a
+repeated same-day action collapses to one queued record. `buildTodayIdempotencyKey`
+mints the key; `TODAY_ENDPOINT_BY_TYPE` maps each type to its route. The
+`today.word-review-complete` route is a thin wrapper over the existing
+`markTodayWordReviewComplete` so offline replay has a real endpoint.
+
+### Payload privacy
+
+A Today offline payload may contain **only** these controlled fields
+(`TODAY_OFFLINE_PAYLOAD_FIELDS`, enforced by `isAllowedTodayPayload`):
+
+`localDate` (`YYYY-MM-DD`), `timezone` (IANA), `skipReason` (controlled enum),
+`selfRating` (controlled enum), `questionId` (id), `selectedIndex` (MCQ index),
+`mcqCorrect` (bool).
+
+**Banned:** article/word text, definitions, prompts, answer/question text,
+notes, tokens, credentials, or any PII. (The MCQ answer is replayed as a bare
+`selectedIndex`; grading stays server-side — the client never holds the answer
+key — so no content leaves the browser.)
+
+### Replay & conflict resolution — `src/lib/offline/sync-runtime.ts`
+
+`todayMutationReplayHandler(mutation, deps)` replays one Today mutation with
+Today-specific conflict semantics (unlike the generic engine, a `409` here is a
+genuine conflict, not a resolved no-op):
+
+1. Validate `localDate`/`timezone` and that the payload carries **only** allowed
+   fields — a malformed/content-bearing payload is marked `failed`, never sent.
+2. `2xx` (including idempotent no-ops) → remove from the queue.
+3. `409` → mark the mutation **`conflict`** and emit the content-free
+   `today_offline_conflict` event (`{ mutationType, statusCode }` only) for the
+   analytics + the non-blocking toast.
+4. Network error / `5xx` / `408` / `429` → increment `retryCount` (existing
+   exponential back-off); flag `failed` once retries are exhausted.
+5. Other `4xx` → permanent `failed`.
+
+`flushOfflineQueue` drains Today mutations through this handler first, then runs
+the generic `flushQueue` for everything else. A new `conflict` `MutationStatus`
+is added; both `flushQueue` and the Today drain skip `conflict` records.
+
+| Conflict scenario | Resolution | UI |
+| --- | --- | --- |
+| Offline skip; same day already completed online on another device (server returns `409`) | Mark mutation `conflict`; never overwrite the completed session | Non-blocking "your progress is safe" notice |
+| Offline read-complete; primary article swapped online | Server hook is a no-op when the article id doesn't match → `200` idempotent no-op | Silent; learner sees current Today state |
+| Two devices queue `today.word-review-complete` for the same day | `wordReviewCompletedAt` is monotonic (first write wins; second is a `200` no-op) | No conflict UI needed |
+
+### UI — `TodayWorkflow` / `TodayComprehensionCheck`
+
+When `navigator.onLine === false`, the skip / mark-read / comprehension actions
+are enqueued via `submitTodayMutation` (`src/lib/offline/today-client.ts`)
+instead of a direct fetch, and a non-blocking "saved offline, will sync" notice
+is shown. The components subscribe to `subscribeTodayConflicts` and render a
+non-blocking conflict notice when a replayed action conflicted — never a
+blocking error dialog and never data loss.
+
+---
+
 ## 3. Cache versioning & invalidation (RW-044)
 
 Pure logic lives in `src/lib/cache-version.ts`; the runtime lives in
