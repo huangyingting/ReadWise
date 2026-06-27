@@ -13,7 +13,7 @@ const compat = new FlatCompat({
 
 // ── Custom local plugin: import-boundary enforcement (REF-076) ────────────────
 // Enforces client/server module boundaries. See eslint-rules/ for rule source
-// and docs/refactoring.md § REF-076 for the boundary taxonomy.
+// and ADR-0010 for the boundary taxonomy.
 const importBoundaryPlugin = {
   rules: {
     "no-server-imports-in-client": require(

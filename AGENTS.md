@@ -17,7 +17,7 @@ Project rules for AI coding agents.
 
 ## UI / Design System v1
 
-- Follow `docs/ui/design-system-governance.md` and the coding-agent runbook in `docs/ui/design-system-v1-refactoring.md` for all UI work.
+- Follow `docs/ui/design-system-governance.md` for all UI work.
 - Reuse the existing Studio design direction in `src/app/tokens.css`; do not introduce a parallel theme, palette, type scale, spacing scale, or brand direction.
 - Product UI must use design tokens for typography, colour, spacing, radius, shadow, and focus states. Do not add raw hex/rgb/hsl colours, raw `font-size`, or inline `style={{ fontSize: ... }}` outside documented low-level exceptions.
 - Reader article prose, imported article HTML, reading modes, highlights, and pronunciation decorations are the main visual exceptions; keep them on `--reading-*`, `--hl-*`, and `--pron-*` tokens.

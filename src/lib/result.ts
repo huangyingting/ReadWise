@@ -11,7 +11,7 @@
  * Read-model helpers that return `null` for absent data should continue to do
  * so — forcing null-returning functions into this shape adds noise when absence
  * is a normal value rather than a command failure.  That contract is documented
- * in `docs/refactoring.md` (REF-082) and is NOT an oversight.
+ * in ADR-0010 and is NOT an oversight.
  */
 import { ApiError } from "@/lib/api-handler";
 
