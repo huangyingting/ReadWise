@@ -1,6 +1,8 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 import { fetchNautilusUrls } from "@/lib/scraper/wp-api";
+
+const nautilusRssExtractor = rssUrlExtractor(["https://nautil.us/feed"]);
 
 const nautilus: Provider = {
   key: "nautilus",
@@ -48,10 +50,14 @@ const nautilus: Provider = {
       "science",
     ),
   /**
-   * Discovers article URLs via the Nautilus WordPress REST API.
-   * Falls back to an empty list on any API failure.
+   * Discovers article URLs via the Nautilus WordPress REST API, falling back
+   * to the RSS feed when the API yields nothing (it currently 404s). Discovery
+   * validates every candidate against `articleUrlPattern` / `articleUrlFilter`.
    */
-  urlExtractor: async ({ limit, fetch: fetchFn }) => fetchNautilusUrls(limit, fetchFn),
+  urlExtractor: async (ctx) => {
+    const api = await fetchNautilusUrls(ctx.limit, ctx.fetch);
+    return api.length ? api : nautilusRssExtractor(ctx);
+  },
 };
 
 export default nautilus;

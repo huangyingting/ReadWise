@@ -5,6 +5,48 @@
  * their own rules; they never duplicate the regex-matching plumbing.
  */
 import { CATEGORY_SLUGS } from "@/lib/categories";
+import { parseRssUrls } from "@/lib/scraper/rss";
+import type { UrlExtractorContext } from "@/lib/scraper/types";
+
+/**
+ * Builds a {@link Provider.urlExtractor} that discovers article URLs from one
+ * or more RSS 2.0 / Atom feeds. Each feed is fetched via the injected
+ * `ctx.fetch` (so tests stay network-free), parsed with {@link parseRssUrls},
+ * and the results are deduplicated across feeds.
+ *
+ * Feeds are fetched in order until roughly `2 × limit` candidates are
+ * collected (discovery enforces the hard `limit` after pattern/filter/robots
+ * validation). A feed that throws or returns nothing is skipped gracefully so
+ * one unreachable feed never aborts discovery.
+ *
+ * Returned URLs are raw candidates — `discoverProviderUrls` still validates
+ * each against the provider's hostname, `articleUrlPattern`, `articleUrlFilter`
+ * and robots rules.
+ */
+export function rssUrlExtractor(
+  feedUrls: readonly string[],
+): (ctx: UrlExtractorContext) => Promise<string[]> {
+  const feeds = [...new Set(feedUrls)];
+  return async ({ limit, fetch: fetchFn }) => {
+    const seen = new Set<string>();
+    const urls: string[] = [];
+    for (const feedUrl of feeds) {
+      if (urls.length >= limit * 2) break;
+      try {
+        const xml = await fetchFn(feedUrl);
+        for (const url of parseRssUrls(xml)) {
+          if (!seen.has(url)) {
+            seen.add(url);
+            urls.push(url);
+          }
+        }
+      } catch {
+        // graceful degradation — a single feed failure doesn't stop discovery
+      }
+    }
+    return urls;
+  };
+}
 
 /**
  * Maps a free-form section/topic string (from a URL path or article metadata)

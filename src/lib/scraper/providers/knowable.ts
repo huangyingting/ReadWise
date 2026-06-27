@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
 const knowable: Provider = {
   key: "knowable",
@@ -31,6 +31,12 @@ const knowable: Provider = {
       ],
       "science",
     ),
+  /**
+   * Discovers article URLs from Knowable's RSS feed (the seed search pages are
+   * blocked with 403). Candidates are validated against `articleUrlPattern`
+   * and `articleUrlFilter` by discovery.
+   */
+  urlExtractor: rssUrlExtractor(["https://knowablemagazine.org/rss"]),
 };
 
 export default knowable;
