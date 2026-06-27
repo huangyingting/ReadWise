@@ -21,6 +21,7 @@ export * from "./skill-mastery";
 export * from "./practice-attempts";
 export * from "./quiz-mastery";
 export * from "./flashcards";
+export * from "./review-assets";
 export type {
   WeakAreaKind,
   WeakArea,
