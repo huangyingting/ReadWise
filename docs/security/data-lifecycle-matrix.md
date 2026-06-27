@@ -121,6 +121,8 @@ behavior is invented. Gaps are called out as follow-up items.
 | `WordMastery` (familiarity, confidence, exposures, correctReviews, incorrectReviews, sourceArticleIds) | Learning | **derived** | ✅ all mastery fields, timestamps | Cascade via `WordMastery.userId` | Not affected | Deleted with user | Safe (aggregate scores only; sourceArticleIds are ids, not content) |
 | `ArticleMastery` (comprehensionScore, readingCompletion, quizScore, etc.) | Learning | **derived** | ✅ all mastery fields, timestamps | Cascade via `ArticleMastery.userId` + article | Cascade via article | Deleted with user or article | Safe |
 | `SkillMastery` (confidence, evidenceCount, recentEvidence) | Learning | **derived** | ✅ skill, confidence, evidenceCount, recentEvidence, timestamps | Cascade via `SkillMastery.userId` | Not affected | Deleted with user | `recentEvidence` is a bounded JSON array of `{outcome, weight, at}` — no sensitive content per schema comment |
+| `TodaySession` (localDate, timezoneSnapshot, primaryArticleId, backupArticleIds, targetSavedWordIds, controlled status/source/tier/reason, completion + skip timestamps) | Learning / Today | **personal** | ✅ anchors + ids only (no content) | Cascade via `TodaySession.userId` | Not affected | Deleted with user | Safe — stores **ids and anchors only**; `primaryArticleId`/`backupArticleIds`/`targetSavedWordIds` are plain string ids (NOT FKs) revalidated in code, so deleting an Article or SavedWord never cascades here. Never stores article text, word text, definitions, examples, or context sentences |
+
 
 > **Gap #711-C — RESOLVED (#711):** `LevelHistory`, `WordMastery`,
 > `ArticleMastery`, `SkillMastery`, and `ArticleDifficultyFeedback` are now

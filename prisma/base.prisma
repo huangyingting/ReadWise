@@ -92,6 +92,7 @@ model User {
   taughtClassrooms        Classroom[]                 @relation("TaughtClassrooms")
   classroomMemberships    ClassroomMembership[]
   assignmentCompletions   AssignmentCompletion[]
+  todaySessions           TodaySession[]
 
   @@index([role, createdAt], map: "User_role_created_idx")
 }
@@ -581,6 +582,59 @@ model ArticleDifficultyFeedback {
 
   @@unique([userId, articleId])
   @@index([articleId])
+}
+
+// #783/#788 — Today Session: one durable workflow anchor per learner-local day.
+//
+// Stores ANCHORS and IDENTIFIERS ONLY (article ids, saved-word ids, statuses,
+// timestamps) — never learning content (no article text, word text,
+// definitions, examples, context sentences, or notes). `primaryArticleId`,
+// `backupArticleIds`, and `targetSavedWordIds` are plain string ids (NOT FKs)
+// revalidated in code at read time, so deleting an Article or SavedWord never
+// erases or cascades into a Today session. Only user deletion cascades.
+//
+// Controlled string fields (status/source/completionTier/generationReasonCode/
+// skipReason) follow the `ArticleDifficultyFeedback.vote` convention rather than
+// new Prisma enums, keeping SQLite and PostgreSQL schemas in single-source sync.
+//
+// `localDate` is the learner-local calendar day as "YYYY-MM-DD" (NOT a UTC
+// DateTime bucket); `timezoneSnapshot` records the IANA zone used to compute it.
+model TodaySession {
+  id                String   @id @default(cuid())
+  userId            String
+  localDate         String // "YYYY-MM-DD" in the learner's local calendar
+  timezoneSnapshot  String // IANA timezone used to resolve localDate
+
+  // Plan anchors — ids only, no content. Revalidated in code before display.
+  primaryArticleId    String?
+  backupArticleIds    Json    @default("[]") // string[] of Article ids
+  targetSavedWordIds  Json    @default("[]") // string[] of SavedWord ids
+  reviewTargetCount   Int     @default(0)
+
+  // Controlled string values (see today-session/types.ts validators).
+  status               String  @default("active") // "active" | "completed" | "skipped"
+  source               String  @default("none") // "resume" | "picks" | "none"
+  completionTier       String  @default("none") // "none" | "reading" | "comprehension" | "full"
+  generationReasonCode String  @default("no_candidate") // why the plan was produced
+
+  // Lifecycle completion timestamps.
+  readingCompletedAt       DateTime?
+  comprehensionCompletedAt DateTime?
+  wordReviewCompletedAt    DateTime?
+  completedAt              DateTime?
+
+  // Skip lifecycle.
+  skipped    Boolean   @default(false)
+  skipReason String? // controlled value when skipped, see types.ts
+  skippedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, localDate])
+  @@index([userId])
 }
 
 // Durable security/admin audit event store. Actor/target ids are stored as
