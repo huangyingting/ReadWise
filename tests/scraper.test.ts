@@ -210,3 +210,39 @@ test("extractArticle (clean capture): a long multi-paragraph article loses no bo
     );
   }
 });
+
+test("extractArticle (clean capture, e2e): class-less bio + newsletter CTA removed, body kept", () => {
+  // Realistic page, NO JSON-LD -> Readability path strips class/id, so the
+  // declutter pass must catch the class-less author bio + newsletter CTA by
+  // TEXT, while related/share blocks (still class-bearing pre-Readability) and
+  // the body prose are handled correctly end-to-end.
+  const html =
+    `<!doctype html><html><head><title>Why Cities Are Rethinking Transit</title>` +
+    `<meta property="og:title" content="Why Cities Are Rethinking Transit"><meta name="author" content="Jane Doe"></head><body>` +
+    `<nav>Home World Politics</nav>` +
+    `<article><h1>Why Cities Are Rethinking Transit</h1>` +
+    `<p>Across the world, cities are reconsidering how people move through dense urban cores, weighing buses, bikes, and trains against the stubborn dominance of the private car.</p>` +
+    `<p>Planners argue that the next decade of investment will determine whether downtowns become more livable or simply more congested, and the choices are political as much as technical.</p>` +
+    `<p>New pilot programs in several metro areas suggest that small, well-targeted changes to street design can shift commuter behavior faster than expensive megaprojects.</p>` +
+    `<div class="social-share">Share: <a href="#">Twitter</a> <a href="#">Facebook</a></div>` +
+    `<aside class="related"><h3>Related</h3><ul><li><a href="/a">The bus revival</a></li><li><a href="/b">Bike lanes that work</a></li></ul></aside>` +
+    `<p class="author-bio">By Jane Doe. Jane is a senior transportation writer at DailyExample covering cities and mobility. Follow her @janedoe.</p>` +
+    `<div class="newsletter">Subscribe to our weekly newsletter for more stories like this.</div>` +
+    `</article><footer>© 2026 DailyExample.</footer></body></html>`;
+
+  const result = extractArticle(html, "https://dailyexample.example.com/transit/rethinking");
+  assert.ok(result, "should extract a valid article");
+  const content = result?.content ?? "";
+
+  // Body prose survives.
+  assert.match(content, /stubborn dominance of the private car/, "body sentence kept");
+  // Author bio (the user's complaint) is gone.
+  assert.doesNotMatch(content, /senior transportation writer/, "author bio removed");
+  // Newsletter CTA is gone.
+  assert.doesNotMatch(content, /weekly newsletter/, "newsletter CTA removed");
+  // Related + share are absent.
+  assert.doesNotMatch(content, /The bus revival/, "related links removed");
+  assert.doesNotMatch(content, /Share on|Share:/, "share block removed");
+  // Author metadata still captured.
+  assert.equal(result?.author, "Jane Doe");
+});
