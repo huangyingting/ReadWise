@@ -97,6 +97,7 @@ are fully configured.
 | `FEATURE_TTS_ENABLED` | `true` | Azure Speech text-to-speech narration and word timings |
 | `FEATURE_PUSH_ENABLED` | `true` | Web Push (VAPID) notification delivery |
 | `FEATURE_SCRAPER_ENABLED` | `true` | Web scraper — article import and background crawl |
+| `FEATURE_TODAY_SESSION_ENABLED` | `true` | Today Session workflow — `/today` route, Dashboard Today card, default learner landing |
 
 Set to `"false"`, `"0"`, or `"off"` to disable. Any other value (or absent) keeps
 the feature enabled. Disabled state degrades identically to the unconfigured
@@ -123,7 +124,7 @@ if (!isFeatureEnabled("ai")) {
 | `src/lib/runtime-config/analytics.ts` | `analytics` | Analytics provider config |
 | `src/lib/runtime-config/database.ts` | `database` | `PRISMA_SCHEMA_PATH` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |
-| `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED` |
+| `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
 | `src/lib/runtime-config/oauth.ts` | `oauth` | `GOOGLE_CLIENT_*`, `AZURE_AD_*` |
 | `src/lib/runtime-config/observability.ts` | `observability` | `LOG_LEVEL`, Sentry/telemetry DSN |
 | `src/lib/runtime-config/push.ts` | `push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |

@@ -341,6 +341,56 @@ semantics are untouched — only the default landing target changes.
 > is a pre-existing, app-wide change tracked as a separate follow-up.
 
 
+## Feature flag & rollout
+
+Today Session ships behind a runtime kill switch so it can be disabled without a
+code deploy.
+
+### Environment variable
+
+```
+FEATURE_TODAY_SESSION_ENABLED="true"   # default — feature is on
+```
+
+Set to `"false"`, `"0"`, or `"off"` to disable. Any other value, or absent,
+keeps the feature enabled. Parsed by
+`src/lib/runtime-config/feature-flags.ts` (`isTodaySessionFeatureEnabled()`),
+which follows the same convention as `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`,
+`FEATURE_PUSH_ENABLED`, and `FEATURE_SCRAPER_ENABLED`.
+
+See `docs/platform/runtime-config.md § Feature kill switches` for the full
+convention.
+
+### Default state
+
+The flag defaults to **enabled**. No env var change is required to ship the
+feature; it is active as soon as the code is deployed.
+
+### Disabled behavior
+
+When `FEATURE_TODAY_SESSION_ENABLED` is set to a falsy value:
+
+| Surface | Behavior when disabled |
+| --- | --- |
+| `/today` route | Returns HTTP 404 (`notFound()` in the page server component) |
+| Dashboard Today card | Hidden — `todaySummary` is not loaded; dashboard layout is unchanged |
+| Default learner landing | `/dashboard` (same as before Today Session) |
+| Today API routes (`/api/today/*`) | Return a graceful 404/disabled response |
+| Learner session/auth flow | Unchanged — only the default landing target changes |
+
+Disabling the flag does **not** delete or invalidate existing `TodaySession`
+rows; it only removes the UI and API entry points. Re-enabling restores full
+behavior without data loss.
+
+### Rollout notes
+
+- **Staged rollout:** deploy with `FEATURE_TODAY_SESSION_ENABLED="false"` to
+  verify infrastructure before opening to learners, then flip to `"true"`.
+- **Rollback:** set `FEATURE_TODAY_SESSION_ENABLED="false"` and restart the
+  process. No schema migration required.
+- The flag is **server-only** — never import `feature-flags.ts` from a Client
+  Component.
+
 ## Non-goals (v1)
 
 - No new lightweight comprehension model — comprehension reuses existing quiz
