@@ -230,6 +230,21 @@ async function readUserExport(userId: string, client: AccountClient = prisma) {
         orderBy: { skill: "asc" },
       },
 
+      // #810: privacy-safe learning coach memory — controlled aggregate
+      // signals only (skill, confidence, evidenceCount, lastObservedAt, trend).
+      // No prompts, text, ids, or derivative content.
+      learnerCoachMemories: {
+        select: {
+          skill: true,
+          confidence: true,
+          evidenceCount: true,
+          lastObservedAt: true,
+          trend: true,
+          createdAt: true,
+        },
+        orderBy: { skill: "asc" },
+      },
+
       difficultyFeedback: {
         select: {
           articleId: true,

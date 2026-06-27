@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-06-27T07:13:39.078Z",
-  "routeCount": 98,
-  "methodCount": 109,
+  "generatedAt": "2026-06-27T08:58:27.426Z",
+  "routeCount": 99,
+  "methodCount": 110,
   "routes": [
     {
       "path": "/api/account",
@@ -1080,6 +1080,27 @@
             "stack",
             "url"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/coach-memory",
+      "file": "src/app/api/coach-memory/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "DELETE",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 204,
+          "responseKeys": null,
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },

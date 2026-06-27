@@ -26,6 +26,14 @@ function skills(overrides: Partial<Record<Skill, Partial<SkillSummary>>> = {}): 
 // ---------------------------------------------------------------------------
 
 let skillRows: Array<{ skill: string; confidence: number; evidenceCount: number }> = [];
+let coachRows: Array<{
+  skill: string;
+  confidence: number;
+  evidenceCount: number;
+  lastObservedAt: Date;
+  trend: string;
+  createdAt: Date;
+}> = [];
 let profileRow: Record<string, unknown> | null = null;
 let feedbackRows: Array<{ vote: string; _count: { _all: number } }> = [];
 let quizFindMany: Array<{ scorePct: number }> = [];
@@ -60,6 +68,7 @@ before(() => {
         articleDifficultyFeedback: { groupBy: async () => feedbackRows },
         readingProgress: { count: async () => 0, findMany: async () => [] },
         skillMastery: { findMany: async () => skillRows },
+        learnerCoachMemory: { findMany: async () => coachRows },
         quizAttempt: {
           findMany: async () => quizFindMany,
           aggregate: async () => quizAgg,
@@ -88,6 +97,7 @@ before(() => {
 
 beforeEach(() => {
   skillRows = [];
+  coachRows = [];
   profileRow = null;
   feedbackRows = [];
   quizFindMany = [];
@@ -265,4 +275,42 @@ test("generateStudyPlan surfaces a reading recommendation from the picks engine"
   ];
   const plan = await generateStudyPlan("u1");
   assert.ok(plan.items.some((i) => i.kind === "reading-rec" && i.href === "/reader/art-7"));
+});
+
+// ---------------------------------------------------------------------------
+// #810 — coach memory as a study-plan ranking signal (with SkillMastery fallback)
+// ---------------------------------------------------------------------------
+
+test("generateStudyPlan uses LearnerCoachMemory to surface a weak skill", async () => {
+  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
+  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  // No SkillMastery evidence at all — only coach memory knows grammar is weak.
+  skillRows = [];
+  coachRows = [
+    {
+      skill: "grammar",
+      confidence: 0.1,
+      evidenceCount: 5,
+      lastObservedAt: new Date(),
+      trend: "declining",
+      createdAt: new Date(),
+    },
+  ];
+  const plan = await generateStudyPlan("u1");
+  assert.ok(
+    plan.weakAreas.some((a) => a.kind === "grammar"),
+    "grammar weakness should come from coach memory even without SkillMastery",
+  );
+});
+
+test("generateStudyPlan falls back to SkillMastery when coach memory is empty", async () => {
+  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
+  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  coachRows = [];
+  skillRows = [{ skill: "grammar", confidence: 0.2, evidenceCount: 4 }];
+  const plan = await generateStudyPlan("u1");
+  assert.ok(
+    plan.weakAreas.some((a) => a.kind === "grammar"),
+    "grammar weakness should come from SkillMastery when coach memory is empty",
+  );
 });

@@ -21,6 +21,7 @@ import { clamp01 } from "./primitives";
 // pulling in the full skill-mastery implementation (DB / Prisma deps).
 import { SKILLS, isSkill } from "./types";
 import type { Skill, EvidenceSummary, SkillSummary, SkillProfile } from "./types";
+import { syncCoachMemory } from "./coach-memory";
 
 /** Smoothing factor for the confidence EMA (per unit weight, capped). */
 const BASE_ALPHA = 0.3;
@@ -132,6 +133,10 @@ export async function recordSkillEvidence(
     create: { userId, skill, ...data },
     update: data,
   });
+
+  // #810 — best-effort, privacy-safe coach-memory side effect. A failure here
+  // must never break the mastery write (swallowed + logged inside the helper).
+  await syncCoachMemory(userId, skill, row.confidence);
 
   return {
     skill,

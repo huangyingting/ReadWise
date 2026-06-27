@@ -112,6 +112,18 @@ const stubExportUser = {
     { articleId: "art-1", vote: "just_right", createdAt: NOW, updatedAt: NOW },
   ],
 
+  // #810 — privacy-safe learning coach memory (aggregate signals only).
+  learnerCoachMemories: [
+    {
+      skill: "comprehension",
+      confidence: 0.42,
+      evidenceCount: 8,
+      lastObservedAt: NOW,
+      trend: "declining",
+      createdAt: NOW,
+    },
+  ],
+
   // 711-E
   memberships: [
     { orgId: "org-1", role: "Member", createdAt: NOW, updatedAt: NOW },
@@ -289,6 +301,24 @@ test("exportUserData includes difficultyFeedback (711-C)", async () => {
   assert.ok(Array.isArray(data!.difficultyFeedback));
   assert.equal(data!.difficultyFeedback.length, 1);
   assert.equal(data!.difficultyFeedback[0].vote, "just_right");
+});
+
+test("exportUserData includes learnerCoachMemory aggregates only (#810)", async () => {
+  const { exportUserData } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const data = await exportUserData("user-1");
+  assert.ok(data);
+  assert.ok(Array.isArray(data!.learnerCoachMemories));
+  assert.equal(data!.learnerCoachMemories.length, 1);
+  const row = data!.learnerCoachMemories[0];
+  assert.equal(row.skill, "comprehension");
+  assert.equal(row.trend, "declining");
+  // Privacy: only controlled aggregate keys are exported — no text/ids/PII.
+  assert.deepEqual(
+    Object.keys(row).sort(),
+    ["confidence", "createdAt", "evidenceCount", "lastObservedAt", "skill", "trend"],
+  );
 });
 
 // ---------------------------------------------------------------------------

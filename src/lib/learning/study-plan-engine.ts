@@ -11,6 +11,7 @@
 import { prisma } from "@/lib/prisma";
 import { clamp01 } from "./primitives";
 import { getSkillProfile } from "./skill-mastery";
+import { coachMemorySkillConfidences } from "./coach-memory";
 import { SKILLS, type Skill, type SkillSummary } from "./types";
 import {
   getAdaptiveLevelRecommendation,
@@ -265,6 +266,7 @@ export async function gatherStudyDiagnostics(
   const now = new Date();
   const [
     skillProfile,
+    coachConfidences,
     level,
     weakCount,
     dueCount,
@@ -275,6 +277,7 @@ export async function gatherStudyDiagnostics(
     pronAgg,
   ] = await Promise.all([
     getSkillProfile(userId),
+    coachMemorySkillConfidences(userId, now),
     getAdaptiveLevelRecommendation(userId),
     prisma.wordMastery.count({
       where: { userId, familiarity: { lt: WEAK_WORD_FAMILIARITY } },
@@ -301,9 +304,21 @@ export async function gatherStudyDiagnostics(
 
   const readingRec = await getArticleRecommendations();
 
+  // #810 — coach memory informs skill ranking by recency trend, not just the
+  // latest snapshot. When memory is empty (cold start), fall back to
+  // SkillMastery so existing behaviour is unchanged.
+  const skills =
+    coachConfidences.size > 0
+      ? skillProfile.skills.map((s) =>
+          coachConfidences.has(s.skill)
+            ? { ...s, confidence: coachConfidences.get(s.skill)!, hasEvidence: true }
+            : s,
+        )
+      : skillProfile.skills;
+
   return {
-    skills: skillProfile.skills,
-    hasSkillEvidence: skillProfile.totalEvidence > 0,
+    skills,
+    hasSkillEvidence: skillProfile.totalEvidence > 0 || coachConfidences.size > 0,
     vocab: { weakCount, dueCount, totalSaved },
     quiz: {
       averageScore: quizAgg._count._all > 0 ? quizAgg._avg.scorePct ?? null : null,
