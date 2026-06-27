@@ -4,6 +4,8 @@ import { gradeFlashcard, getReviewSummary } from "@/lib/learning/flashcards";
 import type { Grade } from "@/lib/learning/srs";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { flashcardGradeBody } from "@/lib/study/schemas";
+import { bestEffortMastery } from "@/lib/learning/primitives";
+import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/completion";
 
 /**
  * POST /api/study/flashcards/grade
@@ -37,5 +39,11 @@ export const POST = createHandler({ body: flashcardGradeBody }, async ({ body, s
     userId: session.user.id,
     properties: { grade: body.grade },
   });
+  // Best-effort: a flashcard grade may complete the Today word-review step when
+  // enough of the session's target words have been reviewed. Never breaks the
+  // SM-2 grade write.
+  await bestEffortMastery("flashcard.today_word_review", () =>
+    markTodayWordReviewComplete({ userId: session.user.id }),
+  );
   return NextResponse.json({ dueAt: result.dueAt, dueCount });
 });
