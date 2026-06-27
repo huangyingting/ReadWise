@@ -2,7 +2,8 @@
 
 import { useRef } from "react";
 import { Keyboard } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "@/lib/keyboard-shortcuts";
 import { useFocusTrap } from "@/lib/focus-trap";
 
@@ -124,23 +125,16 @@ export default function KeyboardShortcutsModal({
             </h2>
           </div>
 
-          <button
+          <IconButton
             ref={closeButtonRef}
-            type="button"
             aria-label="Close keyboard shortcuts"
             onClick={onClose}
-            className={cn(
-              "inline-flex items-center justify-center w-8 h-8",
-              "rounded-[var(--radius-md)]",
-              "text-text-subtle hover:text-text hover:bg-bg-subtle",
-              "transition-colors [transition-duration:var(--duration-fast)]",
-              focusRing,
-            )}
+            className="h-8 w-8 rounded-[var(--radius-md)] text-text-subtle hover:text-text"
           >
             <span aria-hidden className="text-[length:var(--text-base)] leading-none">
               ×
             </span>
-          </button>
+          </IconButton>
         </div>
 
         {/* Shortcut groups */}

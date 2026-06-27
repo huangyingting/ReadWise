@@ -22,7 +22,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Bookmark } from "lucide-react";
 import { deleteJson, postJson } from "@/lib/client-fetch";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
 export interface CardBookmarkButtonProps {
@@ -103,9 +104,8 @@ export default function CardBookmarkButton({
     : `Save "${articleTitle}"`;
 
   return (
-    <button
+    <IconButton
       ref={buttonRef}
-      type="button"
       // aria-pressed only for toggle mode (not remove mode)
       aria-pressed={isRemoveMode ? undefined : saved}
       aria-label={ariaLabel}
@@ -135,7 +135,6 @@ export default function CardBookmarkButton({
         "data-[saved=true]:text-primary-text",
         "data-[saved=true]:bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
         "data-[saved=true]:border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
-        focusRing,
       )}
       onClick={handleClick}
     >
@@ -144,6 +143,6 @@ export default function CardBookmarkButton({
         fill={saved ? "currentColor" : "none"}
         aria-hidden
       />
-    </button>
+    </IconButton>
   );
 }

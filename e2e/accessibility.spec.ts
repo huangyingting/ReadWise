@@ -66,8 +66,16 @@ function assertNoBlockingViolations(
   if (blocking.length > 0) {
     const summary = blocking
       .map(
-        (v) =>
-          `[${v.impact}] ${v.id}: ${v.description} (${v.nodes.length} node(s))`,
+        (v) => {
+          const nodes = v.nodes
+            .map(
+              (node, index) =>
+                `  ${index + 1}. target=${node.target.join(" ")} html=${node.html}`,
+            )
+            .join("\n");
+
+          return `[${v.impact}] ${v.id}: ${v.description} (${v.nodes.length} node(s))\n${nodes}`;
+        },
       )
       .join("\n");
     throw new Error(

@@ -29,7 +29,7 @@ export function StepAbout({
         {STEP_TITLES[3]}{" "}
         <Badge variant="neutral" className="ml-[var(--space-2)]">Optional</Badge>
       </h2>
-      <p className="text-text-subtle text-xs mb-[var(--space-4)]">
+      <p className="mb-[var(--space-4)] text-text-subtle text-[length:var(--text-xs)]">
         Optional — helps us pick relevant articles for you.
       </p>
       <div className="flex flex-col gap-[var(--space-4)] sm:grid sm:grid-cols-2">
@@ -60,7 +60,7 @@ export function StepAbout({
           </Select>
         </Field>
       </div>
-      <p className="mt-[var(--space-4)] text-text-subtle text-xs">
+      <p className="mt-[var(--space-4)] text-text-subtle text-[length:var(--text-xs)]">
         These fields are optional and stored in your profile. They are used
         solely to personalise article recommendations. You can update or clear
         them at any time in{" "}

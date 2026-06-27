@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { PanelLeft, ChevronsLeft, type LucideIcon } from "lucide-react";
+import { Button } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import { PRIMARY_NAV, ADMIN_NAV_ITEMS, isActivePath } from "./nav-items";
 import type { ShellUser } from "./types";
@@ -98,32 +99,31 @@ export default function AppSidebar({ user }: { user: ShellUser | null }) {
           ? ADMIN_NAV_ITEMS.map((item) => navLink(item.href, item.label, item.icon))
           : null}
 
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="lg"
           onClick={toggle}
           aria-expanded={!collapsed}
           aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
           title={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+          leadingIcon={
+            collapsed ? (
+              <PanelLeft size={20} aria-hidden className="shrink-0" />
+            ) : (
+              <ChevronsLeft size={20} aria-hidden className="shrink-0" />
+            )
+          }
           className={cn(
-            "flex h-11 items-center rounded-[var(--radius-md)]",
-            "text-[length:var(--text-sm)] font-medium text-text-muted",
+            "h-11 w-full rounded-[var(--radius-md)] text-text-muted hover:text-text",
             collapsed
               ? "justify-center px-0"
               : "gap-[var(--space-3)] px-[var(--space-3)]",
-            "transition-colors [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-            "hover:bg-bg-subtle hover:text-text",
-            focusRing,
           )}
         >
-          {collapsed ? (
-            <PanelLeft size={20} aria-hidden className="shrink-0" />
-          ) : (
-            <ChevronsLeft size={20} aria-hidden className="shrink-0" />
-          )}
           <span className={cn(collapsed ? "sr-only" : "truncate")}>
             Collapse
           </span>
-        </button>
+        </Button>
       </div>
     </aside>
   );

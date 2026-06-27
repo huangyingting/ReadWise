@@ -4,13 +4,19 @@ import { requireSession } from "@/lib/session";
 import { listUserOrganizations, hasOrgCapability } from "@/lib/org";
 import { listClassroomsForTeacher } from "@/lib/classroom";
 import { CAPABILITIES } from "@/lib/rbac";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import {
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  EmptyState,
+  PageHeader,
+  PageShell,
+  Section,
+} from "@/components/ui";
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
-import EmptyState from "@/components/EmptyState";
 
 /**
  * Teacher workspace (RW-061). Lists the classrooms the signed-in user teaches
@@ -41,10 +47,7 @@ export default async function TeacherPage() {
       />
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
-        <section className="flex flex-col gap-[var(--space-4)]">
-          <h2 className="font-semibold text-[length:var(--text-xl)] text-text">
-            Your classrooms
-          </h2>
+        <Section title="Your classrooms">
           {classrooms.length === 0 ? (
             <EmptyState
               icon={GraduationCap}
@@ -74,7 +77,7 @@ export default async function TeacherPage() {
               ))}
             </ul>
           )}
-        </section>
+        </Section>
 
         <aside className="flex flex-col gap-[var(--space-4)]">
           {teachableOrgs.length > 0 ? (

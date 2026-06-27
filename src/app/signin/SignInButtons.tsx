@@ -27,7 +27,11 @@ export default function SignInButtons({
   if (providers.length === 0) {
     return (
       <div className="flex items-start gap-[var(--space-2)] text-text-muted text-[length:var(--text-sm)]">
-        <AlertTriangle size={16} aria-hidden className="shrink-0 mt-px" />
+        <AlertTriangle
+          size={16}
+          aria-hidden
+          className="shrink-0 translate-y-[calc(var(--space-1)/4)]"
+        />
         <span>
           No authentication providers are configured. Set OAuth credentials in
           the environment to enable sign-in.

@@ -204,6 +204,11 @@
   margin: 0 0 var(--space-3);
 }
 
+.reader-byline a {
+  text-decoration: underline;
+  text-underline-offset: 0.18em;
+}
+
 .reader-meta {
   display: flex;
   flex-wrap: wrap;

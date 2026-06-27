@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import AppShell from "@/components/shell/AppShell";
-import { PageShell } from "@/components/shell/PageShell";
+import { PageShell } from "@/components/ui";
 import AdminNav from "@/components/AdminNav";
 import type { ShellUser } from "@/components/shell/types";
 

@@ -202,10 +202,7 @@ export default function AdminTagActions({
                   </option>
                 ))}
               </Select>
-              <p
-                className="muted"
-                style={{ margin: 0, fontSize: "var(--text-sm)" }}
-              >
+              <p className="m-0 text-[length:var(--text-sm)] text-text-muted">
                 All articles tagged &quot;{tagName}&quot; will gain &quot;
                 {mergeTarget?.name ?? "…"}&quot;. The original tag will be
                 deleted.

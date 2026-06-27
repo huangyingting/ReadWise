@@ -6,8 +6,7 @@ import {
   IMPORTS_PAGE_SIZE,
 } from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/engagement";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { PageHeader, PageShell } from "@/components/ui";
 import ImportForm from "./ImportForm";
 import PersonalImports from "./PersonalImports";
 import { importPage } from "@/lib/copy/pages";

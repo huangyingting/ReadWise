@@ -105,7 +105,7 @@ export default function ImportForm() {
             <div>
               <label
                 htmlFor="import-url"
-                className="block text-sm font-medium text-text mb-1"
+                className="mb-[var(--space-1)] block text-[length:var(--text-sm)] font-medium text-text"
               >
                 Article URL
               </label>
@@ -116,7 +116,7 @@ export default function ImportForm() {
                 onChange={(e) => setUrl(e.target.value)}
                 placeholder="https://example.com/article"
               />
-              <p className="text-xs text-text-muted mt-1">
+              <p className="mt-[var(--space-1)] text-[length:var(--text-xs)] text-text-muted">
                 Paste a link to any publicly accessible article.
               </p>
             </div>
@@ -125,7 +125,7 @@ export default function ImportForm() {
               <div>
                 <label
                   htmlFor="import-title"
-                  className="block text-sm font-medium text-text mb-1"
+                    className="mb-[var(--space-1)] block text-[length:var(--text-sm)] font-medium text-text"
                 >
                   Title{" "}
                   <span className="text-text-muted font-normal">(optional)</span>
@@ -142,7 +142,7 @@ export default function ImportForm() {
               <div>
                 <label
                   htmlFor="import-text"
-                  className="block text-sm font-medium text-text mb-1"
+                  className="mb-[var(--space-1)] block text-[length:var(--text-sm)] font-medium text-text"
                 >
                   Article Text
                 </label>
@@ -154,7 +154,7 @@ export default function ImportForm() {
                   rows={12}
                   className="resize-y"
                 />
-                <p className="text-xs text-text-muted mt-1">
+                <p className="mt-[var(--space-1)] text-[length:var(--text-xs)] text-text-muted">
                   {textWordCount > 0 ? (
                     <>
                       <span className={textBelowMin ? "text-danger-text" : undefined}>
@@ -172,12 +172,12 @@ export default function ImportForm() {
 
           <div ref={feedbackRef}>
             {error && (
-              <p role="alert" className="text-sm text-danger-text">
+              <p role="alert" className="text-[length:var(--text-sm)] text-danger-text">
                 {error}
               </p>
             )}
             {notice && (
-              <p role="status" className="text-sm text-success-text">
+              <p role="status" className="text-[length:var(--text-sm)] text-success-text">
                 {notice}
               </p>
             )}

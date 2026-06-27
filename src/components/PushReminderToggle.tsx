@@ -172,7 +172,7 @@ export default function PushReminderToggle() {
           <div className="font-medium text-text text-[length:var(--text-sm)]">
             {pushUi.toggleLabel}
           </div>
-          <div className="text-text-muted text-[length:var(--text-xs)] mt-[var(--space-0-5)]">
+          <div className="mt-[calc(var(--space-1)/2)] text-text-muted text-[length:var(--text-xs)]">
             {isDenied
               ? pushUi.deniedInfo
               : isSubscribed
@@ -196,7 +196,7 @@ export default function PushReminderToggle() {
         </p>
       )}
       {error && (
-        <p className="text-[length:var(--text-xs)] text-[color:var(--danger-text)]" role="alert">
+        <p className="text-[length:var(--text-xs)] text-danger-text" role="alert">
           {error}
         </p>
       )}

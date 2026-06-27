@@ -16,6 +16,7 @@ import { getJson, putJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 import { Select } from "@/components/ui/Select";
 import { Button } from "@/components/ui/Button";
+import { FormActions } from "@/components/ui/FormActions";
 import { SkeletonText } from "@/components/ui/Skeleton";
 
 interface Preference {
@@ -110,7 +111,7 @@ export default function ReminderPreferencesForm() {
           <div className="font-medium text-text text-[length:var(--text-sm)]">
             Send review reminders
           </div>
-          <div className="text-text-muted text-[length:var(--text-xs)] mt-[var(--space-0-5)]">
+          <div className="mt-[calc(var(--space-1)/2)] text-text-muted text-[length:var(--text-xs)]">
             Turn all reminder pushes on or off for your account.
           </div>
         </div>
@@ -156,7 +157,7 @@ export default function ReminderPreferencesForm() {
           <div className="font-medium text-text text-[length:var(--text-sm)]">
             Quiet hours
           </div>
-          <div className="text-text-muted text-[length:var(--text-xs)] mt-[var(--space-0-5)]">
+          <div className="mt-[calc(var(--space-1)/2)] text-text-muted text-[length:var(--text-xs)]">
             Suppress reminders during this window.
           </div>
         </div>
@@ -222,7 +223,7 @@ export default function ReminderPreferencesForm() {
         </div>
       ) : null}
 
-      <div className="flex items-center gap-[var(--space-3)]">
+      <FormActions align="start" density="compact">
         <Button type="button" size="sm" onClick={() => void save()} disabled={saving}>
           {saving ? "Saving…" : "Save preferences"}
         </Button>
@@ -232,13 +233,13 @@ export default function ReminderPreferencesForm() {
           </span>
         ) : status === "error" ? (
           <span
-            className="text-[length:var(--text-xs)] text-[color:var(--danger-text)]"
+            className="text-[length:var(--text-xs)] text-danger-text"
             role="alert"
           >
             Couldn&apos;t save — try again
           </span>
         ) : null}
-      </div>
+      </FormActions>
     </div>
   );
 }

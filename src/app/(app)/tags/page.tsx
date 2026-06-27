@@ -3,9 +3,7 @@ import { Hash } from "lucide-react";
 import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import { listTagsWithCounts } from "@/lib/article-library";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { tags } from "@/lib/copy/pages";
 
 export const metadata: Metadata = tags;

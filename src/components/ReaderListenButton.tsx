@@ -18,8 +18,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Volume2, Play, Pause, Loader2, VolumeX } from "lucide-react";
-import { Tooltip } from "@/components/ui/Tooltip";
-import { cn, focusRing } from "@/lib/cn";
+import { Button, Tooltip } from "@/components/ui";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
 export default function ReaderListenButton({ articleId }: { articleId: string }) {
@@ -95,17 +94,18 @@ export default function ReaderListenButton({ articleId }: { articleId: string })
 
   return (
     <Tooltip content={label} side="bottom">
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-label={label}
         aria-pressed={isPlaying}
         disabled={unavailable}
         onClick={handleClick}
-        className={cn("reader-listen-btn", focusRing)}
+        leadingIcon={icon}
+        className="reader-listen-btn"
       >
-        {icon}
-        <span className="reader-listen-btn-label">Listen</span>
-      </button>
+        Listen
+      </Button>
     </Tooltip>
   );
 }

@@ -1,8 +1,6 @@
 import { TrendingUp } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import EmptyState from "@/components/EmptyState";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { progress } from "@/lib/copy/pages";
 import { loadProgressViewModel } from "@/app/(app)/progress/view-model";
 import { ProgressOverviewSection } from "@/app/(app)/progress/_sections/ProgressOverviewSection";

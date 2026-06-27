@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { X } from "lucide-react";
+import { IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
@@ -40,16 +41,16 @@ export default function WordLookupHint() {
     <p className={cn("muted word-lookup-hint flex items-start gap-2")}>
       <span className="flex-1">
         Click a word to define it · Select text to highlight or add a note · Use{" "}
-        <kbd style={{ fontFamily: "inherit", fontSize: "0.9em" }}>⌘/Ctrl+E</kbd> with a selection
+        <kbd className="font-[family-name:inherit] text-[length:0.9em]">⌘/Ctrl+E</kbd> with a selection
       </span>
-      <button
-        type="button"
+      <IconButton
+        size="sm"
         onClick={dismiss}
         aria-label="Dismiss hint"
         className="shrink-0 text-text-subtle hover:text-text transition-colors mt-px"
       >
         <X size={14} aria-hidden />
-      </button>
+      </IconButton>
     </p>
   );
 }

@@ -114,14 +114,15 @@ export default function SelectionToolbar({
         className="rw-sel-swatch-group"
       >
         {SWATCH_COLORS.map(({ color: c, label, cssVar }, i) => (
-          <button
+          <IconButton
             key={c}
-            type="button"
+            size="sm"
+            context="reading"
             role="radio"
             aria-checked={color === c}
             aria-label={label}
             tabIndex={color === c ? 0 : -1}
-            className={cn("rw-sel-swatch", focusRing)}
+            className="rw-sel-swatch"
             style={{ backgroundColor: cssVar }}
             onClick={() => onColorChange(c)}
             onKeyDown={(e) => handleSwatchKey(e, i)}
@@ -129,7 +130,7 @@ export default function SelectionToolbar({
             {color === c ? (
               <Check size={12} aria-hidden="true" style={{ color: "var(--reading-text)" }} />
             ) : null}
-          </button>
+          </IconButton>
         ))}
       </div>
 

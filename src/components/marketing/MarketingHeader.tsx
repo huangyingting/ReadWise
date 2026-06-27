@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui";
 import ThemeToggle from "@/components/shell/ThemeToggle";
+import { focusRing } from "@/lib/cn";
 import { Wordmark } from "./Wordmark";
 
 export interface MarketingHeaderProps {
@@ -19,7 +20,7 @@ export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
     >
       <a
         href="#main-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-[var(--space-4)] focus:top-[var(--space-3)] focus:z-[var(--z-skip)] focus:rounded-[var(--radius-md)] focus:bg-surface focus:px-[var(--space-4)] focus:py-[var(--space-2)] focus:text-text focus:shadow-[var(--shadow-md)] focus:outline-none focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]"
+        className={`sr-only focus:not-sr-only focus:absolute focus:left-[var(--space-4)] focus:top-[var(--space-3)] focus:z-[var(--z-skip)] focus:rounded-[var(--radius-md)] focus:bg-surface focus:px-[var(--space-4)] focus:py-[var(--space-2)] focus:text-text focus:shadow-[var(--shadow-md)] ${focusRing}`}
       >
         Skip to content
       </a>

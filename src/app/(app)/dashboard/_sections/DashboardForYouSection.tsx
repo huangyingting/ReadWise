@@ -3,7 +3,7 @@
  * cold-start empty state (REF-059).
  */
 import { Sparkles, SlidersHorizontal } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 import ForYouFeed from "@/components/ForYouFeed";
 import DashboardLevelFilter from "@/components/DashboardLevelFilter";
 import type { FeedPage } from "@/lib/feed";

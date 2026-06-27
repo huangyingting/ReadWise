@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
 
 type Props = {
   currentIndex: number;
@@ -18,15 +18,16 @@ export function SentenceStepper({
 }: Props) {
   return (
     <div className="rw-speak-stepper">
-      <button
-        type="button"
-        className={cn("rw-speak-stepper-btn", focusRing)}
+      <IconButton
+        size="sm"
+        context="reading"
+        className="rw-speak-stepper-btn"
         onClick={onPrev}
         disabled={currentIndex === 0}
         aria-label="Previous sentence"
       >
         <ChevronLeft size={16} aria-hidden />
-      </button>
+      </IconButton>
 
       <span
         className="rw-speak-stepper-counter"
@@ -36,15 +37,16 @@ export function SentenceStepper({
         {currentIndex + 1} of {sentenceCount}
       </span>
 
-      <button
-        type="button"
-        className={cn("rw-speak-stepper-btn", focusRing)}
+      <IconButton
+        size="sm"
+        context="reading"
+        className="rw-speak-stepper-btn"
         onClick={onNext}
         disabled={currentIndex === sentenceCount - 1}
         aria-label="Next sentence"
       >
         <ChevronRight size={16} aria-hidden />
-      </button>
+      </IconButton>
     </div>
   );
 }

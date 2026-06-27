@@ -151,7 +151,7 @@ const rule = {
         '"{{source}}" is a server-only module and cannot be imported in a "use client" file. ' +
         "Server-only modules include Prisma, auth/session guards, Node APIs, logger, " +
         "tracing, audit, runtime-config, cache, AI internals, and server storage adapters. " +
-        "See docs/refactoring.md § REF-076 for the boundary taxonomy. " +
+        "See docs/architecture/0010-subsystem-boundaries-and-import-contracts.md for the boundary taxonomy. " +
         "To document a durable exception add an entry to eslint-rules/import-boundary-allowlist.json.",
     },
     schema: [

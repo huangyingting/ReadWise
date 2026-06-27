@@ -2,7 +2,7 @@
  * Shared low-level environment helpers for runtime-config modules.
  *
  * @server-only — Never import from a Client Component.
- * See docs/refactoring.md § REF-076.
+ * See ADR-0010.
  *
  * IMPORTANT: server-only. Never import from a Client Component.
  */

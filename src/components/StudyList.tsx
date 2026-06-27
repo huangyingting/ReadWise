@@ -5,7 +5,7 @@ import { BookOpen, Volume2 } from "lucide-react";
 import { postJson } from "@/lib/client-fetch";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 
 export type StudyWord = {
   id: string;

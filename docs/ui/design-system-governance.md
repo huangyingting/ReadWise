@@ -7,8 +7,11 @@
 ## 1. Purpose
 
 ReadWise ships UI across five surfaces — Reader, Admin, Study, Teacher, and
-Marketing — each with its own data density and interaction model.  This
-document gives every contributor a shared, lightweight contract for:
+Marketing — each with its own data density and interaction model. Design System
+v1 is now the durable product-UI contract; this document is the canonical source
+for ongoing rules after the migration, not a migration checklist.
+
+This document gives every contributor a shared, lightweight contract for:
 
 - which tokens to use and how to name new ones,
 - when a feature component should delegate to a `src/components/ui/` primitive
@@ -19,8 +22,9 @@ document gives every contributor a shared, lightweight contract for:
 - a scoped visual regression plan built on top of the existing Playwright
   infrastructure.
 
-No Storybook migration is required.  No mass component rewrite.  These are
-**guardrails for incremental work**, not a redesign mandate.
+No Storybook migration is required. Do not keep one-off refactoring runbooks for
+completed UI migrations; promote lasting rules into this document and delete the
+temporary plan.
 
 ---
 
@@ -143,6 +147,20 @@ All primitives live in `src/components/ui/` and are re-exported through
 import { Button, Badge, Card } from "@/components/ui";
 ```
 
+### 4.0 Import contract
+
+`@/components/ui` is the canonical import path for shared product-UI
+primitives. Feature code must import `PageShell`, `PageHeader`, `Section`,
+`Stack`, `Inline`, `Toolbar`, `TableSurface`, `FormActions`, and `EmptyState`
+from that barrel or from their direct `src/components/ui/*` file only when a
+low-level import is necessary.
+
+Do **not** add compatibility re-export files such as `src/components/EmptyState.tsx`
+or `src/components/shell/PageShell.tsx`. If an old path is superseded, update
+callers to the canonical UI primitive and delete the old path in the same change.
+Feature-local wrappers are acceptable only when they add feature behavior or
+semantics; pure aliases are drift.
+
 ### 4.1 Catalog
 
 | Primitive | File | Variants / Props | When to use |
@@ -166,6 +184,15 @@ import { Button, Badge, Card } from "@/components/ui";
 | **Sheet** | `Sheet.tsx` | `open`, `onClose`, `side` | Side-panel / drawer overlays |
 | **SegmentedControl** | `SegmentedControl.tsx` | `options`, `value`, `onChange` | Mutually exclusive view-mode tabs |
 | **Avatar** | `Avatar.tsx` | `src`, `name`, `size` | User identity — initials fallback |
+| **PageShell** | `PageShell.tsx` | `variant`: listing · narrow · reading · marketing · full; `density`: default · compact · reader · marketing | Standard centred page container |
+| **PageHeader** | `PageHeader.tsx` | `density`, `align`, `title`, `description`, `actions`, `level` | Page title/description/action rows |
+| **Section** | `Section.tsx` | `surface`: plain · card · subtle; `density`, `title`, `description`, `actions` | Reusable page regions |
+| **Stack** | `Stack.tsx` | token gap + alignment variants | Vertical layout rhythm |
+| **Inline** | `Inline.tsx` | token gap, alignment, justify, wrap variants | Horizontal layout rhythm |
+| **Toolbar** | `Toolbar.tsx` | `density`, `align`, `justify`, `surface` | Related action/filter rows |
+| **TableSurface** | `TableSurface.tsx` | `density`: default · compact · reader · marketing | Tokenised scroll surface around semantic tables |
+| **FormActions** | `FormActions.tsx` | `density`, `align` | Submit/cancel action rows |
+| **EmptyState** | `EmptyState.tsx` | `icon`, `title`, `description`, `action`, `titleAs` | Empty collection/page states |
 | **PanelLoading** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel loading state |
 | **PanelError** | `ReaderToolPanelState.tsx` | `message` | Tool/study-panel error state |
 | **PanelFallback** | `ReaderToolPanelState.tsx` | `title`, `description` | Unavailable-provider state |
@@ -219,6 +246,34 @@ primitive (§5.2).
 | `--teal` used as a clickable-affordance colour | Use `--primary` for interactive elements |
 | New badge with hard-coded hex | Add `--my-badge-*` tokens to `tokens.css`, then use from `Badge` or a new token-driven class |
 
+### 4.5 Density rules
+
+Use explicit density variants instead of per-page one-off sizing. Admin and data
+dense UI may be compact, but it must still use shared tokens and primitives.
+
+| Density | Use for | Typical tokens/components |
+| --- | --- | --- |
+| `default` | Dashboard, settings, study, reader tool panels | `--text-base`, `--text-sm`, `--space-4`, `--space-5`, `Button size="md"` |
+| `compact` | Admin tables, filters, bulk actions, dense lists | `--text-sm`, `--text-xs`, `--space-2`, `--space-3`, `Button size="sm"` |
+| `reader` | Article prose and reading-specific UI | `--reading-*`, `--font-reading`, `data-reading-*` |
+| `marketing` | Landing/display sections | `--text-3xl`, `--text-4xl`, `--space-10..12`, `--gradient-brand` |
+
+Density changes must be explicit primitive props or named variants. Do not tune
+raw pixel/rem values per page.
+
+### 4.6 Valid exceptions
+
+Keep exceptions narrow and documented:
+
+- Reader article prose and imported/sanitized article HTML.
+- Highlight fills and pronunciation decorations that already use `--hl-*` or
+  `--pron-*` reader tokens.
+- Data visualisations where SVG/canvas needs domain-specific rendering; colours
+  should still resolve through tokens where practical.
+- Low-level primitive internals in `src/components/ui/**`.
+- PWA/app metadata such as `src/app/manifest.ts`, where colour literals are
+  metadata rather than rendered product UI.
+
 ---
 
 ## 5. Contribution Rules
@@ -249,14 +304,40 @@ primitive (§5.2).
    contract, and at least one usage example.
 8. If the component is interactive, note the required `aria-*` attributes.
 
-### 5.3 PR checklist for UI changes
+### 5.3 ESLint enforcement
+
+The custom `readwise/ui-design-system` rule in `eslint-rules/ui-design-system.js`
+guards migrated product UI against drift. It reports:
+
+- raw hex/rgb/hsl colour literals,
+- raw Tailwind font-size utilities and inline `fontSize`,
+- bare `<button>`, `<input>`, `<select>`, and `<textarea>` where a UI primitive
+  should be used,
+- custom focus-ring classes outside primitive internals,
+- feature-local spinner/loading/empty/error patterns when a shared primitive
+  exists.
+
+When a UI surface is migrated, add it to the configured enforcement globs in
+`eslint.config.mjs`. For broad UI work, also run the drift scan against
+`src/app` and `src/components` so hidden drift does not survive outside the
+staged ESLint globs.
+
+### 5.4 PR checklist for UI changes
 
 - [ ] No raw colour values in changed files — only `var(--token)` references.
+- [ ] No feature code imports from superseded compatibility paths; shared UI
+  primitives come from `@/components/ui`.
+- [ ] No bare product-UI buttons, inputs, selects, textareas, hand-rolled focus
+  rings, spinners, empty states, or error states when a primitive exists.
 - [ ] New tokens added to `tokens.css` with light + dark + (if reading-surface)
       sepia values, each with a WCAG contrast comment.
 - [ ] Focus behaviour tested with keyboard (Tab, Shift-Tab, Space/Enter, Escape).
+- [ ] Relevant loading, empty, and error states were checked when the UI change
+  touches those states.
 - [ ] `npm run typecheck` passes.
 - [ ] No new lint errors in changed files.
+- [ ] `npx eslint src/app src/components --rule 'readwise/ui-design-system:error'`
+  passes for broad design-system changes.
 - [ ] If a new interactive primitive: `aria-label` documented, `focusRing`
       applied, focus-trap wired for floating layers.
 
@@ -461,6 +542,7 @@ established.
 
 - Always import primitives from `@/components/ui`.
 - Always use `var(--token)` for colours, spacing, radii, and shadows.
+- Keep durable UI rules here; delete completed refactoring/runbook documents.
 - Always provide both light **and** dark token values when adding to
   `tokens.css`.
 - Always apply `focusRing` to new interactive primitives.
@@ -473,5 +555,6 @@ established.
 - Hard-code hex values or Tailwind colour utilities in feature components.
 - Use `--reading-*` tokens outside the reader column.
 - Use `--teal` for interactive affordances (buttons, links).
+- Recreate old compatibility import paths for shared UI primitives.
 - Skip the WCAG contrast comment when adding colour tokens.
 - Merge a visual baseline update without a second reviewer approving the diff.

@@ -3,7 +3,7 @@
  *
  * @server-only — Must never be imported from a "use client" file.
  * Adapters use Azure Blob SDK and Node.js `fs` — not available in browsers.
- * See docs/refactoring.md § REF-076.
+ * See ADR-0010.
  *
  * Public facade for the storage package. Keep imports pointed at
  * `@/lib/storage`; implementation details live in `@/lib/storage/*` modules.

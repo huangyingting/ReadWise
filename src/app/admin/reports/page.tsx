@@ -9,8 +9,7 @@ import {
   isReportStatus,
   type ContentReportRow,
 } from "@/lib/moderation/reports";
-import { Badge, type BadgeProps } from "@/components/ui/Badge";
-import { Select } from "@/components/ui/Select";
+import { Badge, Button, Select, type BadgeProps } from "@/components/ui";
 import {
   AdminPageHeader,
   AdminFilterBar,
@@ -43,7 +42,7 @@ function buildHref(params: { status: string; page: number }): string {
 
 function ReportsTable({ reports }: { reports: ContentReportRow[] }) {
   if (reports.length === 0) {
-    return <p className="text-muted text-sm">No reports found.</p>;
+    return <p className="text-text-muted text-[length:var(--text-sm)]">No reports found.</p>;
   }
   return (
     <AdminTableWrap ariaLabel="Content reports table (scrollable)">
@@ -69,35 +68,35 @@ function ReportsTable({ reports }: { reports: ContentReportRow[] }) {
               </Link>
             </td>
             <td>{REPORT_REASON_LABELS[r.reason]}</td>
-            <td className="max-w-xs truncate text-sm text-muted">{r.note ?? "—"}</td>
+            <td className="max-w-xs truncate text-[length:var(--text-sm)] text-text-muted">{r.note ?? "—"}</td>
             <td>
               <Badge variant={statusVariant(r.status)}>
                 {REPORT_STATUS_LABELS[r.status]}
               </Badge>
             </td>
-            <td className="text-sm text-muted">{formatDateTime(r.createdAt)}</td>
+            <td className="text-[length:var(--text-sm)] text-text-muted">{formatDateTime(r.createdAt)}</td>
             <td>
-              <div className="flex gap-2 flex-wrap">
+              <div className="flex flex-wrap gap-[var(--space-2)]">
                 {r.status === ContentReportStatus.OPEN ||
                 r.status === ContentReportStatus.REVIEWING ? (
                   <>
                     <form method="POST" action={`/api/admin/reports/${r.id}`}>
                       <input type="hidden" name="_method" value="PATCH" />
                       <input type="hidden" name="status" value={ContentReportStatus.RESOLVED} />
-                      <button type="submit" className="btn btn-sm btn-success">
+                      <Button type="submit" size="sm" variant="secondary">
                         Resolve
-                      </button>
+                      </Button>
                     </form>
                     <form method="POST" action={`/api/admin/reports/${r.id}`}>
                       <input type="hidden" name="_method" value="PATCH" />
                       <input type="hidden" name="status" value={ContentReportStatus.DISMISSED} />
-                      <button type="submit" className="btn btn-sm btn-neutral">
+                      <Button type="submit" size="sm" variant="outline">
                         Dismiss
-                      </button>
+                      </Button>
                     </form>
                   </>
                 ) : (
-                  <span className="text-sm text-muted">
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
                     {r.resolvedAt ? formatDateTime(r.resolvedAt) : "—"}
                   </span>
                 )}

@@ -25,6 +25,7 @@ import { Plus } from "lucide-react";
 import { deleteJson, getJson, postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
+import { Button } from "@/components/ui";
 import { Spinner } from "@/components/ui/Spinner";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
 
@@ -290,21 +291,22 @@ export default function ListPickerPopover({
             onCancel={handleCancelCreate}
           />
         ) : (
-          <button
+          <Button
             ref={createRowRef}
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={handleShowCreate}
             className={cn(
               "flex items-center gap-[var(--space-2)] w-full",
               "h-9 px-[var(--space-2)] rounded-[var(--radius-md)]",
               "text-[length:var(--text-sm)] text-text-muted hover:bg-bg-subtle hover:text-text",
               "transition-colors [transition-duration:var(--duration-fast)]",
-              focusRing,
             )}
           >
             <Plus size={16} aria-hidden />
             New list…
-          </button>
+          </Button>
         )}
       </div>
     </div>

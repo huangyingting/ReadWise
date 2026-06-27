@@ -9,9 +9,7 @@ import { ensureArticleDifficulties } from "@/lib/difficulty";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
-import EmptyState from "@/components/EmptyState";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 
 export async function generateMetadata({
   params,

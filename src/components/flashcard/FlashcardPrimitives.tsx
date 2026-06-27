@@ -5,7 +5,7 @@
  * Extracted to eliminate duplication (FE2-6) and centralise design-token usage (DSGN2-8).
  */
 import { Volume2 } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button } from "@/components/ui";
 
 // ── PronounceButton ────────────────────────────────────────────────────────
 
@@ -35,23 +35,18 @@ export function PronounceButton({
   onSpeak,
 }: PronounceButtonProps) {
   return (
-    <button
-      type="button"
+    <Button
+      variant="ghost"
+      size="sm"
       onClick={() => onSpeak(word, cardId)}
       disabled={disabled}
       aria-label={`Play pronunciation of ${word}`}
       title={disabled ? disabledTitle : undefined}
-      className={cn(
-        "inline-flex items-center gap-[var(--space-1)] text-text-muted hover:text-text",
-        "min-h-[44px] px-[var(--space-2)]",
-        "text-[length:var(--text-sm)] transition-colors",
-        "disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:text-text-muted",
-        focusRing,
-      )}
+      leadingIcon={<Volume2 size={16} aria-hidden />}
+      className="min-h-[44px] text-text-muted hover:text-text disabled:hover:text-text-muted"
     >
-      <Volume2 size={16} aria-hidden />
       {speaking === cardId ? "Playing…" : "Pronounce"}
-    </button>
+    </Button>
   );
 }
 
@@ -77,24 +72,14 @@ export function ShowAnswerButton({
   children,
 }: ShowAnswerButtonProps) {
   return (
-    <button
+    <Button
       ref={showAnswerRef}
-      type="button"
+      variant="secondary"
+      size="md"
       onClick={onFlip}
       aria-expanded={flipped}
-      className={cn(
-        "inline-flex items-center justify-center gap-[var(--space-2)]",
-        "h-10 px-[var(--space-4)]",
-        "rounded-[var(--radius-md)] font-semibold text-[length:var(--text-base)]",
-        "bg-surface text-text border border-border-strong shadow-[var(--shadow-sm)]",
-        "hover:bg-bg-subtle",
-        "transition-[background-color,border-color,box-shadow,transform] [transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-        "active:translate-y-px active:shadow-none",
-        "disabled:opacity-50 disabled:cursor-not-allowed",
-        focusRing,
-      )}
     >
       {children}
-    </button>
+    </Button>
   );
 }

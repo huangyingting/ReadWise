@@ -7,10 +7,15 @@ import {
   getClassroomAnalytics,
   viewerRoleForClassroom,
 } from "@/lib/analytics/tenant";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
-import { Card, CardBody, CardHeader, CardTitle } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import {
+  Badge,
+  Card,
+  CardBody,
+  CardHeader,
+  CardTitle,
+  PageHeader,
+  PageShell,
+} from "@/components/ui";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";

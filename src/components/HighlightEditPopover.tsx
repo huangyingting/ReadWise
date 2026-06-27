@@ -15,7 +15,7 @@
 import { useRef, useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton, Textarea } from "@/components/ui";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ConfirmAction from "@/components/ConfirmAction";
 import { usePopoverPosition } from "@/lib/use-popover-position";
@@ -123,15 +123,16 @@ export default function HighlightEditPopover({
           className="rw-hl-popover-swatch-row"
         >
           {SWATCH_COLORS.map(({ color: c, label, cssVar }, i) => (
-            <button
+            <IconButton
               key={c}
               ref={i === 0 ? firstFocusRef : undefined}
-              type="button"
+              size="sm"
+              context="reading"
               role="radio"
               aria-checked={currentColor === c}
               aria-label={label}
               tabIndex={currentColor === c ? 0 : -1}
-              className={cn("rw-hl-popover-swatch", focusRing)}
+              className="rw-hl-popover-swatch"
               style={{ backgroundColor: cssVar }}
               onClick={() => onColorChange(c)}
               onKeyDown={(e) => handleSwatchKey(e, i)}
@@ -139,24 +140,25 @@ export default function HighlightEditPopover({
               {currentColor === c ? (
                 <Check size={12} aria-hidden="true" style={{ color: "var(--reading-text)" }} />
               ) : null}
-            </button>
+            </IconButton>
           ))}
         </div>
-        <button
-          type="button"
-          className={cn("rw-hl-popover-close", focusRing)}
+        <IconButton
+          size="sm"
+          context="reading"
+          className="rw-hl-popover-close"
           aria-label="Close"
           onClick={onClose}
         >
           <X size={16} />
-        </button>
+        </IconButton>
       </div>
 
       {/* Body: note editor */}
       <div className="rw-hl-popover-body">
         {noteOpen ? (
           <div className="rw-note-inline-edit">
-            <textarea
+            <Textarea
               className="rw-note-input"
               value={noteText}
               maxLength={NOTE_MAX}
@@ -193,13 +195,14 @@ export default function HighlightEditPopover({
             </div>
           </div>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             className="rw-note-row-add-note"
             onClick={() => setNoteOpen(true)}
           >
             {highlight.note ? "Edit note" : "Add note…"}
-          </button>
+          </Button>
         )}
       </div>
 

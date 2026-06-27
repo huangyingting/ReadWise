@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
+import { Button } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import { PRIMARY_TABS, isActivePath } from "./nav-items";
 import MoreSheet from "./MoreSheet";
@@ -72,16 +73,17 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
             </Link>
           );
         })}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           aria-haspopup="dialog"
           aria-expanded={moreOpen}
           onClick={() => setMoreOpen(true)}
           className={itemClass(moreOpen)}
+          leadingIcon={<MoreHorizontal size={22} aria-hidden />}
         >
-          <MoreHorizontal size={22} aria-hidden />
           <span>More</span>
-        </button>
+        </Button>
       </nav>
 
       <MoreSheet

@@ -21,7 +21,7 @@ export function StepTopics({
       >
         {STEP_TITLES[2]}
       </h2>
-      <p className="text-text-subtle text-xs mb-[var(--space-4)]">
+      <p className="mb-[var(--space-4)] text-text-subtle text-[length:var(--text-xs)]">
         Pick any that interest you — or none.
       </p>
       <TopicSelector topics={topics} onToggle={toggleTopic} />

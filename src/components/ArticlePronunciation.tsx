@@ -27,7 +27,7 @@
 
 import { useEffect, useMemo } from "react";
 import { Mic, MicOff, Square, Star, Volume2 } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";

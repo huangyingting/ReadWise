@@ -23,7 +23,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, X, MoreHorizontal } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui";
 import { Badge } from "@/components/ui/Badge";
 import { ListRenameForm } from "@/components/lists/ListRenameForm";
 import { ListCreateForm } from "@/components/lists/ListCreateForm";
@@ -109,8 +109,8 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             "transition-opacity [transition-duration:var(--duration-fast)]",
           )}
         >
-          <button
-            type="button"
+          <IconButton
+            size="sm"
             aria-label={`Rename ${list.name}`}
             title="Rename list"
             onClick={() => setRenaming(true)}
@@ -122,7 +122,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             )}
           >
             <Pencil size={14} aria-hidden />
-          </button>
+          </IconButton>
 
           <ListDeleteControl
             listId={list.id}
@@ -161,8 +161,8 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
         <span className="text-[length:var(--text-sm)] font-semibold text-text truncate">
           {list.name}
         </span>
-        <button
-          type="button"
+        <IconButton
+          size="sm"
           aria-label="Close"
           onClick={onClose}
           className={cn(
@@ -172,7 +172,7 @@ function MobileListManager({ list, onClose, onRenameSuccess, onDeleteSuccess }: 
           )}
         >
           <X size={14} aria-hidden />
-        </button>
+        </IconButton>
       </div>
 
       {/* Rename */}
@@ -268,9 +268,11 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
             }}
           />
         ) : (
-          <button
+          <Button
             ref={createBtnRef}
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={showCreate}
             className={cn(
               "flex items-center gap-[var(--space-2)] w-full",
@@ -283,7 +285,7 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
           >
             <Plus size={16} aria-hidden />
             New list
-          </button>
+          </Button>
         )}
       </div>
     </>
@@ -323,8 +325,8 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
             </Link>
             {/* Per-list ⋯ manage button — only for non-default lists */}
             {!list.isDefault ? (
-              <button
-                type="button"
+              <IconButton
+                size="sm"
                 aria-label={`Manage ${list.name}`}
                 aria-expanded={isManaging}
                 onClick={() => {
@@ -343,15 +345,17 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
                 )}
               >
                 <MoreHorizontal size={14} aria-hidden />
-              </button>
+              </IconButton>
             ) : null}
           </Fragment>
         );
       })}
 
       {/* New list pill */}
-      <button
+      <Button
         type="button"
+        variant="ghost"
+        size="sm"
         onClick={showCreate}
         className={cn(
           "inline-flex items-center gap-[var(--space-1)] shrink-0 snap-start",
@@ -366,7 +370,7 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
       >
         <Plus size={14} aria-hidden />
         <span className="hidden sm:inline">New list</span>
-      </button>
+      </Button>
     </nav>
   );
 

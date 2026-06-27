@@ -7,9 +7,8 @@ import {
 } from "@/lib/scraper/sources";
 import AdminSourceActions from "@/components/AdminSourceActions";
 import AdminSourceSync from "@/components/AdminSourceSync";
-import { AdminTableWrap } from "@/components/admin";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
+import { Badge, Card, CardBody } from "@/components/ui";
 import { formatDateTime } from "@/lib/display-format";
 
 function healthBadgeVariant(
@@ -32,10 +31,8 @@ export default async function AdminSourcesPage() {
 
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Content sources
-      </h1>
-      <p className="muted" style={{ margin: 0 }}>
+      <AdminPageHeader>Content sources</AdminPageHeader>
+      <p className="m-0 text-text-muted">
         Provider governance &amp; ingestion health (RW-046/RW-050). Extraction
         logic lives in code; this page manages operational state — enable/disable
         a provider and watch its crawl health. Disabled providers are skipped by
@@ -46,11 +43,13 @@ export default async function AdminSourcesPage() {
 
       {rows.length === 0 ? (
         <Card>
-          <p className="muted" style={{ margin: 0 }}>
-            No content sources yet. Use{" "}
-            <strong>Sync from registry</strong> to create a row per code-registry
-            provider.
-          </p>
+          <CardBody className="mt-0">
+            <p className="m-0 text-text-muted">
+              No content sources yet. Use{" "}
+              <strong>Sync from registry</strong> to create a row per code-registry
+              provider.
+            </p>
+          </CardBody>
         </Card>
       ) : (
         <AdminTableWrap ariaLabel="Content sources table (scrollable)">
@@ -69,7 +68,7 @@ export default async function AdminSourcesPage() {
                 <tr key={source.id}>
                   <td className="font-medium">
                     {source.displayName}
-                    <div className="muted text-[length:var(--text-sm)]">
+                    <div className="text-text-muted text-[length:var(--text-sm)]">
                       {source.providerKey}
                     </div>
                   </td>
@@ -83,23 +82,23 @@ export default async function AdminSourcesPage() {
                       </div>
                     )}
                     {health.reasons.length > 0 && (
-                      <div className="muted text-[length:var(--text-sm)]">
+                      <div className="text-text-muted text-[length:var(--text-sm)]">
                         {health.reasons.join("; ")}
                       </div>
                     )}
                   </td>
-                  <td className="muted text-[length:var(--text-sm)]">
+                  <td className="text-text-muted text-[length:var(--text-sm)]">
                     {source.lastCrawledAt
                       ? formatDateTime(source.lastCrawledAt)
                       : "never"}
                   </td>
-                  <td className="muted">
+                  <td className="text-text-muted">
                     {source.totalDiscovered} / {source.totalScraped}
                     <div className="text-[length:var(--text-sm)]">
                       last: {source.lastDiscoveryCount}
                     </div>
                   </td>
-                  <td className="muted text-[length:var(--text-sm)]">
+                  <td className="text-text-muted text-[length:var(--text-sm)]">
                     {source.totalFailed} / {source.totalDuplicates} /{" "}
                     {source.totalRejected}
                   </td>

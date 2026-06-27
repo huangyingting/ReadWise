@@ -3,7 +3,7 @@
  *
  * @server-only — Must never be imported from a "use client" file.
  * All sub-modules read from `process.env` at call time and are Node.js-only.
- * See docs/refactoring.md § REF-076.
+ * See ADR-0010.
  */
 export * as ai from "@/lib/runtime-config/ai";
 export * as featureFlags from "@/lib/runtime-config/feature-flags";

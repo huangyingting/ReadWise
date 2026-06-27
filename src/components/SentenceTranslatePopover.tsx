@@ -16,7 +16,7 @@
 
 import { useEffect, useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button, IconButton, Select } from "@/components/ui";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
 import { usePopoverPosition } from "@/lib/use-popover-position";
@@ -101,8 +101,8 @@ export default function SentenceTranslatePopover({
           Translate
         </span>
 
-        <select
-          className={cn("rw-tr-lang-select", focusRing)}
+        <Select
+          className="rw-tr-lang-select"
           aria-label="Translation language"
           value={lang}
           disabled={loading}
@@ -113,12 +113,11 @@ export default function SentenceTranslatePopover({
               {l.label}
             </option>
           ))}
-        </select>
+        </Select>
 
-        <button
+        <IconButton
           ref={closeRef}
-          type="button"
-          className={cn("rw-tr-close", focusRing)}
+          className="rw-tr-close"
           aria-label="Close"
           onClick={onClose}
           onKeyDown={(e) => {
@@ -129,7 +128,7 @@ export default function SentenceTranslatePopover({
           }}
         >
           <X size={15} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
 
       {/* Body: source phrase + translation area */}
@@ -152,14 +151,16 @@ export default function SentenceTranslatePopover({
               <p className="rw-tr-unavailable" role="alert">
                 Couldn&rsquo;t translate that. Try again.
               </p>
-              <button
+              <Button
                 type="button"
-                className={cn("rw-tr-retry", focusRing)}
+                variant="outline"
+                size="sm"
+                className="rw-tr-retry"
+                leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
                 onClick={onRetry}
               >
-                <RotateCcw size={12} aria-hidden="true" />
                 Retry
-              </button>
+              </Button>
             </div>
           ) : result ? (
             result.fallback ? (
@@ -167,14 +168,16 @@ export default function SentenceTranslatePopover({
                 <p className="rw-tr-unavailable">
                   Translation isn&rsquo;t available right now. Try again in a moment.
                 </p>
-                <button
+                <Button
                   type="button"
-                  className={cn("rw-tr-retry", focusRing)}
+                  variant="outline"
+                  size="sm"
+                  className="rw-tr-retry"
+                  leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
                   onClick={onRetry}
                 >
-                  <RotateCcw size={12} aria-hidden="true" />
                   Retry
-                </button>
+                </Button>
               </div>
             ) : (
               <>

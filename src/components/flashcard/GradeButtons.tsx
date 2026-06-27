@@ -1,7 +1,8 @@
 "use client";
 
 import { RotateCcw, Frown, Check, ChevronsRight } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import type { Grade } from "./types";
 
 interface GradeButtonsProps {
@@ -70,15 +71,15 @@ const GRADES: {
 export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) {
   return (
     <div
-      className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-2)] w-full"
-      style={{ marginTop: "var(--space-4)" }}
+      className="mt-[var(--space-4)] grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-2)] w-full"
     >
       {GRADES.map(
         ({ grade, label, key, tooltip, icon, variant, tintClass, hoverStyle }) => (
-          <button
+          <Button
             key={grade}
             ref={grade === "good" ? goodRef : undefined}
-            type="button"
+            variant={variant}
+            size="md"
             disabled={disabled}
             onClick={() => onGrade(grade)}
             title={tooltip}
@@ -86,15 +87,7 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
             className={cn(
               "flex flex-col items-center justify-center gap-0.5",
               "h-11 min-h-[44px] px-[var(--space-2)] w-full",
-              "rounded-[var(--radius-md)] font-semibold select-none",
-              "transition-[background-color,border-color,box-shadow,transform]",
-              "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-              "active:translate-y-px",
-              "disabled:opacity-50 disabled:cursor-not-allowed disabled:pointer-events-none",
-              focusRing,
-              variant === "primary"
-                ? "bg-primary text-on-primary shadow-[var(--shadow-sm)] hover:bg-primary-hover active:shadow-none"
-                : "bg-transparent text-text border border-border-strong hover:bg-[color:var(--hover-bg)]",
+              variant !== "primary" && "hover:bg-[color:var(--hover-bg)]",
             )}
           >
             <span
@@ -109,7 +102,7 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
             <span className="hidden sm:block text-[length:var(--text-xs)] text-text-subtle">
               {key}
             </span>
-          </button>
+          </Button>
         ),
       )}
     </div>

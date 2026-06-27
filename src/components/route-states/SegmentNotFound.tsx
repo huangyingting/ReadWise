@@ -7,7 +7,7 @@
  */
 
 import type { LucideIcon } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 
 export interface SegmentNotFoundProps {
   /** Lucide icon rendered in the chip. */

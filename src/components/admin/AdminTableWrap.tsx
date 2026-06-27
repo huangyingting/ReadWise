@@ -1,4 +1,5 @@
 import { cn } from "@/lib/cn";
+import { TableSurface } from "@/components/ui";
 
 /**
  * Horizontally-scrollable admin table wrapper. Pass `<thead>` and `<tbody>`
@@ -16,12 +17,13 @@ export function AdminTableWrap({
   className?: string;
 }) {
   return (
-    <div
+    <TableSurface
+      density="compact"
       className={cn("admin-table-wrap", className)}
       tabIndex={0}
       aria-label={ariaLabel}
     >
       <table className="admin-table">{children}</table>
-    </div>
+    </TableSurface>
   );
 }

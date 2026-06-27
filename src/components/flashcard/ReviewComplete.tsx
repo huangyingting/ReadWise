@@ -23,11 +23,7 @@ export function ReviewComplete({
   return (
     <div className="flex flex-col items-center text-center gap-[var(--space-4)] py-[var(--space-6)]">
       <div
-        className="inline-flex items-center justify-center h-14 w-14 rounded-full rw-pop"
-        style={{
-          background: "color-mix(in srgb, var(--success) 12%, transparent)",
-          color: "var(--success-text)",
-        }}
+        className="inline-flex h-14 w-14 items-center justify-center rounded-[var(--radius-full)] bg-[color-mix(in_srgb,var(--success)_12%,transparent)] text-success-text rw-pop"
       >
         <CircleCheck size={40} aria-hidden />
       </div>
@@ -37,8 +33,7 @@ export function ReviewComplete({
           Session complete
         </p>
         <p
-          className="text-[length:var(--text-sm)] text-text-muted m-0"
-          style={{ marginTop: "var(--space-1)" }}
+          className="mt-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted m-0"
         >
           Reviewed {total} card{total === 1 ? "" : "s"}.{" "}
           {gradeCounts.again > 0

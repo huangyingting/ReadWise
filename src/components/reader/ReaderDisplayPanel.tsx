@@ -96,7 +96,7 @@ export function ReaderDisplayPanel({
             onClick={onScaleDown}
             className="border border-border"
           >
-            <span aria-hidden="true" style={{ fontSize: "0.8em" }}>
+            <span aria-hidden="true" className="text-[length:0.8em]">
               A
             </span>
             <span aria-hidden="true">−</span>
@@ -115,7 +115,7 @@ export function ReaderDisplayPanel({
             onClick={onScaleUp}
             className="border border-border"
           >
-            <span aria-hidden="true" style={{ fontSize: "1.05em" }}>
+            <span aria-hidden="true" className="text-[length:1.05em]">
               A
             </span>
             <span aria-hidden="true">+</span>

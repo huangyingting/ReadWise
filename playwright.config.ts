@@ -24,6 +24,7 @@ const e2eEnv = {
   AZURE_OPENAI_API_VERSION: "",
   AZURE_SPEECH_KEY: "",
   AZURE_SPEECH_REGION: "",
+  READWISE_DISABLE_LISTING_CACHE: "1",
 };
 
 for (const [key, value] of Object.entries(e2eEnv)) {

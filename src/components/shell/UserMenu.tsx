@@ -5,8 +5,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { Settings, Shield, LogOut, Keyboard } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import Avatar from "@/components/ui/Avatar";
-import { Popover } from "@/components/ui/Popover";
+import { Avatar, Button, IconButton, Popover } from "@/components/ui";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import type { ShellUser } from "./types";
@@ -47,20 +46,19 @@ export default function UserMenu({ user }: { user: ShellUser }) {
     "hover:bg-bg-subtle",
     focusRing,
   );
+  const itemButtonClass =
+    "h-auto w-full justify-start rounded-none px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] font-normal text-text hover:bg-bg-subtle";
 
   return (
     <div className="relative">
-      <button
+      <IconButton
         ref={triggerRef}
-        type="button"
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label="User menu"
         onClick={() => setOpen((v) => !v)}
         className={cn(
-          "inline-flex items-center justify-center h-8 w-8 shrink-0 overflow-hidden",
-          "rounded-[var(--radius-full)]",
-          focusRing,
+          "h-8 w-8 overflow-hidden rounded-[var(--radius-full)] p-0",
           open && "[box-shadow:0_0_0_2px_var(--focus-ring)]",
         )}
       >
@@ -70,7 +68,7 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             size={32}
             className="h-8 w-8"
           />
-      </button>
+          </IconButton>
 
       <Popover
         open={open}
@@ -115,33 +113,35 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             </Link>
           ) : null}
 
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             role="menuitem"
             onClick={() => {
               setOpen(false);
               setShortcutsOpen(true);
             }}
-            className={itemClass}
+            leadingIcon={<Keyboard size={16} aria-hidden />}
+            className={itemButtonClass}
           >
-            <Keyboard size={16} aria-hidden />
             Keyboard shortcuts
-          </button>
+          </Button>
 
           <div className="my-[var(--space-1)] border-t border-border" />
 
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             role="menuitem"
             onClick={() => {
               setOpen(false);
               void signOut({ callbackUrl: "/" });
             }}
-            className={cn(itemClass, "hover:text-danger-text")}
+            leadingIcon={<LogOut size={16} aria-hidden />}
+            className={cn(itemButtonClass, "text-text hover:text-danger-text")}
           >
-            <LogOut size={16} aria-hidden />
             Sign out
-          </button>
+          </Button>
         </div>
       </Popover>
 

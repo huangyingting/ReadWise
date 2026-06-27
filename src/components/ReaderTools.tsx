@@ -16,7 +16,7 @@
 
 import { useRef, type ReactNode } from "react";
 import { BookOpen, CircleCheck, Keyboard, Mic, Highlighter, Sparkles } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button } from "@/components/ui";
 import { useReaderTools, type ToolTabId } from "./ReaderToolsProvider";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ArticleVocabulary from "./ArticleVocabulary";
@@ -71,9 +71,10 @@ export default function ReaderTools({
         {TOOL_TABS.map(({ id, label, icon, hint }, i) => {
           const isActive = activeTab === id;
           return (
-            <button
+            <Button
               key={id}
-              type="button"
+              variant="ghost"
+              size="sm"
               role="tab"
               id={`study-tab-${id}`}
               aria-selected={isActive}
@@ -82,11 +83,11 @@ export default function ReaderTools({
               title={hint}
               onClick={() => activate(id)}
               onKeyDown={(e) => handleKeyDown(e, i)}
-              className={cn("article-study-tab", focusRing)}
+              leadingIcon={<span aria-hidden="true">{icon}</span>}
+              className="article-study-tab"
             >
-              <span aria-hidden="true">{icon}</span>
-              <span>{label}</span>
-            </button>
+              {label}
+            </Button>
           );
         })}
       </div>

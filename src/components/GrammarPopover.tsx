@@ -13,7 +13,7 @@
 
 import { useEffect, useRef } from "react";
 import { BookMarked, RotateCcw, X } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { Button, IconButton } from "@/components/ui";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 export interface GrammarResult {
@@ -86,15 +86,14 @@ export default function GrammarPopover({
           <BookMarked size={14} aria-hidden="true" />
           <span className="grammar-popover-phrase">&ldquo;{phrase}&rdquo;</span>
         </div>
-        <button
+        <IconButton
           ref={closeRef}
-          type="button"
-          className={cn("grammar-popover-close", focusRing)}
+          className="grammar-popover-close"
           aria-label="Close grammar explanation"
           onClick={onClose}
         >
           <X size={14} aria-hidden="true" />
-        </button>
+        </IconButton>
       </div>
 
       {/* Body */}
@@ -107,14 +106,16 @@ export default function GrammarPopover({
         ) : error ? (
           <div className="grammar-error" role="alert">
             <p>{error}</p>
-            <button
+            <Button
               type="button"
-              className={cn("grammar-retry-btn", focusRing)}
+              variant="outline"
+              size="sm"
+              className="grammar-retry-btn"
+              leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
               onClick={onRetry}
             >
-              <RotateCcw size={12} aria-hidden="true" />
               Try again
-            </button>
+            </Button>
           </div>
         ) : result?.fallback ? (
           <p className="grammar-fallback">

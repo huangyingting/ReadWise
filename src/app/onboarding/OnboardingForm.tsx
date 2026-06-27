@@ -51,7 +51,7 @@ export default function OnboardingForm({ defaults }: { defaults: Defaults }) {
       {/* Progress stepper */}
       <div aria-label="Onboarding progress">
         <p
-          className="text-text-subtle text-xs mb-[var(--space-3)]"
+          className="mb-[var(--space-3)] text-text-subtle text-[length:var(--text-xs)]"
           aria-live="polite"
         >
           Step {step} of {TOTAL_STEPS} · {STEP_TITLES[step - 1]}

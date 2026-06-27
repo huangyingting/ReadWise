@@ -2,7 +2,7 @@
  * Prisma client singleton and shared DB utilities.
  *
  * @server-only — Must never be imported from a "use client" file or any module
- * that can enter a client bundle. See docs/refactoring.md § REF-076.
+ * that can enter a client bundle. See ADR-0010.
  */
 import { PrismaClient } from "@prisma/client";
 

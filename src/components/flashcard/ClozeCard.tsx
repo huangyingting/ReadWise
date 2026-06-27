@@ -58,8 +58,7 @@ export function ClozeCard({
 }: ClozeCardProps) {
   return (
     <div
-      className="flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]"
-      style={{ marginTop: "var(--space-5)", minHeight: "220px" }}
+      className="mt-[var(--space-5)] flex min-h-[calc(var(--space-12)*2+var(--space-7))] flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]"
     >
       <p className="text-[length:var(--text-sm)] text-text-muted m-0">
         Fill in the blank:
@@ -68,8 +67,7 @@ export function ClozeCard({
       {/* Masked sentence or definition-fallback word */}
       {card.cloze ? (
         <p
-          className="font-[family-name:var(--font-reading)] text-[length:var(--text-lg)] text-text m-0"
-          style={{ maxWidth: "52ch" }}
+          className="max-w-[52ch] font-[family-name:var(--font-reading)] text-[length:var(--text-lg)] text-text m-0"
         >
           {card.cloze.masked}
         </p>
@@ -104,8 +102,7 @@ export function ClozeCard({
             e.preventDefault();
             onSubmitCloze(clozeInput);
           }}
-          className="flex flex-col items-center gap-[var(--space-3)] w-full"
-          style={{ maxWidth: "32ch" }}
+          className="flex w-full max-w-[32ch] flex-col items-center gap-[var(--space-3)]"
         >
           <Input
             ref={clozeInputRef}
@@ -147,8 +144,7 @@ export function ClozeCard({
           </p>
           {card.explanation && (
             <p
-              className="text-[length:var(--text-sm)] text-text-muted m-0"
-              style={{ maxWidth: "52ch" }}
+              className="max-w-[52ch] text-[length:var(--text-sm)] text-text-muted m-0"
             >
               {card.explanation}
             </p>
@@ -176,8 +172,7 @@ export function ClozeCard({
             <>
               {card.explanation && (
                 <p
-                  className="text-[length:var(--text-base)] text-text m-0"
-                  style={{ maxWidth: "52ch" }}
+                  className="max-w-[52ch] text-[length:var(--text-base)] text-text m-0"
                 >
                   {card.explanation}
                 </p>

@@ -12,7 +12,7 @@
 import { useState } from "react";
 import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
-import { cn, focusRing } from "@/lib/cn";
+import { Button } from "@/components/ui";
 
 type Vote = "too_easy" | "just_right" | "too_hard";
 
@@ -78,25 +78,18 @@ export default function ArticleDifficultyFeedback({
         <>
           <div className="flex flex-wrap items-center gap-[var(--space-2)]" role="group" aria-label="Difficulty rating buttons">
             {OPTIONS.map((opt) => (
-              <button
+              <Button
                 key={opt.value}
-                type="button"
+                variant="outline"
+                size="sm"
                 onClick={() => void handleVote(opt.value)}
                 disabled={saving}
                 aria-label={opt.label}
-                className={cn(
-                  "inline-flex items-center gap-[var(--space-1-5)] h-9 px-[var(--space-3)]",
-                  "rounded-[var(--radius-full)] border text-[length:var(--text-sm)] font-medium",
-                  "bg-surface border-border text-text-muted",
-                  "transition-colors [transition-duration:var(--duration-fast)]",
-                  "hover:border-border-strong hover:text-text hover:bg-bg-subtle",
-                  "disabled:opacity-50 disabled:cursor-not-allowed",
-                  focusRing,
-                )}
+                className="rounded-[var(--radius-full)] text-text-muted hover:text-text"
               >
                 <span aria-hidden="true">{opt.emoji}</span>
                 {opt.label}
-              </button>
+              </Button>
             ))}
           </div>
           {error ? (

@@ -12,6 +12,7 @@
 
 import { useEffect, useState } from "react";
 import { RefreshCw, CloudOff } from "lucide-react";
+import { Button, Spinner } from "@/components/ui";
 import {
   registerOfflineSync,
   subscribeSyncState,
@@ -54,19 +55,21 @@ export default function OfflineSyncIndicator() {
       ].join(" ")}
     >
       {sync.syncing ? (
-        <RefreshCw size={13} aria-hidden className="animate-spin" />
+        <Spinner size={13} label="Syncing" />
       ) : (
         <CloudOff size={13} aria-hidden />
       )}
       <span>{label}</span>
       {!sync.syncing && sync.pending > 0 ? (
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           onClick={() => void flushOfflineQueue()}
-          className="font-semibold text-primary underline-offset-2 hover:underline"
+          className="h-auto px-0 py-0 font-semibold text-primary underline-offset-2 hover:underline"
         >
           Sync now
-        </button>
+        </Button>
       ) : null}
     </div>
   );

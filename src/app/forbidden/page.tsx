@@ -1,5 +1,5 @@
 import { ShieldX } from "lucide-react";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 
 export default function ForbiddenPage() {
   return (

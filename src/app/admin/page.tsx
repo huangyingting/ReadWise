@@ -1,8 +1,8 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminOverview, statusBadgeVariant } from "@/lib/admin/overview";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, Card, CardTitle, Stack } from "@/components/ui";
+import { AdminPageHeader } from "@/components/admin";
 import { StatCard } from "@/components/analytics/StatCard";
 
 export default async function AdminPage() {
@@ -11,17 +11,13 @@ export default async function AdminPage() {
 
   return (
     <section className="stack">
-      <h1 className="m-0 text-[length:var(--text-3xl)] font-[family-name:var(--font-display)] font-bold text-text">
-        Dashboard
-      </h1>
-      <p className="muted" style={{ margin: 0 }}>
+      <AdminPageHeader>Dashboard</AdminPageHeader>
+      <p className="m-0 text-text-muted">
         Signed in as <strong>{session.user.name ?? session.user.email}</strong>{" "}
         ({session.user.role})
       </p>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Overview
-      </h2>
+      <CardTitle level="h2">Overview</CardTitle>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
         <StatCard label="Total members" value={overview.users} />
         <StatCard label="Admins" value={overview.admins} />
@@ -31,14 +27,12 @@ export default async function AdminPage() {
         <StatCard label="Reads tracked" value={overview.readingProgress} />
       </div>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Processing status
-      </h2>
+      <CardTitle level="h2">Processing status</CardTitle>
       {overview.statusCounts.length === 0 ? (
-        <p className="muted">No articles yet.</p>
+        <p className="text-text-muted">No articles yet.</p>
       ) : (
         <Card>
-          <div className="stack">
+          <Stack>
             {overview.statusCounts.map((s) => (
               <div
                 key={s.status}
@@ -50,7 +44,7 @@ export default async function AdminPage() {
                 <strong>{s.count}</strong>
               </div>
             ))}
-          </div>
+          </Stack>
         </Card>
       )}
     </section>

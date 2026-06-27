@@ -22,6 +22,7 @@ import { useState, useRef, useId, useCallback } from "react";
 import { Bookmark, ListPlus } from "lucide-react";
 import { postJson } from "@/lib/client-fetch";
 import { cn, focusRing } from "@/lib/cn";
+import { Button, IconButton } from "@/components/ui";
 import ListPickerPopover from "@/components/ListPickerPopover";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
@@ -92,12 +93,24 @@ export default function ReaderBookmarkCluster({
   return (
     <div className="relative flex items-center ml-auto shrink-0" role="group" aria-label="Bookmark controls">
       {/* Segment A — default list toggle */}
-      <button
-        type="button"
+      <Button
+        variant="ghost"
+        size="sm"
         aria-pressed={saved}
         aria-label="Save to reading list"
         title={saved ? "Saved" : "Save"}
         onClick={() => void handleToggle()}
+        leadingIcon={
+          <Bookmark
+            size={16}
+            fill={saved ? "currentColor" : "none"}
+            aria-hidden
+            className={cn(
+              "transition-transform [transition-duration:var(--duration-fast)]",
+              saved && "rw-pop",
+            )}
+          />
+        }
         className={cn(
           segBase,
           "px-[var(--space-3)] rounded-l-[var(--radius-md)] rounded-r-none",
@@ -115,22 +128,12 @@ export default function ReaderBookmarkCluster({
               ],
         )}
       >
-        <Bookmark
-          size={16}
-          fill={saved ? "currentColor" : "none"}
-          aria-hidden
-          className={cn(
-            "transition-transform [transition-duration:var(--duration-fast)]",
-            saved && "rw-pop",
-          )}
-        />
         {saved ? "Saved" : "Save"}
-      </button>
+      </Button>
 
       {/* Segment B — list-picker trigger */}
-      <button
+      <IconButton
         ref={segBRef}
-        type="button"
         aria-label="Add to list"
         aria-haspopup="dialog"
         aria-expanded={popoverOpen}
@@ -161,7 +164,7 @@ export default function ReaderBookmarkCluster({
             className="absolute top-1 right-1 size-1.5 rounded-full bg-primary"
           />
         ) : null}
-      </button>
+      </IconButton>
 
       {/* List-picker popover */}
       {popoverOpen ? (
