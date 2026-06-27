@@ -24,7 +24,8 @@ import type {
   ScoredRecommendation,
   RecommendationContext,
 } from "./types";
-import { COMPONENT_WEIGHTS } from "./types";
+import { COMPONENT_WEIGHTS, WEAK_WORD_REEXPOSURE_MAX_POINTS, WEAK_WORD_REEXPOSURE_TARGET } from "./types";
+import type { WeakWordReexposure } from "./types";
 import { headlineReason, buildExplanationLines } from "./explanations";
 
 // ---------------------------------------------------------------------------
@@ -133,6 +134,34 @@ export function masteryGapScore(
 }
 
 // ---------------------------------------------------------------------------
+// Weak-word re-exposure booster (#808)
+// ---------------------------------------------------------------------------
+
+/**
+ * Deterministic weak-word re-exposure signal. Articles known to contain more of
+ * the learner's weak words (low familiarity) earn a small, capped bonus so the
+ * feed naturally re-exposes them in context — without overwhelming word load.
+ *
+ * PURE: the per-user overlap counts come from `weakWordArticleIds` (ids/counts
+ * only — never word text). Returns a zeroed result when the learner has no weak
+ * words or the article has no overlap, so the booster degrades to a no-op.
+ */
+export function weakWordReexposureSignal(
+  articleId: string,
+  weakWordArticleIds: Map<string, number>,
+  target: number = WEAK_WORD_REEXPOSURE_TARGET,
+  maxPoints: number = WEAK_WORD_REEXPOSURE_MAX_POINTS,
+): WeakWordReexposure {
+  const count = Math.max(0, weakWordArticleIds.get(articleId) ?? 0);
+  if (count === 0 || target <= 0) {
+    return { count, score: 0, points: 0 };
+  }
+  const score = clamp01(count / target);
+  const points = Math.round(maxPoints * score * 10) / 10;
+  return { count, score, points };
+}
+
+// ---------------------------------------------------------------------------
 // Candidate scorer
 // ---------------------------------------------------------------------------
 
@@ -180,7 +209,23 @@ export function scoreCandidate(
   for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
     weighted += components[key] * COMPONENT_WEIGHTS[key];
   }
-  const baseScore = Math.round(weighted * 1000) / 10; // 0–100, 1dp
+  const componentScore = weighted * 100; // 0–100
+
+  // Soft, capped weak-word re-exposure booster (#808): a deterministic nudge —
+  // never a hard filter — folded into the base score before diversity ranking.
+  const weakWordReexposure = weakWordReexposureSignal(
+    candidate.id,
+    ctx.weakWordArticleIds,
+  );
+  const baseScore =
+    Math.round(Math.min(100, componentScore + weakWordReexposure.points) * 10) / 10;
+
+  const explanation = buildExplanationLines(components);
+  if (weakWordReexposure.points > 0) {
+    explanation.push(
+      `weak-word re-exposure: +${weakWordReexposure.points} (${weakWordReexposure.count} saved word${weakWordReexposure.count === 1 ? "" : "s"})`,
+    );
+  }
 
   return {
     id: candidate.id,
@@ -189,7 +234,8 @@ export function scoreCandidate(
     baseScore,
     diversityPenalty: 0,
     components,
+    weakWordReexposure,
     reason: headlineReason(candidate, components, ctx),
-    explanation: buildExplanationLines(components),
+    explanation,
   };
 }

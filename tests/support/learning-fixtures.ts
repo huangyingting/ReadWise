@@ -110,6 +110,7 @@ export function makeRecommendationContext(
     difficultyBias: 0,
     weakestSkill: null,
     vocab: { avgFamiliarity: 0, knownCount: 0 },
+    weakWordArticleIds: new Map<string, number>(),
     now: NOW,
     ...partial,
   };

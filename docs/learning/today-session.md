@@ -272,7 +272,11 @@ resolved article display cards into a privacy-safe `TodayViewModel`: session
 `status`, `source` (`new` vs `resume`), the primary article display, backups,
 target-word review state, per-step states (`reading` / `comprehension` /
 `wordReview`), completion tier/progress, a single CTA, and the `isNoCandidate`
-state. `loadTodayViewModel()` is the server loader: it resolves the learner's
+state. It also exposes a privacy-safe weak-word re-exposure explanation (#808):
+`reviewsSavedWords` (true when the day re-exposes saved words) plus
+`savedWordCount` — a flag and COUNT only, so the UI can say "reviews words you
+saved" without any word text reaching the payload. `loadTodayViewModel()` is the
+server loader: it resolves the learner's
 local day, calls `getOrCreateTodaySession`, and hydrates article ids to safe
 `ListingArticle` cards via `getReadableArticleById` (revalidating ids against
 Article Library access rules). The payload carries **display fields only** — no

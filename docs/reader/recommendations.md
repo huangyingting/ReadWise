@@ -74,6 +74,19 @@ score.
 Scoring functions are pure. Database reads belong in `context.ts`, not in
 `scoring.ts`.
 
+### Weak-word re-exposure booster (#808)
+
+On top of the seven weighted components, articles known to contain the learner's
+**weak words** (low `WordMastery.familiarity`) earn a small, capped bonus so the
+feed naturally re-exposes those words in context. The overlap is computed from
+`WordMastery.sourceArticleIds` in `context.ts` (`weakWordArticleIds`: candidate
+articleId → distinct weak-word count) — ids/counts only, never word text. The
+bonus saturates at `WEAK_WORD_REEXPOSURE_TARGET` (3 words) and is capped at
+`WEAK_WORD_REEXPOSURE_MAX_POINTS` (8 of 100), so it nudges without overwhelming
+`wordLoad` or starving strong content. It is a soft booster, never a hard
+filter, and degrades to a no-op when the learner has no weak words. Each result
+carries a `weakWordReexposure` breakdown (`count`/`score`/`points`).
+
 ## Diversity pass
 
 `rankWithDiversity(scored)` greedily selects the best remaining item, subtracting

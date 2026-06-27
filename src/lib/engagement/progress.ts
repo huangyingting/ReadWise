@@ -12,6 +12,7 @@ import type { ReadingProgress } from "@prisma/client";
 import { toListingArticle, type ListingArticle } from "@/lib/article-library";
 import { publicListableArticleWhere } from "@/lib/article-library";
 import { recordReadingActivity } from "@/lib/engagement/activity";
+import { recordReadingWordExposures } from "@/lib/learning/reading-exposure";
 import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("progress");
@@ -187,6 +188,7 @@ export async function saveProgress(
   rawPercent: number,
 ): Promise<ReadingProgress> {
   const incoming = clampPercent(rawPercent);
+  const before = await getProgress(userId, articleId);
   const result = await writeProgressForwardOnly(userId, articleId, incoming);
 
   // Side-effect: record daily activity (errors are logged but never
@@ -199,6 +201,14 @@ export async function saveProgress(
       articleId,
       err: err instanceof Error ? err.message : String(err),
     });
+  }
+
+  // Side-effect (#808): on the transition into completion, let the learner's
+  // saved words that appear in this article gain a real-reading mastery
+  // exposure. Best-effort + self-defensive — never blocks or throws into the
+  // forward-only progress write.
+  if (!before?.completed && result.completed) {
+    await recordReadingWordExposures(userId, articleId);
   }
 
   return result;
