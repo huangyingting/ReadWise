@@ -86,6 +86,12 @@ before(() => {
           },
         },
         savedWord: { findMany: async () => [] },
+        seriesEnrollment: {
+          findFirst: async () => null,
+          findUnique: async () => null,
+          update: async () => ({}),
+          deleteMany: async () => ({ count: 0 }),
+        },
       },
     },
   });

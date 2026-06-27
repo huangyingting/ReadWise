@@ -28,6 +28,7 @@ export const PROTECTED_PREFIXES = [
   "/import",
   "/teacher",
   "/assignments",
+  "/series",
 ] as const;
 
 export type ProtectedPrefix = (typeof PROTECTED_PREFIXES)[number];
@@ -76,4 +77,6 @@ export const MIDDLEWARE_MATCHER: readonly string[] = [
   "/teacher/:path*",
   "/assignments",
   "/assignments/:path*",
+  "/series",
+  "/series/:path*",
 ];

@@ -48,6 +48,12 @@ export const ANALYTICS_EVENT_TYPES = {
   // reading goal path. Payload carries the controlled `goalPath` enum ONLY —
   // never reading history, article content, or any inferred-goal rationale.
   goalPathSelected: "goal_path_selected",
+  // Curated reading series + fluency (#813). `seriesEnrolled` carries the series
+  // id/slug anchors ONLY (no reading history or content). `fluencyTrendViewed`
+  // carries the controlled trend enum, the sample COUNT, and the optional level
+  // filter ONLY — never WPM values, article ids, or content.
+  seriesEnrolled: "series_enrolled",
+  fluencyTrendViewed: "fluency_trend_viewed",
 } as const;
 
 /** Union of all canonical event type string literals. */
