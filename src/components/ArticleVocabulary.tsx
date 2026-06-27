@@ -1,7 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, Button, Inline } from "@/components/ui";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import AiBadge from "@/components/AiBadge";
 import { t } from "@/lib/i18n";
@@ -58,7 +57,7 @@ export default function ArticleVocabulary({
 
       {items.length > 0 ? (
         <>
-          <div style={{ marginBottom: "var(--space-3)" }}>
+          <div className="mb-[var(--space-3)]">
             <AiBadge />
           </div>
           <ul className="vocabulary-list">
@@ -92,25 +91,17 @@ function VocabularyListItem({
   return (
     <li className="vocabulary-item">
       <div className="vocabulary-item-main">
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            flexWrap: "wrap",
-          }}
-        >
+        <Inline gap="2">
           <strong className="vocabulary-word">{item.word}</strong>
           {tier ? (
             <Badge
               variant={TIER_VARIANTS[tier]}
               aria-label={`Word frequency: ${TIER_LABELS[tier]}`}
-              style={{ fontSize: "0.7rem", padding: "1px 6px" }}
             >
               {TIER_LABELS[tier]}
             </Badge>
           ) : null}
-        </div>
+        </Inline>
         <p className="vocabulary-explanation">{item.explanation}</p>
         {item.example ? (
           <p className="vocabulary-example muted">

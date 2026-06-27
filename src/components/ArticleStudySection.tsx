@@ -15,8 +15,7 @@
  * network fetches.
  */
 
-import { cn, focusRing } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
+import { Button } from "@/components/ui";
 import { useReaderTools } from "./ReaderToolsProvider";
 import { TOOL_TABS } from "./ReaderTools";
 
@@ -49,18 +48,19 @@ export default function ArticleStudySection() {
 
         <div className="article-study-cta-chips" aria-label="Jump to a tool">
           {TOOL_TABS.map(({ id, label, icon, hint }) => (
-            <button
+            <Button
               key={id}
-              type="button"
+              variant="ghost"
+              size="sm"
               title={hint}
               onClick={() => openTools(id)}
               aria-haspopup="dialog"
               aria-controls="reader-tools-surface"
-              className={cn("article-study-cta-chip", focusRing)}
+              leadingIcon={<span aria-hidden="true">{icon}</span>}
+              className="article-study-cta-chip"
             >
-              <span aria-hidden="true">{icon}</span>
-              <span>{label}</span>
-            </button>
+              {label}
+            </Button>
           ))}
         </div>
       </div>

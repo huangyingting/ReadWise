@@ -1,9 +1,7 @@
 "use client";
 
 import { Layers, FileQuestion, CheckCircle2 } from "lucide-react";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import EmptyState from "@/components/EmptyState";
+import { Button, Card, CardMeta, CardTitle, EmptyState, Stack } from "@/components/ui";
 
 interface ReviewStartCardProps {
   dueCount: number;
@@ -21,21 +19,18 @@ export function ReviewStartCard({
     <Card>
       <div className="flex items-start justify-between gap-[var(--space-4)]">
         <div>
-          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+          <CardTitle level="h2" className="text-[length:var(--text-2xl)]">
             Flashcard review
-          </h2>
-          <p
-            className="text-[length:var(--text-sm)] text-text-muted m-0"
-            style={{ marginTop: "var(--space-1)" }}
-          >
+          </CardTitle>
+          <CardMeta className="mt-[var(--space-1)]">
             {dueCount === 0
               ? "You're all caught up."
               : `${dueCount} card${dueCount === 1 ? "" : "s"} due for review`}
-          </p>
+          </CardMeta>
         </div>
       </div>
 
-      <div style={{ marginTop: "var(--space-5)" }}>
+      <Stack gap="3" className="mt-[var(--space-5)]">
         {dueCount === 0 ? (
           <EmptyState
             icon={CheckCircle2}
@@ -61,7 +56,7 @@ export function ReviewStartCard({
             </Button>
           </div>
         )}
-      </div>
+      </Stack>
     </Card>
   );
 }

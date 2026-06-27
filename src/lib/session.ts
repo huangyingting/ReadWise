@@ -3,7 +3,7 @@
  *
  * @server-only — Must never be imported from a "use client" file.
  * For server components and RSC-aware pages/layouts only.
- * See docs/refactoring.md § REF-076.
+ * See ADR-0010.
  */
 import { redirect } from "next/navigation";
 import type { Session } from "next-auth";

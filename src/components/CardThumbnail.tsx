@@ -42,9 +42,9 @@ export default function CardThumbnail({
         <span
           className={cn(
             "absolute inset-0 flex items-center justify-center",
-            "font-[family-name:var(--font-display)] font-bold select-none",
+            "font-[family-name:var(--font-display)] text-[length:var(--text-4xl)] font-bold select-none tracking-[-0.02em]",
           )}
-          style={{ fontSize: 36, color: `${grad.from}70`, letterSpacing: "-0.02em" }}
+          style={{ color: `${grad.from}70` }}
           aria-hidden
         >
           {initial}

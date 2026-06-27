@@ -433,7 +433,6 @@ validate optional provider availability, then call into `src/lib/`. They own
 | `scripts/migrate-storage.ts` | `src/lib/storage` (migration helpers) |
 | `scripts/analyze-speech-alignment.ts` | `src/lib/speech` (analysis helpers) |
 | `scripts/eval.ts` | `src/lib/ai` (eval runner) |
-| `scripts/export-backlog.ts` | `src/lib/article-library` (backlog export) |
 | `scripts/check-schema-parity.ts` | schema comparison utilities |
 | `scripts/generate-api-catalog.ts` | API catalog generator |
 | `scripts/generate-schemas.ts` | JSON schema generator |

@@ -5,12 +5,10 @@ import { getQuizMastery } from "@/lib/learning/quiz-mastery";
 import { generateStudyPlan } from "@/lib/learning/study-plan";
 import { GraduationCap } from "lucide-react";
 import Link from "next/link";
-import { Card } from "@/components/ui/Card";
+import { Card, PageHeader, PageShell, Section, Stack } from "@/components/ui";
 import Sparkline from "@/components/Sparkline";
 import StudyPageShell from "@/components/StudyPageShell";
 import StudyPlanSection from "@/components/StudyPlanSection";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function StudyPage() {
   const session = await requireSession("/study");
@@ -62,14 +60,7 @@ export default async function StudyPage() {
       <StudyPlanSection plan={studyPlan} />
 
       {/* ── Comprehension section (M14) — demoted below actionable items (#212) ── */}
-      <section aria-labelledby="comprehension-h" className="mt-[var(--space-7)]">
-        <h2
-          id="comprehension-h"
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0 mb-[var(--space-4)]"
-        >
-          Comprehension
-        </h2>
-
+      <Section title="Comprehension" className="mt-[var(--space-7)]">
         {hasAttempts ? (
           <Card>
             <div className="flex flex-col gap-[var(--space-5)] sm:flex-row sm:items-center sm:gap-[var(--space-6)]">
@@ -78,8 +69,7 @@ export default async function StudyPage() {
                 <div
                   role="img"
                   aria-label={`Average comprehension ${avg}% across ${totalAttempts} attempt${totalAttempts === 1 ? "" : "s"}`}
-                  className="relative shrink-0"
-                  style={{ width: 96, height: 96 }}
+                  className="relative h-24 w-24 shrink-0"
                 >
                   <svg viewBox="0 0 96 96" className="w-full h-full -rotate-90" aria-hidden>
                     <circle cx="48" cy="48" r={RING_R} fill="none" stroke="var(--border)" strokeWidth="10" strokeLinecap="round" />
@@ -98,7 +88,7 @@ export default async function StudyPage() {
                 </div>
 
                 {/* Stats */}
-                <div className="flex flex-col gap-[var(--space-1)]">
+                <Stack gap="1">
                   <p className="text-[length:var(--text-sm)] text-text-muted m-0">
                     Average score
                   </p>
@@ -108,7 +98,7 @@ export default async function StudyPage() {
                   <p className="text-[length:var(--text-sm)] text-text-muted m-0">
                     {totalAttempts} attempt{totalAttempts === 1 ? "" : "s"}
                   </p>
-                </div>
+                </Stack>
               </div>
 
               {/* Larger sparkline — fills remaining width */}
@@ -133,7 +123,7 @@ export default async function StudyPage() {
             </span>
           </p>
         )}
-      </section>
+      </Section>
     </PageShell>
   );
 }

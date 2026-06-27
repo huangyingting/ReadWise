@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@/components/ui/Button";
+import { CardTitle } from "@/components/ui/Card";
 import type { ReviewMode } from "./types";
 
 interface ReviewProgressProps {
@@ -28,9 +29,9 @@ export function ReviewProgress({
         aria-label={mode === "cloze" ? "Cloze review" : "Flashcard review"}
         className="flex items-center justify-between gap-[var(--space-4)] outline-none"
       >
-        <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+        <CardTitle level="h2" className="text-[length:var(--text-2xl)]">
           {mode === "cloze" ? "Cloze review" : "Reviewing"}
-        </h2>
+        </CardTitle>
         <div className="flex items-center gap-[var(--space-3)]">
           <span className="text-[length:var(--text-sm)] text-text-muted">
             {index + 1} of {total}
@@ -41,7 +42,7 @@ export function ReviewProgress({
         </div>
       </div>
 
-      <div style={{ marginTop: "var(--space-3)" }}>
+      <div className="mt-[var(--space-3)]">
         <div
           role="progressbar"
           aria-valuenow={index}

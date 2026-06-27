@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { signOut } from "next-auth/react";
 import { Settings, Shield, Keyboard, LogOut } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
-import { Sheet } from "@/components/ui/Sheet";
+import { Button, Sheet } from "@/components/ui";
 import { SECONDARY_NAV, isActivePath } from "./nav-items";
 import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
@@ -42,6 +42,8 @@ export default function MoreSheet({
         : "font-medium text-text-muted hover:text-text hover:bg-bg-subtle border-l-[3px] border-transparent",
       focusRing,
     );
+  const actionRow =
+    "h-auto w-full justify-start rounded-none border-l-[3px] border-transparent px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)] font-medium text-text-muted hover:bg-bg-subtle hover:text-text";
 
   return (
     <>
@@ -89,14 +91,15 @@ export default function MoreSheet({
               Admin Panel
             </Link>
           ) : null}
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="lg"
             onClick={() => setShortcutsOpen(true)}
-            className={linkRow(false)}
+            leadingIcon={<Keyboard size={20} aria-hidden />}
+            className={actionRow}
           >
-            <Keyboard size={20} aria-hidden />
             Keyboard shortcuts
-          </button>
+          </Button>
         </div>
 
         <div className="border-t border-border flex items-center justify-between px-[var(--space-6)] py-[var(--space-3)]">
@@ -107,22 +110,18 @@ export default function MoreSheet({
         </div>
 
         <div className="border-t border-border py-[var(--space-2)]">
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="lg"
             onClick={() => {
               onClose();
               void signOut({ callbackUrl: "/" });
             }}
-            className={cn(
-              "flex items-center gap-[var(--space-3)] w-full",
-              "px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)] font-medium",
-              "text-danger-text hover:bg-bg-subtle border-l-[3px] border-transparent",
-              focusRing,
-            )}
+            leadingIcon={<LogOut size={20} aria-hidden />}
+            className={cn(actionRow, "text-danger-text hover:text-danger-text")}
           >
-            <LogOut size={20} aria-hidden />
             Sign out
-          </button>
+          </Button>
         </div>
       </Sheet>
 

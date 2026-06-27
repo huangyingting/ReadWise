@@ -229,7 +229,7 @@ export default function WordLookup({
       closeAll();
       openDictionary(candidate, e.clientX, e.clientY);
     },
-    [surface, closeAll, openDictionary, resetDictionary, saveWord, resetTranslation, resetGrammar],
+    [surface, savedAnchorRef, closeAll, openDictionary, resetDictionary, saveWord, resetTranslation, resetGrammar],
   );
 
   // Cmd/Ctrl+E keyboard summon
@@ -252,7 +252,7 @@ export default function WordLookup({
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [surface]);
+  }, [surface, savedAnchorRef]);
 
   // selectionchange → dismiss toolbar when selection collapses
   useEffect(() => {
@@ -329,7 +329,7 @@ export default function WordLookup({
     closeAll();
     window.getSelection()?.removeAllRanges();
     openDictionary(candidate, window.innerWidth / 2, window.innerHeight / 2);
-  }, [closeAll, openDictionary]);
+  }, [savedAnchorRef, closeAll, openDictionary]);
 
   const handleTranslate = useCallback(() => {
     const saved = savedAnchorRef.current;
@@ -342,7 +342,7 @@ export default function WordLookup({
     setTranslateSelectionRect(rect);
     surface.transitionToTranslate();
     void runSentenceTranslate(text, translateLang);
-  }, [toolbarRect, translateLang, runSentenceTranslate, setTranslateSelectionRect, setTranslateText, surface]);
+  }, [savedAnchorRef, toolbarRect, translateLang, runSentenceTranslate, setTranslateSelectionRect, setTranslateText, surface]);
 
   const handleGrammar = useCallback(() => {
     const saved = savedAnchorRef.current;
@@ -354,7 +354,7 @@ export default function WordLookup({
     setGrammarSelectionRect(rect);
     surface.transitionToGrammar();
     void runGrammarExplain(phrase);
-  }, [toolbarRect, runGrammarExplain, setGrammarPhrase, setGrammarSelectionRect, surface]);
+  }, [savedAnchorRef, toolbarRect, runGrammarExplain, setGrammarPhrase, setGrammarSelectionRect, surface]);
 
   // Edit popover handlers
   const handleEditColorChange = useCallback((color: Parameters<typeof updateColor>[1]) => {

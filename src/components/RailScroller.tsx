@@ -2,7 +2,8 @@
 
 import { useRef, useState, useEffect, useCallback } from "react";
 import { ChevronRight, ChevronLeft } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { IconButton } from "@/components/ui";
+import { cn } from "@/lib/cn";
 
 interface RailScrollerProps {
   children: React.ReactNode;
@@ -51,20 +52,18 @@ export default function RailScroller({ children }: RailScrollerProps) {
     "rounded-full bg-surface border border-border shadow-[var(--shadow-md)]",
     "text-text-muted hover:text-text hover:bg-bg-subtle",
     "transition-[opacity,transform] [transition-duration:var(--duration-fast)]",
-    focusRing,
   );
 
   return (
     <div className="relative">
       {canScrollLeft && (
-        <button
-          type="button"
+        <IconButton
           aria-label="Scroll left"
           onClick={() => scrollBy(-1)}
           className={cn(chevronClass, "left-0 -translate-x-1/2")}
         >
           <ChevronLeft size={18} aria-hidden />
-        </button>
+        </IconButton>
       )}
 
       <div
@@ -77,14 +76,13 @@ export default function RailScroller({ children }: RailScrollerProps) {
       </div>
 
       {canScrollRight && (
-        <button
-          type="button"
+        <IconButton
           aria-label="Scroll right"
           onClick={() => scrollBy(1)}
           className={cn(chevronClass, "right-0 translate-x-1/2")}
         >
           <ChevronRight size={18} aria-hidden />
-        </button>
+        </IconButton>
       )}
     </div>
   );

@@ -19,8 +19,9 @@ The key pressure points discussed in the design review were:
 - Some high-risk cross-cutting rules are duplicated or scattered: sensitive-data
   redaction, `process.env` reads, AI provider access, telemetry metadata, route
   business logic, Prisma access, and import boundaries.
-- Several docs or comments drift from current file paths, for example references
-  to `docs/refactoring.md`, `docs/adr/`, or `docs/analytics/analytics.md`.
+- Several docs or comments drift from current file paths, for example historical
+  references to completed refactoring notes, `docs/adr/`, or
+  `docs/analytics/analytics.md`.
 - The desired definition of "complete subsystem design" is production
   maintainability, not merely a complete feature map.
 
@@ -258,8 +259,8 @@ and high-churn existing imports have migration paths.
 3. Update `docs/README.md` with a short description of first-class subsystem
    ownership and cross-subsystem import principles.
 4. Fix known path drift:
-   - references to missing `docs/refactoring.md` should be redirected to an
-     existing durable doc or replaced by a small redirect/index document;
+   - references to completed refactoring notes should move to this ADR or other
+     durable subsystem docs; do not keep a separate refactoring redirect file;
    - `docs/adr/` references should become `docs/architecture/`;
    - `docs/analytics/analytics.md` references should become
      `docs/analytics/product-analytics.md` unless a new analytics overview is
@@ -519,8 +520,6 @@ These are deliberately deferred until implementation tickets need them:
 - Exact file format for the deep-import allowlist.
 - Whether to extend the existing client/server import rule or add a separate
   subsystem-boundary lint rule.
-- Whether `docs/refactoring.md` should be recreated as a redirect/index or all
-  references should move to more specific current docs.
 - Which feature-level AI services should be extracted first.
 - Whether Search/Recommendations eventually deserve a first-class subsystem if
   external search, semantic ranking, or large-scale personalization grows.

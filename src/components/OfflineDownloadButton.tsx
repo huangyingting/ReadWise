@@ -14,6 +14,7 @@
 
 import { useEffect, useState } from "react";
 import { Download, Check, Trash2, WifiOff } from "lucide-react";
+import { Button } from "@/components/ui";
 import {
   saveOfflineArticle,
   removeOfflineArticle,
@@ -128,37 +129,43 @@ export default function OfflineDownloadButton({
       return (
         <span className="offline-btn-group">
           <span className="offline-remove-prompt">Remove offline copy?</span>
-          <button
+          <Button
             type="button"
+            variant="danger-ghost"
+            size="sm"
             className="offline-btn offline-btn--danger"
             onClick={() => void handleRemove()}
             aria-label="Confirm remove offline article"
+            leadingIcon={<Trash2 size={13} aria-hidden />}
           >
-            <Trash2 size={13} aria-hidden />
             Remove
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             className="offline-btn"
             onClick={() => setConfirmRemove(false)}
             aria-label="Cancel remove"
           >
             Cancel
-          </button>
+          </Button>
         </span>
       );
     }
     return (
-      <button
+      <Button
         type="button"
+        variant="secondary"
+        size="sm"
         className="offline-btn offline-btn--saved"
         onClick={() => setConfirmRemove(true)}
         aria-label="Article saved offline — click to remove"
         title="Saved for offline reading — click to remove"
+        leadingIcon={<Check size={13} aria-hidden />}
       >
-        <Check size={13} aria-hidden />
         Downloaded
-      </button>
+      </Button>
     );
   }
 
@@ -170,21 +177,25 @@ export default function OfflineDownloadButton({
             {error}
           </span>
         )}
-        <button
+        <Button
           type="button"
+          variant="ghost"
+          size="sm"
           className="offline-btn"
           onClick={() => { setState("idle"); setError(null); }}
           aria-label="Dismiss error"
         >
           Dismiss
-        </button>
+        </Button>
       </span>
     );
   }
 
   return (
-    <button
+    <Button
       type="button"
+      variant="outline"
+      size="sm"
       className="offline-btn"
       onClick={() => void handleDownload()}
       disabled={state === "loading"}
@@ -192,18 +203,9 @@ export default function OfflineDownloadButton({
         state === "loading" ? "Downloading article…" : "Download for offline reading"
       }
       title="Download for offline reading"
+      leadingIcon={state === "loading" ? <WifiOff size={13} aria-hidden /> : <Download size={13} aria-hidden />}
     >
-      {state === "loading" ? (
-        <>
-          <WifiOff size={13} aria-hidden />
-          Saving…
-        </>
-      ) : (
-        <>
-          <Download size={13} aria-hidden />
-          Offline
-        </>
-      )}
-    </button>
+      {state === "loading" ? "Saving…" : "Offline"}
+    </Button>
   );
 }

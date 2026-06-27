@@ -32,14 +32,10 @@ export function FlashcardFace({
   onGrade,
 }: FlashcardFaceProps) {
   return (
-    <div
-      className="rw-flip"
-      style={{ marginTop: "var(--space-5)", minHeight: "220px" }}
-    >
+    <div className="rw-flip mt-[var(--space-5)] min-h-[calc(var(--space-12)*2+var(--space-7))]">
       <div
-        className="rw-flip-inner"
         data-flipped={flipped ? "true" : "false"}
-        style={{ minHeight: "220px" }}
+        className="rw-flip-inner min-h-[calc(var(--space-12)*2+var(--space-7))]"
       >
         {/* Front face */}
         <div
@@ -50,8 +46,7 @@ export function FlashcardFace({
           )}
         >
           <p
-            className="font-[family-name:var(--font-display)] text-[length:var(--text-3xl)] font-semibold text-text m-0"
-            style={{ maxWidth: "52ch" }}
+            className="max-w-[52ch] font-[family-name:var(--font-display)] text-[length:var(--text-3xl)] font-semibold text-text m-0"
           >
             {card.word}
           </p>
@@ -104,8 +99,7 @@ export function FlashcardFace({
 
           {card.explanation ? (
             <p
-              className="text-[length:var(--text-base)] text-text m-0"
-              style={{ maxWidth: "52ch" }}
+              className="max-w-[52ch] text-[length:var(--text-base)] text-text m-0"
             >
               {card.explanation}
             </p>
@@ -113,8 +107,7 @@ export function FlashcardFace({
 
           {card.contextSentence ? (
             <div
-              className="flex flex-col gap-[var(--space-1)]"
-              style={{ maxWidth: "52ch" }}
+              className="flex max-w-[52ch] flex-col gap-[var(--space-1)]"
             >
               <p className="text-[length:var(--text-xs)] text-text-muted m-0 uppercase tracking-wide font-semibold">
                 Original context
@@ -125,8 +118,7 @@ export function FlashcardFace({
             </div>
           ) : card.example ? (
             <p
-              className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
-              style={{ maxWidth: "52ch" }}
+              className="max-w-[52ch] font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
             >
               &ldquo;{card.example}&rdquo;
             </p>

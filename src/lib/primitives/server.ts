@@ -2,7 +2,7 @@
  * Server-only platform primitives barrel — `@/lib/primitives/server`
  *
  * @server-only — Must never be imported by client components or client-safe modules.
- * See docs/refactoring.md § REF-076 for the boundary taxonomy.
+ * See ADR-0010 for the boundary taxonomy.
  *
  * @boundary server — may use Node.js APIs and server-only packages.
  *

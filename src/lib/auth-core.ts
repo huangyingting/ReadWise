@@ -2,7 +2,7 @@
  * Shared auth core (REF-044).
  *
  * @server-only — Must never be imported from a "use client" file.
- * See docs/refactoring.md § REF-076.
+ * See ADR-0010.
  *
  * This module is the narrow, shared foundation for the page guards
  * (`@/lib/session`) and the API guards (`@/lib/api-auth`). It owns:

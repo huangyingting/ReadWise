@@ -12,7 +12,7 @@
 import { useEffect, useRef } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
-import { Badge } from "@/components/ui/Badge";
+import { Badge, Button, IconButton, Inline } from "@/components/ui";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const POPOVER_WIDTH = 340;
@@ -75,7 +75,7 @@ export default function DictionaryPopover({
       onMouseUp={(e) => e.stopPropagation()}
     >
       <div className="word-lookup-header">
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", flexWrap: "wrap" }}>
+        <Inline gap="2">
           <strong className="word-lookup-word">{word}</strong>
           {(() => {
             const tier = result?.frequencyTier ?? null;
@@ -84,16 +84,14 @@ export default function DictionaryPopover({
               <Badge
                 variant={TIER_VARIANTS[tier]}
                 aria-label={`Word frequency: ${TIER_LABELS[tier]}`}
-                style={{ fontSize: "0.7rem", padding: "1px 6px" }}
               >
                 {TIER_LABELS[tier]}
               </Badge>
             );
           })()}
-        </div>
-        <button
+        </Inline>
+        <IconButton
           ref={closeRef}
-          type="button"
           className="word-lookup-close"
           aria-label="Close"
           onClick={onClose}
@@ -105,7 +103,7 @@ export default function DictionaryPopover({
           }}
         >
           ×
-        </button>
+        </IconButton>
       </div>
 
       {/* aria-live: announce status + the looked-up definition to screen readers */}
@@ -134,14 +132,14 @@ export default function DictionaryPopover({
                     <span className="word-lookup-phonetic">{result.phonetic}</span>
                   ) : null}
                   {result.audio ? (
-                    <button
-                      type="button"
+                    <IconButton
+                      size="sm"
                       className="word-lookup-audio"
                       aria-label="Play pronunciation"
                       onClick={() => onPlay(result.audio as string)}
                     >
                       🔊
-                    </button>
+                    </IconButton>
                   ) : null}
                 </p>
               ) : null}
@@ -180,13 +178,14 @@ export default function DictionaryPopover({
           <p
             className="word-lookup-error"
             role="alert"
-            style={{ fontSize: "0.75rem", margin: 0 }}
           >
             {saveWord.saveError}
           </p>
         ) : null}
-        <button
+        <Button
           type="button"
+          variant={saveWord.wordSaved ? "outline" : "primary"}
+          size="sm"
           className={`word-lookup-save-btn${saveWord.wordSaved ? " word-lookup-save-btn--saved" : ""}`}
           onClick={() => void saveWord.handleToggleSave()}
           disabled={saveWord.savePending || loading}
@@ -198,7 +197,7 @@ export default function DictionaryPopover({
           }
         >
           {saveWord.savePending ? "…" : saveWord.wordSaved ? "✓ Saved" : "Save word"}
-        </button>
+        </Button>
       </div>
     </div>
   );

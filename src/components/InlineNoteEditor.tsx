@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { patchJson } from "@/lib/client-fetch";
-import { cn, focusRing } from "@/lib/cn";
+import { Button, IconButton, Textarea } from "@/components/ui";
 import { submitMutation } from "@/lib/offline/sync-runtime";
 
 interface Props {
@@ -65,7 +65,7 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
   if (editing) {
     return (
       <div className="mt-[var(--space-2)]">
-        <textarea
+        <Textarea
           ref={textareaRef}
           value={draft}
           onChange={(e) => setDraft(e.target.value)}
@@ -73,41 +73,28 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
           maxLength={maxLength}
           rows={3}
           placeholder="Add a note…"
-          className={cn(
-            "w-full resize-y rounded-[var(--radius-md)] border border-border bg-surface",
-            "px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-sm)] text-text",
-            "placeholder:text-text-subtle",
-            focusRing,
-          )}
+          className="w-full resize-y text-[length:var(--text-sm)]"
         />
         <div className="flex items-center gap-[var(--space-2)] mt-[var(--space-1)]">
-          <button
+          <Button
             type="button"
+            variant="primary"
+            size="sm"
             onClick={save}
             disabled={saving}
-            className={cn(
-              "inline-flex items-center gap-[var(--space-1)] px-[var(--space-2)] py-[var(--space-1)]",
-              "rounded-[var(--radius-sm)] text-[length:var(--text-xs)] font-semibold",
-              "bg-primary text-on-primary disabled:opacity-50",
-              focusRing,
-            )}
+            leadingIcon={<Check size={12} aria-hidden />}
           >
-            <Check size={12} aria-hidden />
             Save
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={cancel}
-            className={cn(
-              "inline-flex items-center gap-[var(--space-1)] px-[var(--space-2)] py-[var(--space-1)]",
-              "rounded-[var(--radius-sm)] text-[length:var(--text-xs)]",
-              "text-text-subtle hover:text-text",
-              focusRing,
-            )}
+            leadingIcon={<X size={12} aria-hidden />}
           >
-            <X size={12} aria-hidden />
             Cancel
-          </button>
+          </Button>
           <span className="ml-auto text-[length:var(--text-xs)] text-text-subtle">
             ⌘↵ to save · Esc to cancel
           </span>
@@ -127,20 +114,15 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
           Add a note…
         </span>
       )}
-      <button
-        type="button"
+      <IconButton
+        size="sm"
         onClick={startEdit}
         title="Edit note"
         aria-label="Edit note"
-        className={cn(
-          "shrink-0 opacity-0 group-hover/note:opacity-100 focus:opacity-100",
-          "p-1 rounded-[var(--radius-sm)] text-text-subtle hover:text-text",
-          "transition-opacity",
-          focusRing,
-        )}
+        className="shrink-0 opacity-0 group-hover/note:opacity-100 focus:opacity-100 text-text-subtle hover:text-text transition-opacity"
       >
         <Pencil size={13} aria-hidden />
-      </button>
+      </IconButton>
     </div>
   );
 }

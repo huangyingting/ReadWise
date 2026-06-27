@@ -15,10 +15,8 @@
 
 import { type ChangeEvent, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
-import { Textarea } from "@/components/ui/Textarea";
-import EmptyState from "@/components/EmptyState";
+import { cn } from "@/lib/cn";
+import { Button, EmptyState, IconButton, Textarea } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import {
   useDictationPanel,
@@ -70,7 +68,7 @@ export default function ArticleDictation({
   return (
     <div className="rw-dictate-panel">
       {/* ── AI badge ── */}
-      <div style={{ marginBottom: "var(--space-3)" }}>
+      <div className="mb-[var(--space-3)]">
         <AiBadge />
       </div>
 
@@ -152,27 +150,29 @@ function SentenceNavigator({
       role="navigation"
       aria-label="Sentence navigation"
     >
-      <button
-        type="button"
-        className={cn("rw-dictate-stepper-btn", focusRing)}
+      <IconButton
+        size="sm"
+        context="reading"
+        className="rw-dictate-stepper-btn"
         onClick={onPrev}
         disabled={currentIdx === 0}
         aria-label="Previous sentence"
       >
         <ChevronLeft size={16} aria-hidden />
-      </button>
+      </IconButton>
       <span className="rw-dictate-stepper-counter" aria-live="polite">
         {currentIdx + 1} / {total}
       </span>
-      <button
-        type="button"
-        className={cn("rw-dictate-stepper-btn", focusRing)}
+      <IconButton
+        size="sm"
+        context="reading"
+        className="rw-dictate-stepper-btn"
         onClick={onNext}
         disabled={currentIdx === total - 1}
         aria-label="Next sentence"
       >
         <ChevronRight size={16} aria-hidden />
-      </button>
+      </IconButton>
     </div>
   );
 }
@@ -197,7 +197,7 @@ function DictationForm({
       </label>
       <Textarea
         id="dictation-input"
-        className={cn("rw-dictate-textarea", focusRing)}
+        className="rw-dictate-textarea"
         value={typed}
         onChange={onTyped}
         placeholder="Type the sentence here…"
@@ -218,15 +218,17 @@ function DictationForm({
           Check
         </Button>
         {(phase === "typed" || phase === "graded") && (
-          <button
+          <Button
             type="button"
-            className={cn("rw-dictate-reset-btn", focusRing)}
+            variant="ghost"
+            size="sm"
+            className="rw-dictate-reset-btn"
+            leadingIcon={<RotateCcw size={13} aria-hidden />}
             onClick={onReset}
             aria-label="Try again"
           >
-            <RotateCcw size={13} aria-hidden />
             Try again
-          </button>
+          </Button>
         )}
       </div>
     </form>

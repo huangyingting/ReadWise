@@ -5,7 +5,6 @@ import { signOut } from "next-auth/react";
 import { deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
-import { cn } from "@/lib/cn";
 import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 
 export default function AccountDangerZone() {
@@ -42,7 +41,7 @@ export default function AccountDangerZone() {
           <a
             href="/api/account/export"
             download
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            className={buttonVariants({ variant: "outline", size: "sm" })}
           >
             Download export
           </a>
@@ -50,14 +49,8 @@ export default function AccountDangerZone() {
       </div>
 
       {/* ── Account deletion ── */}
-      <div
-        className="flex flex-col gap-[var(--space-2)]"
-        style={{ paddingTop: "var(--space-4)", borderTop: "1px solid var(--border)" }}
-      >
-        <p
-          className="text-[length:var(--text-sm)] font-medium m-0"
-          style={{ color: "var(--danger, #dc2626)" }}
-        >
+      <div className="flex flex-col gap-[var(--space-2)] border-t border-border pt-[var(--space-4)]">
+        <p className="text-danger-text text-[length:var(--text-sm)] font-medium m-0">
           Delete account
         </p>
         <p className="text-text-muted text-[length:var(--text-sm)] m-0">
@@ -68,9 +61,8 @@ export default function AccountDangerZone() {
 
         {deleteError && (
           <p
-            className="text-[length:var(--text-sm)] m-0"
+            className="text-danger-text text-[length:var(--text-sm)] m-0"
             role="alert"
-            style={{ color: "var(--danger, #dc2626)" }}
           >
             {deleteError}
           </p>

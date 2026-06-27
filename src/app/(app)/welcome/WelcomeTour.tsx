@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { BookOpen, Bookmark, BarChart2 } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
@@ -33,7 +33,7 @@ const STEPS = [
     description: "Every article you read, word you save, and quiz you answer contributes to your streak and mastery score.",
     href: "/progress",
     cta: "See your progress",
-    color: "#7c3aed",
+    color: "var(--primary-hover)",
   },
 ];
 
@@ -82,9 +82,9 @@ export default function WelcomeTour() {
       {/* Step dots */}
       <div className="welcome-tour-dots" aria-label={`Step ${step + 1} of ${STEPS.length}`}>
         {STEPS.map((_, i) => (
-          <button
+          <IconButton
             key={i}
-            type="button"
+            size="sm"
             aria-label={`Go to step ${i + 1}`}
             aria-current={i === step ? "step" : undefined}
             onClick={() => setStep(i)}
@@ -115,13 +115,14 @@ export default function WelcomeTour() {
 
       {/* Navigation */}
       <div className="welcome-tour-nav">
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="md"
           onClick={handleSkip}
           className="welcome-tour-skip"
         >
           Skip
-        </button>
+        </Button>
 
         <Button onClick={handleNext} variant="primary" size="md">
           {step < STEPS.length - 1 ? "Next →" : "Start reading →"}

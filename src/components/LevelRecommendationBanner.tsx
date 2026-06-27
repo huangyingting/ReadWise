@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { TrendingUp, TrendingDown, X, ChevronRight } from "lucide-react";
-import { Button } from "@/components/ui/Button";
+import { Button, IconButton } from "@/components/ui";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 type Suggestion = "up" | "down" | "hold";
@@ -154,14 +154,13 @@ export default function LevelRecommendationBanner({
         </div>
       </div>
 
-      <button
-        type="button"
+      <IconButton
         onClick={dismiss}
         aria-label="Dismiss level recommendation"
-        className="shrink-0 inline-flex items-center justify-center w-11 h-11 rounded-[var(--radius-md)] text-text-subtle hover:text-text transition-colors"
+        className="h-11 w-11 rounded-[var(--radius-md)] text-text-subtle hover:text-text"
       >
         <X size={16} aria-hidden />
-      </button>
+      </IconButton>
     </div>
   );
 }

@@ -5,7 +5,7 @@
  *
  * Receives pre-fetched HeatCell[] (server-side).
  * Renders a 7-row × 53-col CSS grid, oldest column on the left.
- * Cells are <button> elements with aria-labels for accessibility.
+ * Cells are focusable list items with aria-labels for accessibility.
  * Uses CSS custom properties --heat-0..--heat-4 from tokens.css.
  */
 
@@ -183,12 +183,12 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                         ? `No articles on ${formatUTCDateLabel(cell.date)}`
                         : `${cell.count} article${cell.count !== 1 ? "s" : ""} on ${formatUTCDateLabel(cell.date)}`;
                     return (
-                      <button
+                      <div
                         key={cell.date}
-                        type="button"
                         role="listitem"
                         data-level={cell.level}
                         aria-label={label}
+                        tabIndex={0}
                         className={cn(
                           "rounded-[2px] transition-opacity [transition-duration:var(--duration-fast)]",
                           "hover:opacity-80 motion-reduce:transition-none",

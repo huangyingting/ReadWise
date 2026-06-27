@@ -48,6 +48,32 @@ export {
 } from "./IconButton";
 export { Avatar, type AvatarProps } from "./Avatar";
 export {
+  PageShell,
+  pageShellVariants,
+  type PageShellProps,
+} from "./PageShell";
+export {
+  PageHeader,
+  pageHeaderVariants,
+  pageHeaderTitleVariants,
+  type PageHeaderProps,
+} from "./PageHeader";
+export { Section, sectionVariants, type SectionProps } from "./Section";
+export { Stack, stackVariants, type StackProps } from "./Stack";
+export { Inline, inlineVariants, type InlineProps } from "./Inline";
+export { Toolbar, toolbarVariants, type ToolbarProps } from "./Toolbar";
+export {
+  TableSurface,
+  tableSurfaceVariants,
+  type TableSurfaceProps,
+} from "./TableSurface";
+export {
+  FormActions,
+  formActionsVariants,
+  type FormActionsProps,
+} from "./FormActions";
+export { EmptyState, type EmptyStateProps } from "./EmptyState";
+export {
   PanelLoading,
   PanelError,
   PanelFallback,

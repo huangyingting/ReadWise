@@ -5,7 +5,7 @@ import Link from "next/link";
 import FlashcardReview from "@/components/FlashcardReview";
 import StudyList, { type StudyWord } from "@/components/StudyList";
 import VocabularyExportButtons from "@/components/VocabularyExportButtons";
-import { buttonVariants } from "@/components/ui/Button";
+import { buttonVariants, Section, Toolbar } from "@/components/ui";
 import { BookOpen } from "lucide-react";
 
 interface StudyPageShellProps {
@@ -36,17 +36,11 @@ export default function StudyPageShell({
       />
 
       {/* Saved words list — dimmed + inert while a review session is active */}
-      <section style={{ marginTop: "var(--space-7)" }}>
-        <h2
-          className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0"
-          style={{ marginBottom: "var(--space-4)" }}
-        >
-          Saved words
-        </h2>
-        <div
-          className="flex items-center justify-between flex-wrap gap-[var(--space-3)]"
-          style={{ marginBottom: "var(--space-4)" }}
-        >
+      <Section
+        title="Saved words"
+        className="mt-[var(--space-7)]"
+      >
+        <Toolbar className="mb-[var(--space-4)]">
           <p className="text-text-muted text-[length:var(--text-sm)] m-0">
             {words.length} saved {words.length === 1 ? "word" : "words"}
           </p>
@@ -60,10 +54,10 @@ export default function StudyPageShell({
             </Link>
             {words.length > 0 && <VocabularyExportButtons />}
           </div>
-        </div>
+        </Toolbar>
 
         <StudyList words={words} reviewing={reviewing} />
-      </section>
+      </Section>
     </>
   );
 }

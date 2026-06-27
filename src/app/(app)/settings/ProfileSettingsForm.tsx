@@ -15,10 +15,18 @@ import {
   DailyGoalStepper,
 } from "@/features/profile-preferences";
 import { useMutation } from "@/hooks/useMutation";
-import { Button } from "@/components/ui/Button";
-import { Card, CardHeader, CardMeta, CardBody } from "@/components/ui/Card";
-import { Field, Label } from "@/components/ui/Field";
-import { Select } from "@/components/ui/Select";
+import {
+  Button,
+  Card,
+  CardHeader,
+  CardTitle,
+  CardMeta,
+  CardBody,
+  Field,
+  FormActions,
+  Label,
+  Select,
+} from "@/components/ui";
 
 type Defaults = {
   ageRange: string;
@@ -83,9 +91,7 @@ export default function ProfileSettingsForm({
       {/* ── Profile card ───────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
-            Profile
-          </h2>
+          <CardTitle level="h2">Profile</CardTitle>
           <CardMeta>
             Your language level and background help us tailor articles.
           </CardMeta>
@@ -157,9 +163,7 @@ export default function ProfileSettingsForm({
       {/* ── Reading preferences card ────────────────────────── */}
       <Card>
         <CardHeader>
-          <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text leading-[var(--leading-snug)]">
-            Reading preferences
-          </h2>
+          <CardTitle level="h2">Reading preferences</CardTitle>
           <CardMeta>
             Shape the articles and recommendations we surface for you.
           </CardMeta>
@@ -189,14 +193,7 @@ export default function ProfileSettingsForm({
 
       {/* ── Form footer ──────────────────────────────────────────────── */}
       {/* Placed inside the form element so it's visually clear what's being saved. */}
-      <div
-        className="flex items-center gap-[var(--space-4)] flex-wrap"
-        style={{
-          paddingTop: "var(--space-4)",
-          borderTop: "1px solid var(--border)",
-          marginTop: "var(--space-2)",
-        }}
-      >
+      <FormActions align="start" className="mt-[var(--space-2)] border-t border-border">
         <Button type="submit" variant="primary" loading={busy}>
           Save profile &amp; reading preferences
         </Button>
@@ -216,7 +213,7 @@ export default function ProfileSettingsForm({
             {error}
           </p>
         )}
-      </div>
+      </FormActions>
     </form>
   );
 }

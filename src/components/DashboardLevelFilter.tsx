@@ -8,7 +8,7 @@
  */
 
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { buttonVariants } from "@/components/ui/Button";
+import { Button, Select } from "@/components/ui";
 
 export default function DashboardLevelFilter({
   defaultValue,
@@ -23,11 +23,11 @@ export default function DashboardLevelFilter({
       >
         Level
       </label>
-      <select
+      <Select
         id="dashboard-level-filter"
         name="level"
         defaultValue={defaultValue ?? ""}
-        className="text-[length:var(--text-sm)] rounded border border-border bg-surface px-[var(--space-2)] py-[var(--space-1)] text-text focus:outline-none focus:ring-2 focus:ring-teal"
+        selectSize="sm"
         onChange={(e) => {
           // Auto-submit on change (progressive enhancement).
           e.target.form?.requestSubmit();
@@ -39,12 +39,12 @@ export default function DashboardLevelFilter({
             {lvl} and below
           </option>
         ))}
-      </select>
+      </Select>
       {/* No-JS fallback: visible only without JavaScript */}
         <noscript>
-          <button type="submit" className={buttonVariants({ variant: "primary", size: "sm" })} style={{ marginLeft: "0.25rem" }}>
+          <Button type="submit" variant="primary" size="sm" className="ml-[var(--space-1)]">
             Go
-          </button>
+          </Button>
         </noscript>
     </form>
   );

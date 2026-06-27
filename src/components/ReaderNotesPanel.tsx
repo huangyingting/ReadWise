@@ -23,7 +23,8 @@ import { IconButton } from "@/components/ui/IconButton";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
-import EmptyState from "@/components/EmptyState";
+import { Textarea } from "@/components/ui/Textarea";
+import { EmptyState } from "@/components/ui";
 import ConfirmAction from "@/components/ConfirmAction";
 import {
   useHighlights,
@@ -88,7 +89,7 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
 
   return (
     <div className="rw-note-inline-edit">
-      <textarea
+      <Textarea
         className="rw-note-input"
         value={text}
         maxLength={NOTE_MAX}
@@ -167,15 +168,16 @@ function NoteRow({
 
       <div className="rw-note-row-body">
         {/* Quote — scroll-to trigger */}
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="sm"
           className="rw-note-row-quote"
           aria-label={`Go to highlight: ${highlight.quote.slice(0, 60)}`}
           disabled={isOrphaned}
           onClick={handleScrollTo}
         >
           &ldquo;{highlight.quote}&rdquo;
-        </button>
+        </Button>
 
         {/* Orphaned indicator */}
         {isOrphaned ? (
@@ -198,13 +200,14 @@ function NoteRow({
         ) : highlight.note ? (
           <p className="rw-note-row-note">{highlight.note}</p>
         ) : (
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             className="rw-note-row-add-note"
             onClick={() => setEditingNote(true)}
           >
             Add a note…
-          </button>
+          </Button>
         )}
       </div>
 

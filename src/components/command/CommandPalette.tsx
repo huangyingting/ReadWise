@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { Search, SearchX, FileText, X, AlertTriangle } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { setReaderReferrer } from "@/lib/reader-referrer";
-import { Spinner } from "@/components/ui/Spinner";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState, IconButton, Input, Spinner } from "@/components/ui";
 import type { ShellUser } from "@/components/shell/types";
 import type { SelectableItem } from "./command-items";
 import { useCommandPaletteSearch } from "./useCommandPaletteSearch";
@@ -183,7 +182,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
               )}
             </span>
 
-            <input
+            <Input
               ref={inputRef}
               role="combobox"
               aria-expanded={true}
@@ -200,11 +199,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
               placeholder="Search articles, pages, actions…"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              className={cn(
-                "flex-1 min-w-0 bg-transparent border-none outline-none ring-0",
-                "text-[length:var(--text-lg)] text-text",
-                "placeholder:text-text-subtle",
-              )}
+              className="min-w-0 flex-1 border-none bg-transparent text-[length:var(--text-lg)] shadow-none ring-0 placeholder:text-text-subtle"
             />
 
             {/* Desktop: Esc hint chip */}
@@ -216,20 +211,13 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
             </span>
 
             {/* Mobile: Close button */}
-            <button
-              type="button"
+            <IconButton
               onClick={onClose}
               aria-label="Close search"
-              className={cn(
-                "sm:hidden shrink-0 inline-flex items-center justify-center h-10 w-10",
-                "rounded-[var(--radius-md)] text-text-subtle",
-                "hover:text-text hover:bg-bg-subtle",
-                "transition-colors [transition-duration:var(--duration-fast)]",
-                focusRing,
-              )}
+              className="h-10 w-10 rounded-[var(--radius-md)] text-text-subtle hover:text-text sm:hidden"
             >
               <X size={20} aria-hidden />
-            </button>
+            </IconButton>
           </div>
 
           {/* ---- Results list -------------------------------------- */}
