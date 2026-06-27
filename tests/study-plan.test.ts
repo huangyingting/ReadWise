@@ -67,6 +67,7 @@ before(() => {
         wordMastery: {
           count: async () => weakWordCount,
           aggregate: async () => ({ _avg: { familiarity: null }, _count: { _all: 0 } }),
+          findMany: async () => [],
         },
         savedWord: {
           count: async (a: { where?: { OR?: unknown } }) =>
