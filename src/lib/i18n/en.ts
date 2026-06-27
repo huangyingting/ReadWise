@@ -48,4 +48,11 @@ export const en: MessageCatalog = {
     count === 1
       ? `You have 1 word due for review in ${SITE_NAME}.`
       : `You have ${count} words due for review in ${SITE_NAME}.`,
+
+  "push.reminder.todayTitle": () => "Your Today session is ready 📅",
+
+  "push.reminder.todayBody": ({ count }) =>
+    count === 1
+      ? `You have 1 word due in your ${SITE_NAME} Today session.`
+      : `You have ${count} words due in your ${SITE_NAME} Today session.`,
 };

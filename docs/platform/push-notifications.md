@@ -73,6 +73,18 @@ Preference gates:
 The result object reports `usersWithDue`, `sent`, `skipped`, and `suppressed` so
 operators can distinguish missing subscriptions from preference suppression.
 
+### Today Session deep link
+
+The notification deep link and copy are gated by the Today Session feature flag
+(`FEATURE_TODAY_SESSION_ENABLED`, read via `isTodaySessionFeatureEnabled()`):
+
+- when enabled (the default), reminders use Today-specific generic copy and deep
+  link to `/today`;
+- when disabled, reminders keep the prior due-word copy and `/study` target.
+
+Either way the payload carries only generic copy plus a numeric due-word count —
+no article, word, definition, or note content.
+
 ## Privacy
 
 Notification payloads should contain generic reminder copy and a deep link. Do

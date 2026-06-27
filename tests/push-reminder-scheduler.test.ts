@@ -145,6 +145,7 @@ beforeEach(() => {
   process.env.VAPID_PUBLIC_KEY = "BFakePubKey1234567890abcdef";
   process.env.VAPID_PRIVATE_KEY = "FakePrivKey1234567890abcdef";
   process.env.VAPID_SUBJECT = "mailto:test@example.com";
+  delete process.env.FEATURE_TODAY_SESSION_ENABLED;
 });
 
 // ---------------------------------------------------------------------------
@@ -201,7 +202,31 @@ describe("sendDueReminders", () => {
     assert.ok(payloadU2.body.includes("1 word"), `Expected '1 word' in '${payloadU2.body}'`);
   });
 
-  test("payload includes /study url", async () => {
+  test("payload deep-links to /today when Today Session is enabled (default)", async () => {
+    savedWordGroups = [{ userId: "u1", _count: { id: 2 } }];
+    mockSubs = [
+      { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
+    ];
+    const { sendDueReminders } = await import("@/lib/push/scheduler");
+    await sendDueReminders();
+    const payload = JSON.parse(sendCalls[0].payload);
+    assert.equal(payload.url, "/today");
+  });
+
+  test("payload deep-links to /today when flag explicitly enabled", async () => {
+    process.env.FEATURE_TODAY_SESSION_ENABLED = "true";
+    savedWordGroups = [{ userId: "u1", _count: { id: 2 } }];
+    mockSubs = [
+      { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
+    ];
+    const { sendDueReminders } = await import("@/lib/push/scheduler");
+    await sendDueReminders();
+    const payload = JSON.parse(sendCalls[0].payload);
+    assert.equal(payload.url, "/today");
+  });
+
+  test("payload keeps /study url when Today Session is disabled", async () => {
+    process.env.FEATURE_TODAY_SESSION_ENABLED = "false";
     savedWordGroups = [{ userId: "u1", _count: { id: 2 } }];
     mockSubs = [
       { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
@@ -210,6 +235,21 @@ describe("sendDueReminders", () => {
     await sendDueReminders();
     const payload = JSON.parse(sendCalls[0].payload);
     assert.equal(payload.url, "/study");
+  });
+
+  test("payload copy stays content-safe (no PII / article / word content)", async () => {
+    savedWordGroups = [{ userId: "u1", _count: { id: 3 } }];
+    mockSubs = [
+      { id: "s1", userId: "u1", endpoint: "https://push.example.com/u1", p256dh: "k", auth: "a" },
+    ];
+    const { sendDueReminders } = await import("@/lib/push/scheduler");
+    await sendDueReminders();
+    const payload = JSON.parse(sendCalls[0].payload);
+    // Only generic copy + a numeric count — never any specific content.
+    const keys = Object.keys(payload).sort();
+    assert.deepEqual(keys, ["body", "icon", "title", "url"]);
+    assert.match(payload.body, /\b3\b/);
+    assert.doesNotMatch(payload.body, /title|note|definition|example|sentence/i);
   });
 });
 

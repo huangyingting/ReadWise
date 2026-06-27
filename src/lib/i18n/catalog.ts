@@ -68,4 +68,17 @@ export interface MessageCatalog {
    * `count` is the number of words due for review.
    */
   "push.reminder.body": (params: { count: number }) => string;
+
+  /**
+   * Title of the OS push notification when the Today Session feature is
+   * enabled (nudges the learner to their `/today` session).
+   */
+  "push.reminder.todayTitle": () => string;
+
+  /**
+   * Body of the OS push notification when the Today Session feature is
+   * enabled. `count` is the number of words due for review. Copy stays
+   * generic — no article titles, word text, or other private content.
+   */
+  "push.reminder.todayBody": (params: { count: number }) => string;
 }
