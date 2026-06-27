@@ -30,6 +30,7 @@ import type {
   TodaySessionView,
   TodaySkipReason,
 } from "./types";
+import { TODAY_REFLECTION_PROMPT } from "./types";
 
 /** Display state of one workflow step. */
 export type TodayStepState =
@@ -69,6 +70,20 @@ export type TodayProgress = {
   totalSteps: number;
 };
 
+/**
+ * OPTIONAL, additive "write one sentence after reading" bonus (#812). It is
+ * purely celebratory: it NEVER contributes to {@link TodayProgress}, the step
+ * tracker, the CTA, the completion tier, or the session status, so it can never
+ * block or alter required Today completion. The reflection text itself is stored
+ * in the existing note domain — never in the `TodaySession` row.
+ */
+export type TodayReflectionBonus = {
+  /** True once reading is done, so the bonus is contextually offered. */
+  available: boolean;
+  /** Display prompt copy (no learning content). */
+  label: string;
+};
+
 /** Privacy-safe Today view model — anchors, ids, statuses, and safe display. */
 export type TodayViewModel = {
   localDate: string;
@@ -90,6 +105,8 @@ export type TodayViewModel = {
   steps: TodaySteps;
   progress: TodayProgress;
   cta: TodayCta;
+  /** Optional, additive reflection bonus — never affects required completion. */
+  reflectionBonus: TodayReflectionBonus;
   /** True for the no-candidate browse/import prompt state. */
   isNoCandidate: boolean;
   /**
@@ -209,6 +226,13 @@ export function buildTodayViewModel(
     steps,
     progress: buildProgress(steps),
     cta: buildCta(session, displays.primary),
+    reflectionBonus: {
+      // Offered once reading is done — "write one sentence AFTER reading". This
+      // is read-only display state; it intentionally does NOT feed steps,
+      // progress, the CTA, the completion tier, or the session status.
+      available: session.readingCompletedAt != null,
+      label: TODAY_REFLECTION_PROMPT,
+    },
     isNoCandidate: session.primaryArticleId == null,
     reviewsSavedWords: savedWordCount > 0,
     savedWordCount,
