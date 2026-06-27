@@ -7,9 +7,8 @@ without duplicating any learning content into a new table.
 
 - **Owning subsystem:** Learning / Engagement
   (`src/lib/engagement/today-session/`)
-- **Schema:** `TodaySession` model in `prisma/base.prisma`
-- **Epic / issues:** #783 (parent), #788 (schema), #789 (types/repo/local-date),
-  #790 (generator), #791 (target words)
+- **Schema:** `TodaySession` and `TodayComprehensionFeedback` models in
+  `prisma/base.prisma`
 
 ## Purpose
 
@@ -44,7 +43,7 @@ enforced by `@@unique([userId, localDate])` and indexed by `userId`.
 | `targetSavedWordIds` | `Json` (`string[]`) | `SavedWord` ids selected for review — **ids only** |
 | `reviewTargetCount` | `Int` (default 0) | Count of target words (0 is valid) |
 | `status` | `String` | Controlled: `active` \| `completed` \| `skipped` |
-| `source` | `String` | Controlled: `resume` \| `picks` \| `none` |
+| `source` | `String` | Controlled: `resume` \| `picks` \| `none` \| `user_selected` |
 | `completionTier` | `String` | Controlled: `none` \| `reading` \| `comprehension` \| `full` |
 | `generationReasonCode` | `String` | Controlled: `resume_in_progress` \| `picks_primary` \| `no_candidate` |
 | `readingCompletedAt` | `DateTime?` | Set when the reading step completes |
@@ -55,6 +54,26 @@ enforced by `@@unique([userId, localDate])` and indexed by `userId`.
 | `skipReason` | `String?` | Controlled when set: `not_interested` \| `too_busy` \| `too_hard` \| `too_easy` \| `other` |
 | `skippedAt` | `DateTime?` | When the day was skipped |
 | `createdAt` / `updatedAt` | `DateTime` | Timestamps |
+
+### Lightweight comprehension feedback
+
+`TodayComprehensionFeedback` stores the optional post-reading self-check for a
+Today session. It is one controlled feedback row per submitted session and
+carries only ids/enums/booleans:
+
+| Field | Notes |
+| --- | --- |
+| `userId` | FK → `User`, `onDelete: Cascade` |
+| `todaySessionId` | Plain string reference to the Today session; not an FK |
+| `articleId` | Primary article id at submission time; not an FK |
+| `selfRating` | Controlled: `confident` \| `partial` \| `confused` |
+| `questionId` | Optional `QuizQuestion.id` shown to the learner; no question text is stored in this row |
+| `mcqCorrect` | `true` / `false` when an MCQ was graded; `null` for self-rating-only checks |
+| `skillTag` | Optional controlled tag: `main_idea` \| `detail` \| `inference` \| `vocabulary_in_context` |
+| `remediationViewed` | Sticky boolean engagement flag |
+
+The row never stores article text, question text, answer/option text,
+explanations, prompts, definitions, notes, or selected text.
 
 ### Array storage (SQLite + PostgreSQL from one source)
 
@@ -202,9 +221,14 @@ record path that calls them.
   Today-only fallback (`POST /api/today/read-complete`) marks the day's primary
   read **without** reading or mutating `ReadingProgress`. Only the current
   primary article can complete the reading step.
-- **Comprehension** (`markTodayComprehensionComplete`). Completes from an
-  existing quiz attempt **or** a difficulty-feedback vote on the primary
-  article; hooked from both routes. Actions on non-primary articles are no-ops.
+- **Comprehension** (`markTodayComprehensionComplete`,
+  `submitTodayComprehension`). Completes from the lightweight Today self-check,
+  an existing quiz attempt, or a difficulty-feedback vote on the primary
+  article. The self-check accepts one controlled self-rating and, when the
+  article has cached `QuizQuestion` rows, zero or one optional MCQ graded
+  server-side. Self-rating alone advances `comprehensionCompletedAt`; wrong MCQ
+  answers return a remediation deep-link back to the reader without embedding
+  content. Actions on non-primary articles are no-ops.
 - **Word review** (`markTodayWordReviewComplete`). Recomputed after a flashcard
   grade; completes when enough target saved words have `lastReviewedAt >=`
   the session's `createdAt` (all targets when ≤ 3 resolvable exist, otherwise at
@@ -248,6 +272,7 @@ src/lib/engagement/today-session/
   target-words.ts — privacy-safe SavedWord id selection (@server-only)
   generator.ts    — getOrCreateTodaySession orchestration (@server-only)
   completion.ts   — tier engine + completion markers (@server-only)
+  comprehension.ts — lightweight self-check + controlled feedback row (@server-only)
   skip.ts         — terminal day-skip transition + 1/day limit (@server-only)
   view-model.ts   — privacy-safe Today view model + loader (@server-only)
   index.ts        — stable public barrel
@@ -260,10 +285,10 @@ bundles.
 
 ## Learner surface (UI, API, routing)
 
-The P3 vertical slice adds the learner-facing Today surface on top of the domain
-service. It is gated end-to-end by the `FEATURE_TODAY_SESSION_ENABLED` flag
-(`src/lib/runtime-config/feature-flags.ts`, `isTodaySessionFeatureEnabled()`,
-default **on**). P4 owns the flag documentation and the `.env.example` entry.
+The learner-facing Today surface sits on top of the domain service. It is gated
+end-to-end by the `FEATURE_TODAY_SESSION_ENABLED` flag
+(`src/lib/runtime-config/feature-flags.ts`, `isTodaySessionFeatureEnabled()`),
+which defaults **on**.
 
 ### View model (`view-model.ts`)
 
@@ -284,8 +309,8 @@ article body, word text, definitions, prompts, or notes.
 
 ### API routes (`src/app/api/today/`)
 
-All three return `404` when the feature flag is off and scope every query to the
-authenticated session user (never a body-supplied id):
+All routes return `404` when the feature flag is off and scope every query to
+the authenticated session user (never a body-supplied id):
 
 - **`GET /api/today`** — returns the `TodayViewModel` summary for the learner's
   local day. Accepts an optional `timezone` query (validated; over-long input is
@@ -295,8 +320,19 @@ authenticated session user (never a body-supplied id):
   invalid values are rejected with `400`. Idempotent with a 1-skip/day limit.
 - **`POST /api/today/read-complete`** — the pre-existing manual reading fallback
   (unchanged; reused, not duplicated).
-- **`POST /api/today/set-article`** — set a readable article as today's primary
-  (v1.1, #805). See "User-selected primary" below.
+- **`GET /api/today/comprehension`** — returns the day's optional comprehension
+  MCQ (id + display text/options only, never `correctIndex`) plus completed /
+  already-submitted flags. When no cached question exists, the UI degrades to a
+  self-rating-only check.
+- **`POST /api/today/comprehension`** — submits the controlled self-rating and
+  optional MCQ selection. The answer is graded server-side; a wrong answer
+  returns a reader deep-link for remediation. The persisted feedback row carries
+  ids/enums/booleans only.
+- **`POST /api/today/word-review-complete`** — thin idempotent endpoint over the
+  same word-review completion hook used by flashcard grading, primarily so the
+  offline queue can replay `today.word-review-complete`.
+- **`POST /api/today/set-article`** — set a readable article as today's primary.
+  See "User-selected primary" below.
 
 ### Skip semantics (`skip.ts`)
 
@@ -305,9 +341,8 @@ re-pick: it validates the reason, sets `status = skipped`, appends the dismissed
 primary id to `backupArticleIds` (ids only), and surfaces backups for a browse
 fallback. It is idempotent and enforces `TODAY_DAILY_SKIP_LIMIT = 1` per local
 day (a second skip returns `limitReached`). The daily plan stays immutable —
-skipping does not reshuffle or generate a replacement plan. (See deviation note
-below: per-article skip-and-promote would need a new schema column and is out of
-P3 scope.)
+skipping does not reshuffle or generate a replacement plan. Per-article
+skip-and-promote is not modeled by the current schema.
 
 ### User-selected primary (v1.1, `set-article.ts`)
 
@@ -426,18 +461,13 @@ behavior without data loss.
 - The flag is **server-only** — never import `feature-flags.ts` from a Client
   Component.
 
-## Non-goals (v1)
+## Related current docs
 
-- No new lightweight comprehension model — comprehension reuses existing quiz
-  attempts and difficulty feedback.
-- No AI generation.
-- No per-article skip-and-promote: skipping is a terminal day transition, not a
-  within-day re-pick (the daily plan stays immutable).
-
-## v1.1 / v2 roadmap
-
-Implementation-ready designs for the next Today milestones — reading placement
-(#806), comprehension feedback + quiz remediation (#807), Goal Paths (#809),
-privacy-safe coach memory (#810), offline mutation support (#811), and fluency
-feedback + curated reading series (#813) — are in
-[`today-session-roadmap-v1_1.md`](./today-session-roadmap-v1_1.md).
+- [`profile-preferences.md`](./profile-preferences.md) — reading placement and
+  goal-path preference inputs consumed by Today recommendations and copy.
+- [`learning-and-mastery.md`](./learning-and-mastery.md) — mastery updates,
+  Today comprehension feedback, and privacy-safe coach memory.
+- [`../reader/offline-sync.md`](../reader/offline-sync.md) — offline Today
+  mutation queue and replay semantics.
+- [`reading-series.md`](./reading-series.md) — current `ReadingSeries` /
+  `SeriesEnrollment` schema state; not currently consumed by Today generation.

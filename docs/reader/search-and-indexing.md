@@ -12,7 +12,7 @@ All Prisma search queries consume `readableArticleWhere` from `@/lib/article-lib
 | Authenticated user | `OR [public-listable, owned-private]` | `((status='published' AND visibility='PUBLIC') OR (visibility='PRIVATE' AND ownerId=?))` |
 | Anonymous | `{ status: PUBLISHED, visibility: PUBLIC, ownerId: null }` | `(status='published' AND visibility='PUBLIC')` |
 
-**Migration follow-up (issue #687, Phase 3):** `buildReadableArticleSqlPredicate` must be updated in the same commit whenever `readableArticleWhere` gains new predicates (e.g. tenant/org scoping). Regression coverage lives in `tests/search-sql-predicate.test.ts`.
+`buildReadableArticleSqlPredicate` is part of the same access-boundary contract as `readableArticleWhere`: when the Prisma predicate changes, the raw SQL mirror and `tests/search-sql-predicate.test.ts` must change with it.
 
 ## Search candidate contract
 

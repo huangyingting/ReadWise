@@ -46,8 +46,8 @@ Metrics recorders derive numerical signals from these same events (e.g.
 ## Redaction policy
 
 All telemetry metadata uses the **security-owned redaction policy** at
-`@/lib/security/redaction`. This policy was centralised in Phase 1 (#676) and is
-the single source of truth for sensitive-key detection and value scrubbing.
+`@/lib/security/redaction`. This module is the single source of truth for
+sensitive-key detection and value scrubbing.
 
 - `src/lib/observability/errors.ts` imports `isSensitiveMetadataKey` and
   `redactSensitiveValue` directly from `@/lib/security/redaction`.

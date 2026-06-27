@@ -7,13 +7,13 @@
 ## Context
 
 ReadWise authorizes with a two-value `Role` enum (`Admin`, `Reader`) and
-hard-coded `role === "Admin"` checks scattered across pages and routes. The
-roadmap adds moderators, content editors, support agents, and tenant-level roles
-(teachers, organization admins, classroom instructors). Hard-coded role checks do
-not scale to that, but changing the `Role` enum now would risk the working app
-before the role set is settled. We need an extensible permission model that keeps
-existing Admin/Reader behavior byte-for-byte identical until a deliberate
-migration.
+historically used hard-coded `role === "Admin"` checks across pages and routes.
+The product also has tenant-level roles for organizations and classrooms
+(teachers, organization admins, students). Hard-coded system-role checks do not
+scale across these axes, but changing the global `Role` enum would risk the
+working app before the broader system-role set is settled. ReadWise therefore
+needs an extensible permission model that keeps existing Admin/Reader behavior
+byte-for-byte identical.
 
 ## Decision
 
@@ -46,9 +46,10 @@ with the Prisma enum.
 - Risk: the in-code map and the Prisma enum could drift — mitigated by the
   compile-time guard and `docs/access/rbac.md`.
 
-## Follow-up work
+## Current status
 
-- [ ] Promote a planned system role to the enum + `ACTIVE_ROLES` when first
-      needed (e.g. Moderator).
-- [x] Store tenant roles on the organization/classroom membership model (#318),
-      separate from `User.role`.
+- Global DB-backed roles remain `Admin` and `Reader`.
+- Tenant roles are stored separately on organization/classroom membership
+  models, not in `User.role`.
+- Additional global system roles require an explicit enum + `ACTIVE_ROLES`
+  change when they become active product roles.

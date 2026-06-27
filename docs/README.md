@@ -68,14 +68,11 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
-| [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
+| [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, Today comprehension feedback, coach memory, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
 | [`learning/profile-preferences.md`](./learning/profile-preferences.md) | Onboarding/profile validation, CEFR/topics/daily-goal preferences, level history, and personalization consumers. |
-| [`learning/classroom-roster-and-invitations.md`](./learning/classroom-roster-and-invitations.md) | Classroom roster import and invitation lifecycle: bulk upload, status transitions, deduplication, and email/link flows. (Status: Design) |
-| [`learning/assignment-feedback-and-rubrics.md`](./learning/assignment-feedback-and-rubrics.md) | Assignment feedback and rubric workflow: rubric schema, teacher annotation, per-learner feedback delivery, and grading signals. (Status: Design/RFC) |
-| [`learning/school-year-archival-and-retention.md`](./learning/school-year-archival-and-retention.md) | School-year archival: end-of-year close, classroom/assignment freeze, configurable data retention, and cascade rules. (Status: Design) |
-| [`learning/today-session.md`](./learning/today-session.md) | Today Session: one durable learner-local-day workflow anchor, idempotent daily generation (resume-first then Picks fallback), target saved-word selection, and timezone/local-date semantics. |
-| [`learning/today-session-roadmap-v1_1.md`](./learning/today-session-roadmap-v1_1.md) | Today v1.1/v2 roadmap designs: reading placement (#806), comprehension feedback + remediation (#807), Goal Paths (#809), coach memory (#810), offline mutations (#811), fluency feedback + curated series (#813). (Status: Design-ready) |
+| [`learning/today-session.md`](./learning/today-session.md) | Today Session: one durable learner-local-day workflow anchor, idempotent daily generation, user-selected primary articles, lightweight comprehension checks, target saved-word review, and timezone/local-date semantics. |
 | [`learning/review-assets.md`](./learning/review-assets.md) | Review assets: optional, low-pressure conversion of existing highlights/notes into flashcard/SRS review cards, content-free Progress/Study counts, and the additive Today reflection bonus. |
+| [`learning/reading-series.md`](./learning/reading-series.md) | Curated reading series schema foundation: ordered article collections and per-user enrollment state; no current API/UI/Today integration. |
 
 ### Media
 
@@ -118,7 +115,6 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`platform/runtime-config.md`](./platform/runtime-config.md) | Runtime configuration ownership, typed helpers, and the documented `process.env` allowlist. |
 | [`platform/push-notifications.md`](./platform/push-notifications.md) | Web Push configuration, subscription lifecycle, reminder scheduling, delivery health, and privacy. |
 | [`platform/primitives.md`](./platform/primitives.md) | Summary pointer to `src/lib/primitives/README.md`; classification table, contribution guidelines, and stability contract for shared platform primitives. |
-| [`platform/entitlements.md`](./platform/entitlements.md) | Entitlement and plan-aware feature gate design: capability checks, allowances, and billing tier boundaries. (Status: Design) |
 | [`platform/internationalization.md`](./platform/internationalization.md) | UI internationalization foundation: i18n architecture, locale loading, and separation from article-translation and learner language-preference systems. |
 | [`platform/schema-change-checklist.md`](./platform/schema-change-checklist.md) | Privacy, retention, export, and cascade checklist required for every Prisma model or migration change. |
 | [`platform/test-data-governance.md`](./platform/test-data-governance.md) | Test data and fixture governance across unit factories, Prisma/DB seeds, Playwright e2e seeds, scraper corpora, and AI evaluation datasets. |
