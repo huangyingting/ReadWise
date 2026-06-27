@@ -16,8 +16,7 @@
 import { type ChangeEvent, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, Headphones, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button, IconButton, Textarea } from "@/components/ui";
-import EmptyState from "@/components/EmptyState";
+import { Button, EmptyState, IconButton, Textarea } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import {
   useDictationPanel,

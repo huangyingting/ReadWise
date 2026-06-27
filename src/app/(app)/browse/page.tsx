@@ -14,8 +14,7 @@ import { isValidCategorySlug, CATEGORIES } from "@/lib/categories";
 import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import CategoryBrowser from "@/components/CategoryBrowser";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { PageHeader, PageShell } from "@/components/ui";
 
 export default async function BrowsePage({
   searchParams,

@@ -2,11 +2,9 @@ import Link from "next/link";
 import { BookOpenCheck } from "lucide-react";
 import { requireSession } from "@/lib/session";
 import { listAssignmentsForStudent } from "@/lib/classroom";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import { Card, CardBody } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import EmptyState from "@/components/EmptyState";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
 import { formatMediumDate } from "@/lib/display-format";
 

@@ -10,13 +10,13 @@ import {
   CardBody,
   CardHeader,
   CardTitle,
+  EmptyState,
   PageHeader,
   PageShell,
   Section,
 } from "@/components/ui";
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
-import EmptyState from "@/components/EmptyState";
 
 /**
  * Teacher workspace (RW-061). Lists the classrooms the signed-in user teaches

@@ -6,9 +6,9 @@ import { useCallback, useState } from "react";
 import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement";
 import { buttonVariants } from "@/components/ui/Button";
+import { EmptyState } from "@/components/ui";
 import { getJson } from "@/lib/client-fetch";
 import ArticleListingGrid from "@/components/ArticleListingGrid";
-import EmptyState from "@/components/EmptyState";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
 /** Shape returned by GET /api/feed */

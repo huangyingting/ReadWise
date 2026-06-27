@@ -1,8 +1,7 @@
 "use client";
 
 import { Layers, FileQuestion, CheckCircle2 } from "lucide-react";
-import { Button, Card, CardMeta, CardTitle, Stack } from "@/components/ui";
-import EmptyState from "@/components/EmptyState";
+import { Button, Card, CardMeta, CardTitle, EmptyState, Stack } from "@/components/ui";
 
 interface ReviewStartCardProps {
   dueCount: number;

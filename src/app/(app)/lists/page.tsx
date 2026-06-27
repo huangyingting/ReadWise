@@ -5,10 +5,8 @@ import { getProgressMap } from "@/lib/engagement";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import ListSwitcher from "@/components/ListSwitcher";
-import { PageShell } from "@/components/shell/PageShell";
-import { PageHeader } from "@/components/shell/PageHeader";
 
 export default async function ListsPage({
   searchParams,

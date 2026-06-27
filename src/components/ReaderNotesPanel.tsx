@@ -24,7 +24,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 import ConfirmAction from "@/components/ConfirmAction";
 import {
   useHighlights,

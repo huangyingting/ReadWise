@@ -9,10 +9,10 @@ import {
   Input,
   PanelError,
   Select,
+  EmptyState,
   TableSurface,
   Toolbar,
 } from "@/components/ui";
-import EmptyState from "@/components/EmptyState";
 import { WordTableRow } from "@/components/vocabulary/WordTableRow";
 import { JournalPagination } from "@/components/vocabulary/JournalPagination";
 import { getJson, postJson } from "@/lib/client-fetch";

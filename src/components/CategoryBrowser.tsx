@@ -11,7 +11,7 @@ import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { Select } from "@/components/ui/Select";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleListingGrid from "@/components/ArticleListingGrid";
-import EmptyState from "@/components/EmptyState";
+import { EmptyState } from "@/components/ui";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
 type Tab = { key: string; label: string; href: string };

@@ -34,10 +34,9 @@ import {
   useState,
 } from "react";
 import { Send, Sparkles } from "lucide-react";
-import { Button } from "@/components/ui";
+import { Button, EmptyState } from "@/components/ui";
 import { Textarea } from "@/components/ui/Textarea";
 import { Spinner } from "@/components/ui/Spinner";
-import EmptyState from "@/components/EmptyState";
 import ConfirmAction from "@/components/ConfirmAction";
 import AiBadge from "@/components/AiBadge";
 import { useTutor } from "@/components/ReaderTutorProvider";
