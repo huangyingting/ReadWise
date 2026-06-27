@@ -9,6 +9,7 @@ import { Tooltip } from "@/components/ui/Tooltip";
 import CardBookmarkButton from "@/components/CardBookmarkButton";
 import CardThumbnail from "@/components/CardThumbnail";
 import ReferrerLink from "@/components/ReferrerLink";
+import SetTodayArticleButton from "@/components/SetTodayArticleButton";
 
 export type ArticleCardProgress = ProgressSummary;
 
@@ -50,6 +51,7 @@ export default function ArticleCardView({
   removeListId,
   removeListName,
   reason,
+  setTodayEnabled = false,
 }: {
   article: ListingArticle;
   progress?: ArticleCardProgress;
@@ -62,6 +64,9 @@ export default function ArticleCardView({
   /** Optional "why" chip text (M15 For You feed). Renders a quiet metadata chip
    *  between the byline and the progress footer. Does NOT touch any progress/bookmark DOM hooks. */
   reason?: string;
+  /** When true (Today Session v1.1, #805), render the "Set as today's article"
+   *  overlay. Only passed by surfaces that have checked the Today feature flag. */
+  setTodayEnabled?: boolean;
 }) {
   const percent = progress?.percent ?? 0;
   const completed = progress?.completed ?? false;
@@ -246,6 +251,19 @@ export default function ArticleCardView({
       removeListId={removeListId}
       removeListName={removeListName}
     />
+
+    {/*
+     * Today Session v1.1 (#805) "Set as today's article" overlay — sibling of
+     * the <Link> (top-left), mirroring the bookmark overlay. Only rendered when
+     * the calling surface has confirmed the Today feature flag is on.
+     */}
+    {setTodayEnabled ? (
+      <SetTodayArticleButton
+        variant="overlay"
+        articleId={article.id}
+        articleTitle={article.title}
+      />
+    ) : null}
   </div>
   );
 }

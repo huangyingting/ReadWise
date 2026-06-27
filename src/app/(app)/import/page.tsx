@@ -6,6 +6,7 @@ import {
   IMPORTS_PAGE_SIZE,
 } from "@/lib/article-library";
 import { getProgressSummaries } from "@/lib/engagement";
+import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { PageHeader, PageShell } from "@/components/ui";
 import ImportForm from "./ImportForm";
 import PersonalImports from "./PersonalImports";
@@ -43,6 +44,7 @@ export default async function ImportPage() {
         initialProgress={progressMap}
         initialHasMore={hasMore}
         initialOffset={personalArticles.length}
+        setTodayEnabled={isTodaySessionFeatureEnabled()}
       />
     </PageShell>
   );

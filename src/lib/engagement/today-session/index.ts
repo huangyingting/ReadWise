@@ -88,6 +88,10 @@ export type {
 export { skipTodaySession, TODAY_DAILY_SKIP_LIMIT } from "./skip";
 export type { SkipResult } from "./skip";
 
+// ── User-selected primary (v1.1, #805) ───────────────────────────────────────
+export { setTodayPrimaryArticle, SetTodayArticleError } from "./set-article";
+export type { SetTodayArticleErrorCode } from "./set-article";
+
 // ── Product analytics emit helpers (#802) ────────────────────────────────────
 export {
   emitTodaySessionGenerated,
@@ -98,6 +102,7 @@ export {
   emitTodayWordReviewComplete,
   emitTodaySessionComplete,
   emitTodaySkip,
+  emitTodayArticleSelected,
 } from "./analytics";
 export type { TodayReadingMethod } from "./analytics";
 
