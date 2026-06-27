@@ -73,6 +73,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`learning/classroom-roster-and-invitations.md`](./learning/classroom-roster-and-invitations.md) | Classroom roster import and invitation lifecycle: bulk upload, status transitions, deduplication, and email/link flows. (Status: Design) |
 | [`learning/assignment-feedback-and-rubrics.md`](./learning/assignment-feedback-and-rubrics.md) | Assignment feedback and rubric workflow: rubric schema, teacher annotation, per-learner feedback delivery, and grading signals. (Status: Design/RFC) |
 | [`learning/school-year-archival-and-retention.md`](./learning/school-year-archival-and-retention.md) | School-year archival: end-of-year close, classroom/assignment freeze, configurable data retention, and cascade rules. (Status: Design) |
+| [`learning/today-session.md`](./learning/today-session.md) | Today Session: one durable learner-local-day workflow anchor, idempotent daily generation (resume-first then Picks fallback), target saved-word selection, and timezone/local-date semantics. |
 
 ### Media
 
