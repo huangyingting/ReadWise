@@ -34,6 +34,9 @@ before(() => {
   mock.module("@/lib/engagement/activity", {
     namedExports: { recordReadingActivity: async () => {} },
   });
+  mock.module("@/lib/learning/reading-exposure", {
+    namedExports: { recordReadingWordExposures: async () => 0 },
+  });
   mock.module("@/lib/article-library", {
     namedExports: {
       publicListableArticleWhere: () => ({}),

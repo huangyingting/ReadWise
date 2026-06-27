@@ -29,6 +29,7 @@ let quizRows: Array<{ scorePct: number }> = [];
 let completedAtLevelCount = 0;
 let skillRows: Array<{ skill: string; confidence: number; evidenceCount: number }> = [];
 let wordAgg = { _avg: { familiarity: null as number | null }, _count: { _all: 0 } };
+let weakWordMasteryRows: Array<{ sourceArticleIds: unknown }> = [];
 let progressRows: Array<{ articleId: string; percent: number; completed: boolean }> = [];
 let masteryRows: Array<{ articleId: string; comprehensionScore: number; lastActivityAt: Date }> = [];
 let articleRows: Array<Record<string, unknown>> = [];
@@ -66,6 +67,7 @@ before(() => {
         },
         wordMastery: {
           aggregate: async () => wordAgg,
+          findMany: async () => weakWordMasteryRows,
         },
         readingProgress: {
           count: async () => completedAtLevelCount,
@@ -92,6 +94,7 @@ beforeEach(() => {
   completedAtLevelCount = 0;
   skillRows = [];
   wordAgg = { _avg: { familiarity: null }, _count: { _all: 0 } };
+  weakWordMasteryRows = [];
   progressRows = [];
   masteryRows = [];
   articleRows = [];
