@@ -5,6 +5,7 @@
  */
 import type { Prisma } from "@prisma/client";
 import { isValidCategorySlug } from "@/lib/categories";
+import { isGoalPath, type GoalPath } from "@/lib/learning/goal-path";
 import {
   ENGLISH_LEVELS,
   AGE_RANGES,
@@ -23,6 +24,12 @@ export type ProfileInput = {
   topics: string[];
   /** Articles-per-day target. Present only when explicitly supplied in the request body. */
   dailyGoal?: number;
+  /**
+   * Goal Paths (#809). Controlled reading-strategy path. Present only when the
+   * key is supplied: a valid path sets it, `null` clears it, omission leaves the
+   * stored value untouched (mirrors the `dailyGoal` opt-in pattern).
+   */
+  goalPath?: GoalPath | null;
 };
 
 export type ProfileInputResult =
@@ -35,6 +42,7 @@ export function parseProfileInput(body: {
   englishLevel?: unknown;
   topics?: unknown;
   dailyGoal?: unknown;
+  goalPath?: unknown;
 }): ProfileInputResult {
   const englishLevel = body.englishLevel;
   if (
@@ -92,6 +100,20 @@ export function parseProfileInput(body: {
     dailyGoal = raw;
   }
 
+  // Goal Paths (#809): opt-in like dailyGoal. Only validate/forward when the
+  // key is present; `null`/`""` clears, any non-controlled value is a 400.
+  let goalPath: GoalPath | null | undefined;
+  if ("goalPath" in body && body.goalPath !== undefined) {
+    const raw = body.goalPath;
+    if (raw === null || raw === "") {
+      goalPath = null;
+    } else if (isGoalPath(raw)) {
+      goalPath = raw;
+    } else {
+      return { ok: false, error: "Invalid reading goal path" };
+    }
+  }
+
   return {
     ok: true,
     value: {
@@ -100,6 +122,7 @@ export function parseProfileInput(body: {
       englishLevel: englishLevel as EnglishLevel,
       topics,
       ...(dailyGoal !== undefined ? { dailyGoal } : {}),
+      ...(goalPath !== undefined ? { goalPath } : {}),
     },
   };
 }

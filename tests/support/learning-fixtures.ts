@@ -111,6 +111,7 @@ export function makeRecommendationContext(
     weakestSkill: null,
     vocab: { avgFamiliarity: 0, knownCount: 0 },
     weakWordArticleIds: new Map<string, number>(),
+    goalPath: null,
     now: NOW,
     ...partial,
   };

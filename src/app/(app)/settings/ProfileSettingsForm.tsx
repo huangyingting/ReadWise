@@ -14,6 +14,8 @@ import {
   TopicSelector,
   DailyGoalStepper,
 } from "@/features/profile-preferences";
+import { GOAL_PATHS } from "@/lib/learning/goal-path";
+import { GOAL_PATH_LABELS, GOAL_PATH_HELP } from "@/lib/copy/goal-path";
 import { useMutation } from "@/hooks/useMutation";
 import {
   Button,
@@ -34,6 +36,7 @@ type Defaults = {
   englishLevel: string;
   topics: string[];
   dailyGoal: number;
+  goalPath: string;
 };
 
 export default function ProfileSettingsForm({
@@ -47,6 +50,7 @@ export default function ProfileSettingsForm({
   const [englishLevel, setEnglishLevel] = useState(defaults.englishLevel);
   const [topics, setTopics] = useState<string[]>(defaults.topics);
   const [dailyGoal, setDailyGoal] = useState(defaults.dailyGoal);
+  const [goalPath, setGoalPath] = useState(defaults.goalPath);
   const [levelError, setLevelError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useMutation("Network error. Please try again.");
@@ -80,6 +84,7 @@ export default function ProfileSettingsForm({
         englishLevel,
         topics,
         dailyGoal,
+        goalPath: goalPath === "" ? null : goalPath,
       });
       setSaved(true);
       router.refresh();
@@ -170,6 +175,32 @@ export default function ProfileSettingsForm({
         </CardHeader>
         <CardBody>
           <div className="flex flex-col gap-[var(--space-6)]">
+            {/* Reading goal selector (#809) — soft personalization signal */}
+            <Field
+              label="Reading goal"
+              hint="Optional — tunes article length, difficulty, and topics."
+            >
+              <Select
+                value={goalPath}
+                onChange={(e) => {
+                  markDirty();
+                  setGoalPath(e.target.value);
+                }}
+              >
+                <option value="">No specific goal</option>
+                {GOAL_PATHS.map((path) => (
+                  <option key={path} value={path}>
+                    {GOAL_PATH_LABELS[path]}
+                  </option>
+                ))}
+              </Select>
+              {goalPath !== "" && GOAL_PATH_HELP[goalPath as keyof typeof GOAL_PATH_HELP] ? (
+                <p className="text-text-subtle text-[length:var(--text-xs)]">
+                  {GOAL_PATH_HELP[goalPath as keyof typeof GOAL_PATH_HELP]}
+                </p>
+              ) : null}
+            </Field>
+
             {/* Daily reading goal stepper */}
             <DailyGoalStepper
               value={dailyGoal}

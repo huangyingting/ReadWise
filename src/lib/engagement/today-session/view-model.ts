@@ -23,6 +23,13 @@ import {
 import { getOrCreateTodaySession } from "./generator";
 import { resolveLocalDate } from "./local-date";
 import { emitTodaySessionViewed } from "./analytics";
+import { getProfile } from "@/lib/profile";
+import { isGoalPath, type GoalPath } from "@/lib/learning/goal-path";
+import {
+  todayCopyForGoalPath,
+  comprehensionPromptForGoalPath,
+  type GoalPathTodayCopy,
+} from "@/lib/copy/goal-path";
 import type {
   TodayCompletionTier,
   TodaySessionSource,
@@ -118,6 +125,16 @@ export type TodayViewModel = {
   reviewsSavedWords: boolean;
   /** How many saved words the day re-exposes (0 when none). Count only. */
   savedWordCount: number;
+  /**
+   * Goal Paths (#809). The learner's controlled goal-path string (or null).
+   * Drives the deterministic, path-specific Today copy below. Controlled enum
+   * only — never inferred from reading history.
+   */
+  goalPath: GoalPath | null;
+  /** Path-specific Today heading + completion copy (deterministic, no AI). */
+  goalPathCopy: GoalPathTodayCopy;
+  /** Path-specific comprehension-prompt label. */
+  comprehensionPrompt: string;
 };
 
 /** Resolved article displays the pure builder needs (already access-checked). */
@@ -205,10 +222,12 @@ export function buildTodayViewModel(
   session: TodaySessionView,
   timezone: string,
   displays: TodayArticleDisplays,
+  goalPath: GoalPath | null = null,
 ): TodayViewModel {
   const steps = buildSteps(session);
   const primaryReadable = displays.primary != null;
   const savedWordCount = session.targetSavedWordIds.length;
+  const path = isGoalPath(goalPath) ? goalPath : null;
 
   return {
     localDate: session.localDate,
@@ -236,6 +255,9 @@ export function buildTodayViewModel(
     isNoCandidate: session.primaryArticleId == null,
     reviewsSavedWords: savedWordCount > 0,
     savedWordCount,
+    goalPath: path,
+    goalPathCopy: todayCopyForGoalPath(path),
+    comprehensionPrompt: comprehensionPromptForGoalPath(path),
   };
 }
 
@@ -295,6 +317,11 @@ export async function loadTodayViewModel(args: {
     now,
   });
 
+  // Goal Paths (#809): load the learner's controlled goal-path string (or null)
+  // to select deterministic, path-specific Today copy. Controlled enum only.
+  const profile = await getProfile(args.user.id);
+  const goalPath = isGoalPath(profile?.goalPath) ? profile.goalPath : null;
+
   // Product analytics (#802): record a Today view (page render or summary
   // fetch). Best-effort + metadata only (status/source/tier/flags) — never
   // article or word content.
@@ -316,10 +343,15 @@ export async function loadTodayViewModel(args: {
     (card): card is ListingArticle => card != null,
   );
 
-  return buildTodayViewModel(session, timezone, {
-    primary,
-    backups: readableBackups,
-  });
+  return buildTodayViewModel(
+    session,
+    timezone,
+    {
+      primary,
+      backups: readableBackups,
+    },
+    goalPath,
+  );
 }
 
 /** ISO-string a nullable Date for a JSON-safe payload. */

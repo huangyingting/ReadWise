@@ -59,7 +59,7 @@ export default async function TodayPage() {
           </Inline>
         }
         title="Today"
-        description="One focused reading task for today. Read for enjoyment — there's no daily score to chase."
+        description={vm.goalPathCopy.heading}
       />
 
       {vm.isNoCandidate ? (
@@ -110,8 +110,7 @@ export default async function TodayPage() {
                   <Badge variant="success">Today complete</Badge>
                 </Inline>
                 <p className="m-0 text-[length:var(--text-base)] text-text-muted">
-                  Nice work — you finished today&apos;s reading task. Keep the
-                  streak going whenever you&apos;re ready for more.
+                  {vm.goalPathCopy.completion}
                 </p>
               </Stack>
             </Card>
