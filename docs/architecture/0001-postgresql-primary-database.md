@@ -24,8 +24,10 @@ Use PostgreSQL as the primary durable database for shared, test, and production 
 - Migrations must be reviewed more carefully because PostgreSQL becomes an operational dependency.
 - Local setup needs a documented Postgres path before SQLite-only assumptions are removed.
 
-## Follow-up work
+## Current status
 
-- [x] #259: add PostgreSQL Prisma schema/runtime configuration and local parity workflow.
-- [x] #314: add PostgreSQL migration and integration-test path.
-- [ ] Operational cutover: run production/shared environments on managed PostgreSQL while keeping SQLite as the lightweight local default until the cutover is complete.
+- PostgreSQL Prisma schema/runtime configuration and the local parity workflow
+	exist.
+- PostgreSQL migration and integration-test paths exist.
+- SQLite remains the lightweight local default; shared/production environments
+	should use managed PostgreSQL where available.

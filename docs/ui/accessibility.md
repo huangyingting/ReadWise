@@ -173,15 +173,14 @@ flashcard flip, and the audio mini-player under reduced-motion settings.
 
 ---
 
-## Open follow-ups
+## Current automated-coverage gaps
 
-The following gaps are not yet covered by automated checks and are tracked as
-follow-up issues:
+The following areas are not yet covered by automated accessibility checks:
 
-- [ ] Word lookup popover focus-trap assertion (#tbd)
-- [ ] Flashcard keyboard-operability and ARIA state announcement (#tbd)
-- [ ] Command palette focus-trap + Escape-return assertion (#tbd)
-- [ ] Admin table column sort ARIA label verification (#tbd)
-- [ ] Offline sync indicator `aria-live` region check (#tbd)
-- [ ] Reduced-motion smoke test for reader and flashcard animations (#tbd)
-- [ ] Colour contrast manual audit for custom colour tokens (#tbd)
+- Word lookup popover focus-trap assertion.
+- Flashcard keyboard-operability and ARIA state announcement.
+- Command palette focus-trap and Escape-return assertion.
+- Admin table column sort ARIA label verification.
+- Offline sync indicator `aria-live` region check.
+- Reduced-motion smoke test for reader and flashcard animations.
+- Colour contrast manual audit for custom colour tokens.

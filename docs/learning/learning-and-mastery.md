@@ -18,6 +18,9 @@ study recommendations.
 | `WordMastery` | Durable familiarity/confidence estimate per user + lemma. | `src/lib/learning/word-mastery.ts` |
 | `ArticleMastery` | Durable comprehension score per user + article. | `src/lib/learning/article-mastery.ts` |
 | `SkillMastery` | Confidence per skill dimension. | `src/lib/learning/skill-mastery.ts` |
+| `TodayComprehensionFeedback` | Controlled Today self-check outcomes: self-rating, optional question id, MCQ correctness, skill tag, remediation flag. | `src/lib/engagement/today-session/comprehension.ts` |
+| `LearnerCoachMemory` | Privacy-safe aggregate weakness memory for Tutor and Study Plan. | `src/lib/learning/coach-memory.ts` |
+| `ReadingSeries` / `SeriesEnrollment` | Ordered article-series metadata and per-user enrollment position; schema exists, but no current API/UI/Today integration consumes it. | `prisma/base.prisma`, [`reading-series.md`](./reading-series.md) |
 | `ArticleDifficultyFeedback` | Per-user article vote: `too_easy`, `just_right`, `too_hard`. | `src/lib/leveling/` |
 | `PronunciationAttempt` | Pronunciation scores persisted from client-side Azure Speech assessment. | `src/lib/pronunciation.ts` |
 
@@ -132,6 +135,35 @@ Then:
 
 The final `comprehensionScore` is clamped to 0-1.
 
+## Today comprehension feedback
+
+Today's lightweight comprehension self-check is separate from full quiz history.
+`GET /api/today/comprehension` selects zero or one cached `QuizQuestion` for the
+day's primary article and returns display text/options only; `correctIndex` is
+never sent to the client. `POST /api/today/comprehension` accepts:
+
+- `selfRating`: `confident`, `partial`, or `confused`;
+- optional `questionId` and `selectedIndex`, graded server-side;
+- optional controlled `skillTag`;
+- `remediationViewed` as a sticky boolean.
+
+Self-rating alone advances `TodaySession.comprehensionCompletedAt`; no full quiz
+is required. When an optional MCQ is answered incorrectly, the API returns a
+reader deep-link for low-pressure remediation without embedding article,
+question, answer, or explanation text. The persisted `TodayComprehensionFeedback`
+row stores ids/enums/booleans only and is exported in the user data bundle.
+
+Submission also updates learning signals as best-effort side effects:
+
+- `updateArticleMastery(userId, articleId)` refreshes article comprehension
+  aggregates;
+- `recordSkillEvidence` records low-weight comprehension evidence from the
+  self-rating;
+- an MCQ outcome records comprehension or vocabulary evidence depending on the
+  controlled skill tag.
+
+If any mastery side effect fails, Today completion still succeeds.
+
 ## Skill mastery
 
 `SkillMastery` tracks six dimensions:
@@ -175,6 +207,34 @@ strongest skill.
 
 The function never mutates `Profile.englishLevel`; applying a level change is an
 explicit user action.
+
+## Privacy-safe coach memory
+
+`LearnerCoachMemory` is a long-term, aggregate weakness summary keyed by
+`(userId, skill)`. It stores only:
+
+- controlled skill key (`reading`, `vocabulary`, `grammar`, `listening`,
+  `pronunciation`, `comprehension`, `main_idea`, `inference`);
+- 0-1 confidence;
+- capped `evidenceCount` (max 100);
+- `lastObservedAt`;
+- controlled trend (`improving`, `stable`, `declining`).
+
+`upsertCoachMemory` is allowlist-based: input may contain only `skill`,
+`confidence`, and optional `observedAt`. Any prompt, article/selected/question
+or answer text, definition, example, note, token, id-bearing context field, or
+PII-shaped extra key is rejected with `CoachMemoryPrivacyError`.
+
+Coach memory is updated as a best-effort side effect of `SkillMastery` writes
+via `syncCoachMemory`. Tutor consumes it through `buildTutorContext(userId)`,
+which emits a bounded summary string (max 200 approximate tokens) containing
+aggregate skill lines only. Study Plan consumes
+`coachMemorySkillConfidences(userId)` and falls back to `SkillMastery` when no
+memory rows exist, so cold-start behavior is unchanged.
+
+Learners can clear memory with `DELETE /api/coach-memory`; this hard-deletes
+`LearnerCoachMemory` rows for the authenticated user and leaves `SkillMastery`
+intact as the source of truth.
 
 ## Adaptive CEFR recommendation
 
@@ -276,6 +336,7 @@ due cards. `gradeFlashcard(...)` updates the SM-2 schedule and records:
 Learner analytics are derived from user-owned tables and are not a separate
 append-only stream. User deletion cascades through user-owned data such as
 progress, saved words, daily activity, highlights, quiz attempts, and
-pronunciation attempts. Product analytics events are non-FK rows and must be
-handled through the retention/erasure helpers documented in
+pronunciation attempts, Today comprehension feedback, placement results, coach
+memory, and series enrollments. Product analytics events are non-FK rows and
+must be handled through the retention/erasure helpers documented in
 [`product-analytics.md`](../analytics/product-analytics.md).

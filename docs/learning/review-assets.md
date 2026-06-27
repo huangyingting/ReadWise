@@ -7,7 +7,7 @@ coursework (#812, Today v1.1).
 - **Owning subsystem:** Learning (`src/lib/learning/review-assets.ts`)
 - **Reuses:** the flashcard/SRS store (`SavedWord` + SM-2), the annotation/note
   domain (`Highlight.note`), and the Today view model.
-- **Epic / issues:** #782 (roadmap), #787 (parent), #812 (this feature)
+- **Related issues:** #782, #787, #812
 - **Schema:** none — no new model or column was introduced.
 
 ## Capabilities

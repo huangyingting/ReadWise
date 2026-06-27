@@ -28,7 +28,7 @@ groups all security-sensitive subsystems with narrow public boundaries:
 | CSRF | `src/lib/security/csrf.ts` | Same-origin enforcement (RW-028) |
 | Security events | `src/lib/security/events.ts` | Ring-buffered event monitoring (RW-029) |
 | Audit | `src/lib/security/audit.ts` | Durable audit log with metadata redaction |
-| Redaction | `src/lib/security/redaction.ts` | **Sensitive metadata redaction policy (Phase 1 — #676)** |
+| Redaction | `src/lib/security/redaction.ts` | Sensitive metadata redaction policy |
 | Rate limit | `src/lib/security/rate-limit/index.ts` | Fixed-window limiter with shared store (RW-026) |
 | Rate limit store | `src/lib/security/rate-limit/store.ts` | DB-backed counter store with circuit-breaker |
 
@@ -302,11 +302,11 @@ write failure must not change the response.
 
 **Owner: Security subsystem (`src/lib/security/`).**
 
-The **single redaction policy** lives at `src/lib/security/redaction.ts` and
-was centralised in Phase 1 (#676). Every path that persists or logs metadata
-(audit log, error reporting, analytics events, security events, AI ledger)
-**must** use this module as the sole authority for what constitutes a sensitive
-key or value. No per-module copy is permitted.
+The **single redaction policy** lives at `src/lib/security/redaction.ts`. Every
+path that persists or logs metadata (audit log, error reporting, analytics
+events, security events, AI ledger) **must** use this module as the sole
+authority for what constitutes a sensitive key or value. No per-module copy is
+permitted.
 
 ### Public API
 
