@@ -626,3 +626,40 @@ test("quality/ml: a clean long article is not down-ranked by the classifier", ()
     else process.env.SCRAPER_QUALITY_CLASSIFIER = prev;
   }
 });
+
+// ---------------------------------------------------------------------------
+// Code-content: leaked scripts / minified JS are rejected (Bug B)
+// ---------------------------------------------------------------------------
+
+test("quality/reject: code-like JS blob body is rejected as code-content", () => {
+  // Mimics real stored content: `<` is HTML-escaped (&lt;) just as it appears
+  // after sanitization, so tag-stripping leaves the code symbols intact.
+  const jsBlob =
+    "window.NREUM=window.NREUM||{};NREUM.info={beacon:&quot;bam.nr-data.net&quot;};" +
+    "function t(e){var n=e.prototype;return n.addEventListener(&quot;progress&quot;,function(t){" +
+    "for(var i=0;i&lt;10;i=i+1){n[i]=function(){return i*2};}});}" +
+    "var x=function(){return {a:1,b:2,c:3};};x.call(null);x.apply(this,[]);" +
+    "[1,2,3].forEach(function(v){return v+1;});const y=()=>{return 42;};" +
+    "let z={k:&quot;v&quot;};z.k=&quot;w&quot;;typeof(z);if(z){t(z);}else{t(x);}" +
+    "addEventListener(&quot;load&quot;,function(){var q=e.prototype;return q;});";
+  const input = makeInput({ content: `<p>${jsBlob}</p>`, wordCount: 80 });
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject", "JS blob must be rejected");
+  const sig = signalFor(result, "code-content");
+  assert.ok(sig && !sig.passed, "code-content signal must fire");
+});
+
+test("quality/ok: normal tech article mentioning 'function' once is not code-content", () => {
+  const techProse =
+    "Researchers explained how the new algorithm works in plain language. " +
+    "The author described the role of a function that maps inputs to outputs, " +
+    "but the article never shows source code or lists any program statements. " +
+    prose(200);
+  const input = makeInput({ content: articleHtml(techProse), author: "Jane Doe" });
+  const result = checkContentQuality(input);
+
+  const sig = signalFor(result, "code-content");
+  assert.ok(sig && sig.passed, "code-content must NOT fire for ordinary prose");
+  assert.notEqual(result.grade, "reject", "normal tech article must not be rejected");
+});

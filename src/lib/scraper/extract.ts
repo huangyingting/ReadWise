@@ -3,7 +3,7 @@ import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
 import { applyProviderCleanup } from "@/lib/scraper/cleanup";
-import { normalizeArticleHtml } from "@/lib/scraper/normalize";
+import { normalizeArticleHtml, stripScriptsAndStyles } from "@/lib/scraper/normalize";
 import { extractReadable } from "@/lib/scraper/readability-extract";
 import { declutterArticleHtml } from "@/lib/scraper/declutter";
 import { scraperReadability } from "@/lib/runtime-config/scraper";
@@ -200,9 +200,13 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
  *    before any extraction takes place.
  * 2. **Metadata extraction**: JSON-LD, OpenGraph and `<meta>` tags are read
  *    from the cleaned HTML while `<script>` elements are still present.
- * 3. **HTML normalization** (optional, `SCRAPER_HTML_NORMALIZE=true`): strips
- *    scripts, styles, inline event handlers and style attributes to reduce
- *    noise in the HTML used for raw `<p>` body extraction.
+ * 3. **Script/style stripping (UNCONDITIONAL)**: `<script>`, `<style>`,
+ *    `<noscript>` and `<template>` elements are removed with their inner
+ *    content from the HTML used for body extraction. This runs AFTER metadata
+ *    extraction (so JSON-LD inside `<script type="application/ld+json">` is
+ *    still read) and is NEVER gated, so inline analytics/JS text cannot leak
+ *    into harvested paragraphs or the Readability body. Optional
+ *    `SCRAPER_HTML_NORMALIZE` further trims inline attributes on top of this.
  * 4. **Body extraction (clean capture)**: a Readability pass
  *    (`extractReadable`, gated by `SCRAPER_READABILITY`, default ON) isolates
  *    the main article from the cleaned page HTML. The legacy body — JSON-LD
@@ -265,11 +269,18 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
     metaContent(cleanedHtml, "datePublished");
   const publishedAt = publishedRaw ? safeDate(publishedRaw) : null;
 
-  // --- Step 3: optional HTML normalization (disabled by default) -------------
-  // Strips scripts/styles/inline-attrs from the HTML used for legacy body
-  // extraction. JSON-LD was already read in step 2, so removing <script> here
-  // is safe. When SCRAPER_HTML_NORMALIZE is not set the default path is unchanged.
-  const { html: bodyHtml } = normalizeArticleHtml(cleanedHtml);
+  // --- Step 3: strip scripts/styles for body extraction (UNCONDITIONAL) ------
+  // JSON-LD metadata was already read in step 2 (it lives inside
+  // <script type="application/ld+json">), so it is now safe to remove ALL
+  // <script>/<style>/<noscript>/<template> blocks with their inner content.
+  // This runs ALWAYS (not gated by SCRAPER_HTML_NORMALIZE) so leftover inline
+  // script/style text can never leak into harvested <p> paragraphs, the
+  // Readability body, or a JSON-LD-less raw-<p> fallback.
+  const scriptStrippedHtml = stripScriptsAndStyles(cleanedHtml);
+
+  // Optional HTML normalization (disabled by default) further trims inline
+  // event handlers / style attributes from the already script-stripped HTML.
+  const { html: bodyHtml } = normalizeArticleHtml(scriptStrippedHtml);
 
   // --- Step 4: build the legacy body (JSON-LD articleBody or raw <p> harvest)-
   // This is the fallback body and the canonical source when JSON-LD is present.
@@ -277,9 +288,9 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const legacyBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml);
 
   // --- Step 5: clean-capture body via Readability (kill-switch, default ON) --
-  // Readability isolates the main article from the *cleaned* (not normalized)
-  // HTML so it sees the full document structure for scoring.
-  const readable = scraperReadability() ? extractReadable(cleanedHtml, sourceUrl) : null;
+  // Readability isolates the main article from the script-stripped HTML so it
+  // never scores or captures inline analytics/JS text.
+  const readable = scraperReadability() ? extractReadable(scriptStrippedHtml, sourceUrl) : null;
 
   // Choose the body robustly so we never lose article content:
   //  - JSON-LD articleBody is canonical structured text → always keep it.

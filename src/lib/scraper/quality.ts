@@ -154,6 +154,36 @@ export const MAX_TRIGRAM_REPEAT_RATIO = 0.08;
 /** Classifier confidence at or above which an `ad` label lowers the score. */
 export const ML_AD_CONFIDENCE = 0.85;
 
+/**
+ * Minimum plain-text length (chars) before the `code-content` heuristic is
+ * evaluated. Short bodies are unreliable and must never be flagged as code.
+ */
+export const CODE_CONTENT_MIN_LEN = 400;
+
+/**
+ * Density of code-like symbols (`{`, `}`, `;`, `=`, plus `=>`) per character
+ * above which the body looks like source/JS rather than prose. Genuine prose
+ * (even technical articles quoting a little code) sits far below this — braces
+ * and equals signs are essentially absent from English sentences.
+ */
+export const MAX_CODE_SYMBOL_DENSITY = 0.03;
+
+/**
+ * Minimum number of distinctive JS/code token matches (e.g. `function(`,
+ * `addEventListener`, `=>`, `.prototype`) required — alongside high symbol
+ * density — before the `code-content` signal fires. Requiring BOTH a strong
+ * symbol density AND multiple code tokens keeps the check conservative so a
+ * single mention of "function" in prose can never trigger a rejection.
+ */
+export const MIN_CODE_TOKEN_HITS = 4;
+
+/**
+ * Stopword ratio below which a body is considered to have almost no natural
+ * English function words — combined with elevated symbol density this is the
+ * fallback signal for minified/obfuscated code blobs.
+ */
+export const CODE_CONTENT_MAX_STOPWORD_RATIO = 0.05;
+
 // ---------------------------------------------------------------------------
 // Paywall / subscription-gate marker patterns
 // ---------------------------------------------------------------------------
@@ -310,6 +340,43 @@ function topTrigramRepetition(tokens: string[]): { maxCount: number; ratio: numb
   return { maxCount, ratio: total > 0 ? maxCount / total : 0 };
 }
 
+/**
+ * Distinctive source-code / JavaScript token patterns. A leaked analytics
+ * snippet or minified bundle matches many of these; ordinary prose matches
+ * (almost) none. Patterns are global so we can count total occurrences.
+ */
+const CODE_TOKEN_PATTERNS: RegExp[] = [
+  /\bfunction\s*\(/g,
+  /=>/g,
+  /=\s*function\b/g,
+  /\bvar\s+[A-Za-z_$]/g,
+  /\b(?:let|const)\s+[A-Za-z_$]/g,
+  /\.prototype\b/g,
+  /\baddEventListener\b/g,
+  /\bNREUM\b/g,
+  /\b(?:typeof|undefined|null|return|else|catch|new)\b\s*[({[]/g,
+  /\)\s*\{/g,
+  /\}\s*\)/g,
+  /;\s*\}/g,
+  /\.(?:push|call|apply|bind|forEach|map)\s*\(/g,
+];
+
+/**
+ * Measures how "code-like" the plain text is.
+ *
+ * `symbolDensity` is the share of characters that are code punctuation
+ * (`{ } ; =`) — essentially zero in English prose, high in source. `tokenHits`
+ * counts distinctive JS tokens (see {@link CODE_TOKEN_PATTERNS}).
+ */
+function codeContentSignal(plainText: string): { symbolDensity: number; tokenHits: number } {
+  const len = plainText.length;
+  if (len === 0) return { symbolDensity: 0, tokenHits: 0 };
+  const symbols = (plainText.match(/[{};=]/g) ?? []).length + (plainText.match(/=>/g) ?? []).length;
+  let tokenHits = 0;
+  for (const re of CODE_TOKEN_PATTERNS) tokenHits += (plainText.match(re) ?? []).length;
+  return { symbolDensity: symbols / len, tokenHits };
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -414,6 +481,31 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     const tokens = tokenizeWords(plainText);
     const wordTotal = tokens.length;
     const proseReliable = wordTotal >= MIN_PROSE_WORDS;
+
+    // ── Critical: code-like content (leaked scripts / minified JS) ────────────
+    // Defense-in-depth for extractions that captured inline analytics or source
+    // text. Requires a MEANINGFUL span plus BOTH a high code-symbol density AND
+    // multiple distinctive JS tokens (or near-zero stopwords with elevated
+    // symbol density) so genuine prose — even an article quoting a little code —
+    // is never rejected.
+    const { symbolDensity, tokenHits } = codeContentSignal(plainText);
+    const stopRatioForCode = proseReliable ? stopwordRatio(tokens) : 1;
+    const strongCode =
+      tokenHits >= MIN_CODE_TOKEN_HITS && symbolDensity >= MAX_CODE_SYMBOL_DENSITY;
+    const minifiedCode =
+      tokenHits >= MIN_CODE_TOKEN_HITS &&
+      stopRatioForCode <= CODE_CONTENT_MAX_STOPWORD_RATIO &&
+      symbolDensity >= MAX_CODE_SYMBOL_DENSITY * 0.75;
+    const codeContent = textLen >= CODE_CONTENT_MIN_LEN && (strongCode || minifiedCode);
+    signals.push({
+      check: "code-content",
+      passed: !codeContent,
+      detail: `symbolDensity=${symbolDensity.toFixed(3)} codeTokens=${tokenHits}`,
+    });
+    if (codeContent) {
+      hasReject = true;
+      deductions += 60;
+    }
 
     // ── Critical: non-English body (ads / garbage are often non-English) ──────
     // Guarded by a minimum text length: `franc` returns `und` for short text,

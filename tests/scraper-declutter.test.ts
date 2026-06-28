@@ -217,3 +217,38 @@ test("does not throw on garbage input and returns a string", () => {
   assert.equal(typeof out, "string");
   assert.ok(out.includes("not real html"), "text content is preserved");
 });
+
+// ---------------------------------------------------------------------------
+// Leading credits / author-bio removal (Improvement D)
+// ---------------------------------------------------------------------------
+
+test("removes a leading 'Credits … is a researcher at …' block, keeps the lede", () => {
+  const html =
+    `<p>Credits Houda Nait El Barj is a researcher at OpenAI working on alignment.</p>\n` +
+    BODY;
+  const out = declutterArticleHtml(html, { authorName: "Houda Nait El Barj" });
+
+  assert.ok(!out.includes("Credits Houda"), "leading credits block removed");
+  assert.ok(!out.includes("is a researcher at OpenAI"), "leading bio removed");
+  assertBodyIntact(out);
+});
+
+test("leading credits removal is idempotent", () => {
+  const html =
+    `<p>Credits Houda Nait El Barj is a researcher at OpenAI working on alignment.</p>\n` +
+    BODY;
+  const once = declutterArticleHtml(html, { authorName: "Houda Nait El Barj" });
+  const twice = declutterArticleHtml(once, { authorName: "Houda Nait El Barj" });
+  assert.equal(twice, once, "declutter(declutter(x)) === declutter(x)");
+});
+
+test("does NOT remove a genuine opening paragraph that merely names a person", () => {
+  const lede =
+    `<p>Maria Santos arrived at the laboratory before dawn, determined to finish the ` +
+    `experiment she had spent three long years designing and refining with her team.</p>\n`;
+  const html = lede + BODY;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("Maria Santos arrived at the laboratory"), "real lede kept");
+  assertBodyIntact(out);
+});

@@ -37,6 +37,27 @@ test("bbc-learning-english articleUrlPattern matches learningenglish paths", () 
   assert.ok(!p.articleUrlPattern.test("https://bbc.com/sport/football"), "should NOT match bbc.com sport");
 });
 
+test("bbc-learning-english rejects feature INDEX (seed) URLs but accepts episode URLs", () => {
+  const p = getProviderOrFail("bbc-learning-english");
+  const indexUrls = [
+    "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english",
+    "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/",
+    "https://www.bbc.co.uk/learningenglish/english/features/news-report",
+    "https://www.bbc.co.uk/learningenglish/english/features/lingohack?page=2",
+  ];
+  for (const url of indexUrls) {
+    // The bare feature index must NOT look like an article: either the pattern
+    // doesn't match OR the filter rejects it.
+    const accepted = p.articleUrlPattern.test(url) && (p.articleUrlFilter?.(url) ?? true);
+    assert.equal(accepted, false, `index URL must be rejected: ${url}`);
+  }
+
+  const episodeUrl = "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-260618";
+  const episodeAccepted =
+    p.articleUrlPattern.test(episodeUrl) && (p.articleUrlFilter?.(episodeUrl) ?? true);
+  assert.ok(episodeAccepted, "real episode URL must be accepted by pattern + filter");
+});
+
 test("bbc-learning-english categoryFor maps science path to science", () => {
   const p = getProviderOrFail("bbc-learning-english");
   assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
