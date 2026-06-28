@@ -3,11 +3,13 @@
  * donate-CTA fix).
  *
  * Knowable's PB-hosted article pages embed donation CTAs, leftover Froala
- * editor "layout" menus (whose `<option>` template text — "Some Placeholder
- * Text", "CREDIT: NAME", "Institution Name" — used to leak into the body) and
- * related-article rails inside/around the article. The provider's `cleanup`
- * config drops those noise blocks before extraction while preserving the real
- * prose, the `/docserver/` article imagery and genuine photo captions.
+ * editor "layout" menus (an `article-layout-mode-menu` widget whose
+ * `<h4>LAYOUT MENU</h4>` heading leaked into the body and whose `<option>`
+ * template text — "Some Placeholder Text", "CREDIT: NAME", "Institution Name" —
+ * rode along) and related-article rails inside/around the article. The
+ * provider's `cleanup` config drops those noise blocks before extraction while
+ * preserving the real prose, the `/docserver/` article imagery and genuine
+ * photo captions.
  *
  * Crucially the cleanup must NOT over-drop: the portrait lives in
  * `.article-sidebar-img`, so `article-sidebar` is deliberately not a keyword.
@@ -90,11 +92,66 @@ const KNOWABLE_HTML = `<!doctype html>
   </body>
 </html>`;
 
+/**
+ * Fixture mirroring the LIVE (non-comic) Knowable DOM shape: the Froala layout
+ * widget renders as `.article-layout-mode-menu` and sits at the very top of the
+ * `<main class="main-content-container">`, BEFORE the article body — and the
+ * page has no semantic `<article>` wrapper, so the harvest scope is `<main>` and
+ * the widget's `<h4> LAYOUT MENU </h4>` heading leaks in as the first harvested
+ * block (the exact residual reported across all 14 Knowable articles). The body
+ * itself carries a real `/docserver/` portrait and prose that must survive.
+ */
+const KNOWABLE_LAYOUT_MENU_HTML = `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="What addiction does to the brain" />
+  </head>
+  <body>
+    <main class="col-md-12 content main-content-container js-main-content-container" id="main-content-container">
+      <div class="article-layout-mode-menu">
+        <h4> LAYOUT MENU </h4>
+        <div class="article-layout-mode-menu__menu-grid">
+          <div class="article-layout-mode-menu__menu-grid-item">
+            <span draggable="true" data-id="insertParagraph" class="js-insert-html-block">Insert PARAGRAPH</span>
+          </div>
+          <div class="article-layout-mode-menu__menu-grid-item">
+            <span draggable="true" data-id="insertAside" class="js-insert-html-block">Insert SIDEBAR WITH IMAGE</span>
+            <select name="insertAside_content">
+              <option value="&lt;p&gt;Some Placeholder Text&lt;/p&gt;">Some Placeholder Text</option>
+              <option value="&lt;p&gt;Institution Name&lt;/p&gt;">Institution Name</option>
+            </select>
+          </div>
+          <span class="lazy">
+            <img src="/images/magazine/placeholder_img.jpg" alt="" />
+            <img src="/images/magazine/placeholder_img.jpg" alt="" />
+          </span>
+        </div>
+      </div>
+      <div class="article-hero" style="background-image: url(/docserver/fulltext/brain-plasticity-1600x600.jpg);"></div>
+      <div class="article-container-outer">
+        <section class="article-container">
+          <div class="fr-view">
+            <aside class="article-sidebar -right">
+              <div class="article-sidebar-img">
+                <img class="fr-fil fr-dib" src="/docserver/fulltext/i-marina-wolf.jpg"
+                     alt="Portrait of neuroscientist Marina Wolf" />
+              </div>
+            </aside>
+            <p>${wordBlock(45, "synapse")} as addiction reshapes reward circuits.</p>
+            <p>${wordBlock(45, "dopamine")} long after the drug is gone.</p>
+            <p>${wordBlock(45, "plasticity")} reversing the damage remains hard.</p>
+          </div>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>`;
+
 test("knowable provider defines the donate/placeholder cleanup keywords", () => {
   const provider = getProvider("knowable");
   const keywords = provider?.cleanup?.dropClassKeywords ?? [];
   assert.ok(keywords.length, "cleanup.dropClassKeywords must be set");
-  for (const kw of ["promo-article", "comic-layout-mode-menu", "ymal", "site-header", "site-footer"]) {
+  for (const kw of ["promo-article", "layout-mode-menu", "ymal", "site-header", "site-footer"]) {
     assert.ok(keywords.includes(kw), `must drop "${kw}" blocks`);
   }
   // Must NOT list article-sidebar — it would also match article-sidebar-img and
@@ -163,6 +220,56 @@ test("extractArticle on a Knowable page keeps the portrait, drops donate/placeho
 
     // Body prose retained and the word count is sane (not the old bloat).
     assert.match(content, /synapse1\b/, "body prose retained");
+    assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+});
+
+test("knowable cleanup strips the article-layout-mode-menu widget, keeps body + portrait", () => {
+  const provider = getProvider("knowable");
+  const cleaned = applyProviderCleanup(KNOWABLE_LAYOUT_MENU_HTML, provider!.cleanup!);
+
+  // The whole Froala "LAYOUT MENU" widget (article-layout-mode-menu) is gone.
+  assert.doesNotMatch(cleaned, /LAYOUT MENU/i, "the layout-mode menu heading must be removed");
+  assert.doesNotMatch(cleaned, /Insert SIDEBAR WITH IMAGE/i, "menu controls must be removed");
+  assert.doesNotMatch(cleaned, /Some Placeholder Text/i, "placeholder option text must be removed");
+  assert.doesNotMatch(cleaned, /Institution Name/i, "placeholder option text must be removed");
+  assert.doesNotMatch(cleaned, /placeholder_img\.jpg/, "menu placeholder imagery must be removed");
+
+  // Real body + the /docserver/ portrait survive (NOT over-dropped).
+  assert.match(cleaned, /synapse1\b/, "body prose must be retained");
+  assert.match(cleaned, /plasticity1\b/, "body prose must be retained");
+  assert.match(cleaned, /i-marina-wolf\.jpg/, "portrait /docserver/ image must be retained");
+});
+
+test("extractArticle drops the LAYOUT MENU chrome but keeps the body + /docserver/ image", () => {
+  // Force the legacy harvest path (no <article> wrapper → harvest wins), mirroring
+  // production. Without the layout-mode-menu cleanup the <h4>LAYOUT MENU</h4> heading
+  // is harvested into the body — the residual reported across all 14 Knowable articles.
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const result = extractArticle(KNOWABLE_LAYOUT_MENU_HTML, ARTICLE_URL);
+    assert.ok(result, "extraction must succeed");
+    assert.equal(result!.source, "Knowable Magazine");
+    const content = result!.content;
+
+    // THE residual: the UI-control "LAYOUT MENU" string must NOT leak into the body.
+    assert.doesNotMatch(content, /LAYOUT MENU/i, "layout-mode menu chrome must be gone from the body");
+    assert.doesNotMatch(content, /Some Placeholder Text/i, "no placeholder text in the final body");
+
+    // Image-preservation from #856 stays intact: the real portrait survives absolute.
+    assert.match(
+      content,
+      /<img[^>]*\bsrc=["']https:\/\/knowablemagazine\.org\/docserver\/fulltext\/i-marina-wolf\.jpg["']/i,
+      "portrait /docserver/ image must be preserved with an absolute src",
+    );
+
+    // Body prose retained and the word count is article-sized (not gutted).
+    assert.match(content, /synapse1\b/, "body prose retained");
+    assert.match(content, /plasticity1\b/, "body prose retained");
     assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
   } finally {
     if (prev === undefined) delete process.env.SCRAPER_READABILITY;
