@@ -22,6 +22,21 @@ const WORDS_PER_MINUTE = 200;
  */
 const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
 
+/**
+ * Minimum ratio of Readability-body words to JSON-LD-body words required before
+ * we prefer the Readability body over a JSON-LD `articleBody` to recover inline
+ * images.
+ *
+ * A JSON-LD `articleBody` is plain text, so wrapping it in `<p>` yields zero
+ * images. When Readability captured essentially the same article *with* its
+ * inline image(s) over a comparable-length body, we switch to Readability so the
+ * imagery is not lost (e.g. NBC News, whose JSON-LD body is image-less). This
+ * floor guards the swap: it never trades a full canonical JSON-LD body for a
+ * short Readability stub on providers where JSON-LD is canonical precisely
+ * *because* Readability under-performs.
+ */
+const READABILITY_LD_MIN_WORD_RATIO = 0.6;
+
 const ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
@@ -49,6 +64,12 @@ export function stripTags(html: string): string {
 
 function countWords(text: string): number {
   const matches = text.match(/\S+/g);
+  return matches ? matches.length : 0;
+}
+
+/** Counts `<img>` tags in an HTML fragment — a content-image presence probe. */
+function countImages(html: string): number {
+  const matches = html.match(/<img\b/gi);
   return matches ? matches.length : 0;
 }
 
@@ -466,7 +487,8 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const readable = scraperReadability() ? extractReadable(scriptStrippedHtml, sourceUrl) : null;
 
   // Choose the body robustly so we never lose article content:
-  //  - JSON-LD articleBody is canonical structured text → always keep it.
+  //  - JSON-LD articleBody is canonical structured text → keep it by default,
+  //    but recover inline images when it carries none (see the ld branch below).
   //  - For the noisier legacy DOM harvest, prefer Readability unless the legacy
   //    body is >1.5× longer (a sign Readability over-trimmed) or Readability
   //    produced nothing usable — then fall back to legacy.
@@ -476,6 +498,21 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
     const readableWords = readable.wordCount;
     const overTrimmed = legacyWords > readableWords * READABILITY_LEGACY_MAX_WORD_RATIO;
     if (!overTrimmed) {
+      chosenBody = readable.contentHtml;
+    }
+  } else if (readable && ldBody) {
+    // JSON-LD `articleBody` is plain text, so `legacyBody` (paragraphsToHtml)
+    // has zero images. When the canonical prose carries no imagery but
+    // Readability captured content image(s) over a comparable-length body,
+    // prefer Readability so inline images are recovered instead of dropped
+    // (e.g. NBC News serves an image-less JSON-LD body). The word-ratio floor
+    // ensures we never trade a full JSON-LD body for a truncated Readability
+    // stub on providers where JSON-LD is canonical because Readability is weak.
+    const ldImgs = countImages(legacyBody);
+    const readableImgs = countImages(readable.contentHtml);
+    const ldWords = countWords(stripTags(legacyBody));
+    const readableLongEnough = readable.wordCount >= ldWords * READABILITY_LD_MIN_WORD_RATIO;
+    if (ldImgs === 0 && readableImgs >= 1 && readableLongEnough) {
       chosenBody = readable.contentHtml;
     }
   }
