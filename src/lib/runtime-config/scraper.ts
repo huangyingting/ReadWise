@@ -88,3 +88,16 @@ export function scraperFetchReader(): boolean {
 export function scraperFetchWayback(): boolean {
   return process.env.SCRAPER_FETCH_WAYBACK !== "false";
 }
+
+/**
+ * Whether the local Naive-Bayes ad/article quality classifier is enabled
+ * (`SCRAPER_QUALITY_CLASSIFIER`, default ON).
+ *
+ * When ON, {@link checkContentQuality} runs the committed `natural`
+ * Naive-Bayes model as ONE additional, conservative quality signal that
+ * complements (never replaces) the heuristic checks. Set to `false` to skip
+ * the classifier entirely (no model is loaded). The heuristics remain primary.
+ */
+export function scraperQualityClassifier(): boolean {
+  return process.env.SCRAPER_QUALITY_CLASSIFIER !== "false";
+}
