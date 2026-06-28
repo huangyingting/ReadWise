@@ -6,8 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { PROVIDERS, getProvider, mapSectionToCategory } from "@/lib/scraper/providers";
-import { CATEGORY_SLUGS } from "@/lib/categories";
+import { PROVIDERS, getProvider, getProviderByName, mapSectionToCategory, providerReadingCategories, isProviderCategoryReadingSuitable } from "@/lib/scraper/providers";
+import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -337,4 +337,82 @@ test("smithsonian categoryFor: science-nature→science, innovation→tech", () 
     p.categoryFor!(new URL("https://www.smithsonianmag.com/arts-culture/example-180987800/"), "Arts & Culture"),
     "culture",
   );
+});
+
+// ---------------------------------------------------------------------------
+// Per-provider readingCategories overrides (#provider-reading-cats)
+// ---------------------------------------------------------------------------
+
+test("every provider's readingCategories (when set) are valid slugs ⊆ its categories[]", () => {
+  for (const p of PROVIDERS) {
+    if (p.readingCategories == null) continue;
+    assert.ok(
+      Array.isArray(p.categories) && p.categories.length > 0,
+      `${p.key}: readingCategories requires a non-empty categories[]`,
+    );
+    for (const slug of p.readingCategories) {
+      assert.ok(CATEGORY_SLUGS.includes(slug), `${p.key}: "${slug}" is not a valid category slug`);
+      assert.ok(
+        p.categories!.includes(slug),
+        `${p.key}: readingCategories "${slug}" must be a subset of categories[]`,
+      );
+    }
+    // No duplicates.
+    assert.equal(
+      new Set(p.readingCategories).size,
+      p.readingCategories.length,
+      `${p.key}: readingCategories must not contain duplicates`,
+    );
+  }
+});
+
+test("long-form magazines override readingCategories to their FULL categories[]", () => {
+  for (const key of ["natgeo", "smithsonian", "knowable", "nautilus", "technologyreview", "noema", "undark"]) {
+    const p = getProviderOrFail(key);
+    assert.deepEqual(
+      p.readingCategories,
+      p.categories,
+      `${key}: magazine should treat every category as reading-suitable`,
+    );
+  }
+});
+
+test("news/learning providers OMIT readingCategories (fall back to the global tier)", () => {
+  for (const key of ["nbc", "time", "huffpost", "bbc", "bbc-learning-english"]) {
+    const p = getProviderOrFail(key);
+    assert.equal(p.readingCategories, undefined, `${key}: should omit readingCategories`);
+  }
+});
+
+test("providerReadingCategories returns the override when set, else categories[] ∩ recommended", () => {
+  const noema = getProviderOrFail("noema");
+  // Override present → returned verbatim (includes globally-"low" politics).
+  assert.deepEqual(providerReadingCategories(noema), noema.categories);
+  assert.ok(providerReadingCategories(noema).includes("politics"));
+
+  // No override → categories[] intersected with the global recommended tier
+  // (drops globally-"low" politics).
+  const huffpost = getProviderOrFail("huffpost");
+  const expected = huffpost.categories!.filter(isReadingRecommended);
+  assert.deepEqual(providerReadingCategories(huffpost), expected);
+  assert.ok(!providerReadingCategories(huffpost).includes("politics"));
+});
+
+test("isProviderCategoryReadingSuitable honours overrides and rejects null", () => {
+  const noema = getProviderOrFail("noema");
+  assert.equal(isProviderCategoryReadingSuitable(noema, "politics"), true); // override
+  assert.equal(isProviderCategoryReadingSuitable(noema, "sports"), false); // not in categories
+  assert.equal(isProviderCategoryReadingSuitable(noema, null), false);
+
+  const huffpost = getProviderOrFail("huffpost");
+  assert.equal(isProviderCategoryReadingSuitable(huffpost, "politics"), false); // default drops low
+  assert.equal(isProviderCategoryReadingSuitable(huffpost, "health"), true);
+});
+
+test("getProviderByName resolves by Article.source name, case-insensitively", () => {
+  assert.equal(getProviderByName("Noema Magazine")?.key, "noema");
+  assert.equal(getProviderByName("  noema magazine  ")?.key, "noema");
+  assert.equal(getProviderByName("NBC News")?.key, "nbc");
+  assert.equal(getProviderByName("Unknown Source"), null);
+  assert.equal(getProviderByName(""), null);
 });

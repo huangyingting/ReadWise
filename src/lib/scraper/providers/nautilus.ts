@@ -36,6 +36,8 @@ const nautilus: Provider = {
     ]),
   defaultCategory: "science",
   categories: ["science", "ideas", "environment", "health"],
+  // Long-form magazine: everything it publishes is substantive reading practice.
+  readingCategories: ["science", "ideas", "environment", "health"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,

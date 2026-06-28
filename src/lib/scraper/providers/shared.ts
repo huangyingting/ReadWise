@@ -4,9 +4,9 @@
  * Centralizing these utilities means individual provider files only express
  * their own rules; they never duplicate the regex-matching plumbing.
  */
-import { CATEGORY_SLUGS } from "@/lib/categories";
+import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
 import { parseRssUrls } from "@/lib/scraper/rss";
-import type { UrlExtractorContext } from "@/lib/scraper/types";
+import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 
 /**
  * Builds a {@link Provider.urlExtractor} that discovers article URLs from one
@@ -135,4 +135,28 @@ export function lookupSection(
 export function excludes(url: string, fragments: readonly string[]): boolean {
   const lower = url.toLowerCase();
   return !fragments.some((fragment) => lower.includes(fragment));
+}
+
+/**
+ * Categories of a provider recommended for English reading practice. Returns the
+ * provider's explicit `readingCategories` override when set, otherwise the
+ * default = `categories[]` intersected with the global READING_RECOMMENDED tier
+ * (high/medium suitability). PURE — provider metadata only.
+ */
+export function providerReadingCategories(provider: Provider): string[] {
+  const categories = provider.categories ?? [];
+  return provider.readingCategories ?? categories.filter(isReadingRecommended);
+}
+
+/**
+ * True when `category` is recommended for reading practice for this specific
+ * provider — honouring its `readingCategories` override when present. A null
+ * category is never reading-suitable.
+ */
+export function isProviderCategoryReadingSuitable(
+  provider: Provider,
+  category: string | null,
+): boolean {
+  if (category == null) return false;
+  return providerReadingCategories(provider).includes(category);
 }

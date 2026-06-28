@@ -28,6 +28,8 @@ const smithsonian: Provider = {
     ]),
   defaultCategory: "history",
   categories: ["history", "science", "culture", "travel", "tech"],
+  // Long-form magazine: everything it publishes is substantive reading practice.
+  readingCategories: ["history", "science", "culture", "travel", "tech"],
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/innovation/, "tech"],
