@@ -32,6 +32,9 @@ const noema: Provider = {
     ]),
   defaultCategory: "ideas",
   categories: ["ideas", "politics", "culture", "tech", "science", "environment"],
+  // Long-form magazine: everything it publishes is substantive reading practice
+  // — even its globally-"low" politics is essay-length, evergreen analysis.
+  readingCategories: ["ideas", "politics", "culture", "tech", "science", "environment"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,

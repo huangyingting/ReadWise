@@ -17,6 +17,8 @@ const knowable: Provider = {
   articleUrlFilter: (url) => excludes(url, ["/search", "/about", "/contact", "/subscribe"]),
   defaultCategory: "science",
   categories: ["science", "environment", "health", "tech", "culture"],
+  // Long-form magazine: everything it publishes is substantive reading practice.
+  readingCategories: ["science", "environment", "health", "tech", "culture"],
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/technology|computing|digital/, "tech"],

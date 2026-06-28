@@ -14,6 +14,10 @@
 import type { Provider } from "@/lib/scraper/types";
 
 export { mapSectionToCategory } from "./shared";
+export {
+  providerReadingCategories,
+  isProviderCategoryReadingSuitable,
+} from "./shared";
 
 import nbc from "./nbc";
 import natgeo from "./natgeo";
@@ -45,6 +49,16 @@ export const PROVIDERS: readonly Provider[] = [
 
 export function getProvider(key: string): Provider | null {
   return PROVIDERS.find((p) => p.key === key.toLowerCase()) ?? null;
+}
+
+/**
+ * Resolves a provider by its human `name` (as stored in `Article.source`, e.g.
+ * "Noema Magazine"), case-insensitively. Returns null when no provider matches.
+ */
+export function getProviderByName(name: string): Provider | null {
+  const target = name.trim().toLowerCase();
+  if (target.length === 0) return null;
+  return PROVIDERS.find((p) => p.name.toLowerCase() === target) ?? null;
 }
 
 /** Finds the provider that owns a given URL by hostname match. */
