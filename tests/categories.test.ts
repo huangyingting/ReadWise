@@ -1,6 +1,6 @@
 /**
  * Tests for the canonical category taxonomy in src/lib/categories.ts.
- * Verifies the 13 slugs/labels, gradient coverage, and validity helpers.
+ * Verifies the 14 slugs/labels, gradient coverage, and validity helpers.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -20,6 +20,7 @@ const EXPECTED: ReadonlyArray<[string, string]> = [
   ["health", "Health"],
   ["science", "Science"],
   ["environment", "Environment"],
+  ["animals", "Animals"],
   ["tech", "Tech"],
   ["sports", "Sports"],
   ["culture", "Culture"],
@@ -29,8 +30,8 @@ const EXPECTED: ReadonlyArray<[string, string]> = [
   ["entertainment", "Entertainment"],
 ];
 
-test("CATEGORIES contains exactly the 13 expected slug/label pairs", () => {
-  assert.equal(CATEGORIES.length, 13);
+test("CATEGORIES contains exactly the 14 expected slug/label pairs", () => {
+  assert.equal(CATEGORIES.length, 14);
   for (const [slug, label] of EXPECTED) {
     const found = CATEGORIES.find((c) => c.slug === slug);
     assert.ok(found, `category "${slug}" must be present`);
@@ -40,6 +41,19 @@ test("CATEGORIES contains exactly the 13 expected slug/label pairs", () => {
 
 test("CATEGORY_SLUGS mirrors CATEGORIES order", () => {
   assert.deepEqual([...CATEGORY_SLUGS], EXPECTED.map(([slug]) => slug));
+});
+
+test("the animals category is present with its label and gradient", () => {
+  assert.ok(CATEGORY_SLUGS.includes("animals"), `"animals" must be a valid slug`);
+  assert.ok(isValidCategorySlug("animals"), `isValidCategorySlug("animals") must be true`);
+  assert.equal(humanizeCategorySlug("animals"), "Animals");
+  const g = CATEGORY_COLORS.animals;
+  assert.ok(g, "animals must have a gradient");
+  assert.match(g.from, /^#[0-9a-fA-F]{6}$/);
+  assert.match(g.to, /^#[0-9a-fA-F]{6}$/);
+  // animals must be visually distinct from environment (green) and history (amber-brown)
+  assert.notDeepEqual(g, CATEGORY_COLORS.environment);
+  assert.notDeepEqual(g, CATEGORY_COLORS.history);
 });
 
 test("the four new categories are present", () => {
