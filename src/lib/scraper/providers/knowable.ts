@@ -34,6 +34,38 @@ const knowable: Provider = {
    * and `articleUrlFilter` by discovery.
    */
   urlExtractor: rssUrlExtractor(["https://knowablemagazine.org/rss"]),
+  /**
+   * Knowable's PB-hosted article pages embed donation CTAs, leftover Froala
+   * editor menus and related-content rails inside (or around) the article
+   * body. Strip them before extraction so the harvest keeps the real prose and
+   * the article portrait while dropping the noise the user complained about:
+   *
+   *   - `promo-article` — in-body "Donate today" / "Support Knowable" CTAs
+   *     (`promo-article-donate`, `promo-article-dark`).
+   *   - `comic-layout-mode-menu` — an un-hydrated Froala "layout menu" whose
+   *     `<select><option>` template text ("Some Placeholder Text",
+   *     "CREDIT: NAME", "Institution Name") otherwise leaked into the body, plus
+   *     its lazy `placeholder_img.jpg` stand-ins.
+   *   - `ymal` / `more-from` — "You may also like" and "More From" related-
+   *     article rails (other articles' thumbnails, not this article's imagery).
+   *   - `site-header` / `site-footer` / `mobile-nav` — page chrome carrying the
+   *     header/footer "DONATE" links.
+   *
+   * Note: matching is a class/id SUBSTRING test on block containers, so
+   * `article-sidebar` is intentionally NOT listed — it would also match
+   * `article-sidebar-img`, which holds the real article portrait we keep.
+   */
+  cleanup: {
+    dropClassKeywords: [
+      "promo-article",
+      "comic-layout-mode-menu",
+      "ymal",
+      "more-from",
+      "site-header",
+      "site-footer",
+      "mobile-nav",
+    ],
+  },
 };
 
 export default knowable;
