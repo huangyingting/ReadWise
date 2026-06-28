@@ -7,6 +7,7 @@ import { normalizeArticleHtml, stripScriptsAndStyles } from "@/lib/scraper/norma
 import { extractReadable } from "@/lib/scraper/readability-extract";
 import { declutterArticleHtml } from "@/lib/scraper/declutter";
 import { scraperReadability } from "@/lib/runtime-config/scraper";
+import { parseHTML } from "linkedom";
 
 const WORDS_PER_MINUTE = 200;
 
@@ -169,8 +170,156 @@ function paragraphsToHtml(text: string): string {
     .join("\n");
 }
 
-/** Extracts the raw body HTML from the page when JSON-LD has no articleBody. */
-function extractBodyHtml(html: string): string {
+/**
+ * Content-bearing elements the legacy harvest preserves, walked in document
+ * order. Unlike the old `<p>`-only regex harvest this keeps headings, lists,
+ * quotes and — crucially — `<figure>`/`<img>` so article imagery is no longer
+ * dropped on the providers where Readability under-performs and legacy wins.
+ */
+const HARVEST_SELECTOR = "p,h2,h3,h4,h5,h6,ul,ol,blockquote,figure,figcaption,img";
+
+/**
+ * Resolved-`src` fragments that mark site chrome (logos, sprites, tracking
+ * pixels, lazy-load placeholders, icon/badge SVGs) rather than real article
+ * imagery. Matched with word-ish boundaries so a real photo whose path merely
+ * contains a keyword as a substring (e.g. `/silicon-valley/…` → "icon") is not
+ * dropped. Deliberately conservative: when an image is not clearly chrome it is
+ * kept (the downstream `sanitizeArticleHtml` allowlist is the safety net).
+ */
+const CHROME_IMG_RE =
+  /(?:^|[/_.\-])(?:logo|sprite|icon|avatar|placeholder|pixel|1x1|blank|spacer|tracking|button|badge)(?:[/_.\-]|$)|\.svg(?:$|\?)/i;
+
+/** True when a resolved absolute image URL looks like site chrome, not content. */
+function isChromeImage(absSrc: string): boolean {
+  if (!absSrc) return true;
+  if (/^data:/i.test(absSrc)) return true;
+  return CHROME_IMG_RE.test(absSrc);
+}
+
+/** A `src` value that is a lazy-load stand-in rather than the real image. */
+function isLazyPlaceholderSrc(src: string): boolean {
+  return src.length === 0 || /^data:|placeholder|blank|1x1|spacer|loading/i.test(src);
+}
+
+type DomElement = NonNullable<ReturnType<typeof parseHTML>["document"]["body"]> | null;
+
+/** Has at least one harvestable text block or a content image. */
+function hasHarvestableContent(el: DomElement): boolean {
+  if (!el) return false;
+  for (const block of Array.from(el.querySelectorAll("p,h2,h3,h4,h5,h6,li,blockquote"))) {
+    if ((block.textContent ?? "").trim().length > 0) return true;
+  }
+  return el.querySelector("img,figure") !== null;
+}
+
+/** Combined text length of all `<p>` descendants — a cheap "prose mass" proxy. */
+function paragraphTextLen(el: DomElement): number {
+  if (!el) return 0;
+  let total = 0;
+  for (const p of Array.from(el.querySelectorAll("p"))) {
+    total += (p.textContent ?? "").trim().length;
+  }
+  return total;
+}
+
+/**
+ * Find the smallest container that still holds essentially all of the page's
+ * prose, so sibling chrome (nav/footer/rails) around it is excluded. Only
+ * returned when one container captures ≥90% of the body's paragraph text; this
+ * keeps the harvest conservative — when prose is spread across the body we fall
+ * back to `<body>` (the previous whole-page behavior).
+ */
+function largestContentContainer(document: ReturnType<typeof parseHTML>["document"]): DomElement {
+  const body = document.body;
+  if (!body) return null;
+  const totalP = paragraphTextLen(body);
+  if (totalP === 0) return null;
+  let best: DomElement = null;
+  let bestLen = 0;
+  for (const el of Array.from(body.querySelectorAll("div,section,article,main"))) {
+    const len = paragraphTextLen(el as DomElement);
+    if (len > bestLen) {
+      bestLen = len;
+      best = el as DomElement;
+    }
+  }
+  if (best && best !== body && bestLen >= totalP * 0.9) return best;
+  return null;
+}
+
+/**
+ * Choose the harvest scope: prefer a semantic `<article>`, then `<main>`, then
+ * the largest plausible content container, then `<body>`. Falls back to the
+ * document element so a fragment without `<body>` still harvests.
+ */
+function selectScope(document: ReturnType<typeof parseHTML>["document"]): DomElement {
+  const article = document.querySelector("article") as DomElement;
+  if (article && hasHarvestableContent(article)) return article;
+  const main = document.querySelector("main") as DomElement;
+  if (main && hasHarvestableContent(main)) return main;
+  const largest = largestContentContainer(document);
+  if (largest) return largest;
+  return document.body ?? (document.documentElement as DomElement);
+}
+
+/**
+ * Walks `scope` in document order and serializes content-bearing elements,
+ * skipping any element already contained in one we took (so an `<img>` inside a
+ * captured `<figure>`/`<p>` is not duplicated). Images are filtered (chrome
+ * dropped) and their `src` resolved to absolute up front, so figures/paragraphs
+ * serialize with usable URLs and `sanitizeArticleHtml` keeps them.
+ */
+function harvestContent(scope: NonNullable<DomElement>, baseUrl: string): string {
+  // Pass 1: normalize images — absolutize real ones, drop chrome/placeholders.
+  for (const img of Array.from(scope.querySelectorAll("img"))) {
+    let raw = (img.getAttribute("src") ?? "").trim();
+    const lazy = (
+      img.getAttribute("data-src") ??
+      img.getAttribute("data-original") ??
+      img.getAttribute("data-lazy-src") ??
+      ""
+    ).trim();
+    if (isLazyPlaceholderSrc(raw) && lazy) raw = lazy;
+    const abs = toAbsolute(raw, baseUrl);
+    if (!abs || isChromeImage(abs)) {
+      img.remove();
+      continue;
+    }
+    img.setAttribute("src", abs);
+  }
+
+  // Pass 2: collect top-level content elements in document order.
+  const taken: Element[] = [];
+  const parts: string[] = [];
+  for (const el of Array.from(scope.querySelectorAll(HARVEST_SELECTOR))) {
+    if (taken.some((t) => t.contains(el))) continue;
+    const tag = el.tagName.toLowerCase();
+
+    if (tag === "img") {
+      // A content image not already inside a captured <figure>/<p>.
+      taken.push(el);
+      parts.push(`<figure>${el.outerHTML}</figure>`);
+      continue;
+    }
+    if (tag === "figcaption") {
+      const text = (el.textContent ?? "").trim();
+      if (text.length === 0) continue;
+      taken.push(el);
+      parts.push(`<p>${el.innerHTML}</p>`);
+      continue;
+    }
+
+    const hasText = stripTags(el.innerHTML).length > 0;
+    const hasMedia = el.querySelector("img,figure") !== null;
+    if (!hasText && !hasMedia) continue; // preserve the "drop empty <p>" behavior
+    taken.push(el);
+    parts.push(el.outerHTML);
+  }
+  return parts.join("\n");
+}
+
+/** Legacy regex `<p>` harvest — the pre-DOM fallback (parse failure / no DOM). */
+function legacyParagraphHarvest(html: string): string {
   const articleMatch = html.match(/<article\b[^>]*>([\s\S]*?)<\/article>/i);
   const scope = articleMatch ? articleMatch[1] : html;
   const paragraphs = [...scope.matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
@@ -178,6 +327,29 @@ function extractBodyHtml(html: string): string {
     .filter((p) => stripTags(p).length > 0);
   if (paragraphs.length === 0) return "";
   return paragraphs.map((p) => `<p>${p}</p>`).join("\n");
+}
+
+/**
+ * Extracts the raw body HTML from the page when JSON-LD has no articleBody.
+ *
+ * DOM-based (linkedom) so it walks real nodes: this both preserves article
+ * imagery (`<figure>`/`<img>`, with `src` absolutized) and avoids the old
+ * regex's false positives — e.g. literal `<p>…</p>` text living inside an
+ * editor `<option value>` or an HTML comment is no longer harvested as prose.
+ * Falls back to the legacy `<p>` regex harvest if parsing yields nothing.
+ */
+function extractBodyHtml(html: string, baseUrl: string): string {
+  if (typeof html !== "string" || html.trim().length === 0) return "";
+  let document: ReturnType<typeof parseHTML>["document"];
+  try {
+    ({ document } = parseHTML(html));
+  } catch {
+    return legacyParagraphHarvest(html);
+  }
+  const scope = selectScope(document);
+  if (!scope) return legacyParagraphHarvest(html);
+  const harvested = harvestContent(scope, baseUrl);
+  return harvested.trim().length > 0 ? harvested : legacyParagraphHarvest(html);
 }
 
 function resolveCategory(provider: Provider | null, url: URL, section: string | null): string | null {
@@ -210,9 +382,10 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
  * 4. **Body extraction (clean capture)**: a Readability pass
  *    (`extractReadable`, gated by `SCRAPER_READABILITY`, default ON) isolates
  *    the main article from the cleaned page HTML. The legacy body — JSON-LD
- *    `articleBody` when present, otherwise a raw `<p>` harvest — is computed as
+ *    `articleBody` when present, otherwise a DOM harvest of the main content
+ *    (paragraphs, headings, lists, quotes and article imagery) — is computed as
  *    a fallback. JSON-LD `articleBody` (canonical structured text) is always
- *    kept; for the noisier raw-`<p>` path Readability wins unless it appears to
+ *    kept; for the noisier harvest path Readability wins unless it appears to
  *    have over-trimmed (legacy >1.5× its words), guaranteeing no body is lost.
  * 5. **Declutter**: `declutterArticleHtml` strips residual boilerplate the
  *    extractor leaves behind — especially the trailing author byline/bio — in
@@ -282,10 +455,10 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   // event handlers / style attributes from the already script-stripped HTML.
   const { html: bodyHtml } = normalizeArticleHtml(scriptStrippedHtml);
 
-  // --- Step 4: build the legacy body (JSON-LD articleBody or raw <p> harvest)-
+  // --- Step 4: build the legacy body (JSON-LD articleBody or DOM harvest) ----
   // This is the fallback body and the canonical source when JSON-LD is present.
   const ldBody = ld && jsonLdString(ld.articleBody);
-  const legacyBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml);
+  const legacyBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml, sourceUrl);
 
   // --- Step 5: clean-capture body via Readability (kill-switch, default ON) --
   // Readability isolates the main article from the script-stripped HTML so it
@@ -294,7 +467,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
 
   // Choose the body robustly so we never lose article content:
   //  - JSON-LD articleBody is canonical structured text → always keep it.
-  //  - For the noisier raw-<p> harvest, prefer Readability unless the legacy
+  //  - For the noisier legacy DOM harvest, prefer Readability unless the legacy
   //    body is >1.5× longer (a sign Readability over-trimmed) or Readability
   //    produced nothing usable — then fall back to legacy.
   let chosenBody = legacyBody;
