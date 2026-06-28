@@ -57,6 +57,9 @@ export function mapSectionToCategory(section: string | null): string | null {
   const s = section.toLowerCase();
 
   const rules: Array<[RegExp, string]> = [
+    // Science is checked FIRST so biology/mind/"science-nature" sections beat the
+    // broad `world` ("living world") and `environment` ("science & nature") rules.
+    [/\b((?<!social[\s.-])science|living.?world|the.?mind|\bmind\b|biolog|zoolog|paleontolog|psycholog|neuroscience|astronom|astrophysic|physic|chemist|\bmath|mathematic|genetic|cosmos|space|geolog|quantum)/, "science"],
     [/\b(world|global|international|asia|europe|africa|americas|middle.?east)/, "world"],
     [/\b(politic|election|congress|white.?house|government|policy)/, "politics"],
     [/\b(business|money|econom|market|finance|deal|compan|industr)/, "business"],
@@ -65,10 +68,9 @@ export function mapSectionToCategory(section: string | null): string | null {
     [/\b(histor|archaeolog|ancient|medieval|heritage|civil.?war|antiquit)/, "history"],
     [/\b(travel|destination|tourism|vacation|expedition|journey)/, "travel"],
     [/\b(environment|climate|sustainab|conservation|wildlife|animal|ecolog|biodiversit|pollution|carbon|emission|nature|wild|ocean|planet|earth)/, "environment"],
-    [/\b(science|scien|space|astronom|physic|cosmos|biolog|geolog|chemistr|quantum)/, "science"],
-    [/\b(tech|gadget|software|hardware|\bai\b|artificial.?intelligence|internet|digital)/, "tech"],
+    [/\b(tech|gadget|software|hardware|\bai\b|artificial.?intelligence|innovation|computing|robotic|internet|digital)/, "tech"],
     [/\b(sport|nfl|nba|mlb|soccer|football|olympic)/, "sports"],
-    [/\b(culture|art|book|style|food|fashion|design)/, "culture"],
+    [/\b(culture|art|book|style|food|fashion|design|\bsociety\b|social.?science)/, "culture"],
     [/\b(entertainment|celebrit|tv|television|movie|film|music|hollywood|gaming|game)/, "entertainment"],
   ];
 
@@ -105,6 +107,24 @@ export function categoryFromRules(
     if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
   }
   return categoryFromFirstSegment(url, section) ?? fallback;
+}
+
+/**
+ * Like {@link categoryFromRules} but returns `null` when no rule matches —
+ * letting the extract pipeline fall through to `mapSectionToCategory` and the
+ * provider's `defaultCategory`. Used by providers with idiosyncratic section
+ * labels where some labels (e.g. newsletter formats) should NOT force a slug.
+ */
+export function lookupSection(
+  url: URL,
+  section: string | null,
+  rules: ReadonlyArray<readonly [RegExp, string]>,
+): string | null {
+  const haystack = `${section ?? ""} ${url.pathname}`.toLowerCase();
+  for (const [pattern, slug] of rules) {
+    if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
+  }
+  return null;
 }
 
 /**
