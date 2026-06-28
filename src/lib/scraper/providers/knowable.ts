@@ -52,12 +52,27 @@ const knowable: Provider = {
    *     variants.
    *   - `ymal` / `more-from` — "You may also like" and "More From" related-
    *     article rails (other articles' thumbnails, not this article's imagery).
+   *   - `deep-dive` — the trailing "TAKE A DEEPER DIVE | Explore Related
+   *     Scholarly Articles …" citation rail (`<section class="deep-dive">` with a
+   *     `<div class="deep-dive-header">`). It lists OTHER journal articles' titles
+   *     and abstracts and sits AFTER the real body (outside the `.fr-view`
+   *     container), so dropping it removes the boilerplate the user complained
+   *     about without touching prose. Matching is a class SUBSTRING, so the one
+   *     `deep-dive` keyword also covers the nested `deep-dive-header`.
+   *   - `article-doi` — the article's own visible DOI citation string
+   *     (`<div class="article-doi">10.1146/knowable-…</div>`) rendered next to the
+   *     deep-dive rail. The same DOI also appears in a `<head>` `<meta
+   *     name="dc.identifier">`, but that lives outside the harvested body and is
+   *     not extracted.
    *   - `site-header` / `site-footer` / `mobile-nav` — page chrome carrying the
    *     header/footer "DONATE" links.
    *
    * Note: matching is a class/id SUBSTRING test on block containers, so
    * `article-sidebar` is intentionally NOT listed — it would also match
    * `article-sidebar-img`, which holds the real article portrait we keep.
+   * `deep-dive` and `article-doi` are likewise narrow enough not to collide with
+   * any legitimate body class (verified by re-extraction: the real prose and the
+   * `/docserver/` imagery survive).
    */
   cleanup: {
     dropClassKeywords: [
@@ -65,6 +80,8 @@ const knowable: Provider = {
       "layout-mode-menu",
       "ymal",
       "more-from",
+      "deep-dive",
+      "article-doi",
       "site-header",
       "site-footer",
       "mobile-nav",
