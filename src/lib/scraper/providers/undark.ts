@@ -58,6 +58,27 @@ const undark: Provider = {
    * and `articleUrlFilter` by discovery.
    */
   urlExtractor: rssUrlExtractor(["https://undark.org/feed/"]),
+  /**
+   * Pre-extraction noise removal (see `src/lib/scraper/cleanup.ts`). Undark
+   * interleaves two non-article blocks into the WordPress post body:
+   *   1. A "SIGN UP FOR NEWSLETTER / JOURNEYS" signup widget — its containers
+   *      carry `newsletter-signup` / `newsletter-content` classes, so the
+   *      `newsletter` keyword removes it.
+   *   2. A beige "Support Undark Magazine… please consider making a donation"
+   *      callout, wrapped in the Undark-specific `wp-block-undark-fade-in`
+   *      animation container (it also carries `has-beige-background-color`).
+   *      Dropping the outer `wp-block-undark-fade-in` wrapper removes the whole
+   *      callout cleanly without leaving an empty shell.
+   *
+   * Matching is a case-insensitive class/id SUBSTRING test on block containers,
+   * so we deliberately target the Undark-namespaced wrapper rather than the
+   * bare `wp-block-paragraph` class that real article paragraphs use. Inline
+   * article images (plain `<figure>`/`<img>`) are untouched — verified across
+   * the five highest-word-count Undark articles (image counts unchanged).
+   */
+  cleanup: {
+    dropClassKeywords: ["newsletter", "wp-block-undark-fade-in"],
+  },
 };
 
 export default undark;

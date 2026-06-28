@@ -206,6 +206,39 @@ test("guard: a long body paragraph that merely contains 'subscribe' is KEPT", ()
   assertBodyIntact(out);
 });
 
+test("removes an inline newsletter-signup promo (icon + blurb) that OPENS with a signup imperative", () => {
+  // Mirrors Undark's class-less mid-article promo: a flex wrapper holding an
+  // icon image plus a one-sentence blurb. Too long for TEXT_BOILERPLATE_MAXLEN,
+  // but it OPENS with "Sign up for newsletter…", so collectSignupLead removes
+  // the whole wrapper — icon included — without touching the surrounding body.
+  const promo =
+    `<div style="display:flex">` +
+    `<div style="flex:0 0 80px"><img src="https://undark.org/compass.png" alt="Newsletter Journeys"></div>` +
+    `<div><p><a href="/newsletters/">Sign up for newsletter Journeys:</a> ` +
+    `Dive deeper into pressing issues with our limited run newsletters. Each week for four ` +
+    `weeks you receive a hand-picked excerpt from our archive.</p></div>` +
+    `</div>`;
+  const html = BODY.split("\n").slice(0, 2).join("") + promo + BODY.split("\n").slice(2).join("");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Sign up for newsletter"), "signup CTA removed");
+  assert.ok(!out.includes("Dive deeper"), "signup blurb removed");
+  assert.ok(!out.includes("compass.png"), "signup icon image removed with the promo");
+  assertBodyIntact(out);
+});
+
+test("guard: a long paragraph that merely mentions a newsletter mid-prose is KEPT", () => {
+  const longPara =
+    `<p>The university launched a newsletter in 2019 to share its open-access ` +
+    `research summaries, and the program has since grown into one of the most widely ` +
+    `read science digests in the region, with tens of thousands of subscribers.</p>`;
+  const html = BODY + longPara;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("launched a newsletter in 2019"), "prose mentioning a newsletter kept");
+  assertBodyIntact(out);
+});
+
 test("returns empty / whitespace-only input unchanged", () => {
   assert.equal(declutterArticleHtml(""), "");
   assert.equal(declutterArticleHtml("   "), "   ");

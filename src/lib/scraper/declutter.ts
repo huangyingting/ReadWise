@@ -58,6 +58,26 @@ const TEXT_BOILERPLATE_RE =
  */
 const TEXT_BOILERPLATE_MAXLEN = 160;
 
+/**
+ * Strong newsletter-signup imperative that, when it OPENS a block, marks the
+ * whole block as an inline signup widget — even when the block is long enough
+ * to escape `TEXT_BOILERPLATE_MAXLEN` because it carries a descriptive blurb
+ * and an icon image (e.g. Undark's class-less "SIGN UP FOR NEWSLETTER JOURNEYS:
+ * Dive deeper…" promo). Anchored at the very start because genuine article
+ * prose never opens with a "sign up / subscribe / get our newsletter"
+ * imperative — a paragraph that merely *mentions* a newsletter mid-sentence is
+ * not matched and is preserved.
+ */
+const SIGNUP_LEAD_RE =
+  /^(sign\s?up\s+(for|to)\s+(the\s+|our\s+|my\s+|undark.?s\s+)?(free\s+|weekly\s+|daily\s+|limited.?run\s+)?newsletters?|subscribe\s+(to|for)\s+(the\s+|our\s+|my\s+)?(free\s+|weekly\s+|daily\s+)?newsletters?|get\s+(the\s+|our\s+)(free\s+|weekly\s+|daily\s+)?newsletter)\b/i;
+
+/**
+ * Max length of a block we'll treat as a signup widget purely on its opening
+ * imperative. Wide enough for a promo's descriptive sentence, narrow enough
+ * never to swallow a real article section.
+ */
+const SIGNUP_LEAD_MAXLEN = 500;
+
 const HIGH = 2;
 const MEDIUM = 1;
 
@@ -254,6 +274,47 @@ function collectTextBoilerplate(root: Element, out: Candidate[]): void {
 }
 
 /**
+ * True for a block that carries imagery but no real text — e.g. a decorative
+ * icon harvested into its own `<figure>`. Used to sweep a signup widget's icon
+ * when the image-aware harvest split it away from its CTA text.
+ */
+function isImageOnlyBlock(el: Element): boolean {
+  return (
+    (el.textContent ?? "").trim().length === 0 &&
+    el.querySelector("img,figure,picture,svg") !== null
+  );
+}
+
+/**
+ * Collect inline newsletter-signup widgets whose block text OPENS with a
+ * subscribe imperative. Unlike {@link collectTextBoilerplate} this inspects
+ * non-leaf wrappers too and is not bound by `TEXT_BOILERPLATE_MAXLEN`, so it
+ * removes a class-less promo *together with* its icon image and blurb (the
+ * wrapper is the top-level candidate, so {@link topLevelCandidates} keeps it
+ * and drops its nested matches). Bounded by `SIGNUP_LEAD_MAXLEN` and anchored
+ * at the text start so real prose is never affected.
+ *
+ * When the image-aware harvest has split the widget's decorative icon into its
+ * own image-only sibling (so the CTA text block no longer contains it), the
+ * immediately-adjacent image-only sibling is swept too — this only fires next
+ * to a confirmed signup CTA and never touches a block that carries text.
+ */
+function collectSignupLead(root: Element, out: Candidate[]): void {
+  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
+    if (el === root) continue;
+    const text = normalizeText(el.textContent ?? "");
+    if (text.length === 0 || text.length > SIGNUP_LEAD_MAXLEN) continue;
+    if (!SIGNUP_LEAD_RE.test(text)) continue;
+    out.push({ el, confidence: HIGH });
+    for (const sib of [el.previousElementSibling, el.nextElementSibling]) {
+      if (sib && sib !== root && isImageOnlyBlock(sib)) {
+        out.push({ el: sib, confidence: HIGH });
+      }
+    }
+  }
+}
+
+/**
  * Confidence that a SHORT LEADING block is a credits/author-bio line.
  *
  * Conservative by design — only fires for short blocks that either:
@@ -367,6 +428,16 @@ function sumText(candidates: Candidate[]): number {
   return candidates.reduce((acc, c) => acc + textLen(c.el), 0);
 }
 
+/** Collapse duplicate hits on the same element, keeping the highest confidence. */
+function dedupeByElement(candidates: Candidate[]): Candidate[] {
+  const byEl = new Map<Element, Candidate>();
+  for (const c of candidates) {
+    const existing = byEl.get(c.el);
+    if (!existing || c.confidence > existing.confidence) byEl.set(c.el, c);
+  }
+  return Array.from(byEl.values());
+}
+
 /**
  * Decide which candidates to actually remove, honoring the conservative guard:
  * prefer the full set, fall back to high-confidence-only, then to nothing.
@@ -377,11 +448,15 @@ function selectRemovals(
 ): Candidate[] {
   if (candidates.length === 0 || originalLen === 0) return [];
 
-  const full = topLevelCandidates(candidates);
+  // Collapse duplicate hits first so an element matched by two collectors is
+  // never counted twice against MAX_REMOVAL_RATIO.
+  const deduped = dedupeByElement(candidates);
+
+  const full = topLevelCandidates(deduped);
   if (sumText(full) <= originalLen * MAX_REMOVAL_RATIO) return full;
 
   const highOnly = topLevelCandidates(
-    candidates.filter((c) => c.confidence >= HIGH),
+    deduped.filter((c) => c.confidence >= HIGH),
   );
   if (highOnly.length > 0 && sumText(highOnly) <= originalLen * MAX_REMOVAL_RATIO) {
     return highOnly;
@@ -420,6 +495,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectLabelWidgets(root, candidates);
   collectLinkDense(root, candidates);
   collectTextBoilerplate(root, candidates);
+  collectSignupLead(root, candidates);
   collectLeadingByline(root, normName, candidates);
   collectTrailingByline(root, normName, candidates);
 

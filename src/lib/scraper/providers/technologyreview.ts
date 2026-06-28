@@ -49,6 +49,31 @@ const technologyreview: Provider = {
    * `articleUrlPattern` and `articleUrlFilter` by discovery.
    */
   urlExtractor: rssUrlExtractor(["https://www.technologyreview.com/feed/"]),
+  /**
+   * Pre-extraction noise removal (see `src/lib/scraper/cleanup.ts`). MIT pages
+   * render two trailing widgets *inside* the article container that the body
+   * harvest would otherwise keep:
+   *   1. A "Stay Connected" newsletter signup form whose hidden response text
+   *      ("…thank you for submitting your email!… reach out to us at
+   *      customer-service@technologyreview.com…") leaks into the prose.
+   *   2. A "Deep Dive" related-articles rail (section title + post cards).
+   *
+   * MIT ships CSS-module hashed class names (e.g. `stayConnected__link--<hash>`,
+   * `deepDiveItem__wrapper`), and matching here is a case-insensitive class/id
+   * SUBSTRING test on block containers (BLOCK_CONTAINER_TAGS), so:
+   *   - `stayConnected` removes the whole newsletter form.
+   *   - `deepDiveItem` removes the related post cards, and
+   *     `deepDive__sectionTitle` removes the bare "Deep Dive" heading.
+   *
+   * We deliberately do NOT drop the outer `deepDive__wrapper`: emptying it (vs.
+   * removing it) lets the shared declutter pass collapse the leftover blanks
+   * while keeping Readability's body/lead-image scoring stable — dropping the
+   * whole wrapper flips short features to a truncated body and drops the lead
+   * image. Article inline images live outside these widgets and are preserved.
+   */
+  cleanup: {
+    dropClassKeywords: ["stayConnected", "deepDiveItem", "deepDive__sectionTitle"],
+  },
 };
 
 export default technologyreview;
