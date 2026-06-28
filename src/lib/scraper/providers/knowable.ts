@@ -42,10 +42,14 @@ const knowable: Provider = {
    *
    *   - `promo-article` — in-body "Donate today" / "Support Knowable" CTAs
    *     (`promo-article-donate`, `promo-article-dark`).
-   *   - `comic-layout-mode-menu` — an un-hydrated Froala "layout menu" whose
-   *     `<select><option>` template text ("Some Placeholder Text",
-   *     "CREDIT: NAME", "Institution Name") otherwise leaked into the body, plus
-   *     its lazy `placeholder_img.jpg` stand-ins.
+   *   - `layout-mode-menu` — an un-hydrated Froala "layout menu" rendered on the
+   *     live article pages as `article-layout-mode-menu` (comic pages use
+   *     `comic-layout-mode-menu`). Its `<h4>LAYOUT MENU</h4>` heading leaked into
+   *     the body as harvested prose, and its `<select><option>` template text
+   *     ("Some Placeholder Text", "CREDIT: NAME", "Institution Name") plus lazy
+   *     `placeholder_img.jpg` stand-ins otherwise rode along. Matching is a class
+   *     SUBSTRING, so this single keyword drops both the `article-` and `comic-`
+   *     variants.
    *   - `ymal` / `more-from` — "You may also like" and "More From" related-
    *     article rails (other articles' thumbnails, not this article's imagery).
    *   - `site-header` / `site-footer` / `mobile-nav` — page chrome carrying the
@@ -58,7 +62,7 @@ const knowable: Provider = {
   cleanup: {
     dropClassKeywords: [
       "promo-article",
-      "comic-layout-mode-menu",
+      "layout-mode-menu",
       "ymal",
       "more-from",
       "site-header",
