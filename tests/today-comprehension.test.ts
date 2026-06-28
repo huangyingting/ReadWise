@@ -22,8 +22,11 @@ import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 type Row = Record<string, unknown>;
 
 const USER_ID = "user-1";
-const LOCAL_DATE = "2026-06-27";
-const NOW = new Date("2026-06-27T12:00:00Z");
+// Anchored to the current UTC day so the pre-seeded Today session matches the
+// localDate the route/generator resolves from `new Date()` (avoids date-rollover
+// flakiness). Format matches dateKey(now, "UTC").
+const LOCAL_DATE = new Date().toISOString().slice(0, 10);
+const NOW = new Date(`${LOCAL_DATE}T12:00:00Z`);
 const CREATED_AT = new Date("2026-06-27T00:00:00Z");
 
 // ---- mutable mock state ---------------------------------------------------
@@ -79,6 +82,11 @@ before(() => {
     namedExports: {
       prisma: {
         profile: { findUnique: async () => ({ timezone: "UTC" }) },
+        placementResult: { findUnique: async () => null },
+        seriesEnrollment: {
+          findFirst: async () => null,
+          findUnique: async () => null,
+        },
         savedWord: { findMany: async () => [] },
         todaySession: {
           findUnique: async ({
