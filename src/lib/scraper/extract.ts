@@ -2,7 +2,11 @@ import { sanitizeArticleHtml } from "@/lib/sanitize";
 import { isValidCategorySlug } from "@/lib/categories";
 import type { Provider, ScrapedArticle } from "@/lib/scraper/types";
 import { mapSectionToCategory, providerForUrl } from "@/lib/scraper/providers";
-import { applyProviderCleanup } from "@/lib/scraper/cleanup";
+import {
+  GENERIC_PROVIDER_CLEANUP,
+  applyProviderCleanup,
+  mergeProviderCleanup,
+} from "@/lib/scraper/cleanup";
 import { normalizeArticleHtml, stripScriptsAndStyles } from "@/lib/scraper/normalize";
 import { extractReadable } from "@/lib/scraper/readability-extract";
 import { declutterArticleHtml } from "@/lib/scraper/declutter";
@@ -388,9 +392,11 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
  * it works across NBC News, National Geographic, Time and HuffPost.
  *
  * Pipeline:
- * 1. **Provider cleanup** (optional, declarative): removes noise blocks such as
+ * 1. **Provider cleanup** (known providers only): removes noise blocks such as
  *    video players, newsletter CTAs, social-share widgets and ad containers
- *    before any extraction takes place.
+ *    before any extraction takes place. Unknown-provider fallback extraction
+ *    skips this pass so legitimate article containers with generic class names
+ *    are not discarded.
  * 2. **Metadata extraction**: JSON-LD, OpenGraph and `<meta>` tags are read
  *    from the cleaned HTML while `<script>` elements are still present.
  * 3. **Script/style stripping (UNCONDITIONAL)**: `<script>`, `<style>`,
@@ -423,10 +429,14 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
     return null;
   }
 
-  // --- Step 1: provider-specific pre-extraction cleanup (optional) ----------
+  // --- Step 1: provider-specific pre-extraction cleanup (known providers) ---
   // Removes video/iframe/newsletter/social/ad blocks BEFORE any extraction so
-  // their text content doesn't leak into paragraphs or word counts.
-  const cleanedHtml = provider?.cleanup ? applyProviderCleanup(html, provider.cleanup) : html;
+  // their text content doesn't leak into paragraphs or word counts. This is
+  // intentionally limited to known providers; unknown fallback pages may use
+  // generic words like "newsletter" on the real article/main container.
+  const cleanedHtml = provider
+    ? applyProviderCleanup(html, mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup))
+    : html;
 
   // --- Step 2: extract structured metadata (JSON-LD lives in <script> tags) -
   // We use `cleanedHtml` here — cleanup preserves <script> elements so that

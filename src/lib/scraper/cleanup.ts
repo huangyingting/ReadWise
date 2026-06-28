@@ -24,6 +24,76 @@ import type { Provider } from "@/lib/scraper/types";
 export type ProviderCleanup = NonNullable<Provider["cleanup"]>;
 
 /**
+ * Conservative site-chrome vocabulary applied to every provider before
+ * extraction. Provider modules can add narrower site-specific terms, but these
+ * generic class/id fragments cover common ad, recirculation, share, newsletter
+ * and paywall widgets across the supported sources.
+ */
+export const GENERIC_PROVIDER_CLEANUP: ProviderCleanup = {
+  dropClassKeywords: [
+    "advertisement",
+    "advert",
+    "adsbygoogle",
+    "ad-container",
+    "ad_slot",
+    "ad-unit",
+    "sponsor",
+    "sponsored",
+    "promo",
+    "promotion",
+    "newsletter",
+    "subscribe",
+    "signup",
+    "sign-up",
+    "social-share",
+    "share-tools",
+    "share-buttons",
+    "sharebar",
+    "share this",
+    "sharing",
+    "related",
+    "recommend",
+    "recommended",
+    "recirc",
+    "read-more",
+    "more-from",
+    "up-next",
+    "you-may-also",
+    "trending",
+    "most-popular",
+    "outbrain",
+    "taboola",
+    "comment-section",
+    "comments",
+    "disqus",
+    "cookie",
+    "consent",
+    "paywall",
+    "modal",
+    "overlay",
+    "author-bio",
+    "author-card",
+    "byline-thumbnail",
+  ],
+};
+
+/** Combines generic and provider-specific cleanup without duplicating rules. */
+export function mergeProviderCleanup(
+  ...cleanups: Array<ProviderCleanup | undefined | null>
+): ProviderCleanup {
+  const dropSelectors = new Set<string>();
+  const dropClassKeywords = new Set<string>();
+  for (const cleanup of cleanups) {
+    for (const selector of cleanup?.dropSelectors ?? []) dropSelectors.add(selector);
+    for (const keyword of cleanup?.dropClassKeywords ?? []) dropClassKeywords.add(keyword);
+  }
+  return {
+    dropSelectors: [...dropSelectors],
+    dropClassKeywords: [...dropClassKeywords],
+  };
+}
+
+/**
  * Structural block-level tags whose `class`/`id` attributes are examined for
  * keyword matches. We intentionally exclude inline tags so that legitimate
  * prose (e.g. a `<span class="ad-label">`) is never inadvertently stripped.
@@ -88,7 +158,19 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
       // Keyword-based drop: matches block container elements whose class/id
       // contains any of the specified keyword fragments.
       if (keywords.length && BLOCK_CONTAINER_TAGS.has(frame.tag)) {
-        const haystack = `${frame.attribs?.class ?? ""} ${frame.attribs?.id ?? ""}`;
+        const haystack = [
+          frame.attribs?.class,
+          frame.attribs?.id,
+          frame.attribs?.role,
+          frame.attribs?.["aria-label"],
+          frame.attribs?.["data-testid"],
+          frame.attribs?.["data-test-id"],
+          frame.attribs?.["data-component"],
+          frame.attribs?.["data-module"],
+          frame.attribs?.["data-ad"],
+        ]
+          .filter(Boolean)
+          .join(" ");
         return keywords.some((kw) => haystack.toLowerCase().includes(kw.toLowerCase()));
       }
       return false;

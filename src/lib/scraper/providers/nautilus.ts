@@ -38,6 +38,17 @@ const nautilus: Provider = {
   categories: ["science", "ideas", "environment", "health"],
   // Long-form magazine: everything it publishes is substantive reading practice.
   readingCategories: ["science", "ideas", "environment", "health"],
+  cleanup: {
+    dropClassKeywords: [
+      "ArticleNewsletterBlock",
+      "NewsletterBlock",
+      "SiteHeader",
+      "PopoutNav",
+      "newsletter",
+      "subscribe",
+      "SubscribeBtn",
+    ],
+  },
   categoryFor: (url, section) =>
     categoryFromRules(
       url,

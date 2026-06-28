@@ -20,6 +20,19 @@ const time: Provider = {
   categoryFor: (url, section) =>
     mapSectionToCategory(section) ??
     mapSectionToCategory(url.pathname.replace(/\/article\/\d{4}\/\d{2}\/\d{2}\//, "/")),
+  cleanup: {
+    dropSelectors: ["video", "iframe"],
+    dropClassKeywords: [
+      "social-share",
+      "share-tools",
+      "newsletter-signup",
+      "related-articles",
+      "author-bio",
+      "subscribe-prompt",
+      "embed-wrapper",
+      "video-embed",
+    ],
+  },
 };
 
 export default time;

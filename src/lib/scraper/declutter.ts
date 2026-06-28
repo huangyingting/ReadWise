@@ -39,7 +39,7 @@ const BLOCK_SELECTOR =
 
 /** Short label phrases that head a boilerplate widget (e.g. "Related"). */
 const LABEL_RE =
-  /^(related(\s+(articles|stories|posts|reading|content))?|more\s+(from|stories|in|on|articles)|read\s+(more|next)|recommended(\s+for\s+you)?|you\s+(may|might)\s+also\s+(like|enjoy|read)|up\s+next|newsletter|subscribe|sign\s?up|share\s+this(\s+article)?|follow\s+us(\s+on)?|comments?|trending|sponsored|advert(isement)?|around\s+the\s+web|from\s+around\s+the\s+web|most\s+(popular|read)|in\s+this\s+series)\b/i;
+  /^(related(\s+(articles|stories|posts|reading|content))?|more\s+(from|stories|in|on|articles)|more\s+like\s+this|also\s+read|read\s+(more|next)|recommended(\s+(for\s+you|stories|articles|reading))?|what\s+to\s+read\s+next|you\s+(may|might)\s+also\s+(like|enjoy|read)|up\s+next|newsletter|subscribe|sign\s?up|share\s+this(\s+article)?|follow\s+us(\s+on)?|comments?|trending|latest\s+(stories|articles|news)|sponsored|advert(isement)?|around\s+the\s+web|from\s+around\s+the\s+web|most\s+(popular|read)|in\s+this\s+series|explore\s+more)\b/i;
 
 /**
  * Strong CTA / boilerplate phrases used for TEXT-based detection of class-less
@@ -49,14 +49,44 @@ const LABEL_RE =
  * matches one of these phrases (word-boundary, case-insensitive).
  */
 const TEXT_BOILERPLATE_RE =
-  /\b(subscribe|sign\s?up\s+(for|to)|newsletter|get\s+the\s+newsletter|share\s+this\s+(article|story)|follow\s+us|follow\s+me|read\s+more|more\s+from|related\s+(stories|articles|reading)|recommended\s+for\s+you|you\s+may\s+also\s+like|up\s+next|advertisement|sponsored|view\s+comments|leave\s+a\s+comment)\b/i;
+  /^(subscribe\s+(now|today|to\s+(our|the)\s+(?:[a-z0-9-]+\s+){0,3}newsletter|for\s+(our|the)\s+(?:[a-z0-9-]+\s+){0,3}newsletter)|share\s+this\s+(article|story)|follow\s+us|follow\s+me|read\s+(more|next)|also\s+read|more\s+from|more\s+like\s+this|related\s+(stories|articles|reading)|recommended\s+(for\s+you|stories|articles|reading)|you\s+may\s+also\s+like|what\s+to\s+read\s+next|up\s+next|advertisement|sponsored|support\s+our\s+(work|journalism)|become\s+a\s+subscriber|already\s+a\s+subscriber|create\s+a\s+free\s+account|view\s+comments|leave\s+a\s+comment)\b/i;
+
+const NEWSLETTER_CTA_CONTEXT_RE =
+  /^(subscribe|sign\s?up|get|receive|join)\b(?=[^.!?]{0,180}\bnewsletters?\b)(?=[^.!?]{0,180}\b(in\s+your\s+inbox|inbox|e-?mail|delivered?|delivery|sign\s?up|subscribe|subscription|subscriber)\b)|^(?:the\s+)?latest\b(?=[^.!?]{0,120}\b(in\s+your\s+inbox|inbox|e-?mail|delivered?|delivery|sign\s?up|subscribe|subscription|subscriber)\b)/i;
+
+const GET_LATEST_CTA_CONTEXT_RE =
+  /^get\s+(the\s+)?latest(\s+(stories|articles|news|updates?|headlines|alerts?))?\b(?=[^.!?]{0,180}\b(in\s+your\s+inbox|inbox|e-?mail|delivered?\s+(to|straight|directly)|sign\s?up|subscribe|subscription)\b)/i;
+
+const SIGNUP_CTA_CONTEXT_RE =
+  /^sign\s?up\b(?=[^.!?]{0,160}\b(newsletters?|subscribers?|subscriptions?|account|membership|trial|offer|deal|promo|promotion|discount|sale|save|updates?|alerts?|inbox)\b)/i;
+
+/** Long-form CTA residues observed after Readability strips widget classes. */
+const LONG_TEXT_BOILERPLATE_RE =
+  /\b(newsletter\s+journeys|dive\s+deeper\s+into\s+pressing\s+issues|limited\s+run\s+newsletters|hand-?picked\s+(archive\s+)?excerpt|trouble\s+saving\s+your\s+preferences)\b/i;
+
+const SIGNUP_RESIDUE_RE =
+  /^(stay\s+connected|get\s+the\s+latest\s+updates\s*(?:from)?|discover\s+special\s+offers|thank\s+you\s+for\s+submitting|it\s+looks\s+like\s+something\s+went\s+wrong)\b/i;
+
+const TRAILING_PUBLICATION_CTA_RE =
+  /^enjoying\s+.{1,80}\?\s+subscribe\s+to\s+our\s+free\s+newsletter\.?$/i;
+
+const NEWSLETTER_PROMO_LINE_RE =
+  /\b(this\s+story\s+is\s+from\s+the\s+checkup,\s+our\s+weekly\s+biotech\s+newsletter|sign\s+up\s+to\s+receive\s+it\s+in\s+your\s+inbox)\b/i;
+
+const ARCHIVE_LINK_RESIDUE_RE = /\barchive\s+page\b/i;
+
+const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s+for\s+you|you\s+may\s+also\s+like)\b/i;
+
+const IMAGE_BOILERPLATE_RE =
+  /\b(favicon|sprite|pixel|newsletter|promo|promotion|sign-?up|subscribe|compass(?:\.[a-z0-9]+)?|journeys)\b/i;
 
 /**
  * Max length of a block we are willing to flag purely on a text-boilerplate
  * phrase. Keeps the heuristic conservative: a long paragraph that merely
  * contains "subscribe" mid-prose must NOT be removed.
  */
-const TEXT_BOILERPLATE_MAXLEN = 160;
+const TEXT_BOILERPLATE_MAXLEN = 500;
+const LONG_TEXT_BOILERPLATE_MAXLEN = 1000;
 
 const HIGH = 2;
 const MEDIUM = 1;
@@ -71,6 +101,8 @@ const LEADING_SCAN = 2;
 const LEADING_BYLINE_MAXLEN = 300;
 /** Fraction of original text above which aggressive removals are aborted. */
 const MAX_REMOVAL_RATIO = 0.35;
+/** Minimum remaining prose before allowing high-confidence removals past ratio. */
+const MIN_REMAINING_TEXT_AFTER_HIGH_CONFIDENCE = 300;
 
 interface Candidate {
   el: Element;
@@ -186,8 +218,25 @@ function textLen(el: Element): number {
  */
 function isTextBoilerplate(text: string): boolean {
   const norm = normalizeText(text);
-  if (norm.length === 0 || norm.length > TEXT_BOILERPLATE_MAXLEN) return false;
-  return TEXT_BOILERPLATE_RE.test(norm);
+  if (norm.length === 0) return false;
+  if (
+    norm.length <= LONG_TEXT_BOILERPLATE_MAXLEN &&
+    LONG_TEXT_BOILERPLATE_RE.test(norm)
+  ) {
+    return true;
+  }
+  if (norm.length > TEXT_BOILERPLATE_MAXLEN) return false;
+  return (
+    TEXT_BOILERPLATE_RE.test(norm) ||
+    NEWSLETTER_CTA_CONTEXT_RE.test(norm) ||
+    GET_LATEST_CTA_CONTEXT_RE.test(norm) ||
+    SIGNUP_CTA_CONTEXT_RE.test(norm) ||
+    SIGNUP_RESIDUE_RE.test(norm) ||
+    TRAILING_PUBLICATION_CTA_RE.test(norm) ||
+    NEWSLETTER_PROMO_LINE_RE.test(norm) ||
+    ARCHIVE_LINK_RESIDUE_RE.test(norm) ||
+    RECIRC_RANKED_ITEM_RE.test(norm)
+  );
 }
 
 /** True when the block is empty or boilerplate by attribute OR by text. */
@@ -249,6 +298,41 @@ function collectTextBoilerplate(root: Element, out: Candidate[]): void {
     const text = (el.textContent ?? "").trim();
     if (isTextBoilerplate(text)) {
       out.push({ el, confidence: HIGH });
+    }
+  }
+}
+
+function isBoilerplateImage(img: Element): boolean {
+  const haystack = [
+    img.getAttribute("alt"),
+    img.getAttribute("src"),
+    img.getAttribute("srcset"),
+    img.getAttribute("data-src"),
+    img.getAttribute("data-lazy-src"),
+    img.getAttribute("class"),
+    img.getAttribute("id"),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  return IMAGE_BOILERPLATE_RE.test(haystack);
+}
+
+function collectBoilerplateImages(root: Element, out: Candidate[]): void {
+  for (const img of Array.from(root.querySelectorAll("img"))) {
+    if (!isBoilerplateImage(img)) continue;
+    out.push({ el: img, confidence: HIGH });
+    const parent = img.parentElement;
+    if (!parent || parent === root) continue;
+    const parentText = (parent.textContent ?? "").trim();
+    const onlyBoilerplateImage =
+      parentText.length === 0 &&
+      parent.querySelectorAll("img,video,audio,iframe").length === 1;
+    if (onlyBoilerplateImage && /^(p|figure|div)$/i.test(parent.tagName)) {
+      out.push({ el: parent, confidence: HIGH });
+      const prev = parent.previousElementSibling;
+      const next = parent.nextElementSibling;
+      if (prev?.tagName.toLowerCase() === "hr") out.push({ el: prev, confidence: HIGH });
+      if (next?.tagName.toLowerCase() === "hr") out.push({ el: next, confidence: HIGH });
     }
   }
 }
@@ -363,6 +447,17 @@ function topLevelCandidates(candidates: Candidate[]): Candidate[] {
   );
 }
 
+function dedupeCandidates(candidates: Candidate[]): Candidate[] {
+  const byElement = new Map<Element, Candidate>();
+  for (const candidate of candidates) {
+    const existing = byElement.get(candidate.el);
+    if (!existing || candidate.confidence > existing.confidence) {
+      byElement.set(candidate.el, candidate);
+    }
+  }
+  return Array.from(byElement.values());
+}
+
 function sumText(candidates: Candidate[]): number {
   return candidates.reduce((acc, c) => acc + textLen(c.el), 0);
 }
@@ -377,13 +472,20 @@ function selectRemovals(
 ): Candidate[] {
   if (candidates.length === 0 || originalLen === 0) return [];
 
-  const full = topLevelCandidates(candidates);
+  const unique = dedupeCandidates(candidates);
+  const full = topLevelCandidates(unique);
   if (sumText(full) <= originalLen * MAX_REMOVAL_RATIO) return full;
 
   const highOnly = topLevelCandidates(
-    candidates.filter((c) => c.confidence >= HIGH),
+    unique.filter((c) => c.confidence >= HIGH),
   );
   if (highOnly.length > 0 && sumText(highOnly) <= originalLen * MAX_REMOVAL_RATIO) {
+    return highOnly;
+  }
+  if (
+    highOnly.length > 0 &&
+    originalLen - sumText(highOnly) >= MIN_REMAINING_TEXT_AFTER_HIGH_CONFIDENCE
+  ) {
     return highOnly;
   }
 
@@ -419,6 +521,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectAttrBoilerplate(root, candidates);
   collectLabelWidgets(root, candidates);
   collectLinkDense(root, candidates);
+  collectBoilerplateImages(root, candidates);
   collectTextBoilerplate(root, candidates);
   collectLeadingByline(root, normName, candidates);
   collectTrailingByline(root, normName, candidates);

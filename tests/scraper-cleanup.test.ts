@@ -10,7 +10,11 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { applyProviderCleanup } from "@/lib/scraper/cleanup";
+import {
+  GENERIC_PROVIDER_CLEANUP,
+  applyProviderCleanup,
+  mergeProviderCleanup,
+} from "@/lib/scraper/cleanup";
 
 // ---------------------------------------------------------------------------
 // dropSelectors: tag-based removal
@@ -132,6 +136,35 @@ test("cleanup: removes advertisement block matched by id keyword", () => {
   assert.doesNotMatch(result, /Advertisement content/);
   assert.match(result, /Text before ad/);
   assert.match(result, /Text after ad/);
+});
+
+test("cleanup: generic rules remove common recirculation/newsletter/share chrome", () => {
+  const html =
+    "<p>Article text.</p>" +
+    '<section data-testid="recirc-related"><h2>More like this</h2><a href="/other">Other story</a></section>' +
+    '<div aria-label="share this article"><a>Share on Facebook</a></div>' +
+    '<div class="paywall-newsletter"><p>Subscribe to our daily newsletter.</p></div>' +
+    '<p>Article ending.</p>';
+  const result = applyProviderCleanup(html, GENERIC_PROVIDER_CLEANUP);
+  assert.doesNotMatch(result, /Other story/);
+  assert.doesNotMatch(result, /Share on Facebook/);
+  assert.doesNotMatch(result, /daily newsletter/);
+  assert.match(result, /Article text/);
+  assert.match(result, /Article ending/);
+});
+
+test("cleanup: mergeProviderCleanup combines generic and provider rules once", () => {
+  const merged = mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, {
+    dropSelectors: ["iframe"],
+    dropClassKeywords: ["newsletter", "site-specific"],
+  });
+  assert.ok(merged.dropSelectors?.includes("iframe"));
+  assert.ok(merged.dropClassKeywords?.includes("newsletter"));
+  assert.ok(merged.dropClassKeywords?.includes("site-specific"));
+  assert.equal(
+    merged.dropClassKeywords?.filter((keyword) => keyword === "newsletter").length,
+    1,
+  );
 });
 
 test("cleanup: removes comment block matched by class keyword", () => {

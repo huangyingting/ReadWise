@@ -21,7 +21,18 @@ const nbc: Provider = {
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe", "aside"],
-    dropClassKeywords: ["related", "social-share", "newsletter", "promo", "advertisement"],
+    dropClassKeywords: [
+      "related",
+      "social-share",
+      "newsletter",
+      "promo",
+      "advertisement",
+      "byline-thumbnail",
+      "author-thumbnail",
+      "author-image",
+      "expanded-byline-contributors",
+      "articleBylineContainer",
+    ],
   },
 };
 
