@@ -11,10 +11,10 @@ ReadWise ingests public news/feature articles to use as English-learning reading
 material. Extraction is provider-aware and lives in code under
 `src/lib/scraper/`:
 
-- `providers.ts` — the registry of supported providers (NBC, National Geographic,
+- `providers/` — the registry of supported providers (NBC, National Geographic,
   Time, HuffPost, BBC News, Smithsonian Magazine, Knowable Magazine, Nautilus,
-  Aeon, MIT Technology Review, Noema Magazine, Undark, BBC Learning English,
-  VOA Learning English), keyed by hostname, with article-URL patterns,
+  MIT Technology Review, Noema Magazine, Undark, BBC Learning
+  English), keyed by hostname, with article-URL patterns,
   provider-specific discovery hooks and category mapping.
 - `extract.ts` — provider-agnostic extraction (schema.org JSON-LD first, then
   OpenGraph/`<p>` fallback) with SSRF protection and size/time caps. Bodies are

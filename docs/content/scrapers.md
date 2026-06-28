@@ -128,13 +128,6 @@ To verify/update WP category IDs:
 curl https://nautil.us/wp-json/wp/v2/categories?per_page=100 | jq '.[] | {id, slug}'
 ```
 
-### Aeon – GraphQL (`src/lib/scraper/aeon-graphql.ts`)
-
-POSTs `AEON_ESSAYS_QUERY` to `https://aeon.co/api/graphql` with cursor-based pagination.
-Nodes with `type` not in `{essay, Essay, ESSAY, article, Article}` are filtered out.
-`AEON_GRAPHQL_ENDPOINT` and `AEON_ESSAYS_QUERY` are exported constants for easy update
-when the schema drifts.
-
 ---
 
 ## Adding a new provider — checklist
@@ -221,16 +214,7 @@ curl -s https://feeds.bbci.co.uk/news/world/rss.xml | head -30
 curl "https://nautil.us/wp-json/wp/v2/posts?per_page=3" | jq '.[].link'
 ```
 
-**Step 6 – For GraphQL extractors – POST the query manually:**
-```sh
-curl -s -X POST https://aeon.co/api/graphql \
-  -H 'Content-Type: application/json' \
-  -d '{"query":"{ articles(section:\"essays\",first:3) { edges { node { url type } } } }"}' | jq .
-```
-Schema drift (field renamed, query structure changed) is the usual culprit. Update
-`AEON_ESSAYS_QUERY` in `src/lib/scraper/aeon-graphql.ts`.
-
-**Step 7 – For HTML providers – check `articleUrlPattern`:**
+**Step 6 – For HTML providers – check `articleUrlPattern`:**
 Major sites occasionally change article URL formats (e.g. Time moved from
 `/NNNN/slug/` to `/article/YYYY/MM/DD/slug/`). Update the pattern in the provider's
 module under `src/lib/scraper/providers/<key>.ts`.
