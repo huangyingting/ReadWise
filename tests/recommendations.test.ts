@@ -310,6 +310,82 @@ test("reading-suitability nudge: a high-suitability article scores ≥ a low one
   assert.ok(medium.score - low.score <= capPoints + 1e-9);
 });
 
+test("provider override lifts a globally-low category to reading-suitable (same cap)", async () => {
+  const { scoreCandidate, READING_SUITABILITY_ADJUSTMENT_CAP } = await import(
+    "@/lib/recommendations/scoring"
+  );
+  const ctx = baseContext({ userLevel: "B1", userLevelRank: 2 });
+
+  // Same globally-"low" category (politics), holding all other signals equal —
+  // only the provider (source) differs.
+  const overridden = scoreCandidate(
+    candidate({ id: "p1", category: "politics", difficulty: "B1", source: "Noema Magazine" }),
+    ctx,
+  );
+  const plainSource = scoreCandidate(
+    candidate({ id: "p2", category: "politics", difficulty: "B1", source: "Source" }),
+    ctx,
+  );
+  const newsSource = scoreCandidate(
+    candidate({ id: "p3", category: "politics", difficulty: "B1", source: "HuffPost" }),
+    ctx,
+  );
+
+  // Noema (override) treats politics as "high" → boost; a non-override provider
+  // keeps the global "low" penalty.
+  assert.ok(overridden.score > plainSource.score, "Noema politics should out-score generic politics");
+  assert.ok(overridden.score > newsSource.score, "Noema politics should out-score HuffPost politics");
+  assert.equal(plainSource.score, newsSource.score, "non-override sources share the global low tier");
+
+  // The provider-aware boost still respects the SAME cap as the global signal:
+  // the swing from low→high cannot exceed twice the documented ±cap.
+  const capPoints = READING_SUITABILITY_ADJUSTMENT_CAP * 100;
+  assert.ok(overridden.score - plainSource.score <= 2 * capPoints + 1e-9);
+});
+
+test("provider override matches the global high tier for the same category (no extra influence)", async () => {
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const ctx = baseContext({ userLevel: "B1", userLevelRank: 2 });
+
+  // A magazine-overridden low category should land exactly at the global "high"
+  // boost — never beyond it — keeping the nudge magnitude unchanged.
+  const overriddenLow = scoreCandidate(
+    candidate({ id: "n1", category: "politics", difficulty: "B1", source: "Noema Magazine" }),
+    ctx,
+  );
+  const globalHigh = scoreCandidate(
+    candidate({ id: "n2", category: "science", difficulty: "B1", source: "Source" }),
+    ctx,
+  );
+  assert.equal(overriddenLow.score, globalHigh.score);
+});
+
+test("readingSuitabilityDeltaForSource is provider-aware and falls back to the global tier", async () => {
+  const { readingSuitabilityDeltaForSource, readingSuitabilityDelta } = await import(
+    "@/lib/recommendations/scoring"
+  );
+  // Override: Noema + politics is promoted to the "high" delta (== global science).
+  assert.equal(
+    readingSuitabilityDeltaForSource("politics", "Noema Magazine"),
+    readingSuitabilityDelta("science"),
+  );
+  // Unresolved source → unchanged global behaviour.
+  assert.equal(
+    readingSuitabilityDeltaForSource("politics", "Unknown Source"),
+    readingSuitabilityDelta("politics"),
+  );
+  // Null source → unchanged global behaviour.
+  assert.equal(
+    readingSuitabilityDeltaForSource("politics", null),
+    readingSuitabilityDelta("politics"),
+  );
+  // Non-override provider (HuffPost) → global tier, no promotion.
+  assert.equal(
+    readingSuitabilityDeltaForSource("politics", "HuffPost"),
+    readingSuitabilityDelta("politics"),
+  );
+});
+
 // ---------------------------------------------------------------------------
 // Diversity
 // ---------------------------------------------------------------------------

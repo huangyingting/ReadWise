@@ -15,6 +15,8 @@ const natgeo: Provider = {
   articleUrlPattern: /\/article\//i,
   defaultCategory: "science",
   categories: ["environment", "animals", "science", "history", "travel", "culture", "health"],
+  // Long-form magazine: everything it publishes is substantive reading practice.
+  readingCategories: ["environment", "animals", "science", "history", "travel", "culture", "health"],
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe", "aside"],

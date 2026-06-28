@@ -28,6 +28,10 @@ import { COMPONENT_WEIGHTS, WEAK_WORD_REEXPOSURE_MAX_POINTS, WEAK_WORD_REEXPOSUR
 import type { WeakWordReexposure } from "./types";
 import { applyGoalPathAdjustment } from "@/lib/learning/goal-path";
 import { readingSuitabilityRank } from "@/lib/categories";
+import {
+  getProviderByName,
+  isProviderCategoryReadingSuitable,
+} from "@/lib/scraper/providers";
 import { headlineReason, buildExplanationLines } from "./explanations";
 
 // ---------------------------------------------------------------------------
@@ -177,6 +181,9 @@ export const READING_SUITABILITY_ADJUSTMENT_CAP = 0.1;
 /** "medium" rank — the neutral baseline that yields a zero nudge. */
 const READING_SUITABILITY_BASELINE = 0.6;
 
+/** "high" rank — the top suitability tier a provider override promotes a category to. */
+const READING_SUITABILITY_HIGH = 1.0;
+
 /**
  * Pure reading-suitability component (0–1): how well-suited the article's
  * category is for English reading PRACTICE. High-suitability topics (science,
@@ -194,13 +201,41 @@ export function readingSuitabilityScore(category: string | null): number {
  * suitability a proportional penalty. PURE — category metadata only.
  */
 export function readingSuitabilityDelta(category: string | null): number {
+  return suitabilityDeltaFromScore(readingSuitabilityScore(category));
+}
+
+/** Scales a 0–1 suitability score into the capped, medium-centred nudge. */
+function suitabilityDeltaFromScore(score: number): number {
   const scaled =
-    (readingSuitabilityScore(category) - READING_SUITABILITY_BASELINE) *
+    (score - READING_SUITABILITY_BASELINE) *
     (READING_SUITABILITY_ADJUSTMENT_CAP / (1 - READING_SUITABILITY_BASELINE));
   return Math.max(
     -READING_SUITABILITY_ADJUSTMENT_CAP,
     Math.min(READING_SUITABILITY_ADJUSTMENT_CAP, scaled),
   );
+}
+
+/**
+ * Provider-aware reading-suitability nudge. When the article's `source` resolves
+ * to a provider that declares a `readingCategories` override AND the article's
+ * category is in that override, the (provider, category) pair is treated as the
+ * top "high" tier — letting a quality long-form magazine lift a globally-"low"
+ * topic (e.g. Noema + politics) to reading-suitable. Otherwise it falls back to
+ * the global {@link readingSuitabilityDelta}. The capped nudge magnitude is
+ * UNCHANGED — only the suitability determination becomes provider-aware. PURE.
+ */
+export function readingSuitabilityDeltaForSource(
+  category: string | null,
+  source: string | null,
+): number {
+  const provider = source != null ? getProviderByName(source) : null;
+  if (
+    provider?.readingCategories != null &&
+    isProviderCategoryReadingSuitable(provider, category)
+  ) {
+    return suitabilityDeltaFromScore(READING_SUITABILITY_HIGH);
+  }
+  return readingSuitabilityDelta(category);
 }
 
 // ---------------------------------------------------------------------------
@@ -264,11 +299,14 @@ export function scoreCandidate(
   // Reading-suitability (soft signal): a small, capped nudge favouring topics
   // that make substantive, evergreen English reading PRACTICE — applied on the
   // same normalised 0–1 scale as the goal-path nudge and clamped back into
-  // [0, 1]. Medium/unknown categories are left unchanged (zero delta), so this
-  // never disturbs the core seven-component contract.
+  // [0, 1]. Provider-aware: a provider's `readingCategories` override can treat
+  // a globally-"low" topic as reading-suitable (and vice-versa); when the source
+  // resolves to no such provider, the global tier applies. Medium/unknown
+  // categories are left unchanged (zero delta), so this never disturbs the core
+  // seven-component contract.
   const withSuitability = Math.max(
     0,
-    Math.min(1, adjusted + readingSuitabilityDelta(candidate.category ?? null)),
+    Math.min(1, adjusted + readingSuitabilityDeltaForSource(candidate.category ?? null, candidate.source ?? null)),
   );
   const componentScore = withSuitability * 100; // 0–100
 

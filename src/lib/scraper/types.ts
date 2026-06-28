@@ -60,6 +60,13 @@ export type Provider = {
    */
   categories?: string[];
   /**
+   * Subset of this provider's categories that are recommended for English
+   * reading practice; overrides the global readingSuitability tier for this
+   * provider. Omit to use the default = categories[] ∩ READING_RECOMMENDED.
+   * Must be valid CATEGORY_SLUGS ⊆ the provider's `categories[]`.
+   */
+  readingCategories?: string[];
+  /**
    * Optional provider-specific category resolver. Receives the article URL and
    * any section string found in metadata; returns one of our category slugs.
    */

@@ -38,6 +38,9 @@ const undark: Provider = {
     ]),
   defaultCategory: "science",
   categories: ["science", "environment", "animals", "health", "tech", "politics", "culture"],
+  // Long-form science magazine: everything it publishes is substantive reading
+  // practice — even its globally-"low" politics is in-depth science policy.
+  readingCategories: ["science", "environment", "animals", "health", "tech", "politics", "culture"],
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/health.?(&|and).?medicine|health-medicine|\bhealth\b|medicine|drugs|addiction|covid/, "health"],
