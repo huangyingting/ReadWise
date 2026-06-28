@@ -33,6 +33,15 @@ const technologyreview: Provider = {
   // Long-form magazine: everything it publishes is substantive reading practice
   // — even globally-"medium" tech is in-depth here.
   readingCategories: ["tech", "science", "health", "environment"],
+  cleanup: {
+    dropClassKeywords: [
+      "deepDive",
+      "deepDiveItem",
+      "stayConnected",
+      "newsletter",
+      "recirc",
+    ],
+  },
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/biotechnology.?(&|and).?health|biotechnology|\bhealth\b|medicine/, "health"],

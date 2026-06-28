@@ -155,6 +155,27 @@ test("source-derived providers are registered", () => {
   }
 });
 
+test("source-derived provider cleanup rules cover live newsletter/recirc chrome", () => {
+  assert.ok(
+    getProviderOrFail("nautilus").cleanup?.dropClassKeywords?.some((kw) =>
+      /subscribe|newsletter/i.test(kw),
+    ),
+    "Nautilus cleanup should drop subscribe/newsletter chrome",
+  );
+  assert.ok(
+    getProviderOrFail("undark").cleanup?.dropClassKeywords?.some((kw) =>
+      /newsletter|journeys/i.test(kw),
+    ),
+    "Undark cleanup should drop newsletter journeys chrome",
+  );
+  assert.ok(
+    getProviderOrFail("technologyreview").cleanup?.dropClassKeywords?.some((kw) =>
+      /deepDive|stayConnected/i.test(kw),
+    ),
+    "Technology Review cleanup should drop deep dive recirc and stayConnected signup blocks",
+  );
+});
+
 test("source-derived provider URL patterns match article URLs", () => {
   assert.ok(getProviderOrFail("bbc").articleUrlPattern.test("https://www.bbc.com/news/articles/c1234567890"));
   assert.ok(

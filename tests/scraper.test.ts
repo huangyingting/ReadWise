@@ -246,3 +246,36 @@ test("extractArticle (clean capture, e2e): class-less bio + newsletter CTA remov
   // Author metadata still captured.
   assert.equal(result?.author, "Jane Doe");
 });
+
+test("extractArticle (generic provider cleanup): strips chrome while preserving images and video links", () => {
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const html =
+      `<!doctype html><html><head><title>A Study of Urban Wildlife</title>` +
+      `<meta property="og:title" content="A Study of Urban Wildlife"></head><body>` +
+      `<article>` +
+      `<p>${wordBlock(35, "wildlife")} article body before image.</p>` +
+      `<figure><img src="/photos/fox.jpg" alt="Urban fox"><figcaption>A fox crosses a city street.</figcaption></figure>` +
+      `<p>${wordBlock(35, "habitat")} Watch the companion <a href="https://time.com/video/urban-wildlife/">video interview</a> with the researchers.</p>` +
+      `<div data-testid="recirc-related"><h2>More like this</h2><ul><li><a href="/1111111/noisy/">Noisy related story</a></li></ul></div>` +
+      `<div aria-label="share this article"><a href="#">Share on X</a></div>` +
+      `<div class="newsletter-signup">Get the latest stories in your inbox.</div>` +
+      `</article></body></html>`;
+
+    const result = extractArticle(html, "https://time.com/1234567/urban-wildlife/");
+    assert.ok(result, "should extract a valid article");
+    const content = result?.content ?? "";
+
+    assert.match(content, /wildlife\d+/, "article body kept");
+    assert.match(content, /<img src="https:\/\/time\.com\/photos\/fox\.jpg"/, "article image kept");
+    assert.match(content, /video interview/, "article-related video link text kept");
+    assert.match(content, /https:\/\/time\.com\/video\/urban-wildlife\//, "video link href kept");
+    assert.doesNotMatch(content, /Noisy related story/, "related chrome removed");
+    assert.doesNotMatch(content, /Share on X/, "share chrome removed");
+    assert.doesNotMatch(content, /latest stories in your inbox/, "newsletter chrome removed");
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+});

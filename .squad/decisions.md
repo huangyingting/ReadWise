@@ -963,3 +963,11 @@ Deliverables on huangyingting/ReadWise (main), cross-linked to #610:
 - Owners via squad:* labels (Rusty 2, Saul 2, Linus 2, Livingston 4, Basher 3).
 
 Non-goals enforced per AGENTS.md: no behavior changes, no new compat layers, preserve provider graceful fallbacks, SQLite/PG parity, no secret/PII logging. Analysis only — no source modified. Artifacts: files/findings-{architecture,design,frontend,backend,testing}-r2.md, files/consolidated-plan-r2.md.
+
+
+### DECIDED — Scraper provider cleanup hardening finalization
+_Recorded by Scribe · 2026-06-28_
+**What:** Generic scraper cleanup is now guarded so unknown providers do not receive provider-specific generic cleanup, while known provider cleanup remains hardened for newsletters, get-latest widgets, CTA/social chrome, duplicate candidates, and provider-specific prose regressions.
+**Why:** The team found and fixed over-removal risks during review. Final independent code review reported no correctness issues, security review found no vulnerabilities, and full scraper verification passed.
+**Merged inbox:** `decisions/inbox/Livingston-apply-generic-scraper-chrome-cleanup-to-every-prov.md`, `decisions/inbox/basher-scraper-cleanup-verification.md`.
+**Validation:** focused cleaned-HTML/cleanup tests passed; full scraper suite passed 336/336; typecheck passed; eslint on changed files passed; `git diff --check` passed.

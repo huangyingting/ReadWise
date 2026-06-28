@@ -82,6 +82,24 @@ test("removes a 'more from' label widget even without a boilerplate class", () =
   assertBodyIntact(out);
 });
 
+test("removes expanded related labels but preserves article video links in prose", () => {
+  const html =
+    BODY +
+    `<p>The team published a companion <a href="https://videos.example.com/documentary">video interview</a> explaining the field work in more detail.</p>` +
+    `<div><h2>Also read</h2><ul>` +
+    `<li><a href="/x">Related essay one</a></li>` +
+    `<li><a href="/y">Related essay two</a></li></ul></div>` +
+    `<p>Get the latest stories in your inbox.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("video interview"), "article-related video link text kept");
+  assert.ok(out.includes("https://videos.example.com/documentary"), "video link href kept");
+  assert.ok(!out.includes("Also read"), "related label removed");
+  assert.ok(!out.includes("Related essay one"), "related list removed");
+  assert.ok(!out.includes("latest stories in your inbox"), "newsletter-like CTA removed");
+  assertBodyIntact(out);
+});
+
 test("removes a newsletter / subscribe CTA block", () => {
   const html =
     BODY +
@@ -194,6 +212,128 @@ test("a class-less newsletter / subscribe paragraph anywhere is removed", () => 
   assertBodyIntact(out);
 });
 
+test("keeps legitimate prose about residents signing up for classes", () => {
+  const prose =
+    `<p>Each semester, hundreds of residents sign up for free classes at the ` +
+    `library, where volunteers teach language, computer skills, and gardening.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("residents sign up for free classes"), "ordinary sign-up prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps ordinary prose where students also read primary source accounts", () => {
+  const prose =
+    `<p>The students also read primary source accounts from families who ` +
+    `crossed the river during the spring floods and rebuilt nearby farms.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("students also read primary source accounts"), "ordinary also-read prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps ordinary prose where residents sign up for emergency alerts", () => {
+  const prose =
+    `<p>Residents sign up for emergency alerts at the town hall each spring ` +
+    `because flood warnings often arrive before phone service becomes unreliable.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("Residents sign up for emergency alerts"), "ordinary emergency-alert prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps legitimate prose about scientists getting the latest readings", () => {
+  const prose =
+    `<p>Scientists get the latest readings from the coastal sensors before ` +
+    `comparing the measurements with decades of tidal records.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("Scientists get the latest readings"), "ordinary get-latest prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps legitimate prose mentioning a weekly neighborhood newsletter", () => {
+  const prose =
+    `<p>The weekly neighborhood newsletter documented school meetings, market ` +
+    `closures, and volunteer repairs long before the city created an archive.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("weekly neighborhood newsletter"), "ordinary newsletter prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps latest-newsletter prose that is not an inbox CTA", () => {
+  const prose =
+    `<p>The latest newsletter documented school meetings, cafeteria changes, ` +
+    `and repairs to the gym before the district posted minutes online.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("The latest newsletter documented"), "ordinary latest-newsletter prose kept");
+  assertBodyIntact(out);
+});
+
+test("keeps ordinary prose about an actual delivered newsletter", () => {
+  const prose =
+    `<p>The newsletter is delivered every Tuesday with city updates, school ` +
+    `board notes, and a calendar of public meetings for residents.</p>`;
+  const html =
+    BODY.split("\n").slice(0, 1).join("") +
+    prose +
+    BODY.split("\n").slice(1).join("\n");
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("newsletter is delivered every Tuesday"), "ordinary delivered-newsletter prose kept");
+  assertBodyIntact(out);
+});
+
+test("removes duplicated-candidate newsletter CTA in a shorter article", () => {
+  const cta =
+    `<p class="newsletter-cta">Get the latest newsletters delivered directly ` +
+    `to your inbox every Friday with practical reading ideas, local events, ` +
+    `selected essays, classroom notes, and archive links.</p>`;
+  const html = BODY + cta;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Get the latest newsletters"), "duplicated CTA candidate removed");
+  assertBodyIntact(out);
+});
+
+test("removes sign-up CTAs when account or promotional context is present", () => {
+  const html =
+    BODY +
+    `<p>Sign up for a free account to save this article.</p>` +
+    `<p>Sign up today for subscriber-only deals and discounts.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("free account"), "account sign-up CTA removed");
+  assert.ok(!out.includes("subscriber-only deals"), "promotional sign-up CTA removed");
+  assertBodyIntact(out);
+});
+
 test("guard: a long body paragraph that merely contains 'subscribe' is KEPT", () => {
   const longPara =
     `<p>Readers who want to subscribe to the underlying dataset can do so through ` +
@@ -203,6 +343,72 @@ test("guard: a long body paragraph that merely contains 'subscribe' is KEPT", ()
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("subscribe to the underlying dataset"), "long prose with 'subscribe' kept");
+  assertBodyIntact(out);
+});
+
+test("removes longer newsletter preference/signup residue without removing subscribe prose", () => {
+  const html =
+    BODY +
+    `<p>We’re having trouble saving your preferences. Try refreshing this page and updating them one more time. If you continue to get this message, reach out to customer service about newsletters and account preferences.</p>` +
+    `<p>SIGN UP FOR NEWSLETTER JOURNEYS: Dive deeper into pressing issues with our limited run newsletters, delivered weekly with hand-picked archive excerpts and updates. ${Array.from({ length: 55 }, () => "archive").join(" ")}</p>` +
+    `<p>Researchers can subscribe to the underlying dataset through the public portal after agreeing to the license terms for reproducibility.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("trouble saving your preferences"), "preference residue removed");
+  assert.ok(!out.includes("SIGN UP FOR NEWSLETTER JOURNEYS"), "long newsletter CTA removed");
+  assert.ok(out.includes("subscribe to the underlying dataset"), "legitimate subscribe prose kept");
+  assertBodyIntact(out);
+});
+
+test("removes favicon and newsletter promo images while keeping article media", () => {
+  const html =
+    `<p>A field camera recorded the owl after dusk. <img src="https://cdn.example.org/favicon.ico" alt="" /></p>` +
+    `<figure><img src="https://cdn.example.org/photos/owl-flight.jpg" alt="An owl in flight" /><figcaption>A genuine article photo.</figcaption></figure>` +
+    BODY +
+    `<hr /><p><img src="https://undark.org/wp-content/uploads/2024/11/compass.png" alt="Newsletter Journeys" /></p><hr />` +
+    `<p>The closing paragraph discusses comments about donated clothing, a public comment period, and requests for comment from officials.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("favicon.ico"), "favicon image removed");
+  assert.ok(!out.includes("compass.png"), "newsletter promo image removed");
+  assert.ok(!out.includes("Newsletter Journeys"), "promo alt text removed");
+  assert.ok(out.includes("owl-flight.jpg"), "article image kept");
+  assert.ok(out.includes("A genuine article photo"), "article caption kept");
+  assert.ok(out.includes("comments about donated clothing"), "legitimate comments prose kept");
+  assert.ok(out.includes("public comment period"), "legitimate public-comment prose kept");
+  assert.ok(out.includes("requests for comment"), "legitimate requests-for-comment prose kept");
+  assertBodyIntact(out);
+});
+
+test("removes trailing publication CTA and newsletter signup residue", () => {
+  const html =
+    BODY +
+    `<p><em>Enjoying </em><a href="https://nautil.us/">Nautilus</a><em>? Subscribe to our free </em><a href="/newsletter"><em>newsletter</em></a>.</p>` +
+    `<h3>Stay connected</h3>` +
+    `<h2>Get the latest updates from<br />MIT Technology Review</h2>` +
+    `<p>Discover special offers, top stories, upcoming events, and more.</p>` +
+    `<p>Thank you for submitting your email!</p>` +
+    `<p>It looks like something went wrong.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Enjoying"), "publication subscribe CTA removed");
+  assert.ok(!out.includes("Stay connected"), "signup heading removed");
+  assert.ok(!out.includes("latest updates"), "signup title removed");
+  assert.ok(!out.includes("special offers"), "signup description removed");
+  assert.ok(!out.includes("submitting your email"), "signup success residue removed");
+  assert.ok(!out.includes("something went wrong"), "signup error residue removed");
+  assertBodyIntact(out);
+});
+
+test("removes ranked recirculation item without touching ordinary popular prose", () => {
+  const html =
+    BODY +
+    `<p><strong>10 Grok’s most popular feature? Smut</strong><br />It accounts for a large share of the chatbot’s traffic.</p>` +
+    `<p>The exhibit became popular with students after teachers used it to explain voting trends in local history.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Grok’s most popular feature"), "ranked recirc item removed");
+  assert.ok(out.includes("became popular with students"), "ordinary popular prose kept");
   assertBodyIntact(out);
 });
 

@@ -19,7 +19,19 @@ const huffpost: Provider = {
   categoryFor: categoryFromFirstSegment,
   cleanup: {
     dropSelectors: ["video", "iframe"],
-    dropClassKeywords: ["related", "social", "newsletter", "promo", "advertisement", "comment"],
+    dropClassKeywords: [
+      "related",
+      "related-entries",
+      "social",
+      "share-tools",
+      "newsletter",
+      "promo",
+      "advertisement",
+      "comment",
+      "author-card",
+      "embed-asset",
+      "js-entry-video",
+    ],
   },
 };
 
