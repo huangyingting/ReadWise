@@ -40,6 +40,21 @@ const STRIP_WITH_CONTENT_RE =
   /<(script|style|noscript|template)\b[^>]*>[\s\S]*?<\/\1>/gi;
 
 /**
+ * Unconditionally strip `<script>`, `<style>`, `<noscript>` and `<template>`
+ * elements (and their inner content) from HTML.
+ *
+ * Unlike {@link normalizeArticleHtml} this is **never gated** behind the
+ * `SCRAPER_HTML_NORMALIZE` flag — it is always safe and always desirable for
+ * the HTML used during BODY extraction, where leftover inline script/style
+ * text would otherwise leak into harvested `<p>` paragraphs or the Readability
+ * body. It must only be applied AFTER JSON-LD metadata has been read (JSON-LD
+ * lives inside `<script type="application/ld+json">`), never before.
+ */
+export function stripScriptsAndStyles(html: string): string {
+  return html.replace(STRIP_WITH_CONTENT_RE, "");
+}
+
+/**
  * Inline event-handler attributes: `onclick="…"`, `onerror='…'`, etc.
  * Matches the leading whitespace so the tag's remaining text stays clean.
  * Covers double-quoted, single-quoted, and unquoted values.

@@ -5,6 +5,7 @@
  * This runs AFTER body extraction and BEFORE sanitize. It targets residue that
  * structural extractors miss:
  *   1. the trailing author byline/bio paragraph at the bottom of the article,
+ *      and a short leading credits/author-bio block at the very top,
  *   2. related / newsletter / share / comments boilerplate blocks,
  *   3. high-link-density widgets (related/nav lists masquerading as prose).
  *
@@ -64,6 +65,10 @@ const WRAPPER_ID = "__rw_declutter_root__";
 
 /** How many trailing leaf blocks to scan when hunting the author byline. */
 const TRAILING_SCAN = 8;
+/** How many LEADING leaf blocks to scan for a credits/author-bio block. */
+const LEADING_SCAN = 2;
+/** Max length of a leading block we are willing to treat as credits/byline. */
+const LEADING_BYLINE_MAXLEN = 300;
 /** Fraction of original text above which aggressive removals are aborted. */
 const MAX_REMOVAL_RATIO = 0.35;
 
@@ -248,6 +253,63 @@ function collectTextBoilerplate(root: Element, out: Candidate[]): void {
   }
 }
 
+/**
+ * Confidence that a SHORT LEADING block is a credits/author-bio line.
+ *
+ * Conservative by design — only fires for short blocks that either:
+ *   - start with an explicit credits/byline prefix (`Credits`, `By …`), or
+ *   - match the known article author name (HIGH-confidence byline hint).
+ * A generic opening paragraph that merely mentions someone "is a researcher"
+ * without the author hint or a credits prefix is NEVER removed.
+ */
+function leadingBylineConfidence(text: string, normName: string | null): number {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > LEADING_BYLINE_MAXLEN) return 0;
+
+  // Explicit leading credits / byline prefix that also reads like a bio.
+  if (/^credits\b/i.test(trimmed)) return HIGH;
+  if (
+    /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u.test(
+      trimmed,
+    )
+  ) {
+    return HIGH;
+  }
+
+  // Known author name appearing in a short leading bio → strong signal.
+  if (normName) {
+    const conf = bylineConfidence(trimmed, normName);
+    if (conf >= HIGH) return HIGH;
+  }
+
+  return 0;
+}
+
+/** Forward-scan the first leaf blocks for a leading credits/author-bio block. */
+function collectLeadingByline(
+  root: Element,
+  normName: string | null,
+  out: Candidate[],
+): void {
+  const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+  let scanned = 0;
+  for (let i = 0; i < leaves.length && scanned < LEADING_SCAN; i++) {
+    const el = leaves[i];
+    const text = (el.textContent ?? "").trim();
+    if (text.length === 0) continue; // skip empty, don't count
+    scanned++;
+    const conf = leadingBylineConfidence(text, normName);
+    if (conf > 0) {
+      out.push({ el, confidence: conf });
+      continue;
+    }
+    // Boilerplate padding (CTA/share) may precede the real lede — skip it.
+    if (isBoilerplateBlock(el, text)) continue;
+    // First block of genuine opening prose → stop (never gut the real lede).
+    break;
+  }
+}
+
 /** Reverse-scan the trailing leaf blocks for the author byline/bio. */
 function collectTrailingByline(
   root: Element,
@@ -358,6 +420,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectLabelWidgets(root, candidates);
   collectLinkDense(root, candidates);
   collectTextBoilerplate(root, candidates);
+  collectLeadingByline(root, normName, candidates);
   collectTrailingByline(root, normName, candidates);
 
   const removals = selectRemovals(candidates, originalLen);

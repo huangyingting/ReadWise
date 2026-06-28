@@ -384,3 +384,58 @@ test("quality/sanitize: links get rel=noopener noreferrer nofollow target=_blank
   assert.match(result!.content, /rel="noopener noreferrer nofollow"/i);
   assert.match(result!.content, /target="_blank"/i);
 });
+
+// ---------------------------------------------------------------------------
+// Fixture: inline <script> must NOT leak into the article body (Bug A)
+// ---------------------------------------------------------------------------
+
+test("quality/scripts: inline analytics <script> never leaks into body", async () => {
+  const { extractArticle } = await import("@/lib/scraper/extract");
+
+  // Real-world leak: minified analytics JS (NewRelic) contains `<p>…</p>`
+  // substrings that the legacy `<p>`-harvest regex captured because scripts were
+  // not stripped first. Force the legacy path so we exercise that harvest.
+  const prevReadability = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const jsBlob =
+      'window.NREUM||(NREUM={});NREUM.info={beacon:"bam.nr-data.net"};' +
+      't.addEventListener("progress",function(t){var e=window.NREUM;' +
+      'e.prototype=function(){return "<p>34||h<10)||leak"+window.NREUM+"</p>"};' +
+      'document.body.innerHTML="<p>addEventListener function( injected</p>";';
+
+    const body = wordBlock(120, "prose");
+    const ld = {
+      "@type": "Article",
+      headline: "Life In Our Solar System",
+      author: { name: "Dr. Cosmos" },
+    };
+    const html =
+      "<html><head>" +
+      `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
+      "</head><body><article>" +
+      `<script data-nr-type="legacy">${jsBlob}</script>` +
+      `<p>${body}</p>` +
+      "</article></body></html>";
+
+    const result = extractArticle(
+      html,
+      "https://www.nationalgeographic.com/science/article/life-solar-system",
+    );
+
+    assert.ok(result, "should extract a valid article");
+    // JSON-LD metadata is still read despite unconditional script stripping.
+    assert.equal(result!.title, "Life In Our Solar System");
+    assert.equal(result!.author, "Dr. Cosmos");
+    // The real prose paragraph survives.
+    assert.match(result!.content, /prose1\b/, "real body prose is kept");
+    // None of the script text survives in the body.
+    assert.doesNotMatch(result!.content, /addEventListener/i, "no addEventListener in body");
+    assert.doesNotMatch(result!.content, /NREUM/i, "no NREUM token in body");
+    assert.doesNotMatch(result!.content, /function\s*\(/i, "no JS function( in body");
+    assert.doesNotMatch(result!.content, /\.prototype/i, "no .prototype in body");
+  } finally {
+    if (prevReadability === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prevReadability;
+  }
+});
