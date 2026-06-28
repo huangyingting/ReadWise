@@ -147,11 +147,71 @@ const KNOWABLE_LAYOUT_MENU_HTML = `<!doctype html>
   </body>
 </html>`;
 
+/**
+ * Fixture mirroring the LIVE Knowable trailing-citation boilerplate the user
+ * flagged: after the real `.fr-view` body the page renders the article's own
+ * visible DOI (`<div class="article-doi">10.1146/knowable-…</div>`) followed by a
+ * `<section class="deep-dive">` whose `<div class="deep-dive-header">` reads
+ * "TAKE A DEEPER DIVE | Explore Related Scholarly Articles" and which lists OTHER
+ * journal articles' titles/abstracts. Both blocks sit AFTER the body (outside
+ * `.fr-view`) but inside the harvest scope, so without cleanup they leak into the
+ * extracted prose and word count (verified across all 12 stored Knowable
+ * articles). The same DOI also appears in a `<head>` `<meta name="dc.identifier">`
+ * that must stay irrelevant (it is never harvested). The body carries a real
+ * `/docserver/` image + prose that must survive.
+ */
+const KNOWABLE_DEEP_DIVE_HTML = `<!doctype html>
+<html>
+  <head>
+    <meta property="og:title" content="What addiction does to the brain" />
+    <meta name="dc.identifier" content="doi:10.1146/knowable-042026-2" />
+  </head>
+  <body>
+    <main class="col-md-12 content main-content-container" id="main-content-container">
+      <div class="article-container-outer">
+        <section class="article-container">
+          <div class="fr-view">
+            <p>${wordBlock(45, "synapse")} as addiction reshapes reward circuits.</p>
+            <figure class="article-photo-info">
+              <img src="/docserver/fulltext/synapse-connectivity.jpg" alt="Synapse connectivity diagram" />
+              <figcaption class="article-photo-info-credit">CREDIT: KNOWABLE MAGAZINE / Studies in rodents reveal lasting change.</figcaption>
+            </figure>
+            <p>${wordBlock(45, "dopamine")} long after the drug is gone.</p>
+            <p>${wordBlock(45, "plasticity")} reversing the damage remains hard.</p>
+          </div>
+          <div class="article-doi">10.1146/knowable-042026-2</div>
+          <section class="deep-dive">
+            <div class="deep-dive-header">TAKE A DEEPER DIVE | Explore Related Scholarly Articles</div>
+            <ul class="deep-dive-list">
+              <li>
+                <a href="/doi/10.1146/annurev-pharmtox-061724"><h3>ANNUAL REVIEW OF PHARMACOLOGY AND TOXICOLOGY</h3></a>
+                <p>Synaptic Mechanisms of Addiction: a related scholarly review of reward circuitry.</p>
+              </li>
+              <li>
+                <a href="/doi/10.1146/annurev-neuro-091823"><h3>ANNUAL REVIEW OF NEUROSCIENCE</h3></a>
+                <p>Dopamine and Plasticity: another related scholarly article abstract.</p>
+              </li>
+            </ul>
+          </section>
+        </section>
+      </div>
+    </main>
+  </body>
+</html>`;
+
 test("knowable provider defines the donate/placeholder cleanup keywords", () => {
   const provider = getProvider("knowable");
   const keywords = provider?.cleanup?.dropClassKeywords ?? [];
   assert.ok(keywords.length, "cleanup.dropClassKeywords must be set");
-  for (const kw of ["promo-article", "layout-mode-menu", "ymal", "site-header", "site-footer"]) {
+  for (const kw of [
+    "promo-article",
+    "layout-mode-menu",
+    "ymal",
+    "deep-dive",
+    "article-doi",
+    "site-header",
+    "site-footer",
+  ]) {
     assert.ok(keywords.includes(kw), `must drop "${kw}" blocks`);
   }
   // Must NOT list article-sidebar — it would also match article-sidebar-img and
@@ -265,6 +325,70 @@ test("extractArticle drops the LAYOUT MENU chrome but keeps the body + /docserve
       content,
       /<img[^>]*\bsrc=["']https:\/\/knowablemagazine\.org\/docserver\/fulltext\/i-marina-wolf\.jpg["']/i,
       "portrait /docserver/ image must be preserved with an absolute src",
+    );
+
+    // Body prose retained and the word count is article-sized (not gutted).
+    assert.match(content, /synapse1\b/, "body prose retained");
+    assert.match(content, /plasticity1\b/, "body prose retained");
+    assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+});
+
+test("knowable cleanup strips the deep-dive citation rail + visible DOI, keeps body + /docserver/ image", () => {
+  const provider = getProvider("knowable");
+  const cleaned = applyProviderCleanup(KNOWABLE_DEEP_DIVE_HTML, provider!.cleanup!);
+  // Assert against the BODY region: the `<head>` `<meta name="dc.identifier">`
+  // legitimately keeps the DOI, but it is never harvested into the article body.
+  const body = cleaned.slice(cleaned.indexOf("</head>"));
+
+  // The whole "TAKE A DEEPER DIVE / Related Scholarly Articles" rail is gone —
+  // the `deep-dive` keyword substring-matches both `.deep-dive` and its nested
+  // `.deep-dive-header`.
+  assert.doesNotMatch(body, /TAKE A DEEP/i, "deep-dive header must be removed");
+  assert.doesNotMatch(body, /DEEPER DIVE/i, "deep-dive header must be removed");
+  assert.doesNotMatch(body, /Related Scholarly/i, "related-scholarly rail must be removed");
+  assert.doesNotMatch(body, /ANNUAL REVIEW OF/i, "related journal headings must be removed");
+  assert.doesNotMatch(cleaned, /class="deep-dive/i, "the deep-dive container must be removed");
+
+  // The visible `.article-doi` block is gone from the body.
+  assert.doesNotMatch(body, /10\.1146\/knowable/i, "visible article DOI must be removed");
+  assert.doesNotMatch(cleaned, /class="article-doi"/i, "the article-doi container must be removed");
+
+  // Real body + the /docserver/ image survive (NOT over-dropped).
+  assert.match(cleaned, /synapse1\b/, "body prose must be retained");
+  assert.match(cleaned, /plasticity1\b/, "body prose must be retained");
+  assert.match(cleaned, /synapse-connectivity\.jpg/, "body /docserver/ image must be retained");
+  assert.match(cleaned, /Studies in rodents/, "genuine photo caption must be retained");
+});
+
+test("extractArticle strips the deep-dive/DOI boilerplate, keeps the body + /docserver/ image", () => {
+  // Force the legacy harvest path (no <article> wrapper → harvest wins), mirroring
+  // production: real Knowable pages carry no JSON-LD articleBody, so the DOM harvest
+  // is canonical and the trailing deep-dive/DOI blocks leak into the body without
+  // the cleanup (verified across all 12 stored Knowable articles).
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const result = extractArticle(KNOWABLE_DEEP_DIVE_HTML, ARTICLE_URL);
+    assert.ok(result, "extraction must succeed");
+    assert.equal(result!.source, "Knowable Magazine");
+    const content = result!.content;
+
+    // The user's complaint — the trailing citation boilerplate — is gone.
+    assert.doesNotMatch(content, /TAKE A DEEP/i, "no deep-dive header in the final body");
+    assert.doesNotMatch(content, /DEEPER DIVE/i, "no deep-dive header in the final body");
+    assert.doesNotMatch(content, /Related Scholarly/i, "no related-scholarly rail in the final body");
+    assert.doesNotMatch(content, /10\.1146\/knowable/i, "no visible DOI string in the final body");
+
+    // The real article image survives with an ABSOLUTE knowable src (image-aware
+    // harvest from #856 stays intact).
+    assert.match(
+      content,
+      /<img[^>]*\bsrc=["']https:\/\/knowablemagazine\.org\/docserver\/fulltext\/synapse-connectivity\.jpg["']/i,
+      "body /docserver/ image must be preserved with an absolute src",
     );
 
     // Body prose retained and the word count is article-sized (not gutted).
