@@ -21,7 +21,10 @@ import { ArticleStatus, ArticleVisibility } from "@prisma/client";
 
 const USER_ID = "user-1";
 const OTHER_ID = "user-2";
-const LOCAL_DATE = "2026-06-27";
+// Anchored to the current UTC day so the pre-seeded Today session matches the
+// localDate the route/generator resolves from `new Date()` (avoids date-rollover
+// flakiness). Format matches dateKey(now, "UTC").
+const LOCAL_DATE = new Date().toISOString().slice(0, 10);
 
 type Row = Record<string, unknown>;
 type ArticleFixture = {
@@ -107,6 +110,11 @@ before(() => {
     namedExports: {
       prisma: {
         profile: { findUnique: async () => ({ timezone: "UTC" }) },
+        placementResult: { findUnique: async () => null },
+        seriesEnrollment: {
+          findFirst: async () => null,
+          findUnique: async () => null,
+        },
         readingProgress: readingProgressSpy,
         article: {
           findFirst: async ({ where }: { where: Row }) => {

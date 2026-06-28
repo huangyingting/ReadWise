@@ -17,7 +17,10 @@ type Row = Record<string, unknown>;
 let authState: AuthState = "ok";
 let sessionRow: Row | null = null;
 const USER_ID = "user-1";
-const LOCAL_DATE = "2026-06-27";
+// Anchored to the current UTC day so the pre-seeded Today session matches the
+// localDate the route/generator resolves from `new Date()` (avoids date-rollover
+// flakiness). Format matches dateKey(now, "UTC").
+const LOCAL_DATE = new Date().toISOString().slice(0, 10);
 
 function makeRow(overrides: Row = {}): Row {
   return {
@@ -54,6 +57,7 @@ before(() => {
     namedExports: {
       prisma: {
         profile: { findUnique: async () => ({ timezone: "UTC" }) },
+        placementResult: { findUnique: async () => null },
         todaySession: {
           findUnique: async ({
             where,
