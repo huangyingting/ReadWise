@@ -1,23 +1,34 @@
+/**
+ * How well-suited a category's content tends to be for English READING practice.
+ * Favors substantive, evergreen, well-structured prose:
+ *  - "high":   science, ideas, culture, history, environment, animals, travel, health
+ *  - "medium": world, tech, business, entertainment
+ *  - "low":    politics, sports
+ */
+export type ReadingSuitability = "high" | "medium" | "low";
+
 export type Category = {
   slug: string;
   label: string;
+  /** English-reading-suitability tier for this category. */
+  readingSuitability: ReadingSuitability;
 };
 
 export const CATEGORIES: readonly Category[] = [
-  { slug: "world", label: "World" },
-  { slug: "politics", label: "Politics" },
-  { slug: "business", label: "Business" },
-  { slug: "health", label: "Health" },
-  { slug: "science", label: "Science" },
-  { slug: "environment", label: "Environment" },
-  { slug: "animals", label: "Animals" },
-  { slug: "tech", label: "Tech" },
-  { slug: "sports", label: "Sports" },
-  { slug: "culture", label: "Culture" },
-  { slug: "history", label: "History" },
-  { slug: "travel", label: "Travel" },
-  { slug: "ideas", label: "Ideas" },
-  { slug: "entertainment", label: "Entertainment" },
+  { slug: "world", label: "World", readingSuitability: "medium" },
+  { slug: "politics", label: "Politics", readingSuitability: "low" },
+  { slug: "business", label: "Business", readingSuitability: "medium" },
+  { slug: "health", label: "Health", readingSuitability: "high" },
+  { slug: "science", label: "Science", readingSuitability: "high" },
+  { slug: "environment", label: "Environment", readingSuitability: "high" },
+  { slug: "animals", label: "Animals", readingSuitability: "high" },
+  { slug: "tech", label: "Tech", readingSuitability: "medium" },
+  { slug: "sports", label: "Sports", readingSuitability: "low" },
+  { slug: "culture", label: "Culture", readingSuitability: "high" },
+  { slug: "history", label: "History", readingSuitability: "high" },
+  { slug: "travel", label: "Travel", readingSuitability: "high" },
+  { slug: "ideas", label: "Ideas", readingSuitability: "high" },
+  { slug: "entertainment", label: "Entertainment", readingSuitability: "medium" },
 ] as const;
 
 export const CATEGORY_SLUGS: readonly string[] = CATEGORIES.map((c) => c.slug);
@@ -61,4 +72,41 @@ export function humanizeCategorySlug(slug: string): string {
     .split(/[-_]+/)
     .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
     .join(" ");
+}
+
+/** Numeric weight for each reading-suitability tier (high best, low worst). */
+const READING_SUITABILITY_RANKS: Record<ReadingSuitability, number> = {
+  high: 1.0,
+  medium: 0.6,
+  low: 0.25,
+};
+
+/**
+ * Returns the reading-suitability tier for a category slug. Unknown or null
+ * slugs default to "medium" so they neither earn a boost nor a penalty.
+ */
+export function readingSuitabilityOf(slug: string | null): ReadingSuitability {
+  if (slug == null) return "medium";
+  return CATEGORIES.find((c) => c.slug === slug)?.readingSuitability ?? "medium";
+}
+
+/**
+ * Numeric reading-suitability rank for a category slug: high=1.0, medium=0.6,
+ * low=0.25. Unknown/null slugs fall back to the "medium" rank (0.6).
+ */
+export function readingSuitabilityRank(slug: string | null): number {
+  return READING_SUITABILITY_RANKS[readingSuitabilityOf(slug)];
+}
+
+/** High + medium suitability slugs — the categories recommended for reading practice. */
+export const READING_RECOMMENDED_CATEGORIES: readonly string[] = CATEGORIES.filter(
+  (c) => c.readingSuitability !== "low",
+).map((c) => c.slug);
+
+/**
+ * True when a category is recommended for reading practice (high or medium
+ * suitability). Unknown/null slugs default to "medium" → recommended.
+ */
+export function isReadingRecommended(slug: string | null): boolean {
+  return readingSuitabilityOf(slug) !== "low";
 }

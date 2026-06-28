@@ -277,6 +277,40 @@ test("goalPath nudge: a long, hard article is penalised for the extensive path",
 });
 
 // ---------------------------------------------------------------------------
+// Reading-suitability soft signal
+// ---------------------------------------------------------------------------
+
+test("readingSuitabilityScore mirrors the category rank (high=1, medium=0.6, low=0.25)", async () => {
+  const { readingSuitabilityScore } = await import("@/lib/recommendations/scoring");
+  assert.equal(readingSuitabilityScore("science"), 1.0);
+  assert.equal(readingSuitabilityScore("business"), 0.6);
+  assert.equal(readingSuitabilityScore("sports"), 0.25);
+  assert.equal(readingSuitabilityScore(null), 0.6);
+});
+
+test("reading-suitability nudge: a high-suitability article scores ≥ a low one, within the cap", async () => {
+  const { scoreCandidate, READING_SUITABILITY_ADJUSTMENT_CAP } = await import(
+    "@/lib/recommendations/scoring"
+  );
+  // Hold every other signal equal: same difficulty, same everything but category.
+  const ctx = baseContext({ userLevel: "B1", userLevelRank: 2 });
+  const high = scoreCandidate(candidate({ id: "sci", category: "science", difficulty: "B1" }), ctx);
+  const medium = scoreCandidate(candidate({ id: "biz", category: "business", difficulty: "B1" }), ctx);
+  const low = scoreCandidate(candidate({ id: "spt", category: "sports", difficulty: "B1" }), ctx);
+
+  // High (boost) ≥ medium (unchanged) ≥ low (penalty).
+  assert.ok(high.score >= low.score);
+  assert.ok(high.score > medium.score);
+  assert.ok(medium.score > low.score);
+
+  // The total swing high↔low stays within twice the documented ±cap (in 0–100
+  // units, i.e. 100×cap each side).
+  const capPoints = READING_SUITABILITY_ADJUSTMENT_CAP * 100;
+  assert.ok(high.score - medium.score <= capPoints + 1e-9);
+  assert.ok(medium.score - low.score <= capPoints + 1e-9);
+});
+
+// ---------------------------------------------------------------------------
 // Diversity
 // ---------------------------------------------------------------------------
 
@@ -284,19 +318,21 @@ test("rankWithDiversity spreads categories instead of clustering the top one", a
   const { scoreCandidate } = await import("@/lib/recommendations/scoring");
   const { rankWithDiversity } = await import("@/lib/recommendations/diversity");
   const ctx = baseContext({ userLevel: "B1", userLevelRank: 2 });
-  // 4 science + 1 sports, science slightly higher base.
+  // 4 science + 1 health (same reading-suitability tier, so equal base) — the
+  // diversity pass, not the suitability nudge, is what must lift the off-category
+  // pick.
   const scored = [
     scoreCandidate(candidate({ id: "s1", category: "science", difficulty: "B1" }), ctx),
     scoreCandidate(candidate({ id: "s2", category: "science", difficulty: "B1" }), ctx),
     scoreCandidate(candidate({ id: "s3", category: "science", difficulty: "B1" }), ctx),
     scoreCandidate(candidate({ id: "s4", category: "science", difficulty: "B1" }), ctx),
-    scoreCandidate(candidate({ id: "sp1", category: "sports", difficulty: "B1" }), ctx),
+    scoreCandidate(candidate({ id: "h1", category: "health", difficulty: "B1" }), ctx),
   ];
   const ranked = rankWithDiversity(scored);
-  // The sports article should NOT be dead last despite a lower/equal base —
+  // The health article should NOT be dead last despite an equal base —
   // diversity lifts it above the 3rd+ science repeat.
-  const sportsIdx = ranked.findIndex((r) => r.category === "sports");
-  assert.ok(sportsIdx >= 0 && sportsIdx < 4, `sports at ${sportsIdx}`);
+  const otherIdx = ranked.findIndex((r) => r.category === "health");
+  assert.ok(otherIdx >= 0 && otherIdx < 4, `health at ${otherIdx}`);
   // A later same-category pick carries a recorded diversity penalty + note.
   const penalised = ranked.find((r) => r.diversityPenalty > 0);
   assert.ok(penalised, "expected at least one diversity-penalised result");

@@ -11,6 +11,10 @@ import {
   categoryGradient,
   isValidCategorySlug,
   humanizeCategorySlug,
+  readingSuitabilityOf,
+  readingSuitabilityRank,
+  isReadingRecommended,
+  READING_RECOMMENDED_CATEGORIES,
 } from "@/lib/categories";
 
 const EXPECTED: ReadonlyArray<[string, string]> = [
@@ -88,4 +92,84 @@ test("humanizeCategorySlug uses registered labels and humanizes unknown slugs", 
   assert.equal(humanizeCategorySlug("ideas"), "Ideas");
   assert.equal(humanizeCategorySlug("travel"), "Travel");
   assert.equal(humanizeCategorySlug("some-unknown_slug"), "Some Unknown Slug");
+});
+
+// ---------------------------------------------------------------------------
+// Reading-suitability tiers
+// ---------------------------------------------------------------------------
+
+const EXPECTED_SUITABILITY: Record<string, "high" | "medium" | "low"> = {
+  science: "high",
+  ideas: "high",
+  culture: "high",
+  history: "high",
+  environment: "high",
+  animals: "high",
+  travel: "high",
+  health: "high",
+  world: "medium",
+  tech: "medium",
+  business: "medium",
+  entertainment: "medium",
+  politics: "low",
+  sports: "low",
+};
+
+test("every category has a valid readingSuitability tier", () => {
+  for (const c of CATEGORIES) {
+    assert.ok(
+      ["high", "medium", "low"].includes(c.readingSuitability),
+      `category "${c.slug}" must have a valid readingSuitability`,
+    );
+  }
+});
+
+test("readingSuitability tier assignments match the documented mapping", () => {
+  for (const c of CATEGORIES) {
+    assert.equal(
+      c.readingSuitability,
+      EXPECTED_SUITABILITY[c.slug],
+      `category "${c.slug}" tier`,
+    );
+  }
+});
+
+test("readingSuitabilityOf returns tiers and defaults unknown/null to medium", () => {
+  assert.equal(readingSuitabilityOf("science"), "high");
+  assert.equal(readingSuitabilityOf("business"), "medium");
+  assert.equal(readingSuitabilityOf("politics"), "low");
+  assert.equal(readingSuitabilityOf("sports"), "low");
+  assert.equal(readingSuitabilityOf("not-a-category"), "medium");
+  assert.equal(readingSuitabilityOf(null), "medium");
+});
+
+test("readingSuitabilityRank maps tiers to high=1.0, medium=0.6, low=0.25", () => {
+  assert.equal(readingSuitabilityRank("science"), 1.0);
+  assert.equal(readingSuitabilityRank("business"), 0.6);
+  assert.equal(readingSuitabilityRank("politics"), 0.25);
+  assert.equal(readingSuitabilityRank("not-a-category"), 0.6);
+  assert.equal(readingSuitabilityRank(null), 0.6);
+});
+
+test("READING_RECOMMENDED_CATEGORIES is the high+medium set and excludes politics+sports", () => {
+  assert.ok(!READING_RECOMMENDED_CATEGORIES.includes("politics"));
+  assert.ok(!READING_RECOMMENDED_CATEGORIES.includes("sports"));
+  for (const [slug, tier] of Object.entries(EXPECTED_SUITABILITY)) {
+    assert.equal(
+      READING_RECOMMENDED_CATEGORIES.includes(slug),
+      tier !== "low",
+      `"${slug}" recommended-membership`,
+    );
+  }
+  // exactly the 12 non-low slugs
+  assert.equal(READING_RECOMMENDED_CATEGORIES.length, 12);
+});
+
+test("isReadingRecommended is true for high/medium/unknown and false for low", () => {
+  assert.equal(isReadingRecommended("science"), true);
+  assert.equal(isReadingRecommended("business"), true);
+  assert.equal(isReadingRecommended("politics"), false);
+  assert.equal(isReadingRecommended("sports"), false);
+  assert.equal(isReadingRecommended("not-a-category"), true);
+  assert.equal(isReadingRecommended(null), true);
 });

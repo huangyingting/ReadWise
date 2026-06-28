@@ -27,6 +27,7 @@ import type {
 import { COMPONENT_WEIGHTS, WEAK_WORD_REEXPOSURE_MAX_POINTS, WEAK_WORD_REEXPOSURE_TARGET } from "./types";
 import type { WeakWordReexposure } from "./types";
 import { applyGoalPathAdjustment } from "@/lib/learning/goal-path";
+import { readingSuitabilityRank } from "@/lib/categories";
 import { headlineReason, buildExplanationLines } from "./explanations";
 
 // ---------------------------------------------------------------------------
@@ -163,6 +164,46 @@ export function weakWordReexposureSignal(
 }
 
 // ---------------------------------------------------------------------------
+// Reading-suitability soft signal
+// ---------------------------------------------------------------------------
+
+/**
+ * Maximum additive nudge (in normalised 0–1 score units, same scale as the
+ * goal-path nudge) the reading-suitability signal may apply. Kept small so it
+ * never dominates the core difficulty/novelty/mastery components.
+ */
+export const READING_SUITABILITY_ADJUSTMENT_CAP = 0.1;
+
+/** "medium" rank — the neutral baseline that yields a zero nudge. */
+const READING_SUITABILITY_BASELINE = 0.6;
+
+/**
+ * Pure reading-suitability component (0–1): how well-suited the article's
+ * category is for English reading PRACTICE. High-suitability topics (science,
+ * ideas, …) score 1.0; medium 0.6; low (politics, sports) 0.25. Unknown/null
+ * categories fall back to the medium rank. Delegates to `readingSuitabilityRank`.
+ */
+export function readingSuitabilityScore(category: string | null): number {
+  return readingSuitabilityRank(category);
+}
+
+/**
+ * Soft, capped reading-suitability nudge in normalised 0–1 units, centred on the
+ * "medium" tier so medium/unknown categories are left completely unchanged. High
+ * suitability earns up to +{@link READING_SUITABILITY_ADJUSTMENT_CAP}; low
+ * suitability a proportional penalty. PURE — category metadata only.
+ */
+export function readingSuitabilityDelta(category: string | null): number {
+  const scaled =
+    (readingSuitabilityScore(category) - READING_SUITABILITY_BASELINE) *
+    (READING_SUITABILITY_ADJUSTMENT_CAP / (1 - READING_SUITABILITY_BASELINE));
+  return Math.max(
+    -READING_SUITABILITY_ADJUSTMENT_CAP,
+    Math.min(READING_SUITABILITY_ADJUSTMENT_CAP, scaled),
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Candidate scorer
 // ---------------------------------------------------------------------------
 
@@ -219,7 +260,17 @@ export function scoreCandidate(
   const adjusted = ctx.goalPath
     ? applyGoalPathAdjustment(weighted, candidate, ctx.goalPath)
     : weighted;
-  const componentScore = adjusted * 100; // 0–100
+
+  // Reading-suitability (soft signal): a small, capped nudge favouring topics
+  // that make substantive, evergreen English reading PRACTICE — applied on the
+  // same normalised 0–1 scale as the goal-path nudge and clamped back into
+  // [0, 1]. Medium/unknown categories are left unchanged (zero delta), so this
+  // never disturbs the core seven-component contract.
+  const withSuitability = Math.max(
+    0,
+    Math.min(1, adjusted + readingSuitabilityDelta(candidate.category ?? null)),
+  );
+  const componentScore = withSuitability * 100; // 0–100
 
   // Soft, capped weak-word re-exposure booster (#808): a deterministic nudge —
   // never a hard filter — folded into the base score before diversity ranking.
