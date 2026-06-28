@@ -16,7 +16,7 @@ const time: Provider = {
   articleUrlPattern: /time\.com\/(?:article\/\d{4}\/\d{2}\/\d{2}\/|\d{7}\/[a-z0-9-]+\/?)/i,
   articleUrlFilter: (url) => excludes(url, ["/collection", "/tag/", "/author/"]),
   defaultCategory: "world",
-  categories: ["world", "politics", "business", "health", "science", "tech", "entertainment", "sports"],
+  categories: ["world", "politics", "business", "health", "science", "tech", "entertainment", "sports", "ideas", "environment"],
   categoryFor: (url, section) =>
     mapSectionToCategory(section) ??
     mapSectionToCategory(url.pathname.replace(/\/article\/\d{4}\/\d{2}\/\d{2}\//, "/")),

@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes } from "./shared";
+import { excludes, lookupSection } from "./shared";
 
 const smithsonian: Provider = {
   key: "smithsonian",
@@ -27,19 +27,15 @@ const smithsonian: Provider = {
       "/terms/",
     ]),
   defaultCategory: "history",
-  categories: ["history", "science", "culture", "travel"],
+  categories: ["history", "science", "culture", "travel", "tech"],
   categoryFor: (url, section) =>
-    categoryFromRules(
-      url,
-      section,
-      [
-        [/history|heritage|archaeolog|ancient/, "history"],
-        [/travel|destination/, "travel"],
-        [/science|nature|innovation/, "science"],
-        [/arts|culture/, "culture"],
-      ],
-      "history",
-    ),
+    lookupSection(url, section, [
+      [/innovation/, "tech"],
+      [/history|heritage|archaeolog|ancient/, "history"],
+      [/travel|destination/, "travel"],
+      [/science.?(&|and|-).?nature|science-nature|\bscience\b|\bnature\b/, "science"],
+      [/arts.?(&|and|-).?culture|arts-culture|\barts\b|culture/, "culture"],
+    ]),
 };
 
 export default smithsonian;

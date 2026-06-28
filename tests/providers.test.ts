@@ -1,8 +1,8 @@
 /**
  * Tests for provider registration and category mapping (Issue #118).
- * Verifies: BBC Learning English and VOA Learning English are registered,
- * their articleUrlPattern matches expected paths, and categoryFor maps
- * topic paths to canonical CATEGORY_SLUGS.
+ * Verifies: BBC Learning English is registered, articleUrlPatterns match
+ * expected paths, categoryFor maps topic paths to canonical CATEGORY_SLUGS,
+ * and the shared mapSectionToCategory keyword mapper routes sections correctly.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -62,56 +62,6 @@ test("bbc-learning-english categoryFor defaults to culture for generic paths", (
 });
 
 // ---------------------------------------------------------------------------
-// VOA Learning English
-// ---------------------------------------------------------------------------
-
-test("voa-learning-english provider is registered", () => {
-  const p = getProvider("voa-learning-english");
-  assert.ok(p, "VOA Learning English must be in the PROVIDERS registry");
-  assert.equal(p?.key, "voa-learning-english");
-});
-
-test("voa-learning-english articleUrlPattern matches /a/<slug>.html paths", () => {
-  const p = getProviderOrFail("voa-learning-english");
-  assert.ok(p.articleUrlPattern.test("https://learningenglish.voanews.com/a/climate-change-impacts.html"), "should match /a/ article");
-  assert.ok(p.articleUrlPattern.test("https://learningenglish.voanews.com/a/us-economy-2025.html"), "should match /a/ article");
-  assert.ok(!p.articleUrlPattern.test("https://learningenglish.voanews.com/science-technology"), "should NOT match section pages");
-  assert.ok(!p.articleUrlPattern.test("https://learningenglish.voanews.com/"), "should NOT match homepage");
-});
-
-test("voa-learning-english categoryFor maps science-technology path to science", () => {
-  const p = getProviderOrFail("voa-learning-english");
-  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
-  const url = new URL("https://learningenglish.voanews.com/science-technology");
-  const cat = p.categoryFor!(url, "science-technology");
-  assert.equal(cat, "science");
-});
-
-test("voa-learning-english categoryFor maps health-lifestyle to health", () => {
-  const p = getProviderOrFail("voa-learning-english");
-  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
-  const url = new URL("https://learningenglish.voanews.com/health-lifestyle");
-  const cat = p.categoryFor!(url, "health-lifestyle");
-  assert.equal(cat, "health");
-});
-
-test("voa-learning-english categoryFor maps arts-culture to culture", () => {
-  const p = getProviderOrFail("voa-learning-english");
-  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
-  const url = new URL("https://learningenglish.voanews.com/arts-culture");
-  const cat = p.categoryFor!(url, "arts-culture");
-  assert.equal(cat, "culture");
-});
-
-test("voa-learning-english categoryFor returns a valid category slug for any path", () => {
-  const p = getProviderOrFail("voa-learning-english");
-  assert.ok(p.categoryFor, "VOA must have a categoryFor function");
-  const url = new URL("https://learningenglish.voanews.com/a/some-article.html");
-  const cat = p.categoryFor!(url, null);
-  assert.ok(cat === null || CATEGORY_SLUGS.includes(cat), `returned "${cat}" must be null or a valid slug`);
-});
-
-// ---------------------------------------------------------------------------
 // General provider registry
 // ---------------------------------------------------------------------------
 
@@ -137,10 +87,30 @@ test("every provider's categories[] entries are valid category slugs", () => {
   }
 });
 
-test("aeon/noema default to 'ideas' and smithsonian to 'history'", () => {
-  assert.equal(getProviderOrFail("aeon").defaultCategory, "ideas");
+test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("noema").defaultCategory, "ideas");
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
+});
+
+test("registry holds exactly the 12 active providers (aeon + voa removed)", () => {
+  const keys = PROVIDERS.map((p) => p.key).sort();
+  assert.deepEqual(keys, [
+    "bbc",
+    "bbc-learning-english",
+    "huffpost",
+    "knowable",
+    "natgeo",
+    "nautilus",
+    "nbc",
+    "noema",
+    "smithsonian",
+    "technologyreview",
+    "time",
+    "undark",
+  ]);
+  assert.equal(PROVIDERS.length, 12);
+  assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
+  assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
 
 test("getProvider is case-insensitive", () => {
@@ -154,7 +124,6 @@ test("source-derived providers are registered", () => {
     "smithsonian",
     "knowable",
     "nautilus",
-    "aeon",
     "technologyreview",
     "noema",
     "undark",
@@ -178,7 +147,6 @@ test("source-derived provider URL patterns match article URLs", () => {
     ),
   );
   assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/example-story-123456/"));
-  assert.ok(getProviderOrFail("aeon").articleUrlPattern.test("https://aeon.co/essays/example-story"));
   assert.ok(
     getProviderOrFail("technologyreview").articleUrlPattern.test(
       "https://www.technologyreview.com/2026/06/23/123456/example-story/",
@@ -233,4 +201,104 @@ test("mapSectionToCategory regression: science/culture/entertainment buckets unc
   assert.equal(mapSectionToCategory("art"), "culture");
   assert.equal(mapSectionToCategory("book"), "culture");
   assert.equal(mapSectionToCategory("movie"), "entertainment");
+});
+
+test("mapSectionToCategory FIX: 'living world' and 'science-nature' resolve to science", () => {
+  // BUG 1: "living world" used to leak into `world` via the \bworld rule.
+  assert.equal(mapSectionToCategory("living world"), "science");
+  assert.equal(mapSectionToCategory("living-world"), "science");
+  // BUG 2: "science-nature" used to leak into `environment` via the `nature` rule.
+  assert.equal(mapSectionToCategory("science-nature"), "science");
+  assert.equal(mapSectionToCategory("science & nature"), "science");
+  assert.equal(mapSectionToCategory("science nature"), "science");
+  assert.equal(mapSectionToCategory("the mind"), "science");
+  assert.equal(mapSectionToCategory("mind"), "science");
+});
+
+test("mapSectionToCategory: new science keywords route to science", () => {
+  for (const s of ["biology", "zoology", "paleontology", "psychology", "neuroscience", "astronomy", "astrophysics", "physics", "chemistry", "math", "mathematics", "genetics", "cosmos"]) {
+    assert.equal(mapSectionToCategory(s), "science", `"${s}" should map to science`);
+  }
+});
+
+test("mapSectionToCategory: new tech keywords route to tech (AI → tech)", () => {
+  for (const s of ["innovation", "computing", "artificial intelligence", "ai", "robotics", "software", "gadget"]) {
+    assert.equal(mapSectionToCategory(s), "tech", `"${s}" should map to tech`);
+  }
+});
+
+test("mapSectionToCategory: society routes to culture", () => {
+  assert.equal(mapSectionToCategory("society"), "culture");
+  assert.equal(mapSectionToCategory("social science"), "culture");
+});
+
+test("mapSectionToCategory regression: climate→environment, music→entertainment hold", () => {
+  assert.equal(mapSectionToCategory("climate"), "environment");
+  assert.equal(mapSectionToCategory("wildlife"), "environment");
+  assert.equal(mapSectionToCategory("music"), "entertainment");
+  assert.equal(mapSectionToCategory("art"), "culture");
+  assert.equal(mapSectionToCategory("space"), "science");
+});
+
+// ---------------------------------------------------------------------------
+// Per-provider categoryFor (idiosyncratic section labels from live discovery)
+// ---------------------------------------------------------------------------
+
+test("knowable categoryFor: 'living world' → science, 'society' → culture", () => {
+  const p = getProviderOrFail("knowable");
+  const u = new URL("https://knowablemagazine.org/content/article/society/2026/example-story");
+  assert.equal(p.categoryFor!(u, "Living World"), "science");
+  assert.equal(p.categoryFor!(u, "The Mind"), "science");
+  assert.equal(p.categoryFor!(u, "Society"), "culture");
+  assert.equal(p.categoryFor!(u, "Health & Disease"), "health");
+  assert.equal(p.categoryFor!(u, "Food & Environment"), "environment");
+  assert.equal(p.categoryFor!(u, "Technology"), "tech");
+});
+
+test("undark categoryFor: 'fish & wildlife' → environment, 'science policy' → politics", () => {
+  const p = getProviderOrFail("undark");
+  const u = new URL("https://undark.org/2026/06/23/example-story/");
+  assert.equal(p.categoryFor!(u, "Fish & Wildlife"), "environment");
+  assert.equal(p.categoryFor!(u, "Environment & Conservation"), "environment");
+  assert.equal(p.categoryFor!(u, "Health & Medicine"), "health");
+  assert.equal(p.categoryFor!(u, "Technology & Innovation"), "tech");
+  assert.equal(p.categoryFor!(u, "Science Policy"), "politics");
+  assert.equal(p.categoryFor!(u, "Space & Astronomy"), "science");
+  assert.equal(p.categoryFor!(u, "Math & Physics"), "science");
+  assert.equal(p.categoryFor!(u, "Social Sciences"), "culture");
+  assert.equal(p.categoryFor!(u, "Books"), "culture");
+  // newsletter/format labels fall through to null
+  assert.equal(p.categoryFor!(u, "Viewpoints"), null);
+  assert.equal(p.categoryFor!(u, "Interviews"), null);
+});
+
+test("technologyreview categoryFor: biotech→health, climate change & energy→environment", () => {
+  const p = getProviderOrFail("technologyreview");
+  const u = new URL("https://www.technologyreview.com/2026/06/23/123456/example-story/");
+  assert.equal(p.categoryFor!(u, "Artificial intelligence"), "tech");
+  assert.equal(p.categoryFor!(u, "Computing"), "tech");
+  assert.equal(p.categoryFor!(u, "Biotechnology and health"), "health");
+  assert.equal(p.categoryFor!(u, "Climate change and energy"), "environment");
+  assert.equal(p.categoryFor!(u, "The Download"), null);
+  assert.equal(p.categoryFor!(u, "Sponsored"), null);
+});
+
+test("smithsonian categoryFor: science-nature→science, innovation→tech", () => {
+  const p = getProviderOrFail("smithsonian");
+  assert.equal(
+    p.categoryFor!(new URL("https://www.smithsonianmag.com/science-nature/example-180987800/"), "Science & Nature"),
+    "science",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.smithsonianmag.com/innovation/example-180987800/"), "Innovation"),
+    "tech",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.smithsonianmag.com/history/example-180987800/"), "History"),
+    "history",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.smithsonianmag.com/arts-culture/example-180987800/"), "Arts & Culture"),
+    "culture",
+  );
 });

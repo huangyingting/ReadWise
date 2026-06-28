@@ -265,9 +265,9 @@ regardless of the above limits.
 
 ### Provider coverage
 
-14 structured providers are registered (`src/lib/scraper/providers/`): aeon,
+12 structured providers are registered (`src/lib/scraper/providers/`):
 BBC, BBC Learning English, HuffPost, Knowable, NatGeo, Nautilus, NBC, Noema,
-Smithsonian, Technology Review, Time, Undark, VOA Learning English. Unknown
+Smithsonian, Technology Review, Time, Undark. Unknown
 providers fall back to generic HTML extraction.
 
 ### Signals to watch

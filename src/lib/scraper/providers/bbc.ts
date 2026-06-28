@@ -46,7 +46,7 @@ const bbc: Provider = {
     /^https:\/\/(?:www\.)?bbc\.(?:com|co\.uk)\/news\/(?:articles\/[a-z0-9]+|[a-z0-9_-]+-\d{6,})(?:[/?#].*)?$/i,
   articleUrlFilter: isBbcNewsArticleUrl,
   defaultCategory: "world",
-  categories: ["world", "politics", "business", "health", "science", "tech"],
+  categories: ["world", "politics", "business", "health", "science", "tech", "entertainment", "sports", "culture"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,

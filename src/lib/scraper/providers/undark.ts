@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
+import { excludes, lookupSection, rssUrlExtractor } from "./shared";
 
 const undark: Provider = {
   key: "undark",
@@ -37,20 +37,17 @@ const undark: Provider = {
       "/wp-",
     ]),
   defaultCategory: "science",
-  categories: ["science", "environment", "health"],
+  categories: ["science", "environment", "health", "tech", "politics", "culture"],
   categoryFor: (url, section) =>
-    categoryFromRules(
-      url,
-      section,
-      [
-        [/health|medicine|covid|drugs/, "health"],
-        [/technology|innovation/, "tech"],
-        [/policy|social-sciences|academia/, "politics"],
-        [/climate|environment|wildlife|sustainab|ecolog/, "environment"],
-        [/physics|natural-sciences|space|science/, "science"],
-      ],
-      "science",
-    ),
+    lookupSection(url, section, [
+      [/health.?(&|and).?medicine|health-medicine|\bhealth\b|medicine|drugs|addiction|covid/, "health"],
+      [/fish.?(&|and).?wildlife|fish-wildlife|wildlife|environment.?(&|and).?conservation|environment-conservation|\benvironment\b|conservation|climate|sustainab|ecolog/, "environment"],
+      [/technology.?(&|and).?innovation|technology-innovation|technology|innovation/, "tech"],
+      [/science.?policy|science-policy|\bpolicy\b/, "politics"],
+      [/social.?science|social-science/, "culture"],
+      [/\bbooks?\b/, "culture"],
+      [/space.?(&|and).?astronomy|space-astronomy|space|astronom|math.?(&|and).?physics|math-physics|\bmath\b|physics|natural.?science|natural-science|\bscience\b/, "science"],
+    ]),
   /**
    * Discovers article URLs from Undark's RSS feed (the seed-HTML pages are
    * blocked with 403). Candidates are validated against `articleUrlPattern`

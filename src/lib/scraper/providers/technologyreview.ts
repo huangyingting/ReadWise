@@ -1,5 +1,5 @@
 import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
+import { excludes, lookupSection, rssUrlExtractor } from "./shared";
 
 const technologyreview: Provider = {
   key: "technologyreview",
@@ -29,20 +29,17 @@ const technologyreview: Provider = {
       "/sitemap",
     ]),
   defaultCategory: "tech",
-  categories: ["tech", "science"],
+  categories: ["tech", "science", "health", "environment"],
   categoryFor: (url, section) =>
-    categoryFromRules(
-      url,
-      section,
-      [
-        [/artificial-intelligence|computing|technology|digital|\bai\b/, "tech"],
-        [/biotechnology|climate|space|science/, "science"],
-        [/business|econom/, "business"],
-        [/culture/, "culture"],
-        [/policy|politic/, "politics"],
-      ],
-      "tech",
-    ),
+    lookupSection(url, section, [
+      [/biotechnology.?(&|and).?health|biotechnology|\bhealth\b|medicine/, "health"],
+      [/climate.?change.?(&|and).?energy|climate|\benergy\b|environment/, "environment"],
+      [/artificial.?intelligence|computing|\bai\b|software|robotic|technology|digital/, "tech"],
+      [/space|astronom|physics|\bscience\b/, "science"],
+      [/business|econom/, "business"],
+      [/culture/, "culture"],
+      [/\bpolicy\b|politic/, "politics"],
+    ]),
   /**
    * Discovers article URLs from MIT Technology Review's RSS feed (seed-HTML
    * discovery matches 0 article URLs). Candidates are validated against

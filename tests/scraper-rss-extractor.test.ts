@@ -1,7 +1,6 @@
 /**
  * Tests for the shared RSS URL extractor and the RSS-based discovery wiring
- * of the aeon / nautilus / noema / technologyreview / undark / knowable
- * providers.
+ * of the nautilus / noema / technologyreview / undark / knowable providers.
  *
  * No real network — all feeds are served from fixture XML via a mocked
  * `ctx.fetch` / injected `extractorFetch`.
@@ -209,24 +208,6 @@ test("knowable discovery: returns only article URLs from RSS", async () => {
   ]);
 });
 
-test("aeon discovery: returns only essay URLs from RSS", async () => {
-  const aeon = getProvider("aeon")!;
-  const feed = makeFeed([
-    "https://aeon.co/essays/why-the-sky-is-blue",
-    "https://aeon.co/essays/consciousness-and-machines",
-    // junk: non-essay paths
-    "https://aeon.co/videos/some-video",
-    "https://aeon.co/about",
-  ]);
-  const urls = await discoverWithFeeds(aeon, {
-    "https://aeon.co/feed.rss": feed,
-  });
-  assert.deepEqual(urls.sort(), [
-    "https://aeon.co/essays/consciousness-and-machines",
-    "https://aeon.co/essays/why-the-sky-is-blue",
-  ]);
-});
-
 test("nautilus discovery: returns only article URLs from RSS", async () => {
   const nautilus = getProvider("nautilus")!;
   const feed = makeFeed([
@@ -246,45 +227,8 @@ test("nautilus discovery: returns only article URLs from RSS", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// aeon / nautilus API → RSS fallback
+// nautilus API → RSS fallback
 // ---------------------------------------------------------------------------
-
-test("aeon urlExtractor: falls back to RSS when the GraphQL API returns nothing", async () => {
-  const aeon = getProvider("aeon")!;
-  const rssFeed = makeFeed(["https://aeon.co/essays/fallback-from-rss"]);
-  // The GraphQL API responds with an empty connection → fallback to RSS feed.
-  const fetchFn = async (url: string) => {
-    if (url === "https://aeon.co/feed.rss") return rssFeed;
-    // GraphQL endpoint: empty essay list
-    return JSON.stringify({ data: { articles: { edges: [], pageInfo: { hasNextPage: false } } } });
-  };
-  const urls = await aeon.urlExtractor!({ limit: 10, fetch: fetchFn });
-  assert.deepEqual(urls, ["https://aeon.co/essays/fallback-from-rss"]);
-});
-
-test("aeon urlExtractor: uses the GraphQL API when it returns results (no RSS)", async () => {
-  const aeon = getProvider("aeon")!;
-  let rssFetched = false;
-  const fetchFn = async (url: string) => {
-    if (url === "https://aeon.co/feed.rss") {
-      rssFetched = true;
-      return makeFeed(["https://aeon.co/essays/should-not-be-used"]);
-    }
-    return JSON.stringify({
-      data: {
-        articles: {
-          edges: [
-            { node: { url: "https://aeon.co/essays/from-api", type: "essay" }, cursor: "c0" },
-          ],
-          pageInfo: { hasNextPage: false, endCursor: null },
-        },
-      },
-    });
-  };
-  const urls = await aeon.urlExtractor!({ limit: 10, fetch: fetchFn });
-  assert.deepEqual(urls, ["https://aeon.co/essays/from-api"]);
-  assert.equal(rssFetched, false, "RSS feed must not be fetched when API succeeds");
-});
 
 test("nautilus urlExtractor: falls back to RSS when the WP API returns nothing", async () => {
   const nautilus = getProvider("nautilus")!;

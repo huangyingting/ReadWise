@@ -23,12 +23,10 @@ import bbc from "./bbc";
 import smithsonian from "./smithsonian";
 import knowable from "./knowable";
 import nautilus from "./nautilus";
-import aeon from "./aeon";
 import technologyreview from "./technologyreview";
 import noema from "./noema";
 import undark from "./undark";
 import bbcLearningEnglish from "./bbc-learning-english";
-import voaLearningEnglish from "./voa-learning-english";
 
 export const PROVIDERS: readonly Provider[] = [
   nbc,
@@ -39,12 +37,10 @@ export const PROVIDERS: readonly Provider[] = [
   smithsonian,
   knowable,
   nautilus,
-  aeon,
   technologyreview,
   noema,
   undark,
   bbcLearningEnglish,
-  voaLearningEnglish,
 ];
 
 export function getProvider(key: string): Provider | null {

@@ -31,7 +31,7 @@ const noema: Provider = {
       "/articles-search",
     ]),
   defaultCategory: "ideas",
-  categories: ["ideas", "politics", "culture", "tech", "science"],
+  categories: ["ideas", "politics", "culture", "tech", "science", "environment"],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
