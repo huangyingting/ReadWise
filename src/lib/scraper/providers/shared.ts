@@ -59,7 +59,8 @@ export function mapSectionToCategory(section: string | null): string | null {
   const rules: Array<[RegExp, string]> = [
     // Science is checked FIRST so biology/mind/"science-nature" sections beat the
     // broad `world` ("living world") and `environment` ("science & nature") rules.
-    [/\b((?<!social[\s.-])science|living.?world|the.?mind|\bmind\b|biolog|zoolog|paleontolog|psycholog|neuroscience|astronom|astrophysic|physic|chemist|\bmath|mathematic|genetic|cosmos|space|geolog|quantum)/, "science"],
+    [/\b((?<!social[\s.-])science|living.?world|the.?mind|\bmind\b|biolog|zoolog|evolution|paleontolog|psycholog|neuroscience|astronom|astrophysic|physic|chemist|\bmath|mathematic|genetic|cosmos|space|geolog|quantum)/, "science"],
+    [/\b(animals?|wildlife|species|endangered|extinction|fauna|creature|\bpets?\b|marine[\s.-]?life|safari)\b/, "animals"],
     [/\b(world|global|international|asia|europe|africa|americas|middle.?east)/, "world"],
     [/\b(politic|election|congress|white.?house|government|policy)/, "politics"],
     [/\b(business|money|econom|market|finance|deal|compan|industr)/, "business"],
@@ -67,7 +68,7 @@ export function mapSectionToCategory(section: string | null): string | null {
     [/\b(idea|philosoph|essay|opinion|ethic|consciousness|metaphysic|existential|the-?conversation)/, "ideas"],
     [/\b(histor|archaeolog|ancient|medieval|heritage|civil.?war|antiquit)/, "history"],
     [/\b(travel|destination|tourism|vacation|expedition|journey)/, "travel"],
-    [/\b(environment|climate|sustainab|conservation|wildlife|animal|ecolog|biodiversit|pollution|carbon|emission|nature|wild|ocean|planet|earth)/, "environment"],
+    [/\b(environment|climate|sustainab|conservation|ecolog|biodiversit|pollution|carbon|emission|ecosystem|habitat|nature|ocean|planet|earth)/, "environment"],
     [/\b(tech|gadget|software|hardware|\bai\b|artificial.?intelligence|innovation|computing|robotic|internet|digital)/, "tech"],
     [/\b(sport|nfl|nba|mlb|soccer|football|olympic)/, "sports"],
     [/\b(culture|art|book|style|food|fashion|design|\bsociety\b|social.?science)/, "culture"],

@@ -37,11 +37,12 @@ const undark: Provider = {
       "/wp-",
     ]),
   defaultCategory: "science",
-  categories: ["science", "environment", "health", "tech", "politics", "culture"],
+  categories: ["science", "environment", "animals", "health", "tech", "politics", "culture"],
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/health.?(&|and).?medicine|health-medicine|\bhealth\b|medicine|drugs|addiction|covid/, "health"],
-      [/fish.?(&|and).?wildlife|fish-wildlife|wildlife|environment.?(&|and).?conservation|environment-conservation|\benvironment\b|conservation|climate|sustainab|ecolog/, "environment"],
+      [/fish.?(&|and).?wildlife|fish-wildlife|wildlife/, "animals"],
+      [/environment.?(&|and).?conservation|environment-conservation|\benvironment\b|conservation|climate|sustainab|ecolog/, "environment"],
       [/technology.?(&|and).?innovation|technology-innovation|technology|innovation/, "tech"],
       [/science.?policy|science-policy|\bpolicy\b/, "politics"],
       [/social.?science|social-science/, "culture"],

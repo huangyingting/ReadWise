@@ -186,12 +186,48 @@ test("mapSectionToCategory handles learner-English topic strings", () => {
 test("mapSectionToCategory routes granular sections to new categories", () => {
   assert.equal(mapSectionToCategory("environment"), "environment");
   assert.equal(mapSectionToCategory("climate"), "environment");
-  assert.equal(mapSectionToCategory("wildlife"), "environment");
+  assert.equal(mapSectionToCategory("wildlife"), "animals");
   assert.equal(mapSectionToCategory("history"), "history");
   assert.equal(mapSectionToCategory("ancient"), "history");
   assert.equal(mapSectionToCategory("travel"), "travel");
   assert.equal(mapSectionToCategory("philosophy"), "ideas");
   assert.equal(mapSectionToCategory("essay"), "ideas");
+});
+
+test("mapSectionToCategory routes animal/wildlife sections to animals", () => {
+  assert.equal(mapSectionToCategory("animal"), "animals");
+  assert.equal(mapSectionToCategory("animals"), "animals");
+  assert.equal(mapSectionToCategory("wildlife"), "animals");
+  assert.equal(mapSectionToCategory("species"), "animals");
+  assert.equal(mapSectionToCategory("endangered species"), "animals");
+  assert.equal(mapSectionToCategory("extinction"), "animals");
+  assert.equal(mapSectionToCategory("marine life"), "animals");
+  assert.equal(mapSectionToCategory("pets"), "animals");
+  assert.equal(mapSectionToCategory("fauna"), "animals");
+  assert.equal(mapSectionToCategory("creature"), "animals");
+});
+
+test("mapSectionToCategory: science discipline framing beats animals", () => {
+  // zoology/biology/evolution are science-first even though they concern animals
+  assert.equal(mapSectionToCategory("zoology"), "science");
+  assert.equal(mapSectionToCategory("biology"), "science");
+  assert.equal(mapSectionToCategory("evolution"), "science");
+  assert.equal(mapSectionToCategory("science-nature"), "science");
+  assert.equal(mapSectionToCategory("living world"), "science");
+});
+
+test("mapSectionToCategory: environment keeps non-animal nature/conservation terms", () => {
+  assert.equal(mapSectionToCategory("climate"), "environment");
+  assert.equal(mapSectionToCategory("conservation"), "environment");
+  assert.equal(mapSectionToCategory("ecosystem"), "environment");
+  assert.equal(mapSectionToCategory("nature"), "environment");
+  assert.equal(mapSectionToCategory("ocean"), "environment");
+});
+
+test("mapSectionToCategory: animals border does NOT catch wildfire/wilderness/marine corps", () => {
+  assert.notEqual(mapSectionToCategory("wildfire"), "animals");
+  assert.notEqual(mapSectionToCategory("wilderness"), "animals");
+  assert.notEqual(mapSectionToCategory("marine corps"), "animals");
 });
 
 test("mapSectionToCategory regression: science/culture/entertainment buckets unchanged", () => {
@@ -234,7 +270,7 @@ test("mapSectionToCategory: society routes to culture", () => {
 
 test("mapSectionToCategory regression: climate→environment, music→entertainment hold", () => {
   assert.equal(mapSectionToCategory("climate"), "environment");
-  assert.equal(mapSectionToCategory("wildlife"), "environment");
+  assert.equal(mapSectionToCategory("wildlife"), "animals");
   assert.equal(mapSectionToCategory("music"), "entertainment");
   assert.equal(mapSectionToCategory("art"), "culture");
   assert.equal(mapSectionToCategory("space"), "science");
@@ -255,10 +291,10 @@ test("knowable categoryFor: 'living world' → science, 'society' → culture", 
   assert.equal(p.categoryFor!(u, "Technology"), "tech");
 });
 
-test("undark categoryFor: 'fish & wildlife' → environment, 'science policy' → politics", () => {
+test("undark categoryFor: 'fish & wildlife' → animals, 'science policy' → politics", () => {
   const p = getProviderOrFail("undark");
   const u = new URL("https://undark.org/2026/06/23/example-story/");
-  assert.equal(p.categoryFor!(u, "Fish & Wildlife"), "environment");
+  assert.equal(p.categoryFor!(u, "Fish & Wildlife"), "animals");
   assert.equal(p.categoryFor!(u, "Environment & Conservation"), "environment");
   assert.equal(p.categoryFor!(u, "Health & Medicine"), "health");
   assert.equal(p.categoryFor!(u, "Technology & Innovation"), "tech");
