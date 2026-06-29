@@ -1,5 +1,5 @@
 /**
- * Tests for the shared RSS URL extractor and the RSS-based discovery wiring
+ * Tests for the shared RSS/sitemap URL extractors and the discovery wiring
  * of the nautilus / noema / technologyreview / undark / knowable providers.
  *
  * No real network — all feeds are served from fixture XML via a mocked
@@ -202,39 +202,71 @@ test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs
 // Per-provider discovery integration (RSS feeds with valid + junk URLs)
 // ---------------------------------------------------------------------------
 
-test("noema discovery: returns only pattern-passing article URLs from paginated RSS", async () => {
+test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion", async () => {
   const noema = getProvider("noema")!;
-  const feedUrls = Array.from(
-    { length: 30 },
-    (_, i) => `https://www.noemamag.com/?feed=noemarss&paged=${i + 1}`,
+  const feedUrls = Array.from({ length: 31 }, (_, i) =>
+    `https://www.noemamag.com/?feed=noemarss&paged=${i + 1}`
+  );
+  const rssPageUrls = Array.from(
+    { length: 29 },
+    (_, i) => `https://www.noemamag.com/rss-page-${i + 3}/`,
   );
   const feedMap: Record<string, string> = {
-    [feedUrls[0]!]: makeFeed([
+    "https://www.noemamag.com/sitemap_index.xml": makeSitemapIndex([
+      "https://www.noemamag.com/page-sitemap.xml",
+      "https://www.noemamag.com/wpm-article-sitemap.xml",
+      "https://www.noemamag.com/wpm-article-sitemap2.xml",
+      "https://www.noemamag.com/wpm-article-topic-sitemap.xml",
+    ]),
+    "https://www.noemamag.com/wpm-article-sitemap.xml": makeSitemap([
       "https://www.noemamag.com/the-philosophy-of-networks/",
-      // junk: topic index + author → must be filtered out
+      // junk: topic index + author → must be filtered out by discovery
       "https://www.noemamag.com/article-topic/technology/",
       "https://www.noemamag.com/author/ada-lovelace/",
     ]),
-    [feedUrls.at(-1)!]: makeFeed([
+    "https://www.noemamag.com/wpm-article-sitemap2.xml": makeSitemap([
       "https://www.noemamag.com/future-of-democracy/",
     ]),
   };
+  for (const [i, feedUrl] of feedUrls.entries()) {
+    if (i === 0) {
+      feedMap[feedUrl] = makeFeed(["https://www.noemamag.com/the-philosophy-of-networks/"]);
+    } else if (i === 1) {
+      feedMap[feedUrl] = makeFeed(["https://www.noemamag.com/future-of-democracy/"]);
+    } else {
+      feedMap[feedUrl] = makeFeed([rssPageUrls[i - 2]!]);
+    }
+  }
   const fetchedFeeds: string[] = [];
 
-  const urls = await discoverProviderUrls(noema, 20, {
+  const urls = await discoverProviderUrls(noema, Number.POSITIVE_INFINITY, {
     isProviderEnabled: async () => true,
     isUrlAllowed: async () => true,
     extractorFetch: async (url: string) => {
       fetchedFeeds.push(url);
+      if (url === "https://www.noemamag.com/?feed=noemarss&paged=32") {
+        throw new Error("rss exhausted");
+      }
       return feedMap[url] ?? "<rss><channel></channel></rss>";
     },
   });
 
-  assert.deepEqual(fetchedFeeds, feedUrls);
+  assert.deepEqual(fetchedFeeds, [
+    "https://www.noemamag.com/sitemap_index.xml",
+    "https://www.noemamag.com/wpm-article-sitemap.xml",
+    "https://www.noemamag.com/wpm-article-sitemap2.xml",
+    ...feedUrls,
+    "https://www.noemamag.com/?feed=noemarss&paged=32",
+  ]);
+  assert.ok(
+    urls.includes("https://www.noemamag.com/rss-page-31/"),
+    "RSS pagination must continue beyond the old 30-page cutoff",
+  );
   assert.deepEqual(urls.sort(), [
     "https://www.noemamag.com/future-of-democracy/",
+    ...rssPageUrls,
     "https://www.noemamag.com/the-philosophy-of-networks/",
-  ]);
+  ].sort());
 });
 
 test("technologyreview discovery: returns only dated article URLs from RSS", async () => {
