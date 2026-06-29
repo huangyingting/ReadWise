@@ -1,6 +1,11 @@
 import type { Provider } from "@/lib/scraper/types";
 import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
+const NOEMA_RSS_FEED_URLS = Array.from(
+  { length: 30 },
+  (_, i) => `https://www.noemamag.com/?feed=noemarss&paged=${i + 1}`,
+);
+
 const noema: Provider = {
   key: "noema",
   name: "Noema Magazine",
@@ -52,9 +57,10 @@ const noema: Provider = {
   /**
    * Discovers article URLs from Noema's RSS feed (the seed-HTML pages are
    * blocked with 403). Candidates are validated against `articleUrlPattern`
-   * and `articleUrlFilter` by discovery.
+   * and `articleUrlFilter` by discovery. Uses paginated feed URLs to capture
+   * a broader set of historical articles.
    */
-  urlExtractor: rssUrlExtractor(["https://www.noemamag.com/?feed=noemarss"]),
+  urlExtractor: rssUrlExtractor(NOEMA_RSS_FEED_URLS),
 };
 
 export default noema;

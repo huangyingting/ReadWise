@@ -103,3 +103,27 @@ Basher reviewed and approved the completed Smithsonian scrape/publish workflow. 
 ### 2026-06-29T05:27:54.043+00:00 — Undark scrape QA approved
 
 Reviewed Livingston's Undark scrape/cleanup work and approved it as scoped. Confirmed 10/10 Undark rows are DRAFT with 0 duplicate source URLs, known support/newsletter noise count is 0, Smithsonian remains 392/392 DRAFT, focused tests report 63 passed, and lint/typecheck passed.
+
+
+### 2026-06-29T08:55:00Z — Undark all-scrape QA blocked
+
+Reviewed the completed Undark all-scrape run. DB/visited/discovery counts matched the handoff (Undark 29 published, Smithsonian 392 drafts, visited 3265 with saved=29/failed=3236, dry discovery remainingFresh=0), and focused Undark/provider tests passed 55/55. Blocked approval because current dry extraction of five visited-failed Undark URLs now succeeds without profile retry, contradicting the failure explanation and making the failed-as-visited exhaustion state unreliable until retry/remediation is defined.
+
+
+### 2026-06-29T09:39:54.895+00:00 — Undark all-scrape retry semantics QA approved
+
+Re-reviewed the Undark visited-record retry fix and approved. Confirmed `accountedUndarkUrlSet()` only accounts `saved`/`duplicate` outcomes, so recorded `failed` URLs remain retryable. Focused Undark CLI test passed 8/8; direct DB/visited verification showed visitedTotal=3265, saved=56, failed=3209, accounted=56, audit fields only, Undark total=56 published=56 drafts=0 missingPublishedAt=0 duplicates=0, and Smithsonian total=392 drafts=392.
+
+
+### 2026-06-29T08:05:07.201+00:00 — Undark retry-semantics QA approval
+
+Basher re-reviewed and approved the Undark all-scrape after Coordinator fixed visited/accounted semantics. Confirmed failed URL records remain retryable, saved/duplicate are the only accounted outcomes, focused CLI/provider tests passed, and final DB/visited counts were Undark 56 published rows with 3209 retryable failures and no duplicates.
+
+### 2026-06-29T10:38:55.698+00:00 — Undark headless coverage recorded
+
+Basher inspected existing Undark scraper coverage before implementation, deferred speculative headless tests until Livingston's contract existed, and the final batch recorded focused coverage for CLI flags, provider behavior, RSS/API fallback, unchanged default behavior, and safe browser-tooling failure paths. Coordinator validation reported 60/60 focused tests passing plus typecheck, targeted ESLint, help smoke, live smoke checks, and diff whitespace.
+
+
+## 2026-06-29T20:25:50.268+00:00 — Noema scrape exhaustion QA
+
+Basher updated mocked/network-free RSS extractor coverage for all 30 Noema feed URLs and fixed formatting. Reported validation passed: targeted tests 50/50, targeted ESLint for `src/lib/scraper/providers/noema.ts` and `tests/scraper-rss-extractor.test.ts`, and `npm run typecheck -- --pretty false`.

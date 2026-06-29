@@ -128,6 +128,31 @@ To verify/update WP category IDs:
 curl https://nautil.us/wp-json/wp/v2/categories?per_page=100 | jq '.[] | {id, slug}'
 ```
 
+### Undark – public WordPress.com posts API
+
+Uses `https://public-api.wordpress.com/rest/v1.1/sites/undark.org/posts/`
+for complete published-post URL discovery because Undark's seed and sitemap
+HTML are Cloudflare-protected. The provider falls back to `https://undark.org/feed/`
+for latest-post discovery if the API is unavailable.
+
+Article extraction still uses the normal SSRF-protected `scrapeUrl` path by
+default. The Undark workflow can opt into a provider-specific Playwright Chromium
+render for pages where static HTTP extraction fails; if Undark's Cloudflare
+challenge prevents rendering, the headless path falls back to the same public
+WordPress.com post API for article content:
+
+```sh
+npm run scrape:undark -- --limit 20 --headless       # retry extraction/quality failures
+npm run scrape:undark -- --limit 5 --headless-only   # render first, without static HTTP
+```
+
+Headless mode validates that each target is an Undark article URL before browser
+navigation or API lookup, then sends the rendered/API HTML through the same
+`extractArticle`, quality, sanitization, and persistence path. If Playwright or
+Chromium is not available and the API fallback cannot provide the article,
+explicit headless runs fail with a clear setup hint; non-headless scraping is
+unchanged.
+
 ---
 
 ## Adding a new provider — checklist
@@ -248,6 +273,19 @@ npm run scrape -- --provider <key> --dry-run [--limit N]
 
 # List registered providers:
 npm run scrape -- --list-providers
+```
+
+### Provider workflows
+
+```sh
+# Continue Undark from DB + visited state; publishes ownerless Undark rows by default:
+npm run scrape:undark -- --all
+
+# Retry Undark articles with a headless browser when static extraction is incomplete:
+npm run scrape:undark -- --all --headless
+
+# Continue Smithsonian from DB + visited state:
+npm run scrape:smithsonian -- --all
 ```
 
 ### Process (AI enrichment + publish)

@@ -100,3 +100,29 @@ Livingston continued Smithsonian scraping until configured provider discovery wa
 ### 2026-06-29T05:27:54.043+00:00 — Undark scrape/provider cleanup finalized
 
 Scraped and analyzed 10 Undark articles without resetting the DB: 10 Undark DRAFT rows, 0 duplicate source URLs; Smithsonian remained 392 DRAFT rows. Hardened Undark provider cleanup for recurring support/donation/newsletter chrome, adjusted cleanup heading inspection, updated provider cleanup tests, cleaned existing Undark rows, and passed focused provider/scraper verification.
+
+
+### 2026-06-29T08:05:07.201+00:00 — Undark all-scrape completion
+
+Livingston's Undark all-scrape implementation was completed by Coordinator after an unusable handoff. Discovery uses WordPress.com posts API with RSS fallback; the final retry run left 56 Undark rows published/PUBLIC/ownerless with no duplicates or missing `publishedAt`. Failed URL records remain audit-only and retryable after Coordinator fixed accounted semantics.
+
+### 2026-06-29T10:38:55.698+00:00 — Undark headless scraping support recorded
+
+Livingston implemented provider-specific Undark headless scraping support: `scrape:undark`, `--headless`, `--headless-only`, Undark-only Playwright Chromium rendering with URL/SSRF validation, WordPress.com API/RSS fallback, docs, and focused tests. Coordinator validation passed focused tests, typecheck, targeted ESLint, CLI help smoke, live browser/API smoke, and `git diff --check`.
+
+
+### 2026-06-29T11:02:27.669+00:00 — Undark scrape exhaustion
+
+Livingston ran the Undark headless scraper to exhaustion. Across three passes, 2,584 new Undark articles were saved/published; final verification showed 2,692 total Undark rows, all published with no drafts, missing `publishedAt`, or duplicate source URLs. The final rerun saved 0 and failures plateaued at 573 persistent quality/fetch failures, so all discoverable URLs were considered saved/accounted or exhausted.
+
+- 2026-06-29T20:08:52.684+00:00 — Completed database state operation for Ralph request: updated 2692 `Article.status` rows to `DRAFT`, leaving visibility unchanged. Final aggregate: 3084 articles `DRAFT/PUBLIC`; no content exposure, code changes, commits, branch changes, resets, or deletes.
+
+
+## 2026-06-29T20:18:02.637+00:00 — Noema publish database state operation
+
+Confirmed 11 `Article` rows with source `Noema Magazine` are `PUBLISHED`, `PUBLIC`, and not missing `publishedAt`. No article content was exposed and no code, git, branch, reset, or delete operations were performed.
+
+
+## 2026-06-29T20:25:50.268+00:00 — Noema scrape exhaustion
+
+Livingston broadened Noema discovery to 30 paginated RSS feed URLs, then ran scrape exhaustion checks at limits 500 and 1000. Final result: 300 unique URLs discovered, 255 Noema articles saved/published/public with no duplicates or missing `publishedAt`, and 45 persistent quality-policy rejections that are not retryable without changing quality policy. Targeted tests, ESLint, and typecheck were reported passing.
