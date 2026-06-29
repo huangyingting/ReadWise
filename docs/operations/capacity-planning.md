@@ -20,8 +20,9 @@ Cross-references: [incident-response.md](./incident-response.md) ·
 4. [Scraper volume](#4-scraper-volume)
 5. [Push fan-out](#5-push-fan-out)
 6. [Database](#6-database)
-7. [Offline cache footprint](#7-offline-cache-footprint)
-8. [Missing signals — follow-up items](#8-missing-signals--follow-up-items)
+7. [Listing/feed cache and Redis adoption gate](#7-listingfeed-cache-and-redis-adoption-gate)
+8. [Offline cache footprint](#8-offline-cache-footprint)
+9. [Missing signals — follow-up items](#9-missing-signals--follow-up-items)
 
 ---
 
@@ -228,7 +229,7 @@ GET /api/ready  # checks.providers.storage: configured | degraded | unconfigured
 
 ```
 GET /api/ready                # checks.providers.storage (degraded = credentials missing)
-GET /api/admin/metrics        # No storage-specific counters today (follow-up § 8)
+GET /api/admin/metrics        # No storage-specific counters today (follow-up § 9)
 ```
 
 Alert conditions:
@@ -243,7 +244,7 @@ Alert conditions:
 | --- | --- |
 | DB bloat from base64 audio | Migrate to object storage; run `npm run migrate-storage` |
 | Azure egress costs | Enable CDN in front of the audio endpoint; tune `max-age` |
-| Storage growing without bound | Implement audio retention/expiry policy (follow-up § 8) |
+| Storage growing without bound | Implement audio retention/expiry policy (follow-up § 9) |
 
 ---
 
@@ -325,7 +326,7 @@ quiet hours, timezone.
 ### Signals to watch
 
 ```
-GET /api/admin/metrics        # No dedicated push counter today (follow-up § 8)
+GET /api/admin/metrics        # No dedicated push counter today (follow-up § 9)
 scripts/push-reminders.ts     # Returns { usersWithDue, sent, skipped, suppressed }
 GET /api/ready                # checks.providers.push: configured | unconfigured
 ```
@@ -340,7 +341,7 @@ Alert conditions:
 
 | Problem | Lever |
 | --- | --- |
-| Reminder delivery failing at scale | Add push-specific metrics (follow-up § 8); move from `Promise.all` to batched parallel sends |
+| Reminder delivery failing at scale | Add push-specific metrics (follow-up § 9); move from `Promise.all` to batched parallel sends |
 | Dead subscriptions accumulating | Threshold (`MAX_CONSECUTIVE_FAILURES`) auto-prunes; monitor for stale rows |
 | Push volume spike | Stagger reminder dispatch windows; add rate limiting per provider |
 
@@ -350,7 +351,7 @@ Alert conditions:
 
 - Web Push payload is tiny (< 1 KB JSON title + body + URL).
 - `Promise.all` fan-out is acceptable for < 10 000 subscriptions per run; above
-  that, batching should be introduced (follow-up § 8).
+  that, batching should be introduced (follow-up § 9).
 - Each web-push provider (FCM, APNs, etc.) enforces its own rate limits; these
   are currently unmonitored.
 
@@ -436,7 +437,172 @@ Alert conditions:
 
 ---
 
-## 7. Offline cache footprint
+## 7. Listing/feed cache and Redis adoption gate
+
+### Current decision
+
+Do **not** introduce Redis for article listing or recommendation reads until a
+measured bottleneck crosses the gates below. ReadWise already has several cache
+layers and cache-like read models:
+
+- Next.js Data Cache wrappers in `src/lib/cache.ts` for public, user-scoped,
+  and tenant-scoped listings.
+- Listing cache key/tag policy in `src/lib/listing-cache.ts`.
+- Cache metrics via `recordCacheLookup` / `recordCacheMiss`.
+- DB-backed AI, speech, translation, grammar, and sentence-level caches.
+- Bounded in-process TTL cache primitive for non-listing network TTLs.
+
+Redis is therefore treated as a future optional acceleration layer, not the
+default response to larger data volume.
+
+### Candidate paths to benchmark first
+
+The first capacity benchmark should focus on article discovery and
+recommendation reads because they combine article volume, tag volume, learner
+state, candidate caps, and in-memory ranking:
+
+| User path | API / page entry | Core function |
+| --- | --- | --- |
+| For You feed | `GET /api/feed` and dashboard feed load | `getPersonalizedFeed` |
+| Browse picks | `GET /api/articles?view=picks` and `/browse?view=picks` | `listScoredPicksPage` |
+| Browse category/all | `GET /api/articles?category=...` and `/browse` | `listCategoryPage` |
+
+Benchmark the core functions first to isolate database access, ranking, and
+cache behavior from HTTP/auth/browser noise. Add HTTP-level load testing only
+after function-level measurements are understood.
+
+### Benchmark data policy
+
+Use synthetic, repeatable benchmark data instead of scraper/AI/TTS seed data.
+The benchmark should generate only the columns needed by these read paths:
+articles, public tags, article-tag edges, users, profiles, and reading progress.
+
+The benchmark must run only on disposable benchmark databases. A future script
+should refuse to run unless all of the following are true:
+
+- `READWISE_BENCHMARK_DB=1` is set.
+- The SQLite file path or PostgreSQL database name contains `benchmark` or
+  `perf`.
+- The script prints the resolved database target before seeding or measuring.
+- Production, staging, and ordinary development databases are rejected by
+  default.
+
+Run both supported engines, but make PostgreSQL authoritative for production
+capacity and Redis decisions.
+
+| Engine | Use in benchmark | Decision weight |
+| --- | --- | --- |
+| SQLite | Local regression and developer-experience trend | Informational only |
+| PostgreSQL | Production-like capacity, query plans, pool/concurrency behavior | Authoritative |
+
+If SQLite and PostgreSQL disagree, use PostgreSQL as the source of truth.
+
+### Suggested first benchmark scale
+
+> **Benchmark target** — not yet measured. Choose the smallest scale that is
+> plausibly 10× the next 6–12 months of expected corpus/user growth.
+
+Initial synthetic scale:
+
+- 50 000–100 000 public articles.
+- 200 000–500 000 `ArticleTag` rows.
+- 10 000–50 000 users.
+- Tens to hundreds of `ReadingProgress` rows per active benchmark user.
+- Profiles distributed across CEFR levels and topic sets.
+
+The benchmark should report p50, p95, p99, min/max, sample count, database
+engine, dataset scale, cache mode, and the tested function/path.
+
+### Cache modes to measure
+
+Measure at least two groups for every path:
+
+| Mode | Configuration | Purpose |
+| --- | --- | --- |
+| Cold listing cache | `READWISE_DISABLE_LISTING_CACHE=1` | Measure DB + ranking cost without listing cache help |
+| Hot listing cache | default cache behavior | Measure repeated-read behavior and existing cache effectiveness |
+
+When practical, add an invalidation recovery group: mutate profile/article/tag
+state, trigger the existing invalidator, then measure how quickly the path
+returns to the hot-cache profile.
+
+Interpretation guide:
+
+- Cold slow, hot fast → existing cache works; Redis is not automatically needed.
+- Cold and hot slow → investigate queries, pagination, candidate caps, and
+  ranking/precomputation before Redis.
+- Cold fast, hot slow → cache layer problem; Redis is not the first fix.
+- Hot cache effective locally but production remains slow due to multi-instance
+  non-shared cache behavior → Redis/shared external cache becomes a reasonable
+  design candidate.
+
+### Redis entry criteria
+
+Enter Redis design only when all of these are true:
+
+1. PostgreSQL benchmark or production-like traffic shows `GET /api/feed`,
+   `GET /api/articles`, dashboard feed load, or browse feed load with sustained
+   p95 latency above **800 ms** at the target scale.
+2. Function-level measurements show the listing/recommendation read path is a
+   meaningful contributor, not just HTTP/auth/rendering overhead. As a rule of
+   thumb, a core function p95 above **300 ms** deserves DB/query investigation;
+   if API p95 is high while functions are fast, inspect the surrounding stack
+   first.
+3. PostgreSQL query plans have been reviewed with `EXPLAIN ANALYZE` or an
+   equivalent slow-query workflow.
+4. Lower-complexity fixes have been considered in this order:
+   1. Query plan and index fixes.
+   2. Pagination changes, especially replacing deep offset pagination with
+      cursor/keyset pagination where applicable.
+   3. Candidate-set narrowing or better DB-side filtering.
+   4. Precomputed read models or recommendation snapshots.
+   5. Redis/shared external cache.
+5. The target result has high reuse potential and safe invalidation semantics.
+6. Existing cache hit/miss metrics show that a shared external cache would
+   improve real traffic rather than merely add infrastructure.
+
+### Redis design constraints if the gate is crossed
+
+Redis must be optional, low-risk, and privacy-preserving:
+
+- Store only disposable, rebuildable cache entries. PostgreSQL remains the
+  source of truth.
+- Do not cache article bodies, selected text, prompts, AI responses, raw
+  translations, credentials, cookies, tokens, secrets, or other user-private
+  content.
+- Prefer lightweight read models: article id lists, cursor/page metadata,
+  bounded display metadata, version stamps, and invalidation markers.
+- Every key must include explicit visibility scope: `public`, `user:{id}`, or
+  `org:{id}`. User/org scoped entries must never share a key with public data.
+- Define invalidation before implementation: writer, reader, TTL, invalidators,
+  maximum allowed staleness, and fallback behavior.
+- TTL is a safety net, not the only invalidation mechanism.
+- Redis outages, timeouts, serialization failures, or invalidation failures must
+  degrade to the DB/existing cache path. Requests may become slower, but core
+  reading/listing flows must not fail because Redis is unavailable.
+- Use short Redis timeouts (tens of milliseconds, not request-scale timeouts).
+- Gate Redis with an environment flag so it can be disabled without a code
+  deploy.
+- Roll out lowest-risk public listing keys before personalized/user feed keys.
+
+### Required Redis observability before rollout
+
+No Redis-backed cache should ship without low-cardinality metrics for:
+
+- cache name and outcome (`hit`, `miss`, `write_error`, `read_error`,
+  `timeout`, `fallback`);
+- Redis read/write latency buckets;
+- DB fallback count;
+- invalidation count and invalidation failure count;
+- key count / memory trend from Redis operational telemetry;
+- paired API p95/p99 and database slow-query trend for the affected paths.
+
+Redis is successful only if it reduces the relevant API p95/p99 and/or database
+pressure without increasing error rate, privacy risk, or operational fragility.
+
+---
+
+## 8. Offline cache footprint
 
 ### Service-worker cache
 
@@ -473,11 +639,11 @@ Sources: `src/lib/offline/idb.ts`, `src/lib/offline-sync.ts`.
 - Reduce expiry via `OFFLINE_ARTICLE_EXPIRY_MS` constant (requires code change
   and SW/HTML drift test update).
 - Limit the number of downloadable articles per user at the API layer
-  (follow-up § 8).
+  (follow-up § 9).
 
 ---
 
-## 8. Missing signals — follow-up items
+## 9. Missing signals — follow-up items
 
 The following signals are needed for production-grade capacity planning but are
 not yet implemented or measured. These should be addressed before ReadWise scales
@@ -495,6 +661,7 @@ beyond a single-tenant pilot.
 | F-8 | AI | Token-per-feature averages not measured over time | Export `ai_prompt_tokens_total` and `ai_completion_tokens_total` counters per feature |
 | F-9 | Jobs | No queue-depth metric (pending job count) | Add `job_queue_depth{type,status}` gauge to the worker poll cycle |
 | F-10 | Offline | No server-side limit on articles downloadable per user | Consider a per-user cap enforced at `GET /api/reader/[id]/offline` |
+| F-11 | Listing/feed capacity | No repeatable synthetic benchmark for feed/listing paths | Add a benchmark script guarded by `READWISE_BENCHMARK_DB=1`, measuring `getPersonalizedFeed`, `listScoredPicksPage`, and `listCategoryPage` on SQLite and PostgreSQL |
 
 ---
 
@@ -508,9 +675,12 @@ beyond a single-tenant pilot.
    type.
 3. **Measure audio storage**: run `npm run migrate-storage` against production and
    capture the `sizeBytes` sum from `MediaAsset` rows.
-4. **Measure DB query time**: enable slow-query logging in PostgreSQL
+4. **Measure listing/feed capacity**: run the synthetic benchmark described in
+    [§ 7](#7-listingfeed-cache-and-redis-adoption-gate) against disposable SQLite
+    and PostgreSQL benchmark databases; treat PostgreSQL as authoritative.
+5. **Measure DB query time**: enable slow-query logging in PostgreSQL
    (`log_min_duration_statement = 500ms`) and review `pg_stat_statements`.
-5. **Push delivery**: add the F-2 counter and observe `sent`/`failed` rates
+6. **Push delivery**: add the F-2 counter and observe `sent`/`failed` rates
    over one week of scheduled reminders.
 
 Update this document with real measurements in the same PR that adds each signal.

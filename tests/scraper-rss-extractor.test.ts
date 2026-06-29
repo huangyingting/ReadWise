@@ -49,6 +49,13 @@ ${locs.map((loc) => `<sitemap><loc>${loc}</loc></sitemap>`).join("\n")}
 </sitemapindex>`;
 }
 
+function makeWordPressPosts(urls: string[], found = urls.length): string {
+  return JSON.stringify({
+    found,
+    posts: urls.map((URL) => ({ URL })),
+  });
+}
+
 /**
  * Runs a provider through real discovery using a feed-URL → XML map for the
  * injected extractor fetch. Returns the validated, pattern-passing URLs.
@@ -195,18 +202,35 @@ test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs
 // Per-provider discovery integration (RSS feeds with valid + junk URLs)
 // ---------------------------------------------------------------------------
 
-test("noema discovery: returns only pattern-passing article URLs from RSS", async () => {
+test("noema discovery: returns only pattern-passing article URLs from paginated RSS", async () => {
   const noema = getProvider("noema")!;
-  const feed = makeFeed([
-    "https://www.noemamag.com/the-philosophy-of-networks/",
-    "https://www.noemamag.com/future-of-democracy/",
-    // junk: topic index + author + feed → must be filtered out
-    "https://www.noemamag.com/article-topic/technology/",
-    "https://www.noemamag.com/author/ada-lovelace/",
-  ]);
-  const urls = await discoverWithFeeds(noema, {
-    "https://www.noemamag.com/?feed=noemarss": feed,
+  const feedUrls = Array.from(
+    { length: 30 },
+    (_, i) => `https://www.noemamag.com/?feed=noemarss&paged=${i + 1}`,
+  );
+  const feedMap: Record<string, string> = {
+    [feedUrls[0]!]: makeFeed([
+      "https://www.noemamag.com/the-philosophy-of-networks/",
+      // junk: topic index + author → must be filtered out
+      "https://www.noemamag.com/article-topic/technology/",
+      "https://www.noemamag.com/author/ada-lovelace/",
+    ]),
+    [feedUrls.at(-1)!]: makeFeed([
+      "https://www.noemamag.com/future-of-democracy/",
+    ]),
+  };
+  const fetchedFeeds: string[] = [];
+
+  const urls = await discoverProviderUrls(noema, 20, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url: string) => {
+      fetchedFeeds.push(url);
+      return feedMap[url] ?? "<rss><channel></channel></rss>";
+    },
   });
+
+  assert.deepEqual(fetchedFeeds, feedUrls);
   assert.deepEqual(urls.sort(), [
     "https://www.noemamag.com/future-of-democracy/",
     "https://www.noemamag.com/the-philosophy-of-networks/",
@@ -231,7 +255,63 @@ test("technologyreview discovery: returns only dated article URLs from RSS", asy
   ]);
 });
 
-test("undark discovery: returns only dated article URLs from RSS", async () => {
+test("undark discovery: returns only dated article URLs from the public WordPress.com posts API", async () => {
+  const undark = getProvider("undark")!;
+  const urls = await discoverProviderUrls(undark, 20, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      const parsed = new URL(url);
+      assert.equal(
+        `${parsed.origin}${parsed.pathname}`,
+        "https://public-api.wordpress.com/rest/v1.1/sites/undark.org/posts/",
+      );
+      assert.equal(parsed.searchParams.get("status"), "publish");
+      assert.equal(parsed.searchParams.get("type"), "post");
+      return makeWordPressPosts([
+        "https://undark.org/2024/03/10/the-science-of-sleep/",
+        "https://undark.org/2024/04/22/climate-tipping-points/",
+        // junk: tag + author
+        "https://undark.org/tag/climate-change/",
+        "https://undark.org/author/john-smith/",
+      ]);
+    },
+  });
+
+  assert.deepEqual(urls.sort(), [
+    "https://undark.org/2024/03/10/the-science-of-sleep/",
+    "https://undark.org/2024/04/22/climate-tipping-points/",
+  ]);
+});
+
+test("undark discovery: paginates the public WordPress.com API for exhaustive discovery", async () => {
+  const undark = getProvider("undark")!;
+  const pageOne = Array.from(
+    { length: 100 },
+    (_, i) => `https://undark.org/2024/03/10/page-one-story-${i}/`,
+  );
+  const pageTwo = ["https://undark.org/2024/03/11/page-two-story/"];
+  const fetchedPages: string[] = [];
+  const urls = await discoverProviderUrls(undark, Number.POSITIVE_INFINITY, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      const parsed = new URL(url);
+      const page = parsed.searchParams.get("page") ?? "1";
+      fetchedPages.push(page);
+      return page === "1"
+        ? makeWordPressPosts(pageOne, 101)
+        : makeWordPressPosts(pageTwo, 101);
+    },
+  });
+
+  assert.equal(urls.length, 101);
+  assert.deepEqual(fetchedPages, ["1", "2"]);
+  assert.equal(urls[0], pageOne[0]);
+  assert.equal(urls.at(-1), pageTwo[0]);
+});
+
+test("undark discovery: falls back to RSS when the WordPress.com API fails", async () => {
   const undark = getProvider("undark")!;
   const feed = makeFeed([
     "https://undark.org/2024/03/10/the-science-of-sleep/",
@@ -240,8 +320,13 @@ test("undark discovery: returns only dated article URLs from RSS", async () => {
     "https://undark.org/tag/climate-change/",
     "https://undark.org/author/john-smith/",
   ]);
-  const urls = await discoverWithFeeds(undark, {
-    "https://undark.org/feed/": feed,
+  const urls = await discoverProviderUrls(undark, 20, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      if (url === "https://undark.org/feed/") return feed;
+      throw new Error("api down");
+    },
   });
   assert.deepEqual(urls.sort(), [
     "https://undark.org/2024/03/10/the-science-of-sleep/",

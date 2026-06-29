@@ -51,3 +51,8 @@ Scribe recorded Livingston, Basher, and Coordinator orchestration logs plus the 
 ### 2026-06-29T05:27:54.043+00:00 — Undark scrape state recording
 
 Recorded Livingston/Basher/Coordinator Undark scrape outcomes in orchestration and session logs, merged 1 decision inbox entry about referencing `../ReadingX`, deleted the processed inbox entry, and checked archive/history hard gates. No history file required summarization.
+
+
+### 2026-06-29T08:05:07.201+00:00 — Undark all-scrape state recording
+
+Scribe recorded Livingston/Ralph/Basher orchestration and session logs for the completed Undark all-scrape attempt. `decisions.md` measured 41,904 bytes; the 30-day archive gate found no dated entries older than 2026-05-30, `decisions/inbox` was empty, and no history file required summarization.

@@ -357,3 +357,20 @@ Processed 1 inbox file into 1 decision summary. Duplicate summaries skipped: 0.
 **References:** ../ReadingX
 **Source:** decisions/inbox/copilot-directive-2026-06-29T04-51-47-readingx-reference.md
 **Decision summary:** User said: "you can also reference code `../ReadingX`". Team agents may reference sibling codebase `../ReadingX` when useful, subject to normal repo/security/privacy constraints.
+
+---
+## 2026-06-29 — Undark headless scraping decision inbox merge
+
+Processed 2 inbox files into 2 decision summaries. Duplicate summaries skipped: 0.
+
+### 2026-06-29T10-40-42: Deferred Undark headless tests until implementation contract exists
+**By:** Basher
+**References:** Basher, Livingston, Ralph, scripts/scrape-undark.ts, tests/scraper-undark-cli.test.ts, tests/scraper-rss-extractor.test.ts, tests/providers.test.ts
+**Source:** decisions/inbox/Basher-deferred-undark-headless-tests-until-implementatio.md
+**Decision summary:** Basher inspected the worktree for Undark headless-browser scraping support before implementation and found no headless flag, headless fetch path, Playwright/Chromium integration, or fallback semantics in the existing Undark scraper workflow/tests. Basher intentionally deferred speculative failing tests until Livingston landed a concrete implementation contract. Existing focused tests covered current CLI defaults/controls, WordPress.com discovery with RSS fallback, provider URL patterns, and unchanged default non-headless behavior; planned follow-up coverage targeted explicit headless option parsing, safe browser-tooling failure, fallback behavior, and unchanged defaults.
+
+### 2026-06-29T10-54-44: Add Undark-specific headless scraping fallback
+**By:** Livingston
+**References:** Livingston, Undark scraper, scripts/scrape-undark.ts, src/lib/scraper/providers/undark-headless.ts
+**Source:** decisions/inbox/Livingston-add-undark-specific-headless-scraping-fallback.md
+**Decision summary:** Implemented Undark scraping as an opt-in provider-specific path. `--headless` retries static extraction/quality failures with Playwright Chromium, and `--headless-only` renders first. Rendered/API HTML still flows through existing extraction, quality, sanitization, and persistence. The browser path validates Undark article URLs and SSRF-checks navigation/resources; unavailable Chromium tooling returns a setup-oriented error for explicit headless use. Because live Undark currently returns Cloudflare challenge HTML even to headless Chromium in this environment, the headless path falls back to Undark's public WordPress.com post API only after browser rendering fails or yields unusable content, preserving non-headless behavior and avoiding shared cleanup hacks.
