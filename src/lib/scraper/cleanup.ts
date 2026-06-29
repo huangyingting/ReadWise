@@ -122,7 +122,7 @@ const BLOCK_CONTAINER_TAGS = new Set([
 ]);
 
 const TEXT_KEYWORD_BLOCK_SELECTOR =
-  "p,div,section,aside,nav,header,footer,figure,form,ul,ol,table,blockquote";
+  "p,div,section,aside,nav,header,footer,figure,form,ul,ol,table,blockquote,h1,h2,h3,h4,h5,h6";
 const DROP_TEXT_KEYWORD_MAXLEN = 1000;
 
 function isEmptyArticleContainer(el: Element): boolean {

@@ -66,3 +66,37 @@ Standout cross-domain finding: BE2-1 (divergent sensitive-key redaction) was ind
 After Rusty-3 (opus-4.8) consolidation of all 67 round-2 findings into 13 issues: **Livingston owns issues #629** (missing database indexes and query optimization, Phase 1), **#634** (env config centralization and validation module, Phase 2), **#635** (error propagation consistency and request correlation, Phase 2), and **#638** (telemetry/audit data retention enforcement, Phase 3, deps #627) on epic #626, follow-up to #610.
 
 No source code modified (analysis only).
+
+
+## 2026-06-29 — Scraper image-credit filtering
+
+Livingston handled the user request to filter image-credit boilerplate from scraper output. He changed `src/lib/scraper/declutter.ts` and `tests/scraper-declutter.test.ts`, verified targeted declutter tests plus full scraper tests, and left the non-state diff for coordinator handling.
+
+
+## 2026-06-29T02:39:40.222+00:00 — Smithsonian scrape workflow
+Implemented and validated the Smithsonian reset/scrape/analyze workflow: repo-local visited URL state, pagination, DB analysis, and affiliate-note cleanup. Reset/import outcome was 50 Smithsonian articles with 130,275 stored words and no recurring non-article noise after filtering.
+
+
+## 2026-06-29T03:14:57.986+00:00 — Byline/date scraper cleanup
+Implemented leading author/date residue filtering in scraper extraction. Changed `src/lib/scraper/declutter.ts`, `src/lib/scraper/extract.ts`, `tests/scraper-declutter.test.ts`, and `tests/scraper.test.ts`; behavior removes standalone author/date residue from article bodies while preserving metadata and legitimate prose.
+
+
+## 2026-06-29T03:36:59.547+00:00 — Smithsonian reset/scrape/publish workflow
+Livingston updated the Smithsonian reset/scrape/analyze workflow so imported rows are published. The run reset the DB, skipped 126 previously visited URLs, saved/imported 50 new Smithsonian articles, recorded 11 failed attempts, grew visited records 126→187 with URL/timestamp/outcome fields only, and published all 50 imported rows. Analysis found no recurring non-article noise after tightening a false-positive regex.
+
+2026-06-29T03:56Z — Fixed remaining Smithsonian reader body byline/avatar residue for article cmqyo77ig000zjgg7ces1fu51. Added provider-scoped declutter for leading author avatar/card and standalone publication-date residue, preserved metadata and article media, updated stored ownerless Smithsonian rows (29 then 12 changed; target body now has 0 headshot/byline/date residue), and ran focused scraper/provider tests (119 passed).
+
+
+## 2026-06-29T03:56:04.101+00:00 — Smithsonian avatar cleanup
+
+Fixed the unresolved Smithsonian reader cleanup issue for article `cmqyo77ig000zjgg7ces1fu51`: the leading byline card/headshot/role/date shape after the standfirst is now removed from body content while preserving metadata and legitimate article media. Reported changed files: `src/lib/scraper/declutter.ts`, `src/lib/scraper/extract.ts`, `tests/scraper.test.ts`, and `tests/scraper-declutter.test.ts`.
+
+
+## 2026-06-29T04:22:21.322+00:00 — Complete Smithsonian scrape
+
+Livingston continued Smithsonian scraping until configured provider discovery was exhausted. The publish run discovered 595 URLs, skipped 187 previously visited, scraped 408 fresh, saved/imported 292, failed 116, and left duplicates at 0; verification rerun found 0 fresh URLs. DB state ended at 342 Smithsonian rows, all published/`PUBLIC`/ownerless with no drafts or missing `publishedAt`. Provider cleanup removed repeated Hakai attribution noise from stored rows, and focused tests plus changed-file ESLint passed.
+
+
+### 2026-06-29T05:27:54.043+00:00 — Undark scrape/provider cleanup finalized
+
+Scraped and analyzed 10 Undark articles without resetting the DB: 10 Undark DRAFT rows, 0 duplicate source URLs; Smithsonian remained 392 DRAFT rows. Hardened Undark provider cleanup for recurring support/donation/newsletter chrome, adjusted cleanup heading inspection, updated provider cleanup tests, cleaned existing Undark rows, and passed focused provider/scraper verification.

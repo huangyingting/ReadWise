@@ -161,6 +161,118 @@ test("extractArticle (clean capture): removes the trailing author-bio paragraph 
   assert.equal(result?.author, "Jane Doe");
 });
 
+test("extractArticle removes leading standalone author/date residue while preserving metadata", () => {
+  const html =
+    "<html><head><title>Ancient Fossils Reveal a New Story</title>" +
+    '<meta name="author" content="Viviane Callier">' +
+    '<meta name="datePublished" content="2026-02-05T12:00:00Z">' +
+    "</head><body><article>" +
+    "<p>Viviane Callier</p>" +
+    "<p>February 5, 2026</p>" +
+    `<p>Researchers studying ancient fossils found a new pattern in the archive. ${wordBlock(35, "fossil")} today.</p>` +
+    `<p>The discovery changes how museums explain several specimens to visitors. ${wordBlock(35, "museum")} today.</p>` +
+    "</article></body></html>";
+
+  const result = extractArticle(
+    html,
+    "https://www.smithsonianmag.com/science-nature/ancient-fossils-new-story-180987800/",
+  );
+  assert.ok(result, "should extract a valid article");
+  const content = result?.content ?? "";
+
+  assert.doesNotMatch(content, /Viviane Callier/, "standalone author residue removed from body");
+  assert.doesNotMatch(content, /February 5, 2026/, "standalone date residue removed from body");
+  assert.match(content, /fossil\d+/, "real body paragraph kept");
+  assert.match(content, /museum\d+/, "real body paragraph kept");
+  assert.equal(result?.author, "Viviane Callier");
+  assert.equal(result?.publishedAt?.toISOString(), "2026-02-05T12:00:00.000Z");
+});
+
+test("extractArticle keeps legitimate prose that mentions the author name and publication date", () => {
+  const html =
+    "<html><head><title>Archive Visit Opens New Questions</title>" +
+    '<meta name="author" content="Viviane Callier">' +
+    '<meta name="datePublished" content="2026-02-05T12:00:00Z">' +
+    "</head><body><article>" +
+    `<p>On February 5, 2026, Viviane Callier visited the archive with curators to examine field notes before the public exhibition opened. ${wordBlock(25, "archive")} today.</p>` +
+    `<p>The visit helped researchers compare fragile records with specimens collected over many decades. ${wordBlock(35, "record")} today.</p>` +
+    "</article></body></html>";
+
+  const result = extractArticle(
+    html,
+    "https://www.smithsonianmag.com/history/archive-visit-new-questions-180987801/",
+  );
+  assert.ok(result, "should extract a valid article");
+  const content = result?.content ?? "";
+
+  assert.match(content, /On February 5, 2026/, "date in prose kept");
+  assert.match(content, /Viviane Callier visited the archive/, "person in prose kept");
+  assert.match(content, /record\d+/, "real body paragraph kept");
+  assert.equal(result?.author, "Viviane Callier");
+  assert.equal(result?.publishedAt?.toISOString(), "2026-02-05T12:00:00.000Z");
+});
+
+test("extractArticle removes Smithsonian author avatar card but keeps article media", () => {
+  const html =
+    "<html><head><title>Battlefield Questions Continue to Fascinate Historians</title>" +
+    '<meta property="og:title" content="Battlefield Questions Continue to Fascinate Historians">' +
+    '<meta name="author" content="Greg Daugherty">' +
+    '<meta name="datePublished" content="2026-06-24T11:45:00Z">' +
+    "</head><body><article>" +
+    "<h2>The June 1876 firefight remains the subject of historical debate.</h2>" +
+    '<p><img src="https://th-thumbnailer.cdn-si-edu.com/example/https://tf-cmsv2-smithsonianmag-media.s3.amazonaws.com/accounts/headshot/greg2.png" alt="Greg Daugherty"></p>' +
+    "<p>Greg Daugherty | History Correspondent</p>" +
+    "<p>June 24, 2026</p>" +
+    `<p>Historians returned to the battlefield with new maps and oral histories to compare long-standing accounts. ${wordBlock(35, "battlefield")} today.</p>` +
+    '<figure><img src="https://th-thumbnailer.cdn-si-edu.com/photo/https://tf-cmsv2-smithsonianmag-media.s3.amazonaws.com/filer_public/69/e7/bighorn.jpg" alt="An early depiction"><figcaption>An early depiction of the battle Public domain via Wikimedia Commons</figcaption></figure>' +
+    `<p>The evidence shows why the conflict remains contested and carefully studied by Native scholars and military historians. ${wordBlock(35, "evidence")} today.</p>` +
+    `<p>On June 24, 2026, Greg Daugherty joined museum researchers in reviewing a map for context. ${wordBlock(25, "archive")} today.</p>` +
+    "</article></body></html>";
+
+  const result = extractArticle(
+    html,
+    "https://www.smithsonianmag.com/history/battlefield-questions-continue-180988984/",
+  );
+  assert.ok(result, "should extract a valid article");
+  const content = result?.content ?? "";
+
+  assert.doesNotMatch(content, /accounts\/headshot/i, "author avatar removed");
+  assert.doesNotMatch(content, /Greg Daugherty \| History Correspondent/, "byline role removed");
+  assert.doesNotMatch(content, /<p>June 24, 2026<\/p>/, "standalone date removed");
+  assert.match(content, /battlefield\d+/, "real body paragraph kept");
+  assert.match(content, /filer_public\/69\/e7\/bighorn\.jpg/, "real article image kept");
+  assert.match(content, /An early depiction of the battle/, "real image caption kept");
+  assert.match(content, /On June 24, 2026, Greg Daugherty joined/, "legitimate prose kept");
+  assert.equal(result?.author, "Greg Daugherty");
+  assert.equal(result?.publishedAt?.toISOString(), "2026-06-24T11:45:00.000Z");
+});
+
+test("extractArticle removes Smithsonian leading publication-date residue without an avatar", () => {
+  const html =
+    "<html><head><title>Museum Researchers Revisit an Old Map</title>" +
+    '<meta name="datePublished" content="2026-06-24T11:45:00Z">' +
+    "</head><body><article>" +
+    "<h2>A short reported summary remains visible for readers.</h2>" +
+    "<p>June 24, 2026</p>" +
+    `<p>Curators studied the map alongside field notes and photographs to understand how the collection changed. ${wordBlock(35, "curator")} today.</p>` +
+    `<p>The work gave researchers a better view of the archive and its gaps. ${wordBlock(35, "mapping")} today.</p>` +
+    "<p>Researchers later compared the June 24, 2026 field notes with older maps.</p>" +
+    "</article></body></html>";
+
+  const result = extractArticle(
+    html,
+    "https://www.smithsonianmag.com/history/museum-researchers-revisit-old-map-180988985/",
+  );
+  assert.ok(result, "should extract a valid article");
+  const content = result?.content ?? "";
+
+  assert.doesNotMatch(content, /<p>June 24, 2026<\/p>/, "leading standalone date removed");
+  assert.match(content, /short reported summary/, "standfirst kept");
+  assert.match(content, /June 24, 2026 field notes/, "date in prose kept");
+  assert.match(content, /curator\d+/, "body kept");
+  assert.equal(result?.publishedAt?.toISOString(), "2026-06-24T11:45:00.000Z");
+});
+
 test("extractArticle (clean capture): SCRAPER_READABILITY=false still yields a valid article via the legacy + declutter path", () => {
   const prev = process.env.SCRAPER_READABILITY;
   process.env.SCRAPER_READABILITY = "false";

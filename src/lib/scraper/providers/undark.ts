@@ -55,6 +55,9 @@ const undark: Provider = {
       "dive deeper into pressing issues",
       "limited run newsletters",
       "hand-picked archive excerpt",
+      "support undark magazine",
+      "undark is a non-profit, editorially independent magazine",
+      "help support our journalism",
     ],
   },
   categoryFor: (url, section) =>

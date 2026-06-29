@@ -48,6 +48,67 @@ export function rssUrlExtractor(
   };
 }
 
+type SitemapUrlExtractorOptions = {
+  sitemapUrlFilter?: (url: string) => boolean;
+};
+
+function decodeXmlText(value: string): string {
+  return value
+    .replace(/&amp;/g, "&")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&quot;/g, '"')
+    .replace(/&apos;/g, "'");
+}
+
+function parseSitemapLocs(xml: string): string[] {
+  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)]
+    .map((match) => decodeXmlText(match[1]?.trim() ?? ""))
+    .filter(Boolean);
+}
+
+export function sitemapUrlExtractor(
+  sitemapIndexUrl: string,
+  options: SitemapUrlExtractorOptions = {},
+): (ctx: UrlExtractorContext) => Promise<string[]> {
+  return async ({ limit, fetch: fetchFn }) => {
+    const seen = new Set<string>();
+    const urls: string[] = [];
+    const candidateCap = Number.isFinite(limit)
+      ? Math.max(limit * 2, limit)
+      : Number.POSITIVE_INFINITY;
+
+    let indexLocs: string[];
+    try {
+      indexLocs = parseSitemapLocs(await fetchFn(sitemapIndexUrl));
+    } catch {
+      return [];
+    }
+
+    const childSitemaps = options.sitemapUrlFilter
+      ? indexLocs.filter(options.sitemapUrlFilter)
+      : indexLocs;
+
+    for (const sitemapUrl of childSitemaps) {
+      if (urls.length >= candidateCap) break;
+      let locs: string[];
+      try {
+        locs = parseSitemapLocs(await fetchFn(sitemapUrl));
+      } catch {
+        continue;
+      }
+      for (const url of locs) {
+        if (seen.has(url)) continue;
+        seen.add(url);
+        urls.push(url);
+        if (urls.length >= candidateCap) break;
+      }
+    }
+
+    return urls;
+  };
+}
+
 /**
  * Maps a free-form section/topic string (from a URL path or article metadata)
  * onto one of our canonical category slugs. Returns null when nothing matches.

@@ -58,6 +58,9 @@ dev-server.log
 # Local media storage
 .media/
 
+# Local scraper state
+.scraper-state/
+
 # Copilot CLI per-session scratch state (never commit)
 .copilot/session-state/
 ReadWise/

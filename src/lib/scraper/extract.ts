@@ -583,6 +583,8 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const decluttered = declutterArticleHtml(chosenBody, {
     byline: readable?.byline ?? author,
     authorName: author,
+    publishedAt,
+    providerKey: provider?.key,
   });
 
   // --- Step 7: final sanitization (always runs, never bypassed) -------------

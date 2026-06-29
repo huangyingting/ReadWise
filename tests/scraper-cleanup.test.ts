@@ -227,6 +227,37 @@ test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () =
   assert.match(result, /Real article caption/);
 });
 
+test("cleanup: smithsonian drops affiliate-link note while preserving article prose", () => {
+  const provider = getProvider("smithsonian");
+  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const html =
+    "<article>" +
+    "<p>Real Smithsonian article prose about conservation and field research.</p>" +
+    "<p>A Note to our Readers Smithsonian magazine participates in affiliate link advertising programs. If you purchase an item through these links, we receive a commission.</p>" +
+    "<p>The final paragraph continues the reported article without promotional copy.</p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, provider.cleanup);
+  assert.doesNotMatch(result, /affiliate link advertising programs/i);
+  assert.doesNotMatch(result, /receive a commission/i);
+  assert.match(result, /Real Smithsonian article prose/);
+  assert.match(result, /final paragraph continues/);
+});
+
+test("cleanup: smithsonian drops repeated Hakai attribution while preserving prose", () => {
+  const provider = getProvider("smithsonian");
+  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const html =
+    "<article>" +
+    "<p>Reported coastal science article prose continues here.</p>" +
+    "<p>This article is from Hakai Magazine, an online publication about science and society in coastal ecosystems.</p>" +
+    "<p>Another substantive paragraph remains available for readers.</p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, provider.cleanup);
+  assert.doesNotMatch(result, /Hakai Magazine/i);
+  assert.match(result, /Reported coastal science article prose/);
+  assert.match(result, /substantive paragraph remains/);
+});
+
 test("cleanup: removes comment block matched by class keyword", () => {
   const html =
     "<p>Article.</p>" +

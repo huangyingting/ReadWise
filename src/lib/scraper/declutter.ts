@@ -5,9 +5,10 @@
  * This runs AFTER body extraction and BEFORE sanitize. It targets residue that
  * structural extractors miss:
  *   1. the trailing author byline/bio paragraph at the bottom of the article,
- *      and a short leading credits/author-bio block at the very top,
+ *      and short leading author/date/credits residue at the very top,
  *   2. related / newsletter / share / comments boilerplate blocks,
- *   3. high-link-density widgets (related/nav lists masquerading as prose).
+ *   3. standalone image-credit lines,
+ *   4. high-link-density widgets (related/nav lists masquerading as prose).
  *
  * It is deliberately conservative: if the aggressive removals would delete more
  * than ~35% of the original text it falls back to only the highest-confidence
@@ -23,6 +24,10 @@ export interface DeclutterOptions {
   byline?: string | null;
   /** Explicit author name hint (alias of byline). */
   authorName?: string | null;
+  /** Publication date from metadata — used to strip matching standalone date residue. */
+  publishedAt?: Date | string | null;
+  /** Provider key for narrow provider-specific DOM chrome residue cleanup. */
+  providerKey?: string | null;
 }
 
 /**
@@ -72,8 +77,59 @@ const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s
 
 const ORPHAN_VIDEO_LABEL_RE = /^(featured\s+video|watch:?|video)$/i;
 
+const BYLINE_PREFIX_RE =
+  /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u;
+
+const AUTHOR_ROLE_RE =
+  /\b(?:[\p{Lu}][\p{Ll}]+|he|she|they)\s+(?:is|was)\s+(?:a|an|the)\s+(?:senior\s+|staff\s+|freelance\s+|contributing\s+|former\s+|award-winning\s+)*(?:writer|journalist|reporter|editor|contributor|columnist|correspondent|author|blogger|essayist|critic|broadcaster|producer)\b/u;
+
+const SOCIAL_AUTHOR_RE =
+  /(^|\s)@[a-z0-9_]{2,}\b|\bfollow\s+(me|us|her|him|them|@)|\b(twitter|x|instagram|threads|mastodon|facebook|bluesky|linkedin)\.com\/|\bfind\s+(me|her|him|them)\s+on\b/i;
+
+const MONTHS: Record<string, number> = {
+  jan: 1,
+  january: 1,
+  feb: 2,
+  february: 2,
+  mar: 3,
+  march: 3,
+  apr: 4,
+  april: 4,
+  may: 5,
+  jun: 6,
+  june: 6,
+  jul: 7,
+  july: 7,
+  aug: 8,
+  august: 8,
+  sep: 9,
+  sept: 9,
+  september: 9,
+  oct: 10,
+  october: 10,
+  nov: 11,
+  november: 11,
+  dec: 12,
+  december: 12,
+};
+
+const MONTH_NAME_RE =
+  /^(?:(?:published|published on|posted|posted on|updated|last updated)\s*:?\s*)?(?:(?:mon|tue|wed|thu|fri|sat|sun)(?:day)?\s*,\s*)?(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:t|tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\.?\s+(\d{1,2})(?:st|nd|rd|th)?\s*,?\s+(\d{4})(?:\s+(?:at|,)?\s*\d{1,2}:\d{2}\s*(?:a\.?m\.?|p\.?m\.?)?(?:\s*(?:et|est|edt|ct|cst|cdt|mt|mst|mdt|pt|pst|pdt|utc|gmt))?)?$/i;
+const ISO_DATE_RE =
+  /^(?:(?:published|published on|posted|posted on|updated|last updated)\s*:?\s*)?(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/i;
+
+const IMAGE_CREDIT_MAXLEN = 240;
+const IMAGE_CREDIT_RE =
+  /^\(?\s*image\s+credits?\s*(?::|：|-|–|—)\s*\S[\s\S]*?\s*\)?$/i;
+const IMAGE_CREDIT_HEADING_RE = /^\(?\s*image\s+credits?\s*\)?$/i;
+
 const IMAGE_BOILERPLATE_RE =
   /\b(favicon|sprite|pixel|newsletter|promo|promotion|sign-?up|subscribe)\b/i;
+
+const SMITHSONIAN_AUTHOR_IMAGE_RE =
+  /(?:^|[/_.-])(?:author|avatar|headshot|profile)(?:[/_.-]|$)|\/accounts\/headshot\//i;
+const SMITHSONIAN_BYLINE_ROLE_RE =
+  /\|\s*(?:(?:history|science|arts?\s*&?\s*culture|travel|innovation)\s+)?(?:correspondent|writer|contributor|editor|author|reporter)\b/i;
 
 /**
  * Max length of a block we are willing to flag purely on a text-boilerplate
@@ -113,6 +169,67 @@ function normalizeName(value: string): string {
   return normalizeText(value).replace(/[^a-z0-9 ]+/g, "").trim();
 }
 
+function parsedDateParts(value: string): { year: number; month: number; day: number } | null {
+  const monthName = value.trim().match(MONTH_NAME_RE);
+  if (monthName) {
+    const month = MONTHS[monthName[1].toLowerCase().replace(/\.$/, "")];
+    const day = Number(monthName[2]);
+    const year = Number(monthName[3]);
+    if (month && day >= 1 && day <= 31) return { year, month, day };
+  }
+
+  const iso = value.trim().match(ISO_DATE_RE);
+  if (iso) {
+    const year = Number(iso[1]);
+    const month = Number(iso[2]);
+    const day = Number(iso[3]);
+    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) return { year, month, day };
+  }
+
+  return null;
+}
+
+function dateHintParts(value: Date | string | null | undefined): {
+  year: number;
+  month: number;
+  day: number;
+} | null {
+  if (!value) return null;
+  const date = value instanceof Date ? value : new Date(value);
+  if (!Number.isNaN(date.getTime())) {
+    return {
+      year: date.getUTCFullYear(),
+      month: date.getUTCMonth() + 1,
+      day: date.getUTCDate(),
+    };
+  }
+  return typeof value === "string" ? parsedDateParts(value) : null;
+}
+
+function sameDateParts(
+  a: { year: number; month: number; day: number },
+  b: { year: number; month: number; day: number },
+): boolean {
+  return a.year === b.year && a.month === b.month && a.day === b.day;
+}
+
+function isStandaloneDateLine(
+  text: string,
+  publishedParts: { year: number; month: number; day: number } | null,
+): boolean {
+  const parts = parsedDateParts(text);
+  if (!parts) return false;
+  return !publishedParts || sameDateParts(parts, publishedParts);
+}
+
+function isStandaloneAuthorLine(text: string, normName: string | null): boolean {
+  if (!normName) return false;
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 120) return false;
+  const norm = normalizeName(trimmed.replace(/^by\s+/i, ""));
+  return norm.length > 0 && norm === normName;
+}
+
 /** A "leaf" block has no descendant block element — it holds actual prose. */
 function isLeafBlock(el: Element): boolean {
   return el.querySelector(BLOCK_SELECTOR) === null;
@@ -144,37 +261,30 @@ function bylineConfidence(text: string, normName: string | null): number {
   // to be a byline/bio rather than a body paragraph that happens to cite them.
   if (normName && trimmed.length <= 400) {
     const normBody = normalizeName(trimmed);
-    if (normName.length > 0 && normBody.includes(normName)) return HIGH;
+    if (normName.length > 0 && normBody.includes(normName)) {
+      if (isStandaloneAuthorLine(trimmed, normName)) return HIGH;
+      if (
+        normBody.startsWith(normName) &&
+        /\b(reports?|writes?|covers?|is|was|contributes?|serves?)\b/i.test(trimmed)
+      ) {
+        return HIGH;
+      }
+    }
   }
 
   // "By Jane Doe", "Words by …", "Written by …" at the very start.
-  if (
-    /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u.test(
-      trimmed,
-    )
-  ) {
+  if (BYLINE_PREFIX_RE.test(trimmed)) {
     return MEDIUM;
   }
 
   // "Jane is a senior writer at Example", "She is the author of …".
-  if (
-    /\b(?:[\p{Lu}][\p{Ll}]+|he|she|they)\s+(?:is|was)\s+(?:a|an|the)\s+(?:senior\s+|staff\s+|freelance\s+|contributing\s+|former\s+|award-winning\s+)*(?:writer|journalist|reporter|editor|contributor|columnist|correspondent|author|blogger|essayist|critic|broadcaster|producer)\b/u.test(
-      trimmed,
-    )
-  ) {
+  if (AUTHOR_ROLE_RE.test(trimmed)) {
     return MEDIUM;
   }
   if (/\bis the author of\b/i.test(trimmed)) return MEDIUM;
 
   // Social handles / follow CTAs / profile links.
-  if (
-    /(^|\s)@[a-z0-9_]{2,}\b/i.test(trimmed) ||
-    /\bfollow\s+(me|us|her|him|them|@)/i.test(trimmed) ||
-    /\b(twitter|x|instagram|threads|mastodon|facebook|bluesky|linkedin)\.com\//i.test(
-      trimmed,
-    ) ||
-    /\bfind\s+(me|her|him|them)\s+on\b/i.test(trimmed)
-  ) {
+  if (SOCIAL_AUTHOR_RE.test(trimmed)) {
     return MEDIUM;
   }
 
@@ -301,6 +411,27 @@ function collectOrphanVideoLabels(root: Element, out: Candidate[]): void {
   }
 }
 
+function isStandaloneImageCredit(text: string): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > IMAGE_CREDIT_MAXLEN) return false;
+  return IMAGE_CREDIT_HEADING_RE.test(trimmed) || IMAGE_CREDIT_RE.test(trimmed);
+}
+
+function collectImageCreditBlocks(root: Element, out: Candidate[]): void {
+  for (const caption of Array.from(root.querySelectorAll("figcaption"))) {
+    const text = (caption.textContent ?? "").trim();
+    if (isStandaloneImageCredit(text)) out.push({ el: caption, confidence: HIGH });
+  }
+
+  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
+    if (el === root) continue;
+    if (!isLeafBlock(el)) continue;
+    if (el.querySelector("img,figure,video,audio,iframe,svg")) continue;
+    const text = (el.textContent ?? "").trim();
+    if (isStandaloneImageCredit(text)) out.push({ el, confidence: HIGH });
+  }
+}
+
 function isBoilerplateImage(img: Element): boolean {
   const haystack = [
     img.getAttribute("alt"),
@@ -351,18 +482,22 @@ function leadingBylineConfidence(text: string, normName: string | null): number 
 
   // Explicit leading credits / byline prefix that also reads like a bio.
   if (/^credits\b/i.test(trimmed)) return HIGH;
-  if (
-    /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u.test(
-      trimmed,
-    )
-  ) {
+  if (BYLINE_PREFIX_RE.test(trimmed)) {
     return HIGH;
   }
 
-  // Known author name appearing in a short leading bio → strong signal.
+  // Known author name appearing in a short leading bio → strong signal. Do not
+  // remove an ordinary lede solely because it mentions the author's name.
   if (normName) {
-    const conf = bylineConfidence(trimmed, normName);
-    if (conf >= HIGH) return HIGH;
+    const normBody = normalizeName(trimmed);
+    if (
+      normBody.includes(normName) &&
+      (AUTHOR_ROLE_RE.test(trimmed) ||
+        /\bis the author of\b/i.test(trimmed) ||
+        SOCIAL_AUTHOR_RE.test(trimmed))
+    ) {
+      return HIGH;
+    }
   }
 
   return 0;
@@ -372,15 +507,30 @@ function leadingBylineConfidence(text: string, normName: string | null): number 
 function collectLeadingByline(
   root: Element,
   normName: string | null,
+  publishedParts: { year: number; month: number; day: number } | null,
   out: Candidate[],
 ): void {
   const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+  let expectingDateAfterAuthor = false;
   let scanned = 0;
   for (let i = 0; i < leaves.length && scanned < LEADING_SCAN; i++) {
     const el = leaves[i];
     const text = (el.textContent ?? "").trim();
     if (text.length === 0) continue; // skip empty, don't count
     scanned++;
+
+    if (isStandaloneAuthorLine(text, normName)) {
+      out.push({ el, confidence: HIGH });
+      expectingDateAfterAuthor = true;
+      continue;
+    }
+
+    if (expectingDateAfterAuthor && isStandaloneDateLine(text, publishedParts)) {
+      out.push({ el, confidence: HIGH });
+      expectingDateAfterAuthor = false;
+      continue;
+    }
+
     const conf = leadingBylineConfidence(text, normName);
     if (conf > 0) {
       out.push({ el, confidence: conf });
@@ -390,6 +540,103 @@ function collectLeadingByline(
     if (isBoilerplateBlock(el, text)) continue;
     // First block of genuine opening prose → stop (never gut the real lede).
     break;
+  }
+}
+
+function hasMedia(el: Element): boolean {
+  return el.querySelector("img,figure,video,audio,iframe,svg") !== null;
+}
+
+function isSmithsonianAuthorAvatarBlock(el: Element, normName: string | null): boolean {
+  if (!/^(p|div|figure|section)$/i.test(el.tagName)) return false;
+  const text = (el.textContent ?? "").trim();
+  if (text.length > 80) return false;
+  const images = Array.from(el.querySelectorAll("img"));
+  if (images.length !== 1 || el.querySelector("video,audio,iframe")) return false;
+
+  const img = images[0]!;
+  const src = [
+    img.getAttribute("src"),
+    img.getAttribute("srcset"),
+    img.getAttribute("data-src"),
+    img.getAttribute("data-lazy-src"),
+  ]
+    .filter(Boolean)
+    .join(" ");
+  const alt = img.getAttribute("alt") ?? "";
+  const title = img.getAttribute("title") ?? "";
+  const attrText = [src, alt, title].join(" ");
+
+  if (SMITHSONIAN_AUTHOR_IMAGE_RE.test(attrText)) return true;
+  if (normName && normalizeName(`${alt} ${title}`) === normName) return true;
+  return false;
+}
+
+function isSmithsonianAuthorLine(text: string, normName: string | null): boolean {
+  const trimmed = text.trim();
+  if (trimmed.length === 0 || trimmed.length > 180) return false;
+  if (isStandaloneAuthorLine(trimmed, normName)) return true;
+  if (BYLINE_PREFIX_RE.test(trimmed)) return true;
+  if (!normName) return false;
+
+  const norm = normalizeName(trimmed);
+  if (!norm.startsWith(normName)) return false;
+  return (
+    SMITHSONIAN_BYLINE_ROLE_RE.test(trimmed) ||
+    AUTHOR_ROLE_RE.test(trimmed) ||
+    /\b(correspondent|writer|contributor|editor|author|reporter)\b/i.test(trimmed)
+  );
+}
+
+function collectSmithsonianLeadingByline(
+  root: Element,
+  normName: string | null,
+  publishedParts: { year: number; month: number; day: number } | null,
+  out: Candidate[],
+): void {
+  const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+  const leading = leaves
+    .filter((el) => (el.textContent ?? "").trim().length > 0 || hasMedia(el))
+    .slice(0, 8);
+
+  for (let i = 0; i < leading.length; i++) {
+    const el = leading[i]!;
+    const text = (el.textContent ?? "").trim();
+    if (
+      publishedParts &&
+      !hasMedia(el) &&
+      isStandaloneDateLine(text, publishedParts)
+    ) {
+      out.push({ el, confidence: HIGH });
+      continue;
+    }
+
+    const isAvatar = isSmithsonianAuthorAvatarBlock(el, normName);
+    const isAuthor = isSmithsonianAuthorLine(text, normName);
+    if (!isAvatar && !isAuthor) continue;
+
+    if (isAvatar) {
+      out.push({ el, confidence: HIGH });
+      const next = leading[i + 1];
+      if (next && isSmithsonianAuthorLine((next.textContent ?? "").trim(), normName)) {
+        out.push({ el: next, confidence: HIGH });
+        const date = leading[i + 2];
+        if (date && isStandaloneDateLine((date.textContent ?? "").trim(), publishedParts)) {
+          out.push({ el: date, confidence: HIGH });
+        }
+      }
+      continue;
+    }
+
+    out.push({ el, confidence: HIGH });
+    const prev = leading[i - 1];
+    if (prev && isSmithsonianAuthorAvatarBlock(prev, normName)) {
+      out.push({ el: prev, confidence: HIGH });
+    }
+    const next = leading[i + 1];
+    if (next && isStandaloneDateLine((next.textContent ?? "").trim(), publishedParts)) {
+      out.push({ el: next, confidence: HIGH });
+    }
   }
 }
 
@@ -515,6 +762,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   const originalLen = textLen(root);
   const hint = opts?.byline ?? opts?.authorName ?? null;
   const normName = hint ? normalizeName(hint) : null;
+  const publishedParts = dateHintParts(opts?.publishedAt);
 
   const candidates: Candidate[] = [];
   collectAttrBoilerplate(root, candidates);
@@ -523,7 +771,11 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectBoilerplateImages(root, candidates);
   collectTextBoilerplate(root, candidates);
   collectOrphanVideoLabels(root, candidates);
-  collectLeadingByline(root, normName, candidates);
+  collectImageCreditBlocks(root, candidates);
+  collectLeadingByline(root, normName, publishedParts, candidates);
+  if (opts?.providerKey === "smithsonian") {
+    collectSmithsonianLeadingByline(root, normName, publishedParts, candidates);
+  }
   collectTrailingByline(root, normName, candidates);
 
   const removals = selectRemovals(candidates, originalLen);

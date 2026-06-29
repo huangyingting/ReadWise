@@ -160,6 +160,15 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(undark.articleUrlFilter?.("https://undark.org/tag/climate-change/"), false);
 });
 
+test("smithsonian paginates category seeds with page query", () => {
+  const smithsonian = getProviderOrFail("smithsonian");
+  assert.ok((smithsonian.maxSeedPages ?? 1) > 1);
+  assert.equal(
+    smithsonian.paginateSeed?.("https://www.smithsonianmag.com/category/science-nature/", 2),
+    "https://www.smithsonianmag.com/category/science-nature/?page=2",
+  );
+});
+
 // ---------------------------------------------------------------------------
 // mapSectionToCategory
 // ---------------------------------------------------------------------------
