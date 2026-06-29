@@ -254,6 +254,48 @@ test("keeps ordinary prose where students also read primary source accounts", ()
   assertBodyIntact(out);
 });
 
+test("smithsonian provider cleanup removes leading author avatar/card residue", () => {
+  const html =
+    `<h2>A reported standfirst about a historical discovery remains part of the article.</h2>` +
+    `<p><img src="https://th-thumbnailer.cdn-si-edu.com/x/https://tf-cmsv2-smithsonianmag-media.s3.amazonaws.com/accounts/headshot/greg2.png" alt="Greg Daugherty"></p>` +
+    `<p>Greg Daugherty | History Correspondent</p>` +
+    `<p>June 24, 2026</p>` +
+    BODY +
+    `<figure><img src="https://tf-cmsv2-smithsonianmag-media.s3.amazonaws.com/filer_public/real-photo.jpg" alt="Real article image"><figcaption>Real article caption.</figcaption></figure>` +
+    `<p>On June 24, 2026, Greg Daugherty visited the archive with curators to compare maps and records.</p>`;
+  const out = declutterArticleHtml(html, {
+    authorName: "Greg Daugherty",
+    publishedAt: "2026-06-24T11:45:00Z",
+    providerKey: "smithsonian",
+  });
+
+  assert.ok(!out.includes("accounts/headshot"), "author avatar removed");
+  assert.ok(!out.includes("Greg Daugherty | History Correspondent"), "byline role removed");
+  assert.ok(!out.includes("<p>June 24, 2026</p>"), "standalone date removed");
+  assert.ok(out.includes("reported standfirst"), "standfirst kept");
+  assert.ok(out.includes("real-photo.jpg"), "real article image kept");
+  assert.ok(out.includes("Real article caption"), "real caption kept");
+  assert.ok(out.includes("On June 24, 2026, Greg Daugherty visited"), "legitimate prose kept");
+  assertBodyIntact(out);
+});
+
+test("smithsonian provider cleanup removes leading standalone publication date", () => {
+  const html =
+    `<h2>A reported standfirst about a historical discovery remains part of the article.</h2>` +
+    `<p>June 24, 2026</p>` +
+    BODY +
+    `<p>Researchers later compared the June 24, 2026 field notes with older maps.</p>`;
+  const out = declutterArticleHtml(html, {
+    publishedAt: "2026-06-24T11:45:00Z",
+    providerKey: "smithsonian",
+  });
+
+  assert.ok(!out.includes("<p>June 24, 2026</p>"), "leading standalone date removed");
+  assert.ok(out.includes("reported standfirst"), "standfirst kept");
+  assert.ok(out.includes("June 24, 2026 field notes"), "date in prose kept");
+  assertBodyIntact(out);
+});
+
 test("keeps ordinary prose where residents sign up for emergency alerts", () => {
   const prose =
     `<p>Residents sign up for emergency alerts at the town hall each spring ` +
@@ -394,6 +436,21 @@ test("removes favicon and newsletter promo images while keeping article media", 
   assertBodyIntact(out);
 });
 
+test("removes standalone image-credit lines while preserving prose and media", () => {
+  const html =
+    `<figure><img src="https://cdn.example.org/photos/telescope.jpg" alt="A telescope" /><figcaption>Image credit: NASA/JPL-Caltech</figcaption></figure>` +
+    BODY +
+    `<p>Image credits: Jane Doe / Example Agency</p>` +
+    `<p>Image credits can help researchers trace source material when an archive publishes public-domain scans for teaching.</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(out.includes("telescope.jpg"), "article image kept");
+  assert.ok(!out.includes("NASA/JPL-Caltech"), "figcaption image credit removed");
+  assert.ok(!out.includes("Jane Doe / Example Agency"), "standalone image-credit paragraph removed");
+  assert.ok(out.includes("Image credits can help researchers"), "real prose mentioning image credits kept");
+  assertBodyIntact(out);
+});
+
 test("removes trailing publication CTA and newsletter signup residue", () => {
   const html =
     BODY +
@@ -470,5 +527,35 @@ test("does NOT remove a genuine opening paragraph that merely names a person", (
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("Maria Santos arrived at the laboratory"), "real lede kept");
+  assertBodyIntact(out);
+});
+
+test("removes a standalone leading author and publication-date block", () => {
+  const html =
+    `<p>Viviane Callier</p>\n` +
+    `<p>February 5, 2026</p>\n` +
+    BODY;
+  const out = declutterArticleHtml(html, {
+    authorName: "Viviane Callier",
+    publishedAt: "2026-02-05T12:00:00Z",
+  });
+
+  assert.ok(!out.includes("Viviane Callier"), "standalone author residue removed");
+  assert.ok(!out.includes("February 5, 2026"), "standalone publication-date residue removed");
+  assertBodyIntact(out);
+});
+
+test("does NOT remove legitimate opening prose that mentions a person and date", () => {
+  const lede =
+    `<p>On February 5, 2026, Viviane Callier visited the archive to interview ` +
+    `researchers about a collection of field notes that had shaped the exhibit.</p>\n`;
+  const html = lede + BODY;
+  const out = declutterArticleHtml(html, {
+    authorName: "Viviane Callier",
+    publishedAt: "2026-02-05T12:00:00Z",
+  });
+
+  assert.ok(out.includes("Viviane Callier visited the archive"), "real lede kept");
+  assert.ok(out.includes("February 5, 2026"), "date in prose kept");
   assertBodyIntact(out);
 });

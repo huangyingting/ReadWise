@@ -20,6 +20,8 @@
     "db:migrate": "prisma migrate deploy && prisma generate",
     "db:reset": "prisma migrate reset --force --skip-seed && prisma generate",
     "push-reminders": "npm run node-ts -- scripts/push-reminders.ts",
+    "scrape:smithsonian": "npm run node-ts -- scripts/scrape-smithsonian.ts",
+    "smithsonian:reset-scrape-analyze": "npm run db:reset && npm run scrape:smithsonian -- --limit 50 --target-saved --publish",
     "analyze:speech-alignment": "NODE_ENV=test npm run node-ts -- --no-warnings scripts/analyze-speech-alignment.ts",
     "prisma:generate": "prisma generate",
     "prisma:generate:pg": "prisma generate --schema prisma/postgresql/schema.prisma",

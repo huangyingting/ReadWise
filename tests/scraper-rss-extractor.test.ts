@@ -9,7 +9,10 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { rssUrlExtractor } from "@/lib/scraper/providers/shared";
+import {
+  rssUrlExtractor,
+  sitemapUrlExtractor,
+} from "@/lib/scraper/providers/shared";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { getProvider } from "@/lib/scraper/providers";
 import type { Provider } from "@/lib/scraper/types";
@@ -30,6 +33,20 @@ function makeFeed(links: string[]): string {
 <rss version="2.0"><channel><title>Test</title>
 ${items}
 </channel></rss>`;
+}
+
+function makeSitemap(locs: string[]): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${locs.map((loc) => `<url><loc>${loc}</loc></url>`).join("\n")}
+</urlset>`;
+}
+
+function makeSitemapIndex(locs: string[]): string {
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+${locs.map((loc) => `<sitemap><loc>${loc}</loc></sitemap>`).join("\n")}
+</sitemapindex>`;
 }
 
 /**
@@ -127,9 +144,51 @@ test("rssUrlExtractor: stops fetching feeds once 2x limit candidates collected",
       return makeFeed(links);
     },
   });
+
   // limit=5 → cap at 2×5=10 → first feed already yields 10 → only 1 fetch
   assert.equal(fetchCount, 1);
   assert.equal(urls.length, 10);
+});
+
+test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs", async () => {
+  const extractor = sitemapUrlExtractor("https://example.com/sitemap.xml", {
+    sitemapUrlFilter: (url) => url.includes("articles"),
+  });
+  const fetched: string[] = [];
+  const sitemapMap: Record<string, string> = {
+    "https://example.com/sitemap.xml": makeSitemapIndex([
+      "https://example.com/sitemap-pages.xml",
+      "https://example.com/sitemap-articles-2026-06.xml",
+      "https://example.com/sitemap-articles-2026-05.xml",
+    ]),
+    "https://example.com/sitemap-articles-2026-06.xml": makeSitemap([
+      "https://example.com/a",
+      "https://example.com/b",
+    ]),
+    "https://example.com/sitemap-articles-2026-05.xml": makeSitemap([
+      "https://example.com/b",
+      "https://example.com/c",
+    ]),
+  };
+
+  const urls = await extractor({
+    limit: 10,
+    fetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [
+    "https://example.com/a",
+    "https://example.com/b",
+    "https://example.com/c",
+  ]);
+  assert.deepEqual(fetched, [
+    "https://example.com/sitemap.xml",
+    "https://example.com/sitemap-articles-2026-06.xml",
+    "https://example.com/sitemap-articles-2026-05.xml",
+  ]);
 });
 
 // ---------------------------------------------------------------------------
@@ -220,9 +279,47 @@ test("nautilus discovery: returns only article URLs from RSS", async () => {
   const urls = await discoverWithFeeds(nautilus, {
     "https://nautil.us/feed": feed,
   });
+
   assert.deepEqual(urls.sort(), [
     "https://nautil.us/the-hidden-life-of-trees-12345/",
     "https://nautil.us/why-time-flies-67890/",
+  ]);
+});
+
+test("smithsonian discovery: returns article URLs from monthly article sitemaps", async () => {
+  const smithsonian = getProvider("smithsonian")!;
+  const fetched: string[] = [];
+  const validOne =
+    "https://www.smithsonianmag.com/smart-news/museum-finds-new-clue-180988001/";
+  const validTwo =
+    "https://www.smithsonianmag.com/history/archive-visit-new-questions-180988002/";
+  const sitemapMap: Record<string, string> = {
+    "https://www.smithsonianmag.com/sitemap.xml": makeSitemapIndex([
+      "https://www.smithsonianmag.com/sitemap-pages.xml",
+      "https://www.smithsonianmag.com/sitemap-news.xml",
+      "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml",
+    ]),
+    "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml": makeSitemap([
+      validOne,
+      validTwo,
+      "https://www.smithsonianmag.com/category/history/",
+      "https://example.com/smart-news/offsite-180988003/",
+    ]),
+  };
+
+  const urls = await discoverProviderUrls(smithsonian, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [validOne, validTwo]);
+  assert.deepEqual(fetched, [
+    "https://www.smithsonianmag.com/sitemap.xml",
+    "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml",
   ]);
 });
 

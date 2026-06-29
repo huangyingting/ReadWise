@@ -67,3 +67,39 @@ Basher-1 performed a second-wave 10-pass testing audit as a follow-up to epic #6
 After Rusty-3 (opus-4.8) consolidation of all 67 round-2 findings into 13 issues: **Basher owns issues #636** (Playwright test isolation and snapshot drift remediation, Phase 2), **#637** (multi-tenancy integration test coverage, Phase 2), and **#639** (contract/schema tests and error-branch coverage, Phase 3) on epic #626, follow-up to #610.
 
 No source code modified (analysis only).
+
+
+## 2026-06-29 — Image-credit filter QA
+
+Basher reviewed Livingston's scraper image-credit filtering diff and approved it. Targeted `tests/scraper-declutter.test.ts` passed with 36 passed / 0 failed and no concerns were reported.
+
+
+## 2026-06-29T02:39:40.222+00:00 — Smithsonian scrape workflow QA
+Reviewed and approved Livingston's Smithsonian scrape workflow. Focused tests passed 92/92; help plus analyze-only commands exited 0 against 50 DB articles; `git diff --check` was clean. Note retained: prefer counts/URLs over snippets if analysis stdout is retained.
+
+
+## 2026-06-29T03:14:57.986+00:00 — Byline/date scraper cleanup QA
+Reviewed Livingston's scraper body cleanup and approved. Targeted tests passed 55/55, broader scraper tests passed 319/319, and typecheck passed; retained the minor note that date removal follows exact/`By` author lines rather than every prefixed byline variant.
+
+
+## 2026-06-29T03:36:59.547+00:00 — Smithsonian publish workflow QA
+Basher reviewed and approved the Smithsonian reset/scrape/publish workflow. Analyze-only reported 50 DB rows and no recurring noise; DB counts were total=50, published=50, drafts=0, missingPublishedAt=0; visited records had only URL/timestamp/outcome fields; targeted scraper/provider tests passed 115/115; typecheck passed.
+
+
+## 2026-06-29T04:06:47.026+00:00 — Smithsonian visible byline/avatar QA
+Reviewed Livingston's fix for article `cmqyo77ig000zjgg7ces1fu51` and approved. Diff review covered scraper declutter/extract changes and related Smithsonian tests/provider changes. DB pattern checks on `prisma/dev.db` confirmed target metadata preserved (`author='Greg Daugherty'`, `publishedAt=2026-06-24T11:45:00Z`) with `img_tags=10`, `non_headshot_img_tags=10`, `headshot=0`, `byline_role=0`, `standalone_date_tags=0`. Focused scraper/provider/image tests passed 123/123, `git diff --check` passed, and `npm run typecheck -- --pretty false` passed. No blockers.
+
+
+## 2026-06-29T03:56:04.101+00:00 — Smithsonian avatar cleanup QA
+
+Reviewed and approved Livingston's Smithsonian cleanup. Confirmed target metadata author/publishedAt was preserved, 10 non-headshot images remained, headshot/byline/date residue counts were 0, diff check passed, focused scraper/provider/image tests passed 123/123, and typecheck passed.
+
+
+## 2026-06-29T04:22:21.322+00:00 — Smithsonian scrape QA approval
+
+Basher reviewed and approved the completed Smithsonian scrape/publish workflow. QA verified 342 total Smithsonian rows, all published/`PUBLIC`/ownerless with no drafts or missing `publishedAt`; 595 unique visited URLs with URL/timestamp/outcome-only records; dry discovery fresh=0/skippedVisited=595; analyze-only no recurring noise; focused Smithsonian tests 65/65; changed-file ESLint, diff check, and typecheck passed.
+
+
+### 2026-06-29T05:27:54.043+00:00 — Undark scrape QA approved
+
+Reviewed Livingston's Undark scrape/cleanup work and approved it as scoped. Confirmed 10/10 Undark rows are DRAFT with 0 duplicate source URLs, known support/newsletter noise count is 0, Smithsonian remains 392/392 DRAFT, focused tests report 63 passed, and lint/typecheck passed.

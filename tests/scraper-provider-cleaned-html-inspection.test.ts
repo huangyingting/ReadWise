@@ -200,6 +200,8 @@ test("undark declutter drops newsletter compass promo image and keeps article me
       <p>${wordBlock(45, "parent")} as researchers describe care across species.</p>
       <figure><img src="https://undark.org/wp-content/uploads/2026/06/orca.jpg" alt="An orca swimming" /></figure>
       <p>${wordBlock(45, "family")} as the reporting follows field observations.</p>
+      <h4>Support Undark Magazine</h4>
+      <p>Undark is a non-profit, editorially independent magazine covering science and society. If you would like to help support our journalism, please consider making a donation.</p>
       <p>SIGN UP FOR NEWSLETTER JOURNEYS: Dive deeper into pressing issues with our limited run newsletters, delivered weekly with hand-picked archive excerpts and updates.</p>
       <hr /><p><img src="https://undark.org/wp-content/uploads/2024/11/compass.png" alt="Newsletter Journeys" /></p><hr />
       <p>${wordBlock(45, "evidence")} as the essay returns to animal behavior.</p>
@@ -209,11 +211,23 @@ test("undark declutter drops newsletter compass promo image and keeps article me
     html,
     mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
   );
-  assertNoProviderNoise(cleaned, [/SIGN UP FOR NEWSLETTER JOURNEYS/i, /compass\.png/i]);
+  assertNoProviderNoise(cleaned, [
+    /SIGN UP FOR NEWSLETTER JOURNEYS/i,
+    /compass\.png/i,
+    /Support Undark Magazine/i,
+    /non-profit, editorially independent/i,
+    /support our journalism/i,
+  ]);
 
   const result = extractArticle(html, "https://undark.org/2026/06/26/how-animals-care/");
   assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [/compass\.png/i, /Newsletter Journeys/i, /Dive deeper/i]);
+  assertNoProviderNoise(result!.content, [
+    /compass\.png/i,
+    /Newsletter Journeys/i,
+    /Dive deeper/i,
+    /Support Undark Magazine/i,
+    /support our journalism/i,
+  ]);
   assert.match(result!.content, /orca\.jpg/i, "article image must survive");
 });
 
