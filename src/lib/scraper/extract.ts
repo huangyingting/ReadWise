@@ -201,7 +201,7 @@ function paragraphsToHtml(text: string): string {
  * quotes and — crucially — `<figure>`/`<img>` so article imagery is no longer
  * dropped on the providers where Readability under-performs and legacy wins.
  */
-const HARVEST_SELECTOR = "p,h2,h3,h4,h5,h6,ul,ol,blockquote,figure,figcaption,img";
+const HARVEST_SELECTOR = "p,h2,h3,h4,h5,h6,ul,ol,blockquote,figure,figcaption,img,iframe,a";
 
 /**
  * Resolved-`src` fragments that mark site chrome (logos, sprites, tracking
@@ -224,6 +224,25 @@ function isChromeImage(absSrc: string): boolean {
 /** A `src` value that is a lazy-load stand-in rather than the real image. */
 function isLazyPlaceholderSrc(src: string): boolean {
   return src.length === 0 || /^data:|placeholder|blank|1x1|spacer|loading/i.test(src);
+}
+
+function isSupportedVideoUrl(url: string): boolean {
+  try {
+    const host = new URL(url).hostname.replace(/^www\./, "").toLowerCase();
+    return (
+      host === "youtube.com" ||
+      host === "youtu.be" ||
+      host.endsWith(".youtube.com") ||
+      host === "vimeo.com" ||
+      host.endsWith(".vimeo.com")
+    );
+  } catch {
+    return false;
+  }
+}
+
+function videoLinkHtml(url: string): string {
+  return `<a href="${url}">Watch video</a>`;
 }
 
 type DomElement = NonNullable<ReturnType<typeof parseHTML>["document"]["body"]> | null;
@@ -313,6 +332,22 @@ function harvestContent(scope: NonNullable<DomElement>, baseUrl: string): string
     img.setAttribute("src", abs);
   }
 
+  // Preserve supported article video embeds as ordinary links that survive the
+  // sanitizer; unsupported iframes are left for sanitization to drop.
+  for (const iframe of Array.from(scope.querySelectorAll("iframe"))) {
+    const src = toAbsolute((iframe.getAttribute("src") ?? "").trim(), baseUrl);
+    if (!src || !isSupportedVideoUrl(src)) continue;
+    const { document } = parseHTML(videoLinkHtml(src));
+    const link = document.querySelector("a");
+    if (!link) continue;
+    if (iframe.parentElement?.tagName.toLowerCase() === "figure") {
+      iframe.replaceWith(link);
+    } else {
+      const wrapper = parseHTML(`<figure>${videoLinkHtml(src)}</figure>`).document.querySelector("figure");
+      if (wrapper) iframe.replaceWith(wrapper);
+    }
+  }
+
   // Pass 2: collect top-level content elements in document order.
   const taken: Element[] = [];
   const parts: string[] = [];
@@ -324,6 +359,20 @@ function harvestContent(scope: NonNullable<DomElement>, baseUrl: string): string
       // A content image not already inside a captured <figure>/<p>.
       taken.push(el);
       parts.push(`<figure>${el.outerHTML}</figure>`);
+      continue;
+    }
+    if (tag === "iframe") {
+      const src = toAbsolute((el.getAttribute("src") ?? "").trim(), baseUrl);
+      if (!src || !isSupportedVideoUrl(src)) continue;
+      taken.push(el);
+      parts.push(`<figure>${videoLinkHtml(src)}</figure>`);
+      continue;
+    }
+    if (tag === "a") {
+      const href = toAbsolute((el.getAttribute("href") ?? "").trim(), baseUrl);
+      if (!href || !isSupportedVideoUrl(href)) continue;
+      taken.push(el);
+      parts.push(`<figure><a href="${href}">${el.textContent?.trim() || "Watch video"}</a></figure>`);
       continue;
     }
     if (tag === "figcaption") {

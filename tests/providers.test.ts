@@ -1,8 +1,8 @@
 /**
  * Tests for provider registration and category mapping (Issue #118).
- * Verifies: BBC Learning English is registered, articleUrlPatterns match
- * expected paths, categoryFor maps topic paths to canonical CATEGORY_SLUGS,
- * and the shared mapSectionToCategory keyword mapper routes sections correctly.
+ * Verifies: providers are registered, articleUrlPatterns match expected paths,
+ * categoryFor maps topic paths to canonical CATEGORY_SLUGS, and the shared
+ * mapSectionToCategory keyword mapper routes sections correctly.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -18,69 +18,6 @@ function getProviderOrFail(key: string) {
   assert.ok(p, `Provider "${key}" must be registered`);
   return p!;
 }
-
-// ---------------------------------------------------------------------------
-// BBC Learning English
-// ---------------------------------------------------------------------------
-
-test("bbc-learning-english provider is registered", () => {
-  const p = getProvider("bbc-learning-english");
-  assert.ok(p, "BBC Learning English must be in the PROVIDERS registry");
-  assert.equal(p?.key, "bbc-learning-english");
-});
-
-test("bbc-learning-english articleUrlPattern matches learningenglish paths", () => {
-  const p = getProviderOrFail("bbc-learning-english");
-  assert.ok(p.articleUrlPattern.test("https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-230101"), "should match 6-minute-english path");
-  assert.ok(p.articleUrlPattern.test("https://www.bbc.co.uk/learningenglish/english/features/news-report/ep-230115"), "should match news-report path");
-  assert.ok(!p.articleUrlPattern.test("https://www.bbc.co.uk/news/uk-12345"), "should NOT match regular BBC news");
-  assert.ok(!p.articleUrlPattern.test("https://bbc.com/sport/football"), "should NOT match bbc.com sport");
-});
-
-test("bbc-learning-english rejects feature INDEX (seed) URLs but accepts episode URLs", () => {
-  const p = getProviderOrFail("bbc-learning-english");
-  const indexUrls = [
-    "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english",
-    "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/",
-    "https://www.bbc.co.uk/learningenglish/english/features/news-report",
-    "https://www.bbc.co.uk/learningenglish/english/features/lingohack?page=2",
-  ];
-  for (const url of indexUrls) {
-    // The bare feature index must NOT look like an article: either the pattern
-    // doesn't match OR the filter rejects it.
-    const accepted = p.articleUrlPattern.test(url) && (p.articleUrlFilter?.(url) ?? true);
-    assert.equal(accepted, false, `index URL must be rejected: ${url}`);
-  }
-
-  const episodeUrl = "https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-260618";
-  const episodeAccepted =
-    p.articleUrlPattern.test(episodeUrl) && (p.articleUrlFilter?.(episodeUrl) ?? true);
-  assert.ok(episodeAccepted, "real episode URL must be accepted by pattern + filter");
-});
-
-test("bbc-learning-english categoryFor maps science path to science", () => {
-  const p = getProviderOrFail("bbc-learning-english");
-  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
-  const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/science-focus/ep-2301");
-  const cat = p.categoryFor!(url, null);
-  assert.equal(cat, "science");
-});
-
-test("bbc-learning-english categoryFor maps health path to health", () => {
-  const p = getProviderOrFail("bbc-learning-english");
-  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
-  const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/health/ep-2301");
-  const cat = p.categoryFor!(url, null);
-  assert.equal(cat, "health");
-});
-
-test("bbc-learning-english categoryFor defaults to culture for generic paths", () => {
-  const p = getProviderOrFail("bbc-learning-english");
-  assert.ok(p.categoryFor, "BBC LE must have a categoryFor function");
-  const url = new URL("https://www.bbc.co.uk/learningenglish/english/features/6-minute-english/ep-2301");
-  const cat = p.categoryFor!(url, null);
-  assert.ok(CATEGORY_SLUGS.includes(cat ?? ""), `returned category "${cat}" must be a valid slug`);
-});
 
 // ---------------------------------------------------------------------------
 // General provider registry
@@ -113,11 +50,10 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 12 active providers (aeon + voa removed)", () => {
+test("registry holds exactly the 11 active providers (aeon + voa removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "bbc",
-    "bbc-learning-english",
     "huffpost",
     "knowable",
     "natgeo",
@@ -129,7 +65,7 @@ test("registry holds exactly the 12 active providers (aeon + voa removed)", () =
     "time",
     "undark",
   ]);
-  assert.equal(PROVIDERS.length, 12);
+  assert.equal(PROVIDERS.length, 11);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
@@ -163,16 +99,28 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
     "Nautilus cleanup should drop subscribe/newsletter chrome",
   );
   assert.ok(
-    getProviderOrFail("undark").cleanup?.dropClassKeywords?.some((kw) =>
+    getProviderOrFail("undark").cleanup?.dropTextKeywords?.some((kw) =>
       /newsletter|journeys/i.test(kw),
     ),
-    "Undark cleanup should drop newsletter journeys chrome",
+    "Undark cleanup should drop newsletter journeys text chrome",
   );
   assert.ok(
     getProviderOrFail("technologyreview").cleanup?.dropClassKeywords?.some((kw) =>
       /deepDive|stayConnected/i.test(kw),
     ),
     "Technology Review cleanup should drop deep dive recirc and stayConnected signup blocks",
+  );
+  assert.ok(
+    getProviderOrFail("technologyreview").cleanup?.dropTextKeywords?.some((kw) =>
+      /the checkup|preferences/i.test(kw),
+    ),
+    "Technology Review cleanup should drop branded newsletter text chrome",
+  );
+  assert.ok(
+    getProviderOrFail("technologyreview").quality?.digestListicleTitlePrefixes?.some((kw) =>
+      /the download:/i.test(kw),
+    ),
+    "Technology Review quality config should own branded digest prefixes",
   );
 });
 
@@ -420,7 +368,7 @@ test("long-form magazines override readingCategories to their FULL categories[]"
 });
 
 test("news/learning providers OMIT readingCategories (fall back to the global tier)", () => {
-  for (const key of ["nbc", "time", "huffpost", "bbc", "bbc-learning-english"]) {
+  for (const key of ["nbc", "time", "huffpost", "bbc"]) {
     const p = getProviderOrFail(key);
     assert.equal(p.readingCategories, undefined, `${key}: should omit readingCategories`);
   }

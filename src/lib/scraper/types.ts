@@ -117,5 +117,28 @@ export type Provider = {
      * Examples: `"related"`, `"newsletter"`, `"social-share"`, `"promo"`.
      */
     dropClassKeywords?: string[];
+    /**
+     * Case-insensitive text fragments. Any short structural block whose text
+     * contains one of these strings is removed before body extraction. Keep
+     * these provider-specific; generic shared cleanup should stay structural.
+     */
+    dropTextKeywords?: string[];
+    /**
+     * Case-insensitive href keyword fragments. Any `<a>` whose `href` contains
+     * one of these strings — together with its children — is removed before body
+     * extraction. Empty `<p>`/`<figure>` wrappers left behind are also removed.
+     */
+    dropLinkHrefKeywords?: string[];
+  };
+  /**
+   * Provider-specific quality heuristics. Shared quality checks should only keep
+   * generic article/digest signals; branded provider phrases live here.
+   */
+  quality?: {
+    /**
+     * Case-insensitive title/body prefixes that identify provider digest formats
+     * when combined with list/source-link structure.
+     */
+    digestListicleTitlePrefixes?: string[];
   };
 };

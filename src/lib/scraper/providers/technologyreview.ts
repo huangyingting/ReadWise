@@ -41,6 +41,16 @@ const technologyreview: Provider = {
       "newsletter",
       "recirc",
     ],
+    dropTextKeywords: [
+      "the checkup, our weekly biotech newsletter",
+      "the checkup, mit technology review",
+      "weekly biotech newsletter",
+      "sign up to receive it in your inbox",
+      "trouble saving your preferences",
+    ],
+  },
+  quality: {
+    digestListicleTitlePrefixes: ["the download:"],
   },
   categoryFor: (url, section) =>
     lookupSection(url, section, [

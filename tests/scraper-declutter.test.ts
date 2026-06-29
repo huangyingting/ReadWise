@@ -82,6 +82,20 @@ test("removes a 'more from' label widget even without a boilerplate class", () =
   assertBodyIntact(out);
 });
 
+test("removes orphan standalone video labels without dropping article media", () => {
+  const html =
+    BODY +
+    `\n<p>Featured Video</p>` +
+    `\n<figure><img src="https://example.com/article.jpg" alt="Article image" /></figure>` +
+    `\n<p>Watch:</p>`;
+  const out = declutterArticleHtml(html);
+
+  assert.ok(!out.includes("Featured Video"), "orphan featured-video label removed");
+  assert.ok(!out.includes("Watch:"), "orphan watch label removed");
+  assert.ok(out.includes("article.jpg"), "article image figure kept");
+  assertBodyIntact(out);
+});
+
 test("removes expanded related labels but preserves article video links in prose", () => {
   const html =
     BODY +
@@ -346,7 +360,7 @@ test("guard: a long body paragraph that merely contains 'subscribe' is KEPT", ()
   assertBodyIntact(out);
 });
 
-test("removes longer newsletter preference/signup residue without removing subscribe prose", () => {
+test("shared declutter keeps provider-specific newsletter residue for provider cleanup", () => {
   const html =
     BODY +
     `<p>We’re having trouble saving your preferences. Try refreshing this page and updating them one more time. If you continue to get this message, reach out to customer service about newsletters and account preferences.</p>` +
@@ -354,8 +368,8 @@ test("removes longer newsletter preference/signup residue without removing subsc
     `<p>Researchers can subscribe to the underlying dataset through the public portal after agreeing to the license terms for reproducibility.</p>`;
   const out = declutterArticleHtml(html);
 
-  assert.ok(!out.includes("trouble saving your preferences"), "preference residue removed");
-  assert.ok(!out.includes("SIGN UP FOR NEWSLETTER JOURNEYS"), "long newsletter CTA removed");
+  assert.ok(out.includes("trouble saving your preferences"), "provider-specific preference residue kept");
+  assert.ok(out.includes("SIGN UP FOR NEWSLETTER JOURNEYS"), "provider-specific long newsletter CTA kept");
   assert.ok(out.includes("subscribe to the underlying dataset"), "legitimate subscribe prose kept");
   assertBodyIntact(out);
 });

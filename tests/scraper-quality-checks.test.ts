@@ -21,6 +21,8 @@ import assert from "node:assert/strict";
 
 import {
   checkContentQuality,
+  MIN_READING_MINUTES,
+  MIN_READING_WORD_COUNT,
   MIN_WORD_COUNT,
   SHORT_WORD_COUNT,
   MAX_LINK_DENSITY,
@@ -82,6 +84,20 @@ function articleHtml(body: string): string {
   return `<p>${body}</p>`;
 }
 
+/** Builds linked English article prose of at least `minWords` words. */
+function linkedProse(minWords: number, hrefPrefix = "/article"): string {
+  const out: string[] = [];
+  let count = 0;
+  let i = 0;
+  while (count < minWords) {
+    const sentence = PROSE_SENTENCES[i % PROSE_SENTENCES.length]!;
+    out.push(`<a href="${hrefPrefix}/${i}">${sentence}</a>`);
+    count += sentence.split(/\s+/).length;
+    i++;
+  }
+  return out.join(" ");
+}
+
 /** Builds a minimal QualityInput with sensible defaults. */
 function makeInput(overrides: Partial<QualityInput> & { content: string }): QualityInput {
   const plainLen = overrides.content.replace(/<[^>]*>/g, " ").trim().split(/\s+/).length;
@@ -106,7 +122,7 @@ function signalFor(result: ReturnType<typeof checkContentQuality>, check: string
 
 test("quality/good: well-formed article with all metadata scores ok", () => {
   const input = makeInput({
-    content: articleHtml(prose(200)),
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
     author: "Jane Doe",
     publishedAt: new Date("2026-05-01T10:00:00Z"),
   });
@@ -120,7 +136,7 @@ test("quality/good: well-formed article with all metadata scores ok", () => {
 
 test("quality/good: score is 100 when all signals pass", () => {
   const input = makeInput({
-    content: articleHtml(prose(300)),
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
     author: "John Smith",
     publishedAt: new Date("2026-03-15T08:00:00Z"),
   });
@@ -164,15 +180,16 @@ test(`quality/reject: article with fewer than ${MIN_WORD_COUNT} words is rejecte
   assert.match(signalFor(result, "word-count")?.detail ?? "", /words=\d+/);
 });
 
-test(`quality/ok: article with exactly ${MIN_WORD_COUNT} words passes word-count check`, () => {
+test(`quality/reject: article with exactly ${MIN_WORD_COUNT} words passes word-count but fails reading-time`, () => {
   const input = makeInput({ content: articleHtml(prose(MIN_WORD_COUNT)), wordCount: MIN_WORD_COUNT });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "word-count")?.passed, true);
-  assert.notEqual(result.grade, "reject");
+  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assert.equal(result.grade, "reject");
 });
 
-test(`quality/ok: article with ${SHORT_WORD_COUNT} words passes word-count (no reject)`, () => {
+test(`quality/reject: article with ${SHORT_WORD_COUNT} words passes word-count but fails reading-time`, () => {
   const input = makeInput({
     content: articleHtml(prose(SHORT_WORD_COUNT)),
     wordCount: SHORT_WORD_COUNT,
@@ -180,7 +197,30 @@ test(`quality/ok: article with ${SHORT_WORD_COUNT} words passes word-count (no r
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "word-count")?.passed, true);
-  assert.notEqual(result.grade, "reject");
+  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assert.equal(result.grade, "reject");
+});
+
+test(`quality/ok: article with at least ${MIN_READING_MINUTES} reading minutes passes reading-time`, () => {
+  const input = makeInput({
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
+    wordCount: MIN_READING_WORD_COUNT,
+  });
+  const result = checkContentQuality(input);
+
+  assert.equal(signalFor(result, "reading-time")?.passed, true);
+  assert.equal(result.grade, "ok");
+});
+
+test(`quality/reject: article with ${MIN_READING_WORD_COUNT - 1} words fails reading-time`, () => {
+  const input = makeInput({
+    content: articleHtml(prose(MIN_READING_WORD_COUNT - 1)),
+    wordCount: MIN_READING_WORD_COUNT - 1,
+  });
+  const result = checkContentQuality(input);
+
+  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assert.equal(result.grade, "reject");
 });
 
 // ---------------------------------------------------------------------------
@@ -189,9 +229,9 @@ test(`quality/ok: article with ${SHORT_WORD_COUNT} words passes word-count (no r
 
 test("quality/warn: paywall marker — 'subscribers only' text triggers warn", () => {
   const body =
-    words(100, "intro") +
+    prose(MIN_READING_WORD_COUNT) +
     " This content is for subscribers only. Please sign in to continue reading.";
-  const input = makeInput({ content: articleHtml(body), wordCount: 110 });
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -200,9 +240,9 @@ test("quality/warn: paywall marker — 'subscribers only' text triggers warn", (
 
 test("quality/warn: paywall marker — 'reached your free article limit'", () => {
   const body =
-    words(80, "news") +
+    prose(MIN_READING_WORD_COUNT) +
     " You have reached your free article limit. Subscribe to continue reading.";
-  const input = makeInput({ content: articleHtml(body), wordCount: 90 });
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -210,8 +250,8 @@ test("quality/warn: paywall marker — 'reached your free article limit'", () =>
 });
 
 test("quality/warn: paywall marker — 'sign in to read'", () => {
-  const body = words(60, "gate") + " Please sign in to read the full article.";
-  const input = makeInput({ content: articleHtml(body), wordCount: 70 });
+  const body = prose(MIN_READING_WORD_COUNT) + " Please sign in to read the full article.";
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -220,8 +260,8 @@ test("quality/warn: paywall marker — 'sign in to read'", () => {
 
 test("quality/ok: 'subscribe' in a non-gate context does not trigger paywall check", () => {
   // "subscribe to our newsletter" — should NOT match subscription-gate patterns
-  const body = words(200, "article") + " You can subscribe to our newsletter for updates.";
-  const input = makeInput({ content: articleHtml(body), wordCount: 210 });
+  const body = prose(MIN_READING_WORD_COUNT) + " You can subscribe to our newsletter for updates.";
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "paywall-marker")?.passed, true);
@@ -233,11 +273,10 @@ test("quality/ok: 'subscribe' in a non-gate context does not trigger paywall che
 
 test("quality/warn: high ratio of replacement chars triggers encoding-garbage", () => {
   // Build a body where replacement chars exceed MAX_GARBAGE_RATIO (2%).
-  // ~100 words of real prose ≈ 600 chars; 30 U+FFFD ≈ 4.7% > 2%.
-  const baseProse = prose(100);
-  const garbage = "\uFFFD".repeat(30);
+  const baseProse = prose(MIN_READING_WORD_COUNT);
+  const garbage = "\uFFFD".repeat(200);
   const body = `${baseProse} ${garbage}`;
-  const input = makeInput({ content: articleHtml(body), wordCount: 100 });
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -247,8 +286,8 @@ test("quality/warn: high ratio of replacement chars triggers encoding-garbage", 
 
 test("quality/ok: a single stray replacement char stays below the garbage threshold", () => {
   // One U+FFFD in a 1000-char text = 0.1% — well below MAX_GARBAGE_RATIO
-  const body = words(200, "clean") + " \uFFFD";
-  const input = makeInput({ content: articleHtml(body), wordCount: 200 });
+  const body = prose(MIN_READING_WORD_COUNT) + " \uFFFD";
+  const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "encoding-garbage")?.passed, true);
@@ -260,12 +299,9 @@ test("quality/ok: a single stray replacement char stays below the garbage thresh
 
 test("quality/warn: nav-heavy page with link density > threshold triggers warn", () => {
   // Build content where most "words" are inside <a> tags (simulates nav page)
-  const linkBlock = Array.from(
-    { length: 50 },
-    (_, i) => `<a href="/article/${i}">headline word${i} topic${i} read</a>`,
-  ).join(" ");
-  const articleContent = `<p>${words(20, "real")}</p><p>${linkBlock}</p>`;
-  const input = makeInput({ content: articleContent, wordCount: 220 });
+  const linkBlock = linkedProse(MIN_READING_WORD_COUNT);
+  const articleContent = `<p>${linkBlock}</p>`;
+  const input = makeInput({ content: articleContent });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -275,9 +311,9 @@ test("quality/warn: nav-heavy page with link density > threshold triggers warn",
 
 test("quality/ok: article with a few inline links stays below link-density threshold", () => {
   const body =
-    `<p>${words(150, "para")}</p>` +
+    `<p>${prose(MIN_READING_WORD_COUNT)}</p>` +
     '<p>Read more at <a href="https://example.com">example.com</a> for details.</p>';
-  const input = makeInput({ content: body, wordCount: 155 });
+  const input = makeInput({ content: body });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "link-density")?.passed, true);
@@ -296,8 +332,8 @@ test(`quality/warn: ${BOILERPLATE_HIT_THRESHOLD}+ boilerplate patterns trigger w
     "Do not sell my personal information.",
     "Advertise with us for premium placement.",
   ].join(" ");
-  const body = words(120, "article") + " " + boilerplate;
-  const input = makeInput({ content: `<p>${body}</p>`, wordCount: 140 });
+  const body = prose(MIN_READING_WORD_COUNT) + " " + boilerplate;
+  const input = makeInput({ content: `<p>${body}</p>` });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -307,8 +343,8 @@ test(`quality/warn: ${BOILERPLATE_HIT_THRESHOLD}+ boilerplate patterns trigger w
 
 test(`quality/ok: fewer than ${BOILERPLATE_HIT_THRESHOLD} boilerplate hints does not trigger`, () => {
   // One copyright line in a full article is normal
-  const body = words(200, "article") + " © 2026 News Corp.";
-  const input = makeInput({ content: `<p>${body}</p>`, wordCount: 200 });
+  const body = prose(MIN_READING_WORD_COUNT) + " © 2026 News Corp.";
+  const input = makeInput({ content: `<p>${body}</p>` });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "boilerplate-heavy")?.passed, true);
@@ -320,7 +356,7 @@ test(`quality/ok: fewer than ${BOILERPLATE_HIT_THRESHOLD} boilerplate hints does
 
 test("quality/ok: missing author alone does not produce a warn grade", () => {
   const input = makeInput({
-    content: articleHtml(prose(200)),
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
     author: null,
     publishedAt: new Date("2026-01-01T00:00:00Z"),
   });
@@ -332,7 +368,7 @@ test("quality/ok: missing author alone does not produce a warn grade", () => {
 
 test("quality/ok: missing date alone does not produce a warn grade", () => {
   const input = makeInput({
-    content: articleHtml(prose(200)),
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
     author: "Some Author",
     publishedAt: null,
   });
@@ -344,7 +380,7 @@ test("quality/ok: missing date alone does not produce a warn grade", () => {
 
 test("quality/ok: missing both author and date does not produce a warn grade", () => {
   const input = makeInput({
-    content: articleHtml(prose(200)),
+    content: articleHtml(prose(MIN_READING_WORD_COUNT)),
     author: null,
     publishedAt: null,
   });
@@ -360,15 +396,11 @@ test("quality/ok: missing both author and date does not produce a warn grade", (
 // ---------------------------------------------------------------------------
 
 test("quality/warn: paywall + high link density both fire for a gated index page", () => {
-  const linkBlock = Array.from(
-    { length: 40 },
-    (_, i) => `<a href="/s/${i}">article story headline ${i}</a>`,
-  ).join(" ");
+  const linkBlock = linkedProse(MIN_READING_WORD_COUNT, "/s");
   const body =
-    `<p>${words(60, "gate")}</p>` +
     `<p>${linkBlock}</p>` +
     "<p>Sign in to read the full article.</p>";
-  const input = makeInput({ content: body, wordCount: 200 });
+  const input = makeInput({ content: body });
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
@@ -390,16 +422,13 @@ test("quality/score: score is always in [0, 100]", () => {
 });
 
 test("quality/score: all failing major signals still produce score >= 0 (no negative)", () => {
-  const linkBlock = Array.from(
-    { length: 60 },
-    (_, i) => `<a href="/x/${i}">text word${i} more${i}</a>`,
-  ).join(" ");
+  const linkBlock = linkedProse(MIN_READING_WORD_COUNT, "/x");
   const body =
     `<p>${linkBlock}</p>` +
     "<p>Subscribe to read this exclusive content for members only.</p>" +
     "<p>Copyright © 2026. All rights reserved. Privacy Policy. Terms of Service. Cookie Settings. Advertise with us. Do not sell my data.</p>" +
     `<p>${"\uFFFD".repeat(15)} more text here.</p>`;
-  const input = makeInput({ content: body, wordCount: 180, author: null, publishedAt: null });
+  const input = makeInput({ content: body, author: null, publishedAt: null });
   const result = checkContentQuality(input);
 
   assert.ok(result.score >= 0, `score must never go below 0, got ${result.score}`);
@@ -414,15 +443,17 @@ test("quality/signals: result always contains all expected check names", () => {
   const expectedChecks = [
     "empty-body",
     "word-count",
+    "reading-time",
     "paywall-marker",
     "encoding-garbage",
     "link-density",
     "boilerplate-heavy",
+    "digest-listicle",
     "missing-author",
     "missing-date",
   ];
 
-  const input = makeInput({ content: articleHtml(words(200, "sig")) });
+  const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
   const checkNames = result.signals.map((s) => s.check);
 
@@ -438,11 +469,81 @@ test("quality/signals: empty body skips non-critical checks (no false signals)",
 
   assert.equal(result.grade, "reject");
   // Checks that depend on non-empty body should not be present
-  const skippedChecks = ["paywall-marker", "encoding-garbage", "link-density", "boilerplate-heavy"];
+  const skippedChecks = [
+    "paywall-marker",
+    "encoding-garbage",
+    "link-density",
+    "boilerplate-heavy",
+    "digest-listicle",
+  ];
   const presentChecks = result.signals.map((s) => s.check);
   for (const skipped of skippedChecks) {
     assert.ok(!presentChecks.includes(skipped), `check "${skipped}" should be absent for empty body`);
   }
+});
+
+test("quality/reject: generic must-reads digest roundup listicle is rejected", () => {
+  const digestItems = [
+    ["1. Scientists are testing a new battery design", "https://www.nature.com/articles/example-one"],
+    ["2. A robotics lab released a safer walking machine", "https://www.science.org/content/example-two"],
+    ["3. Climate monitors recorded another unusual signal", "https://www.noaa.gov/news/example-three"],
+    ["4. Astronomers found a promising planet candidate", "https://www.nasa.gov/news/example-four"],
+  ]
+    .map(
+      ([headline, href]) =>
+        `<p><strong>${headline}</strong> The brief item summarizes why researchers are paying close attention this week. (<a href="${href}">Source</a>)</p>`,
+    )
+    .join("");
+  const input = makeInput({
+    title: "What to know today",
+    content: `<p>The must-reads from across technology and science today.</p>${digestItems}<p>${prose(80)}</p>`,
+    sourceUrl: "https://www.technologyreview.com/2026/06/29/1234568/what-to-know-today/",
+  });
+
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject");
+  assert.equal(signalFor(result, "digest-listicle")?.passed, false);
+});
+
+test("quality/reject: Technology Review branded digest roundup listicle is rejected", () => {
+  const digestItems = [
+    ["1. Scientists are testing a new battery design", "https://www.nature.com/articles/example-one"],
+    ["2. A robotics lab released a safer walking machine", "https://www.science.org/content/example-two"],
+    ["3. Climate monitors recorded another unusual signal", "https://www.noaa.gov/news/example-three"],
+    ["4. Astronomers found a promising planet candidate", "https://www.nasa.gov/news/example-four"],
+  ]
+    .map(
+      ([headline, href]) =>
+        `<p><strong>${headline}</strong> The brief item summarizes why researchers are paying close attention this week. (<a href="${href}">Source</a>)</p>`,
+    )
+    .join("");
+  const input = makeInput({
+    title: "The Download: what you need to know today",
+    content: `<p>The Download: across technology and science today.</p>${digestItems}<p>${prose(80)}</p>`,
+    sourceUrl: "https://www.technologyreview.com/2026/06/29/1234567/the-download/",
+  });
+
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject");
+  assert.equal(signalFor(result, "digest-listicle")?.passed, false);
+});
+
+test("quality/ok: normal article with a download reference is not digest-listicle", () => {
+  const input = makeInput({
+    title: "The Download: How a public archive changed research",
+    content: articleHtml(
+      "The Download: " +
+        prose(MIN_READING_WORD_COUNT) +
+        " The article mentions a public data download, but it remains a single narrative report.",
+    ),
+  });
+
+  const result = checkContentQuality(input);
+
+  assert.notEqual(result.grade, "reject");
+  assert.equal(signalFor(result, "digest-listicle")?.passed, true);
 });
 
 // ---------------------------------------------------------------------------
@@ -467,13 +568,13 @@ test("quality/reject: non-English body is flagged and rejected (franc)", () => {
 });
 
 test("quality/ok: clean English article passes the non-english language check", () => {
-  const input = makeInput({ content: articleHtml(prose(200)) });
+  const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "non-english")?.passed, true);
 });
 
-test("quality/ok: short non-English snippet does NOT false-positive (und passes)", () => {
+test("quality/reject: short non-English snippet does NOT false-positive (und passes)", () => {
   // Too short for reliable detection — the language gate is skipped, so the
   // non-english signal must pass even though the snippet is not English.
   const input = makeInput({ content: articleHtml("Bonjour le monde, ça va bien"), wordCount: 60 });
@@ -481,14 +582,16 @@ test("quality/ok: short non-English snippet does NOT false-positive (und passes)
 
   assert.equal(signalFor(result, "non-english")?.passed, true);
   assert.match(signalFor(result, "non-english")?.detail ?? "", /skipped/);
+  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assert.equal(result.grade, "reject");
 });
 
 test("quality/warn: keyword-stuffing with very low stopword ratio triggers low-stopword-ratio", () => {
   const stuffed = Array.from(
-    { length: 60 },
+    { length: MIN_READING_WORD_COUNT },
     (_, i) => ["shoes", "boots", "sneakers", "running", "cheap", "footwear"][i % 6],
   ).join(" ");
-  const input = makeInput({ content: articleHtml(stuffed), wordCount: 60 });
+  const input = makeInput({ content: articleHtml(stuffed) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "low-stopword-ratio")?.passed, false);
@@ -497,7 +600,7 @@ test("quality/warn: keyword-stuffing with very low stopword ratio triggers low-s
 });
 
 test("quality/ok: real prose has a healthy stopword ratio", () => {
-  const input = makeInput({ content: articleHtml(prose(200)) });
+  const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "low-stopword-ratio")?.passed, true);
@@ -505,10 +608,12 @@ test("quality/ok: real prose has a healthy stopword ratio", () => {
 
 test("quality/warn: dense ad / call-to-action copy triggers ad-copy", () => {
   const ad =
-    "Subscribe now and save fifty percent off your first order today. Buy now and shop now " +
-    "for the best deals. Click here to claim your coupon. Limited time sale, sign up today, " +
-    "free shipping on every order, order now before this deal ends tonight for just $9 each.";
-  const input = makeInput({ content: articleHtml(ad), wordCount: 55 });
+    (
+      "Subscribe now and save fifty percent off your first order today. Buy now and shop now " +
+      "for the best deals. Click here to claim your coupon. Limited time sale, sign up today, " +
+      "free shipping on every order, order now before this deal ends tonight for just $9 each. "
+    ).repeat(25);
+  const input = makeInput({ content: articleHtml(ad) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "ad-copy")?.passed, false);
@@ -517,7 +622,7 @@ test("quality/warn: dense ad / call-to-action copy triggers ad-copy", () => {
 });
 
 test("quality/ok: an article mentioning a price once does not trip ad-copy", () => {
-  const body = prose(200) + " The ticket costs about $5 for most visitors.";
+  const body = prose(MIN_READING_WORD_COUNT) + " The ticket costs about $5 for most visitors.";
   const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
@@ -526,11 +631,13 @@ test("quality/ok: an article mentioning a price once does not trip ad-copy", () 
 
 test("quality/warn: fragment / nav-list body triggers weak-sentence-structure", () => {
   const fragments =
-    "Home. About. Contact. News. Sports. Weather. Login. Menu. Search. More. Help. Terms. " +
-    "Privacy. Jobs. Press. Blog. Photos. Maps. Shop. Cart. Account. Top. Back. Next. Email. " +
-    "Print. Save. Share. Follow. Like. Tweet. Pin. Tags. Popular. Latest. Trending. Video. " +
-    "Audio. Live. Local. World. Money. Tech. Style. Food. Travel. Health.";
-  const input = makeInput({ content: articleHtml(fragments), wordCount: 46 });
+    (
+      "Home. About. Contact. News. Sports. Weather. Login. Menu. Search. More. Help. Terms. " +
+      "Privacy. Jobs. Press. Blog. Photos. Maps. Shop. Cart. Account. Top. Back. Next. Email. " +
+      "Print. Save. Share. Follow. Like. Tweet. Pin. Tags. Popular. Latest. Trending. Video. " +
+      "Audio. Live. Local. World. Money. Tech. Style. Food. Travel. Health. "
+    ).repeat(25);
+  const input = makeInput({ content: articleHtml(fragments) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "weak-sentence-structure")?.passed, false);
@@ -538,14 +645,14 @@ test("quality/warn: fragment / nav-list body triggers weak-sentence-structure", 
 });
 
 test("quality/ok: well-formed prose passes weak-sentence-structure", () => {
-  const input = makeInput({ content: articleHtml(prose(200)) });
+  const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "weak-sentence-structure")?.passed, true);
 });
 
 test("quality/advisory: all-caps shouting fires the advisory shouting signal", () => {
-  const shout = prose(200) + " ACT NOW BUY TODAY HUGE EVENT MASSIVE OFFER FINAL HOURS HURRY";
+  const shout = prose(MIN_READING_WORD_COUNT) + " ACT NOW BUY TODAY HUGE EVENT MASSIVE OFFER FINAL HOURS HURRY";
   const input = makeInput({ content: articleHtml(shout) });
   const result = checkContentQuality(input);
 
@@ -555,8 +662,8 @@ test("quality/advisory: all-caps shouting fires the advisory shouting signal", (
 });
 
 test("quality/warn: repeated 3-gram (ad repeating a CTA) triggers repetitive", () => {
-  const repeated = "best deal ever today ".repeat(20).trim();
-  const input = makeInput({ content: articleHtml(repeated), wordCount: 80 });
+  const repeated = "best deal ever today ".repeat(260).trim();
+  const input = makeInput({ content: articleHtml(repeated) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "repetitive")?.passed, false);
@@ -564,7 +671,7 @@ test("quality/warn: repeated 3-gram (ad repeating a CTA) triggers repetitive", (
 });
 
 test("quality/ok: varied prose is not flagged as repetitive", () => {
-  const input = makeInput({ content: articleHtml(prose(300)) });
+  const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
   assert.equal(signalFor(result, "repetitive")?.passed, true);
@@ -574,18 +681,19 @@ test("quality/ok: varied prose is not flagged as repetitive", () => {
 // 13. Naive-Bayes classifier integration (env-gated, conservative)
 // ---------------------------------------------------------------------------
 
-const AD_LIKE_BODY =
-  "Subscribe now and unlock exclusive members-only deals delivered to your inbox every single " +
-  "week of the year. Sign up today, claim your personal coupon code, and start saving money on " +
-  "every order you place with us. Buy now and shop now for the very best prices anywhere online. " +
-  "Click here to redeem your reward, enjoy free shipping on everything, and never miss another " +
-  "limited time offer from our store again because these incredible savings will not last long.";
+const AD_LIKE_BODY = Array.from(
+  { length: MIN_READING_WORD_COUNT },
+  (_, i) =>
+    ["subscribe", "coupon", "discount", "sale", "shopping", "deal", "offer", "free", "shipping", "buy"][
+      i % 10
+    ],
+).join(" ");
 
 test("quality/ml: classifier flags ad-like body with ml-ad-classifier when enabled", () => {
   const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
   delete process.env.SCRAPER_QUALITY_CLASSIFIER; // default ON
   try {
-    const input = makeInput({ content: articleHtml(AD_LIKE_BODY), wordCount: 80 });
+    const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
     assert.equal(signalFor(result, "ml-ad-classifier")?.passed, false);
     assert.notEqual(result.grade, "ok");
@@ -599,7 +707,7 @@ test("quality/ml: classifier signal is absent when SCRAPER_QUALITY_CLASSIFIER=fa
   const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
   process.env.SCRAPER_QUALITY_CLASSIFIER = "false";
   try {
-    const input = makeInput({ content: articleHtml(AD_LIKE_BODY), wordCount: 80 });
+    const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
     assert.equal(signalFor(result, "ml-ad-classifier"), undefined);
   } finally {
@@ -613,7 +721,7 @@ test("quality/ml: a clean long article is not down-ranked by the classifier", ()
   delete process.env.SCRAPER_QUALITY_CLASSIFIER; // default ON
   try {
     const input = makeInput({
-      content: articleHtml(prose(300)),
+      content: articleHtml(prose(MIN_READING_WORD_COUNT)),
       author: "Jane Doe",
       publishedAt: new Date("2026-05-01T10:00:00Z"),
     });
@@ -655,7 +763,7 @@ test("quality/ok: normal tech article mentioning 'function' once is not code-con
     "Researchers explained how the new algorithm works in plain language. " +
     "The author described the role of a function that maps inputs to outputs, " +
     "but the article never shows source code or lists any program statements. " +
-    prose(200);
+    prose(MIN_READING_WORD_COUNT);
   const input = makeInput({ content: articleHtml(techProse), author: "Jane Doe" });
   const result = checkContentQuality(input);
 

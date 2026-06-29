@@ -30,7 +30,6 @@ import nautilus from "./nautilus";
 import technologyreview from "./technologyreview";
 import noema from "./noema";
 import undark from "./undark";
-import bbcLearningEnglish from "./bbc-learning-english";
 
 export const PROVIDERS: readonly Provider[] = [
   nbc,
@@ -44,7 +43,6 @@ export const PROVIDERS: readonly Provider[] = [
   technologyreview,
   noema,
   undark,
-  bbcLearningEnglish,
 ];
 
 export function getProvider(key: string): Provider | null {

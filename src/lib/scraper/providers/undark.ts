@@ -50,6 +50,12 @@ const undark: Provider = {
       "sign-up",
       "promo",
     ],
+    dropTextKeywords: [
+      "newsletter journeys",
+      "dive deeper into pressing issues",
+      "limited run newsletters",
+      "hand-picked archive excerpt",
+    ],
   },
   categoryFor: (url, section) =>
     lookupSection(url, section, [

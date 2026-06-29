@@ -34,11 +34,11 @@ const BASE_ARTICLE: ScrapedArticle = {
   sourceUrl: "https://www.noemamag.com/the-philosophy-of-networks",
   heroImage: "https://cdn.noemamag.com/hero.jpg",
   excerpt: "A deep dive into networked thinking.",
-  content: "<p>Networks shape our world in profound ways.</p>",
+  content: `<p>${"Networks shape our world in profound ways and connect communities through shared institutions. ".repeat(125)}</p>`,
   category: "culture",
   publishedAt: new Date("2026-03-01T09:00:00Z"),
-  wordCount: 120,
-  readingMinutes: 1,
+  wordCount: 1000,
+  readingMinutes: 5,
 };
 
 // ── Module mocks (registered before the module under test is first loaded) ───
@@ -81,6 +81,8 @@ before(() => {
       }),
       MIN_WORD_COUNT: 50,
       SHORT_WORD_COUNT: 150,
+      MIN_READING_MINUTES: 5,
+      MIN_READING_WORD_COUNT: 1000,
       MAX_LINK_DENSITY: 0.5,
       MAX_GARBAGE_RATIO: 0.02,
       BOILERPLATE_HIT_THRESHOLD: 3,
