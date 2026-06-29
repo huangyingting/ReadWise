@@ -30,6 +30,17 @@ const smithsonian: Provider = {
   categories: ["history", "science", "culture", "travel", "tech"],
   // Long-form magazine: everything it publishes is substantive reading practice.
   readingCategories: ["history", "science", "culture", "travel", "tech"],
+  cleanup: {
+    dropLinkHrefKeywords: [
+      "subscribe.smithsonianmag.com",
+      "promo_name=",
+      "article-banner-ad",
+    ],
+    dropTextKeywords: [
+      "issue of smithsonian magazine",
+      "knowable magazine is an independent journalistic endeavor",
+    ],
+  },
   categoryFor: (url, section) =>
     lookupSection(url, section, [
       [/innovation/, "tech"],

@@ -261,6 +261,35 @@ test("quality/images: img src and alt survive sanitization", async () => {
   assert.match(result!.content, /imgtest\d+/);
 });
 
+test("quality/video: orphan video label is dropped while YouTube iframe becomes a link", async () => {
+  const { extractArticle } = await import("@/lib/scraper/extract");
+  const prevReadability = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    const body = wordBlock(70, "videoarticle");
+    const html =
+      "<html><head><title>Video Article</title></head><body><article>" +
+      "<p>Featured Video</p>" +
+      '<iframe src="https://www.youtube.com/embed/abc123" title="Article video"></iframe>' +
+      `<p>${body}</p>` +
+      '<figure><img src="https://example.com/article-photo.jpg" alt="Article photo"/></figure>' +
+      "</article></body></html>";
+
+    const result = extractArticle(html, "https://example.com/article/video");
+    assert.ok(result);
+    assert.doesNotMatch(result!.content, /Featured Video/i);
+    assert.doesNotMatch(result!.content, /<iframe/i);
+    assert.match(result!.content, /https:\/\/www\.youtube\.com\/embed\/abc123/i);
+    assert.match(result!.content, /article-photo\.jpg/i, "article image must survive");
+  } finally {
+    if (prevReadability == null) {
+      delete process.env.SCRAPER_READABILITY;
+    } else {
+      process.env.SCRAPER_READABILITY = prevReadability;
+    }
+  }
+});
+
 // ---------------------------------------------------------------------------
 // Fixture 5: Short-content rejection
 // ---------------------------------------------------------------------------

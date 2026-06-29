@@ -31,6 +31,7 @@ import { franc } from "franc-min";
 
 import { createLogger } from "@/lib/observability/logger";
 import { scraperQualityClassifier } from "@/lib/runtime-config/scraper";
+import { providerForUrl } from "@/lib/scraper/providers";
 
 import { classifyArticleText } from "./quality-classifier";
 
@@ -90,6 +91,15 @@ export const MIN_WORD_COUNT = 50;
 
 /** Word count below which a "short-content" warning signal is raised. */
 export const SHORT_WORD_COUNT = 150;
+
+/** Reading speed used to derive estimated reading minutes (matches mapper). */
+export const QUALITY_WORDS_PER_MINUTE = 200;
+
+/** Minimum estimated reading minutes; shorter pieces are rejected as too brief. */
+export const MIN_READING_MINUTES = 5;
+
+/** Word count for the minimum reading time ({@link MIN_READING_MINUTES}). */
+export const MIN_READING_WORD_COUNT = MIN_READING_MINUTES * QUALITY_WORDS_PER_MINUTE;
 
 /**
  * Ratio of link-text characters to total plain-text characters above which
@@ -183,6 +193,15 @@ export const MIN_CODE_TOKEN_HITS = 4;
  * fallback signal for minified/obfuscated code blobs.
  */
 export const CODE_CONTENT_MAX_STOPWORD_RATIO = 0.05;
+
+/** Minimum ranked/short headline items before a roundup digest can be rejected. */
+export const MIN_DIGEST_LIST_ITEMS = 4;
+
+/** Minimum parenthetical outbound source links before digest-listicle can fire. */
+export const MIN_DIGEST_SOURCE_LINKS = 2;
+
+/** Max length for short bold digest headlines. */
+export const MAX_DIGEST_HEADLINE_CHARS = 90;
 
 // ---------------------------------------------------------------------------
 // Paywall / subscription-gate marker patterns
@@ -377,6 +396,79 @@ function codeContentSignal(plainText: string): { symbolDensity: number; tokenHit
   return { symbolDensity: symbols / len, tokenHits };
 }
 
+function countDigestNumberedItems(html: string, plainText: string): number {
+  const blockMatches = [...html.matchAll(/<(?:p|li|h[2-6])\b[^>]*>\s*(?:<[^>]+>\s*)*([1-9]\.?\s+[A-Z][\s\S]*?)<\/(?:p|li|h[2-6])>/gi)]
+    .filter((m) => toPlainText(m[1] ?? "").length <= 180).length;
+  const plainMatches = plainText.match(/\b[1-9]\.?\s+[A-Z][^.!?]{5,120}/g)?.length ?? 0;
+  return Math.max(blockMatches, plainMatches);
+}
+
+function countShortStrongHeadlines(html: string): number {
+  return [...html.matchAll(/<(?:strong|b)\b[^>]*>([\s\S]*?)<\/(?:strong|b)>/gi)]
+    .map((m) => toPlainText(m[1] ?? ""))
+    .filter(
+      (text) =>
+        text.length > 0 &&
+        text.length <= MAX_DIGEST_HEADLINE_CHARS &&
+        /^[A-Z0-9]/.test(text) &&
+        /[a-z]/.test(text),
+    ).length;
+}
+
+function countParentheticalOutboundLinks(html: string, sourceUrl: string): number {
+  let sourceHost: string | null = null;
+  try {
+    sourceHost = new URL(sourceUrl).hostname.replace(/^www\./, "").toLowerCase();
+  } catch {
+    sourceHost = null;
+  }
+  let count = 0;
+  for (const match of html.matchAll(/\(\s*<a\b[^>]*href=["']([^"']+)["'][^>]*>[\s\S]{1,120}?<\/a>\s*\)/gi)) {
+    const href = match[1];
+    if (!href || !/^https?:\/\//i.test(href)) continue;
+    if (sourceHost) {
+      try {
+        const linkHost = new URL(href).hostname.replace(/^www\./, "").toLowerCase();
+        if (linkHost === sourceHost) continue;
+      } catch {
+        continue;
+      }
+    }
+    count++;
+  }
+  return count;
+}
+
+function digestListicleSignal(article: QualityInput, plainText: string): {
+  hit: boolean;
+  numberedItems: number;
+  strongHeadlines: number;
+  sourceLinks: number;
+} {
+  const title = article.title?.trim() ?? "";
+  const headerHit = /\bthe\s+must-?reads\b/i.test(plainText);
+  const providerDigestPrefixHit =
+    providerForUrl(article.sourceUrl)?.quality?.digestListicleTitlePrefixes?.some((prefix) => {
+      const normalizedPrefix = prefix.trim().toLowerCase();
+      return (
+        normalizedPrefix.length > 0 &&
+        (title.toLowerCase().startsWith(normalizedPrefix) ||
+          plainText.toLowerCase().startsWith(normalizedPrefix))
+      );
+    }) ?? false;
+  const numberedItems = countDigestNumberedItems(article.content, plainText);
+  const strongHeadlines = countShortStrongHeadlines(article.content);
+  const sourceLinks = countParentheticalOutboundLinks(article.content, article.sourceUrl);
+  const enoughItems =
+    numberedItems >= MIN_DIGEST_LIST_ITEMS || strongHeadlines >= MIN_DIGEST_LIST_ITEMS;
+  return {
+    hit: (headerHit || providerDigestPrefixHit) && enoughItems && sourceLinks >= MIN_DIGEST_SOURCE_LINKS,
+    numberedItems,
+    strongHeadlines,
+    sourceLinks,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -424,6 +516,18 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     deductions += 50;
   } else if (barelyShort) {
     deductions += 10;
+  }
+
+  // ── Critical: under minimum reading time (< 5 min) ─────────────────────────
+  const tooBrief = wordCount < MIN_READING_WORD_COUNT;
+  signals.push({
+    check: "reading-time",
+    passed: !tooBrief,
+    detail: `words=${wordCount} minWords=${MIN_READING_WORD_COUNT}`,
+  });
+  if (tooBrief && !tooShort) {
+    hasReject = true;
+    deductions += 40;
   }
 
   if (!emptyBody) {
@@ -503,6 +607,22 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
       detail: `symbolDensity=${symbolDensity.toFixed(3)} codeTokens=${tokenHits}`,
     });
     if (codeContent) {
+      hasReject = true;
+      deductions += 60;
+    }
+
+    // ── Critical: roundup/newsletter digest listicle ─────────────────────────
+    // Conservative detector for pages like MIT Technology Review's "The
+    // Download" where the extraction is a roundup of must-read links rather
+    // than a standalone article. Requires a digest header/title AND list-like
+    // structure AND multiple parenthetical outbound source links.
+    const digest = digestListicleSignal(article, plainText);
+    signals.push({
+      check: "digest-listicle",
+      passed: !digest.hit,
+      detail: `numberedItems=${digest.numberedItems} strongHeadlines=${digest.strongHeadlines} sourceLinks=${digest.sourceLinks}`,
+    });
+    if (digest.hit) {
       hasReject = true;
       deductions += 60;
     }

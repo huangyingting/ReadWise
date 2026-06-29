@@ -60,25 +60,20 @@ const GET_LATEST_CTA_CONTEXT_RE =
 const SIGNUP_CTA_CONTEXT_RE =
   /^sign\s?up\b(?=[^.!?]{0,160}\b(newsletters?|subscribers?|subscriptions?|account|membership|trial|offer|deal|promo|promotion|discount|sale|save|updates?|alerts?|inbox)\b)/i;
 
-/** Long-form CTA residues observed after Readability strips widget classes. */
-const LONG_TEXT_BOILERPLATE_RE =
-  /\b(newsletter\s+journeys|dive\s+deeper\s+into\s+pressing\s+issues|limited\s+run\s+newsletters|hand-?picked\s+(archive\s+)?excerpt|trouble\s+saving\s+your\s+preferences)\b/i;
-
 const SIGNUP_RESIDUE_RE =
   /^(stay\s+connected|get\s+the\s+latest\s+updates\s*(?:from)?|discover\s+special\s+offers|thank\s+you\s+for\s+submitting|it\s+looks\s+like\s+something\s+went\s+wrong)\b/i;
 
 const TRAILING_PUBLICATION_CTA_RE =
   /^enjoying\s+.{1,80}\?\s+subscribe\s+to\s+our\s+free\s+newsletter\.?$/i;
 
-const NEWSLETTER_PROMO_LINE_RE =
-  /\b(this\s+story\s+is\s+from\s+the\s+checkup,\s+our\s+weekly\s+biotech\s+newsletter|sign\s+up\s+to\s+receive\s+it\s+in\s+your\s+inbox)\b/i;
-
 const ARCHIVE_LINK_RESIDUE_RE = /\barchive\s+page\b/i;
 
 const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s+for\s+you|you\s+may\s+also\s+like)\b/i;
 
+const ORPHAN_VIDEO_LABEL_RE = /^(featured\s+video|watch:?|video)$/i;
+
 const IMAGE_BOILERPLATE_RE =
-  /\b(favicon|sprite|pixel|newsletter|promo|promotion|sign-?up|subscribe|compass(?:\.[a-z0-9]+)?|journeys)\b/i;
+  /\b(favicon|sprite|pixel|newsletter|promo|promotion|sign-?up|subscribe)\b/i;
 
 /**
  * Max length of a block we are willing to flag purely on a text-boilerplate
@@ -86,7 +81,6 @@ const IMAGE_BOILERPLATE_RE =
  * contains "subscribe" mid-prose must NOT be removed.
  */
 const TEXT_BOILERPLATE_MAXLEN = 500;
-const LONG_TEXT_BOILERPLATE_MAXLEN = 1000;
 
 const HIGH = 2;
 const MEDIUM = 1;
@@ -219,12 +213,6 @@ function textLen(el: Element): number {
 function isTextBoilerplate(text: string): boolean {
   const norm = normalizeText(text);
   if (norm.length === 0) return false;
-  if (
-    norm.length <= LONG_TEXT_BOILERPLATE_MAXLEN &&
-    LONG_TEXT_BOILERPLATE_RE.test(norm)
-  ) {
-    return true;
-  }
   if (norm.length > TEXT_BOILERPLATE_MAXLEN) return false;
   return (
     TEXT_BOILERPLATE_RE.test(norm) ||
@@ -233,7 +221,6 @@ function isTextBoilerplate(text: string): boolean {
     SIGNUP_CTA_CONTEXT_RE.test(norm) ||
     SIGNUP_RESIDUE_RE.test(norm) ||
     TRAILING_PUBLICATION_CTA_RE.test(norm) ||
-    NEWSLETTER_PROMO_LINE_RE.test(norm) ||
     ARCHIVE_LINK_RESIDUE_RE.test(norm) ||
     RECIRC_RANKED_ITEM_RE.test(norm)
   );
@@ -297,6 +284,18 @@ function collectTextBoilerplate(root: Element, out: Candidate[]): void {
     if (!isLeafBlock(el)) continue;
     const text = (el.textContent ?? "").trim();
     if (isTextBoilerplate(text)) {
+      out.push({ el, confidence: HIGH });
+    }
+  }
+}
+
+function collectOrphanVideoLabels(root: Element, out: Candidate[]): void {
+  for (const el of Array.from(root.querySelectorAll("p"))) {
+    if (el === root) continue;
+    if (!isLeafBlock(el)) continue;
+    if (el.querySelector("a,img,figure,video,audio,iframe")) continue;
+    const text = (el.textContent ?? "").trim();
+    if (ORPHAN_VIDEO_LABEL_RE.test(text)) {
       out.push({ el, confidence: HIGH });
     }
   }
@@ -523,6 +522,7 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectLinkDense(root, candidates);
   collectBoilerplateImages(root, candidates);
   collectTextBoilerplate(root, candidates);
+  collectOrphanVideoLabels(root, candidates);
   collectLeadingByline(root, normName, candidates);
   collectTrailingByline(root, normName, candidates);
 

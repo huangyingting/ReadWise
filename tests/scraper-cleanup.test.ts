@@ -3,8 +3,8 @@
  *
  * All tests use local HTML fixtures — no real network or DB is touched.
  * The `applyProviderCleanup` function uses sanitize-html under the hood, so
- * we test both the tag-dropping (`dropSelectors`) and keyword-matching
- * (`dropClassKeywords`) paths.
+ * we test tag-dropping (`dropSelectors`) and keyword-matching
+ * (`dropClassKeywords`, `dropTextKeywords`) paths.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -15,6 +15,7 @@ import {
   applyProviderCleanup,
   mergeProviderCleanup,
 } from "@/lib/scraper/cleanup";
+import { getProvider } from "@/lib/scraper/providers";
 
 // ---------------------------------------------------------------------------
 // dropSelectors: tag-based removal
@@ -157,14 +158,73 @@ test("cleanup: mergeProviderCleanup combines generic and provider rules once", (
   const merged = mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, {
     dropSelectors: ["iframe"],
     dropClassKeywords: ["newsletter", "site-specific"],
+    dropTextKeywords: ["site-specific text"],
+    dropLinkHrefKeywords: ["promo_name="],
   });
   assert.ok(merged.dropSelectors?.includes("iframe"));
   assert.ok(merged.dropClassKeywords?.includes("newsletter"));
   assert.ok(merged.dropClassKeywords?.includes("site-specific"));
+  assert.ok(merged.dropTextKeywords?.includes("site-specific text"));
+  assert.ok(merged.dropLinkHrefKeywords?.includes("promo_name="));
   assert.equal(
     merged.dropClassKeywords?.filter((keyword) => keyword === "newsletter").length,
     1,
   );
+});
+
+test("cleanup: removes short blocks matched by provider text keyword", () => {
+  const html =
+    "<article>" +
+    "<p>Article opening text.</p>" +
+    "<p>Provider Branded Signup: read more from this site every week.</p>" +
+    "<p>Article ending text.</p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, { dropTextKeywords: ["branded signup"] });
+  assert.doesNotMatch(result, /Provider Branded Signup/i);
+  assert.match(result, /Article opening text/);
+  assert.match(result, /Article ending text/);
+});
+
+test("cleanup: text keyword matching is conservative for long prose blocks", () => {
+  const longText = Array.from({ length: 180 }, () => "article").join(" ");
+  const html = `<p>${longText} branded signup ${longText}</p>`;
+  const result = applyProviderCleanup(html, { dropTextKeywords: ["branded signup"] });
+  assert.match(result, /branded signup/);
+});
+
+test("cleanup: removes anchors matched by href keyword and empty wrappers", () => {
+  const html =
+    "<article>" +
+    "<p>Article text.</p>" +
+    '<p><a href="https://example.com/subscribe?promo_name=current-issue"><img src="cover.jpg" alt="Cover"/></a></p>' +
+    '<figure><a href="https://example.com/article"><img src="real.jpg" alt="Real"/></a><figcaption>Real caption.</figcaption></figure>' +
+    "</article>";
+  const result = applyProviderCleanup(html, { dropLinkHrefKeywords: ["PROMO_NAME="] });
+  assert.doesNotMatch(result, /cover\.jpg/);
+  assert.doesNotMatch(result, /promo_name/);
+  assert.doesNotMatch(result, /<p>\s*<\/p>/);
+  assert.match(result, /real\.jpg/);
+  assert.match(result, /Real caption/);
+});
+
+test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () => {
+  const provider = getProvider("smithsonian");
+  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const html =
+    "<article>" +
+    "<p>Smithsonian article text.</p>" +
+    '<figure><img src="https://cdn.smithsonianmag.com/real-article-photo.jpg" alt="Real article photo"/><figcaption>Real article caption.</figcaption></figure>' +
+    '<p><a href="https://subscribe.smithsonianmag.com/?inetz=article-banner-ad&promo_name=current-issue">' +
+    '<img src="https://cdn.smithsonianmag.com/julaug2026_web_cover_1_720.jpg" alt="Cover image of the Smithsonian Magazine Summer 2026 issue"/>' +
+    "</a></p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, provider.cleanup);
+  assert.doesNotMatch(result, /julaug2026_web_cover_1_720\.jpg/);
+  assert.doesNotMatch(result, /subscribe\.smithsonianmag\.com/);
+  assert.doesNotMatch(result, /promo_name/);
+  assert.doesNotMatch(result, /<p>\s*<\/p>/);
+  assert.match(result, /real-article-photo\.jpg/);
+  assert.match(result, /Real article caption/);
 });
 
 test("cleanup: removes comment block matched by class keyword", () => {

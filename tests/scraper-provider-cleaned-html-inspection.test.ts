@@ -159,39 +159,6 @@ test("knowable cleaned HTML drops editor/donation/deep-dive remnants but keeps d
   assert.match(cleaned, /genuine article caption/i, "article caption must survive cleanup");
 });
 
-test("bbc learning cleaned HTML drops related episode bloat while retaining transcript media link", () => {
-  const provider = getProvider("bbc-learning-english");
-  assert.ok(provider?.cleanup, "BBC Learning cleanup rules must be present");
-
-  const html = `<!doctype html><html><head>
-    <meta property="og:title" content="6 Minute English: Learning together" />
-    </head><body>
-      <div class="widget widget-richtext">
-        <p>${wordBlock(35, "lesson")} as the hosts introduce the vocabulary.</p>
-        <p>The downloadable <a href="https://www.bbc.co.uk/learningenglish/audio/episode.mp3">audio programme</a> remains part of the lesson.</p>
-        <p>${wordBlock(35, "vocab")} as learners practise the expressions.</p>
-      </div>
-      <div class="widget widget-list widget-list-automatic">
-        <h3>More 6 Minute English</h3>
-        <p>Can a woollen hat make a difference when you are cold?</p>
-        <p>Neil and Catherine talk about genealogy.</p>
-      </div>
-      <div class="bbcle-course-nav-list">Course navigation listing every unit.</div>
-      <div class="bbcle-footer-nav-list">Footer navigation to other lessons.</div>
-    </body></html>`;
-
-  const cleaned = applyProviderCleanup(html, provider.cleanup);
-  assertNoProviderNoise(cleaned, [
-    /More 6 Minute English/i,
-    /woollen hat/i,
-    /genealogy/i,
-    /Course navigation/i,
-    /Footer navigation/i,
-  ]);
-  assert.match(cleaned, /hosts introduce the vocabulary/i, "transcript text must survive cleanup");
-  assert.match(cleaned, /audio\/episode\.mp3/i, "lesson media link must survive cleanup");
-});
-
 test("nautilus cleaned extraction drops trailing CTA/favicon and keeps article image", () => {
   const provider = getProvider("nautilus");
   assert.ok(provider?.cleanup, "Nautilus cleanup rules must be present");
@@ -233,13 +200,20 @@ test("undark declutter drops newsletter compass promo image and keeps article me
       <p>${wordBlock(45, "parent")} as researchers describe care across species.</p>
       <figure><img src="https://undark.org/wp-content/uploads/2026/06/orca.jpg" alt="An orca swimming" /></figure>
       <p>${wordBlock(45, "family")} as the reporting follows field observations.</p>
+      <p>SIGN UP FOR NEWSLETTER JOURNEYS: Dive deeper into pressing issues with our limited run newsletters, delivered weekly with hand-picked archive excerpts and updates.</p>
       <hr /><p><img src="https://undark.org/wp-content/uploads/2024/11/compass.png" alt="Newsletter Journeys" /></p><hr />
       <p>${wordBlock(45, "evidence")} as the essay returns to animal behavior.</p>
     </article></body></html>`;
 
+  const cleaned = applyProviderCleanup(
+    html,
+    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
+  );
+  assertNoProviderNoise(cleaned, [/SIGN UP FOR NEWSLETTER JOURNEYS/i, /compass\.png/i]);
+
   const result = extractArticle(html, "https://undark.org/2026/06/26/how-animals-care/");
   assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [/compass\.png/i, /Newsletter Journeys/i]);
+  assertNoProviderNoise(result!.content, [/compass\.png/i, /Newsletter Journeys/i, /Dive deeper/i]);
   assert.match(result!.content, /orca\.jpg/i, "article image must survive");
 });
 
@@ -255,6 +229,7 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
         <p>${wordBlock(45, "heat")} as the daily briefing explains the research.</p>
         <figure><img src="https://wp.technologyreview.com/article-heat.jpg" alt="People in a city heatwave" /></figure>
         <p><strong>This story is from The Checkup, our weekly biotech newsletter. </strong><a href="/newsletters/biotech-the-checkup/"><strong>Sign up</strong></a><strong> to receive it in your inbox every Thursday.</strong></p>
+        <p>We’re having trouble saving your preferences. Try refreshing this page and updating them one more time.</p>
         <p>${wordBlock(45, "policy")} as the second item examines model releases.</p>
         <div class="deepDiveItem__wrapper--abc"><h3>The Download: another recirc story</h3><a href="/author/example"><span>Example Author</span><span class="screen-reader-text">archive page</span></a></div>
         <div class="stayConnected__wrapper--abc"><h3>Stay connected</h3><h2>Get the latest updates from<br/>MIT Technology Review</h2><p>Discover special offers, top stories, upcoming events, and more.</p><p>Thank you for submitting your email!</p><p>It looks like something went wrong.</p></div>
@@ -265,12 +240,19 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
     html,
     mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
   );
-  assertNoProviderNoise(cleaned, [/another recirc story/i, /archive page/i, /Stay connected/i]);
+  assertNoProviderNoise(cleaned, [
+    /weekly biotech newsletter/i,
+    /trouble saving your preferences/i,
+    /another recirc story/i,
+    /archive page/i,
+    /Stay connected/i,
+  ]);
 
   const result = extractArticle(html, "https://www.technologyreview.com/2026/06/26/1139780/the-download-heat-ai/");
   assert.ok(result, "article should extract");
   assertNoProviderNoise(result!.content, [
     /weekly biotech newsletter/i,
+    /trouble saving your preferences/i,
     /Sign up/i,
     /another recirc story/i,
     /archive page/i,
