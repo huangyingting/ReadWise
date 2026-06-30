@@ -1,10 +1,10 @@
 /**
  * ReadWise speech timing — types, tokenisation, and audio-time helpers.
  *
- * Runtime speech timings are normalized audio/text cues. Stored JSON supports
- * two versioned payloads:
- *  - V1: legacy per-word object array wrapped with top-level metadata.
- *  - V2: compact columnar arrays with the same top-level metadata.
+ * Runtime speech timings are normalized audio/text cues. New stored JSON uses a
+ * single V2 payload: compact columnar arrays with provider/top-level metadata.
+ * Legacy raw arrays are still accepted as read-only compatibility input and can
+ * be converted to V2 with `legacySpeechWordsToTimingPayloadV2`.
  */
 
 export type SpeechTimingProvider =
@@ -20,19 +20,6 @@ export type SpeechTimingPayloadBase = {
   textUnit: "utf16";
 };
 
-export type SpeechTimingPayloadV1Word = {
-  word: string;
-  offset: number;
-  duration: number;
-  textOffset?: number;
-  wordLength?: number;
-};
-
-export type SpeechTimingPayloadV1 = SpeechTimingPayloadBase & {
-  version: 1;
-  words: SpeechTimingPayloadV1Word[];
-};
-
 export type SpeechTimingPayloadV2 = SpeechTimingPayloadBase & {
   version: 2;
   words: string[];
@@ -42,9 +29,7 @@ export type SpeechTimingPayloadV2 = SpeechTimingPayloadBase & {
   textEnd?: number[];
 };
 
-export type SpeechTimingPayload =
-  | SpeechTimingPayloadV1
-  | SpeechTimingPayloadV2;
+export type SpeechTimingPayload = SpeechTimingPayloadV2;
 
 export type WordTiming = {
   word: string;
@@ -57,7 +42,7 @@ export type WordTiming = {
 export type SpeechWord = WordTiming;
 
 export type ParsedSpeechTimingPayload = SpeechTimingPayloadBase & {
-  version: 1 | 2;
+  version: 2;
   words: SpeechWord[];
 };
 
@@ -78,7 +63,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
 
-function normalizeV1Word(raw: unknown): SpeechWord | null {
+function normalizeLegacyWord(raw: unknown): SpeechWord | null {
   if (!isRecord(raw)) return null;
   const { word, offset, duration, textOffset, wordLength } = raw;
   if (
@@ -113,11 +98,11 @@ function normalizeV1Word(raw: unknown): SpeechWord | null {
   return result;
 }
 
-function parseV1Words(rawWords: unknown): SpeechWord[] | null {
+function parseLegacyWords(rawWords: unknown): SpeechWord[] | null {
   if (!Array.isArray(rawWords)) return null;
   const words: SpeechWord[] = [];
   for (const rawWord of rawWords) {
-    const word = normalizeV1Word(rawWord);
+    const word = normalizeLegacyWord(rawWord);
     if (!word) return null;
     words.push(word);
   }
@@ -199,10 +184,10 @@ function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayl
 
 export function parseSpeechTimingPayload(raw: unknown): ParsedSpeechTimingPayload | null {
   if (Array.isArray(raw)) {
-    const words = parseV1Words(raw);
+    const words = parseLegacyWords(raw);
     return words
       ? {
-          version: 1,
+          version: 2,
           provider: "unknown",
           timeUnit: "ms",
           textUnit: "utf16",
@@ -212,7 +197,7 @@ export function parseSpeechTimingPayload(raw: unknown): ParsedSpeechTimingPayloa
   }
 
   if (!isRecord(raw)) return null;
-  const { version, provider, timeUnit, textUnit, words } = raw;
+  const { version, provider, timeUnit, textUnit } = raw;
   if (
     typeof provider !== "string" ||
     provider.trim() === "" ||
@@ -220,13 +205,6 @@ export function parseSpeechTimingPayload(raw: unknown): ParsedSpeechTimingPayloa
     textUnit !== "utf16"
   ) {
     return null;
-  }
-
-  if (version === 1) {
-    const normalizedWords = parseV1Words(words);
-    return normalizedWords
-      ? { version: 1, provider, timeUnit: "ms", textUnit: "utf16", words: normalizedWords }
-      : null;
   }
 
   if (version === 2) {
@@ -264,6 +242,14 @@ export function createSpeechTimingPayloadV2(
   }
 
   return payload;
+}
+
+export function legacySpeechWordsToTimingPayloadV2(
+  raw: unknown,
+  provider: SpeechTimingProvider | string = "unknown",
+): SpeechTimingPayloadV2 | null {
+  const words = parseLegacyWords(raw);
+  return words ? createSpeechTimingPayloadV2(provider, words) : null;
 }
 
 const LETTER_CONNECTOR_CLASS = "[-'ʼʻ‛′’‐‑]";
