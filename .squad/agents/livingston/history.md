@@ -126,3 +126,25 @@ Confirmed 11 `Article` rows with source `Noema Magazine` are `PUBLISHED`, `PUBLI
 ## 2026-06-29T20:25:50.268+00:00 — Noema scrape exhaustion
 
 Livingston broadened Noema discovery to 30 paginated RSS feed URLs, then ran scrape exhaustion checks at limits 500 and 1000. Final result: 300 unique URLs discovered, 255 Noema articles saved/published/public with no duplicates or missing `publishedAt`, and 45 persistent quality-policy rejections that are not retryable without changing quality policy. Targeted tests, ESLint, and typecheck were reported passing.
+
+## 2026-06-29 Noema exhaustion check
+- Inspected ReadWise Noema discovery and sibling `../ReadingX`. ReadingX has no Noema provider/link source; its scraper only crawls configured category HTML for NBC/NatGeo/HuffPost/TIME with regex extraction.
+- Verified 30 RSS pages were not exhaustive. Noema Yoast `wpm-article-sitemap*.xml` yielded 2,069 unique article candidates; paginated `?feed=noemarss&paged=N` continued through page 208 and added 7 more, total 2,076 discovered candidates.
+- Provider now discovers Noema via sitemap index/article sitemaps plus RSS pagination fallback/augmentation; focused network-free tests updated.
+- Exhaustive scrape attempted 2,076: saved 1,081 new, duplicates 255, rejected 738, persistent failures 2. Published Noema-only rows after scrape.
+- Final Noema aggregate: total=1,336, published=1,336, public=1,336, drafts=0, missingPublishedAt=0, duplicate sourceUrl groups=0, storedWords=3,212,574.
+- Validation passed: targeted node tests for `tests/scraper-rss-extractor.test.ts` and `tests/scraper-noema.test.ts`; `npx eslint src/lib/scraper/providers/noema.ts tests/scraper-rss-extractor.test.ts tests/scraper-noema.test.ts`; `npm run typecheck`.
+
+
+## 2026-06-29T21:13:25.291+00:00 — Noema exhaustion correction recorded
+
+Scribe recorded Ralph's correction that the prior 300-link Noema run was not exhaustive and that `../ReadingX` had no Noema-specific discovery logic. Livingston's enhanced Noema provider combines Yoast `wpm-article-sitemap*.xml` discovery with paginated RSS through page 208, yielding 2,076 candidates; final Noema DB state is 1,336 published/public rows with 0 drafts, 0 missing `publishedAt`, and 0 duplicate groups. Coordinator validation passed targeted tests, ESLint, and typecheck. No article content was exposed; Scribe did not commit mutable Squad state.
+
+## 2026-06-29T22:53:56.993+00:00 — all articles draft status
+
+Completed a database-only state operation requested by Ralph: updated 1,336 `Article.status` rows to `DRAFT`, leaving visibility unchanged. Final aggregate state is 4,420 articles all in `DRAFT`, all `PUBLIC`, with 0 published remaining; no article content or git state was touched.
+
+- 2026-06-30T00:44:05.590+00:00 — Per Ralph's request, Livingston performed a database state operation for Nautilus article publishing only. Targeted 11 Nautilus rows; all are now confirmed `PUBLISHED`, `PUBLIC`, and with `publishedAt` populated. No article content or git operations were involved.
+
+
+- 2026-06-30T00:52:48.287+00:00 — Implemented provider-specific Nautilus cleanup: removed `<figcaption>` elements while preserving `<figure><img src=...>` image sources in sanitized output; other providers continue to keep captions. Remediated local Nautilus DB rows (9 rows, 20 captions removed, image count 22→22) and passed scraper cleanup tests, targeted ESLint, typecheck, and diff check.

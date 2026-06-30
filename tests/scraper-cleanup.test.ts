@@ -16,6 +16,7 @@ import {
   mergeProviderCleanup,
 } from "@/lib/scraper/cleanup";
 import { getProvider } from "@/lib/scraper/providers";
+import { sanitizeArticleHtml } from "@/lib/sanitize";
 
 // ---------------------------------------------------------------------------
 // dropSelectors: tag-based removal
@@ -160,12 +161,14 @@ test("cleanup: mergeProviderCleanup combines generic and provider rules once", (
     dropClassKeywords: ["newsletter", "site-specific"],
     dropTextKeywords: ["site-specific text"],
     dropLinkHrefKeywords: ["promo_name="],
+    dropFigcaptions: true,
   });
   assert.ok(merged.dropSelectors?.includes("iframe"));
   assert.ok(merged.dropClassKeywords?.includes("newsletter"));
   assert.ok(merged.dropClassKeywords?.includes("site-specific"));
   assert.ok(merged.dropTextKeywords?.includes("site-specific text"));
   assert.ok(merged.dropLinkHrefKeywords?.includes("promo_name="));
+  assert.equal(merged.dropFigcaptions, true);
   assert.equal(
     merged.dropClassKeywords?.filter((keyword) => keyword === "newsletter").length,
     1,
@@ -241,6 +244,46 @@ test("cleanup: smithsonian drops affiliate-link note while preserving article pr
   assert.doesNotMatch(result, /receive a commission/i);
   assert.match(result, /Real Smithsonian article prose/);
   assert.match(result, /final paragraph continues/);
+});
+
+test("cleanup: nautilus removes figcaptions while preserving image src values", () => {
+  const provider = getProvider("nautilus");
+  assert.ok(provider?.cleanup, "Nautilus cleanup rules must be present");
+  const html =
+    "<article>" +
+    "<p>Nautilus article text.</p>" +
+    '<figure><img src="https://lede-admin.nautil.us/wp-content/uploads/sites/70/6600_136c2f0599b3a0175c544b72e4861b9f.jpg" alt="">' +
+    '<figcaption><a href="http://www.shutterstock.com/pic-210090625/stock-photo-women-s-lips-closeup-photo-of-the-of-women-s-profiles.html" rel="noopener noreferrer nofollow" target="_blank">Shutterstock</a></figcaption></figure>' +
+    '<figure><img src="https://lede-admin.nautil.us/wp-content/uploads/sites/70/real-article-photo.jpg" alt="Research team at work">' +
+    "<figcaption>A research team prepares the experiment before dawn. Shutterstock</figcaption></figure>" +
+    "</article>";
+  const result = applyProviderCleanup(
+    html,
+    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
+  );
+  assert.match(result, /6600_136c2f0599b3a0175c544b72e4861b9f\.jpg/);
+  assert.doesNotMatch(result, /stock-photo-women-s-lips/i);
+  assert.doesNotMatch(result, /<figcaption/i);
+  assert.doesNotMatch(result, /Shutterstock/i);
+  assert.match(result, /real-article-photo\.jpg/);
+  assert.doesNotMatch(result, /research team prepares the experiment/i);
+  const sanitized = sanitizeArticleHtml(result);
+  assert.match(sanitized, /6600_136c2f0599b3a0175c544b72e4861b9f\.jpg/);
+  assert.doesNotMatch(sanitized, /<figcaption/i);
+  assert.doesNotMatch(sanitized, /Shutterstock/i);
+});
+
+test("cleanup: figcaptions remain unless a provider opts out", () => {
+  const html =
+    "<article>" +
+    '<figure><img src="https://example.com/default-provider-photo.jpg" alt="Article image">' +
+    "<figcaption>A meaningful default-provider caption.</figcaption></figure>" +
+    '<div class="newsletter">Subscribe for updates.</div>' +
+    "</article>";
+  const result = applyProviderCleanup(html, GENERIC_PROVIDER_CLEANUP);
+  assert.match(result, /default-provider-photo\.jpg/);
+  assert.match(result, /meaningful default-provider caption/i);
+  assert.doesNotMatch(result, /Subscribe for updates/i);
 });
 
 test("cleanup: smithsonian drops repeated Hakai attribution while preserving prose", () => {

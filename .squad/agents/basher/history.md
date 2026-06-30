@@ -127,3 +127,8 @@ Basher inspected existing Undark scraper coverage before implementation, deferre
 ## 2026-06-29T20:25:50.268+00:00 — Noema scrape exhaustion QA
 
 Basher updated mocked/network-free RSS extractor coverage for all 30 Noema feed URLs and fixed formatting. Reported validation passed: targeted tests 50/50, targeted ESLint for `src/lib/scraper/providers/noema.ts` and `tests/scraper-rss-extractor.test.ts`, and `npm run typecheck -- --pretty false`.
+
+
+## 2026-06-29T21:13:25.291+00:00 — Noema exhaustion correction validation recorded
+
+Recorded the coordinator-reported validation for the corrected Noema sitemap/RSS exhaustion work: targeted node tests for `tests/scraper-rss-extractor.test.ts` and `tests/providers.test.ts` passed with 50 tests, targeted ESLint for `src/lib/scraper/providers/noema.ts` and `tests/scraper-rss-extractor.test.ts` passed, and `npm run typecheck -- --pretty false` passed. No article content was exposed.

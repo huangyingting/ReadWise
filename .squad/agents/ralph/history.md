@@ -67,3 +67,17 @@ Requested Scribe logging for Livingston's Noema publishing operation. Final stat
 ## 2026-06-29T20:25:50.268+00:00 — Coordinated Noema scrape exhaustion
 
 Ralph requested Scribe recording for the Noema all-scrape campaign. Coordinator verification reported 255 Noema rows, all published/public, 0 drafts, 0 missing `publishedAt`, 0 duplicate groups, 946,351 stored words, and a confirmed plateau after a rerun saved 0 additional articles; 45 quality-policy rejections remain persistent.
+
+
+## 2026-06-29T21:13:25.291+00:00 — Coordinated Noema exhaustion correction
+
+Ralph requested Scribe recording after the user challenged whether Noema links were truly exhausted. The corrected record notes that `../ReadingX` had no Noema-specific discovery, the previous 300-link run was not exhaustive, enhanced ReadWise discovery found 2,076 Noema candidates via Yoast article sitemaps plus RSS pagination, and final verification showed 1,336 Noema rows all published/public with no drafts, missing `publishedAt`, or duplicate groups. Unexpected existing commit `cc2176c` on `main`/`origin/main` was noted but not reverted or amended by Scribe.
+
+## 2026-06-29T22:53:56.993+00:00 — all articles draft status
+
+Requested marking all articles as draft. Livingston completed the database-only update, and Scribe recorded the result: 4,420 total articles now `DRAFT`, visibility unchanged at `PUBLIC`, 0 published remaining, with no content exposure or git operations.
+
+- 2026-06-30T00:44:05.590+00:00 — Requested Scribe documentation for the Nautilus article publishing run. Recorded that Livingston confirmed 11 Nautilus rows as `PUBLISHED`/`PUBLIC` with no missing `publishedAt`, and that no content exposure or git operations occurred.
+
+
+- 2026-06-30T00:52:48.287+00:00 — Coordinated the Nautilus cleanup correction after the user clarified that figcaptions can be dropped but image `src` values must be preserved. Ensured the directive was captured/merged, Livingston updated and remediated the DB, validation passed, and Scribe recorded state without git operations.
