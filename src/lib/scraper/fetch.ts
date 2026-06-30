@@ -36,12 +36,27 @@ const MAX_REDIRECTS = 5;
 export class FetchHttpError extends Error {
   readonly status: number;
   readonly url: string;
-  constructor(status: number, url: string) {
+  readonly retryAfterMs?: number;
+  constructor(status: number, url: string, retryAfterMs?: number) {
     super(`HTTP ${status} for ${url}`);
     this.name = "FetchHttpError";
     this.status = status;
     this.url = url;
+    this.retryAfterMs = retryAfterMs;
   }
+}
+
+/**
+ * Parses a `Retry-After` header value (seconds or HTTP-date) into ms.
+ * Returns null when the header is absent or unparseable.
+ */
+function parseRetryAfterMs(header: string | null): number | null {
+  if (!header) return null;
+  const seconds = parseFloat(header);
+  if (Number.isFinite(seconds) && seconds >= 0) return Math.round(seconds * 1000);
+  const date = Date.parse(header);
+  if (!Number.isNaN(date)) return Math.max(0, date - Date.now());
+  return null;
 }
 
 /**
@@ -180,6 +195,10 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
 
         try {
           if (!res.ok) {
+            if (res.status === 429) {
+              const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after")) ?? undefined;
+              throw new FetchHttpError(res.status, currentUrl, retryAfterMs);
+            }
             throw new FetchHttpError(res.status, currentUrl);
           }
           return await readBodyWithLimit(res, maxBytes);

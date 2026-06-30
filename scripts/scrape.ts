@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 
 import { prisma } from "@/lib/prisma";
+import { closeBrowser } from "@/lib/scraper/fetch-browser";
 import { PROVIDERS, getProvider, providerForUrl } from "@/lib/scraper/providers";
 import { extractArticle } from "@/lib/scraper/extract";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
@@ -9,6 +10,7 @@ import {
   scrapeAndSave,
   type SaveOutcome,
 } from "@/lib/scraper";
+import { findExistingPublicLibrarySourceUrls } from "@/lib/article-library/policy";
 import { isProviderEnabled, recordCrawlRun } from "@/lib/scraper/sources";
 import type { Provider } from "@/lib/scraper/types";
 import { runCli, isMain, warnUnknown } from "./lib/cli";
@@ -171,7 +173,20 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
   } catch (err) {
     discoverError = err instanceof Error ? err.message : String(err);
   }
-  console.log(`Found ${urls.length} article URL(s).`);
+  const discoveredCount = urls.length;
+  let alreadyHave = 0;
+  if (!dryRun) {
+    try {
+      const existing = await findExistingPublicLibrarySourceUrls(urls);
+      urls = urls.filter((url) => !existing.has(url));
+      alreadyHave = discoveredCount - urls.length;
+    } catch {
+      console.warn("  ! could not pre-filter already-saved articles; scraping unfiltered URL list.");
+    }
+  }
+  console.log(
+    `Found ${discoveredCount} article URL(s)${alreadyHave > 0 ? ` — ${urls.length} new, ${alreadyHave} already saved` : ""}.`,
+  );
 
   const outcomes = await runUrls(urls, dryRun);
 
@@ -188,7 +203,7 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
     ).length;
     try {
       await recordCrawlRun(provider.key, {
-        discovered: urls.length,
+        discovered: discoveredCount,
         scraped,
         failed,
         duplicates,
@@ -256,5 +271,15 @@ async function main(): Promise<number> {
 }
 
 if (isMain(import.meta.url)) {
-  runCli(main);
+  runCli(async () => {
+    try {
+      return await main();
+    } finally {
+      try {
+        await closeBrowser();
+      } catch {
+        // Best-effort cleanup only; do not mask the scrape outcome.
+      }
+    }
+  });
 }

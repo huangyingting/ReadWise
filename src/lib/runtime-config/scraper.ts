@@ -14,6 +14,13 @@ const DEFAULT_TIMEOUT_MS = 15_000;
 /** Don't allow a timeout so short that no real request could complete. */
 const MIN_TIMEOUT_MS = 10;
 
+/** Default same-strategy retries for scraper HTTP 429 rate limits. */
+const DEFAULT_FETCH_429_RETRIES = 3;
+/** Default base delay in ms for scraper HTTP 429 retry backoff. */
+const DEFAULT_FETCH_429_BASE_MS = 1_000;
+/** Default max delay in ms for scraper HTTP 429 retry backoff. */
+const DEFAULT_FETCH_429_MAX_MS = 20_000;
+
 /**
  * Parses `raw` as a positive integer, falling back to `fallback` when it is
  * missing, non-numeric, or below `min`.
@@ -23,6 +30,14 @@ function readPositiveInt(raw: string | undefined, fallback: number, min: number)
   const n = Number(raw);
   if (!Number.isFinite(n) || n < min) return fallback;
   return Math.floor(n);
+}
+
+/**
+ * Parses `raw` as a non-negative integer, falling back to `fallback` when it is
+ * missing, non-numeric, or below `min`. Use this for knobs where 0 disables work.
+ */
+function readNonNegativeInt(raw: string | undefined, fallback: number, min: number): number {
+  return readPositiveInt(raw, fallback, Math.max(0, min));
 }
 
 /** Maximum body bytes the scraper will read before aborting (SCRAPER_MAX_BYTES, default 5MiB). */
@@ -67,6 +82,19 @@ export function scraperFetchProfileRetry(): boolean {
 }
 
 /**
+ * Whether the headless-browser fetch stage is enabled
+ * (`SCRAPER_FETCH_BROWSER`, default ON).
+ *
+ * When ON, pages that stay bot-challenged after profile retries are rendered
+ * directly via headless Chromium before falling back to the reader proxy. This
+ * can solve JS/Cloudflare challenges; if Playwright is not installed or launch
+ * fails, the strategy gracefully degrades to the reader/Wayback stages.
+ */
+export function scraperFetchBrowser(): boolean {
+  return process.env.SCRAPER_FETCH_BROWSER !== "false";
+}
+
+/**
  * Whether the r.jina.ai reader-proxy fallback is enabled
  * (`SCRAPER_FETCH_READER`, default ON).
  *
@@ -87,6 +115,36 @@ export function scraperFetchReader(): boolean {
  */
 export function scraperFetchWayback(): boolean {
   return process.env.SCRAPER_FETCH_WAYBACK !== "false";
+}
+
+/**
+ * Max same-strategy retries after HTTP 429 rate limits
+ * (`SCRAPER_FETCH_429_RETRIES`, default 3).
+ *
+ * Set to `0` to disable retrying 429s before the fallback chain advances.
+ */
+export function scraperFetch429Retries(): number {
+  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_RETRIES, DEFAULT_FETCH_429_RETRIES, 0);
+}
+
+/**
+ * Base delay in ms for HTTP 429 same-strategy retry backoff
+ * (`SCRAPER_FETCH_429_BASE_MS`, default 1000).
+ *
+ * Set to `0` to disable waiting/retrying 429s before the fallback chain advances.
+ */
+export function scraperFetch429BaseMs(): number {
+  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_BASE_MS, DEFAULT_FETCH_429_BASE_MS, 0);
+}
+
+/**
+ * Max delay in ms for HTTP 429 same-strategy retry backoff
+ * (`SCRAPER_FETCH_429_MAX_MS`, default 20000).
+ *
+ * Set to `0` to disable waiting/retrying 429s before the fallback chain advances.
+ */
+export function scraperFetch429MaxMs(): number {
+  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_MAX_MS, DEFAULT_FETCH_429_MAX_MS, 0);
 }
 
 /**

@@ -20,8 +20,12 @@ import assert from "node:assert/strict";
 let validated: string[] = [];
 let fetchCalls: string[] = [];
 let fetchHeaders: Record<string, string>[] = [];
-type RouteResp = { status: number; location?: string; body?: string };
+let browserCalls: string[] = [];
+let attempts: string[] = [];
+type RouteResp = { status: number; location?: string; body?: string; retryAfter?: string };
+type BrowserRouteResp = { status: number; html: string } | Error;
 let routes: Record<string, RouteResp | RouteResp[]> = {};
+let browserRoutes: Record<string, BrowserRouteResp> = {};
 
 function isUnsafe(u: string): boolean {
   return /169\.254|127\.0|localhost|(^|\/)10\.|::1|metadata|internal\./i.test(u);
@@ -32,7 +36,12 @@ function fakeResponse(r: RouteResp): Response {
     status: r.status,
     ok: r.status >= 200 && r.status < 300,
     headers: {
-      get: (name: string) => (name.toLowerCase() === "location" ? (r.location ?? null) : null),
+      get: (name: string) => {
+        const lower = name.toLowerCase();
+        if (lower === "location") return r.location ?? null;
+        if (lower === "retry-after") return r.retryAfter ?? null;
+        return null;
+      },
     },
     text: async () => r.body ?? "",
   } as unknown as Response;
@@ -85,6 +94,20 @@ before(() => {
     },
   });
 
+  mock.module("@/lib/scraper/fetch-browser", {
+    namedExports: {
+      renderViaBrowser: async (url: string): Promise<{ status: number; html: string }> => {
+        browserCalls.push(url);
+        attempts.push(`browser:${url}`);
+        const r = browserRoutes[url];
+        if (!r) throw new Error(`no browser route configured for ${url}`);
+        if (r instanceof Error) throw r;
+        return r;
+      },
+      closeBrowser: async () => {},
+    },
+  });
+
   mock.module("undici", {
     namedExports: {
       Agent: class {
@@ -96,6 +119,7 @@ before(() => {
       ): Promise<Response> => {
         const url = typeof input === "string" ? input : String(input);
         fetchCalls.push(url);
+        attempts.push(`fetch:${url}`);
         fetchHeaders.push(init?.headers ?? {});
         const r = nextResponse(url);
         if (!r) throw new Error(`no route configured for ${url}`);
@@ -109,10 +133,17 @@ beforeEach(() => {
   validated = [];
   fetchCalls = [];
   fetchHeaders = [];
+  browserCalls = [];
+  attempts = [];
   routes = {};
+  browserRoutes = {};
+  delete process.env.SCRAPER_FETCH_BROWSER;
   delete process.env.SCRAPER_FETCH_PROFILE_RETRY;
   delete process.env.SCRAPER_FETCH_READER;
   delete process.env.SCRAPER_FETCH_WAYBACK;
+  delete process.env.SCRAPER_FETCH_429_RETRIES;
+  delete process.env.SCRAPER_FETCH_429_BASE_MS;
+  delete process.env.SCRAPER_FETCH_429_MAX_MS;
   delete process.env.JINA_API_KEY;
 });
 
@@ -156,6 +187,169 @@ test("all profiles 403 → reader (r.jina.ai) is called with X-Return-Format htm
   assert.equal(fetchHeaders[readerIdx]["x-return-format"], "html");
   // No JINA_API_KEY set → no Authorization header.
   assert.equal(fetchHeaders[readerIdx]["authorization"], undefined);
+});
+
+test("browser strategy returns 200 before reader without fetching reader", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: { status: 200, body: "READER-SHOULD-NOT-RUN" },
+  };
+  browserRoutes = { [u.origin]: { status: 200, html: "BROWSER-OK" } };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "BROWSER-OK");
+  assert.deepEqual(browserCalls, [u.origin]);
+  assert.equal(fetchCalls.includes(u.reader), false, "reader URL should not be fetched");
+});
+
+test("browser unavailable advances to reader", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: { status: 200, body: "READER-OK" },
+  };
+  browserRoutes = { [u.origin]: new Error("browser unavailable") };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "READER-OK");
+  assert.deepEqual(browserCalls, [u.origin]);
+  assert.ok(fetchCalls.includes(u.reader), "reader should be reached after browser failure");
+});
+
+test("browser challenge body advances through reader to wayback", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: { status: 403 },
+    [u.wayback]: { status: 200, body: "WAYBACK-OK" },
+  };
+  browserRoutes = { [u.origin]: { status: 200, html: CLOUDFLARE_CHALLENGE } };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "WAYBACK-OK");
+  assert.deepEqual(browserCalls, [u.origin]);
+  assert.ok(fetchCalls.includes(u.reader), "reader should be reached after browser challenge");
+  assert.ok(fetchCalls.includes(u.wayback), "wayback should be reached after reader challenge");
+});
+
+test("browser strategy is positioned before reader", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: { status: 200, body: "READER-OK" },
+  };
+  browserRoutes = { [u.origin]: { status: 503, html: "blocked" } };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "READER-OK");
+  assert.deepEqual(attempts, [`fetch:${u.origin}`, `browser:${u.origin}`, `fetch:${u.reader}`]);
+});
+
+test("SCRAPER_FETCH_BROWSER=false skips browser and preserves reader fallback", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  process.env.SCRAPER_FETCH_BROWSER = "false";
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: { status: 200, body: "READER-OK" },
+  };
+  browserRoutes = { [u.origin]: { status: 200, html: "BROWSER-SHOULD-NOT-RUN" } };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "READER-OK");
+  assert.deepEqual(browserCalls, []);
+  assert.deepEqual(fetchCalls, [u.origin, u.reader]);
+});
+
+test("reader 429 is retried on the same reader strategy and can recover", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  process.env.SCRAPER_FETCH_429_RETRIES = "1";
+  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
+  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: [{ status: 429 }, { status: 200, body: "READER-OK" }],
+  };
+  const html = await fetchHtmlWithStrategies(u.origin, undefined, { sleep: async () => {} });
+  assert.equal(html, "READER-OK");
+  assert.equal(
+    fetchCalls.filter((call) => call === u.reader).length,
+    2,
+    "reader URL should be fetched twice",
+  );
+});
+
+test("origin 429 is retried on origin and can recover without advancing", async () => {
+  process.env.SCRAPER_FETCH_429_RETRIES = "1";
+  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
+  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
+  const u = urls();
+  routes = {
+    [u.origin]: [{ status: 429 }, { status: 200, body: "ORIGIN-OK" }],
+  };
+  const html = await fetchHtmlWithStrategies(u.origin, undefined, { sleep: async () => {} });
+  assert.equal(html, "ORIGIN-OK");
+  assert.deepEqual(fetchCalls, [u.origin, u.origin]);
+});
+
+test("Retry-After seconds are honored for 429 same-strategy retry", async () => {
+  process.env.SCRAPER_FETCH_429_RETRIES = "1";
+  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
+  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  const sleeps: number[] = [];
+  const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
+  const u = urls();
+  routes = {
+    [u.origin]: [{ status: 429, retryAfter: "2" }, { status: 200, body: "ORIGIN-OK" }],
+  };
+  const html = await fetchHtmlWithStrategies(u.origin, undefined, {
+    sleep: async (ms) => {
+      sleeps.push(ms);
+    },
+    random: () => 0,
+  });
+  assert.equal(html, "ORIGIN-OK");
+  assert.ok(sleeps[0] >= 2000, `expected Retry-After delay >= 2000ms, got ${sleeps[0]}`);
+});
+
+test("persistent reader 429 advances to Wayback after configured retries", async () => {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  process.env.SCRAPER_FETCH_429_RETRIES = "2";
+  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
+  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
+  const u = urls();
+  routes = {
+    [u.origin]: { status: 403 },
+    [u.reader]: [{ status: 429 }, { status: 429 }, { status: 429 }],
+    [u.wayback]: { status: 200, body: "WAYBACK-OK" },
+  };
+  const html = await fetchHtmlWithStrategies(u.origin, undefined, { sleep: async () => {} });
+  assert.equal(html, "WAYBACK-OK");
+  assert.equal(
+    fetchCalls.filter((call) => call === u.reader).length,
+    3,
+    "reader should be attempted initial + configured retries",
+  );
+  assert.ok(fetchCalls.includes(u.wayback), "wayback should be reached after reader retries");
 });
 
 test("reader sends Bearer Authorization when JINA_API_KEY is set", async () => {

@@ -8,8 +8,13 @@
  *
  *   1. origin            — the existing default request (unchanged behavior).
  *   2. browser profiles  — retry with rotating realistic UA + header sets.
- *   3. reader proxy      — `https://r.jina.ai/<url>` (cleaned HTML).
- *   4. Wayback snapshot  — `https://web.archive.org/web/<YYYY>id_/<url>`.
+ *   3. browser render    — headless Chromium for JS/Cloudflare challenges.
+ *   4. reader proxy      — `https://r.jina.ai/<url>` (cleaned HTML).
+ *   5. Wayback snapshot  — `https://web.archive.org/web/<YYYY>id_/<url>`.
+ *
+ * Each strategy also retries HTTP 429 from the SAME target a few times with
+ * jittered exponential backoff, honoring `Retry-After`, before the chain
+ * advances to the next strategy.
  *
  * Only a *bot-challenge* status advances the chain; a genuine not-found
  * (404/410) — or any SSRF/timeout/network error — aborts immediately and
@@ -38,14 +43,20 @@
  * "use client" file.
  */
 import { fetchCore, FetchHttpError } from "@/lib/scraper/fetch";
+import { renderViaBrowser } from "@/lib/scraper/fetch-browser";
 import { assertSafeUrl } from "@/lib/scraper/ssrf";
 import { scraperTimeoutMs } from "@/lib/scraper/limits";
 import {
+  scraperFetch429BaseMs,
+  scraperFetch429MaxMs,
+  scraperFetch429Retries,
+  scraperFetchBrowser,
   scraperFetchProfileRetry,
   scraperFetchReader,
   scraperFetchWayback,
 } from "@/lib/runtime-config/scraper";
 import { createLogger } from "@/lib/observability/logger";
+import { jitteredExponentialBackoff } from "@/lib/backoff";
 
 const log = createLogger("scraper.fetch-strategies");
 
@@ -261,11 +272,20 @@ interface Strategy {
   run(url: string, timeoutMs: number): Promise<string>;
 }
 
+type FetchHtmlWithStrategiesDeps = {
+  sleep?: (ms: number) => Promise<void>;
+  random?: () => number;
+};
+
 /** Per-host, process-lifetime memory of the strategy that last worked for a host. */
 const hostStrategyMemory = new Map<string, string>();
 
 function isFetchHttpError(err: unknown): err is FetchHttpError {
   return err instanceof FetchHttpError;
+}
+
+function isRateLimit(err: unknown): err is FetchHttpError {
+  return isFetchHttpError(err) && err.status === 429;
 }
 
 /** A bot-challenge status (401/403/429/451/503) — advances the chain. */
@@ -284,6 +304,27 @@ function assertAllowedFallbackHost(proxyUrl: string): void {
   if (!ALLOWED_FALLBACK_HOSTS.has(host)) {
     throw new Error(`Fallback host not allowed: ${host}`);
   }
+}
+
+/** Builds the headless-browser strategy for an already-validated origin URL. */
+function browserStrategy(originalUrl: string): Strategy {
+  return {
+    id: "browser",
+    isOrigin: false,
+    run: async (_url, timeoutMs) => {
+      const { status, html } = await renderViaBrowser(originalUrl, timeoutMs);
+      if (status === 404 || status === 410) {
+        throw new FetchHttpError(status, originalUrl);
+      }
+      if (status === 429) {
+        throw new FetchHttpError(429, originalUrl);
+      }
+      if (status >= 200 && status < 300) {
+        return html;
+      }
+      throw new FetchHttpError(status || 503, originalUrl);
+    },
+  };
 }
 
 /** Builds the r.jina.ai reader-proxy strategy for an already-validated origin URL. */
@@ -344,6 +385,10 @@ function buildChain(originalUrl: string, host: string): Strategy[] {
     }
   }
 
+  if (scraperFetchBrowser()) {
+    chain.push(browserStrategy(originalUrl));
+  }
+
   if (scraperFetchReader()) {
     chain.push(readerStrategy(originalUrl));
   }
@@ -363,6 +408,60 @@ function buildChain(originalUrl: string, host: string): Strategy[] {
   return chain;
 }
 
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+async function runStrategyWith429Retry(
+  strategy: Strategy,
+  url: string,
+  timeoutMs: number,
+  deadline: number,
+  deps: FetchHtmlWithStrategiesDeps,
+): Promise<string> {
+  const maxRetries = scraperFetch429Retries();
+  const baseMs = scraperFetch429BaseMs();
+  const maxMs = scraperFetch429MaxMs();
+  const retryEnabled = maxRetries > 0 && baseMs > 0 && maxMs > 0;
+  const sleep = deps.sleep ?? defaultSleep;
+  const random = deps.random ?? Math.random;
+  let retryAttempt = 0;
+
+  for (;;) {
+    const remaining = deadline - Date.now();
+    if (remaining <= 0) {
+      throw new Error(`Fetch strategy timed out before attempt: ${strategy.id}`);
+    }
+
+    try {
+      return await strategy.run(url, Math.min(timeoutMs, remaining));
+    } catch (err) {
+      if (!retryEnabled || !isRateLimit(err) || retryAttempt >= maxRetries) {
+        throw err;
+      }
+
+      const now = Date.now();
+      const remainingBeforeDelay = deadline - now;
+      if (remainingBeforeDelay <= 0) {
+        throw err;
+      }
+
+      retryAttempt += 1;
+      const backoffMs = jitteredExponentialBackoff({
+        attempt: retryAttempt,
+        baseMs,
+        maxMs,
+        random,
+      });
+      const delayMs = err.retryAfterMs != null ? Math.max(err.retryAfterMs, backoffMs) : backoffMs;
+      const clampedDelayMs = Math.min(delayMs, remainingBeforeDelay);
+      if (clampedDelayMs <= 0 || deadline - (now + clampedDelayMs) <= 0) {
+        throw err;
+      }
+
+      await sleep(clampedDelayMs);
+    }
+  }
+}
+
 /**
  * Runs the multi-strategy fallback chain for a GET `fetchHtml` request.
  *
@@ -374,6 +473,7 @@ function buildChain(originalUrl: string, host: string): Strategy[] {
 export async function fetchHtmlWithStrategies(
   url: string,
   timeoutMs: number = scraperTimeoutMs(),
+  deps: FetchHtmlWithStrategiesDeps = {},
 ): Promise<string> {
   // SSRF-validate the ORIGINAL target up-front so reader/Wayback URLs are only
   // ever built from an already-validated public origin URL. Throws (no
@@ -396,7 +496,7 @@ export async function fetchHtmlWithStrategies(
     const attemptTimeout = Math.min(timeoutMs, remaining);
 
     try {
-      const html = await strategy.run(url, attemptTimeout);
+      const html = await runStrategyWith429Retry(strategy, url, attemptTimeout, deadline, deps);
       // A 2xx body can still be a bot-protection interstitial (HTTP 200 +
       // challenge page). Treat that exactly like a 403: do NOT accept it as the
       // result; escalate to the next strategy (next profile → reader → wayback).

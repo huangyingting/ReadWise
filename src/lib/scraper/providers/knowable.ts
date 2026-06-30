@@ -1,5 +1,134 @@
 import type { Provider } from "@/lib/scraper/types";
-import { excludes, lookupSection, rssUrlExtractor } from "./shared";
+import { parseRssUrls } from "@/lib/scraper/rss";
+import { excludes, lookupSection } from "./shared";
+
+const KNOWABLE_RSS_FEED_URL = "https://knowablemagazine.org/rss";
+const KNOWABLE_SECTIONS = [
+  "physical-world",
+  "technology",
+  "living-world",
+  "society",
+  "food-environment",
+  "health-disease",
+  "mind",
+] as const;
+const KNOWABLE_TOPICS = [
+  "climate-change",
+  "comics",
+  "coronavirus",
+  "disease-update",
+  "events",
+  "explained",
+  "review",
+  "opinion",
+  "qa",
+  "story-behind-picture",
+] as const;
+const KNOWABLE_SEARCH_FEED_MAX_PAGES = 100;
+const KNOWABLE_SEARCH_FEED_EMPTY_PAGE_LIMIT = 2;
+
+function knowableSearchFeedUrl(section: (typeof KNOWABLE_SECTIONS)[number], page: number): string {
+  const params = new URLSearchParams({
+    option1: "fulltext",
+    value1: "",
+    operator1: "AND",
+    option2: "pub_sectionIdent",
+    value2: section,
+    operator2: "AND",
+    option3: "dcterms_language",
+    value3: "language/en",
+    sortDescending: "true",
+    sortField: "prism_publicationDate",
+    section: `/content/${section}`,
+    pageSize: "100",
+  });
+  if (page > 1) params.set("page", String(page));
+  return `https://knowablemagazine.org/search/rss.action?${params.toString()}`;
+}
+
+function knowableTopicFeedUrl(
+  topic: (typeof KNOWABLE_TOPICS)[number],
+  page: number,
+): string {
+  const params = new URLSearchParams({
+    option1: "pub_topic",
+    value1: `topics/${topic}`,
+    section: `/content/topics/${topic}`,
+    sectionType: "topic",
+    option51: "dcterms_language",
+    value51: "language/en",
+    sortDescending: "true",
+    sortField: "prism_publicationDate",
+    pageSize: "100",
+  });
+  if (page > 1) params.set("page", String(page));
+  return `https://knowablemagazine.org/search/rss.action?${params.toString()}`;
+}
+
+function addUrls(target: string[], seen: Set<string>, urls: string[]): number {
+  let added = 0;
+  for (const url of urls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    target.push(url);
+    added++;
+  }
+  return added;
+}
+
+async function fetchRssUrls(
+  fetchFn: Parameters<NonNullable<Provider["urlExtractor"]>>[0]["fetch"],
+  url: string,
+): Promise<string[]> {
+  try {
+    return parseRssUrls(await fetchFn(url));
+  } catch {
+    return [];
+  }
+}
+
+async function knowableUrlExtractor({
+  limit,
+  fetch: fetchFn,
+}: Parameters<NonNullable<Provider["urlExtractor"]>>[0]): Promise<string[]> {
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  const candidateCap = Number.isFinite(limit)
+    ? Math.max(limit * 4, limit)
+    : Number.POSITIVE_INFINITY;
+
+  addUrls(urls, seen, await fetchRssUrls(fetchFn, KNOWABLE_RSS_FEED_URL));
+
+  const pageSearchFeed = async (feedUrl: (page: number) => string) => {
+    const feedSeen = new Set<string>();
+    let consecutiveEmptyPages = 0;
+    for (let page = 1; page <= KNOWABLE_SEARCH_FEED_MAX_PAGES; page++) {
+      if (urls.length >= candidateCap) break;
+      const pageUrls = await fetchRssUrls(fetchFn, feedUrl(page));
+      const feedAdded = addUrls([], feedSeen, pageUrls);
+      addUrls(urls, seen, pageUrls);
+
+      if (feedAdded === 0) {
+        consecutiveEmptyPages++;
+        if (consecutiveEmptyPages >= KNOWABLE_SEARCH_FEED_EMPTY_PAGE_LIMIT) break;
+      } else {
+        consecutiveEmptyPages = 0;
+      }
+    }
+  };
+
+  for (const section of KNOWABLE_SECTIONS) {
+    if (urls.length >= candidateCap) break;
+    await pageSearchFeed((page) => knowableSearchFeedUrl(section, page));
+  }
+
+  for (const topic of KNOWABLE_TOPICS) {
+    if (urls.length >= candidateCap) break;
+    await pageSearchFeed((page) => knowableTopicFeedUrl(topic, page));
+  }
+
+  return urls;
+}
 
 const knowable: Provider = {
   key: "knowable",
@@ -11,6 +140,8 @@ const knowable: Provider = {
     "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=living-world&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/living-world",
     "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=society&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/society",
     "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=food-environment&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/food-environment",
+    "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=health-disease&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/health-disease",
+    "https://knowablemagazine.org/search?option1=fulltext&value1=&operator1=AND&option2=pub_sectionIdent&value2=mind&operator2=AND&option3=dcterms_language&value3=language/en&sortDescending=true&sortField=prism_publicationDate&section=/content/mind",
   ],
   articleUrlPattern:
     /^https:\/\/(?:www\.)?knowablemagazine\.org\/(?:content\/)?article\/[a-z-]+\/\d{4}\/[a-z0-9-]+\/?(?:[?#].*)?$/i,
@@ -29,11 +160,15 @@ const knowable: Provider = {
       [/business|econom/, "business"],
     ]),
   /**
-   * Discovers article URLs from Knowable's RSS feed (the seed search pages are
-   * blocked with 403). Candidates are validated against `articleUrlPattern`
-   * and `articleUrlFilter` by discovery.
+   * Discovers article URLs from Knowable's public RSS endpoints. The top-level
+   * feed only exposes the latest items, so section-specific search RSS pages are
+   * paged until they plateau. Homepage topic search RSS pages (`pub_topic`) are
+   * paged too, catching articles that the section feeds miss. Candidates are
+   * still validated against `articleUrlPattern` and `articleUrlFilter` by discovery.
+   * Section search RSS pages request `pageSize=100`, returning up to 100 items
+   * per page instead of the default 20.
    */
-  urlExtractor: rssUrlExtractor(["https://knowablemagazine.org/rss"]),
+  urlExtractor: knowableUrlExtractor,
   /**
    * Knowable's PB-hosted article pages embed donation CTAs, leftover Froala
    * editor menus and related-content rails inside (or around) the article

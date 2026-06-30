@@ -45,6 +45,7 @@ before(() => {
       },
       assertSafeUrl: async () => {},
       assertSafeHostname: async () => {},
+      isPrivateAddress: () => false,
     },
   });
 

@@ -384,6 +384,96 @@ test("knowable discovery: returns only article URLs from RSS", async () => {
   ]);
 });
 
+function knowableSearchFeedUrl(section: string, page = 1): string {
+  const params = new URLSearchParams({
+    option1: "fulltext",
+    value1: "",
+    operator1: "AND",
+    option2: "pub_sectionIdent",
+    value2: section,
+    operator2: "AND",
+    option3: "dcterms_language",
+    value3: "language/en",
+    sortDescending: "true",
+    sortField: "prism_publicationDate",
+    section: `/content/${section}`,
+    pageSize: "100",
+  });
+  if (page > 1) params.set("page", String(page));
+  return `https://knowablemagazine.org/search/rss.action?${params.toString()}`;
+}
+
+function knowableTopicFeedUrl(topic: string, page = 1): string {
+  const params = new URLSearchParams({
+    option1: "pub_topic",
+    value1: `topics/${topic}`,
+    section: `/content/topics/${topic}`,
+    sectionType: "topic",
+    option51: "dcterms_language",
+    value51: "language/en",
+    sortDescending: "true",
+    sortField: "prism_publicationDate",
+    pageSize: "100",
+  });
+  if (page > 1) params.set("page", String(page));
+  return `https://knowablemagazine.org/search/rss.action?${params.toString()}`;
+}
+
+test("knowable discovery: pages section RSS feeds beyond the latest feed", async () => {
+  const knowable = getProvider("knowable")!;
+  const recent = "https://knowablemagazine.org/content/article/technology/2026/example-recent/";
+  const physicalOne =
+    "https://knowablemagazine.org/content/article/physical-world/2024/example-archive-one/";
+  const physicalTwo =
+    "https://knowablemagazine.org/content/article/physical-world/2023/example-archive-two/";
+  const mindOne = "https://knowablemagazine.org/content/article/mind/2022/example-mind/";
+  const climateTopic =
+    "https://knowablemagazine.org/content/article/food-environment/2021/example-climate-topic/";
+  const fetched: string[] = [];
+  const feedMap: Record<string, string> = {
+    "https://knowablemagazine.org/rss": makeFeed([recent]),
+    [knowableSearchFeedUrl("physical-world")]: makeFeed([
+      recent,
+      physicalOne,
+      "https://knowablemagazine.org/search?value1=x",
+    ]),
+    [knowableSearchFeedUrl("physical-world", 2)]: makeFeed([physicalTwo]),
+    [knowableSearchFeedUrl("mind")]: makeFeed([mindOne]),
+    [knowableTopicFeedUrl("climate-change")]: makeFeed([climateTopic]),
+  };
+
+  const urls = await discoverProviderUrls(knowable, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return feedMap[url] ?? makeFeed([]);
+    },
+  });
+
+  assert.deepEqual(
+    urls.sort(),
+    [climateTopic, mindOne, physicalOne, physicalTwo, recent].sort(),
+  );
+  assert.ok(
+    fetched.includes(knowableSearchFeedUrl("physical-world", 2)),
+    "must continue past the first section RSS page",
+  );
+  assert.ok(
+    fetched.includes(knowableSearchFeedUrl("health-disease")),
+    "must cover the health-disease section that is absent from the old seeds",
+  );
+  assert.ok(
+    fetched.includes(knowableSearchFeedUrl("mind")),
+    "must cover the mind section that is absent from the old seeds",
+  );
+  assert.ok(urls.includes(climateTopic), "must include a unique article from a topic feed");
+  assert.ok(
+    fetched.includes(knowableTopicFeedUrl("climate-change")),
+    "must fetch homepage topic RSS feeds",
+  );
+});
+
 test("nautilus discovery: returns only article URLs from RSS", async () => {
   const nautilus = getProvider("nautilus")!;
   const feed = makeFeed([
