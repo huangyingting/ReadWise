@@ -146,6 +146,16 @@ test("source-derived provider URL patterns match article URLs", () => {
     ),
   );
   assert.ok(getProviderOrFail("noema").articleUrlPattern.test("https://www.noemamag.com/example-story/"));
+  assert.ok(
+    getProviderOrFail("natgeo").articleUrlPattern.test(
+      "https://www.nationalgeographic.com/travel/national-parks/article/acadia-national-park",
+    ),
+  );
+  assert.ok(
+    getProviderOrFail("natgeo").articleUrlPattern.test(
+      "https://www.nationalgeographic.com/premium/article/benefits-pet-dog-ownership-mental-health",
+    ),
+  );
   assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/2026/06/23/example-story/"));
   assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/shreds-of-evidence-edna/"));
   assert.ok(
@@ -168,6 +178,44 @@ test("source-derived URL filters reject non-article pages", () => {
 
   const technologyReview = getProviderOrFail("technologyreview");
   assert.equal(technologyReview.articleUrlFilter?.("https://www.technologyreview.com/topic/artificial-intelligence/"), false);
+
+  const natgeo = getProviderOrFail("natgeo");
+  assert.equal(
+    natgeo.articleUrlFilter?.(
+      "https://www.nationalgeographic.com/travel/article/paid-content-escape-to-the-country",
+    ),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/newsletters/article/stones-bones-dino-monsters"),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/travel/article/hong_kong_food_and_wine"),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/contests/article/travel-photo-contest-2016-winners"),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/maps/article/yellowstone-map-embed-full"),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/books/article/8-photos-women-Nat-Geo-archive"),
+    false,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.("https://www.nationalgeographic.com/pages/article/afghan-girl-home-afghanistan"),
+    true,
+  );
+  assert.equal(
+    natgeo.articleUrlFilter?.(
+      "https://www.nationalgeographic.com/travel/national-parks/article/acadia-national-park",
+    ),
+    true,
+  );
 
   const undark = getProviderOrFail("undark");
   assert.equal(undark.articleUrlFilter?.("https://undark.org/tag/climate-change/"), false);

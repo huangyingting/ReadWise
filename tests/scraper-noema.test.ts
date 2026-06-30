@@ -148,6 +148,16 @@ test("noema articleUrlFilter excludes /articles-search paths", () => {
   );
 });
 
+test("noema articleUrlFilter excludes footer/navigation slugs that look article-like", () => {
+  for (const url of [
+    "https://www.noemamag.com/privacy-policy",
+    "https://www.noemamag.com/terms-of-use/",
+    "https://www.noemamag.com/subscribe",
+  ]) {
+    assert.equal(noema.articleUrlFilter!(url), false, url);
+  }
+});
+
 test("noema articleUrlFilter accepts a valid article slug", () => {
   assert.equal(
     noema.articleUrlFilter!("https://www.noemamag.com/the-philosophy-of-networks"),
