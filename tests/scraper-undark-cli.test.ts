@@ -6,7 +6,6 @@ import {
   analyzeArticles,
   parseArgs,
   selectFreshUndarkUrls,
-  shouldRetryUndarkHeadless,
   undarkDiscoveryLimit,
 } from "../scripts/scrape-undark";
 
@@ -19,7 +18,6 @@ test("undark workflow CLI defaults to published exhaustive-ready batches", () =>
     targetSaved: false,
     untilExhausted: false,
     analyzeOnly: false,
-    headless: "off",
     publish: true,
     help: false,
   });
@@ -37,7 +35,6 @@ test("undark workflow CLI accepts scrape controls and draft override", () => {
     "--target-saved",
     "--until-exhausted",
     "--analyze-only",
-    "--headless",
     "--draft",
     "--help",
   ]);
@@ -49,15 +46,8 @@ test("undark workflow CLI accepts scrape controls and draft override", () => {
   assert.equal(args.targetSaved, true);
   assert.equal(args.untilExhausted, true);
   assert.equal(args.analyzeOnly, true);
-  assert.equal(args.headless, "fallback");
   assert.equal(args.publish, false);
   assert.equal(args.help, true);
-});
-
-test("undark workflow CLI accepts headless-only mode", () => {
-  const args = parseArgs(["--headless-only"]);
-
-  assert.equal(args.headless, "force");
 });
 
 test("undark workflow CLI accepts --all alias for exhaustive discovery", () => {
@@ -65,50 +55,6 @@ test("undark workflow CLI accepts --all alias for exhaustive discovery", () => {
 
   assert.equal(args.untilExhausted, true);
 });
-
-test("undark headless fallback only retries static extraction failures", () => {
-  assert.equal(
-    shouldRetryUndarkHeadless({
-      status: "failed",
-      reason: "could not extract article content",
-      sourceUrl: "https://undark.org/2026/06/24/story/",
-    }),
-    true,
-  );
-  assert.equal(
-    shouldRetryUndarkHeadless({
-      status: "failed",
-      reason: "content quality check failed (score=10)",
-      sourceUrl: "https://undark.org/2026/06/24/story/",
-    }),
-    true,
-  );
-  assert.equal(
-    shouldRetryUndarkHeadless({
-      status: "failed",
-      reason: "bot challenge not bypassed for undark.org",
-      sourceUrl: "https://undark.org/2026/06/24/story/",
-    }),
-    true,
-  );
-  assert.equal(
-    shouldRetryUndarkHeadless({
-      status: "failed",
-      reason: "unexpected db failure",
-      sourceUrl: "https://undark.org/2026/06/24/story/",
-    }),
-    false,
-  );
-  assert.equal(
-    shouldRetryUndarkHeadless({
-      status: "skipped",
-      reason: "duplicate sourceUrl",
-      sourceUrl: "https://undark.org/2026/06/24/story/",
-    }),
-    false,
-  );
-});
-
 
 test("undark exhaustive selection skips accounted URLs without applying batch limit", () => {
   const discovered = [

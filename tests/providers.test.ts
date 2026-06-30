@@ -7,11 +7,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { PROVIDERS, getProvider, getProviderByName, mapSectionToCategory, providerReadingCategories, isProviderCategoryReadingSuitable } from "@/lib/scraper/providers";
-import {
-  fetchUndarkArticleHtmlFromWordPressApi,
-  isUndarkArticleUrl,
-} from "@/lib/scraper/providers/undark-headless";
-import { extractArticle } from "@/lib/scraper/extract";
 import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
 
 // ---------------------------------------------------------------------------
@@ -178,50 +173,6 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(undark.articleUrlFilter?.("https://undark.org/tag/climate-change/"), false);
   assert.equal(undark.articleUrlFilter?.("https://undark.org/funding/"), false);
   assert.equal(undark.articleUrlFilter?.("https://undark.org/2023/10/12/funding-innovation-younger/"), true);
-});
-
-test("undark headless validator only accepts Undark article URLs", () => {
-  assert.equal(isUndarkArticleUrl("https://undark.org/2026/06/23/example-story/"), true);
-  assert.equal(isUndarkArticleUrl("https://undark.org/shreds-of-evidence-edna/"), true);
-  assert.equal(
-    isUndarkArticleUrl(
-      "https://race.undark.org/articles/good-blood-bad-policy-the-red-cross-and-jim-crow",
-    ),
-    true,
-  );
-  assert.equal(isUndarkArticleUrl("https://undark.org/tag/climate-change/"), false);
-  assert.equal(isUndarkArticleUrl("http://undark.org/2026/06/23/example-story/"), false);
-  assert.equal(isUndarkArticleUrl("https://example.com/2026/06/23/example-story/"), false);
-});
-
-test("undark WordPress API fallback builds extractable article HTML", async () => {
-  const html = await fetchUndarkArticleHtmlFromWordPressApi(
-    "https://undark.org/2026/06/23/example-story/",
-    async (url) => {
-      const parsed = new URL(url);
-      assert.equal(
-        `${parsed.origin}${parsed.pathname}`,
-        "https://public-api.wordpress.com/rest/v1.1/sites/undark.org/posts/slug:example-story",
-      );
-      return JSON.stringify({
-        URL: "https://undark.org/2026/06/23/example-story/",
-        title: "Rendered Undark Story",
-        author: { name: "Science Reporter" },
-        date: "2026-06-23T10:00:00-04:00",
-        excerpt: "<p>A concise dek.</p>",
-        featured_image: "https://undark.org/wp-content/uploads/2026/06/example.jpg",
-        categories: { science: { name: "Science Policy" } },
-        content: `<p>${Array.from({ length: 80 }, () => "science").join(" ")}</p>`,
-      });
-    },
-  );
-  const article = extractArticle(html, "https://undark.org/2026/06/23/example-story/");
-
-  assert.ok(article);
-  assert.equal(article?.title, "Rendered Undark Story");
-  assert.equal(article?.author, "Science Reporter");
-  assert.equal(article?.category, "politics");
-  assert.ok((article?.wordCount ?? 0) >= 80);
 });
 
 test("smithsonian paginates category seeds with page query", () => {

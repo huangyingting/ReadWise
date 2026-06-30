@@ -138,22 +138,10 @@ HTML are Cloudflare-protected. The provider falls back to `https://undark.org/fe
 for latest-post discovery if the API is unavailable.
 
 Article extraction still uses the normal SSRF-protected `scrapeUrl` path by
-default. The Undark workflow can opt into a provider-specific Playwright Chromium
-render for pages where static HTTP extraction fails; if Undark's Cloudflare
-challenge prevents rendering, the headless path falls back to the same public
-WordPress.com post API for article content:
-
-```sh
-npm run scrape:undark -- --limit 20 --headless       # retry extraction/quality failures
-npm run scrape:undark -- --limit 5 --headless-only   # render first, without static HTTP
-```
-
-Headless mode validates that each target is an Undark article URL before browser
-navigation or API lookup, then sends the rendered/API HTML through the same
-`extractArticle`, quality, sanitization, and persistence path. If Playwright or
-Chromium is not available and the API fallback cannot provide the article,
-explicit headless runs fail with a clear setup hint; non-headless scraping is
-unchanged.
+default. Undark does not have a provider-specific article-content fallback: once
+URLs are discovered, each article is fetched, rendered, extracted, quality
+checked, sanitized, and persisted through the same generic scrape chain used by
+the other providers.
 
 ---
 
@@ -282,9 +270,6 @@ npm run scrape -- --list-providers
 ```sh
 # Continue Undark from DB + visited state; publishes ownerless Undark rows by default:
 npm run scrape:undark -- --all
-
-# Retry Undark articles with a headless browser when static extraction is incomplete:
-npm run scrape:undark -- --all --headless
 
 # Continue Smithsonian from DB + visited state:
 npm run scrape:smithsonian -- --all

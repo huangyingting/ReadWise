@@ -3,18 +3,10 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import { ArticleStatus, ArticleVisibility } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { isScraperFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
-import { extractArticle, stripTags } from "@/lib/scraper/extract";
-import { saveDraftArticle, scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
-import { checkContentQuality } from "@/lib/scraper/quality";
+import { stripTags } from "@/lib/scraper/extract";
+import { scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
 import { getProvider } from "@/lib/scraper/providers";
-import {
-  fetchUndarkArticleHtmlWithBrowser,
-  fetchUndarkArticleHtmlFromWordPressApi,
-  UndarkHeadlessUnavailableError,
-  undarkHeadlessErrorReason,
-} from "@/lib/scraper/providers/undark-headless";
 import { recordCrawlRun } from "@/lib/scraper/sources";
 import type { Provider } from "@/lib/scraper/types";
 import {
@@ -42,12 +34,9 @@ type Args = {
   targetSaved: boolean;
   untilExhausted: boolean;
   analyzeOnly: boolean;
-  headless: UndarkHeadlessMode;
   publish: boolean;
   help: boolean;
 };
-
-type UndarkHeadlessMode = "off" | "fallback" | "force";
 
 type VisitedOutcome = "saved" | "duplicate" | "failed";
 
@@ -138,9 +127,6 @@ const NOISE_PATTERNS: NoisePattern[] = [
   },
 ];
 
-const HEADLESS_RETRY_REASON_RE =
-  /could not extract article content|content quality check failed|bot challenge|HTTP (?:401|403|429|451|503)\b|All fetch strategies failed|cloudflare|timeout|fetch failed/i;
-
 function parseArgs(argv: string[]): Args {
   const publishExplicit = parseFlag(argv, "--publish");
   const draftExplicit = parseFlag(argv, "--draft");
@@ -153,11 +139,6 @@ function parseArgs(argv: string[]): Args {
     untilExhausted:
       parseFlag(argv, "--all") || parseFlag(argv, "--until-exhausted"),
     analyzeOnly: parseFlag(argv, "--analyze-only"),
-    headless: parseFlag(argv, "--headless-only")
-      ? "force"
-      : parseFlag(argv, "--headless")
-        ? "fallback"
-        : "off",
     publish: publishExplicit || !draftExplicit,
     help: parseFlag(argv, "--help", "-h"),
   };
@@ -175,8 +156,6 @@ function parseArgs(argv: string[]): Args {
         "--all",
         "--until-exhausted",
         "--analyze-only",
-        "--headless",
-        "--headless-only",
         "--publish",
         "--draft",
         "--help",
@@ -209,8 +188,6 @@ Options:
   --all, --until-exhausted
                          Scrape all fresh URLs discoverable from configured Undark paths
   --analyze-only         Skip discovery/scrape and only analyze Undark rows in the DB
-  --headless             Retry extraction/quality failures with a Playwright Chromium render
-  --headless-only        Use Playwright Chromium rendering without trying static HTTP first
   --publish              Publish ownerless Undark DB rows after scraping (default)
   --draft                Do not publish newly saved/ownerless Undark rows
   --help                 Show this help`);
@@ -435,14 +412,8 @@ async function scrapeOne(
   url: string,
   record: VisitedRecord,
   publish: boolean,
-  headless: UndarkHeadlessMode,
 ): Promise<SaveOutcome> {
-  let outcome =
-    headless === "force" ? await scrapeAndSaveWithHeadless(url) : await scrapeAndSave(url);
-  if (headless === "fallback" && shouldRetryUndarkHeadless(outcome)) {
-    console.warn(`  ↻ retrying with headless browser after ${outcome.reason}: ${url}`);
-    outcome = await scrapeAndSaveWithHeadless(url);
-  }
+  const outcome = await scrapeAndSave(url);
   if (outcome.status === "saved") {
     if (publish) await publishArticle(outcome.id, outcome.article.publishedAt);
     markVisited(record, outcome.article.sourceUrl, "saved");
@@ -457,88 +428,18 @@ async function scrapeOne(
   return outcome;
 }
 
-async function scrapeAndSaveWithHeadless(url: string): Promise<SaveOutcome> {
-  if (!isScraperFeatureEnabled()) {
-    return { status: "failed", reason: "scraper is disabled", sourceUrl: url };
-  }
-
-  let browserFailure: SaveOutcome | null = null;
-  try {
-    const browserHtml = await fetchUndarkArticleHtmlWithBrowser(url);
-    const browserOutcome = await saveExtractedHtml(browserHtml, url, "headless browser");
-    if (browserOutcome.status !== "failed" || !shouldRetryUndarkHeadless(browserOutcome)) {
-      return browserOutcome;
-    }
-    browserFailure = browserOutcome;
-  } catch (err) {
-    if (err instanceof UndarkHeadlessUnavailableError) {
-      return { status: "failed", reason: undarkHeadlessErrorReason(err), sourceUrl: url };
-    }
-    browserFailure = { status: "failed", reason: undarkHeadlessErrorReason(err), sourceUrl: url };
-  }
-
-  try {
-    const apiHtml = await fetchUndarkArticleHtmlFromWordPressApi(url);
-    return await saveExtractedHtml(apiHtml, url, "headless browser API fallback");
-  } catch (err) {
-    const apiReason = undarkHeadlessErrorReason(err);
-    return {
-      status: "failed",
-      reason: `${browserFailure.reason}; API fallback failed: ${apiReason}`,
-      sourceUrl: url,
-    };
-  }
-}
-
-async function saveExtractedHtml(
-  html: string,
-  url: string,
-  strategy: string,
-): Promise<SaveOutcome> {
-  const article = extractArticle(html, url);
-  if (!article) {
-    return {
-      status: "failed",
-      reason: `${strategy} rendered page but could not extract article content`,
-      sourceUrl: url,
-    };
-  }
-
-  const quality = checkContentQuality(article);
-  if (quality.grade === "reject") {
-    return {
-      status: "failed",
-      reason: `${strategy} content quality check failed (score=${quality.score})`,
-      sourceUrl: url,
-    };
-  }
-
-  try {
-    return await saveDraftArticle(article);
-  } catch (err) {
-    return { status: "failed", reason: errorMessage(err), sourceUrl: url };
-  }
-}
-
-export function shouldRetryUndarkHeadless(
-  outcome: SaveOutcome,
-): outcome is Extract<SaveOutcome, { status: "failed" }> {
-  return outcome.status === "failed" && HEADLESS_RETRY_REASON_RE.test(outcome.reason);
-}
-
 async function scrapeSequential(
   freshUrls: string[],
   record: VisitedRecord,
   publish: boolean,
   targetSaved: boolean,
   limit: number,
-  headless: UndarkHeadlessMode,
 ): Promise<SaveOutcome[]> {
   const outcomes: SaveOutcome[] = [];
   for (let i = 0; i < freshUrls.length; i++) {
     const url = freshUrls[i]!;
     console.log(`Scraping ${i + 1}/${freshUrls.length}: ${url}`);
-    const outcome = await scrapeOne(url, record, publish, headless);
+    const outcome = await scrapeOne(url, record, publish);
     outcomes.push(outcome);
     summarizeProgress(i + 1, freshUrls.length, outcome);
     if (
@@ -556,7 +457,6 @@ async function scrapeConcurrent(
   record: VisitedRecord,
   publish: boolean,
   concurrency: number,
-  headless: UndarkHeadlessMode,
 ): Promise<SaveOutcome[]> {
   const outcomes: SaveOutcome[] = [];
   let nextIndex = 0;
@@ -568,7 +468,7 @@ async function scrapeConcurrent(
       if (index >= freshUrls.length) return;
       const url = freshUrls[index]!;
       console.log(`Scraping ${index + 1}/${freshUrls.length}: ${url}`);
-      const outcome = await scrapeOne(url, record, publish, headless);
+      const outcome = await scrapeOne(url, record, publish);
       outcomes[index] = outcome;
       summarizeProgress(index + 1, freshUrls.length, outcome);
     }
@@ -587,7 +487,6 @@ async function scrapeFreshUndark(
   targetSaved: boolean,
   untilExhausted: boolean,
   publish: boolean,
-  headless: UndarkHeadlessMode,
 ): Promise<{
   outcomes: SaveOutcome[];
   discovered: number;
@@ -633,8 +532,8 @@ async function scrapeFreshUndark(
     freshUrls.length === 0
       ? []
       : targetSaved && !untilExhausted
-        ? await scrapeSequential(freshUrls, record, publish, targetSaved, limit, headless)
-        : await scrapeConcurrent(freshUrls, record, publish, concurrency, headless);
+        ? await scrapeSequential(freshUrls, record, publish, targetSaved, limit)
+        : await scrapeConcurrent(freshUrls, record, publish, concurrency);
 
   const failed = outcomes.filter((o) => o.status === "failed").length;
   const duplicates = outcomes.filter(
@@ -844,8 +743,6 @@ function continueCommand(args: Args): string {
     `--concurrency ${args.concurrency}`,
   ];
   if (!args.publish) parts.push("--draft");
-  if (args.headless === "fallback") parts.push("--headless");
-  if (args.headless === "force") parts.push("--headless-only");
   return parts.join(" ");
 }
 
@@ -876,7 +773,6 @@ async function main(): Promise<number> {
       args.targetSaved,
       args.untilExhausted,
       args.publish,
-      args.headless,
     );
     outcomes = result.outcomes;
     discovered = result.discovered;
