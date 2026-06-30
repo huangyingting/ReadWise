@@ -2,14 +2,17 @@ import path from "node:path";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 
 import { ArticleStatus, ArticleVisibility } from "@prisma/client";
+import { findExistingPublicLibrarySourceUrls } from "@/lib/article-library/policy";
 import { prisma } from "@/lib/prisma";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { stripTags } from "@/lib/scraper/extract";
 import { scrapeAndSave, type SaveOutcome } from "@/lib/scraper";
 import { getProvider } from "@/lib/scraper/providers";
+import { createSmithsonianProvider } from "@/lib/scraper/providers/smithsonian";
 import { recordCrawlRun } from "@/lib/scraper/sources";
 import type { Provider } from "@/lib/scraper/types";
 import {
+  addUniqueFromCsv,
   isMain,
   parseFlag,
   parsePositiveInt,
@@ -31,6 +34,10 @@ type Args = {
   includeVisited: boolean;
   targetSaved: boolean;
   untilExhausted: boolean;
+  sinceYear: number | null;
+  excludeSections: string[];
+  sitemapOnly: boolean;
+  categoryVisibleOnly: boolean;
   analyzeOnly: boolean;
   publish: boolean;
   help: boolean;
@@ -123,6 +130,25 @@ const NOISE_PATTERNS: NoisePattern[] = [
   },
 ];
 
+function parseOptionalPositiveInt(argv: string[], flag: string): number | null {
+  const value = parseString(argv, flag);
+  if (value == null) return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null;
+}
+
+function parseCsvFlagValues(argv: string[], ...flags: string[]): string[] {
+  const values: string[] = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (!flags.includes(argv[i]!)) continue;
+    const value = argv[i + 1];
+    if (value == null) continue;
+    addUniqueFromCsv(values, value.toLowerCase());
+    i += 1;
+  }
+  return values;
+}
+
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     limit: parsePositiveInt(argv, "--limit", DEFAULT_LIMIT),
@@ -131,6 +157,14 @@ function parseArgs(argv: string[]): Args {
     targetSaved: parseFlag(argv, "--target-saved"),
     untilExhausted:
       parseFlag(argv, "--all") || parseFlag(argv, "--until-exhausted"),
+    sinceYear: parseOptionalPositiveInt(argv, "--since-year"),
+    excludeSections: parseCsvFlagValues(
+      argv,
+      "--exclude-section",
+      "--exclude-sections",
+    ),
+    sitemapOnly: parseFlag(argv, "--sitemap-only"),
+    categoryVisibleOnly: parseFlag(argv, "--category-visible-only"),
     analyzeOnly: parseFlag(argv, "--analyze-only"),
     publish: parseFlag(argv, "--publish"),
     help: parseFlag(argv, "--help", "-h"),
@@ -138,7 +172,15 @@ function parseArgs(argv: string[]): Args {
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
-    if (["--limit", "--visited-file"].includes(arg)) {
+    if (
+      [
+        "--limit",
+        "--visited-file",
+        "--since-year",
+        "--exclude-section",
+        "--exclude-sections",
+      ].includes(arg)
+    ) {
       i += 1;
       continue;
     }
@@ -148,6 +190,8 @@ function parseArgs(argv: string[]): Args {
         "--target-saved",
         "--all",
         "--until-exhausted",
+        "--sitemap-only",
+        "--category-visible-only",
         "--analyze-only",
         "--publish",
         "--help",
@@ -177,7 +221,12 @@ Options:
   --include-visited      Scrape discovered URLs even if already in the visit record
   --target-saved         Keep discovering until N articles are saved or candidates run out
   --all, --until-exhausted
-                         Scrape all fresh URLs discoverable from configured Smithsonian seeds/pagination
+                         Scrape all fresh URLs discoverable from the Smithsonian sitemap/category archives
+  --since-year YYYY      Only discover article sitemaps from YYYY onward (e.g. 2010)
+  --exclude-section s    Exclude a Smithsonian URL section; repeat or comma-separate (e.g. smart-news)
+  --sitemap-only         Do not crawl category archive pagination after the sitemap pass
+  --category-visible-only
+                         When category archives are crawled, keep only URLs visible in categories
   --analyze-only         Skip discovery/scrape and only analyze Smithsonian rows in the DB
   --publish              Publish ownerless Smithsonian DB rows after analysis
   --help                 Show this help`);
@@ -394,12 +443,21 @@ async function scrapeFreshSmithsonian(
     targetSaved,
     untilExhausted,
   );
+  let selectedUrls = freshUrls;
+  let skippedExisting = 0;
+
+  if (!includeVisited && selectedUrls.length > 0) {
+    const existing = await findExistingPublicLibrarySourceUrls(selectedUrls);
+    selectedUrls = selectedUrls.filter((url) => !existing.has(url));
+    skippedExisting = freshUrls.length - selectedUrls.length;
+  }
 
   console.log(
-    `Found ${discoveredUrls.length}; ${freshUrls.length} selected for scraping; ${skippedVisited} already visited; ` +
+    `Found ${discoveredUrls.length}; ${selectedUrls.length} selected for scraping; ` +
+      `${skippedVisited} already visited; ${skippedExisting} already saved in DB; ` +
       `discoveryExhausted=${discoveryExhausted ? "yes" : "no"}.`,
   );
-  if (freshUrls.length === 0)
+  if (selectedUrls.length === 0)
     return {
       outcomes: [],
       discovered: discoveredUrls.length,
@@ -408,9 +466,9 @@ async function scrapeFreshSmithsonian(
     };
 
   const outcomes: SaveOutcome[] = [];
-  for (let i = 0; i < freshUrls.length; i++) {
-    const url = freshUrls[i]!;
-    console.log(`Scraping ${i + 1}/${freshUrls.length}: ${url}`);
+  for (let i = 0; i < selectedUrls.length; i++) {
+    const url = selectedUrls[i]!;
+    console.log(`Scraping ${i + 1}/${selectedUrls.length}: ${url}`);
     const outcome = await scrapeAndSave(url);
     outcomes.push(outcome);
     summarize(outcome);
@@ -669,7 +727,13 @@ async function main(): Promise<number> {
 
   const visitedFile = resolveRepoLocalPath(args.visitedFile);
   const record = await readVisited(visitedFile);
-  const provider = providerOrThrow();
+  providerOrThrow();
+  const provider = createSmithsonianProvider({
+    sinceYear: args.sinceYear,
+    excludeSections: args.excludeSections,
+    includeCategoryArchives: !args.sitemapOnly && args.untilExhausted,
+    categoryVisibleOnly: args.categoryVisibleOnly,
+  });
 
   let outcomes: SaveOutcome[] = [];
   let discovered = 0;

@@ -13,6 +13,7 @@ import {
   rssUrlExtractor,
   sitemapUrlExtractor,
 } from "@/lib/scraper/providers/shared";
+import { createSmithsonianProvider } from "@/lib/scraper/providers/smithsonian";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { getProvider } from "@/lib/scraper/providers";
 import type { Provider } from "@/lib/scraper/types";
@@ -54,6 +55,13 @@ function makeWordPressPosts(urls: string[], found = urls.length): string {
     found,
     posts: urls.map((URL) => ({ URL })),
   });
+}
+
+function makeCategoryPage(links: string[], pageLinks: string[] = []): string {
+  return `<html><body>
+    ${links.map((link) => `<a href="${link}">article</a>`).join("\n")}
+    ${pageLinks.map((link) => `<a href="${link}">page</a>`).join("\n")}
+  </body></html>`;
 }
 
 /**
@@ -196,6 +204,88 @@ test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs
     "https://example.com/sitemap-articles-2026-06.xml",
     "https://example.com/sitemap-articles-2026-05.xml",
   ]);
+});
+
+test("smithsonian discovery: can filter monthly sitemaps by year and excluded sections", async () => {
+  const provider = createSmithsonianProvider({
+    sinceYear: 2010,
+    excludeSections: ["smart-news"],
+  });
+  const feedMap: Record<string, string> = {
+    "https://www.smithsonianmag.com/sitemap.xml": makeSitemapIndex([
+      "https://www.smithsonianmag.com/sitemap-articles-2009-12.xml",
+      "https://www.smithsonianmag.com/sitemap-articles-2010-01.xml",
+      "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml",
+    ]),
+    "https://www.smithsonianmag.com/sitemap-articles-2009-12.xml": makeSitemap([
+      "https://www.smithsonianmag.com/history/too-old-180000001/",
+    ]),
+    "https://www.smithsonianmag.com/sitemap-articles-2010-01.xml": makeSitemap([
+      "https://www.smithsonianmag.com/history/kept-history-180000002/",
+    ]),
+    "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml": makeSitemap([
+      "https://www.smithsonianmag.com/smart-news/excluded-short-news-180000003/",
+      "https://www.smithsonianmag.com/science-nature/kept-science-180000004/",
+    ]),
+  };
+  const fetched: string[] = [];
+
+  const urls = await discoverProviderUrls(provider, Number.POSITIVE_INFINITY, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url: string) => {
+      fetched.push(url);
+      return feedMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [
+    "https://www.smithsonianmag.com/science-nature/kept-science-180000004/",
+    "https://www.smithsonianmag.com/history/kept-history-180000002/",
+  ]);
+  assert.equal(
+    fetched.includes("https://www.smithsonianmag.com/sitemap-articles-2009-12.xml"),
+    false,
+  );
+});
+
+test("smithsonian discovery: category archive crawl follows deep pagination and can require sitemap visibility", async () => {
+  const provider = createSmithsonianProvider({
+    includeCategoryArchives: true,
+    categoryVisibleOnly: true,
+  });
+  const categoryPageOne =
+    "https://www.smithsonianmag.com/category/science-nature/";
+  const categoryPageTwo =
+    "https://www.smithsonianmag.com/category/science-nature/?page=2";
+  const sitemapArticle =
+    "https://www.smithsonianmag.com/science-nature/from-sitemap-and-category-180000005/";
+  const categoryOnly =
+    "https://www.smithsonianmag.com/science-nature/category-only-180000006/";
+  const feedMap: Record<string, string> = {
+    "https://www.smithsonianmag.com/sitemap.xml": makeSitemapIndex([
+      "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml",
+    ]),
+    "https://www.smithsonianmag.com/sitemap-articles-2026-06.xml": makeSitemap([
+      sitemapArticle,
+    ]),
+    [categoryPageOne]: makeCategoryPage([], [categoryPageTwo]),
+    [categoryPageTwo]: makeCategoryPage([sitemapArticle, categoryOnly]),
+  };
+  const fetched: string[] = [];
+
+  const urls = await discoverProviderUrls(provider, Number.POSITIVE_INFINITY, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url: string) => {
+      fetched.push(url);
+      return feedMap[url] ?? makeCategoryPage([]);
+    },
+  });
+
+  assert.deepEqual(urls, [sitemapArticle]);
+  assert.ok(fetched.includes(categoryPageTwo));
+  assert.equal(urls.includes(categoryOnly), false);
 });
 
 // ---------------------------------------------------------------------------
