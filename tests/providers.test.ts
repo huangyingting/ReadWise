@@ -50,22 +50,25 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 11 active providers (aeon + voa removed)", () => {
+test("registry holds exactly the 14 active providers (aeon + voa removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "bbc",
+    "grist",
     "huffpost",
     "knowable",
     "natgeo",
     "nautilus",
     "nbc",
     "noema",
+    "propublica",
     "smithsonian",
     "technologyreview",
+    "theconversation",
     "time",
     "undark",
   ]);
-  assert.equal(PROVIDERS.length, 11);
+  assert.equal(PROVIDERS.length, 14);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
@@ -78,6 +81,9 @@ test("getProvider is case-insensitive", () => {
 test("source-derived providers are registered", () => {
   for (const key of [
     "bbc",
+    "theconversation",
+    "propublica",
+    "grist",
     "smithsonian",
     "knowable",
     "nautilus",
@@ -122,6 +128,22 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
     ),
     "Technology Review quality config should own branded digest prefixes",
   );
+  assert.ok(
+    getProviderOrFail("theconversation").cleanup?.dropTextKeywords?.some((kw) =>
+      /republish this article/i.test(kw),
+    ),
+    "The Conversation cleanup should drop republishing chrome",
+  );
+  assert.ok(
+    getProviderOrFail("propublica").cleanup?.dropTextKeywords?.some((kw) =>
+      /propublica is a nonprofit/i.test(kw),
+    ),
+    "ProPublica cleanup should drop nonprofit/newsletter chrome",
+  );
+  assert.ok(
+    getProviderOrFail("grist").cleanup?.dropClassKeywords?.some((kw) => /donate|newsletter/i.test(kw)),
+    "Grist cleanup should drop donation/newsletter chrome",
+  );
 });
 
 test("source-derived provider URL patterns match article URLs", () => {
@@ -143,6 +165,21 @@ test("source-derived provider URL patterns match article URLs", () => {
   assert.ok(
     getProviderOrFail("technologyreview").articleUrlPattern.test(
       "https://www.technologyreview.com/2026/06/23/123456/example-story/",
+    ),
+  );
+  assert.ok(
+    getProviderOrFail("theconversation").articleUrlPattern.test(
+      "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931",
+    ),
+  );
+  assert.ok(
+    getProviderOrFail("propublica").articleUrlPattern.test(
+      "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis",
+    ),
+  );
+  assert.ok(
+    getProviderOrFail("grist").articleUrlPattern.test(
+      "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/",
     ),
   );
   assert.ok(getProviderOrFail("noema").articleUrlPattern.test("https://www.noemamag.com/example-story/"));
@@ -178,6 +215,33 @@ test("source-derived URL filters reject non-article pages", () => {
 
   const technologyReview = getProviderOrFail("technologyreview");
   assert.equal(technologyReview.articleUrlFilter?.("https://www.technologyreview.com/topic/artificial-intelligence/"), false);
+  assert.equal(
+    technologyReview.articleUrlFilter?.(
+      "https://www.technologyreview.com/2026/06/29/1139834/the-download-metric-weaknesses-ai-elephant-warnings/",
+    ),
+    false,
+  );
+
+  const conversation = getProviderOrFail("theconversation");
+  assert.equal(conversation.articleUrlFilter?.("https://theconversation.com/us/topics/politics-34"), false);
+  assert.equal(
+    conversation.articleUrlFilter?.(
+      "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931",
+    ),
+    true,
+  );
+
+  const propublica = getProviderOrFail("propublica");
+  assert.equal(propublica.articleUrlFilter?.("https://www.propublica.org/topics/politics"), false);
+  assert.equal(
+    propublica.articleUrlFilter?.("https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"),
+    true,
+  );
+
+  const grist = getProviderOrFail("grist");
+  assert.equal(grist.articleUrlFilter?.("https://grist.org/updates/grist-hires-austin-corona-to-cover-energy/"), false);
+  assert.equal(grist.articleUrlFilter?.("https://grist.org/category/climate-energy/"), false);
+  assert.equal(grist.articleUrlFilter?.("https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"), true);
 
   const natgeo = getProviderOrFail("natgeo");
   assert.equal(
@@ -381,6 +445,56 @@ test("technologyreview categoryFor: biotech→health, climate change & energy→
   assert.equal(p.categoryFor!(u, "Sponsored"), null);
 });
 
+test("theconversation categoryFor: slug/keyword rules fill gap categories", () => {
+  const p = getProviderOrFail("theconversation");
+  assert.equal(
+    p.categoryFor!(
+      new URL("https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931"),
+      "Rural healthcare, Hospitals",
+    ),
+    "health",
+  );
+  assert.equal(
+    p.categoryFor!(
+      new URL("https://theconversation.com/in-2-landmark-decisions-the-supreme-court-expands-gun-rights-286230"),
+      "Supreme Court, Gun rights",
+    ),
+    "politics",
+  );
+  assert.equal(
+    p.categoryFor!(
+      new URL("https://theconversation.com/college-is-unaffordable-for-many-americans-but-dont-just-blame-rising-tuition-285095"),
+      "Tuition, Debt",
+    ),
+    "business",
+  );
+});
+
+test("propublica categoryFor: national/criminal justice maps to politics", () => {
+  const p = getProviderOrFail("propublica");
+  const u = new URL("https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis");
+  assert.equal(p.categoryFor!(u, null), "politics");
+  assert.equal(p.categoryFor!(u, "National"), "politics");
+  assert.equal(p.categoryFor!(u, "Health Care"), "health");
+  assert.equal(p.categoryFor!(u, "Business"), "business");
+});
+
+test("grist categoryFor: climate/accountability paths map to environment or politics", () => {
+  const p = getProviderOrFail("grist");
+  assert.equal(
+    p.categoryFor!(new URL("https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"), null),
+    "environment",
+  );
+  assert.equal(
+    p.categoryFor!(
+      new URL("https://grist.org/accountability/blood-in-the-well-one-towns-fight-against-the-slaughterhouse-polluting-it/"),
+      null,
+    ),
+    "politics",
+  );
+  assert.equal(p.categoryFor!(new URL("https://grist.org/culture/ask-a-climate-therapist/"), null), "culture");
+});
+
 test("smithsonian categoryFor: science-nature→science, innovation→tech", () => {
   const p = getProviderOrFail("smithsonian");
   assert.equal(
@@ -428,13 +542,24 @@ test("every provider's readingCategories (when set) are valid slugs ⊆ its cate
   }
 });
 
-test("long-form magazines override readingCategories to their FULL categories[]", () => {
-  for (const key of ["natgeo", "smithsonian", "knowable", "nautilus", "technologyreview", "noema", "undark"]) {
+test("long-form publishers override readingCategories to their FULL categories[]", () => {
+  for (const key of [
+    "natgeo",
+    "smithsonian",
+    "knowable",
+    "nautilus",
+    "technologyreview",
+    "noema",
+    "undark",
+    "theconversation",
+    "propublica",
+    "grist",
+  ]) {
     const p = getProviderOrFail(key);
     assert.deepEqual(
       p.readingCategories,
       p.categories,
-      `${key}: magazine should treat every category as reading-suitable`,
+      `${key}: long-form provider should treat every category as reading-suitable`,
     );
   }
 });
@@ -475,6 +600,8 @@ test("getProviderByName resolves by Article.source name, case-insensitively", ()
   assert.equal(getProviderByName("Noema Magazine")?.key, "noema");
   assert.equal(getProviderByName("  noema magazine  ")?.key, "noema");
   assert.equal(getProviderByName("NBC News")?.key, "nbc");
+  assert.equal(getProviderByName("The Conversation")?.key, "theconversation");
+  assert.equal(getProviderByName("ProPublica")?.key, "propublica");
   assert.equal(getProviderByName("Unknown Source"), null);
   assert.equal(getProviderByName(""), null);
 });

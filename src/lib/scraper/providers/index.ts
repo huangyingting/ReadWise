@@ -30,6 +30,9 @@ import nautilus from "./nautilus";
 import technologyreview from "./technologyreview";
 import noema from "./noema";
 import undark from "./undark";
+import theconversation from "./theconversation";
+import propublica from "./propublica";
+import grist from "./grist";
 
 export const PROVIDERS: readonly Provider[] = [
   nbc,
@@ -37,6 +40,9 @@ export const PROVIDERS: readonly Provider[] = [
   time,
   huffpost,
   bbc,
+  theconversation,
+  propublica,
+  grist,
   smithsonian,
   knowable,
   nautilus,

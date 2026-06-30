@@ -155,6 +155,21 @@ test("cleanup: generic rules remove common recirculation/newsletter/share chrome
   assert.match(result, /Article ending/);
 });
 
+test("cleanup: generic rules preserve article body containers named inline-promos", () => {
+  const html =
+    "<article>" +
+    '<div class="article-body inline-promos">' +
+    "<p>Reported article prose that should never be treated as promotional chrome.</p>" +
+    "</div>" +
+    '<aside class="newsletter-signup">Sign up for the newsletter</aside>' +
+    "</article>";
+
+  const result = applyProviderCleanup(html, GENERIC_PROVIDER_CLEANUP);
+
+  assert.match(result, /Reported article prose/);
+  assert.doesNotMatch(result, /newsletter-signup/);
+});
+
 test("cleanup: mergeProviderCleanup combines generic and provider rules once", () => {
   const merged = mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, {
     dropSelectors: ["iframe"],

@@ -1,5 +1,72 @@
 import type { Provider } from "@/lib/scraper/types";
-import { excludes, lookupSection, rssUrlExtractor } from "./shared";
+import { excludes, lookupSection, parseSitemapLocs, rssUrlExtractor } from "./shared";
+
+const TECHNOLOGY_REVIEW_SITEMAP_INDEX = "https://www.technologyreview.com/sitemap.xml";
+const technologyReviewRssFallback = rssUrlExtractor(["https://www.technologyreview.com/feed/"]);
+
+function sitemapNumber(url: string): number {
+  const match = url.match(/\/sitemap-(\d+)\.xml$/i);
+  return match?.[1] ? Number(match[1]) : 0;
+}
+
+function isContentSitemap(url: string): boolean {
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.hostname.replace(/^www\./, "") === "technologyreview.com" &&
+      /^\/sitemap-\d+\.xml$/i.test(parsed.pathname)
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function technologyReviewUrlExtractor({
+  limit,
+  fetch,
+}: Parameters<NonNullable<Provider["urlExtractor"]>>[0]): Promise<string[]> {
+  const cap = Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  const add = (candidates: readonly string[]) => {
+    for (const url of candidates) {
+      if (urls.length >= cap) break;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+    }
+  };
+
+  try {
+    const rootLocs = parseSitemapLocs(await fetch(TECHNOLOGY_REVIEW_SITEMAP_INDEX));
+    const nestedIndexes = rootLocs.filter((url) => /\/sitemap-index-\d+\.xml$/i.test(url));
+    const childSitemaps: string[] = [];
+
+    for (const indexUrl of nestedIndexes) {
+      if (urls.length >= cap) break;
+      try {
+        childSitemaps.push(...parseSitemapLocs(await fetch(indexUrl)).filter(isContentSitemap));
+      } catch {
+        // Keep the RSS fallback available if an index page is unavailable.
+      }
+    }
+
+    childSitemaps.sort((a, b) => sitemapNumber(b) - sitemapNumber(a));
+    for (const sitemapUrl of childSitemaps) {
+      if (urls.length >= cap) break;
+      try {
+        add(parseSitemapLocs(await fetch(sitemapUrl)));
+      } catch {
+        // Continue with older/newer child sitemaps when one fetch fails.
+      }
+    }
+  } catch {
+    // RSS fallback below.
+  }
+
+  if (urls.length > 0) return urls;
+  return technologyReviewRssFallback({ limit, fetch });
+}
 
 const technologyreview: Provider = {
   key: "technologyreview",
@@ -21,6 +88,7 @@ const technologyreview: Provider = {
       "/author/",
       "/topic/",
       "/newsletter/",
+      "/the-download-",
       "/podcasts/",
       "/events/",
       "/lists/",
@@ -29,10 +97,10 @@ const technologyreview: Provider = {
       "/sitemap",
     ]),
   defaultCategory: "tech",
-  categories: ["tech", "science", "health", "environment"],
+  categories: ["tech", "science", "health", "environment", "business", "culture", "politics"],
   // Long-form magazine: everything it publishes is substantive reading practice
   // — even globally-"medium" tech is in-depth here.
-  readingCategories: ["tech", "science", "health", "environment"],
+  readingCategories: ["tech", "science", "health", "environment", "business", "culture", "politics"],
   cleanup: {
     dropClassKeywords: [
       "deepDive",
@@ -63,11 +131,11 @@ const technologyreview: Provider = {
       [/\bpolicy\b|politic/, "politics"],
     ]),
   /**
-   * Discovers article URLs from MIT Technology Review's RSS feed (seed-HTML
-   * discovery matches 0 article URLs). Candidates are validated against
-   * `articleUrlPattern` and `articleUrlFilter` by discovery.
+   * Discovers the archive from MIT Technology Review's public nested sitemap
+   * index, newest child sitemap first. Falls back to RSS when the sitemap is
+   * unavailable. Discovery still validates pattern/filter/robots.
    */
-  urlExtractor: rssUrlExtractor(["https://www.technologyreview.com/feed/"]),
+  urlExtractor: technologyReviewUrlExtractor,
 };
 
 export default technologyreview;
