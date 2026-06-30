@@ -514,7 +514,9 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const section =
     (ld && jsonLdString(ld.articleSection)) ??
     metaContent(cleanedHtml, "article:section") ??
-    metaContent(cleanedHtml, "og:article:section");
+    metaContent(cleanedHtml, "og:article:section") ??
+    metaContent(cleanedHtml, "parsely-section") ??
+    metaContent(cleanedHtml, "news_keywords");
 
   const publishedRaw =
     (ld && jsonLdString(ld.datePublished)) ??

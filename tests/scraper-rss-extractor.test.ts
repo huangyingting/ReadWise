@@ -440,7 +440,7 @@ test("natgeo discovery: combines hubmore pagination with the public sitemap", as
   ]);
 });
 
-test("technologyreview discovery: returns only dated article URLs from RSS", async () => {
+test("technologyreview discovery: returns only dated article URLs from RSS fallback", async () => {
   const tr = getProvider("technologyreview")!;
   const feed = makeFeed([
     "https://www.technologyreview.com/2024/05/01/1091234/the-future-of-ai/",
@@ -456,6 +456,159 @@ test("technologyreview discovery: returns only dated article URLs from RSS", asy
     "https://www.technologyreview.com/2024/05/01/1091234/the-future-of-ai/",
     "https://www.technologyreview.com/2024/06/02/1095678/quantum-leap/",
   ]);
+});
+
+test("technologyreview discovery: walks nested public sitemaps newest first", async () => {
+  const tr = getProvider("technologyreview")!;
+  const newest = "https://www.technologyreview.com/2026/06/29/1139849/ai-agents-are-not-your-coworkers/";
+  const older = "https://www.technologyreview.com/2020/01/08/8/nasas-new-exoplanet-hunter-found-its-first-potentially-habitable-world/";
+  const fetched: string[] = [];
+  const sitemapMap: Record<string, string> = {
+    "https://www.technologyreview.com/sitemap.xml": makeSitemapIndex([
+      "https://www.technologyreview.com/sitemap-index-1.xml",
+      "https://www.technologyreview.com/image-sitemap-index-1.xml",
+    ]),
+    "https://www.technologyreview.com/sitemap-index-1.xml": makeSitemapIndex([
+      "https://www.technologyreview.com/sitemap-1.xml",
+      "https://www.technologyreview.com/sitemap-36.xml",
+    ]),
+    "https://www.technologyreview.com/sitemap-36.xml": makeSitemap([
+      newest,
+      "https://www.technologyreview.com/2026/06/29/1139834/the-download-metric-weaknesses-ai-elephant-warnings/",
+    ]),
+    "https://www.technologyreview.com/sitemap-1.xml": makeSitemap([older]),
+    "https://www.technologyreview.com/feed/": makeFeed([
+      "https://www.technologyreview.com/2024/05/01/1091234/rss-fallback/",
+    ]),
+  };
+
+  const urls = await discoverProviderUrls(tr, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [newest, older]);
+  assert.ok(fetched.indexOf("https://www.technologyreview.com/sitemap-36.xml") < fetched.indexOf("https://www.technologyreview.com/sitemap-1.xml"));
+  assert.equal(fetched.includes("https://www.technologyreview.com/image-sitemap-index-1.xml"), false);
+  assert.equal(fetched.includes("https://www.technologyreview.com/feed/"), false);
+});
+
+test("theconversation discovery: uses English edition archive sitemaps newest first", async () => {
+  const provider = getProvider("theconversation")!;
+  const usRecent =
+    "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931";
+  const ukRecent =
+    "https://theconversation.com/king-charles-reveals-his-personal-tax-bill-heres-what-it-does-and-doesnt-tell-us-about-royal-finances-285987";
+  const oldUs = "https://theconversation.com/an-older-us-archive-story-12345";
+  const fetched: string[] = [];
+  const sitemapMap: Record<string, string> = {
+    "https://theconversation.com/sitemap.xml": makeSitemapIndex([
+      "https://theconversation.com/us/sitemap_archive_2025.xml",
+      "https://theconversation.com/br/sitemap_archive_2026.xml",
+      "https://theconversation.com/us/sitemap_archive_2026.xml",
+      "https://theconversation.com/uk/sitemap_archive_2026.xml",
+      "https://theconversation.com/ca-fr/sitemap_archive_2026.xml",
+      "https://theconversation.com/sitemap_general.xml",
+    ]),
+    "https://theconversation.com/us/sitemap_archive_2026.xml": makeSitemap([
+      usRecent,
+      "https://theconversation.com/us/topics/politics-34",
+    ]),
+    "https://theconversation.com/uk/sitemap_archive_2026.xml": makeSitemap([ukRecent]),
+    "https://theconversation.com/us/sitemap_archive_2025.xml": makeSitemap([oldUs]),
+    "https://theconversation.com/br/sitemap_archive_2026.xml": makeSitemap([
+      "https://theconversation.com/not-english-99999",
+    ]),
+    "https://theconversation.com/ca-fr/sitemap_archive_2026.xml": makeSitemap([
+      "https://theconversation.com/french-edition-99998",
+    ]),
+  };
+
+  const urls = await discoverProviderUrls(provider, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [ukRecent, usRecent, oldUs]);
+  assert.equal(fetched.includes("https://theconversation.com/br/sitemap_archive_2026.xml"), false);
+  assert.equal(fetched.includes("https://theconversation.com/ca-fr/sitemap_archive_2026.xml"), false);
+});
+
+test("propublica discovery: iterates day sitemaps newest first", async () => {
+  const provider = getProvider("propublica")!;
+  const recent = "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis";
+  const older = "https://www.propublica.org/article/aclu-trump-police-reform-doj-minneapolis-louisville-phoenix-memphis";
+  const fetched: string[] = [];
+  const sitemapMap: Record<string, string> = {
+    "https://www.propublica.org/sitemap.xml": makeSitemapIndex([
+      "https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=29",
+      "https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=30",
+      "https://www.propublica.org/page-sitemap.xml",
+    ]),
+    "https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=30": makeSitemap([
+      recent,
+      "https://www.propublica.org/series/example",
+    ]),
+    "https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=29": makeSitemap([older]),
+  };
+
+  const urls = await discoverProviderUrls(provider, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [recent, older]);
+  assert.ok(
+    fetched.indexOf("https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=30") <
+      fetched.indexOf("https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=29"),
+  );
+});
+
+test("grist discovery: walks post sitemaps newest first and filters updates", async () => {
+  const provider = getProvider("grist")!;
+  const newest = "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/";
+  const older = "https://grist.org/article/not-just-fueling-around/";
+  const fetched: string[] = [];
+  const sitemapMap: Record<string, string> = {
+    "https://grist.org/sitemap_index.xml": makeSitemapIndex([
+      "https://grist.org/post-sitemap.xml",
+      "https://grist.org/post-sitemap63.xml",
+      "https://grist.org/guide-post-sitemap.xml",
+      "https://grist.org/category-sitemap.xml",
+    ]),
+    "https://grist.org/post-sitemap63.xml": makeSitemap([
+      newest,
+      "https://grist.org/updates/grist-hires-austin-corona-to-cover-energy/",
+    ]),
+    "https://grist.org/post-sitemap.xml": makeSitemap([older]),
+    "https://grist.org/feed/": makeFeed(["https://grist.org/climate-energy/rss-fallback/"]),
+  };
+
+  const urls = await discoverProviderUrls(provider, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      return sitemapMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls, [newest, older]);
+  assert.ok(fetched.indexOf("https://grist.org/post-sitemap63.xml") < fetched.indexOf("https://grist.org/post-sitemap.xml"));
+  assert.equal(fetched.includes("https://grist.org/guide-post-sitemap.xml"), false);
+  assert.equal(fetched.includes("https://grist.org/feed/"), false);
 });
 
 test("undark discovery: returns only dated article URLs from the public WordPress.com posts API", async () => {

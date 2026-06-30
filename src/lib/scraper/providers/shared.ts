@@ -61,7 +61,7 @@ function decodeXmlText(value: string): string {
     .replace(/&apos;/g, "'");
 }
 
-function parseSitemapLocs(xml: string): string[] {
+export function parseSitemapLocs(xml: string): string[] {
   return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)]
     .map((match) => decodeXmlText(match[1]?.trim() ?? ""))
     .filter(Boolean);
