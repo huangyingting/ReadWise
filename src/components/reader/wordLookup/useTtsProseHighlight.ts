@@ -29,6 +29,17 @@ type ProseToken = {
   normalized: string;
 };
 
+type TextPosition = {
+  node: Text;
+  offset: number;
+};
+
+type LinearTextChar = {
+  char: string;
+  position: TextPosition;
+  nextPosition: TextPosition;
+};
+
 type CssHighlightRegistry = { set(k: string, v: Highlight): void; delete(k: string): void };
 
 function shouldSkipTtsTextNode(node: Text): boolean {
@@ -70,10 +81,119 @@ function rangeFromProseTokens(firstToken: ProseToken, lastToken: ProseToken): Pr
   };
 }
 
-function buildProseWordMap(
+function hasTextSpan(word: { textOffset?: number; wordLength?: number }): word is {
+  textOffset: number;
+  wordLength: number;
+} {
+  return (
+    typeof word.textOffset === "number" &&
+    Number.isFinite(word.textOffset) &&
+    typeof word.wordLength === "number" &&
+    Number.isFinite(word.wordLength) &&
+    word.textOffset >= 0 &&
+    word.wordLength > 0
+  );
+}
+
+function isWhitespace(value: string): boolean {
+  return /\s/.test(value);
+}
+
+function linearizeTextNodes(entries: TextNodeEntry[]): LinearTextChar[] {
+  const result: LinearTextChar[] = [];
+  for (const entry of entries) {
+    const content = entry.node.textContent ?? "";
+    for (let offset = 0; offset < content.length; offset++) {
+      result.push({
+        char: content[offset] ?? "",
+        position: { node: entry.node, offset },
+        nextPosition: { node: entry.node, offset: offset + 1 },
+      });
+    }
+  }
+  return result;
+}
+
+function buildPlainTextPositionMap(
+  entries: TextNodeEntry[],
+  plainText: string,
+): Array<TextPosition | null> | null {
+  const rawChars = linearizeTextNodes(entries);
+  const positions: Array<TextPosition | null> = new Array(plainText.length + 1).fill(null);
+  let rawIndex = 0;
+  let lastPosition: TextPosition | null = rawChars[0]?.position ?? null;
+
+  for (let plainIndex = 0; plainIndex < plainText.length; plainIndex++) {
+    const target = plainText[plainIndex] ?? "";
+    if (isWhitespace(target)) {
+      while (rawIndex < rawChars.length && isWhitespace(rawChars[rawIndex]?.char ?? "")) {
+        lastPosition = rawChars[rawIndex]?.nextPosition ?? lastPosition;
+        rawIndex++;
+      }
+      positions[plainIndex] = lastPosition;
+      positions[plainIndex + 1] = rawChars[rawIndex]?.position ?? lastPosition;
+      continue;
+    }
+
+    while (rawIndex < rawChars.length && isWhitespace(rawChars[rawIndex]?.char ?? "")) {
+      rawIndex++;
+    }
+
+    const raw = rawChars[rawIndex];
+    if (!raw || raw.char !== target) {
+      return null;
+    }
+    positions[plainIndex] = positions[plainIndex] ?? raw.position;
+    positions[plainIndex + 1] = raw.nextPosition;
+    lastPosition = raw.nextPosition;
+    rawIndex++;
+  }
+
+  positions[plainText.length] = positions[plainText.length] ?? lastPosition;
+  return positions;
+}
+
+function buildOffsetProseWordMap(
   container: HTMLElement,
-  words: Array<{ word: string }>,
+  words: Array<{ textOffset?: number; wordLength?: number }>,
+  plainText: string,
+): Array<ProseWord | null> | null {
+  if (!plainText || words.length === 0 || !words.every(hasTextSpan)) return null;
+
+  const entries = collectVisibleTtsTextNodes(container);
+  const positions = buildPlainTextPositionMap(entries, plainText);
+  if (!positions) return null;
+
+  const result: Array<ProseWord | null> = new Array(words.length).fill(null);
+  for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
+    const word = words[wordIndex];
+    if (!word) continue;
+    const endOffset = word.textOffset + word.wordLength;
+    const start = positions[word.textOffset];
+    const end = positions[endOffset];
+    if (!start || !end) {
+      return null;
+    }
+    result[wordIndex] = {
+      startNode: start.node,
+      start: start.offset,
+      endNode: end.node,
+      end: end.offset,
+      scrollElement: start.node.parentElement,
+    };
+  }
+
+  return result;
+}
+
+export function buildProseWordMap(
+  container: HTMLElement,
+  words: Array<{ word: string; textOffset?: number; wordLength?: number }>,
+  plainText: string,
 ): Array<ProseWord | null> {
+  const offsetMap = buildOffsetProseWordMap(container, words, plainText);
+  if (offsetMap) return offsetMap;
+
   const result: Array<ProseWord | null> = new Array(words.length).fill(null);
   if (words.length === 0) return result;
 
@@ -108,8 +228,12 @@ export function useTtsProseHighlight(
       ttsWordMapRef.current = [];
       return;
     }
-    ttsWordMapRef.current = buildProseWordMap(proseRef.current, readerAudio.words);
-  }, [proseRef, readerAudio.words, highlights]);
+    ttsWordMapRef.current = buildProseWordMap(
+      proseRef.current,
+      readerAudio.words,
+      readerAudio.plainText,
+    );
+  }, [proseRef, readerAudio.words, readerAudio.plainText, highlights]);
 
   useEffect(() => {
     const cssh =

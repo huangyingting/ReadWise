@@ -131,15 +131,35 @@ test("parseStoredSpeechWords returns an empty array for an empty stored array", 
 test("parseStoredSpeechWords parses valid words and sorts them by ascending offset", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
   const result = parseStoredSpeechWords([
-    { word: "world", offset: 500, duration: 200 },
+    { word: "world", offset: 500, duration: 200, textOffset: 6, wordLength: 5 },
     { word: "hello", offset: 0, duration: 400 },
     { word: "there", offset: 100, duration: 50, extra: "ignored" },
   ]);
   assert.deepEqual(result, [
     { word: "hello", offset: 0, duration: 400 },
     { word: "there", offset: 100, duration: 50 },
-    { word: "world", offset: 500, duration: 200 },
+    { word: "world", offset: 500, duration: 200, textOffset: 6, wordLength: 5 },
   ]);
+});
+
+test("parseStoredSpeechWords rejects incomplete or invalid text offsets", async () => {
+  const { parseStoredSpeechWords } = await loadRepo();
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, wordLength: 1 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: -1, wordLength: 1 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0, wordLength: 0 }]),
+    null,
+  );
 });
 
 // ---------------------------------------------------------------------------
