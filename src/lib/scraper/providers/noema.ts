@@ -4,6 +4,8 @@ import { categoryFromRules, excludes } from "./shared";
 
 const NOEMA_SITEMAP_INDEX_URL = "https://www.noemamag.com/sitemap_index.xml";
 const NOEMA_MAX_RSS_PAGES = 500;
+const NOEMA_MAX_TOPIC_PAGES = 500;
+const NOEMA_EMPTY_TOPIC_PAGE_LIMIT = 2;
 
 function decodeXmlText(value: string): string {
   return value
@@ -36,8 +38,37 @@ function noemaRssFeedUrl(page: number): string {
   return `https://www.noemamag.com/?feed=noemarss&paged=${page}`;
 }
 
+function noemaTopicPageUrl(seed: string, page: number): string {
+  if (page <= 1) return seed;
+  const url = new URL(seed);
+  url.searchParams.set("current_page", String(page));
+  return url.href;
+}
+
 function candidateCap(limit: number): number {
   return Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
+}
+
+function normalizeDiscoveredUrl(raw: string, baseUrl: string): string | null {
+  try {
+    const url = new URL(raw, baseUrl);
+    url.hash = "";
+    return url.href;
+  } catch {
+    return null;
+  }
+}
+
+function parseHtmlLinks(html: string, baseUrl: string): string[] {
+  const seen = new Set<string>();
+  const links: string[] = [];
+  for (const match of html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)) {
+    const url = normalizeDiscoveredUrl(match[1] ?? "", baseUrl);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    links.push(url);
+  }
+  return links;
 }
 
 async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise<string[]> {
@@ -92,6 +123,28 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
     }
   }
 
+  for (const seed of noema.seeds) {
+    if (!hasCapacity()) break;
+    let consecutiveEmptyPages = 0;
+    for (let page = 1; page <= NOEMA_MAX_TOPIC_PAGES && hasCapacity(); page++) {
+      const pageUrl = noemaTopicPageUrl(seed, page);
+      let topicUrls: string[];
+      try {
+        topicUrls = parseHtmlLinks(await fetch(pageUrl), pageUrl);
+      } catch {
+        break;
+      }
+
+      const added = add(topicUrls);
+      if (added === 0) {
+        consecutiveEmptyPages++;
+        if (consecutiveEmptyPages >= NOEMA_EMPTY_TOPIC_PAGE_LIMIT) break;
+      } else {
+        consecutiveEmptyPages = 0;
+      }
+    }
+  }
+
   return urls;
 }
 
@@ -121,6 +174,9 @@ const noema: Provider = {
       "/masthead",
       "/careers",
       "/feed",
+      "/privacy",
+      "/subscribe",
+      "/terms",
       "/wp-",
       "/articles-search",
     ]),
@@ -144,11 +200,11 @@ const noema: Provider = {
       "ideas",
     ),
   /**
-   * Discovers Noema's long-form article URLs from the Yoast article sitemaps,
-   * then augments them with Noema's paginated RSS feed until it is exhausted.
-   * Seed HTML pages, WordPress REST, and GraphQL are blocked/unavailable; this
-   * provider-specific extractor keeps discovery network-testable through the
-   * injected fetch and still lets discovery enforce pattern/filter/robots rules.
+   * Discovers Noema's long-form article URLs from Yoast article sitemaps,
+   * augments them with Noema's paginated RSS feed, then crawls the topic archive
+   * pages (`?current_page=N`) as a final coverage check for older topic listings.
+   * This provider-specific extractor keeps discovery network-testable through
+   * the injected fetch and still lets discovery enforce pattern/filter/robots.
    */
   urlExtractor: noemaUrlExtractor,
 };

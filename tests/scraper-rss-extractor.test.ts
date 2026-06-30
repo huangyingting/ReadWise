@@ -301,6 +301,11 @@ test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion
     { length: 29 },
     (_, i) => `https://www.noemamag.com/rss-page-${i + 3}/`,
   );
+  const topicSeed =
+    "https://www.noemamag.com/article-topic/geopolitics-globalization/";
+  const topicPage2 =
+    "https://www.noemamag.com/article-topic/geopolitics-globalization/?current_page=2";
+  const topicOnlyUrl = "https://www.noemamag.com/topic-archive-only/";
   const feedMap: Record<string, string> = {
     "https://www.noemamag.com/sitemap_index.xml": makeSitemapIndex([
       "https://www.noemamag.com/page-sitemap.xml",
@@ -316,6 +321,14 @@ test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion
     ]),
     "https://www.noemamag.com/wpm-article-sitemap2.xml": makeSitemap([
       "https://www.noemamag.com/future-of-democracy/",
+    ]),
+    [topicSeed]: makeCategoryPage([
+      "https://www.noemamag.com/privacy-policy",
+      topicOnlyUrl,
+    ]),
+    [topicPage2]: makeCategoryPage([
+      "https://www.noemamag.com/terms-of-use/",
+      "https://www.noemamag.com/topic-archive-page-two/",
     ]),
   };
   for (const [i, feedUrl] of feedUrls.entries()) {
@@ -337,26 +350,94 @@ test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion
       if (url === "https://www.noemamag.com/?feed=noemarss&paged=32") {
         throw new Error("rss exhausted");
       }
-      return feedMap[url] ?? "<rss><channel></channel></rss>";
+      return feedMap[url] ?? "";
     },
   });
 
-  assert.deepEqual(fetchedFeeds, [
+  assert.deepEqual(fetchedFeeds.slice(0, 3), [
     "https://www.noemamag.com/sitemap_index.xml",
     "https://www.noemamag.com/wpm-article-sitemap.xml",
     "https://www.noemamag.com/wpm-article-sitemap2.xml",
-    ...feedUrls,
-    "https://www.noemamag.com/?feed=noemarss&paged=32",
   ]);
+  assert.ok(fetchedFeeds.includes("https://www.noemamag.com/?feed=noemarss&paged=32"));
+  assert.ok(fetchedFeeds.includes(topicSeed));
+  assert.ok(fetchedFeeds.includes(topicPage2));
   assert.ok(
     urls.includes("https://www.noemamag.com/rss-page-31/"),
     "RSS pagination must continue beyond the old 30-page cutoff",
   );
+  assert.ok(urls.includes(topicOnlyUrl));
+  assert.ok(urls.includes("https://www.noemamag.com/topic-archive-page-two/"));
+  assert.equal(urls.includes("https://www.noemamag.com/privacy-policy"), false);
+  assert.equal(urls.includes("https://www.noemamag.com/terms-of-use/"), false);
   assert.deepEqual(urls.sort(), [
     "https://www.noemamag.com/future-of-democracy/",
     ...rssPageUrls,
+    topicOnlyUrl,
+    "https://www.noemamag.com/topic-archive-page-two/",
     "https://www.noemamag.com/the-philosophy-of-networks/",
   ].sort());
+});
+
+test("natgeo discovery: combines hubmore pagination with the public sitemap", async () => {
+  const natgeo = getProvider("natgeo")!;
+  const scienceSeed = "https://www.nationalgeographic.com/science";
+  const hubmoreUrl = (page: number) => {
+    const url = new URL(scienceSeed);
+    url.searchParams.set("hubmore", "");
+    url.searchParams.set("page", String(page));
+    url.searchParams.set("context", "ctx");
+    url.searchParams.set("id", "module");
+    return url.href;
+  };
+  const seedOnly = "https://www.nationalgeographic.com/science/article/from-seed";
+  const hubPageOne = "https://www.nationalgeographic.com/science/article/from-hub-one";
+  const nestedHubPageTwo =
+    "https://www.nationalgeographic.com/travel/national-parks/article/from-hub-two";
+  const sitemapOnly = "https://www.nationalgeographic.com/premium/article/from-sitemap";
+  const sitemapIndex = "https://www.nationalgeographic.com/sitemaps/sitemap.xml";
+  const sitemapChild = "https://www.nationalgeographic.com/sitemaps/items.1.xml";
+  const fetched: string[] = [];
+  const feedMap: Record<string, string> = {
+    [scienceSeed]: makeCategoryPage(
+      [
+        seedOnly,
+        "https://www.nationalgeographic.com/travel/article/paid-content-sponsored-trip",
+      ],
+      ["/science?hubmore&amp;page=1&amp;context=ctx&amp;id=module"],
+    ),
+    [hubmoreUrl(1)]: makeCategoryPage([
+      hubPageOne,
+      "https://www.nationalgeographic.com/newsletters/article/stones-and-bones",
+    ]),
+    [hubmoreUrl(2)]: makeCategoryPage([nestedHubPageTwo]),
+    [hubmoreUrl(3)]: makeCategoryPage([]),
+    [hubmoreUrl(4)]: makeCategoryPage([]),
+    [sitemapIndex]: makeSitemapIndex([sitemapChild]),
+    [sitemapChild]: makeSitemap([
+      sitemapOnly,
+      hubPageOne,
+      "https://www.nationalgeographic.com/pages/article/masthead",
+    ]),
+  };
+
+  const urls = await discoverProviderUrls(natgeo, Number.POSITIVE_INFINITY, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url: string) => {
+      fetched.push(url);
+      return feedMap[url] ?? makeCategoryPage([]);
+    },
+  });
+
+  assert.ok(fetched.includes(hubmoreUrl(2)));
+  assert.ok(fetched.includes(sitemapChild));
+  assert.deepEqual(urls, [
+    seedOnly,
+    hubPageOne,
+    nestedHubPageTwo,
+    sitemapOnly,
+  ]);
 });
 
 test("technologyreview discovery: returns only dated article URLs from RSS", async () => {
