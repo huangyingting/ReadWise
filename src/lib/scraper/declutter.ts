@@ -71,11 +71,16 @@ const SIGNUP_RESIDUE_RE =
 const TRAILING_PUBLICATION_CTA_RE =
   /^enjoying\s+.{1,80}\?\s+subscribe\s+to\s+our\s+free\s+newsletter\.?$/i;
 
+const TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE =
+  /^this\s+story\s+originally\s+appeared\s+in\s+the\s+algorithm\b(?=[\s\S]{0,300}\bweekly\s+newsletter\b)(?=[\s\S]{0,300}\bsign\s?up\b)/i;
+
 const ARCHIVE_LINK_RESIDUE_RE = /\barchive\s+page\b/i;
 
 const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s+for\s+you|you\s+may\s+also\s+like)\b/i;
 
 const ORPHAN_VIDEO_LABEL_RE = /^(featured\s+video|watch:?|video)$/i;
+
+const TIKTOK_HOST_RE = /(?:^|\.)tiktok\.com$/i;
 
 const BYLINE_PREFIX_RE =
   /^(by|words by|written by|story by|reported by|photographs? by|illustrations? by|edited by|reporting by)\s+[\p{Lu}@]/u;
@@ -121,6 +126,8 @@ const ISO_DATE_RE =
 const IMAGE_CREDIT_MAXLEN = 240;
 const IMAGE_CREDIT_RE =
   /^\(?\s*image\s+credits?\s*(?::|：|-|–|—)\s*\S[\s\S]*?\s*\)?$/i;
+const STANDALONE_CREDIT_LINE_RE =
+  /^\(?\s*(?:courtesy\s+of|credits?\s*(?::|：|-|–|—)|(?:photo(?:graph)?|image|illustration)\s+(?:by|courtesy\s+of|credits?\s*(?::|：|-|–|—)))\s+\S[\s\S]*?\s*\)?$/i;
 const IMAGE_CREDIT_HEADING_RE = /^\(?\s*image\s+credits?\s*\)?$/i;
 
 const IMAGE_BOILERPLATE_RE =
@@ -411,10 +418,45 @@ function collectOrphanVideoLabels(root: Element, out: Candidate[]): void {
   }
 }
 
+function collectTechnologyReviewResidue(root: Element, out: Candidate[]): void {
+  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
+    if (el === root) continue;
+    if (!isLeafBlock(el)) continue;
+    const text = (el.textContent ?? "").trim();
+    if (text.length > 0 && text.length <= TEXT_BOILERPLATE_MAXLEN) {
+      if (TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE.test(normalizeText(text))) {
+        out.push({ el, confidence: HIGH });
+        continue;
+      }
+    }
+
+    if (el.tagName.toLowerCase() !== "blockquote") continue;
+    const anchors = Array.from(el.querySelectorAll("a[href]"));
+    if (anchors.length !== 1) continue;
+    const href = anchors[0]?.getAttribute("href") ?? "";
+    let host = "";
+    try {
+      host = new URL(href).hostname.replace(/^www\./, "");
+    } catch {
+      continue;
+    }
+    if (!TIKTOK_HOST_RE.test(host)) continue;
+    const normalizedText = normalizeText(text);
+    const anchorText = normalizeText(anchors[0]?.textContent ?? "");
+    if (normalizedText === anchorText || /^@[a-z0-9_.-]+$/i.test(normalizedText)) {
+      out.push({ el, confidence: HIGH });
+    }
+  }
+}
+
 function isStandaloneImageCredit(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > IMAGE_CREDIT_MAXLEN) return false;
-  return IMAGE_CREDIT_HEADING_RE.test(trimmed) || IMAGE_CREDIT_RE.test(trimmed);
+  return (
+    IMAGE_CREDIT_HEADING_RE.test(trimmed) ||
+    IMAGE_CREDIT_RE.test(trimmed) ||
+    STANDALONE_CREDIT_LINE_RE.test(trimmed)
+  );
 }
 
 function collectImageCreditBlocks(root: Element, out: Candidate[]): void {
@@ -775,6 +817,9 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   collectLeadingByline(root, normName, publishedParts, candidates);
   if (opts?.providerKey === "smithsonian") {
     collectSmithsonianLeadingByline(root, normName, publishedParts, candidates);
+  }
+  if (opts?.providerKey === "technologyreview") {
+    collectTechnologyReviewResidue(root, candidates);
   }
   collectTrailingByline(root, normName, candidates);
 

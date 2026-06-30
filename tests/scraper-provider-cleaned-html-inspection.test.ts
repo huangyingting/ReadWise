@@ -241,8 +241,10 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
       <article>
         <h1>The Download: Heat and AI</h1>
         <p>${wordBlock(45, "heat")} as the daily briefing explains the research.</p>
-        <figure><img src="https://wp.technologyreview.com/article-heat.jpg" alt="People in a city heatwave" /></figure>
+        <figure><img src="https://wp.technologyreview.com/article-heat.jpg" alt="People in a city heatwave" /><figcaption><em>A visible article caption should remain.</em></figcaption><div class="image-credit">COURTESY OF THE RESEARCHERS</div></figure>
         <p><strong>This story is from The Checkup, our weekly biotech newsletter. </strong><a href="/newsletters/biotech-the-checkup/"><strong>Sign up</strong></a><strong> to receive it in your inbox every Thursday.</strong></p>
+        <p>This story originally appeared in The Algorithm, our weekly newsletter on AI. To get stories like this in your inbox first, <a href="/newsletters/the-algorithm/">sign up here</a>.</p>
+        <blockquote><a href="https://www.tiktok.com/@absolutemem?refer=embed" rel="noopener noreferrer nofollow" target="_blank">@absolutemem</a></blockquote>
         <p>We’re having trouble saving your preferences. Try refreshing this page and updating them one more time.</p>
         <p>${wordBlock(45, "policy")} as the second item examines model releases.</p>
         <div class="deepDiveItem__wrapper--abc"><h3>The Download: another recirc story</h3><a href="/author/example"><span>Example Author</span><span class="screen-reader-text">archive page</span></a></div>
@@ -256,16 +258,24 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
   );
   assertNoProviderNoise(cleaned, [
     /weekly biotech newsletter/i,
+    /weekly newsletter on AI/i,
+    /COURTESY OF THE RESEARCHERS/i,
     /trouble saving your preferences/i,
     /another recirc story/i,
     /archive page/i,
     /Stay connected/i,
   ]);
+  assert.match(cleaned, /<figcaption/i, "Technology Review article captions should survive cleanup");
+  assert.match(cleaned, /A visible article caption should remain/i, "Technology Review caption text should survive cleanup");
 
   const result = extractArticle(html, "https://www.technologyreview.com/2026/06/26/1139780/the-download-heat-ai/");
   assert.ok(result, "article should extract");
   assertNoProviderNoise(result!.content, [
     /weekly biotech newsletter/i,
+    /weekly newsletter on AI/i,
+    /COURTESY OF THE RESEARCHERS/i,
+    /absolutemem/i,
+    /tiktok\.com/i,
     /trouble saving your preferences/i,
     /Sign up/i,
     /another recirc story/i,
@@ -274,4 +284,5 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
     /special offers/i,
   ]);
   assert.match(result!.content, /article-heat\.jpg/i, "article image must survive");
+  assert.match(result!.content, /A visible article caption should remain/i, "article caption must survive");
 });
