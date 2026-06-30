@@ -1,15 +1,17 @@
 /**
  * ReadWise speech timing — types, tokenisation, and audio-time helpers.
  *
- * Runtime speech timings are audio-time boundaries: { word, offset, duration },
- * with offset/duration in milliseconds.  Sequence-alignment logic lives in
- * `./timing-alignment`.
+ * Runtime speech timings are audio-time boundaries. New Azure rows also include
+ * textOffset/wordLength against the synthesized plainText so the reader can
+ * anchor highlights directly and avoid sequence alignment.
  */
 
 export type WordTiming = {
   word: string;
   offset: number;
   duration: number;
+  textOffset?: number;
+  wordLength?: number;
 };
 
 export type SpeechWord = WordTiming;

@@ -40,7 +40,7 @@ export function parseStoredSpeechWords(
       return null;
     }
     const record = item as Record<string, unknown>;
-    const { word, offset, duration } = record;
+    const { word, offset, duration, textOffset, wordLength } = record;
     if (
       typeof word !== "string" ||
       !word.trim() ||
@@ -51,7 +51,21 @@ export function parseStoredSpeechWords(
     ) {
       return null;
     }
-    words.push({ word, offset, duration });
+
+    const hasTextSpan = textOffset !== undefined || wordLength !== undefined;
+    if (hasTextSpan) {
+      if (
+        !finiteNumber(textOffset) ||
+        !finiteNumber(wordLength) ||
+        textOffset < 0 ||
+        wordLength <= 0
+      ) {
+        return null;
+      }
+      words.push({ word, offset, duration, textOffset, wordLength });
+    } else {
+      words.push({ word, offset, duration });
+    }
   }
 
   return words.sort((a, b) => a.offset - b.offset);

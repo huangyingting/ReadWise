@@ -8,6 +8,16 @@ test("parseStoredSpeechWords accepts empty and non-empty Json arrays", () => {
     parseStoredSpeechWords([{ word: "Hello", offset: 0, duration: 500 }]),
     [{ word: "Hello", offset: 0, duration: 500 }],
   );
+  assert.deepEqual(
+    parseStoredSpeechWords([
+      { word: "world", offset: 500, duration: 200, textOffset: 6, wordLength: 5 },
+      { word: "Hello", offset: 0, duration: 500, textOffset: 0, wordLength: 5 },
+    ]),
+    [
+      { word: "Hello", offset: 0, duration: 500, textOffset: 0, wordLength: 5 },
+      { word: "world", offset: 500, duration: 200, textOffset: 6, wordLength: 5 },
+    ],
+  );
 });
 
 test("parseStoredSpeechWords rejects malformed timing shapes", () => {
@@ -19,6 +29,20 @@ test("parseStoredSpeechWords rejects malformed timing shapes", () => {
   );
   assert.equal(
     parseStoredSpeechWords([{ textOffset: 0, length: 4, start: 0, end: 0.5 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "Hello", offset: 0, duration: 500, textOffset: 0 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "Hello", offset: 0, duration: 500, wordLength: 5 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([
+      { word: "Hello", offset: 0, duration: 500, textOffset: null, wordLength: 5 },
+    ]),
     null,
   );
   assert.equal(

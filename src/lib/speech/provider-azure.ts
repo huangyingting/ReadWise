@@ -111,11 +111,21 @@ export function synthesize(
             ? eventText
             : text.slice(e.textOffset, e.textOffset + e.wordLength);
         if (!word.trim()) return;
-        words.push({
+        const timing: SpeechWord = {
           word,
           offset: ticksToMilliseconds(e.audioOffset),
           duration: ticksToMilliseconds(e.duration),
-        });
+        };
+        if (
+          Number.isFinite(e.textOffset) &&
+          Number.isFinite(e.wordLength) &&
+          e.textOffset >= 0 &&
+          e.wordLength > 0
+        ) {
+          timing.textOffset = e.textOffset;
+          timing.wordLength = e.wordLength;
+        }
+        words.push(timing);
       };
 
       synthesizer.speakTextAsync(
