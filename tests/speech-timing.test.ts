@@ -116,7 +116,7 @@ describe("speech timing alignment", () => {
   });
 
   test("converts millisecond timings to seconds", () => {
-    const timing = { word: "Hello", offset: 1250, duration: 375 };
+    const timing = { word: "Hello", startMs: 1250, endMs: 1625 };
     assert.equal(timingStartSeconds(timing), 1.25);
     assert.equal(timingEndSeconds(timing), 1.625);
   });

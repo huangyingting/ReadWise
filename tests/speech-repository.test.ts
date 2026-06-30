@@ -131,15 +131,56 @@ test("parseStoredSpeechWords returns an empty array for an empty stored array", 
 test("parseStoredSpeechWords parses valid words and sorts them by ascending offset", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
   const result = parseStoredSpeechWords([
-    { word: "world", offset: 500, duration: 200 },
+    { word: "world", offset: 500, duration: 200, textOffset: 6, wordLength: 5 },
     { word: "hello", offset: 0, duration: 400 },
     { word: "there", offset: 100, duration: 50, extra: "ignored" },
   ]);
   assert.deepEqual(result, [
-    { word: "hello", offset: 0, duration: 400 },
-    { word: "there", offset: 100, duration: 50 },
-    { word: "world", offset: 500, duration: 200 },
+    { word: "hello", startMs: 0, endMs: 400 },
+    { word: "there", startMs: 100, endMs: 150 },
+    { word: "world", startMs: 500, endMs: 700, textStart: 6, textEnd: 11 },
   ]);
+});
+
+test("parseStoredSpeechWords parses versioned V2 columnar payloads", async () => {
+  const { parseStoredSpeechWords } = await loadRepo();
+  assert.deepEqual(
+    parseStoredSpeechWords({
+      version: 2,
+      provider: "azure",
+      timeUnit: "ms",
+      textUnit: "utf16",
+      words: ["hello", "world"],
+      startMs: [0, 500],
+      endMs: [400, 1100],
+      textStart: [0, 6],
+      textEnd: [5, 11],
+    }),
+    [
+      { word: "hello", startMs: 0, endMs: 400, textStart: 0, textEnd: 5 },
+      { word: "world", startMs: 500, endMs: 1100, textStart: 6, textEnd: 11 },
+    ],
+  );
+});
+
+test("parseStoredSpeechWords rejects incomplete or invalid text offsets", async () => {
+  const { parseStoredSpeechWords } = await loadRepo();
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, wordLength: 1 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: -1, wordLength: 1 }]),
+    null,
+  );
+  assert.equal(
+    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0, wordLength: 0 }]),
+    null,
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -218,8 +259,8 @@ const SAVE_PARAMS = {
   format: "audio-24khz-96kbitrate-mono-mp3",
   plainText: "hello world",
   words: [
-    { word: "hello", offset: 0, duration: 400 },
-    { word: "world", offset: 500, duration: 600 },
+    { word: "hello", startMs: 0, endMs: 400, textStart: 0, textEnd: 5 },
+    { word: "world", startMs: 500, endMs: 1100, textStart: 6, textEnd: 11 },
   ],
 };
 
@@ -236,6 +277,17 @@ test("saveSpeechResult stores audio inline as base64 when no object storage is c
   assert.equal(articleSpeechUpsertArgs!.create.storageKey, null);
   assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, null);
   assert.equal(articleSpeechUpsertArgs!.update.audioBase64, Buffer.from("AUDIO").toString("base64"));
+  assert.deepEqual(articleSpeechUpsertArgs!.create.words, {
+    version: 2,
+    provider: "azure",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    words: ["hello", "world"],
+    startMs: [0, 500],
+    endMs: [400, 1100],
+    textStart: [0, 6],
+    textEnd: [5, 11],
+  });
 });
 
 test("saveSpeechResult writes to object storage, upserts a MediaAsset, and nulls inline base64 on success", async () => {
@@ -254,7 +306,7 @@ test("saveSpeechResult writes to object storage, upserts a MediaAsset, and nulls
   assert.equal((putInput as PutMediaInput).keyHint, "speech");
   assert.ok(mediaAssetUpsertArgs);
   assert.deepEqual(mediaAssetUpsertArgs!.where, { storageKey: "speech/xyz" });
-  // durationSec = last word end = (500 + 600) / 1000 = 1.1s.
+  // durationSec = last word end = 1100 / 1000 = 1.1s.
   assert.equal(mediaAssetUpsertArgs!.create.durationSec, 1.1);
   assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
 
