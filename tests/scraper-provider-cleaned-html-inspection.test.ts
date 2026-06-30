@@ -156,7 +156,7 @@ test("knowable cleaned HTML drops editor/donation/deep-dive remnants but keeps d
     /10\.1146\/knowable/i,
   ]);
   assert.match(cleaned, /docserver\/fulltext\/synapse-recovery\.jpg/i, "article image must survive cleanup");
-  assert.match(cleaned, /genuine article caption/i, "article caption must survive cleanup");
+  assert.doesNotMatch(cleaned, /<figcaption/i, "Knowable credit captions must be removed");
 });
 
 test("nautilus cleaned extraction drops trailing CTA/favicon and keeps article image", () => {
