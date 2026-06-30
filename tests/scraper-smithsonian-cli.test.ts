@@ -15,6 +15,10 @@ test("smithsonian workflow CLI defaults to analyze without publishing", () => {
     includeVisited: false,
     targetSaved: false,
     untilExhausted: false,
+    sinceYear: null,
+    excludeSections: [],
+    sitemapOnly: false,
+    categoryVisibleOnly: false,
     analyzeOnly: false,
     publish: false,
     help: false,
@@ -30,6 +34,14 @@ test("smithsonian workflow CLI accepts publish and scrape controls", () => {
     "--include-visited",
     "--target-saved",
     "--until-exhausted",
+    "--since-year",
+    "2010",
+    "--exclude-section",
+    "smart-news,sponsored",
+    "--exclude-section",
+    "magazine",
+    "--sitemap-only",
+    "--category-visible-only",
     "--analyze-only",
     "--publish",
     "--help",
@@ -40,6 +52,10 @@ test("smithsonian workflow CLI accepts publish and scrape controls", () => {
   assert.equal(args.includeVisited, true);
   assert.equal(args.targetSaved, true);
   assert.equal(args.untilExhausted, true);
+  assert.equal(args.sinceYear, 2010);
+  assert.deepEqual(args.excludeSections, ["smart-news", "sponsored", "magazine"]);
+  assert.equal(args.sitemapOnly, true);
+  assert.equal(args.categoryVisibleOnly, true);
   assert.equal(args.analyzeOnly, true);
   assert.equal(args.publish, true);
   assert.equal(args.help, true);
