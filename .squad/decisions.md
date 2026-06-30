@@ -389,3 +389,62 @@ Processed 2 inbox files into 2 decision summaries. Duplicate summaries skipped: 
 The user directed that Knowable figcaptions and credit captions are not needed, but image elements and their `src` values must be preserved. The directive was captured in `decisions/inbox/copilot-directive-2026-06-30T02-08-59-knowable-figcaptions.md` by Ralph and merged by Scribe after Livingston implemented the provider cleanup.
 
 Decision: Knowable provider cleanup may drop `<figcaption>` elements, including credit-only captions, as long as retained `<img>` elements keep their source URLs. This provider-specific behavior must not alter caption retention for providers that have not opted into figcaption removal.
+
+
+## 2026-06-30 — Knowable pagination and scrape log decision inbox merge
+
+### 2026-06-30T02-59-00: Knowable scrape logs stored in project-local scrape-logs directory
+**By:** Livingston
+**What:** Knowable scrape logs stored in project-local scrape-logs directory
+**References:** knowable scrape execution
+**Why:** The original runbook suggested redirecting scrape output to /tmp, but this environment forbids /tmp writes. Pass logs and PID files were redirected to the repository-local scrape-logs/ directory instead, without changing scraper/provider code or database behavior.
+
+### 2026-06-30T03:10:32Z: Knowable discovery uses pageSize=100
+**By:** Livingston (Backend Dev), requested by Yingting Huang
+**What:** Knowable section search RSS feed URLs now send pageSize=100 (was default 20/page). Mirrored in the rss-extractor test helper.
+**Why:** 5× fewer requests and full-archive completeness; user identified the pageSize=100 pagination pattern. Section totals reachable: physical-world 145, technology 183, living-world 352, society 380, food-environment 256, health-disease 343, mind 205.
+
+**Processed by Scribe:** 2026-06-30T03:10:32Z. Inbox entries processed: 2. Decisions archive gate checked at 45,495 bytes before merge; no entries older than 30 days were present to archive.
+
+
+## 2026-06-30 — Scraper 429 backoff decision inbox merge
+
+Merged from `decisions/inbox/livingston-scraper-429-backoff.md`.
+
+### 2026-06-30T03:10:32Z: Scraper fetch chain backs off + retries on HTTP 429
+**By:** Livingston (Backend Dev), requested by Yingting Huang
+**What:** fetch-strategies now retries the SAME strategy on 429 with jittered exponential backoff honoring Retry-After (reuses src/lib/backoff.ts jitteredExponentialBackoff). FetchHttpError carries retryAfterMs. New knobs SCRAPER_FETCH_429_RETRIES (3), SCRAPER_FETCH_429_BASE_MS (1000), SCRAPER_FETCH_429_MAX_MS (20000).
+**Why:** Cloudflare blocks direct fetches → fallback to anonymous r.jina.ai (~20 req/min) → bulk scrape floods 429s that were previously hard failures. Backoff lets transient rate limits recover. Setting JINA_API_KEY remains the higher-throughput fix.
+
+
+---
+## 2026-06-30 — Browser fetch strategy decision inbox merge
+
+Processed 1 inbox file into 1 decision summary. Duplicate summaries skipped: 0.
+
+### 2026-06-30T04:02:35Z: Direct headless-browser fetch strategy (before Jina)
+**By:** Livingston (Backend Dev), requested by Yingting Huang
+**Source:** decisions/inbox/livingston-browser-fetch-strategy.md
+**Decision summary:** New browser strategy (`src/lib/scraper/fetch-browser.ts`) renders Cloudflare-protected pages with headless Chromium via dynamic `import("playwright")`, inserted before the r.jina.ai reader in fetch-strategies. It is gated by `SCRAPER_FETCH_BROWSER` / `scraperFetchBrowser()` (default ON), SSRF route-guarded, singleton-managed, challenge-polled, and graceful-degrades to Jina when Playwright is absent. The browser strategy removes anonymous r.jina.ai as the first resort for Cloudflare-protected sources such as Knowable, reducing 429 exposure while preserving fallback behavior.
+
+**Processed by Scribe:** 2026-06-30T04:02:35Z. Inbox entries processed: 1. Decisions archive gate checked at 47,632 bytes before merge; no entries older than 30 days were present to archive.
+
+
+## 2026-06-30 — Provider scrape pre-fetch dedupe decision inbox merge
+
+Merged from `decisions/inbox/livingston-prefetch-dedupe.md`.
+
+### 2026-06-30T04:02:35Z: Provider scrape skips already-saved URLs before fetching
+**By:** Livingston (Backend Dev), requested by Yingting Huang
+**What:** New `findExistingPublicLibrarySourceUrls` (`src/lib/article-library/policy.ts`, chunked `IN` query, SQLite/PG-safe). `scripts/scrape.ts` `runProvider` pre-filters discovered URLs against the public library before fetching (non-dry-run only); `recordCrawlRun` keeps the original discovered count.
+**Why:** With browser-first fetching (~6-9s/page), re-fetching hundreds of already-saved articles on each resume is wasteful; pre-filtering goes straight to new articles. Outcomes unchanged (dupes were skipped post-fetch anyway).
+
+## 2026-06-30 — Knowable topic discovery decision inbox merge
+
+Merged 1 inbox decision from Livingston; source archived in git history as `decisions/inbox/livingston-knowable-topics.md` before processing.
+
+### 2026-06-30T04:55:19Z: Knowable discovery also crawls homepage topic feeds
+**By:** Livingston (Backend Dev), requested by Yingting Huang
+**What:** knowableUrlExtractor now pages the homepage /topic/* categories via the topic search-RSS feed (option1=pub_topic, value1=topics/<t>, sectionType=topic, pageSize=100) in addition to the 7 sections. 10 topics: climate-change, comics, coronavirus, disease-update, events, explained, review, opinion, qa, story-behind-picture. Reports (/report/*) skipped (pub_report returns 0).
+**Why:** Topic listings surface articles the section feeds miss (verified 2/20 climate-change URLs absent from DB). Improves archive completeness.
+

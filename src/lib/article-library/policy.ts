@@ -40,6 +40,7 @@ export type ArticleAccessUser = {
 };
 
 const DENIED_WHERE: Prisma.ArticleWhereInput = { id: "__readwise_article_access_denied__" };
+const PUBLIC_LIBRARY_SOURCE_URL_CHUNK_SIZE = 500;
 
 export const SYSTEM_ARTICLE_CONTEXT: ArticleAccessContext = { role: "System" };
 
@@ -318,6 +319,27 @@ export function findPublicLibraryArticleBySourceUrl(
     where: publicLibraryArticleWhere({ sourceUrl }),
     select: { id: true },
   });
+}
+
+export async function findExistingPublicLibrarySourceUrls(
+  sourceUrls: string[],
+): Promise<Set<string>> {
+  const uniqueSourceUrls = [...new Set(sourceUrls)];
+  if (uniqueSourceUrls.length === 0) return new Set();
+
+  const existing = new Set<string>();
+  for (let i = 0; i < uniqueSourceUrls.length; i += PUBLIC_LIBRARY_SOURCE_URL_CHUNK_SIZE) {
+    const chunk = uniqueSourceUrls.slice(i, i + PUBLIC_LIBRARY_SOURCE_URL_CHUNK_SIZE);
+    const articles = await prisma.article.findMany({
+      where: publicLibraryArticleWhere({ sourceUrl: { in: chunk } }),
+      select: { sourceUrl: true },
+    });
+    for (const article of articles) {
+      if (article.sourceUrl) existing.add(article.sourceUrl);
+    }
+  }
+
+  return existing;
 }
 
 export const ARTICLE_STATUSES = [
