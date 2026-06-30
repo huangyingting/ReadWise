@@ -108,10 +108,13 @@ const technologyreview: Provider = {
       "stayConnected",
       "newsletter",
       "recirc",
+      "image-credit",
     ],
     dropTextKeywords: [
       "the checkup, our weekly biotech newsletter",
       "the checkup, mit technology review",
+      "this story originally appeared in the algorithm",
+      "our weekly newsletter on ai",
       "weekly biotech newsletter",
       "sign up to receive it in your inbox",
       "trouble saving your preferences",

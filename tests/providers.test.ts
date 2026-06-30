@@ -112,15 +112,20 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
   );
   assert.ok(
     getProviderOrFail("technologyreview").cleanup?.dropClassKeywords?.some((kw) =>
-      /deepDive|stayConnected/i.test(kw),
+      /deepDive|stayConnected|image-credit/i.test(kw),
     ),
-    "Technology Review cleanup should drop deep dive recirc and stayConnected signup blocks",
+    "Technology Review cleanup should drop deep dive recirc, stayConnected signup, and image credit blocks",
   );
   assert.ok(
     getProviderOrFail("technologyreview").cleanup?.dropTextKeywords?.some((kw) =>
-      /the checkup|preferences/i.test(kw),
+      /the checkup|the algorithm|preferences/i.test(kw),
     ),
     "Technology Review cleanup should drop branded newsletter text chrome",
+  );
+  assert.notEqual(
+    getProviderOrFail("technologyreview").cleanup?.dropFigcaptions,
+    true,
+    "Technology Review cleanup should keep figcaptions while dropping separate image-credit blocks",
   );
   assert.ok(
     getProviderOrFail("technologyreview").quality?.digestListicleTitlePrefixes?.some((kw) =>
