@@ -31,7 +31,6 @@ export type {
   WordTiming,
   SpeechWord,
   SpeechTimingPayload,
-  SpeechTimingPayloadV1,
   SpeechTimingPayloadV2,
   SpeechTimingProvider,
   ParsedSpeechTimingPayload,
@@ -50,6 +49,7 @@ export {
   timingStartSeconds,
   timingEndSeconds,
   createSpeechTimingPayloadV2,
+  legacySpeechWordsToTimingPayloadV2,
   parseSpeechTimingPayload,
 } from "./timing";
 export { buildTokenAlignment } from "./timing-alignment";

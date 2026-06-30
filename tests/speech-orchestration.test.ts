@@ -121,7 +121,7 @@ const VALID_WORDS = [
   { word: "world", startMs: 500, endMs: 1100 },
 ];
 
-const STORED_V1_WORDS = [
+const STORED_LEGACY_WORDS = [
   { word: "hello", offset: 0, duration: 400 },
   { word: "world", offset: 500, duration: 600 },
 ];
@@ -156,7 +156,7 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
   const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = {
     articleId: "a1",
-    words: STORED_V1_WORDS,
+    words: STORED_LEGACY_WORDS,
     audioBase64: "QUJD",
     storageKey: null,
     mimeType: "audio/mpeg",
@@ -181,7 +181,7 @@ test("getOrCreateArticleSpeech falls back to the stored plainText when the artic
   const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = {
     articleId: "a1",
-    words: STORED_V1_WORDS,
+    words: STORED_LEGACY_WORDS,
     audioBase64: "QUJD",
     storageKey: null,
     mimeType: "audio/mpeg",
