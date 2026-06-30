@@ -81,3 +81,24 @@ Requested marking all articles as draft. Livingston completed the database-only 
 
 
 - 2026-06-30T00:52:48.287+00:00 — Coordinated the Nautilus cleanup correction after the user clarified that figcaptions can be dropped but image `src` values must be preserved. Ensured the directive was captured/merged, Livingston updated and remediated the DB, validation passed, and Scribe recorded state without git operations.
+
+
+## 2026-06-30T01:05:42.741+00:00 — Nautilus scrape exhaustion archive
+
+Scribe archived Ralph's Nautilus scrape continuation request. The campaign reached a scrape plateau after three passes, with 3192 published/public Nautilus rows verified, no duplicate groups, no missing `publishedAt`, no figcaption rows, and targeted tests/lint/typecheck/diff-check passing. Unexpected commit state `b1e2475` on `main`/`origin/main` remains documented; no article content was exposed.
+
+
+## 2026-06-30T01:47:20.985+00:00 — all articles draft status coordination
+
+Requested documenting the user request to put all articles in draft status. Livingston completed a database-only update of 3,192 rows; Scribe recorded final aggregate 7,612 articles all `DRAFT`/`PUBLIC`, visibility unchanged, 0 published remaining, with no content exposure or git/source changes.
+
+## 2026-06-30T01:58:33.447+00:00 — Knowable sample publish coordination
+
+- Coordinated Knowable sample campaign: scrape results were consolidated, 10 stored HTML bodies were inspected for recurring noise, and only inspected rows were published.
+- Verified final state: Knowable total 15, published 10, drafts 5, public rows 15, missing `publishedAt` 5, duplicate groups 0.
+- Preserved repository state: no source changes, tests, commits, pushes, branch switches, resets, or article-content exposure.
+
+
+## 2026-06-30T02:08:59.910+00:00 — Knowable figcaption cleanup coordination
+
+Ralph captured the user directive that Knowable figcaptions/credit captions are unnecessary but images and `img src` values must be preserved. Coordinated Livingston's provider cleanup and DB remediation; final reported state was 14 Knowable rows updated, 42 figcaptions removed, image count preserved 42→42, 0 Knowable figcaptions remaining, and focused tests/ESLint/typecheck/diff-check passing.

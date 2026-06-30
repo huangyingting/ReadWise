@@ -273,7 +273,30 @@ test("cleanup: nautilus removes figcaptions while preserving image src values", 
   assert.doesNotMatch(sanitized, /Shutterstock/i);
 });
 
-test("cleanup: figcaptions remain unless a provider opts out", () => {
+test("cleanup: knowable removes credit figcaptions while preserving image src values", () => {
+  const provider = getProvider("knowable");
+  assert.ok(provider?.cleanup, "Knowable cleanup rules must be present");
+  const html =
+    "<article>" +
+    "<p>Knowable article text.</p>" +
+    '<figure><img src="https://knowablemagazine.org/docserver/fulltext/ant-behavior.jpg" alt="Ant behavior">' +
+    "<figcaption>CREDIT: ADAPTED FROM F. HALBOTH &amp; F. ROCES / PLOS ONE 2017</figcaption></figure>" +
+    '<figure><img src="https://knowablemagazine.org/docserver/fulltext/wild-photo.jpg" alt="Wildlife closeup">' +
+    "<figcaption>CREDIT: © ALEXANDER WILD; CREDIT: WOLFGANG THALER</figcaption></figure>" +
+    "</article>";
+  const result = applyProviderCleanup(
+    html,
+    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
+  );
+  assert.match(result, /ant-behavior\.jpg/);
+  assert.match(result, /wild-photo\.jpg/);
+  assert.doesNotMatch(result, /<figcaption/i);
+  assert.doesNotMatch(result, /HALBOTH/i);
+  assert.doesNotMatch(result, /ALEXANDER WILD/i);
+  assert.doesNotMatch(result, /WOLFGANG THALER/i);
+});
+
+test("cleanup: figcaptions remain unless a provider opts in to dropping them", () => {
   const html =
     "<article>" +
     '<figure><img src="https://example.com/default-provider-photo.jpg" alt="Article image">' +

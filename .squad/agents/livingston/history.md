@@ -148,3 +148,31 @@ Completed a database-only state operation requested by Ralph: updated 1,336 `Art
 
 
 - 2026-06-30T00:52:48.287+00:00 — Implemented provider-specific Nautilus cleanup: removed `<figcaption>` elements while preserving `<figure><img src=...>` image sources in sanitized output; other providers continue to keep captions. Remediated local Nautilus DB rows (9 rows, 20 captions removed, image count 22→22) and passed scraper cleanup tests, targeted ESLint, typecheck, and diff check.
+
+## 2026-06-30 Nautilus scrape exhaustion
+- Determined previous Nautilus discovery was incomplete: WP REST API 404s and RSS only exposes recent pages; public `sitemap-index-1.xml` discovered 5,751 candidates.
+- Provider now uses Nautilus content sitemaps (`sitemap-*.xml`) with WP REST as recency hint and paginated RSS fallback; URL pattern expanded for legacy/underscore/encoded slugs while keeping provider filters.
+- Scrape passes: p1 discovered 5,751, fetched 5,740, saved 3,177, rejected 2,557, failed 6; p2 fetched 2,563, saved 4, rejected 2,559; p3 fetched 2,559, saved 0, rejected 2,558, failed 1.
+- Published Nautilus rows only: total/published/public 3,192; drafts 0; missingPublishedAt 0; duplicate sourceUrl groups 0; stored words 6,828,766; figcaption rows 0.
+- Validation passed: targeted node tests, targeted ESLint, `npm run typecheck`, `git diff --check`.
+
+
+## 2026-06-30T01:05:42.741+00:00 — Nautilus scrape exhaustion archive
+
+Scribe recorded the Nautilus exhaustion campaign in orchestration and agent logs. Discovery now combines WP REST recency hints, public sitemap content, and RSS fallback; three scrape passes plateaued at 3192 published Nautilus rows with no figcaption rows and validation passing. Unexpected commit state `b1e2475` on `main`/`origin/main` remains noted; Scribe did not commit mutable squad state.
+
+
+## 2026-06-30T01:47:20.985+00:00 — all articles draft status
+
+Completed a database-only state operation requested by Ralph: updated 3,192 `Article.status` rows to `DRAFT`, leaving visibility unchanged because draft consistency is status-based. Final aggregate: 7,612 total articles all `DRAFT`, all `PUBLIC`, 0 published remaining; no article content or git/source state was touched.
+
+## 2026-06-30T01:58:33.447+00:00 — Knowable sample scrape and publish
+
+- Ran Knowable scraping in two passes: `--limit 10` saved 9/failed 1, then `--limit 20` saved 6/skipped 8/failed 6.
+- Supported inspection of 10 stored HTML bodies; no recurring extraction noise was found, so no source filter was changed.
+- Outcome recorded: 15 Knowable rows available/imported; 10 inspected rows published; 5 remain drafts for future inspection.
+
+
+## 2026-06-30T02:08:59.910+00:00 — Knowable figcaption cleanup
+
+Implemented provider-specific Knowable cleanup with the existing `dropFigcaptions` path: Knowable `<figcaption>` elements are removed while retained `<img>` source URLs are preserved, and non-opted providers continue to keep captions. Remediated 14 Knowable DB rows, removing 42 figcaptions with image count preserved 42→42; focused scraper tests 35/35, targeted ESLint, typecheck, and diff check passed.
