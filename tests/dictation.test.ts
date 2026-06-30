@@ -123,7 +123,7 @@ describe("segmentDictation", () => {
     word: string,
     offset: number,
     duration: number,
-  ) => ({ word, offset, duration });
+  ) => ({ word, startMs: offset, endMs: offset + duration });
 
   test("returns empty array for empty text", () => {
     assert.deepEqual(segmentDictation("", []), []);

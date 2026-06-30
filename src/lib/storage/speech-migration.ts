@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
+import { parseSpeechTimingPayload, timingEndSeconds } from "@/lib/speech/timing";
 import { mediaStorageKind } from "@/lib/storage/config";
 import { getMediaStorage } from "@/lib/storage/runtime";
 import type { MediaMigrationResult, MediaStorage } from "@/lib/storage/types";
@@ -8,22 +9,12 @@ const log = createLogger("storage");
 
 /** Largest timing end (seconds) across word boundaries, or undefined. */
 function durationFromWords(raw: unknown): number | undefined {
-  if (!Array.isArray(raw)) return undefined;
+  const payload = parseSpeechTimingPayload(raw);
+  if (!payload) return undefined;
   let max = 0;
-  for (const item of raw) {
-    if (item && typeof item === "object" && "offset" in item && "duration" in item) {
-      const offset = (item as { offset?: unknown }).offset;
-      const duration = (item as { duration?: unknown }).duration;
-      if (
-        typeof offset === "number" &&
-        Number.isFinite(offset) &&
-        typeof duration === "number" &&
-        Number.isFinite(duration)
-      ) {
-        const endSeconds = (offset + duration) / 1000;
-        if (endSeconds > max) max = endSeconds;
-      }
-    }
+  for (const word of payload.words) {
+    const endSeconds = timingEndSeconds(word);
+    if (endSeconds > max) max = endSeconds;
   }
   return max > 0 ? max : undefined;
 }

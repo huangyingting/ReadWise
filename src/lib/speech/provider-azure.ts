@@ -18,6 +18,7 @@ const log = createLogger("speech");
 
 export type SynthesisOutput = {
   audio: Buffer;
+  provider: "azure";
   words: SpeechWord[];
 };
 
@@ -111,11 +112,23 @@ export function synthesize(
             ? eventText
             : text.slice(e.textOffset, e.textOffset + e.wordLength);
         if (!word.trim()) return;
-        words.push({
+        const startMs = ticksToMilliseconds(e.audioOffset);
+        const durationMs = ticksToMilliseconds(e.duration);
+        const timing: SpeechWord = {
           word,
-          offset: ticksToMilliseconds(e.audioOffset),
-          duration: ticksToMilliseconds(e.duration),
-        });
+          startMs,
+          endMs: startMs + durationMs,
+        };
+        if (
+          Number.isFinite(e.textOffset) &&
+          Number.isFinite(e.wordLength) &&
+          e.textOffset >= 0 &&
+          e.wordLength > 0
+        ) {
+          timing.textStart = e.textOffset;
+          timing.textEnd = e.textOffset + e.wordLength;
+        }
+        words.push(timing);
       };
 
       synthesizer.speakTextAsync(
@@ -127,14 +140,14 @@ export function synthesize(
           synthesizer?.close();
           synthesizer = null;
           if (ok && audioData && audioData.byteLength > 0) {
-            words.sort((a, b) => a.offset - b.offset);
+            words.sort((a, b) => a.startMs - b.startMs);
             log.info("speech.synthesis_success", {
               articleId,
               durationMs: Date.now() - start,
               audioBytes: audioData.byteLength,
               wordCount: words.length,
             });
-            resolve({ audio: Buffer.from(audioData), words });
+            resolve({ audio: Buffer.from(audioData), provider: "azure", words });
           } else {
             log.warn("speech.synthesis_failure", {
               articleId,

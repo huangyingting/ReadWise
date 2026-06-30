@@ -30,6 +30,10 @@ const MAX_TTS_CHARS = 5000;
 export type {
   WordTiming,
   SpeechWord,
+  SpeechTimingPayload,
+  SpeechTimingPayloadV2,
+  SpeechTimingProvider,
+  ParsedSpeechTimingPayload,
   TextToken,
   ComparableToken,
 } from "./timing";
@@ -44,6 +48,9 @@ export {
   extractSpeechBoundaryTokens,
   timingStartSeconds,
   timingEndSeconds,
+  createSpeechTimingPayloadV2,
+  legacySpeechWordsToTimingPayloadV2,
+  parseSpeechTimingPayload,
 } from "./timing";
 export { buildTokenAlignment } from "./timing-alignment";
 export type { PracticeSentenceOptions, SpeechPracticeSegment } from "./practice";
@@ -167,6 +174,7 @@ export async function getOrCreateArticleSpeech(
     voice: config.voice,
     format: config.format,
     plainText,
+    provider: output.provider,
     words: output.words,
   });
 

@@ -77,6 +77,7 @@ before(() => {
       resolveAndPin: async () => ({ ip: "93.184.216.34", family: 4 }),
       assertSafeUrl: async () => {},
       assertSafeHostname: async () => {},
+      isPrivateAddress: () => false,
     },
   });
 
