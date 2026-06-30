@@ -81,17 +81,17 @@ function rangeFromProseTokens(firstToken: ProseToken, lastToken: ProseToken): Pr
   };
 }
 
-function hasTextSpan(word: { textOffset?: number; wordLength?: number }): word is {
-  textOffset: number;
-  wordLength: number;
+function hasTextSpan(word: { textStart?: number; textEnd?: number }): word is {
+  textStart: number;
+  textEnd: number;
 } {
   return (
-    typeof word.textOffset === "number" &&
-    Number.isFinite(word.textOffset) &&
-    typeof word.wordLength === "number" &&
-    Number.isFinite(word.wordLength) &&
-    word.textOffset >= 0 &&
-    word.wordLength > 0
+    typeof word.textStart === "number" &&
+    Number.isFinite(word.textStart) &&
+    typeof word.textEnd === "number" &&
+    Number.isFinite(word.textEnd) &&
+    word.textStart >= 0 &&
+    word.textEnd > word.textStart
   );
 }
 
@@ -155,7 +155,7 @@ function buildPlainTextPositionMap(
 
 function buildOffsetProseWordMap(
   container: HTMLElement,
-  words: Array<{ textOffset?: number; wordLength?: number }>,
+  words: Array<{ textStart?: number; textEnd?: number }>,
   plainText: string,
 ): Array<ProseWord | null> | null {
   if (!plainText || words.length === 0 || !words.every(hasTextSpan)) return null;
@@ -168,9 +168,8 @@ function buildOffsetProseWordMap(
   for (let wordIndex = 0; wordIndex < words.length; wordIndex++) {
     const word = words[wordIndex];
     if (!word) continue;
-    const endOffset = word.textOffset + word.wordLength;
-    const start = positions[word.textOffset];
-    const end = positions[endOffset];
+    const start = positions[word.textStart];
+    const end = positions[word.textEnd];
     if (!start || !end) {
       return null;
     }
@@ -188,7 +187,7 @@ function buildOffsetProseWordMap(
 
 export function buildProseWordMap(
   container: HTMLElement,
-  words: Array<{ word: string; textOffset?: number; wordLength?: number }>,
+  words: Array<{ word: string; textStart?: number; textEnd?: number }>,
   plainText: string,
 ): Array<ProseWord | null> {
   const offsetMap = buildOffsetProseWordMap(container, words, plainText);

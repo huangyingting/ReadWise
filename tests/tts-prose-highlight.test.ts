@@ -46,9 +46,9 @@ test("buildProseWordMap anchors enriched text offsets without sequence alignment
   );
   const prose = document.getElementById("prose") as HTMLElement;
   const words = [
-    { word: "Hello", offset: 0, duration: 100, textOffset: 0, wordLength: 5 },
-    { word: "world", offset: 100, duration: 100, textOffset: 6, wordLength: 5 },
-    { word: "again", offset: 200, duration: 100, textOffset: 13, wordLength: 5 },
+    { word: "Hello", startMs: 0, endMs: 100, textStart: 0, textEnd: 5 },
+    { word: "world", startMs: 100, endMs: 200, textStart: 6, textEnd: 11 },
+    { word: "again", startMs: 200, endMs: 300, textStart: 13, textEnd: 18 },
   ];
 
   const map = buildProseWordMap(prose, words, "Hello world, again.");

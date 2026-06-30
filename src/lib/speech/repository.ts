@@ -10,65 +10,36 @@ import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
 import { getMediaStorage } from "@/lib/storage";
-import { timingEndSeconds, type SpeechWord } from "./timing";
+import {
+  createSpeechTimingPayloadV2,
+  parseSpeechTimingPayload,
+  timingEndSeconds,
+  type ParsedSpeechTimingPayload,
+  type SpeechTimingProvider,
+  type SpeechWord,
+} from "./timing";
 
 const log = createLogger("speech");
 
-function finiteNumber(value: unknown): value is number {
-  return typeof value === "number" && Number.isFinite(value);
-}
-
 /**
- * Parses stored word timings from a Prisma Json field.
+ * Parses stored timing payloads from a Prisma Json field.
  * Returns null when the value is absent or has an unexpected shape so callers
  * can treat the row as corrupt and regenerate.
  */
-export function parseStoredSpeechWords(
+export function parseStoredSpeechTimingPayload(
   raw: Prisma.JsonValue | null | undefined,
-): SpeechWord[] | null {
+): ParsedSpeechTimingPayload | null {
   if (raw == null) {
     return null;
   }
+  return parseSpeechTimingPayload(raw);
+}
 
-  if (!Array.isArray(raw)) {
-    return null;
-  }
-
-  const words: SpeechWord[] = [];
-  for (const item of raw) {
-    if (item == null || typeof item !== "object" || Array.isArray(item)) {
-      return null;
-    }
-    const record = item as Record<string, unknown>;
-    const { word, offset, duration, textOffset, wordLength } = record;
-    if (
-      typeof word !== "string" ||
-      !word.trim() ||
-      !finiteNumber(offset) ||
-      !finiteNumber(duration) ||
-      offset < 0 ||
-      duration < 0
-    ) {
-      return null;
-    }
-
-    const hasTextSpan = textOffset !== undefined || wordLength !== undefined;
-    if (hasTextSpan) {
-      if (
-        !finiteNumber(textOffset) ||
-        !finiteNumber(wordLength) ||
-        textOffset < 0 ||
-        wordLength <= 0
-      ) {
-        return null;
-      }
-      words.push({ word, offset, duration, textOffset, wordLength });
-    } else {
-      words.push({ word, offset, duration });
-    }
-  }
-
-  return words.sort((a, b) => a.offset - b.offset);
+/** Backward-compatible helper for callers that only need normalized words. */
+export function parseStoredSpeechWords(
+  raw: Prisma.JsonValue | null | undefined,
+): SpeechWord[] | null {
+  return parseStoredSpeechTimingPayload(raw)?.words ?? null;
 }
 
 /**
@@ -128,10 +99,12 @@ export async function saveSpeechResult(params: {
   voice: string;
   format: string;
   plainText: string;
+  provider?: SpeechTimingProvider | string;
   words: SpeechWord[];
 }): Promise<void> {
-  const { articleId, audio, mimeType, voice, format, plainText, words } =
+  const { articleId, audio, mimeType, voice, format, plainText, provider = "azure", words } =
     params;
+  const timingPayload = createSpeechTimingPayloadV2(provider, words);
 
   let audioBase64: string | null = audio.toString("base64");
   let storageKey: string | null = null;
@@ -184,7 +157,16 @@ export async function saveSpeechResult(params: {
 
   await prisma.articleSpeech.upsert({
     where: { articleId },
-    update: { voice, format, mimeType, audioBase64, storageKey, mediaAssetId, plainText, words },
+    update: {
+      voice,
+      format,
+      mimeType,
+      audioBase64,
+      storageKey,
+      mediaAssetId,
+      plainText,
+      words: timingPayload,
+    },
     create: {
       articleId,
       voice,
@@ -194,7 +176,7 @@ export async function saveSpeechResult(params: {
       storageKey,
       mediaAssetId,
       plainText,
-      words,
+      words: timingPayload,
     },
   });
 }

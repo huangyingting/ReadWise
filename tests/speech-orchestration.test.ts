@@ -33,7 +33,7 @@ let deletedArticleIds: string[] = [];
 let speechFindUniqueCalls = 0;
 
 let synthesizeCalls: Array<{ text: string; articleId: string }> = [];
-let synthesizeResult: { audio: Buffer; words: SpeechWord[] } | null = null;
+let synthesizeResult: { audio: Buffer; provider: "azure"; words: SpeechWord[] } | null = null;
 
 function resetState(): void {
   cachedSpeechRow = null;
@@ -117,6 +117,11 @@ async function loadSpeech() {
 }
 
 const VALID_WORDS = [
+  { word: "hello", startMs: 0, endMs: 400 },
+  { word: "world", startMs: 500, endMs: 1100 },
+];
+
+const STORED_V1_WORDS = [
   { word: "hello", offset: 0, duration: 400 },
   { word: "world", offset: 500, duration: 600 },
 ];
@@ -151,7 +156,7 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
   const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = {
     articleId: "a1",
-    words: VALID_WORDS,
+    words: STORED_V1_WORDS,
     audioBase64: "QUJD",
     storageKey: null,
     mimeType: "audio/mpeg",
@@ -176,7 +181,7 @@ test("getOrCreateArticleSpeech falls back to the stored plainText when the artic
   const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = {
     articleId: "a1",
-    words: VALID_WORDS,
+    words: STORED_V1_WORDS,
     audioBase64: "QUJD",
     storageKey: null,
     mimeType: "audio/mpeg",
@@ -204,7 +209,7 @@ test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes 
     plainText: "ignored",
   };
   articleRow = { title: "T", content: "<p>Fresh article text.</p>" };
-  synthesizeResult = { audio: Buffer.from("NEW"), words: VALID_WORDS };
+  synthesizeResult = { audio: Buffer.from("NEW"), provider: "azure", words: VALID_WORDS };
 
   const result = await getOrCreateArticleSpeech("a1");
 
@@ -223,7 +228,7 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
   const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
   articleRow = { title: "Title", content: "<p>The quick brown fox.</p>" };
-  synthesizeResult = { audio: Buffer.from("AUDIO"), words: VALID_WORDS };
+  synthesizeResult = { audio: Buffer.from("AUDIO"), provider: "azure", words: VALID_WORDS };
 
   const result = await getOrCreateArticleSpeech("a1");
 
