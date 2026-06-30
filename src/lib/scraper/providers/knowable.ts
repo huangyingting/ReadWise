@@ -199,8 +199,6 @@ const knowable: Provider = {
    *     deep-dive rail. The same DOI also appears in a `<head>` `<meta
    *     name="dc.identifier">`, but that lives outside the harvested body and is
    *     not extracted.
-   *   - `<figcaption>` — image credit captions such as `CREDIT: …`; the sibling
-   *     `<img>` stays in place so article imagery is preserved.
    *   - `site-header` / `site-footer` / `mobile-nav` — page chrome carrying the
    *     header/footer "DONATE" links.
    *
@@ -223,7 +221,6 @@ const knowable: Provider = {
       "site-footer",
       "mobile-nav",
     ],
-    dropFigcaptions: true,
   },
 };
 
