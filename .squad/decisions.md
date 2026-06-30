@@ -374,3 +374,11 @@ Processed 2 inbox files into 2 decision summaries. Duplicate summaries skipped: 
 **References:** Livingston, Undark scraper, scripts/scrape-undark.ts, src/lib/scraper/providers/undark-headless.ts
 **Source:** decisions/inbox/Livingston-add-undark-specific-headless-scraping-fallback.md
 **Decision summary:** Implemented Undark scraping as an opt-in provider-specific path. `--headless` retries static extraction/quality failures with Playwright Chromium, and `--headless-only` renders first. Rendered/API HTML still flows through existing extraction, quality, sanitization, and persistence. The browser path validates Undark article URLs and SSRF-checks navigation/resources; unavailable Chromium tooling returns a setup-oriented error for explicit headless use. Because live Undark currently returns Cloudflare challenge HTML even to headless Chromium in this environment, the headless path falls back to Undark's public WordPress.com post API only after browser rendering fails or yields unusable content, preserving non-headless behavior and avoiding shared cleanup hacks.
+
+
+## 2026-06-30T00:52:48.287+00:00 — Nautilus cleanup rule
+
+- User directive: Nautilus scraped output does not need `<figcaption>` content, but image `src` values must be preserved.
+- Decision/application: Nautilus provider cleanup may drop `<figcaption>` elements only while preserving `<figure><img src=...>` image markup/source in sanitized output.
+- Scope: This is provider-specific to Nautilus; other providers keep captions unless a separate provider rule changes that behavior.
+- Source: merged from `decisions/inbox/copilot-directive-2026-06-30T00-52-48-nautilus-figcaptions.md`.

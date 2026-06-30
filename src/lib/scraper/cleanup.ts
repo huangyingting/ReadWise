@@ -86,17 +86,20 @@ export function mergeProviderCleanup(
   const dropClassKeywords = new Set<string>();
   const dropTextKeywords = new Set<string>();
   const dropLinkHrefKeywords = new Set<string>();
+  let dropFigcaptions = false;
   for (const cleanup of cleanups) {
     for (const selector of cleanup?.dropSelectors ?? []) dropSelectors.add(selector);
     for (const keyword of cleanup?.dropClassKeywords ?? []) dropClassKeywords.add(keyword);
     for (const keyword of cleanup?.dropTextKeywords ?? []) dropTextKeywords.add(keyword);
     for (const keyword of cleanup?.dropLinkHrefKeywords ?? []) dropLinkHrefKeywords.add(keyword);
+    dropFigcaptions ||= cleanup?.dropFigcaptions === true;
   }
   return {
     dropSelectors: [...dropSelectors],
     dropClassKeywords: [...dropClassKeywords],
     dropTextKeywords: [...dropTextKeywords],
     dropLinkHrefKeywords: [...dropLinkHrefKeywords],
+    ...(dropFigcaptions ? { dropFigcaptions } : {}),
   };
 }
 
@@ -191,6 +194,20 @@ function dropTextKeywordMatches(html: string, keywords: string[]): string {
   }
 }
 
+function dropFigcaptionElements(html: string, enabled: boolean): string {
+  if (!enabled) return html;
+  try {
+    const { document } = parseHTML(html);
+    for (const caption of Array.from(document.querySelectorAll("figcaption"))) {
+      caption.remove();
+    }
+    removeEmptyArticleContainers(document);
+    return document.toString();
+  } catch {
+    return html;
+  }
+}
+
 /**
  * Applies provider-level pre-extraction cleanup to raw page HTML.
  *
@@ -210,6 +227,9 @@ function dropTextKeywordMatches(html: string, keywords: string[]): string {
  *   `<a href>`. Matching anchors and their children are removed, then empty
  *   `<p>`/`<figure>` wrappers left behind are removed.
  *
+ * - `dropFigcaptions` removes `<figcaption>` elements while preserving sibling
+ *   image/video content in the surrounding figure.
+ *
  * Returns the original string unchanged when no rules are provided.
  */
 export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): string {
@@ -218,9 +238,16 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
   const keywords = cleanup.dropClassKeywords ?? [];
   const textKeywords = cleanup.dropTextKeywords ?? [];
   const hrefKeywords = cleanup.dropLinkHrefKeywords ?? [];
+  const dropFigcaptions = cleanup.dropFigcaptions === true;
 
   // Early-exit: nothing to do.
-  if (!dropTags.length && !keywords.length && !textKeywords.length && !hrefKeywords.length) {
+  if (
+    !dropTags.length &&
+    !keywords.length &&
+    !textKeywords.length &&
+    !hrefKeywords.length &&
+    !dropFigcaptions
+  ) {
     return html;
   }
 
@@ -267,5 +294,8 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
           },
         })
       : html;
-  return dropTextKeywordMatches(dropLinkHrefMatches(cleaned, hrefKeywords), textKeywords);
+  return dropTextKeywordMatches(
+    dropFigcaptionElements(dropLinkHrefMatches(cleaned, hrefKeywords), dropFigcaptions),
+    textKeywords,
+  );
 }

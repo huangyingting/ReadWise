@@ -142,6 +142,9 @@ test("source-derived provider URL patterns match article URLs", () => {
     ),
   );
   assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/example-story-123456/"));
+  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/legacy-feature/"));
+  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/legacy_feature/"));
+  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/encoded-%e2%80%99/"));
   assert.ok(
     getProviderOrFail("technologyreview").articleUrlPattern.test(
       "https://www.technologyreview.com/2026/06/23/123456/example-story/",
@@ -163,6 +166,10 @@ test("source-derived URL filters reject non-article pages", () => {
 
   const smithsonian = getProviderOrFail("smithsonian");
   assert.equal(smithsonian.articleUrlFilter?.("https://www.smithsonianmag.com/category/science-nature/"), false);
+
+  const nautilus = getProviderOrFail("nautilus");
+  assert.equal(nautilus.articleUrlFilter?.("https://nautil.us/newsletter/example/"), false);
+  assert.equal(nautilus.articleUrlFilter?.("https://nautil.us/category/cosmos/"), false);
 
   const technologyReview = getProviderOrFail("technologyreview");
   assert.equal(technologyReview.articleUrlFilter?.("https://www.technologyreview.com/topic/artificial-intelligence/"), false);

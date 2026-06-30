@@ -403,6 +403,47 @@ test("nautilus discovery: returns only article URLs from RSS", async () => {
   ]);
 });
 
+test("nautilus discovery: uses the public content sitemap index before RSS", async () => {
+  const nautilus = getProvider("nautilus")!;
+  const validRecent = "https://nautil.us/example-story-123456/";
+  const validLegacy = "https://nautil.us/legacy-feature/";
+  const validNested = "https://nautil.us/archive/feature-essay/";
+  const fetched: string[] = [];
+  const feedMap: Record<string, string> = {
+    "https://nautil.us/sitemap-index-1.xml": makeSitemapIndex([
+      "https://nautil.us/sitemap-1.xml",
+      "https://nautil.us/image-sitemap-1.xml",
+    ]),
+    "https://nautil.us/sitemap-1.xml": makeSitemap([
+      validRecent,
+      validLegacy,
+      validNested,
+      "https://nautil.us/newsletter/example/",
+      "https://nautil.us/category/cosmos/",
+    ]),
+    "https://nautil.us/image-sitemap-1.xml": makeSitemap([
+      "https://nautil.us/wp-content/uploads/sites/70/image.jpg",
+    ]),
+    "https://nautil.us/feed": makeFeed(["https://nautil.us/rss-fallback-99999/"]),
+  };
+
+  const urls = await discoverProviderUrls(nautilus, 10, {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async (url) => {
+      fetched.push(url);
+      if (url.includes("/wp-json/wp/v2/posts")) return JSON.stringify([]);
+      return feedMap[url] ?? makeSitemap([]);
+    },
+  });
+
+  assert.deepEqual(urls.sort(), [validLegacy, validNested, validRecent].sort());
+  assert.ok(fetched.includes("https://nautil.us/sitemap-index-1.xml"));
+  assert.ok(fetched.includes("https://nautil.us/sitemap-1.xml"));
+  assert.equal(fetched.includes("https://nautil.us/image-sitemap-1.xml"), false);
+  assert.equal(fetched.includes("https://nautil.us/feed"), false);
+});
+
 test("smithsonian discovery: returns article URLs from monthly article sitemaps", async () => {
   const smithsonian = getProvider("smithsonian")!;
   const fetched: string[] = [];

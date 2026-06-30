@@ -129,6 +129,11 @@ export type Provider = {
      * extraction. Empty `<p>`/`<figure>` wrappers left behind are also removed.
      */
     dropLinkHrefKeywords?: string[];
+    /**
+     * Provider opt-in to remove all `<figcaption>` elements before extraction.
+     * Sibling image/video content in the surrounding `<figure>` is preserved.
+     */
+    dropFigcaptions?: boolean;
   };
   /**
    * Provider-specific quality heuristics. Shared quality checks should only keep

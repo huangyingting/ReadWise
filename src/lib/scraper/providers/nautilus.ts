@@ -1,8 +1,45 @@
-import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
+import type { ExtractorFetch, Provider } from "@/lib/scraper/types";
+import { categoryFromRules, excludes, rssUrlExtractor, sitemapUrlExtractor } from "./shared";
 import { fetchNautilusUrls } from "@/lib/scraper/wp-api";
 
-const nautilusRssExtractor = rssUrlExtractor(["https://nautil.us/feed"]);
+const nautilusContentSitemapExtractor = sitemapUrlExtractor(
+  "https://nautil.us/sitemap-index-1.xml",
+  {
+    sitemapUrlFilter: (url) => /^https:\/\/(?:www\.)?nautil\.us\/sitemap-\d+\.xml$/i.test(url),
+  },
+);
+
+const nautilusRssExtractor = rssUrlExtractor([
+  "https://nautil.us/feed",
+  ...Array.from({ length: 9 }, (_, i) => `https://nautil.us/feed/?paged=${i + 2}`),
+]);
+
+async function collectNautilusUrls(
+  limit: number,
+  fetch: ExtractorFetch,
+): Promise<string[]> {
+  const candidateCap = Math.max(limit * 2, limit);
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  const add = (candidates: string[]) => {
+    for (const url of candidates) {
+      if (urls.length >= candidateCap) break;
+      if (seen.has(url)) continue;
+      seen.add(url);
+      urls.push(url);
+    }
+  };
+
+  add(await fetchNautilusUrls(limit, fetch));
+  if (urls.length < candidateCap) {
+    add(await nautilusContentSitemapExtractor({ limit, fetch }));
+  }
+  if (urls.length === 0) {
+    add(await nautilusRssExtractor({ limit, fetch }));
+  }
+
+  return urls;
+}
 
 const nautilus: Provider = {
   key: "nautilus",
@@ -18,7 +55,8 @@ const nautilus: Provider = {
     "https://nautil.us/mind/",
     "https://nautil.us/ocean/",
   ],
-  articleUrlPattern: /^https:\/\/(?:www\.)?nautil\.us\/[a-z0-9-]+-\d+\/?(?:[?#].*)?$/i,
+  articleUrlPattern:
+    /^https:\/\/(?:www\.)?nautil\.us\/(?:[a-z0-9_-]|%[0-9a-f]{2})+(?:\/(?:[a-z0-9_-]|%[0-9a-f]{2})+)?\/?(?:[?#].*)?$/i,
   articleUrlFilter: (url) =>
     excludes(url, [
       "/page/",
@@ -48,6 +86,7 @@ const nautilus: Provider = {
       "subscribe",
       "SubscribeBtn",
     ],
+    dropFigcaptions: true,
   },
   categoryFor: (url, section) =>
     categoryFromRules(
@@ -63,14 +102,12 @@ const nautilus: Provider = {
       "science",
     ),
   /**
-   * Discovers article URLs via the Nautilus WordPress REST API, falling back
-   * to the RSS feed when the API yields nothing (it currently 404s). Discovery
-   * validates every candidate against `articleUrlPattern` / `articleUrlFilter`.
+   * Discovers article URLs from Nautilus' public content sitemap. The legacy
+   * WordPress REST path is retained as a recency hint when available, and RSS
+   * is only a final fallback. Discovery validates every candidate against
+   * `articleUrlPattern` / `articleUrlFilter`.
    */
-  urlExtractor: async (ctx) => {
-    const api = await fetchNautilusUrls(ctx.limit, ctx.fetch);
-    return api.length ? api : nautilusRssExtractor(ctx);
-  },
+  urlExtractor: (ctx) => collectNautilusUrls(ctx.limit, ctx.fetch),
 };
 
 export default nautilus;

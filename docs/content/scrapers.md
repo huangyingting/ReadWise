@@ -118,12 +118,14 @@ and fragments, and deduplicates.
 
 Category → feed mapping defined in `BBC_RSS_FEEDS` inside `src/lib/scraper/providers/bbc.ts`.
 
-### Nautilus – WordPress REST API (`src/lib/scraper/wp-api.ts`)
+### Nautilus – public content sitemap (`src/lib/scraper/providers/nautilus.ts`)
 
-Paginates through `https://nautil.us/wp-json/wp/v2/posts` (20 per page, up to 5 pages).
-`NAUTILUS_WP_CATEGORY_MAP` maps editorial section slugs to WP category IDs.
+Discovers posts from `https://nautil.us/sitemap-index-1.xml`, following only
+`sitemap-*.xml` content children. The legacy WordPress REST extractor in
+`src/lib/scraper/wp-api.ts` is still queried as a recency hint when available,
+and paginated RSS is a final fallback when both REST and sitemaps yield nothing.
 
-To verify/update WP category IDs:
+To verify/update legacy WP category IDs:
 ```sh
 curl https://nautil.us/wp-json/wp/v2/categories?per_page=100 | jq '.[] | {id, slug}'
 ```
