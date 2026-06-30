@@ -8,8 +8,8 @@
  * template text — "Some Placeholder Text", "CREDIT: NAME", "Institution Name" —
  * rode along) and related-article rails inside/around the article. The
  * provider's `cleanup` config drops those noise blocks before extraction while
- * preserving the real prose, the `/docserver/` article imagery and genuine
- * photo captions.
+ * preserving the real prose and the `/docserver/` article imagery while
+ * dropping image-credit figcaptions.
  *
  * Crucially the cleanup must NOT over-drop: the portrait lives in
  * `.article-sidebar-img`, so `article-sidebar` is deliberately not a keyword.
@@ -158,7 +158,8 @@ const KNOWABLE_LAYOUT_MENU_HTML = `<!doctype html>
  * extracted prose and word count (verified across all 12 stored Knowable
  * articles). The same DOI also appears in a `<head>` `<meta name="dc.identifier">`
  * that must stay irrelevant (it is never harvested). The body carries a real
- * `/docserver/` image + prose that must survive.
+ * `/docserver/` image + prose that must survive while the credit figcaption is
+ * removed.
  */
 const KNOWABLE_DEEP_DIVE_HTML = `<!doctype html>
 <html>
@@ -203,6 +204,7 @@ test("knowable provider defines the donate/placeholder cleanup keywords", () => 
   const provider = getProvider("knowable");
   const keywords = provider?.cleanup?.dropClassKeywords ?? [];
   assert.ok(keywords.length, "cleanup.dropClassKeywords must be set");
+  assert.equal(provider?.cleanup?.dropFigcaptions, true, "Knowable must drop figure captions");
   for (const kw of [
     "promo-article",
     "layout-mode-menu",
@@ -232,8 +234,9 @@ test("knowable cleanup removes donate + placeholder noise, keeps body + /docserv
 
   // The real portrait (in .article-sidebar-img) survives — NOT over-dropped.
   assert.match(cleaned, /i-marina-wolf\.jpg/, "portrait /docserver/ image must be retained");
-  // The genuine photo caption survives (article-photo-info is NOT dropped).
-  assert.match(cleaned, /Studies in rodents/, "real photo caption must be retained");
+  // The image-credit figcaption is removed while the surrounding figure image remains.
+  assert.doesNotMatch(cleaned, /<figcaption/i, "Knowable figcaptions must be removed");
+  assert.doesNotMatch(cleaned, /Studies in rodents/, "photo credit text must be removed");
 
   // Donate CTAs are gone.
   assert.doesNotMatch(cleaned, /Support sound science/i, "in-body donate CTA must be removed");
@@ -361,7 +364,8 @@ test("knowable cleanup strips the deep-dive citation rail + visible DOI, keeps b
   assert.match(cleaned, /synapse1\b/, "body prose must be retained");
   assert.match(cleaned, /plasticity1\b/, "body prose must be retained");
   assert.match(cleaned, /synapse-connectivity\.jpg/, "body /docserver/ image must be retained");
-  assert.match(cleaned, /Studies in rodents/, "genuine photo caption must be retained");
+  assert.doesNotMatch(cleaned, /<figcaption/i, "Knowable figcaptions must be removed");
+  assert.doesNotMatch(cleaned, /Studies in rodents/, "photo credit text must be removed");
 });
 
 test("extractArticle strips the deep-dive/DOI boilerplate, keeps the body + /docserver/ image", () => {

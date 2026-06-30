@@ -382,3 +382,10 @@ Processed 2 inbox files into 2 decision summaries. Duplicate summaries skipped: 
 - Decision/application: Nautilus provider cleanup may drop `<figcaption>` elements only while preserving `<figure><img src=...>` image markup/source in sanitized output.
 - Scope: This is provider-specific to Nautilus; other providers keep captions unless a separate provider rule changes that behavior.
 - Source: merged from `decisions/inbox/copilot-directive-2026-06-30T00-52-48-nautilus-figcaptions.md`.
+
+
+## 2026-06-30T02:08:59.910+00:00 — Knowable figcaption cleanup directive
+
+The user directed that Knowable figcaptions and credit captions are not needed, but image elements and their `src` values must be preserved. The directive was captured in `decisions/inbox/copilot-directive-2026-06-30T02-08-59-knowable-figcaptions.md` by Ralph and merged by Scribe after Livingston implemented the provider cleanup.
+
+Decision: Knowable provider cleanup may drop `<figcaption>` elements, including credit-only captions, as long as retained `<img>` elements keep their source URLs. This provider-specific behavior must not alter caption retention for providers that have not opted into figcaption removal.
