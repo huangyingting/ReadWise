@@ -1,11 +1,8 @@
 ---
-title: "Profile preferences and onboarding"
-category: "Learning"
-architecture: "Documents learner profile preferences, onboarding boundary, goal paths, level history, and personalization consumers."
-design: "Captures current validation, profile route behavior, onboarding completion, placement relationship, and privacy rules."
-plan: "Update when profile schema, onboarding/settings routes, controlled preference values, goal paths, placement, or personalization consumers change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents learner profile preferences, onboarding boundary, goal paths, level history, and personalization consumers. Captures current validation, profile route behavior, onboarding completion, placement relationship, and privacy rules."
 ---
 
 # Profile preferences and onboarding

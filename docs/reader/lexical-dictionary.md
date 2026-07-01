@@ -1,11 +1,8 @@
 ---
-title: "Lexical dictionary and saved-word lookup"
-category: "Reader"
-architecture: "Documents lexical provider seam, word normalization, dictionary lookup, saved-word persistence, and AI vocabulary panel relationship."
-design: "Captures current normalization rules, local/free/hybrid providers, lookup route behavior, saved-word SRS integration, and privacy constraints."
-plan: "Update when dictionary providers, normalization, saved-word routes/read models, AI vocabulary panel, or SRS integration changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents lexical provider seam, word normalization, dictionary lookup, saved-word persistence, and AI vocabulary panel relationship. Captures current normalization rules, local/free/hybrid providers, lookup route behavior, saved-word SRS integration, and privacy constraints."
 ---
 
 # Lexical dictionary and saved-word lookup

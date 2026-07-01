@@ -1,11 +1,8 @@
 ---
-title: "Schema-change privacy and retention checklist"
-category: "Platform"
-architecture: "Documents privacy, retention, export, cascade, and migration checks required for Prisma schema changes."
-design: "Captures current model-change checklist, SQLite/PostgreSQL parity expectations, generated-schema updates, and documentation requirements."
-plan: "Use for every schema/migration change; update when schema governance, retention policy, export rules, or migration workflow changes."
-updated: "2026-07-01"
-rename: "none"
+type: "policy"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents privacy, retention, export, cascade, and migration checks required for Prisma schema changes. Captures current model-change checklist, SQLite/PostgreSQL parity expectations, generated-schema updates, and documentation requirements."
 ---
 
 # Schema-change privacy and retention checklist

@@ -1,11 +1,8 @@
 ---
-title: "Continuous Integration & release readiness"
-category: "Platform"
-architecture: "Documents CI quality gates, test tiers, generated-doc drift checks, and release-readiness automation."
-design: "Captures current lint/type/test/build/API-catalog/schema checks, E2E tiers, failure diagnosis, and environment requirements."
-plan: "Update when scripts, CI config, test tiers, generated artifacts, or release gates change."
-updated: "2026-07-01"
-rename: "none"
+type: "testing"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents CI quality gates, test tiers, generated-doc drift checks, and release-readiness automation. Captures current lint/type/test/build/API-catalog/schema checks, E2E tiers, failure diagnosis, and environment requirements."
 ---
 
 # Continuous Integration & release readiness

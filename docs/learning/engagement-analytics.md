@@ -1,11 +1,8 @@
 ---
-title: "Engagement analytics, streaks, heatmaps, and reading speed"
-category: "Learning"
-architecture: "Documents learner-owned engagement read models derived from progress, daily activity, streaks, heatmaps, and reading speed."
-design: "Captures current local-day rules, forward-only progress, shield policy, WPM calculations, gamification summary, and privacy boundaries."
-plan: "Update when progress writes, DailyActivity, streak/shield logic, heatmap, reading speed, or gamification summary behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents learner-owned engagement read models derived from progress, daily activity, streaks, heatmaps, and reading speed. Captures current local-day rules, forward-only progress, shield policy, WPM calculations, gamification summary, and privacy boundaries."
 ---
 
 # Engagement analytics, streaks, heatmaps, and reading speed

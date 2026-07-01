@@ -1,11 +1,8 @@
 ---
-title: "Observability subsystem"
-category: "Observability"
-architecture: "Documents tracing, logging, error aggregation, metrics, SLOs, and investigation workflow boundaries."
-design: "Captures current instrumentation, request IDs, provider fallbacks, alerting seams, dashboards, and triage guidance."
-plan: "Update when tracing/logging/error/metrics/SLO behavior, runtime config, or admin observability routes change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents tracing, logging, error aggregation, metrics, SLOs, and investigation workflow boundaries. Captures current instrumentation, request IDs, provider fallbacks, alerting seams, dashboards, and triage guidance."
 ---
 
 # Observability subsystem

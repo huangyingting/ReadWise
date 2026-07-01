@@ -1,11 +1,8 @@
 ---
-title: "Security: trusted proxy/IP, CSRF, security events & audit logs"
-category: "Security"
-architecture: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting."
-design: "Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
-plan: "Update when security config, client-IP logic, CSRF behavior, events, audit logging, redaction, or admin security surfaces change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting. Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
 ---
 
 # Security: trusted proxy/IP, CSRF, security events & audit logs

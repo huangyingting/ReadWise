@@ -1,11 +1,8 @@
 ---
-title: "Capacity planning baselines"
-category: "Operations"
-architecture: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers."
-design: "Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
-plan: "Update when traffic assumptions, queue/storage/provider limits, scaling strategies, or observability signals change."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers. Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
 ---
 
 # Capacity planning baselines

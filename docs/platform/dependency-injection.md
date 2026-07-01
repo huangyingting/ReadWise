@@ -1,11 +1,8 @@
 ---
-title: "Dependency injection and test seam patterns"
-category: "Platform"
-architecture: "Documents dependency-injection seams and testability boundaries across platform/domain modules."
-design: "Captures current injectable interfaces, default implementations, test seams, and anti-patterns."
-plan: "Update when shared seams, provider adapters, test patterns, or subsystem boundary rules change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents dependency-injection seams and testability boundaries across platform/domain modules. Captures current injectable interfaces, default implementations, test seams, and anti-patterns."
 ---
 
 # Dependency injection and test seam patterns

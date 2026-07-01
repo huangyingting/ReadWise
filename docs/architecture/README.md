@@ -1,11 +1,8 @@
 ---
-title: "Architecture Decision Records"
-category: "Architecture"
-architecture: "Indexes durable architecture decision records for ReadWise."
-design: "Explains ADR numbering, status, template usage, and relationship to current implementation docs."
-plan: "Update when ADRs are added, superseded, renamed, or retired."
-updated: "2026-07-01"
-rename: "none"
+type: "index"
+status: "current"
+last_updated: "2026-07-01"
+description: "Indexes durable architecture decision records for ReadWise. Explains ADR numbering, status, template usage, and relationship to current implementation docs."
 ---
 
 # Architecture Decision Records

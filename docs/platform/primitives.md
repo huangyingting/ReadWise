@@ -1,11 +1,8 @@
 ---
-title: "Platform Primitives"
-category: "Platform"
-architecture: "Documents shared platform primitive ownership and relationship to src/lib/primitives/README.md."
-design: "Captures current primitive classification, contribution guidelines, stability expectations, and import rules."
-plan: "Update when shared primitives, public APIs, stability classifications, or subsystem boundary rules change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents shared platform primitive ownership and relationship to src/lib/primitives/README.md. Captures current primitive classification, contribution guidelines, stability expectations, and import rules."
 ---
 
 # Platform Primitives

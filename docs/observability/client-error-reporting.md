@@ -1,11 +1,8 @@
 ---
-title: "Client-error reporting"
-category: "Observability"
-architecture: "Documents browser runtime error ingestion, aggregation, redaction, and alerting boundaries."
-design: "Captures current client error route behavior, scrubbed metadata, rate limiting, aggregation, and alert thresholds."
-plan: "Update when client error route/schema, redaction, error reporting providers, rate limits, or alerting behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents browser runtime error ingestion, aggregation, redaction, and alerting boundaries. Captures current client error route behavior, scrubbed metadata, rate limiting, aggregation, and alert thresholds."
 ---
 
 # Client-error reporting

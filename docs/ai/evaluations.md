@@ -1,11 +1,8 @@
 ---
-title: "AI evaluation datasets & regression tests"
-category: "AI"
-architecture: "Documents offline/live AI evaluation harnesses, datasets, and regression boundaries."
-design: "Captures current eval dataset structure, runner behavior, deterministic checks, live-provider safeguards, and output expectations."
-plan: "Update when eval datasets, AI tasks, scoring rules, scripts, or provider safety gates change."
-updated: "2026-07-01"
-rename: "none"
+type: "testing"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents offline/live AI evaluation harnesses, datasets, and regression boundaries. Captures current eval dataset structure, runner behavior, deterministic checks, live-provider safeguards, and output expectations."
 ---
 
 # AI evaluation datasets & regression tests

@@ -1,11 +1,8 @@
 ---
-title: "Metrics subsystem"
-category: "Observability"
-architecture: "Documents in-process metrics registry, recorder helpers, route normalization, and Prometheus export boundary."
-design: "Captures current counter/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
-plan: "Update when metrics registry, recorder helpers, route labels, exporters, or admin metrics endpoints change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents in-process metrics registry, recorder helpers, route normalization, and Prometheus export boundary. Captures current counter/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
 ---
 
 # Metrics subsystem

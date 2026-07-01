@@ -1,11 +1,8 @@
 ---
-title: "Reading placement"
-category: "Learning"
-architecture: "Documents the Learning-owned placement scorer, placement passage route, welcome/settings UI affordances, and PlacementResult schema."
-design: "Placement is a lightweight, deterministic, privacy-preserving cold-start/retake flow that stores only counts, controlled levels, and a recommendation."
-plan: "Keep aligned with src/lib/learning/placement.ts, placement-passage.ts, /api/placement, welcome/settings placement UI, and profile/onboarding changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the Learning-owned placement scorer, placement passage route, welcome/settings UI affordances, and PlacementResult schema. Placement is a lightweight, deterministic, privacy-preserving cold-start/retake flow that stores only counts, controlled levels, and a recommendation."
 ---
 
 # Reading placement

@@ -1,11 +1,8 @@
 ---
-title: "ReadWise documentation index"
-category: "Documentation index"
-architecture: "Maps durable subsystem documentation for the current ReadWise codebase."
-design: "Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
-plan: "Update whenever docs are created, deleted, renamed, merged, or materially change scope."
-updated: "2026-07-01"
-rename: "none"
+type: "index"
+status: "current"
+last_updated: "2026-07-01"
+description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
 # ReadWise documentation index

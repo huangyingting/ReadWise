@@ -1,11 +1,8 @@
 ---
-title: "TTS job scheduling, retry, and rebuild"
-category: "Operations"
-architecture: "Documents Operations-owned TTS_GENERATE job scheduling and its boundary with Speech/Media."
-design: "Captures current dedupe, retry, rebuild, worker, processing-step, and operator behavior for generated narration."
-plan: "Update when TTS job payloads, worker handlers, speech generation, media storage, rebuild flows, or admin job routes change."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents Operations-owned TTS_GENERATE job scheduling and its boundary with Speech/Media. Captures current dedupe, retry, rebuild, worker, processing-step, and operator behavior for generated narration."
 ---
 
 # TTS job scheduling, retry, and rebuild

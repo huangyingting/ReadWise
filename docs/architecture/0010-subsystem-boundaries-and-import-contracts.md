@@ -1,11 +1,8 @@
 ---
-title: "ADR-0010: Subsystem boundaries and import contracts"
-category: "Architecture"
-architecture: "Architecture decision record for subsystem ownership, public APIs, private imports, and import-boundary enforcement."
-design: "Captures current subsystem boundary contract, allowlist strategy, and phased enforcement expectations."
-plan: "Supersede with a new ADR if subsystem/import architecture changes; update allowlists and docs together."
-updated: "2026-07-01"
-rename: "none"
+type: "architecture"
+status: "current"
+last_updated: "2026-07-01"
+description: "Architecture decision record for subsystem ownership, public APIs, private imports, and import-boundary enforcement. Captures current subsystem boundary contract, allowlist strategy, and phased enforcement expectations."
 ---
 
 # ADR-0010: Subsystem boundaries and import contracts

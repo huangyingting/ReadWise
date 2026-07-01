@@ -1,11 +1,8 @@
 ---
-title: "AI safety, validation & moderation policy"
-category: "AI"
-architecture: "Documents AI safety boundaries across structured validation, moderation, provider errors, and fallbacks."
-design: "Captures current validator usage, safe output handling, moderation posture, provider-error normalization, and privacy constraints."
-plan: "Update when AI schemas, moderation providers, safety evals, redaction policy, or fallback behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents AI safety boundaries across structured validation, moderation, provider errors, and fallbacks. Captures current validator usage, safe output handling, moderation posture, provider-error normalization, and privacy constraints."
 ---
 
 # AI safety, validation & moderation policy

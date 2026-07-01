@@ -1,11 +1,8 @@
 ---
-title: "Reader learning tools"
-category: "Reader"
-architecture: "Documents the ReaderTools surface and its Reader, AI, Speech, Learning, Offline, and Analytics subsystem boundaries."
-design: "Covers vocabulary, quiz, tutor, dictation, pronunciation, grammar, and selection tools as mounted reader panels/popovers with graceful fallbacks."
-plan: "Keep this aligned with src/components/ReaderTools.tsx, reader study hooks, /api/reader/* learning routes, pronunciation routes, and offline queue behavior."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the ReaderTools surface and its Reader, AI, Speech, Learning, Offline, and Analytics subsystem boundaries. Covers vocabulary, quiz, tutor, dictation, pronunciation, grammar, and selection tools as mounted reader panels/popovers with graceful fallbacks."
 ---
 
 # Reader learning tools

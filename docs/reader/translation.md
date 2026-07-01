@@ -1,11 +1,8 @@
 ---
-title: "Translation service"
-category: "Reader"
-architecture: "Documents article and sentence translation caches, AI prompt versions, chunking, access checks, and privacy boundaries."
-design: "Captures current cache keys, full-article/sentence translation flows, fallbacks, route behavior, and metadata constraints."
-plan: "Update when translation routes, prompt versions, cache schema, chunking, AI provider behavior, or privacy policy changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents article and sentence translation caches, AI prompt versions, chunking, access checks, and privacy boundaries. Captures current cache keys, full-article/sentence translation flows, fallbacks, route behavior, and metadata constraints."
 ---
 
 # Translation service

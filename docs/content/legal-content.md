@@ -1,11 +1,8 @@
 ---
-title: "Legal and Static Content Governance"
-category: "Content"
-architecture: "Documents legal/static content ownership and release/update boundaries."
-design: "Captures current responsibilities for terms, privacy, static routes, review cadence, and change control."
-plan: "Update when legal/static pages, copy ownership, review workflow, or deployment requirements change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents legal/static content ownership and release/update boundaries. Captures current responsibilities for terms, privacy, static routes, review cadence, and change control."
 ---
 
 # Legal and Static Content Governance

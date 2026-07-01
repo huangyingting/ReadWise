@@ -1,11 +1,8 @@
 ---
-title: "Security event and audit-log operations"
-category: "Operations"
-architecture: "Documents the admin security surface, in-memory security event buffer, durable AuditLog table, and their relationship to observability and security controls."
-design: "Operators use /admin/security for recent security events and /api/admin/audit-logs for durable filtered history; both surfaces expose metadata only and rely on shared redaction."
-plan: "Keep aligned with src/lib/security/events.ts, src/lib/security/audit.ts, admin security pages/routes, and retention/runtime-config changes."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the admin security surface, in-memory security event buffer, durable AuditLog table, and their relationship to observability and security controls. Operators use /admin/security for recent security events and /api/admin/audit-logs for durable filtered history; both surfaces expose metadata only and rely on shared redaction."
 ---
 
 # Security event and audit-log operations

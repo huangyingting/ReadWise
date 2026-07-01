@@ -1,11 +1,8 @@
 ---
-title: "Curated reading series"
-category: "Learning"
-architecture: "Documents ReadingSeries and SeriesEnrollment data model, learner series browser/API, and Today soft-candidate integration."
-design: "Captures current public-series listing, idempotent enroll/unenroll commands, access-checked article resolution, progress advancement, and remaining gaps."
-plan: "Update when series schemas, /series UI, /api/series routes, Today generator/completion integration, admin CRUD, or export behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents ReadingSeries and SeriesEnrollment data model, learner series browser/API, and Today soft-candidate integration. Captures current public-series listing, idempotent enroll/unenroll commands, access-checked article resolution, progress advancement, and remaining gaps."
 ---
 
 # Curated reading series

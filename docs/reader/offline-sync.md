@@ -1,11 +1,8 @@
 ---
-title: "Offline-first sync, conflict resolution & cache versioning"
-category: "Reader"
-architecture: "Documents client-side offline mutation queue, conflict resolution, cache versioning, Today offline replay, and push/background-sync resilience."
-design: "Captures current IndexedDB queue, idempotency keys, retry/backoff, conflict statuses, service-worker cache versions, and privacy purge behavior."
-plan: "Update when offline registry, queue schema, conflict rules, service worker cache versions, Today offline mutations, or push reminder resilience change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents client-side offline mutation queue, conflict resolution, cache versioning, Today offline replay, and push/background-sync resilience. Captures current IndexedDB queue, idempotency keys, retry/backoff, conflict statuses, service-worker cache versions, and privacy purge behavior."
 ---
 
 # Offline-first sync, conflict resolution & cache versioning

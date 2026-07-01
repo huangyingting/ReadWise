@@ -1,11 +1,8 @@
 ---
-title: "Study plan and study mode"
-category: "Learning"
-architecture: "Documents the Learning-owned study diagnostics engine, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations."
-design: "The study plan is computed on demand from current learner data, not persisted; Study mode combines plan items, due flashcards, saved-word filters, and cloze fallback behavior."
-plan: "Keep aligned with src/lib/learning/study-plan*, flashcards/cloze routes, /study UI, and mastery signal changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the Learning-owned study diagnostics engine, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. The study plan is computed on demand from current learner data, not persisted; Study mode combines plan items, due flashcards, saved-word filters, and cloze fallback behavior."
 ---
 
 # Study plan and study mode

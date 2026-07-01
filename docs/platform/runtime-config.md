@@ -1,11 +1,8 @@
 ---
-title: "Runtime configuration and process.env allowlist"
-category: "Platform"
-architecture: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers."
-design: "Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
-plan: "Update when runtime-config helpers, .env.example, readiness checks, feature flags, or direct process.env exceptions change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers. Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
 # Runtime configuration and process.env allowlist

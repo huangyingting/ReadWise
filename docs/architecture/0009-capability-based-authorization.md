@@ -1,11 +1,8 @@
 ---
-title: "ADR-0009: Capability-based authorization layer"
-category: "Architecture"
-architecture: "Architecture decision record for capability-based authorization."
-design: "Captures capability vocabulary, role mapping, route guard posture, and consequences."
-plan: "Supersede with a new ADR if authorization architecture changes; update RBAC docs for current mappings."
-updated: "2026-07-01"
-rename: "none"
+type: "architecture"
+status: "accepted"
+last_updated: "2026-07-01"
+description: "Architecture decision record for capability-based authorization. Captures capability vocabulary, role mapping, route guard posture, and consequences."
 ---
 
 # ADR-0009: Capability-based authorization layer

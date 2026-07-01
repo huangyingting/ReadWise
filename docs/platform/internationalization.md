@@ -1,11 +1,8 @@
 ---
-title: "UI internationalization"
-category: "Platform"
-architecture: "Documents UI i18n architecture, locale loading, and separation from article translation and learner preferences."
-design: "Captures current catalog structure, translation lookup behavior, fallback rules, and contribution guidance."
-plan: "Update when i18n catalogs, locale loading, UI copy conventions, or translation boundaries change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents UI i18n architecture, locale loading, and separation from article translation and learner preferences. Captures current catalog structure, translation lookup behavior, fallback rules, and contribution guidance."
 ---
 
 # UI internationalization

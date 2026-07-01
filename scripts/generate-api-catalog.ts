@@ -74,7 +74,7 @@ if (!dryRun) {
       const normalize = (s: string) =>
         s
           .replace(/^> Last generated: .+$/m, "")
-          .replace(/^updated: ".+"$/m, "");
+          .replace(/^last_updated: ".+"$/m, "");
       if (normalize(existingMd) === normalize(freshMd)) {
         skipMd = true;
         console.log(`✓ ${relative(ROOT, CATALOG_MD)} is up to date (no route changes)`);

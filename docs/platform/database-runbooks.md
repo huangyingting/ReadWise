@@ -1,11 +1,8 @@
 ---
-title: "Database backup, restore, migration, and rollback runbooks"
-category: "Platform"
-architecture: "Documents database operational runbooks for backup, restore, migration, rollback, and disaster recovery."
-design: "Captures current SQLite/PostgreSQL procedures, validation checks, rollback safety, and operator actions."
-plan: "Update when database targets, migrations, backup tooling, restore process, or rollback strategy change."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents database operational runbooks for backup, restore, migration, rollback, and disaster recovery. Captures current SQLite/PostgreSQL procedures, validation checks, rollback safety, and operator actions."
 ---
 
 # Database backup, restore, migration, and rollback runbooks

@@ -1,11 +1,8 @@
 ---
-title: "Reader highlights and notes"
-category: "Reader"
-architecture: "Documents Reader annotation ownership, highlight anchors, notes, APIs, and offline conflict boundaries."
-design: "Captures current anchor model, note editing, color rules, revalidation, merge behavior, and privacy constraints."
-plan: "Update when Highlight schema, annotation APIs/UI, offline conflict rules, export/deletion, or anchor behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents Reader annotation ownership, highlight anchors, notes, APIs, and offline conflict boundaries. Captures current anchor model, note editing, color rules, revalidation, merge behavior, and privacy constraints."
 ---
 
 # Reader highlights and notes
