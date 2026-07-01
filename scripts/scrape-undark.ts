@@ -746,8 +746,8 @@ function continueCommand(args: Args): string {
   return parts.join(" ");
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
   if (args.help) {
     printHelp();
     return 0;
@@ -822,6 +822,35 @@ async function main(): Promise<number> {
 
   return failed > 0 && saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
 }
+
+export const __scrapeUndarkTest = {
+  printHelp,
+  resolveRepoLocalPath,
+  normalizeUrl,
+  errorMessage,
+  isVisitedRecord,
+  readVisited,
+  writeVisited,
+  visitedSet,
+  markVisited,
+  summarizeProgress,
+  providerOrThrow,
+  undarkLibraryWhere,
+  existingUndarkUrlSet,
+  publishArticle,
+  scrapeOne,
+  scrapeSequential,
+  scrapeConcurrent,
+  scrapeFreshUndark,
+  extractBlocks,
+  findingFor,
+  analyzeUndarkFromDb,
+  duplicateStats,
+  providerDbCounts,
+  publishUndarkArticles,
+  continueCommand,
+  main,
+};
 
 if (isMain(import.meta.url)) {
   runCli(main);

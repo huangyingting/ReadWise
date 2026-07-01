@@ -1,0 +1,13 @@
+{
+  "valid": [
+    " /valid/ ",
+    [
+      ["noun", [" first definition ", [" nested definition "], "", null]],
+      ["", ["fallback part of speech"]],
+      ["adjective", []],
+      "ignored row"
+    ]
+  ],
+  "empty": ["", []],
+  "bad": "not compact"
+}

@@ -1,0 +1,9 @@
+ℹ start of coverage report
+ℹ ---------------------------------------------------------------
+ℹ file                  | line % | branch % | funcs % | uncovered lines
+ℹ ---------------------------------------------------------------
+ℹ src                   |        |          |         |
+ℹ  lib                  |        |          |         |
+ℹ   fixture.ts          | 100.00 |   100.00 |  100.00 |
+ℹ all files             | 100.00 |   100.00 |  100.00 |
+ℹ end of coverage report

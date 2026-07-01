@@ -718,8 +718,8 @@ async function publishSmithsonianArticles(): Promise<SmithsonianDbCounts> {
   return counts;
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
   if (args.help) {
     printHelp();
     return 0;
@@ -779,6 +779,31 @@ async function main(): Promise<number> {
 
   return failed > 0 && saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
 }
+
+export const __scrapeSmithsonianTest = {
+  parseOptionalPositiveInt,
+  parseCsvFlagValues,
+  printHelp,
+  resolveRepoLocalPath,
+  normalizeUrl,
+  isVisitedRecord,
+  readVisited,
+  writeVisited,
+  visitedSet,
+  markVisited,
+  summarize,
+  providerOrThrow,
+  scrapeFreshSmithsonian,
+  truncate,
+  extractBlocks,
+  findingFor,
+  addSample,
+  analyzeSmithsonianFromDb,
+  smithsonianLibraryWhere,
+  smithsonianDbCounts,
+  publishSmithsonianArticles,
+  main,
+};
 
 if (isMain(import.meta.url)) {
   runCli(main);

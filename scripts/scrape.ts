@@ -220,8 +220,8 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
   return outcomes;
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
 
   if (args.help) {
     printHelp();
@@ -270,10 +270,13 @@ async function main(): Promise<number> {
   return failed > 0 && saved === 0 ? 1 : 0;
 }
 
-if (isMain(import.meta.url)) {
+function runScrapeCli(
+  argv = process.argv.slice(2),
+  deps?: Parameters<typeof runCli>[1],
+): void {
   runCli(async () => {
     try {
-      return await main();
+      return await main(argv);
     } finally {
       try {
         await closeBrowser();
@@ -281,5 +284,19 @@ if (isMain(import.meta.url)) {
         // Best-effort cleanup only; do not mask the scrape outcome.
       }
     }
-  });
+  }, deps);
+}
+
+export const __scrapeTest = {
+  printHelp,
+  summarize,
+  runFile,
+  runUrls,
+  runProvider,
+  main,
+  runScrapeCli,
+};
+
+if (isMain(import.meta.url)) {
+  runScrapeCli();
 }

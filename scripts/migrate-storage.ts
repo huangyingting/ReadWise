@@ -51,9 +51,8 @@ async function main(): Promise<number> {
   return 0;
 }
 
-export { parseArgs };
+export { main, parseArgs };
 
 if (isMain(import.meta.url)) {
   runScript(main, "Fatal");
 }
-
