@@ -64,6 +64,13 @@ export type ContentQualityResult = {
   signals: QualitySignal[];
 };
 
+/** Checks that can be bypassed for long-enough recovery candidates. */
+export const RECOVERABLE_QUALITY_REJECT_CHECKS = [
+  "reading-time",
+  "missing-author",
+  "missing-date",
+] as const;
+
 // ---------------------------------------------------------------------------
 // Minimal input shape (accepts ScrapedArticle or synthetic test objects)
 // ---------------------------------------------------------------------------
@@ -100,6 +107,12 @@ export const MIN_READING_MINUTES = 5;
 
 /** Word count for the minimum reading time ({@link MIN_READING_MINUTES}). */
 export const MIN_READING_WORD_COUNT = MIN_READING_MINUTES * QUALITY_WORDS_PER_MINUTE;
+
+/**
+ * Minimum words for recovering otherwise-good articles rejected only for weak
+ * metadata/reading-time checks. Derived from high-volume provider failed p75s.
+ */
+export const RECOVERY_MIN_WORD_COUNT = 760;
 
 /**
  * Ratio of link-text characters to total plain-text characters above which
@@ -784,4 +797,24 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
   }
 
   return { grade, score, signals };
+}
+
+export function failedQualityChecks(result: ContentQualityResult): string[] {
+  return result.signals.filter((signal) => !signal.passed).map((signal) => signal.check);
+}
+
+export function isRecoverableQualityReject(
+  article: QualityInput,
+  result: ContentQualityResult,
+): boolean {
+  if (result.grade !== "reject" || article.wordCount < RECOVERY_MIN_WORD_COUNT) {
+    return false;
+  }
+  const failedChecks = failedQualityChecks(result);
+  return (
+    failedChecks.length > 0 &&
+    failedChecks.every((check) =>
+      (RECOVERABLE_QUALITY_REJECT_CHECKS as readonly string[]).includes(check),
+    )
+  );
 }
