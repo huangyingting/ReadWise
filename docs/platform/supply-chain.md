@@ -1,3 +1,13 @@
+---
+title: "Supply-chain and dependency hygiene"
+category: "Platform"
+architecture: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries."
+design: "Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
+plan: "Update when package managers, CI vulnerability gates, dependency policy, or supply-chain response procedures change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Supply-chain and dependency hygiene
 
 ReadWise depends on Next.js, Prisma, Azure SDKs, OpenTelemetry, NextAuth,

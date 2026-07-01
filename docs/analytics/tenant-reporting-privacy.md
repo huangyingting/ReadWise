@@ -1,3 +1,13 @@
+---
+title: "Tenant reporting privacy boundaries"
+category: "Analytics"
+architecture: "Documents tenant/classroom reporting visibility boundaries and aggregate-vs-learner data ownership."
+design: "Captures current teacher/admin visibility, retention/export expectations, and privacy rules for classroom analytics."
+plan: "Update when tenant reporting, classroom analytics, RBAC, export/deletion behavior, or privacy classifications change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Tenant reporting privacy boundaries
 
 This document defines what classroom teachers and organization administrators may

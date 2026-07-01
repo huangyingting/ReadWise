@@ -1,3 +1,13 @@
+---
+title: "Push notifications and study reminders"
+category: "Platform"
+architecture: "Documents Web Push configuration, subscription lifecycle, reminder scheduler, and delivery-health boundaries."
+design: "Captures current VAPID config, preference model, quiet hours, delivery pruning, push routes, and privacy rules."
+plan: "Update when push schemas, VAPID/runtime config, reminder scheduling, delivery tracking, or subscription routes change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Push notifications and study reminders
 
 Push notifications are an optional platform subsystem used today for due-card

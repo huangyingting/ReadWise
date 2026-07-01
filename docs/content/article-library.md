@@ -1,3 +1,13 @@
+---
+title: "Article library design"
+category: "Content"
+architecture: "Documents Article Library visibility, status, ownership, moderation, and access-policy boundaries."
+design: "Captures current article lifecycle, public/private listing behavior, admin operations, and safety/privacy constraints."
+plan: "Update when Article schema, access policy, listing routes, moderation, or admin article workflows change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Article library design
 
 The article library is the core domain boundary for public curated articles,

@@ -1,3 +1,13 @@
+---
+title: "Offline-first sync, conflict resolution & cache versioning"
+category: "Reader"
+architecture: "Documents client-side offline mutation queue, conflict resolution, cache versioning, Today offline replay, and push/background-sync resilience."
+design: "Captures current IndexedDB queue, idempotency keys, retry/backoff, conflict statuses, service-worker cache versions, and privacy purge behavior."
+plan: "Update when offline registry, queue schema, conflict rules, service worker cache versions, Today offline mutations, or push reminder resilience change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Offline-first sync, conflict resolution & cache versioning
 
 This document describes the offline-first work added in Epic **RW-E008**
@@ -77,6 +87,20 @@ double-apply:
 | Highlight create | Upsert on `(userId, articleId, startOffset, endOffset)`. |
 | Highlight update/delete | Targets a stable id; PATCH/DELETE are naturally idempotent. |
 | **Quiz attempt** | `QuizAttempt.clientMutationId @unique` — `recordQuizAttempt` does find-by-mutation-id-then-create and is P2002-safe, so a replay returns the original attempt instead of inserting a duplicate. |
+
+### Reader learning-tool coverage
+
+Reader tools have different offline semantics:
+
+| Tool | Offline behavior |
+| --- | --- |
+| Quiz attempt | Direct POST failure queues `quiz.attempt` with `clientMutationId`; replay is idempotent. |
+| Dictation | Works locally when article payload and narration timings are already available; no server write is required. |
+| Progress, highlights, notes, saved words | Use the generic offline mutation queue and conflict rules described in this document. |
+| Vocabulary, tutor, grammar, translation | Require network/provider/cache access for first load; mounted UI state is preserved, but no offline AI generation queue exists. |
+| Pronunciation | Requires a Speech token and browser Speech SDK; attempt persistence is online-only in the current implementation. |
+
+The full Reader tool contract is documented in [`reader-tools.md`](./reader-tools.md).
 
 ### UI — `src/components/OfflineSyncIndicator.tsx`
 

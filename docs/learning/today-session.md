@@ -1,3 +1,13 @@
+---
+title: "Today Session"
+category: "Learning"
+architecture: "Documents the durable per-learner local-day TodaySession workflow anchor and its plan/completion/offline boundaries."
+design: "Captures current daily generation, primary/backup article ids, comprehension checks, saved-word targets, reflection, local-date semantics, and privacy constraints."
+plan: "Update when TodaySession schema, generator, completion routes, offline mutations, placement/series inputs, or Today UI behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Today Session
 
 Today Session is the durable workflow anchor for **one stable learner-local

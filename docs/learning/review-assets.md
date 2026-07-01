@@ -1,3 +1,13 @@
+---
+title: "Review Assets"
+category: "Learning"
+architecture: "Documents review-asset conversion from highlights/notes into optional SRS study cards and Today reflection signals."
+design: "Captures current low-pressure review-card creation, Progress/Study counts, privacy constraints, and additive Today reflection behavior."
+plan: "Update when review-card routes, highlight/note integration, SRS conversion, Today reflection, or export/deletion behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Review Assets
 
 Review assets turn a learner's **existing** highlights and notes into optional,

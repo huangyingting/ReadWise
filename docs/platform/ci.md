@@ -1,3 +1,13 @@
+---
+title: "Continuous Integration & release readiness"
+category: "Platform"
+architecture: "Documents CI quality gates, test tiers, generated-doc drift checks, and release-readiness automation."
+design: "Captures current lint/type/test/build/API-catalog/schema checks, E2E tiers, failure diagnosis, and environment requirements."
+plan: "Update when scripts, CI config, test tiers, generated artifacts, or release gates change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Continuous Integration & release readiness
 
 CI is defined in [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml). It is

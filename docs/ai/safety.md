@@ -1,3 +1,13 @@
+---
+title: "AI safety, validation & moderation policy"
+category: "AI"
+architecture: "Documents AI safety boundaries across structured validation, moderation, provider errors, and fallbacks."
+design: "Captures current validator usage, safe output handling, moderation posture, provider-error normalization, and privacy constraints."
+plan: "Update when AI schemas, moderation providers, safety evals, redaction policy, or fallback behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # AI safety, validation & moderation policy
 
 This document describes the AI output-safety controls added in Epic **RW-E004**:

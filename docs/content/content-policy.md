@@ -1,3 +1,13 @@
+---
+title: "Content policy: sources, rights & takedown"
+category: "Content"
+architecture: "Documents source governance, rights metadata, review, takedown, and provider-health boundaries."
+design: "Captures current policy workflow, source controls, moderation actions, and privacy-safe metadata handling."
+plan: "Update when source models, takedown states, review routes, content rights metadata, or provider governance change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Content policy: sources, rights & takedown
 
 This document covers how ReadWise sources third-party reading content, the

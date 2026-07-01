@@ -1,3 +1,13 @@
+---
+title: "Health, readiness and runtime configuration"
+category: "Platform"
+architecture: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation."
+design: "Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
+plan: "Update when readiness checks, runtime config helpers, provider degradation semantics, or migration validation change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Health, readiness and runtime configuration
 
 ReadWise exposes cheap liveness and richer readiness probes for deploys,

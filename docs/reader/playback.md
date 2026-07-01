@@ -1,3 +1,13 @@
+---
+title: "Reader playback UX"
+category: "Reader"
+architecture: "Documents ReaderAudioProvider, mini-player, narration transport, word highlighting, and access-checked playback initiation."
+design: "Captures current playback controls, speed/loop behavior, audio-range playback, TTS integration, storage fallback, and UI state rules."
+plan: "Update when Reader audio context, mini-player UI, narration APIs, speech timing, storage/audio endpoint, or playback controls change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Reader playback UX
 
 This document covers the Reader subsystem's ownership of audio playback: the

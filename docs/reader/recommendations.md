@@ -1,3 +1,13 @@
+---
+title: "Reader recommendations and scored picks"
+category: "Reader"
+architecture: "Documents Scored Picks candidate boundaries, personalization context, ranking, diversity, explanations, and privacy rules."
+design: "Captures current candidate filtering, score weights, placement/goal/profile inputs, series soft candidates, feed/browse behavior, and fallback rules."
+plan: "Update when recommendation context, scoring weights, feed/browse routes, placement/series inputs, diversity, or explanation behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Reader recommendations and scored picks
 
 Recommendations power the personalized scored "Picks" feed. The system is

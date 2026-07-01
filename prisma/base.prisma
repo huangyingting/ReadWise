@@ -912,7 +912,7 @@ model ReminderPreference {
 //   - BEST-EFFORT. Writes never throw — an analytics write must never break the
 //     user action that emitted it.
 //
-// See `docs/analytics/analytics.md` for the versioned event schema + retention rules.
+// See `docs/analytics/product-analytics.md` for the versioned event schema + retention rules.
 model AnalyticsEvent {
   id          String   @id @default(cuid())
   type        String

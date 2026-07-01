@@ -1,3 +1,13 @@
+---
+title: "Content Reporting"
+category: "Content"
+architecture: "Documents user content-reporting, ContentReport schema, and admin moderation queue boundaries."
+design: "Captures current report reasons/statuses, reader/admin APIs, deduplication, audit actions, and privacy rules."
+plan: "Update when report reasons/statuses, moderation UI, admin report routes, audit actions, or notification behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Content Reporting
 
 > **Epic #734 / Issue #738** — User content reporting and admin moderation queue.

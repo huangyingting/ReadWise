@@ -1,3 +1,13 @@
+---
+title: "ADR-0003: Append-only admin and security audit logs"
+category: "Architecture"
+architecture: "Architecture decision record for durable admin/security audit logging."
+design: "Captures append-only audit-log decision, non-FK identifiers, metadata limits, and consequences."
+plan: "Supersede with a new ADR if audit architecture changes; keep security/operations docs current for runtime behavior."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0003: Append-only admin and security audit logs
 
 - **Status:** Accepted

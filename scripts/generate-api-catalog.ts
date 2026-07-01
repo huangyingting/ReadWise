@@ -70,8 +70,11 @@ if (!dryRun) {
     let skipMd = false;
     try {
       const existingMd = readFileSync(CATALOG_MD, "utf8");
-      // Strip the "Last generated:" line before comparing.
-      const normalize = (s: string) => s.replace(/^> Last generated: .+$/m, "");
+      // Strip volatile generated-date lines before comparing.
+      const normalize = (s: string) =>
+        s
+          .replace(/^> Last generated: .+$/m, "")
+          .replace(/^updated: ".+"$/m, "");
       if (normalize(existingMd) === normalize(freshMd)) {
         skipMd = true;
         console.log(`✓ ${relative(ROOT, CATALOG_MD)} is up to date (no route changes)`);

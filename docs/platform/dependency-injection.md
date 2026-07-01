@@ -1,3 +1,13 @@
+---
+title: "Dependency injection and test seam patterns"
+category: "Platform"
+architecture: "Documents dependency-injection seams and testability boundaries across platform/domain modules."
+design: "Captures current injectable interfaces, default implementations, test seams, and anti-patterns."
+plan: "Update when shared seams, provider adapters, test patterns, or subsystem boundary rules change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Dependency injection and test seam patterns
 
 This guide defines when and how to use dependency injection (DI) in ReadWise

@@ -1,3 +1,13 @@
+---
+title: "Learning, mastery and learner analytics"
+category: "Learning"
+architecture: "Documents durable learning mastery models, learner analytics, adaptive leveling, and their source tables."
+design: "Captures current formulas, side-effect write behavior, privacy-safe coach memory, SRS integration, and analytics page rules."
+plan: "Update when mastery schemas/formulas, learner analytics, adaptive leveling, Study/Today signals, or privacy/deletion behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Learning, mastery and learner analytics
 
 This document describes the learner-facing analytics and mastery systems in the
@@ -20,7 +30,7 @@ study recommendations.
 | `SkillMastery` | Confidence per skill dimension. | `src/lib/learning/skill-mastery.ts` |
 | `TodayComprehensionFeedback` | Controlled Today self-check outcomes: self-rating, optional question id, MCQ correctness, skill tag, remediation flag. | `src/lib/engagement/today-session/comprehension.ts` |
 | `LearnerCoachMemory` | Privacy-safe aggregate weakness memory for Tutor and Study Plan. | `src/lib/learning/coach-memory.ts` |
-| `ReadingSeries` / `SeriesEnrollment` | Ordered article-series metadata and per-user enrollment position; schema exists, but no current API/UI/Today integration consumes it. | `prisma/base.prisma`, [`reading-series.md`](./reading-series.md) |
+| `ReadingSeries` / `SeriesEnrollment` | Ordered article-series metadata and per-user enrollment position; learner `/series` UI, enroll APIs, and Today soft-candidate integration consume it. | `src/lib/engagement/series.ts`, [`reading-series.md`](./reading-series.md) |
 | `ArticleDifficultyFeedback` | Per-user article vote: `too_easy`, `just_right`, `too_hard`. | `src/lib/leveling/` |
 | `PronunciationAttempt` | Pronunciation scores persisted from client-side Azure Speech assessment. | `src/lib/pronunciation.ts` |
 
@@ -330,6 +340,19 @@ due cards. `gradeFlashcard(...)` updates the SM-2 schedule and records:
 | `hard` | `0.35` |
 | `good` | `0.75` |
 | `easy` | `1` |
+
+The weekly Study Plan and `/study` page behavior are documented separately in
+[`study-plan.md`](./study-plan.md). That document is the source of truth for
+on-demand weak-area diagnosis, due-flashcard ordering, cloze fallback behavior,
+and how Reader practice signals feed weekly recommendations.
+
+Reading placement is documented in [`placement.md`](./placement.md). It is a
+privacy-preserving cold-start/retake flow that stores only counts and controlled
+level values in `PlacementResult`.
+
+Gamification widgets and `GET /api/gamification/summary` are documented in
+[`gamification.md`](./gamification.md). They expose streak, shield, daily-goal,
+last-seven-day, and due-count metadata without duplicating mastery state.
 
 ## Privacy and deletion
 

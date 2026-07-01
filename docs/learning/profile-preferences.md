@@ -1,3 +1,13 @@
+---
+title: "Profile preferences and onboarding"
+category: "Learning"
+architecture: "Documents learner profile preferences, onboarding boundary, goal paths, level history, and personalization consumers."
+design: "Captures current validation, profile route behavior, onboarding completion, placement relationship, and privacy rules."
+plan: "Update when profile schema, onboarding/settings routes, controlled preference values, goal paths, placement, or personalization consumers change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Profile preferences and onboarding
 
 Profile preferences are the learner-owned inputs that drive onboarding state,
@@ -77,7 +87,9 @@ selects which profile to modify.
 ## Reading placement (`PlacementResult`, #806)
 
 A lightweight cold-start signal that complements self-reported CEFR level for
-brand-new learners.
+brand-new learners. Detailed API, scoring, persistence, and privacy rules live
+in [`placement.md`](./placement.md); this section records how placement relates
+to profile/onboarding state.
 
 - **Source of truth:** the single per-user `PlacementResult` row (1:1 with
   `User`, upserted on retake, cascades on user delete). Written by

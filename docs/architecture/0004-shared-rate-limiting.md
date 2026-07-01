@@ -1,3 +1,13 @@
+---
+title: "ADR-0004: Shared server-side rate limiting"
+category: "Architecture"
+architecture: "Architecture decision record for shared fixed-window rate limiting and fallback behavior."
+design: "Captures rate-limit store decision, DB/memory fallback, request scopes, and operational consequences."
+plan: "Supersede with a new ADR if rate-limiting architecture changes; update runtime/security docs for knob changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0004: Shared server-side rate limiting
 
 - **Status:** Accepted

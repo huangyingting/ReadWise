@@ -1,3 +1,13 @@
+---
+title: "Speech generation"
+category: "Speech"
+architecture: "Documents TTS provider seam, request building, voice/format fallback, word-boundary collection, and ArticleSpeech generation."
+design: "Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
+plan: "Update when Speech provider config, synthesis formats, ArticleSpeech schema, timing model, storage integration, or TTS jobs change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Speech generation
 
 This document covers the Speech subsystem's ownership: the TTS provider seam,
