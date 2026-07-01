@@ -13,6 +13,24 @@
 import { fileURLToPath } from "node:url";
 import { prisma } from "@/lib/prisma";
 
+type ExitFn = (code?: number) => never;
+
+type CliRuntimeDeps = {
+  disconnect?: () => Promise<void>;
+  error?: (...args: unknown[]) => void;
+  exit?: ExitFn;
+};
+
+type ScriptRuntimeDeps = {
+  error?: (...args: unknown[]) => void;
+  exit?: ExitFn;
+};
+
+type SignalProcess = {
+  on: (event: "SIGINT" | "SIGTERM", listener: () => void) => unknown;
+  exit: ExitFn;
+};
+
 // ── Entry point guards ─────────────────────────────────────────────────────
 
 /**
@@ -38,16 +56,20 @@ export function isMain(importMetaUrl: string): boolean {
  * Disconnects Prisma and exits with the returned code on success,
  * or exits with code 1 after printing the error on failure.
  */
-export function runCli(main: () => Promise<number>): void {
+export function runCli(main: () => Promise<number>, deps: CliRuntimeDeps = {}): void {
+  const disconnect = deps.disconnect ?? (() => prisma.$disconnect());
+  const error = deps.error ?? console.error;
+  const exit = deps.exit ?? process.exit;
+
   main()
     .then(async (code) => {
-      await prisma.$disconnect();
-      process.exit(code);
+      await disconnect();
+      exit(code);
     })
     .catch(async (err: unknown) => {
-      console.error(err);
-      await prisma.$disconnect();
-      process.exit(1);
+      error(err);
+      await disconnect();
+      exit(1);
     });
 }
 
@@ -61,18 +83,22 @@ export function runCli(main: () => Promise<number>): void {
 export function runScript(
   main: () => Promise<number | void>,
   label?: string,
+  deps: ScriptRuntimeDeps = {},
 ): void {
+  const error = deps.error ?? console.error;
+  const exit = deps.exit ?? process.exit;
+
   main()
     .then((code) => {
-      process.exit(typeof code === "number" ? code : 0);
+      exit(typeof code === "number" ? code : 0);
     })
     .catch((err: unknown) => {
       if (label) {
-        console.error(`${label}:`, err);
+        error(`${label}:`, err);
       } else {
-        console.error(err);
+        error(err);
       }
-      process.exit(1);
+      exit(1);
     });
 }
 
@@ -150,17 +176,18 @@ type SignalLogger = {
 export function registerShutdownSignals(
   controller: AbortController,
   logger: SignalLogger,
+  runtime: SignalProcess = process,
 ): void {
   let signalled = false;
   const onSignal = (sig: string) => {
     if (signalled) {
       logger.warn(`received ${sig} again — forcing exit`);
-      process.exit(130);
+      runtime.exit(130);
     }
     signalled = true;
     logger.info(`received ${sig} — stopping after current article…`);
     controller.abort();
   };
-  process.on("SIGINT", () => onSignal("SIGINT"));
-  process.on("SIGTERM", () => onSignal("SIGTERM"));
+  runtime.on("SIGINT", () => onSignal("SIGINT"));
+  runtime.on("SIGTERM", () => onSignal("SIGTERM"));
 }

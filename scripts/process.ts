@@ -191,6 +191,8 @@ async function main(): Promise<number> {
   return failed > 0 || missing > 0 ? 1 : 0;
 }
 
+export { main };
+
 if (isMain(import.meta.url)) {
   runCli(main);
 }
