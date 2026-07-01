@@ -5,7 +5,7 @@
 - **Stack:** Next.js, TypeScript, Prisma, SQLite default, PostgreSQL parity via Docker Compose, optional Azure OpenAI, Azure Speech, Web Push, object storage, and OpenTelemetry providers
 - **Created:** 2026-07-01T10:12:10.549+00:00
 
-ReadWise is an AI-assisted English learning reader for long-form news and educational articles. Ralph monitors work queues, backlog state, and follow-up readiness when activated.
+ReadWise is an AI-assisted English learning reader for long-form news and educational articles. It combines a modern reader, adaptive study tools, AI-powered enrichment, content ingestion, classroom workflows, and admin/operations tooling in one Next.js app.
 
 ## Learnings
 
