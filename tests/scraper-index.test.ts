@@ -20,6 +20,7 @@ let extractArticleResult: ScrapedArticle | null = null;
 let existingArticle: { id: string } | null = null;
 let qualityGrade: "ok" | "warn" | "reject" = "ok";
 let qualityScore = 90;
+let qualitySignals: Array<{ check: string; passed: boolean; detail?: string }> = [];
 
 // Function stub for tx.article.create; reassigned per test.
 let txCreateStub: () => Promise<{ id: string }> = async () => ({ id: "new-article-id" });
@@ -77,12 +78,28 @@ before(() => {
       checkContentQuality: (_article: unknown) => ({
         grade: qualityGrade,
         score: qualityScore,
-        signals: [],
+        signals: qualitySignals,
       }),
+      isRecoverableQualityReject: (
+        article: { wordCount: number },
+        result: { grade: "ok" | "warn" | "reject"; signals: Array<{ check: string; passed: boolean }> },
+      ) => {
+        if (result.grade !== "reject" || article.wordCount < 760) return false;
+        const failedChecks = result.signals
+          .filter((signal) => !signal.passed)
+          .map((signal) => signal.check);
+        return (
+          failedChecks.length > 0 &&
+          failedChecks.every((check) =>
+            ["reading-time", "missing-author", "missing-date"].includes(check),
+          )
+        );
+      },
       MIN_WORD_COUNT: 50,
       SHORT_WORD_COUNT: 150,
       MIN_READING_MINUTES: 5,
       MIN_READING_WORD_COUNT: 1000,
+      RECOVERY_MIN_WORD_COUNT: 760,
       MAX_LINK_DENSITY: 0.5,
       MAX_GARBAGE_RATIO: 0.02,
       BOILERPLATE_HIT_THRESHOLD: 3,
@@ -145,6 +162,7 @@ beforeEach(() => {
   existingArticle = null;
   qualityGrade = "ok";
   qualityScore = 90;
+  qualitySignals = [];
   txCreateStub = async () => ({ id: "new-article-id" });
   recordedAuditInputs = [];
 });
@@ -274,6 +292,47 @@ test("scrapeAndSave returns failed when content quality grade is reject", async 
     assert.match(outcome.reason, /quality/);
     assert.match(outcome.reason, /score=15/);
   }
+});
+
+test("scrapeAndSave recovers long articles rejected only for weak quality checks", async () => {
+  extractArticleResult = { ...BASE_ARTICLE, wordCount: 760, readingMinutes: 4 };
+  qualityGrade = "reject";
+  qualityScore = 60;
+  qualitySignals = [
+    { check: "reading-time", passed: false },
+    { check: "missing-author", passed: false },
+    { check: "missing-date", passed: false },
+  ];
+  txCreateStub = async () => ({ id: "recovered-id" });
+  const { scrapeAndSave } = await import("@/lib/scraper");
+  const outcome = await scrapeAndSave("https://www.noemamag.com/recovered-article");
+  assert.equal(outcome.status, "saved");
+  if (outcome.status === "saved") {
+    assert.equal(outcome.id, "recovered-id");
+  }
+});
+
+test("scrapeAndSave does not recover weak quality rejects below the recovery word threshold", async () => {
+  extractArticleResult = { ...BASE_ARTICLE, wordCount: 759, readingMinutes: 4 };
+  qualityGrade = "reject";
+  qualityScore = 60;
+  qualitySignals = [{ check: "reading-time", passed: false }];
+  const { scrapeAndSave } = await import("@/lib/scraper");
+  const outcome = await scrapeAndSave("https://www.noemamag.com/short-recovered-article");
+  assert.equal(outcome.status, "failed");
+});
+
+test("scrapeAndSave does not recover rejects with non-bypassable quality checks", async () => {
+  extractArticleResult = { ...BASE_ARTICLE, wordCount: 1200, readingMinutes: 6 };
+  qualityGrade = "reject";
+  qualityScore = 40;
+  qualitySignals = [
+    { check: "reading-time", passed: false },
+    { check: "link-density", passed: false },
+  ];
+  const { scrapeAndSave } = await import("@/lib/scraper");
+  const outcome = await scrapeAndSave("https://www.noemamag.com/link-heavy-article");
+  assert.equal(outcome.status, "failed");
 });
 
 test("scrapeAndSave persists and returns saved outcome when quality is ok", async () => {

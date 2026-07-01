@@ -11,7 +11,7 @@ import type { ScrapedArticle } from "@/lib/scraper/types";
 import { extractArticle } from "@/lib/scraper/extract";
 import { fetchHtml } from "@/lib/scraper/fetch";
 import { isScraperFeatureEnabled } from "@/lib/runtime-config/feature-flags";
-import { checkContentQuality } from "@/lib/scraper/quality";
+import { checkContentQuality, isRecoverableQualityReject } from "@/lib/scraper/quality";
 import { PUBLIC_ARTICLE_CREATE_FIELDS, findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 
@@ -89,12 +89,11 @@ export async function scrapeAndSave(url: string): Promise<SaveOutcome> {
     if (!article) {
       return { status: "failed", reason: "could not extract article content", sourceUrl: url };
     }
-    // Run quality checks as a non-breaking signal. A "reject" grade (empty
-    // body, < 50 words) means the extractor produced obvious garbage; we skip
-    // persistence. "warn" is advisory — content is saved but logged for
-    // operator triage. "ok" proceeds normally.
+    // Run quality checks as a non-breaking signal. A "reject" grade usually
+    // means the extractor produced obvious garbage; only long-enough articles
+    // rejected for weak reading-time/metadata checks are recovered.
     const quality = checkContentQuality(article);
-    if (quality.grade === "reject") {
+    if (quality.grade === "reject" && !isRecoverableQualityReject(article, quality)) {
       return {
         status: "failed",
         reason: `content quality check failed (score=${quality.score})`,
@@ -138,4 +137,3 @@ export {
   setContentSourceEnabled,
   recordCrawlRun,
 } from "./sources";
-

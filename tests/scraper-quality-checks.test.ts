@@ -21,9 +21,11 @@ import assert from "node:assert/strict";
 
 import {
   checkContentQuality,
+  isRecoverableQualityReject,
   MIN_READING_MINUTES,
   MIN_READING_WORD_COUNT,
   MIN_WORD_COUNT,
+  RECOVERY_MIN_WORD_COUNT,
   SHORT_WORD_COUNT,
   MAX_LINK_DENSITY,
   MAX_GARBAGE_RATIO,
@@ -221,6 +223,41 @@ test(`quality/reject: article with ${MIN_READING_WORD_COUNT - 1} words fails rea
 
   assert.equal(signalFor(result, "reading-time")?.passed, false);
   assert.equal(result.grade, "reject");
+});
+
+test(`quality/recovery: ${RECOVERY_MIN_WORD_COUNT} words can bypass reading-time-only rejection`, () => {
+  const input = makeInput({
+    content: articleHtml(prose(RECOVERY_MIN_WORD_COUNT)),
+    wordCount: RECOVERY_MIN_WORD_COUNT,
+  });
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject");
+  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assert.equal(isRecoverableQualityReject(input, result), true);
+});
+
+test("quality/recovery: reading-time rejects below the recovery threshold are not bypassed", () => {
+  const input = makeInput({
+    content: articleHtml(prose(RECOVERY_MIN_WORD_COUNT - 1)),
+    wordCount: RECOVERY_MIN_WORD_COUNT - 1,
+  });
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject");
+  assert.equal(isRecoverableQualityReject(input, result), false);
+});
+
+test("quality/recovery: non-bypassable failed checks still block recovery", () => {
+  const input = makeInput({
+    content: articleHtml(linkedProse(RECOVERY_MIN_WORD_COUNT, "/x")),
+    wordCount: RECOVERY_MIN_WORD_COUNT,
+  });
+  const result = checkContentQuality(input);
+
+  assert.equal(result.grade, "reject");
+  assert.equal(signalFor(result, "link-density")?.passed, false);
+  assert.equal(isRecoverableQualityReject(input, result), false);
 });
 
 // ---------------------------------------------------------------------------

@@ -61,6 +61,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`content/legal-content.md`](./content/legal-content.md) | Legal/static content responsibilities. |
 | [`content/scrapers.md`](./content/scrapers.md) | Scraper providers, discovery/extraction, SSRF/robots controls, and provider drift handling. |
 | [`content/extraction-quality.md`](./content/extraction-quality.md) | Content extraction quality signals, composite score, and scraper drift triage workflow. |
+| [`content/article-quality-cleanup-design.md`](./content/article-quality-cleanup-design.md) | Proposed backlog cleanup and duplicate-analysis design for scraped public-library articles. |
 | [`content/content-reporting.md`](./content/content-reporting.md) | User content-reporting workflow, admin moderation queue, report status lifecycle, and moderation signal rules. |
 
 ### Learning
