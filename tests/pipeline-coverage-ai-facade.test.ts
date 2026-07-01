@@ -59,7 +59,7 @@ before(() => {
     namedExports: {
       getAiProvider: () => ({
         isConfigured: () => true,
-        modelName: () => "loop2-model",
+        modelName: () => "ai-facade-model",
         capabilities: () => ({ contextWindowTokens: 8000, maxOutputTokens: 512 }),
       }),
     },
@@ -72,8 +72,8 @@ before(() => {
         _options: unknown,
         onRetry: (retry: { reason: string; model: string; attempt: number; delayMs: number }) => void,
       ) => {
-        onRetry({ reason: "timeout", model: "loop2-model", attempt: 1, delayMs: 0 });
-        onRetry({ reason: "network", model: "loop2-model", attempt: 2, delayMs: 0 });
+        onRetry({ reason: "timeout", model: "ai-facade-model", attempt: 1, delayMs: 0 });
+        onRetry({ reason: "network", model: "ai-facade-model", attempt: 2, delayMs: 0 });
         return runnerOutcome;
       },
     },
@@ -92,7 +92,7 @@ test("chatCompleteWithMeta records aborted calls and retry reason fallbacks", as
   const { chatCompleteWithMeta } = await import("@/lib/ai/facade");
 
   assert.equal(
-    await chatCompleteWithMeta([{ role: "user", content: "hello" }], { feature: "loop2" }),
+    await chatCompleteWithMeta([{ role: "user", content: "hello" }], { feature: "ai-facade" }),
     null,
   );
   assert.deepEqual(retryReasons, ["timeout", "network"]);
@@ -106,7 +106,7 @@ test("chatCompleteWithMeta skips disallowed background quota without provider ca
 
   assert.equal(
     await chatCompleteWithMeta([{ role: "user", content: "hello" }], {
-      feature: "loop2",
+      feature: "ai-facade",
       kind: "background",
       userId: "user-1",
     }),
