@@ -56,7 +56,7 @@ function parseArgs(argv: string[]): Args {
   return args;
 }
 
-export { parseArgs };
+export { main, parseArgs };
 
 function printHelp(): void {
   console.log(`ReadWise background processing worker

@@ -95,6 +95,20 @@ before(() => {
   });
 });
 
+function captureExit() {
+  let resolveExit!: (code: number) => void;
+  const done = new Promise<number>((resolve) => {
+    resolveExit = resolve;
+  });
+  return {
+    done,
+    exit: ((code = 0) => {
+      resolveExit(code);
+      return undefined as never;
+    }) satisfies (code?: number) => never,
+  };
+}
+
 // ── Shared CLI helpers ─────────────────────────────────────────────────────
 
 describe("parseFlag", async () => {
@@ -231,6 +245,140 @@ describe("isMain", async () => {
     // When Node.js runs a test file, process.argv[1] is the test file path,
     // so isMain(import.meta.url) is true in this context.
     assert.equal(isMain(import.meta.url), true);
+  });
+
+  test("returns false when the URL cannot be converted to a file path", () => {
+    assert.equal(isMain("not-a-url"), false);
+  });
+});
+
+describe("runCli", async () => {
+  const { runCli } = await import("../scripts/lib/cli");
+
+  test("disconnects Prisma and exits with the returned code", async () => {
+    const calls: string[] = [];
+    const { done, exit } = captureExit();
+
+    runCli(async () => 42, {
+      disconnect: async () => {
+        calls.push("disconnect");
+      },
+      exit,
+    });
+
+    assert.equal(await done, 42);
+    assert.deepEqual(calls, ["disconnect"]);
+  });
+
+  test("prints errors, disconnects Prisma, and exits 1 on rejection", async () => {
+    const calls: string[] = [];
+    const errors: unknown[][] = [];
+    const expected = new Error("boom");
+    const { done, exit } = captureExit();
+
+    runCli(async () => {
+      throw expected;
+    }, {
+      disconnect: async () => {
+        calls.push("disconnect");
+      },
+      error: (...args) => errors.push(args),
+      exit,
+    });
+
+    assert.equal(await done, 1);
+    assert.deepEqual(calls, ["disconnect"]);
+    assert.deepEqual(errors, [[expected]]);
+  });
+});
+
+describe("runScript", async () => {
+  const { runScript } = await import("../scripts/lib/cli");
+
+  test("exits 0 when main returns void", async () => {
+    const { done, exit } = captureExit();
+    runScript(async () => {}, undefined, { exit });
+    assert.equal(await done, 0);
+  });
+
+  test("exits with the returned numeric code", async () => {
+    const { done, exit } = captureExit();
+    runScript(async () => 9, undefined, { exit });
+    assert.equal(await done, 9);
+  });
+
+  test("prints unlabelled errors and exits 1 on rejection", async () => {
+    const errors: unknown[][] = [];
+    const expected = new Error("script boom");
+    const { done, exit } = captureExit();
+
+    runScript(async () => {
+      throw expected;
+    }, undefined, {
+      error: (...args) => errors.push(args),
+      exit,
+    });
+
+    assert.equal(await done, 1);
+    assert.deepEqual(errors, [[expected]]);
+  });
+
+  test("prefixes labelled errors and exits 1 on rejection", async () => {
+    const errors: unknown[][] = [];
+    const expected = new Error("script boom");
+    const { done, exit } = captureExit();
+
+    runScript(async () => {
+      throw expected;
+    }, "worker failed", {
+      error: (...args) => errors.push(args),
+      exit,
+    });
+
+    assert.equal(await done, 1);
+    assert.deepEqual(errors, [["worker failed:", expected]]);
+  });
+});
+
+describe("registerShutdownSignals", async () => {
+  const { registerShutdownSignals } = await import("../scripts/lib/cli");
+
+  class ExitSignal extends Error {}
+
+  test("aborts on first signal and forces exit on repeated signal", () => {
+    const controller = new AbortController();
+    const info: string[] = [];
+    const warn: string[] = [];
+    const exits: number[] = [];
+    const handlers: Partial<Record<"SIGINT" | "SIGTERM", () => void>> = {};
+    const runtime = {
+      on: (event: "SIGINT" | "SIGTERM", listener: () => void) => {
+        handlers[event] = listener;
+        return runtime;
+      },
+      exit: ((code = 0) => {
+        exits.push(code);
+        throw new ExitSignal();
+      }) satisfies (code?: number) => never,
+    };
+
+    registerShutdownSignals(controller, {
+      info: (message) => info.push(message),
+      warn: (message) => warn.push(message),
+    }, runtime);
+
+    assert.ok(handlers.SIGINT);
+    assert.ok(handlers.SIGTERM);
+
+    handlers.SIGINT?.();
+    assert.equal(controller.signal.aborted, true);
+    assert.deepEqual(info, ["received SIGINT — stopping after current article…"]);
+    assert.deepEqual(warn, []);
+    assert.deepEqual(exits, []);
+
+    assert.throws(() => handlers.SIGTERM?.(), ExitSignal);
+    assert.deepEqual(warn, ["received SIGTERM again — forcing exit"]);
+    assert.deepEqual(exits, [130]);
   });
 });
 
