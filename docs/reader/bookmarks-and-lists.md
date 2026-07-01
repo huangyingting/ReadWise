@@ -1,3 +1,13 @@
+---
+title: "Bookmarks and reading lists"
+category: "Reader"
+architecture: "Documents saved/default lists, custom reading lists, membership, and IDOR-safe access boundaries."
+design: "Captures current list schemas, bookmark APIs, list membership behavior, export/deletion, and privacy rules."
+plan: "Update when ReadingList schemas, bookmark/list APIs, UI behavior, access checks, or export/deletion behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Bookmarks and reading lists
 
 Bookmarks are implemented as membership in a user's default reading list named

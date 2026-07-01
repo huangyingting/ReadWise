@@ -1,3 +1,13 @@
+---
+title: "External provider lifecycle and health operations"
+category: "Operations"
+architecture: "Documents common lifecycle and health model for optional external providers."
+design: "Captures current provider states, credential rotation, outage response, degradation, drift handling, and operator actions."
+plan: "Update when AI/Speech/Push/OAuth/Storage/Scraper providers, readiness checks, credentials, or outage workflows change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # External provider lifecycle and health operations
 
 This document defines the common lifecycle model for every external provider

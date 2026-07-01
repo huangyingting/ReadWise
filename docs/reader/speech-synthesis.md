@@ -1,3 +1,13 @@
+---
+title: "Speech synthesis and narration"
+category: "Reader"
+architecture: "Documents reader narration access checks, speech generation trigger, cache lifecycle, storage fallback, and streaming playback boundary."
+design: "Captures current reader speech routes, Azure Speech provider seam, ArticleSpeech cache, media storage, and graceful fallback behavior."
+plan: "Update when reader speech APIs, ArticleSpeech schema, Speech provider behavior, storage/audio endpoint, or playback UI changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Speech synthesis and narration
 
 Speech synthesis generates cached narration audio and word timings for reader

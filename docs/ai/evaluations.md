@@ -1,3 +1,13 @@
+---
+title: "AI evaluation datasets & regression tests"
+category: "AI"
+architecture: "Documents offline/live AI evaluation harnesses, datasets, and regression boundaries."
+design: "Captures current eval dataset structure, runner behavior, deterministic checks, live-provider safeguards, and output expectations."
+plan: "Update when eval datasets, AI tasks, scoring rules, scripts, or provider safety gates change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # AI evaluation datasets & regression tests
 
 This document describes the AI evaluation harness added in Epic

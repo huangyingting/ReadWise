@@ -1,3 +1,13 @@
+---
+title: "Authentication architecture"
+category: "Platform"
+architecture: "Documents NextAuth provider registry, session persistence, first-user bootstrap, cookies, and auth guard layering."
+design: "Captures current OAuth/provider fallbacks, database sessions, admin bootstrap, cookie posture, and route/session helpers."
+plan: "Update when auth providers, session schema, bootstrap behavior, middleware, cookies, or auth guards change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Authentication architecture
 
 ReadWise uses NextAuth v4 with database sessions. Authentication is intentionally

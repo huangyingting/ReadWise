@@ -1,3 +1,13 @@
+---
+title: "Release management runbook & deployment preflight checklist"
+category: "Operations"
+architecture: "Documents release gates, migration workflow, deployment checks, rollback decision tree, and post-release monitoring."
+design: "Captures current quality tiers, database target handling, build/dev caveats, smoke verification, and rollback process."
+plan: "Update when scripts, CI gates, migration strategy, deployment topology, smoke tests, or rollback criteria change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Release management runbook & deployment preflight checklist
 
 This runbook covers the end-to-end release process for ReadWise: preflight

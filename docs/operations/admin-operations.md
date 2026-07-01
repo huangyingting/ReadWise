@@ -1,3 +1,13 @@
+---
+title: "Admin operations, jobs and audit logs"
+category: "Operations"
+architecture: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships."
+design: "Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
+plan: "Update when admin routes, Job schema, worker behavior, processing registry, scripts, source ops, audit actions, or runbooks change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Admin operations, jobs and audit logs
 
 This document covers the **Operations / Background Processing** subsystem as
@@ -36,6 +46,11 @@ their logic.
 Admin pages are rendered inside `src/app/admin/layout.tsx`, which requires admin
 access and shows `AdminNav`. Section pages and APIs still perform their own
 capability/admin checks for defense in depth.
+
+Security-event and audit-log operator workflows have a focused runbook in
+[`security-audit.md`](./security-audit.md). Keep this document as the broad
+admin/operations map; use the runbook for triage steps and retention/config
+knobs.
 
 ## Persistent job queue
 

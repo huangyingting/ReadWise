@@ -1,3 +1,13 @@
+---
+title: "UI internationalization"
+category: "Platform"
+architecture: "Documents UI i18n architecture, locale loading, and separation from article translation and learner preferences."
+design: "Captures current catalog structure, translation lookup behavior, fallback rules, and contribution guidance."
+plan: "Update when i18n catalogs, locale loading, UI copy conventions, or translation boundaries change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # UI internationalization
 
 ReadWise currently renders product UI in English. The codebase has a small,

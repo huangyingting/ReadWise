@@ -1,3 +1,13 @@
+---
+title: "Search and indexing strategy"
+category: "Reader"
+architecture: "Documents search/indexing strategy, query boundaries, and article visibility constraints."
+design: "Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
+plan: "Update when search routes, indexes, query predicates, article visibility filters, or ranking behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Search and indexing strategy
 
 ReadWise routes user-facing search through `ArticleSearchProvider` (`src/lib/search/providers.ts`). The portable provider searches readable article fields plus the signed-in user's highlights/notes and saved vocabulary, merges results only after `readableArticleWhere`, and ranks in application code by field relevance and recency. PostgreSQL additionally has `Article_search_vector_idx`, a GIN expression index over title/excerpt/content used by the raw `postgresTextMatches` path. External search (Meilisearch/Typesense/OpenSearch) is deferred until ranking/language needs exceed PostgreSQL FTS.

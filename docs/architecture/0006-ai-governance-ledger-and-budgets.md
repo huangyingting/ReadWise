@@ -1,3 +1,13 @@
+---
+title: "ADR-0006: AI invocation ledger, prompt versions, and budgets"
+category: "Architecture"
+architecture: "Architecture decision record for AI invocation governance, prompt versions, and usage budgets."
+design: "Captures ledger metadata boundaries, budget strategy, prompt-version impacts, and consequences."
+plan: "Supersede with a new ADR if AI governance architecture changes; update AI governance docs for runtime details."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0006: AI invocation ledger, prompt versions, and budgets
 
 - **Status:** Accepted

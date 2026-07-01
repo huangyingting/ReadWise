@@ -1,3 +1,13 @@
+---
+title: "Architecture Decision Records"
+category: "Architecture"
+architecture: "Indexes durable architecture decision records for ReadWise."
+design: "Explains ADR numbering, status, template usage, and relationship to current implementation docs."
+plan: "Update when ADRs are added, superseded, renamed, or retired."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Architecture Decision Records
 
 This directory records durable architecture choices for ReadWise. ADRs are short, practical notes that explain the context, decision, trade-offs, and follow-up work for choices that future contributors may otherwise have to rediscover.

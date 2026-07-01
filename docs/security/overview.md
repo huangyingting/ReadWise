@@ -1,3 +1,13 @@
+---
+title: "Security: trusted proxy/IP, CSRF, security events & audit logs"
+category: "Security"
+architecture: "Documents security subsystem boundaries for client IP, CSRF, security events, audit logs, redaction, and rate limiting."
+design: "Captures current trusted-proxy strategies, same-origin enforcement, event monitoring, redaction policy, and audit-log relationship."
+plan: "Update when security config, client-IP logic, CSRF behavior, events, audit logging, redaction, or admin security surfaces change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Security: trusted proxy/IP, CSRF, security events & audit logs
 
 This document covers the three hardening pieces shipped in Epic **RW-E005**:
@@ -8,7 +18,8 @@ This document covers the three hardening pieces shipped in Epic **RW-E005**:
 
 It also explains how those signals relate to the durable `AuditLog` table used
 for admin/security history. Operational job/source/audit workflows are covered
-in [`admin-operations.md`](../operations/admin-operations.md).
+in [`admin-operations.md`](../operations/admin-operations.md), with security
+event and audit-log triage in [`security-audit.md`](../operations/security-audit.md).
 
 Everything here is **graceful and opt-in**: with nothing configured the app
 behaves exactly as before — but several controls are *weaker* (or spoofable)

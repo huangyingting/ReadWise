@@ -1,3 +1,13 @@
+---
+title: "ADR-0008: Organization-ready tenant model"
+category: "Architecture"
+architecture: "Architecture decision record for organization-ready tenancy, memberships, classrooms, and assignments."
+design: "Captures additive tenant model, role separation, soft references, and migration consequences."
+plan: "Supersede with a new ADR if tenancy architecture changes; update access/learning/analytics docs for behavior changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0008: Organization-ready tenant model
 
 - **Status:** Accepted

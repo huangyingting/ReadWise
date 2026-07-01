@@ -1,3 +1,13 @@
+---
+title: "Data classification and retention matrix"
+category: "Security"
+architecture: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores."
+design: "Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
+plan: "Update for every schema/model/migration change and whenever export, retention, cascade, or privacy classification changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Data classification and retention matrix
 
 **Scope:** All Prisma models in `prisma/schema.prisma` (SQLite dev) /
@@ -73,6 +83,7 @@ behavior is invented. Gaps are called out as follow-up items.
 | `GrammarExplanation` (AI-generated, per article+phrase) | Content / AI | **public** (article-scoped) | ⛔ | Cascade via article | Cascade via article | Deleted with article | `phrase`, `explanation` contain AI content; do not log |
 | `ContentSource` (scraper provider operational state) | Operations | **operational** | ⛔ | Not user-linked | Not applicable | Indefinite | Safe (health counters only) |
 | `ContentReview` (moderation audit trail per article) | Content moderation | **operational** | ⛔ | `reviewerId` is a plain string (non-FK); row survives reviewer account deletion | Cascade via article | Deleted with article | `note`, `changes` may contain admin notes; apply redaction before logging |
+| `ContentReport` (reporterUserId, articleId, reason, note, status, resolvedBy) | Content moderation | **personal + operational** | ✅ report id/article id/reason/status/timestamps; avoid exporting raw note unless explicitly required by support policy | `reporterUserId` and `resolvedBy` are plain strings (non-FK); rows survive reporter/resolver account deletion | Cascade via article | Deleted with article; otherwise retained for moderation history until product retention policy changes | `reason`/`status` safe; `note` is user-authored free text and must be redacted before logging or metadata reuse |
 
 ---
 

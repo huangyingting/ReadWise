@@ -1,3 +1,13 @@
+---
+title: "Reader highlights and notes"
+category: "Reader"
+architecture: "Documents Reader annotation ownership, highlight anchors, notes, APIs, and offline conflict boundaries."
+design: "Captures current anchor model, note editing, color rules, revalidation, merge behavior, and privacy constraints."
+plan: "Update when Highlight schema, annotation APIs/UI, offline conflict rules, export/deletion, or anchor behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Reader highlights and notes
 
 ReadWise lets learners highlight article text and attach notes. The system is

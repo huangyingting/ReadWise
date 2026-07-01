@@ -1,3 +1,13 @@
+---
+title: "Content Extraction Quality Checks"
+category: "Content"
+architecture: "Documents extraction-quality signals, classifier/heuristic boundaries, and scraper drift triage."
+design: "Captures current quality scoring, rejection/flag behavior, provider counters, and review workflow."
+plan: "Update when quality heuristics, classifiers, scraper extraction, provider health, or admin review behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Content Extraction Quality Checks
 
 Reference for the automated quality signals that guard extracted article content

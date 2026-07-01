@@ -1,3 +1,13 @@
+---
+title: "Product analytics (Epic RW-E010)"
+category: "Analytics"
+architecture: "Documents the append-only product analytics event stream, retention helpers, and privacy boundaries."
+design: "Captures current event schemas, sanitizer behavior, dashboard/export rules, and metadata-only constraints."
+plan: "Update when AnalyticsEvent schema, event types, sanitizer policy, retention, export, or admin analytics routes change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Product analytics (Epic RW-E010)
 
 ReadWise records a lightweight, append-only stream of **product analytics

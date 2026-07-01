@@ -1,3 +1,13 @@
+---
+title: "Static Asset Governance"
+category: "Platform"
+architecture: "Documents public/static asset ownership, caching, icons/fonts/PWA files, and update boundaries."
+design: "Captures current static-file conventions, service-worker/manifest interactions, cache rules, and review requirements."
+plan: "Update when public assets, icons, fonts, service worker, manifest, or static caching behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Static Asset Governance
 
 > REF-080 — Govern public fonts, icons, and static asset usage.

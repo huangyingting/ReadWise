@@ -1,3 +1,13 @@
+---
+title: "Database setup"
+category: "Platform"
+architecture: "Documents SQLite/PostgreSQL database setup, schema generation, migration workflows, and local parity stack."
+design: "Captures current Prisma schemas, DATABASE_URL/PRISMA_SCHEMA_PATH usage, migration tests, and data migration notes."
+plan: "Update when Prisma schemas, migrations, database scripts, local parity setup, or runtime DB config change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Database setup
 
 ReadWise uses the SQLite Prisma schema as the default local development

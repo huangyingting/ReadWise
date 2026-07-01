@@ -1,3 +1,13 @@
+---
+title: "Mobile Reader and PWA experience baseline"
+category: "UI"
+architecture: "Documents mobile Reader/PWA UX baseline across service worker, manifest, offline library, and touch interactions."
+design: "Captures current mobile layout, safe-area/offline/install behavior, touch/focus expectations, known gaps, and e2e coverage."
+plan: "Update when Reader mobile UI, PWA assets/service worker, offline behavior, install surface, or mobile e2e tests change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Mobile Reader and PWA experience baseline
 
 This document defines the mobile/touch behavior baseline for the ReadWise Reader, offline library, and PWA install surface. It is grounded in the actual service worker (`public/sw.js`), web-app manifest (`src/app/manifest.ts`), offline library page (`src/app/(app)/offline/page.tsx`), and Reader component set (`src/components/Reader*`).

@@ -1,3 +1,13 @@
+---
+title: "ADR-0002: Explicit article visibility with centralized access checks"
+category: "Architecture"
+architecture: "Architecture decision record for article visibility and centralized access policy."
+design: "Captures decision context, access-service design, consequences, and enforcement expectations."
+plan: "Supersede with a new ADR if article access architecture changes; update content/reader docs for implementation changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0002: Explicit article visibility with centralized access checks
 
 - **Status:** Accepted

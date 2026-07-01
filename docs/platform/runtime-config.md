@@ -1,3 +1,13 @@
+---
+title: "Runtime configuration and process.env allowlist"
+category: "Platform"
+architecture: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers."
+design: "Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
+plan: "Update when runtime-config helpers, .env.example, readiness checks, feature flags, or direct process.env exceptions change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Runtime configuration and process.env allowlist
 
 `src/lib/runtime-config/` is the server-side owner of all business configuration
@@ -114,25 +124,104 @@ if (!isFeatureEnabled("ai")) {
 }
 ```
 
+## Environment variable ownership
+
+The authoritative examples live in `.env.example`; the typed owners live in
+`src/lib/runtime-config/`. Keep both files aligned whenever a helper reads a new
+variable or changes a default.
+
+### AI provider, ledger, budgets, and moderation
+
+| Env var | Default / behavior | Owner |
+| --- | --- | --- |
+| `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | Optional provider credentials; absent means AI gracefully falls back. | `ai.ts` |
+| `AI_REQUEST_TIMEOUT_MS` | `30000` | `ai.ts` |
+| `AI_MAX_RETRIES` | `2` | `ai.ts` |
+| `AZURE_OPENAI_MAX_CONTEXT_TOKENS` | `128000` | `ai.ts` |
+| `AI_MAX_OUTPUT_TOKENS` | `4096` | `ai.ts` |
+| `AI_PROVIDER` | `azure` | `ai.ts` |
+| `AI_MODERATION_ENABLED` | off unless `1`/`true`/`on` | `ai.ts` |
+| `AI_LEDGER_ENABLED` | on outside `NODE_ENV=test`, off when `0`/`false` | `ai.ts` |
+| `AI_LEDGER_RETENTION_DAYS` | `365` | `ai.ts` |
+| `AI_COST_PROMPT_PER_1K`, `AI_COST_COMPLETION_PER_1K` | default cost rates for estimates | `ai.ts` |
+| `AI_COST_RATES` | optional per-model JSON override map | `ai.ts` |
+| `AI_QUOTA_WINDOW_MS`, `AI_QUOTA_USER_DAILY`, `AI_QUOTA_GLOBAL_DAILY`, `AI_QUOTA_BACKGROUND_DAILY`, `AI_QUOTA_FEATURE_DEFAULT_DAILY`, `AI_QUOTA_FEATURE_<FEATURE>_DAILY` | optional quota caps; unset/blank means unlimited | `ai.ts` |
+
+### Speech and media storage
+
+| Env var | Default / behavior | Owner |
+| --- | --- | --- |
+| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Optional Speech credentials; absent disables TTS/pronunciation token features gracefully. | `speech.ts` |
+| `AZURE_SPEECH_VOICE` | `en-US-AndrewMultilingualNeural` | `speech.ts` |
+| `AZURE_SPEECH_OUTPUT_FORMAT` | `audio-24khz-96kbitrate-mono-mp3` | `speech.ts` |
+| `SPEECH_TIMEOUT_MS` | `30000` | `speech.ts` |
+| `MEDIA_STORAGE` | `database`; also supports `filesystem` and `azure` | `storage.ts` |
+| `MEDIA_STORAGE_DIR` | `./.media` resolved from project root | `storage.ts` |
+| `AZURE_STORAGE_CONNECTION_STRING` | optional Azure Blob auth path | `storage.ts` |
+| `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY` | account/key Azure Blob auth path | `storage.ts` |
+| `AZURE_STORAGE_CONTAINER` | `media` | `storage.ts` |
+
+### Scraper tuning
+
+| Env var | Default / behavior | Owner |
+| --- | --- | --- |
+| `SCRAPER_MAX_BYTES` | `5242880` (5 MiB), minimum 256 | `scraper.ts` |
+| `SCRAPER_TIMEOUT_MS` | `15000`, minimum 10 | `scraper.ts` |
+| `SCRAPER_HTML_NORMALIZE` | off unless exactly `true` | `scraper.ts` |
+| `SCRAPER_READABILITY` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_PROFILE_RETRY` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_BROWSER` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_READER` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_WAYBACK` | on unless `false` | `scraper.ts` |
+| `SCRAPER_FETCH_429_RETRIES` | `3`; `0` disables same-strategy 429 retries | `scraper.ts` |
+| `SCRAPER_FETCH_429_BASE_MS` | `1000` | `scraper.ts` |
+| `SCRAPER_FETCH_429_MAX_MS` | `20000` | `scraper.ts` |
+| `SCRAPER_QUALITY_CLASSIFIER` | on unless `false` | `scraper.ts` |
+| `JINA_API_KEY` | optional reader-proxy token consumed by scraper fetch code | scraper fetch pipeline |
+
+### Observability, security, analytics, cache, and rate limiting
+
+| Env var | Default / behavior | Owner |
+| --- | --- | --- |
+| `LOG_LEVEL` | `info` | `observability.ts` |
+| `TRACING_ENABLED` | off unless truthy | `observability.ts` |
+| `OTEL_EXPORTER_OTLP_TRACES_ENDPOINT`, `OTEL_EXPORTER_OTLP_ENDPOINT` | optional OTLP endpoint; endpoint selects OTLP exporter | `observability.ts` |
+| `OTEL_SERVICE_NAME` | `readwise` | `observability.ts` |
+| `APP_VERSION` | package version or `0.0.0` | `observability.ts` |
+| `ERROR_REPORTING_PROVIDER` | `log` | `observability.ts` |
+| `ERROR_ALERT_THRESHOLD` | `10` | `observability.ts` |
+| `TRUSTED_PROXY_HEADER`, `TRUSTED_PROXY_LIST`, `TRUSTED_PROXY_HOPS` | optional trusted client-IP strategies | `security.ts` |
+| `CSRF_ALLOWED_ORIGINS` | empty; `NEXTAUTH_URL`/`APP_URL`/`NEXT_PUBLIC_APP_URL` origins are always trusted | `security.ts` |
+| `CSRF_ENFORCE` | on unless `false`/`0`/`off`/`no` | `security.ts` |
+| `SECURITY_EVENT_ALERT_THRESHOLD` | `10` | `security.ts` |
+| `SECURITY_EVENT_WINDOW_MS` | `60000` | `security.ts` |
+| `SECURITY_EVENT_BUFFER_SIZE` | `200`, max 2000 | `security.ts` |
+| `AUDIT_LOG_RETENTION_DAYS` | `730` | `security.ts` |
+| `RATE_LIMIT_AI_REQUESTS`, `RATE_LIMIT_LOOKUP_REQUESTS`, `RATE_LIMIT_PUBLIC_REQUESTS`, `RATE_LIMIT_IMPORT_REQUESTS`, `RATE_LIMIT_ADMIN_JOB_REQUESTS`, `RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_WINDOW_MS` | fixed-window thresholds | `rate-limit.ts` |
+| `RATE_LIMIT_STORE` | `auto` outside test, `memory` in test; supports `auto`, `database`, `memory` | `rate-limit.ts` |
+| `READWISE_DISABLE_LISTING_CACHE` | off unless truthy in listing-cache code | `src/lib/cache.ts` |
+| `ANALYTICS_ENABLED` | on outside test, off when `0`/`false` | `analytics.ts` |
+| `ANALYTICS_RETENTION_DAYS` | `400` | `analytics.ts` |
+
 ---
 
 ## Runtime-config module reference
 
 | Module | Exported as | Env vars owned |
 | --- | --- | --- |
-| `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES` |
-| `src/lib/runtime-config/analytics.ts` | `analytics` | Analytics provider config |
+| `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
+| `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 | `src/lib/runtime-config/database.ts` | `database` | `PRISMA_SCHEMA_PATH` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |
 | `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
 | `src/lib/runtime-config/oauth.ts` | `oauth` | `GOOGLE_CLIENT_*`, `AZURE_AD_*` |
-| `src/lib/runtime-config/observability.ts` | `observability` | `LOG_LEVEL`, Sentry/telemetry DSN |
+| `src/lib/runtime-config/observability.ts` | `observability` | `LOG_LEVEL`, `TRACING_ENABLED`, `OTEL_*`, `OTEL_SERVICE_NAME`, `APP_VERSION`, `ERROR_REPORTING_PROVIDER`, `ERROR_ALERT_THRESHOLD` |
 | `src/lib/runtime-config/push.ts` | `push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
-| `src/lib/runtime-config/rate-limit.ts` | `rateLimit` | `RATE_LIMIT_*`, `RATE_LIMIT_WINDOW_MS` |
+| `src/lib/runtime-config/rate-limit.ts` | `rateLimit` | `RATE_LIMIT_*`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_STORE` |
 | `src/lib/runtime-config/runtime.ts` | — (readiness only) | Composes all sections for `/api/ready`. Validates `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. |
-| `src/lib/runtime-config/scraper.ts` | `scraper` | `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE` |
-| `src/lib/runtime-config/security.ts` | `security` | Security posture config |
-| `src/lib/runtime-config/speech.ts` | `speech` | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_OUTPUT_FORMAT`, `VOICE` |
+| `src/lib/runtime-config/scraper.ts` | `scraper` | `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE`, `SCRAPER_READABILITY`, fetch fallback toggles, 429 retry knobs, quality classifier |
+| `src/lib/runtime-config/security.ts` | `security` | `TRUSTED_PROXY_*`, `CSRF_*`, `SECURITY_EVENT_*`, `AUDIT_LOG_RETENTION_DAYS` |
+| `src/lib/runtime-config/speech.ts` | `speech` | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_OUTPUT_FORMAT`, `AZURE_SPEECH_VOICE`, `SPEECH_TIMEOUT_MS` |
 | `src/lib/runtime-config/storage.ts` | `storage` | `MEDIA_STORAGE`, `MEDIA_STORAGE_DIR`, `AZURE_STORAGE_*` |
 
 All modules are server-only. Never import them from a `"use client"` file or any

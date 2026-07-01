@@ -1,3 +1,13 @@
+---
+title: "ADR-0001: PostgreSQL as the primary durable database"
+category: "Architecture"
+architecture: "Architecture decision record for database direction and SQLite/PostgreSQL parity."
+design: "Captures decision context, chosen database posture, consequences, and migration expectations."
+plan: "Supersede with a new ADR if database strategy changes; keep implementation docs aligned separately."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0001: PostgreSQL as the primary durable database
 
 - **Status:** Accepted

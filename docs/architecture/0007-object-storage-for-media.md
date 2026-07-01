@@ -1,3 +1,13 @@
+---
+title: "ADR-0007: Object storage for generated and imported media"
+category: "Architecture"
+architecture: "Architecture decision record for optional object storage and media metadata."
+design: "Captures storage abstraction, graceful fallback, migration consequences, and media ownership."
+plan: "Supersede with a new ADR if media storage architecture changes; update media docs for backend details."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ADR-0007: Object storage for generated and imported media
 
 - **Status:** Accepted

@@ -1,3 +1,13 @@
+---
+title: "Abuse prevention controls"
+category: "Security"
+architecture: "Documents abuse-prevention signals, rate limits, mitigation hooks, and implemented/proposed control boundaries."
+design: "Captures current thresholds, route scopes, provider-fallback behavior, monitoring signals, and future design targets."
+plan: "Update when rate limits, security events, abuse signals, provider controls, or mitigation workflows change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Abuse prevention controls
 
 ReadWise abuse prevention is currently built from point-of-call controls:

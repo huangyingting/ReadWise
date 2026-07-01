@@ -1,3 +1,13 @@
+---
+title: "ReadWise documentation index"
+category: "Documentation index"
+architecture: "Maps durable subsystem documentation for the current ReadWise codebase."
+design: "Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
+plan: "Update whenever docs are created, deleted, renamed, merged, or materially change scope."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # ReadWise documentation index
 
 This directory contains the durable reference documentation for the current
@@ -69,11 +79,15 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
+| [`learning/gamification.md`](./learning/gamification.md) | Gamification summary route, streak/shield widgets, daily-goal progress, and due-review counts. |
 | [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, Today comprehension feedback, coach memory, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
+| [`learning/placement.md`](./learning/placement.md) | Reading placement passage flow, deterministic scoring, `PlacementResult` persistence, retake/skip behavior, and privacy rules. |
 | [`learning/profile-preferences.md`](./learning/profile-preferences.md) | Onboarding/profile validation, CEFR/topics/daily-goal preferences, level history, and personalization consumers. |
 | [`learning/today-session.md`](./learning/today-session.md) | Today Session: one durable learner-local-day workflow anchor, idempotent daily generation, user-selected primary articles, lightweight comprehension checks, target saved-word review, and timezone/local-date semantics. |
+| [`learning/study-plan.md`](./learning/study-plan.md) | Dynamic Study Plan diagnostics, `/study` mode, due flashcards, cloze fallback, and saved-word review routes. |
 | [`learning/review-assets.md`](./learning/review-assets.md) | Review assets: optional, low-pressure conversion of existing highlights/notes into flashcard/SRS review cards, content-free Progress/Study counts, and the additive Today reflection bonus. |
-| [`learning/reading-series.md`](./learning/reading-series.md) | Curated reading series schema foundation: ordered article collections and per-user enrollment state; no current API/UI/Today integration. |
+| [`learning/reading-series.md`](./learning/reading-series.md) | Curated reading series, learner `/series` browser, enroll/unenroll APIs, Today soft-candidate integration, and remaining admin/export gaps. |
+| [`learning/teacher-workflows.md`](./learning/teacher-workflows.md) | Teacher classroom and assignment workflows, student completion state, classroom analytics boundaries, and Access/Learning ownership split. |
 
 ### Media
 
@@ -99,6 +113,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`operations/incident-response.md`](./operations/incident-response.md) | On-call SLO breach runbooks: detection, triage, mitigation, and post-incident review workflow. |
 | [`operations/capacity-planning.md`](./operations/capacity-planning.md) | Known subsystem limits, observable signals, baseline assumptions, scaling levers, Redis adoption gate, and follow-up gaps for each major ReadWise subsystem. |
 | [`operations/provider-operations.md`](./operations/provider-operations.md) | Common lifecycle model for all external providers: health states, credential rotation, outage response, and provider-drift handling. |
+| [`operations/security-audit.md`](./operations/security-audit.md) | Security event and audit-log operations: `/admin/security`, recent event triage, durable audit-log reads, retention, and privacy-safe investigation rules. |
 | [`operations/tts-jobs.md`](./operations/tts-jobs.md) | `TTS_GENERATE` job scheduling, deduplication, retry policy, and rebuild flow under Operations ownership. |
 
 ### Platform
@@ -112,6 +127,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
 | [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
 | [`platform/dependency-injection.md`](./platform/dependency-injection.md) | Dependency injection seams and testing guidance. |
+| [`platform/documentation-governance.md`](./platform/documentation-governance.md) | Documentation metadata schema, rename/merge/delete/create decisions, generated-doc handling, and freshness checklist. |
 | [`platform/health-readiness.md`](./platform/health-readiness.md) | `/api/health`, `/api/ready`, runtime config validation, migrations, and optional-provider degradation. |
 | [`platform/runtime-config.md`](./platform/runtime-config.md) | Runtime configuration ownership, typed helpers, and the documented `process.env` allowlist. |
 | [`platform/push-notifications.md`](./platform/push-notifications.md) | Web Push configuration, subscription lifecycle, reminder scheduling, delivery health, and privacy. |
@@ -131,6 +147,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`reader/lexical-dictionary.md`](./reader/lexical-dictionary.md) | Dictionary lookup provider seam, word normalization, saved-word persistence, mastery exposure, and privacy rules. |
 | [`reader/offline-sync.md`](./reader/offline-sync.md) | Offline mutation queue, conflict resolution, cache versioning, background-sync resilience, and push reminders. |
 | [`reader/annotations.md`](./reader/annotations.md) | Highlights, notes, anchor revalidation, offline note merge, and reader annotation APIs. |
+| [`reader/reader-tools.md`](./reader/reader-tools.md) | Reader learning tools: vocabulary, quiz, tutor, dictation, pronunciation, grammar, selection tools, fallbacks, offline behavior, and privacy boundaries. |
 | [`reader/recommendations.md`](./reader/recommendations.md) | Scored Picks candidate boundary, per-user context, scoring weights, diversity pass, explanations, and privacy. |
 | [`reader/search-and-indexing.md`](./reader/search-and-indexing.md) | Search and indexing strategy. |
 | [`reader/speech-synthesis.md`](./reader/speech-synthesis.md) | Narration access checks, Azure Speech provider seam, speech cache lifecycle, storage fallback, and streaming playback. |
@@ -150,6 +167,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`speech/generation.md`](./speech/generation.md) | TTS provider seam, request building, voice and format fallback, word-boundary collection, and `ArticleSpeech` generation semantics. |
+| [`speech/pronunciation-practice.md`](./speech/pronunciation-practice.md) | Browser-side Azure Speech pronunciation assessment, short-lived Speech tokens, attempt persistence, history, skill evidence, and privacy boundaries. |
 
 ### UI
 

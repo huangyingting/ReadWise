@@ -1,3 +1,13 @@
+---
+title: "Lexical dictionary and saved-word lookup"
+category: "Reader"
+architecture: "Documents lexical provider seam, word normalization, dictionary lookup, saved-word persistence, and AI vocabulary panel relationship."
+design: "Captures current normalization rules, local/free/hybrid providers, lookup route behavior, saved-word SRS integration, and privacy constraints."
+plan: "Update when dictionary providers, normalization, saved-word routes/read models, AI vocabulary panel, or SRS integration changes."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Lexical dictionary and saved-word lookup
 
 The lexical subsystem connects reader word selection, dictionary lookup,
@@ -111,6 +121,21 @@ Saved-word rules:
 
 SRS scheduling and flashcard grading are documented in
 [`../learning/learning-and-mastery.md`](../learning/learning-and-mastery.md).
+
+## AI vocabulary panel UX and integration
+
+The Reader Words tab (`ArticleVocabulary`) is distinct from selection-based
+dictionary lookup. It calls `POST /api/reader/[id]/vocabulary` lazily on first
+open and displays AI-generated article vocabulary cards with `word`,
+`explanation`, `example`, saved state, and frequency tier. Save/unsave actions
+reuse the same `SavedWord` persistence routes as dictionary lookup, so Study
+mode sees a single explicit user study list.
+
+The vocabulary panel may use cached/generated article enrichment, but product
+analytics and logs must still treat the vocabulary text as user-visible learning
+content: do not copy words, explanations, examples, context sentences, or
+article text into metadata. The broader Reader tool behavior is documented in
+[`reader-tools.md`](./reader-tools.md).
 
 ## Privacy
 

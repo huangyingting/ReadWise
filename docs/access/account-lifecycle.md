@@ -1,3 +1,13 @@
+---
+title: "Account lifecycle, exports, deletion, and support actions"
+category: "Access"
+architecture: "Documents account ownership, support/admin action boundaries, export/delete cascades, and access-related data lifecycle contracts."
+design: "Captures current account APIs, admin support workflows, guardrails, privacy constraints, and deletion/export behavior."
+plan: "Update when account routes, support actions, role changes, cascades, or export payloads change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Account lifecycle, exports, deletion, and support actions
 
 This document covers user-owned data export, self-service account deletion,

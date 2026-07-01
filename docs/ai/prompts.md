@@ -1,3 +1,13 @@
+---
+title: "AI prompt templates & version management"
+category: "AI"
+architecture: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications."
+design: "Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
+plan: "Update when prompt text, versions, model assumptions, validators, or derived-cache rebuild paths change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # AI prompt templates & version management
 
 This document describes the prompt template / version registry added in Epic

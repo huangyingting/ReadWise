@@ -1,3 +1,13 @@
+---
+title: "Domain reporting and read models"
+category: "Analytics"
+architecture: "Documents domain-owned reporting read models and their separation from the product analytics event stream."
+design: "Captures current aggregation boundaries, visibility rules, privacy limits, and report ownership."
+plan: "Update when domain reporting queries, read models, admin dashboards, or privacy constraints change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Domain reporting and read models
 
 ReadWise distinguishes between the **product analytics event stream** (an

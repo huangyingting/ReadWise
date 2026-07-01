@@ -1,3 +1,13 @@
+---
+title: "Legal and Static Content Governance"
+category: "Content"
+architecture: "Documents legal/static content ownership and release/update boundaries."
+design: "Captures current responsibilities for terms, privacy, static routes, review cadence, and change control."
+plan: "Update when legal/static pages, copy ownership, review workflow, or deployment requirements change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Legal and Static Content Governance
 
 > REF-075 — Consolidate legal/static pages, metadata, and manifest content

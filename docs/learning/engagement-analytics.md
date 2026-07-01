@@ -1,3 +1,13 @@
+---
+title: "Engagement analytics, streaks, heatmaps, and reading speed"
+category: "Learning"
+architecture: "Documents learner-owned engagement read models derived from progress, daily activity, streaks, heatmaps, and reading speed."
+design: "Captures current local-day rules, forward-only progress, shield policy, WPM calculations, gamification summary, and privacy boundaries."
+plan: "Update when progress writes, DailyActivity, streak/shield logic, heatmap, reading speed, or gamification summary behavior change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # Engagement analytics, streaks, heatmaps, and reading speed
 
 Engagement analytics are learner-facing signals derived from user-owned domain
@@ -86,6 +96,17 @@ Shield policy:
 
 Shield updates and the daily activity upsert run transactionally so the visible
 count and the stored activity row do not drift.
+
+## Gamification summary route
+
+`GET /api/gamification/summary` combines `getStreakSummary(userId)` with
+`getReviewSummary(userId)` so dashboard widgets can render current streak,
+longest streak, daily goal, today's progress, last-seven-day activity, shield
+count, and SRS due-count metadata in one request. The endpoint returns counts
+and booleans only; it never returns reviewed words, definitions, article text,
+quiz answers, or private study content.
+
+The complete widget contract is documented in [`gamification.md`](./gamification.md).
 
 ## Reading speed
 

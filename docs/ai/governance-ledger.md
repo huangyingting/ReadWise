@@ -1,3 +1,13 @@
+---
+title: "AI governance ledger, budgets, and usage reporting"
+category: "AI"
+architecture: "Documents AI invocation ledger, cost estimates, budgets, retention, and admin usage reporting."
+design: "Captures current metadata-only ledger writes, quota enforcement, cost configuration, privacy boundaries, and reporting flows."
+plan: "Update when AiInvocation schema, AI quotas, cost rates, ledger retention, or admin AI usage routes change."
+updated: "2026-07-01"
+rename: "none"
+---
+
 # AI governance ledger, budgets, and usage reporting
 
 ReadWise treats every AI provider call as a governed product operation: calls are
