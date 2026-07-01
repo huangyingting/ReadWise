@@ -78,6 +78,7 @@ Voice and output format are read from environment variables via
 
 | Variable                    | Default                                    |
 | --------------------------- | ------------------------------------------ |
+| `AZURE_SPEECH_ENDPOINT`     | REST batch script only; derived from region when unset |
 | `AZURE_SPEECH_VOICE`        | `en-US-AndrewMultilingualNeural`           |
 | `AZURE_SPEECH_OUTPUT_FORMAT`| `audio-24khz-96kbitrate-mono-mp3`          |
 | `SPEECH_TIMEOUT_MS`         | `30000`                                    |
@@ -94,6 +95,104 @@ defined in the `map` inside `provider-azure.ts`.
 **No multi-voice cache:** an article has exactly one active `ArticleSpeech` row.
 Changing voice or format does not retain the previous narration; the next
 synthesis request overwrites it.
+
+## Azure Batch Synthesis CLI
+
+Use `npm run speech:batch` for backend/offline narration jobs that should cover
+full article text instead of the live-listening `MAX_TTS_CHARS = 5000` cap. The
+script extracts DOM-order reader blocks with `articleHtmlToReaderBlocks`, submits
+Azure Speech Batch Synthesis jobs, enables `wordBoundaryEnabled`, downloads the
+result ZIP, parses `[nnnn].word.json`, and saves audio/timings through
+`saveSpeechResult`.
+
+Azure's Batch Synthesis result documentation shows `[nnnn].word.json` entries as
+`Text`, `AudioOffset`, and `Duration` in milliseconds. The parser also preserves
+optional `TextOffset` plus `WordLength`/`TextLength` fields if the service returns
+them for a voice/model, so the reader can use direct text spans instead of token
+alignment. When Batch returns only the documented fields, the script derives
+`textStart`/`textEnd` spans by aligning returned word-boundary text back to the
+same DOM-extracted `plainText` that was sent to Azure.
+
+Safe dry-run examples:
+
+```bash
+npm run speech:batch -- --all --status PUBLISHED --limit 100 --dry-run
+npm run speech:batch -- --all --source "Undark" --dry-run
+```
+
+Production examples:
+
+```bash
+# Lowest-storage web playback: MP3, 16 kHz, 32 kbps mono.
+npm run speech:batch -- --all --status PUBLISHED --limit 100
+
+# HD voice with an expressive style and conversational paragraph pauses.
+npm run speech:batch -- --all --status PUBLISHED --limit 25 \
+  --hd --style calm --style-degree 1.1 --paragraph-break-ms 650
+
+# Rotate one voice per article from an explicit candidate list.
+npm run speech:batch -- ARTICLE_ID \
+  --voices en-US-AvaMultilingualNeural,en-US-AndrewMultilingualNeural \
+  --sentence-break-ms 180
+```
+
+Important operator notes:
+
+- Configure `AZURE_SPEECH_KEY` and `AZURE_SPEECH_REGION`; set
+  `AZURE_SPEECH_ENDPOINT` to the Speech resource endpoint when using REST Batch
+  Synthesis.
+- `--all` selects public library articles (`visibility = PUBLIC`,
+  `ownerId = null`) by default. Use explicit article ids, or pass
+  `--include-private`, only when intentionally sending user/private article text
+  to Azure Speech.
+- Configure media object storage for large batch runs. If no storage backend is
+  active, `saveSpeechResult` falls back to inline `ArticleSpeech.audioBase64`,
+  which can make the application database very large.
+- The default batch output format is
+  `audio-16khz-32kbitrate-mono-mp3` for broad browser playback with the lowest
+  storage footprint. Pass `--format audio-24khz-48kbitrate-mono-mp3` or another
+  Azure-supported MP3 format when quality should take priority over size.
+- `--hd` uses the built-in English DragonHD preset and randomly selects one HD
+  voice per article when no explicit `--voice` or `--voices` is supplied. Use
+  `--list-hd-voices` to print the preset. HD voices, `mstts:express-as` styles,
+  roles, and style degrees only work for Azure voices that support those SSML
+  features. Treat this as experimental for Batch Synthesis: Azure documentation
+  lists DragonHD as real-time only, and voice/region/API support can reject the
+  job. Always test with `--limit 1` before starting a large HD batch.
+- `--voices` supplies an explicit per-article voice candidate list. By default it
+  rotates one voice per article; add `--voice-mode random` to randomly choose one
+  candidate per article. Existing cache semantics still apply: each article has
+  one active `ArticleSpeech` row, so regenerating with different voices overwrites
+  the prior narration.
+- Built-in English DragonHD preset used by `--hd`:
+  - `en-US-Adam:DragonHDLatestNeural`
+  - `en-US-Alloy:DragonHDLatestNeural`
+  - `en-US-Andrew:DragonHDLatestNeural`
+  - `en-US-Andrew2:DragonHDLatestNeural`
+  - `en-US-Aria:DragonHDLatestNeural`
+  - `en-US-Ava:DragonHDLatestNeural`
+  - `en-US-Brian:DragonHDLatestNeural`
+  - `en-US-Davis:DragonHDLatestNeural`
+  - `en-US-Emma:DragonHDLatestNeural`
+  - `en-US-Emma2:DragonHDLatestNeural`
+  - `en-US-Jenny:DragonHDLatestNeural`
+  - `en-US-Nova:DragonHDLatestNeural`
+  - `en-US-Phoebe:DragonHDLatestNeural`
+  - `en-US-Serena:DragonHDLatestNeural`
+  - `en-US-Steffan:DragonHDLatestNeural`
+- `--paragraph-break-ms` and `--sentence-break-ms` emit SSML `<break>` tags for
+  conversational pauses.
+- The script never logs article text, SSML payloads, audio bytes, Azure keys, or
+  result URLs. It logs article ids, counts, job ids, timing counts, and byte
+  counts only.
+- The script supports multiple articles per Azure batch request: each article is
+  one `inputs[]` item, and result files map back by Azure's numbered `[nnnn]`
+  prefix. It chunks automatically at Azure's documented hard limits: 2 MB JSON
+  request payload and 1,000 text input objects per batch job.
+- `--max-chars` is not applied by default. Use it only when intentionally
+  producing previews instead of full article audio. If a single article cannot
+  fit inside the 2 MB request hard limit, the script fails that run instead of
+  silently truncating content.
 
 ## Word-boundary collection
 

@@ -64,7 +64,7 @@ describe("sanitizeArticleHtml", async () => {
 // ---------------------------------------------------------------------------
 
 describe("articleHtmlToReaderText", async () => {
-  const { articleHtmlToReaderText } = await import("@/lib/content-pipeline");
+  const { articleHtmlToReaderBlocks, articleHtmlToReaderText } = await import("@/lib/content-pipeline");
 
   test("strips tags and normalises whitespace", () => {
     assert.equal(articleHtmlToReaderText("<p>Hello</p><p>World</p>"), "Hello World");
@@ -97,6 +97,26 @@ describe("articleHtmlToReaderText", async () => {
     );
     assert.doesNotMatch(text, /PROMO/);
     assert.match(text, /Article body/);
+  });
+
+  test("extracts DOM-order reader blocks for batch speech", () => {
+    const extracted = articleHtmlToReaderBlocks(
+      "<h1>Title</h1><p>Hello<strong>world</strong> , again.</p><ul><li>First item</li><li>Second item</li></ul>",
+    );
+    assert.deepEqual(extracted.blocks, [
+      "Title",
+      "Hello world, again.",
+      "First item",
+      "Second item",
+    ]);
+    assert.equal(extracted.plainText, "Title Hello world, again. First item Second item");
+  });
+
+  test("keeps inline fallback text when no block tags exist", () => {
+    const extracted = articleHtmlToReaderBlocks("<span>Loose</span> text <br> only");
+    assert.deepEqual(extracted.blocks, ["Loose text only"]);
+    assert.equal(articleHtmlToReaderText("<span>Loose</span> text <br> only"), "Loose text only");
+    assert.equal(articleHtmlToReaderText("AT&amp;T &amp; friends"), "AT&T & friends");
   });
 
 });

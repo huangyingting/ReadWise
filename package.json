@@ -31,6 +31,7 @@
     "postinstall": "prisma generate",
     "migrate-storage": "npm run node-ts -- scripts/migrate-storage.ts",
     "migrate-speech-timing": "npm run node-ts -- scripts/migrate-speech-timing.ts",
+    "speech:batch": "npm run node-ts -- scripts/batch-synthesis.ts",
     "schema:generate": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/generate-schemas.ts",
     "schema:check-parity": "node --experimental-strip-types --no-warnings scripts/check-schema-parity.ts",
     "api-catalog": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/generate-api-catalog.ts",
