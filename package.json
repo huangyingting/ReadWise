@@ -10,6 +10,7 @@
     "typecheck": "tsc --noEmit",
     "node-ts": "node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs",
     "test": "NODE_ENV=test node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test \"tests/**/*.test.ts\"",
+    "coverage:node": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/check-node-coverage.ts",
     "test:db": "NODE_ENV=test RUN_DB_INTEGRATION=1 node --env-file-if-exists=.env --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings --experimental-test-module-mocks --test-concurrency=1 --test \"tests/db/**/*.test.ts\"",
     "test:e2e:smoke": "playwright test --config=playwright.config.ts",
     "scrape": "npm run node-ts -- scripts/scrape.ts",

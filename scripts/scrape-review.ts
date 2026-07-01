@@ -1,4 +1,4 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
 import { randomUUID } from "node:crypto";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -486,7 +486,7 @@ async function startReviewServer(
   args: ScrapeReviewArgs,
   items: ReviewItem[],
   mode: ReviewMode,
-): Promise<void> {
+): Promise<Server> {
   const itemById = new Map(items.map((item) => [item.id, item]));
   const feedbackFile = args.feedbackFile ? path.resolve(process.cwd(), args.feedbackFile) : null;
   if (feedbackFile) await mkdir(path.dirname(feedbackFile), { recursive: true });
@@ -519,6 +519,7 @@ async function startReviewServer(
   };
   process.on("SIGINT", () => void shutdown());
   process.on("SIGTERM", () => void shutdown());
+  return server;
 }
 
 type RouteContext = {
@@ -779,8 +780,16 @@ function jsonForScript(value: unknown): string {
     .replace(/\u2029/g, "\\u2029");
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(
+  argv = process.argv.slice(2),
+  overrides: {
+    loadPreviewItems?: typeof loadPreviewItems;
+    loadDbReviewItems?: typeof loadDbReviewItems;
+    startReviewServer?: typeof startReviewServer;
+    closeBrowser?: typeof closeBrowser;
+  } = {},
+): Promise<number> {
+  const args = parseArgs(argv);
   if (args.help) {
     printHelp();
     return 0;
@@ -790,10 +799,12 @@ async function main(): Promise<number> {
   }
 
   const mode: ReviewMode = args.noDb ? "preview" : "db";
-  const items = mode === "preview" ? await loadPreviewItems(args) : await loadDbReviewItems(args);
-  await closeBrowser();
+  const loadPreview = overrides.loadPreviewItems ?? loadPreviewItems;
+  const loadDb = overrides.loadDbReviewItems ?? loadDbReviewItems;
+  const items = mode === "preview" ? await loadPreview(args) : await loadDb(args);
+  await (overrides.closeBrowser ?? closeBrowser)();
   if (items.length === 0) throw new Error("No review items loaded.");
-  await startReviewServer(args, items, mode);
+  await (overrides.startReviewServer ?? startReviewServer)(args, items, mode);
   return 0;
 }
 
@@ -804,6 +815,35 @@ function isMain(importMetaUrl: string): boolean {
     return false;
   }
 }
+
+export const __scrapeReviewTest = {
+  printHelp,
+  positiveInt,
+  parseOrder,
+  startReviewServer,
+  loadDbReviewItems,
+  fetchArticlesByIds,
+  rowsToReviewItems,
+  dbRowToQualityInput,
+  loadPreviewItems,
+  collectPreviewUrls,
+  previewUrl,
+  failedReviewItem,
+  summarizeQuality,
+  previewText,
+  countWords,
+  requireProvider,
+  dedupeUrls,
+  shuffle,
+  routeRequest,
+  readJsonBody,
+  validateFeedback,
+  sendHtml,
+  sendJson,
+  renderPage,
+  jsonForScript,
+  main,
+};
 
 if (isMain(import.meta.url)) {
   main().catch(async (err: unknown) => {
