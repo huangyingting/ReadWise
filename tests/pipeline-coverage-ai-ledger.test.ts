@@ -15,7 +15,7 @@ before(() => {
         aiInvocation: {
           create: async (args: { data: CreatedRecord }) => {
             created.push(args.data);
-            return { id: "loop3-cache-hit", ...args.data };
+            return { id: "ai-ledger-cache-hit", ...args.data };
           },
         },
       },
@@ -36,7 +36,7 @@ test("recordAiCacheHit records a successful cache-hit ledger entry by default", 
   const { recordAiCacheHit } = await import("@/lib/ai/ledger");
 
   await recordAiCacheHit({
-    feature: "loop3-cache-coverage",
+    feature: "ai-ledger-cache-coverage",
     model: "gpt-cache",
     promptTokens: 8,
     completionTokens: 3,
@@ -44,7 +44,7 @@ test("recordAiCacheHit records a successful cache-hit ledger entry by default", 
   });
 
   assert.equal(created.length, 1);
-  assert.equal(created[0].feature, "loop3-cache-coverage");
+  assert.equal(created[0].feature, "ai-ledger-cache-coverage");
   assert.equal(created[0].status, "success");
   assert.equal(created[0].cacheHit, true);
   assert.equal(created[0].fallback, false);

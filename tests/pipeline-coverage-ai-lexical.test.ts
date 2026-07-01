@@ -284,7 +284,7 @@ test("FreeDictionaryProvider handles phonetic fallback, empty meanings, and defa
   assert.equal((await new FreeDictionaryProvider().fetchEntry("fallback"))?.phonetic, "/fallback/");
 
   const local = new LocalDictionaryProvider({
-    directory: "tests/fixtures/dict-loop2",
+    directory: "tests/fixtures/dict-local-provider",
     dictionary: "en",
   });
   const localEntry = await local.fetchEntry(" VALID ");
@@ -295,7 +295,7 @@ test("FreeDictionaryProvider handles phonetic fallback, empty meanings, and defa
   );
   assert.equal(await local.fetchEntry("empty"), null);
   assert.equal(
-    await new LocalDictionaryProvider({ directory: "tests/fixtures/missing-dict-loop2" }).fetchEntry("valid"),
+    await new LocalDictionaryProvider({ directory: "tests/fixtures/missing-dict-local-provider" }).fetchEntry("valid"),
     null,
   );
 

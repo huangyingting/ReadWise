@@ -16,7 +16,7 @@ test("incrementSharedCounter opportunistically sweeps expired rows without surfa
   } satisfies RateLimitStoreClient;
   const { incrementSharedCounter } = await import("@/lib/security/rate-limit/store");
 
-  const count = await incrementSharedCounter("bucket:loop2", 1_000, 500, client);
+  const count = await incrementSharedCounter("bucket:rate-limit-store", 1_000, 500, client);
   await Promise.resolve();
 
   assert.equal(count, 4);
