@@ -57,6 +57,10 @@ function makeWordPressPosts(urls: string[], found = urls.length): string {
   });
 }
 
+function makeWpRestPosts(urls: string[]): string {
+  return JSON.stringify(urls.map((link) => ({ link })));
+}
+
 function makeCategoryPage(links: string[], pageLinks: string[] = []): string {
   return `<html><body>
     ${links.map((link) => `<a href="${link}">article</a>`).join("\n")}
@@ -458,10 +462,15 @@ test("technologyreview discovery: returns only dated article URLs from RSS fallb
   ]);
 });
 
-test("technologyreview discovery: walks nested public sitemaps newest first", async () => {
+test("technologyreview discovery: combines sitemaps, WP REST, RSS, and topic pages newest first", async () => {
   const tr = getProvider("technologyreview")!;
   const newest = "https://www.technologyreview.com/2026/06/29/1139849/ai-agents-are-not-your-coworkers/";
   const older = "https://www.technologyreview.com/2020/01/08/8/nasas-new-exoplanet-hunter-found-its-first-potentially-habitable-world/";
+  const newsSitemapUrl = "https://www.technologyreview.com/2026/06/30/1139987/claude-science-is-anthropics-newest-flagship-product/";
+  const wpRestUrl = "https://www.technologyreview.com/2026/06/28/1139700/rest-api-only-story/";
+  const rssUrl = "https://www.technologyreview.com/2024/05/01/1091234/rss-supplement/";
+  const topicFeedUrl = "https://www.technologyreview.com/2024/06/02/1095678/topic-feed-supplement/";
+  const topicHtmlUrl = "https://www.technologyreview.com/2023/03/03/1070000/topic-html-supplement/";
   const fetched: string[] = [];
   const sitemapMap: Record<string, string> = {
     "https://www.technologyreview.com/sitemap.xml": makeSitemapIndex([
@@ -477,9 +486,14 @@ test("technologyreview discovery: walks nested public sitemaps newest first", as
       "https://www.technologyreview.com/2026/06/29/1139834/the-download-metric-weaknesses-ai-elephant-warnings/",
     ]),
     "https://www.technologyreview.com/sitemap-1.xml": makeSitemap([older]),
-    "https://www.technologyreview.com/feed/": makeFeed([
-      "https://www.technologyreview.com/2024/05/01/1091234/rss-fallback/",
+    "https://www.technologyreview.com/news-sitemap.xml": makeSitemap([newsSitemapUrl]),
+    "https://www.technologyreview.com/wp-json/wp/v2/posts?per_page=100&page=1&_fields=link": makeWpRestPosts([
+      newest,
+      wpRestUrl,
     ]),
+    "https://www.technologyreview.com/feed/": makeFeed([rssUrl]),
+    "https://www.technologyreview.com/topic/artificial-intelligence/feed/": makeFeed([topicFeedUrl]),
+    "https://www.technologyreview.com/topic/artificial-intelligence": makeCategoryPage([topicHtmlUrl]),
   };
 
   const urls = await discoverProviderUrls(tr, 10, {
@@ -491,10 +505,28 @@ test("technologyreview discovery: walks nested public sitemaps newest first", as
     },
   });
 
-  assert.deepEqual(urls, [newest, older]);
+  assert.deepEqual(urls, [
+    newest,
+    older,
+    newsSitemapUrl,
+    wpRestUrl,
+    rssUrl,
+    topicFeedUrl,
+    topicHtmlUrl,
+  ]);
   assert.ok(fetched.indexOf("https://www.technologyreview.com/sitemap-36.xml") < fetched.indexOf("https://www.technologyreview.com/sitemap-1.xml"));
   assert.equal(fetched.includes("https://www.technologyreview.com/image-sitemap-index-1.xml"), false);
-  assert.equal(fetched.includes("https://www.technologyreview.com/feed/"), false);
+  assert.equal(fetched.includes("https://www.technologyreview.com/news-sitemap.xml"), true);
+  assert.equal(
+    fetched.includes("https://www.technologyreview.com/wp-json/wp/v2/posts?per_page=100&page=1&_fields=link"),
+    true,
+  );
+  assert.equal(fetched.includes("https://www.technologyreview.com/feed/"), true);
+  assert.equal(
+    fetched.includes("https://www.technologyreview.com/topic/artificial-intelligence/feed/"),
+    true,
+  );
+  assert.equal(fetched.includes("https://www.technologyreview.com/topic/artificial-intelligence"), true);
 });
 
 test("theconversation discovery: uses English edition archive sitemaps newest first", async () => {
