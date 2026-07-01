@@ -1,11 +1,8 @@
 ---
-title: "Test data and fixture governance"
-category: "Platform"
-architecture: "Documents ownership and privacy boundaries for unit fixtures, seeds, e2e data, scraper corpora, and AI eval datasets."
-design: "Captures current fixture rules, generated/test data lifecycle, privacy constraints, and maintenance workflow."
-plan: "Update when test factories, seed scripts, e2e fixtures, scraper corpora, eval datasets, or privacy rules change."
-updated: "2026-07-01"
-rename: "none"
+type: "policy"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents ownership and privacy boundaries for unit fixtures, seeds, e2e data, scraper corpora, and AI eval datasets. Captures current fixture rules, generated/test data lifecycle, privacy constraints, and maintenance workflow."
 ---
 
 # Test data and fixture governance

@@ -1,11 +1,8 @@
 ---
-title: "Multi-tenancy, classrooms, tenant-aware cache & analytics (Epic RW-E012)"
-category: "Access"
-architecture: "Documents organization, membership, classroom, assignment, tenant-cache, and tenant-reporting boundaries."
-design: "Captures current tenant roles, classroom ownership, assignment access, cache scoping, analytics privacy, and migration behavior."
-plan: "Update when tenant schemas, classroom routes, assignment workflows, RBAC, cache keys, or tenant reporting rules change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents organization, membership, classroom, assignment, tenant-cache, and tenant-reporting boundaries. Captures current tenant roles, classroom ownership, assignment access, cache scoping, analytics privacy, and migration behavior."
 ---
 
 # Multi-tenancy, classrooms, tenant-aware cache & analytics (Epic RW-E012)

@@ -1,16 +1,11 @@
 ---
-title: "Article quality cleanup and duplicate analysis design"
-category: "Content"
-architecture: "Documents content-quality cleanup analysis and duplicate-detection design around scraped public-library articles."
-design: "Captures proposed/current cleanup signals, review workflow, safety limits, and operator-facing analysis approach."
-plan: "Update when scraper quality classifiers, cleanup scripts, duplicate rules, or admin review workflows change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "proposed"
+last_updated: "2026-07-01"
+description: "Documents content-quality cleanup analysis and duplicate-detection design around scraped public-library articles. Captures proposed/current cleanup signals, review workflow, safety limits, and operator-facing analysis approach."
 ---
 
 # Article quality cleanup and duplicate analysis design
-
-Status: proposed design, not yet implemented.
 
 This document records the agreed design for cleaning an existing backlog of
 scraped public-library articles and preventing future garbage articles from

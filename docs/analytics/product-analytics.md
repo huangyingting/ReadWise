@@ -1,11 +1,8 @@
 ---
-title: "Product analytics (Epic RW-E010)"
-category: "Analytics"
-architecture: "Documents the append-only product analytics event stream, retention helpers, and privacy boundaries."
-design: "Captures current event schemas, sanitizer behavior, dashboard/export rules, and metadata-only constraints."
-plan: "Update when AnalyticsEvent schema, event types, sanitizer policy, retention, export, or admin analytics routes change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the append-only product analytics event stream, retention helpers, and privacy boundaries. Captures current event schemas, sanitizer behavior, dashboard/export rules, and metadata-only constraints."
 ---
 
 # Product analytics (Epic RW-E010)

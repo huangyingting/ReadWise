@@ -1,11 +1,8 @@
 ---
-title: "Speech synthesis and narration"
-category: "Reader"
-architecture: "Documents reader narration access checks, speech generation trigger, cache lifecycle, storage fallback, and streaming playback boundary."
-design: "Captures current reader speech routes, Azure Speech provider seam, ArticleSpeech cache, media storage, and graceful fallback behavior."
-plan: "Update when reader speech APIs, ArticleSpeech schema, Speech provider behavior, storage/audio endpoint, or playback UI changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents reader narration access checks, speech generation trigger, cache lifecycle, storage fallback, and streaming playback boundary. Captures current reader speech routes, Azure Speech provider seam, ArticleSpeech cache, media storage, and graceful fallback behavior."
 ---
 
 # Speech synthesis and narration

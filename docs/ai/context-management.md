@@ -1,11 +1,8 @@
 ---
-title: "AI context management & long-text chunking"
-category: "AI"
-architecture: "Documents AI provider abstraction, context construction, chunking, cache keys, and fallback boundaries."
-design: "Captures current long-context handling, cache/version behavior, prompt/privacy limits, and graceful degradation rules."
-plan: "Update when AI provider config, chunking thresholds, cache versions, prompts, or feature fallbacks change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents AI provider abstraction, context construction, chunking, cache keys, and fallback boundaries. Captures current long-context handling, cache/version behavior, prompt/privacy limits, and graceful degradation rules."
 ---
 
 # AI context management & long-text chunking

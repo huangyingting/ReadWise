@@ -1,11 +1,8 @@
 ---
-title: "Search and indexing strategy"
-category: "Reader"
-architecture: "Documents search/indexing strategy, query boundaries, and article visibility constraints."
-design: "Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
-plan: "Update when search routes, indexes, query predicates, article visibility filters, or ranking behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents search/indexing strategy, query boundaries, and article visibility constraints. Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
 ---
 
 # Search and indexing strategy

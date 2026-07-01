@@ -1,11 +1,8 @@
 ---
-title: "Scraper Provider Guide"
-category: "Content"
-architecture: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, and source health boundaries."
-design: "Captures current provider registry, fetch fallbacks, extraction quality checks, drift triage, and operator guidance."
-plan: "Update when scraper providers, fetch strategies, runtime config knobs, quality classifiers, source sync, or robots/SSRF policy change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, and source health boundaries. Captures current provider registry, fetch fallbacks, extraction quality checks, drift triage, and operator guidance."
 ---
 
 # Scraper Provider Guide

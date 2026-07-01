@@ -1,11 +1,8 @@
 ---
-title: "Learning, mastery and learner analytics"
-category: "Learning"
-architecture: "Documents durable learning mastery models, learner analytics, adaptive leveling, and their source tables."
-design: "Captures current formulas, side-effect write behavior, privacy-safe coach memory, SRS integration, and analytics page rules."
-plan: "Update when mastery schemas/formulas, learner analytics, adaptive leveling, Study/Today signals, or privacy/deletion behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents durable learning mastery models, learner analytics, adaptive leveling, and their source tables. Captures current formulas, side-effect write behavior, privacy-safe coach memory, SRS integration, and analytics page rules."
 ---
 
 # Learning, mastery and learner analytics

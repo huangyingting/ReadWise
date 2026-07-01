@@ -1,11 +1,8 @@
 ---
-title: "Capability-based access control"
-category: "Access"
-architecture: "Documents global, tenant, and classroom capability resolution boundaries."
-design: "Captures current role-to-capability mappings, guard usage, denial behavior, and authorization testing expectations."
-plan: "Update when roles, capabilities, route guards, tenant membership rules, or admin surfaces change."
-updated: "2026-07-01"
-rename: "none"
+type: "policy"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents global, tenant, and classroom capability resolution boundaries. Captures current role-to-capability mappings, guard usage, denial behavior, and authorization testing expectations."
 ---
 
 # Capability-based access control

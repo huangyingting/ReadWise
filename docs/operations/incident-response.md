@@ -1,11 +1,8 @@
 ---
-title: "Incident response & SLO breach runbooks"
-category: "Operations"
-architecture: "Documents incident response, SLO breach triage, mitigation, and post-incident review boundaries."
-design: "Captures current detection signals, metric queries, subsystem runbooks, escalation, and recovery workflow."
-plan: "Update when SLOs, metrics, alerting, runbooks, deployment topology, or incident process changes."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents incident response, SLO breach triage, mitigation, and post-incident review boundaries. Captures current detection signals, metric queries, subsystem runbooks, escalation, and recovery workflow."
 ---
 
 # Incident response & SLO breach runbooks

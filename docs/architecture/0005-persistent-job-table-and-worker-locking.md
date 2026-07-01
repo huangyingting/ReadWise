@@ -1,11 +1,8 @@
 ---
-title: "ADR-0005: Persistent job table before external queues"
-category: "Architecture"
-architecture: "Architecture decision record for the durable Job table and worker-locking model."
-design: "Captures queue selection, claiming/locking strategy, retries, and external-queue deferral rationale."
-plan: "Supersede with a new ADR if queue architecture changes; update operations docs for handler/runtime behavior."
-updated: "2026-07-01"
-rename: "none"
+type: "architecture"
+status: "accepted"
+last_updated: "2026-07-01"
+description: "Architecture decision record for the durable Job table and worker-locking model. Captures queue selection, claiming/locking strategy, retries, and external-queue deferral rationale."
 ---
 
 # ADR-0005: Persistent job table before external queues

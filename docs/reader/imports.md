@@ -1,11 +1,8 @@
 ---
-title: "Personal article import system"
-category: "Reader"
-architecture: "Documents URL/text personal imports, SSRF/sanitization boundaries, quota, deduplication, and ownership rules."
-design: "Captures current import routes, provider fallback, content cleaning, private article creation, audit/analytics metadata, and privacy constraints."
-plan: "Update when import routes, scraper integration, SSRF policy, quotas, dedupe rules, or private article lifecycle changes."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents URL/text personal imports, SSRF/sanitization boundaries, quota, deduplication, and ownership rules. Captures current import routes, provider fallback, content cleaning, private article creation, audit/analytics metadata, and privacy constraints."
 ---
 
 # Personal article import system

@@ -1,11 +1,8 @@
 ---
-title: "Data classification and retention matrix"
-category: "Security"
-architecture: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores."
-design: "Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
-plan: "Update for every schema/model/migration change and whenever export, retention, cascade, or privacy classification changes."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
 # Data classification and retention matrix

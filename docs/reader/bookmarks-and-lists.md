@@ -1,11 +1,8 @@
 ---
-title: "Bookmarks and reading lists"
-category: "Reader"
-architecture: "Documents saved/default lists, custom reading lists, membership, and IDOR-safe access boundaries."
-design: "Captures current list schemas, bookmark APIs, list membership behavior, export/deletion, and privacy rules."
-plan: "Update when ReadingList schemas, bookmark/list APIs, UI behavior, access checks, or export/deletion behavior change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents saved/default lists, custom reading lists, membership, and IDOR-safe access boundaries. Captures current list schemas, bookmark APIs, list membership behavior, export/deletion, and privacy rules."
 ---
 
 # Bookmarks and reading lists

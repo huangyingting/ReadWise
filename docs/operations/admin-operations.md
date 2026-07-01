@@ -1,11 +1,8 @@
 ---
-title: "Admin operations, jobs and audit logs"
-category: "Operations"
-architecture: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships."
-design: "Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
-plan: "Update when admin routes, Job schema, worker behavior, processing registry, scripts, source ops, audit actions, or runbooks change."
-updated: "2026-07-01"
-rename: "none"
+type: "runbook"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships. Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
 ---
 
 # Admin operations, jobs and audit logs

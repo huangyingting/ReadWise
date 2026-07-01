@@ -1,11 +1,8 @@
 ---
-title: "Pronunciation practice"
-category: "Speech"
-architecture: "Documents the client-side Azure Speech pronunciation-assessment flow, token exchange route, persistence route, and Learning mastery side effects."
-design: "Audio assessment runs in the browser with a short-lived Speech token; the server stores bounded scores and reference text only, never raw audio or SDK word/phoneme payloads."
-plan: "Keep aligned with ArticlePronunciation, src/components/pronunciation/*, /api/speech/token, /api/pronunciation/*, and Speech provider configuration."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the client-side Azure Speech pronunciation-assessment flow, token exchange route, persistence route, and Learning mastery side effects. Audio assessment runs in the browser with a short-lived Speech token; the server stores bounded scores and reference text only, never raw audio or SDK word/phoneme payloads."
 ---
 
 # Pronunciation practice

@@ -1,11 +1,8 @@
 ---
-title: "Media object storage"
-category: "Media"
-architecture: "Documents optional media object-storage abstraction, database fallback, filesystem/Azure backends, and readiness behavior."
-design: "Captures current configuration, storage interface, speech audio migration, streaming endpoint, rollback, and troubleshooting rules."
-plan: "Update when storage runtime config, MediaStorage interface, Azure/filesystem behavior, speech migration, or readiness checks change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents optional media object-storage abstraction, database fallback, filesystem/Azure backends, and readiness behavior. Captures current configuration, storage interface, speech audio migration, streaming endpoint, rollback, and troubleshooting rules."
 ---
 
 # Media object storage

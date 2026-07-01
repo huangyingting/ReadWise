@@ -555,16 +555,13 @@ const FORMAT_BADGE: Record<ResponseFormat, string> = {
 };
 
 export function buildCatalogMarkdown(catalog: ApiCatalog): string {
-  const updated = catalog.generatedAt.slice(0, 10);
+  const lastUpdated = catalog.generatedAt.slice(0, 10);
   const lines: string[] = [
     "---",
-    "title: \"ReadWise API Catalog\"",
-    "category: \"Platform\"",
-    "architecture: \"Generated inventory of Next.js API route boundaries, auth modes, schemas, and response formats.\"",
-    "design: \"Generated from src/app/api route handlers by src/tools/api-catalog.ts; do not edit by hand.\"",
-    "plan: \"Regenerate with npm run api-catalog whenever API routes or contracts change.\"",
-    `updated: \"${updated}\"`,
-    "rename: \"none\"",
+    "type: \"catalog\"",
+    "status: \"generated\"",
+    `last_updated: \"${lastUpdated}\"`,
+    "description: \"Generated inventory of Next.js API route boundaries, auth modes, schemas, and response formats. Generated from src/app/api route handlers by src/tools/api-catalog.ts; do not edit by hand.\"",
     "---",
     "",
     "# ReadWise API Catalog",

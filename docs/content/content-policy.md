@@ -1,11 +1,8 @@
 ---
-title: "Content policy: sources, rights & takedown"
-category: "Content"
-architecture: "Documents source governance, rights metadata, review, takedown, and provider-health boundaries."
-design: "Captures current policy workflow, source controls, moderation actions, and privacy-safe metadata handling."
-plan: "Update when source models, takedown states, review routes, content rights metadata, or provider governance change."
-updated: "2026-07-01"
-rename: "none"
+type: "policy"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents source governance, rights metadata, review, takedown, and provider-health boundaries. Captures current policy workflow, source controls, moderation actions, and privacy-safe metadata handling."
 ---
 
 # Content policy: sources, rights & takedown

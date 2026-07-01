@@ -1,11 +1,8 @@
 ---
-title: "Media asset lifecycle"
-category: "Media"
-architecture: "Documents MediaAsset ownership, object metadata, speech asset relationships, and storage cleanup boundaries."
-design: "Captures current asset creation, content-addressed keys, checksum/deduplication behavior, cascade/orphan handling, and rebuild replacement flow."
-plan: "Update when MediaAsset schema, storage backends, speech repository behavior, migration, rebuild, or cleanup workflows change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents MediaAsset ownership, object metadata, speech asset relationships, and storage cleanup boundaries. Captures current asset creation, content-addressed keys, checksum/deduplication behavior, cascade/orphan handling, and rebuild replacement flow."
 ---
 
 # Media asset lifecycle

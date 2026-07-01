@@ -1,11 +1,8 @@
 ---
-title: "Gamification summary, streaks, and dashboard widgets"
-category: "Learning"
-architecture: "Documents the Learning/Engagement-owned gamification read model and its relationship to DailyActivity, SRS due counts, and dashboard UI."
-design: "GET /api/gamification/summary combines streak stats, daily-goal progress, last-seven-day activity, shield count, and due flashcards without duplicating private content."
-plan: "Keep aligned with src/lib/engagement/streak.ts, src/lib/engagement/activity.ts, /api/gamification/summary, dashboard widgets, and flashcard due-count logic."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents the Learning/Engagement-owned gamification read model and its relationship to DailyActivity, SRS due counts, and dashboard UI. GET /api/gamification/summary combines streak stats, daily-goal progress, last-seven-day activity, shield count, and due flashcards without duplicating private content."
 ---
 
 # Gamification summary, streaks, and dashboard widgets

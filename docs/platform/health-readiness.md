@@ -1,11 +1,8 @@
 ---
-title: "Health, readiness and runtime configuration"
-category: "Platform"
-architecture: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation."
-design: "Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
-plan: "Update when readiness checks, runtime config helpers, provider degradation semantics, or migration validation change."
-updated: "2026-07-01"
-rename: "none"
+type: "reference"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation. Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
 ---
 
 # Health, readiness and runtime configuration

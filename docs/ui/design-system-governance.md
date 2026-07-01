@@ -1,11 +1,8 @@
 ---
-title: "Design-System Governance & Visual Regression Plan"
-category: "UI"
-architecture: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries."
-design: "Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
-plan: "Update when design tokens, UI primitives, density variants, lint rules, visual regression, or governance process change."
-updated: "2026-07-01"
-rename: "none"
+type: "policy"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
 ---
 
 # Design-System Governance & Visual Regression Plan

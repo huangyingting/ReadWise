@@ -1,11 +1,8 @@
 ---
-title: "AI prompt templates & version management"
-category: "AI"
-architecture: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications."
-design: "Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
-plan: "Update when prompt text, versions, model assumptions, validators, or derived-cache rebuild paths change."
-updated: "2026-07-01"
-rename: "none"
+type: "design"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications. Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
 ---
 
 # AI prompt templates & version management

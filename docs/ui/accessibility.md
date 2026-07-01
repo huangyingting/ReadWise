@@ -1,11 +1,8 @@
 ---
-title: "Accessibility baseline"
-category: "UI"
-architecture: "Documents UI accessibility baseline, automated checks, manual verification gaps, and component responsibilities."
-design: "Captures current axe/Playwright checks, keyboard/focus expectations, semantic patterns, and outstanding manual checks."
-plan: "Update when UI primitives, accessibility tests, page flows, or known manual-verification gaps change."
-updated: "2026-07-01"
-rename: "none"
+type: "testing"
+status: "current"
+last_updated: "2026-07-01"
+description: "Documents UI accessibility baseline, automated checks, manual verification gaps, and component responsibilities. Captures current axe/Playwright checks, keyboard/focus expectations, semantic patterns, and outstanding manual checks."
 ---
 
 # Accessibility baseline
