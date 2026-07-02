@@ -18,7 +18,7 @@ type SaveOutcomeLike =
   | { status: "failed"; reason: string; sourceUrl: string };
 
 const stateRoot = path.resolve(
-  ".scraper-state/script-coverage-scrapers",
+  ".scraper-state/scripts-scrapers",
 );
 
 const providers: ProviderLike[] = [
