@@ -121,6 +121,33 @@ and move immediately to `DEAD_LETTER` without consuming retry attempts.
 (`src/lib/processing/backfill.ts`). The backfill sets `payload.tts = true` to
 include the speech step in bulk re-processing runs.
 
+For direct Azure Speech Batch Synthesis backfills, operators can run
+`npm run speech:batch -- --all ...`. By default this is a one-shot batch that
+selects articles without `ArticleSpeech`, submits Azure batch jobs, downloads
+audio plus word-boundary timings, and persists `ArticleSpeech.words`.
+
+Continuous mode keeps draining the same backlog and picks up newly scraped
+articles:
+
+```bash
+npm run speech:keep -- --status PUBLISHED --limit 50
+npm run speech:batch -- --all --loop --sleep 120000 --limit 100
+```
+
+- `speech:keep` is shorthand for `speech:batch -- --all --loop`.
+- `--loop` repeats passes until SIGINT/SIGTERM or a safety cap stops it.
+- `--limit` is the per-pass article cap; in loop mode it defaults to 50 when
+  omitted, so one pass does not create an oversized Azure batch.
+- `--sleep <ms>` waits between passes (default 60000). Each pass re-selects
+  `speech IS NULL`, so completed articles fall out and new articles enter.
+- `--max-passes <n>` exits cleanly after `n` passes; `0` or omitted is
+  unlimited.
+- `--max-errors <n>` aborts with a non-zero exit after `n` consecutive failed
+  passes (default 5). A successful pass resets the counter.
+
+Shutdown is graceful: the first SIGINT/SIGTERM aborts sleep promptly and stops
+after the current pass; a second signal forces exit.
+
 ## Admin surface
 
 The admin jobs dashboard (`/admin/jobs`) shows `TTS_GENERATE` jobs with their

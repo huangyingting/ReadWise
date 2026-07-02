@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-02"
 description: "Documents optional media object-storage abstraction, database fallback, filesystem/Azure backends, and readiness behavior. Captures current configuration, storage interface, speech audio migration, streaming endpoint, rollback, and troubleshooting rules."
 ---
 
@@ -28,14 +28,14 @@ A single env var selects the backend (`src/lib/storage.ts`):
 | `MEDIA_STORAGE`            | Backend                          | Notes                                              |
 | ------------------------- | -------------------------------- | -------------------------------------------------- |
 | unset / `database`        | **Database base64** (default) | `getMediaStorage()` returns `null`; nothing changes |
-| `filesystem`              | Local filesystem            | Files under `MEDIA_STORAGE_DIR` (default `./.media`) |
+| `filesystem` (or `local`) | Local filesystem            | Files under `MEDIA_STORAGE_DIR` (default `./.media`) |
 | `azure`                   | **Azure Blob Storage**           | Requires `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT`+`AZURE_STORAGE_KEY` |
 
 ### Filesystem mode
 
 | Variable          | Default      | Description                              |
 | ----------------- | ------------ | ---------------------------------------- |
-| `MEDIA_STORAGE`   | _(unset)_    | Set to `filesystem`                     |
+| `MEDIA_STORAGE`   | _(unset)_    | Set to `filesystem` or alias `local`    |
 | `MEDIA_STORAGE_DIR` | `./.media` | Absolute or relative path for file store |
 
 ### Azure Blob Storage mode
@@ -190,4 +190,3 @@ account keys) are included in the readiness JSON.
 | Migration shows `failed > 0` | Storage write or DB transaction failed | Check logs for `storage.speech_migration_failed`; re-run after fixing credentials |
 | Audio 404 after migration but `storageKey` is set | Storage backend unreachable or `MEDIA_STORAGE` not set | Confirm env vars are loaded; check `GET /api/ready` storage status |
 | `npm run migrate-storage` shows `skippedNoStorage` | `MEDIA_STORAGE` is not set or set to `database` | Set `MEDIA_STORAGE` and configure credentials before running |
-

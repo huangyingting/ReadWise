@@ -183,7 +183,7 @@ function validateRuntimeSections() {
       missing: [],
       issues: [],
     };
-  } else if (storageModeRaw === "filesystem") {
+  } else if (storageModeRaw === "filesystem" || storageModeRaw === "local") {
     storage = {
       status: "configured",
       configured: true,
