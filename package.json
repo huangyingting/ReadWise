@@ -62,7 +62,7 @@
     "react-dom": "^19.0.0",
     "sanitize-html": "^2.17.5",
     "tailwind-merge": "^3.6.0",
-    "undici": "^7.28.0",
+    "undici": "^8.5.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
