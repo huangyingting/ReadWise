@@ -16,3 +16,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Coverage strategy decision inbox entry was merged into `decisions.md`; ownership strategy preserved, and final coverage/typecheck/lint validation passed.
 - 2026-07-01T23:11:49.008+00:00 — Decision inbox was merged into decisions.md with no archive required (3901 bytes), preserving the coverage/test-suite governance trail.
+
+- 2026-07-02T00:30:07.481+00:00 — Modular refactor PR #874 completed: Morpheus bounded the first PR with disjoint ownership and later approved stop with only non-blocking follow-ups.

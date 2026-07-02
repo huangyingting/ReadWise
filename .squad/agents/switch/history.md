@@ -16,3 +16,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Native coverage verifier landed, type errors were fixed, default gate now covers `src/`, `scripts/`, and `eslint-rules/`; 470 measured files passed >=98% plus typecheck and lint.
 - 2026-07-01T23:11:49.008+00:00 — Final regrouping pass completed: merged 4 inbox decisions, no archive needed, and logged the semantic test regrouping outcomes.
+
+- 2026-07-02T00:30:07.481+00:00 — Switch approved PR #874 after validation: targeted surfaces 181 pass, typecheck/lint pass, `npm test` 3601 pass / 0 fail / 22 skipped, coverage gate 472 files at >=98%, no IDE diagnostics.
