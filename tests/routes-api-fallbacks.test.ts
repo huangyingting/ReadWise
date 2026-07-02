@@ -400,7 +400,7 @@ beforeEach(() => {
   masteryCalls = [];
   quizResult = { articleId: "a1", questions: [] };
   tagsResult = { articleId: "a1", tags: [] };
-  speechResult = { articleId: "a1", audioBase64: "" };
+  speechResult = { articleId: "a1", audio: null };
   offlineArticle = {
     id: "a1",
     title: "Offline",

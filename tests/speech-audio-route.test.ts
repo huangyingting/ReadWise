@@ -18,7 +18,6 @@ let articleReadable = true;
 // Speech row state
 let speechRow: {
   mimeType: string;
-  audioBase64: string | null;
   storageKey: string | null;
 } | null = null;
 
@@ -58,7 +57,7 @@ before(() => {
       getMediaStorage: () =>
         storageConfigured
           ? {
-              kind: "filesystem" as const,
+              kind: "local" as const,
               get: async (_key: string) => storageBytes,
               put: async () => ({ storageKey: "k", sizeBytes: 0, checksum: "" }),
               delete: async () => {},
@@ -99,18 +98,13 @@ test("GET /speech/audio returns 404 when no speech row exists", async () => {
   assert.equal(res.status, 404);
 });
 
-test("GET /speech/audio serves base64 fallback when storageKey is null", async () => {
-  const audioData = Buffer.from("fake-mp3-bytes");
+test("GET /speech/audio returns 404 when storageKey is null", async () => {
   speechRow = {
     mimeType: "audio/mpeg",
-    audioBase64: audioData.toString("base64"),
     storageKey: null,
   };
   const res = await callGet("a1");
-  assert.equal(res.status, 200);
-  assert.equal(res.headers.get("Content-Type"), "audio/mpeg");
-  const body = Buffer.from(await res.arrayBuffer());
-  assert.deepEqual(body, audioData);
+  assert.equal(res.status, 404);
 });
 
 test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", async () => {
@@ -119,7 +113,6 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
   storageBytes = audioData;
   speechRow = {
     mimeType: "audio/mpeg",
-    audioBase64: null,
     storageKey: "speech/abc123.mp3",
   };
   const res = await callGet("a1");
@@ -129,26 +122,10 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
   assert.deepEqual(body, audioData);
 });
 
-test("GET /speech/audio prefers MediaStorage over inline fallback when both exist", async () => {
-  const storageData = Buffer.from("storage-wins");
-  storageConfigured = true;
-  storageBytes = storageData;
-  speechRow = {
-    mimeType: "audio/mpeg",
-    audioBase64: Buffer.from("inline-fallback").toString("base64"),
-    storageKey: "speech/abc123.mp3",
-  };
-  const res = await callGet("a1");
-  assert.equal(res.status, 200);
-  const body = Buffer.from(await res.arrayBuffer());
-  assert.deepEqual(body, storageData);
-});
-
-test("GET /speech/audio returns 404 when storageKey set but storage unavailable and no base64", async () => {
+test("GET /speech/audio returns 404 when storageKey is set but storage is unavailable", async () => {
   storageConfigured = false; // storage returns null from getMediaStorage()
   speechRow = {
     mimeType: "audio/mpeg",
-    audioBase64: null,
     storageKey: "speech/abc123.mp3",
   };
   const res = await callGet("a1");
@@ -157,10 +134,11 @@ test("GET /speech/audio returns 404 when storageKey set but storage unavailable 
 
 test("GET /speech/audio Cache-Control is private", async () => {
   const audioData = Buffer.from("x");
+  storageConfigured = true;
+  storageBytes = audioData;
   speechRow = {
     mimeType: "audio/mpeg",
-    audioBase64: audioData.toString("base64"),
-    storageKey: null,
+    storageKey: "speech/cache.mp3",
   };
   const res = await callGet("a1");
   assert.equal(res.status, 200);
@@ -170,10 +148,11 @@ test("GET /speech/audio Cache-Control is private", async () => {
 
 test("GET /speech/audio sets Content-Length header", async () => {
   const audioData = Buffer.from("length-check-bytes");
+  storageConfigured = true;
+  storageBytes = audioData;
   speechRow = {
     mimeType: "audio/mpeg",
-    audioBase64: audioData.toString("base64"),
-    storageKey: null,
+    storageKey: "speech/length.mp3",
   };
   const res = await callGet("a1");
   assert.equal(res.status, 200);

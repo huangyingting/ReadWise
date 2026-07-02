@@ -118,7 +118,7 @@ test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () =>
       voice: "test",
       format: "mp3",
       mimeType: "audio/mpeg",
-      audioBase64: "AA==",
+      storageKey: "speech/json-test.mp3",
       plainText: "Hello",
       words: [{ word: "Hello", offset: 0, duration: 500 }],
     },

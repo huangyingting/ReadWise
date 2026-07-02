@@ -9,31 +9,29 @@ const log = createLogger("storage");
 
 // Register built-in providers. Each provider module owns its own config
 // validation.
-registerProvider("filesystem", () => new FilesystemMediaStorage(mediaStorageDir()));
+registerProvider("local", () => new FilesystemMediaStorage(mediaStorageDir()));
 
 registerProvider("azure", () => {
   const cfg = azureStorageConfig();
   if (cfg) return new AzureBlobMediaStorage(cfg);
   log.warn("storage.azure_unconfigured", {
     kind: "azure",
-    hint: "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — falling back to DB base64",
+    hint: "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — speech audio will not be persisted until storage is configured",
   });
   return null;
 });
 
 /**
- * Resolves the active {@link MediaStorage}, or `null` when object storage is
- * unconfigured (DB base64 mode). Intentionally NOT cached so a test (or a
+ * Resolves the active {@link MediaStorage}, or `null` when the selected backend
+ * is unavailable. Intentionally NOT cached so a test (or a
  * runtime env change) is reflected immediately; construction is cheap.
  */
 export function getMediaStorage(): MediaStorage | null {
   const kind = mediaStorageKind();
-  // "database" is the explicit null-storage mode; skip registry lookup.
-  if (kind === "database") return null;
   return resolveProvider(kind);
 }
 
-/** True when an external object-storage backend is active. */
+/** True when a media storage backend is active. */
 export function isObjectStorageConfigured(): boolean {
   return getMediaStorage() !== null;
 }

@@ -6,7 +6,7 @@ export { mediaStorageDir } from "@/lib/runtime-config/storage";
 
 /** Filesystem-backed {@link MediaStorage}. Content-addressed, traversal-safe. */
 export class FilesystemMediaStorage implements MediaStorage {
-  readonly kind = "filesystem" as const;
+  readonly kind = "local" as const;
   private readonly baseDir: string;
 
   constructor(baseDir: string) {

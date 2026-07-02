@@ -164,7 +164,7 @@ let storageDeletedKeys: string[] = [];
 let storageDeleteShouldFail = false;
 
 const mockStorageInstance = {
-  kind: "filesystem" as const,
+  kind: "local" as const,
   put: async () => ({ storageKey: "k", sizeBytes: 0, checksum: "c" }),
   get: async () => null,
   delete: async (key: string) => {

@@ -199,7 +199,7 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model / store | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `ArticleSpeech` (voice, format, mimeType, audioBase64?, storageKey?, plainText, words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | `plainText` contains article narration text; do not log. `storageKey` is a content-addressed key (safe to log as an id) |
+| `ArticleSpeech` (voice, format, mimeType, storageKey?, mediaAssetId?, plainText, words) | Speech / Media | **public** (article-scoped; served only to authenticated readers) | ⛔ | Cascade via article (`ArticleSpeech.articleId`) | Cascade via article | Deleted with article | `plainText` contains article narration text; do not log. `storageKey` is a content-addressed key (safe to log as an id) |
 | `MediaAsset` (storageKey, kind, mimeType, sizeBytes, checksum, durationSec, voice, format) | Media | **public** (operational pointer; no user content) | ⛔ | Cascade via `MediaAsset.articleId` | Cascade via article | Deleted with article; object-storage bytes are not automatically purged by DB cascade (see [`../media/storage.md`](../media/storage.md)) | Safe |
 
 > **Gap #711-D — RESOLVED (#711):** `deleteOwnAccount` and `deleteMember` now

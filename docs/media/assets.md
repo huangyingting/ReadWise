@@ -8,14 +8,13 @@ description: "Documents MediaAsset ownership, object metadata, speech asset rela
 # Media asset lifecycle
 
 This document covers `MediaAsset` ownership: how assets are created, keyed,
-tracked, served, migrated, and deleted. Storage backend configuration and
-migration procedures are in [`storage.md`](./storage.md).
+tracked, served, and deleted. Storage backend configuration is in
+[`storage.md`](./storage.md).
 
 ## Ownership boundary
 
 **Media subsystem owns** the `MediaAsset` table, storage keys, content checksums,
-MIME types, byte sizes, duration metadata, storage migration and rollback, asset
-deletion, and orphan handling.
+MIME types, byte sizes, duration metadata, asset deletion, and orphan handling.
 
 **Media does not own** reader playback UX, TTS job scheduling, or the TTS
 provider. See [`../reader/playback.md`](../reader/playback.md) and
@@ -42,9 +41,7 @@ database. Speech narration is the only asset kind currently in use (`kind =
 | `articleId`  | String?  | Article that owns this asset. Cascade-deleted with it.  |
 
 The `MediaAsset` row is created (upserted) by
-`src/lib/speech/repository.ts:saveSpeechResult` at synthesis time, and by
-`src/lib/storage/speech-migration.ts:migrateArticleSpeechToStorage` during
-bulk migration.
+`src/lib/speech/repository.ts:saveSpeechResult` at synthesis time.
 
 ## Storage keys
 
@@ -57,7 +54,7 @@ speech/<sha256hex><ext>
 - `sha256hex` is the lowercase hex SHA-256 of the raw audio bytes.
 - `ext` is inferred from the MIME type (`.mp3`, `.ogg`, `.wav`, `.webm`).
 - Identical audio bytes always produce the same key — writes are idempotent.
-- Keys are traversal-safe: the filesystem backend confines all keys to the
+- Keys are traversal-safe: the local backend confines all keys to the
   configured base directory; the Azure backend uses SDK container scoping.
 - Storage keys are **never exposed** directly to client code or API responses.
 
@@ -83,26 +80,11 @@ saveSpeechResult(...)
   │     records: kind, mimeType, sizeBytes, checksum, durationSec, voice, format, articleId
   └── prisma.articleSpeech.upsert(where: { articleId })
         records: storageKey, mediaAssetId, mimeType, voice, format
-        clears:  audioBase64 (durably stored externally)
 ```
 
-When storage is unconfigured or the storage write fails, `saveSpeechResult`
-falls back to writing `audioBase64` inline into `ArticleSpeech` and does not
-create a `MediaAsset` row.
-
-## Storage migration
-
-`migrateArticleSpeechToStorage()` (`src/lib/storage/speech-migration.ts`) lifts
-existing inline base64 audio into object storage. See [`storage.md`](./storage.md)
-for the full migration procedure including rollback instructions.
-
-**Idempotency predicate:** only rows where `audioBase64 IS NOT NULL` AND
-`storageKey IS NULL` are eligible. Re-running the migration processes nothing
-new.
-
-**Safety guarantee:** `audioBase64` is cleared only after both the storage write
-and the `MediaAsset` upsert succeed inside a transaction. The payload is never
-lost.
+When storage is unavailable or the storage write fails, `saveSpeechResult` skips
+cache persistence and does not create a `MediaAsset` row. Speech audio is not
+stored in the database.
 
 ## Article deletion and cascade
 

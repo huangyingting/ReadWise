@@ -309,8 +309,8 @@ will be pruned after `MAX_CONSECUTIVE_FAILURES` transient failures. See
 
 | Env var | Required | Notes |
 | --- | --- | --- |
-| `MEDIA_STORAGE` | no | `database` (default), `filesystem`, or `azure` |
-| `MEDIA_STORAGE_DIR` | when `filesystem` | Absolute or relative path; default `./.media` |
+| `MEDIA_STORAGE` | no | `local` (default), legacy alias `filesystem`, or `azure` |
+| `MEDIA_STORAGE_DIR` | when `local`/`filesystem` | Absolute or relative path; default `./.media` |
 | `AZURE_STORAGE_CONNECTION_STRING` | when `azure` | Full connection string (alternative to account+key) |
 | `AZURE_STORAGE_ACCOUNT` | when `azure` | Account name (alternative to connection string) |
 | `AZURE_STORAGE_KEY` | when `azure` | Account key (alternative to connection string) |
@@ -321,16 +321,15 @@ Sources: `src/lib/runtime-config/storage.ts`, `src/lib/storage/runtime.ts`.
 ### Health signals
 
 - **`GET /api/ready`**: `checks.providers.storage` — see status table below.
-- **`isObjectStorageConfigured()`** (`src/lib/storage/runtime.ts`): true when an external backend is active.
+- **`isObjectStorageConfigured()`** (`src/lib/storage/runtime.ts`): true when a media storage backend is active.
 - **Structured logs**: `storage.*` — `azure_unconfigured`, `unknown_kind` warnings on startup.
 
 | `MEDIA_STORAGE` | Credentials | `checks.providers.storage` |
 | --- | --- | --- |
-| unset / `database` | n/a | `unconfigured` — DB base64 fallback; expected |
-| `filesystem` | n/a | `configured` |
+| unset / `local` / `filesystem` | n/a | `configured` — local filesystem storage |
 | `azure` | present | `configured` |
-| `azure` | missing | `degraded` — fallback to DB base64 |
-| unknown value | n/a | `degraded` — fallback to database |
+| `azure` | missing | `degraded` — audio is not persisted until credentials are configured |
+| `database` / unknown value | n/a | `degraded` — unsupported value; local filesystem fallback is used |
 
 No storage credentials are emitted in the readiness JSON response.
 
@@ -340,18 +339,18 @@ No storage credentials are emitted in the readiness JSON response.
 | --- | --- |
 | Configure | Set `MEDIA_STORAGE` and backend-specific vars; `/api/ready` reflects chosen mode |
 | Health-check | Attempt a small upload/download via the admin UI or a test article with TTS; inspect `storage.*` logs |
-| Degrade/fallback | Azure creds missing → DB base64 fallback; articles still load but no object storage savings |
-| Recover | Add Azure credentials; no migration needed for new uploads; use TTS migration job for existing content |
+| Degrade/fallback | Azure creds missing → speech audio is not cached; article reading still works |
+| Recover | Add Azure credentials or switch to `MEDIA_STORAGE=local`; regenerate affected narration |
 
 ### Common operational tasks
 
-**Switch from database to Azure Blob Storage**
+**Switch local storage to Azure Blob Storage**
 
 1. Set `MEDIA_STORAGE=azure` and the required credential vars.
 2. Deploy.
 3. Confirm `checks.providers.storage = "configured"`.
-4. Run the TTS migration job to move existing base64 audio to blob storage. See
-   [tts-jobs.md](./tts-jobs.md).
+4. Regenerate narration for any articles whose audio should be present in Azure.
+  New speech generation writes directly to the selected backend.
 
 **Rotate Azure storage credentials**
 

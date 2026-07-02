@@ -91,7 +91,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | Document | Scope |
 | --- | --- |
 | [`media/assets.md`](./media/assets.md) | `MediaAsset` ownership, creation, keying, serving, migration, and deletion lifecycle. |
-| [`media/storage.md`](./media/storage.md) | Database/filesystem/Azure media storage and speech-audio migration. |
+| [`media/storage.md`](./media/storage.md) | Local/Azure media storage and speech-audio persistence. |
 
 ### Observability
 

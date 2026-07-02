@@ -74,9 +74,12 @@ before(() => {
 
   mock.module("@/lib/storage", {
     namedExports: {
-      // Storage stays unconfigured: saveSpeechResult uses the inline base64
-      // fallback, which is sufficient for the orchestration assertions.
-      getMediaStorage: () => null,
+      getMediaStorage: () => ({
+        kind: "local" as const,
+        get: async () => Buffer.from("ABC"),
+        put: async () => ({ storageKey: "speech/generated.mp3", sizeBytes: 5, checksum: "deadbeef" }),
+        delete: async () => {},
+      }),
     },
   });
 
@@ -157,8 +160,7 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
   cachedSpeechRow = {
     articleId: "a1",
     words: STORED_LEGACY_WORDS,
-    audioBase64: "QUJD",
-    storageKey: null,
+    storageKey: "speech/cached.mp3",
     mimeType: "audio/mpeg",
     voice: "en-US-Cached",
     plainText: "cached plain text",
@@ -182,8 +184,7 @@ test("getOrCreateArticleSpeech falls back to the stored plainText when the artic
   cachedSpeechRow = {
     articleId: "a1",
     words: STORED_LEGACY_WORDS,
-    audioBase64: "QUJD",
-    storageKey: null,
+    storageKey: "speech/cached.mp3",
     mimeType: "audio/mpeg",
     voice: "en-US-Cached",
     plainText: "stored fallback text",
@@ -202,8 +203,7 @@ test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes 
   cachedSpeechRow = {
     articleId: "a1",
     words: [{ word: "broken", offset: -1, duration: 1 }],
-    audioBase64: "QUJD",
-    storageKey: null,
+    storageKey: "speech/corrupt.mp3",
     mimeType: "audio/mpeg",
     voice: "en-US-Cached",
     plainText: "ignored",

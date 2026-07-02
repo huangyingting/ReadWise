@@ -1,7 +1,7 @@
 /** Shared media-storage types and contracts. */
 
 /** Storage backends selectable via `MEDIA_STORAGE`. */
-export type MediaStorageKind = "database" | "filesystem" | "azure";
+export type MediaStorageKind = "local" | "azure";
 
 export type PutMediaInput = {
   /** Raw bytes to persist. */

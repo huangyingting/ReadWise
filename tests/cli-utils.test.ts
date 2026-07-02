@@ -4,7 +4,7 @@
  * Covers the shared CLI runtime utilities: parseFlag, parseString,
  * parsePositiveInt, addUniqueFromCsv, warnUnknown, isMain, and the
  * parseArgs function exported from each migrated script (process, scrape,
- * worker, push-reminders, migrate-storage).
+ * worker, push-reminders).
  */
 process.env.LOG_LEVEL = "error";
 
@@ -80,17 +80,6 @@ before(() => {
   mock.module("@/lib/observability/logger", {
     namedExports: {
       createLogger: () => ({ info: () => {}, warn: () => {}, error: () => {} }),
-    },
-  });
-  mock.module("@/lib/storage", {
-    namedExports: {
-      migrateArticleSpeechToStorage: async () => ({
-        skippedNoStorage: true,
-        storageKind: "database",
-        scanned: 0,
-        migrated: 0,
-        failed: 0,
-      }),
     },
   });
 });
@@ -541,18 +530,3 @@ describe("push-reminders.ts parseArgs", async () => {
   });
 });
 
-describe("migrate-storage.ts parseArgs", async () => {
-  const { parseArgs } = await import("../scripts/migrate-storage");
-
-  test("defaults to undefined limit", () => {
-    assert.deepEqual(parseArgs([]), { limit: undefined });
-  });
-
-  test("--limit value", () => {
-    assert.equal(parseArgs(["--limit", "50"]).limit, 50);
-  });
-
-  test("--limit with non-numeric is NaN", () => {
-    assert.ok(Number.isNaN(parseArgs(["--limit", "abc"]).limit));
-  });
-});

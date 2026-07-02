@@ -251,7 +251,6 @@ crash startup.
 | `npm run prisma:migrate:pg` | Deploy PostgreSQL migrations. |
 | `npm run dict:prune -- --dry-run` | Preview cleanup of bundled local dictionary inflection variants. |
 | `npm run dict:prune` | Re-prune bundled compact `dict/` files after updating local dictionaries. |
-| `npm run migrate-storage -- --limit 100` | Move existing narration audio from DB base64 into configured media storage. |
 
 All TypeScript CLIs use Node's type-stripping harness and auto-load `.env` when
 it exists:

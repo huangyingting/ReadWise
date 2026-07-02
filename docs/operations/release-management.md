@@ -320,7 +320,8 @@ rollback. Confirm degradation is limited to the affected provider:
   reading is unaffected.
 - Speech: narration unavailable; article reading continues.
 - Push: reminders become no-ops; no data loss.
-- Storage: falls back to DB base64 when `MEDIA_STORAGE=database`.
+- Storage: local storage is the default; Azure credential issues skip speech-audio
+  caching until storage is healthy.
 
 If the provider outage causes business-critical data loss or data corruption,
 treat it as a data-corruption rollback (§5.5).

@@ -128,14 +128,15 @@ export async function getOrCreateArticleSpeech(
     const plainText = articleForReaderText?.content
       ? articleHtmlToReaderText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
       : cached.plainText;
+    const audio = await resolveStoredAudioUrl(cached);
     return {
-      audio: await resolveStoredAudioUrl(cached),
+      audio,
       mimeType: cached.mimeType,
       plainText,
       words,
       voice: cached.voice,
       cached: true,
-      fallback: false,
+      fallback: !audio,
     };
   }
 

@@ -48,11 +48,10 @@ afterEach(() => {
   delete process.env.NEXTAUTH_URL;
 });
 
-test("storage reports unconfigured when MEDIA_STORAGE is unset (database mode)", () => {
+test("storage reports configured local storage when MEDIA_STORAGE is unset", () => {
   const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "unconfigured");
-  assert.equal(cfg.optional.storage.configured, false);
-  // degraded storage must NOT prevent overall ready status
+  assert.equal(cfg.optional.storage.status, "configured");
+  assert.equal(cfg.optional.storage.configured, true);
   assert.equal(cfg.ready, true);
 });
 
@@ -109,8 +108,17 @@ test("storage reports degraded for unknown backend kind", () => {
   process.env.MEDIA_STORAGE = "gcs";
   const cfg = validateRuntimeConfig();
   assert.equal(cfg.optional.storage.status, "degraded");
-  assert.equal(cfg.optional.storage.configured, false);
+  assert.equal(cfg.optional.storage.configured, true);
   // degraded does not block readiness
+  assert.equal(cfg.ready, true);
+});
+
+test("storage reports degraded for removed database backend kind", () => {
+  process.env.MEDIA_STORAGE = "database";
+  const cfg = validateRuntimeConfig();
+  assert.equal(cfg.optional.storage.status, "degraded");
+  assert.equal(cfg.optional.storage.configured, true);
+  assert.ok(cfg.optional.storage.issues.some((item) => item.code === "database_storage_removed"));
   assert.equal(cfg.ready, true);
 });
 

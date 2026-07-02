@@ -152,9 +152,10 @@ Important operator notes:
   `ownerId = null`) by default. Use explicit article ids, or pass
   `--include-private`, only when intentionally sending user/private article text
   to Azure Speech.
-- Configure media object storage for large batch runs. If no storage backend is
-  active, `saveSpeechResult` falls back to inline `ArticleSpeech.audioBase64`,
-  which can make the application database very large.
+- Ensure media storage is available for batch runs. Local storage is the
+  default; if `MEDIA_STORAGE=azure` is selected without credentials,
+  `saveSpeechResult` skips cache persistence instead of writing audio to the
+  database.
 - The default batch output format is
   `audio-16khz-32kbitrate-mono-mp3` for broad browser playback with the lowest
   storage footprint. Pass `--format audio-24khz-48kbitrate-mono-mp3` or another
@@ -243,25 +244,21 @@ synthesis once Azure credentials are configured.
 
 `saveSpeechResult` in `src/lib/speech/repository.ts` persists a synthesis result:
 
-1. If object storage is configured (`getMediaStorage()` returns non-null):
-   - Calls `storage.put({ data, mimeType, keyHint: "speech" })` → `{ storageKey, sizeBytes, checksum }`.
-   - Upserts a `MediaAsset` row recording `storageKey`, `mimeType`, `sizeBytes`,
-     `checksum`, `durationSec`, `voice`, `format`, `articleId`.
-   - Sets `audioBase64 = null` on the `ArticleSpeech` row (audio is durably stored
-     externally).
-2. If storage is unconfigured or the write fails:
-   - Falls back to writing `audioBase64` inline in `ArticleSpeech`.
-   - No `MediaAsset` row is created.
+1. Calls `storage.put({ data, mimeType, keyHint: "speech" })` → `{ storageKey, sizeBytes, checksum }`.
+2. Upserts a `MediaAsset` row recording `storageKey`, `mimeType`, `sizeBytes`,
+   `checksum`, `durationSec`, `voice`, `format`, `articleId`.
 3. Upserts `ArticleSpeech` with `storageKey`, `mediaAssetId`, `mimeType`, `voice`,
    `format`, `plainText`, `words`.
+
+If media storage is unavailable or the write fails, `saveSpeechResult` returns
+`false`, skips cache persistence, and does not store audio in the database.
 
 ## Repository: resolveStoredAudioUrl
 
 `resolveStoredAudioUrl(row)` resolves a playable `data:` URL from a cached row:
 
-1. Prefers `row.audioBase64` (inline fallback column).
-2. Falls back to reading bytes from storage via `storage.get(row.storageKey)`.
-3. Returns `null` if neither is available (e.g. storage unreachable after migration).
+1. Reads bytes from storage via `storage.get(row.storageKey)`.
+2. Returns `null` if the row has no key or storage cannot return the object.
 
 ## Cache invalidation and rebuild
 

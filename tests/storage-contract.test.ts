@@ -173,9 +173,9 @@ test("[filesystem] delete missing key is idempotent (no throw)", async () => {
   await assert.doesNotReject(() => storage.delete("speech/missing.mp3"));
 });
 
-test("[filesystem] kind is 'filesystem'", async () => {
+test("[filesystem] kind is 'local'", async () => {
   const { storage } = await withFilesystem();
-  assert.equal(storage.kind, "filesystem");
+  assert.equal(storage.kind, "local");
 });
 
 // ─── Contract: AzureBlobMediaStorage ─────────────────────────────────────────
@@ -232,12 +232,14 @@ test("[azure] kind is 'azure'", async () => {
 
 // ─── Registry / runtime behavior ─────────────────────────────────────────────
 
-test("database mode (default) returns null from getMediaStorage", async () => {
+test("local mode is the default media storage backend", async () => {
   const { getMediaStorage, isObjectStorageConfigured, mediaStorageKind } =
     await import("@/lib/storage");
-  assert.equal(mediaStorageKind(), "database");
-  assert.equal(getMediaStorage(), null);
-  assert.equal(isObjectStorageConfigured(), false);
+  assert.equal(mediaStorageKind(), "local");
+  const storage = getMediaStorage();
+  assert.ok(storage);
+  assert.equal(storage!.kind, "local");
+  assert.equal(isObjectStorageConfigured(), true);
 });
 
 test("azure without credentials degrades gracefully to null", async () => {
@@ -246,21 +248,3 @@ test("azure without credentials degrades gracefully to null", async () => {
   assert.equal(getMediaStorage(), null);
 });
 
-// ─── Migration: generalized MediaMigrationResult ─────────────────────────────
-
-test("migrateArticleSpeechToStorage result includes mediaKind 'speech'", async () => {
-  process.env.MEDIA_STORAGE = "filesystem";
-  process.env.MEDIA_STORAGE_DIR = TEST_DIR;
-  // The global before() mock already stubs prisma with an empty findMany.
-  const { migrateArticleSpeechToStorage } = await import("@/lib/storage");
-  const result = await migrateArticleSpeechToStorage();
-  assert.equal(result.mediaKind, "speech");
-  assert.equal(result.scanned, 0);
-});
-
-test("migrateArticleSpeechToStorage skippedNoStorage result includes mediaKind", async () => {
-  const { migrateArticleSpeechToStorage } = await import("@/lib/storage");
-  const result = await migrateArticleSpeechToStorage();
-  assert.equal(result.skippedNoStorage, true);
-  assert.equal(result.mediaKind, "speech");
-});

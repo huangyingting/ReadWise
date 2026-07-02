@@ -23,14 +23,6 @@ type ProcessOpts = {
   translateLangs?: string[];
 };
 
-type StorageResult = {
-  skippedNoStorage: boolean;
-  storageKind: string;
-  scanned: number;
-  migrated: number;
-  failed: number;
-};
-
 type LoggerEntry = {
   name: string;
   level: "info" | "warn" | "error";
@@ -39,7 +31,6 @@ type LoggerEntry = {
 
 const processPath = fileURLToPath(new URL("../scripts/process.ts", import.meta.url));
 const pushPath = fileURLToPath(new URL("../scripts/push-reminders.ts", import.meta.url));
-const migratePath = fileURLToPath(new URL("../scripts/migrate-storage.ts", import.meta.url));
 const workerPath = fileURLToPath(new URL("../scripts/worker.ts", import.meta.url));
 
 let aiConfigured: boolean;
@@ -55,8 +46,6 @@ let pushConfigured: boolean;
 let reminderResult: { usersWithDue: number; sent: number; skipped: number; suppressed: number };
 let reminderCalls: number;
 let loggerEntries: LoggerEntry[];
-let storageResult: StorageResult;
-let storageCalls: Array<{ limit?: number }>;
 let workerCalls: unknown[];
 let workerLoggerEntries: Array<{ level: "info" | "warn" | "error"; args: unknown[] }>;
 let disconnects: number;
@@ -75,14 +64,6 @@ function resetState(): void {
   reminderResult = { usersWithDue: 1, sent: 1, skipped: 0, suppressed: 0 };
   reminderCalls = 0;
   loggerEntries = [];
-  storageResult = {
-    skippedNoStorage: true,
-    storageKind: "database",
-    scanned: 0,
-    migrated: 0,
-    failed: 0,
-  };
-  storageCalls = [];
   workerCalls = [];
   workerLoggerEntries = [];
   disconnects = 0;
@@ -258,15 +239,6 @@ mock.module("@/lib/observability/logger", {
   },
 });
 
-mock.module("@/lib/storage", {
-  namedExports: {
-    migrateArticleSpeechToStorage: async (opts: { limit?: number }) => {
-      storageCalls.push(opts);
-      return storageResult;
-    },
-  },
-});
-
 mock.module("@/lib/worker", {
   namedExports: {
     createConsoleLogger: () => ({
@@ -289,11 +261,6 @@ const pushScript = await importAsEntrypoint<typeof import("../scripts/push-remin
   "../scripts/push-reminders",
   pushPath,
   ["--help"],
-);
-const migrateScript = await importAsEntrypoint<typeof import("../scripts/migrate-storage")>(
-  "../scripts/migrate-storage",
-  migratePath,
-  [],
 );
 const workerScript = await importAsEntrypoint<typeof import("../scripts/worker")>(
   "../scripts/worker",
@@ -427,49 +394,6 @@ test("push-reminders main covers help, configuration, dry-run, and send paths", 
   assert.equal(reminderCalls, 1);
   assert.ok(loggerEntries.some((entry) => entry.level === "info" && formatArgs(entry.args).includes("sending due-card")));
   assert.ok(loggerEntries.some((entry) => entry.level === "info" && formatArgs(entry.args).includes('"sent":2')));
-});
-
-test("migrate-storage main covers skipped, successful, and failed migrations", async () => {
-  storageResult = {
-    skippedNoStorage: true,
-    storageKind: "database",
-    scanned: 0,
-    migrated: 0,
-    failed: 0,
-  };
-  let run = await runMain(migratePath, migrateScript.main, ["--limit", "5"]);
-  assert.equal(run.result, 0);
-  assert.deepEqual(storageCalls, [{ limit: 5 }]);
-  assert.match(run.logs.join("\n"), /Starting storage migration\.\.\. \(limit 5\)/);
-  assert.match(run.logs.join("\n"), /Skipped: no object storage configured/);
-
-  resetState();
-  storageResult = {
-    skippedNoStorage: false,
-    storageKind: "filesystem",
-    scanned: 4,
-    migrated: 4,
-    failed: 0,
-  };
-  run = await runMain(migratePath, migrateScript.main, []);
-  assert.equal(run.result, 0);
-  assert.deepEqual(storageCalls, [{ limit: undefined }]);
-  assert.match(run.logs.join("\n"), /Starting storage migration\.\.\. \(all eligible\)/);
-  assert.match(run.logs.join("\n"), /Storage kind: filesystem/);
-  assert.match(run.logs.join("\n"), /Migration complete/);
-
-  resetState();
-  storageResult = {
-    skippedNoStorage: false,
-    storageKind: "azure",
-    scanned: 3,
-    migrated: 1,
-    failed: 2,
-  };
-  run = await runMain(migratePath, migrateScript.main, []);
-  assert.equal(run.result, 1);
-  assert.match(run.logs.join("\n"), /Failed:\s+2/);
-  assert.match(run.errors.join("\n"), /2 row\(s\) failed/);
 });
 
 test("worker main covers help, translation validation, provider warnings, and worker options", async () => {

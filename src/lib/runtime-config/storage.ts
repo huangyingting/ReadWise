@@ -15,16 +15,19 @@ const log = createLogger("storage");
 // ---------------------------------------------------------------------------
 
 /**
- * Reads the configured backend kind from the environment (defaults to database).
- * `filesystem` (alias `local`) selects the local-directory backend.
+ * Reads the configured backend kind from the environment (defaults to local).
+ * `filesystem` is accepted as a legacy alias for `local`.
  */
 export function mediaStorageKind(): MediaStorageKind {
   const raw = (process.env.MEDIA_STORAGE ?? "").trim().toLowerCase();
-  if (raw === "" || raw === "database") return "database";
-  if (raw === "filesystem" || raw === "local") return "filesystem";
+  if (raw === "" || raw === "filesystem" || raw === "local") return "local";
   if (raw === "azure") return "azure";
-  log.warn("storage.unknown_kind", { value: raw, fallback: "database" });
-  return "database";
+  if (raw === "database") {
+    log.warn("storage.database_kind_removed", { value: raw, fallback: "local" });
+    return "local";
+  }
+  log.warn("storage.unknown_kind", { value: raw, fallback: "local" });
+  return "local";
 }
 
 // ---------------------------------------------------------------------------

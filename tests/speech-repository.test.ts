@@ -5,10 +5,9 @@
  * Covers:
  *   - parseStoredSpeechWords — pure JSON parsing of stored timings (valid,
  *     empty, and the many malformed shapes that map to a null/corrupt result).
- *   - resolveStoredAudioUrl — inline base64 vs object-storage read-back vs
- *     unresolvable rows.
- *   - saveSpeechResult — storage-unconfigured inline fallback, successful
- *     external write, and storage-failure fallback to inline base64.
+ *   - resolveStoredAudioUrl — media-storage read-back vs unresolvable rows.
+ *   - saveSpeechResult — storage-unconfigured skip, successful storage write,
+ *     and storage-failure skip.
  *
  * Mocks: @/lib/prisma and @/lib/storage. No real DB, network, or Azure SDK.
  */
@@ -75,7 +74,7 @@ function makeStorage(opts: {
   get?: (key: string) => Promise<Buffer | null>;
 }): MediaStorage {
   return {
-    kind: "filesystem",
+    kind: "local",
     put:
       opts.put ??
       (async () => ({ storageKey: "speech/abc", sizeBytes: 3, checksum: "deadbeef" })),
@@ -187,21 +186,10 @@ test("parseStoredSpeechWords rejects incomplete or invalid text offsets", async 
 // resolveStoredAudioUrl
 // ---------------------------------------------------------------------------
 
-test("resolveStoredAudioUrl prefers the inline base64 column", async () => {
+test("resolveStoredAudioUrl returns null when there is no storage key", async () => {
   const { resolveStoredAudioUrl } = await loadRepo();
   const url = await resolveStoredAudioUrl({
     mimeType: "audio/mpeg",
-    audioBase64: "QUJD",
-    storageKey: "speech/ignored",
-  });
-  assert.equal(url, "data:audio/mpeg;base64,QUJD");
-});
-
-test("resolveStoredAudioUrl returns null when there is no inline audio and no storage key", async () => {
-  const { resolveStoredAudioUrl } = await loadRepo();
-  const url = await resolveStoredAudioUrl({
-    mimeType: "audio/mpeg",
-    audioBase64: null,
     storageKey: null,
   });
   assert.equal(url, null);
@@ -212,7 +200,6 @@ test("resolveStoredAudioUrl returns null when a storage key exists but storage i
   storageImpl = null;
   const url = await resolveStoredAudioUrl({
     mimeType: "audio/mpeg",
-    audioBase64: null,
     storageKey: "speech/abc",
   });
   assert.equal(url, null);
@@ -223,7 +210,6 @@ test("resolveStoredAudioUrl returns null when storage has no bytes for the key",
   storageImpl = makeStorage({ get: async () => null });
   const url = await resolveStoredAudioUrl({
     mimeType: "audio/mpeg",
-    audioBase64: null,
     storageKey: "speech/missing",
   });
   assert.equal(url, null);
@@ -240,7 +226,6 @@ test("resolveStoredAudioUrl reads bytes back from storage and returns a data URL
   });
   const url = await resolveStoredAudioUrl({
     mimeType: "audio/ogg",
-    audioBase64: null,
     storageKey: "speech/abc",
   });
   assert.equal(requestedKey, "speech/abc");
@@ -264,19 +249,42 @@ const SAVE_PARAMS = {
   ],
 };
 
-test("saveSpeechResult stores audio inline as base64 when no object storage is configured", async () => {
+test("saveSpeechResult skips persistence when no media storage is configured", async () => {
   const { saveSpeechResult } = await loadRepo();
   storageImpl = null;
 
-  await saveSpeechResult(SAVE_PARAMS);
+  const saved = await saveSpeechResult(SAVE_PARAMS);
 
+  assert.equal(saved, false);
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert should be skipped without storage");
+  assert.equal(articleSpeechUpsertArgs, null, "speech row upsert should be skipped without storage");
+});
+
+test("saveSpeechResult writes to media storage and upserts a MediaAsset on success", async () => {
+  const { saveSpeechResult } = await loadRepo();
+  let putInput: PutMediaInput | null = null;
+  storageImpl = makeStorage({
+    put: async (input) => {
+      putInput = input;
+      return { storageKey: "speech/xyz", sizeBytes: 5, checksum: "cafef00d" };
+    },
+  });
+
+  const saved = await saveSpeechResult(SAVE_PARAMS);
+
+  assert.equal(saved, true);
+  assert.ok(putInput);
+  assert.equal((putInput as PutMediaInput).keyHint, "speech");
+  assert.ok(mediaAssetUpsertArgs);
+  assert.deepEqual(mediaAssetUpsertArgs!.where, { storageKey: "speech/xyz" });
+  // durationSec = last word end = 1100 / 1000 = 1.1s.
+  assert.equal(mediaAssetUpsertArgs!.create.durationSec, 1.1);
+  assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
+
   assert.ok(articleSpeechUpsertArgs);
-  assert.deepEqual(articleSpeechUpsertArgs!.where, { articleId: "a1" });
-  assert.equal(articleSpeechUpsertArgs!.create.audioBase64, Buffer.from("AUDIO").toString("base64"));
-  assert.equal(articleSpeechUpsertArgs!.create.storageKey, null);
-  assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, null);
-  assert.equal(articleSpeechUpsertArgs!.update.audioBase64, Buffer.from("AUDIO").toString("base64"));
+  assert.equal(articleSpeechUpsertArgs!.create.storageKey, "speech/xyz");
+  assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, "media-1");
+  assert.equal("audioBase64" in articleSpeechUpsertArgs!.create, false);
   assert.deepEqual(articleSpeechUpsertArgs!.create.words, {
     version: 2,
     provider: "azure",
@@ -290,33 +298,7 @@ test("saveSpeechResult stores audio inline as base64 when no object storage is c
   });
 });
 
-test("saveSpeechResult writes to object storage, upserts a MediaAsset, and nulls inline base64 on success", async () => {
-  const { saveSpeechResult } = await loadRepo();
-  let putInput: PutMediaInput | null = null;
-  storageImpl = makeStorage({
-    put: async (input) => {
-      putInput = input;
-      return { storageKey: "speech/xyz", sizeBytes: 5, checksum: "cafef00d" };
-    },
-  });
-
-  await saveSpeechResult(SAVE_PARAMS);
-
-  assert.ok(putInput);
-  assert.equal((putInput as PutMediaInput).keyHint, "speech");
-  assert.ok(mediaAssetUpsertArgs);
-  assert.deepEqual(mediaAssetUpsertArgs!.where, { storageKey: "speech/xyz" });
-  // durationSec = last word end = 1100 / 1000 = 1.1s.
-  assert.equal(mediaAssetUpsertArgs!.create.durationSec, 1.1);
-  assert.equal(mediaAssetUpsertArgs!.create.kind, "speech");
-
-  assert.ok(articleSpeechUpsertArgs);
-  assert.equal(articleSpeechUpsertArgs!.create.storageKey, "speech/xyz");
-  assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, "media-1");
-  assert.equal(articleSpeechUpsertArgs!.create.audioBase64, null);
-});
-
-test("saveSpeechResult falls back to inline base64 when the storage write throws", async () => {
+test("saveSpeechResult skips persistence when the storage write throws", async () => {
   const { saveSpeechResult } = await loadRepo();
   storageImpl = makeStorage({
     put: async () => {
@@ -324,11 +306,9 @@ test("saveSpeechResult falls back to inline base64 when the storage write throws
     },
   });
 
-  await saveSpeechResult(SAVE_PARAMS);
+  const saved = await saveSpeechResult(SAVE_PARAMS);
 
+  assert.equal(saved, false);
   assert.equal(mediaAssetUpsertArgs, null, "media asset upsert is never reached after a put failure");
-  assert.ok(articleSpeechUpsertArgs);
-  assert.equal(articleSpeechUpsertArgs!.create.audioBase64, Buffer.from("AUDIO").toString("base64"));
-  assert.equal(articleSpeechUpsertArgs!.create.storageKey, null);
-  assert.equal(articleSpeechUpsertArgs!.create.mediaAssetId, null);
+  assert.equal(articleSpeechUpsertArgs, null, "speech row upsert is skipped after a put failure");
 });

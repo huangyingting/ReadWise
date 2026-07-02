@@ -58,16 +58,15 @@ test("storage key helpers hash, normalize extensions, and sanitize hints", async
   assert.equal(sanitizeKeyHint("////"), "media");
 });
 
-test("provider registry returns only registered non-database providers", async () => {
+test("provider registry returns only registered providers", async () => {
   const { registerProvider, resolveProvider } = await import("@/lib/storage/registry");
-  const provider = { kind: "filesystem" } as never;
+  const provider = { kind: "local" } as never;
 
-  assert.equal(resolveProvider("database"), null);
   assert.equal(resolveProvider("azure"), null);
-  registerProvider("filesystem", () => provider);
-  assert.equal(resolveProvider("filesystem"), provider);
-  registerProvider("filesystem", () => null);
-  assert.equal(resolveProvider("filesystem"), null);
+  registerProvider("local", () => provider);
+  assert.equal(resolveProvider("local"), provider);
+  registerProvider("local", () => null);
+  assert.equal(resolveProvider("local"), null);
 });
 
 test("browser storage helpers tolerate SSR, working storage, and storage failures", async () => {

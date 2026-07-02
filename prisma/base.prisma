@@ -234,7 +234,6 @@ model ArticleSpeech {
   voice       String
   format      String
   mimeType    String
-  audioBase64 String?
   storageKey   String?
   mediaAssetId String?
   plainText   String
@@ -985,13 +984,11 @@ model ContentReview {
   @@index([action, createdAt])
 }
 
-// Media object-storage metadata (Epic RW-E009 — RW-049). When object storage is
-// configured (MEDIA_STORAGE), generated audio is written OUTSIDE the relational
-// DB and this row records the pointer + metadata (storageKey, mime, size,
-// checksum, duration, voice, format). `ArticleSpeech.storageKey/mediaAssetId`
-// reference it; `ArticleSpeech.audioBase64` is kept as a graceful fallback when
-// storage is unconfigured. Cascades with the article. `kind` distinguishes
-// asset types (e.g. speech).
+// Media storage metadata (Epic RW-E009 — RW-049). Generated audio is written
+// outside the relational DB to local or Azure media storage; this row records
+// the pointer + metadata (storageKey, mime, size, checksum, duration, voice,
+// format). `ArticleSpeech.storageKey/mediaAssetId` reference it. Cascades with
+// the article. `kind` distinguishes asset types (e.g. speech).
 model MediaAsset {
   id          String   @id @default(cuid())
   storageKey  String   @unique

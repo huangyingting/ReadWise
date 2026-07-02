@@ -2,191 +2,138 @@
 type: "reference"
 status: "current"
 last_updated: "2026-07-02"
-description: "Documents optional media object-storage abstraction, database fallback, filesystem/Azure backends, and readiness behavior. Captures current configuration, storage interface, speech audio migration, streaming endpoint, rollback, and troubleshooting rules."
+description: "Documents local/Azure media storage, readiness behavior, storage interface, speech audio persistence, streaming endpoint, and troubleshooting rules."
 ---
 
-# Media object storage
+# Media storage
 
 Audio narration (text-to-speech) is the largest media payload ReadWise produces.
-Historically it was stored inline as base64 in `ArticleSpeech.audioBase64`. This
-document describes the optional object-storage abstraction that moves those
-payloads out of the database, and how it degrades gracefully (Epic RW-E009 —
-RW-049 / Epic #370).
+Current speech audio is stored outside the relational database in either local
+filesystem storage or Azure Blob Storage. The legacy database-backed
+`ArticleSpeech.audioBase64` fallback has been removed; current `ArticleSpeech`
+rows retain metadata/timings plus a `storageKey`/`mediaAssetId` pointer only.
 
 ## Goals
 
-- Keep large audio out of the primary database when object storage is available.
-- **Never** require a cloud SDK or break when storage is unconfigured — the DB
-  base64 path remains the always-working default.
-- Make reader playback work identically in both modes.
-- Provide a safe, idempotent migration for existing base64 audio.
+- Keep large audio out of the primary database.
+- Provide a local default that works in development and single-node deployments
+  without cloud infrastructure.
+- Support Azure Blob Storage for production or multi-node deployments.
+- Make reader playback work identically regardless of the selected backend.
+- Degrade gracefully when an optional storage provider is unavailable: speech
+  audio is not cached, but the app does not fall back to database audio storage.
 
 ## Configuration
 
 A single env var selects the backend (`src/lib/storage.ts`):
 
-| `MEDIA_STORAGE`            | Backend                          | Notes                                              |
-| ------------------------- | -------------------------------- | -------------------------------------------------- |
-| unset / `database`        | **Database base64** (default) | `getMediaStorage()` returns `null`; nothing changes |
-| `filesystem` (or `local`) | Local filesystem            | Files under `MEDIA_STORAGE_DIR` (default `./.media`) |
-| `azure`                   | **Azure Blob Storage**           | Requires `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT`+`AZURE_STORAGE_KEY` |
+| `MEDIA_STORAGE` | Backend | Notes |
+| --- | --- | --- |
+| unset / `local` | Local filesystem | Default. Files live under `MEDIA_STORAGE_DIR` (default `./.media`). |
+| `filesystem` | Local filesystem | Legacy alias for `local`. |
+| `azure` | Azure Blob Storage | Requires `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT` + `AZURE_STORAGE_KEY`. |
 
-### Filesystem mode
+`MEDIA_STORAGE=database` is no longer supported. If an old environment still
+sets it, runtime config reports a warning and the storage resolver uses local
+filesystem storage instead.
 
-| Variable          | Default      | Description                              |
-| ----------------- | ------------ | ---------------------------------------- |
-| `MEDIA_STORAGE`   | _(unset)_    | Set to `filesystem` or alias `local`    |
-| `MEDIA_STORAGE_DIR` | `./.media` | Absolute or relative path for file store |
+### Local storage
 
-### Azure Blob Storage mode
+| Variable | Default | Description |
+| --- | --- | --- |
+| `MEDIA_STORAGE` | _(unset)_ | Optional; set to `local` explicitly when desired. |
+| `MEDIA_STORAGE_DIR` | `./.media` | Absolute or relative path for the local file store. |
 
-| Variable                           | Required                       | Description                                      |
-| ---------------------------------- | ------------------------------ | ------------------------------------------------ |
-| `MEDIA_STORAGE`                    | yes                            | Set to `azure`                                   |
-| `AZURE_STORAGE_CONNECTION_STRING`  | one of these two options       | Full Azure Storage connection string             |
-| `AZURE_STORAGE_ACCOUNT`            | (alternative to conn string)   | Azure Storage account name                       |
-| `AZURE_STORAGE_KEY`                | with account name              | Azure Storage account key                        |
-| `AZURE_STORAGE_CONTAINER`          | no (default: `media`)          | Blob container name                              |
+### Azure Blob Storage
 
-When `MEDIA_STORAGE=azure` but credentials are missing the app falls back to DB
-base64 with a warning — it does **not** crash. The readiness probe (`GET /api/ready`)
-reports `checks.providers.storage = "degraded"` in this state.
+| Variable | Required | Description |
+| --- | --- | --- |
+| `MEDIA_STORAGE` | yes | Set to `azure`. |
+| `AZURE_STORAGE_CONNECTION_STRING` | one of these two auth options | Full Azure Storage connection string. |
+| `AZURE_STORAGE_ACCOUNT` | alternative to connection string | Azure Storage account name. |
+| `AZURE_STORAGE_KEY` | with account name | Azure Storage account key. |
+| `AZURE_STORAGE_CONTAINER` | no (default: `media`) | Blob container name. |
 
-`getMediaStorage()` is intentionally **not cached** so a runtime/env change (or a
-test) is reflected immediately; construction is cheap.
+When `MEDIA_STORAGE=azure` but credentials are missing, `getMediaStorage()`
+returns `null`, readiness reports `checks.providers.storage = "degraded"`, and
+speech audio is not persisted until storage is configured. The app does **not**
+write audio into the database as a fallback.
 
 ## The storage abstraction
 
 ```ts
 interface MediaStorage {
-  readonly kind: MediaStorageKind;
+  readonly kind: MediaStorageKind; // "local" | "azure"
   put(input: PutMediaInput): Promise<PutMediaResult>; // → { storageKey, sizeBytes, checksum }
   get(storageKey: string): Promise<Buffer | null>;
   delete(storageKey: string): Promise<void>;
 }
 ```
 
-Both the filesystem and Azure implementations are:
+Both local and Azure implementations are:
 
-- **content-addressed** — the object key embeds the sha-256 of the bytes
+- **content-addressed** — object keys embed the SHA-256 of the bytes
   (`<keyHint>/<sha256><ext>`), so identical audio de-duplicates and writes are
   idempotent.
 - **flat for speech assets** — narration uses `speech/<sha256><ext>` instead of
   per-article subdirectories because article ownership is tracked in the
   database and object keys are already unique.
-- **traversal-safe** — filesystem: every key is resolved and confined to the base
-  directory. Azure: SDK handles container scoping; storageKey is sanitized before
-  use.
-- **private** — Azure blobs are uploaded without public access; audio is served only
-  to authenticated readers via `GET /api/reader/[id]/speech/audio`.
+- **traversal-safe** — local storage confines all keys to the base directory;
+  Azure uses container scoping and sanitized keys.
+- **private** — Azure blobs are uploaded without public access; audio is served
+  only to authenticated readers via `GET /api/reader/[id]/speech/audio`.
 
-To add a real cloud backend, implement `MediaStorage` for the chosen provider and
-wire it into `getMediaStorage()` behind its `MEDIA_STORAGE` value. No other code
-changes are required — synthesis, migration and playback all go through the
-interface.
+To add another backend, implement `MediaStorage` and register it behind a new
+`MEDIA_STORAGE` value. Speech generation and playback go through this interface.
 
-## How speech uses it
+## How speech uses storage
 
-`src/lib/speech.ts` `getOrCreateArticleSpeech`:
+`src/lib/speech/index.ts` `getOrCreateArticleSpeech`:
 
-- **Synthesis path** — when object storage is configured, new audio is written via
-  the abstraction and a `MediaAsset` row is recorded (`storageKey`, `mimeType`,
-  `sizeBytes`, `checksum`, `durationSec`, `voice`, `format`); `ArticleSpeech` keeps
-  a `storageKey` + `mediaAssetId` link. When storage is unconfigured, audio is
-  stored as base64 exactly as before.
-- **Cached-read path** — `resolveStoredAudioUrl` prefers existing base64, else
-  reads the bytes back from storage by key. If neither is available, the client
-  treats the response as a graceful fallback (no audio) rather than erroring.
+- **Synthesis path** — new audio is written through `getMediaStorage().put()`.
+  A `MediaAsset` row records `storageKey`, `mimeType`, `sizeBytes`, `checksum`,
+  `durationSec`, `voice`, `format`, and `articleId`; `ArticleSpeech` stores
+  the `storageKey` + `mediaAssetId` link plus voice/format/plainText/word timings.
+- **Storage unavailable/write failure** — the synthesis result may still be
+  returned to the current caller, but no database audio fallback is written and
+  no cache row is created.
+- **Cached-read path** — `resolveStoredAudioUrl` reads bytes from storage by
+  `storageKey`. If the object is unavailable, the client treats the response as
+  a graceful no-audio fallback.
 
-`ArticleSpeech.audioBase64` is **nullable** but retained as a fallback — it is
-never required, and the schema supports both modes simultaneously (some rows on
-base64, some on storage keys).
-
-## Streaming audio endpoint (#372)
+## Streaming audio endpoint
 
 `GET /api/reader/[id]/speech/audio` serves narration audio bytes directly:
 
-- **Auth-gated** — same article-access rules as the speech POST route. Unauthenticated
-  or unauthorized requests receive 401/404 (private article audio is never exposed).
-- **Source-agnostic** — serves from `storageKey` via `getMediaStorage().get()` when
-  available, else falls back to `audioBase64`. Returns 404 when neither is present.
-- **Cache headers** — `Cache-Control: private, max-age=3600` prevents shared caches
-  from serving one user's audio to another.
+- **Auth-gated** — same article-access rules as the speech POST route.
+- **Storage-backed** — serves from `storageKey` via `getMediaStorage().get()`.
+  Returns 404 when no row/key/object is available.
+- **Cache headers** — `Cache-Control: private, max-age=3600` prevents shared
+  caches from serving one user's audio to another.
 - **Content-Length** — included when bytes are known, enabling progress bars.
 
-This endpoint is the foundation for `<audio src="/api/reader/{id}/speech/audio">`
-which avoids embedding large data-URIs in the initial page payload.
-
-## Migrating existing base64 audio
-
-`migrateArticleSpeechToStorage()` moves existing inline audio into object storage:
-
-- **Idempotent** — only rows WITH `audioBase64` AND WITHOUT a `storageKey` are
-  eligible, so a re-run migrates nothing new.
-- **Safe** — base64 is cleared ONLY after the storage write AND the `MediaAsset`
-  record both succeed (inside a transaction). The payload is never lost.
-- **Graceful** — when object storage is unconfigured it is a no-op
-  (`skippedNoStorage: true`).
-
-It returns `{ storageKind, skippedNoStorage, scanned, migrated, failed }` and
-accepts an optional `limit` for batched runs. `scanned` is the number of eligible
-rows found in that run; already-migrated rows are intentionally excluded by the
-idempotency predicate.
-
-### Running the migration
-
-```bash
-# Load env first (sets MEDIA_STORAGE, credentials, DATABASE_URL, etc.)
-set -a && . ./.env && set +a
-
-# Migrate all eligible rows
-npm run migrate-storage
-
-# Migrate in batches (useful for large datasets)
-npm run migrate-storage -- --limit 100
-```
-
-The script is safe to re-run at any time.
-
-### Rollback
-
-Because `audioBase64` is only cleared **after** a successful storage write + DB
-transaction, rollback is simple:
-
-1. Remove `MEDIA_STORAGE` from your environment (or set it to `database`).
-2. Rows that have already been migrated (`audioBase64 = null`, `storageKey` set)
-   will have no base64 to fall back to — but the bytes are in storage and can be
-   re-read by `GET /api/reader/[id]/speech/audio` as long as the storage backend
-   is reachable.
-3. To fully roll back: run a one-time script that reads each row's bytes from storage
-   and re-populates `audioBase64`, then clears `storageKey`. The migrated base64 was
-   never deleted from the original source — only cleared from the DB after a
-   successful store write.
-
-**Do not delete the storage container** until you are certain every row has either
-been migrated (storageKey set) or has base64 as a fallback.
+This endpoint supports `<audio src="/api/reader/{id}/speech/audio">` and avoids
+embedding large data URIs in the initial page payload.
 
 ## Readiness probe
 
 `GET /api/ready` exposes `checks.providers.storage`:
 
-| Value          | Meaning                                                                 |
-| -------------- | ----------------------------------------------------------------------- |
-| `unconfigured` | `MEDIA_STORAGE` unset or `database` — DB base64 mode, expected          |
-| `configured`   | Backend credentials present and valid                                   |
-| `degraded`     | `MEDIA_STORAGE=azure` but credentials missing — app falls back to DB    |
+| Value | Meaning |
+| --- | --- |
+| `configured` | Local storage is active, or Azure credentials are present. |
+| `degraded` | Azure was selected without credentials, or an unsupported storage value was supplied and local fallback is being used. |
 
-`degraded` does **not** cause the readiness probe to return HTTP 503, because DB
-base64 fallback is still fully functional. No secret values (connection strings,
-account keys) are included in the readiness JSON.
+Storage degradation does not make readiness return HTTP 503 because storage is
+optional and speech gracefully skips caching when a provider is unavailable. No
+secret values (connection strings, account keys) are included in readiness JSON.
 
 ## Troubleshooting
 
 | Symptom | Likely cause | Resolution |
-| ------- | ------------ | ---------- |
-| `checks.providers.storage = "degraded"` in `/api/ready` | `MEDIA_STORAGE=azure` but `AZURE_STORAGE_*` creds missing | Set `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT`+`AZURE_STORAGE_KEY` |
-| `storage.azure_unconfigured` warn in logs | Same as above | Same as above |
-| `storage.azure_container_unavailable` warn in logs | Azure SDK import failed or container creation threw | Check credentials, network, and that the account/container name is valid |
-| Migration shows `failed > 0` | Storage write or DB transaction failed | Check logs for `storage.speech_migration_failed`; re-run after fixing credentials |
-| Audio 404 after migration but `storageKey` is set | Storage backend unreachable or `MEDIA_STORAGE` not set | Confirm env vars are loaded; check `GET /api/ready` storage status |
-| `npm run migrate-storage` shows `skippedNoStorage` | `MEDIA_STORAGE` is not set or set to `database` | Set `MEDIA_STORAGE` and configure credentials before running |
+| --- | --- | ---------- |
+| `checks.providers.storage = "degraded"` in `/api/ready` | `MEDIA_STORAGE=azure` but `AZURE_STORAGE_*` credentials are missing. | Set `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT` + `AZURE_STORAGE_KEY`, or switch to `MEDIA_STORAGE=local`. |
+| `storage.azure_unconfigured` warn in logs | Same as above. | Same as above. |
+| `storage.azure_container_unavailable` warn in logs | Azure SDK import failed or container creation threw. | Check credentials, network, and account/container names. |
+| Speech POST returns no cached audio on later requests | Storage write failed or the storage object is unavailable. | Check storage logs and `GET /api/ready`; regenerate narration after storage is healthy. |
+| Audio endpoint returns 404 but `ArticleSpeech.storageKey` is set | The selected backend cannot read the object. | Confirm env vars are loaded and the local directory/blob container contains the key. |

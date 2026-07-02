@@ -64,14 +64,14 @@ Provider failures resolve `null`; callers decide the fallback UI.
 
 ## Storage and playback
 
-`saveSpeechResult(...)` prefers configured object storage and records a
+`saveSpeechResult(...)` writes audio to local/Azure media storage and records a
 `MediaAsset` row with storage key, MIME type, byte size, checksum, duration,
-voice, format, and article id. If storage is unconfigured or the write fails,
-it falls back to `ArticleSpeech.audioBase64`.
+voice, format, and article id. If storage is unavailable or the write fails,
+speech audio is not cached and is never stored inline in the database.
 
-`GET /api/reader/[id]/speech/audio` serves bytes from object storage when a
-storage key is present, otherwise from base64. It must remain auth-gated and use
-private cache headers.
+`GET /api/reader/[id]/speech/audio` serves bytes from media storage when a
+storage key is present and the object is readable. It must remain auth-gated and
+use private cache headers.
 
 ## Rebuild and invalidation
 
