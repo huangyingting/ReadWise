@@ -15,3 +15,4 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-01T20:03:33.362+00:00 — Backend and operational script coverage tests/seams completed with backend/script targets at >=98%; final coverage/typecheck/lint validation passed.
+- 2026-07-01T23:11:49.008+00:00 — Backend-side coverage and regrouping decisions were consolidated into decisions.md; shared test ownership boundaries remain documented.

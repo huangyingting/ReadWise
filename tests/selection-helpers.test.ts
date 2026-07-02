@@ -5,12 +5,59 @@
  * without a real DOM framework.
  */
 
-import { test, describe } from "node:test";
+import { afterEach, test, describe } from "node:test";
 import assert from "node:assert/strict";
+import { parseHTML } from "linkedom";
 import {
   extractContextSentence,
   wordAtPoint,
 } from "@/components/reader/wordLookup/selectionHelpers";
+
+type MutableGlobal = typeof globalThis & {
+  document?: Document;
+  window?: Window;
+  Node?: typeof Node;
+  NodeFilter?: typeof NodeFilter;
+};
+
+const originalGlobals = {
+  document: (globalThis as MutableGlobal).document,
+  window: (globalThis as MutableGlobal).window,
+  Node: (globalThis as MutableGlobal).Node,
+  NodeFilter: (globalThis as MutableGlobal).NodeFilter,
+};
+
+function restoreGlobal<K extends keyof typeof originalGlobals>(key: K): void {
+  const g = globalThis as MutableGlobal;
+  const value = originalGlobals[key];
+  if (value === undefined) {
+    delete g[key];
+  } else {
+    g[key] = value as never;
+  }
+}
+
+function restoreGlobals(): void {
+  restoreGlobal("document");
+  restoreGlobal("window");
+  restoreGlobal("Node");
+  restoreGlobal("NodeFilter");
+}
+
+function installDom(html: string): Document {
+  const { document, window } = parseHTML(html);
+  Object.assign(globalThis, {
+    document,
+    window,
+    Node: window.Node,
+    NodeFilter: window.NodeFilter ?? { SHOW_TEXT: 4 },
+  });
+  return document;
+}
+
+afterEach(() => {
+  restoreGlobals();
+});
 
 // ---------------------------------------------------------------------------
 // extractContextSentence
@@ -94,5 +141,68 @@ describe("wordAtPoint", () => {
     // In Node.js there is no DOM, so both caret APIs are absent.
     // The function must return null gracefully rather than throwing.
     assert.equal(wordAtPoint(0, 0), null);
+  });
+});
+
+describe("wordAtPoint DOM caret APIs", () => {
+  test("uses caretRangeFromPoint and keeps apostrophes and hyphens", () => {
+    const document = installDom("<p id='p'>well-being isn't simple</p>");
+    const text = document.getElementById("p")!.firstChild as Text;
+
+    (
+      document as Document & { caretRangeFromPoint?: () => Range }
+    ).caretRangeFromPoint = () =>
+      ({
+        startContainer: text,
+        startOffset: 5,
+      }) as unknown as Range;
+
+    assert.equal(wordAtPoint(10, 20), "well-being");
+  });
+
+  test("falls back to caretPositionFromPoint", () => {
+    const document = installDom("<p id='p'>alpha beta gamma</p>");
+    const text = document.getElementById("p")!.firstChild as Text;
+    const doc = document as unknown as {
+      caretRangeFromPoint?: undefined;
+      caretPositionFromPoint?: () => { offsetNode: Node; offset: number };
+    };
+    doc.caretRangeFromPoint = undefined;
+    doc.caretPositionFromPoint = () => ({ offsetNode: text, offset: 8 });
+
+    assert.equal(wordAtPoint(1, 2), "beta");
+  });
+
+  test("returns null for non-text nodes or empty word spans", () => {
+    const document = installDom("<p id='p'>   </p>");
+    const paragraph = document.getElementById("p")!;
+    const text = paragraph.firstChild as Text;
+    const doc = document as unknown as {
+      caretRangeFromPoint?: () => Range;
+    };
+
+    doc.caretRangeFromPoint = () =>
+      ({
+        startContainer: paragraph,
+        startOffset: 0,
+      }) as unknown as Range;
+    assert.equal(wordAtPoint(0, 0), null);
+
+    doc.caretRangeFromPoint = () =>
+      ({
+        startContainer: text,
+        startOffset: 1,
+      }) as unknown as Range;
+    assert.equal(wordAtPoint(0, 0), null);
+  });
+});
+
+describe("extractContextSentence length guard", () => {
+  test("returns null for overlong matching fragments", () => {
+    const prose = {
+      textContent: `${"word ".repeat(90)}. A concise sentence follows.`,
+    } as HTMLElement;
+
+    assert.equal(extractContextSentence(prose, "word"), null);
   });
 });

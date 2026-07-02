@@ -15,3 +15,4 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-01T20:03:33.362+00:00 — Coverage strategy decision inbox entry was merged into `decisions.md`; ownership strategy preserved, and final coverage/typecheck/lint validation passed.
+- 2026-07-01T23:11:49.008+00:00 — Decision inbox was merged into decisions.md with no archive required (3901 bytes), preserving the coverage/test-suite governance trail.
