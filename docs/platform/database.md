@@ -24,6 +24,11 @@ npm run db:reset
 The current local fixture is intentionally small: 10 articles with flat
 `.media/speech/<file>.mp3` audio files.
 
+Prisma 7 reads connection URLs from `prisma.config.ts` instead of the schema
+files. Keep `DATABASE_URL` and `PRISMA_SCHEMA_PATH` in sync: the default SQLite
+path uses `file:./dev.db` plus `prisma/schema.prisma`; PostgreSQL workflows use
+the PostgreSQL URL plus `prisma/postgresql/schema.prisma`.
+
 ## Migration and integration checks
 
 The PostgreSQL baseline lives in `prisma/postgresql/migrations/`. Run checks
@@ -110,7 +115,9 @@ workflow, and the checklist to follow for every model change.
 ### Parity contract
 
 `prisma/schema.prisma` (SQLite) and `prisma/postgresql/schema.prisma` must be
-**byte-identical** except for a single line in the `datasource db` block:
+**byte-identical** except for a single line in the `datasource db` block. The
+connection URL is intentionally not present in either schema; `prisma.config.ts`
+supplies `DATABASE_URL` to Prisma CLI commands.
 
 | File | datasource provider line |
 |------|--------------------------|

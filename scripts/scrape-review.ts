@@ -4,6 +4,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { appendFile, mkdir, readFile } from "node:fs/promises";
 
+import { PrismaBetterSqlite3 } from "@prisma/adapter-better-sqlite3";
+import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import { closeBrowser } from "@/lib/scraper/fetch-browser";
@@ -187,6 +189,27 @@ export function normalizeDatabaseUrl(input: string): string {
   return `file:${absolute}`;
 }
 
+function isPostgresUrl(databaseUrl: string): boolean {
+  return /^postgres(ql)?:/i.test(databaseUrl);
+}
+
+function createPrismaClient(databaseUrl: string): PrismaClient {
+  if (isPostgresUrl(databaseUrl)) {
+    const url = new URL(databaseUrl);
+    const schema = url.searchParams.get("schema") ?? undefined;
+
+    return new PrismaClient({
+      adapter: new PrismaPg(databaseUrl, schema ? { schema } : undefined),
+      log: ["error"],
+    });
+  }
+
+  return new PrismaClient({
+    adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
+    log: ["error"],
+  });
+}
+
 function positiveInt(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
@@ -227,10 +250,7 @@ Options:
 async function loadDbReviewItems(args: ScrapeReviewArgs): Promise<ReviewItem[]> {
   const provider = args.provider ? requireProvider(args.provider) : null;
   const databaseUrl = normalizeDatabaseUrl(args.db ?? process.env.DATABASE_URL ?? "file:./prisma/dev.db");
-  const prisma = new PrismaClient({
-    datasources: { db: { url: databaseUrl } },
-    log: ["error"],
-  });
+  const prisma = createPrismaClient(databaseUrl);
 
   try {
     const limit = args.limit;

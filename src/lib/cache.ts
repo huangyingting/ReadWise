@@ -100,7 +100,7 @@ export function createCachedListing<Args extends unknown[], T>(
 
 function safeRevalidate(tag: string): void {
   try {
-    revalidateTag(tag);
+    revalidateTag(tag, "max");
   } catch {
     // Called outside a Next.js request scope (e.g. the CLI worker/processor).
     // The time-based revalidation window refreshes listings instead.

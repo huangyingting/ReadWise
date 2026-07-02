@@ -1,15 +1,11 @@
 import { dirname, resolve } from "path";
 import { fileURLToPath } from "url";
-import { FlatCompat } from "@eslint/eslintrc";
 import { createRequire } from "module";
+import nextCoreWebVitals from "eslint-config-next/core-web-vitals";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const require = createRequire(import.meta.url);
-
-const compat = new FlatCompat({
-  baseDirectory: __dirname,
-});
 
 // ── Custom local plugin: import-boundary enforcement (REF-076) ────────────────
 // Enforces client/server module boundaries. See eslint-rules/ for rule source
@@ -27,7 +23,20 @@ const importBoundaryPlugin = {
 
 const eslintConfig = [
   { ignores: [".squad/", "node_modules/", ".next/"] },
-  ...compat.extends("next/core-web-vitals"),
+  ...nextCoreWebVitals,
+
+  // Next 16's React Hooks plugin enables React Compiler-style checks that the
+  // current codebase has not migrated to yet. Keep the existing lint baseline
+  // stable and re-enable these rules incrementally during that migration.
+  {
+    rules: {
+      "react-hooks/immutability": "off",
+      "react-hooks/preserve-manual-memoization": "off",
+      "react-hooks/purity": "off",
+      "react-hooks/refs": "off",
+      "react-hooks/set-state-in-effect": "off",
+    },
+  },
 
   // ── Client/server import boundary rule (REF-076) ──────────────────────────
   // Applied to all TypeScript/TSX source files.
