@@ -63,14 +63,63 @@ export async function resolveStoredAudioUrl(row: {
   if (row.audioBase64) {
     return `data:${row.mimeType};base64,${row.audioBase64}`;
   }
+  const bytes = await readStorageAudioBytes(row);
+  if (!bytes) return null;
+  return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
+}
+
+async function readStorageAudioBytes(row: { storageKey: string | null }): Promise<Buffer | null> {
   if (row.storageKey) {
     const storage = getMediaStorage();
     if (!storage) return null;
     const bytes = await storage.get(row.storageKey);
     if (!bytes) return null;
-    return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
+    return bytes;
   }
   return null;
+}
+
+function readInlineAudioBytes(row: { audioBase64: string | null }): Buffer | null {
+  return row.audioBase64 ? Buffer.from(row.audioBase64, "base64") : null;
+}
+
+export async function resolveStoredAudioBytes(
+  row: {
+    audioBase64: string | null;
+    storageKey: string | null;
+  },
+  opts: { preferStorage?: boolean } = {},
+): Promise<Buffer | null> {
+  const inlineBytes = () => readInlineAudioBytes(row);
+  const storageBytes = () => readStorageAudioBytes(row);
+
+  if (opts.preferStorage) {
+    return (await storageBytes()) ?? inlineBytes();
+  }
+  return inlineBytes() ?? (await storageBytes());
+}
+
+export type ArticleSpeechAudio = {
+  mimeType: string;
+  bytes: Buffer;
+};
+
+export async function getArticleSpeechAudio(articleId: string): Promise<ArticleSpeechAudio | null> {
+  const speechRow = await prisma.articleSpeech.findUnique({
+    where: { articleId },
+    select: {
+      mimeType: true,
+      audioBase64: true,
+      storageKey: true,
+    },
+  });
+
+  if (!speechRow) return null;
+
+  const bytes = await resolveStoredAudioBytes(speechRow, { preferStorage: true });
+  if (!bytes) return null;
+
+  return { mimeType: speechRow.mimeType, bytes };
 }
 
 /** Largest word end timing (seconds) — used as the audio duration. */

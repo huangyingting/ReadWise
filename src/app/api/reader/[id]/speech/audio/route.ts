@@ -1,8 +1,7 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { prisma } from "@/lib/prisma";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { getMediaStorage } from "@/lib/storage";
+import { getArticleSpeechAudio } from "@/lib/speech/repository";
 
 export const runtime = "nodejs";
 
@@ -20,42 +19,14 @@ export const runtime = "nodejs";
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
   await requireReadableArticle(params.id, session.user);
 
-  const speechRow = await prisma.articleSpeech.findUnique({
-    where: { articleId: params.id },
-    select: {
-      mimeType: true,
-      audioBase64: true,
-      storageKey: true,
-    },
-  });
+  const speechAudio = await getArticleSpeechAudio(params.id);
+  if (!speechAudio) throw new ApiError(404, "Audio not found");
 
-  if (!speechRow) throw new ApiError(404, "Audio not found");
-
-  let audioBytes: Buffer | null = null;
-
-  // Prefer object-storage-backed audio.
-  if (speechRow.storageKey) {
-    const storage = getMediaStorage();
-    if (storage) {
-      audioBytes = await storage.get(speechRow.storageKey);
-    }
-  }
-
-  // Fall back to the audioBase64 column when object storage is unavailable.
-  // Intentionally retained per REF-009 decision: object storage is OPTIONAL
-  // in local/test environments (per AGENTS.md), so DB base64 is the
-  // documented fallback. Removal requires a migration + backfill.
-  if (!audioBytes && speechRow.audioBase64) {
-    audioBytes = Buffer.from(speechRow.audioBase64, "base64");
-  }
-
-  if (!audioBytes) throw new ApiError(404, "Audio not found");
-
-  return new Response(new Uint8Array(audioBytes), {
+  return new Response(new Uint8Array(speechAudio.bytes), {
     status: 200,
     headers: {
-      "Content-Type": speechRow.mimeType,
-      "Content-Length": String(audioBytes.byteLength),
+      "Content-Type": speechAudio.mimeType,
+      "Content-Length": String(speechAudio.bytes.byteLength),
       // Private: must not be served from a shared cache.
       "Cache-Control": "private, max-age=3600",
     },

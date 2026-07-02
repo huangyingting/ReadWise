@@ -129,6 +129,21 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
   assert.deepEqual(body, audioData);
 });
 
+test("GET /speech/audio prefers MediaStorage over inline fallback when both exist", async () => {
+  const storageData = Buffer.from("storage-wins");
+  storageConfigured = true;
+  storageBytes = storageData;
+  speechRow = {
+    mimeType: "audio/mpeg",
+    audioBase64: Buffer.from("inline-fallback").toString("base64"),
+    storageKey: "speech/abc123.mp3",
+  };
+  const res = await callGet("a1");
+  assert.equal(res.status, 200);
+  const body = Buffer.from(await res.arrayBuffer());
+  assert.deepEqual(body, storageData);
+});
+
 test("GET /speech/audio returns 404 when storageKey set but storage unavailable and no base64", async () => {
   storageConfigured = false; // storage returns null from getMediaStorage()
   speechRow = {

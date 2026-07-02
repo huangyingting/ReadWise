@@ -20,7 +20,7 @@ import { cn, focusRing } from "@/lib/cn";
 import { IconButton } from "@/components/ui/IconButton";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import { usePopoverPosition } from "@/lib/use-popover-position";
-import type { HighlightColor } from "./ReaderHighlightsProvider";
+import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
 
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
 

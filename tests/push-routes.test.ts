@@ -24,6 +24,7 @@ import { makePrisma } from "./support/prisma-mock";
 let pushEnabled = true;
 let existingSubForEndpoint: { userId: string } | null = null;
 let subscriptionCount = 0;
+let deleteManyCalls: Array<{ where: { endpoint: string; userId: string } }> = [];
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -50,7 +51,10 @@ before(() => {
           upsert: async (args: {
             create: { userId: string; endpoint: string; p256dh: string; auth: string };
           }) => args.create,
-          deleteMany: async () => ({ count: 0 }),
+          deleteMany: async (args: { where: { endpoint: string; userId: string } }) => {
+            deleteManyCalls.push(args);
+            return { count: 0 };
+          },
         },
       }),
     },
@@ -70,6 +74,7 @@ beforeEach(() => {
   pushEnabled = true;
   existingSubForEndpoint = null;
   subscriptionCount = 0;
+  deleteManyCalls = [];
 });
 
 // ---------------------------------------------------------------------------
@@ -82,6 +87,10 @@ function subBody(
   auth = "auth123",
 ) {
   return jsonPost("http://test/api/push/subscribe", { endpoint, p256dh, auth });
+}
+
+function unsubBody(endpoint = "https://push.example.com/sub") {
+  return jsonPost("http://test/api/push/unsubscribe", { endpoint });
 }
 
 // ---------------------------------------------------------------------------
@@ -164,4 +173,30 @@ test("POST /api/push/subscribe returns 201 when re-subscribing an existing endpo
 
   const res = await POST(subBody(), undefined);
   assert.equal(res.status, 201);
+});
+
+test("POST /api/push/unsubscribe removes the authenticated user's endpoint", async () => {
+  const { POST } = (await import(
+    "@/app/api/push/unsubscribe/route"
+  )) as { POST: RouteHandler };
+
+  const res = await POST(unsubBody(), undefined);
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { ok: true });
+  assert.deepEqual(deleteManyCalls, [
+    { where: { endpoint: "https://push.example.com/sub", userId: "user-1" } },
+  ]);
+});
+
+test("POST /api/push/unsubscribe returns 503 when push is not configured", async () => {
+  const { POST } = (await import(
+    "@/app/api/push/unsubscribe/route"
+  )) as { POST: RouteHandler };
+
+  pushEnabled = false;
+  const res = await POST(unsubBody(), undefined);
+
+  assert.equal(res.status, 503);
+  assert.equal(deleteManyCalls.length, 0);
 });

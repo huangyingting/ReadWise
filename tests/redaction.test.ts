@@ -1,12 +1,11 @@
 /**
  * Sensitive metadata redaction policy tests (#676, #679).
  *
- * Canonical policy lives at src/lib/security/redaction.ts, which also exports
- * the backward-compat aliases (isSensitiveKey / scrubValue) for legacy callers.
+ * Canonical policy lives at src/lib/security/redaction.ts.
  *
  * Coverage:
- *  - isSensitiveMetadataKey / isSensitiveKey (compat alias) across all paths
- *  - redactSensitiveValue / scrubValue (compat alias): email, token, combined
+ *  - isSensitiveMetadataKey across all paths
+ *  - redactSensitiveValue: email, token, combined
  *  - redactSensitiveObject: sensitive keys → "[redacted]", nested → "[object]",
  *    string length cap, safe primitives preserved
  *  - safeMetadataForPersistence: end-to-end recursive sanitiser (nesting,
@@ -23,110 +22,108 @@ import {
   redactSensitiveObject,
   safeMetadataForPersistence,
   SENSITIVE_KEY_RE,
-  isSensitiveKey,
-  scrubValue,
 } from "@/lib/security/redaction";
 
-// ── isSensitiveKey ────────────────────────────────────────────────────────────
+// ── isSensitiveMetadataKey ────────────────────────────────────────────────────────────
 
-test("isSensitiveKey: keys from the audit path (previously missing from errors)", () => {
+test("isSensitiveMetadataKey: keys from the audit path (previously missing from errors)", () => {
   // These were in audit.ts SENSITIVE_KEY_RE but NOT in errors.ts SENSITIVE_KEY_PATTERNS
-  assert.equal(isSensitiveKey("email"), true, "email");
-  assert.equal(isSensitiveKey("userEmail"), true, "userEmail");
-  assert.equal(isSensitiveKey("url"), true, "url");
-  assert.equal(isSensitiveKey("sourceUrl"), true, "sourceUrl");
-  assert.equal(isSensitiveKey("key"), true, "key");
-  assert.equal(isSensitiveKey("secretKey"), true, "secretKey");
-  assert.equal(isSensitiveKey("pass"), true, "pass");
-  assert.equal(isSensitiveKey("password"), true, "password");
-  assert.equal(isSensitiveKey("pwd"), true, "pwd");
+  assert.equal(isSensitiveMetadataKey("email"), true, "email");
+  assert.equal(isSensitiveMetadataKey("userEmail"), true, "userEmail");
+  assert.equal(isSensitiveMetadataKey("url"), true, "url");
+  assert.equal(isSensitiveMetadataKey("sourceUrl"), true, "sourceUrl");
+  assert.equal(isSensitiveMetadataKey("key"), true, "key");
+  assert.equal(isSensitiveMetadataKey("secretKey"), true, "secretKey");
+  assert.equal(isSensitiveMetadataKey("pass"), true, "pass");
+  assert.equal(isSensitiveMetadataKey("password"), true, "password");
+  assert.equal(isSensitiveMetadataKey("pwd"), true, "pwd");
 });
 
-test("isSensitiveKey: keys from the errors path (previously missing from audit)", () => {
+test("isSensitiveMetadataKey: keys from the errors path (previously missing from audit)", () => {
   // These were in errors.ts SENSITIVE_KEY_PATTERNS but NOT in audit.ts SENSITIVE_KEY_RE
-  assert.equal(isSensitiveKey("content"), true, "content");
-  assert.equal(isSensitiveKey("articleContent"), true, "articleContent");
-  assert.equal(isSensitiveKey("text"), true, "text");
-  assert.equal(isSensitiveKey("selectedText"), true, "selectedText");
-  assert.equal(isSensitiveKey("prompt"), true, "prompt");
-  assert.equal(isSensitiveKey("systemPrompt"), true, "systemPrompt");
-  assert.equal(isSensitiveKey("body"), true, "body");
-  assert.equal(isSensitiveKey("message_body"), true, "message_body");
-  assert.equal(isSensitiveKey("completion"), true, "completion");
-  assert.equal(isSensitiveKey("selected"), true, "selected");
-  assert.equal(isSensitiveKey("selection"), true, "selection");
+  assert.equal(isSensitiveMetadataKey("content"), true, "content");
+  assert.equal(isSensitiveMetadataKey("articleContent"), true, "articleContent");
+  assert.equal(isSensitiveMetadataKey("text"), true, "text");
+  assert.equal(isSensitiveMetadataKey("selectedText"), true, "selectedText");
+  assert.equal(isSensitiveMetadataKey("prompt"), true, "prompt");
+  assert.equal(isSensitiveMetadataKey("systemPrompt"), true, "systemPrompt");
+  assert.equal(isSensitiveMetadataKey("body"), true, "body");
+  assert.equal(isSensitiveMetadataKey("message_body"), true, "message_body");
+  assert.equal(isSensitiveMetadataKey("completion"), true, "completion");
+  assert.equal(isSensitiveMetadataKey("selected"), true, "selected");
+  assert.equal(isSensitiveMetadataKey("selection"), true, "selection");
 });
 
-test("isSensitiveKey: analytics-only keys (definition/translation/etc.)", () => {
+test("isSensitiveMetadataKey: analytics-only keys (definition/translation/etc.)", () => {
   // These were only in sanitize.ts SENSITIVE_PROPERTY_KEY_RE
-  assert.equal(isSensitiveKey("definition"), true, "definition");
-  assert.equal(isSensitiveKey("wordDefinition"), true, "wordDefinition");
-  assert.equal(isSensitiveKey("translation"), true, "translation");
-  assert.equal(isSensitiveKey("articleTranslation"), true, "articleTranslation");
-  assert.equal(isSensitiveKey("example"), true, "example");
-  assert.equal(isSensitiveKey("usageExample"), true, "usageExample");
-  assert.equal(isSensitiveKey("explanation"), true, "explanation");
-  assert.equal(isSensitiveKey("phrase"), true, "phrase");
-  assert.equal(isSensitiveKey("response"), true, "response");
-  assert.equal(isSensitiveKey("sentence"), true, "sentence");
+  assert.equal(isSensitiveMetadataKey("definition"), true, "definition");
+  assert.equal(isSensitiveMetadataKey("wordDefinition"), true, "wordDefinition");
+  assert.equal(isSensitiveMetadataKey("translation"), true, "translation");
+  assert.equal(isSensitiveMetadataKey("articleTranslation"), true, "articleTranslation");
+  assert.equal(isSensitiveMetadataKey("example"), true, "example");
+  assert.equal(isSensitiveMetadataKey("usageExample"), true, "usageExample");
+  assert.equal(isSensitiveMetadataKey("explanation"), true, "explanation");
+  assert.equal(isSensitiveMetadataKey("phrase"), true, "phrase");
+  assert.equal(isSensitiveMetadataKey("response"), true, "response");
+  assert.equal(isSensitiveMetadataKey("sentence"), true, "sentence");
 });
 
-test("isSensitiveKey: universal secrets/auth keys", () => {
-  assert.equal(isSensitiveKey("authorization"), true, "authorization");
-  assert.equal(isSensitiveKey("Authorization"), true, "Authorization (uppercase)");
-  assert.equal(isSensitiveKey("cookie"), true, "cookie");
-  assert.equal(isSensitiveKey("credential"), true, "credential");
-  assert.equal(isSensitiveKey("secret"), true, "secret");
-  assert.equal(isSensitiveKey("session"), true, "session");
-  assert.equal(isSensitiveKey("token"), true, "token");
-  assert.equal(isSensitiveKey("accessToken"), true, "accessToken");
-  assert.equal(isSensitiveKey("apiKey"), true, "apiKey");
-  assert.equal(isSensitiveKey("api_key"), true, "api_key");
+test("isSensitiveMetadataKey: universal secrets/auth keys", () => {
+  assert.equal(isSensitiveMetadataKey("authorization"), true, "authorization");
+  assert.equal(isSensitiveMetadataKey("Authorization"), true, "Authorization (uppercase)");
+  assert.equal(isSensitiveMetadataKey("cookie"), true, "cookie");
+  assert.equal(isSensitiveMetadataKey("credential"), true, "credential");
+  assert.equal(isSensitiveMetadataKey("secret"), true, "secret");
+  assert.equal(isSensitiveMetadataKey("session"), true, "session");
+  assert.equal(isSensitiveMetadataKey("token"), true, "token");
+  assert.equal(isSensitiveMetadataKey("accessToken"), true, "accessToken");
+  assert.equal(isSensitiveMetadataKey("apiKey"), true, "apiKey");
+  assert.equal(isSensitiveMetadataKey("api_key"), true, "api_key");
 });
 
-test("isSensitiveKey: safe keys are not redacted", () => {
-  assert.equal(isSensitiveKey("action"), false, "action");
-  assert.equal(isSensitiveKey("count"), false, "count");
-  assert.equal(isSensitiveKey("format"), false, "format");
-  assert.equal(isSensitiveKey("lang"), false, "lang");
-  assert.equal(isSensitiveKey("page"), false, "page");
-  assert.equal(isSensitiveKey("role"), false, "role");
-  assert.equal(isSensitiveKey("safeField"), false, "safeField");
-  assert.equal(isSensitiveKey("status"), false, "status");
-  assert.equal(isSensitiveKey("targetId"), false, "targetId");
-  assert.equal(isSensitiveKey("targetType"), false, "targetType");
+test("isSensitiveMetadataKey: safe keys are not redacted", () => {
+  assert.equal(isSensitiveMetadataKey("action"), false, "action");
+  assert.equal(isSensitiveMetadataKey("count"), false, "count");
+  assert.equal(isSensitiveMetadataKey("format"), false, "format");
+  assert.equal(isSensitiveMetadataKey("lang"), false, "lang");
+  assert.equal(isSensitiveMetadataKey("page"), false, "page");
+  assert.equal(isSensitiveMetadataKey("role"), false, "role");
+  assert.equal(isSensitiveMetadataKey("safeField"), false, "safeField");
+  assert.equal(isSensitiveMetadataKey("status"), false, "status");
+  assert.equal(isSensitiveMetadataKey("targetId"), false, "targetId");
+  assert.equal(isSensitiveMetadataKey("targetType"), false, "targetType");
 });
 
-// ── scrubValue ────────────────────────────────────────────────────────────────
+// ── redactSensitiveValue ────────────────────────────────────────────────────────────────
 
-test("scrubValue: masks embedded email addresses as [email]", () => {
-  assert.equal(scrubValue("user@example.com"), "[email]");
-  assert.equal(scrubValue("contact me at alice@corp.io today"), "contact me at [email] today");
+test("redactSensitiveValue: masks embedded email addresses as [email]", () => {
+  assert.equal(redactSensitiveValue("user@example.com"), "[email]");
+  assert.equal(redactSensitiveValue("contact me at alice@corp.io today"), "contact me at [email] today");
   // Multiple emails in one string
-  const two = scrubValue("from: a@b.com to: c@d.org");
+  const two = redactSensitiveValue("from: a@b.com to: c@d.org");
   assert.match(two, /\[email\]/);
   assert.doesNotMatch(two, /a@b\.com|c@d\.org/);
 });
 
-test("scrubValue: masks long token-like strings as [token]", () => {
+test("redactSensitiveValue: masks long token-like strings as [token]", () => {
   const apiKey = "ABCDEFGHIJKLMNOPQRSTUVWXYZ123456";
-  assert.equal(scrubValue(apiKey), "[token]");
+  assert.equal(redactSensitiveValue(apiKey), "[token]");
   // JWT-style: each segment is 24+ chars
   const jwt = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV";
-  const scrubbed = scrubValue(jwt);
+  const scrubbed = redactSensitiveValue(jwt);
   assert.match(scrubbed, /\[token\]/);
   assert.doesNotMatch(scrubbed, /eyJ/);
 });
 
-test("scrubValue: does not alter safe short strings", () => {
-  assert.equal(scrubValue("hello world"), "hello world");
-  assert.equal(scrubValue("role-change"), "role-change");
-  assert.equal(scrubValue("Reader"), "Reader");
+test("redactSensitiveValue: does not alter safe short strings", () => {
+  assert.equal(redactSensitiveValue("hello world"), "hello world");
+  assert.equal(redactSensitiveValue("role-change"), "role-change");
+  assert.equal(redactSensitiveValue("Reader"), "Reader");
 });
 
-test("scrubValue: masks both email and token in a single string", () => {
+test("redactSensitiveValue: masks both email and token in a single string", () => {
   const msg = "user me@example.com used token ABCDEF0123456789ABCDEF0123456 to authenticate";
-  const out = scrubValue(msg);
+  const out = redactSensitiveValue(msg);
   assert.match(out, /\[email\]/);
   assert.match(out, /\[token\]/);
   assert.doesNotMatch(out, /me@example\.com/);
@@ -248,16 +245,6 @@ test("analytics: sanitizeEventProperties rejects all superset keys", async () =>
   // Safe fields pass through
   assert.equal(out.safeCount, 5);
   assert.equal(out.safeAction, "quiz");
-});
-
-// ── compat aliases are identical functions ────────────────────────────────────
-
-test("compat alias isSensitiveKey delegates to isSensitiveMetadataKey", () => {
-  assert.strictEqual(isSensitiveKey, isSensitiveMetadataKey);
-});
-
-test("compat alias scrubValue delegates to redactSensitiveValue", () => {
-  assert.strictEqual(scrubValue, redactSensitiveValue);
 });
 
 // ── redactSensitiveObject ────────────────────────────────────────────────────

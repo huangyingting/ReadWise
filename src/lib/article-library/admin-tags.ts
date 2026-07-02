@@ -43,6 +43,11 @@ export type AdminTagSearch = {
   query: string;
 };
 
+export type AdminTagOption = {
+  id: string;
+  name: string;
+};
+
 export type ListTagsOpts = {
   query?: string;
   page?: number;
@@ -120,6 +125,16 @@ export async function listAdminTags(
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     query,
   };
+}
+
+/** Returns public tags for admin merge target controls, capped to a safe limit. */
+export async function listAdminTagMergeTargets(limit = 500): Promise<AdminTagOption[]> {
+  return prisma.tag.findMany({
+    where: { scope: TagScope.PUBLIC },
+    select: { id: true, name: true },
+    orderBy: { name: "asc" },
+    take: limit,
+  });
 }
 
 // ---------------------------------------------------------------------------

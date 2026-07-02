@@ -18,10 +18,6 @@
  *   - {@link redactSensitiveValue}       — string PII/token scrubber
  *   - {@link redactSensitiveObject}      — flat object redactor (error context, etc.)
  *   - {@link safeMetadataForPersistence} — recursive object sanitizer (audit, ledger, etc.)
- *
- * Backward-compat aliases (from R2CI-1 / #627, previously in observability/redaction):
- *   - {@link isSensitiveKey}  → isSensitiveMetadataKey
- *   - {@link scrubValue}      → redactSensitiveValue
  */
 
 /**
@@ -146,10 +142,3 @@ export function safeMetadataForPersistence(
   }
   return out;
 }
-
-// ── Backward-compat aliases (R2CI-1 / #627 names) ────────────────────────────
-
-/** @deprecated Use {@link isSensitiveMetadataKey} — canonical name since #676. */
-export const isSensitiveKey = isSensitiveMetadataKey;
-/** @deprecated Use {@link redactSensitiveValue} — canonical name since #676. */
-export const scrubValue = redactSensitiveValue;

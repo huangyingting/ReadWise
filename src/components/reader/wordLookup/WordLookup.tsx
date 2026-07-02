@@ -29,28 +29,28 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import {
   useHighlights,
-} from "./ReaderHighlightsProvider";
-import { useReaderAudio } from "./ReaderAudioProvider";
+} from "@/components/ReaderHighlightsProvider";
+import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import SelectionToolbar from "./SelectionToolbar";
 import HighlightEditPopover from "./HighlightEditPopover";
-import SentenceTranslatePopover from "./SentenceTranslatePopover";
-import GrammarPopover from "./GrammarPopover";
-import DictionaryPopover from "@/components/reader/wordLookup/DictionaryPopover";
+import SentenceTranslatePopover from "@/components/SentenceTranslatePopover";
+import GrammarPopover from "@/components/GrammarPopover";
+import DictionaryPopover from "./DictionaryPopover";
 import {
   applyHighlightMarks,
   computeAnchor,
-} from "@/components/reader/wordLookup/highlightMarks";
-import { useDictionaryLookup } from "@/components/reader/wordLookup/useDictionaryLookup";
-import { useGrammarExplanation } from "@/components/reader/wordLookup/useGrammarExplanation";
-import { useSentenceTranslation } from "@/components/reader/wordLookup/useSentenceTranslation";
-import { useTtsProseHighlight } from "@/components/reader/wordLookup/useTtsProseHighlight";
+} from "./highlightMarks";
+import { useDictionaryLookup } from "./useDictionaryLookup";
+import { useGrammarExplanation } from "./useGrammarExplanation";
+import { useSentenceTranslation } from "./useSentenceTranslation";
+import { useTtsProseHighlight } from "./useTtsProseHighlight";
 import {
   wordAtPoint,
   extractContextSentence,
-} from "@/components/reader/wordLookup/selectionHelpers";
-import { useSaveWord } from "@/components/reader/wordLookup/useSaveWord";
-import { useHighlightActions } from "@/components/reader/wordLookup/useHighlightActions";
-import { useSurfaceController } from "@/components/reader/wordLookup/useSurfaceController";
+} from "./selectionHelpers";
+import { useSaveWord } from "./useSaveWord";
+import { useHighlightActions } from "./useHighlightActions";
+import { useSurfaceController } from "./useSurfaceController";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 

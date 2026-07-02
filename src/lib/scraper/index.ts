@@ -3,6 +3,7 @@
  *
  * Persistence (saveDraftArticle, scrapeAndSave, scrapeUrl) lives here.
  * Discovery lives in `@/lib/scraper/discovery`.
+ * Admin scrape trigger orchestration lives in `@/lib/scraper/admin-trigger`.
  * Content-source governance lives in `@/lib/scraper/sources`.
  */
 import { prisma } from "@/lib/prisma";

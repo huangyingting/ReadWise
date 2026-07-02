@@ -31,6 +31,7 @@ let authState: AuthState = "ok";
 
 // Audit captures
 let auditCalls: { action: string }[] = [];
+let auditThrows = false;
 
 // Security event captures
 let securityEvents: { type: string; severity?: string }[] = [];
@@ -108,6 +109,7 @@ before(() => {
       },
       auditRequestInfo: (_req: Request) => ({ ipAddress: null, userAgent: null }),
       recordAuditFromRequest: async (input: { action: string }) => {
+        if (auditThrows) throw new Error("audit unavailable");
         auditCalls.push(input);
       },
       tryRecordAuditLog: async (input: { action: string }) => {
@@ -161,6 +163,7 @@ before(() => {
 beforeEach(() => {
   authState = "ok";
   auditCalls = [];
+  auditThrows = false;
   securityEvents = [];
   discoverUrls = ["https://test.example.com/article-1"];
   scrapeResult = { title: "Test Article", url: "https://test.example.com/article-1", text: "body" };
@@ -225,6 +228,13 @@ test("POST /api/admin/scrape/trigger records an audit event", async () => {
   await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
   const scrapeAudit = auditCalls.find((c) => c.action === "admin.scrape.trigger");
   assert.ok(scrapeAudit, "audit event admin.scrape.trigger should be recorded");
+});
+
+test("POST /api/admin/scrape/trigger rethrows unexpected trigger failures", async () => {
+  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
+  auditThrows = true;
+  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  assert.equal(res.status, 500);
 });
 
 test("POST /api/admin/scrape/trigger records a security event on successful admin mutation", async () => {
