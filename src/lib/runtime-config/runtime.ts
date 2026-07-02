@@ -174,16 +174,7 @@ function validateRuntimeSections() {
 
   const storageModeRaw = (envValue("MEDIA_STORAGE") ?? "").toLowerCase();
   let storage: ConfigCheckReport;
-  if (!storageModeRaw || storageModeRaw === "database") {
-    storage = {
-      status: "unconfigured",
-      configured: false,
-      required: false,
-      env: ["MEDIA_STORAGE"],
-      missing: [],
-      issues: [],
-    };
-  } else if (storageModeRaw === "filesystem" || storageModeRaw === "local") {
+  if (!storageModeRaw || storageModeRaw === "filesystem" || storageModeRaw === "local") {
     storage = {
       status: "configured",
       configured: true,
@@ -214,21 +205,32 @@ function validateRuntimeSections() {
           issue(
             "warning",
             "azure_storage_creds_missing",
-            "MEDIA_STORAGE=azure but credentials are missing; falling back to DB base64 (app still works).",
+            "MEDIA_STORAGE=azure but credentials are missing; speech audio will not be persisted until Azure Storage is configured.",
             ["AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"],
           ),
         ],
       };
     }
+  } else if (storageModeRaw === "database") {
+    storage = {
+      status: "degraded",
+      configured: true,
+      required: false,
+      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
+      missing: [],
+      issues: [
+        issue("warning", "database_storage_removed", "MEDIA_STORAGE=database is no longer supported; local filesystem storage will be used instead.", ["MEDIA_STORAGE"]),
+      ],
+    };
   } else {
     storage = {
       status: "degraded",
-      configured: false,
+      configured: true,
       required: false,
-      env: ["MEDIA_STORAGE"],
+      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
       missing: [],
       issues: [
-        issue("warning", "unknown_storage_kind", `MEDIA_STORAGE="${storageModeRaw}" is not a known backend; falling back to database.`, ["MEDIA_STORAGE"]),
+        issue("warning", "unknown_storage_kind", `MEDIA_STORAGE="${storageModeRaw}" is not a known backend; local filesystem storage will be used instead.`, ["MEDIA_STORAGE"]),
       ],
     };
   }

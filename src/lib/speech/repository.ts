@@ -2,14 +2,14 @@
  * ArticleSpeech repository and storage adapter (server-only).
  *
  * Owns all database reads/writes for ArticleSpeech rows, corrupt-cache
- * recovery, object-storage interactions, and MediaAsset upserts.  Callers
- * never touch raw storage keys or base64 audio directly.
+ * recovery, media-storage interactions, and MediaAsset upserts. Callers never
+ * touch raw storage keys directly.
  */
 
 import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createLogger } from "@/lib/observability/logger";
-import { getMediaStorage } from "@/lib/storage";
+import { getMediaStorage, type PutMediaResult } from "@/lib/storage";
 import {
   createSpeechTimingPayloadV2,
   parseSpeechTimingPayload,
@@ -43,26 +43,14 @@ export function parseStoredSpeechWords(
 }
 
 /**
- * Resolves a playable `data:` URL for a stored speech row regardless of where
- * the audio lives. Prefers the inline base64 fallback column; otherwise reads
- * the bytes back from object storage via the configured backend. Returns null
- * when the audio cannot be located (e.g. storage unconfigured after a
- * migration).
- *
- * NOTE (REF-009): `ArticleSpeech.audioBase64` is intentionally retained.
- * Per AGENTS.md, object storage is OPTIONAL in local and test environments,
- * and DB base64 is the documented fallback when storage is not configured.
- * Removing this field would require a migration + backfill and break
- * local/test setups that never configure object storage.
+ * Resolves a playable `data:` URL for a stored speech row by reading the bytes
+ * from the configured media-storage backend. Returns null when the row has no
+ * storage key or the backend cannot provide the object.
  */
 export async function resolveStoredAudioUrl(row: {
   mimeType: string;
-  audioBase64: string | null;
   storageKey: string | null;
 }): Promise<string | null> {
-  if (row.audioBase64) {
-    return `data:${row.mimeType};base64,${row.audioBase64}`;
-  }
   const bytes = await readStorageAudioBytes(row);
   if (!bytes) return null;
   return `data:${row.mimeType};base64,${bytes.toString("base64")}`;
@@ -79,24 +67,10 @@ async function readStorageAudioBytes(row: { storageKey: string | null }): Promis
   return null;
 }
 
-function readInlineAudioBytes(row: { audioBase64: string | null }): Buffer | null {
-  return row.audioBase64 ? Buffer.from(row.audioBase64, "base64") : null;
-}
-
 export async function resolveStoredAudioBytes(
-  row: {
-    audioBase64: string | null;
-    storageKey: string | null;
-  },
-  opts: { preferStorage?: boolean } = {},
+  row: { storageKey: string | null },
 ): Promise<Buffer | null> {
-  const inlineBytes = () => readInlineAudioBytes(row);
-  const storageBytes = () => readStorageAudioBytes(row);
-
-  if (opts.preferStorage) {
-    return (await storageBytes()) ?? inlineBytes();
-  }
-  return inlineBytes() ?? (await storageBytes());
+  return readStorageAudioBytes(row);
 }
 
 export type ArticleSpeechAudio = {
@@ -109,14 +83,13 @@ export async function getArticleSpeechAudio(articleId: string): Promise<ArticleS
     where: { articleId },
     select: {
       mimeType: true,
-      audioBase64: true,
       storageKey: true,
     },
   });
 
   if (!speechRow) return null;
 
-  const bytes = await resolveStoredAudioBytes(speechRow, { preferStorage: true });
+  const bytes = await resolveStoredAudioBytes(speechRow);
   if (!bytes) return null;
 
   return { mimeType: speechRow.mimeType, bytes };
@@ -133,11 +106,11 @@ function lastWordEnd(words: SpeechWord[]): number | undefined {
 }
 
 /**
- * Persists synthesized audio to object storage (when configured) and upserts
- * both the MediaAsset record and the ArticleSpeech cache row.
+ * Persists synthesized audio to media storage and upserts both the MediaAsset
+ * record and the ArticleSpeech cache row.
  *
- * Falls back to inline base64 when object storage is unavailable or the write
- * fails, so narration always works regardless of storage configuration.
+ * Database audio fallback has intentionally been removed: if local/Azure media
+ * storage is unavailable or the write fails, the synthesis result is not cached.
  * Cache-first / idempotent: the upsert overwrites any stale row with the same
  * articleId.
  */
@@ -150,59 +123,57 @@ export async function saveSpeechResult(params: {
   plainText: string;
   provider?: SpeechTimingProvider | string;
   words: SpeechWord[];
-}): Promise<void> {
+}): Promise<boolean> {
   const { articleId, audio, mimeType, voice, format, plainText, provider = "azure", words } =
     params;
   const timingPayload = createSpeechTimingPayloadV2(provider, words);
 
-  let audioBase64: string | null = audio.toString("base64");
-  let storageKey: string | null = null;
-  let mediaAssetId: string | null = null;
-
   const storage = getMediaStorage();
-  if (storage) {
-    try {
-      const put = await storage.put({ data: audio, mimeType, keyHint: "speech" });
-      const durationSec = lastWordEnd(words);
-      const asset = await prisma.mediaAsset.upsert({
-        where: { storageKey: put.storageKey },
-        update: {
-          kind: "speech",
-          mimeType,
-          sizeBytes: put.sizeBytes,
-          checksum: put.checksum,
-          durationSec,
-          voice,
-          format,
-          articleId,
-        },
-        create: {
-          storageKey: put.storageKey,
-          kind: "speech",
-          mimeType,
-          sizeBytes: put.sizeBytes,
-          checksum: put.checksum,
-          durationSec,
-          voice,
-          format,
-          articleId,
-        },
-        select: { id: true },
-      });
-      storageKey = put.storageKey;
-      mediaAssetId = asset.id;
-      audioBase64 = null; // durably stored externally
-    } catch (err) {
-      log.error("speech.storage_write_failed", {
-        articleId,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Fall back to inline base64 so narration still works.
-      storageKey = null;
-      mediaAssetId = null;
-      audioBase64 = audio.toString("base64");
-    }
+  if (!storage) {
+    log.error("speech.storage_unavailable", {
+      articleId,
+      error: "No local or Azure media storage backend is available",
+    });
+    return false;
   }
+
+  let put: PutMediaResult;
+  try {
+    put = await storage.put({ data: audio, mimeType, keyHint: "speech" });
+  } catch (err) {
+    log.error("speech.storage_write_failed", {
+      articleId,
+      error: err instanceof Error ? err.message : String(err),
+    });
+    return false;
+  }
+
+  const durationSec = lastWordEnd(words);
+  const asset = await prisma.mediaAsset.upsert({
+    where: { storageKey: put.storageKey },
+    update: {
+      kind: "speech",
+      mimeType,
+      sizeBytes: put.sizeBytes,
+      checksum: put.checksum,
+      durationSec,
+      voice,
+      format,
+      articleId,
+    },
+    create: {
+      storageKey: put.storageKey,
+      kind: "speech",
+      mimeType,
+      sizeBytes: put.sizeBytes,
+      checksum: put.checksum,
+      durationSec,
+      voice,
+      format,
+      articleId,
+    },
+    select: { id: true },
+  });
 
   await prisma.articleSpeech.upsert({
     where: { articleId },
@@ -210,9 +181,8 @@ export async function saveSpeechResult(params: {
       voice,
       format,
       mimeType,
-      audioBase64,
-      storageKey,
-      mediaAssetId,
+      storageKey: put.storageKey,
+      mediaAssetId: asset.id,
       plainText,
       words: timingPayload,
     },
@@ -221,11 +191,11 @@ export async function saveSpeechResult(params: {
       voice,
       format,
       mimeType,
-      audioBase64,
-      storageKey,
-      mediaAssetId,
+      storageKey: put.storageKey,
+      mediaAssetId: asset.id,
       plainText,
       words: timingPayload,
     },
   });
+  return true;
 }

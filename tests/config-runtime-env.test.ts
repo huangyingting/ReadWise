@@ -259,13 +259,15 @@ test("runtime config leaf modules clamp environment values", async () => {
   assert.equal(security.securityEventBufferSize(), 2000);
   assert.equal(security.auditLogRetentionDays(), 91);
 
-  assert.equal(storage.mediaStorageKind(), "database");
+  assert.equal(storage.mediaStorageKind(), "local");
   process.env.MEDIA_STORAGE = "filesystem";
-  assert.equal(storage.mediaStorageKind(), "filesystem");
+  assert.equal(storage.mediaStorageKind(), "local");
+  process.env.MEDIA_STORAGE = "local";
+  assert.equal(storage.mediaStorageKind(), "local");
   process.env.MEDIA_STORAGE = "azure";
   assert.equal(storage.mediaStorageKind(), "azure");
   process.env.MEDIA_STORAGE = "bogus";
-  assert.equal(storage.mediaStorageKind(), "database");
+  assert.equal(storage.mediaStorageKind(), "local");
   process.env.MEDIA_STORAGE_DIR = "media-fixtures";
   assert.equal(storage.mediaStorageDir(), path.resolve("media-fixtures"));
   assert.equal(storage.azureStorageConfig(), null);

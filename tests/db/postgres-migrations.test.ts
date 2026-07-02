@@ -147,7 +147,7 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
         VALUES ('fixture-quiz-a', 'fixture-private-a', 'Ready?', '["Yes","No"]', 0, CURRENT_TIMESTAMP);
 
         INSERT INTO "ArticleSpeech" (
-          "id", "articleId", "voice", "format", "mimeType", "audioBase64", "plainText", "words", "updatedAt"
+          "id", "articleId", "voice", "format", "mimeType", "storageKey", "plainText", "words", "updatedAt"
         )
         VALUES (
           'fixture-speech-a',
@@ -155,7 +155,7 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
           'test-voice',
           'mp3',
           'audio/mpeg',
-          'AA==',
+          'speech/fixture-private-a.mp3',
           'Hello',
           '[{"word":"Hello","offset":0,"duration":500}]',
           CURRENT_TIMESTAMP

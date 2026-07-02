@@ -327,9 +327,9 @@ async function analyzeAll(args: Args): Promise<{
   const storageKind = mediaStorageKind();
   let deletedLocalFileCount = 0;
 
-  if (args.deleteBelow != null && args.apply && localStorageKeys.length > 0 && storageKind === "filesystem") {
+  if (args.deleteBelow != null && args.apply && localStorageKeys.length > 0 && storageKind === "local") {
     const storage = getMediaStorage();
-    if (storage?.kind === "filesystem") {
+    if (storage?.kind === "local") {
       for (const storageKey of localStorageKeys) {
         await storage.delete(storageKey);
         deletedLocalFileCount++;
@@ -370,7 +370,7 @@ async function analyzeAll(args: Args): Promise<{
               storageKind,
               selectedCount: localStorageKeys.length,
               deletedCount: deletedLocalFileCount,
-              skippedCount: args.apply && storageKind === "filesystem"
+              skippedCount: args.apply && storageKind === "local"
                 ? localStorageKeys.length - deletedLocalFileCount
                 : localStorageKeys.length,
               keys: localStorageKeys,

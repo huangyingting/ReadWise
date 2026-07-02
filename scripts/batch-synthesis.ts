@@ -816,7 +816,7 @@ async function persistJobResults(job: BatchJob, resultUrl: string, key: string, 
       const input = job.inputs[i]!;
       const parsed = await parseBatchResult(files, i);
       const words = enrichBatchWordsWithTextSpans(parsed.words, input.plainText);
-      await saveSpeechResult({
+      const savedResult = await saveSpeechResult({
         articleId: input.article.id,
         audio: parsed.audio,
         mimeType,
@@ -826,6 +826,12 @@ async function persistJobResults(job: BatchJob, resultUrl: string, key: string, 
         provider: "azure-batch",
         words,
       });
+      if (!savedResult) {
+        console.warn(
+          `skipped ArticleSpeech article=${input.article.id} reason=media-storage-unavailable`,
+        );
+        continue;
+      }
       console.log(
         `saved ArticleSpeech article=${input.article.id} words=${words.length} bytes=${parsed.audio.length}`,
       );
@@ -870,7 +876,7 @@ async function runOnce(args: Args, config: SpeechRuntimeConfig): Promise<RunOnce
 
   if (!args.submitOnly && !isObjectStorageConfigured()) {
     console.warn(
-      "Media object storage is not configured; persisted batch audio will use ArticleSpeech.audioBase64.",
+      "Media storage is unavailable; batch audio will not be persisted until local or Azure storage is configured.",
     );
   }
 

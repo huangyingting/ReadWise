@@ -152,7 +152,7 @@ variable or changes a default.
 | `AZURE_SPEECH_VOICE` | `en-US-AndrewMultilingualNeural` | `speech.ts` |
 | `AZURE_SPEECH_OUTPUT_FORMAT` | `audio-24khz-96kbitrate-mono-mp3` | `speech.ts` |
 | `SPEECH_TIMEOUT_MS` | `30000` | `speech.ts` |
-| `MEDIA_STORAGE` | `database`; also supports `filesystem` and `azure` | `storage.ts` |
+| `MEDIA_STORAGE` | `local` by default; `filesystem` legacy alias; `azure` for Azure Blob Storage | `storage.ts` |
 | `MEDIA_STORAGE_DIR` | `./.media` resolved from project root | `storage.ts` |
 | `AZURE_STORAGE_CONNECTION_STRING` | optional Azure Blob auth path | `storage.ts` |
 | `AZURE_STORAGE_ACCOUNT`, `AZURE_STORAGE_KEY` | account/key Azure Blob auth path | `storage.ts` |

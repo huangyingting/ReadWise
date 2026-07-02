@@ -190,8 +190,8 @@ Alert conditions:
 
 | `MEDIA_STORAGE` value | Backend | Notes |
 | --- | --- | --- |
-| unset / `database` | Database base64 | Default; no extra infra needed |
-| `filesystem` | Local filesystem (`MEDIA_STORAGE_DIR`, default `./.media`) | Suitable for single-node |
+| unset / `local` | Local filesystem (`MEDIA_STORAGE_DIR`, default `./.media`) | Default; suitable for development/single-node |
+| `filesystem` | Local filesystem | Legacy alias for `local` |
 | `azure` | Azure Blob Storage | Recommended for multi-node or large audio libraries |
 
 Source: `src/lib/storage/`, `src/lib/storage/config.ts`.
@@ -212,25 +212,14 @@ storage growth is driven by TTS audio output.
 
 ### TTS audio growth estimate
 
-> **Estimate** — no production measurements. Refresh after running
-> `npm run migrate-storage` on a representative dataset.
+> **Estimate** — no production measurements. Refresh by summing `MediaAsset.sizeBytes`
+> on a representative dataset.
 
 - Azure Speech produces roughly 1 MB of MP3 per minute of speech.
 - Average article reading time: ~5–15 min → ~5–15 MB per article.
 - 1 000 narrated articles ≈ **5–15 GB** of audio storage.
 - Content-addressing means re-narrating the same text produces identical bytes;
   storage growth is bounded by unique text volume.
-
-### Migration from database base64
-
-See [docs/media/storage.md](../media/storage.md) for the idempotent
-`migrateArticleSpeechToStorage()` migration. Signals:
-
-```bash
-# Check migration status — rows with audioBase64 AND no storageKey are eligible
-npm run migrate-storage -- --limit 100   # dry-run with limit
-GET /api/ready  # checks.providers.storage: configured | degraded | unconfigured
-```
 
 ### Signals to watch
 
@@ -242,14 +231,13 @@ GET /api/admin/metrics        # No storage-specific counters today (follow-up §
 Alert conditions:
 
 - `checks.providers.storage = "degraded"` → Azure credentials missing while
-  `MEDIA_STORAGE=azure`; app falls back to DB base64 but new audio is lost.
-- `migration failed > 0` → check logs for `storage.speech_migration_failed`.
+  `MEDIA_STORAGE=azure`; new speech audio is not cached until storage is healthy.
 
 ### Scaling levers
 
 | Problem | Lever |
 | --- | --- |
-| DB bloat from base64 audio | Migrate to object storage; run `npm run migrate-storage` |
+| Local disk growth from audio | Move to Azure Blob Storage or implement an audio retention/expiry policy |
 | Azure egress costs | Enable CDN in front of the audio endpoint; tune `max-age` |
 | Storage growing without bound | Implement audio retention/expiry policy (follow-up § 9) |
 
@@ -680,8 +668,7 @@ beyond a single-tenant pilot.
 2. **Query job latency**: read `worker_job_duration_ms` histogram buckets from
    `GET /api/admin/metrics` after the queue has processed ≥ 100 jobs of each
    type.
-3. **Measure audio storage**: run `npm run migrate-storage` against production and
-   capture the `sizeBytes` sum from `MediaAsset` rows.
+3. **Measure audio storage**: capture the `sizeBytes` sum from `MediaAsset` rows.
 4. **Measure listing/feed capacity**: run the synthetic benchmark described in
     [§ 7](#7-listingfeed-cache-and-redis-adoption-gate) against disposable SQLite
     and PostgreSQL benchmark databases; treat PostgreSQL as authoritative.

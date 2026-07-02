@@ -21,11 +21,9 @@ export function registerProvider(kind: MediaStorageKind, factory: ProviderFactor
 
 /**
  * Resolve the active MediaStorage for the given kind via the registry.
- * Returns null for the `database` kind (intentional DB-base64 fallback mode),
- * unregistered kinds, or when the factory itself returns null.
+ * Returns null for unregistered kinds, or when the factory itself returns null.
  */
 export function resolveProvider(kind: MediaStorageKind): MediaStorage | null {
-  if (kind === "database") return null;
   const factory = providerRegistry.get(kind);
   if (factory) return factory();
   return null;

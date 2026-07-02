@@ -107,7 +107,7 @@ Optional providers are evaluated independently:
 | Push | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Reminder sends become no-ops. |
 | Google OAuth | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Provider is omitted. |
 | Azure AD OAuth | `AZURE_AD_CLIENT_ID`, `AZURE_AD_CLIENT_SECRET`, `AZURE_AD_TENANT_ID` | Provider is omitted. |
-| Storage | `MEDIA_STORAGE` plus backend-specific values | DB base64 fallback remains available. |
+| Storage | `MEDIA_STORAGE` plus backend-specific values | Local default works without cloud credentials; Azure degrades when credentials are missing. |
 
 Optional providers report:
 
@@ -137,11 +137,10 @@ Storage modes:
 
 | Mode | Readiness status |
 | --- | --- |
-| unset / `database` | `unconfigured` — expected DB base64 fallback. |
-| `filesystem` | `configured`. |
+| unset / `local` / `filesystem` | `configured` — local filesystem storage. |
 | `azure` with `AZURE_STORAGE_CONNECTION_STRING` or `AZURE_STORAGE_ACCOUNT` + `AZURE_STORAGE_KEY` | `configured`. |
-| `azure` without credentials | `degraded` — falls back to DB base64. |
-| unknown mode | `degraded` — falls back to database. |
+| `azure` without credentials | `degraded` — speech audio is not cached until credentials are configured. |
+| `database` / unknown mode | `degraded` — unsupported value; local filesystem fallback is used. |
 
 No storage secrets are emitted in readiness JSON.
 
@@ -164,4 +163,4 @@ No storage secrets are emitted in readiness JSON.
 | `checks.db = error` | Database unreachable or wrong URL. | Check `DATABASE_URL`, local compose status, or managed DB networking. |
 | `checks.migrations = error`, `unapplied > 0` | Repo has migration directories not present in `_prisma_migrations`. | Run the correct migration command for the configured schema. |
 | `checks.providers.ai = degraded` | Some but not all Azure OpenAI env vars are set. | Fill all four vars or clear unused placeholders. |
-| `checks.providers.storage = degraded` | `MEDIA_STORAGE=azure` without credentials. | Configure Azure Storage or set `MEDIA_STORAGE=database`. |
+| `checks.providers.storage = degraded` | `MEDIA_STORAGE=azure` without credentials, or an unsupported storage value. | Configure Azure Storage or set `MEDIA_STORAGE=local`. |

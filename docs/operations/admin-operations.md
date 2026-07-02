@@ -442,7 +442,6 @@ validate optional provider availability, then call into `src/lib/`. They own
 | `scripts/scrape.ts` | `src/lib/scraper` (`scrapeAndSave`, `discoverProviderUrls`) |
 | `scripts/push-reminders.ts` | `src/lib/push/scheduler` (`sendDueReminders`) |
 | `scripts/seed.ts` | `src/lib/seed` (`runSeed`) |
-| `scripts/migrate-storage.ts` | `src/lib/storage` (migration helpers) |
 | `scripts/analyze-speech-alignment.ts` | `src/lib/speech` (analysis helpers) |
 | `scripts/eval.ts` | `src/lib/ai` (eval runner) |
 | `scripts/check-schema-parity.ts` | schema comparison utilities |

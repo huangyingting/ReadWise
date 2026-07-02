@@ -10,11 +10,10 @@ export const runtime = "nodejs";
  *
  * Streams the narration audio for an article. Requires the caller to be
  * authenticated and able to read the article (same access gate as the speech
- * POST route). Serves bytes from object storage when a storageKey exists, or
- * falls back to the `audioBase64` column (retained as the DB fallback when
- * object storage is not configured — see REF-009 decision). Returns 404 when
- * no audio has been generated yet, and private Cache-Control so shared caches
- * never serve one user's audio to another.
+ * POST route). Serves bytes from local/Azure media storage using the row's
+ * storageKey. Returns 404 when no audio has been generated yet or the storage
+ * object is unavailable, and private Cache-Control so shared caches never serve
+ * one user's audio to another.
  */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
   await requireReadableArticle(params.id, session.user);
