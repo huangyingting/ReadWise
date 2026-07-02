@@ -323,7 +323,7 @@ pending → running → generated | skipped | fallback | failed
 | `running` | Step is currently executing (set by `beginStep`). |
 | `generated` | Step completed successfully and produced content. |
 | `skipped` | Step was bypassed (content already exists, feature not enabled, etc.). |
-| `fallback` | Step ran but used a fallback path (e.g. heuristic difficulty instead of AI). |
+| `fallback` | Step ran but used a fallback path (e.g. AI enrichment unavailable and no cache was written). |
 | `failed` | Step threw an error; `lastError` has a short message. |
 
 Key implementation constraints:

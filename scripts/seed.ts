@@ -111,7 +111,7 @@ async function main(): Promise<number> {
 
   if (!isAiConfigured()) {
     console.warn(
-      "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty still uses the heuristic.",
+      "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty is deterministic and still runs.",
     );
   }
   if (args.tts && !isSpeechConfigured()) {

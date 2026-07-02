@@ -127,8 +127,9 @@ articles; it does not create local login sessions, so configure an OAuth
 provider for browser sign-in or create test sessions through your local tooling.
 
 > AI, Speech, Push, storage, and tracing are optional. The app remains usable
-> without those credentials: AI panels show friendly fallbacks, difficulty uses
-> a heuristic, and audio stays in the database unless object storage is enabled.
+> without those credentials: AI panels show friendly fallbacks, article
+> difficulty is deterministic, and audio stays in local media storage unless
+> object storage is enabled.
 
 ## PostgreSQL + Redis parity workflow
 
@@ -186,7 +187,7 @@ crash startup.
 
 | Area | Variables | Notes |
 | --- | --- | --- |
-| Azure OpenAI | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | Enables translation, vocab, quiz, tags, grammar, tutor, and AI difficulty. |
+| Azure OpenAI | `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_API_KEY`, `AZURE_OPENAI_DEPLOYMENT`, `AZURE_OPENAI_API_VERSION` | Enables translation, vocab, quiz, tags, grammar, and tutor features. Article difficulty is deterministic. |
 | AI tuning | `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, `AZURE_OPENAI_MAX_CONTEXT_TOKENS`, `AI_MAX_OUTPUT_TOKENS` | Malformed values fall back to defaults. |
 | AI ledger/cost | `AI_LEDGER_ENABLED`, `AI_COST_PROMPT_PER_1K`, `AI_COST_COMPLETION_PER_1K`, `AI_COST_RATES` | Stores metadata only; prompts/responses are not persisted. |
 | AI quotas | `AI_QUOTA_WINDOW_MS`, `AI_QUOTA_USER_DAILY`, `AI_QUOTA_GLOBAL_DAILY`, `AI_QUOTA_BACKGROUND_DAILY`, `AI_QUOTA_FEATURE_DEFAULT_DAILY`, `AI_QUOTA_FEATURE_<FEATURE>_DAILY` | Empty or non-positive limits mean unlimited. |

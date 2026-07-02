@@ -13,7 +13,7 @@ description: "Architecture decision record for AI invocation governance, prompt 
 
 ## Context
 
-AI features now generate translations, vocabulary, quizzes, tags, difficulty estimates, and speech-related content. Cost, quality, prompt drift, and safety decisions need traceability before more product intelligence features are built.
+AI features now generate translations, vocabulary, quizzes, tags, and speech-related content. Difficulty estimates are deterministic. Cost, quality, prompt drift, and safety decisions need traceability before more product intelligence features are built.
 
 ## Decision
 

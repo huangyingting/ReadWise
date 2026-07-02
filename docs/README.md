@@ -132,7 +132,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`platform/internationalization.md`](./platform/internationalization.md) | UI internationalization foundation: i18n architecture, locale loading, and separation from article-translation and learner language-preference systems. |
 | [`platform/schema-change-checklist.md`](./platform/schema-change-checklist.md) | Privacy, retention, export, and cascade checklist required for every Prisma model or migration change. |
 | [`platform/test-data-governance.md`](./platform/test-data-governance.md) | Test data and fixture governance across unit factories, Prisma/DB seeds, Playwright e2e seeds, scraper corpora, and AI evaluation datasets. |
-| [`platform/supply-chain.md`](./platform/supply-chain.md) | Dependency hygiene policy, CI vulnerability gates, and response procedures for security advisories. |
+| [`platform/supply-chain.md`](./platform/supply-chain.md) | Dependency hygiene policy, CI vulnerability gates, response procedures for security advisories, and bundled third-party generated data attribution. |
 | [`platform/static-assets.md`](./platform/static-assets.md) | Static asset and public file guidance. |
 
 ### Reader

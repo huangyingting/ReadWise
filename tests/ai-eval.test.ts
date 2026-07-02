@@ -75,7 +75,7 @@ test("property checks fail for a broken model output (regression sentinel)", asy
 
 test("a missing modelOutput is reported as a failed property in offline mode", async () => {
   const noOutput: EvalDataset = {
-    feature: "difficulty",
+    feature: "quiz",
     cases: [{ name: "no-output", input: { title: "T", source: "S" } }],
   };
   const report = await evaluateDataset(noOutput, { live: false });
@@ -96,12 +96,12 @@ test("evaluating a dataset with an unknown feature throws", async () => {
 
 test("live mode routes through an injected model caller and re-checks the output", async () => {
   const dataset: EvalDataset = {
-    feature: "difficulty",
+    feature: "quiz",
     cases: [
       {
         name: "live-canned",
         input: { title: "T", source: "S" },
-        expect: { level: "B2" },
+        expect: { minItems: 1 },
       },
     ],
   };
@@ -110,9 +110,9 @@ test("live mode routes through an injected model caller and re-checks the output
     live: true,
     callModel: async (_messages, feature) => {
       calls.push(feature);
-      return "B2";
+      return '[{"question":"Q?","options":["A","B"],"correctIndex":0}]';
     },
   });
-  assert.deepEqual(calls, ["difficulty"]);
+  assert.deepEqual(calls, ["quiz"]);
   assert.equal(report.score, 1);
 });

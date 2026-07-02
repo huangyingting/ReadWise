@@ -34,7 +34,7 @@ before(() => {
   });
   mock.module("@/lib/difficulty", {
     namedExports: {
-      getOrCreateArticleDifficulty: async () => ({ level: "B1", source: "heuristic" }),
+      getOrCreateArticleDifficulty: async () => ({ level: "B1", source: "deterministic" }),
     },
   });
   mock.module("@/lib/vocabulary", {

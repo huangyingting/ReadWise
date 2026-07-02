@@ -51,8 +51,10 @@ features keep their behavior, while translation gains full coverage:
 | `vocabulary` | `sample` | 2000 tok | A bounded leading sample yields plenty of study words. |
 | `quiz` | `sample` | 2000 tok | Questions are drawn from a bounded representative sample. |
 | `tags` | `sample` | 1500 tok | Topic tags only need a representative sample. |
-| `difficulty` | `sample` | 1500 tok | CEFR assessment uses a representative sample (heuristic fallback uses the same sample). |
 | `tutor` | `sample` | 1750 tok | The article is context for an interactive chat; a bounded slice keeps each turn cheap. |
+
+Article difficulty does not use AI context: CEFR and Lexile-like estimates are
+computed deterministically from local text metrics.
 
 **Translation full-coverage guarantee:** `getOrCreateTranslation`
 (`src/lib/translation.ts`) calls `chunkForFeature(text, "translation")`,

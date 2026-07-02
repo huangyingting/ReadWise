@@ -100,6 +100,8 @@ export type BackfillResult = {
 export type CandidateArticle = {
   id: string;
   difficulty: string | null;
+  lexileApprox: number | null;
+  difficultyVersion: string | null;
   translations: { targetLang: string }[];
   speech: { articleId: string } | null;
   _count: {
@@ -145,6 +147,8 @@ async function defaultLoadCandidates(
     select: {
       id: true,
       difficulty: true,
+      lexileApprox: true,
+      difficultyVersion: true,
       translations: { select: { targetLang: true } },
       speech: { select: { articleId: true } },
       _count: {

@@ -27,14 +27,14 @@ while still catching real breakage. Examples:
 | `translation` | non-empty, no markdown fences, **preserves paragraph count** |
 | `vocabulary` | parses ≥ N items, every item has `word` + `explanation`, no duplicate words |
 | `quiz` | parses ≥ N items, **every question has ≥ 2 options**, **`correctIndex` is in range** |
-| `difficulty` | output is a **valid CEFR token**; optionally matches an expected band |
 | `grammar` | non-empty, no HTML, not flagged by moderation |
 | `tutor` | non-empty, no HTML, not flagged; optionally **grounded** (must include given terms) |
 | `safety` | no prompt-disclosure, no instruction-echo, not flagged; optionally includes expected safe terms |
 
 Each major AI feature has **≥ 1 dataset** under `evals/` (`translation.json`,
-`vocabulary.json`, `quiz.json`, `difficulty.json`, `grammar.json`, `tutor.json`,
-`safety.json`).
+`vocabulary.json`, `quiz.json`, `grammar.json`, `tutor.json`, `safety.json`).
+Article difficulty is deterministic and covered by unit tests rather than the AI
+eval harness.
 
 ---
 
@@ -46,7 +46,7 @@ The harness (`src/lib/ai/evals/`) runs in two modes:
 
 Each dataset case carries a representative `modelOutput`, which is fed through
 the **real** feature parsers/validators (`validateVocabulary`, `validateQuiz`,
-`parseLevel`, `moderateText`, the paragraph/HTML/fence checks). **No provider
+`moderateText`, the paragraph/HTML/fence checks). **No provider
 credentials, DB, or network are required**, so prompt/model/parsing regressions
 are caught in CI without secrets. This is what `tests/ai-eval.test.ts` runs.
 

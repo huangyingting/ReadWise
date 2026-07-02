@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
+  DIFFICULTY_ALGORITHM_VERSION,
   fleschReadingEase,
   heuristicDifficulty,
   parseLevel,
@@ -44,13 +45,19 @@ test("fleschReadingEase scores longer text and easy reads higher than hard", () 
 
 test("heuristicDifficulty returns a CEFR level + 0..100 score", () => {
   const text = "<p>" + Array.from({ length: 40 }, () => "The dog ran fast.").join(" ") + "</p>";
-  const { level, score } = heuristicDifficulty(text);
+  const { level, score, lexileApprox, version } = heuristicDifficulty(text);
   assert.ok(isDifficultyLevel(level));
   assert.ok(score >= 0 && score <= 100);
+  assert.ok(lexileApprox >= 200 && lexileApprox <= 1600);
+  assert.equal(version, DIFFICULTY_ALGORITHM_VERSION);
 });
 
-test("heuristicDifficulty falls back to B1/50 when unscorable", () => {
-  assert.deepEqual(heuristicDifficulty("<p>tiny</p>"), { level: "B1", score: 50 });
+test("heuristicDifficulty returns a best-effort low-confidence score for tiny text", () => {
+  const result = heuristicDifficulty("<p>tiny</p>");
+  assert.ok(isDifficultyLevel(result.level));
+  assert.ok(result.score >= 0 && result.score <= 100);
+  assert.ok(result.lexileApprox >= 200 && result.lexileApprox <= 1600);
+  assert.equal(result.confidence, "low");
 });
 
 test("parseLevel extracts the first CEFR token from model output", () => {
@@ -92,64 +99,23 @@ test("fleschReadingEase returns a numeric score for a 20-word passage", () => {
 });
 
 // ---------------------------------------------------------------------------
-// heuristicDifficulty — covers all easeToLevel branches (A2 through C2)
-//
-// Each sentence below has exactly 10 words.  Word syllable counts are chosen
-// to produce a predictable ease value (Flesch = 206.835 − 1.015·wps − 84.6·spw)
-// that falls in the desired CEFR band:
-//
-//   A2  ease ≈ 86.7  (spw = 1.3, wps = 10)  — 3 two-syl, 7 one-syl
-//   B1  ease ≈ 78.2  (spw = 1.4, wps = 10)  — 4 two-syl, 6 one-syl
-//   B2  ease ≈ 61.3  (spw = 1.6, wps = 10)  — 6 two-syl, 4 one-syl
-//   C1  ease ≈ 52.9  (spw = 1.7, wps = 10)  — 7 two-syl, 3 one-syl
-//   C2  ease ≈ 35.9  (spw = 1.9, wps = 10)  — 9 two-syl, 1 one-syl
-//
-// Two-syllable words that the heuristic agrees are two syllables:
-// basket(2), garden(2), summer(2), winter(2), butter(2), sister(2), pepper(2), pattern(2), mental(2)
+// heuristicDifficulty — deterministic composite behavior
 // ---------------------------------------------------------------------------
 
 function wrap(sentence: string, n = 25): string {
   return "<p>" + Array.from({ length: n }, () => sentence).join(" ") + "</p>";
 }
 
-test("heuristicDifficulty returns level 'A2' for slightly-complex text (ease ≈ 87)", () => {
-  // 7 one-syl + 3 two-syl = 13 syllables, wps=10 → ease ≈ 86.7
-  const html = wrap("The cat ran fast past big and basket garden summer.");
-  const { level, score } = heuristicDifficulty(html);
-  assert.equal(level, "A2");
-  assert.ok(score > 0 && score <= 100);
-});
-
-test("heuristicDifficulty returns level 'B1' for moderately-complex text (ease ≈ 78)", () => {
-  // 6 one-syl + 4 two-syl = 14 syllables, wps=10 → ease ≈ 78.2
-  const html = wrap("The cat ran fast big and basket garden summer winter.");
-  const { level, score } = heuristicDifficulty(html);
-  assert.equal(level, "B1");
-  assert.ok(score > 0 && score <= 100);
-});
-
-test("heuristicDifficulty returns level 'B2' for upper-intermediate text (ease ≈ 61)", () => {
-  // 4 one-syl + 6 two-syl = 16 syllables, wps=10 → ease ≈ 61.3
-  const html = wrap("The cat ran and basket garden summer winter butter sister.");
-  const { level, score } = heuristicDifficulty(html);
-  assert.equal(level, "B2");
-  assert.ok(score > 0 && score <= 100);
-});
-
-test("heuristicDifficulty returns level 'C1' for advanced text (ease ≈ 53)", () => {
-  // 3 one-syl + 7 two-syl = 17 syllables, wps=10 → ease ≈ 52.9
-  const html = wrap("The cat and basket garden summer winter butter sister pepper.");
-  const { level, score } = heuristicDifficulty(html);
-  assert.equal(level, "C1");
-  assert.ok(score > 0 && score <= 100);
-});
-
-test("heuristicDifficulty returns level 'C2' for very-advanced text (ease ≈ 36)", () => {
-  // 1 one-syl + 9 two-syl = 19 syllables, wps=10 → ease ≈ 35.9
-  const html = wrap("The basket garden summer winter butter sister pepper pattern mental.");
-  const { level, score } = heuristicDifficulty(html);
-  assert.equal(level, "C2");
-  assert.ok(score > 0 && score <= 100);
+test("heuristicDifficulty scores dense academic text harder than simple common-word text", () => {
+  const easy = wrap("The child reads a book at home and talks with her family.");
+  const hard = wrap(
+    "Consequently the epistemological framework necessitates institutional reconsideration despite methodological uncertainty.",
+  );
+  const easyResult = heuristicDifficulty(easy);
+  const hardResult = heuristicDifficulty(hard);
+  assert.ok(hardResult.score > easyResult.score, `${hardResult.score} should be > ${easyResult.score}`);
+  assert.ok(hardResult.lexileApprox > easyResult.lexileApprox);
+  assert.ok(levelRank(hardResult.level) >= levelRank(easyResult.level));
 });
 
 // ---------------------------------------------------------------------------
@@ -178,22 +144,24 @@ test("parseLevel ignores strings that look like CEFR but are not valid tokens", 
 });
 
 // ---------------------------------------------------------------------------
-// assessDifficulty — heuristic path (no real AI in test env)
+// assessDifficulty — deterministic path (no AI)
 // ---------------------------------------------------------------------------
 
-test("assessDifficulty returns a heuristic result with source 'heuristic' when text is sufficient", async () => {
+test("assessDifficulty returns a deterministic result with CEFR and Lexile-like metadata", async () => {
   const content = wrap("The cat ran fast big and basket garden summer winter.");
   const result = await assessDifficulty("Test Article", content);
   assert.ok(isDifficultyLevel(result.level), `expected a valid level, got ${result.level}`);
   assert.ok(result.score >= 0 && result.score <= 100);
-  assert.equal(result.source, "heuristic");
+  assert.ok(result.lexileApprox >= 200 && result.lexileApprox <= 1600);
+  assert.equal(result.version, DIFFICULTY_ALGORITHM_VERSION);
+  assert.equal(result.source, "deterministic");
 });
 
-test("assessDifficulty falls back to B1/50/heuristic for too-short content", async () => {
+test("assessDifficulty returns low confidence for too-short content", async () => {
   const result = await assessDifficulty("Tiny", "<p>tiny</p>");
-  assert.equal(result.level, "B1");
-  assert.equal(result.score, 50);
-  assert.equal(result.source, "heuristic");
+  assert.ok(isDifficultyLevel(result.level));
+  assert.equal(result.confidence, "low");
+  assert.equal(result.source, "deterministic");
 });
 
 // ---------------------------------------------------------------------------
@@ -207,23 +175,66 @@ test("ensureArticleDifficulties returns an empty map for an empty article list",
 
 test("ensureArticleDifficulties returns cached results for articles that already have a valid difficulty and score", async () => {
   const articles = [
-    { id: "a1", title: "T1", content: "<p>c</p>", difficulty: "A1", difficultyScore: 8 },
-    { id: "a2", title: "T2", content: "<p>c</p>", difficulty: "C2", difficultyScore: 64 },
+    {
+      id: "a1",
+      title: "T1",
+      content: "<p>c</p>",
+      difficulty: "A1",
+      difficultyScore: 8,
+      lexileApprox: 300,
+      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
+    },
+    {
+      id: "a2",
+      title: "T2",
+      content: "<p>c</p>",
+      difficulty: "C2",
+      difficultyScore: 64,
+      lexileApprox: 1300,
+      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
+    },
   ];
   const map = await ensureArticleDifficulties(articles);
   assert.equal(map.size, 2);
-  assert.deepEqual(map.get("a1"), { articleId: "a1", level: "A1", score: 8, source: "cache" });
-  assert.deepEqual(map.get("a2"), { articleId: "a2", level: "C2", score: 64, source: "cache" });
+  assert.deepEqual(map.get("a1"), {
+    articleId: "a1",
+    level: "A1",
+    score: 8,
+    lexileApprox: 300,
+    confidence: "medium",
+    version: DIFFICULTY_ALGORITHM_VERSION,
+    source: "cache",
+  });
+  assert.deepEqual(map.get("a2"), {
+    articleId: "a2",
+    level: "C2",
+    score: 64,
+    lexileApprox: 1300,
+    confidence: "medium",
+    version: DIFFICULTY_ALGORITHM_VERSION,
+    source: "cache",
+  });
 });
 
 test("ensureArticleDifficulties uses levelToScore when difficultyScore is null", async () => {
   // B2 → rank 3, levelToScore = round((3.5/6)*100) = 58
-  const articles = [{ id: "x1", title: "T", content: "<p>c</p>", difficulty: "B2", difficultyScore: null }];
+  const articles = [
+    {
+      id: "x1",
+      title: "T",
+      content: "<p>c</p>",
+      difficulty: "B2",
+      difficultyScore: null,
+      lexileApprox: 900,
+      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
+    },
+  ];
   const map = await ensureArticleDifficulties(articles);
   const entry = map.get("x1");
   assert.ok(entry !== undefined);
   assert.equal(entry!.level, "B2");
   assert.equal(entry!.score, 58);
+  assert.equal(entry!.lexileApprox, 900);
   assert.equal(entry!.source, "cache");
 });
 
@@ -231,7 +242,7 @@ test("ensureArticleDifficulties uses levelToScore when difficultyScore is null",
 // ensureArticleDifficulties — heuristic path (requires prisma stub)
 // ---------------------------------------------------------------------------
 
-test("ensureArticleDifficulties computes heuristic difficulty and persists via prisma.article.update", async () => {
+test("ensureArticleDifficulties computes deterministic difficulty and persists via prisma.article.update", async () => {
   const orig = (prisma as unknown as Record<string, unknown>).article;
   const updatedIds: string[] = [];
   (prisma as unknown as Record<string, unknown>).article = {
@@ -249,9 +260,10 @@ test("ensureArticleDifficulties computes heuristic difficulty and persists via p
     const map = await ensureArticleDifficulties(articles);
 
     assert.equal(map.size, 2);
-    assert.equal(map.get("h1")!.source, "heuristic");
+    assert.equal(map.get("h1")!.source, "deterministic");
     assert.ok(isDifficultyLevel(map.get("h1")!.level));
-    assert.equal(map.get("h2")!.level, "B1");
+    assert.ok(isDifficultyLevel(map.get("h2")!.level));
+    assert.ok(map.get("h1")!.lexileApprox >= 200);
     // Articles are mutated in place
     assert.ok(isDifficultyLevel(articles[0].difficulty));
     assert.ok(isDifficultyLevel(articles[1].difficulty));
@@ -288,6 +300,8 @@ test("getOrCreateArticleDifficulty returns cached difficulty when the article al
       content: "<p>c</p>",
       difficulty: "B1",
       difficultyScore: 22,
+      lexileApprox: 760,
+      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
     }),
   };
   try {
@@ -296,6 +310,7 @@ test("getOrCreateArticleDifficulty returns cached difficulty when the article al
     assert.equal(result!.articleId, "art-1");
     assert.equal(result!.level, "B1");
     assert.equal(result!.score, 22);
+    assert.equal(result!.lexileApprox, 760);
     assert.equal(result!.source, "cache");
   } finally {
     (prisma as unknown as Record<string, unknown>).article = orig;
@@ -312,6 +327,8 @@ test("getOrCreateArticleDifficulty uses levelToScore when difficultyScore is nul
       content: "<p>c</p>",
       difficulty: "C1",
       difficultyScore: null,
+      lexileApprox: 1200,
+      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
     }),
   };
   try {
@@ -319,6 +336,7 @@ test("getOrCreateArticleDifficulty uses levelToScore when difficultyScore is nul
     assert.ok(result !== null);
     assert.equal(result!.level, "C1");
     assert.equal(result!.score, 75);
+    assert.equal(result!.lexileApprox, 1200);
     assert.equal(result!.source, "cache");
   } finally {
     (prisma as unknown as Record<string, unknown>).article = orig;
@@ -336,6 +354,8 @@ test("getOrCreateArticleDifficulty assesses and persists difficulty when none is
       content,
       difficulty: null,
       difficultyScore: null,
+      lexileApprox: null,
+      difficultyVersion: null,
     }),
     update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
       updateArgs = args;
@@ -348,11 +368,15 @@ test("getOrCreateArticleDifficulty assesses and persists difficulty when none is
     assert.equal(result!.articleId, "art-3");
     assert.ok(isDifficultyLevel(result!.level));
     assert.ok(result!.score >= 0 && result!.score <= 100);
-    assert.equal(result!.source, "heuristic");
+    assert.ok(result!.lexileApprox >= 200 && result!.lexileApprox <= 1600);
+    assert.equal(result!.version, DIFFICULTY_ALGORITHM_VERSION);
+    assert.equal(result!.source, "deterministic");
     // Verify prisma.article.update was called with the assessed values
     assert.ok(updateArgs !== null, "expected prisma.article.update to be called");
     assert.equal((updateArgs as any).where.id, "art-3");
     assert.ok(isDifficultyLevel((updateArgs as any).data.difficulty));
+    assert.equal((updateArgs as any).data.difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
+    assert.ok((updateArgs as any).data.lexileApprox >= 200);
   } finally {
     (prisma as unknown as Record<string, unknown>).article = orig;
   }

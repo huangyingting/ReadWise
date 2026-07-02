@@ -86,10 +86,12 @@ label, so cached derived content and existing tests stay valid.
 | `vocabulary` | `vocabulary/v1` | provider default | `src/lib/vocabulary.ts` |
 | `quiz` | `quiz/v1` | provider default | `src/lib/quiz.ts` |
 | `tags` | `tags/v1` | provider default | `src/lib/article-library/collections/index.ts` |
-| `difficulty` | `difficulty/v1` | 16 | `src/lib/difficulty.ts` |
 | `grammar` | `grammar/v1` | 256 | `src/lib/grammar.ts` |
 | `tutor` | `tutor/v1` | 2048 | `src/lib/tutor.ts` |
 | `sentence-translation` | `sentence-translation/v1` | 256 | `src/lib/sentence-translation.ts` |
+
+Article difficulty (`src/lib/difficulty.ts`) is deterministic and is not an AI
+prompt feature.
 
 ---
 
@@ -102,11 +104,11 @@ ledger records the prompt that produced the output:
 ```ts
 import { renderPrompt, activePromptVersion, promptModelParams } from "@/lib/ai/prompts";
 
-const messages = renderPrompt("difficulty", { title, source });
+const messages = renderPrompt("quiz", { title, source });
 const result = await chatCompleteWithMeta(messages, {
-  feature: "difficulty",
-  promptVersion: activePromptVersion("difficulty"),
-  maxOutputTokens: promptModelParams("difficulty").maxOutputTokens,
+  feature: "quiz",
+  promptVersion: activePromptVersion("quiz"),
+  maxOutputTokens: promptModelParams("quiz").maxOutputTokens,
 });
 ```
 

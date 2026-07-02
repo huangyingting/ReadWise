@@ -14,7 +14,6 @@ import translationTemplate from "./translation";
 import vocabularyTemplate from "./vocabulary";
 import quizTemplate from "./quiz";
 import tagsTemplate from "./tags";
-import difficultyTemplate from "./difficulty";
 import grammarTemplate from "./grammar";
 import tutorTemplate from "./tutor";
 import sentenceTranslationTemplate from "./sentence-translation";
@@ -32,7 +31,6 @@ export const PROMPT_TEMPLATES: {
   vocabulary: vocabularyTemplate,
   quiz: quizTemplate,
   tags: tagsTemplate,
-  difficulty: difficultyTemplate,
   grammar: grammarTemplate,
   tutor: tutorTemplate,
   "sentence-translation": sentenceTranslationTemplate,

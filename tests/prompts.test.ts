@@ -27,7 +27,6 @@ const EXPECTED_VERSIONS: Record<string, string> = {
   vocabulary: "vocabulary/v1",
   quiz: "quiz/v1",
   tags: "tags/v1",
-  difficulty: "difficulty/v1",
   grammar: "grammar/v1",
   tutor: "tutor/v1",
   "sentence-translation": "sentence-translation/v1",
@@ -96,13 +95,6 @@ test("renderPrompt(tags) requests up to the target number of Title-Case tags", (
   const messages = renderPrompt("tags", { title: "Tea", source: "Body." });
   assert.match(messages[0].content, new RegExp(`up to ${TARGET_TAGS} concise topic tags`));
   assert.match(messages[0].content, /JSON array of tag strings/);
-});
-
-test("renderPrompt(difficulty) asks for a single CEFR token with a tight budget", () => {
-  const messages = renderPrompt("difficulty", { title: "T", source: "S" });
-  assert.match(messages[0].content, /CEFR scale/);
-  assert.match(messages[0].content, /A1, A2, B1, B2, C1, C2/);
-  assert.deepEqual(promptModelParams("difficulty"), { maxOutputTokens: 16 });
 });
 
 test("renderPrompt(grammar) calibrates to the level and varies by context presence", () => {

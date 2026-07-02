@@ -4,9 +4,13 @@ import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { ArticleStatus } from "@prisma/client";
 
+const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/wordfreq-v1";
+
 type Candidate = {
   id: string;
   difficulty: string | null;
+  lexileApprox: number | null;
+  difficultyVersion: string | null;
   translations: { targetLang: string }[];
   speech: { articleId: string } | null;
   _count: {
@@ -22,6 +26,8 @@ type ProcessorArticle = {
   title: string;
   status: string;
   difficulty: string | null;
+  lexileApprox: number | null;
+  difficultyVersion: string | null;
   _count: { tags: number; vocabulary: number; quizQuestions: number };
   translations: { targetLang: string }[];
   speech: { articleId: string } | null;
@@ -45,6 +51,8 @@ function candidate(partial: Partial<Candidate> = {}): Candidate {
   return {
     id: "article-1",
     difficulty: null,
+    lexileApprox: null,
+    difficultyVersion: null,
     translations: [],
     speech: null,
     _count: { tags: 0, vocabulary: 0, quizQuestions: 0, grammarExplanations: 0 },
@@ -58,6 +66,8 @@ function processorState(partial: Partial<ProcessorArticle> = {}): ProcessorArtic
     title: "Pipeline article",
     status: ArticleStatus.DRAFT,
     difficulty: null,
+    lexileApprox: null,
+    difficultyVersion: null,
     _count: { tags: 0, vocabulary: 0, quizQuestions: 0 },
     translations: [],
     speech: null,
@@ -161,7 +171,7 @@ before(() => {
     namedExports: {
       getOrCreateArticleDifficulty: async () => {
         if (helperFailure === "difficulty") throw new Error("difficulty failed");
-        return { level: "B1", source: "heuristic" };
+        return { level: "B1", source: "deterministic" };
       },
     },
   });
@@ -304,6 +314,8 @@ test("processor skips already completed feature steps and published articles", a
   processorArticle = processorState({
     status: ArticleStatus.PUBLISHED,
     difficulty: "B1",
+    lexileApprox: 760,
+    difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
     _count: { tags: 1, vocabulary: 2, quizQuestions: 3 },
     translations: [{ targetLang: "es" }],
     speech: { articleId: "article-1" },

@@ -51,6 +51,8 @@ export function buildArticle(partial: Partial<Article> = {}): Article {
     sourceType: ArticleSourceType.SCRAPED,
     difficulty: null,
     difficultyScore: null,
+    lexileApprox: null,
+    difficultyVersion: null,
     wordCount: null,
     readingMinutes: null,
     publishedAt: now,

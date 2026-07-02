@@ -1,8 +1,8 @@
 /**
  * Article processing orchestration (REF-025).
  *
- * Enriches a single article with AI-derived content (difficulty, tags,
- * vocabulary, comprehension quiz, optional translations + TTS) and publishes it
+ * Enriches a single article with deterministic difficulty plus AI-derived tags,
+ * vocabulary, comprehension quiz, optional translations + TTS, and publishes it
  * when it is still a draft. Idempotent: each underlying helper is cache-first,
  * so already-completed steps are skipped and re-running is a no-op (beyond a
  * couple of cheap reads). Degrades gracefully when AI/Speech credentials are
@@ -15,6 +15,7 @@
 import { prisma } from "@/lib/prisma";
 import { ArticleStatus } from "@prisma/client";
 import { getOrCreateArticleDifficulty } from "@/lib/difficulty";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
 import { getOrCreateArticleVocabulary } from "@/lib/vocabulary";
 import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { getOrCreateArticleTags } from "@/lib/article-library/collections/tags";
@@ -90,6 +91,8 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
       title: true,
       status: true,
       difficulty: true,
+      lexileApprox: true,
+      difficultyVersion: true,
       _count: {
         select: {
           tags: true,
@@ -108,7 +111,10 @@ async function loadArticleState(articleId: string): Promise<ArticleState | null>
     id: article.id,
     title: article.title,
     status: article.status,
-    hasDifficulty: Boolean(article.difficulty),
+    hasDifficulty:
+      Boolean(article.difficulty) &&
+      article.lexileApprox != null &&
+      article.difficultyVersion === DIFFICULTY_ALGORITHM_VERSION,
     tagCount: article._count.tags,
     vocabCount: article._count.vocabulary,
     quizCount: article._count.quizQuestions,
@@ -212,8 +218,8 @@ function buildStepRunners(
 }
 
 /**
- * Enriches a single article with AI-derived content (difficulty, tags,
- * vocabulary, comprehension quiz, optional translations + TTS) and publishes it
+ * Enriches a single article with deterministic difficulty plus AI-derived tags,
+ * vocabulary, comprehension quiz, optional translations + TTS, and publishes it
  * when it is still a draft. Idempotent: each underlying helper is cache-first, so
  * already-completed steps are skipped and re-running is a no-op (beyond a couple
  * of cheap reads). Degrades gracefully when AI/Speech credentials are absent.
