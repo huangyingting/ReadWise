@@ -15,3 +15,4 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-01T20:03:33.362+00:00 — Coverage-98 coordination reached handoff: decision inbox processed, per-agent orchestration logs written, and final coverage/typecheck/lint validation passed.
+- 2026-07-02T00:30:07.481+00:00 — Ralph-requested PR #874 modular refactor cleanup was committed as `4585c1f`, opened, squash-merged into `main`, and logged by Scribe with an empty decision inbox.

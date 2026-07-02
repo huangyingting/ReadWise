@@ -16,3 +16,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Frontend/UI coverage work completed with assigned frontend files at 100% targeted coverage; final coverage/typecheck/lint validation passed.
 - 2026-07-01T23:11:49.008+00:00 — UI catchall split decision was archived into decisions.md; hook/helper regrouping history is now captured for future UI test work.
+
+- 2026-07-02T00:30:07.481+00:00 — PR #874 moved reader UI components into `src/components/reader` and `src/components/reader/wordLookup` without compatibility shims; imports/docs/ESLint updated and typecheck/lint passed.
