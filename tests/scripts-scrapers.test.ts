@@ -165,7 +165,35 @@ class FakePrismaClient {
   }
 }
 
+class FakePrismaBetterSqlite3 {
+  config: unknown;
+
+  constructor(config: unknown) {
+    this.config = config;
+  }
+}
+
+class FakePrismaPg {
+  connection: unknown;
+  options: unknown;
+
+  constructor(connection: unknown, options?: unknown) {
+    this.connection = connection;
+    this.options = options;
+  }
+}
+
 before(async () => {
+  mock.module("@prisma/adapter-better-sqlite3", {
+    namedExports: {
+      PrismaBetterSqlite3: FakePrismaBetterSqlite3,
+    },
+  });
+  mock.module("@prisma/adapter-pg", {
+    namedExports: {
+      PrismaPg: FakePrismaPg,
+    },
+  });
   mock.module("@prisma/client", {
     namedExports: {
       PrismaClient: FakePrismaClient,
@@ -650,10 +678,7 @@ test("scrape-review covers preview, DB loading, routing, server startup, and mai
   );
   assert.equal(dbItems[0].mode, "db");
   assert.equal(prismaClientDisconnects, 1);
-  assert.match(
-    prismaClientCtorArgs[0].datasources.db.url,
-    /^file:/,
-  );
+  assert.match(prismaClientCtorArgs[0].adapter.config.url, /^file:/);
 
   const queuedRows = [[{ id: "row-2" }, { id: "row-1" }], [dbRow("row-1"), dbRow("row-2")]];
   prismaClientFindManyImpl = async () => queuedRows.shift() ?? [];

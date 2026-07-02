@@ -82,7 +82,7 @@ export function parseNodeCoverageText(text: string): CoverageRow[] {
   const dirs: Array<{ depth: number; name: string }> = [];
 
   for (const line of text.split(/\r?\n/)) {
-    const info = /^ℹ ?(.*)$/.exec(line);
+    const info = /^(?:ℹ|#) ?(.*)$/.exec(line);
     if (!info) continue;
 
     const content = info[1];

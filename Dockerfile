@@ -25,6 +25,7 @@ FROM node:22-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
+COPY prisma.config.ts ./
 COPY prisma/schema.prisma prisma/
 
 RUN npm ci
@@ -75,6 +76,7 @@ COPY --from=build --chown=nextjs:nodejs /app/node_modules/@prisma/client  ./node
 COPY --from=deps  --chown=nextjs:nodejs /app/node_modules/prisma         ./node_modules/prisma
 COPY --from=deps  --chown=nextjs:nodejs /app/node_modules/.bin/prisma    ./node_modules/.bin/prisma
 COPY --from=build --chown=nextjs:nodejs /app/prisma                      ./prisma
+COPY --from=build --chown=nextjs:nodejs /app/prisma.config.ts             ./prisma.config.ts
 
 # Startup script: runs `prisma migrate deploy` then `node server.js`
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./

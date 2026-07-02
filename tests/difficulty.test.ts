@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   fleschReadingEase,
@@ -10,6 +10,21 @@ import {
 } from "@/lib/difficulty";
 import { levelRank, isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { prisma } from "@/lib/prisma";
+
+let savedFeatureAiEnabled: string | undefined;
+
+beforeEach(() => {
+  savedFeatureAiEnabled = process.env.FEATURE_AI_ENABLED;
+  process.env.FEATURE_AI_ENABLED = "false";
+});
+
+afterEach(() => {
+  if (savedFeatureAiEnabled === undefined) {
+    delete process.env.FEATURE_AI_ENABLED;
+  } else {
+    process.env.FEATURE_AI_ENABLED = savedFeatureAiEnabled;
+  }
+});
 
 test("fleschReadingEase returns null for too-little text", () => {
   assert.equal(fleschReadingEase("Short text."), null);
