@@ -69,8 +69,9 @@ Defaults match GPT-4o-mini pricing at the time of writing; update via
 ### Feature labels (quota keys)
 
 Features that trigger AI calls include: `translation`, `quiz`, `vocabulary`,
-`grammar`, `difficulty`, `tutor`, `tags`, `sentence-translation`. Each maps to a
+`grammar`, `tutor`, `tags`, `sentence-translation`. Each maps to a
 per-feature quota env var (`AI_QUOTA_FEATURE_TRANSLATION_DAILY`, etc.).
+Article difficulty is deterministic and does not consume AI quota.
 
 ### Signals to watch
 

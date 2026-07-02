@@ -7,7 +7,6 @@ import type { FeatureEvaluator } from "@/lib/ai/evals/types";
 import { translationEvaluator } from "@/lib/ai/evals/evaluators/translation";
 import { vocabularyEvaluator } from "@/lib/ai/evals/evaluators/vocabulary";
 import { quizEvaluator } from "@/lib/ai/evals/evaluators/quiz";
-import { difficultyEvaluator } from "@/lib/ai/evals/evaluators/difficulty";
 import { grammarEvaluator } from "@/lib/ai/evals/evaluators/grammar";
 import { tutorEvaluator } from "@/lib/ai/evals/evaluators/tutor";
 import { safetyEvaluator } from "@/lib/ai/evals/evaluators/safety";
@@ -17,7 +16,6 @@ export const EVALUATORS: Record<string, FeatureEvaluator> = {
   translation: translationEvaluator,
   vocabulary: vocabularyEvaluator,
   quiz: quizEvaluator,
-  difficulty: difficultyEvaluator,
   grammar: grammarEvaluator,
   tutor: tutorEvaluator,
   safety: safetyEvaluator,

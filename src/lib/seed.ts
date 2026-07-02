@@ -78,7 +78,7 @@ export const DEFAULT_SEED_LIMIT = 3;
 
 /**
  * One-command seeder: scrapes a provider for sample articles and runs the full
- * AI enrichment pipeline (difficulty, tags, vocabulary, quiz, translation) plus
+ * enrichment pipeline (deterministic difficulty plus AI tags, vocabulary, quiz, translation) plus
  * TTS narration on each.
  *
  * Idempotent end-to-end: `scrapeAndSave` de-duplicates by `sourceUrl` and the

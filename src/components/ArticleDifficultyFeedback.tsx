@@ -64,7 +64,7 @@ export default function ArticleDifficultyFeedback({
       </h3>
       {difficulty ? (
         <p className="text-[length:var(--text-xs)] text-text-subtle m-0 mb-[var(--space-3)]">
-          AI-estimated level: <strong className="text-text-muted">{difficulty}</strong>
+          Estimated level: <strong className="text-text-muted">{difficulty}</strong>
         </p>
       ) : null}
 

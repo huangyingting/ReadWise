@@ -36,7 +36,8 @@
     "schema:generate": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/generate-schemas.ts",
     "schema:check-parity": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/check-schema-parity.ts",
     "api-catalog": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/generate-api-catalog.ts",
-    "dict:prune": "npm run node-ts -- scripts/prune-local-dictionary.ts"
+    "dict:prune": "npm run node-ts -- scripts/prune-local-dictionary.ts",
+    "wordfreq:generate": "npm run node-ts -- scripts/generate-wordfreq-ranks.ts"
   },
   "dependencies": {
     "@auth/prisma-adapter": "^2.7.4",

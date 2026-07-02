@@ -74,7 +74,7 @@ export { parseArgs };
 function printHelp(): void {
   console.log(`ReadWise article processor
 
-Enriches articles with AI content (difficulty, tags, vocabulary, quiz, optional
+Enriches articles with deterministic difficulty and AI content (tags, vocabulary, quiz, optional
 translation + TTS) and publishes drafts once enrichment completes. Idempotent:
 already-completed steps are skipped.
 
@@ -120,7 +120,7 @@ async function main(): Promise<number> {
 
   if (!isAiConfigured()) {
     console.warn(
-      "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty still uses the heuristic.",
+      "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty is deterministic and still runs.",
     );
   }
   if (args.tts && !isSpeechConfigured()) {

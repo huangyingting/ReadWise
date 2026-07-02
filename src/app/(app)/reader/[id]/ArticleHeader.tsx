@@ -61,9 +61,9 @@ export default function ArticleHeader({
       {/* Meta row: CEFR badge · reading time · completed · bookmark */}
       <div className="reader-meta">
         {isValidCefrLevel ? (
-          <CefrBadge level={difficultyLevel as CefrLevel} title="AI-estimated reading level" />
+          <CefrBadge level={difficultyLevel as CefrLevel} title="Estimated reading level" />
         ) : difficultyLevel ? (
-          <Badge variant="neutral" title="AI-estimated reading level">
+          <Badge variant="neutral" title="Estimated reading level">
             Level {difficultyLevel}
           </Badge>
         ) : null}

@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import type { EvalDataset } from "@/lib/ai/evals/types";
 
 let calls = 0;
-let output: string | null = "B2";
+let output: string | null = '[{"question":"Q?","options":["A","B"],"correctIndex":0}]';
 
 before(() => {
   mock.module("@/lib/ai", {
@@ -23,8 +23,8 @@ before(() => {
 test("live evaluation uses the lazy default model caller", async () => {
   const { evaluateDataset } = await import("@/lib/ai/evals/live-runner");
   const dataset: EvalDataset = {
-    feature: "difficulty",
-    cases: [{ name: "default-live", input: { title: "T", source: "S" }, expect: { level: "B2" } }],
+    feature: "quiz",
+    cases: [{ name: "default-live", input: { title: "T", source: "S" }, expect: { minItems: 1 } }],
   };
 
   const report = await evaluateDataset(dataset, { live: true });
@@ -37,7 +37,7 @@ test("live evaluation records a failed property when the default caller returns 
   const { evaluateDataset } = await import("@/lib/ai/evals/live-runner");
   output = null;
   const dataset: EvalDataset = {
-    feature: "difficulty",
+    feature: "quiz",
     cases: [{ name: "default-live-empty", input: { title: "T", source: "S" } }],
   };
 

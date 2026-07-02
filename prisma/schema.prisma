@@ -134,6 +134,8 @@ model Article {
   readingMinutes  Int?
   difficulty      String?
   difficultyScore Float?
+  lexileApprox    Int?
+  difficultyVersion String?
   visibility      ArticleVisibility @default(PUBLIC)
   status          ArticleStatus     @default(PUBLISHED)
   sourceType      ArticleSourceType @default(SCRAPED)

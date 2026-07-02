@@ -15,6 +15,7 @@
  *   3. Add tests.
  */
 import type { Prisma } from "@prisma/client";
+import { DIFFICULTY_ALGORITHM_VERSION } from "@/lib/difficulty-version";
 
 /** All feature keys supported by the processing pipeline, in processing order. */
 export const FEATURE_KEYS = [
@@ -35,6 +36,8 @@ export type FeatureKey = (typeof FEATURE_KEYS)[number];
  */
 export type FeatureCandidateState = {
   difficulty: string | null;
+  lexileApprox: number | null;
+  difficultyVersion: string | null;
   speech: { articleId: string } | null;
   translations: { targetLang: string }[];
   _count: {
@@ -128,11 +131,19 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     supportsLangs: false,
     isTts: false,
     isRequired: true,
-    isMissingFrom: (a) => a.difficulty == null,
+    isMissingFrom: (a) =>
+      a.difficulty == null ||
+      a.lexileApprox == null ||
+      a.difficultyVersion !== DIFFICULTY_ALGORITHM_VERSION,
     clearFrom: async (tx, articleId) => {
       await tx.article.update({
         where: { id: articleId },
-        data: { difficulty: null, difficultyScore: null },
+        data: {
+          difficulty: null,
+          difficultyScore: null,
+          lexileApprox: null,
+          difficultyVersion: null,
+        },
       });
     },
     isDoneIn: (s) => s.hasDifficulty,

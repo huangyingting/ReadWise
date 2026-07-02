@@ -330,7 +330,7 @@ test("process main summarizes inline processing results and failures", async () 
     title: "Published article",
     ok: true,
     published: true,
-    steps: [{ step: "difficulty", status: "completed", detail: "heuristic" }],
+    steps: [{ step: "difficulty", status: "completed", detail: "deterministic" }],
   });
   articleResults.set("draft", {
     articleId: "draft",

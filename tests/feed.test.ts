@@ -78,7 +78,7 @@ before(() => {
     },
   });
 
-  // Bypass AI/heuristic difficulty assessment — test articles have difficulty set.
+  // Bypass deterministic difficulty assessment — test articles have difficulty set.
   mock.module("@/lib/difficulty", {
     namedExports: {
       isDifficultyLevel: (v: unknown) =>

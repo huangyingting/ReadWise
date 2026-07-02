@@ -44,6 +44,8 @@ function article(id: string, overrides: AnyArgs = {}): Article {
     category: null,
     difficulty: null,
     difficultyScore: null,
+    lexileApprox: null,
+    difficultyVersion: null,
     readingMinutes: null,
     wordCount: 400,
     publishedAt: now,

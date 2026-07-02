@@ -65,7 +65,7 @@ export type TextImportResult = { status: 201; id: string };
  *  2. Enforce daily quota.
  *  3. Convert paragraph blocks to sanitized HTML via {@link sanitizeArticleHtml}.
  *  4. Validate minimum word count.
- *  5. Create article + apply heuristic difficulty + record audit log (in a transaction).
+ *  5. Create article + apply deterministic difficulty + record audit log (in a transaction).
  *  6. Record analytics event (metadata only).
  *
  * Pass `deps` in `input` to override external I/O callables in tests.
@@ -122,7 +122,7 @@ export async function importArticleFromText(
       },
       select: { id: true },
     });
-    await applyHeuristicDifficulty(created.id, content, tx);
+    await applyDeterministicDifficulty(created.id, content, tx);
     await recordAudit(
       {
         req,
@@ -149,17 +149,22 @@ export async function importArticleFromText(
   return { status: 201, id: article.id };
 }
 
-/** Runs heuristic (no-AI) difficulty and persists it. Non-fatal. */
-async function applyHeuristicDifficulty(
+/** Runs deterministic difficulty and persists it. Non-fatal. */
+async function applyDeterministicDifficulty(
   articleId: string,
   content: string,
   client: Pick<Prisma.TransactionClient, "article"> = prisma,
 ): Promise<void> {
   try {
-    const { level: difficulty, score: difficultyScore } = heuristicDifficulty(content);
+    const {
+      level: difficulty,
+      score: difficultyScore,
+      lexileApprox,
+      version: difficultyVersion,
+    } = heuristicDifficulty(content);
     await client.article.update({
       where: { id: articleId },
-      data: { difficulty, difficultyScore },
+      data: { difficulty, difficultyScore, lexileApprox, difficultyVersion },
     });
   } catch {
     // Non-fatal — difficulty can be computed lazily by the reader.

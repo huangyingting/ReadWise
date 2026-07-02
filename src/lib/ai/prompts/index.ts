@@ -45,7 +45,6 @@ export type {
   VocabularyPromptVars,
   QuizPromptVars,
   TagsPromptVars,
-  DifficultyPromptVars,
   GrammarPromptVars,
   TutorPromptVars,
   SentenceTranslationPromptVars,

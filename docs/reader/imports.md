@@ -35,7 +35,7 @@ owned by the importing user.
 6. Enforce daily quota only after duplicate checks.
 7. Create a private `Article` with `visibility = PRIVATE`, `sourceType = IMPORTED`,
    and `ownerId = userId`.
-8. Apply heuristic difficulty best-effort.
+8. Apply deterministic difficulty best-effort.
 9. Record an audit log inside the create transaction.
 10. Record product analytics metadata after success.
 
@@ -86,7 +86,7 @@ Expected user-facing failures are structured `ApiError`s:
 - quota exceeded: `429`,
 - duplicate import: `200` with `duplicate: true` and the existing article id.
 
-Heuristic difficulty failure is non-fatal; the reader can compute or display
+Deterministic difficulty failure is non-fatal; the reader can compute or display
 without it later.
 
 ## Tests

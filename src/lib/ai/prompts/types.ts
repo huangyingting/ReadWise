@@ -68,7 +68,6 @@ export type TranslationPromptVars = {
 export type VocabularyPromptVars = { title: string; source: string };
 export type QuizPromptVars = { title: string; source: string };
 export type TagsPromptVars = { title: string; source: string };
-export type DifficultyPromptVars = { title: string; source: string };
 
 export type GrammarPromptVars = {
   /** The original (un-normalised) phrase as the learner selected it. */
@@ -105,7 +104,6 @@ export type PromptVarsMap = {
   vocabulary: VocabularyPromptVars;
   quiz: QuizPromptVars;
   tags: TagsPromptVars;
-  difficulty: DifficultyPromptVars;
   grammar: GrammarPromptVars;
   tutor: TutorPromptVars;
   "sentence-translation": SentenceTranslationPromptVars;

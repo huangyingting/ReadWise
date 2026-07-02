@@ -132,7 +132,7 @@ test("URL import rethrows non-P2002 transaction failures", async () => {
   );
 });
 
-test("URL import succeeds when heuristic difficulty persistence fails", async () => {
+test("URL import succeeds when deterministic difficulty persistence fails", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
 
   const result = await importArticleFromUrl({

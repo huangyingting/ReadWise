@@ -67,3 +67,10 @@ test("TIER_VARIANTS covers all tiers", async () => {
   assert.ok(TIER_VARIANTS.top5k);
   assert.ok(TIER_VARIANTS.academic);
 });
+
+test("wordFrequencyBand exposes granular deterministic difficulty bands", async () => {
+  const { wordFrequencyBand } = await import("@/lib/frequency-ranks");
+  assert.equal(wordFrequencyBand("the"), "top1k");
+  assert.notEqual(wordFrequencyBand("frequency"), "rare");
+  assert.equal(wordFrequencyBand("epistemological"), "rare");
+});

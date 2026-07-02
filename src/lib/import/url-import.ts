@@ -77,7 +77,7 @@ export type ImportResult =
  *  3. Scrape the URL.
  *  4. De-dupe on the canonical (scraped) sourceUrl.
  *  5. Enforce daily quota.
- *  6. Create article + apply heuristic difficulty + record audit log (in a transaction).
+ *  6. Create article + apply deterministic difficulty + record audit log (in a transaction).
  *  7. On P2002 concurrent-import conflict, resolve and return the winner as duplicate.
  *  8. Record analytics event (metadata only).
  *
@@ -173,7 +173,7 @@ export async function importArticleFromUrl(
         },
         select: { id: true },
       });
-      await applyHeuristicDifficulty(created.id, scraped.content, tx);
+      await applyDeterministicDifficulty(created.id, scraped.content, tx);
       await recordAudit(
         {
           req,
@@ -227,17 +227,22 @@ async function resolveDuplicateOnConflict(
   return findOwned(sourceUrl, userId);
 }
 
-/** Runs heuristic (no-AI) difficulty and persists it. Non-fatal. */
-async function applyHeuristicDifficulty(
+/** Runs deterministic difficulty and persists it. Non-fatal. */
+async function applyDeterministicDifficulty(
   articleId: string,
   content: string,
   client: Pick<Prisma.TransactionClient, "article"> = prisma,
 ): Promise<void> {
   try {
-    const { level: difficulty, score: difficultyScore } = heuristicDifficulty(content);
+    const {
+      level: difficulty,
+      score: difficultyScore,
+      lexileApprox,
+      version: difficultyVersion,
+    } = heuristicDifficulty(content);
     await client.article.update({
       where: { id: articleId },
-      data: { difficulty, difficultyScore },
+      data: { difficulty, difficultyScore, lexileApprox, difficultyVersion },
     });
   } catch {
     // Non-fatal — difficulty can be computed lazily by the reader.

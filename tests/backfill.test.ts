@@ -12,6 +12,8 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
+const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/wordfreq-v1";
+
 before(() => {
   // backfill.ts pulls in @/lib/jobs → @/lib/prisma at import; stub prisma so no
   // real client is constructed. The default deps are never used (we inject).
@@ -28,6 +30,8 @@ type ClearCall = { articleId: string; stepKeys: string[] };
 type Candidate = {
   id: string;
   difficulty: string | null;
+  lexileApprox: number | null;
+  difficultyVersion: string | null;
   translations: { targetLang: string }[];
   speech: { articleId: string } | null;
   _count: {
@@ -42,6 +46,8 @@ function candidate(partial: Partial<Candidate> = {}): Candidate {
   return {
     id: "article-1",
     difficulty: "B1",
+    lexileApprox: 760,
+    difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
     translations: [],
     speech: null,
     _count: { tags: 0, vocabulary: 1, quizQuestions: 0, grammarExplanations: 0 },
