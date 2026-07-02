@@ -15,8 +15,9 @@ import { saveSpeechResult } from "@/lib/speech/repository";
 import { extractSpeechBoundaryTokens, type SpeechWord } from "@/lib/speech/timing";
 import { buildTokenAlignment } from "@/lib/speech/timing-alignment";
 import { isObjectStorageConfigured } from "@/lib/storage";
+import { createConsoleLogger } from "@/lib/worker";
 
-import { addUniqueFromCsv, isMain, runCli, warnUnknown } from "./lib/cli";
+import { addUniqueFromCsv, isMain, registerShutdownSignals, runCli, warnUnknown } from "./lib/cli";
 
 const execFileAsync = promisify(execFile);
 
@@ -32,6 +33,9 @@ const DEFAULT_MAX_PAYLOAD_BYTES = AZURE_MAX_PAYLOAD_BYTES;
 const DEFAULT_MAX_INPUTS_PER_JOB = AZURE_MAX_INPUTS_PER_JOB;
 const LOWEST_STORAGE_FORMAT = "audio-16khz-32kbitrate-mono-mp3";
 const DEFAULT_WEB_LOW_STORAGE_FORMAT = LOWEST_STORAGE_FORMAT;
+const DEFAULT_LOOP_SLEEP_MS = 60_000;
+const DEFAULT_LOOP_LIMIT = 50;
+const DEFAULT_LOOP_MAX_ERRORS = 5;
 
 const ENGLISH_DRAGON_HD_VOICES = [
   { name: "en-US-Adam:DragonHDLatestNeural", gender: "Male", note: "" },
@@ -85,6 +89,10 @@ type Args = {
   timeoutMs: number;
   maxPayloadBytes: number;
   maxInputsPerJob: number;
+  loop: boolean;
+  sleepMs: number;
+  maxPasses: number | null;
+  maxErrors: number;
 };
 
 type ArticleRow = {
@@ -139,6 +147,26 @@ type ParsedBatchResult = {
   words: SpeechWord[];
 };
 
+type SpeechRuntimeConfig = NonNullable<ReturnType<typeof speechConfig.get>>;
+
+type RunOnceResult = {
+  selected: number;
+  submitted: number;
+  persisted: number;
+};
+
+type LoopLogger = {
+  log: (message: string) => void;
+  error: (message: string) => void;
+};
+
+type RunLoopDeps = {
+  signal: AbortSignal;
+  runPass: (args: Args) => Promise<RunOnceResult>;
+  sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
+  logger?: LoopLogger;
+};
+
 function printHelp(): void {
   console.log(`ReadWise Azure Batch Synthesis
 
@@ -149,6 +177,8 @@ Usage:
   npm run speech:batch -- <articleId> [articleId ...]
   npm run speech:batch -- --all --status PUBLISHED --limit 100
   npm run speech:batch -- --all --source "Undark" --dry-run
+  npm run speech:keep -- --status PUBLISHED --limit 50
+  npm run speech:batch -- --all --loop --sleep 120000 --limit 100
 
 Selection:
   --all                    Select articles from the database.
@@ -191,6 +221,11 @@ Output:
                            Do not use with persistence; one file cannot map back to articles.
 
 Batch controls:
+  --loop                   Keep running passes until stopped; --limit is per-pass.
+                           In loop mode, omitted --limit defaults to ${DEFAULT_LOOP_LIMIT}.
+  --sleep <ms>             Idle wait between loop passes (default ${DEFAULT_LOOP_SLEEP_MS}).
+  --max-passes N           Stop after N loop passes. 0 or omitted means unlimited.
+  --max-errors N           Abort after N consecutive failed loop passes (default ${DEFAULT_LOOP_MAX_ERRORS}).
   --max-inputs-per-job N   Default ${DEFAULT_MAX_INPUTS_PER_JOB}.
   --max-payload-bytes N    Default ${DEFAULT_MAX_PAYLOAD_BYTES}.
   --poll-interval-ms N     Default ${DEFAULT_POLL_INTERVAL_MS}.
@@ -219,6 +254,13 @@ function parseOptionalPositiveIntArg(argv: string[], flag: string): number | nul
   if (idx < 0 || idx + 1 >= argv.length) return null;
   const value = Number(argv[idx + 1]);
   return Number.isInteger(value) && value > 0 ? value : null;
+}
+
+function parseNonNegativeIntArg(argv: string[], flag: string, fallback: number): number {
+  const idx = argv.indexOf(flag);
+  if (idx < 0 || idx + 1 >= argv.length) return fallback;
+  const value = Number(argv[idx + 1]);
+  return Number.isInteger(value) ? Math.max(0, value) : fallback;
 }
 
 function parseStringArg(argv: string[], flag: string): string | null {
@@ -274,6 +316,9 @@ function parseArgs(argv: string[]): Args {
         "--poll-interval-ms",
         "--timeout-ms",
         "--ttl-hours",
+        "--sleep",
+        "--max-passes",
+        "--max-errors",
       ]);
       const knownFlags = new Set([
         "--all",
@@ -287,6 +332,7 @@ function parseArgs(argv: string[]): Args {
         "--concatenate",
         "--help",
         "-h",
+        "--loop",
         ...takesValue,
       ]);
       if (!knownFlags.has(arg)) warnUnknown(arg);
@@ -307,6 +353,8 @@ function parseArgs(argv: string[]): Args {
     ? LOWEST_STORAGE_FORMAT
     : (parseStringArg(argv, "--format") ?? DEFAULT_WEB_LOW_STORAGE_FORMAT);
   const statusRaw = parseStringArg(argv, "--status");
+  const loop = argv.includes("--loop");
+  const maxPasses = parseNonNegativeIntArg(argv, "--max-passes", 0);
 
   return {
     ids,
@@ -315,7 +363,7 @@ function parseArgs(argv: string[]): Args {
     statusRaw,
     status: parseStatus(statusRaw),
     source: parseStringArg(argv, "--source"),
-    limit: parseOptionalPositiveIntArg(argv, "--limit"),
+    limit: parseOptionalPositiveIntArg(argv, "--limit") ?? (loop ? DEFAULT_LOOP_LIMIT : null),
     includeExisting: argv.includes("--include-existing"),
     dryRun: argv.includes("--dry-run"),
     submitOnly: argv.includes("--submit-only"),
@@ -342,6 +390,10 @@ function parseArgs(argv: string[]): Args {
     timeoutMs: parsePositiveIntArg(argv, "--timeout-ms", DEFAULT_TIMEOUT_MS),
     maxPayloadBytes: parsePositiveIntArg(argv, "--max-payload-bytes", DEFAULT_MAX_PAYLOAD_BYTES),
     maxInputsPerJob: parsePositiveIntArg(argv, "--max-inputs-per-job", DEFAULT_MAX_INPUTS_PER_JOB),
+    loop,
+    sleepMs: parseNonNegativeIntArg(argv, "--sleep", DEFAULT_LOOP_SLEEP_MS),
+    maxPasses: maxPasses > 0 ? maxPasses : null,
+    maxErrors: parsePositiveIntArg(argv, "--max-errors", DEFAULT_LOOP_MAX_ERRORS),
   };
 }
 
@@ -785,6 +837,112 @@ async function persistJobResults(job: BatchJob, resultUrl: string, key: string, 
   }
 }
 
+async function runOnce(args: Args, config: SpeechRuntimeConfig): Promise<RunOnceResult> {
+  const articles = await selectArticles(args);
+  if (articles.length === 0) {
+    console.log("No articles selected.");
+    return { selected: 0, submitted: 0, persisted: 0 };
+  }
+
+  const inputs = articles
+    .map((article, index) => buildSsml(article, args, config.voice, index))
+    .filter((input) => input.plainText.trim().length > 0);
+  const skippedEmpty = articles.length - inputs.length;
+  if (skippedEmpty > 0) {
+    console.log(`Skipped ${skippedEmpty} article(s) with empty reader text.`);
+  }
+  if (inputs.length === 0) {
+    console.log("No articles with synthesizable reader text selected.");
+    return { selected: articles.length, submitted: 0, persisted: 0 };
+  }
+  const jobs = buildJobs(args, inputs);
+  const totalChars = inputs.reduce((sum, input) => sum + input.billableChars, 0);
+  const totalPayloadBytes = jobs.reduce((sum, job) => sum + bodySizeBytes(args, job.inputs), 0);
+  const endpoint = speechEndpoint(args, config.region);
+
+  console.log(
+    `Selected ${articles.length} article(s), ${totalChars.toLocaleString()} plain-text chars, ${jobs.length} batch job(s).`,
+  );
+  console.log(`format=${args.format} endpoint=${endpoint} output=ArticleSpeech wordBoundary=true`);
+  console.log(`estimated request payload bytes=${totalPayloadBytes.toLocaleString()}`);
+
+  if (args.dryRun) return { selected: articles.length, submitted: jobs.length, persisted: 0 };
+
+  if (!args.submitOnly && !isObjectStorageConfigured()) {
+    console.warn(
+      "Media object storage is not configured; persisted batch audio will use ArticleSpeech.audioBase64.",
+    );
+  }
+
+  let persisted = 0;
+  for (const job of jobs) {
+    await createBatchJob(endpoint, config.key, args, job);
+    if (args.submitOnly) continue;
+    const completed = await waitForBatchJob(endpoint, config.key, args, job.id);
+    const resultUrl = completed.outputs?.result;
+    if (typeof resultUrl !== "string" || !resultUrl) {
+      throw new Error(`Azure batch synthesis job ${job.id} succeeded without outputs.result`);
+    }
+    persisted += await persistJobResults(job, resultUrl, config.key, args);
+  }
+
+  console.log(`Done. submitted=${jobs.length} persisted=${persisted}`);
+  return { selected: articles.length, submitted: jobs.length, persisted };
+}
+
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+async function abortableSleep(ms: number, signal: AbortSignal): Promise<void> {
+  if (signal.aborted || ms <= 0) return;
+  await new Promise<void>((resolve) => {
+    let timeout: ReturnType<typeof setTimeout>;
+    let finish: () => void;
+    const onAbort = () => {
+      finish();
+    };
+    finish = () => {
+      clearTimeout(timeout);
+      signal.removeEventListener("abort", onAbort);
+      resolve();
+    };
+    timeout = setTimeout(finish, ms);
+    signal.addEventListener("abort", onAbort, { once: true });
+  });
+}
+
+async function runLoop(args: Args, deps: RunLoopDeps): Promise<number> {
+  const sleep = deps.sleep ?? abortableSleep;
+  const logger = deps.logger ?? console;
+  let pass = 0;
+  let consecutiveErrors = 0;
+
+  while (!deps.signal.aborted) {
+    if (args.maxPasses !== null && pass >= args.maxPasses) break;
+    pass++;
+
+    try {
+      const result = await deps.runPass(args);
+      consecutiveErrors = 0;
+      logger.log(
+        `Loop pass ${pass} complete: selected=${result.selected} submitted=${result.submitted} persisted=${result.persisted}`,
+      );
+    } catch (error) {
+      consecutiveErrors++;
+      logger.error(
+        `Loop pass ${pass} failed (${consecutiveErrors}/${args.maxErrors}): ${errorMessage(error)}`,
+      );
+      if (consecutiveErrors >= args.maxErrors) return 1;
+    }
+
+    if (args.maxPasses !== null && pass >= args.maxPasses) break;
+    await sleep(args.sleepMs, deps.signal);
+  }
+
+  return 0;
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
   if (process.argv.includes("--help") || process.argv.includes("-h")) {
@@ -815,59 +973,22 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  const articles = await selectArticles(args);
-  if (articles.length === 0) {
-    console.log("No articles selected.");
+  if (!args.loop) {
+    await runOnce(args, config);
     return 0;
   }
 
-  const inputs = articles
-    .map((article, index) => buildSsml(article, args, config.voice, index))
-    .filter((input) => input.plainText.trim().length > 0);
-  const skippedEmpty = articles.length - inputs.length;
-  if (skippedEmpty > 0) {
-    console.log(`Skipped ${skippedEmpty} article(s) with empty reader text.`);
-  }
-  if (inputs.length === 0) {
-    console.log("No articles with synthesizable reader text selected.");
-    return 0;
-  }
-  const jobs = buildJobs(args, inputs);
-  const totalChars = inputs.reduce((sum, input) => sum + input.billableChars, 0);
-  const totalPayloadBytes = jobs.reduce((sum, job) => sum + bodySizeBytes(args, job.inputs), 0);
-  const endpoint = speechEndpoint(args, config.region);
+  const controller = new AbortController();
+  const logger = createConsoleLogger();
+  registerShutdownSignals(controller, logger);
 
-  console.log(
-    `Selected ${articles.length} article(s), ${totalChars.toLocaleString()} plain-text chars, ${jobs.length} batch job(s).`,
-  );
-  console.log(`format=${args.format} endpoint=${endpoint} output=ArticleSpeech wordBoundary=true`);
-  console.log(`estimated request payload bytes=${totalPayloadBytes.toLocaleString()}`);
-
-  if (args.dryRun) return 0;
-
-  if (!args.submitOnly && !isObjectStorageConfigured()) {
-    console.warn(
-      "Media object storage is not configured; persisted batch audio will use ArticleSpeech.audioBase64.",
-    );
-  }
-
-  let persisted = 0;
-  for (const job of jobs) {
-    await createBatchJob(endpoint, config.key, args, job);
-    if (args.submitOnly) continue;
-    const completed = await waitForBatchJob(endpoint, config.key, args, job.id);
-    const resultUrl = completed.outputs?.result;
-    if (typeof resultUrl !== "string" || !resultUrl) {
-      throw new Error(`Azure batch synthesis job ${job.id} succeeded without outputs.result`);
-    }
-    persisted += await persistJobResults(job, resultUrl, config.key, args);
-  }
-
-  console.log(`Done. submitted=${jobs.length} persisted=${persisted}`);
-  return 0;
+  return runLoop(args, {
+    signal: controller.signal,
+    runPass: (passArgs) => runOnce(passArgs, config),
+  });
 }
 
-export { parseArgs, buildSsml, mimeTypeForFormat };
+export { parseArgs, buildSsml, mimeTypeForFormat, runOnce, runLoop, abortableSleep };
 
 if (isMain(import.meta.url)) {
   runCli(main);
