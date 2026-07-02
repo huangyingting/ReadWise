@@ -17,7 +17,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Languages } from "lucide-react";
 import { Button, Select } from "@/components/ui";
-import WordLookup from "@/components/WordLookup";
+import WordLookup from "./wordLookup/WordLookup";
 import AiBadge from "@/components/AiBadge";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import {

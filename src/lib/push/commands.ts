@@ -42,3 +42,15 @@ export async function subscribePush(
 
   return ok();
 }
+
+/**
+ * Removes a browser PushSubscription for the given user.
+ * Idempotent: missing or other-user endpoints are treated as success.
+ */
+export async function unsubscribePush(userId: string, endpoint: string): Promise<DomainResult> {
+  await prisma.pushSubscription.deleteMany({
+    where: { endpoint, userId },
+  });
+
+  return ok();
+}

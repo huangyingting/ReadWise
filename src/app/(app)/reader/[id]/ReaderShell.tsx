@@ -26,8 +26,8 @@
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 import type { ReaderPageData } from "@/lib/reader/page-loader";
 import ArticleHero from "@/components/ArticleHero";
-import BilingualBody from "@/components/BilingualBody";
-import WordLookupHint from "@/components/WordLookupHint";
+import BilingualBody from "@/components/reader/BilingualBody";
+import WordLookupHint from "@/components/reader/wordLookup/WordLookupHint";
 import ReaderControls from "@/components/ReaderControls";
 import ReaderLayout from "@/components/ReaderLayout";
 import ReaderToolsSurface from "@/components/ReaderToolsSurface";
