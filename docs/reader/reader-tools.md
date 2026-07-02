@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-02"
 description: "Documents the ReaderTools surface and its Reader, AI, Speech, Learning, Offline, and Analytics subsystem boundaries. Covers vocabulary, quiz, tutor, dictation, pronunciation, grammar, and selection tools as mounted reader panels/popovers with graceful fallbacks."
 ---
 
@@ -25,7 +25,7 @@ translation, playback, speech generation, offline sync, and learning mastery.
 | Tutor tab | `src/components/ArticleTutor.tsx`, `src/components/ReaderTutorProvider.tsx`, `src/components/tutor/*` | Grounded article chat, persisted successful turns, fallback/transient rows. |
 | Dictation tab | `src/components/ArticleDictation.tsx`, `src/components/reader/study/useDictationPanel.ts`, `src/lib/dictation.ts` | Audio-range sentence playback plus local typed-word grading. |
 | Pronunciation tab | `src/components/ArticlePronunciation.tsx`, `src/components/pronunciation/*`, `src/components/reader/usePronunciationAssessment.ts` | Browser-side Azure Speech pronunciation assessment and feedback. |
-| Selection tools | `src/components/WordLookup.tsx`, `src/components/SelectionToolbar.tsx`, `src/components/GrammarPopover.tsx`, `src/components/SentenceTranslatePopover.tsx` | Dictionary, save word, highlights/notes, sentence translation, grammar explanation. |
+| Selection tools | `src/components/reader/wordLookup/WordLookup.tsx`, `src/components/reader/wordLookup/SelectionToolbar.tsx`, `src/components/GrammarPopover.tsx`, `src/components/SentenceTranslatePopover.tsx` | Dictionary, save word, highlights/notes, sentence translation, grammar explanation. |
 | APIs | `/api/reader/[id]/vocabulary`, `/quiz`, `/quiz/attempt`, `/quiz/history`, `/tutor`, `/grammar`, `/translate-sentence`, `/dictionary`, `/pronunciation/*`, `/speech/token` | Authenticated, access-checked routes backing the UI. |
 | Offline | `src/lib/offline/sync-runtime.ts`, `src/lib/offline/registry.ts` | Quiz-attempt replay, progress/highlight/save-word queues, conflict handling. |
 | Learning signals | `src/lib/learning/*`, `src/lib/pronunciation.ts`, `src/lib/quiz-grading.ts` | Mastery, SRS, skill evidence, pronunciation history, quiz attempts. |

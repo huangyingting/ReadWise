@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-02"
 description: "Documents lexical provider seam, word normalization, dictionary lookup, saved-word persistence, and AI vocabulary panel relationship. Captures current normalization rules, local/free/hybrid providers, lookup route behavior, saved-word SRS integration, and privacy constraints."
 ---
 
@@ -22,7 +22,7 @@ two share saved-word state in the UI.
 | Lookup service | `src/lib/lexical/lookup.ts` | Try normalized candidates against the provider; never throw on misses/provider failure. |
 | Saved words | `src/lib/lexical/saved-words.ts` | User-owned study list persistence and read models. |
 | Route | `src/app/api/dictionary/route.ts` | Auth, lookup rate limit, mastery exposure, analytics metadata, frequency tier. |
-| Reader UI | `src/components/WordLookup.tsx`, `src/components/reader/wordLookup/*` | Selection controller, dictionary popover, save/unsave state. |
+| Reader UI | `src/components/reader/wordLookup/WordLookup.tsx`, `src/components/reader/wordLookup/*` | Selection controller, dictionary popover, save/unsave state. |
 
 ## Normalization and lemma rules
 

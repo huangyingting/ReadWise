@@ -325,9 +325,8 @@ permitted.
 | `redactSensitiveObject(obj)` | Flat-object redactor: sensitive keys → `[redacted]`, nested objects → `[object]`, strings masked + capped at 200 chars. |
 | `safeMetadataForPersistence(input)` | Recursive sanitiser for persistent storage: redacts sensitive keys, scrubs PII/tokens, caps depth (3 levels), key count (25), array size (20), and string length (200 chars). |
 
-**Backward-compat aliases** (`isSensitiveKey`, `scrubValue`) remain in the
-`@/lib/observability/redaction` shim for existing deep imports. **New code must
-import from `@/lib/security/redaction` or `@/lib/security` directly.**
+Import redaction helpers from `@/lib/security/redaction` or `@/lib/security`
+directly. Deprecated compatibility aliases have been removed.
 
 ### Sensitive-key superset
 

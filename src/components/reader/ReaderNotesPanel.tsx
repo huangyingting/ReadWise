@@ -31,8 +31,8 @@ import {
   type Highlight,
   type HighlightColor,
   HIGHLIGHT_COLORS,
-} from "./ReaderHighlightsProvider";
-import { SWATCH_COLORS } from "./SelectionToolbar";
+} from "@/components/ReaderHighlightsProvider";
+import { SWATCH_COLORS } from "./wordLookup/SelectionToolbar";
 
 const NOTE_MAX = 2000;
 

@@ -23,7 +23,7 @@ import ArticleVocabulary from "./ArticleVocabulary";
 import ArticleQuiz from "./ArticleQuiz";
 import ArticleDictation from "./ArticleDictation";
 import ArticlePronunciation from "./ArticlePronunciation";
-import ReaderNotesPanel from "./ReaderNotesPanel";
+import ReaderNotesPanel from "./reader/ReaderNotesPanel";
 import { ReaderTutorProvider } from "./ReaderTutorProvider";
 import ArticleTutor from "./ArticleTutor";
 import ReaderPanelErrorBoundary from "./ReaderPanelErrorBoundary";

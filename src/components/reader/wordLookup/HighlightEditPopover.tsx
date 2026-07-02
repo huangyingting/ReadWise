@@ -19,7 +19,7 @@ import { Button, IconButton, Textarea } from "@/components/ui";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import ConfirmAction from "@/components/ConfirmAction";
 import { usePopoverPosition } from "@/lib/use-popover-position";
-import type { Highlight, HighlightColor } from "./ReaderHighlightsProvider";
+import type { Highlight, HighlightColor } from "@/components/ReaderHighlightsProvider";
 import { SWATCH_COLORS } from "./SelectionToolbar";
 
 const POPOVER_HEIGHT = 260; // approximate
