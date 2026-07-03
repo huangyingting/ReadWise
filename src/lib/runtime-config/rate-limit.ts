@@ -50,6 +50,16 @@ export function rateLimitWindowMs(): number {
 
 export type RateLimitStoreMode = "auto" | "database" | "memory";
 
+const RATE_LIMIT_STORE_MODES = new Set<RateLimitStoreMode>([
+  "auto",
+  "database",
+  "memory",
+]);
+
+function isRateLimitStoreMode(value: string): value is RateLimitStoreMode {
+  return RATE_LIMIT_STORE_MODES.has(value as RateLimitStoreMode);
+}
+
 /**
  * Backing store for the shared rate limiter (RATE_LIMIT_STORE, default "auto").
  *   - "auto"     — use the DB-backed shared store, falling back to in-memory on error.
@@ -58,6 +68,6 @@ export type RateLimitStoreMode = "auto" | "database" | "memory";
  */
 export function rateLimitStoreMode(): RateLimitStoreMode {
   const raw = (process.env.RATE_LIMIT_STORE ?? "").trim().toLowerCase();
-  if (raw === "database" || raw === "memory" || raw === "auto") return raw;
+  if (isRateLimitStoreMode(raw)) return raw;
   return process.env.NODE_ENV === "test" ? "memory" : "auto";
 }

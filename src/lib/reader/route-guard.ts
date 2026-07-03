@@ -17,10 +17,17 @@ import { checkRateLimit } from "@/lib/security/rate-limit/index";
 /** Minimal user shape compatible with Session["user"] from createHandler. */
 export type ReaderUser = { id: string; role?: string | null };
 
+const ARTICLE_NOT_FOUND_ERROR = "Article not found";
+const AI_RATE_LIMIT_SCOPE = "ai";
+
 export type ReadableArticleResult = {
   article: Article;
   context: ArticleAccessContext;
 };
+
+function articleNotFound(): ApiError {
+  return new ApiError(404, ARTICLE_NOT_FOUND_ERROR);
+}
 
 /**
  * Resolves the readable article for the given id and authenticated user.
@@ -35,7 +42,7 @@ export async function requireReadableArticle(
 ): Promise<ReadableArticleResult> {
   const context = articleAccessContext(user);
   const article = await getReadableArticleById(id, context);
-  if (!article) throw new ApiError(404, "Article not found");
+  if (!article) throw articleNotFound();
   return { article, context };
 }
 
@@ -59,6 +66,6 @@ export async function requireReadableArticleForAI(
   user: ReaderUser,
 ): Promise<ReadableArticleResult> {
   const result = await requireReadableArticle(id, user);
-  await checkRateLimit(user.id, "ai");
+  await checkRateLimit(user.id, AI_RATE_LIMIT_SCOPE);
   return result;
 }

@@ -9,6 +9,24 @@ import { recordJobLockAge, recordJobQueueEvent } from "@/lib/metrics";
 
 const log = createLogger("jobs");
 
+type ClaimedJobRow = {
+  id: string;
+  wasStale: boolean;
+  lockedAt: Date | null;
+};
+
+function buildTypeFilter(types?: JobType[]) {
+  if (!types || types.length === 0) return Prisma.empty;
+  return Prisma.sql`AND "type" IN (${Prisma.join(types.map((type) => Prisma.sql`${type}::"JobType"`))})`;
+}
+
+function recordStaleReclaim(job: Job, row: ClaimedJobRow, now: Date): void {
+  const ageMs = row.lockedAt ? now.getTime() - new Date(row.lockedAt).getTime() : 0;
+  recordJobLockAge(job.type, Math.max(0, ageMs));
+  recordJobQueueEvent({ event: "stale_reclaimed", type: job.type });
+  log.warn("recovered stale job lock", { jobId: row.id, type: job.type, lockAgeMs: ageMs });
+}
+
 /**
  * Claims one runnable job on PostgreSQL using `FOR UPDATE SKIP LOCKED`. The
  * atomic UPDATE … FROM … RETURNING pattern ensures two concurrent workers can
@@ -23,12 +41,9 @@ export async function claimNextJobPostgres(
 ): Promise<Job | null> {
   // Enum labels are inlined as string literals (constants, not user input) so
   // PostgreSQL resolves them to the native enum type; dynamic values are bound.
-  const typeFilter =
-    types && types.length > 0
-      ? Prisma.sql`AND "type" IN (${Prisma.join(types.map((t) => Prisma.sql`${t}::"JobType"`))})`
-      : Prisma.empty;
+  const typeFilter = buildTypeFilter(types);
 
-  const rows = await prisma.$queryRaw<Array<{ id: string; wasStale: boolean; lockedAt: Date | null }>>(Prisma.sql`
+  const rows = await prisma.$queryRaw<ClaimedJobRow[]>(Prisma.sql`
     UPDATE "Job" AS j SET
       "status" = 'CLAIMED'::"JobStatus",
       "lockedBy" = ${workerId},
@@ -53,13 +68,8 @@ export async function claimNextJobPostgres(
   `);
 
   if (rows.length === 0) return null;
-  const { id, wasStale, lockedAt } = rows[0];
-  const job = await prisma.job.findUnique({ where: { id } });
-  if (job && wasStale) {
-    const ageMs = lockedAt ? now.getTime() - new Date(lockedAt).getTime() : 0;
-    recordJobLockAge(job.type, Math.max(0, ageMs));
-    recordJobQueueEvent({ event: "stale_reclaimed", type: job.type });
-    log.warn("recovered stale job lock", { jobId: id, type: job.type, lockAgeMs: ageMs });
-  }
+  const row = rows[0];
+  const job = await prisma.job.findUnique({ where: { id: row.id } });
+  if (job && row.wasStale) recordStaleReclaim(job, row, now);
   return job;
 }

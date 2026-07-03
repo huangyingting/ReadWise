@@ -8,6 +8,41 @@ import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
 import { ingestBody } from "@/lib/admin/articles/schemas";
 
+type ScrapedArticle = NonNullable<Awaited<ReturnType<typeof scrapeUrl>>>;
+
+async function scrapeArticleOrApiError(url: string): Promise<ScrapedArticle> {
+  let scraped;
+  try {
+    scraped = await scrapeUrl(url);
+  } catch (err) {
+    throw new ApiError(
+      422,
+      `Scrape failed: ${err instanceof Error ? err.message : String(err)}`,
+    );
+  }
+
+  if (!scraped) {
+    throw new ApiError(
+      422,
+      "Could not extract article content from that URL (body too short or unsupported format).",
+    );
+  }
+
+  return scraped;
+}
+
+async function duplicateArticleResponse(sourceUrl: string): Promise<NextResponse> {
+  const existing = await findPublicLibraryArticleBySourceUrl(sourceUrl);
+  return NextResponse.json(
+    {
+      status: "duplicate",
+      id: existing?.id ?? null,
+      message: "An article from this URL already exists.",
+    },
+    { status: 409 },
+  );
+}
+
 /**
  * Scrapes a single URL and saves it as a draft article. Returns the new
  * article id on success, or throws an ApiError on scrape failure / duplicate.
@@ -15,24 +50,7 @@ import { ingestBody } from "@/lib/admin/articles/schemas";
 export const POST = createAdminHandler(
   { body: ingestBody },
   async ({ req, body, session, requestId }) => {
-    const url = body.url;
-
-    let scraped;
-    try {
-      scraped = await scrapeUrl(url);
-    } catch (err) {
-      throw new ApiError(
-        422,
-        `Scrape failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-
-    if (!scraped) {
-      throw new ApiError(
-        422,
-        "Could not extract article content from that URL (body too short or unsupported format).",
-      );
-    }
+    const scraped = await scrapeArticleOrApiError(body.url);
 
     const outcome = await saveDraftArticle(scraped, (created) => ({
       req,
@@ -46,15 +64,7 @@ export const POST = createAdminHandler(
 
     if (outcome.status === "skipped") {
       // Duplicate — return the existing article id so the UI can link to it
-      const existing = await findPublicLibraryArticleBySourceUrl(outcome.sourceUrl);
-      return NextResponse.json(
-        {
-          status: "duplicate",
-          id: existing?.id ?? null,
-          message: "An article from this URL already exists.",
-        },
-        { status: 409 },
-      );
+      return duplicateArticleResponse(outcome.sourceUrl);
     }
 
     if (outcome.status === "failed") {

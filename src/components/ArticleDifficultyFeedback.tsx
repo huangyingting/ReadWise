@@ -15,8 +15,16 @@ import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui";
 
 type Vote = "too_easy" | "just_right" | "too_hard";
+type DifficultyOption = { value: Vote; emoji: string; label: string };
+type ArticleDifficultyFeedbackProps = {
+  articleId: string;
+  initialVote?: Vote | null;
+  difficulty?: string | null;
+};
 
-const OPTIONS: { value: Vote; emoji: string; label: string }[] = [
+const FEEDBACK_ERROR_MESSAGE = "Couldn't save your feedback — please try again.";
+
+const OPTIONS: DifficultyOption[] = [
   { value: "too_easy", emoji: "😴", label: "Too Easy" },
   { value: "just_right", emoji: "🎯", label: "Just Right" },
   { value: "too_hard", emoji: "🤯", label: "Too Hard" },
@@ -28,29 +36,29 @@ const VOTE_LABEL: Record<Vote, string> = {
   too_hard: "Too Hard",
 };
 
+async function saveDifficultyFeedback(articleId: string, selectedVote: Vote) {
+  try {
+    await postJson(`/api/reader/${articleId}/difficulty-feedback`, {
+      vote: selectedVote,
+    });
+  } catch {
+    throw new Error(FEEDBACK_ERROR_MESSAGE);
+  }
+}
+
 export default function ArticleDifficultyFeedback({
   articleId,
   initialVote,
   difficulty,
-}: {
-  articleId: string;
-  initialVote?: Vote | null;
-  difficulty?: string | null;
-}) {
+}: ArticleDifficultyFeedbackProps) {
   const [vote, setVote] = useState<Vote | null>(initialVote ?? null);
-  const { busy: saving, error, run } = useMutation(
-    "Couldn't save your feedback — please try again.",
-  );
+  const { busy: saving, error, run } = useMutation(FEEDBACK_ERROR_MESSAGE);
 
-  async function handleVote(v: Vote) {
+  async function handleVote(selectedVote: Vote) {
     if (saving) return;
     await run(async () => {
-      try {
-        await postJson(`/api/reader/${articleId}/difficulty-feedback`, { vote: v });
-      } catch {
-        throw new Error("Couldn't save your feedback — please try again.");
-      }
-      setVote(v);
+      await saveDifficultyFeedback(articleId, selectedVote);
+      setVote(selectedVote);
     });
   }
 

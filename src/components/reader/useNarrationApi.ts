@@ -17,6 +17,8 @@ import { postJson } from "@/lib/client-fetch";
 import { base64ToBlobUrl, revokeBlobUrl } from "@/lib/media-blob";
 import type { SpeechWord } from "@/lib/speech";
 
+const DEFAULT_AUDIO_MIME_TYPE = "audio/mpeg";
+
 interface UseNarrationApiOptions {
   /** Called with the resolved Blob URL and metadata when narration loads. */
   onLoaded: (
@@ -39,6 +41,24 @@ export interface NarrationApiState {
   warmNarration: (articleId: string) => Promise<void>;
 }
 
+interface SpeechResponse {
+  audio: string | null;
+  mimeType: string | null;
+  plainText: string;
+  words: SpeechWord[];
+  voice: string;
+  cached: boolean;
+  fallback: boolean;
+}
+
+function speechEndpoint(articleId: string): string {
+  return `/api/reader/${articleId}/speech`;
+}
+
+function getWarmErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Could not load narration";
+}
+
 export function useNarrationApi({
   onLoaded,
   onFallback,
@@ -55,19 +75,14 @@ export function useNarrationApi({
       setIsWarming(true);
       setWarmError(null);
       try {
-        const body = await postJson<{
-          audio: string | null;
-          mimeType: string | null;
-          plainText: string;
-          words: SpeechWord[];
-          voice: string;
-          cached: boolean;
-          fallback: boolean;
-        }>(`/api/reader/${articleId}/speech`, {});
+        const body = await postJson<SpeechResponse>(speechEndpoint(articleId), {});
         if (body.fallback || !body.audio) {
           onFallback();
         } else {
-          const blobUrl = base64ToBlobUrl(body.audio, body.mimeType ?? "audio/mpeg");
+          const blobUrl = base64ToBlobUrl(
+            body.audio,
+            body.mimeType ?? DEFAULT_AUDIO_MIME_TYPE,
+          );
           // Revoke previous Blob URL before replacing.
           revokeBlobUrl(blobUrlRef.current);
           blobUrlRef.current = blobUrl;
@@ -76,7 +91,7 @@ export function useNarrationApi({
       } catch (err) {
         // Allow a retry on failure.
         hasWarmedRef.current = false;
-        setWarmError(err instanceof Error ? err.message : "Could not load narration");
+        setWarmError(getWarmErrorMessage(err));
       } finally {
         setIsWarming(false);
       }

@@ -8,6 +8,14 @@ type BatchResponse = {
   progress?: Record<string, ProgressSummary>;
 };
 
+const BATCH_PROGRESS_ENDPOINT = "/api/progress/batch";
+const ARTICLE_CARD_SELECTOR = (id: string) =>
+  `[data-article-id="${CSS.escape(id)}"]`;
+const PROGRESS_BAR_SELECTOR = ".js-progress-bar";
+const PROGRESS_FILL_SELECTOR = ".reading-progress-bar";
+const PROGRESS_LABEL_SELECTOR = ".js-progress-label";
+const PROGRESS_DONE_SELECTOR = ".js-progress-done";
+
 function labelFor(summary: ProgressSummary): string {
   if (summary.completed) {
     return "Read";
@@ -15,31 +23,58 @@ function labelFor(summary: ProgressSummary): string {
   return summary.percent > 0 ? `${summary.percent}% read` : "Not started";
 }
 
+function getIdsToRefresh(articleIds: string[]): string[] {
+  const onPage = new Set(articleIds);
+  return getVisitedArticleIds().filter((id) => onPage.has(id));
+}
+
+function setProgressBar(card: HTMLElement, summary: ProgressSummary): void {
+  const bar = card.querySelector<HTMLElement>(PROGRESS_BAR_SELECTOR);
+  if (!bar) {
+    return;
+  }
+
+  bar.setAttribute("aria-valuenow", String(summary.percent));
+  const fill = bar.querySelector<HTMLElement>(PROGRESS_FILL_SELECTOR);
+  if (fill) {
+    fill.style.width = `${summary.percent}%`;
+  }
+}
+
+function setProgressLabel(card: HTMLElement, summary: ProgressSummary): void {
+  const label = card.querySelector<HTMLElement>(PROGRESS_LABEL_SELECTOR);
+  if (label) {
+    label.textContent = labelFor(summary);
+  }
+}
+
+function setCompletionVisibility(
+  card: HTMLElement,
+  summary: ProgressSummary,
+): void {
+  const done = card.querySelector<HTMLElement>(PROGRESS_DONE_SELECTOR);
+  if (done) {
+    done.style.display = summary.completed ? "" : "none";
+  }
+}
+
 function applyToCard(id: string, summary: ProgressSummary): void {
-  const card = document.querySelector<HTMLElement>(
-    `[data-article-id="${CSS.escape(id)}"]`,
-  );
+  const card = document.querySelector<HTMLElement>(ARTICLE_CARD_SELECTOR(id));
   if (!card) {
     return;
   }
 
-  const bar = card.querySelector<HTMLElement>(".js-progress-bar");
-  if (bar) {
-    bar.setAttribute("aria-valuenow", String(summary.percent));
-    const fill = bar.querySelector<HTMLElement>(".reading-progress-bar");
-    if (fill) {
-      fill.style.width = `${summary.percent}%`;
+  setProgressBar(card, summary);
+  setProgressLabel(card, summary);
+  setCompletionVisibility(card, summary);
+}
+
+function applyProgress(progress: Record<string, ProgressSummary>, ids: string[]) {
+  for (const id of ids) {
+    const summary = progress[id];
+    if (summary) {
+      applyToCard(id, summary);
     }
-  }
-
-  const label = card.querySelector<HTMLElement>(".js-progress-label");
-  if (label) {
-    label.textContent = labelFor(summary);
-  }
-
-  const done = card.querySelector<HTMLElement>(".js-progress-done");
-  if (done) {
-    done.style.display = summary.completed ? "" : "none";
   }
 }
 
@@ -56,8 +91,7 @@ export default function ListingProgressSync({
   articleIds: string[];
 }) {
   useEffect(() => {
-    const onPage = new Set(articleIds);
-    const toRefresh = getVisitedArticleIds().filter((id) => onPage.has(id));
+    const toRefresh = getIdsToRefresh(articleIds);
     if (toRefresh.length === 0) {
       return;
     }
@@ -67,7 +101,7 @@ export default function ListingProgressSync({
     void (async () => {
       try {
         // batch DOM sync: not a user mutation, uses raw fetch for non-interactive state sync
-        const res = await fetch("/api/progress/batch", {
+        const res = await fetch(BATCH_PROGRESS_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: toRefresh }),
@@ -77,12 +111,7 @@ export default function ListingProgressSync({
         }
         const data = (await res.json()) as BatchResponse;
         const progress = data.progress ?? {};
-        for (const id of toRefresh) {
-          const summary = progress[id];
-          if (summary) {
-            applyToCard(id, summary);
-          }
-        }
+        applyProgress(progress, toRefresh);
         // These have been merged; don't refresh them again next navigation.
         clearVisitedArticleIds(toRefresh);
       } catch {

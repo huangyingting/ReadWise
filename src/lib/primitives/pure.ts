@@ -10,11 +10,14 @@
  */
 
 // ── Math / numeric helpers ───────────────────────────────────────────────────
+const UNIT_INTERVAL_MIN = 0;
+const UNIT_INTERVAL_MAX = 1;
+
 /** Clamps a number into the inclusive 0–1 range (NaN → 0). */
 export function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value < 0) return 0;
-  if (value > 1) return 1;
+  if (!Number.isFinite(value)) return UNIT_INTERVAL_MIN;
+  if (value < UNIT_INTERVAL_MIN) return UNIT_INTERVAL_MIN;
+  if (value > UNIT_INTERVAL_MAX) return UNIT_INTERVAL_MAX;
   return value;
 }
 
@@ -52,7 +55,8 @@ export { formatRelative } from "@/lib/format-relative";
  */
 export function truncateStr(value: string, max: number, indicator = ""): string {
   if (value.length <= max) return value;
-  return value.slice(0, max - indicator.length) + indicator;
+  const end = max - indicator.length;
+  return value.slice(0, end) + indicator;
 }
 
 // ── Input validation ──────────────────────────────────────────────────────────

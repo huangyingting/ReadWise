@@ -60,4 +60,8 @@ export { OFFLINE_PAGE, OFFLINE_READER_PAGE } from "@/lib/assets";
  * and the inline `EXPIRY_MS` in `public/offline-reader.html`. All three MUST
  * stay in sync; the drift test verifies the static HTML value matches this one.
  */
-export const OFFLINE_ARTICLE_EXPIRY_MS: number = 30 * 24 * 60 * 60 * 1000;
+const OFFLINE_ARTICLE_EXPIRY_DAYS = 30;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+export const OFFLINE_ARTICLE_EXPIRY_MS: number =
+  OFFLINE_ARTICLE_EXPIRY_DAYS * MS_PER_DAY;

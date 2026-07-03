@@ -11,27 +11,31 @@ import { STORAGE_KEYS } from "./storage-keys";
 
 const STORAGE_KEY = STORAGE_KEYS.BOOKMARK_CHANGES;
 
+function isBrowserSession(): boolean {
+  return typeof window !== "undefined";
+}
+
+function stringIds(value: unknown): string[] {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+  return value.filter((id): id is string => typeof id === "string");
+}
+
 function read(): string[] {
-  if (typeof window === "undefined") {
+  if (!isBrowserSession()) {
     return [];
   }
   try {
     const raw = window.sessionStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      return [];
-    }
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((id): id is string => typeof id === "string");
+    return raw ? stringIds(JSON.parse(raw)) : [];
   } catch {
     return [];
   }
 }
 
 function write(ids: string[]): void {
-  if (typeof window === "undefined") {
+  if (!isBrowserSession()) {
     return;
   }
   try {

@@ -21,13 +21,12 @@ import { googleOAuthConfig, azureAdOAuthConfig } from "@/lib/runtime-config/oaut
 // Under Node native ESM (CLI/test harness) these CJS modules resolve to a
 // namespace object { default: fn }; Next.js/SWC esModuleInterop masks this so
 // the app works with bare default imports. Keep the interop here in one place.
-const GoogleProvider = (
-  GoogleProviderImport as unknown as { default?: typeof GoogleProviderImport }
-).default ?? GoogleProviderImport;
+function unwrapProvider<T>(provider: T): T {
+  return (provider as unknown as { default?: T }).default ?? provider;
+}
 
-const AzureADProvider = (
-  AzureADProviderImport as unknown as { default?: typeof AzureADProviderImport }
-).default ?? AzureADProviderImport;
+const GoogleProvider = unwrapProvider(GoogleProviderImport);
+const AzureADProvider = unwrapProvider(AzureADProviderImport);
 
 /** Build the NextAuth providers array from runtime environment config. */
 export function buildProviders(): NextAuthOptions["providers"] {

@@ -15,6 +15,53 @@ type ImportsResponse = {
   offset?: number;
 };
 
+type PersonalImportsProps = {
+  initialArticles: ListingArticle[];
+  initialProgress: Record<string, ProgressSummary>;
+  initialHasMore: boolean;
+  initialOffset: number;
+  /** Today Session v1.1 (#805): enable the "Set as today's article" card overlay. */
+  setTodayEnabled?: boolean;
+};
+
+type LoadMoreControlsProps = {
+  loading: boolean;
+  loadError: string | null;
+  loadMore: () => void;
+};
+
+function getImportsPageUrl(nextOffset: number): string {
+  const params = new URLSearchParams({ offset: String(nextOffset) });
+  return `/api/articles/import?${params.toString()}`;
+}
+
+function LoadMoreControls({
+  loading,
+  loadError,
+  loadMore,
+}: LoadMoreControlsProps) {
+  return (
+    <div className="mt-[var(--space-6)] flex flex-col items-center gap-[var(--space-3)]">
+      {loadError ? (
+        <p
+          role="alert"
+          className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
+        >
+          {loadError}
+        </p>
+      ) : null}
+      <Button
+        variant="secondary"
+        size="md"
+        loading={loading}
+        onClick={() => loadMore()}
+      >
+        {loadError ? "Retry" : "Load more"}
+      </Button>
+    </div>
+  );
+}
+
 /**
  * Client "My Imports" list with offset-based "Load more" pagination so older
  * imports beyond the first page stay reachable. Mirrors the CategoryBrowser
@@ -27,18 +74,10 @@ export default function PersonalImports({
   initialHasMore,
   initialOffset,
   setTodayEnabled = false,
-}: {
-  initialArticles: ListingArticle[];
-  initialProgress: Record<string, ProgressSummary>;
-  initialHasMore: boolean;
-  initialOffset: number;
-  /** Today Session v1.1 (#805): enable the "Set as today's article" card overlay. */
-  setTodayEnabled?: boolean;
-}) {
+}: PersonalImportsProps) {
   const fetchPage = useCallback(
     async (nextOffset: number): Promise<ImportsResponse> => {
-      const params = new URLSearchParams({ offset: String(nextOffset) });
-      const res = await fetch(`/api/articles/import?${params.toString()}`);
+      const res = await fetch(getImportsPageUrl(nextOffset));
       if (!res.ok) throw new Error("fetch failed");
       return (await res.json()) as ImportsResponse;
     },
@@ -74,24 +113,11 @@ export default function PersonalImports({
       </div>
 
       {hasMore ? (
-        <div className="mt-[var(--space-6)] flex flex-col items-center gap-[var(--space-3)]">
-          {loadError ? (
-            <p
-              role="alert"
-              className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
-            >
-              {loadError}
-            </p>
-          ) : null}
-          <Button
-            variant="secondary"
-            size="md"
-            loading={loading}
-            onClick={() => loadMore()}
-          >
-            {loadError ? "Retry" : "Load more"}
-          </Button>
-        </div>
+        <LoadMoreControls
+          loading={loading}
+          loadError={loadError}
+          loadMore={loadMore}
+        />
       ) : null}
 
       <ListingSync articleIds={articles.map((a) => a.id)} />

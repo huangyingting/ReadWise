@@ -20,11 +20,26 @@ export type WordFrequencyBand =
   | "academic"
   | "rare";
 
+const RANK_THRESHOLDS = [
+  { max: 1000, band: "top1k" },
+  { max: 2000, band: "top2k" },
+  { max: 3000, band: "top3k" },
+  { max: 5000, band: "top5k" },
+] as const satisfies ReadonlyArray<{ max: number; band: WordFrequencyBand }>;
+
+const KNOWN_NON_RARE_BANDS = new Set<WordFrequencyBand>([
+  "top1k",
+  "top2k",
+  "top3k",
+  "top5k",
+  "top10k",
+  "academic",
+]);
+
 function bandForRank(rank: number): WordFrequencyBand {
-  if (rank <= 1000) return "top1k";
-  if (rank <= 2000) return "top2k";
-  if (rank <= 3000) return "top3k";
-  if (rank <= 5000) return "top5k";
+  for (const { max, band } of RANK_THRESHOLDS) {
+    if (rank <= max) return band;
+  }
   return "top10k";
 }
 
@@ -39,17 +54,10 @@ function buildRankBands(): Record<string, WordFrequencyBand> {
 const WORD_FREQUENCY_RANKS = buildRankBands();
 
 function coerceBand(value: string | undefined): WordFrequencyBand | null {
-  switch (value) {
-    case "top1k":
-    case "top2k":
-    case "top3k":
-    case "top5k":
-    case "top10k":
-    case "academic":
-      return value;
-    default:
-      return null;
-  }
+  if (!value) return null;
+  return KNOWN_NON_RARE_BANDS.has(value as WordFrequencyBand)
+    ? (value as WordFrequencyBand)
+    : null;
 }
 
 /** Returns the best available frequency band for a raw word or `rare`. */

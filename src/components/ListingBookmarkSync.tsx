@@ -26,19 +26,19 @@ type SavedResponse = {
   bookmarked?: string[];
 };
 
-function applyToCard(id: string, isSaved: boolean): void {
-  const card = document.querySelector<HTMLElement>(
-    `[data-article-id="${CSS.escape(id)}"]`,
-  );
-  if (!card) {
-    return;
-  }
+type ListingBookmarkSyncProps = {
+  articleIds: string[];
+};
 
-  const btn = card.querySelector<HTMLElement>(".js-bookmark");
-  if (!btn) {
-    return;
-  }
+const SAVED_ENDPOINT = "/api/saved";
+const BOOKMARK_BUTTON_SELECTOR = ".js-bookmark";
 
+function getIdsToRefresh(articleIds: string[]): string[] {
+  const onPage = new Set(articleIds);
+  return getBookmarkChangedIds().filter((id) => onPage.has(id));
+}
+
+function setSavedState(btn: HTMLElement, isSaved: boolean): void {
   // Update data-saved attribute (drives CSS-based visual state)
   if (isSaved) {
     btn.setAttribute("data-saved", "true");
@@ -52,6 +52,22 @@ function applyToCard(id: string, isSaved: boolean): void {
   }
 }
 
+function applyToCard(id: string, isSaved: boolean): void {
+  const card = document.querySelector<HTMLElement>(
+    `[data-article-id="${CSS.escape(id)}"]`,
+  );
+  if (!card) {
+    return;
+  }
+
+  const btn = card.querySelector<HTMLElement>(BOOKMARK_BUTTON_SELECTOR);
+  if (!btn) {
+    return;
+  }
+
+  setSavedState(btn, isSaved);
+}
+
 /**
  * Refreshes bookmark saved-indicator for articles whose bookmark state
  * changed this session. Server-rendered state is already correct on first
@@ -59,12 +75,9 @@ function applyToCard(id: string, isSaved: boolean): void {
  */
 export default function ListingBookmarkSync({
   articleIds,
-}: {
-  articleIds: string[];
-}) {
+}: ListingBookmarkSyncProps) {
   useEffect(() => {
-    const onPage = new Set(articleIds);
-    const toRefresh = getBookmarkChangedIds().filter((id) => onPage.has(id));
+    const toRefresh = getIdsToRefresh(articleIds);
     if (toRefresh.length === 0) {
       return;
     }
@@ -74,7 +87,7 @@ export default function ListingBookmarkSync({
     void (async () => {
       try {
         // batch DOM sync: not a user mutation, uses raw fetch for non-interactive state sync
-        const res = await fetch("/api/saved", {
+        const res = await fetch(SAVED_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ ids: toRefresh }),

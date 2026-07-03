@@ -18,6 +18,8 @@ import { aiProvider } from "@/lib/runtime-config/ai";
 
 const log = createLogger("ai-registry");
 
+const AZURE_PROVIDER_ALIASES = ["azure", "azure-openai", AZURE_PROVIDER_ID] as const;
+
 let override: AiProvider | null = null;
 let cached: AiProvider | null = null;
 let cachedKey: string | null = null;
@@ -27,20 +29,19 @@ function providerKey(): string {
   return aiProvider();
 }
 
+function isAzureProviderKey(key: string): boolean {
+  return AZURE_PROVIDER_ALIASES.includes(key as (typeof AZURE_PROVIDER_ALIASES)[number]);
+}
+
 /** Builds a provider instance for the given selector key. */
 function createProviderFor(key: string): AiProvider {
-  switch (key) {
-    case "azure":
-    case "azure-openai":
-    case AZURE_PROVIDER_ID:
-      return new AzureOpenAiProvider();
-    default:
-      // Unknown selectors degrade to the supported default rather than crash —
-      // matching the project's graceful-config convention. Log the fallback so
-      // a misconfigured AI_PROVIDER is visible (selector only; no secrets).
-      log.warn("ai.unknown_provider", { provider: key, fallback: AZURE_PROVIDER_ID });
-      return new AzureOpenAiProvider();
-  }
+  if (isAzureProviderKey(key)) return new AzureOpenAiProvider();
+
+  // Unknown selectors degrade to the supported default rather than crash —
+  // matching the project's graceful-config convention. Log the fallback so
+  // a misconfigured AI_PROVIDER is visible (selector only; no secrets).
+  log.warn("ai.unknown_provider", { provider: key, fallback: AZURE_PROVIDER_ID });
+  return new AzureOpenAiProvider();
 }
 
 /**

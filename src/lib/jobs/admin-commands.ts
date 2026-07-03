@@ -17,6 +17,33 @@ import { type DomainResult, notFound, conflict, validationError, ok } from "@/li
 export const JOB_ACTIONS = ["retry", "cancel", "archive"] as const;
 export type JobActionName = (typeof JOB_ACTIONS)[number];
 
+const RETRYABLE_STATUSES: readonly JobStatus[] = [
+  JobStatus.FAILED,
+  JobStatus.DEAD_LETTER,
+];
+
+type JobActionResult = DomainResult<{
+  job: Job;
+  previousStatus: string;
+  action: JobActionName;
+}>;
+
+function isRetryableStatus(status: JobStatus): boolean {
+  return RETRYABLE_STATUSES.includes(status);
+}
+
+function isTerminalStatus(status: JobStatus): boolean {
+  return TERMINAL_STATUSES.includes(status);
+}
+
+function actionOk(
+  job: Job,
+  previousStatus: string,
+  action: JobActionName,
+): JobActionResult {
+  return ok({ job, previousStatus, action });
+}
+
 /**
  * Runs a safe admin action against a job. Guards which transitions are allowed
  * for the job's current status so an operator can't, e.g., archive a running
@@ -31,22 +58,22 @@ export type JobActionName = (typeof JOB_ACTIONS)[number];
 export async function runJobAction(
   jobId: string,
   action: JobActionName,
-): Promise<DomainResult<{ job: Job; previousStatus: string; action: JobActionName }>> {
+): Promise<JobActionResult> {
   const job = await getJob(jobId);
   if (!job) {
     return notFound("Job not found");
   }
   const previousStatus = job.status;
-  const isTerminal = TERMINAL_STATUSES.includes(job.status);
+  const isTerminal = isTerminalStatus(job.status);
 
   switch (action) {
     case "retry": {
-      if (job.status !== JobStatus.FAILED && job.status !== JobStatus.DEAD_LETTER) {
+      if (!isRetryableStatus(job.status)) {
         return conflict(`Cannot retry a ${job.status} job`);
       }
       const updated = await retryJob(jobId);
       if (!updated) return notFound("Job not found");
-      return ok({ job: updated, previousStatus, action });
+      return actionOk(updated, previousStatus, action);
     }
     case "cancel": {
       if (isTerminal) {
@@ -54,7 +81,7 @@ export async function runJobAction(
       }
       const updated = await cancelJob(jobId, { reason: "cancelled by admin" });
       if (!updated) return notFound("Job not found");
-      return ok({ job: updated, previousStatus, action });
+      return actionOk(updated, previousStatus, action);
     }
     case "archive": {
       if (!isTerminal) {
@@ -64,7 +91,7 @@ export async function runJobAction(
       }
       const removed = await archiveJob(jobId);
       if (!removed) return notFound("Job not found");
-      return ok({ job: removed, previousStatus, action });
+      return actionOk(removed, previousStatus, action);
     }
     default: {
       return validationError("Unknown action");

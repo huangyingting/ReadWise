@@ -18,16 +18,21 @@ import {
 /** Helper: extract the validated value type from any Schema<T>. */
 type InferSchema<S extends Schema<unknown>> = S extends Schema<infer T> ? T : never;
 
+const WORD_MAX_LENGTH = 200;
+const TEXT_MAX_LENGTH = 5000;
+const CONTEXT_SENTENCE_MAX_LENGTH = 2000;
+const BATCH_WORD_LIMIT = 200;
+
 // ---------------------------------------------------------------------------
 // POST /api/vocabulary/save
 // ---------------------------------------------------------------------------
 
 export const saveWordBody = object({
-  word: nonEmptyString(200),
-  explanation: optional(string({ trim: false, max: 5000 })),
-  example: optional(string({ trim: false, max: 5000 })),
-  contextSentence: optional(string({ trim: false, max: 2000 })),
-  articleId: optional(nonEmptyString(200)),
+  word: nonEmptyString(WORD_MAX_LENGTH),
+  explanation: optional(string({ trim: false, max: TEXT_MAX_LENGTH })),
+  example: optional(string({ trim: false, max: TEXT_MAX_LENGTH })),
+  contextSentence: optional(string({ trim: false, max: CONTEXT_SENTENCE_MAX_LENGTH })),
+  articleId: optional(nonEmptyString(WORD_MAX_LENGTH)),
 });
 
 export type SaveWordBody = InferSchema<typeof saveWordBody>;
@@ -45,7 +50,7 @@ export type UnsaveWordBody = InferSchema<typeof unsaveWordBody>;
 // ---------------------------------------------------------------------------
 
 export const unsaveBatchBody = object({
-  words: array(nonEmptyString(200), { max: 200 }),
+  words: array(nonEmptyString(WORD_MAX_LENGTH), { max: BATCH_WORD_LIMIT }),
 });
 
 export type UnsaveBatchBody = InferSchema<typeof unsaveBatchBody>;
@@ -57,12 +62,18 @@ export type UnsaveBatchBody = InferSchema<typeof unsaveBatchBody>;
 export type ExportFormat = "csv" | "anki";
 export type ExportQuery = { format: ExportFormat };
 
+const EXPORT_FORMATS: readonly ExportFormat[] = ["csv", "anki"];
+
+function isExportFormat(format: string): format is ExportFormat {
+  return EXPORT_FORMATS.includes(format as ExportFormat);
+}
+
 export function parseExportQuery(
   params: URLSearchParams,
 ): ValidationResult<ExportQuery> {
   const format = queryString(params, "format", "csv");
-  if (format !== "csv" && format !== "anki") {
+  if (!isExportFormat(format)) {
     return { ok: false, error: 'format must be "csv" or "anki"' };
   }
-  return { ok: true, value: { format: format as ExportFormat } };
+  return { ok: true, value: { format } };
 }
