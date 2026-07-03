@@ -6,32 +6,63 @@
  * become metric labels.
  */
 
-import { incCounter, observeHistogram, statusClass, API_DURATION_BUCKETS_MS } from "@/lib/metrics/registry";
+import { API_DURATION_BUCKETS_MS, incCounter, observeHistogram, statusClass } from "@/lib/metrics/registry";
 import { routeGroupFromPath } from "@/lib/metrics/route-groups";
 
-function normalizeMethod(method: string): string {
-  const upper = method.toUpperCase();
-  return /^(GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS)$/.test(upper) ? upper : "OTHER";
-}
+const HTTP_METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"] as const;
+const API_REQUESTS_TOTAL = {
+  name: "readwise_api_requests_total",
+  help: "Total API responses by route group and status.",
+} as const;
+const API_REQUEST_DURATION_MS = {
+  name: "readwise_api_request_duration_ms",
+  help: "API response latency in milliseconds.",
+} as const;
 
-export function recordApiRequest(input: {
+type ApiRequestInput = {
   method: string;
   route: string;
   status: number;
   durationMs: number;
-}): void {
-  const labels = {
+};
+
+type ApiRequestLabels = {
+  method: string;
+  route: string;
+  status: string;
+  status_class: string;
+};
+
+function isKnownHttpMethod(method: string): boolean {
+  return (HTTP_METHODS as readonly string[]).includes(method);
+}
+
+function normalizeMethod(method: string): string {
+  const upper = method.toUpperCase();
+  return isKnownHttpMethod(upper) ? upper : "OTHER";
+}
+
+function apiRequestLabels(input: ApiRequestInput): ApiRequestLabels {
+  return {
     method: normalizeMethod(input.method),
     route: routeGroupFromPath(input.route),
     status: String(input.status),
     status_class: statusClass(input.status),
   };
-  incCounter("readwise_api_requests_total", "Total API responses by route group and status.", labels);
+}
+
+function apiDurationLabels(labels: ApiRequestLabels) {
+  return { method: labels.method, route: labels.route, status_class: labels.status_class };
+}
+
+export function recordApiRequest(input: ApiRequestInput): void {
+  const labels = apiRequestLabels(input);
+  incCounter(API_REQUESTS_TOTAL.name, API_REQUESTS_TOTAL.help, labels);
   observeHistogram(
-    "readwise_api_request_duration_ms",
-    "API response latency in milliseconds.",
+    API_REQUEST_DURATION_MS.name,
+    API_REQUEST_DURATION_MS.help,
     API_DURATION_BUCKETS_MS,
-    { method: labels.method, route: labels.route, status_class: labels.status_class },
+    apiDurationLabels(labels),
     input.durationMs,
   );
 }

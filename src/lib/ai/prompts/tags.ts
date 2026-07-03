@@ -2,6 +2,18 @@ import type { PromptTemplate, TagsPromptVars } from "./types";
 import { TARGET_TAGS } from "./types";
 import { wrapUntrustedContent, CONTENT_ISOLATION_NOTICE } from "@/lib/ai/input-safety";
 
+const TAGS_SYSTEM_PROMPT =
+  "You label news articles with topic tags for discovery. From the user's " +
+  `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
+  'Title Case, e.g. "Climate Change", "Artificial Intelligence"). Respond ' +
+  "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
+  "array only. " +
+  CONTENT_ISOLATION_NOTICE;
+
+function renderArticleUserContent({ title, source }: TagsPromptVars): string {
+  return `Title: ${title}\n\n${wrapUntrustedContent(source)}`;
+}
+
 const tagsTemplate: PromptTemplate<TagsPromptVars> = {
   feature: "tags",
   version: "tags/v1",
@@ -11,17 +23,11 @@ const tagsTemplate: PromptTemplate<TagsPromptVars> = {
   render: ({ title, source }) => [
     {
       role: "system",
-      content:
-        "You label news articles with topic tags for discovery. From the user's " +
-        `article, choose up to ${TARGET_TAGS} concise topic tags (1-3 words each, ` +
-        "Title Case, e.g. \"Climate Change\", \"Artificial Intelligence\"). Respond " +
-        "ONLY with a JSON array of tag strings. No markdown, no commentary, JSON " +
-        "array only. " +
-        CONTENT_ISOLATION_NOTICE,
+      content: TAGS_SYSTEM_PROMPT,
     },
     {
       role: "user",
-      content: `Title: ${title}\n\n${wrapUntrustedContent(source)}`,
+      content: renderArticleUserContent({ title, source }),
     },
   ],
 };

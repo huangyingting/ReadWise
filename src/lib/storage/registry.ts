@@ -24,7 +24,5 @@ export function registerProvider(kind: MediaStorageKind, factory: ProviderFactor
  * Returns null for unregistered kinds, or when the factory itself returns null.
  */
 export function resolveProvider(kind: MediaStorageKind): MediaStorage | null {
-  const factory = providerRegistry.get(kind);
-  if (factory) return factory();
-  return null;
+  return providerRegistry.get(kind)?.() ?? null;
 }

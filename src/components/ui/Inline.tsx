@@ -28,6 +28,13 @@ const justifyVariants = {
   between: "justify-between",
 };
 
+const defaultInlineVariants = {
+  gap: "3",
+  align: "center",
+  justify: "start",
+  wrap: true,
+} as const;
+
 const inlineVariants = cva("flex", {
   variants: {
     gap: gapVariants,
@@ -38,12 +45,7 @@ const inlineVariants = cva("flex", {
       false: "flex-nowrap",
     },
   },
-  defaultVariants: {
-    gap: "3",
-    align: "center",
-    justify: "start",
-    wrap: true,
-  },
+  defaultVariants: defaultInlineVariants,
 });
 
 export interface InlineProps

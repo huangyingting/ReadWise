@@ -13,10 +13,16 @@
 import { useMutation } from "@/hooks/useMutation";
 import { deleteJson, patchJson, postJson } from "@/lib/client-fetch";
 
+const LISTS_API_PATH = "/api/lists";
+
 export interface CreatedList {
   id: string;
   name: string;
   isDefault: boolean;
+}
+
+function listApiPath(listId: string): string {
+  return `${LISTS_API_PATH}/${encodeURIComponent(listId)}`;
 }
 
 export function useReadingListMutations() {
@@ -25,30 +31,26 @@ export function useReadingListMutations() {
   const deleteMut = useMutation("Couldn't delete — try again");
 
   async function createList(name: string): Promise<CreatedList | undefined> {
-    let created: CreatedList | undefined;
-    await createMut.run(async () => {
-      const data = await postJson<{ list: CreatedList }>("/api/lists", { name });
-      created = data.list;
-    });
-    return created;
+    const data = await createMut.run(() =>
+      postJson<{ list: CreatedList }>(LISTS_API_PATH, { name }),
+    );
+    return data?.list;
   }
 
   async function renameList(listId: string, name: string): Promise<boolean> {
-    let succeeded = false;
-    await renameMut.run(async () => {
-      await patchJson(`/api/lists/${encodeURIComponent(listId)}`, { name });
-      succeeded = true;
+    const succeeded = await renameMut.run(async () => {
+      await patchJson(listApiPath(listId), { name });
+      return true;
     });
-    return succeeded;
+    return succeeded ?? false;
   }
 
   async function deleteList(listId: string): Promise<boolean> {
-    let succeeded = false;
-    await deleteMut.run(async () => {
-      await deleteJson(`/api/lists/${encodeURIComponent(listId)}`);
-      succeeded = true;
+    const succeeded = await deleteMut.run(async () => {
+      await deleteJson(listApiPath(listId));
+      return true;
     });
-    return succeeded;
+    return succeeded ?? false;
   }
 
   return {

@@ -2,29 +2,35 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const TEXTAREA_BASE_CLASS_NAMES = [
+  "w-full bg-surface text-text rounded-[var(--radius-md)] border",
+  "px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-base)]",
+  "placeholder:text-text-subtle",
+  "transition-[border-color,box-shadow]",
+  "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
+  "outline-none resize-none",
+  "disabled:bg-bg-subtle disabled:opacity-60 disabled:cursor-not-allowed",
+];
+
+const TEXTAREA_INVALID_CLASS_NAMES = [
+  "border-danger",
+  "focus-visible:border-danger",
+  "focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--danger)]",
+];
+
+const TEXTAREA_VALID_CLASS_NAMES = [
+  "border-border-strong hover:border-text-subtle",
+  "focus-visible:border-primary",
+  "focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
+];
+
 const textareaVariants = cva(
-  cn(
-    "w-full bg-surface text-text rounded-[var(--radius-md)] border",
-    "px-[var(--space-3)] py-[var(--space-2)] text-[length:var(--text-base)]",
-    "placeholder:text-text-subtle",
-    "transition-[border-color,box-shadow]",
-    "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-    "outline-none resize-none",
-    "disabled:bg-bg-subtle disabled:opacity-60 disabled:cursor-not-allowed",
-  ),
+  cn(...TEXTAREA_BASE_CLASS_NAMES),
   {
     variants: {
       invalid: {
-        true: cn(
-          "border-danger",
-          "focus-visible:border-danger",
-          "focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--danger)]",
-        ),
-        false: cn(
-          "border-border-strong hover:border-text-subtle",
-          "focus-visible:border-primary",
-          "focus-visible:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
-        ),
+        true: cn(...TEXTAREA_INVALID_CLASS_NAMES),
+        false: cn(...TEXTAREA_VALID_CLASS_NAMES),
       },
     },
     defaultVariants: { invalid: false },

@@ -21,6 +21,16 @@ export const DASHBOARD_PATH = "/dashboard";
 /** The Today Session learner workflow path. */
 export const TODAY_PATH = "/today";
 
+const ADMIN_ROLE = "Admin";
+
+function isAdminRole(role?: string | null): boolean {
+  return role === ADMIN_ROLE;
+}
+
+function learnerLandingPath(): string {
+  return isTodaySessionFeatureEnabled() ? TODAY_PATH : DASHBOARD_PATH;
+}
+
 /**
  * Resolve the default landing path for an authenticated user.
  *
@@ -29,6 +39,6 @@ export const TODAY_PATH = "/today";
  *             on `/today` when the feature is enabled.
  */
 export function defaultLandingPath(role?: string | null): string {
-  if (role === "Admin") return DASHBOARD_PATH;
-  return isTodaySessionFeatureEnabled() ? TODAY_PATH : DASHBOARD_PATH;
+  if (isAdminRole(role)) return DASHBOARD_PATH;
+  return learnerLandingPath();
 }

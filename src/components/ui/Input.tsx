@@ -41,6 +41,10 @@ export interface InputProps
   extends Omit<React.InputHTMLAttributes<HTMLInputElement>, "size">,
     VariantProps<typeof inputVariants> {}
 
+function inputAriaInvalid(invalid: InputProps["invalid"]) {
+  return invalid || undefined;
+}
+
 /**
  * Single-line text input field.
  *
@@ -64,7 +68,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
     return (
       <input
         ref={ref}
-        aria-invalid={invalid || undefined}
+        aria-invalid={inputAriaInvalid(invalid)}
         className={cn(inputVariants({ inputSize, invalid }), className)}
         {...props}
       />

@@ -19,6 +19,12 @@ import { Button } from "@/components/ui";
 import { useReaderTools } from "./ReaderToolsProvider";
 import { TOOL_TABS } from "./ReaderTools";
 
+const READER_TOOLS_SURFACE_ID = "reader-tools-surface";
+const TOOL_SURFACE_DIALOG_PROPS = {
+  "aria-haspopup": "dialog",
+  "aria-controls": READER_TOOLS_SURFACE_ID,
+} as const;
+
 export default function ArticleStudySection() {
   const { openTools } = useReaderTools();
 
@@ -40,8 +46,7 @@ export default function ArticleStudySection() {
           type="button"
           variant="primary"
           onClick={() => openTools()}
-          aria-haspopup="dialog"
-          aria-controls="reader-tools-surface"
+          {...TOOL_SURFACE_DIALOG_PROPS}
         >
           Open practice tools
         </Button>
@@ -54,8 +59,7 @@ export default function ArticleStudySection() {
               size="sm"
               title={hint}
               onClick={() => openTools(id)}
-              aria-haspopup="dialog"
-              aria-controls="reader-tools-surface"
+              {...TOOL_SURFACE_DIALOG_PROPS}
               leadingIcon={<span aria-hidden="true">{icon}</span>}
               className="article-study-cta-chip"
             >

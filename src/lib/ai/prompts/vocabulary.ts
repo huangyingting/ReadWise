@@ -2,6 +2,19 @@ import type { PromptTemplate, VocabularyPromptVars } from "./types";
 import { TARGET_VOCABULARY_WORDS } from "./types";
 import { wrapUntrustedContent, CONTENT_ISOLATION_NOTICE } from "@/lib/ai/input-safety";
 
+const VOCABULARY_SYSTEM_PROMPT =
+  "You are an English vocabulary tutor. From the user's article, select the " +
+  `${TARGET_VOCABULARY_WORDS} most useful, challenging vocabulary words or phrases for an ` +
+  "English learner. Respond ONLY with a JSON array. Each element must be an " +
+  'object with exactly these string keys: "word" (the term), "explanation" (a ' +
+  'concise learner-friendly definition), and "example" (one short sample ' +
+  "sentence using the word). No markdown, no commentary, JSON array only. " +
+  CONTENT_ISOLATION_NOTICE;
+
+function renderArticleUserContent({ title, source }: VocabularyPromptVars): string {
+  return `Title: ${title}\n\n${wrapUntrustedContent(source)}`;
+}
+
 const vocabularyTemplate: PromptTemplate<VocabularyPromptVars> = {
   feature: "vocabulary",
   version: "vocabulary/v1",
@@ -11,18 +24,11 @@ const vocabularyTemplate: PromptTemplate<VocabularyPromptVars> = {
   render: ({ title, source }) => [
     {
       role: "system",
-      content:
-        "You are an English vocabulary tutor. From the user's article, select the " +
-        `${TARGET_VOCABULARY_WORDS} most useful, challenging vocabulary words or phrases for an ` +
-        "English learner. Respond ONLY with a JSON array. Each element must be an " +
-        'object with exactly these string keys: "word" (the term), "explanation" (a ' +
-        'concise learner-friendly definition), and "example" (one short sample ' +
-        "sentence using the word). No markdown, no commentary, JSON array only. " +
-        CONTENT_ISOLATION_NOTICE,
+      content: VOCABULARY_SYSTEM_PROMPT,
     },
     {
       role: "user",
-      content: `Title: ${title}\n\n${wrapUntrustedContent(source)}`,
+      content: renderArticleUserContent({ title, source }),
     },
   ],
 };

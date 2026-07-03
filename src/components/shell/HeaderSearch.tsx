@@ -9,13 +9,15 @@ import { useCommandPalette } from "@/components/command/CommandPaletteProvider";
 const SEARCH_LABEL = "Search articles, pages, and actions";
 const SEARCH_SHORTCUTS = "Meta+K Control+K";
 
+type PlatformModifierKey = "⌘" | "Ctrl";
+
 type NavigatorWithUserAgentData = Navigator & {
   userAgentData?: {
     platform?: string;
   };
 };
 
-function getPlatformModifierKey(): "⌘" | "Ctrl" {
+function getPlatformModifierKey(): PlatformModifierKey {
   const currentNavigator = globalThis.navigator as
     | NavigatorWithUserAgentData
     | undefined;
@@ -25,6 +27,18 @@ function getPlatformModifierKey(): "⌘" | "Ctrl" {
       currentNavigator.userAgentData?.platform === "macOS");
 
   return isMac ? "⌘" : "Ctrl";
+}
+
+function shortcutLabel(modKey: PlatformModifierKey): string {
+  return modKey === "⌘" ? "⌘K" : "Ctrl K";
+}
+
+function SearchShortcutHint({ modKey }: { modKey: PlatformModifierKey }) {
+  return (
+    <span className="kbd" aria-hidden suppressHydrationWarning>
+      {shortcutLabel(modKey)}
+    </span>
+  );
 }
 
 /**
@@ -38,7 +52,7 @@ function getPlatformModifierKey(): "⌘" | "Ctrl" {
 export default function HeaderSearch() {
   const { open } = useCommandPalette();
   const buttonRef = useRef<HTMLButtonElement>(null);
-  const [modKey, setModKey] = useState<string | null>(null);
+  const [modKey, setModKey] = useState<PlatformModifierKey | null>(null);
 
   // Detect platform after mount to avoid SSR/hydration mismatch
   useEffect(() => {
@@ -59,9 +73,7 @@ export default function HeaderSearch() {
         leadingIcon={<Search size={16} aria-hidden className="shrink-0" />}
         trailingIcon={
           modKey !== null ? (
-            <span className="kbd" aria-hidden suppressHydrationWarning>
-              {modKey === "⌘" ? "⌘K" : "Ctrl K"}
-            </span>
+            <SearchShortcutHint modKey={modKey} />
           ) : undefined
         }
         className={cn(

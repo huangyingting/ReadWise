@@ -8,27 +8,50 @@ const EXCELLENT_SCORE = 85;
 const GOOD_SCORE = 70;
 
 type ScoreBadgeVariant = "success" | "warning" | "neutral";
+type ScoreFeedback = {
+  label: string;
+  variant: ScoreBadgeVariant;
+};
 
-function scoreLabel(score: number): string {
-  if (score >= EXCELLENT_SCORE) return "Excellent";
-  if (score >= GOOD_SCORE) return "Good";
-  return "Keep practicing";
-}
+const DEFAULT_SCORE_FEEDBACK: ScoreFeedback = {
+  label: "Keep practicing",
+  variant: "neutral",
+};
 
-function scoreBadgeVariant(score: number): ScoreBadgeVariant {
-  if (score >= EXCELLENT_SCORE) return "success";
-  if (score >= GOOD_SCORE) return "warning";
-  return "neutral";
-}
+const SCORE_FEEDBACK_BY_THRESHOLD: Array<{
+  minScore: number;
+  feedback: ScoreFeedback;
+}> = [
+  {
+    minScore: EXCELLENT_SCORE,
+    feedback: { label: "Excellent", variant: "success" },
+  },
+  { minScore: GOOD_SCORE, feedback: { label: "Good", variant: "warning" } },
+];
+
+const RING_CIRCLE_PROPS = {
+  cx: "36",
+  cy: "36",
+  r: RING_R,
+  fill: "none",
+  strokeWidth: "8",
+  strokeLinecap: "round" as const,
+};
 
 function scoreOffset(score: number): number {
   return RING_C * (1 - score / 100);
 }
 
+function scoreFeedback(score: number): ScoreFeedback {
+  return (
+    SCORE_FEEDBACK_BY_THRESHOLD.find(({ minScore }) => score >= minScore)
+      ?.feedback ?? DEFAULT_SCORE_FEEDBACK
+  );
+}
+
 export function ScoreRing({ score }: { score: number }) {
   const offset = scoreOffset(score);
-  const label = scoreLabel(score);
-  const variant = scoreBadgeVariant(score);
+  const { label, variant } = scoreFeedback(score);
 
   return (
     <div className="rw-speak-ring-row">
@@ -40,23 +63,13 @@ export function ScoreRing({ score }: { score: number }) {
         <svg viewBox="0 0 72 72" className="rw-speak-ring" aria-hidden>
           {/* Track */}
           <circle
-            cx="36"
-            cy="36"
-            r={RING_R}
-            fill="none"
+            {...RING_CIRCLE_PROPS}
             stroke="var(--reading-border, var(--border))"
-            strokeWidth="8"
-            strokeLinecap="round"
           />
           {/* Progress arc — teal (reading-state achievement) */}
           <circle
-            cx="36"
-            cy="36"
-            r={RING_R}
-            fill="none"
+            {...RING_CIRCLE_PROPS}
             stroke="var(--teal)"
-            strokeWidth="8"
-            strokeLinecap="round"
             strokeDasharray={RING_C}
             strokeDashoffset={offset}
           />
