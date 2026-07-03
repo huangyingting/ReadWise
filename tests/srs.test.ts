@@ -11,6 +11,14 @@ const BASE: import("@/lib/learning/srs").SrsState = {
   easeFactor: 2.5,
   repetitions: 0,
 };
+const MS_PER_DAY = 86_400_000;
+
+function assertApproximately(actual: number, expected: number, epsilon = 0.001) {
+  assert.ok(
+    Math.abs(actual - expected) < epsilon,
+    `${actual} should be within ${epsilon} of ${expected}`,
+  );
+}
 
 // ---- Again (reset) -------------------------------------------------------
 
@@ -22,10 +30,7 @@ test("again resets repetitions to 0 and sets interval to 1 day", () => {
 
 test("again reduces easeFactor by 0.2 (floored at 1.3)", () => {
   const result = applySm2({ ...BASE, easeFactor: 1.4 }, "again");
-  assert.ok(
-    Math.abs(result.easeFactor - 1.3) < 0.001,
-    `easeFactor should be 1.3 (got ${result.easeFactor})`,
-  );
+  assertApproximately(result.easeFactor, 1.3);
 });
 
 test("again does not reduce easeFactor below 1.3", () => {
@@ -37,9 +42,8 @@ test("again sets dueAt to approximately 1 day from now", () => {
   const before = Date.now();
   const result = applySm2(BASE, "again");
   const after = Date.now();
-  const oneDayMs = 86_400_000;
-  assert.ok(result.dueAt.getTime() >= before + oneDayMs - 1000);
-  assert.ok(result.dueAt.getTime() <= after + oneDayMs + 1000);
+  assert.ok(result.dueAt.getTime() >= before + MS_PER_DAY - 1000);
+  assert.ok(result.dueAt.getTime() <= after + MS_PER_DAY + 1000);
 });
 
 // ---- Good — interval progression ----------------------------------------
@@ -66,7 +70,7 @@ test("good on third review: interval = round(prevInterval * EF)", () => {
 test("good keeps easeFactor stable (EF change ≈ 0 for q=4)", () => {
   const result = applySm2({ ...BASE, easeFactor: 2.5 }, "good");
   // EF' = 2.5 + (0.1 - 1*(0.08+0.02)) = 2.5 + 0 = 2.5
-  assert.ok(Math.abs(result.easeFactor - 2.5) < 0.001);
+  assertApproximately(result.easeFactor, 2.5);
 });
 
 // ---- Easy ----------------------------------------------------------------

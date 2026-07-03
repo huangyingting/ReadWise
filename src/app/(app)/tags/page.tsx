@@ -8,6 +8,36 @@ import { tags } from "@/lib/copy/pages";
 
 export const metadata: Metadata = tags;
 
+type TagSummary = Awaited<ReturnType<typeof listTagsWithCounts>>[number];
+
+function TagsEmptyState() {
+  return (
+    <EmptyState
+      icon={Hash}
+      title="No tags yet"
+      description="Tags are added automatically as articles are processed. Check back after some articles have been published."
+      action={{ label: "Browse all articles", href: "/browse" }}
+    />
+  );
+}
+
+function TagsList({ tags }: { tags: TagSummary[] }) {
+  return (
+    <div className="flex flex-wrap gap-[var(--space-3)]">
+      {tags.map((tag) => (
+        <Link
+          key={tag.id}
+          href={`/tags/${tag.slug}`}
+          className="tag-chip text-text"
+        >
+          {tag.name}
+          <span className="ml-1 text-text-muted">({tag.articleCount})</span>
+        </Link>
+      ))}
+    </div>
+  );
+}
+
 export default async function TagsPage() {
   await requireSession("/tags");
   const tags = await listTagsWithCounts();
@@ -20,25 +50,9 @@ export default async function TagsPage() {
       />
 
       {tags.length === 0 ? (
-        <EmptyState
-          icon={Hash}
-          title="No tags yet"
-          description="Tags are added automatically as articles are processed. Check back after some articles have been published."
-          action={{ label: "Browse all articles", href: "/browse" }}
-        />
+        <TagsEmptyState />
       ) : (
-        <div className="flex flex-wrap gap-[var(--space-3)]">
-          {tags.map((tag) => (
-            <Link
-              key={tag.id}
-              href={`/tags/${tag.slug}`}
-              className="tag-chip text-text"
-            >
-              {tag.name}
-              <span className="ml-1 text-text-muted">({tag.articleCount})</span>
-            </Link>
-          ))}
-        </div>
+        <TagsList tags={tags} />
       )}
     </PageShell>
   );

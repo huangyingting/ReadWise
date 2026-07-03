@@ -9,7 +9,15 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler } from "./support/route";
+import {
+  getReq,
+  jsonPatch,
+  jsonPost,
+  makeJsonRequest,
+  readJson,
+  type RouteHandler,
+  withParams,
+} from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 let authState: AuthState = "ok";
@@ -104,21 +112,13 @@ beforeEach(() => {
   };
 });
 
-function jsonReq(url: string, body: unknown, method = "POST"): Request {
-  return new Request(url, {
-    method,
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 // ---- GET /api/admin/sources ----------------------------------------------
 
 test("GET /api/admin/sources lists sources with health for a capable admin", async () => {
   const { GET } = (await import("@/app/api/admin/sources/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/sources"));
+  const res = await GET(getReq("http://test/api/admin/sources"));
   assert.equal(res.status, 200);
-  const data = (await res.json()) as { sources: { health: unknown }[] };
+  const data = await readJson<{ sources: { health: unknown }[] }>(res);
   assert.equal(data.sources.length, 1);
   assert.ok("health" in data.sources[0]);
 });
@@ -126,7 +126,7 @@ test("GET /api/admin/sources lists sources with health for a capable admin", asy
 test("GET /api/admin/sources is forbidden without the capability", async () => {
   authState = "forbidden";
   const { GET } = (await import("@/app/api/admin/sources/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/sources"));
+  const res = await GET(getReq("http://test/api/admin/sources"));
   assert.equal(res.status, 403);
 });
 
@@ -136,9 +136,10 @@ test("PATCH /api/admin/sources/[key] toggles + audits", async () => {
   const { PATCH } = (await import("@/app/api/admin/sources/[key]/route")) as {
     PATCH: RouteHandler;
   };
-  const res = await PATCH(jsonReq("http://test/api/admin/sources/nbc", { enabled: false }, "PATCH"), {
-    params: Promise.resolve({ key: "nbc" }),
-  });
+  const res = await PATCH(
+    jsonPatch("http://test/api/admin/sources/nbc", { enabled: false }),
+    withParams({ key: "nbc" }),
+  );
   assert.equal(res.status, 200);
   assert.deepEqual(toggleCalls, [{ key: "nbc", enabled: false }]);
   assert.equal(auditCalls.at(-1)?.action, "admin.source.toggle");
@@ -149,9 +150,10 @@ test("PATCH /api/admin/sources/[key] returns 404 for an unknown provider", async
   const { PATCH } = (await import("@/app/api/admin/sources/[key]/route")) as {
     PATCH: RouteHandler;
   };
-  const res = await PATCH(jsonReq("http://test/api/admin/sources/x", { enabled: true }, "PATCH"), {
-    params: Promise.resolve({ key: "x" }),
-  });
+  const res = await PATCH(
+    jsonPatch("http://test/api/admin/sources/x", { enabled: true }),
+    withParams({ key: "x" }),
+  );
   assert.equal(res.status, 404);
 });
 
@@ -159,7 +161,7 @@ test("PATCH /api/admin/sources/[key] returns 404 for an unknown provider", async
 
 test("POST /api/admin/sources/sync syncs + audits", async () => {
   const { POST } = (await import("@/app/api/admin/sources/sync/route")) as { POST: RouteHandler };
-  const res = await POST(new Request("http://test/api/admin/sources/sync", { method: "POST" }));
+  const res = await POST(makeJsonRequest("http://test/api/admin/sources/sync", "POST"));
   assert.equal(res.status, 200);
   assert.equal(syncCalls, 1);
   assert.equal(auditCalls.at(-1)?.action, "admin.source.sync");
@@ -172,8 +174,8 @@ test("POST /review applies a review + audits", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/articles/a1/review", { reviewState: "approved" }),
-    { params: Promise.resolve({ id: "a1" }) },
+    jsonPost("http://test/api/admin/articles/a1/review", { reviewState: "approved" }),
+    withParams({ id: "a1" }),
   );
   assert.equal(res.status, 200);
   assert.equal(reviewCalls.length, 1);
@@ -186,8 +188,8 @@ test("POST /review is forbidden without content.moderate", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/articles/a1/review", { reviewState: "approved" }),
-    { params: Promise.resolve({ id: "a1" }) },
+    jsonPost("http://test/api/admin/articles/a1/review", { reviewState: "approved" }),
+    withParams({ id: "a1" }),
   );
   assert.equal(res.status, 403);
   assert.equal(reviewCalls.length, 0);
@@ -199,8 +201,8 @@ test("POST /review surfaces the lib's structured 404", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/articles/missing/review", { reviewState: "approved" }),
-    { params: Promise.resolve({ id: "missing" }) },
+    jsonPost("http://test/api/admin/articles/missing/review", { reviewState: "approved" }),
+    withParams({ id: "missing" }),
   );
   assert.equal(res.status, 404);
 });
@@ -212,8 +214,8 @@ test("POST /takedown applies a takedown + audits", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/articles/a1/takedown", { state: "takedown" }),
-    { params: Promise.resolve({ id: "a1" }) },
+    jsonPost("http://test/api/admin/articles/a1/takedown", { state: "takedown" }),
+    withParams({ id: "a1" }),
   );
   assert.equal(res.status, 200);
   assert.equal(takedownCalls.length, 1);
@@ -225,8 +227,8 @@ test("POST /takedown rejects an invalid state with 400", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/articles/a1/takedown", { state: "bogus" }),
-    { params: Promise.resolve({ id: "a1" }) },
+    jsonPost("http://test/api/admin/articles/a1/takedown", { state: "bogus" }),
+    withParams({ id: "a1" }),
   );
   assert.equal(res.status, 400);
   assert.equal(takedownCalls.length, 0);

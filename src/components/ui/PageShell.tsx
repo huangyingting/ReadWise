@@ -22,11 +22,14 @@ const pageShellVariants = cva("mx-auto w-full", {
   defaultVariants: { variant: "listing", density: "default" },
 });
 
+type PageShellElement = "div" | "main" | "section";
+type PageShellVariantProps = VariantProps<typeof pageShellVariants>;
+
 export interface PageShellProps
   extends React.HTMLAttributes<HTMLElement>,
-    VariantProps<typeof pageShellVariants> {
+    PageShellVariantProps {
   /** Semantic element to render. Defaults to `div` for backwards compatibility. */
-  as?: "div" | "main" | "section";
+  as?: PageShellElement;
 }
 
 /**

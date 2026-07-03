@@ -24,7 +24,21 @@ const NEXT_LABEL: Record<Theme, string> = {
   system: "Switch to light mode",
 };
 
-export default function ThemeToggle({ className }: { className?: string }) {
+const HYDRATION_SAFE_LABEL = "Toggle theme";
+
+interface ThemeToggleProps {
+  className?: string;
+}
+
+function isReaderPath(pathname: string): boolean {
+  return pathname.startsWith("/reader/");
+}
+
+function getToggleLabel(theme: Theme, mounted: boolean): string {
+  return mounted ? NEXT_LABEL[theme] : HYDRATION_SAFE_LABEL;
+}
+
+export default function ThemeToggle({ className }: ThemeToggleProps) {
   const [mounted, setMounted] = useState(false);
   const [theme, setThemeState] = useState<Theme>("system");
   const pathname = usePathname();
@@ -32,7 +46,7 @@ export default function ThemeToggle({ className }: { className?: string }) {
   // On reader pages the reading-mode control (Light/Sepia/Dark) in ReaderControls
   // serves as the single theme source of truth. Hide the global toggle to avoid
   // two overlapping theme knobs on the same page.
-  const isReaderPage = pathname.startsWith("/reader/");
+  const isReaderPage = isReaderPath(pathname);
 
   useEffect(() => {
     setThemeState(getThemePreference());
@@ -45,13 +59,14 @@ export default function ThemeToggle({ className }: { className?: string }) {
 
   if (isReaderPage) return null;
 
+  const label = getToggleLabel(theme, mounted);
   const Icon = ICONS[theme];
 
   return (
     <IconButton
       onClick={handleClick}
-      aria-label={mounted ? NEXT_LABEL[theme] : "Toggle theme"}
-      title={mounted ? NEXT_LABEL[theme] : undefined}
+      aria-label={label}
+      title={mounted ? label : undefined}
       className={cn(
         "h-11 w-11 rounded-[var(--radius-md)] text-text-muted hover:text-text",
         className,

@@ -61,6 +61,12 @@ const baseInput = {
   topics: ["business"],
 };
 
+function assertNoPersistedKeys(keys: string[], bannedKeys: string[]) {
+  for (const banned of bannedKeys) {
+    assert.equal(keys.includes(banned), false);
+  }
+}
+
 test("goal_path_selected emits ONLY { goalPath } — no content", async () => {
   const { updateProfile } = await import("@/lib/profile/commands");
   await updateProfile("u1", { ...baseInput, goalPath: "business" });
@@ -78,10 +84,12 @@ test("only the controlled goalPath enum is persisted on the profile", async () =
 
   assert.equal(upsertData?.goalPath, "academic");
   // No inferred-goal or history-derived fields leak into the persisted shape.
-  const keys = Object.keys(upsertData ?? {});
-  for (const banned of ["goalRationale", "history", "inferredGoal", "articleTitles"]) {
-    assert.equal(keys.includes(banned), false);
-  }
+  assertNoPersistedKeys(Object.keys(upsertData ?? {}), [
+    "goalRationale",
+    "history",
+    "inferredGoal",
+    "articleTitles",
+  ]);
 });
 
 test("no event is emitted when goalPath is unchanged", async () => {

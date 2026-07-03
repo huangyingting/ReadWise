@@ -59,6 +59,13 @@ function setRequiredEnv() {
   process.env.NEXTAUTH_URL = "http://localhost:3000";
 }
 
+function reportHasCode(
+  entries: Array<{ code: string }>,
+  code: string,
+): boolean {
+  return entries.some((entry) => entry.code === code);
+}
+
 test("validateRuntimeConfig reports missing critical env vars as not ready", () => {
   const report = validateRuntimeConfig();
   assert.equal(report.ready, false);
@@ -92,7 +99,7 @@ test("validateRuntimeConfig accepts PostgreSQL DATABASE_URL protocols", () => {
 
     assert.equal(report.ready, true);
     assert.equal(report.required.database.status, "ok");
-    assert.equal(report.errors.some((err) => err.code === "invalid_database_url"), false);
+    assert.equal(reportHasCode(report.errors, "invalid_database_url"), false);
   }
 });
 
@@ -107,7 +114,7 @@ test("partial optional providers degrade without blocking readiness", () => {
   assert.equal(report.ready, true);
   assert.equal(report.optional.ai.status, "degraded");
   assert.equal(report.optional.push.status, "degraded");
-  assert.ok(report.warnings.some((warn) => warn.code === "partial_optional_provider"));
+  assert.ok(reportHasCode(report.warnings, "partial_optional_provider"));
 });
 
 test("malformed VAPID subject degrades and disables push config", () => {
@@ -122,7 +129,7 @@ test("malformed VAPID subject degrades and disables push config", () => {
   assert.equal(report.optional.push.status, "degraded");
   assert.equal(pushConfig.get(), null);
   assert.equal(pushConfig.isConfigured(), false);
-  assert.ok(report.warnings.some((warn) => warn.code === "invalid_vapid_subject"));
+  assert.ok(reportHasCode(report.warnings, "invalid_vapid_subject"));
 });
 
 test("malformed required values block readiness", () => {
@@ -135,10 +142,10 @@ test("malformed required values block readiness", () => {
   assert.equal(report.ready, false);
   assert.equal(report.required.database.status, "malformed");
   assert.equal(report.required.auth.status, "malformed");
-  assert.ok(report.errors.some((err) => err.code === "invalid_database_url"));
-  assert.ok(report.errors.some((err) => err.code === "placeholder_secret"));
-  assert.ok(report.errors.some((err) => err.code === "weak_secret"));
-  assert.ok(report.errors.some((err) => err.code === "invalid_url"));
+  assert.ok(reportHasCode(report.errors, "invalid_database_url"));
+  assert.ok(reportHasCode(report.errors, "placeholder_secret"));
+  assert.ok(reportHasCode(report.errors, "weak_secret"));
+  assert.ok(reportHasCode(report.errors, "invalid_url"));
 });
 
 test("malformed optional and tuning values warn but do not block readiness", () => {
@@ -159,8 +166,8 @@ test("malformed optional and tuning values warn but do not block readiness", () 
   assert.equal(report.optional.ai.status, "degraded");
   assert.equal(report.optional.speech.status, "degraded");
   assert.equal(report.tuning.status, "degraded");
-  assert.ok(report.warnings.some((warn) => warn.code === "invalid_api_version"));
-  assert.ok(report.warnings.some((warn) => warn.code === "unsupported_speech_format"));
-  assert.ok(report.warnings.some((warn) => warn.code === "invalid_log_level"));
-  assert.ok(report.warnings.some((warn) => warn.code === "invalid_positive_integer"));
+  assert.ok(reportHasCode(report.warnings, "invalid_api_version"));
+  assert.ok(reportHasCode(report.warnings, "unsupported_speech_format"));
+  assert.ok(reportHasCode(report.warnings, "invalid_log_level"));
+  assert.ok(reportHasCode(report.warnings, "invalid_positive_integer"));
 });

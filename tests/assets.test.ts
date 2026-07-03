@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -31,6 +31,10 @@ const PUBLIC = join(ROOT, "public");
 function publicPath(urlPath: string): string {
   // Strip leading slash and join with public dir.
   return join(PUBLIC, urlPath.replace(/^\//, ""));
+}
+
+function assertPublicAssetExists(urlPath: string): void {
+  assert.ok(existsSync(publicPath(urlPath)));
 }
 
 // ---------------------------------------------------------------------------
@@ -71,42 +75,40 @@ for (const entry of ASSET_MANIFEST) {
 // ---------------------------------------------------------------------------
 
 test("ICON_SVG exists under public/", () => {
-  assert.ok(existsSync(publicPath(ICON_SVG)));
+  assertPublicAssetExists(ICON_SVG);
 });
 
 test("ICON_192 exists under public/", () => {
-  assert.ok(existsSync(publicPath(ICON_192)));
+  assertPublicAssetExists(ICON_192);
 });
 
 test("ICON_512 exists under public/", () => {
-  assert.ok(existsSync(publicPath(ICON_512)));
+  assertPublicAssetExists(ICON_512);
 });
 
 test("APPLE_TOUCH_ICON exists under public/", () => {
-  assert.ok(existsSync(publicPath(APPLE_TOUCH_ICON)));
+  assertPublicAssetExists(APPLE_TOUCH_ICON);
 });
 
 test("FONT_OPENDYSLEXIC_REGULAR exists under public/", () => {
-  assert.ok(existsSync(publicPath(FONT_OPENDYSLEXIC_REGULAR)));
+  assertPublicAssetExists(FONT_OPENDYSLEXIC_REGULAR);
 });
 
 test("FONT_OPENDYSLEXIC_BOLD exists under public/", () => {
-  assert.ok(existsSync(publicPath(FONT_OPENDYSLEXIC_BOLD)));
+  assertPublicAssetExists(FONT_OPENDYSLEXIC_BOLD);
 });
 
 test("OFFLINE_PAGE exists under public/", () => {
-  assert.ok(existsSync(publicPath(OFFLINE_PAGE)));
+  assertPublicAssetExists(OFFLINE_PAGE);
 });
 
 test("OFFLINE_READER_PAGE exists under public/", () => {
-  assert.ok(existsSync(publicPath(OFFLINE_READER_PAGE)));
+  assertPublicAssetExists(OFFLINE_READER_PAGE);
 });
 
 // ---------------------------------------------------------------------------
 // Verify tokens.css references the same font paths as the constants
 // ---------------------------------------------------------------------------
-
-import { readFileSync } from "node:fs";
 
 test("tokens.css @font-face src matches FONT_OPENDYSLEXIC_REGULAR constant", () => {
   const css = readFileSync(join(ROOT, "src/app/tokens.css"), "utf8");

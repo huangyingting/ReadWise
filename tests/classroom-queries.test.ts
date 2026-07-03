@@ -18,6 +18,19 @@ let membershipListStub: Record<string, unknown>[] = [];
 
 let lastClassroomFindManyWhere: unknown = null;
 
+type OrgWhere = { orgId: string };
+type TeacherWhere = { OR: Array<{ teacherId?: string; members?: unknown }> };
+type StudentWhere = { members: { some: { userId: string } } };
+
+async function classroomQueries() {
+  return import("@/lib/classroom/queries");
+}
+
+function lastWhere<T>(): T {
+  assert.ok(lastClassroomFindManyWhere, "classroom.findMany should have been called");
+  return lastClassroomFindManyWhere as T;
+}
+
 // ---- mock setup ------------------------------------------------------------
 
 before(() => {
@@ -50,14 +63,14 @@ beforeEach(() => {
 
 test("getClassroom returns the classroom when it exists", async () => {
   classroomStub = { id: "c1", name: "Algebra", orgId: "o1", teacherId: "t1" };
-  const { getClassroom } = await import("@/lib/classroom/queries");
+  const { getClassroom } = await classroomQueries();
   const result = await getClassroom("c1");
   assert.deepEqual(result, classroomStub);
 });
 
 test("getClassroom returns null when the classroom does not exist", async () => {
   classroomStub = null;
-  const { getClassroom } = await import("@/lib/classroom/queries");
+  const { getClassroom } = await classroomQueries();
   const result = await getClassroom("missing");
   assert.equal(result, null);
 });
@@ -69,25 +82,25 @@ test("listClassroomsForOrg returns classrooms scoped to the given org", async ()
     { id: "c1", orgId: "o1" },
     { id: "c2", orgId: "o1" },
   ];
-  const { listClassroomsForOrg } = await import("@/lib/classroom/queries");
+  const { listClassroomsForOrg } = await classroomQueries();
   const result = await listClassroomsForOrg("o1");
   assert.equal(result.length, 2);
-  const where = lastClassroomFindManyWhere as { orgId: string };
+  const where = lastWhere<OrgWhere>();
   assert.equal(where.orgId, "o1");
 });
 
 test("listClassroomsForOrg returns empty array when org has no classrooms", async () => {
   classroomListStub = [];
-  const { listClassroomsForOrg } = await import("@/lib/classroom/queries");
+  const { listClassroomsForOrg } = await classroomQueries();
   const result = await listClassroomsForOrg("empty-org");
   assert.deepEqual(result, []);
 });
 
 test("listClassroomsForOrg does not return classrooms belonging to a different org", async () => {
   classroomListStub = [];
-  const { listClassroomsForOrg } = await import("@/lib/classroom/queries");
+  const { listClassroomsForOrg } = await classroomQueries();
   await listClassroomsForOrg("org-a");
-  const where = lastClassroomFindManyWhere as { orgId: string };
+  const where = lastWhere<OrgWhere>();
   assert.equal(where.orgId, "org-a");
 });
 
@@ -95,34 +108,34 @@ test("listClassroomsForOrg does not return classrooms belonging to a different o
 
 test("listClassroomsForTeacher includes classrooms where user is the primary teacher", async () => {
   classroomListStub = [{ id: "c1", teacherId: "t1" }];
-  const { listClassroomsForTeacher } = await import("@/lib/classroom/queries");
+  const { listClassroomsForTeacher } = await classroomQueries();
   const result = await listClassroomsForTeacher("t1");
   assert.equal(result.length, 1);
-  const where = lastClassroomFindManyWhere as { OR: { teacherId?: string }[] };
+  const where = lastWhere<TeacherWhere>();
   assert.ok(where.OR.some((clause) => clause.teacherId === "t1"));
 });
 
 test("listClassroomsForTeacher includes classrooms where user is a Teacher member", async () => {
   classroomListStub = [{ id: "c2", teacherId: "other" }];
-  const { listClassroomsForTeacher } = await import("@/lib/classroom/queries");
+  const { listClassroomsForTeacher } = await classroomQueries();
   const result = await listClassroomsForTeacher("t2");
   assert.equal(result.length, 1);
-  const where = lastClassroomFindManyWhere as { OR: { members?: unknown }[] };
+  const where = lastWhere<TeacherWhere>();
   assert.ok(where.OR.some((clause) => clause.members !== undefined));
 });
 
 test("listClassroomsForTeacher query uses an OR condition for primary teacher and Teacher membership", async () => {
   classroomListStub = [];
-  const { listClassroomsForTeacher } = await import("@/lib/classroom/queries");
+  const { listClassroomsForTeacher } = await classroomQueries();
   await listClassroomsForTeacher("t1");
-  const where = lastClassroomFindManyWhere as { OR: unknown[] };
+  const where = lastWhere<{ OR: unknown[] }>();
   assert.ok(Array.isArray(where.OR));
   assert.equal(where.OR.length, 2);
 });
 
 test("listClassroomsForTeacher returns empty array when teacher has no classrooms", async () => {
   classroomListStub = [];
-  const { listClassroomsForTeacher } = await import("@/lib/classroom/queries");
+  const { listClassroomsForTeacher } = await classroomQueries();
   const result = await listClassroomsForTeacher("no-classes");
   assert.deepEqual(result, []);
 });
@@ -131,30 +144,30 @@ test("listClassroomsForTeacher returns empty array when teacher has no classroom
 
 test("listClassroomsForStudent returns classrooms the student is enrolled in", async () => {
   classroomListStub = [{ id: "c1" }, { id: "c3" }];
-  const { listClassroomsForStudent } = await import("@/lib/classroom/queries");
+  const { listClassroomsForStudent } = await classroomQueries();
   const result = await listClassroomsForStudent("s1");
   assert.equal(result.length, 2);
 });
 
 test("listClassroomsForStudent filters by the student's userId", async () => {
   classroomListStub = [];
-  const { listClassroomsForStudent } = await import("@/lib/classroom/queries");
+  const { listClassroomsForStudent } = await classroomQueries();
   await listClassroomsForStudent("s1");
-  const where = lastClassroomFindManyWhere as { members: { some: { userId: string } } };
+  const where = lastWhere<StudentWhere>();
   assert.equal(where.members.some.userId, "s1");
 });
 
 test("listClassroomsForStudent uses a different userId scope per call", async () => {
   classroomListStub = [];
-  const { listClassroomsForStudent } = await import("@/lib/classroom/queries");
+  const { listClassroomsForStudent } = await classroomQueries();
   await listClassroomsForStudent("student-99");
-  const where = lastClassroomFindManyWhere as { members: { some: { userId: string } } };
+  const where = lastWhere<StudentWhere>();
   assert.equal(where.members.some.userId, "student-99");
 });
 
 test("listClassroomsForStudent returns empty array when student is not enrolled anywhere", async () => {
   classroomListStub = [];
-  const { listClassroomsForStudent } = await import("@/lib/classroom/queries");
+  const { listClassroomsForStudent } = await classroomQueries();
   const result = await listClassroomsForStudent("unenrolled");
   assert.deepEqual(result, []);
 });
@@ -176,7 +189,7 @@ test("listClassroomMembers maps rows to ClassroomMemberRow shape", async () => {
       user: { id: "s1", name: "Bob", email: "bob@e.com", image: null },
     },
   ];
-  const { listClassroomMembers } = await import("@/lib/classroom/queries");
+  const { listClassroomMembers } = await classroomQueries();
   const result = await listClassroomMembers("c1");
   assert.equal(result.length, 2);
   assert.deepEqual(result[0], {
@@ -197,7 +210,7 @@ test("listClassroomMembers maps rows to ClassroomMemberRow shape", async () => {
 
 test("listClassroomMembers returns empty array for a classroom with no members", async () => {
   membershipListStub = [];
-  const { listClassroomMembers } = await import("@/lib/classroom/queries");
+  const { listClassroomMembers } = await classroomQueries();
   const result = await listClassroomMembers("empty-c");
   assert.deepEqual(result, []);
 });
@@ -211,7 +224,7 @@ test("listClassroomMembers handles null name, email, and image gracefully", asyn
       user: { id: "s2", name: null, email: null, image: null },
     },
   ];
-  const { listClassroomMembers } = await import("@/lib/classroom/queries");
+  const { listClassroomMembers } = await classroomQueries();
   const result = await listClassroomMembers("c2");
   assert.equal(result.length, 1);
   assert.deepEqual(result[0], {
@@ -229,7 +242,7 @@ test("listClassroomMembers preserves all rows without filtering", async () => {
     { userId: "s1", role: "Student", createdAt: new Date(), user: { id: "s1", name: "S1", email: "s1@e.com", image: null } },
     { userId: "s2", role: "Student", createdAt: new Date(), user: { id: "s2", name: "S2", email: "s2@e.com", image: null } },
   ];
-  const { listClassroomMembers } = await import("@/lib/classroom/queries");
+  const { listClassroomMembers } = await classroomQueries();
   const result = await listClassroomMembers("c1");
   assert.equal(result.length, 3);
   assert.equal(result[0].userId, "t1");

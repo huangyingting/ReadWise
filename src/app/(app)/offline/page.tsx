@@ -12,7 +12,9 @@
 import { requireSession } from "@/lib/session";
 import OfflineLibraryClient from "./OfflineLibraryClient";
 
+const OFFLINE_ROUTE = "/offline";
+
 export default async function OfflineLibraryPage() {
-  await requireSession("/offline");
+  await requireSession(OFFLINE_ROUTE);
   return <OfflineLibraryClient />;
 }

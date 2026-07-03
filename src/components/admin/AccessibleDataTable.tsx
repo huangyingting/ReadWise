@@ -12,15 +12,17 @@ export interface AccessibleDataTableRow {
   [key: string]: React.ReactNode;
 }
 
+interface AccessibleDataTableProps {
+  caption: string;
+  columns: readonly AccessibleDataTableColumn[];
+  rows: readonly AccessibleDataTableRow[];
+}
+
 export function AccessibleDataTable({
   caption,
   columns,
   rows,
-}: {
-  caption: string;
-  columns: AccessibleDataTableColumn[];
-  rows: AccessibleDataTableRow[];
-}) {
+}: AccessibleDataTableProps) {
   return (
     <table className="sr-only">
       <caption>{caption}</caption>

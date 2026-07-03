@@ -5,6 +5,12 @@ import { FeatureCard } from "@/components/marketing/FeatureCard";
 import { Reveal } from "@/components/marketing/Reveal";
 import { CONTAINER, FEATURES } from "@/components/marketing/landing-content";
 
+const FEATURE_REVEAL_DELAY_MS = 80;
+
+function getFeatureRevealDelay(index: number) {
+  return `${index * FEATURE_REVEAL_DELAY_MS}ms`;
+}
+
 export function LandingFeaturesSection() {
   return (
     <section className="py-[var(--space-12)]">
@@ -22,7 +28,7 @@ export function LandingFeaturesSection() {
           {FEATURES.map((feature, i) => (
             <Reveal
               key={feature.title}
-              style={{ transitionDelay: `${i * 80}ms` }}
+              style={{ transitionDelay: getFeatureRevealDelay(i) }}
               className="h-full"
             >
               <FeatureCard

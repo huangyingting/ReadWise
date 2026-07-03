@@ -11,7 +11,10 @@ interface LandingCtaSectionProps {
   primaryLabel: React.ReactNode;
 }
 
-export function LandingCtaSection({ primaryHref, primaryLabel }: LandingCtaSectionProps) {
+export function LandingCtaSection({
+  primaryHref,
+  primaryLabel,
+}: LandingCtaSectionProps) {
   return (
     <section
       className="py-[var(--space-12)]"

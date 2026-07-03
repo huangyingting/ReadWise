@@ -19,6 +19,18 @@ let deleteIfExistsKey = "";
 let createIfNotExistsCalled = false;
 let sdkLoadShouldFail = false;
 
+const AZURE_CONNECTION_STRING =
+  "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
+
+async function loadStorageModule() {
+  return import("@/lib/storage");
+}
+
+function configureAzureStorage(): void {
+  process.env.MEDIA_STORAGE = "azure";
+  process.env.AZURE_STORAGE_CONNECTION_STRING = AZURE_CONNECTION_STRING;
+}
+
 before(() => {
   // Mock prisma (not used by azure tests but storage.ts imports it at module level)
   mock.module("@/lib/prisma", {
@@ -97,13 +109,13 @@ beforeEach(() => {
 });
 
 test("azureStorageConfig returns null when no credentials set", async () => {
-  const { azureStorageConfig } = await import("@/lib/storage");
+  const { azureStorageConfig } = await loadStorageModule();
   assert.equal(azureStorageConfig(), null);
 });
 
 test("azureStorageConfig returns connection-string config", async () => {
   process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;...";
-  const { azureStorageConfig } = await import("@/lib/storage");
+  const { azureStorageConfig } = await loadStorageModule();
   const cfg = azureStorageConfig();
   assert.ok(cfg);
   assert.ok("connectionString" in cfg!);
@@ -114,7 +126,7 @@ test("azureStorageConfig returns connection-string config", async () => {
 test("azureStorageConfig uses AZURE_STORAGE_CONTAINER when set", async () => {
   process.env.AZURE_STORAGE_CONNECTION_STRING = "conn";
   process.env.AZURE_STORAGE_CONTAINER = "my-bucket";
-  const { azureStorageConfig } = await import("@/lib/storage");
+  const { azureStorageConfig } = await loadStorageModule();
   const cfg = azureStorageConfig();
   assert.equal(cfg!.container, "my-bucket");
 });
@@ -122,7 +134,7 @@ test("azureStorageConfig uses AZURE_STORAGE_CONTAINER when set", async () => {
 test("azureStorageConfig returns account+key config", async () => {
   process.env.AZURE_STORAGE_ACCOUNT = "myaccount";
   process.env.AZURE_STORAGE_KEY = "mykey==";
-  const { azureStorageConfig } = await import("@/lib/storage");
+  const { azureStorageConfig } = await loadStorageModule();
   const cfg = azureStorageConfig();
   assert.ok(cfg);
   assert.ok("accountName" in cfg!);
@@ -131,23 +143,21 @@ test("azureStorageConfig returns account+key config", async () => {
 
 test("getMediaStorage returns null for azure with no credentials", async () => {
   process.env.MEDIA_STORAGE = "azure";
-  const { getMediaStorage } = await import("@/lib/storage");
+  const { getMediaStorage } = await loadStorageModule();
   assert.equal(getMediaStorage(), null);
 });
 
 test("getMediaStorage returns AzureBlobMediaStorage when azure creds present", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage, "should return a storage backend");
   assert.equal(storage!.kind, "azure");
 });
 
 test("AzureBlobMediaStorage put uploads with correct container/key/content-type", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage, sha256Hex } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage, sha256Hex } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage);
 
@@ -165,9 +175,8 @@ test("AzureBlobMediaStorage put uploads with correct container/key/content-type"
 });
 
 test("AzureBlobMediaStorage get returns bytes from storage", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage);
 
@@ -178,9 +187,8 @@ test("AzureBlobMediaStorage get returns bytes from storage", async () => {
 });
 
 test("AzureBlobMediaStorage get returns null on 404 (blob not found)", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage);
 
@@ -190,9 +198,8 @@ test("AzureBlobMediaStorage get returns null on 404 (blob not found)", async () 
 });
 
 test("AzureBlobMediaStorage delete is idempotent (uses deleteIfExists)", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage);
 
@@ -202,9 +209,8 @@ test("AzureBlobMediaStorage delete is idempotent (uses deleteIfExists)", async (
 });
 
 test("AzureBlobMediaStorage put returns content-addressed key (same bytes → same key)", async () => {
-  process.env.MEDIA_STORAGE = "azure";
-  process.env.AZURE_STORAGE_CONNECTION_STRING = "DefaultEndpointsProtocol=https;AccountName=test;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const { getMediaStorage } = await import("@/lib/storage");
+  configureAzureStorage();
+  const { getMediaStorage } = await loadStorageModule();
   const storage = getMediaStorage();
   assert.ok(storage);
 

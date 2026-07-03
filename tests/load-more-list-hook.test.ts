@@ -8,6 +8,8 @@ import {
   resetHookStorage,
 } from "./support/react-hook-harness";
 
+type DeferredPage = { articles?: never[]; hasMore?: boolean };
+
 describe("useLoadMoreList hook behavior", () => {
   test("loads a page, deduplicates articles, merges progress, and notifies caller", async () => {
     const { useLoadMoreList } = await import("@/hooks/useLoadMoreList");
@@ -58,8 +60,7 @@ describe("useLoadMoreList hook behavior", () => {
   test("does not fetch while loading or when no more pages are available", async () => {
     const { useLoadMoreList } = await import("@/hooks/useLoadMoreList");
     let calls = 0;
-    let resolvePage: (page: { articles?: never[]; hasMore?: boolean }) => void =
-      () => {};
+    let resolvePage: (page: DeferredPage) => void = () => {};
 
     beginRender();
     const noMore = useLoadMoreList({

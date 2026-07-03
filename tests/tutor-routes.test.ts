@@ -68,13 +68,21 @@ function jsonReq(method: string, body: unknown): Request {
   return makeJsonRequest("http://test/api/reader/a1/tutor", method, body);
 }
 
+async function importTutorRoute() {
+  return (await import("@/app/api/reader/[id]/tutor/route")) as {
+    GET: RouteHandler;
+    POST: RouteHandler;
+    DELETE: RouteHandler;
+  };
+}
+
 // ---- GET ----------------------------------------------------------------
 
 test("GET tutor returns the user's messages (200)", async () => {
   tutorMessages = [
     { id: "1", role: "user", content: "What is this?", createdAt: new Date("2026-01-01") },
   ];
-  const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
+  const { GET } = await importTutorRoute();
   const res = await GET(getReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -84,14 +92,14 @@ test("GET tutor returns the user's messages (200)", async () => {
 
 test("GET tutor returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
+  const { GET } = await importTutorRoute();
   const res = await GET(getReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 401);
 });
 
 test("GET tutor returns 404 when article is missing", async () => {
   articleExists = false;
-  const { GET } = (await import("@/app/api/reader/[id]/tutor/route")) as { GET: RouteHandler };
+  const { GET } = await importTutorRoute();
   const res = await GET(getReq("http://test/api/reader/missing/tutor"), ctx("missing"));
   assert.equal(res.status, 404);
 });
@@ -107,7 +115,7 @@ test("POST tutor happy path: returns answer + fallback:false + messages (200)", 
       { id: "2", role: "assistant", content: "The article is about science.", createdAt: new Date() },
     ],
   };
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: "What is this?" }), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -122,7 +130,7 @@ test("POST tutor returns fallback:true when AI is unavailable", async () => {
     fallback: true,
     messages: [],
   };
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: "What is this?" }), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -132,33 +140,33 @@ test("POST tutor returns fallback:true when AI is unavailable", async () => {
 
 test("POST tutor returns 404 when article is missing (askTutor returns null)", async () => {
   askTutorResult = null;
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: "What?" }), ctx("missing"));
   assert.equal(res.status, 404);
 });
 
 test("POST tutor returns 400 for an empty question", async () => {
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: "" }), ctx());
   assert.equal(res.status, 400);
 });
 
 test("POST tutor returns 400 for a question exceeding MAX_QUESTION_LENGTH", async () => {
   const longQuestion = "a".repeat(1001);
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: longQuestion }), ctx());
   assert.equal(res.status, 400);
 });
 
 test("POST tutor returns 400 when question is missing from body", async () => {
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", {}), ctx());
   assert.equal(res.status, 400);
 });
 
 test("POST tutor returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/reader/[id]/tutor/route")) as { POST: RouteHandler };
+  const { POST } = await importTutorRoute();
   const res = await POST(jsonReq("POST", { question: "Hello?" }), ctx());
   assert.equal(res.status, 401);
 });
@@ -166,9 +174,7 @@ test("POST tutor returns 401 when unauthenticated", async () => {
 // ---- DELETE -------------------------------------------------------------
 
 test("DELETE tutor clears the conversation and returns {ok:true}", async () => {
-  const { DELETE } = (await import("@/app/api/reader/[id]/tutor/route")) as {
-    DELETE: RouteHandler;
-  };
+  const { DELETE } = await importTutorRoute();
   const res = await DELETE(deleteReq("http://test/api/reader/a1/tutor"), ctx());
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -178,9 +184,7 @@ test("DELETE tutor clears the conversation and returns {ok:true}", async () => {
 
 test("DELETE tutor returns 404 when article is missing", async () => {
   articleExists = false;
-  const { DELETE } = (await import("@/app/api/reader/[id]/tutor/route")) as {
-    DELETE: RouteHandler;
-  };
+  const { DELETE } = await importTutorRoute();
   const res = await DELETE(
     deleteReq("http://test/api/reader/missing/tutor"),
     ctx("missing"),
@@ -190,9 +194,7 @@ test("DELETE tutor returns 404 when article is missing", async () => {
 
 test("DELETE tutor returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { DELETE } = (await import("@/app/api/reader/[id]/tutor/route")) as {
-    DELETE: RouteHandler;
-  };
+  const { DELETE } = await importTutorRoute();
   const res = await DELETE(
     deleteReq("http://test/api/reader/a1/tutor"),
     ctx(),

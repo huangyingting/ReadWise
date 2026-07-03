@@ -6,10 +6,28 @@ import { CLASSROOM_ROLES } from "@/lib/rbac";
 import { addClassroomMember } from "@/lib/classroom";
 import { requireClassroomManageApi } from "@/lib/tenant-api";
 
+const CREATED_RESPONSE_INIT = { status: 201 } as const;
+const DEFAULT_CLASSROOM_ROLE = "Student" satisfies ClassroomRole;
+
 const addClassroomMemberBody = object({
   userId: nonEmptyString(200),
   role: optional(oneOf<ClassroomRole>(CLASSROOM_ROLES)),
 });
+
+type ClassroomSession = Parameters<typeof requireClassroomManageApi>[0];
+type ClassroomMember = Awaited<ReturnType<typeof addClassroomMember>>;
+
+function classroomRoleOrDefault(role: ClassroomRole | undefined): ClassroomRole {
+  return role ?? DEFAULT_CLASSROOM_ROLE;
+}
+
+async function requireClassroomMemberManagement(session: ClassroomSession, classroomId: string) {
+  await requireClassroomManageApi(session, classroomId);
+}
+
+function classroomMemberCreatedResponse(member: ClassroomMember) {
+  return NextResponse.json({ ok: true, member }, CREATED_RESPONSE_INIT);
+}
 
 /**
  * Adds (or re-roles) a member of a classroom (RW-061). Requires the caller to
@@ -19,8 +37,12 @@ const addClassroomMemberBody = object({
 export const POST = createHandler(
   { params: idParams, body: addClassroomMemberBody },
   async ({ params, body, session }) => {
-    await requireClassroomManageApi(session, params.id);
-    const member = await addClassroomMember(params.id, body.userId, body.role ?? "Student");
-    return NextResponse.json({ ok: true, member }, { status: 201 });
+    await requireClassroomMemberManagement(session, params.id);
+    const member = await addClassroomMember(
+      params.id,
+      body.userId,
+      classroomRoleOrDefault(body.role),
+    );
+    return classroomMemberCreatedResponse(member);
   },
 );

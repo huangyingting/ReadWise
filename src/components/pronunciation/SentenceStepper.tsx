@@ -16,6 +16,9 @@ export function SentenceStepper({
   onPrev,
   onNext,
 }: Props) {
+  const isFirstSentence = currentIndex === 0;
+  const isLastSentence = currentIndex === sentenceCount - 1;
+
   return (
     <div className="rw-speak-stepper">
       <IconButton
@@ -23,7 +26,7 @@ export function SentenceStepper({
         context="reading"
         className="rw-speak-stepper-btn"
         onClick={onPrev}
-        disabled={currentIndex === 0}
+        disabled={isFirstSentence}
         aria-label="Previous sentence"
       >
         <ChevronLeft size={16} aria-hidden />
@@ -42,7 +45,7 @@ export function SentenceStepper({
         context="reading"
         className="rw-speak-stepper-btn"
         onClick={onNext}
-        disabled={currentIndex === sentenceCount - 1}
+        disabled={isLastSentence}
         aria-label="Next sentence"
       >
         <ChevronRight size={16} aria-hidden />

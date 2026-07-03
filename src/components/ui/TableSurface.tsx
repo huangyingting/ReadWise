@@ -2,11 +2,13 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const TABLE_SURFACE_BASE_CLASS = cn(
+  "w-full overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-surface",
+  "shadow-[var(--shadow-sm)]",
+);
+
 const tableSurfaceVariants = cva(
-  cn(
-    "w-full overflow-x-auto rounded-[var(--radius-lg)] border border-border bg-surface",
-    "shadow-[var(--shadow-sm)]",
-  ),
+  TABLE_SURFACE_BASE_CLASS,
   {
     variants: {
       density: {

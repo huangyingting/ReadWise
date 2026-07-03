@@ -3,6 +3,9 @@
 import { useCallback, useState } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 
+const DICTIONARY_ENDPOINT = "/api/dictionary";
+const DICTIONARY_ERROR_MESSAGE = "Could not look up this word. Please try again.";
+
 export function useDictionaryLookup() {
   const [word, setWord] = useState("");
   const [loading, setLoading] = useState(false);
@@ -20,7 +23,7 @@ export function useDictionaryLookup() {
     setDictError(null);
     setResult(null);
     try {
-      const res = await fetch("/api/dictionary", {
+      const res = await fetch(DICTIONARY_ENDPOINT, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ word: term }),
@@ -28,7 +31,7 @@ export function useDictionaryLookup() {
       if (!res.ok) throw new Error("Lookup failed");
       setResult((await res.json()) as DictionaryResult);
     } catch {
-      setDictError("Could not look up this word. Please try again.");
+      setDictError(DICTIONARY_ERROR_MESSAGE);
     } finally {
       setLoading(false);
     }

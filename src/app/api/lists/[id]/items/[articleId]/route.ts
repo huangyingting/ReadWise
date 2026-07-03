@@ -10,12 +10,23 @@ const itemParams = object({
   articleId: nonEmptyString(200),
 });
 
+type ItemParams = {
+  id: string;
+  articleId: string;
+};
+
+const DELETE_SUCCESS = { ok: true } as const;
+
+async function removeOwnedListItem(params: ItemParams, userId: string): Promise<void> {
+  const result = await removeFromList(params.id, userId, params.articleId);
+  throwIfFailed(result);
+}
+
 /** DELETE /api/lists/[id]/items/[articleId] — removes an article from a list. */
 export const DELETE = createHandler(
   { params: itemParams },
   async ({ params, session }) => {
-    const result = await removeFromList(params.id, session.user.id, params.articleId);
-    throwIfFailed(result);
-    return NextResponse.json({ ok: true });
+    await removeOwnedListItem(params, session.user.id);
+    return NextResponse.json(DELETE_SUCCESS);
   },
 );

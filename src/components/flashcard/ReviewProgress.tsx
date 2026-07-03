@@ -2,14 +2,23 @@
 
 import { Button } from "@/components/ui/Button";
 import { CardTitle } from "@/components/ui/Card";
+import type { RefObject } from "react";
 import type { ReviewMode } from "./types";
 
 interface ReviewProgressProps {
   index: number;
   total: number;
   mode: ReviewMode;
-  sessionRegionRef: React.RefObject<HTMLDivElement | null>;
+  sessionRegionRef: RefObject<HTMLDivElement | null>;
   onEndSession: () => void;
+}
+
+function reviewTitle(mode: ReviewMode) {
+  return mode === "cloze" ? "Cloze review" : "Reviewing";
+}
+
+function reviewLabel(mode: ReviewMode) {
+  return mode === "cloze" ? "Cloze review" : "Flashcard review";
 }
 
 /** Session header with card counter, progress bar, and end-session button. */
@@ -26,11 +35,11 @@ export function ReviewProgress({
         ref={sessionRegionRef}
         tabIndex={-1}
         role="group"
-        aria-label={mode === "cloze" ? "Cloze review" : "Flashcard review"}
+        aria-label={reviewLabel(mode)}
         className="flex items-center justify-between gap-[var(--space-4)] outline-none"
       >
         <CardTitle level="h2" className="text-[length:var(--text-2xl)]">
-          {mode === "cloze" ? "Cloze review" : "Reviewing"}
+          {reviewTitle(mode)}
         </CardTitle>
         <div className="flex items-center gap-[var(--space-3)]">
           <span className="text-[length:var(--text-sm)] text-text-muted">

@@ -3,6 +3,16 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { convertHighlightToReviewCard } from "@/lib/learning/review-assets";
 
+type ReviewCardResult = NonNullable<Awaited<ReturnType<typeof convertHighlightToReviewCard>>>;
+
+function reviewCardPayload(result: ReviewCardResult) {
+  return {
+    cardId: result.cardId,
+    dueAt: result.dueAt ? result.dueAt.toISOString() : null,
+    created: result.created,
+  };
+}
+
 /**
  * POST /api/highlights/[id]/review-card
  *
@@ -19,10 +29,6 @@ export const POST = createHandler(
   async ({ params, session }) => {
     const result = await convertHighlightToReviewCard(session.user.id, params.id);
     if (!result) throw new ApiError(404, "Highlight not found");
-    return NextResponse.json({
-      cardId: result.cardId,
-      dueAt: result.dueAt ? result.dueAt.toISOString() : null,
-      created: result.created,
-    });
+    return NextResponse.json(reviewCardPayload(result));
   },
 );

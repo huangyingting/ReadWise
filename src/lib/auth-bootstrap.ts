@@ -11,6 +11,9 @@
 
 import { prisma } from "@/lib/prisma";
 
+const FIRST_USER_COUNT = 1;
+const ADMIN_ROLE = "Admin";
+
 /**
  * Promotes `userId` to the Admin role if they are the first user in the
  * database. No-op when subsequent users sign up.
@@ -19,10 +22,14 @@ import { prisma } from "@/lib/prisma";
  */
 export async function bootstrapFirstUser(userId: string): Promise<void> {
   const userCount = await prisma.user.count();
-  if (userCount === 1) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { role: "Admin" },
-    });
-  }
+  if (userCount !== FIRST_USER_COUNT) return;
+
+  await promoteUserToAdmin(userId);
+}
+
+async function promoteUserToAdmin(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { role: ADMIN_ROLE },
+  });
 }

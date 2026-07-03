@@ -9,6 +9,7 @@ import {
 import {
   type AiChatRequest,
   type AiChatResponse,
+  type AiProviderError,
   type AiProvider,
   type AiProviderCapabilities,
 } from "@/lib/ai/provider";
@@ -60,6 +61,10 @@ function ok(text: string): AiChatResponse {
   };
 }
 
+function providerError(error: AiProviderError): AiChatResponse {
+  return { ok: false, durationMs: 1, error };
+}
+
 beforeEach(() => {
   process.env.AI_MAX_RETRIES = "2";
   process.env.AI_REQUEST_TIMEOUT_MS = "5000";
@@ -109,7 +114,9 @@ test("an unconfigured provider yields a graceful null (no chat call)", async () 
 
 test("retryable provider error is retried, then succeeds", async () => {
   const fake = new FakeProvider();
-  fake.queue.push({ ok: false, durationMs: 1, error: { kind: "rate_limit", retryable: true, status: 429, message: "429", retryAfterMs: 0 } });
+  fake.queue.push(
+    providerError({ kind: "rate_limit", retryable: true, status: 429, message: "429", retryAfterMs: 0 }),
+  );
   fake.queue.push(ok("recovered"));
   setAiProvider(fake);
 
@@ -121,7 +128,9 @@ test("retryable provider error is retried, then succeeds", async () => {
 test("retries are exhausted on persistent retryable errors → null", async () => {
   const fake = new FakeProvider();
   for (let i = 0; i < 5; i++) {
-    fake.queue.push({ ok: false, durationMs: 1, error: { kind: "server", retryable: true, status: 503, message: "503", retryAfterMs: 0 } });
+    fake.queue.push(
+      providerError({ kind: "server", retryable: true, status: 503, message: "503", retryAfterMs: 0 }),
+    );
   }
   setAiProvider(fake);
 
@@ -133,7 +142,7 @@ test("retries are exhausted on persistent retryable errors → null", async () =
 
 test("non-retryable auth error fails fast → null (no retry)", async () => {
   const fake = new FakeProvider();
-  fake.queue.push({ ok: false, durationMs: 1, error: { kind: "auth", retryable: false, status: 401, message: "401" } });
+  fake.queue.push(providerError({ kind: "auth", retryable: false, status: 401, message: "401" }));
   setAiProvider(fake);
 
   const result = await chatComplete([{ role: "user", content: "hi" }], { feature: "test" });
@@ -144,7 +153,7 @@ test("non-retryable auth error fails fast → null (no retry)", async () => {
 test("empty and content_filter outcomes degrade to null without retry", async () => {
   for (const kind of ["empty", "content_filter"] as const) {
     const fake = new FakeProvider();
-    fake.queue.push({ ok: false, durationMs: 1, error: { kind, retryable: false, status: 200, message: kind, finishReason: kind } });
+    fake.queue.push(providerError({ kind, retryable: false, status: 200, message: kind, finishReason: kind }));
     setAiProvider(fake);
     const result = await chatComplete([{ role: "user", content: "hi" }], { feature: "test" });
     assert.equal(result, null);

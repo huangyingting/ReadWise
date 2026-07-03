@@ -6,22 +6,39 @@ import { revalidateTagsCache } from "@/lib/cache";
 import { AUDIT_ACTIONS } from "@/lib/security/audit";
 
 const mergeBody = object({ targetId: nonEmptyString(200) });
+const TAG_TARGET_TYPE = "tag";
+
+type MergeTagsAuditResult = { moved: number };
+
+function buildMergeAuditInput(
+  req: Request,
+  session: { user: { id: string } },
+  requestId: string,
+  sourceTagId: string,
+  targetTagId: string,
+) {
+  return (auditResult: MergeTagsAuditResult) => ({
+    req,
+    session,
+    requestId,
+    action: AUDIT_ACTIONS.adminTagMerge,
+    targetType: TAG_TARGET_TYPE,
+    targetId: targetTagId,
+    metadata: {
+      sourceTagId,
+      moved: auditResult.moved,
+    },
+  });
+}
 
 export const POST = createAdminHandler(
   { params: idParams, body: mergeBody },
   async ({ req, params, body, session, requestId }) => {
-    const result = await mergeTags(params.id, body.targetId, (auditResult) => ({
-      req,
-      session,
-      requestId,
-      action: AUDIT_ACTIONS.adminTagMerge,
-      targetType: "tag",
-      targetId: body.targetId,
-      metadata: {
-        sourceTagId: params.id,
-        moved: auditResult.moved,
-      },
-    }));
+    const result = await mergeTags(
+      params.id,
+      body.targetId,
+      buildMergeAuditInput(req, session, requestId, params.id, body.targetId),
+    );
     if (!result.ok) {
       throw new ApiError(result.status, result.error);
     }

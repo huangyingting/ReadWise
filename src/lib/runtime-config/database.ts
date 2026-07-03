@@ -9,6 +9,12 @@
 import { isAbsolute, join } from "node:path";
 import { envValue } from "@/lib/runtime-config/env";
 
+const DEFAULT_PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
+
+function resolveFromCwd(path: string): string {
+  return isAbsolute(path) ? path : join(process.cwd(), path);
+}
+
 /**
  * Returns the absolute path to the Prisma schema file.
  *
@@ -16,6 +22,6 @@ import { envValue } from "@/lib/runtime-config/env";
  * Resolves relative paths against `process.cwd()`.
  */
 export function prismaSchemaPath(): string {
-  const configured = envValue("PRISMA_SCHEMA_PATH") ?? "prisma/schema.prisma";
-  return isAbsolute(configured) ? configured : join(process.cwd(), configured);
+  const configured = envValue("PRISMA_SCHEMA_PATH") ?? DEFAULT_PRISMA_SCHEMA_PATH;
+  return resolveFromCwd(configured);
 }

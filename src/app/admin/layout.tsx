@@ -6,6 +6,19 @@ import { PageShell } from "@/components/ui";
 import AdminNav from "@/components/AdminNav";
 import type { ShellUser } from "@/components/shell/types";
 
+type AdminLayoutProps = {
+  children: ReactNode;
+};
+
+function toShellUser(session: Awaited<ReturnType<typeof requireCapability>>): ShellUser {
+  return {
+    name: session.user.name,
+    email: session.user.email,
+    image: session.user.image,
+    role: session.user.role,
+  };
+}
+
 /**
  * Admin layout — renders the admin area INSIDE the unified app shell (sidebar +
  * chrome header on md+, mobile bottom tab bar), consistent with the rest of the
@@ -16,18 +29,9 @@ import type { ShellUser } from "@/components/shell/types";
  * `AdminNav` is demoted to an in-content secondary sub-nav rendered above the
  * page content inside the shell's main column.
  */
-export default async function AdminLayout({
-  children,
-}: {
-  children: ReactNode;
-}) {
+export default async function AdminLayout({ children }: AdminLayoutProps) {
   const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
-  const user: ShellUser = {
-    name: session.user.name,
-    email: session.user.email,
-    image: session.user.image,
-    role: session.user.role,
-  };
+  const user = toShellUser(session);
 
   return (
     <AppShell user={user}>

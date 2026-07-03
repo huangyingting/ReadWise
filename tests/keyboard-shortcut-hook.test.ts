@@ -7,6 +7,8 @@ import {
   runCleanups,
 } from "./support/react-hook-harness";
 
+type KeyListener = (event: KeyboardEvent) => void;
+
 describe("isEditableTarget", () => {
   test("detects editable fields and ignores non-editable targets", async () => {
     const { isEditableTarget } = await import("@/lib/use-keyboard-shortcut");
@@ -38,7 +40,7 @@ describe("isEditableTarget", () => {
 
 describe("keyboard shortcut hook behavior", () => {
   function installKeyWindow() {
-    let listener: ((event: KeyboardEvent) => void) | null = null;
+    let listener: KeyListener | null = null;
     const added: boolean[] = [];
     const removed: boolean[] = [];
     Object.assign(globalThis, {

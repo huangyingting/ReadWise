@@ -19,6 +19,7 @@ import { setAiProvider, resetAiProvider } from "@/lib/ai/registry";
 import {
   type AiChatRequest,
   type AiChatResponse,
+  type AiProviderError,
   type AiProvider,
   type AiProviderCapabilities,
 } from "@/lib/ai/provider";
@@ -74,6 +75,10 @@ function retryableError(kind: "rate_limit" | "server" | "timeout" = "rate_limit"
   return { ok: false, durationMs: 5, error: { kind, retryable: true, status: kind === "rate_limit" ? 429 : 503, message: kind, retryAfterMs: 0 } };
 }
 
+function terminalError(error: AiProviderError, durationMs = 5): AiChatResponse {
+  return { ok: false, durationMs, error };
+}
+
 const BASE_OPTS: AiRunnerOptions = { maxRetries: 2, timeoutMs: 5000 };
 
 let fake: FakeProvider;
@@ -111,11 +116,9 @@ test("runner: success returns outcome=success with text, usage, model, durationM
 // ---------------------------------------------------------------------------
 
 test("runner: empty outcome is returned without retry", async () => {
-  fake.queue.push({
-    ok: false,
-    durationMs: 5,
-    error: { kind: "empty", retryable: false, status: 200, message: "empty", finishReason: "stop" },
-  });
+  fake.queue.push(
+    terminalError({ kind: "empty", retryable: false, status: 200, message: "empty", finishReason: "stop" }),
+  );
   const retryCalls: unknown[] = [];
   const result = await runAiRequest(fake, [{ role: "user", content: "hi" }], BASE_OPTS, (i) => retryCalls.push(i));
   assert.equal(result.outcome, "empty");
@@ -123,11 +126,15 @@ test("runner: empty outcome is returned without retry", async () => {
 });
 
 test("runner: content_filter outcome is returned without retry", async () => {
-  fake.queue.push({
-    ok: false,
-    durationMs: 5,
-    error: { kind: "content_filter", retryable: false, status: 200, message: "cf", finishReason: "content_filter" },
-  });
+  fake.queue.push(
+    terminalError({
+      kind: "content_filter",
+      retryable: false,
+      status: 200,
+      message: "cf",
+      finishReason: "content_filter",
+    }),
+  );
   const retryCalls: unknown[] = [];
   const result = await runAiRequest(fake, [{ role: "user", content: "hi" }], BASE_OPTS, (i) => retryCalls.push(i));
   assert.equal(result.outcome, "content_filter");
@@ -140,7 +147,7 @@ test("runner: content_filter outcome is returned without retry", async () => {
 
 test("runner: aborted when caller signal is fired", async () => {
   // Return an "aborted" error from the provider.
-  fake.queue.push({ ok: false, durationMs: 3, error: { kind: "aborted", retryable: false, message: "aborted" } });
+  fake.queue.push(terminalError({ kind: "aborted", retryable: false, message: "aborted" }, 3));
   const controller = new AbortController();
   controller.abort();
   const result = await runAiRequest(
@@ -208,7 +215,7 @@ test("runner: terminal error after exhausting retries (maxRetries=2 → 3 attemp
 });
 
 test("runner: non-retryable auth error → immediate terminal error, no retries", async () => {
-  fake.queue.push({ ok: false, durationMs: 5, error: { kind: "auth", retryable: false, status: 401, message: "401" } });
+  fake.queue.push(terminalError({ kind: "auth", retryable: false, status: 401, message: "401" }));
   const retryCalls: unknown[] = [];
   const result = await runAiRequest(
     fake,
@@ -247,7 +254,7 @@ test("runner: maxRetries=0 never retries; first failure is terminal", async () =
 test("runner: unconfigured provider chat returns error outcome", async () => {
   fake.configured = false;
   // Provider queue returns a graceful error (as a real unconfigured provider would).
-  fake.queue.push({ ok: false, durationMs: 0, error: { kind: "unconfigured", retryable: false, message: "not configured" } });
+  fake.queue.push(terminalError({ kind: "unconfigured", retryable: false, message: "not configured" }, 0));
   const result = await runAiRequest(fake, [{ role: "user", content: "hi" }], { ...BASE_OPTS, maxRetries: 0 });
   assert.equal(result.outcome, "error");
   if (result.outcome !== "error") throw new Error("narrowing");

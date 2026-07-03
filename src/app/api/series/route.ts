@@ -13,6 +13,10 @@ import { listPublicSeriesForUser } from "@/lib/engagement/series";
  * user. Unauthenticated requests are rejected with 401 by the handler wrapper.
  */
 export const GET = createHandler({}, async ({ session }) => {
-  const series = await listPublicSeriesForUser(session.user.id);
-  return NextResponse.json({ series });
+  return publicSeriesResponse(session.user.id);
 });
+
+async function publicSeriesResponse(userId: string): Promise<NextResponse> {
+  const series = await listPublicSeriesForUser(userId);
+  return NextResponse.json({ series });
+}

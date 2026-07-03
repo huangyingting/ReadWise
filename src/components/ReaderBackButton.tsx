@@ -6,6 +6,20 @@ import { ArrowLeft } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { READER_REFERRER_KEY } from "@/lib/reader-referrer";
 
+interface StoredReaderReferrer {
+  href: string;
+  label?: string;
+}
+
+function isStoredReaderReferrer(value: unknown): value is StoredReaderReferrer {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "href" in value &&
+    typeof value.href === "string"
+  );
+}
+
 /**
  * Back button in the reader that returns the user to the listing they came from.
  * Reads a referrer URL set in sessionStorage by ArticleCardView (or any listing
@@ -20,13 +34,8 @@ export default function ReaderBackButton() {
       const raw = sessionStorage.getItem(READER_REFERRER_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as unknown;
-        if (
-          parsed &&
-          typeof parsed === "object" &&
-          "href" in parsed &&
-          typeof (parsed as { href: unknown }).href === "string"
-        ) {
-          const { href: storedHref, label: storedLabel } = parsed as { href: string; label?: string };
+        if (isStoredReaderReferrer(parsed)) {
+          const { href: storedHref, label: storedLabel } = parsed;
           setHref(storedHref);
           setLabel(storedLabel ?? "Back");
         }

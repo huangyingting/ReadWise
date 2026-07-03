@@ -5,10 +5,15 @@ import { getProgressSummaries } from "@/lib/engagement/progress";
 
 /** Cap to keep a single batch request bounded. */
 const MAX_IDS = 200;
+const MAX_ARTICLE_ID_LENGTH = 200;
 
 const bodySchema = object({
-  ids: array(string({ min: 1, max: 200 }), { max: MAX_IDS }),
+  ids: array(string({ min: 1, max: MAX_ARTICLE_ID_LENGTH }), { max: MAX_IDS }),
 });
+
+function uniqueBoundedIds(ids: string[]): string[] {
+  return Array.from(new Set(ids)).slice(0, MAX_IDS);
+}
 
 /**
  * Returns reading progress for a set of article ids in a single request so
@@ -16,7 +21,7 @@ const bodySchema = object({
  * Body: `{ ids: string[] }` -> `{ progress: Record<id, {percent, completed}> }`.
  */
 export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
-  const ids = Array.from(new Set(body.ids)).slice(0, MAX_IDS);
+  const ids = uniqueBoundedIds(body.ids);
   const progress = await getProgressSummaries(session.user.id, ids);
   return NextResponse.json({ progress });
 });

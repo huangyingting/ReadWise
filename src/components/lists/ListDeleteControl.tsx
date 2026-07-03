@@ -12,9 +12,13 @@ import { cn } from "@/lib/cn";
 import { useReadingListMutations } from "@/hooks/useReadingListMutations";
 import ConfirmAction from "@/components/ConfirmAction";
 
+type TriggerVariant = "danger" | "danger-ghost" | "secondary" | "outline";
+type ControlSize = "sm" | "md";
+
 const DEFAULT_TRIGGER_LABEL = "Delete";
-const DEFAULT_TRIGGER_VARIANT = "outline";
-const DEFAULT_SIZE = "sm";
+const DEFAULT_TRIGGER_VARIANT: TriggerVariant = "outline";
+const DEFAULT_SIZE: ControlSize = "sm";
+const ROOT_CLASS_NAME = "inline-flex flex-col items-start gap-[var(--space-1)]";
 
 interface ListDeleteControlProps {
   listId: string;
@@ -23,8 +27,8 @@ interface ListDeleteControlProps {
   /** Label on the trigger button. Defaults to "Delete". */
   triggerLabel?: string;
   /** Variant for the trigger button. Defaults to "outline". */
-  triggerVariant?: "danger" | "danger-ghost" | "secondary" | "outline";
-  size?: "sm" | "md";
+  triggerVariant?: TriggerVariant;
+  size?: ControlSize;
   /** className forwarded to ConfirmAction (e.g. "!p-0"). */
   confirmClassName?: string;
   /** className on the outer wrapper element. */
@@ -33,6 +37,14 @@ interface ListDeleteControlProps {
 
 function getConfirmMessage(listName: string) {
   return `Delete "${listName}"? Saved articles stay in your library; only this list is removed.`;
+}
+
+function DeleteErrorMessage({ message }: { message: string }) {
+  return (
+    <p role="alert" className="text-[length:var(--text-xs)] text-danger-text m-0">
+      {message}
+    </p>
+  );
 }
 
 export function ListDeleteControl({
@@ -53,7 +65,7 @@ export function ListDeleteControl({
   }
 
   return (
-    <div className={cn("inline-flex flex-col items-start gap-[var(--space-1)]", className)}>
+    <div className={cn(ROOT_CLASS_NAME, className)}>
       <ConfirmAction
         triggerLabel={triggerLabel}
         triggerVariant={triggerVariant}
@@ -66,11 +78,7 @@ export function ListDeleteControl({
         onConfirm={handleConfirm}
         className={confirmClassName}
       />
-      {deleteMut.error ? (
-        <p role="alert" className="text-[length:var(--text-xs)] text-danger-text m-0">
-          {deleteMut.error}
-        </p>
-      ) : null}
+      {deleteMut.error ? <DeleteErrorMessage message={deleteMut.error} /> : null}
     </div>
   );
 }

@@ -18,6 +18,10 @@ beforeEach(() => {
   store.clear();
 });
 
+function secondsAgo(seconds: number): Date {
+  return new Date(Date.now() - seconds * 1000);
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -57,7 +61,7 @@ test("enqueue with a dedupeKey re-enqueues a terminal job", async () => {
 
 test("claimNextJob returns a runnable job and marks it locked", async () => {
   const { claimNextJob, JobStatus } = await import("@/lib/jobs");
-  seed({ id: "j1", status: JobStatus.PENDING, runAfter: new Date(Date.now() - 1000) });
+  seed({ id: "j1", status: JobStatus.PENDING, runAfter: secondsAgo(1) });
   const claimed = await claimNextJob("worker-A");
   assert.ok(claimed);
   assert.equal(claimed!.id, "j1");
@@ -74,16 +78,16 @@ test("claimNextJob skips jobs whose runAfter is in the future", async () => {
 
 test("claimNextJob honors priority then runAfter ordering", async () => {
   const { claimNextJob } = await import("@/lib/jobs");
-  const past = new Date(Date.now() - 10_000);
+  const past = secondsAgo(10);
   seed({ id: "low", priority: 0, runAfter: past });
-  seed({ id: "high", priority: 5, runAfter: new Date(Date.now() - 5_000) });
+  seed({ id: "high", priority: 5, runAfter: secondsAgo(5) });
   const claimed = await claimNextJob("worker-A");
   assert.equal(claimed!.id, "high");
 });
 
 test("two concurrent claims cannot claim the same job", async () => {
   const { claimNextJob, JobStatus } = await import("@/lib/jobs");
-  seed({ id: "only", status: JobStatus.PENDING, runAfter: new Date(Date.now() - 1000) });
+  seed({ id: "only", status: JobStatus.PENDING, runAfter: secondsAgo(1) });
   const [a, b] = await Promise.all([claimNextJob("worker-A"), claimNextJob("worker-B")]);
   const winners = [a, b].filter((j) => j !== null);
   assert.equal(winners.length, 1, "exactly one worker claims the job");
@@ -93,7 +97,7 @@ test("two concurrent claims cannot claim the same job", async () => {
 
 test("sequential claims hand out distinct jobs", async () => {
   const { claimNextJob } = await import("@/lib/jobs");
-  const past = new Date(Date.now() - 1000);
+  const past = secondsAgo(1);
   seed({ id: "j1", runAfter: past });
   seed({ id: "j2", runAfter: past });
   const first = await claimNextJob("worker-A");
@@ -104,7 +108,7 @@ test("sequential claims hand out distinct jobs", async () => {
 
 test("transient failure increments attempts and schedules a backoff retry", async () => {
   const { failJob, JobStatus } = await import("@/lib/jobs");
-  const before = new Date(Date.now() - 1000);
+  const before = secondsAgo(1);
   seed({ id: "j1", status: JobStatus.RUNNING, attempts: 0, maxAttempts: 5, runAfter: before, lockedBy: "w" });
   const now = new Date();
   const updated = await failJob("j1", new Error("provider timeout"), { now });
@@ -219,7 +223,7 @@ test("countJobsByStatus aggregates the queue", async () => {
 
 test("heartbeatJob refreshes the lock only for the owning worker", async () => {
   const { heartbeatJob } = await import("@/lib/jobs");
-  const oldLock = new Date(Date.now() - 30_000);
+  const oldLock = secondsAgo(30);
   seed({ id: "j1", lockedBy: "worker-A", lockedAt: oldLock });
   assert.equal(await heartbeatJob("j1", "worker-B"), false, "non-owner cannot heartbeat");
   assert.equal(await heartbeatJob("j1", "worker-A"), true);

@@ -81,9 +81,17 @@ beforeEach(() => {
   deletedKeys = [];
 });
 
-test("AzureBlobMediaStorage supports account-key auth and custom extensions", async () => {
+async function createAzureStorage(
+  options: ConstructorParameters<
+    (typeof import("@/lib/storage/azure"))["AzureBlobMediaStorage"]
+  >[0],
+) {
   const { AzureBlobMediaStorage } = await import("@/lib/storage/azure");
-  const storage = new AzureBlobMediaStorage({
+  return new AzureBlobMediaStorage(options);
+}
+
+test("AzureBlobMediaStorage supports account-key auth and custom extensions", async () => {
+  const storage = await createAzureStorage({
     accountName: "account",
     accountKey: "test-key",
     container: "media",
@@ -106,8 +114,7 @@ test("AzureBlobMediaStorage supports account-key auth and custom extensions", as
 });
 
 test("AzureBlobMediaStorage downloads chunks and degrades on read/delete/container failures", async () => {
-  const { AzureBlobMediaStorage } = await import("@/lib/storage/azure");
-  const storage = new AzureBlobMediaStorage({
+  const storage = await createAzureStorage({
     connectionString: "UseDevelopmentStorage=true",
     container: "media",
   });

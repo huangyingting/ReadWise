@@ -11,6 +11,22 @@ const assignBody = object({
   instructions: optional(string({ max: 2000 })),
 });
 
+async function ensureArticleExists(articleId: string) {
+  const article = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { id: true },
+  });
+  if (!article) throw new ApiError(404, "Article not found");
+}
+
+function parseOptionalDueDate(dueDate: string | undefined): Date | null {
+  if (!dueDate) return null;
+
+  const parsed = new Date(dueDate);
+  if (Number.isNaN(parsed.getTime())) throw new ApiError(400, "Invalid due date");
+  return parsed;
+}
+
 /**
  * Assigns an article (public OR org/private) to a classroom (RW-061). Requires
  * the caller to manage the classroom. Validates the article exists and that an
@@ -21,18 +37,8 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     await requireClassroomManageApi(session, params.id);
 
-    const article = await prisma.article.findUnique({
-      where: { id: body.articleId },
-      select: { id: true },
-    });
-    if (!article) throw new ApiError(404, "Article not found");
-
-    let dueDate: Date | null = null;
-    if (body.dueDate) {
-      const parsed = new Date(body.dueDate);
-      if (Number.isNaN(parsed.getTime())) throw new ApiError(400, "Invalid due date");
-      dueDate = parsed;
-    }
+    await ensureArticleExists(body.articleId);
+    const dueDate = parseOptionalDueDate(body.dueDate);
 
     const assignment = await assignArticle({
       classroomId: params.id,

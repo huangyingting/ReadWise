@@ -56,10 +56,14 @@ function word(p: Partial<WordRow> & { id: string }): WordRow {
   };
 }
 
-test("prioritizes due/never-reviewed words linked to the primary article", async () => {
+async function selectTargets(primaryArticleId: string | null) {
   const { selectTargetWordIds } = await import(
     "@/lib/engagement/today-session/target-words"
   );
+  return selectTargetWordIds({ userId: "u1", primaryArticleId, now: NOW });
+}
+
+test("prioritizes due/never-reviewed words linked to the primary article", async () => {
   words = [
     // Linked + due → should come first.
     word({ id: "linked-due", articleId: "a1", dueAt: past(2) }),
@@ -70,11 +74,7 @@ test("prioritizes due/never-reviewed words linked to the primary article", async
     // Not due, not linked → only a top-up candidate.
     word({ id: "future", articleId: "a2", dueAt: new Date(NOW.getTime() + 1e9) }),
   ];
-  const res = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: "a1",
-    now: NOW,
-  });
+  const res = await selectTargets("a1");
   assert.equal(res.targetSavedWordIds[0] === "linked-due" || res.targetSavedWordIds[0] === "linked-new", true);
   // Both linked words precede the unlinked due word.
   const idx = (id: string) => res.targetSavedWordIds.indexOf(id);
@@ -84,19 +84,12 @@ test("prioritizes due/never-reviewed words linked to the primary article", async
 });
 
 test("falls back to oldest-due words when none are article-linked", async () => {
-  const { selectTargetWordIds } = await import(
-    "@/lib/engagement/today-session/target-words"
-  );
   words = [
     word({ id: "due-old", dueAt: past(10) }),
     word({ id: "due-new", dueAt: past(1) }),
     word({ id: "not-due", dueAt: new Date(NOW.getTime() + 1e9) }),
   ];
-  const res = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: "a-none",
-    now: NOW,
-  });
+  const res = await selectTargets("a-none");
   // Oldest-due first.
   assert.equal(res.targetSavedWordIds[0], "due-old");
   assert.ok(
@@ -106,63 +99,35 @@ test("falls back to oldest-due words when none are article-linked", async () => 
 });
 
 test("caps selection at the max target count", async () => {
-  const { selectTargetWordIds } = await import(
-    "@/lib/engagement/today-session/target-words"
-  );
   words = Array.from({ length: 12 }, (_, i) =>
     word({ id: `w${i}`, dueAt: past(i + 1) }),
   );
-  const res = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: null,
-    now: NOW,
-  });
+  const res = await selectTargets(null);
   assert.equal(res.targetSavedWordIds.length, 5);
   assert.equal(res.reviewTargetCount, 5);
 });
 
 test("returns an empty (valid) selection when there are no saved words", async () => {
-  const { selectTargetWordIds } = await import(
-    "@/lib/engagement/today-session/target-words"
-  );
   words = [];
-  const res = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: "a1",
-    now: NOW,
-  });
+  const res = await selectTargets("a1");
   assert.deepEqual(res.targetSavedWordIds, []);
   assert.equal(res.reviewTargetCount, 0);
 });
 
 test("is deterministic across repeated calls on the same state", async () => {
-  const { selectTargetWordIds } = await import(
-    "@/lib/engagement/today-session/target-words"
-  );
   words = [
     word({ id: "b", dueAt: past(3) }),
     word({ id: "a", dueAt: past(3) }), // same dueAt + createdAt → tie broken by id
     word({ id: "c", dueAt: past(1) }),
   ];
-  const first = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: null,
-    now: NOW,
-  });
-  const second = await selectTargetWordIds({
-    userId: "u1",
-    primaryArticleId: null,
-    now: NOW,
-  });
+  const first = await selectTargets(null);
+  const second = await selectTargets(null);
   assert.deepEqual(first.targetSavedWordIds, second.targetSavedWordIds);
 });
 
 test("privacy: query selects ids/ranking columns only — never word content", async () => {
-  const { selectTargetWordIds } = await import(
-    "@/lib/engagement/today-session/target-words"
-  );
   words = [word({ id: "w1", dueAt: past(1) })];
-  await selectTargetWordIds({ userId: "u1", primaryArticleId: null, now: NOW });
+  await selectTargets(null);
   assert.ok(lastSelect);
   // No content columns requested.
   for (const banned of ["word", "explanation", "example", "contextSentence"]) {

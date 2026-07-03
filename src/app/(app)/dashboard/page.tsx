@@ -11,62 +11,88 @@ import { DashboardForYouSection } from "@/app/(app)/dashboard/_sections/Dashboar
 import { DashboardBrowseCta } from "@/app/(app)/dashboard/_sections/DashboardBrowseCta";
 import { DashboardTodayCard } from "@/app/(app)/dashboard/_sections/DashboardTodayCard";
 
+type DashboardSearchParams = {
+  level?: string;
+};
+
+function resolveMaxLevel(levelParam?: string) {
+  return isDifficultyLevel(levelParam) ? levelParam : null;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
-  searchParams: Promise<{ level?: string }>;
+  searchParams: Promise<DashboardSearchParams>;
 }) {
   const session = await requireOnboardedSession("/dashboard");
   const { level: levelParam } = await searchParams;
-  const maxLevel = isDifficultyLevel(levelParam) ? levelParam : null;
+  const maxLevel = resolveMaxLevel(levelParam);
 
   const vm = await loadDashboardViewModel(session.user, maxLevel);
+  const {
+    user,
+    todaySummary,
+    isNewUser,
+    profile,
+    streak,
+    mastery,
+    dueCount,
+    inProgressEntries,
+    bookmarkedIds,
+    railIds,
+    hasTopics,
+    maxLevel: resolvedMaxLevel,
+    feedPage,
+    filteredArticles,
+    filteredHasMore,
+    feedProgress,
+    feedIds,
+  } = vm;
 
   return (
     <PageShell variant="listing">
       <PageHeader title="Dashboard" />
 
-      <DashboardIdentityCard user={vm.user} />
+      <DashboardIdentityCard user={user} />
 
       {/* Today card — secondary entry point to the daily workflow (hidden when
           the Today Session feature is disabled). */}
-      {vm.todaySummary && <DashboardTodayCard today={vm.todaySummary} />}
+      {todaySummary && <DashboardTodayCard today={todaySummary} />}
 
       {/* First-run welcome banner — shown once to new users (localStorage-gated client-side) */}
-      {vm.isNewUser && <DashboardWelcomeBanner />}
+      {isNewUser && <DashboardWelcomeBanner />}
 
       {/* Level progression recommendation — shown when confidence ≥ 0.6 */}
-      {vm.profile && (
+      {profile && (
         <div className="mt-[var(--space-5)]">
-          <LevelRecommendationBanner profile={vm.profile} />
+          <LevelRecommendationBanner profile={profile} />
         </div>
       )}
 
       <DashboardProgressBand
-        streak={vm.streak}
-        mastery={vm.mastery}
-        dueCount={vm.dueCount}
+        streak={streak}
+        mastery={mastery}
+        dueCount={dueCount}
       />
 
       <DashboardContinueReadingRail
-        inProgressEntries={vm.inProgressEntries}
-        bookmarkedIds={vm.bookmarkedIds}
-        railIds={vm.railIds}
+        inProgressEntries={inProgressEntries}
+        bookmarkedIds={bookmarkedIds}
+        railIds={railIds}
       />
 
       <DashboardForYouSection
-        hasTopics={vm.hasTopics}
-        maxLevel={vm.maxLevel}
-        feedPage={vm.feedPage}
-        filteredArticles={vm.filteredArticles}
-        filteredHasMore={vm.filteredHasMore}
-        feedProgress={vm.feedProgress}
-        bookmarkedIds={vm.bookmarkedIds}
-        feedIds={vm.feedIds}
+        hasTopics={hasTopics}
+        maxLevel={resolvedMaxLevel}
+        feedPage={feedPage}
+        filteredArticles={filteredArticles}
+        filteredHasMore={filteredHasMore}
+        feedProgress={feedProgress}
+        bookmarkedIds={bookmarkedIds}
+        feedIds={feedIds}
       />
 
       <DashboardBrowseCta />
     </PageShell>
   );
 }
-

@@ -16,6 +16,7 @@ const DEV_WATCH_IGNORES = [
   "**/backups/**",
   "**/.media/**",
 ];
+const STANDALONE_OUTPUT_CONFIG: Pick<NextConfig, "output"> = { output: "standalone" };
 
 // Baseline HTTP security headers applied to every route (US-024).
 // Policy is defined in src/lib/security/headers.ts and reused here.
@@ -25,7 +26,7 @@ const nextConfig: NextConfig = {
   // Produce a self-contained `.next/standalone` directory for Docker deploys.
   // Gated to production so local `npm run dev` doesn't emit the standalone
   // artefact (which is only needed by the Dockerfile / container runtime).
-  ...(isProduction ? { output: "standalone" } : {}),
+  ...(isProduction ? STANDALONE_OUTPUT_CONFIG : {}),
   // Keep the OpenTelemetry Node SDK out of the webpack bundle (RW-032). It is
   // only ever loaded from `src/instrumentation.ts` in the Node runtime, uses
   // native require-in-the-middle instrumentation, and pulls OPTIONAL exporters

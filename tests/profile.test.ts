@@ -3,6 +3,12 @@ import assert from "node:assert/strict";
 import { parseProfileInput, parseTopics } from "@/features/profile-preferences/schema";
 import { isOnboarded } from "@/features/profile-preferences/repository";
 
+function assertValidDailyGoal(dailyGoal: number): void {
+  const result = parseProfileInput({ englishLevel: "B1", dailyGoal });
+  assert.equal(result.ok, true);
+  if (result.ok) assert.equal(result.value.dailyGoal, dailyGoal);
+}
+
 test("parseProfileInput requires a valid English level", () => {
   assert.equal(parseProfileInput({}).ok, false);
   assert.equal(parseProfileInput({ englishLevel: "Z9" }).ok, false);
@@ -71,17 +77,9 @@ test("isOnboarded checks completedAt", () => {
 });
 
 test("parseProfileInput accepts valid dailyGoal values", () => {
-  const r1 = parseProfileInput({ englishLevel: "B1", dailyGoal: 1 });
-  assert.equal(r1.ok, true);
-  if (r1.ok) assert.equal(r1.value.dailyGoal, 1);
-
-  const r2 = parseProfileInput({ englishLevel: "B1", dailyGoal: 5 });
-  assert.equal(r2.ok, true);
-  if (r2.ok) assert.equal(r2.value.dailyGoal, 5);
-
-  const r3 = parseProfileInput({ englishLevel: "B1", dailyGoal: 10 });
-  assert.equal(r3.ok, true);
-  if (r3.ok) assert.equal(r3.value.dailyGoal, 10);
+  for (const dailyGoal of [1, 5, 10]) {
+    assertValidDailyGoal(dailyGoal);
+  }
 });
 
 test("parseProfileInput rejects out-of-range and non-integer dailyGoal", () => {

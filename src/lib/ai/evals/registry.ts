@@ -11,15 +11,17 @@ import { grammarEvaluator } from "@/lib/ai/evals/evaluators/grammar";
 import { tutorEvaluator } from "@/lib/ai/evals/evaluators/tutor";
 import { safetyEvaluator } from "@/lib/ai/evals/evaluators/safety";
 
+const evaluatorEntries = [
+  ["translation", translationEvaluator],
+  ["vocabulary", vocabularyEvaluator],
+  ["quiz", quizEvaluator],
+  ["grammar", grammarEvaluator],
+  ["tutor", tutorEvaluator],
+  ["safety", safetyEvaluator],
+] as const satisfies readonly (readonly [string, FeatureEvaluator])[];
+
 /** Evaluators keyed by feature. Every curated dataset must have one. */
-export const EVALUATORS: Record<string, FeatureEvaluator> = {
-  translation: translationEvaluator,
-  vocabulary: vocabularyEvaluator,
-  quiz: quizEvaluator,
-  grammar: grammarEvaluator,
-  tutor: tutorEvaluator,
-  safety: safetyEvaluator,
-};
+export const EVALUATORS: Record<string, FeatureEvaluator> = Object.fromEntries(evaluatorEntries);
 
 /** Features that have an evaluator (and therefore can be evaluated). */
 export const EVALUABLE_FEATURES = Object.keys(EVALUATORS);

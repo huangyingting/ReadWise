@@ -29,9 +29,11 @@ const stackVariants = cva("flex flex-col", {
   defaultVariants: { gap: "4", align: "stretch" },
 });
 
+type StackVariantProps = VariantProps<typeof stackVariants>;
+
 export interface StackProps
   extends Omit<React.HTMLAttributes<HTMLDivElement>, "color">,
-    VariantProps<typeof stackVariants> {}
+    StackVariantProps {}
 
 /**
  * Token-driven vertical layout helper.

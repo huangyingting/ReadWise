@@ -6,6 +6,8 @@ import Link from "next/link";
 import { Card } from "@/components/ui/Card";
 import { buttonVariants } from "@/components/ui";
 
+const browseButtonClassName = buttonVariants({ variant: "secondary", size: "md" });
+
 export function DashboardBrowseCta() {
   return (
     <section className="mt-[var(--space-7)]">
@@ -17,10 +19,7 @@ export function DashboardBrowseCta() {
               Explore every category and your topic Picks.
             </p>
           </div>
-          <Link
-            href="/browse"
-            className={buttonVariants({ variant: "secondary", size: "md" })}
-          >
+          <Link href="/browse" className={browseButtonClassName}>
             Browse by topic <span aria-hidden="true">→</span>
           </Link>
         </div>

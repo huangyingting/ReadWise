@@ -1,6 +1,6 @@
 import { TrendingUp } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { EmptyState, PageHeader, PageShell } from "@/components/ui";
+import { EmptyState, PageHeader, PageShell, Stack } from "@/components/ui";
 import { progress } from "@/lib/copy/pages";
 import { loadProgressViewModel } from "@/app/(app)/progress/view-model";
 import { ProgressOverviewSection } from "@/app/(app)/progress/_sections/ProgressOverviewSection";
@@ -14,15 +14,20 @@ import { LevelTimelineSection } from "@/app/(app)/progress/_sections/LevelTimeli
 
 export const metadata = progress;
 
+function shouldShowEmptyState(vm: Awaited<ReturnType<typeof loadProgressViewModel>>) {
+  return !vm.hasAnyData && !vm.currentLevel;
+}
+
 export default async function ProgressPage() {
   const session = await requireOnboardedSession("/progress");
   const vm = await loadProgressViewModel(session.user.id);
+  const showEmptyState = shouldShowEmptyState(vm);
 
   return (
     <PageShell variant="listing">
       <PageHeader title="My Progress" />
 
-      {!vm.hasAnyData && !vm.currentLevel ? (
+      {showEmptyState ? (
         <EmptyState
           icon={TrendingUp}
           title="Nothing to show yet"
@@ -30,8 +35,7 @@ export default async function ProgressPage() {
           action={{ label: "Browse articles", href: "/browse" }}
         />
       ) : (
-        <div className="flex flex-col gap-[var(--space-7)]">
-
+        <Stack gap="7">
           {vm.hasAnyData && (
             <>
               <ProgressOverviewSection analytics={vm.analytics} speedStats={vm.speedStats} />
@@ -50,11 +54,9 @@ export default async function ProgressPage() {
               <LevelDistributionSection completedByLevel={vm.analytics.completedByLevel} />
             </>
           )}
-
           <HeatmapSection heatmapCells={vm.heatmapCells} />
           <LevelTimelineSection levelHistory={vm.levelHistory} currentLevel={vm.currentLevel} />
-
-        </div>
+        </Stack>
       )}
     </PageShell>
   );

@@ -62,11 +62,15 @@ function ctx(id = "a1") {
   return withParams({ id });
 }
 
-test("POST translate-sentence returns translation and fallback flag", async () => {
+async function postTranslate(body: unknown, id?: string): Promise<Response> {
   const { POST } = (await import(
     "@/app/api/reader/[id]/translate-sentence/route"
   )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "Hello world", lang: "es" }), ctx());
+  return POST(jsonReq(body), ctx(id));
+}
+
+test("POST translate-sentence returns translation and fallback flag", async () => {
+  const res = await postTranslate({ text: "Hello world", lang: "es" });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.translation, "Hola mundo");
@@ -76,10 +80,7 @@ test("POST translate-sentence returns translation and fallback flag", async () =
 
 test("POST translate-sentence returns fallback:true when AI unavailable", async () => {
   translateSentenceResult = { translation: null, fallback: true };
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "Hello world", lang: "es" }), ctx());
+  const res = await postTranslate({ text: "Hello world", lang: "es" });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.fallback, true);
@@ -88,52 +89,34 @@ test("POST translate-sentence returns fallback:true when AI unavailable", async 
 
 test("POST translate-sentence returns 404 when article not found", async () => {
   translateSentenceResult = null;
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "Hello world", lang: "es" }), ctx());
+  const res = await postTranslate({ text: "Hello world", lang: "es" });
   assert.equal(res.status, 404);
 });
 
 test("POST translate-sentence returns 400 for unsupported language", async () => {
   supportedLang = false;
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "Hello world", lang: "zz" }), ctx());
+  const res = await postTranslate({ text: "Hello world", lang: "zz" });
   assert.equal(res.status, 400);
 });
 
 test("POST translate-sentence returns 400 for empty text", async () => {
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "", lang: "es" }), ctx());
+  const res = await postTranslate({ text: "", lang: "es" });
   assert.equal(res.status, 400);
 });
 
 test("POST translate-sentence returns 400 for text exceeding 1000 chars", async () => {
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
   const longText = "a".repeat(1001);
-  const res = await POST(jsonReq({ text: longText, lang: "es" }), ctx());
+  const res = await postTranslate({ text: longText, lang: "es" });
   assert.equal(res.status, 400);
 });
 
 test("POST translate-sentence returns 400 when text is missing", async () => {
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ lang: "es" }), ctx());
+  const res = await postTranslate({ lang: "es" });
   assert.equal(res.status, 400);
 });
 
 test("POST translate-sentence returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/translate-sentence/route"
-  )) as { POST: RouteHandler };
-  const res = await POST(jsonReq({ text: "Hello world", lang: "es" }), ctx());
+  const res = await postTranslate({ text: "Hello world", lang: "es" });
   assert.equal(res.status, 401);
 });

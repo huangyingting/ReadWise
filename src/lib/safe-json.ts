@@ -7,11 +7,25 @@
  * arbitrary HTML/JS. This follows the pattern used by Next.js internally and
  * recommended by Google's JSON-LD guidelines.
  */
+const UNSAFE_JSON_CHARS = /[<>&\u2028\u2029]/g;
+
+function escapeJsonChar(char: string): string {
+  switch (char) {
+    case "<":
+      return "\\u003c";
+    case ">":
+      return "\\u003e";
+    case "&":
+      return "\\u0026";
+    case "\u2028":
+      return "\\u2028";
+    case "\u2029":
+      return "\\u2029";
+    default:
+      return char;
+  }
+}
+
 export function safeJsonStringify(value: unknown): string {
-  return JSON.stringify(value)
-    .replace(/</g, "\\u003c")
-    .replace(/>/g, "\\u003e")
-    .replace(/&/g, "\\u0026")
-    .replace(/\u2028/g, "\\u2028")
-    .replace(/\u2029/g, "\\u2029");
+  return JSON.stringify(value).replace(UNSAFE_JSON_CHARS, escapeJsonChar);
 }

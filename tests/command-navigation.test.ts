@@ -15,11 +15,21 @@ import assert from "node:assert/strict";
 
 import { nextNavIndex } from "@/components/command/command-navigation";
 
+function assertNavCases(
+  cases: Array<[current: number, len: number, key: Parameters<typeof nextNavIndex>[2], expected: number]>,
+) {
+  for (const [current, len, key, expected] of cases) {
+    assert.equal(nextNavIndex(current, len, key), expected);
+  }
+}
+
 // ---- ArrowDown -----------------------------------------------------------
 
 test("ArrowDown - advances to next index", () => {
-  assert.equal(nextNavIndex(0, 3, "ArrowDown"), 1);
-  assert.equal(nextNavIndex(1, 3, "ArrowDown"), 2);
+  assertNavCases([
+    [0, 3, "ArrowDown", 1],
+    [1, 3, "ArrowDown", 2],
+  ]);
 });
 
 test("ArrowDown - wraps from last to first (wraparound)", () => {
@@ -37,8 +47,10 @@ test("ArrowDown - returns 0 when list is empty", () => {
 // ---- ArrowUp -------------------------------------------------------------
 
 test("ArrowUp - moves to previous index", () => {
-  assert.equal(nextNavIndex(2, 3, "ArrowUp"), 1);
-  assert.equal(nextNavIndex(1, 3, "ArrowUp"), 0);
+  assertNavCases([
+    [2, 3, "ArrowUp", 1],
+    [1, 3, "ArrowUp", 0],
+  ]);
 });
 
 test("ArrowUp - wraps from first to last (wraparound)", () => {
@@ -52,8 +64,10 @@ test("ArrowUp - returns 0 when list is empty", () => {
 // ---- Home ----------------------------------------------------------------
 
 test("Home - always returns 0", () => {
-  assert.equal(nextNavIndex(5, 10, "Home"), 0);
-  assert.equal(nextNavIndex(0, 10, "Home"), 0);
+  assertNavCases([
+    [5, 10, "Home", 0],
+    [0, 10, "Home", 0],
+  ]);
 });
 
 test("Home - returns 0 when list is empty", () => {
@@ -63,8 +77,10 @@ test("Home - returns 0 when list is empty", () => {
 // ---- End -----------------------------------------------------------------
 
 test("End - returns last index (len - 1)", () => {
-  assert.equal(nextNavIndex(0, 5, "End"), 4);
-  assert.equal(nextNavIndex(3, 5, "End"), 4);
+  assertNavCases([
+    [0, 5, "End", 4],
+    [3, 5, "End", 4],
+  ]);
 });
 
 test("End - returns 0 when list is empty", () => {
@@ -93,8 +109,10 @@ test("single item - End returns 0", () => {
 
 test("large list - ArrowDown wraps correctly", () => {
   const len = 100;
-  assert.equal(nextNavIndex(99, len, "ArrowDown"), 0);
-  assert.equal(nextNavIndex(50, len, "ArrowDown"), 51);
+  assertNavCases([
+    [99, len, "ArrowDown", 0],
+    [50, len, "ArrowDown", 51],
+  ]);
 });
 
 test("large list - End returns last index", () => {

@@ -8,6 +8,8 @@ import { getMetricsSnapshot, resetMetrics } from "@/lib/metrics";
 import { type RouteHandler } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
+type ApiHandlerModule = typeof import("@/lib/api-handler");
+
 // ---- mutable auth state --------------------------------------------------
 let authState: AuthState = "ok";
 
@@ -27,11 +29,31 @@ beforeEach(() => {
 
 // ---- unhandled error / production guard ----------------------------------
 
-test("plain Error returns generic 500 when NODE_ENV=production", async () => {
+async function loadApiHandler(): Promise<ApiHandlerModule> {
+  return import("@/lib/api-handler") as Promise<ApiHandlerModule>;
+}
+
+async function createOkPublicHandler(): Promise<RouteHandler> {
+  const { createPublicHandler } = await loadApiHandler();
+  return createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+}
+
+async function withNodeEnv<T>(
+  value: string,
+  callback: () => Promise<T>,
+): Promise<T> {
   const prev = process.env.NODE_ENV;
-  (process.env as Record<string, string | undefined>).NODE_ENV = "production";
+  (process.env as Record<string, string | undefined>).NODE_ENV = value;
   try {
-    const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+    return await callback();
+  } finally {
+    (process.env as Record<string, string | undefined>).NODE_ENV = prev;
+  }
+}
+
+test("plain Error returns generic 500 when NODE_ENV=production", async () => {
+  await withNodeEnv("production", async () => {
+    const { createPublicHandler } = await loadApiHandler();
     const handler = createPublicHandler({}, async () => {
       throw new Error("internal secret that must never leak");
     }) as RouteHandler;
@@ -40,16 +62,12 @@ test("plain Error returns generic 500 when NODE_ENV=production", async () => {
     const body = await res.json();
     assert.equal(body.error, "Internal server error");
     assert.notEqual(body.error, "internal secret that must never leak");
-  } finally {
-    (process.env as Record<string, string | undefined>).NODE_ENV = prev;
-  }
+  });
 });
 
 test("plain Error surfaces actual message when NODE_ENV!=production", async () => {
-  const prev = process.env.NODE_ENV;
-  (process.env as Record<string, string | undefined>).NODE_ENV = "development";
-  try {
-    const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  await withNodeEnv("development", async () => {
+    const { createPublicHandler } = await loadApiHandler();
     const handler = createPublicHandler({}, async () => {
       throw new Error("dev-visible error message");
     }) as RouteHandler;
@@ -57,15 +75,13 @@ test("plain Error surfaces actual message when NODE_ENV!=production", async () =
     assert.equal(res.status, 500);
     const body = await res.json();
     assert.equal(body.error, "dev-visible error message");
-  } finally {
-    (process.env as Record<string, string | undefined>).NODE_ENV = prev;
-  }
+  });
 });
 
 // ---- ApiError -----------------------------------------------------------
 
 test("ApiError surfaces its status and message", async () => {
-  const { createPublicHandler, ApiError } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createPublicHandler, ApiError } = await loadApiHandler();
   const handler = createPublicHandler({}, async () => {
     throw new ApiError(404, "resource not found");
   }) as RouteHandler;
@@ -76,7 +92,7 @@ test("ApiError surfaces its status and message", async () => {
 });
 
 test("ApiError(409) surfaces correct status", async () => {
-  const { createPublicHandler, ApiError } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createPublicHandler, ApiError } = await loadApiHandler();
   const handler = createPublicHandler({}, async () => {
     throw new ApiError(409, "conflict");
   }) as RouteHandler;
@@ -88,7 +104,7 @@ test("ApiError(409) surfaces correct status", async () => {
 // ---- validation failure --------------------------------------------------
 
 test("body validation failure returns 400", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createPublicHandler } = await loadApiHandler();
   const handler = createPublicHandler(
     { body: object({ word: nonEmptyString() }) },
     async () => NextResponse.json({ ok: true }),
@@ -106,7 +122,7 @@ test("body validation failure returns 400", async () => {
 });
 
 test("malformed JSON body returns 400", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createPublicHandler } = await loadApiHandler();
   const handler = createPublicHandler(
     { body: object({ x: nonEmptyString() }) },
     async () => NextResponse.json({ ok: true }),
@@ -122,10 +138,8 @@ test("malformed JSON body returns 400", async () => {
 });
 
 // ---- x-request-id header ------------------------------------------------
-
 test("successful response carries x-request-id header", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
-  const handler = createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+  const handler = await createOkPublicHandler();
   const res = await handler(new Request("http://test/api/test"));
   assert.equal(res.status, 200);
   const rid = res.headers.get("x-request-id");
@@ -133,7 +147,7 @@ test("successful response carries x-request-id header", async () => {
 });
 
 test("error response carries x-request-id header", async () => {
-  const { createPublicHandler, ApiError } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createPublicHandler, ApiError } = await loadApiHandler();
   const handler = createPublicHandler({}, async () => {
     throw new ApiError(422, "unprocessable");
   }) as RouteHandler;
@@ -144,8 +158,7 @@ test("error response carries x-request-id header", async () => {
 });
 
 test("valid inbound x-request-id UUID is echoed back", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
-  const handler = createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+  const handler = await createOkPublicHandler();
   const inboundId = "550e8400-e29b-41d4-a716-446655440000";
   const res = await handler(
     new Request("http://test/api/test", {
@@ -156,8 +169,7 @@ test("valid inbound x-request-id UUID is echoed back", async () => {
 });
 
 test("invalid inbound x-request-id is replaced with a fresh UUID", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
-  const handler = createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+  const handler = await createOkPublicHandler();
   const res = await handler(
     new Request("http://test/api/test", {
       headers: { "x-request-id": "not-a-uuid" },
@@ -172,15 +184,14 @@ test("invalid inbound x-request-id is replaced with a fresh UUID", async () => {
 
 test("createHandler returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { createHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
+  const { createHandler } = await loadApiHandler();
   const handler = createHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
   const res = await handler(new Request("http://test/api/test"));
   assert.equal(res.status, 401);
 });
 
 test("createPublicHandler records API metrics with sanitized route group", async () => {
-  const { createPublicHandler } = (await import("@/lib/api-handler")) as typeof import("@/lib/api-handler");
-  const handler = createPublicHandler({}, async () => NextResponse.json({ ok: true })) as RouteHandler;
+  const handler = await createOkPublicHandler();
   const res = await handler(new Request("http://test/api/reader/raw-article-id-123456/progress"));
   assert.equal(res.status, 200);
 

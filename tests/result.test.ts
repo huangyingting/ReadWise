@@ -28,6 +28,19 @@ before(() => {
   });
 });
 
+async function assertDomainError(
+  importName: "notFound" | "validationError" | "conflict" | "forbidden" | "unavailable" | "unexpected",
+  args: [] | [string],
+  expected: { status: number; error: string },
+) {
+  const resultModule = await import("@/lib/result");
+  const factory = resultModule[importName] as (message?: string) => DomainResult;
+  const result = factory(...args);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, expected.status);
+  assert.equal(result.error, expected.error);
+}
+
 // ── Constructors ───────────────────────────────────────────────────────────
 
 test("ok() returns { ok: true } with no extra fields", async () => {
@@ -43,67 +56,44 @@ test("ok(data) merges data into the success shape", async () => {
 });
 
 test("notFound() returns 404 with default message", async () => {
-  const { notFound } = await import("@/lib/result");
-  const result = notFound();
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 404);
-  assert.equal(result.error, "Not found");
+  await assertDomainError("notFound", [], { status: 404, error: "Not found" });
 });
 
 test("notFound(message) uses the supplied message", async () => {
-  const { notFound } = await import("@/lib/result");
-  const result = notFound("List not found");
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 404);
-  assert.equal(result.error, "List not found");
+  await assertDomainError("notFound", ["List not found"], { status: 404, error: "List not found" });
 });
 
 test("validationError() returns 400", async () => {
-  const { validationError } = await import("@/lib/result");
-  const result = validationError("Title cannot be empty");
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 400);
-  assert.equal(result.error, "Title cannot be empty");
+  await assertDomainError("validationError", ["Title cannot be empty"], {
+    status: 400,
+    error: "Title cannot be empty",
+  });
 });
 
 test("conflict() returns 409", async () => {
-  const { conflict } = await import("@/lib/result");
-  const result = conflict("Cannot delete the default list");
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 409);
-  assert.equal(result.error, "Cannot delete the default list");
+  await assertDomainError("conflict", ["Cannot delete the default list"], {
+    status: 409,
+    error: "Cannot delete the default list",
+  });
 });
 
 test("forbidden() returns 403 with default message", async () => {
-  const { forbidden } = await import("@/lib/result");
-  const result = forbidden();
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 403);
-  assert.equal(result.error, "Forbidden");
+  await assertDomainError("forbidden", [], { status: 403, error: "Forbidden" });
 });
 
 test("forbidden(message) uses the supplied message", async () => {
-  const { forbidden } = await import("@/lib/result");
-  const result = forbidden("Not your resource");
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 403);
-  assert.equal(result.error, "Not your resource");
+  await assertDomainError("forbidden", ["Not your resource"], {
+    status: 403,
+    error: "Not your resource",
+  });
 });
 
 test("unavailable() returns 503 with default message", async () => {
-  const { unavailable } = await import("@/lib/result");
-  const result = unavailable();
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 503);
-  assert.equal(result.error, "Service unavailable");
+  await assertDomainError("unavailable", [], { status: 503, error: "Service unavailable" });
 });
 
 test("unexpected() returns 500 with default message", async () => {
-  const { unexpected } = await import("@/lib/result");
-  const result = unexpected();
-  assert.equal(result.ok, false);
-  assert.equal(result.status, 500);
-  assert.equal(result.error, "Unexpected error");
+  await assertDomainError("unexpected", [], { status: 500, error: "Unexpected error" });
 });
 
 // ── throwIfFailed ──────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/Button";
 
 type ErrorNoticeType = "mic-denied" | "no-device" | "error";
 
-type Props = {
+type ErrorNoticeProps = {
   type: ErrorNoticeType;
   errorMsg?: string | null;
   onRetry: () => void;
@@ -35,7 +35,7 @@ const COPY: Record<
   },
 };
 
-export function ErrorNotice({ type, errorMsg, onRetry }: Props) {
+export function ErrorNotice({ type, errorMsg, onRetry }: ErrorNoticeProps) {
   const { icon: Icon, title, body, btn } = COPY[type];
   const displayBody = type === "error" ? (errorMsg ?? body) : body;
 

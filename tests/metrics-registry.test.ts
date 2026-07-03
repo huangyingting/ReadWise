@@ -20,6 +20,12 @@ beforeEach(() => {
   resetMetrics();
 });
 
+function findBucket(buckets: { le: number; count: number }[], le: number) {
+  const bucket = buckets.find((b) => b.le === le);
+  assert.ok(bucket);
+  return bucket;
+}
+
 // ─── normalizeLabelValue ────────────────────────────────────────────────────
 
 test("normalizeLabelValue lowercases and strips unsafe chars", () => {
@@ -95,13 +101,11 @@ test("observeHistogram accumulates multiple observations correctly", () => {
   assert.equal(h.sum, 120);
 
   // le=10 bucket should have count 2 (both 10ms observations)
-  const le10 = h.buckets.find((b) => b.le === 10);
-  assert.ok(le10);
+  const le10 = findBucket(h.buckets, 10);
   assert.equal(le10.count, 2);
 
   // le=100 bucket should have count 3 (all three observations)
-  const le100 = h.buckets.find((b) => b.le === 100);
-  assert.ok(le100);
+  const le100 = findBucket(h.buckets, 100);
   assert.equal(le100.count, 3);
 });
 
@@ -115,8 +119,7 @@ test("observeHistogram clamps negative or non-finite values to 0", () => {
   assert.equal(h.count, 3);
   assert.equal(h.sum, 0); // all clamped to 0
   // le=10 bucket should have count 3 (all clamped to 0, which is ≤ 10)
-  const le10 = h.buckets.find((b) => b.le === 10);
-  assert.ok(le10);
+  const le10 = findBucket(h.buckets, 10);
   assert.equal(le10.count, 3);
 });
 

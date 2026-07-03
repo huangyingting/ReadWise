@@ -1,13 +1,15 @@
 import { cn } from "@/lib/cn";
 
+interface AdminPageHeaderProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
 /** Shared admin page `<h1>` with consistent display-font styling. */
 export function AdminPageHeader({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+}: AdminPageHeaderProps) {
   return (
     <h1
       className={cn(

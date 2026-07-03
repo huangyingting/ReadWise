@@ -5,6 +5,12 @@ import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Field } from "@/components/ui/Field";
 
+const COMPLETED_STATUS = "COMPLETED";
+
+function completionEndpoint(assignmentId: string) {
+  return `/api/assignments/${assignmentId}/completion`;
+}
+
 /**
  * Lets a student mark an assignment complete (RW-061). Posts the student's OWN
  * completion to `/api/assignments/[id]/completion` (the server takes the student
@@ -21,8 +27,8 @@ export default function CompleteAssignmentButton({
 
   async function complete() {
     await run(async () => {
-      await postJson(`/api/assignments/${assignmentId}/completion`, {
-        status: "COMPLETED",
+      await postJson(completionEndpoint(assignmentId), {
+        status: COMPLETED_STATUS,
       });
     }, { refreshOnSuccess: true });
   }

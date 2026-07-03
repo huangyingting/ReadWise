@@ -8,6 +8,22 @@ import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 const HINT_DISMISSED_KEY = STORAGE_KEYS.HINT_DISMISSED;
 
+function hasDismissedHint(): boolean {
+  try {
+    return Boolean(localStorage.getItem(HINT_DISMISSED_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function persistDismissedHint(): void {
+  try {
+    localStorage.setItem(HINT_DISMISSED_KEY, "1");
+  } catch {
+    // ignore
+  }
+}
+
 /**
  * One-shot dismissible word-lookup / reading hint.
  * Hidden once the user dismisses it — persists across sessions via localStorage.
@@ -16,23 +32,14 @@ export default function WordLookupHint() {
   const [visible, setVisible] = useState(false);
 
   useEffect(() => {
-    try {
-      if (!localStorage.getItem(HINT_DISMISSED_KEY)) {
-        setVisible(true);
-      }
-    } catch {
-      // localStorage unavailable — show hint once
+    if (!hasDismissedHint()) {
       setVisible(true);
     }
   }, []);
 
   function dismiss() {
     setVisible(false);
-    try {
-      localStorage.setItem(HINT_DISMISSED_KEY, "1");
-    } catch {
-      // ignore
-    }
+    persistDismissedHint();
   }
 
   if (!visible) return null;

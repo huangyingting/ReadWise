@@ -14,7 +14,11 @@
 import type { ReactNode } from "react";
 import { useReaderTools } from "./ReaderToolsProvider";
 
-export default function ReaderLayout({ children }: { children: ReactNode }) {
+interface ReaderLayoutProps {
+  children: ReactNode;
+}
+
+export default function ReaderLayout({ children }: ReaderLayoutProps) {
   const { open } = useReaderTools();
   return (
     <div className="reader-layout" data-tools-open={open ? "true" : "false"}>

@@ -20,8 +20,11 @@ export const ACTIVE_STATUSES: JobStatus[] = [
 /** Terminal statuses (no further automatic processing). */
 export const TERMINAL_STATUSES: JobStatus[] = [JobStatus.COMPLETED, JobStatus.DEAD_LETTER];
 
+const MINUTE_MS = 60 * 1000;
+const DEFAULT_LOCK_TTL_MINUTES = 10;
+
 /** Default lock lease (ms). A lock older than this is considered stale. */
-export const DEFAULT_LOCK_TTL_MS = 10 * 60 * 1000;
+export const DEFAULT_LOCK_TTL_MS = DEFAULT_LOCK_TTL_MINUTES * MINUTE_MS;
 
 export type ArticleJobPayload = {
   articleId: string;

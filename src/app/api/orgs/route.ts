@@ -8,6 +8,15 @@ const createOrgBody = object({
   slug: optional(string({ min: 1, max: 120 })),
 });
 
+type CreateOrgBody = {
+  name: string;
+  slug?: string;
+};
+
+function createOrganizationInput(body: CreateOrgBody) {
+  return { name: body.name, slug: body.slug };
+}
+
 /**
  * Creates an organization (RW-060). Any authenticated user may create one and
  * becomes its first OrgAdmin. This is additive: a user with no org keeps the
@@ -17,7 +26,7 @@ export const POST = createHandler(
   { body: createOrgBody },
   async ({ body, session }) => {
     const { organization, membership } = await createOrganization(
-      { name: body.name, slug: body.slug },
+      createOrganizationInput(body),
       session.user.id,
     );
     return NextResponse.json({ organization, membership }, { status: 201 });

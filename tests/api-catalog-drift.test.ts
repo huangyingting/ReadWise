@@ -38,6 +38,10 @@ function methodKey(r: RouteEntry, m: MethodEntry): string {
   return `${m.method} ${r.path}`;
 }
 
+function readCommittedCatalog(): ApiCatalog {
+  return JSON.parse(readFileSync(CATALOG_PATH, "utf8"));
+}
+
 // ── Tests ─────────────────────────────────────────────────────────────────
 
 test("docs/platform/api-catalog.json exists and is valid JSON", () => {
@@ -62,8 +66,7 @@ test("docs/platform/api-catalog.json exists and is valid JSON", () => {
 });
 
 test("api-catalog: committed catalog matches current route files (drift detection)", () => {
-  const raw = readFileSync(CATALOG_PATH, "utf8");
-  const committed: ApiCatalog = JSON.parse(raw);
+  const committed = readCommittedCatalog();
   const current = buildCatalog();
 
   const committedNorm = stripTimestamp(committed);
@@ -195,8 +198,7 @@ test("api-catalog: committed catalog matches current route files (drift detectio
 });
 
 test("api-catalog: all routes have at least one method handler", () => {
-  const raw = readFileSync(CATALOG_PATH, "utf8");
-  const catalog: ApiCatalog = JSON.parse(raw);
+  const catalog = readCommittedCatalog();
 
   const empty = catalog.routes.filter((r) => r.methods.length === 0).map((r) => r.path);
   assert.deepEqual(
@@ -207,8 +209,7 @@ test("api-catalog: all routes have at least one method handler", () => {
 });
 
 test("api-catalog: catalog route count matches reported routeCount field", () => {
-  const raw = readFileSync(CATALOG_PATH, "utf8");
-  const catalog: ApiCatalog = JSON.parse(raw);
+  const catalog = readCommittedCatalog();
 
   assert.equal(
     catalog.routes.length,
@@ -218,8 +219,7 @@ test("api-catalog: catalog route count matches reported routeCount field", () =>
 });
 
 test("api-catalog: catalog method count matches reported methodCount field", () => {
-  const raw = readFileSync(CATALOG_PATH, "utf8");
-  const catalog: ApiCatalog = JSON.parse(raw);
+  const catalog = readCommittedCatalog();
 
   const actual = catalog.routes.reduce((n, r) => n + r.methods.length, 0);
   assert.equal(
@@ -230,8 +230,7 @@ test("api-catalog: catalog method count matches reported methodCount field", () 
 });
 
 test("api-catalog: auth/[...nextauth] route is marked as nextauth response format", () => {
-  const raw = readFileSync(CATALOG_PATH, "utf8");
-  const catalog: ApiCatalog = JSON.parse(raw);
+  const catalog = readCommittedCatalog();
 
   const nextauthRoute = catalog.routes.find((r) => r.path.includes("nextauth"));
   assert.ok(

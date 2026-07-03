@@ -3,6 +3,8 @@
 import { StickyNote } from "lucide-react";
 import { SegmentError } from "@/components/route-states";
 
+const NOTES_ERROR_ACTION = { label: "Back to dashboard", href: "/dashboard" } as const;
+
 /** Error boundary for the notes & highlights page. */
 export default function NotesError({
   error,
@@ -19,7 +21,7 @@ export default function NotesError({
       icon={StickyNote}
       title="Could not load your notes"
       description="Something went wrong while loading your notes and highlights. Try again or browse articles."
-      secondaryAction={{ label: "Back to dashboard", href: "/dashboard" }}
+      secondaryAction={NOTES_ERROR_ACTION}
     />
   );
 }

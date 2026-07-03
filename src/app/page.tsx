@@ -13,14 +13,22 @@ import { landing } from "@/lib/copy/pages";
 
 export const metadata: Metadata = landing;
 
+function getLandingPrimaryAction(signedIn: boolean) {
+  return signedIn
+    ? {
+        href: "/dashboard",
+        label: <>Continue Reading <span aria-hidden="true">→</span></>,
+      }
+    : {
+        href: "/signin",
+        label: "Get Started — It's Free",
+      };
+}
+
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
   const signedIn = Boolean(session?.user);
-
-  const primaryHref = signedIn ? "/dashboard" : "/signin";
-  const primaryLabel = signedIn ? (
-    <>Continue Reading <span aria-hidden="true">→</span></>
-  ) : "Get Started — It's Free";
+  const primaryAction = getLandingPrimaryAction(signedIn);
 
   return (
     <>
@@ -28,15 +36,18 @@ export default async function HomePage() {
 
       <main id="main-content">
         <LandingHeroSection
-          primaryHref={primaryHref}
-          primaryLabel={primaryLabel}
+          primaryHref={primaryAction.href}
+          primaryLabel={primaryAction.label}
           signedIn={signedIn}
         />
         <LandingSourcesSection />
         <LandingFeaturesSection />
         <LandingHowItWorksSection />
         <LandingCefrSection />
-        <LandingCtaSection primaryHref={primaryHref} primaryLabel={primaryLabel} />
+        <LandingCtaSection
+          primaryHref={primaryAction.href}
+          primaryLabel={primaryAction.label}
+        />
       </main>
 
       <MarketingFooter />

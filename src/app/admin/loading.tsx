@@ -1,5 +1,23 @@
 import { Skeleton } from "@/components/ui/Skeleton";
 
+const ADMIN_SKELETON_WIDTHS = [140, 200, 80, 80] as const;
+const ADMIN_DATA_ROW_COUNT = 8;
+
+function AdminLoadingCells() {
+  return (
+    <>
+      {ADMIN_SKELETON_WIDTHS.map((w, i) => (
+        <Skeleton
+          key={i}
+          shape="block"
+          className="h-4 rounded-[var(--radius-sm)]"
+          style={{ width: `${w}px` }}
+        />
+      ))}
+    </>
+  );
+}
+
 /** Suspense fallback for admin section pages. */
 export default function AdminLoading() {
   return (
@@ -13,30 +31,16 @@ export default function AdminLoading() {
       <div className="border border-border rounded-[var(--radius-lg)] overflow-hidden">
         {/* Header row */}
         <div className="flex gap-[var(--space-4)] px-[var(--space-4)] py-[var(--space-3)] bg-bg-subtle border-b border-border">
-          {[140, 200, 80, 80].map((w, i) => (
-            <Skeleton
-              key={i}
-              shape="block"
-              className="h-4 rounded-[var(--radius-sm)]"
-              style={{ width: `${w}px` }}
-            />
-          ))}
+          <AdminLoadingCells />
         </div>
 
         {/* Data rows */}
-        {Array.from({ length: 8 }).map((_, i) => (
+        {Array.from({ length: ADMIN_DATA_ROW_COUNT }).map((_, i) => (
           <div
             key={i}
             className="flex gap-[var(--space-4)] px-[var(--space-4)] py-[var(--space-3)] border-b border-border last:border-b-0"
           >
-            {[140, 200, 80, 80].map((w, j) => (
-              <Skeleton
-                key={j}
-                shape="block"
-                className="h-4 rounded-[var(--radius-sm)]"
-                style={{ width: `${w}px` }}
-              />
-            ))}
+            <AdminLoadingCells />
           </div>
         ))}
       </div>

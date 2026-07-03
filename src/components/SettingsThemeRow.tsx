@@ -10,13 +10,16 @@ const THEME_OPTIONS: ReadonlyArray<SegmentedControlOption<Theme>> = [
   { value: "dark", label: "Dark", icon: Moon },
   { value: "system", label: "System", icon: Monitor },
 ];
+const DEFAULT_THEME: Theme = "system";
+const THEME_LABEL = "App theme";
+const THEME_DESCRIPTION = "Light, Dark, or follow your system preference.";
 
 /**
  * Inline theme picker for the Settings > Reading preferences card.
  * Three labeled buttons: Light / Dark / System.
  */
 export default function SettingsThemeRow() {
-  const [theme, setThemeState] = useState<Theme>("system");
+  const [theme, setThemeState] = useState<Theme>(DEFAULT_THEME);
 
   useEffect(() => {
     setThemeState(getThemePreference());
@@ -29,12 +32,14 @@ export default function SettingsThemeRow() {
 
   return (
     <div className="flex flex-col gap-[var(--space-2)]">
-      <span className="text-[length:var(--text-sm)] font-medium text-text">App theme</span>
+      <span className="text-[length:var(--text-sm)] font-medium text-text">
+        {THEME_LABEL}
+      </span>
       <p className="text-text-subtle text-[length:var(--text-xs)]">
-        Light, Dark, or follow your system preference.
+        {THEME_DESCRIPTION}
       </p>
       <SegmentedControl
-        label="App theme"
+        label={THEME_LABEL}
         value={theme}
         onChange={handleSelect}
         options={THEME_OPTIONS}

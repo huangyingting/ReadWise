@@ -63,6 +63,7 @@ function installFetchStub() {
 beforeEach(() => {
   fetchCalls = [];
   fetchImpl = async () => fakeResponse({ status: 200, body: '{"ok":true}' });
+  installFetchStub();
 });
 
 // Restore after all tests in this file (best-effort)
@@ -75,7 +76,6 @@ process.on("exit", () => {
 // ---------------------------------------------------------------------------
 
 test("providerFetch returns successful response for 200", async () => {
-  installFetchStub();
   fetchImpl = async () => fakeResponse({ status: 200, body: "hello" });
 
   const res = await providerFetch("https://api.example.com/v1/words/run");
@@ -86,7 +86,6 @@ test("providerFetch returns successful response for 200", async () => {
 });
 
 test("providerFetch returns non-OK response without retrying when retries=0", async () => {
-  installFetchStub();
   fetchImpl = async () => fakeResponse({ status: 404 });
 
   const res = await providerFetch("https://api.example.com/missing", {}, { retries: 0 });
@@ -96,7 +95,6 @@ test("providerFetch returns non-OK response without retrying when retries=0", as
 });
 
 test("providerFetch does not retry non-retryable status codes (400, 401, 403, 404)", async () => {
-  installFetchStub();
   for (const status of [400, 401, 403, 404]) {
     fetchCalls = [];
     fetchImpl = async () => fakeResponse({ status });
@@ -107,7 +105,6 @@ test("providerFetch does not retry non-retryable status codes (400, 401, 403, 40
 });
 
 test("providerFetch retries on 503 up to retries limit", async () => {
-  installFetchStub();
   let calls = 0;
   fetchImpl = async () => {
     calls++;
@@ -124,7 +121,6 @@ test("providerFetch retries on 503 up to retries limit", async () => {
 });
 
 test("providerFetch stops retrying after exhausting retries limit and returns last response", async () => {
-  installFetchStub();
   let calls = 0;
   fetchImpl = async () => {
     calls++;
@@ -141,7 +137,6 @@ test("providerFetch stops retrying after exhausting retries limit and returns la
 });
 
 test("providerFetch retries on 429 and respects Retry-After header", async () => {
-  installFetchStub();
   let calls = 0;
   const waitMs: number[] = [];
 
@@ -172,7 +167,6 @@ test("providerFetch retries on 429 and respects Retry-After header", async () =>
 });
 
 test("providerFetch throws on network error", async () => {
-  installFetchStub();
   fetchImpl = async () => {
     throw new TypeError("Failed to fetch");
   };
@@ -184,7 +178,6 @@ test("providerFetch throws on network error", async () => {
 });
 
 test("providerFetch aborts when caller signal is already aborted", async () => {
-  installFetchStub();
   const controller = new AbortController();
   controller.abort();
 
@@ -213,7 +206,6 @@ test("DEFAULT_PROVIDER_TIMEOUT_MS is 15_000", () => {
 });
 
 test("providerFetch passes request method and headers", async () => {
-  installFetchStub();
   fetchImpl = async () => fakeResponse({ status: 200 });
 
   await providerFetch(

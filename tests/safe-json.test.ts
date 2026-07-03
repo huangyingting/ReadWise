@@ -12,35 +12,31 @@ import assert from "node:assert/strict";
 
 import { safeJsonStringify } from "@/lib/safe-json";
 
+function assertEscapesUnsafeChar(value: string, rawChar: string, escapedChar: string) {
+  const result = safeJsonStringify({ x: value });
+  assert.ok(!result.includes(rawChar), `raw '${rawChar}' found in: ${result}`);
+  assert.ok(result.includes(escapedChar), `expected ${escapedChar} in: ${result}`);
+}
+
 describe("safeJsonStringify — XSS escaping", () => {
   test("escapes < to prevent </script> injection", () => {
-    const result = safeJsonStringify({ x: "</script><script>alert(1)</script>" });
-    assert.ok(!result.includes("<"), `raw '<' found in: ${result}`);
-    assert.ok(result.includes("\\u003c"), `expected \\u003c in: ${result}`);
+    assertEscapesUnsafeChar("</script><script>alert(1)</script>", "<", "\\u003c");
   });
 
   test("escapes > to prevent tag close", () => {
-    const result = safeJsonStringify({ x: "a>b" });
-    assert.ok(!result.includes(">"), `raw '>' found in: ${result}`);
-    assert.ok(result.includes("\\u003e"), `expected \\u003e in: ${result}`);
+    assertEscapesUnsafeChar("a>b", ">", "\\u003e");
   });
 
   test("escapes & to prevent HTML entity injection", () => {
-    const result = safeJsonStringify({ x: "a&b" });
-    assert.ok(!result.includes("&"), `raw '&' found in: ${result}`);
-    assert.ok(result.includes("\\u0026"), `expected \\u0026 in: ${result}`);
+    assertEscapesUnsafeChar("a&b", "&", "\\u0026");
   });
 
   test("escapes U+2028 LINE SEPARATOR (breaks inline JS)", () => {
-    const result = safeJsonStringify({ x: "a\u2028b" });
-    assert.ok(!result.includes("\u2028"), "raw U+2028 found in output");
-    assert.ok(result.includes("\\u2028"), "expected \\u2028 escape");
+    assertEscapesUnsafeChar("a\u2028b", "\u2028", "\\u2028");
   });
 
   test("escapes U+2029 PARAGRAPH SEPARATOR (breaks inline JS)", () => {
-    const result = safeJsonStringify({ x: "a\u2029b" });
-    assert.ok(!result.includes("\u2029"), "raw U+2029 found in output");
-    assert.ok(result.includes("\\u2029"), "expected \\u2029 escape");
+    assertEscapesUnsafeChar("a\u2029b", "\u2029", "\\u2029");
   });
 
   test("produces valid JSON after escaping", () => {

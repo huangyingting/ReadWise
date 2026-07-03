@@ -94,21 +94,17 @@ function summarize(stats: SeedStats): void {
   }
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
-
-  if (args.help) {
-    printHelp();
-    return 0;
-  }
-
+function validateArgs(args: Args): boolean {
   for (const lang of args.translateLangs) {
     if (!isSupportedLanguage(lang)) {
       console.error(`Unsupported translation language: "${lang}".`);
-      return 1;
+      return false;
     }
   }
+  return true;
+}
 
+function warnMissingOptionalProviders(args: Args): void {
   if (!isAiConfigured()) {
     console.warn(
       "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty is deterministic and still runs.",
@@ -117,8 +113,10 @@ async function main(): Promise<number> {
   if (args.tts && !isSpeechConfigured()) {
     console.warn("⚠ Azure Speech is not configured — TTS will fall back gracefully.");
   }
+}
 
-  const options: SeedOptions = {
+function buildSeedOptions(args: Args): SeedOptions {
+  return {
     providerKeys: args.providers.length > 0 ? args.providers : undefined,
     limit: args.limit,
     tts: args.tts,
@@ -129,8 +127,21 @@ async function main(): Promise<number> {
       error: (msg) => console.error(msg),
     },
   };
+}
 
-  const stats = await runSeed(options);
+async function main(): Promise<number> {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    printHelp();
+    return 0;
+  }
+
+  if (!validateArgs(args)) return 1;
+
+  warnMissingOptionalProviders(args);
+
+  const stats = await runSeed(buildSeedOptions(args));
   summarize(stats);
 
   return stats.failed > 0 && stats.published === 0 ? 1 : 0;

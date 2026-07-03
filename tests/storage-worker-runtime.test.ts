@@ -30,6 +30,40 @@ function setWindow(localStorage: unknown, sessionStorage: unknown = localStorage
   });
 }
 
+function assertE2eDatabaseAllowed(
+  assertSafeE2eDatabaseUrl: (options: {
+    databaseUrl?: string;
+    expectedDatabaseUrl?: string;
+  }) => void,
+  databaseUrl: string,
+) {
+  assert.doesNotThrow(() =>
+    assertSafeE2eDatabaseUrl({
+      databaseUrl,
+      expectedDatabaseUrl: databaseUrl,
+    }),
+  );
+}
+
+function assertE2eDatabaseRejected(
+  assertSafeE2eDatabaseUrl: (options: {
+    databaseUrl?: string;
+    expectedDatabaseUrl?: string;
+  }) => void,
+  databaseUrl: string | undefined,
+  expectedDatabaseUrl: string | undefined,
+  expectedMessage: RegExp,
+) {
+  assert.throws(
+    () =>
+      assertSafeE2eDatabaseUrl({
+        databaseUrl,
+        expectedDatabaseUrl,
+      }),
+    expectedMessage,
+  );
+}
+
 test("storage key helpers hash, normalize extensions, and sanitize hints", async () => {
   const {
     extensionForMime,
@@ -173,50 +207,30 @@ test("E2E database guard accepts only the configured isolated SQLite database", 
     delete process.env.PLAYWRIGHT_DATABASE_URL;
     delete process.env.DATABASE_URL;
     assert.equal(expectedE2eDatabaseUrl(), "file:./e2e.db");
-    assert.doesNotThrow(() =>
-      assertSafeE2eDatabaseUrl({
-        databaseUrl: "file:./e2e.db",
-        expectedDatabaseUrl: "file:./e2e.db",
-      }),
-    );
-    assert.doesNotThrow(() =>
-      assertSafeE2eDatabaseUrl({
-        databaseUrl: "file:./nested/e2e-tenant_1.db?connection_limit=1",
-        expectedDatabaseUrl: "file:./nested/e2e-tenant_1.db?connection_limit=1",
-      }),
+    assertE2eDatabaseAllowed(assertSafeE2eDatabaseUrl, "file:./e2e.db");
+    assertE2eDatabaseAllowed(
+      assertSafeE2eDatabaseUrl,
+      "file:./nested/e2e-tenant_1.db?connection_limit=1",
     );
 
-    assert.throws(() => assertSafeE2eDatabaseUrl({ databaseUrl: undefined }), /not set/);
-    assert.throws(
-      () =>
-        assertSafeE2eDatabaseUrl({
-          databaseUrl: "file:./dev.db",
-          expectedDatabaseUrl: "file:./e2e.db",
-        }),
+    assertE2eDatabaseRejected(assertSafeE2eDatabaseUrl, undefined, undefined, /not set/);
+    assertE2eDatabaseRejected(
+      assertSafeE2eDatabaseUrl,
+      "file:./dev.db",
+      "file:./e2e.db",
       /does not match/,
     );
-    assert.throws(
-      () =>
-        assertSafeE2eDatabaseUrl({
-          databaseUrl: "postgres://localhost/db",
-          expectedDatabaseUrl: "postgres://localhost/db",
-        }),
+    assertE2eDatabaseRejected(
+      assertSafeE2eDatabaseUrl,
+      "postgres://localhost/db",
+      "postgres://localhost/db",
       /isolated e2e/,
     );
-    assert.throws(
-      () =>
-        assertSafeE2eDatabaseUrl({
-          databaseUrl: "file:",
-          expectedDatabaseUrl: "file:",
-        }),
-      /isolated e2e/,
-    );
-    assert.throws(
-      () =>
-        assertSafeE2eDatabaseUrl({
-          databaseUrl: "file:./not-e2e.db",
-          expectedDatabaseUrl: "file:./not-e2e.db",
-        }),
+    assertE2eDatabaseRejected(assertSafeE2eDatabaseUrl, "file:", "file:", /isolated e2e/);
+    assertE2eDatabaseRejected(
+      assertSafeE2eDatabaseUrl,
+      "file:./not-e2e.db",
+      "file:./not-e2e.db",
       /isolated e2e/,
     );
 

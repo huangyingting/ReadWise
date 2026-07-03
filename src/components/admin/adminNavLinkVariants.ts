@@ -11,6 +11,15 @@ import { buttonVariants } from "@/components/ui/Button";
 
 type InactiveVariant = "ghost" | "outline";
 
+const ACTIVE_ADMIN_NAV_LINK_CLASSES = [
+  "inline-flex items-center justify-center whitespace-nowrap select-none shrink-0",
+  "border border-primary text-primary-text",
+  "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
+  "rounded-[var(--radius-md)] px-[var(--space-3)] h-8",
+  "font-semibold text-[length:var(--text-sm)]",
+  "transition-[background-color,border-color] [transition-duration:var(--duration-fast)]",
+];
+
 /**
  * Returns the CSS class string for a nav link in an admin tab strip.
  *
@@ -22,14 +31,7 @@ export function adminNavLinkVariants(
   inactiveVariant: InactiveVariant = "ghost",
 ): string {
   if (isActive) {
-    return cn(
-      "inline-flex items-center justify-center whitespace-nowrap select-none shrink-0",
-      "border border-primary text-primary-text",
-      "bg-[color-mix(in_srgb,var(--primary)_8%,transparent)]",
-      "rounded-[var(--radius-md)] px-[var(--space-3)] h-8",
-      "font-semibold text-[length:var(--text-sm)]",
-      "transition-[background-color,border-color] [transition-duration:var(--duration-fast)]",
-    );
+    return cn(ACTIVE_ADMIN_NAV_LINK_CLASSES);
   }
   return cn(buttonVariants({ variant: inactiveVariant, size: "sm" }), "shrink-0");
 }

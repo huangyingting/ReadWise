@@ -16,10 +16,10 @@
  */
 
 import { useEffect, useState } from "react";
-import {
-  useCurrentReadingBlock,
-} from "@/components/reader/useCurrentReadingBlock";
+import { useCurrentReadingBlock } from "@/components/reader/useCurrentReadingBlock";
 import { useReaderTools } from "@/components/ReaderToolsProvider";
+
+const WORD_LOOKUP_PROSE_SELECTOR = ".word-lookup-prose";
 
 export default function ReaderReadingBlockTracker() {
   const [proseEl, setProseEl] = useState<HTMLElement | null>(null);
@@ -30,7 +30,7 @@ export default function ReaderReadingBlockTracker() {
   // WordLookup renders it synchronously before this component mounts
   // (both live in the same React tree under the same Suspense boundary).
   useEffect(() => {
-    const el = document.querySelector<HTMLElement>(".word-lookup-prose");
+    const el = document.querySelector<HTMLElement>(WORD_LOOKUP_PROSE_SELECTOR);
     setProseEl(el);
   }, []);
 

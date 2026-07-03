@@ -93,13 +93,17 @@ async function callRoute(
   );
 }
 
+async function assertRouteStatus(body: unknown, status: number): Promise<void> {
+  const res = await callRoute(body);
+  assert.strictEqual(res.status, status);
+}
+
 // ---------------------------------------------------------------------------
 // Auth guard
 // ---------------------------------------------------------------------------
 test("returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const res = await callRoute({ activeMs: 60_000 });
-  assert.strictEqual(res.status, 401);
+  await assertRouteStatus({ activeMs: 60_000 }, 401);
 });
 
 // ---------------------------------------------------------------------------
@@ -107,27 +111,24 @@ test("returns 401 when unauthenticated", async () => {
 // ---------------------------------------------------------------------------
 test("returns 404 when article does not exist", async () => {
   articleExists = false;
-  const res = await callRoute({ activeMs: 60_000 });
-  assert.strictEqual(res.status, 404);
+  await assertRouteStatus({ activeMs: 60_000 }, 404);
 });
 
 // ---------------------------------------------------------------------------
 // Input validation
 // ---------------------------------------------------------------------------
-test("returns 400 when activeMs is missing", async () => {
-  const res = await callRoute({});
-  assert.strictEqual(res.status, 400);
-});
-
-test("returns 400 when activeMs is negative", async () => {
-  const res = await callRoute({ activeMs: -1 });
-  assert.strictEqual(res.status, 400);
-});
+for (const [name, body] of [
+  ["activeMs is missing", {}],
+  ["activeMs is negative", { activeMs: -1 }],
+] as const) {
+  test(`returns 400 when ${name}`, async () => {
+    await assertRouteStatus(body, 400);
+  });
+}
 
 test("returns 400 when activeMs exceeds MAX_ACTIVE_TIME_MS", async () => {
   const { MAX_ACTIVE_TIME_MS } = await import("@/lib/engagement/reading-speed");
-  const res = await callRoute({ activeMs: MAX_ACTIVE_TIME_MS + 1 });
-  assert.strictEqual(res.status, 400);
+  await assertRouteStatus({ activeMs: MAX_ACTIVE_TIME_MS + 1 }, 400);
 });
 
 // ---------------------------------------------------------------------------
@@ -163,12 +164,10 @@ test("returns timeSpentMs:null when mastery record is null", async () => {
 test("accepts activeMs at MAX_ACTIVE_TIME_MS boundary (exact)", async () => {
   const { MAX_ACTIVE_TIME_MS } = await import("@/lib/engagement/reading-speed");
   masteryTimeSpentMs = MAX_ACTIVE_TIME_MS;
-  const res = await callRoute({ activeMs: MAX_ACTIVE_TIME_MS });
-  assert.strictEqual(res.status, 200);
+  await assertRouteStatus({ activeMs: MAX_ACTIVE_TIME_MS }, 200);
 });
 
 test("accepts activeMs of 0 (no-op but valid)", async () => {
   masteryTimeSpentMs = 0;
-  const res = await callRoute({ activeMs: 0 });
-  assert.strictEqual(res.status, 200);
+  await assertRouteStatus({ activeMs: 0 }, 200);
 });

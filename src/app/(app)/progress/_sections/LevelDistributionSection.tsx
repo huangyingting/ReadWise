@@ -14,6 +14,8 @@ interface LevelDistributionSectionProps {
 export function LevelDistributionSection({ completedByLevel }: LevelDistributionSectionProps) {
   if (completedByLevel.length === 0) return null;
 
+  const maxCompletedCount = Math.max(...completedByLevel.map(({ count }) => count), 1);
+
   return (
     <section aria-labelledby="level-h">
       <h2
@@ -27,27 +29,24 @@ export function LevelDistributionSection({ completedByLevel }: LevelDistribution
       </h2>
       <Card>
         <div className="flex flex-col gap-[var(--space-3)]">
-          {completedByLevel.map((b) => {
-            const maxCount = Math.max(...completedByLevel.map((x) => x.count), 1);
-            return (
-              <div key={b.level} className="flex items-center gap-[var(--space-3)]">
-                <span
-                  className="shrink-0 text-[length:var(--text-sm)] font-semibold text-text-subtle tabular-nums"
-                  style={{ minWidth: "3ch" }}
-                >
-                  {b.level}
-                </span>
-                <div className="flex-1">
-                  <MiniBar
-                    value={b.count}
-                    max={maxCount}
-                    label={`${b.level} articles`}
-                    color="var(--teal)"
-                  />
-                </div>
+          {completedByLevel.map(({ level, count }) => (
+            <div key={level} className="flex items-center gap-[var(--space-3)]">
+              <span
+                className="shrink-0 text-[length:var(--text-sm)] font-semibold text-text-subtle tabular-nums"
+                style={{ minWidth: "3ch" }}
+              >
+                {level}
+              </span>
+              <div className="flex-1">
+                <MiniBar
+                  value={count}
+                  max={maxCompletedCount}
+                  label={`${level} articles`}
+                  color="var(--teal)"
+                />
               </div>
-            );
-          })}
+            </div>
+          ))}
         </div>
       </Card>
     </section>

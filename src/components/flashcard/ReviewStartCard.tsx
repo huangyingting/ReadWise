@@ -9,6 +9,12 @@ interface ReviewStartCardProps {
   onStartCloze: () => void;
 }
 
+function dueSummary(dueCount: number) {
+  if (dueCount === 0) return "You're all caught up.";
+
+  return `${dueCount} card${dueCount === 1 ? "" : "s"} due for review`;
+}
+
 /** Idle state card: shows due count and start buttons (or empty-state). */
 export function ReviewStartCard({
   dueCount,
@@ -23,9 +29,7 @@ export function ReviewStartCard({
             Flashcard review
           </CardTitle>
           <CardMeta className="mt-[var(--space-1)]">
-            {dueCount === 0
-              ? "You're all caught up."
-              : `${dueCount} card${dueCount === 1 ? "" : "s"} due for review`}
+            {dueSummary(dueCount)}
           </CardMeta>
         </div>
       </div>

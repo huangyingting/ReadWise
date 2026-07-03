@@ -4,6 +4,17 @@ import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { subscribeBody } from "@/lib/push/schemas";
 import { subscribePush } from "@/lib/push/commands";
 
+function validateHttpsEndpoint(endpoint: string): void {
+  try {
+    new URL(endpoint);
+  } catch {
+    throw new ApiError(400, "Invalid endpoint URL");
+  }
+  if (!endpoint.startsWith("https://")) {
+    throw new ApiError(400, "Endpoint must be an HTTPS URL");
+  }
+}
+
 /**
  * POST /api/push/subscribe
  *
@@ -21,15 +32,7 @@ export const POST = createHandler(
     const userId = session.user.id;
     const { endpoint, p256dh, auth } = body;
 
-    // Validate endpoint is a well-formed HTTPS URL.
-    try {
-      new URL(endpoint);
-    } catch {
-      throw new ApiError(400, "Invalid endpoint URL");
-    }
-    if (!endpoint.startsWith("https://")) {
-      throw new ApiError(400, "Endpoint must be an HTTPS URL");
-    }
+    validateHttpsEndpoint(endpoint);
 
     await checkRateLimit(userId, "lookup");
 

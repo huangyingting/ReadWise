@@ -21,6 +21,8 @@ let storageDeleteCalls: string[] = [];
 let mediaStorage: { delete: (storageKey: string) => Promise<void> } | null = null;
 let mockPrisma: Record<string, unknown> = {};
 
+type MemberCommandsModule = typeof import("@/lib/account-lifecycle/member-commands");
+
 function makeAudit(action: string, metadata: Record<string, unknown> = {}): AuditRequestInput {
   return {
     action,
@@ -94,9 +96,17 @@ beforeEach(() => {
   mediaStorage = null;
 });
 
+async function loadMemberCommands(): Promise<MemberCommandsModule> {
+  return import("@/lib/account-lifecycle/member-commands") as Promise<MemberCommandsModule>;
+}
+
+function setStubUser(role: StubRole, id = role === "Admin" ? "admin-1" : "reader-1"): void {
+  stubUser = { id, role };
+}
+
 test("updateMemberRole audits an unchanged role without opening a transaction", async () => {
-  stubUser = { id: "admin-1", role: "Admin" };
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  setStubUser("Admin");
+  const { updateMemberRole } = await loadMemberCommands();
 
   const result = await updateMemberRole("admin-1", "Admin", (auditResult) =>
     makeAudit("member.role.noop", { changed: auditResult.changed, role: auditResult.role }),
@@ -111,8 +121,8 @@ test("updateMemberRole audits an unchanged role without opening a transaction", 
 });
 
 test("updateMemberRole audits a changed role inside the transaction", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  setStubUser("Reader");
+  const { updateMemberRole } = await loadMemberCommands();
 
   const result = await updateMemberRole("reader-1", "Admin", (auditResult) =>
     makeAudit("member.role.changed", {
@@ -135,9 +145,9 @@ test("updateMemberRole audits a changed role inside the transaction", async () =
 });
 
 test("updateMemberRole rethrows unexpected transaction errors", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
+  setStubUser("Reader");
   userUpdateError = new Error("update exploded");
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  const { updateMemberRole } = await loadMemberCommands();
 
   await assert.rejects(() => updateMemberRole("reader-1", "Admin"), /update exploded/);
   assert.equal(transactionCalled, true);
@@ -145,7 +155,7 @@ test("updateMemberRole rethrows unexpected transaction errors", async () => {
 });
 
 test("deleteMember audits deletion and best-effort purges owned storage keys", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
+  setStubUser("Reader");
   ownedArticleCount = 3;
   ownedStorageKeys = ["asset-a", "asset-b"];
   mediaStorage = {
@@ -154,7 +164,7 @@ test("deleteMember audits deletion and best-effort purges owned storage keys", a
       if (storageKey === "asset-b") throw new Error("delete failed");
     },
   };
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
 
   const result = await deleteMember("reader-1", (auditResult) =>
     makeAudit("member.delete", {
@@ -179,9 +189,9 @@ test("deleteMember audits deletion and best-effort purges owned storage keys", a
 });
 
 test("deleteMember rethrows unexpected transaction errors", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
+  setStubUser("Reader");
   userDeleteError = new Error("delete exploded");
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
 
   await assert.rejects(() => deleteMember("reader-1"), /delete exploded/);
   assert.equal(transactionCalled, true);

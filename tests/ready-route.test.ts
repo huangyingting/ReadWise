@@ -14,6 +14,10 @@ const ENV_KEYS = [
   "AZURE_OPENAI_DEPLOYMENT",
   "AZURE_OPENAI_API_VERSION",
 ] as const;
+const DEFAULT_MIGRATION = "20260625010000_init";
+const DEFAULT_DATABASE_URL = "file:./dev.db";
+const DEFAULT_NEXTAUTH_SECRET = "12345678901234567890123456789012";
+const DEFAULT_NEXTAUTH_URL = "http://localhost:3000";
 
 let savedEnv: Partial<Record<(typeof ENV_KEYS)[number], string | undefined>>;
 let dbFails = false;
@@ -83,14 +87,14 @@ beforeEach(() => {
     savedEnv[key] = process.env[key];
     delete process.env[key];
   }
-  process.env.DATABASE_URL = "file:./dev.db";
-  process.env.NEXTAUTH_SECRET = "12345678901234567890123456789012";
-  process.env.NEXTAUTH_URL = "http://localhost:3000";
+  process.env.DATABASE_URL = DEFAULT_DATABASE_URL;
+  process.env.NEXTAUTH_SECRET = DEFAULT_NEXTAUTH_SECRET;
+  process.env.NEXTAUTH_URL = DEFAULT_NEXTAUTH_URL;
   dbFails = false;
   migrationFails = false;
   migrationFsFails = false;
   lastReaddirPath = "";
-  repositoryMigrations = ["20260625010000_init"];
+  repositoryMigrations = [DEFAULT_MIGRATION];
   appliedMigrations = [...repositoryMigrations];
   unfinishedMigrations = [];
 });
@@ -111,11 +115,15 @@ async function getReadyResponse() {
   return GET(new Request("http://test/api/ready"));
 }
 
+async function getReadyJson() {
+  const res = await getReadyResponse();
+  return { res, body: await res.json() };
+}
+
 test("GET /api/ready returns ready when DB, migrations, and required config are healthy", async () => {
   process.env.AZURE_OPENAI_ENDPOINT = "https://example.openai.azure.com";
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 200);
   assert.equal(body.status, "ready");
@@ -129,11 +137,10 @@ test("GET /api/ready returns ready when DB, migrations, and required config are 
 test("GET /api/ready uses the migration directory next to PRISMA_SCHEMA_PATH", async () => {
   process.env.DATABASE_URL = "postgresql://db.example/readwise";
   process.env.PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
-  repositoryMigrations = ["20260625010000_init"];
+  repositoryMigrations = [DEFAULT_MIGRATION];
   appliedMigrations = [...repositoryMigrations];
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 200);
   assert.equal(body.status, "ready");
@@ -144,8 +151,7 @@ test("GET /api/ready uses the migration directory next to PRISMA_SCHEMA_PATH", a
 test("GET /api/ready returns unavailable when DB connectivity fails", async () => {
   dbFails = true;
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 503);
   assert.equal(body.status, "unavailable");
@@ -156,8 +162,7 @@ test("GET /api/ready returns unavailable when DB connectivity fails", async () =
 test("GET /api/ready returns unavailable when migration health fails", async () => {
   migrationFails = true;
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 503);
   assert.equal(body.checks.db, "ok");
@@ -169,8 +174,7 @@ test("GET /api/ready returns unavailable when migrations are unfinished", async 
   appliedMigrations = repositoryMigrations.filter((name) => name !== unfinished);
   unfinishedMigrations = [unfinished];
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 503);
   assert.equal(body.checks.migrations, "error");
@@ -184,8 +188,7 @@ test("GET /api/ready returns unavailable when migration files are unapplied", as
   repositoryMigrations = [...repositoryMigrations, unapplied];
   appliedMigrations = repositoryMigrations.filter((name) => name !== unapplied);
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 503);
   assert.equal(body.checks.migrations, "error");
@@ -198,8 +201,7 @@ test("GET /api/ready returns unavailable when migration files are unapplied", as
 test("GET /api/ready returns unavailable when required config is invalid", async () => {
   process.env.NEXTAUTH_SECRET = "short";
 
-  const res = await getReadyResponse();
-  const body = await res.json();
+  const { res, body } = await getReadyJson();
 
   assert.equal(res.status, 503);
   assert.equal(body.checks.config, "error");

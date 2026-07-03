@@ -2,7 +2,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler, adminSession } from "./support/route";
+import { deleteReq, getReq, readJson, type RouteHandler, adminSession, withParams } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 let authState: AuthState = "ok";
@@ -79,15 +79,11 @@ beforeEach(() => {
   revalidateCalls = 0;
 });
 
-function ctx(id = "article-1") {
-  return { params: Promise.resolve({ id }) };
-}
-
 test("admin audit log API requires admin", async () => {
   authState = "forbidden";
   const { GET } = (await import("@/app/api/admin/audit-logs/route")) as { GET: RouteHandler };
 
-  const res = await GET(new Request("http://test/api/admin/audit-logs"), undefined);
+  const res = await GET(getReq("http://test/api/admin/audit-logs"), undefined);
 
   assert.equal(res.status, 403);
   assert.equal(listCalls, 0);
@@ -100,10 +96,10 @@ test("admin audit log API requires admin", async () => {
 test("admin audit log API returns audit entries for admins", async () => {
   const { GET } = (await import("@/app/api/admin/audit-logs/route")) as { GET: RouteHandler };
 
-  const res = await GET(new Request("http://test/api/admin/audit-logs?pageSize=10"), undefined);
+  const res = await GET(getReq("http://test/api/admin/audit-logs?pageSize=10"), undefined);
 
   assert.equal(res.status, 200);
-  assert.equal((await res.json()).total, 1);
+  assert.equal((await readJson<{ total: number }>(res)).total, 1);
   assert.equal(listCalls, 1);
   assert.equal((auditCalls[0] as { action: string }).action, "admin.audit_logs.read");
 });
@@ -120,7 +116,7 @@ test("admin article deletion writes an audit record with request context", async
         "x-request-id": "550e8400-e29b-41d4-a716-446655440000",
       },
     }),
-    ctx("article-1"),
+    withParams({ id: "article-1" }),
   );
 
   assert.equal(res.status, 200);
@@ -144,8 +140,8 @@ test("admin article deletion returns 500 and skips cache invalidation when atomi
   const { DELETE } = (await import("@/app/api/admin/articles/[id]/route")) as { DELETE: RouteHandler };
 
   const res = await DELETE(
-    new Request("http://test/api/admin/articles/article-1", { method: "DELETE" }),
-    ctx("article-1"),
+    deleteReq("http://test/api/admin/articles/article-1"),
+    withParams({ id: "article-1" }),
   );
 
   assert.equal(res.status, 500);
@@ -156,7 +152,7 @@ test("admin article deletion does not audit failed not-found deletes", async () 
   deleteArticleResult = false;
   const { DELETE } = (await import("@/app/api/admin/articles/[id]/route")) as { DELETE: RouteHandler };
 
-  const res = await DELETE(new Request("http://test/api/admin/articles/missing", { method: "DELETE" }), ctx("missing"));
+  const res = await DELETE(deleteReq("http://test/api/admin/articles/missing"), withParams({ id: "missing" }));
 
   assert.equal(res.status, 404);
   assert.equal(auditCalls.length, 0);

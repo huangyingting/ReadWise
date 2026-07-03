@@ -2,8 +2,11 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const BASE_FORM_ACTIONS_CLASS =
+  "flex flex-col-reverse flex-wrap items-stretch sm:flex-row sm:items-center";
+
 const formActionsVariants = cva(
-  "flex flex-col-reverse flex-wrap items-stretch sm:flex-row sm:items-center",
+  BASE_FORM_ACTIONS_CLASS,
   {
     variants: {
       density: {

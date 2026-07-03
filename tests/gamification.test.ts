@@ -28,6 +28,25 @@ let reviewSummary = { dueCount: 5, totalSaved: 20 };
 let flashcards: { id: string; word: string; explanation: string | null; example: string | null }[] = [];
 let gradeResult: { dueAt: Date | null; intervalDays: number } | null = null;
 
+const routeRequest = (path: string) => new Request(`http://test${path}`);
+
+async function summaryGet() {
+  const { GET } = (await import("@/app/api/gamification/summary/route")) as { GET: RouteHandler };
+  return GET(routeRequest("/api/gamification/summary"), undefined);
+}
+
+async function flashcardsGet() {
+  const { GET } = (await import("@/app/api/study/flashcards/route")) as { GET: RouteHandler };
+  return GET(routeRequest("/api/study/flashcards"), undefined);
+}
+
+async function gradePost(body: unknown) {
+  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(gradeReq(body), undefined);
+}
+
 before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: fullAuthExports(() => authState),
@@ -58,8 +77,7 @@ beforeEach(() => {
 // ---- GET /api/gamification/summary ---------------------------------------
 
 test("GET gamification/summary returns streak + dueCount", async () => {
-  const { GET } = (await import("@/app/api/gamification/summary/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/gamification/summary"), undefined);
+  const res = await summaryGet();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.currentStreak, 3);
@@ -71,8 +89,7 @@ test("GET gamification/summary returns streak + dueCount", async () => {
 });
 
 test("GET gamification/summary includes streakShields in response", async () => {
-  const { GET } = (await import("@/app/api/gamification/summary/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/gamification/summary"), undefined);
+  const res = await summaryGet();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.streakShields, 1);
@@ -80,16 +97,14 @@ test("GET gamification/summary includes streakShields in response", async () => 
 
 test("GET gamification/summary returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/gamification/summary/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/gamification/summary"), undefined);
+  const res = await summaryGet();
   assert.equal(res.status, 401);
 });
 
 // ---- GET /api/study/flashcards -------------------------------------------
 
 test("GET study/flashcards returns empty cards when none are due", async () => {
-  const { GET } = (await import("@/app/api/study/flashcards/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/study/flashcards"), undefined);
+  const res = await flashcardsGet();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.deepEqual(body.cards, []);
@@ -98,8 +113,7 @@ test("GET study/flashcards returns empty cards when none are due", async () => {
 
 test("GET study/flashcards returns due cards", async () => {
   flashcards = [{ id: "sw-1", word: "ephemeral", explanation: "short-lived", example: null }];
-  const { GET } = (await import("@/app/api/study/flashcards/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/study/flashcards"), undefined);
+  const res = await flashcardsGet();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.cards.length, 1);
@@ -108,8 +122,7 @@ test("GET study/flashcards returns due cards", async () => {
 
 test("GET study/flashcards returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/study/flashcards/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/study/flashcards"), undefined);
+  const res = await flashcardsGet();
   assert.equal(res.status, 401);
 });
 
@@ -124,8 +137,7 @@ function gradeReq(body: unknown): Request {
 }
 
 test("POST flashcards/grade happy path returns dueAt and dueCount", async () => {
-  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as { POST: RouteHandler };
-  const res = await POST(gradeReq({ savedWordId: "sw-1", grade: "good" }), undefined);
+  const res = await gradePost({ savedWordId: "sw-1", grade: "good" });
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(body.dueAt); // ISO string
@@ -133,27 +145,23 @@ test("POST flashcards/grade happy path returns dueAt and dueCount", async () => 
 });
 
 test("POST flashcards/grade returns 400 for invalid grade", async () => {
-  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as { POST: RouteHandler };
-  const res = await POST(gradeReq({ savedWordId: "sw-1", grade: "perfect" }), undefined);
+  const res = await gradePost({ savedWordId: "sw-1", grade: "perfect" });
   assert.equal(res.status, 400);
 });
 
 test("POST flashcards/grade returns 400 when savedWordId is missing", async () => {
-  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as { POST: RouteHandler };
-  const res = await POST(gradeReq({ grade: "good" }), undefined);
+  const res = await gradePost({ grade: "good" });
   assert.equal(res.status, 400);
 });
 
 test("POST flashcards/grade returns 404 when card not found or not user's", async () => {
   gradeResult = null;
-  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as { POST: RouteHandler };
-  const res = await POST(gradeReq({ savedWordId: "not-mine", grade: "easy" }), undefined);
+  const res = await gradePost({ savedWordId: "not-mine", grade: "easy" });
   assert.equal(res.status, 404);
 });
 
 test("POST flashcards/grade returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/study/flashcards/grade/route")) as { POST: RouteHandler };
-  const res = await POST(gradeReq({ savedWordId: "sw-1", grade: "hard" }), undefined);
+  const res = await gradePost({ savedWordId: "sw-1", grade: "hard" });
   assert.equal(res.status, 401);
 });

@@ -11,6 +11,20 @@ type ChatMessage = { role: string; content: string };
 let chatCalls: ChatMessage[][] = [];
 // Per-test override; defaults to returning the fixed `aiReply`.
 let chatImpl: (messages: ChatMessage[]) => string | null = () => aiReply;
+const LONG_ARTICLE_SENTENCE_COUNT = 400;
+
+function longArticleSentences(): string[] {
+  return Array.from(
+    { length: LONG_ARTICLE_SENTENCE_COUNT },
+    (_, i) => `Sentence number ${i} carries unique filler content for coverage.`,
+  );
+}
+
+function addLongArticleFixture(id = "long"): string[] {
+  const sentences = longArticleSentences();
+  articles.set(id, { title: "Long", content: `<p>${sentences.join(" ")}</p>` });
+  return sentences;
+}
 
 before(() => {
   mock.module("@/lib/ai", {
@@ -125,11 +139,7 @@ test("falls back when AI is configured but the request fails", async () => {
 test("long articles are translated in multiple chunks covering the full text", async () => {
   // Build an article large enough to exceed the translation chunk budget so the
   // helper must split it (RW-025). Each sentence is uniquely identifiable.
-  const sentences: string[] = [];
-  for (let i = 0; i < 400; i++) {
-    sentences.push(`Sentence number ${i} carries unique filler content for coverage.`);
-  }
-  articles.set("long", { title: "Long", content: `<p>${sentences.join(" ")}</p>` });
+  const sentences = addLongArticleFixture();
 
   aiConfigured = true;
   // Echo each chunk's source text, tagged, so we can prove every chunk was sent
@@ -155,11 +165,7 @@ test("long articles are translated in multiple chunks covering the full text", a
 });
 
 test("a single failed chunk degrades to fallback and caches nothing", async () => {
-  const sentences: string[] = [];
-  for (let i = 0; i < 400; i++) {
-    sentences.push(`Sentence number ${i} carries unique filler content for coverage.`);
-  }
-  articles.set("long", { title: "Long", content: `<p>${sentences.join(" ")}</p>` });
+  addLongArticleFixture();
 
   aiConfigured = true;
   let call = 0;

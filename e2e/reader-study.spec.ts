@@ -7,7 +7,7 @@
  * empty/loading state and the vocabulary panel shows the words tab; the test
  * does not depend on AI-generated content.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -27,17 +27,22 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
-test("opens the Practice tools panel and shows the quiz tab", async ({ context, page }) => {
+async function signInReader(context: BrowserContext) {
   const { sessionToken, expires } = await createUserWithSession();
   await addSessionCookie(context, sessionToken, expires);
+}
 
+async function openPracticeTools(page: Page) {
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
   await expect(
     page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
   ).toBeVisible();
-
-  // Open Practice tools
   await page.getByRole("button", { name: "Practice tools", exact: true }).click();
+}
+
+test("opens the Practice tools panel and shows the quiz tab", async ({ context, page }) => {
+  await signInReader(context);
+  await openPracticeTools(page);
 
   // The tablist should be visible
   await expect(page.getByRole("tablist", { name: "Choose a practice tool" })).toBeVisible();
@@ -48,16 +53,8 @@ test("opens the Practice tools panel and shows the quiz tab", async ({ context, 
 });
 
 test("vocabulary (Words) tab is accessible from Practice tools", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
-  await expect(
-    page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
-  ).toBeVisible();
-
-  // Open Practice tools
-  await page.getByRole("button", { name: "Practice tools", exact: true }).click();
+  await signInReader(context);
+  await openPracticeTools(page);
 
   // Click the Words tab
   await page.getByRole("tab", { name: "Words" }).click();
@@ -68,8 +65,7 @@ test("navigating to /study shows the Study list page for an authenticated reader
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
+  await signInReader(context);
 
   await page.goto("/study");
   await expect(page.getByRole("heading", { name: "Study list" })).toBeVisible();

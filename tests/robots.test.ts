@@ -12,6 +12,12 @@ beforeEach(() => {
   clearRobotsCache();
 });
 
+function robotsDeps(robots: string) {
+  return {
+    fetchText: async () => robots,
+  };
+}
+
 test("parseRobots prefers our product-token group over the wildcard group", () => {
   const text = [
     "User-agent: *",
@@ -56,13 +62,10 @@ test("isUrlAllowed is fail-open when robots.txt is unreachable", async () => {
 
 test("isUrlAllowed honors a Disallow rule", async () => {
   const robots = `User-agent: *\nDisallow: /secret`;
-  const allowed = await isUrlAllowed("https://example.com/secret/page", {
-    fetchText: async () => robots,
-  });
+  const deps = robotsDeps(robots);
+  const allowed = await isUrlAllowed("https://example.com/secret/page", deps);
   assert.equal(allowed, false);
-  const ok = await isUrlAllowed("https://example.com/public/page", {
-    fetchText: async () => robots,
-  });
+  const ok = await isUrlAllowed("https://example.com/public/page", deps);
   assert.equal(ok, true);
 });
 

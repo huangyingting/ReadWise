@@ -2,6 +2,17 @@
 
 import { AlertTriangle } from "lucide-react";
 import { SegmentError } from "@/components/route-states";
+import type { SegmentErrorProps } from "@/components/route-states";
+
+type AppErrorProps = Pick<SegmentErrorProps, "error" | "reset">;
+
+const APP_ERROR_CONFIG = {
+  source: "app-error",
+  icon: AlertTriangle,
+  title: "Something went wrong",
+  description: "An unexpected error occurred. You can try again or return to the dashboard.",
+  secondaryAction: { label: "Back to dashboard", href: "/dashboard" },
+} satisfies Omit<SegmentErrorProps, "error" | "reset">;
 
 /**
  * Segment-level error boundary for the authenticated (app) route group.
@@ -12,19 +23,12 @@ import { SegmentError } from "@/components/route-states";
 export default function AppError({
   error,
   reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+}: AppErrorProps) {
   return (
     <SegmentError
       error={error}
       reset={reset}
-      source="app-error"
-      icon={AlertTriangle}
-      title="Something went wrong"
-      description="An unexpected error occurred. You can try again or return to the dashboard."
-      secondaryAction={{ label: "Back to dashboard", href: "/dashboard" }}
+      {...APP_ERROR_CONFIG}
     />
   );
 }

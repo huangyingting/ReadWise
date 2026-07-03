@@ -8,7 +8,7 @@
  * The test verifies that the pages render with correct headings and core
  * controls so that a regression in admin middleware or layout is caught early.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -27,9 +27,13 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
-test("admin can view the Articles management page", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession({ role: "Admin" });
+async function signInAs(context: BrowserContext, role: "Admin" | "Reader") {
+  const { sessionToken, expires } = await createUserWithSession({ role });
   await addSessionCookie(context, sessionToken, expires);
+}
+
+test("admin can view the Articles management page", async ({ context, page }) => {
+  await signInAs(context, "Admin");
 
   await page.goto("/admin/articles");
   await expect(page).toHaveURL(/\/admin\/articles$/);
@@ -47,8 +51,7 @@ test("admin can view the Articles management page", async ({ context, page }) =>
 });
 
 test("admin can filter articles by status", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession({ role: "Admin" });
-  await addSessionCookie(context, sessionToken, expires);
+  await signInAs(context, "Admin");
 
   await page.goto("/admin/articles");
   await expect(page.getByRole("heading", { name: "Articles" })).toBeVisible();
@@ -59,8 +62,7 @@ test("admin can filter articles by status", async ({ context, page }) => {
 });
 
 test("admin can view the Jobs queue page", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession({ role: "Admin" });
-  await addSessionCookie(context, sessionToken, expires);
+  await signInAs(context, "Admin");
 
   await page.goto("/admin/jobs");
   await expect(page).toHaveURL(/\/admin\/jobs$/);
@@ -68,8 +70,7 @@ test("admin can view the Jobs queue page", async ({ context, page }) => {
 });
 
 test("admin can view the Members page", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession({ role: "Admin" });
-  await addSessionCookie(context, sessionToken, expires);
+  await signInAs(context, "Admin");
 
   await page.goto("/admin/members");
   await expect(page).toHaveURL(/\/admin\/members$/);
@@ -77,8 +78,7 @@ test("admin can view the Members page", async ({ context, page }) => {
 });
 
 test("non-admin reader is redirected away from /admin", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession({ role: "Reader" });
-  await addSessionCookie(context, sessionToken, expires);
+  await signInAs(context, "Reader");
 
   await page.goto("/admin");
   // Readers should not reach the admin dashboard

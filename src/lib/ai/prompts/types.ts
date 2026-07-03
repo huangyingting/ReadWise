@@ -65,9 +65,10 @@ export type TranslationPromptVars = {
   isPart: boolean;
 };
 
-export type VocabularyPromptVars = { title: string; source: string };
-export type QuizPromptVars = { title: string; source: string };
-export type TagsPromptVars = { title: string; source: string };
+export type ArticleSourcePromptVars = { title: string; source: string };
+export type VocabularyPromptVars = ArticleSourcePromptVars;
+export type QuizPromptVars = ArticleSourcePromptVars;
+export type TagsPromptVars = ArticleSourcePromptVars;
 
 export type GrammarPromptVars = {
   /** The original (un-normalised) phrase as the learner selected it. */

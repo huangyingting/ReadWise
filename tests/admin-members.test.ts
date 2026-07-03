@@ -24,6 +24,8 @@ let transactionCalled = false;
 // Module-level ref so the callback-form $transaction can pass it as `tx`.
 let mockPrisma: Record<string, unknown> = {};
 
+type MemberCommandsModule = typeof import("@/lib/account-lifecycle/member-commands");
+
 before(() => {
   mockPrisma = {
     user: {
@@ -70,11 +72,19 @@ beforeEach(() => {
   transactionCalled = false;
 });
 
+async function loadMemberCommands(): Promise<MemberCommandsModule> {
+  return import("@/lib/account-lifecycle/member-commands") as Promise<MemberCommandsModule>;
+}
+
+function setStubUser(role: string, id = role === "Admin" ? "admin-1" : "reader-1"): void {
+  stubUser = { id, role };
+}
+
 // ---- deleteMember --------------------------------------------------------
 
 test("deleteMember returns 404 when user does not exist", async () => {
   stubUser = null;
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
   const result = await deleteMember("missing");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -82,8 +92,8 @@ test("deleteMember returns 404 when user does not exist", async () => {
 });
 
 test("deleteMember removes a Reader without a guard check", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  setStubUser("Reader");
+  const { deleteMember } = await loadMemberCommands();
   const result = await deleteMember("reader-1");
   assert.equal(result.ok, true);
   assert.equal(transactionCalled, true);
@@ -92,18 +102,18 @@ test("deleteMember removes a Reader without a guard check", async () => {
 });
 
 test("deleteMember removes an admin when other admins exist", async () => {
-  stubUser = { id: "admin-2", role: "Admin" };
+  setStubUser("Admin", "admin-2");
   stubAdminCount = 2; // another admin remains
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
   const result = await deleteMember("admin-2");
   assert.equal(result.ok, true);
   assert.ok(userDeleteArgs, "user.delete must be called");
 });
 
 test("deleteMember refuses to remove the last remaining admin", async () => {
-  stubUser = { id: "admin-1", role: "Admin" };
+  setStubUser("Admin");
   stubAdminCount = 1;
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
   const result = await deleteMember("admin-1");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
@@ -113,9 +123,9 @@ test("deleteMember refuses to remove the last remaining admin", async () => {
 test("deleteMember last-admin guard is re-counted inside the transaction (atomicity)", async () => {
   // The guard count happens INSIDE the tx callback, so two concurrent deletes
   // cannot both pass the guard and leave zero admins.
-  stubUser = { id: "admin-1", role: "Admin" };
+  setStubUser("Admin");
   stubAdminCount = 1;
-  const { deleteMember } = await import("@/lib/account-lifecycle/member-commands");
+  const { deleteMember } = await loadMemberCommands();
   const result = await deleteMember("admin-1");
 
   // Transaction was entered (count evaluated inside it)
@@ -134,15 +144,15 @@ test("deleteMember last-admin guard is re-counted inside the transaction (atomic
 
 test("updateMemberRole returns 404 when user does not exist", async () => {
   stubUser = null;
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("missing", "Reader");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
 });
 
 test("updateMemberRole is a no-op when role is unchanged", async () => {
-  stubUser = { id: "admin-1", role: "Admin" };
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  setStubUser("Admin");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("admin-1", "Admin");
   assert.equal(result.ok, true);
   // No DB write for same-role update
@@ -151,8 +161,8 @@ test("updateMemberRole is a no-op when role is unchanged", async () => {
 });
 
 test("updateMemberRole promotes a Reader to Admin", async () => {
-  stubUser = { id: "reader-1", role: "Reader" };
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  setStubUser("Reader");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("reader-1", "Admin");
   assert.equal(result.ok, true);
   assert.equal(transactionCalled, true);
@@ -160,18 +170,18 @@ test("updateMemberRole promotes a Reader to Admin", async () => {
 });
 
 test("updateMemberRole demotes an Admin when other admins exist", async () => {
-  stubUser = { id: "admin-2", role: "Admin" };
+  setStubUser("Admin", "admin-2");
   stubAdminCount = 2;
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("admin-2", "Reader");
   assert.equal(result.ok, true);
   assert.ok(userUpdateArgs, "user.update must be called");
 });
 
 test("updateMemberRole refuses to demote the last remaining admin", async () => {
-  stubUser = { id: "admin-1", role: "Admin" };
+  setStubUser("Admin");
   stubAdminCount = 1;
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("admin-1", "Reader");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
@@ -179,9 +189,9 @@ test("updateMemberRole refuses to demote the last remaining admin", async () => 
 });
 
 test("updateMemberRole last-admin demote guard is re-counted inside the transaction (atomicity)", async () => {
-  stubUser = { id: "admin-1", role: "Admin" };
+  setStubUser("Admin");
   stubAdminCount = 1;
-  const { updateMemberRole } = await import("@/lib/account-lifecycle/member-commands");
+  const { updateMemberRole } = await loadMemberCommands();
   const result = await updateMemberRole("admin-1", "Reader");
 
   // Transaction entered (count evaluated inside it)

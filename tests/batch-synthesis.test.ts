@@ -36,6 +36,10 @@ function silentLogger() {
   };
 }
 
+function successfulPassResult() {
+  return { selected: 1, submitted: 1, persisted: 1 };
+}
+
 describe("batch synthesis CLI parsing", () => {
   test("parses loop flags and defaults", async () => {
     const { parseArgs } = await loadBatchSynthesis();
@@ -89,7 +93,7 @@ describe("batch synthesis loop orchestration", () => {
       },
       runPass: async () => {
         calls++;
-        return { selected: 1, submitted: 1, persisted: 1 };
+        return successfulPassResult();
       },
     });
 
@@ -148,7 +152,7 @@ describe("batch synthesis loop orchestration", () => {
       runPass: async () => {
         const outcome = outcomes[calls++];
         if (outcome === "fail") throw new Error("synthetic failure");
-        return { selected: 1, submitted: 1, persisted: 1 };
+        return successfulPassResult();
       },
     });
 

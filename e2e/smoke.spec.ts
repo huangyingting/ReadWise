@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -18,14 +18,28 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
+async function signIn(
+  context: BrowserContext,
+  options: Parameters<typeof createUserWithSession>[0] = {},
+) {
+  const { sessionToken, expires } = await createUserWithSession(options);
+  await addSessionCookie(context, sessionToken, expires);
+}
+
+async function expectSeededReader(page: Page) {
+  await expect(page).toHaveURL(new RegExp(`/reader/${TEST_ARTICLE_ID}$`));
+  await expect(
+    page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
+  ).toBeVisible();
+}
+
 test("shows onboarding for an authenticated reader without a profile", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession({
+  await signIn(context, {
     onboarded: false,
   });
-  await addSessionCookie(context, sessionToken, expires);
 
   await page.goto("/onboarding");
   await expect(
@@ -41,10 +55,9 @@ test("opens dashboard, browse, reader, and admin with a seeded admin session", a
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession({
+  await signIn(context, {
     role: "Admin",
   });
-  await addSessionCookie(context, sessionToken, expires);
 
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
@@ -58,10 +71,7 @@ test("opens dashboard, browse, reader, and admin with a seeded admin session", a
   await expect(articleLink).toHaveAttribute("href", `/reader/${TEST_ARTICLE_ID}`);
 
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
-  await expect(page).toHaveURL(new RegExp(`/reader/${TEST_ARTICLE_ID}$`));
-  await expect(
-    page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
-  ).toBeVisible();
+  await expectSeededReader(page);
   await expect(page.getByLabel("Display settings")).toBeVisible();
   await expect(
     page.getByRole("button", { name: "Practice tools", exact: true }),
@@ -84,13 +94,10 @@ test.describe("mobile-ish reader", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession();
-    await addSessionCookie(context, sessionToken, expires);
+    await signIn(context);
 
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
-    await expect(
-      page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
-    ).toBeVisible();
+    await expectSeededReader(page);
 
     await page.getByLabel("Display settings").click();
     await expect(

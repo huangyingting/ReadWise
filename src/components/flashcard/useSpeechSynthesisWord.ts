@@ -9,27 +9,33 @@
  */
 import { useState, useEffect, useCallback } from "react";
 
+function hasSpeechSynthesis(): boolean {
+  return "speechSynthesis" in window;
+}
+
+function cancelSpeech(): void {
+  if (hasSpeechSynthesis()) window.speechSynthesis.cancel();
+}
+
 export function useSpeechSynthesisWord() {
   const [speechAvailable, setSpeechAvailable] = useState(false);
   const [speaking, setSpeaking] = useState<string | null>(null);
 
   useEffect(() => {
-    setSpeechAvailable("speechSynthesis" in window);
-    return () => {
-      if ("speechSynthesis" in window) window.speechSynthesis.cancel();
-    };
+    setSpeechAvailable(hasSpeechSynthesis());
+    return cancelSpeech;
   }, []);
 
   /** Toggle pronunciation of `word` identified by `cardId`. */
   const speak = useCallback(
     (word: string, cardId: string) => {
-      if (!("speechSynthesis" in window)) return;
+      if (!hasSpeechSynthesis()) return;
       if (speaking === cardId) {
-        window.speechSynthesis.cancel();
+        cancelSpeech();
         setSpeaking(null);
         return;
       }
-      window.speechSynthesis.cancel();
+      cancelSpeech();
       const utt = new SpeechSynthesisUtterance(word);
       utt.onend = () => setSpeaking(null);
       utt.onerror = () => setSpeaking(null);

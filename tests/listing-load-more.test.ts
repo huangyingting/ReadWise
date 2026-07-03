@@ -61,12 +61,16 @@ describe("deduplicateArticles", () => {
     return { id, title: "", author: null, source: null, category: null, heroImage: null, readingMinutes: null, difficulty: null, publishedAt: null };
   }
 
+  function ids(articles: ListingArticle[]): string[] {
+    return articles.map((x) => x.id);
+  }
+
   test("appends new articles to prev", () => {
     const prev = [a("a"), a("b")];
     const next = [a("c"), a("d")];
     const result = deduplicateArticles(prev, next);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["a", "b", "c", "d"],
     );
   });
@@ -76,7 +80,7 @@ describe("deduplicateArticles", () => {
     const next = [a("b"), a("c")];
     const result = deduplicateArticles(prev, next);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["a", "b", "c"],
     );
   });
@@ -85,7 +89,7 @@ describe("deduplicateArticles", () => {
     const prev = [a("a")];
     const result = deduplicateArticles(prev, []);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["a"],
     );
   });
@@ -94,7 +98,7 @@ describe("deduplicateArticles", () => {
     const next = [a("x"), a("y")];
     const result = deduplicateArticles([], next);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["x", "y"],
     );
   });
@@ -104,7 +108,7 @@ describe("deduplicateArticles", () => {
     const next = [a("2"), a("4"), a("1"), a("5")];
     const result = deduplicateArticles(prev, next);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["1", "2", "3", "4", "5"],
     );
   });
@@ -114,7 +118,7 @@ describe("deduplicateArticles", () => {
     const next = [a("a"), a("b")];
     const result = deduplicateArticles(prev, next);
     assert.deepEqual(
-      result.map((x) => x.id),
+      ids(result),
       ["a", "b"],
     );
   });

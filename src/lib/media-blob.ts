@@ -16,7 +16,7 @@
  */
 export function base64ToBlobUrl(base64OrDataUri: string, mimeType: string): string {
   const bytes = decodeBase64(stripDataUriHeader(base64OrDataUri));
-  const blob = new Blob([bytes], { type: mimeType });
+  const blob = new Blob([bytesToBlobPart(bytes)], { type: mimeType });
   return URL.createObjectURL(blob);
 }
 
@@ -30,6 +30,12 @@ function stripDataUriHeader(base64OrDataUri: string): string {
 
 function decodeBase64(base64: string): Uint8Array {
   return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
+}
+
+function bytesToBlobPart(bytes: Uint8Array): BlobPart {
+  const buffer = new ArrayBuffer(bytes.byteLength);
+  new Uint8Array(buffer).set(bytes);
+  return buffer;
 }
 
 /**

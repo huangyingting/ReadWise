@@ -16,28 +16,44 @@ interface FluencySectionProps {
   fluencyTrend: FluencyTrend;
 }
 
-const TREND_ICON: Record<FluencyTrendValue, typeof TrendingUp> = {
-  improving: TrendingUp,
-  stable: Minus,
-  declining: TrendingDown,
-  insufficient_data: Sparkles,
+type TrendDisplay = {
+  Icon: typeof TrendingUp;
+  badge: { label: string; variant: "success" | "neutral" | "primary" };
 };
 
-const TREND_BADGE: Record<
-  FluencyTrendValue,
-  { label: string; variant: "success" | "neutral" | "primary" }
-> = {
-  improving: { label: "Improving", variant: "success" },
-  stable: { label: "Steady", variant: "primary" },
-  declining: { label: "Deeper reading", variant: "neutral" },
-  insufficient_data: { label: "Building up", variant: "neutral" },
+const TREND_DISPLAY: Record<FluencyTrendValue, TrendDisplay> = {
+  improving: {
+    Icon: TrendingUp,
+    badge: { label: "Improving", variant: "success" },
+  },
+  stable: {
+    Icon: Minus,
+    badge: { label: "Steady", variant: "primary" },
+  },
+  declining: {
+    Icon: TrendingDown,
+    badge: { label: "Deeper reading", variant: "neutral" },
+  },
+  insufficient_data: {
+    Icon: Sparkles,
+    badge: { label: "Building up", variant: "neutral" },
+  },
 };
+
+function getFluencyMetaCopy(avgWpm: number | null, sampleCount: number) {
+  const averagePrefix = avgWpm !== null
+    ? `Around ${avgWpm} words per minute · `
+    : "";
+  const sessionLabel = sampleCount !== 1 ? "sessions" : "session";
+
+  return `${averagePrefix}${sampleCount} reading ${sessionLabel} measured`;
+}
 
 export function FluencySection({ fluencyTrend }: FluencySectionProps) {
   const { trend, avgWpm, sampleCount } = fluencyTrend;
-  const Icon = TREND_ICON[trend];
-  const badge = TREND_BADGE[trend];
+  const { Icon, badge } = TREND_DISPLAY[trend];
   const copy = t(`fluency.trend.${trend}`);
+  const metaCopy = getFluencyMetaCopy(avgWpm, sampleCount);
 
   return (
     <section aria-labelledby="fluency-h">
@@ -59,10 +75,7 @@ export function FluencySection({ fluencyTrend }: FluencySectionProps) {
             <Badge variant={badge.variant}>{badge.label}</Badge>
             <p className="text-[length:var(--text-base)] text-text">{copy}</p>
             <p className="text-[length:var(--text-xs)] text-text-subtle">
-              {avgWpm !== null
-                ? `Around ${avgWpm} words per minute · `
-                : ""}
-              {sampleCount} reading session{sampleCount !== 1 ? "s" : ""} measured
+              {metaCopy}
             </p>
           </div>
         </div>

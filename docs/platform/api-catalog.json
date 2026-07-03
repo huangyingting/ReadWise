@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-06-27T10:00:53.072Z",
+  "generatedAt": "2026-07-03T10:18:35.950Z",
   "routeCount": 104,
   "methodCount": 118,
   "routes": [
@@ -105,7 +105,7 @@
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
-          "responseFormat": "text/csv",
+          "responseFormat": "mixed",
           "notes": [
             "capability: CAPABILITIES.analyticsView"
           ],
@@ -261,10 +261,9 @@
           "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],
-          "successStatus": 409,
+          "successStatus": 201,
           "responseKeys": [
             "id",
-            "message",
             "status"
           ],
           "queryParamNames": null,
@@ -288,7 +287,13 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": null,
-          "queryParamNames": null,
+          "queryParamNames": [
+            "action",
+            "actorId",
+            "page",
+            "pageSize",
+            "targetType"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -308,10 +313,15 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": [
-            "dashboard"
+          "responseKeys": null,
+          "queryParamNames": [
+            "articleId",
+            "page",
+            "reason",
+            "status",
+            "stuck",
+            "type"
           ],
-          "queryParamNames": null,
           "bodyFieldNames": null
         }
       ]
@@ -566,7 +576,11 @@
             "count",
             "events"
           ],
-          "queryParamNames": null,
+          "queryParamNames": [
+            "limit",
+            "severity",
+            "type"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -798,7 +812,13 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": null,
-          "queryParamNames": null,
+          "queryParamNames": [
+            "category",
+            "level",
+            "limit",
+            "offset",
+            "view"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -1145,7 +1165,11 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": null,
-          "queryParamNames": null,
+          "queryParamNames": [
+            "level",
+            "limit",
+            "offset"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -1165,9 +1189,7 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": [
-            "dueCount"
-          ],
+          "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -1304,7 +1326,7 @@
           "method": "GET",
           "authMode": "session",
           "capability": null,
-          "hasBodySchema": true,
+          "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
@@ -1314,9 +1336,7 @@
             "lists"
           ],
           "queryParamNames": null,
-          "bodyFieldNames": [
-            "name"
-          ]
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -1513,7 +1533,7 @@
           "method": "GET",
           "authMode": "session",
           "capability": null,
-          "hasBodySchema": true,
+          "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
@@ -1522,16 +1542,10 @@
           "responseKeys": [
             "available"
           ],
-          "queryParamNames": null,
-          "bodyFieldNames": [
-            "articleId",
-            "attempt",
-            "correctCount",
-            "lookupCount",
-            "seedLevel",
-            "skipped",
-            "totalCount"
-          ]
+          "queryParamNames": [
+            "seedLevel"
+          ],
+          "bodyFieldNames": null
         },
         {
           "method": "POST",
@@ -1669,7 +1683,7 @@
           "method": "GET",
           "authMode": "session",
           "capability": null,
-          "hasBodySchema": true,
+          "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
@@ -1713,8 +1727,10 @@
           "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],
-          "successStatus": 200,
-          "responseKeys": null,
+          "successStatus": 201,
+          "responseKeys": [
+            "ok"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -1735,7 +1751,9 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": null,
+          "responseKeys": [
+            "ok"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -1756,7 +1774,10 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": null,
+          "responseKeys": [
+            "configured",
+            "publicKey"
+          ],
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -1880,9 +1901,17 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": [
+            "author",
             "contentHash",
+            "difficulty",
+            "heroImage",
             "id",
-            "updatedAt",
+            "publishedAt",
+            "readingMinutes",
+            "sanitizedHtml",
+            "source",
+            "sourceUrl",
+            "title",
             "version"
           ],
           "queryParamNames": null,
@@ -2277,7 +2306,11 @@
           "notes": [],
           "successStatus": 200,
           "responseKeys": null,
-          "queryParamNames": null,
+          "queryParamNames": [
+            "limit",
+            "offset",
+            "q"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -2359,9 +2392,11 @@
           "hasQuerySchema": false,
           "responseFormat": "json",
           "notes": [],
-          "successStatus": 502,
+          "successStatus": 200,
           "responseKeys": [
-            "configured"
+            "configured",
+            "region",
+            "token"
           ],
           "queryParamNames": null,
           "bodyFieldNames": null
@@ -2406,10 +2441,7 @@
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
-          "responseKeys": [
-            "cards",
-            "dueCount"
-          ],
+          "responseKeys": null,
           "queryParamNames": null,
           "bodyFieldNames": null
         }
@@ -2481,11 +2513,11 @@
           "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
-          "successStatus": 404,
-          "responseKeys": [
-            "error"
+          "successStatus": 200,
+          "responseKeys": null,
+          "queryParamNames": [
+            "timezone"
           ],
-          "queryParamNames": null,
           "bodyFieldNames": null
         }
       ]

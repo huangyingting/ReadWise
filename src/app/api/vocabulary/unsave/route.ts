@@ -5,5 +5,9 @@ import { unsaveWordBody } from "@/lib/vocabulary/schemas";
 
 export const POST = createHandler({ body: unsaveWordBody }, async ({ body, session }) => {
   await unsaveWord(session.user.id, body.word);
-  return NextResponse.json({ word: body.word, saved: false });
+  return unsavedWordResponse(body.word);
 });
+
+function unsavedWordResponse(word: string): NextResponse {
+  return NextResponse.json({ word, saved: false });
+}

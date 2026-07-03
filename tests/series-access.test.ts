@@ -82,6 +82,15 @@ beforeEach(() => {
 
 const importSeries = () => import("@/lib/engagement/series");
 
+function activeEnrollment(articleIds: string[], nextIndex = 0): Record<string, unknown> {
+  return {
+    id: "e1",
+    seriesId: "s1",
+    nextIndex,
+    series: { id: "s1", status: "active", public: true, articleIds },
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Enroll / unenroll
 // ---------------------------------------------------------------------------
@@ -130,12 +139,7 @@ test("unenrollFromSeries: public series → deletes the enrollment", async () =>
 
 test("resolveNextSeriesArticle: skips a PRIVATE article and advances nextIndex past it", async () => {
   const { resolveNextSeriesArticle } = await importSeries();
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a-priv", "a-pub"] },
-  };
+  enrollment = activeEnrollment(["a-priv", "a-pub"]);
   accessibleIds = new Set(["a-pub"]); // a-priv is NOT public-listable
 
   const resolved = await resolveNextSeriesArticle("u1");
@@ -156,12 +160,7 @@ test("resolveNextSeriesArticle: no active enrollment → null", async () => {
 
 test("resolveNextSeriesArticle: all inaccessible → completes the enrollment", async () => {
   const { resolveNextSeriesArticle } = await importSeries();
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["x", "y"] },
-  };
+  enrollment = activeEnrollment(["x", "y"]);
   accessibleIds = new Set(); // none accessible
   const resolved = await resolveNextSeriesArticle("u1");
   assert.equal(resolved, null);
@@ -173,9 +172,7 @@ test("resolveNextSeriesArticle: all inaccessible → completes the enrollment", 
 test("resolveNextSeriesArticle: archived/non-public series is not surfaced", async () => {
   const { resolveNextSeriesArticle } = await importSeries();
   enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
+    ...activeEnrollment(["a-pub"]),
     series: { id: "s1", status: "archived", public: false, articleIds: ["a-pub"] },
   };
   accessibleIds = new Set(["a-pub"]);
@@ -188,12 +185,7 @@ test("resolveNextSeriesArticle: archived/non-public series is not surfaced", asy
 
 test("advanceSeriesOnArticleRead: advances nextIndex when the read primary is the series article", async () => {
   const { advanceSeriesOnArticleRead } = await importSeries();
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a0", "a1"] },
-  };
+  enrollment = activeEnrollment(["a0", "a1"]);
   accessibleIds = new Set(["a0", "a1"]);
   await advanceSeriesOnArticleRead("u1", "a0");
   // index 0 read → advances to 1 (not complete yet).
@@ -204,12 +196,7 @@ test("advanceSeriesOnArticleRead: advances nextIndex when the read primary is th
 
 test("advanceSeriesOnArticleRead: completing the last article marks the enrollment completed", async () => {
   const { advanceSeriesOnArticleRead } = await importSeries();
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 1,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a0", "a1"] },
-  };
+  enrollment = activeEnrollment(["a0", "a1"], 1);
   accessibleIds = new Set(["a0", "a1"]);
   await advanceSeriesOnArticleRead("u1", "a1");
   const last = enrollmentUpdates.at(-1)!;
@@ -219,12 +206,7 @@ test("advanceSeriesOnArticleRead: completing the last article marks the enrollme
 
 test("advanceSeriesOnArticleRead: idempotent — a non-current article does not advance", async () => {
   const { advanceSeriesOnArticleRead } = await importSeries();
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a0", "a1"] },
-  };
+  enrollment = activeEnrollment(["a0", "a1"]);
   accessibleIds = new Set(["a0", "a1"]);
   // The current series article is a0; completing a1 (not current) must not advance.
   await advanceSeriesOnArticleRead("u1", "a1");

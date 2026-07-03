@@ -5,14 +5,26 @@
  */
 import { positiveIntEnv } from "@/lib/runtime-config/env";
 
+const analyticsEnabledEnv = "ANALYTICS_ENABLED";
+const analyticsRetentionDaysEnv = "ANALYTICS_RETENTION_DAYS";
+const analyticsRetentionDaysDefault = 400;
+const truthyEnvValues = new Set(["1", "true"]);
+const falsyEnvValues = new Set(["0", "false"]);
+
+function parseBooleanEnv(value: string | undefined): boolean | undefined {
+  const normalized = (value ?? "").trim().toLowerCase();
+  if (truthyEnvValues.has(normalized)) return true;
+  if (falsyEnvValues.has(normalized)) return false;
+  return undefined;
+}
+
 /**
  * Whether the product analytics event stream persists events to the database.
  * Defaults OFF under NODE_ENV=test and ON otherwise. Set ANALYTICS_ENABLED=0 to disable.
  */
 export function analyticsEnabled(): boolean {
-  const raw = (process.env.ANALYTICS_ENABLED ?? "").trim().toLowerCase();
-  if (raw === "1" || raw === "true") return true;
-  if (raw === "0" || raw === "false") return false;
+  const configured = parseBooleanEnv(process.env[analyticsEnabledEnv]);
+  if (configured !== undefined) return configured;
   return process.env.NODE_ENV !== "test";
 }
 
@@ -21,5 +33,5 @@ export function analyticsEnabled(): boolean {
  * Set via ANALYTICS_RETENTION_DAYS.
  */
 export function analyticsRetentionDays(): number {
-  return positiveIntEnv("ANALYTICS_RETENTION_DAYS", 400);
+  return positiveIntEnv(analyticsRetentionDaysEnv, analyticsRetentionDaysDefault);
 }

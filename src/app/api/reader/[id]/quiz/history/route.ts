@@ -1,8 +1,13 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { getArticleQuizHistory } from "@/lib/learning/quiz-mastery";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
+
+async function getReadableArticleQuizHistory(articleId: string, user: { id: string }) {
+  const { article } = await requireReadableArticle(articleId, user);
+  return getArticleQuizHistory(user.id, article.id);
+}
 
 /**
  * GET /api/reader/[id]/quiz/history
@@ -21,9 +26,6 @@ import { requireReadableArticle } from "@/lib/reader/route-guard";
 export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const { article } = await requireReadableArticle(params.id, session.user);
-
-    const history = await getArticleQuizHistory(session.user.id, article.id);
-    return NextResponse.json(history);
+    return NextResponse.json(await getReadableArticleQuizHistory(params.id, session.user));
   },
 );

@@ -2,10 +2,16 @@
 
 import { cn } from "@/lib/cn";
 
+const METER_SEGMENT_COUNT = 7;
+
 type Props = {
   meterLevel: number;
   secondsRemaining: number | null;
 };
+
+function getMeterSegmentThreshold(index: number) {
+  return (index + 0.5) / METER_SEGMENT_COUNT;
+}
 
 export function RecordingPanel({ meterLevel, secondsRemaining }: Props) {
   return (
@@ -31,12 +37,12 @@ export function RecordingPanel({ meterLevel, secondsRemaining }: Props) {
 
       {/* Mic level meter (informative, aria-hidden) */}
       <div className="rw-speak-meter" aria-hidden="true">
-        {Array.from({ length: 7 }, (_, i) => (
+        {Array.from({ length: METER_SEGMENT_COUNT }, (_, i) => (
           <div
             key={i}
             className={cn(
               "rw-speak-meter-seg",
-              meterLevel > (i + 0.5) / 7 && "is-active",
+              meterLevel > getMeterSegmentThreshold(i) && "is-active",
             )}
           />
         ))}

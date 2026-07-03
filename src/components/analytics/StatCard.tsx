@@ -22,6 +22,18 @@ export interface StatCardProps {
   color?: string;
 }
 
+function StatIcon({ Icon, color }: { Icon: LucideIcon; color: string }) {
+  return (
+    <span
+      className="shrink-0 rounded-[var(--radius-md)] p-[var(--space-2)]"
+      style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}
+      aria-hidden
+    >
+      <Icon size={20} style={{ color }} />
+    </span>
+  );
+}
+
 export function StatCard({
   icon: Icon,
   label,
@@ -32,15 +44,7 @@ export function StatCard({
   return (
     <Card>
       <div className={Icon ? "flex items-start gap-[var(--space-3)]" : undefined}>
-        {Icon && (
-          <span
-            className="shrink-0 rounded-[var(--radius-md)] p-[var(--space-2)]"
-            style={{ backgroundColor: `color-mix(in srgb, ${color} 15%, transparent)` }}
-            aria-hidden
-          >
-            <Icon size={20} style={{ color }} />
-          </span>
-        )}
+        {Icon && <StatIcon Icon={Icon} color={color} />}
         <div>
           <p className="text-[length:var(--text-sm)] text-text-subtle">{label}</p>
           <p

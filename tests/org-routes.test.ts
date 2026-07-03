@@ -92,17 +92,21 @@ beforeEach(() => {
   addMemberResult = { id: "mem1", userId: "u2", orgId: "org-1", role: "Member" };
 });
 
+async function postOrgMember() {
+  const { POST } = (await import("@/app/api/orgs/[id]/members/route")) as { POST: RouteHandler };
+  return POST(
+    jsonPost("http://test/api/orgs/org-1/members", { userId: "u2", role: "Member" }),
+    withParams({ id: "org-1" }),
+  );
+}
+
 // ===========================================================================
 // POST /api/orgs/[id]/members
 // ===========================================================================
 
 test("POST /api/orgs/[id]/members returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/orgs/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/orgs/org-1/members", { userId: "u2", role: "Member" }),
-    withParams({ id: "org-1" }),
-  );
+  const res = await postOrgMember();
   assert.equal(res.status, 401);
 });
 
@@ -110,11 +114,7 @@ test("POST /api/orgs/[id]/members returns 403 when caller lacks org membership m
   // membershipStub=null + isOrgAdminStub=false → real requireOrgCapabilityApi throws 403
   membershipStub = null;
   isOrgAdminStub = false;
-  const { POST } = (await import("@/app/api/orgs/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/orgs/org-1/members", { userId: "u2", role: "Member" }),
-    withParams({ id: "org-1" }),
-  );
+  const res = await postOrgMember();
   assert.equal(res.status, 403);
   const body = await res.json() as { error: string };
   assert.ok(typeof body.error === "string");
@@ -123,11 +123,7 @@ test("POST /api/orgs/[id]/members returns 403 when caller lacks org membership m
 test("POST /api/orgs/[id]/members returns 201 with new membership on success", async () => {
   // isOrgAdminStub=true → real requireOrgCapabilityApi passes
   isOrgAdminStub = true;
-  const { POST } = (await import("@/app/api/orgs/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/orgs/org-1/members", { userId: "u2", role: "Member" }),
-    withParams({ id: "org-1" }),
-  );
+  const res = await postOrgMember();
   assert.equal(res.status, 201);
   const body = await res.json() as { ok: boolean; membership: { id: string } };
   assert.equal(body.ok, true);

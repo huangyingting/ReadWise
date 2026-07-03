@@ -4,6 +4,11 @@ import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@/hooks/useMutation";
 
+interface AdminActionOptions {
+  errorFallback?: string;
+  skipRefresh?: boolean;
+}
+
 /**
  * Shared state + action runner for admin action components.
  *
@@ -38,7 +43,7 @@ export function useAdminAction<K extends string = string>() {
     async (
       key: K,
       fn: () => Promise<void>,
-      opts?: { errorFallback?: string; skipRefresh?: boolean },
+      opts?: AdminActionOptions,
     ) => {
       setBusy(key);
       await runMutation(fn, {

@@ -10,6 +10,13 @@ interface SeriesEnrollButtonProps {
   enrolled: boolean;
 }
 
+function getEnrollmentRequest(seriesId: string, enrolled: boolean): RequestInit & { url: string } {
+  return {
+    url: `/api/series/${encodeURIComponent(seriesId)}/enroll`,
+    method: enrolled ? "DELETE" : "POST",
+  };
+}
+
 /**
  * Enroll / unenroll control for a curated reading series (#813). Calls the
  * access-checked `POST`/`DELETE /api/series/[id]/enroll` endpoints and refreshes
@@ -25,9 +32,8 @@ export function SeriesEnrollButton({ seriesId, enrolled }: SeriesEnrollButtonPro
     if (busy) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/series/${encodeURIComponent(seriesId)}/enroll`, {
-        method: enrolled ? "DELETE" : "POST",
-      });
+      const { url, ...request } = getEnrollmentRequest(seriesId, enrolled);
+      const res = await fetch(url, request);
       if (res.ok) {
         startTransition(() => router.refresh());
       }

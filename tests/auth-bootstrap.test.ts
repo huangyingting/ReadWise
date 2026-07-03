@@ -30,9 +30,13 @@ beforeEach(() => {
   lastUpdateArgs = null;
 });
 
+async function bootstrapFirstUser(userId: string) {
+  const mod = await import("@/lib/auth-bootstrap");
+  return mod.bootstrapFirstUser(userId);
+}
+
 test("bootstrapFirstUser promotes the first user to Admin", async () => {
   fakeUserCount = 1;
-  const { bootstrapFirstUser } = await import("@/lib/auth-bootstrap");
   await bootstrapFirstUser("user-001");
   assert.deepEqual(lastUpdateArgs, {
     where: { id: "user-001" },
@@ -42,14 +46,12 @@ test("bootstrapFirstUser promotes the first user to Admin", async () => {
 
 test("bootstrapFirstUser does not promote subsequent users", async () => {
   fakeUserCount = 2;
-  const { bootstrapFirstUser } = await import("@/lib/auth-bootstrap");
   await bootstrapFirstUser("user-002");
   assert.equal(lastUpdateArgs, null, "update should not be called for non-first users");
 });
 
 test("bootstrapFirstUser does not promote when count is zero", async () => {
   fakeUserCount = 0;
-  const { bootstrapFirstUser } = await import("@/lib/auth-bootstrap");
   await bootstrapFirstUser("user-003");
   assert.equal(lastUpdateArgs, null, "update should not be called when user count is 0");
 });

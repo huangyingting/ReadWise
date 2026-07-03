@@ -1,21 +1,26 @@
 import { dirname, join } from "node:path";
 import { defineConfig } from "prisma/config";
 
-try {
-  process.loadEnvFile?.(".env");
-} catch (error) {
-  if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
-    throw error;
+const DEFAULT_SCHEMA = "prisma/schema.prisma";
+const SCHEMA_FLAG = "--schema";
+
+function loadLocalEnv(): void {
+  try {
+    process.loadEnvFile?.(".env");
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw error;
+    }
   }
 }
 
 function schemaPathFromArgs(args: string[]): string | undefined {
-  const inline = args.find((arg) => arg.startsWith("--schema="));
+  const inline = args.find((arg) => arg.startsWith(`${SCHEMA_FLAG}=`));
   if (inline) {
-    return inline.slice("--schema=".length);
+    return inline.slice(`${SCHEMA_FLAG}=`.length);
   }
 
-  const index = args.indexOf("--schema");
+  const index = args.indexOf(SCHEMA_FLAG);
   if (index >= 0) {
     return args[index + 1];
   }
@@ -23,7 +28,10 @@ function schemaPathFromArgs(args: string[]): string | undefined {
   return undefined;
 }
 
-const schema = schemaPathFromArgs(process.argv) ?? process.env.PRISMA_SCHEMA_PATH ?? "prisma/schema.prisma";
+loadLocalEnv();
+
+const schema =
+  schemaPathFromArgs(process.argv) ?? process.env.PRISMA_SCHEMA_PATH ?? DEFAULT_SCHEMA;
 
 export default defineConfig({
   schema,

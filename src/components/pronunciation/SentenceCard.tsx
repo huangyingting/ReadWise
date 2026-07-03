@@ -16,7 +16,9 @@ type Props = {
  * and the scoring legend.
  */
 export function SentenceCard({ sentence, wordResults }: Props) {
-  if (wordResults != null) {
+  const hasWordResults = wordResults != null;
+
+  if (hasWordResults) {
     return (
       <>
         <WordDisplay sentence={sentence} wordResults={wordResults} />

@@ -27,6 +27,15 @@ const POSTGRES_SCHEMA = "prisma/postgresql/schema.prisma";
 
 const PLACEHOLDER = '{{PROVIDER}}';
 
+const OUTPUT_SCHEMAS = [
+  { path: SQLITE_SCHEMA, provider: "sqlite", label: "SQLite" },
+  { path: POSTGRES_SCHEMA, provider: "postgresql", label: "PostgreSQL" },
+] as const;
+
+function renderSchema(base: string, provider: string): string {
+  return base.replace(PLACEHOLDER, provider);
+}
+
 async function generateSchemas(): Promise<void> {
   const base = await readFile(BASE_SCHEMA, "utf8");
 
@@ -36,16 +45,15 @@ async function generateSchemas(): Promise<void> {
     );
   }
 
-  const sqliteSchema = base.replace(PLACEHOLDER, "sqlite");
-  const postgresSchema = base.replace(PLACEHOLDER, "postgresql");
+  await Promise.all(
+    OUTPUT_SCHEMAS.map(({ path, provider }) =>
+      writeFile(path, renderSchema(base, provider), "utf8"),
+    ),
+  );
 
-  await Promise.all([
-    writeFile(SQLITE_SCHEMA, sqliteSchema, "utf8"),
-    writeFile(POSTGRES_SCHEMA, postgresSchema, "utf8"),
-  ]);
-
-  console.log(`✔ Generated ${SQLITE_SCHEMA} (SQLite)`);
-  console.log(`✔ Generated ${POSTGRES_SCHEMA} (PostgreSQL)`);
+  for (const { path, label } of OUTPUT_SCHEMAS) {
+    console.log(`✔ Generated ${path} (${label})`);
+  }
 }
 
 async function main() {

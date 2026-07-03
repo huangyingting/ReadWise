@@ -18,23 +18,29 @@ type Args = {
   help: boolean;
 };
 
+const DEFAULT_ARGS: Args = {
+  intervalMs: 5000,
+  once: false,
+  tts: false,
+  translateLangs: [],
+  lockTtlMs: 600000,
+  help: false,
+};
+
+function parseNonNegativeMs(value: string | undefined): number {
+  return Math.max(0, Number(value) || 0);
+}
+
 function parseArgs(argv: string[]): Args {
-  const args: Args = {
-    intervalMs: 5000,
-    once: false,
-    tts: false,
-    translateLangs: [],
-    lockTtlMs: 600000,
-    help: false,
-  };
+  const args: Args = { ...DEFAULT_ARGS, translateLangs: [] };
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
       case "--interval":
-        args.intervalMs = Math.max(0, Number(argv[++i]) || 0);
+        args.intervalMs = parseNonNegativeMs(argv[++i]);
         break;
       case "--lock-ttl":
-        args.lockTtlMs = Math.max(0, Number(argv[++i]) || 0);
+        args.lockTtlMs = parseNonNegativeMs(argv[++i]);
         break;
       case "--once":
         args.once = true;
@@ -80,6 +86,31 @@ Options:
   --help                Show this help`);
 }
 
+function validateTranslateLangs(langs: string[]): boolean {
+  for (const lang of langs) {
+    if (!isSupportedLanguage(lang)) {
+      console.error(`Unsupported translation language: "${lang}".`);
+      return false;
+    }
+  }
+  return true;
+}
+
+function buildJobWorkerOptions(
+  args: Args,
+  controller: AbortController,
+  logger: ReturnType<typeof createConsoleLogger>,
+): JobWorkerOptions {
+  return {
+    pollIntervalMs: args.intervalMs,
+    lockTtlMs: args.lockTtlMs,
+    once: args.once,
+    signal: controller.signal,
+    logger,
+    process: { tts: args.tts, translateLangs: args.translateLangs },
+  };
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -88,11 +119,8 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  for (const lang of args.translateLangs) {
-    if (!isSupportedLanguage(lang)) {
-      console.error(`Unsupported translation language: "${lang}".`);
-      return 1;
-    }
+  if (!validateTranslateLangs(args.translateLangs)) {
+    return 1;
   }
 
   if (!isAiConfigured()) {
@@ -108,15 +136,7 @@ async function main(): Promise<number> {
   const logger = createConsoleLogger();
   registerShutdownSignals(controller, logger);
 
-  const jobOpts: JobWorkerOptions = {
-    pollIntervalMs: args.intervalMs,
-    lockTtlMs: args.lockTtlMs,
-    once: args.once,
-    signal: controller.signal,
-    logger,
-    process: { tts: args.tts, translateLangs: args.translateLangs },
-  };
-  await runJobWorker(jobOpts);
+  await runJobWorker(buildJobWorkerOptions(args, controller, logger));
   return 0;
 }
 

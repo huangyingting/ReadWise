@@ -14,7 +14,7 @@
  * No external providers or AI services are required. All pages are accessible
  * to any onboarded authenticated reader.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -33,6 +33,17 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
+async function signInReader(context: BrowserContext) {
+  const { sessionToken, expires } = await createUserWithSession();
+  await addSessionCookie(context, sessionToken, expires);
+}
+
+async function gotoProtectedPage(context: BrowserContext, page: Page, path: string) {
+  await signInReader(context);
+  await page.goto(path);
+  await expect(page).toHaveURL(new RegExp(`${path}$`));
+}
+
 // ---------------------------------------------------------------------------
 // Offline library
 // ---------------------------------------------------------------------------
@@ -41,19 +52,12 @@ test("offline library loads and shows Offline Library heading", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/offline");
-  await expect(page).toHaveURL(/\/offline$/);
+  await gotoProtectedPage(context, page, "/offline");
   await expect(page.getByRole("heading", { name: "Offline Library" })).toBeVisible();
 });
 
 test("offline library shows instructional subtitle", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/offline");
+  await gotoProtectedPage(context, page, "/offline");
   await expect(
     page.getByText(/Articles saved here are available when you.re offline/),
   ).toBeVisible();
@@ -67,19 +71,12 @@ test("progress page loads and shows My Progress heading", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/progress");
-  await expect(page).toHaveURL(/\/progress$/);
+  await gotoProtectedPage(context, page, "/progress");
   await expect(page.getByRole("heading", { name: "My Progress" })).toBeVisible();
 });
 
 test("progress page shows empty activity state for a new reader", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/progress");
+  await gotoProtectedPage(context, page, "/progress");
   await expect(
     page.getByText(/No reading activity in the past 52 weeks/),
   ).toBeVisible();
@@ -93,11 +90,7 @@ test("notes page loads and shows Notes & Highlights heading", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/notes");
-  await expect(page).toHaveURL(/\/notes$/);
+  await gotoProtectedPage(context, page, "/notes");
   await expect(
     page.getByRole("heading", { name: "Notes & Highlights" }),
   ).toBeVisible();
@@ -107,10 +100,7 @@ test("notes page shows empty state when user has no highlights", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/notes");
+  await gotoProtectedPage(context, page, "/notes");
   await expect(page.getByText("No highlights yet")).toBeVisible();
 });
 

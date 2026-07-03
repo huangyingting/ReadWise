@@ -7,15 +7,20 @@ interface WordmarkProps {
   className?: string;
 }
 
+const WORDMARK_SIZE = {
+  header: { textClass: "text-[length:var(--text-xl)]", markSize: 22 },
+  large: { textClass: "text-[length:var(--text-2xl)]", markSize: 28 },
+} as const satisfies Record<
+  NonNullable<WordmarkProps["size"]>,
+  { textClass: string; markSize: number }
+>;
+
 /**
  * ReadWise brand wordmark — a small diamond SVG mark followed by the name.
  * Used in AppHeader and the sign-in page.
  */
 export function Wordmark({ size = "header", className }: WordmarkProps) {
-  const textClass =
-    size === "large"
-      ? "text-[length:var(--text-2xl)]"
-      : "text-[length:var(--text-xl)]";
+  const { textClass, markSize } = WORDMARK_SIZE[size];
 
   return (
     <span
@@ -28,8 +33,8 @@ export function Wordmark({ size = "header", className }: WordmarkProps) {
     >
       {/* Diamond mark — same geometry as sign-in page */}
       <svg
-        width={size === "large" ? 28 : 22}
-        height={size === "large" ? 28 : 22}
+        width={markSize}
+        height={markSize}
         viewBox="0 0 16 16"
         fill="none"
         stroke="var(--primary)"

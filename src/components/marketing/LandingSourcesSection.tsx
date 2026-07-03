@@ -4,13 +4,15 @@
 import { Badge } from "@/components/ui";
 import { CONTAINER, SOURCES } from "@/components/marketing/landing-content";
 
+const TRUSTED_SOURCES_HEADING = "Trusted sources";
+
 export function LandingSourcesSection() {
   return (
     <section className="border-t border-border py-[var(--space-6)]">
       <div
         className={`${CONTAINER} flex flex-wrap items-center gap-x-[var(--space-3)] gap-y-[var(--space-3)] overflow-x-auto`}
       >
-        <h2 className="sr-only">Trusted sources</h2>
+        <h2 className="sr-only">{TRUSTED_SOURCES_HEADING}</h2>
         <p className="italic text-[length:var(--text-sm)] text-text-subtle">
           Real articles from:
         </p>

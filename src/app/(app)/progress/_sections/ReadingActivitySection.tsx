@@ -9,6 +9,12 @@ interface ReadingActivitySectionProps {
   completionsByWeek: LearnerAnalytics["completionsByWeek"];
 }
 
+const READING_ACTIVITY_CHART = {
+  label: "Articles completed per week over the last 12 weeks",
+  color: "var(--teal)",
+  caption: "Completed articles per week",
+} as const;
+
 export function ReadingActivitySection({ completionsByWeek }: ReadingActivitySectionProps) {
   return (
     <section aria-labelledby="reading-h">
@@ -24,11 +30,11 @@ export function ReadingActivitySection({ completionsByWeek }: ReadingActivitySec
       <Card>
         <WeeklyBars
           buckets={completionsByWeek}
-          label="Articles completed per week over the last 12 weeks"
-          color="var(--teal)"
+          label={READING_ACTIVITY_CHART.label}
+          color={READING_ACTIVITY_CHART.color}
         />
         <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
-          Completed articles per week
+          {READING_ACTIVITY_CHART.caption}
         </p>
       </Card>
     </section>

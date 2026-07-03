@@ -16,6 +16,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { PageHeader, PageShell, Stack, buttonVariants } from "@/components/ui";
 
+const BACK_LINK_LABEL = "← Back to ReadWise";
+
 interface LegalPageShellProps {
   /** Page heading — e.g. "Terms of Service" or "Privacy Policy". */
   heading: string;
@@ -37,8 +39,11 @@ export function LegalPageShell({
       <Stack gap="6">{children}</Stack>
 
       <p className="mt-[var(--space-7)]">
-        <Link href="/" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-          ← Back to ReadWise
+        <Link
+          href="/"
+          className={buttonVariants({ variant: "ghost", size: "sm" })}
+        >
+          {BACK_LINK_LABEL}
         </Link>
       </p>
     </PageShell>

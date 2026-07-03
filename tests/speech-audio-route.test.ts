@@ -80,6 +80,12 @@ async function callGet(id: string) {
   return GET(getReq(`http://test/api/reader/${id}/speech/audio`), withParams({ id }));
 }
 
+function storeSpeechAudio(storageKey: string | null, bytes: Buffer | null = null) {
+  storageConfigured = bytes !== null;
+  storageBytes = bytes;
+  speechRow = { mimeType: "audio/mpeg", storageKey };
+}
+
 test("GET /speech/audio returns 401 when unauthenticated", async () => {
   authState = "unauth";
   const res = await callGet("a1");
@@ -99,22 +105,14 @@ test("GET /speech/audio returns 404 when no speech row exists", async () => {
 });
 
 test("GET /speech/audio returns 404 when storageKey is null", async () => {
-  speechRow = {
-    mimeType: "audio/mpeg",
-    storageKey: null,
-  };
+  storeSpeechAudio(null);
   const res = await callGet("a1");
   assert.equal(res.status, 404);
 });
 
 test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", async () => {
   const audioData = Buffer.from("storage-audio-bytes");
-  storageConfigured = true;
-  storageBytes = audioData;
-  speechRow = {
-    mimeType: "audio/mpeg",
-    storageKey: "speech/abc123.mp3",
-  };
+  storeSpeechAudio("speech/abc123.mp3", audioData);
   const res = await callGet("a1");
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("Content-Type"), "audio/mpeg");
@@ -123,23 +121,14 @@ test("GET /speech/audio serves bytes from MediaStorage when storageKey is set", 
 });
 
 test("GET /speech/audio returns 404 when storageKey is set but storage is unavailable", async () => {
-  storageConfigured = false; // storage returns null from getMediaStorage()
-  speechRow = {
-    mimeType: "audio/mpeg",
-    storageKey: "speech/abc123.mp3",
-  };
+  storeSpeechAudio("speech/abc123.mp3"); // storage returns null from getMediaStorage()
   const res = await callGet("a1");
   assert.equal(res.status, 404);
 });
 
 test("GET /speech/audio Cache-Control is private", async () => {
   const audioData = Buffer.from("x");
-  storageConfigured = true;
-  storageBytes = audioData;
-  speechRow = {
-    mimeType: "audio/mpeg",
-    storageKey: "speech/cache.mp3",
-  };
+  storeSpeechAudio("speech/cache.mp3", audioData);
   const res = await callGet("a1");
   assert.equal(res.status, 200);
   const cc = res.headers.get("Cache-Control") ?? "";
@@ -148,12 +137,7 @@ test("GET /speech/audio Cache-Control is private", async () => {
 
 test("GET /speech/audio sets Content-Length header", async () => {
   const audioData = Buffer.from("length-check-bytes");
-  storageConfigured = true;
-  storageBytes = audioData;
-  speechRow = {
-    mimeType: "audio/mpeg",
-    storageKey: "speech/length.mp3",
-  };
+  storeSpeechAudio("speech/length.mp3", audioData);
   const res = await callGet("a1");
   assert.equal(res.status, 200);
   assert.equal(res.headers.get("Content-Length"), String(audioData.byteLength));

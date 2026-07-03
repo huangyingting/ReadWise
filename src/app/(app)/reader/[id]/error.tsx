@@ -3,6 +3,8 @@
 import { BookOpen } from "lucide-react";
 import { SegmentError } from "@/components/route-states";
 
+const READER_ERROR_ACTION = { label: "Browse articles", href: "/browse" } as const;
+
 /**
  * Reader-segment error boundary. Shown when the article page throws
  * (e.g. DB timeout, network error during streaming). Reports to the
@@ -23,7 +25,7 @@ export default function ReaderError({
       icon={BookOpen}
       title="Couldn't load this article"
       description="Something went wrong while loading the article. Try again or browse other content."
-      secondaryAction={{ label: "Browse articles", href: "/browse" }}
+      secondaryAction={READER_ERROR_ACTION}
     />
   );
 }

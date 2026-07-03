@@ -14,101 +14,75 @@ import {
   findOrCreateIdempotent,
 } from "@/lib/learning/practice-attempts";
 
+type IdRecord = { id: string };
+
 // ---------------------------------------------------------------------------
 // validateBoundedScore
 // ---------------------------------------------------------------------------
 
-test("validateBoundedScore accepts 0", () => {
-  assert.doesNotThrow(() => validateBoundedScore(0, "score"));
-});
+for (const { name, value, field } of [
+  { name: "0", value: 0, field: "score" },
+  { name: "100", value: 100, field: "score" },
+  { name: "mid-range integer", value: 75, field: "pronScore" },
+] as const) {
+  test(`validateBoundedScore accepts ${name}`, () => {
+    assert.doesNotThrow(() => validateBoundedScore(value, field));
+  });
+}
 
-test("validateBoundedScore accepts 100", () => {
-  assert.doesNotThrow(() => validateBoundedScore(100, "score"));
-});
-
-test("validateBoundedScore accepts mid-range integer", () => {
-  assert.doesNotThrow(() => validateBoundedScore(75, "pronScore"));
-});
-
-test("validateBoundedScore throws on negative", () => {
-  assert.throws(() => validateBoundedScore(-1, "fluencyScore"), /fluencyScore/);
-});
-
-test("validateBoundedScore throws on > 100", () => {
-  assert.throws(() => validateBoundedScore(101, "accuracyScore"), /accuracyScore/);
-});
-
-test("validateBoundedScore throws on non-integer", () => {
-  assert.throws(() => validateBoundedScore(85.5, "pronScore"), /pronScore/);
-});
-
-test("validateBoundedScore throws on NaN", () => {
-  assert.throws(() => validateBoundedScore(NaN, "score"), /score/);
-});
+for (const { name, value, field, expected } of [
+  { name: "negative", value: -1, field: "fluencyScore", expected: /fluencyScore/ },
+  { name: "> 100", value: 101, field: "accuracyScore", expected: /accuracyScore/ },
+  { name: "non-integer", value: 85.5, field: "pronScore", expected: /pronScore/ },
+  { name: "NaN", value: NaN, field: "score", expected: /score/ },
+] as const) {
+  test(`validateBoundedScore throws on ${name}`, () => {
+    assert.throws(() => validateBoundedScore(value, field), expected);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // validateCountScore
 // ---------------------------------------------------------------------------
 
-test("validateCountScore accepts valid counts", () => {
-  assert.doesNotThrow(() => validateCountScore(3, 5));
-});
+for (const { name, correctCount, totalQuestions } of [
+  { name: "valid counts", correctCount: 3, totalQuestions: 5 },
+  { name: "0 correct out of >0 total", correctCount: 0, totalQuestions: 5 },
+  { name: "all correct (count == total)", correctCount: 5, totalQuestions: 5 },
+] as const) {
+  test(`validateCountScore accepts ${name}`, () => {
+    assert.doesNotThrow(() => validateCountScore(correctCount, totalQuestions));
+  });
+}
 
-test("validateCountScore accepts 0 correct out of >0 total", () => {
-  assert.doesNotThrow(() => validateCountScore(0, 5));
-});
-
-test("validateCountScore accepts all correct (count == total)", () => {
-  assert.doesNotThrow(() => validateCountScore(5, 5));
-});
-
-test("validateCountScore throws when totalQuestions is 0", () => {
-  assert.throws(() => validateCountScore(0, 0), /totalQuestions/);
-});
-
-test("validateCountScore throws when totalQuestions is negative", () => {
-  assert.throws(() => validateCountScore(0, -1), /totalQuestions/);
-});
-
-test("validateCountScore throws when correctCount > totalQuestions", () => {
-  assert.throws(() => validateCountScore(6, 5), /correctCount/);
-});
-
-test("validateCountScore throws when correctCount is negative", () => {
-  assert.throws(() => validateCountScore(-1, 5), /correctCount/);
-});
-
-test("validateCountScore throws on non-integer totalQuestions", () => {
-  assert.throws(() => validateCountScore(3, 4.5), /totalQuestions/);
-});
-
-test("validateCountScore throws on non-integer correctCount", () => {
-  assert.throws(() => validateCountScore(2.5, 5), /correctCount/);
-});
+for (const { name, correctCount, totalQuestions, expected } of [
+  { name: "when totalQuestions is 0", correctCount: 0, totalQuestions: 0, expected: /totalQuestions/ },
+  { name: "when totalQuestions is negative", correctCount: 0, totalQuestions: -1, expected: /totalQuestions/ },
+  { name: "when correctCount > totalQuestions", correctCount: 6, totalQuestions: 5, expected: /correctCount/ },
+  { name: "when correctCount is negative", correctCount: -1, totalQuestions: 5, expected: /correctCount/ },
+  { name: "on non-integer totalQuestions", correctCount: 3, totalQuestions: 4.5, expected: /totalQuestions/ },
+  { name: "on non-integer correctCount", correctCount: 2.5, totalQuestions: 5, expected: /correctCount/ },
+] as const) {
+  test(`validateCountScore throws ${name}`, () => {
+    assert.throws(() => validateCountScore(correctCount, totalQuestions), expected);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // computeCountScorePct
 // ---------------------------------------------------------------------------
 
-test("computeCountScorePct rounds 4/5 to 80", () => {
-  assert.equal(computeCountScorePct(4, 5), 80);
-});
-
-test("computeCountScorePct computes 0/5 as 0", () => {
-  assert.equal(computeCountScorePct(0, 5), 0);
-});
-
-test("computeCountScorePct computes 5/5 as 100", () => {
-  assert.equal(computeCountScorePct(5, 5), 100);
-});
-
-test("computeCountScorePct rounds 2/3 to 67", () => {
-  assert.equal(computeCountScorePct(2, 3), 67); // Math.round(66.67)
-});
-
-test("computeCountScorePct rounds 1/3 to 33", () => {
-  assert.equal(computeCountScorePct(1, 3), 33); // Math.round(33.33)
-});
+for (const { name, correctCount, totalQuestions, expected } of [
+  { name: "rounds 4/5 to 80", correctCount: 4, totalQuestions: 5, expected: 80 },
+  { name: "computes 0/5 as 0", correctCount: 0, totalQuestions: 5, expected: 0 },
+  { name: "computes 5/5 as 100", correctCount: 5, totalQuestions: 5, expected: 100 },
+  { name: "rounds 2/3 to 67", correctCount: 2, totalQuestions: 3, expected: 67 },
+  { name: "rounds 1/3 to 33", correctCount: 1, totalQuestions: 3, expected: 33 },
+] as const) {
+  test(`computeCountScorePct ${name}`, () => {
+    assert.equal(computeCountScorePct(correctCount, totalQuestions), expected);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // findOrCreateIdempotent
@@ -131,7 +105,7 @@ test("findOrCreateIdempotent calls create when no clientMutationId", async () =>
 
 test("findOrCreateIdempotent returns existing record without calling create", async () => {
   let createCalled = false;
-  const existing = { id: "existing-1" };
+  const existing: IdRecord = { id: "existing-1" };
   const { record, created } = await findOrCreateIdempotent({
     clientMutationId: "mut-abc",
     find: async () => existing,

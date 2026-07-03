@@ -6,8 +6,10 @@ const siteUrl =
   process.env.NEXTAUTH_URL ??
   "http://localhost:3000";
 
-export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const staticRoutes: MetadataRoute.Sitemap = [
+type PublishedArticle = Awaited<ReturnType<typeof listPublishedArticles>>[number];
+
+function getStaticRoutes(): MetadataRoute.Sitemap {
+  return [
     {
       url: `${siteUrl}/`,
       lastModified: new Date(),
@@ -21,19 +23,24 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.3,
     },
   ];
+}
 
+async function getPublishedArticlesSafely() {
   // Include published article URLs so they can be discovered/indexed.
   // The reader is auth-gated, but listing canonical URLs aids discovery and
   // lets social-preview crawlers resolve Open Graph metadata for shared links.
   // Gracefully skip article routes when the database is unavailable (e.g.
   // during a cold build without a live database connection).
-  let articles: Awaited<ReturnType<typeof listPublishedArticles>> = [];
   try {
-    articles = await listPublishedArticles(1000);
+    return await listPublishedArticles(1000);
   } catch {
     // DB unavailable at build time — return only static routes.
+    return [];
   }
-  const articleRoutes: MetadataRoute.Sitemap = articles.map((article) => ({
+}
+
+function getArticleRoute(article: PublishedArticle): MetadataRoute.Sitemap[number] {
+  return {
     url: `${siteUrl}/reader/${article.id}`,
     // publishedAt may come back as a serialized string from unstable_cache.
     lastModified: article.publishedAt
@@ -41,7 +48,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       : new Date(article.updatedAt ?? article.createdAt),
     changeFrequency: "monthly" as const,
     priority: 0.7,
-  }));
+  };
+}
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const staticRoutes = getStaticRoutes();
+  const articles = await getPublishedArticlesSafely();
+  const articleRoutes = articles.map(getArticleRoute);
 
   return [...staticRoutes, ...articleRoutes];
 }

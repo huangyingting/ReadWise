@@ -7,6 +7,8 @@ import { Field } from "@/components/ui/Field";
 import { useMutation } from "@/hooks/useMutation";
 import { TeacherFormShell } from "./TeacherFormShell";
 
+const STUDENT_ID_MAX_LENGTH = 200;
+
 /**
  * Adds a student to a classroom by their user id (RW-061). Posts to
  * `/api/classrooms/[id]/members`. Lean by design — a fuller invite/search flow
@@ -15,10 +17,10 @@ import { TeacherFormShell } from "./TeacherFormShell";
 export default function AddStudentForm({ classroomId }: { classroomId: string }) {
   const [userId, setUserId] = useState("");
   const { busy, error, run } = useMutation("Failed to add student");
+  const trimmedUserId = userId.trim();
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    const trimmedUserId = userId.trim();
     if (!trimmedUserId) return;
     await run(async () => {
       await postJson(`/api/classrooms/${classroomId}/members`, {
@@ -33,7 +35,7 @@ export default function AddStudentForm({ classroomId }: { classroomId: string })
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={!!userId.trim()}
+      canSubmit={!!trimmedUserId}
       submitLabel="Add student"
       busyLabel="Adding…"
     >
@@ -42,7 +44,7 @@ export default function AddStudentForm({ classroomId }: { classroomId: string })
           value={userId}
           onChange={(e) => setUserId(e.target.value)}
           placeholder="User id"
-          maxLength={200}
+          maxLength={STUDENT_ID_MAX_LENGTH}
           required
         />
       </Field>

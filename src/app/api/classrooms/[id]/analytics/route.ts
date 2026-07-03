@@ -9,6 +9,17 @@ import {
   viewerRoleForClassroom,
 } from "@/lib/analytics/tenant";
 
+const CLASSROOM_NOT_FOUND = "Classroom not found";
+const FORBIDDEN = "Forbidden";
+
+function canViewAnalytics(
+  viewerRole: Parameters<typeof isSystemAdmin>[0],
+  isTeacher: boolean,
+  isOrgAdmin: boolean,
+): boolean {
+  return isTeacher || isOrgAdmin || isSystemAdmin(viewerRole);
+}
+
 /**
  * Returns a classroom's analytics scoped to the caller's role (RW-061/063):
  *   - the classroom's teacher / a system admin → per-student detail;
@@ -19,23 +30,24 @@ export const GET = createHandler(
   { params: idParams },
   async ({ params, session }) => {
     const classroom = await getClassroom(params.id);
-    if (!classroom) throw new ApiError(404, "Classroom not found");
+    if (!classroom) throw new ApiError(404, CLASSROOM_NOT_FOUND);
 
-    const membership = await getMembership(session.user.id, classroom.orgId);
+    const { user } = session;
+    const membership = await getMembership(user.id, classroom.orgId);
     const isOrgAdmin = hasOrgCapability(membership, CAPABILITIES.orgManage);
-    const isTeacher = classroom.teacherId === session.user.id;
+    const isTeacher = classroom.teacherId === user.id;
 
-    if (!isTeacher && !isOrgAdmin && !isSystemAdmin(session.user.role)) {
-      throw new ApiError(403, "Forbidden");
+    if (!canViewAnalytics(user.role, isTeacher, isOrgAdmin)) {
+      throw new ApiError(403, FORBIDDEN);
     }
 
     const role = viewerRoleForClassroom({
-      viewer: session.user,
+      viewer: user,
       classroom,
       isOrgAdmin,
     });
     const analytics = await getClassroomAnalytics(params.id, role);
-    if (!analytics) throw new ApiError(404, "Classroom not found");
+    if (!analytics) throw new ApiError(404, CLASSROOM_NOT_FOUND);
 
     return NextResponse.json({ role, analytics });
   },

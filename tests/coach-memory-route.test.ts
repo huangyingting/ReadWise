@@ -34,11 +34,15 @@ beforeEach(() => {
   deletedFor = null;
 });
 
-test("DELETE /api/coach-memory hard-deletes the caller's rows and returns 204", async () => {
+async function deleteCoachMemoryResponse(): Promise<Response> {
   const { DELETE } = (await import("@/app/api/coach-memory/route")) as {
     DELETE: RouteHandler;
   };
-  const res = await DELETE(deleteReq("http://test/api/coach-memory"), withParams({}));
+  return DELETE(deleteReq("http://test/api/coach-memory"), withParams({}));
+}
+
+test("DELETE /api/coach-memory hard-deletes the caller's rows and returns 204", async () => {
+  const res = await deleteCoachMemoryResponse();
   assert.equal(res.status, 204);
   // Scoped to the authenticated reader (readerSession.user.id).
   assert.equal(deletedFor, "user-1");
@@ -46,10 +50,7 @@ test("DELETE /api/coach-memory hard-deletes the caller's rows and returns 204", 
 
 test("DELETE /api/coach-memory returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { DELETE } = (await import("@/app/api/coach-memory/route")) as {
-    DELETE: RouteHandler;
-  };
-  const res = await DELETE(deleteReq("http://test/api/coach-memory"), withParams({}));
+  const res = await deleteCoachMemoryResponse();
   assert.equal(res.status, 401);
   assert.equal(deletedFor, null, "no deletion when unauthenticated");
 });

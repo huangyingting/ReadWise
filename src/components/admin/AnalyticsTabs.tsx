@@ -6,12 +6,14 @@ const TABS = [
   { key: "ai", href: "/admin/analytics/ai", label: "AI & content ops" },
 ] as const;
 
+type AnalyticsTabKey = (typeof TABS)[number]["key"];
+
 /**
  * In-page sub-navigation for the analytics area, switching between the product
  * (funnel/retention) dashboards and the AI cost / content-ops dashboards.
  * Rendered server-side; the active tab is supplied by the page.
  */
-export function AnalyticsTabs({ active }: { active: "product" | "ai" }) {
+export function AnalyticsTabs({ active }: { active: AnalyticsTabKey }) {
   return (
     <nav className="flex flex-wrap gap-[var(--space-2)]" aria-label="Analytics views">
       {TABS.map((tab) => {

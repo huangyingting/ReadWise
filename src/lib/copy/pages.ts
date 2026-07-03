@@ -10,6 +10,8 @@
  */
 import { SITE_NAME } from "./site";
 
+const titleWithSiteName = (title: string) => `${title} — ${SITE_NAME}`;
+
 // ---------------------------------------------------------------------------
 // Marketing / auth pages
 // ---------------------------------------------------------------------------
@@ -21,7 +23,7 @@ export const landing = {
 } as const;
 
 export const signIn = {
-  title: `Sign in — ${SITE_NAME}`,
+  title: titleWithSiteName("Sign in"),
 } as const;
 
 export const terms = {
@@ -39,7 +41,7 @@ export const privacy = {
 // ---------------------------------------------------------------------------
 
 export const onboarding = {
-  title: `Welcome — ${SITE_NAME}`,
+  title: titleWithSiteName("Welcome"),
 } as const;
 
 // ---------------------------------------------------------------------------
@@ -51,11 +53,11 @@ export const welcome = {
 } as const;
 
 export const settings = {
-  title: `Settings — ${SITE_NAME}`,
+  title: titleWithSiteName("Settings"),
 } as const;
 
 export const importPage = {
-  title: `Import Article — ${SITE_NAME}`,
+  title: titleWithSiteName("Import Article"),
 } as const;
 
 export const tags = {
@@ -63,15 +65,15 @@ export const tags = {
 } as const;
 
 export const progress = {
-  title: `My Progress — ${SITE_NAME}`,
+  title: titleWithSiteName("My Progress"),
 } as const;
 
 export const today = {
-  title: `Today — ${SITE_NAME}`,
+  title: titleWithSiteName("Today"),
   description:
     "Your focused daily reading task — one article to read, plus light comprehension and vocabulary review.",
 } as const;
 
 export const notes = {
-  title: `Notes & Highlights — ${SITE_NAME}`,
+  title: titleWithSiteName("Notes & Highlights"),
 } as const;

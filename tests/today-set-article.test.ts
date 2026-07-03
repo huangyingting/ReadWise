@@ -36,12 +36,21 @@ type ArticleFixture = {
 
 // Fixture universe. Equality on visibility/status/ownerId matches the enum
 // values the policy where-builder emits, so the mock can evaluate the where.
+function articleFixture(overrides: Partial<ArticleFixture> & { id: string }): ArticleFixture {
+  return {
+    visibility: ArticleVisibility.PRIVATE,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: USER_ID,
+    ...overrides,
+  };
+}
+
 const ARTICLES: ArticleFixture[] = [
-  { id: "pub1", visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
-  { id: "priv1", visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PUBLISHED, ownerId: USER_ID },
-  { id: "other1", visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PUBLISHED, ownerId: OTHER_ID },
-  { id: "proc1", visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PROCESSING, ownerId: USER_ID },
-  { id: "fail1", visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.FAILED, ownerId: USER_ID },
+  articleFixture({ id: "pub1", visibility: ArticleVisibility.PUBLIC, ownerId: null }),
+  articleFixture({ id: "priv1" }),
+  articleFixture({ id: "other1", ownerId: OTHER_ID }),
+  articleFixture({ id: "proc1", status: ArticleStatus.PROCESSING }),
+  articleFixture({ id: "fail1", status: ArticleStatus.FAILED }),
 ];
 
 /** True when a fixture satisfies every scalar key of a single where branch. */

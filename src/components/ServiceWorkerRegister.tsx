@@ -2,6 +2,14 @@
 
 import { useEffect } from "react";
 
+function canRegisterServiceWorker() {
+  return (
+    process.env.NODE_ENV === "production" &&
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator
+  );
+}
+
 /**
  * Registers the service worker at /sw.js in production environments.
  * Only runs in browsers that support the Service Worker API.
@@ -9,11 +17,7 @@ import { useEffect } from "react";
  */
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (
-      process.env.NODE_ENV === "production" &&
-      typeof window !== "undefined" &&
-      "serviceWorker" in navigator
-    ) {
+    if (canRegisterServiceWorker()) {
       navigator.serviceWorker
         .register("/sw.js")
         .catch((err) =>

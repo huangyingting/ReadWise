@@ -33,37 +33,50 @@ beforeEach(() => {
   lookupThrows = false;
 });
 
+function assertAddressPrivacy(
+  addresses: string[],
+  isPrivate: (address: string) => boolean,
+  expected: boolean,
+  label: "private" | "public",
+) {
+  for (const address of addresses) {
+    assert.equal(isPrivate(address), expected, `${address} should be ${label}`);
+  }
+}
+
 test("isPrivateIPv4 flags private/loopback/link-local/metadata ranges", async () => {
   const { isPrivateIPv4 } = await import("@/lib/scraper/ssrf");
-  for (const ip of [
-    "0.0.0.0",
-    "10.0.0.1",
-    "127.0.0.1",
-    "169.254.169.254", // cloud metadata
-    "172.16.5.4",
-    "172.31.255.255",
-    "192.168.1.1",
-    "192.0.2.5",
-    "198.51.100.9",
-    "203.0.113.7",
-    "240.0.0.1",
-    "not-an-ip",
-  ]) {
-    assert.equal(isPrivateIPv4(ip), true, `${ip} should be private`);
-  }
-  for (const ip of ["8.8.8.8", "93.184.216.34", "1.1.1.1", "172.15.0.1", "172.32.0.1"]) {
-    assert.equal(isPrivateIPv4(ip), false, `${ip} should be public`);
-  }
+  assertAddressPrivacy(
+    [
+      "0.0.0.0",
+      "10.0.0.1",
+      "127.0.0.1",
+      "169.254.169.254", // cloud metadata
+      "172.16.5.4",
+      "172.31.255.255",
+      "192.168.1.1",
+      "192.0.2.5",
+      "198.51.100.9",
+      "203.0.113.7",
+      "240.0.0.1",
+      "not-an-ip",
+    ],
+    isPrivateIPv4,
+    true,
+    "private",
+  );
+  assertAddressPrivacy(
+    ["8.8.8.8", "93.184.216.34", "1.1.1.1", "172.15.0.1", "172.32.0.1"],
+    isPrivateIPv4,
+    false,
+    "public",
+  );
 });
 
 test("isPrivateIPv6 flags loopback/unique-local/link-local", async () => {
   const { isPrivateIPv6 } = await import("@/lib/scraper/ssrf");
-  for (const ip of ["::1", "::", "fc00::1", "fd12:3456::1", "fe80::1"]) {
-    assert.equal(isPrivateIPv6(ip), true, `${ip} should be private`);
-  }
-  for (const ip of ["2606:4700:4700::1111", "2001:4860:4860::8888"]) {
-    assert.equal(isPrivateIPv6(ip), false, `${ip} should be public`);
-  }
+  assertAddressPrivacy(["::1", "::", "fc00::1", "fd12:3456::1", "fe80::1"], isPrivateIPv6, true, "private");
+  assertAddressPrivacy(["2606:4700:4700::1111", "2001:4860:4860::8888"], isPrivateIPv6, false, "public");
 });
 
 test("isPrivateAddress catches IPv4-mapped IPv6 metadata/loopback", async () => {

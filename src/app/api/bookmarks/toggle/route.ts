@@ -12,5 +12,9 @@ import { toggleBookmarkBody } from "@/lib/article-library/collections/schemas";
 export const POST = createHandler({ body: toggleBookmarkBody }, async ({ body, session }) => {
   const result = await toggleBookmark(session.user.id, body.articleId, session.user.role);
   throwIfFailed(result);
-  return NextResponse.json({ bookmarked: result.bookmarked });
+  return bookmarkToggleResponse(result.bookmarked);
 });
+
+function bookmarkToggleResponse(bookmarked: boolean): NextResponse {
+  return NextResponse.json({ bookmarked });
+}

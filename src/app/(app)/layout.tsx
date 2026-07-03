@@ -1,8 +1,20 @@
 import type { ReactNode } from "react";
 import { getServerSession } from "next-auth";
+import type { Session } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import AppShell from "@/components/shell/AppShell";
 import type { ShellUser } from "@/components/shell/types";
+
+type SessionUser = NonNullable<Session["user"]>;
+
+function toShellUser(sessionUser: SessionUser): ShellUser {
+  return {
+    name: sessionUser.name,
+    email: sessionUser.email,
+    image: sessionUser.image,
+    role: sessionUser.role,
+  };
+}
 
 /**
  * Route-group layout for the authenticated, reader-facing pages. Reads the
@@ -17,14 +29,7 @@ export default async function AppGroupLayout({
   children: ReactNode;
 }) {
   const session = await getServerSession(authOptions);
-  const user: ShellUser | null = session?.user
-    ? {
-        name: session.user.name,
-        email: session.user.email,
-        image: session.user.image,
-        role: session.user.role,
-      }
-    : null;
+  const user: ShellUser | null = session?.user ? toShellUser(session.user) : null;
 
   return <AppShell user={user}>{children}</AppShell>;
 }

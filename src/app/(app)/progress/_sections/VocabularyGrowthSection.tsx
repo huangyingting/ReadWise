@@ -11,6 +11,12 @@ interface VocabularyGrowthSectionProps {
   totalSavedWords: number;
 }
 
+const VOCABULARY_GROWTH_CHART = {
+  label: "Words saved per week over the last 12 weeks",
+  color: "var(--stat-vocab)",
+  caption: "Words saved per week",
+} as const;
+
 export function VocabularyGrowthSection({
   wordsByWeek,
   totalSavedWords,
@@ -31,11 +37,11 @@ export function VocabularyGrowthSection({
       <Card>
         <WeeklyBars
           buckets={wordsByWeek}
-          label="Words saved per week over the last 12 weeks"
-          color="var(--stat-vocab)"
+          label={VOCABULARY_GROWTH_CHART.label}
+          color={VOCABULARY_GROWTH_CHART.color}
         />
         <p className="mt-[var(--space-2)] text-[length:var(--text-xs)] text-text-subtle">
-          Words saved per week
+          {VOCABULARY_GROWTH_CHART.caption}
         </p>
       </Card>
     </section>

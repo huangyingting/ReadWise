@@ -54,6 +54,16 @@ function project(article: Article, select?: Record<string, boolean>): unknown {
   );
 }
 
+async function articleLibrary() {
+  return import("@/lib/article-library");
+}
+
+function articleById(id: string): Article {
+  const article = articleRows.find((row) => row.id === id);
+  assert.ok(article, `expected fixture article ${id}`);
+  return article;
+}
+
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -85,13 +95,10 @@ beforeEach(() => {
 });
 
 test("pure readability checks cover anonymous, owner, non-owner, and admin", async () => {
-  const { canReadArticle } = await import("@/lib/article-library");
-  const publicArticle = articleRows.find((article) => article.id === "public");
-  const draftPublic = articleRows.find((article) => article.id === "draft-public");
-  const ownerArticle = articleRows.find((article) => article.id === "owner-u1");
-  assert.ok(publicArticle);
-  assert.ok(draftPublic);
-  assert.ok(ownerArticle);
+  const { canReadArticle } = await articleLibrary();
+  const publicArticle = articleById("public");
+  const draftPublic = articleById("draft-public");
+  const ownerArticle = articleById("owner-u1");
 
   assert.equal(canReadArticle(publicArticle), true, "anonymous can read public published");
   assert.equal(canReadArticle(draftPublic), false, "anonymous cannot read drafts");
@@ -101,7 +108,7 @@ test("pure readability checks cover anonymous, owner, non-owner, and admin", asy
 });
 
 test("private articles without an owner are not public after a deleted-user lifecycle", async () => {
-  const { canReadArticle, isPublicListableArticle } = await import("@/lib/article-library");
+  const { canReadArticle, isPublicListableArticle } = await articleLibrary();
   const stalePrivate = buildArticle({
     id: "stale-private",
     visibility: ArticleVisibility.PRIVATE,
@@ -120,9 +127,8 @@ test("public-listable predicates require ownerless library articles", async () =
     getPublicListableArticleById,
     isPublicListableArticle,
     publicListableArticleWhere,
-  } = await import("@/lib/article-library");
-  const ownedPublic = articleRows.find((article) => article.id === "owner-public");
-  assert.ok(ownedPublic);
+  } = await articleLibrary();
+  const ownedPublic = articleById("owner-public");
 
   assert.deepEqual(publicListableArticleWhere(), {
     visibility: ArticleVisibility.PUBLIC,
@@ -135,7 +141,7 @@ test("public-listable predicates require ownerless library articles", async () =
 });
 
 test("getPublicListableArticleById only returns published library articles", async () => {
-  const { getPublicListableArticleById } = await import("@/lib/article-library");
+  const { getPublicListableArticleById } = await articleLibrary();
 
   assert.equal((await getPublicListableArticleById("public"))?.id, "public");
   assert.equal(await getPublicListableArticleById("draft-public"), null);
@@ -143,7 +149,7 @@ test("getPublicListableArticleById only returns published library articles", asy
 });
 
 test("getReadableArticleById enforces anonymous, reader, owner, non-owner, and admin access", async () => {
-  const { getReadableArticleById } = await import("@/lib/article-library");
+  const { getReadableArticleById } = await articleLibrary();
 
   assert.equal((await getReadableArticleById("public", null))?.id, "public");
   assert.equal(await getReadableArticleById("owner-u1", null), null);
@@ -153,7 +159,7 @@ test("getReadableArticleById enforces anonymous, reader, owner, non-owner, and a
 });
 
 test("editable access allows owners and admins but blocks anonymous and non-owners", async () => {
-  const { getEditableArticleById } = await import("@/lib/article-library");
+  const { getEditableArticleById } = await articleLibrary();
 
   assert.equal(await getEditableArticleById("owner-u1", null), null);
   assert.equal((await getEditableArticleById("owner-u1", { userId: "user-1", role: "Reader" }))?.id, "owner-u1");
@@ -162,7 +168,7 @@ test("editable access allows owners and admins but blocks anonymous and non-owne
 });
 
 test("admin-visible access is admin/system only", async () => {
-  const { getAdminVisibleArticleById, SYSTEM_ARTICLE_CONTEXT } = await import("@/lib/article-library");
+  const { getAdminVisibleArticleById, SYSTEM_ARTICLE_CONTEXT } = await articleLibrary();
 
   assert.equal(await getAdminVisibleArticleById("public", { userId: "user-1", role: "Reader" }), null);
   assert.equal((await getAdminVisibleArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
@@ -170,7 +176,7 @@ test("admin-visible access is admin/system only", async () => {
 });
 
 test("AI-processable access follows readable rules for users and all-article rules for admins", async () => {
-  const { getAiProcessableArticleById } = await import("@/lib/article-library");
+  const { getAiProcessableArticleById } = await articleLibrary();
 
   assert.equal((await getAiProcessableArticleById("public", null, { select: { title: true } }))?.title, "Test Article");
   assert.equal((await getAiProcessableArticleById("draft-u1", { userId: "user-1", role: "Reader" }))?.id, "draft-u1");

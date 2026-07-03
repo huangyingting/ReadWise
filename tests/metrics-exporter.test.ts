@@ -51,25 +51,19 @@ test("histogram renders bucket lines including +Inf, _sum, and _count", () => {
 
 // ─── label escaping (tested directly on the escape function) ────────────────
 
-test("escapePrometheusLabelValue: backslash → \\\\", () => {
-  assert.equal(escapePrometheusLabelValue("a\\b"), "a\\\\b");
-});
+const labelEscapingCases = [
+  ["backslash → \\\\", "a\\b", "a\\\\b"],
+  ["newline → \\n", "line1\nline2", "line1\\nline2"],
+  ['double-quote → \\"', 'say "hi"', 'say \\"hi\\"'],
+  ["combined escapes", 'path\\":\nend', 'path\\\\\\":\\nend'],
+  ["safe chars pass through unchanged", "safe_value-123", "safe_value-123"],
+] as const;
 
-test("escapePrometheusLabelValue: newline → \\n", () => {
-  assert.equal(escapePrometheusLabelValue("line1\nline2"), "line1\\nline2");
-});
-
-test('escapePrometheusLabelValue: double-quote → \\"', () => {
-  assert.equal(escapePrometheusLabelValue('say "hi"'), 'say \\"hi\\"');
-});
-
-test("escapePrometheusLabelValue: combined escapes", () => {
-  assert.equal(escapePrometheusLabelValue('path\\":\nend'), 'path\\\\\\":\\nend');
-});
-
-test("escapePrometheusLabelValue: safe chars pass through unchanged", () => {
-  assert.equal(escapePrometheusLabelValue("safe_value-123"), "safe_value-123");
-});
+for (const [name, input, expected] of labelEscapingCases) {
+  test(`escapePrometheusLabelValue: ${name}`, () => {
+    assert.equal(escapePrometheusLabelValue(input), expected);
+  });
+}
 
 // ─── label key ordering ─────────────────────────────────────────────────────
 

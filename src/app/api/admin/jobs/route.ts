@@ -12,32 +12,41 @@ type JobsAdminQuery = {
   page: number;
 };
 
+function readJobFilter(params: URLSearchParams, name: string): string | null {
+  const value = queryString(params, name).trim();
+  return value ? value.slice(0, 200) : null;
+}
+
+function parseStuckFilter(params: URLSearchParams): boolean {
+  const value = queryString(params, "stuck");
+  return value === "1" || value === "true";
+}
+
 function jobsAdminQuery(params: URLSearchParams) {
-  const readFilter = (name: string) => {
-    const value = queryString(params, name).trim();
-    return value ? value.slice(0, 200) : null;
-  };
-  const rawStuck = queryString(params, "stuck");
   return {
     ok: true as const,
     value: {
-      status: readFilter("status"),
-      type: readFilter("type"),
-      articleId: readFilter("articleId"),
-      failureReason: readFilter("reason"),
-      stuck: rawStuck === "1" || rawStuck === "true",
+      status: readJobFilter(params, "status"),
+      type: readJobFilter(params, "type"),
+      articleId: readJobFilter(params, "articleId"),
+      failureReason: readJobFilter(params, "reason"),
+      stuck: parseStuckFilter(params),
       page: queryInt(params, "page", { fallback: 1, min: 1, max: 10_000 }),
     },
   };
 }
 
+async function getAdminJobsPayload(query: JobsAdminQuery) {
+  const [result, dashboard] = await Promise.all([
+    listAdminJobs(query),
+    getJobDashboard(),
+  ]);
+  return { ...result, dashboard };
+}
+
 export const GET = createAdminHandler(
   { query: jobsAdminQuery },
   async ({ query }) => {
-    const [result, dashboard] = await Promise.all([
-      listAdminJobs(query),
-      getJobDashboard(),
-    ]);
-    return NextResponse.json({ ...result, dashboard });
+    return NextResponse.json(await getAdminJobsPayload(query));
   },
 );

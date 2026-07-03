@@ -11,13 +11,18 @@ import type { PlacementSeedLevel } from "@/lib/learning/placement";
  */
 export function WelcomePlacement({ seedLevel }: { seedLevel: PlacementSeedLevel }) {
   const [done, setDone] = useState(false);
+  function handleDone() {
+    setDone(true);
+  }
+
   if (done) return null;
+
   return (
     <div className="mb-[var(--space-6)]">
       <ReadingPlacementCard
         seedLevel={seedLevel}
         attempt="initial"
-        onDone={() => setDone(true)}
+        onDone={handleDone}
       />
     </div>
   );

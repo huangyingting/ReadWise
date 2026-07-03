@@ -25,6 +25,18 @@ let memberRowStub: Record<string, unknown>[] = [];
 let assignmentRowStub: Record<string, unknown>[] = [];
 let completionRowStub: Record<string, unknown>[] = [];
 
+function defaultClassroom(overrides: Record<string, unknown> = {}) {
+  return { id: "c1", name: "Math", orgId: "o1", teacherId: "t1", ...overrides };
+}
+
+function studentMember(userId: string, name: string | null, email: string | null) {
+  return { userId, user: { id: userId, name, email } };
+}
+
+async function classroomProgress() {
+  return import("@/lib/classroom/progress");
+}
+
 // ---- mock setup ------------------------------------------------------------
 
 before(() => {
@@ -49,7 +61,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  classroomStub = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
+  classroomStub = defaultClassroom();
   memberRowStub = [];
   assignmentRowStub = [];
   completionRowStub = [];
@@ -59,15 +71,15 @@ beforeEach(() => {
 
 test("getClassroomProgressData returns null when classroom does not exist", async () => {
   classroomStub = null;
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("nonexistent");
   assert.equal(result, null);
 });
 
 test("getClassroomProgressData does not fetch roster or assignments when classroom is missing", async () => {
   classroomStub = null;
-  memberRowStub = [{ userId: "s1", user: { id: "s1", name: "S", email: "s@e.com" } }];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  memberRowStub = [studentMember("s1", "S", "s@e.com")];
+  const { getClassroomProgressData } = await classroomProgress();
   // Should short-circuit and return null without touching member/assignment rows
   const result = await getClassroomProgressData("nonexistent");
   assert.equal(result, null);
@@ -76,16 +88,16 @@ test("getClassroomProgressData does not fetch roster or assignments when classro
 // ---- classroom header -----------------------------------------------------
 
 test("getClassroomProgressData returns the classroom header fields", async () => {
-  classroomStub = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  classroomStub = defaultClassroom();
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result, "result must not be null");
   assert.deepEqual(result.classroom, { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" });
 });
 
 test("getClassroomProgressData reflects the correct classroom for each call", async () => {
-  classroomStub = { id: "c2", name: "Science", orgId: "o2", teacherId: "t2" };
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  classroomStub = defaultClassroom({ id: "c2", name: "Science", orgId: "o2", teacherId: "t2" });
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c2");
   assert.ok(result);
   assert.equal(result.classroom.id, "c2");
@@ -97,7 +109,7 @@ test("getClassroomProgressData reflects the correct classroom for each call", as
 // ---- empty classroom -------------------------------------------------------
 
 test("getClassroomProgressData returns empty arrays for an empty classroom", async () => {
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.deepEqual(result.students, []);
@@ -109,10 +121,10 @@ test("getClassroomProgressData returns empty arrays for an empty classroom", asy
 
 test("getClassroomProgressData maps student members to ClassroomProgressStudent shape", async () => {
   memberRowStub = [
-    { userId: "s1", user: { id: "s1", name: "Alice", email: "alice@e.com" } },
-    { userId: "s2", user: { id: "s2", name: "Bob", email: "bob@e.com" } },
+    studentMember("s1", "Alice", "alice@e.com"),
+    studentMember("s2", "Bob", "bob@e.com"),
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.students.length, 2);
@@ -121,8 +133,8 @@ test("getClassroomProgressData maps student members to ClassroomProgressStudent 
 });
 
 test("getClassroomProgressData maps student with null name and email", async () => {
-  memberRowStub = [{ userId: "s3", user: { id: "s3", name: null, email: null } }];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  memberRowStub = [studentMember("s3", null, null)];
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.students.length, 1);
@@ -143,7 +155,7 @@ test("getClassroomProgressData maps assignment rows to ClassroomProgressAssignme
       article: { id: "art1", title: "Article One" },
     },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.assignments.length, 1);
@@ -167,7 +179,7 @@ test("getClassroomProgressData maps assignment with null dueDate", async () => {
       article: { id: "art2", title: "No Due Date Article" },
     },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.assignments[0].dueDate, null);
@@ -187,7 +199,7 @@ test("getClassroomProgressData maps completion rows to ClassroomProgressCompleti
       completedAt,
     },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.completions.length, 1);
@@ -210,7 +222,7 @@ test("getClassroomProgressData maps completion with IN_PROGRESS status and null 
       completedAt: null,
     },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.completions[0].status, AssignmentStatus.IN_PROGRESS);
@@ -228,7 +240,7 @@ test("getClassroomProgressData maps completion with ASSIGNED status", async () =
       completedAt: null,
     },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.completions[0].status, AssignmentStatus.ASSIGNED);
@@ -238,8 +250,8 @@ test("getClassroomProgressData maps completion with ASSIGNED status", async () =
 
 test("getClassroomProgressData returns full matrix with multiple students, assignments, and completions", async () => {
   memberRowStub = [
-    { userId: "s1", user: { id: "s1", name: "S1", email: "s1@e.com" } },
-    { userId: "s2", user: { id: "s2", name: "S2", email: "s2@e.com" } },
+    studentMember("s1", "S1", "s1@e.com"),
+    studentMember("s2", "S2", "s2@e.com"),
   ];
   const t = new Date();
   assignmentRowStub = [
@@ -250,7 +262,7 @@ test("getClassroomProgressData returns full matrix with multiple students, assig
     { assignmentId: "a1", studentId: "s1", status: AssignmentStatus.COMPLETED, quizScore: 80, completedAt: t },
     { assignmentId: "a2", studentId: "s2", status: AssignmentStatus.ASSIGNED, quizScore: null, completedAt: null },
   ];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.students.length, 2);
@@ -263,8 +275,8 @@ test("getClassroomProgressData returns full matrix with multiple students, assig
 test("getClassroomProgressData only maps the student members returned by the query", async () => {
   // The source filters classroomMembership where role = 'Student';
   // our stub returns only what it's told (simulating that Teacher rows are excluded).
-  memberRowStub = [{ userId: "s1", user: { id: "s1", name: "Student Only", email: "s@e.com" } }];
-  const { getClassroomProgressData } = await import("@/lib/classroom/progress");
+  memberRowStub = [studentMember("s1", "Student Only", "s@e.com")];
+  const { getClassroomProgressData } = await classroomProgress();
   const result = await getClassroomProgressData("c1");
   assert.ok(result);
   assert.equal(result.students.length, 1);

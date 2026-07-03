@@ -14,6 +14,17 @@ import type { RefObject } from "react";
 
 const MAX_HEIGHT_PX = 140;
 
+function fitTextareaToContent(textarea: HTMLTextAreaElement) {
+  textarea.style.height = "auto";
+  textarea.style.height = `${Math.min(textarea.scrollHeight, MAX_HEIGHT_PX)}px`;
+}
+
+function resetTextareaHeight(textarea: HTMLTextAreaElement | null) {
+  if (textarea) {
+    textarea.style.height = "auto";
+  }
+}
+
 export interface AutoGrowingTextareaResult {
   composerRef: RefObject<HTMLTextAreaElement | null>;
   handleInputChange: (e: React.ChangeEvent<HTMLTextAreaElement>) => void;
@@ -32,18 +43,13 @@ export function useAutoGrowingTextarea(
   const handleInputChange = useCallback(
     (e: React.ChangeEvent<HTMLTextAreaElement>) => {
       onValueChange(e.target.value);
-      // Auto-grow: reset to auto then set to scrollHeight (clamped via MAX_HEIGHT_PX)
-      const ta = e.target;
-      ta.style.height = "auto";
-      ta.style.height = `${Math.min(ta.scrollHeight, MAX_HEIGHT_PX)}px`;
+      fitTextareaToContent(e.target);
     },
     [onValueChange],
   );
 
   const resetHeight = useCallback(() => {
-    if (composerRef.current) {
-      composerRef.current.style.height = "auto";
-    }
+    resetTextareaHeight(composerRef.current);
   }, []);
 
   return { composerRef, handleInputChange, resetHeight };

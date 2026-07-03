@@ -1,6 +1,14 @@
 import type { PromptTemplate, GrammarPromptVars } from "./types";
 import { sanitizeUntrustedText } from "@/lib/ai/input-safety";
 
+function renderUserPrompt(phrase: string, context: string): string {
+  if (!context) {
+    return `Explain the phrase "${phrase}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`;
+  }
+
+  return `Explain the phrase "${phrase}" as used in this sentence: "${context}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`;
+}
+
 const grammarTemplate: PromptTemplate<GrammarPromptVars> = {
   feature: "grammar",
   version: "grammar/v1",
@@ -17,9 +25,7 @@ const grammarTemplate: PromptTemplate<GrammarPromptVars> = {
       },
       {
         role: "user",
-        content: safeContext
-          ? `Explain the phrase "${safePhrase}" as used in this sentence: "${safeContext}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`
-          : `Explain the phrase "${safePhrase}". Is it a phrasal verb, idiom, collocation, or grammar pattern? Give one short example.`,
+        content: renderUserPrompt(safePhrase, safeContext),
       },
     ];
   },

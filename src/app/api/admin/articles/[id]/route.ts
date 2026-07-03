@@ -1,23 +1,55 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
-import { deleteArticle } from "@/lib/article-library";
+import { articleAccessContext, deleteArticle } from "@/lib/article-library";
 import { revalidateTagsCache } from "@/lib/cache";
-import { articleAccessContext } from "@/lib/article-library";
-import { AUDIT_ACTIONS } from "@/lib/security/audit";
+import { AUDIT_ACTIONS, type AuditRequestInput } from "@/lib/security/audit";
 
-export const DELETE = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
-  const ok = await deleteArticle(params.id, articleAccessContext(session.user), {
+type AdminArticleAuditContext = Pick<AuditRequestInput, "req" | "requestId"> & {
+  session: NonNullable<AuditRequestInput["session"]>;
+  articleId: string;
+};
+
+function adminArticleAuditBase({
+  req,
+  session,
+  requestId,
+  articleId,
+}: AdminArticleAuditContext): Omit<AuditRequestInput, "action"> {
+  return {
     req,
     session,
     requestId,
-    action: AUDIT_ACTIONS.adminArticleDelete,
     targetType: "article",
-    targetId: params.id,
-  });
-  if (!ok) {
-    throw new ApiError(404, "Not found");
-  }
-  revalidateTagsCache();
-  return NextResponse.json({ ok: true });
-});
+    targetId: articleId,
+  };
+}
+
+function articleDeleteAudit(context: AdminArticleAuditContext): AuditRequestInput {
+  return {
+    ...adminArticleAuditBase(context),
+    action: AUDIT_ACTIONS.adminArticleDelete,
+  };
+}
+
+export const DELETE = createAdminHandler(
+  { params: idParams },
+  async ({ req, params, session, requestId }) => {
+    const articleId = params.id;
+    const ok = await deleteArticle(
+      articleId,
+      articleAccessContext(session.user),
+      articleDeleteAudit({
+        req,
+        session,
+        requestId,
+        articleId,
+      }),
+    );
+    if (!ok) {
+      throw new ApiError(404, "Not found");
+    }
+    revalidateTagsCache();
+    return NextResponse.json({ ok: true });
+  },
+);

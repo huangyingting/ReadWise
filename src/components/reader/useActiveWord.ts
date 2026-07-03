@@ -21,31 +21,38 @@ export interface ActiveWordHook {
   clearActiveWord: () => void;
 }
 
+function findActiveWordIndex(words: SpeechWord[], time: number): number {
+  let lo = 0;
+  let hi = words.length - 1;
+  let found = -1;
+
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (timingStartSeconds(words[mid]) <= time) {
+      found = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+
+  if (found !== -1 && time >= timingEndSeconds(words[found]) + 0.4) {
+    const next = words[found + 1];
+    if (!next || time < timingStartSeconds(next)) {
+      return -1;
+    }
+  }
+
+  return found;
+}
+
 export function useActiveWord(words: SpeechWord[]): ActiveWordHook {
   const [activeIndex, setActiveIndex] = useState(-1);
 
   const updateActiveWord = useCallback(
     (time: number) => {
       if (!words || words.length === 0) return;
-      let lo = 0,
-        hi = words.length - 1,
-        found = -1;
-      while (lo <= hi) {
-        const mid = (lo + hi) >> 1;
-        if (timingStartSeconds(words[mid]) <= time) {
-          found = mid;
-          lo = mid + 1;
-        } else {
-          hi = mid - 1;
-        }
-      }
-      // Clear the active index when sitting in trailing silence past the word.
-      if (found !== -1 && time >= timingEndSeconds(words[found]) + 0.4) {
-        const next = words[found + 1];
-        if (!next || time < timingStartSeconds(next)) {
-          found = -1;
-        }
-      }
+      const found = findActiveWordIndex(words, time);
       setActiveIndex((prev) => (prev === found ? prev : found));
     },
     [words],

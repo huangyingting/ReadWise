@@ -9,8 +9,16 @@ interface JournalPaginationProps {
   onPageChange: (page: number) => void;
 }
 
-export function JournalPagination({ page, totalPages, isPending, onPageChange }: JournalPaginationProps) {
+export function JournalPagination({
+  page,
+  totalPages,
+  isPending,
+  onPageChange,
+}: JournalPaginationProps) {
   if (totalPages <= 1) return null;
+
+  const isPreviousDisabled = page <= 1 || isPending;
+  const isNextDisabled = page >= totalPages || isPending;
 
   return (
     <nav aria-label="Vocabulary journal pages" className="admin-pagination">
@@ -18,7 +26,7 @@ export function JournalPagination({ page, totalPages, isPending, onPageChange }:
         type="button"
         variant="ghost"
         size="sm"
-        disabled={page <= 1 || isPending}
+        disabled={isPreviousDisabled}
         onClick={() => onPageChange(page - 1)}
       >
         ← Previous
@@ -30,7 +38,7 @@ export function JournalPagination({ page, totalPages, isPending, onPageChange }:
         type="button"
         variant="ghost"
         size="sm"
-        disabled={page >= totalPages || isPending}
+        disabled={isNextDisabled}
         onClick={() => onPageChange(page + 1)}
       >
         Next →

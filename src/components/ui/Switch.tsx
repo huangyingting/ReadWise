@@ -9,6 +9,10 @@ export interface SwitchProps
   onCheckedChange: (checked: boolean) => void;
 }
 
+function isToggleKey(key: string) {
+  return key === " " || key === "Enter";
+}
+
 /**
  * Accessible pill toggle following the ARIA switch pattern.
  * Keyboard: Space/Enter toggle. Dark-mode via CSS tokens.
@@ -18,10 +22,14 @@ export const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
     { checked, onCheckedChange, disabled, className, ...props },
     ref,
   ) {
+    function toggle() {
+      if (!disabled) onCheckedChange(!checked);
+    }
+
     function handleKeyDown(e: React.KeyboardEvent<HTMLButtonElement>) {
-      if (e.key === " " || e.key === "Enter") {
+      if (isToggleKey(e.key)) {
         e.preventDefault();
-        if (!disabled) onCheckedChange(!checked);
+        toggle();
       }
     }
 
@@ -32,9 +40,7 @@ export const Switch = React.forwardRef<HTMLButtonElement, SwitchProps>(
         role="switch"
         aria-checked={checked}
         disabled={disabled}
-        onClick={() => {
-          if (!disabled) onCheckedChange(!checked);
-        }}
+        onClick={toggle}
         onKeyDown={handleKeyDown}
         className={cn(
           "relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full",

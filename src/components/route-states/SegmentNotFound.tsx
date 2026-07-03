@@ -9,6 +9,11 @@
 import type { LucideIcon } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 
+const DEFAULT_BACK_LABEL = "← Back to dashboard";
+const DEFAULT_BACK_HREF = "/dashboard";
+const CENTERED_PAGE_CLASS =
+  "flex items-center justify-center min-h-[60vh] px-[var(--space-6)]";
+
 export interface SegmentNotFoundProps {
   /** Lucide icon rendered in the chip. */
   icon: LucideIcon;
@@ -26,11 +31,11 @@ export function SegmentNotFound({
   icon,
   title,
   description,
-  backLabel = "← Back to dashboard",
-  backHref = "/dashboard",
+  backLabel = DEFAULT_BACK_LABEL,
+  backHref = DEFAULT_BACK_HREF,
 }: SegmentNotFoundProps) {
   return (
-    <main className="flex items-center justify-center min-h-[60vh] px-[var(--space-6)]">
+    <main className={CENTERED_PAGE_CLASS}>
       <EmptyState
         icon={icon}
         title={title}

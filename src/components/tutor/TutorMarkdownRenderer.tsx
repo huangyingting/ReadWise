@@ -14,14 +14,52 @@
 import type { ReactNode } from "react";
 import { tokenizeBlocks, type Block, type InlineToken } from "@/lib/tutor-markdown";
 
+type ListBlock = Extract<Block, { type: "ul" | "ol" }>;
+type ParagraphBlock = Extract<Block, { type: "paragraph" }>;
+
 function renderInlineTokens(tokens: InlineToken[], prefix: string): ReactNode[] {
   return tokens.map((tok, i) => {
     const key = `${prefix}-${i}`;
-    if (tok.type === "bold") return <strong key={key}>{tok.value}</strong>;
-    if (tok.type === "code") return <code key={key}>{tok.value}</code>;
-    // type === "text": plain string — React escapes it automatically (XSS-safe)
-    return tok.value;
+    switch (tok.type) {
+      case "bold":
+        return <strong key={key}>{tok.value}</strong>;
+      case "code":
+        return <code key={key}>{tok.value}</code>;
+      case "text":
+        // Plain string — React escapes it automatically (XSS-safe).
+        return tok.value;
+    }
   });
+}
+
+function renderListItems(block: ListBlock, blockIndex: number): ReactNode[] {
+  return block.items.map((tokens, itemIndex) => (
+    <li key={itemIndex}>
+      {renderInlineTokens(tokens, `${blockIndex}-${itemIndex}`)}
+    </li>
+  ));
+}
+
+function renderParagraph(block: ParagraphBlock, blockIndex: number): ReactNode {
+  const children: ReactNode[] = [];
+
+  block.lines.forEach((lineTokens, lineIndex) => {
+    if (lineIndex > 0) children.push(<br key={`br-${lineIndex}`} />);
+    children.push(...renderInlineTokens(lineTokens, `${blockIndex}-p${lineIndex}`));
+  });
+
+  return <p key={blockIndex}>{children}</p>;
+}
+
+function renderBlock(block: Block, blockIndex: number): ReactNode {
+  switch (block.type) {
+    case "ul":
+      return <ul key={blockIndex}>{renderListItems(block, blockIndex)}</ul>;
+    case "ol":
+      return <ol key={blockIndex}>{renderListItems(block, blockIndex)}</ol>;
+    case "paragraph":
+      return renderParagraph(block, blockIndex);
+  }
 }
 
 /**
@@ -34,33 +72,7 @@ export function TutorMarkdownRenderer({ content }: { content: string }): ReactNo
   const blocks = tokenizeBlocks(content);
   return (
     <div className="rw-tutor-answer">
-      {blocks.map((block, bi) => {
-        if (block.type === "ul") {
-          return (
-            <ul key={bi}>
-              {block.items.map((tokens, li) => (
-                <li key={li}>{renderInlineTokens(tokens, `${bi}-${li}`)}</li>
-              ))}
-            </ul>
-          );
-        }
-        if (block.type === "ol") {
-          return (
-            <ol key={bi}>
-              {block.items.map((tokens, li) => (
-                <li key={li}>{renderInlineTokens(tokens, `${bi}-${li}`)}</li>
-              ))}
-            </ol>
-          );
-        }
-        // paragraph
-        const children: ReactNode[] = [];
-        block.lines.forEach((lineTokens, li) => {
-          if (li > 0) children.push(<br key={`br-${li}`} />);
-          children.push(...renderInlineTokens(lineTokens, `${bi}-p${li}`));
-        });
-        return <p key={bi}>{children}</p>;
-      })}
+      {blocks.map(renderBlock)}
     </div>
   );
 }

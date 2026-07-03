@@ -7,6 +7,16 @@ import {
 } from "@/lib/route-policy";
 import { defaultLandingPath } from "@/lib/learner-landing";
 
+function hasSessionCookie(req: NextRequest): boolean {
+  return SESSION_COOKIES.some((name) => req.cookies.has(name));
+}
+
+function isProtectedPath(pathname: string): boolean {
+  return PROTECTED_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+  );
+}
+
 export function middleware(req: NextRequest) {
   const { pathname, search } = req.nextUrl;
 
@@ -16,22 +26,17 @@ export function middleware(req: NextRequest) {
   // root redirect uses the feature-flag default; admins keep direct access to
   // `/dashboard` and `/admin`.
   if (pathname === "/") {
-    const hasSession = SESSION_COOKIES.some((name) => req.cookies.has(name));
-    if (hasSession) {
+    if (hasSessionCookie(req)) {
       return NextResponse.redirect(new URL(defaultLandingPath(), req.url));
     }
     return NextResponse.next();
   }
 
-  const isProtected = PROTECTED_PREFIXES.some(
-    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
-  );
-  if (!isProtected) {
+  if (!isProtectedPath(pathname)) {
     return NextResponse.next();
   }
 
-  const hasSession = SESSION_COOKIES.some((name) => req.cookies.has(name));
-  if (hasSession) {
+  if (hasSessionCookie(req)) {
     return NextResponse.next();
   }
 

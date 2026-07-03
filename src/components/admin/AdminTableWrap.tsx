@@ -1,6 +1,12 @@
 import { cn } from "@/lib/cn";
 import { TableSurface } from "@/components/ui";
 
+interface AdminTableWrapProps {
+  children: React.ReactNode;
+  ariaLabel: string;
+  className?: string;
+}
+
 /**
  * Horizontally-scrollable admin table wrapper. Pass `<thead>` and `<tbody>`
  * as children — the `<table className="admin-table">` is rendered here so
@@ -11,11 +17,7 @@ export function AdminTableWrap({
   children,
   ariaLabel,
   className,
-}: {
-  children: React.ReactNode;
-  ariaLabel: string;
-  className?: string;
-}) {
+}: AdminTableWrapProps) {
   return (
     <TableSurface
       density="compact"

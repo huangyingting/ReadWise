@@ -3,9 +3,15 @@ import { cn } from "@/lib/cn";
 
 const SIZE_MAP = { sm: 16, md: 20, lg: 24 } as const;
 
+type SpinnerSize = keyof typeof SIZE_MAP | number;
+
+function resolveSpinnerSize(size: SpinnerSize | undefined) {
+  return typeof size === "number" ? size : SIZE_MAP[size ?? "md"];
+}
+
 export interface SpinnerProps extends React.SVGProps<SVGSVGElement> {
   /** Pixel size, or a named size (sm 16 / md 20 / lg 24). */
-  size?: keyof typeof SIZE_MAP | number;
+  size?: SpinnerSize;
   /** Accessible label; defaults to "Loading". */
   label?: string;
 }
@@ -20,7 +26,7 @@ export function Spinner({
   className,
   ...props
 }: SpinnerProps) {
-  const px = typeof size === "number" ? size : SIZE_MAP[size];
+  const px = resolveSpinnerSize(size);
   return (
     <svg
       role="status"

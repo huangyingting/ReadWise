@@ -10,6 +10,16 @@ const createClassroomBody = object({
   name: string({ min: 1, max: 120 }),
 });
 
+const CREATED_STATUS = 201;
+
+function classroomCreateInput(body: { orgId: string; name: string }, teacherId: string) {
+  return {
+    orgId: body.orgId,
+    name: body.name,
+    teacherId,
+  };
+}
+
 /**
  * Creates a classroom in an organization (RW-061). Requires the caller to hold
  * `classroom.manage` within the org (Teacher or OrgAdmin) or be a system admin.
@@ -19,11 +29,7 @@ export const POST = createHandler(
   { body: createClassroomBody },
   async ({ body, session }) => {
     await requireOrgCapabilityApi(session, body.orgId, CAPABILITIES.classroomManage);
-    const classroom = await createClassroom({
-      orgId: body.orgId,
-      name: body.name,
-      teacherId: session.user.id,
-    });
-    return NextResponse.json({ classroom }, { status: 201 });
+    const classroom = await createClassroom(classroomCreateInput(body, session.user.id));
+    return NextResponse.json({ classroom }, { status: CREATED_STATUS });
   },
 );

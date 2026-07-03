@@ -1,6 +1,8 @@
 import { ListingLoadingShell } from "@/components/route-states";
 import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
 
+const NOTE_GROUP_CARD_COUNTS = [3, 2, 2] as const;
+
 /** Suspense fallback for the notes & highlights page. */
 export default function NotesLoading() {
   return (
@@ -15,12 +17,12 @@ export default function NotesLoading() {
     >
       {/* Note card groups */}
       <div className="flex flex-col gap-[var(--space-4)]">
-        {Array.from({ length: 3 }).map((_, gi) => (
-          <div key={gi} className="flex flex-col gap-[var(--space-3)]">
+        {NOTE_GROUP_CARD_COUNTS.map((cardCount, groupIndex) => (
+          <div key={groupIndex} className="flex flex-col gap-[var(--space-3)]">
             <Skeleton shape="text" className="w-1/3 h-5" />
-            {Array.from({ length: gi === 0 ? 3 : 2 }).map((__, i) => (
+            {Array.from({ length: cardCount }).map((_, cardIndex) => (
               <div
-                key={i}
+                key={cardIndex}
                 className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"
               >
                 <Skeleton shape="block" className="h-3 w-10 rounded-full" />

@@ -3,6 +3,11 @@
 import { AlertTriangle } from "lucide-react";
 import { SegmentError } from "@/components/route-states";
 
+type AdminErrorProps = {
+  error: Error & { digest?: string };
+  reset: () => void;
+};
+
 /**
  * Admin-area segment error boundary. Shown when an admin page throws.
  * Reports to the structured server logs and provides a retry action.
@@ -10,10 +15,7 @@ import { SegmentError } from "@/components/route-states";
 export default function AdminError({
   error,
   reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+}: AdminErrorProps) {
   return (
     <SegmentError
       error={error}

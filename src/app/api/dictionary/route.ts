@@ -10,19 +10,24 @@ import { frequencyTier } from "@/lib/frequency";
 
 const bodySchema = object({ word: nonEmptyString(200) });
 
+async function recordDictionaryExposure(userId: string, word: string) {
+  // Best-effort: a lookup is a word exposure. Never block the response.
+  await bestEffortMastery("dictionary.exposure", () => recordWordExposure(userId, word));
+}
+
+async function recordLookupUsage(userId: string, found: boolean) {
+  // Product analytics (RW-051): metadata only; never store the word/definition.
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.lookup,
+    userId,
+    properties: { found },
+  });
+}
+
 export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
   await checkRateLimit(session.user.id, "lookup");
   const result = await lookupWord(body.word);
-  // Best-effort: a lookup is a word exposure. Never block the response.
-  await bestEffortMastery("dictionary.exposure", () =>
-    recordWordExposure(session.user.id, body.word),
-  );
-  // Product analytics (RW-051): a lookup is a feature-usage signal. Metadata
-  // only — the looked-up word/definition is NEVER stored.
-  await recordEvent({
-    type: ANALYTICS_EVENT_TYPES.lookup,
-    userId: session.user.id,
-    properties: { found: result.found },
-  });
+  await recordDictionaryExposure(session.user.id, body.word);
+  await recordLookupUsage(session.user.id, result.found);
   return NextResponse.json({ ...result, frequencyTier: frequencyTier(body.word) });
 });

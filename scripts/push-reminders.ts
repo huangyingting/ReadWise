@@ -48,6 +48,15 @@ Environment:
 `);
 }
 
+function logReminderResult(result: Awaited<ReturnType<typeof sendDueReminders>>): void {
+  log.info("done", {
+    usersWithDue: result.usersWithDue,
+    sent: result.sent,
+    skipped: result.skipped,
+    suppressed: result.suppressed,
+  });
+}
+
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
@@ -68,12 +77,7 @@ async function main(): Promise<number> {
 
   log.info("sending due-card push reminders…");
   const result = await sendDueReminders();
-  log.info("done", {
-    usersWithDue: result.usersWithDue,
-    sent: result.sent,
-    skipped: result.skipped,
-    suppressed: result.suppressed,
-  });
+  logReminderResult(result);
   return 0;
 }
 

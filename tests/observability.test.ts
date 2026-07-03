@@ -9,8 +9,12 @@ process.env.LOG_LEVEL = "error";
 import { test } from "node:test";
 import assert from "node:assert/strict";
 
+async function importObservability() {
+  return import("@/lib/observability");
+}
+
 test("observability barrel exports all logger symbols", async () => {
-  const pkg = await import("@/lib/observability");
+  const pkg = await importObservability();
   assert.equal(typeof pkg.createLogger, "function");
   assert.equal(typeof pkg.runWithRequestContext, "function");
   assert.equal(typeof pkg.getRequestContext, "function");
@@ -19,7 +23,7 @@ test("observability barrel exports all logger symbols", async () => {
 });
 
 test("observability barrel exports all error-capture symbols", async () => {
-  const pkg = await import("@/lib/observability");
+  const pkg = await importObservability();
   assert.equal(typeof pkg.captureError, "function");
   assert.equal(typeof pkg.fingerprint, "function");
   assert.equal(typeof pkg.scrubContext, "function");
@@ -29,7 +33,7 @@ test("observability barrel exports all error-capture symbols", async () => {
 });
 
 test("observability barrel exports all tracing symbols", async () => {
-  const pkg = await import("@/lib/observability");
+  const pkg = await importObservability();
   assert.equal(typeof pkg.withSpan, "function");
   assert.equal(typeof pkg.startChildSpan, "function");
   assert.equal(typeof pkg.setSpanAttributes, "function");
@@ -40,14 +44,14 @@ test("observability barrel exports all tracing symbols", async () => {
 });
 
 test("observability barrel exports SLO catalog and evaluator", async () => {
-  const pkg = await import("@/lib/observability");
+  const pkg = await importObservability();
   assert.ok(Array.isArray(pkg.SLI_CATALOG));
   assert.ok(pkg.SLI_CATALOG.length > 0);
   assert.equal(typeof pkg.evaluateSlos, "function");
 });
 
 test("observability logger creates working structured logger via barrel", async () => {
-  const { createLogger, runWithRequestContext, getRequestContext } = await import("@/lib/observability");
+  const { createLogger, runWithRequestContext, getRequestContext } = await importObservability();
   let ctx: ReturnType<typeof getRequestContext>;
   runWithRequestContext({ requestId: "obs-test-1", userId: "u-obs" }, () => {
     ctx = getRequestContext();
@@ -60,7 +64,7 @@ test("observability logger creates working structured logger via barrel", async 
 });
 
 test("observability captureError works end-to-end via barrel", async () => {
-  const { captureError, setErrorSink, resetErrorReporting } = await import("@/lib/observability");
+  const { captureError, setErrorSink, resetErrorReporting } = await importObservability();
   resetErrorReporting();
   const captured: unknown[] = [];
   const restore = setErrorSink((r) => captured.push(r));
@@ -73,7 +77,7 @@ test("observability captureError works end-to-end via barrel", async () => {
 });
 
 test("observability sanitizeAttributes drops disallowed keys via barrel", async () => {
-  const { sanitizeAttributes } = await import("@/lib/observability");
+  const { sanitizeAttributes } = await importObservability();
   const result = sanitizeAttributes({
     "readwise.feature": "test",
     "article.content": "should be dropped",

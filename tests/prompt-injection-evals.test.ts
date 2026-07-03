@@ -28,6 +28,26 @@ import {
   BENIGN_ONLY,
 } from "./fixtures/prompt-injection-cases";
 
+function collectPatternFailures(
+  cases: typeof INJECTION_ONLY,
+  patternsFor: (c: (typeof INJECTION_ONLY)[number]) => RegExp[] | undefined,
+  matchesExpectation: (pattern: RegExp, out: string) => boolean,
+  messageFor: (name: string, pattern: RegExp, out: string) => string,
+): string[] {
+  const failures: string[] = [];
+  for (const c of cases) {
+    const patterns = patternsFor(c);
+    if (!patterns) continue;
+    const out = sanitizeUntrustedText(c.input);
+    for (const pattern of patterns) {
+      if (!matchesExpectation(pattern, out)) {
+        failures.push(messageFor(c.name, pattern, out));
+      }
+    }
+  }
+  return failures;
+}
+
 // ---------------------------------------------------------------------------
 // Dataset sanity checks
 // ---------------------------------------------------------------------------
@@ -69,16 +89,12 @@ test("sanitizeUntrustedText: injection cases produce non-empty output", () => {
 });
 
 test("sanitizeUntrustedText: injection markers are neutralized (mustNotMatch)", () => {
-  const failures: string[] = [];
-  for (const c of INJECTION_ONLY) {
-    if (!c.mustNotMatch) continue;
-    const out = sanitizeUntrustedText(c.input);
-    for (const pattern of c.mustNotMatch) {
-      if (pattern.test(out)) {
-        failures.push(`[${c.name}] pattern ${pattern} still present in: ${JSON.stringify(out)}`);
-      }
-    }
-  }
+  const failures = collectPatternFailures(
+    INJECTION_ONLY,
+    (c) => c.mustNotMatch,
+    (pattern, out) => !pattern.test(out),
+    (name, pattern, out) => `[${name}] pattern ${pattern} still present in: ${JSON.stringify(out)}`,
+  );
   assert.deepEqual(
     failures,
     [],
@@ -87,16 +103,12 @@ test("sanitizeUntrustedText: injection markers are neutralized (mustNotMatch)", 
 });
 
 test("sanitizeUntrustedText: injection cases preserve required content (mustMatch)", () => {
-  const failures: string[] = [];
-  for (const c of INJECTION_ONLY) {
-    if (!c.mustMatch) continue;
-    const out = sanitizeUntrustedText(c.input);
-    for (const pattern of c.mustMatch) {
-      if (!pattern.test(out)) {
-        failures.push(`[${c.name}] required pattern ${pattern} missing from: ${JSON.stringify(out)}`);
-      }
-    }
-  }
+  const failures = collectPatternFailures(
+    INJECTION_ONLY,
+    (c) => c.mustMatch,
+    (pattern, out) => pattern.test(out),
+    (name, pattern, out) => `[${name}] required pattern ${pattern} missing from: ${JSON.stringify(out)}`,
+  );
   assert.deepEqual(
     failures,
     [],

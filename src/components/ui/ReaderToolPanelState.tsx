@@ -13,6 +13,25 @@ import { Spinner } from "@/components/ui/Spinner";
  * can adopt the same primitives.
  */
 
+interface PanelMessageProps {
+  title: string;
+  description: ReactNode;
+}
+
+interface PanelMessageStateProps extends PanelMessageProps {
+  icon: ReactNode;
+}
+
+function PanelMessageState({ icon, title, description }: PanelMessageStateProps) {
+  return (
+    <div className="reader-tools-panel-state">
+      {icon}
+      <p className="font-semibold m-0">{title}</p>
+      <p className="muted m-0 max-w-[40ch]">{description}</p>
+    </div>
+  );
+}
+
 export function PanelLoading({ message }: { message: string }) {
   return (
     <div className="reader-tools-panel-state" role="status">
@@ -33,31 +52,25 @@ export function PanelError({ message }: { message: string }) {
 export function PanelFallback({
   title,
   description,
-}: {
-  title: string;
-  description: string;
-}) {
+}: PanelMessageProps) {
   return (
-    <div className="reader-tools-panel-state">
-      <CircleOff size={28} className="text-text-subtle" aria-hidden />
-      <p className="font-semibold m-0">{title}</p>
-      <p className="muted m-0 max-w-[40ch]">{description}</p>
-    </div>
+    <PanelMessageState
+      icon={<CircleOff size={28} className="text-text-subtle" aria-hidden />}
+      title={title}
+      description={description}
+    />
   );
 }
 
 export function PanelEmpty({
   title,
   description,
-}: {
-  title: string;
-  description: ReactNode;
-}) {
+}: PanelMessageProps) {
   return (
-    <div className="reader-tools-panel-state">
-      <BookOpen size={28} className="text-text-subtle" aria-hidden />
-      <p className="font-semibold m-0">{title}</p>
-      <p className="muted m-0 max-w-[40ch]">{description}</p>
-    </div>
+    <PanelMessageState
+      icon={<BookOpen size={28} className="text-text-subtle" aria-hidden />}
+      title={title}
+      description={description}
+    />
   );
 }
