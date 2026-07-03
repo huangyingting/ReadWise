@@ -1,33 +1,45 @@
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { excludes, lookupSection, parseSitemapLocs } from "./shared";
 
+const PROPUBLICA_HOSTNAME = "propublica.org";
+const PROPUBLICA_SITEMAP_PATH = "/sitemap.xml";
 const PROPUBLICA_SITEMAP_INDEX = "https://www.propublica.org/sitemap.xml";
 
-function sitemapDate(url: string): string {
+function parseUrl(url: string): URL | null {
   try {
-    const parsed = new URL(url);
-    const yyyy = parsed.searchParams.get("yyyy") ?? "";
-    const mm = parsed.searchParams.get("mm") ?? "";
-    const dd = parsed.searchParams.get("dd") ?? "";
-    return `${yyyy}-${mm}-${dd}`;
+    return new URL(url);
   } catch {
-    return "";
+    return null;
   }
 }
 
+function sitemapDate(url: string): string {
+  const parsed = parseUrl(url);
+  if (!parsed) return "";
+
+  const yyyy = parsed.searchParams.get("yyyy") ?? "";
+  const mm = parsed.searchParams.get("mm") ?? "";
+  const dd = parsed.searchParams.get("dd") ?? "";
+  return `${yyyy}-${mm}-${dd}`;
+}
+
 function isDailySitemap(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.hostname.replace(/^www\./, "") === "propublica.org" &&
-      parsed.pathname === "/sitemap.xml" &&
-      parsed.searchParams.has("yyyy") &&
-      parsed.searchParams.has("mm") &&
-      parsed.searchParams.has("dd")
-    );
-  } catch {
-    return false;
-  }
+  const parsed = parseUrl(url);
+  if (!parsed) return false;
+
+  return (
+    parsed.hostname.replace(/^www\./, "") === PROPUBLICA_HOSTNAME &&
+    parsed.pathname === PROPUBLICA_SITEMAP_PATH &&
+    parsed.searchParams.has("yyyy") &&
+    parsed.searchParams.has("mm") &&
+    parsed.searchParams.has("dd")
+  );
+}
+
+function newestDailySitemaps(sitemapIndexXml: string): string[] {
+  return parseSitemapLocs(sitemapIndexXml)
+    .filter(isDailySitemap)
+    .sort((a, b) => sitemapDate(b).localeCompare(sitemapDate(a)));
 }
 
 async function propublicaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise<string[]> {
@@ -37,9 +49,7 @@ async function propublicaUrlExtractor({ limit, fetch }: UrlExtractorContext): Pr
 
   let dailySitemaps: string[];
   try {
-    dailySitemaps = parseSitemapLocs(await fetch(PROPUBLICA_SITEMAP_INDEX))
-      .filter(isDailySitemap)
-      .sort((a, b) => sitemapDate(b).localeCompare(sitemapDate(a)));
+    dailySitemaps = newestDailySitemaps(await fetch(PROPUBLICA_SITEMAP_INDEX));
   } catch {
     return [];
   }

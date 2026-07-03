@@ -56,6 +56,12 @@ export const GOAL_PATH_ADJUSTMENT_CAP = 0.2;
  */
 export const GOAL_PATH_MIN_CANDIDATES = 2;
 
+const LENGTH_FIT_BONUS = 0.05;
+const LENGTH_OVERSHOOT_PENALTY = 0.1;
+const DIFFICULTY_BAND_BONUS = 0.05;
+const DIFFICULTY_OVERSHOOT_PENALTY = 0.08;
+const TOPIC_BOOST_DELTA_SCALE = 0.2;
+
 /** Per-path deterministic tuning constants. */
 export type GoalPathTuning = {
   /** Soft preferred maximum article length, in words. */
@@ -139,7 +145,56 @@ function clamp01(n: number): number {
 }
 
 function clampCap(n: number): number {
-  return Math.max(-GOAL_PATH_ADJUSTMENT_CAP, Math.min(GOAL_PATH_ADJUSTMENT_CAP, n));
+  return Math.max(
+    -GOAL_PATH_ADJUSTMENT_CAP,
+    Math.min(GOAL_PATH_ADJUSTMENT_CAP, n),
+  );
+}
+
+function lengthDelta(words: number | null, maxLengthWords: number): number {
+  if (words == null || words <= 0) return 0;
+  if (words <= maxLengthWords) return LENGTH_FIT_BONUS;
+
+  const over = (words - maxLengthWords) / maxLengthWords;
+  return -LENGTH_OVERSHOOT_PENALTY * Math.min(1, over);
+}
+
+function difficultyDelta(
+  difficulty: string | null | undefined,
+  tuning: GoalPathTuning,
+): number {
+  if (!difficulty || !isDifficultyLevel(difficulty)) return 0;
+
+  const rank = levelRank(difficulty);
+  const [minRank, maxRank] = tuning.preferredBand;
+  if (rank >= minRank && rank <= maxRank) return DIFFICULTY_BAND_BONUS;
+  if (rank <= maxRank) return 0;
+
+  const aboveBy = rank - maxRank;
+  return (
+    -(DIFFICULTY_OVERSHOOT_PENALTY * aboveBy) /
+    (1 + tuning.overshootTolerance)
+  );
+}
+
+function bestTopicBoost(
+  slugs: string[],
+  topicBoosts: Record<string, number>,
+): number {
+  let bestBoost = 1;
+  for (const slug of slugs) {
+    const boost = topicBoosts[slug];
+    if (boost && boost > bestBoost) bestBoost = boost;
+  }
+  return bestBoost;
+}
+
+function topicDelta(article: GoalPathArticle, tuning: GoalPathTuning): number {
+  const slugs = [article.category ?? "", ...(article.tagSlugs ?? [])].filter(
+    Boolean,
+  );
+  const boost = bestTopicBoost(slugs, tuning.topicBoosts);
+  return boost > 1 ? (boost - 1) * TOPIC_BOOST_DELTA_SCALE : 0;
 }
 
 /**
@@ -149,47 +204,21 @@ function clampCap(n: number): number {
  */
 export function goalPathDelta(article: GoalPathArticle, goalPath: GoalPath): number {
   const tuning = GOAL_PATH_TUNING[goalPath];
-  let delta = 0;
 
   // Length fit: within the soft max earns a small boost; overshoot is softly
   // penalised in proportion to how far past the max it runs.
-  const words = article.wordCount ?? null;
-  if (words != null && words > 0) {
-    if (words <= tuning.maxLengthWords) {
-      delta += 0.05;
-    } else {
-      const over = (words - tuning.maxLengthWords) / tuning.maxLengthWords;
-      delta -= 0.1 * Math.min(1, over);
-    }
-  }
+  const length = lengthDelta(article.wordCount ?? null, tuning.maxLengthWords);
 
   // Difficulty band: in-band earns a small boost; above-band is penalised,
   // scaled by the path's overshoot tolerance (more tolerance → softer penalty).
-  if (article.difficulty && isDifficultyLevel(article.difficulty)) {
-    const rank = levelRank(article.difficulty);
-    const [minRank, maxRank] = tuning.preferredBand;
-    if (rank >= minRank && rank <= maxRank) {
-      delta += 0.05;
-    } else if (rank > maxRank) {
-      const aboveBy = rank - maxRank;
-      delta -= (0.08 * aboveBy) / (1 + tuning.overshootTolerance);
-    }
-    // Below band: neutral (easier-than-preferred is never penalised).
-  }
+  // Below band: neutral (easier-than-preferred is never penalised).
+  const difficulty = difficultyDelta(article.difficulty, tuning);
 
   // Topic boost: a preferred category/tag slug earns a boost proportional to
   // its configured multiplier (e.g. ×1.3 → +0.06).
-  const slugs = [article.category ?? "", ...(article.tagSlugs ?? [])].filter(Boolean);
-  let bestBoost = 1;
-  for (const slug of slugs) {
-    const boost = tuning.topicBoosts[slug];
-    if (boost && boost > bestBoost) bestBoost = boost;
-  }
-  if (bestBoost > 1) {
-    delta += (bestBoost - 1) * 0.2;
-  }
+  const topic = topicDelta(article, tuning);
 
-  return clampCap(delta);
+  return clampCap(length + difficulty + topic);
 }
 
 /**

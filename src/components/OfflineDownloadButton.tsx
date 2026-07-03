@@ -12,7 +12,7 @@
  * Degrades gracefully when IndexedDB is unavailable (e.g. private browsing).
  */
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Download, Check, Trash2, WifiOff } from "lucide-react";
 import { Button } from "@/components/ui";
 import {
@@ -27,6 +27,18 @@ import type { OfflineArticle } from "@/lib/offline/article-store";
 
 type State = "idle" | "loading" | "saved" | "error" | "unsupported";
 
+function offlineArticleUrl(articleId: string, meta = false): string {
+  return `/api/reader/${articleId}/offline${meta ? "?meta=1" : ""}`;
+}
+
+async function readDownloadError(res: Response): Promise<string> {
+  const data = (await res.json().catch(() => null)) as {
+    error?: string;
+  } | null;
+
+  return data?.error ?? "Download failed";
+}
+
 export default function OfflineDownloadButton({
   articleId,
 }: {
@@ -35,6 +47,35 @@ export default function OfflineDownloadButton({
   const [state, setState] = useState<State>("idle");
   const [error, setError] = useState<string | null>(null);
   const [confirmRemove, setConfirmRemove] = useState(false);
+
+  /**
+   * Compare the stored version with the server's current one (cheap `?meta=1`
+   * call). If the content changed, silently re-download; if the article was
+   * deleted (404), drop the stale offline copy. Best-effort and offline-safe.
+   */
+  const revalidateCachedCopy = useCallback(async () => {
+    try {
+      const stored = await getOfflineArticleVersion(articleId);
+      // binary/offline content: response may not be JSON; routed through raw fetch
+      const res = await fetch(offlineArticleUrl(articleId, true));
+      if (res.status === 404) {
+        await removeOfflineArticle(articleId);
+        setState("idle");
+        return;
+      }
+      if (!res.ok) return; // transient — keep what we have
+      const meta = (await res.json()) as { version?: string };
+      if (meta.version && meta.version !== stored) {
+        const full = await fetch(offlineArticleUrl(articleId));
+        if (full.ok) {
+          const data = (await full.json()) as Omit<OfflineArticle, "savedAt">;
+          await saveOfflineArticle(data);
+        }
+      }
+    } catch {
+      // Offline or network error — keep the existing copy.
+    }
+  }, [articleId]);
 
   // Check initial state on mount; if already saved, revalidate the cached copy
   // against the server version and refresh (or drop) it as needed (RW-044).
@@ -50,41 +91,13 @@ export default function OfflineDownloadButton({
         setState(saved ? "saved" : "idle");
         if (saved) void revalidateCachedCopy();
       })
-      .catch(() => setState("idle"));
+      .catch(() => {
+        if (!cancelled) setState("idle");
+      });
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [articleId]);
-
-  /**
-   * Compare the stored version with the server's current one (cheap `?meta=1`
-   * call). If the content changed, silently re-download; if the article was
-   * deleted (404), drop the stale offline copy. Best-effort and offline-safe.
-   */
-  async function revalidateCachedCopy() {
-    try {
-      const stored = await getOfflineArticleVersion(articleId);
-      // binary/offline content: response may not be JSON; routed through raw fetch
-      const res = await fetch(`/api/reader/${articleId}/offline?meta=1`);
-      if (res.status === 404) {
-        await removeOfflineArticle(articleId);
-        setState("idle");
-        return;
-      }
-      if (!res.ok) return; // transient — keep what we have
-      const meta = (await res.json()) as { version?: string };
-      if (meta.version && meta.version !== stored) {
-        const full = await fetch(`/api/reader/${articleId}/offline`);
-        if (full.ok) {
-          const data = (await full.json()) as Omit<OfflineArticle, "savedAt">;
-          await saveOfflineArticle(data);
-        }
-      }
-    } catch {
-      // Offline or network error — keep the existing copy.
-    }
-  }
+  }, [articleId, revalidateCachedCopy]);
 
   async function handleDownload() {
     setState("loading");
@@ -100,12 +113,9 @@ export default function OfflineDownloadButton({
         return;
       }
 
-      const res = await fetch(`/api/reader/${articleId}/offline`);
+      const res = await fetch(offlineArticleUrl(articleId));
       if (!res.ok) {
-        const d = (await res.json().catch(() => null)) as {
-          error?: string;
-        } | null;
-        throw new Error(d?.error ?? "Download failed");
+        throw new Error(await readDownloadError(res));
       }
       const data = (await res.json()) as Omit<OfflineArticle, "savedAt">;
       await saveOfflineArticle(data);
@@ -120,6 +130,11 @@ export default function OfflineDownloadButton({
     await removeOfflineArticle(articleId);
     setState("idle");
     setConfirmRemove(false);
+  }
+
+  function dismissError() {
+    setState("idle");
+    setError(null);
   }
 
   if (state === "unsupported") return null;
@@ -182,7 +197,7 @@ export default function OfflineDownloadButton({
           variant="ghost"
           size="sm"
           className="offline-btn"
-          onClick={() => { setState("idle"); setError(null); }}
+          onClick={dismissError}
           aria-label="Dismiss error"
         >
           Dismiss
@@ -203,7 +218,11 @@ export default function OfflineDownloadButton({
         state === "loading" ? "Downloading article…" : "Download for offline reading"
       }
       title="Download for offline reading"
-      leadingIcon={state === "loading" ? <WifiOff size={13} aria-hidden /> : <Download size={13} aria-hidden />}
+      leadingIcon={
+        state === "loading"
+          ? <WifiOff size={13} aria-hidden />
+          : <Download size={13} aria-hidden />
+      }
     >
       {state === "loading" ? "Saving…" : "Offline"}
     </Button>

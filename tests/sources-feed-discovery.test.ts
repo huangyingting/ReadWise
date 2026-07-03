@@ -17,6 +17,23 @@ let feedTags: Array<{ articleId: string; tag: { slug: string } }> = [];
 let feedProfile: { completedAt: Date | null; englishLevel: string; topics: string[] } | null = null;
 let feedWarnings: unknown[] = [];
 
+function resetContentSourceFixtures() {
+  contentSources = new Map();
+  contentSourceFindManyArgs = [];
+  contentSourceCreates = [];
+  contentSourceUpdates = [];
+  contentSourceUpserts = [];
+  ingestionMetrics = [];
+}
+
+function resetFeedFixtures() {
+  feedArticles = [];
+  feedProgress = [];
+  feedTags = [];
+  feedProfile = null;
+  feedWarnings = [];
+}
+
 before(() => {
   mock.module("@/lib/scraper/providers", {
     namedExports: {
@@ -127,17 +144,8 @@ before(() => {
 });
 
 beforeEach(() => {
-  contentSources = new Map();
-  contentSourceFindManyArgs = [];
-  contentSourceCreates = [];
-  contentSourceUpdates = [];
-  contentSourceUpserts = [];
-  ingestionMetrics = [];
-  feedArticles = [];
-  feedProgress = [];
-  feedTags = [];
-  feedProfile = null;
-  feedWarnings = [];
+  resetContentSourceFixtures();
+  resetFeedFixtures();
 });
 
 test("content source sync and accessors honor existing rows and unsynced defaults", async () => {

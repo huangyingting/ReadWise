@@ -166,6 +166,12 @@ interface Candidate {
   confidence: number;
 }
 
+type DateParts = {
+  year: number;
+  month: number;
+  day: number;
+};
+
 /** Lowercase + collapse whitespace for tolerant text comparison. */
 function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
@@ -176,7 +182,7 @@ function normalizeName(value: string): string {
   return normalizeText(value).replace(/[^a-z0-9 ]+/g, "").trim();
 }
 
-function parsedDateParts(value: string): { year: number; month: number; day: number } | null {
+function parsedDateParts(value: string): DateParts | null {
   const monthName = value.trim().match(MONTH_NAME_RE);
   if (monthName) {
     const month = MONTHS[monthName[1].toLowerCase().replace(/\.$/, "")];
@@ -196,11 +202,7 @@ function parsedDateParts(value: string): { year: number; month: number; day: num
   return null;
 }
 
-function dateHintParts(value: Date | string | null | undefined): {
-  year: number;
-  month: number;
-  day: number;
-} | null {
+function dateHintParts(value: Date | string | null | undefined): DateParts | null {
   if (!value) return null;
   const date = value instanceof Date ? value : new Date(value);
   if (!Number.isNaN(date.getTime())) {
@@ -213,16 +215,13 @@ function dateHintParts(value: Date | string | null | undefined): {
   return typeof value === "string" ? parsedDateParts(value) : null;
 }
 
-function sameDateParts(
-  a: { year: number; month: number; day: number },
-  b: { year: number; month: number; day: number },
-): boolean {
+function sameDateParts(a: DateParts, b: DateParts): boolean {
   return a.year === b.year && a.month === b.month && a.day === b.day;
 }
 
 function isStandaloneDateLine(
   text: string,
-  publishedParts: { year: number; month: number; day: number } | null,
+  publishedParts: DateParts | null,
 ): boolean {
   const parts = parsedDateParts(text);
   if (!parts) return false;
@@ -549,7 +548,7 @@ function leadingBylineConfidence(text: string, normName: string | null): number 
 function collectLeadingByline(
   root: Element,
   normName: string | null,
-  publishedParts: { year: number; month: number; day: number } | null,
+  publishedParts: DateParts | null,
   out: Candidate[],
 ): void {
   const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
@@ -633,7 +632,7 @@ function isSmithsonianAuthorLine(text: string, normName: string | null): boolean
 function collectSmithsonianLeadingByline(
   root: Element,
   normName: string | null,
-  publishedParts: { year: number; month: number; day: number } | null,
+  publishedParts: DateParts | null,
   out: Candidate[],
 ): void {
   const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
@@ -780,6 +779,31 @@ function selectRemovals(
   return [];
 }
 
+function collectRemovalCandidates(
+  root: Element,
+  normName: string | null,
+  publishedParts: DateParts | null,
+  providerKey: string | null | undefined,
+): Candidate[] {
+  const candidates: Candidate[] = [];
+  collectAttrBoilerplate(root, candidates);
+  collectLabelWidgets(root, candidates);
+  collectLinkDense(root, candidates);
+  collectBoilerplateImages(root, candidates);
+  collectTextBoilerplate(root, candidates);
+  collectOrphanVideoLabels(root, candidates);
+  collectImageCreditBlocks(root, candidates);
+  collectLeadingByline(root, normName, publishedParts, candidates);
+  if (providerKey === "smithsonian") {
+    collectSmithsonianLeadingByline(root, normName, publishedParts, candidates);
+  }
+  if (providerKey === "technologyreview") {
+    collectTechnologyReviewResidue(root, candidates);
+  }
+  collectTrailingByline(root, normName, candidates);
+  return candidates;
+}
+
 /**
  * Remove residual non-article boilerplate from already-extracted article HTML.
  * Parses with linkedom, mutates a real DOM, and serializes back to a string.
@@ -806,24 +830,10 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   const normName = hint ? normalizeName(hint) : null;
   const publishedParts = dateHintParts(opts?.publishedAt);
 
-  const candidates: Candidate[] = [];
-  collectAttrBoilerplate(root, candidates);
-  collectLabelWidgets(root, candidates);
-  collectLinkDense(root, candidates);
-  collectBoilerplateImages(root, candidates);
-  collectTextBoilerplate(root, candidates);
-  collectOrphanVideoLabels(root, candidates);
-  collectImageCreditBlocks(root, candidates);
-  collectLeadingByline(root, normName, publishedParts, candidates);
-  if (opts?.providerKey === "smithsonian") {
-    collectSmithsonianLeadingByline(root, normName, publishedParts, candidates);
-  }
-  if (opts?.providerKey === "technologyreview") {
-    collectTechnologyReviewResidue(root, candidates);
-  }
-  collectTrailingByline(root, normName, candidates);
-
-  const removals = selectRemovals(candidates, originalLen);
+  const removals = selectRemovals(
+    collectRemovalCandidates(root, normName, publishedParts, opts?.providerKey),
+    originalLen,
+  );
   for (const c of removals) {
     c.el.remove();
   }

@@ -18,7 +18,11 @@
  * user action that emitted them.
  */
 
-import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import {
+  recordEvent,
+  ANALYTICS_EVENT_TYPES,
+  type AnalyticsEventType,
+} from "@/lib/analytics/events";
 import type { TodaySessionView } from "./types";
 
 /** How the reading step was completed: progress threshold vs manual fallback. */
@@ -37,6 +41,18 @@ function sessionAnchors(session: TodaySessionView): {
   };
 }
 
+function emitTodayEvent(
+  session: TodaySessionView,
+  type: AnalyticsEventType,
+  properties: Record<string, unknown>,
+): Promise<void> {
+  return recordEvent({
+    type,
+    ...sessionAnchors(session),
+    properties,
+  });
+}
+
 /**
  * A Today session was freshly generated for a local day. Fires once per day on
  * first creation (not on idempotent re-reads). Metadata: how the primary was
@@ -45,10 +61,10 @@ function sessionAnchors(session: TodaySessionView): {
 export function emitTodaySessionGenerated(
   session: TodaySessionView,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todaySessionGenerated,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todaySessionGenerated,
+    {
       source: session.source,
       reasonCode: session.generationReasonCode,
       hasPrimary: session.primaryArticleId != null,
@@ -56,7 +72,7 @@ export function emitTodaySessionGenerated(
       targetWordCount: session.targetSavedWordIds.length,
       reviewTargetCount: session.reviewTargetCount,
     },
-  });
+  );
 }
 
 /**
@@ -65,14 +81,14 @@ export function emitTodaySessionGenerated(
  * for the "no article today" funnel branch.
  */
 export function emitTodayNoCandidate(session: TodaySessionView): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayNoCandidate,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayNoCandidate,
+    {
       source: session.source,
       reasonCode: session.generationReasonCode,
     },
-  });
+  );
 }
 
 /**
@@ -83,10 +99,10 @@ export function emitTodayNoCandidate(session: TodaySessionView): Promise<void> {
 export function emitTodaySessionViewed(
   session: TodaySessionView,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todaySessionViewed,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todaySessionViewed,
+    {
       status: session.status,
       source: session.source,
       tier: session.completionTier,
@@ -94,7 +110,7 @@ export function emitTodaySessionViewed(
       isNoCandidate: session.primaryArticleId == null,
       skipped: session.skipped,
     },
-  });
+  );
 }
 
 /**
@@ -106,15 +122,15 @@ export function emitTodayReadingComplete(
   session: TodaySessionView,
   method: TodayReadingMethod,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayReadingComplete,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayReadingComplete,
+    {
       method,
       tier: session.completionTier,
       hasTargetWords: session.targetSavedWordIds.length > 0,
     },
-  });
+  );
 }
 
 /** The Today comprehension step first completed (quiz / difficulty signal). */
@@ -122,16 +138,16 @@ export function emitTodayComprehensionComplete(
   session: TodaySessionView,
   selfRating?: string | null,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayComprehensionComplete,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayComprehensionComplete,
+    {
       tier: session.completionTier,
       // Controlled enum only — present only when the step completed via the
       // lightweight self-check path (#807).
       ...(selfRating ? { selfRating } : {}),
     },
-  });
+  );
 }
 
 /**
@@ -149,16 +165,16 @@ export function emitTodayComprehensionSubmitted(
     remediationViewed: boolean;
   },
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayComprehensionSubmitted,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayComprehensionSubmitted,
+    {
       selfRating: args.selfRating,
       skillTag: args.skillTag,
       mcqCorrect: args.mcqCorrect,
       remediationViewed: args.remediationViewed,
     },
-  });
+  );
 }
 
 /**
@@ -170,14 +186,14 @@ export function emitTodayWordReviewComplete(
   session: TodaySessionView,
   targetCount: number,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayWordReviewComplete,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayWordReviewComplete,
+    {
       tier: session.completionTier,
       targetCount,
     },
-  });
+  );
 }
 
 /**
@@ -189,15 +205,15 @@ export function emitTodaySessionComplete(
   session: TodaySessionView,
   hadTargetWords: boolean,
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todaySessionComplete,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todaySessionComplete,
+    {
       tier: session.completionTier,
       source: session.source,
       hadTargetWords,
     },
-  });
+  );
 }
 
 /**
@@ -209,16 +225,16 @@ export function emitTodaySkip(
   session: TodaySessionView,
   args: { limitReached: boolean; browseFallback: boolean },
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todaySkip,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todaySkip,
+    {
       reasonCode: session.skipReason,
       limitReached: args.limitReached,
       browseFallback: args.browseFallback,
       backupCount: session.backupArticleIds.length,
     },
-  });
+  );
 }
 
 /**
@@ -232,13 +248,13 @@ export function emitTodayArticleSelected(
   session: TodaySessionView,
   args: { replacedGenerated: boolean },
 ): Promise<void> {
-  return recordEvent({
-    type: ANALYTICS_EVENT_TYPES.todayArticleSelected,
-    ...sessionAnchors(session),
-    properties: {
+  return emitTodayEvent(
+    session,
+    ANALYTICS_EVENT_TYPES.todayArticleSelected,
+    {
       source: session.source,
       replacedGenerated: args.replacedGenerated,
       backupCount: session.backupArticleIds.length,
     },
-  });
+  );
 }

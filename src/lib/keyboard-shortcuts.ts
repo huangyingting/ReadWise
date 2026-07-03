@@ -51,10 +51,25 @@ export type ShortcutGroup = {
   shortcuts: ShortcutKey[];
 };
 
+const MAC_PLATFORM_RE = /Mac|iPhone|iPod|iPad/;
+
+const RUNTIME_OWNERS = {
+  commandPalette: "CommandPaletteProvider",
+  userMenu: "UserMenu",
+  wordLookup: "WordLookup",
+  readerTools: "ReaderTools",
+  readerToolsSurface: "ReaderToolsSurface",
+  flashcardReview: "FlashcardReview",
+} as const;
+
+function referenceShortcut(keys: string[], description: string): ShortcutKey {
+  return { keys, description, scope: "reference-only" };
+}
+
 /** Platform-aware modifier label (⌘ on Mac, Ctrl elsewhere). */
 export function cmdKey(): string {
   if (typeof navigator === "undefined") return "Ctrl";
-  return /Mac|iPhone|iPod|iPad/.test(navigator.platform ?? "") ? "⌘" : "Ctrl";
+  return MAC_PLATFORM_RE.test(navigator.platform ?? "") ? "⌘" : "Ctrl";
 }
 
 /** All shortcut groups shown in the reference panel. */
@@ -66,43 +81,27 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
         keys: ["⌘K"],
         description: "Open command palette / search",
         scope: "global",
-        runtimeOwner: "CommandPaletteProvider",
+        runtimeOwner: RUNTIME_OWNERS.commandPalette,
         disabledInInput: false,
       },
       {
         keys: ["/"],
         description: "Open command palette (when not in a field)",
         scope: "global",
-        runtimeOwner: "CommandPaletteProvider",
+        runtimeOwner: RUNTIME_OWNERS.commandPalette,
         disabledInInput: true,
       },
       {
         keys: ["?"],
         description: "Open keyboard shortcuts panel",
         scope: "global",
-        runtimeOwner: "UserMenu",
+        runtimeOwner: RUNTIME_OWNERS.userMenu,
         disabledInInput: true,
       },
-      {
-        keys: ["G", "D"],
-        description: "Go to Dashboard",
-        scope: "reference-only",
-      },
-      {
-        keys: ["G", "B"],
-        description: "Go to Browse",
-        scope: "reference-only",
-      },
-      {
-        keys: ["G", "S"],
-        description: "Go to Study",
-        scope: "reference-only",
-      },
-      {
-        keys: ["G", "P"],
-        description: "Go to Progress",
-        scope: "reference-only",
-      },
+      referenceShortcut(["G", "D"], "Go to Dashboard"),
+      referenceShortcut(["G", "B"], "Go to Browse"),
+      referenceShortcut(["G", "S"], "Go to Study"),
+      referenceShortcut(["G", "P"], "Go to Progress"),
     ],
   },
   {
@@ -112,21 +111,21 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
         keys: ["⌘E"],
         description: "Look up word / open dictionary (with text selected)",
         scope: "reader",
-        runtimeOwner: "WordLookup",
+        runtimeOwner: RUNTIME_OWNERS.wordLookup,
         disabledInInput: false,
       },
       {
         keys: ["←", "→"],
         description: "Switch tool tabs (when reader tools tab bar is focused)",
         scope: "reader",
-        runtimeOwner: "ReaderTools",
+        runtimeOwner: RUNTIME_OWNERS.readerTools,
         disabledInInput: false,
       },
       {
         keys: ["Esc"],
         description: "Close open panel / popover",
         scope: "reader",
-        runtimeOwner: "ReaderToolsSurface",
+        runtimeOwner: RUNTIME_OWNERS.readerToolsSurface,
         disabledInInput: false,
       },
     ],
@@ -138,42 +137,42 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
         keys: ["Space"],
         description: "Flip card / submit answer",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
       {
         keys: ["1"],
         description: "Grade: Again",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
       {
         keys: ["2"],
         description: "Grade: Hard",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
       {
         keys: ["3"],
         description: "Grade: Good",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
       {
         keys: ["4"],
         description: "Grade: Easy",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
       {
         keys: ["Esc"],
         description: "End session",
         scope: "flashcard",
-        runtimeOwner: "FlashcardReview",
+        runtimeOwner: RUNTIME_OWNERS.flashcardReview,
         disabledInInput: false,
       },
     ],
@@ -181,21 +180,9 @@ export const SHORTCUT_GROUPS: ShortcutGroup[] = [
   {
     label: "General",
     shortcuts: [
-      {
-        keys: ["Tab"],
-        description: "Move focus forward",
-        scope: "reference-only",
-      },
-      {
-        keys: ["Shift", "Tab"],
-        description: "Move focus backward",
-        scope: "reference-only",
-      },
-      {
-        keys: ["Enter"],
-        description: "Activate focused item",
-        scope: "reference-only",
-      },
+      referenceShortcut(["Tab"], "Move focus forward"),
+      referenceShortcut(["Shift", "Tab"], "Move focus backward"),
+      referenceShortcut(["Enter"], "Activate focused item"),
     ],
   },
 ];

@@ -94,6 +94,20 @@ function findSentenceIndexForBlock(
   return 0;
 }
 
+function isMicDeniedError(message: string): boolean {
+  return (
+    message.includes("NotAllowedError") ||
+    message.toLowerCase().includes("permission")
+  );
+}
+
+function isNoDeviceError(message: string): boolean {
+  return (
+    message.includes("NotFoundError") ||
+    message.toLowerCase().includes("no device")
+  );
+}
+
 // ─── Hook ─────────────────────────────────────────────────────────────────────
 
 export function usePronunciationSession({
@@ -280,24 +294,24 @@ export function usePronunciationSession({
     } catch (err) {
       cancelAutoStop();
       stopMeter();
-      const msg = err instanceof Error ? err.message : "Recognition failed";
-      if (
-        msg.includes("NotAllowedError") ||
-        msg.toLowerCase().includes("permission")
-      ) {
-        setPhase("mic-denied");
-      } else if (
-        msg.includes("NotFoundError") ||
-        msg.toLowerCase().includes("no device")
-      ) {
-        setPhase("no-device");
-      } else {
-        setPhase("error");
-        setErrorMsg(
-          "Something went wrong scoring that. Check your connection and try again.",
-        );
-      }
+      handleAssessmentError(err);
     }
+  }
+
+  function handleAssessmentError(err: unknown) {
+    const msg = err instanceof Error ? err.message : "Recognition failed";
+    if (isMicDeniedError(msg)) {
+      setPhase("mic-denied");
+      return;
+    }
+    if (isNoDeviceError(msg)) {
+      setPhase("no-device");
+      return;
+    }
+    setPhase("error");
+    setErrorMsg(
+      "Something went wrong scoring that. Check your connection and try again.",
+    );
   }
 
   async function stopRecording(andProcess: boolean) {
@@ -314,8 +328,7 @@ export function usePronunciationSession({
   }
 
   async function handleRetry() {
-    setPhase("idle");
-    setErrorMsg(null);
+    resetErrorToIdle();
     const t = await fetchToken();
     if (t.status === "ok") rememberToken(t.token, t.region);
   }
@@ -327,11 +340,14 @@ export function usePronunciationSession({
   }
 
   function handleMicDeniedRetry() {
-    setPhase("idle");
-    setErrorMsg(null);
+    resetErrorToIdle();
   }
 
   function handleNoDeviceRetry() {
+    resetErrorToIdle();
+  }
+
+  function resetErrorToIdle() {
     setPhase("idle");
     setErrorMsg(null);
   }

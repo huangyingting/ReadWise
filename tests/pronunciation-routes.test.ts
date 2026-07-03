@@ -26,6 +26,51 @@ let aggResult: {
   _max: { pronScore: number | null };
 } = { _count: { id: 0 }, _avg: { pronScore: null }, _max: { pronScore: null } };
 
+const ATTEMPT_URL = "http://test/api/pronunciation/attempt";
+const HISTORY_URL = "http://test/api/pronunciation/history";
+const JSON_HEADERS = { "content-type": "application/json" };
+
+function attemptBody(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    referenceText: "Hello",
+    accuracyScore: 80,
+    fluencyScore: 75,
+    completenessScore: 90,
+    pronScore: 85,
+    ...overrides,
+  };
+}
+
+async function loadAttemptRoute(): Promise<RouteHandler> {
+  const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
+    POST: RouteHandler;
+  };
+  return POST;
+}
+
+async function loadHistoryRoute(): Promise<RouteHandler> {
+  const { GET } = (await import("@/app/api/pronunciation/history/route")) as {
+    GET: RouteHandler;
+  };
+  return GET;
+}
+
+async function postAttempt(body: Record<string, unknown>): Promise<Response> {
+  const POST = await loadAttemptRoute();
+  return POST(
+    new Request(ATTEMPT_URL, {
+      method: "POST",
+      headers: JSON_HEADERS,
+      body: JSON.stringify(body),
+    }),
+  );
+}
+
+async function getHistory(query = ""): Promise<Response> {
+  const GET = await loadHistoryRoute();
+  return GET(new Request(`${HISTORY_URL}${query}`));
+}
+
 // ---------------------------------------------------------------------------
 // Module mocks — registered once before any module-under-test is imported
 // ---------------------------------------------------------------------------
@@ -101,20 +146,13 @@ beforeEach(() => {
 describe("POST /api/pronunciation/attempt", () => {
   test("returns 200 with attempt and best on valid input", async () => {
     maxPronScore = 90;
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "The quick brown fox jumps",
-          accuracyScore: 85,
-          fluencyScore: 80,
-          completenessScore: 95,
-          pronScore: 90,
-        }),
+    const res = await postAttempt(
+      attemptBody({
+        referenceText: "The quick brown fox jumps",
+        accuracyScore: 85,
+        fluencyScore: 80,
+        completenessScore: 95,
+        pronScore: 90,
       }),
     );
     assert.equal(res.status, 200);
@@ -127,21 +165,13 @@ describe("POST /api/pronunciation/attempt", () => {
 
   test("accepts optional articleId", async () => {
     maxPronScore = 75;
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "Hello",
-          accuracyScore: 75,
-          fluencyScore: 70,
-          completenessScore: 80,
-          pronScore: 75,
-          articleId: "article-1",
-        }),
+    const res = await postAttempt(
+      attemptBody({
+        accuracyScore: 75,
+        fluencyScore: 70,
+        completenessScore: 80,
+        pronScore: 75,
+        articleId: "article-1",
       }),
     );
     assert.equal(res.status, 200);
@@ -151,20 +181,12 @@ describe("POST /api/pronunciation/attempt", () => {
 
   test("clamps an out-of-range score to 0–100", async () => {
     maxPronScore = 100;
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "Hello",
-          accuracyScore: 200,
-          fluencyScore: -50,
-          completenessScore: 95,
-          pronScore: 90,
-        }),
+    const res = await postAttempt(
+      attemptBody({
+        accuracyScore: 200,
+        fluencyScore: -50,
+        completenessScore: 95,
+        pronScore: 90,
       }),
     );
     assert.equal(res.status, 200);
@@ -177,20 +199,12 @@ describe("POST /api/pronunciation/attempt", () => {
 
   test("clamps a non-integer score by rounding", async () => {
     maxPronScore = 86;
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "Hello",
-          accuracyScore: 85.6,
-          fluencyScore: 80.2,
-          completenessScore: 95,
-          pronScore: 86,
-        }),
+    const res = await postAttempt(
+      attemptBody({
+        accuracyScore: 85.6,
+        fluencyScore: 80.2,
+        completenessScore: 95,
+        pronScore: 86,
       }),
     );
     assert.equal(res.status, 200);
@@ -200,62 +214,30 @@ describe("POST /api/pronunciation/attempt", () => {
   });
 
   test("returns 400 for a non-numeric score", async () => {
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "Hello",
-          accuracyScore: "not-a-number",
-          fluencyScore: 80,
-          completenessScore: 95,
-          pronScore: 90,
-        }),
+    const res = await postAttempt(
+      attemptBody({
+        accuracyScore: "not-a-number",
+        fluencyScore: 80,
+        completenessScore: 95,
+        pronScore: 90,
       }),
     );
     assert.equal(res.status, 400);
   });
 
   test("returns 400 for missing referenceText", async () => {
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          accuracyScore: 80,
-          fluencyScore: 75,
-          completenessScore: 90,
-          pronScore: 85,
-        }),
-      }),
-    );
+    const res = await postAttempt({
+      accuracyScore: 80,
+      fluencyScore: 75,
+      completenessScore: 90,
+      pronScore: 85,
+    });
     assert.equal(res.status, 400);
   });
 
   test("returns 401 when unauthenticated", async () => {
     authState = "unauth";
-    const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as {
-      POST: RouteHandler;
-    };
-    const res = await POST(
-      new Request("http://test/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          referenceText: "Hello",
-          accuracyScore: 80,
-          fluencyScore: 75,
-          completenessScore: 90,
-          pronScore: 85,
-        }),
-      }),
-    );
+    const res = await postAttempt(attemptBody());
     assert.equal(res.status, 401);
   });
 });
@@ -279,10 +261,7 @@ describe("GET /api/pronunciation/history", () => {
       },
     ];
     aggResult = { _count: { id: 1 }, _avg: { pronScore: 70 }, _max: { pronScore: 70 } };
-    const { GET } = (await import("@/app/api/pronunciation/history/route")) as {
-      GET: RouteHandler;
-    };
-    const res = await GET(new Request("http://test/api/pronunciation/history"));
+    const res = await getHistory();
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.attemptCount, 1);
@@ -294,22 +273,14 @@ describe("GET /api/pronunciation/history", () => {
 
   test("returns 401 when unauthenticated", async () => {
     authState = "unauth";
-    const { GET } = (await import("@/app/api/pronunciation/history/route")) as {
-      GET: RouteHandler;
-    };
-    const res = await GET(new Request("http://test/api/pronunciation/history"));
+    const res = await getHistory();
     assert.equal(res.status, 401);
   });
 
   test("respects ?limit query param", async () => {
     findManyRows = [];
     aggResult = { _count: { id: 0 }, _avg: { pronScore: null }, _max: { pronScore: null } };
-    const { GET } = (await import("@/app/api/pronunciation/history/route")) as {
-      GET: RouteHandler;
-    };
-    const res = await GET(
-      new Request("http://test/api/pronunciation/history?limit=5"),
-    );
+    const res = await getHistory("?limit=5");
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.attemptCount, 0);

@@ -12,6 +12,20 @@ export type ValidationResult<T> =
 export type Schema<T> = (value: unknown, field?: string) => ValidationResult<T>;
 
 const label = (field?: string) => (field ? field : "value");
+const clamp = (value: number, min: number, max: number) =>
+  Math.min(max, Math.max(min, value));
+
+function coerceNumber(value: unknown): unknown {
+  return typeof value === "string" ? Number(value) : value;
+}
+
+function isFiniteNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value);
+}
+
+function failure(field: string | undefined, message: string): ValidationResult<never> {
+  return { ok: false, error: `${label(field)} ${message}` };
+}
 
 /** A required, optionally length-bounded string (trimmed by default). */
 export function string(opts: {
@@ -54,15 +68,15 @@ export function number(opts: {
 } = {}): Schema<number> {
   const { min = -Infinity, max = Infinity, int = false } = opts;
   return (value, field) => {
-    const num = typeof value === "string" ? Number(value) : value;
-    if (typeof num !== "number" || !Number.isFinite(num)) {
-      return { ok: false, error: `${label(field)} must be a number` };
+    const num = coerceNumber(value);
+    if (!isFiniteNumber(num)) {
+      return failure(field, "must be a number");
     }
     if (int && !Number.isInteger(num)) {
-      return { ok: false, error: `${label(field)} must be an integer` };
+      return failure(field, "must be an integer");
     }
     if (num < min || num > max) {
-      return { ok: false, error: `${label(field)} must be between ${min} and ${max}` };
+      return failure(field, `must be between ${min} and ${max}`);
     }
     return { ok: true, value: num };
   };
@@ -76,11 +90,11 @@ export function number(opts: {
  */
 export function clampedInt(min: number, max: number): Schema<number> {
   return (value, field) => {
-    const num = typeof value === "string" ? Number(value) : value;
-    if (typeof num !== "number" || !Number.isFinite(num)) {
-      return { ok: false, error: `${label(field)} must be a number` };
+    const num = coerceNumber(value);
+    if (!isFiniteNumber(num)) {
+      return failure(field, "must be a number");
     }
-    const clamped = Math.min(max, Math.max(min, Math.round(num)));
+    const clamped = clamp(Math.round(num), min, max);
     return { ok: true, value: clamped };
   };
 }
@@ -192,7 +206,7 @@ export function queryInt(
   const { fallback, min = -Infinity, max = Infinity } = opts;
   const parsed = Number.parseInt(params.get(name) ?? "", 10);
   const value = Number.isFinite(parsed) ? parsed : fallback;
-  return Math.min(max, Math.max(min, value));
+  return clamp(value, min, max);
 }
 
 /**

@@ -42,6 +42,33 @@ const GRADE_OUTCOME: Record<Grade, number> = {
   easy: 1,
 };
 
+const FLASHCARD_SELECT = {
+  id: true,
+  word: true,
+  explanation: true,
+  example: true,
+  contextSentence: true,
+  articleId: true,
+} as const;
+
+function dueSavedWordWhere(userId: string, now: Date) {
+  return {
+    userId,
+    OR: [{ dueAt: null }, { dueAt: { lte: now } }],
+  };
+}
+
+function toFlashcardView(card: FlashcardView): FlashcardView {
+  return {
+    id: card.id,
+    word: card.word,
+    explanation: card.explanation,
+    example: card.example,
+    contextSentence: card.contextSentence,
+    articleId: card.articleId,
+  };
+}
+
 /**
  * Returns up to `limit` flashcards that are due for review.
  * Cards with dueAt = null (never reviewed) are treated as immediately due and
@@ -53,24 +80,14 @@ export async function getDueFlashcards(
 ): Promise<FlashcardView[]> {
   const now = new Date();
   const cards = await prisma.savedWord.findMany({
-    where: {
-      userId,
-      OR: [{ dueAt: null }, { dueAt: { lte: now } }],
-    },
+    where: dueSavedWordWhere(userId, now),
     // SQLite sorts NULLs before non-NULLs in ASC order → new cards appear first
     orderBy: { dueAt: "asc" },
     take: limit,
-    select: { id: true, word: true, explanation: true, example: true, contextSentence: true, articleId: true },
+    select: FLASHCARD_SELECT,
   });
 
-  return cards.map((c) => ({
-    id: c.id,
-    word: c.word,
-    explanation: c.explanation,
-    example: c.example,
-    contextSentence: c.contextSentence,
-    articleId: c.articleId,
-  }));
+  return cards.map(toFlashcardView);
 }
 
 /**
@@ -141,10 +158,7 @@ export async function getReviewSummary(userId: string): Promise<ReviewSummary> {
   const now = new Date();
   const [dueCount, totalSaved] = await Promise.all([
     prisma.savedWord.count({
-      where: {
-        userId,
-        OR: [{ dueAt: null }, { dueAt: { lte: now } }],
-      },
+      where: dueSavedWordWhere(userId, now),
     }),
     prisma.savedWord.count({ where: { userId } }),
   ]);

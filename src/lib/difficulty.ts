@@ -72,6 +72,26 @@ export type DeterministicDifficultyResult = {
   metrics: DeterministicDifficultyMetrics;
 };
 
+type StoredDifficultyArticle = {
+  difficulty: string | null;
+  difficultyScore: number | null;
+  lexileApprox?: number | null;
+  difficultyVersion?: string | null;
+};
+
+type CurrentStoredDifficultyArticle = StoredDifficultyArticle & {
+  difficulty: DifficultyLevel;
+  lexileApprox: number;
+  difficultyVersion: string;
+};
+
+type DifficultyPersistenceFields = {
+  difficulty: DifficultyLevel;
+  difficultyScore: number;
+  lexileApprox: number;
+  difficultyVersion: string;
+};
+
 /** Rough syllable count for a single word using vowel-group heuristics. */
 function countSyllables(word: string): number {
   const w = word.toLowerCase().replace(/[^a-z]/g, "");
@@ -183,6 +203,60 @@ function levelToScore(level: DifficultyLevel): number {
   const rank = levelRank(level);
   // 6 bands across 0–100; place each at its band centre.
   return Math.round(((rank + 0.5) / DIFFICULTY_LEVELS.length) * 100);
+}
+
+function hasCurrentStoredDifficulty(
+  article: StoredDifficultyArticle,
+): article is CurrentStoredDifficultyArticle {
+  return (
+    isDifficultyLevel(article.difficulty) &&
+    article.lexileApprox != null &&
+    article.difficultyVersion === DIFFICULTY_ALGORITHM_VERSION
+  );
+}
+
+function cachedDifficultyResult(
+  articleId: string,
+  article: CurrentStoredDifficultyArticle,
+): DifficultyResult {
+  return {
+    articleId,
+    level: article.difficulty,
+    score: article.difficultyScore ?? levelToScore(article.difficulty),
+    lexileApprox: article.lexileApprox,
+    confidence: "medium",
+    version: article.difficultyVersion,
+    source: "cache",
+  };
+}
+
+function deterministicDifficultyResult(
+  articleId: string,
+  assessed: DeterministicDifficultyResult,
+): DifficultyResult {
+  return {
+    articleId,
+    level: assessed.level,
+    score: assessed.score,
+    lexileApprox: assessed.lexileApprox,
+    confidence: assessed.confidence,
+    version: assessed.version,
+    source: "deterministic",
+  };
+}
+
+function difficultyPersistenceFields(
+  assessed: Pick<
+    DeterministicDifficultyResult,
+    "level" | "score" | "lexileApprox" | "version"
+  >,
+): DifficultyPersistenceFields {
+  return {
+    difficulty: assessed.level,
+    difficultyScore: assessed.score,
+    lexileApprox: assessed.lexileApprox,
+    difficultyVersion: assessed.version,
+  };
 }
 
 const BAND_PENALTY: Record<WordFrequencyBand, number> = {
@@ -430,14 +504,14 @@ export async function getOrCreateArticleDifficulty(
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<DifficultyResult | null> {
   const select = {
-      id: true,
-      title: true,
-      content: true,
-      difficulty: true,
-      difficultyScore: true,
-      lexileApprox: true,
-      difficultyVersion: true,
-    } satisfies Prisma.ArticleSelect;
+    id: true,
+    title: true,
+    content: true,
+    difficulty: true,
+    difficultyScore: true,
+    lexileApprox: true,
+    difficultyVersion: true,
+  } satisfies Prisma.ArticleSelect;
   const article = isArticleOperator(context)
     ? await prisma.article.findUnique({ where: { id: articleId }, select })
     : await getAiProcessableArticleById(articleId, context, { select });
@@ -445,43 +519,22 @@ export async function getOrCreateArticleDifficulty(
     return null;
   }
 
-  if (
-    isDifficultyLevel(article.difficulty) &&
-    article.lexileApprox != null &&
-    article.difficultyVersion === DIFFICULTY_ALGORITHM_VERSION
-  ) {
-    return {
-      articleId,
-      level: article.difficulty,
-      score: article.difficultyScore ?? levelToScore(article.difficulty),
-      lexileApprox: article.lexileApprox,
-      confidence: "medium",
-      version: article.difficultyVersion,
-      source: "cache",
-    };
+  if (hasCurrentStoredDifficulty(article)) {
+    return cachedDifficultyResult(articleId, article);
   }
 
   const assessed = await assessDifficulty(article.title, article.content);
   await prisma.article.update({
     where: { id: articleId },
-    data: {
-      difficulty: assessed.level,
-      difficultyScore: assessed.score,
-      lexileApprox: assessed.lexileApprox,
-      difficultyVersion: assessed.version,
-    },
+    data: difficultyPersistenceFields(assessed),
   });
   return { articleId, ...assessed };
 }
 
-type ArticleLike = {
+type ArticleLike = StoredDifficultyArticle & {
   id: string;
   title: string;
   content: string;
-  difficulty: string | null;
-  difficultyScore: number | null;
-  lexileApprox?: number | null;
-  difficultyVersion?: string | null;
 };
 
 /**
@@ -498,45 +551,21 @@ export async function ensureArticleDifficulties(
   const writes: Promise<unknown>[] = [];
 
   for (const article of articles) {
-    if (
-      isDifficultyLevel(article.difficulty) &&
-      article.lexileApprox != null &&
-      article.difficultyVersion === DIFFICULTY_ALGORITHM_VERSION
-    ) {
-      map.set(article.id, {
-        articleId: article.id,
-        level: article.difficulty,
-        score: article.difficultyScore ?? levelToScore(article.difficulty),
-        lexileApprox: article.lexileApprox,
-        confidence: "medium",
-        version: article.difficultyVersion,
-        source: "cache",
-      });
+    if (hasCurrentStoredDifficulty(article)) {
+      map.set(article.id, cachedDifficultyResult(article.id, article));
       continue;
     }
     const assessed = deterministicDifficulty(article.content);
-    article.difficulty = assessed.level;
-    article.difficultyScore = assessed.score;
-    article.lexileApprox = assessed.lexileApprox;
-    article.difficultyVersion = assessed.version;
-    map.set(article.id, {
-      articleId: article.id,
-      level: assessed.level,
-      score: assessed.score,
-      lexileApprox: assessed.lexileApprox,
-      confidence: assessed.confidence,
-      version: assessed.version,
-      source: "deterministic",
-    });
+    const fields = difficultyPersistenceFields(assessed);
+    article.difficulty = fields.difficulty;
+    article.difficultyScore = fields.difficultyScore;
+    article.lexileApprox = fields.lexileApprox;
+    article.difficultyVersion = fields.difficultyVersion;
+    map.set(article.id, deterministicDifficultyResult(article.id, assessed));
     writes.push(
       prisma.article.update({
         where: { id: article.id },
-        data: {
-          difficulty: assessed.level,
-          difficultyScore: assessed.score,
-          lexileApprox: assessed.lexileApprox,
-          difficultyVersion: assessed.version,
-        },
+        data: fields,
       }),
     );
   }

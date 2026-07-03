@@ -12,6 +12,18 @@ import { validateBoundedScore } from "@/lib/learning/practice-attempts";
 
 const MAX_REFERENCE_TEXT = 2000;
 const DEFAULT_HISTORY_LIMIT = 20;
+const MAX_HISTORY_LIMIT = 100;
+
+const PRONUNCIATION_ATTEMPT_SELECT = {
+  id: true,
+  referenceText: true,
+  accuracyScore: true,
+  fluencyScore: true,
+  completenessScore: true,
+  pronScore: true,
+  articleId: true,
+  createdAt: true,
+} as const;
 
 export type AttemptInput = {
   referenceText: string;
@@ -40,7 +52,6 @@ export type PronunciationHistorySummary = {
   averageScore: number | null;
 };
 
-
 /**
  * Persists a pronunciation attempt and returns it along with the user's
  * all-time best pronScore. Validates all four score fields (0–100 integers)
@@ -59,40 +70,20 @@ export async function recordPronunciationAttempt(
     articleId,
   } = input;
 
-  if (!referenceText || referenceText.trim().length === 0) {
-    throw new Error("referenceText is required");
-  }
-  if (referenceText.length > MAX_REFERENCE_TEXT) {
-    throw new Error(
-      `referenceText must be at most ${MAX_REFERENCE_TEXT} characters`,
-    );
-  }
-
-  validateBoundedScore(accuracyScore, "accuracyScore");
-  validateBoundedScore(fluencyScore, "fluencyScore");
-  validateBoundedScore(completenessScore, "completenessScore");
-  validateBoundedScore(pronScore, "pronScore");
+  const normalizedReferenceText = normalizeReferenceText(referenceText);
+  validateAttemptScores(input);
 
   const attempt = await prisma.pronunciationAttempt.create({
     data: {
       userId,
       articleId: articleId ?? null,
-      referenceText: referenceText.trim(),
+      referenceText: normalizedReferenceText,
       accuracyScore,
       fluencyScore,
       completenessScore,
       pronScore,
     },
-    select: {
-      id: true,
-      referenceText: true,
-      accuracyScore: true,
-      fluencyScore: true,
-      completenessScore: true,
-      pronScore: true,
-      articleId: true,
-      createdAt: true,
-    },
+    select: PRONUNCIATION_ATTEMPT_SELECT,
   });
 
   const agg = await prisma.pronunciationAttempt.aggregate({
@@ -103,6 +94,26 @@ export async function recordPronunciationAttempt(
   return { attempt, best: agg._max.pronScore ?? null };
 }
 
+function normalizeReferenceText(referenceText: string): string {
+  if (!referenceText || referenceText.trim().length === 0) {
+    throw new Error("referenceText is required");
+  }
+  if (referenceText.length > MAX_REFERENCE_TEXT) {
+    throw new Error(
+      `referenceText must be at most ${MAX_REFERENCE_TEXT} characters`,
+    );
+  }
+
+  return referenceText.trim();
+}
+
+function validateAttemptScores(input: AttemptInput): void {
+  validateBoundedScore(input.accuracyScore, "accuracyScore");
+  validateBoundedScore(input.fluencyScore, "fluencyScore");
+  validateBoundedScore(input.completenessScore, "completenessScore");
+  validateBoundedScore(input.pronScore, "pronScore");
+}
+
 /**
  * Returns the user's pronunciation attempt history, newest-first, with
  * aggregate stats (attemptCount, bestPronScore, averageScore).
@@ -111,23 +122,14 @@ export async function getPronunciationHistory(
   userId: string,
   opts: { limit?: number } = {},
 ): Promise<PronunciationHistorySummary> {
-  const limit = Math.max(1, Math.min(opts.limit ?? DEFAULT_HISTORY_LIMIT, 100));
+  const limit = normalizeHistoryLimit(opts.limit);
 
   const [attempts, agg] = await Promise.all([
     prisma.pronunciationAttempt.findMany({
       where: { userId },
       orderBy: { createdAt: "desc" },
       take: limit,
-      select: {
-        id: true,
-        referenceText: true,
-        accuracyScore: true,
-        fluencyScore: true,
-        completenessScore: true,
-        pronScore: true,
-        articleId: true,
-        createdAt: true,
-      },
+      select: PRONUNCIATION_ATTEMPT_SELECT,
     }),
     prisma.pronunciationAttempt.aggregate({
       where: { userId },
@@ -144,4 +146,8 @@ export async function getPronunciationHistory(
     averageScore:
       agg._avg.pronScore !== null ? Math.round(agg._avg.pronScore) : null,
   };
+}
+
+function normalizeHistoryLimit(limit: number | undefined): number {
+  return Math.max(1, Math.min(limit ?? DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT));
 }

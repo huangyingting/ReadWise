@@ -12,6 +12,8 @@ import {
   type SavedNote,
 } from "@/components/reader/study/useArticleQuizPanel";
 
+const RECENT_ATTEMPT_LIMIT = 5;
+
 /**
  * ArticleQuiz (M5 refactor, M14 attempt recording + history, REF-062 split)
  *
@@ -89,6 +91,22 @@ export default function ArticleQuiz({
 
 // ─── Presentational sub-components ────────────────────────────────────────────
 
+function quizOptionStateClass({
+  submitted,
+  selected,
+  isCorrect,
+}: {
+  submitted: boolean;
+  selected: boolean;
+  isCorrect: boolean;
+}): string {
+  if (submitted) {
+    if (isCorrect) return "is-correct";
+    return selected ? "is-wrong" : "";
+  }
+  return selected ? "is-selected" : "";
+}
+
 function QuizQuestionList({
   questions,
   answers,
@@ -115,16 +133,11 @@ function QuizQuestionList({
             {q.options.map((opt, oi) => {
               const selected = answers[qi] === oi;
               const isCorrect = oi === q.correctIndex;
-              let stateClass = "";
-              if (submitted) {
-                if (isCorrect) {
-                  stateClass = "is-correct";
-                } else if (selected) {
-                  stateClass = "is-wrong";
-                }
-              } else if (selected) {
-                stateClass = "is-selected";
-              }
+              const stateClass = quizOptionStateClass({
+                submitted,
+                selected,
+                isCorrect,
+              });
               return (
                 <div key={opt} className="quiz-option">
                   <label
@@ -157,18 +170,22 @@ function QuizQuestionList({
             })}
           </div>
           {submitted ? (
-            <p
-              className={`quiz-feedback ${
-                answers[qi] === q.correctIndex ? "is-correct" : "is-wrong"
-              }`}
-              role="status"
-            >
-              {answers[qi] === q.correctIndex ? "Correct" : "Incorrect"}
-            </p>
+            <QuizAnswerFeedback correct={answers[qi] === q.correctIndex} />
           ) : null}
         </li>
       ))}
     </ol>
+  );
+}
+
+function QuizAnswerFeedback({ correct }: { correct: boolean }) {
+  return (
+    <p
+      className={`quiz-feedback ${correct ? "is-correct" : "is-wrong"}`}
+      role="status"
+    >
+      {correct ? "Correct" : "Incorrect"}
+    </p>
   );
 }
 
@@ -234,7 +251,7 @@ function QuizResult({
           <div className="quiz-history">
             <p className="quiz-history-label">Recent attempts</p>
             <ul className="quiz-history-list">
-              {attempts.slice(0, 5).map((a) => {
+              {attempts.slice(0, RECENT_ATTEMPT_LIMIT).map((a) => {
                 const isBestRow = a.id === bestAttemptId;
                 return (
                   <li
@@ -268,4 +285,3 @@ function QuizResult({
     </div>
   );
 }
-

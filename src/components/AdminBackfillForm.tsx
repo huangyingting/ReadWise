@@ -17,6 +17,11 @@ const FEATURES = [
   "grammar",
 ] as const;
 
+const DEFAULT_SELECTED_FEATURES = ["difficulty", "tags"] as const;
+const DEFAULT_BATCH_CAP = 50;
+
+type BackfillMode = "missing" | "rebuild";
+
 type BackfillResponse = {
   dryRun: boolean;
   mode: string;
@@ -28,6 +33,17 @@ type BackfillResponse = {
   cleared: number;
 };
 
+function parseTranslateLangs(value: string): string[] {
+  return value
+    .split(",")
+    .map((lang) => lang.trim())
+    .filter(Boolean);
+}
+
+function parseBatchCap(value: string): number {
+  return Number.parseInt(value, 10) || DEFAULT_BATCH_CAP;
+}
+
 /**
  * Operator-facing backfill / rebuild trigger (RW-018). Picks feature(s), a mode
  * (fill missing vs force rebuild), an optional filter, a required reason, and an
@@ -36,8 +52,10 @@ type BackfillResponse = {
  */
 export default function AdminBackfillForm() {
   const router = useRouter();
-  const [selected, setSelected] = useState<Set<string>>(new Set(["difficulty", "tags"]));
-  const [mode, setMode] = useState<"missing" | "rebuild">("missing");
+  const [selected, setSelected] = useState<Set<string>>(
+    () => new Set(DEFAULT_SELECTED_FEATURES),
+  );
+  const [mode, setMode] = useState<BackfillMode>("missing");
   const [reason, setReason] = useState("");
   const [status, setStatus] = useState("");
   const [category, setCategory] = useState("");
@@ -46,6 +64,7 @@ export default function AdminBackfillForm() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<BackfillResponse | null>(null);
+  const submitDisabled = selected.size === 0 || !reason.trim();
 
   function toggle(feature: string) {
     setSelected((prev) => {
@@ -61,23 +80,20 @@ export default function AdminBackfillForm() {
     setError(null);
     setResult(null);
     try {
-      const translateLangs = langs
-          .split(",")
-          .map((l) => l.trim())
-          .filter(Boolean);
+      const translateLangs = parseTranslateLangs(langs);
       const data = await postJson<BackfillResponse>("/api/admin/jobs/backfill", {
-          features: Array.from(selected),
-          mode,
-          reason,
-          dryRun,
-          batchCap: Number.parseInt(batchCap, 10) || 50,
-          status: status || undefined,
-          category: category || undefined,
-          translateLangs: translateLangs.length > 0 ? translateLangs : undefined,
+        features: Array.from(selected),
+        mode,
+        reason,
+        dryRun,
+        batchCap: parseBatchCap(batchCap),
+        status: status || undefined,
+        category: category || undefined,
+        translateLangs: translateLangs.length > 0 ? translateLangs : undefined,
       });
       setResult(data);
       if (!data.dryRun && data.enqueued > 0) {
-          router.refresh();
+        router.refresh();
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Backfill failed");
@@ -110,7 +126,7 @@ export default function AdminBackfillForm() {
           Mode
           <Select
             value={mode}
-            onChange={(e) => setMode(e.target.value as "missing" | "rebuild")}
+            onChange={(e) => setMode(e.target.value as BackfillMode)}
             selectSize="sm"
             className="w-auto ml-[var(--space-1)]"
             aria-label="Backfill mode"
@@ -167,7 +183,7 @@ export default function AdminBackfillForm() {
           variant="outline"
           size="sm"
           loading={busy}
-          disabled={selected.size === 0 || !reason.trim()}
+          disabled={submitDisabled}
           onClick={() => submit(true)}
         >
           Dry run
@@ -176,7 +192,7 @@ export default function AdminBackfillForm() {
           variant="primary"
           size="sm"
           loading={busy}
-          disabled={selected.size === 0 || !reason.trim()}
+          disabled={submitDisabled}
           onClick={() => submit(false)}
         >
           Enqueue backfill
@@ -184,12 +200,12 @@ export default function AdminBackfillForm() {
       </div>
 
       {error && (
-        <p className="text-danger-text text-[length:var(--text-sm)]" style={{ margin: 0 }}>
+        <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
           {error}
         </p>
       )}
       {result && (
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="muted m-0">
           {result.dryRun ? "Dry run: " : ""}
           scanned {result.scanned}, matched {result.matched} work item(s), cap{" "}
           {result.cap}

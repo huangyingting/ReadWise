@@ -110,6 +110,30 @@ function arraysEqual(a: string[], b: string[]): boolean {
   return a.every((v, i) => v === b[i]);
 }
 
+type ArticleUpdateData = Record<string, unknown>;
+type ArticleChanges = Record<string, unknown>;
+
+function normalizeNullableText(value: string | null | undefined): string | null {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
+}
+
+function recordChangedField(
+  data: ArticleUpdateData,
+  changes: ArticleChanges,
+  field: string,
+  from: unknown,
+  to: unknown,
+): void {
+  if (to === from) return;
+  data[field] = to;
+  changes[field] = { from, to };
+}
+
+function reviewAction(reviewState?: ReviewState): string {
+  return reviewState ? `review.${reviewState}` : "review.update";
+}
+
 /**
  * Applies moderation corrections + a review verdict to an article and records a
  * ContentReview history row capturing the diff. Returns a structured error for
@@ -137,24 +161,18 @@ export async function reviewArticle(
     return { ok: false, error: "Article not found", status: 404 };
   }
 
-  const data: Record<string, unknown> = {};
-  const changes: Record<string, unknown> = {};
+  const data: ArticleUpdateData = {};
+  const changes: ArticleChanges = {};
 
   if (input.title !== undefined) {
     const title = input.title.trim();
     if (!title) return { ok: false, error: "Title cannot be empty", status: 400 };
-    if (title !== article.title) {
-      data.title = title;
-      changes.title = { from: article.title, to: title };
-    }
+    recordChangedField(data, changes, "title", article.title, title);
   }
 
   if (input.excerpt !== undefined) {
-    const excerpt = input.excerpt?.trim() ? input.excerpt.trim() : null;
-    if (excerpt !== article.excerpt) {
-      data.excerpt = excerpt;
-      changes.excerpt = { from: article.excerpt, to: excerpt };
-    }
+    const excerpt = normalizeNullableText(input.excerpt);
+    recordChangedField(data, changes, "excerpt", article.excerpt, excerpt);
   }
 
   if (input.category !== undefined) {
@@ -162,10 +180,7 @@ export async function reviewArticle(
     if (category && !isValidCategorySlug(category)) {
       return { ok: false, error: "Invalid category", status: 400 };
     }
-    if (category !== article.category) {
-      data.category = category;
-      changes.category = { from: article.category, to: category };
-    }
+    recordChangedField(data, changes, "category", article.category, category);
   }
 
   if (input.difficulty !== undefined) {
@@ -175,20 +190,14 @@ export async function reviewArticle(
       if (!parsed) return { ok: false, error: "Invalid difficulty level", status: 400 };
       difficulty = parsed;
     }
-    if (difficulty !== article.difficulty) {
-      data.difficulty = difficulty;
-      changes.difficulty = { from: article.difficulty, to: difficulty };
-    }
+    recordChangedField(data, changes, "difficulty", article.difficulty, difficulty);
   }
 
   if (input.reviewState !== undefined) {
     if (!isReviewState(input.reviewState)) {
       return { ok: false, error: "Invalid review state", status: 400 };
     }
-    if (input.reviewState !== article.reviewState) {
-      data.reviewState = input.reviewState;
-      changes.reviewState = { from: article.reviewState, to: input.reviewState };
-    }
+    recordChangedField(data, changes, "reviewState", article.reviewState, input.reviewState);
   }
 
   if (input.qualityFlags !== undefined) {
@@ -212,8 +221,13 @@ export async function reviewArticle(
       };
     }
     if (input.status !== article.status) {
-      data.status = input.status as ArticleStatus;
-      changes.status = { from: article.status, to: input.status };
+      recordChangedField(
+        data,
+        changes,
+        "status",
+        article.status,
+        input.status as ArticleStatus,
+      );
       if (input.status === "PUBLISHED" && !article.publishedAt) {
         data.publishedAt = new Date();
       }
@@ -231,7 +245,7 @@ export async function reviewArticle(
     }
   }
 
-  const action = input.reviewState ? `review.${input.reviewState}` : "review.update";
+  const action = reviewAction(input.reviewState);
 
   await prisma.$transaction(async (tx) => {
     if (Object.keys(data).length > 0) {
@@ -242,7 +256,7 @@ export async function reviewArticle(
         articleId: input.articleId,
         reviewerId: input.reviewerId ?? null,
         action,
-        note: input.note?.trim() ? input.note.trim() : null,
+        note: normalizeNullableText(input.note),
         changes: changes as Prisma.InputJsonValue,
       },
     });

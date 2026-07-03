@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
@@ -18,11 +19,60 @@ import { Button, buttonVariants } from "@/components/ui/Button";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { CATEGORIES } from "@/lib/categories";
 
+const RETENTION_COHORT_WEEKS = 8;
+const FILTER_LABEL_CLASS = "flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]";
+const SECTION_HEADING_CLASS =
+  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text";
+
+const EXPORT_LINKS = [
+  { format: "csv", label: "Export CSV" },
+  { format: "json", label: "Export JSON" },
+] as const;
+
 type SearchParams = {
   days?: string;
   level?: string;
   topic?: string;
 };
+
+type AnalyticsOverview = Awaited<ReturnType<typeof getAnalyticsOverview>>;
+type ExportFormat = (typeof EXPORT_LINKS)[number]["format"];
+
+function toFunnelBuckets(funnel: AnalyticsOverview["funnel"]) {
+  return funnel.map((step) => ({
+    key: step.key,
+    label: step.label,
+    count: step.users,
+  }));
+}
+
+function toFeatureBuckets(featureUsage: AnalyticsOverview["featureUsage"]) {
+  return featureUsage.map((feature) => ({
+    key: feature.type,
+    label: feature.label,
+    count: feature.events,
+  }));
+}
+
+function buildExportParams(resolvedDays: number, level: string, topic: string) {
+  const params = new URLSearchParams();
+  params.set("days", String(resolvedDays));
+  if (level) params.set("level", level);
+  if (topic) params.set("topic", topic);
+  return params;
+}
+
+function getExportHref(format: ExportFormat, params: URLSearchParams): string {
+  return `/api/admin/analytics/export?format=${format}&${params.toString()}`;
+}
+
+function formatDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function SectionHeading({ children }: { children: ReactNode }) {
+  return <h2 className={SECTION_HEADING_CLASS}>{children}</h2>;
+}
 
 export default async function AdminAnalyticsPage({
   searchParams,
@@ -40,24 +90,12 @@ export default async function AdminAnalyticsPage({
 
   const [overview, cohorts] = await Promise.all([
     getAnalyticsOverview({ since, until, segment }),
-    getRetentionCohorts({ weeks: 8, segment }),
+    getRetentionCohorts({ weeks: RETENTION_COHORT_WEEKS, segment }),
   ]);
 
-  const funnelBuckets = overview.funnel.map((s) => ({
-    key: s.key,
-    label: s.label,
-    count: s.users,
-  }));
-  const featureBuckets = overview.featureUsage.map((f) => ({
-    key: f.type,
-    label: f.label,
-    count: f.events,
-  }));
-
-  const exportParams = new URLSearchParams();
-  exportParams.set("days", String(resolvedDays));
-  if (level) exportParams.set("level", level);
-  if (topic) exportParams.set("topic", topic);
+  const funnelBuckets = toFunnelBuckets(overview.funnel);
+  const featureBuckets = toFeatureBuckets(overview.featureUsage);
+  const exportParams = buildExportParams(resolvedDays, level, topic);
 
   return (
     <section className="stack">
@@ -69,7 +107,7 @@ export default async function AdminAnalyticsPage({
       </div>
 
       <form method="get" className="flex flex-wrap items-end gap-[var(--space-2)]">
-        <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+        <label className={FILTER_LABEL_CLASS}>
           <span className="muted">Time range</span>
           <Select name="days" defaultValue={String(resolvedDays)} selectSize="md" className="w-auto">
             {TIME_RANGE_PRESETS.map((p) => (
@@ -79,7 +117,7 @@ export default async function AdminAnalyticsPage({
             ))}
           </Select>
         </label>
-        <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+        <label className={FILTER_LABEL_CLASS}>
           <span className="muted">Level</span>
           <Select name="level" defaultValue={level} selectSize="md" className="w-auto">
             <option value="">All levels</option>
@@ -90,7 +128,7 @@ export default async function AdminAnalyticsPage({
             ))}
           </Select>
         </label>
-        <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+        <label className={FILTER_LABEL_CLASS}>
           <span className="muted">Topic</span>
           <Select name="topic" defaultValue={topic} selectSize="md" className="w-auto">
             <option value="">All topics</option>
@@ -104,24 +142,20 @@ export default async function AdminAnalyticsPage({
         <Button type="submit" variant="primary" size="md" className="w-auto">
           Apply
         </Button>
-        <Link
-          className={buttonVariants({ variant: "outline", size: "md" })}
-          href={`/api/admin/analytics/export?format=csv&${exportParams.toString()}`}
-          prefetch={false}
-        >
-          Export CSV
-        </Link>
-        <Link
-          className={buttonVariants({ variant: "outline", size: "md" })}
-          href={`/api/admin/analytics/export?format=json&${exportParams.toString()}`}
-          prefetch={false}
-        >
-          Export JSON
-        </Link>
+        {EXPORT_LINKS.map((link) => (
+          <Link
+            key={link.format}
+            className={buttonVariants({ variant: "outline", size: "md" })}
+            href={getExportHref(link.format, exportParams)}
+            prefetch={false}
+          >
+            {link.label}
+          </Link>
+        ))}
       </form>
 
       <p className="muted m-0">
-        {since.toISOString().slice(0, 10)} → {until.toISOString().slice(0, 10)} ·{" "}
+        {formatDate(since)} → {formatDate(until)} ·{" "}
         {overview.totals.events} events · {overview.totals.users} users
         {overview.segmentUserCount !== null
           ? ` · segment: ${overview.segmentUserCount} members`
@@ -138,9 +172,7 @@ export default async function AdminAnalyticsPage({
         <StatCard label="Total events" value={overview.totals.events} />
       </div>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Onboarding → study funnel
-      </h2>
+      <SectionHeading>Onboarding → study funnel</SectionHeading>
       <BarChart title="Conversion funnel" buckets={funnelBuckets} />
       <Card>
         <AdminTableWrap ariaLabel="Funnel detail (scrollable)">
@@ -165,9 +197,7 @@ export default async function AdminAnalyticsPage({
         </AdminTableWrap>
       </Card>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Conversion rates
-      </h2>
+      <SectionHeading>Conversion rates</SectionHeading>
       <Card>
         <div className="stack">
           <BarChartRow
@@ -188,14 +218,10 @@ export default async function AdminAnalyticsPage({
         </div>
       </Card>
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Weekly retention cohorts
-      </h2>
+      <SectionHeading>Weekly retention cohorts</SectionHeading>
       <RetentionTable cohorts={cohorts} />
 
-      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text">
-        Feature usage (events)
-      </h2>
+      <SectionHeading>Feature usage (events)</SectionHeading>
       <BarChart title="Feature usage" buckets={featureBuckets} />
     </section>
   );

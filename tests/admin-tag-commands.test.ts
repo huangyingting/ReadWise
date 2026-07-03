@@ -14,6 +14,9 @@ import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 import { TagScope } from "@prisma/client";
 
+type AuditSession =
+  Parameters<typeof import("@/lib/security/audit").recordAuditFromRequest>[0]["session"];
+
 // ---------------------------------------------------------------------------
 // Mutable state for the mock Prisma client
 // ---------------------------------------------------------------------------
@@ -38,6 +41,38 @@ let auditCalls: Array<{ action: string }> = [];
 
 /** Controls whether $transaction callback throws (simulates DB failure). */
 let txShouldFail = false;
+
+function publicTag(id: string, name: string, slug: string): TagRow {
+  return {
+    id,
+    name,
+    slug,
+    scope: TagScope.PUBLIC,
+    namespace: "public",
+    ownerId: null,
+  };
+}
+
+async function importAdminTags(): Promise<typeof import("@/lib/article-library/admin-tags")> {
+  return import("@/lib/article-library/admin-tags");
+}
+
+function auditTagChange(
+  requestId: string,
+  action: string,
+  targetId: string,
+  metadata: (result: unknown) => Record<string, unknown>,
+) {
+  return (result: unknown) => ({
+    req: {} as Request,
+    session: { user: { id: "admin-1" } } as AuditSession,
+    requestId,
+    action,
+    targetType: "tag",
+    targetId,
+    metadata: metadata(result),
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -130,22 +165,8 @@ before(() => {
 
 beforeEach(() => {
   tags = [
-    {
-      id: "tag-a",
-      name: "Science",
-      slug: "science",
-      scope: TagScope.PUBLIC,
-      namespace: "public",
-      ownerId: null,
-    },
-    {
-      id: "tag-b",
-      name: "Biology",
-      slug: "biology",
-      scope: TagScope.PUBLIC,
-      namespace: "public",
-      ownerId: null,
-    },
+    publicTag("tag-a", "Science", "science"),
+    publicTag("tag-b", "Biology", "biology"),
   ];
   articleTags = [
     { articleId: "art-1", tagId: "tag-a" },
@@ -164,7 +185,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("renameTag: returns 400 for empty name", async () => {
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
+  const { renameTag } = await importAdminTags();
   const result = await renameTag("tag-a", "   ");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
@@ -172,7 +193,7 @@ test("renameTag: returns 400 for empty name", async () => {
 });
 
 test("renameTag: returns 404 for unknown tag id", async () => {
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
+  const { renameTag } = await importAdminTags();
   const result = await renameTag("tag-z", "New Name");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -181,7 +202,7 @@ test("renameTag: returns 404 for unknown tag id", async () => {
 
 test("renameTag: returns 409 when new slug collides with a different tag", async () => {
   // "Biology" slug "biology" already exists as tag-b; renaming tag-a to it should 409.
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
+  const { renameTag } = await importAdminTags();
   const result = await renameTag("tag-a", "Biology");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 409);
@@ -189,7 +210,7 @@ test("renameTag: returns 409 when new slug collides with a different tag", async
 });
 
 test("renameTag: happy path — updates tag name/slug atomically", async () => {
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
+  const { renameTag } = await importAdminTags();
   const result = await renameTag("tag-a", "Natural Science");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.changed, true);
@@ -199,7 +220,7 @@ test("renameTag: happy path — updates tag name/slug atomically", async () => {
 });
 
 test("renameTag: case-only rename (same slug) returns changed=false", async () => {
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
+  const { renameTag } = await importAdminTags();
   const result = await renameTag("tag-a", "SCIENCE");
   assert.equal(result.ok, true);
   // slug "science" is unchanged — changed should be false
@@ -207,16 +228,14 @@ test("renameTag: case-only rename (same slug) returns changed=false", async () =
 });
 
 test("renameTag: audit callback is invoked inside the transaction", async () => {
-  const { renameTag } = await import("@/lib/article-library/admin-tags");
-  await renameTag("tag-a", "Natural Science", (r) => ({
-    req: {} as Request,
-    session: { user: { id: "admin-1" } } as Parameters<typeof import("@/lib/security/audit").recordAuditFromRequest>[0]["session"],
-    requestId: "req-1",
-    action: "admin.tag.rename",
-    targetType: "tag",
-    targetId: "tag-a",
-    metadata: { changed: (r as { changed: boolean }).changed },
-  }));
+  const { renameTag } = await importAdminTags();
+  await renameTag(
+    "tag-a",
+    "Natural Science",
+    auditTagChange("req-1", "admin.tag.rename", "tag-a", (result) => ({
+      changed: (result as { changed: boolean }).changed,
+    })),
+  );
   assert.equal(auditCalls.length, 1);
   assert.equal(auditCalls[0].action, "admin.tag.rename");
 });
@@ -226,7 +245,7 @@ test("renameTag: audit callback is invoked inside the transaction", async () => 
 // ---------------------------------------------------------------------------
 
 test("mergeTags: returns 400 when source === target", async () => {
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-a", "tag-a");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
@@ -234,14 +253,14 @@ test("mergeTags: returns 400 when source === target", async () => {
 });
 
 test("mergeTags: returns 404 when source tag does not exist", async () => {
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-z", "tag-b");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
 });
 
 test("mergeTags: returns 404 when target tag does not exist", async () => {
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-a", "tag-z");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -249,7 +268,7 @@ test("mergeTags: returns 404 when target tag does not exist", async () => {
 
 test("mergeTags: happy path — re-links unique articles and deletes source", async () => {
   // tag-a has art-1, art-2; tag-b has art-3 — no overlap, so 2 links should move.
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-a", "tag-b");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.moved, 2);
@@ -264,7 +283,7 @@ test("mergeTags: happy path — re-links unique articles and deletes source", as
 test("mergeTags: skips articles already linked to target (no duplicate links)", async () => {
   // art-3 is on tag-b; add art-3 to tag-a too — it should be skipped during merge.
   articleTags.push({ articleId: "art-3", tagId: "tag-a" });
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-a", "tag-b");
   assert.equal(result.ok, true);
   // art-1 and art-2 move; art-3 is skipped (already on target)
@@ -275,7 +294,7 @@ test("mergeTags: source has no unique articles → moved=0, source still deleted
   // art-1 and art-2 are ALSO on tag-b, so nothing moves but source is deleted.
   articleTags.push({ articleId: "art-1", tagId: "tag-b" });
   articleTags.push({ articleId: "art-2", tagId: "tag-b" });
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   const result = await mergeTags("tag-a", "tag-b");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.moved, 0);
@@ -284,23 +303,21 @@ test("mergeTags: source has no unique articles → moved=0, source still deleted
 });
 
 test("mergeTags: audit callback fires inside the transaction", async () => {
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
-  await mergeTags("tag-a", "tag-b", (r) => ({
-    req: {} as Request,
-    session: { user: { id: "admin-1" } } as Parameters<typeof import("@/lib/security/audit").recordAuditFromRequest>[0]["session"],
-    requestId: "req-2",
-    action: "admin.tag.merge",
-    targetType: "tag",
-    targetId: "tag-b",
-    metadata: { moved: (r as { moved: number }).moved },
-  }));
+  const { mergeTags } = await importAdminTags();
+  await mergeTags(
+    "tag-a",
+    "tag-b",
+    auditTagChange("req-2", "admin.tag.merge", "tag-b", (result) => ({
+      moved: (result as { moved: number }).moved,
+    })),
+  );
   assert.equal(auditCalls.length, 1);
   assert.equal(auditCalls[0].action, "admin.tag.merge");
 });
 
 test("mergeTags: transaction failure propagates as a thrown error (no partial state)", async () => {
   txShouldFail = true;
-  const { mergeTags } = await import("@/lib/article-library/admin-tags");
+  const { mergeTags } = await importAdminTags();
   await assert.rejects(
     () => mergeTags("tag-a", "tag-b"),
     /simulated transaction failure/,
@@ -315,7 +332,7 @@ test("mergeTags: transaction failure propagates as a thrown error (no partial st
 // ---------------------------------------------------------------------------
 
 test("deleteTag: returns 404 for unknown tag id", async () => {
-  const { deleteTag } = await import("@/lib/article-library/admin-tags");
+  const { deleteTag } = await importAdminTags();
   const result = await deleteTag("tag-z");
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
@@ -323,7 +340,7 @@ test("deleteTag: returns 404 for unknown tag id", async () => {
 });
 
 test("deleteTag: happy path — deletes the tag and returns article count", async () => {
-  const { deleteTag } = await import("@/lib/article-library/admin-tags");
+  const { deleteTag } = await importAdminTags();
   const result = await deleteTag("tag-a");
   assert.equal(result.ok, true);
   if (result.ok) assert.equal(result.articleCount, 2); // art-1 and art-2
@@ -332,23 +349,20 @@ test("deleteTag: happy path — deletes the tag and returns article count", asyn
 });
 
 test("deleteTag: audit callback fires inside the transaction", async () => {
-  const { deleteTag } = await import("@/lib/article-library/admin-tags");
-  await deleteTag("tag-a", (r) => ({
-    req: {} as Request,
-    session: { user: { id: "admin-1" } } as Parameters<typeof import("@/lib/security/audit").recordAuditFromRequest>[0]["session"],
-    requestId: "req-3",
-    action: "admin.tag.delete",
-    targetType: "tag",
-    targetId: "tag-a",
-    metadata: { articleCount: (r as { articleCount: number }).articleCount },
-  }));
+  const { deleteTag } = await importAdminTags();
+  await deleteTag(
+    "tag-a",
+    auditTagChange("req-3", "admin.tag.delete", "tag-a", (result) => ({
+      articleCount: (result as { articleCount: number }).articleCount,
+    })),
+  );
   assert.equal(auditCalls.length, 1);
   assert.equal(auditCalls[0].action, "admin.tag.delete");
 });
 
 test("deleteTag: transaction failure propagates (rollback semantics)", async () => {
   txShouldFail = true;
-  const { deleteTag } = await import("@/lib/article-library/admin-tags");
+  const { deleteTag } = await importAdminTags();
   await assert.rejects(
     () => deleteTag("tag-a"),
     /simulated transaction failure/,

@@ -19,16 +19,44 @@ import { formatUTCDateLabel } from "@/lib/display-format";
 // ---------------------------------------------------------------------------
 
 /** Abbreviated month names (Jan, Feb, …) */
-const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const MONTHS = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
 
 /** Day-of-week abbreviations Sunday-first */
 const DOW_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const HEAT_LEVELS = [0, 1, 2, 3, 4] as const;
+const CELL_SIZE = 12;
+const CELL_GAP = 2;
+const DOW_LABEL_WIDTH = 24;
+const MONTH_AXIS_SPACER_WIDTH = 28;
 
 type Column = {
   /** The 7 cells in this column (index 0 = Sunday, 6 = Saturday). */
   cells: (HeatCell | null)[];
   /** First YYYY-MM date in this column (for month label). */
   firstDate: string; // YYYY-MM-DD
+};
+
+type ActivityTotals = {
+  totalActive: number;
+  totalArticles: number;
+};
+
+type MonthLabel = {
+  colIndex: number;
+  label: string;
 };
 
 /**
@@ -64,6 +92,30 @@ function colMonth(col: Column): string {
   return col.firstDate.slice(0, 7); // "YYYY-MM"
 }
 
+function formatActivityLabel(date: string, count: number): string {
+  const formattedDate = formatUTCDateLabel(date);
+  return count === 0
+    ? `No articles on ${formattedDate}`
+    : `${count} article${count !== 1 ? "s" : ""} on ${formattedDate}`;
+}
+
+function getActivityTotals(cells: HeatCell[]): ActivityTotals {
+  return cells.reduce(
+    (totals, cell) => ({
+      totalActive: totals.totalActive + (cell.count > 0 ? 1 : 0),
+      totalArticles: totals.totalArticles + cell.count,
+    }),
+    { totalActive: 0, totalArticles: 0 },
+  );
+}
+
+function formatActivitySummary({ totalActive, totalArticles }: ActivityTotals): string {
+  if (totalActive === 0) {
+    return "No reading activity in the past 52 weeks — start reading to fill this in!";
+  }
+  return `${totalArticles} article${totalArticles !== 1 ? "s" : ""} read on ${totalActive} day${totalActive !== 1 ? "s" : ""} in the past year`;
+}
+
 // ---------------------------------------------------------------------------
 // Component
 // ---------------------------------------------------------------------------
@@ -77,18 +129,11 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
 
   const cols = useMemo(() => groupIntoCols(cells), [cells]);
 
-  const totalActive = useMemo(
-    () => cells.filter((c) => c.count > 0).length,
-    [cells],
-  );
-  const totalArticles = useMemo(
-    () => cells.reduce((s, c) => s + c.count, 0),
-    [cells],
-  );
+  const totals = useMemo(() => getActivityTotals(cells), [cells]);
 
   // Build month label positions: show label when the month changes.
   const monthLabels = useMemo(() => {
-    const labels: { colIndex: number; label: string }[] = [];
+    const labels: MonthLabel[] = [];
     let lastMonth = "";
     cols.forEach((col, idx) => {
       const m = colMonth(col);
@@ -100,14 +145,16 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
     });
     return labels;
   }, [cols]);
+  const monthLabelByCol = useMemo(
+    () => new Map(monthLabels.map((label) => [label.colIndex, label.label])),
+    [monthLabels],
+  );
 
   return (
     <div>
       {/* Summary */}
       <p className="text-[length:var(--text-sm)] text-text-subtle mb-[var(--space-3)]">
-        {totalActive > 0
-          ? `${totalArticles} article${totalArticles !== 1 ? "s" : ""} read on ${totalActive} day${totalActive !== 1 ? "s" : ""} in the past year`
-          : "No reading activity in the past 52 weeks — start reading to fill this in!"}
+        {formatActivitySummary(totals)}
       </p>
 
       {/* Grid wrapper — horizontal scroll on small screens */}
@@ -123,16 +170,16 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
             aria-hidden
           >
             {/* Spacer for DOW labels */}
-            <div style={{ width: 28 }} />
+            <div style={{ width: MONTH_AXIS_SPACER_WIDTH }} />
             {cols.map((_, idx) => {
-              const ml = monthLabels.find((m) => m.colIndex === idx);
+              const monthLabel = monthLabelByCol.get(idx);
               return (
                 <div
                   key={idx}
-                  style={{ width: 12, marginRight: 2 }}
+                  style={{ width: CELL_SIZE, marginRight: CELL_GAP }}
                   className="text-[length:var(--text-xs)] text-text-subtle leading-none"
                 >
-                  {ml ? ml.label : ""}
+                  {monthLabel ?? ""}
                 </div>
               );
             })}
@@ -143,7 +190,7 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
             {/* Day-of-week labels */}
             <div
               className="flex flex-col justify-between mr-[var(--space-1)]"
-              style={{ width: 24 }}
+              style={{ width: DOW_LABEL_WIDTH }}
               aria-hidden
             >
               {DOW_LABELS.map((d, i) =>
@@ -151,12 +198,16 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                   <span
                     key={d}
                     className="text-[length:var(--text-xs)] text-text-subtle"
-                    style={{ height: 12, lineHeight: "12px", marginBottom: 2 }}
+                    style={{
+                      height: CELL_SIZE,
+                      lineHeight: `${CELL_SIZE}px`,
+                      marginBottom: CELL_GAP,
+                    }}
                   >
                     {d.slice(0, 3)}
                   </span>
                 ) : (
-                  <span key={d} style={{ height: 12, marginBottom: 2 }} />
+                  <span key={d} style={{ height: CELL_SIZE, marginBottom: CELL_GAP }} />
                 ),
               )}
             </div>
@@ -173,15 +224,12 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                       return (
                         <div
                           key={rowIdx}
-                          style={{ width: 12, height: 12 }}
+                          style={{ width: CELL_SIZE, height: CELL_SIZE }}
                           aria-hidden
                         />
                       );
                     }
-                    const label =
-                      cell.count === 0
-                        ? `No articles on ${formatUTCDateLabel(cell.date)}`
-                        : `${cell.count} article${cell.count !== 1 ? "s" : ""} on ${formatUTCDateLabel(cell.date)}`;
+                    const label = formatActivityLabel(cell.date, cell.count);
                     return (
                       <div
                         key={cell.date}
@@ -195,8 +243,8 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
                           focusRing,
                         )}
                         style={{
-                          width: 12,
-                          height: 12,
+                          width: CELL_SIZE,
+                          height: CELL_SIZE,
                           backgroundColor: `var(--heat-${cell.level})`,
                         }}
                         onMouseEnter={() => setTooltip({ date: cell.date, count: cell.count })}
@@ -220,22 +268,20 @@ export default function ActivityHeatmap({ cells }: ActivityHeatmapProps) {
           aria-live="polite"
           aria-atomic
         >
-          {tooltip.count === 0
-            ? `No articles on ${formatUTCDateLabel(tooltip.date)}`
-            : `${tooltip.count} article${tooltip.count !== 1 ? "s" : ""} on ${formatUTCDateLabel(tooltip.date)}`}
+          {formatActivityLabel(tooltip.date, tooltip.count)}
         </p>
       )}
 
       {/* Legend */}
       <div className="flex items-center gap-[var(--space-2)] mt-[var(--space-3)]" aria-hidden>
         <span className="text-[length:var(--text-xs)] text-text-subtle">Less</span>
-        {([0, 1, 2, 3, 4] as const).map((level) => (
+        {HEAT_LEVELS.map((level) => (
           <div
             key={level}
             style={{
-              width: 12,
-              height: 12,
-              borderRadius: 2,
+              width: CELL_SIZE,
+              height: CELL_SIZE,
+              borderRadius: CELL_GAP,
               backgroundColor: `var(--heat-${level})`,
             }}
           />

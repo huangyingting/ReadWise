@@ -29,6 +29,17 @@ type LoggerEntry = {
   args: unknown[];
 };
 
+type LogLevel = LoggerEntry["level"];
+
+type WorkerOptions = {
+  pollIntervalMs: number;
+  lockTtlMs: number;
+  once: boolean;
+  signal: AbortSignal;
+  logger: unknown;
+  process: ProcessOpts;
+};
+
 const processPath = fileURLToPath(new URL("../scripts/process.ts", import.meta.url));
 const pushPath = fileURLToPath(new URL("../scripts/push-reminders.ts", import.meta.url));
 const workerPath = fileURLToPath(new URL("../scripts/worker.ts", import.meta.url));
@@ -77,6 +88,10 @@ function formatValue(value: unknown): string {
 
 function formatArgs(args: readonly unknown[]): string {
   return args.map(formatValue).join(" ");
+}
+
+function loggerEntryIncludes(level: LogLevel, fragment: string): boolean {
+  return loggerEntries.some((entry) => entry.level === level && formatArgs(entry.args).includes(fragment));
 }
 
 async function captureConsole<T>(
@@ -379,21 +394,21 @@ test("push-reminders main covers help, configuration, dry-run, and send paths", 
   run = await runMain(pushPath, pushScript.main, []);
   assert.equal(run.result, 0);
   assert.equal(reminderCalls, 0);
-  assert.ok(loggerEntries.some((entry) => entry.level === "warn" && formatArgs(entry.args).includes("VAPID keys not configured")));
+  assert.ok(loggerEntryIncludes("warn", "VAPID keys not configured"));
 
   resetState();
   run = await runMain(pushPath, pushScript.main, ["--dry-run"]);
   assert.equal(run.result, 0);
   assert.equal(reminderCalls, 0);
-  assert.ok(loggerEntries.some((entry) => entry.level === "info" && formatArgs(entry.args).includes("dry-run")));
+  assert.ok(loggerEntryIncludes("info", "dry-run"));
 
   resetState();
   reminderResult = { usersWithDue: 3, sent: 2, skipped: 1, suppressed: 4 };
   run = await runMain(pushPath, pushScript.main, []);
   assert.equal(run.result, 0);
   assert.equal(reminderCalls, 1);
-  assert.ok(loggerEntries.some((entry) => entry.level === "info" && formatArgs(entry.args).includes("sending due-card")));
-  assert.ok(loggerEntries.some((entry) => entry.level === "info" && formatArgs(entry.args).includes('"sent":2')));
+  assert.ok(loggerEntryIncludes("info", "sending due-card"));
+  assert.ok(loggerEntryIncludes("info", '"sent":2'));
 });
 
 test("worker main covers help, translation validation, provider warnings, and worker options", async () => {
@@ -430,14 +445,7 @@ test("worker main covers help, translation validation, provider warnings, and wo
   assert.match(run.warns.join("\n"), /Azure OpenAI is not configured/);
   assert.match(run.warns.join("\n"), /Azure Speech is not configured/);
   assert.equal(workerCalls.length, 1);
-  const opts = workerCalls[0] as {
-    pollIntervalMs: number;
-    lockTtlMs: number;
-    once: boolean;
-    signal: AbortSignal;
-    logger: unknown;
-    process: ProcessOpts;
-  };
+  const opts = workerCalls[0] as WorkerOptions;
   assert.equal(opts.pollIntervalMs, 7);
   assert.equal(opts.lockTtlMs, 9);
   assert.equal(opts.once, true);

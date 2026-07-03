@@ -40,11 +40,12 @@ import { PROVIDERS } from "@/lib/scraper/providers/index";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { fetchHtml } from "@/lib/scraper/fetch";
 import { extractArticle, stripTags } from "@/lib/scraper/extract";
-import { checkContentQuality } from "@/lib/scraper/quality";
+import { checkContentQuality, type QualityInput } from "@/lib/scraper/quality";
 import {
   SEED_ARTICLE_SAMPLES,
   SEED_AD_SAMPLES,
 } from "@/lib/scraper/quality-classifier-seed-corpus";
+import type { ScrapedArticle } from "@/lib/scraper/types";
 
 const require = createRequire(import.meta.url);
 
@@ -303,6 +304,21 @@ function evalGain(
 
 // ── Live harvesting ──────────────────────────────────────────────────────────
 
+function qualityInput(article: ScrapedArticle): QualityInput {
+  return {
+    title: article.title,
+    author: article.author,
+    publishedAt: article.publishedAt,
+    content: article.content,
+    wordCount: article.wordCount,
+    sourceUrl: article.sourceUrl,
+  };
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 async function harvestPositives(): Promise<string[]> {
   const out: string[] = [];
   const seen = new Set<string>();
@@ -320,14 +336,7 @@ async function harvestPositives(): Promise<string[]> {
           const html = await fetchHtml(url);
           const article = extractArticle(html, url);
           if (!article) continue;
-          const quality = checkContentQuality({
-            title: article.title,
-            author: article.author,
-            publishedAt: article.publishedAt,
-            content: article.content,
-            wordCount: article.wordCount,
-            sourceUrl: article.sourceUrl,
-          });
+          const quality = checkContentQuality(qualityInput(article));
           if (quality.grade !== "ok") continue;
           const bodyText = stripTags(article.content);
           if (pushSample(out, seen, bodyText)) kept += 1;
@@ -338,7 +347,7 @@ async function harvestPositives(): Promise<string[]> {
       console.log(`  [+] ${provider.key}: kept ${kept} article excerpt(s)`);
     } catch (err) {
       console.log(
-        `  [!] ${provider.key}: discovery failed (${err instanceof Error ? err.message : String(err)}) — skipped`,
+        `  [!] ${provider.key}: discovery failed (${errorMessage(err)}) — skipped`,
       );
     }
   }
@@ -380,6 +389,23 @@ function buildSyntheticNegatives(target: number, existing: string[]): string[] {
 }
 
 // ── Corpus file generation ───────────────────────────────────────────────────
+
+function harvestedNegativeTarget(positiveCount: number): number {
+  return Math.max(positiveCount + SEED_ARTICLE_SAMPLES.length, TARGET_PER_CLASS) -
+    SEED_AD_SAMPLES.length;
+}
+
+function capHarvestedSamples(
+  positives: readonly string[],
+  negatives: readonly string[],
+): { harvestedArticles: string[]; harvestedAds: string[] } {
+  const articleCap = Math.max(0, TARGET_PER_CLASS - SEED_ARTICLE_SAMPLES.length);
+  const adCap = Math.max(0, TARGET_PER_CLASS - SEED_AD_SAMPLES.length);
+  return {
+    harvestedArticles: positives.slice(0, articleCap),
+    harvestedAds: negatives.slice(0, adCap),
+  };
+}
 
 function literalArray(samples: readonly string[]): string {
   if (samples.length === 0) return "[]";
@@ -434,6 +460,17 @@ export const AD_SAMPLES: readonly string[] = [...SEED_AD_SAMPLES, ...HARVESTED_A
 `;
 }
 
+function corpusOutputPath(): string {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, "../src/lib/scraper/quality-classifier-corpus.ts");
+}
+
+function writeCorpusFile(articles: readonly string[], ads: readonly string[]): string {
+  const outPath = corpusOutputPath();
+  writeFileSync(outPath, renderCorpusFile(articles, ads), "utf8");
+  return outPath;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -446,15 +483,12 @@ async function main(): Promise<void> {
   console.log(`  → ${realNegatives.length} real link-dense negatives\n`);
 
   console.log("Filling NEGATIVES with synthetic boilerplate + ad copy…");
-  const negativeTarget = Math.max(positives.length + SEED_ARTICLE_SAMPLES.length, TARGET_PER_CLASS) -
-    SEED_AD_SAMPLES.length;
+  const negativeTarget = harvestedNegativeTarget(positives.length);
   const negatives = buildSyntheticNegatives(Math.max(negativeTarget, 0), realNegatives);
   console.log(`  → ${negatives.length} total harvested+synthetic negatives\n`);
 
   // Cap each harvested class so the committed file stays reasonable in size.
-  const cap = Math.max(0, TARGET_PER_CLASS - SEED_ARTICLE_SAMPLES.length);
-  const harvestedArticles = positives.slice(0, cap);
-  const harvestedAds = negatives.slice(0, Math.max(0, TARGET_PER_CLASS - SEED_AD_SAMPLES.length));
+  const { harvestedArticles, harvestedAds } = capHarvestedSamples(positives, negatives);
 
   const expandedArticles = [...SEED_ARTICLE_SAMPLES, ...harvestedArticles];
   const expandedAds = [...SEED_AD_SAMPLES, ...harvestedAds];
@@ -469,9 +503,7 @@ async function main(): Promise<void> {
   );
 
   // ── Write corpus file ──
-  const here = path.dirname(fileURLToPath(import.meta.url));
-  const outPath = path.resolve(here, "../src/lib/scraper/quality-classifier-corpus.ts");
-  writeFileSync(outPath, renderCorpusFile(harvestedArticles, harvestedAds), "utf8");
+  const outPath = writeCorpusFile(harvestedArticles, harvestedAds);
 
   console.log("\n──────────────────────────────────────────────");
   console.log("CORPUS SIZE (article / ad):");

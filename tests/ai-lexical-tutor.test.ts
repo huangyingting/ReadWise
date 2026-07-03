@@ -23,6 +23,19 @@ let articleFindUniqueCalls = 0;
 
 const createdAt = new Date("2026-01-01T00:00:00Z");
 
+function jsonResponse(body: unknown, init: ResponseInit = { status: 200 }) {
+  return new Response(JSON.stringify(body), init);
+}
+
+function setProviderFetch(handler: typeof fetch) {
+  fetchImpl = handler;
+}
+
+function setGlobalFetch(handler: typeof fetch) {
+  setProviderFetch(handler);
+  globalThis.fetch = handler;
+}
+
 before(() => {
   mock.module("@/lib/runtime-config/ai", {
     namedExports: {
@@ -170,44 +183,41 @@ test("Azure provider reports unconfigured, forwards temperature-capable subclass
   assert.equal(provider.isConfigured(), true);
   assert.equal(provider.modelName(), "model-test");
 
-  fetchImpl = (async () =>
+  setGlobalFetch((async () =>
     new Response("busy", {
       status: 503,
       headers: { "Retry-After": "2" },
-    })) as typeof fetch;
-  globalThis.fetch = fetchImpl;
+    })) as typeof fetch);
   const httpFailure = await provider.chat({ messages: [] });
   if (httpFailure.ok) assert.fail("expected HTTP failure");
   assert.equal(httpFailure.error.status, 503);
   assert.equal(httpFailure.error.retryAfterMs, 2000);
 
-  fetchImpl = (async () =>
-    new Response(
-      JSON.stringify({
+  setGlobalFetch((async () =>
+    jsonResponse(
+      {
         choices: [{ message: { content: "   " }, finish_reason: "content_filter" }],
         usage: { prompt_tokens: 1, completion_tokens: 0, total_tokens: 1 },
-      }),
+      },
       { status: 200 },
-    )) as typeof fetch;
-  globalThis.fetch = fetchImpl;
+    )) as typeof fetch);
   const filtered = await provider.chat({ messages: [] });
   if (filtered.ok) assert.fail("expected content filter fallback");
   assert.equal(filtered.error.kind, "content_filter");
   assert.equal(filtered.error.finishReason, "content_filter");
 
   let postedBody: Record<string, unknown> | null = null;
-  fetchImpl = (async (_url, init) => {
+  setGlobalFetch((async (_url, init) => {
     postedBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
-    return new Response(
-      JSON.stringify({
+    return jsonResponse(
+      {
         choices: [{ message: { content: "  Generated answer.  " }, finish_reason: "stop" }],
         usage: { prompt_tokens: 1, completion_tokens: 2, total_tokens: 3 },
         model: "model-test",
-      }),
+      },
       { status: 200 },
     );
-  }) as typeof fetch;
-  globalThis.fetch = fetchImpl;
+  }) as typeof fetch);
 
   class TemperatureProvider extends AzureOpenAiProvider {
     override capabilities() {
@@ -230,10 +240,9 @@ test("Azure provider reports unconfigured, forwards temperature-capable subclass
   assert.equal(body.temperature, 0.2);
   assert.equal(body.max_tokens, 5);
 
-  fetchImpl = (async () => {
+  setGlobalFetch((async () => {
     throw new TypeError("network down");
-  }) as typeof fetch;
-  globalThis.fetch = fetchImpl;
+  }) as typeof fetch);
   const failed = await provider.chat({ messages: [] });
   if (failed.ok) assert.fail("expected thrown fetch to be classified");
   assert.equal(failed.error.retryable, true);
@@ -247,9 +256,9 @@ test("FreeDictionaryProvider handles phonetic fallback, empty meanings, and defa
     createDefaultDictionaryProvider,
   } = await import("@/lib/lexical/provider");
 
-  fetchImpl = (async () =>
-    new Response(
-      JSON.stringify([
+  setProviderFetch((async () =>
+    jsonResponse(
+      [
         {
           phonetic: " /raw/ ",
           phonetics: [{ text: " /fəˈnetɪk/ ", audio: " https://audio.example/file.mp3 " }],
@@ -263,24 +272,24 @@ test("FreeDictionaryProvider handles phonetic fallback, empty meanings, and defa
             },
           ],
         },
-      ]),
+      ],
       { status: 200 },
-    )) as typeof fetch;
+    )) as typeof fetch);
   const parsed = await new FreeDictionaryProvider().fetchEntry("phonetic");
   assert.equal(parsed?.phonetic, "/raw/");
   assert.equal(parsed?.audio, "https://audio.example/file.mp3");
   assert.equal(parsed?.meanings[0].partOfSpeech, "other");
 
-  fetchImpl = (async () =>
-    new Response(
-      JSON.stringify([
+  setProviderFetch((async () =>
+    jsonResponse(
+      [
         {
           phonetics: [{ text: " /fallback/ " }],
           meanings: [{ partOfSpeech: "noun", definitions: [{ definition: "defined" }] }],
         },
-      ]),
+      ],
       { status: 200 },
-    )) as typeof fetch;
+    )) as typeof fetch);
   assert.equal((await new FreeDictionaryProvider().fetchEntry("fallback"))?.phonetic, "/fallback/");
 
   const local = new LocalDictionaryProvider({
@@ -299,18 +308,18 @@ test("FreeDictionaryProvider handles phonetic fallback, empty meanings, and defa
     null,
   );
 
-  fetchImpl = (async () =>
-    new Response(JSON.stringify([{ meanings: [{ partOfSpeech: "noun", definitions: [] }] }]), {
+  setProviderFetch((async () =>
+    jsonResponse([{ meanings: [{ partOfSpeech: "noun", definitions: [] }] }], {
       status: 200,
-    })) as typeof fetch;
+    })) as typeof fetch);
   assert.equal(await new FreeDictionaryProvider().fetchEntry("empty"), null);
-  fetchImpl = (async () => new Response("not found", { status: 404 })) as typeof fetch;
+  setProviderFetch((async () => new Response("not found", { status: 404 })) as typeof fetch);
   assert.equal(await new FreeDictionaryProvider().fetchEntry("missing"), null);
-  fetchImpl = (async () => {
+  setProviderFetch((async () => {
     throw new Error("network failed");
-  }) as typeof fetch;
+  }) as typeof fetch);
   assert.equal(await new FreeDictionaryProvider().fetchEntry("network"), null);
-  fetchImpl = (async () => new Response(JSON.stringify([]), { status: 200 })) as typeof fetch;
+  setProviderFetch((async () => jsonResponse([], { status: 200 })) as typeof fetch);
   assert.equal(await new FreeDictionaryProvider().fetchEntry("none"), null);
 
   const allMiss = new FallbackDictionaryProvider([

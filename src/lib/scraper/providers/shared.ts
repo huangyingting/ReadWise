@@ -8,6 +8,13 @@ import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
 import { parseRssUrls } from "@/lib/scraper/rss";
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 
+function addUniqueUrl(seen: Set<string>, urls: string[], url: string): boolean {
+  if (seen.has(url)) return false;
+  seen.add(url);
+  urls.push(url);
+  return true;
+}
+
 /**
  * Builds a {@link Provider.urlExtractor} that discovers article URLs from one
  * or more RSS 2.0 / Atom feeds. Each feed is fetched via the injected
@@ -35,10 +42,7 @@ export function rssUrlExtractor(
       try {
         const xml = await fetchFn(feedUrl);
         for (const url of parseRssUrls(xml)) {
-          if (!seen.has(url)) {
-            seen.add(url);
-            urls.push(url);
-          }
+          addUniqueUrl(seen, urls, url);
         }
       } catch {
         // graceful degradation — a single feed failure doesn't stop discovery
@@ -98,10 +102,7 @@ export function sitemapUrlExtractor(
         continue;
       }
       for (const url of locs) {
-        if (seen.has(url)) continue;
-        seen.add(url);
-        urls.push(url);
-        if (urls.length >= candidateCap) break;
+        if (addUniqueUrl(seen, urls, url) && urls.length >= candidateCap) break;
       }
     }
 
@@ -150,6 +151,16 @@ function firstSegment(url: URL): string | null {
   return segments[0] ?? null;
 }
 
+function categoryFromRuleMatch(
+  haystack: string,
+  rules: ReadonlyArray<readonly [RegExp, string]>,
+): string | null {
+  for (const [pattern, slug] of rules) {
+    if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
+  }
+  return null;
+}
+
 /** Derives a category from the first path segment, falling back through section metadata. */
 export const categoryFromFirstSegment = (url: URL, section: string | null): string | null =>
   mapSectionToCategory(section) ?? mapSectionToCategory(firstSegment(url));
@@ -165,10 +176,11 @@ export function categoryFromRules(
   fallback: string | null,
 ): string | null {
   const haystack = `${section ?? ""} ${url.pathname}`.toLowerCase();
-  for (const [pattern, slug] of rules) {
-    if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
-  }
-  return categoryFromFirstSegment(url, section) ?? fallback;
+  return (
+    categoryFromRuleMatch(haystack, rules) ??
+    categoryFromFirstSegment(url, section) ??
+    fallback
+  );
 }
 
 /**
@@ -183,10 +195,7 @@ export function lookupSection(
   rules: ReadonlyArray<readonly [RegExp, string]>,
 ): string | null {
   const haystack = `${section ?? ""} ${url.pathname}`.toLowerCase();
-  for (const [pattern, slug] of rules) {
-    if (pattern.test(haystack) && CATEGORY_SLUGS.includes(slug)) return slug;
-  }
-  return null;
+  return categoryFromRuleMatch(haystack, rules);
 }
 
 /**

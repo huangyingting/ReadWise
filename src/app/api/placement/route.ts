@@ -53,6 +53,20 @@ type PlacementBody = {
   attempt: PlacementAttempt | undefined;
 };
 
+type PlacementRecommendedLevel = ReturnType<typeof computePlacementScore>;
+
+type PlacementPersistence = {
+  passageArticleId: string;
+  seedLevel: PlacementSeedLevel;
+  recommendedLevel: PlacementRecommendedLevel;
+  questionCount: number;
+  correctCount: number;
+  lookupCount: number;
+  skipped: boolean;
+  attempt: PlacementAttempt;
+  completedAt: Date | null;
+};
+
 const placementSchema = object({
   articleId: nonEmptyString(200),
   correctCount: number({ int: true, min: 0, max: MAX_QUESTION_COUNT }),
@@ -73,6 +87,46 @@ function placementQuery(
   return { ok: true, value: { seedLevel: res.value } };
 }
 
+function assertValidPlacementCounts(body: PlacementBody): void {
+  if (body.correctCount > body.totalCount) {
+    throw new ApiError(400, "correctCount cannot exceed totalCount");
+  }
+}
+
+function recommendedLevelFor(
+  body: PlacementBody,
+  skipped: boolean,
+  articleWordCount: number | null,
+): PlacementRecommendedLevel {
+  if (skipped) return body.seedLevel;
+  return computePlacementScore(
+    body.seedLevel,
+    body.correctCount,
+    body.totalCount,
+    body.lookupCount,
+    articleWordCount ?? 0,
+  );
+}
+
+function buildPlacementPersistence(
+  body: PlacementBody,
+  recommendedLevel: PlacementRecommendedLevel,
+  skipped: boolean,
+  attempt: PlacementAttempt,
+): PlacementPersistence {
+  return {
+    passageArticleId: body.articleId,
+    seedLevel: body.seedLevel,
+    recommendedLevel,
+    questionCount: body.totalCount,
+    correctCount: body.correctCount,
+    lookupCount: body.lookupCount,
+    skipped,
+    attempt,
+    completedAt: skipped ? null : new Date(),
+  };
+}
+
 export const GET = createHandler(
   { query: placementQuery },
   async ({ query }) => {
@@ -89,9 +143,7 @@ export const POST = createHandler(
   async ({ session, body }) => {
     const userId = session.user.id;
 
-    if (body.correctCount > body.totalCount) {
-      throw new ApiError(400, "correctCount cannot exceed totalCount");
-    }
+    assertValidPlacementCounts(body);
 
     // 404 when the passage is not a public-library article (reuses the shared
     // access helper — never hand-rolled visibility checks).
@@ -107,30 +159,10 @@ export const POST = createHandler(
 
     // Skipped placements still seed Today: recommendedLevel coerces to the
     // self-reported seed level rather than running the scorer.
-    const recommendedLevel = skipped
-      ? body.seedLevel
-      : computePlacementScore(
-          body.seedLevel,
-          body.correctCount,
-          body.totalCount,
-          body.lookupCount,
-          article.wordCount ?? 0,
-        );
-
-    const completedAt = skipped ? null : new Date();
+    const recommendedLevel = recommendedLevelFor(body, skipped, article.wordCount);
 
     // Single per-user row — upsert keeps retake idempotent (no duplicates).
-    const persisted = {
-      passageArticleId: body.articleId,
-      seedLevel: body.seedLevel,
-      recommendedLevel,
-      questionCount: body.totalCount,
-      correctCount: body.correctCount,
-      lookupCount: body.lookupCount,
-      skipped,
-      attempt,
-      completedAt,
-    };
+    const persisted = buildPlacementPersistence(body, recommendedLevel, skipped, attempt);
     await prisma.placementResult.upsert({
       where: { userId },
       create: { userId, ...persisted },

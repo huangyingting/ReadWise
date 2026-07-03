@@ -137,6 +137,12 @@ function fileToApiPath(filePath: string): string {
 // ── Static-analysis helpers ───────────────────────────────────────────────
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
+const DEFAULT_AUTH_COUNTS: Record<AuthMode, number> = {
+  public: 0,
+  session: 0,
+  admin: 0,
+  capability: 0,
+};
 
 // ── Contract-extraction helpers ───────────────────────────────────────────
 
@@ -372,6 +378,24 @@ function extractBodyFieldNames(
   return null;
 }
 
+function authModeForWrapper(wrapperName: string): AuthMode {
+  if (wrapperName === "createAdminHandler") return "admin";
+  if (wrapperName === "createPublicHandler") return "public";
+  if (wrapperName === "createCapabilityHandler") return "capability";
+  return "session";
+}
+
+function extractHandlerWindow(source: string, matchIndex: number): string {
+  const nextMethodRe =
+    /\nexport\s+const\s+(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s*=/g;
+  nextMethodRe.lastIndex = matchIndex + 1;
+  const nextMatch = nextMethodRe.exec(source);
+  return source.slice(
+    matchIndex,
+    nextMatch ? nextMatch.index : Math.min(matchIndex + 5000, source.length),
+  );
+}
+
 function extractMethodEntry(method: string, source: string): MethodEntry | null {
   // Match: export const METHOD = createXxxHandler(...)
   const wrapperRe = new RegExp(
@@ -382,14 +406,7 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
   if (!match) return null;
 
   const wrapperName = match[1];
-  const authMode: AuthMode =
-    wrapperName === "createAdminHandler"
-      ? "admin"
-      : wrapperName === "createPublicHandler"
-        ? "public"
-        : wrapperName === "createCapabilityHandler"
-          ? "capability"
-          : "session";
+  const authMode = authModeForWrapper(wrapperName);
 
   let capability: string | null = null;
   if (authMode === "capability") {
@@ -412,14 +429,7 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
 
   // Handler window: from the export to the next method export (or +5000 chars).
   // Used for success-status and response-key extraction.
-  const nextMethodRe =
-    /\nexport\s+const\s+(?:GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)\s*=/g;
-  nextMethodRe.lastIndex = match.index + 1;
-  const nextMatch = nextMethodRe.exec(source);
-  const handlerWindow = source.slice(
-    match.index,
-    nextMatch ? nextMatch.index : Math.min(match.index + 5000, source.length),
-  );
+  const handlerWindow = extractHandlerWindow(source, match.index);
 
   const responseFormat = detectResponseFormat(source);
 
@@ -464,6 +474,41 @@ function detectResponseFormat(source: string): ResponseFormat {
 
 // ── Route parser ──────────────────────────────────────────────────────────
 
+function nextAuthMethodEntry(method: string): MethodEntry {
+  return {
+    method,
+    authMode: "public",
+    capability: null,
+    hasBodySchema: false,
+    hasParamsSchema: false,
+    hasQuerySchema: false,
+    responseFormat: "nextauth",
+    notes: ["NextAuth.js handler — manages OAuth/credentials sessions"],
+    successStatus: 200,
+    responseKeys: null,
+    queryParamNames: null,
+    bodyFieldNames: null,
+  };
+}
+
+function extractRuntime(source: string): RouteEntry["runtime"] {
+  const runtimeMatch = /export\s+const\s+runtime\s*=\s*["']([\w-]+)["']/.exec(source);
+  return runtimeMatch?.[1] === "nodejs"
+    ? "nodejs"
+    : runtimeMatch?.[1] === "edge"
+      ? "edge"
+      : "default";
+}
+
+function extractRouteMethods(source: string): MethodEntry[] {
+  const methods: MethodEntry[] = [];
+  for (const method of HTTP_METHODS) {
+    const entry = extractMethodEntry(method, source);
+    if (entry) methods.push(entry);
+  }
+  return methods;
+}
+
 function parseRouteFile(filePath: string): RouteEntry | null {
   const source = readFileSync(filePath, "utf8");
   const apiPath = fileToApiPath(filePath);
@@ -471,41 +516,16 @@ function parseRouteFile(filePath: string): RouteEntry | null {
 
   // Special case: NextAuth catch-all route.
   if (/from\s+["']next-auth["']/.test(source) && /NextAuth/.test(source)) {
-    const nextauthMethod = (method: string): MethodEntry => ({
-      method,
-      authMode: "public",
-      capability: null,
-      hasBodySchema: false,
-      hasParamsSchema: false,
-      hasQuerySchema: false,
-      responseFormat: "nextauth",
-      notes: ["NextAuth.js handler — manages OAuth/credentials sessions"],
-      successStatus: 200,
-      responseKeys: null,
-      queryParamNames: null,
-      bodyFieldNames: null,
-    });
     return {
       path: apiPath,
       file: fileRel,
       runtime: "default",
-      methods: [nextauthMethod("GET"), nextauthMethod("POST")],
+      methods: [nextAuthMethodEntry("GET"), nextAuthMethodEntry("POST")],
     };
   }
 
-  const runtimeMatch = /export\s+const\s+runtime\s*=\s*["']([\w-]+)["']/.exec(source);
-  const runtime: RouteEntry["runtime"] =
-    runtimeMatch?.[1] === "nodejs"
-      ? "nodejs"
-      : runtimeMatch?.[1] === "edge"
-        ? "edge"
-        : "default";
-
-  const methods: MethodEntry[] = [];
-  for (const method of HTTP_METHODS) {
-    const entry = extractMethodEntry(method, source);
-    if (entry) methods.push(entry);
-  }
+  const runtime = extractRuntime(source);
+  const methods = extractRouteMethods(source);
 
   if (methods.length === 0) return null;
 
@@ -554,6 +574,40 @@ const FORMAT_BADGE: Record<ResponseFormat, string> = {
   nextauth: "NextAuth",
 };
 
+function schemaBadges(method: MethodEntry): string {
+  return [
+    method.hasBodySchema ? "`B`" : "",
+    method.hasParamsSchema ? "`P`" : "",
+    method.hasQuerySchema ? "`Q`" : "",
+  ]
+    .filter(Boolean)
+    .join(" ") || "—";
+}
+
+function countAuthModes(routes: RouteEntry[]): Record<AuthMode, number> {
+  const counts = { ...DEFAULT_AUTH_COUNTS };
+  for (const route of routes) {
+    for (const method of route.methods) counts[method.authMode]++;
+  }
+  return counts;
+}
+
+function nonJsonMethods(routes: RouteEntry[]): Array<{
+  path: string;
+  method: string;
+  format: ResponseFormat;
+}> {
+  return routes.flatMap((route) =>
+    route.methods
+      .filter((method) => method.responseFormat !== "json")
+      .map((method) => ({ path: route.path, method: method.method, format: method.responseFormat })),
+  );
+}
+
+function nullableList(values: string[] | null): string {
+  return values ? values.join(", ") : "—";
+}
+
 export function buildCatalogMarkdown(catalog: ApiCatalog): string {
   const lastUpdated = catalog.generatedAt.slice(0, 10);
   const lines: string[] = [
@@ -591,37 +645,23 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
 
   for (const route of catalog.routes) {
     for (const m of route.methods) {
-      const schemas = [
-        m.hasBodySchema ? "`B`" : "",
-        m.hasParamsSchema ? "`P`" : "",
-        m.hasQuerySchema ? "`Q`" : "",
-      ]
-        .filter(Boolean)
-        .join(" ");
       const runtime = route.runtime !== "default" ? route.runtime : "";
       const notes = m.notes.join("; ");
       lines.push(
-        `| \`${route.path}\` | ${m.method} | ${AUTH_BADGE[m.authMode]} | ${schemas || "—"} | ${m.successStatus} | ${FORMAT_BADGE[m.responseFormat]} | ${runtime} | ${notes} |`,
+        `| \`${route.path}\` | ${m.method} | ${AUTH_BADGE[m.authMode]} | ${schemaBadges(m)} | ${m.successStatus} | ${FORMAT_BADGE[m.responseFormat]} | ${runtime} | ${notes} |`,
       );
     }
   }
 
   lines.push("", "## Summary by auth mode", "");
-  const authCounts: Record<AuthMode, number> = { public: 0, session: 0, admin: 0, capability: 0 };
-  for (const r of catalog.routes) {
-    for (const m of r.methods) authCounts[m.authMode]++;
-  }
+  const authCounts = countAuthModes(catalog.routes);
   lines.push("| Auth mode | Count |", "|-----------|-------|");
   for (const [mode, count] of Object.entries(authCounts) as [AuthMode, number][]) {
     lines.push(`| ${AUTH_BADGE[mode]} | ${count} |`);
   }
 
   lines.push("", "## Non-JSON routes", "");
-  const nonJson = catalog.routes.flatMap((r) =>
-    r.methods
-      .filter((m) => m.responseFormat !== "json")
-      .map((m) => ({ path: r.path, method: m.method, format: m.responseFormat })),
-  );
+  const nonJson = nonJsonMethods(catalog.routes);
   if (nonJson.length === 0) {
     lines.push("_(none detected)_");
   } else {
@@ -644,11 +684,8 @@ export function buildCatalogMarkdown(catalog: ApiCatalog): string {
       const hasContract =
         m.responseKeys !== null || m.queryParamNames !== null || m.bodyFieldNames !== null;
       if (!hasContract) continue;
-      const rk = m.responseKeys ? m.responseKeys.join(", ") : "—";
-      const qp = m.queryParamNames ? m.queryParamNames.join(", ") : "—";
-      const bf = m.bodyFieldNames ? m.bodyFieldNames.join(", ") : "—";
       lines.push(
-        `| \`${route.path}\` | ${m.method} | ${m.successStatus} | ${rk} | ${qp} | ${bf} |`,
+        `| \`${route.path}\` | ${m.method} | ${m.successStatus} | ${nullableList(m.responseKeys)} | ${nullableList(m.queryParamNames)} | ${nullableList(m.bodyFieldNames)} |`,
       );
     }
   }

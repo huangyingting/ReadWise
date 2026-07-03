@@ -23,6 +23,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useState,
   type ReactNode,
 } from "react";
@@ -46,6 +47,13 @@ const ACTIVE_TAB_STORAGE_KEY = STORAGE_KEYS.READER_TOOLS_TAB;
 
 function isToolTabId(value: unknown): value is ToolTabId {
   return typeof value === "string" && TOOL_TAB_IDS.includes(value as ToolTabId);
+}
+
+function withVisitedTab(
+  visited: Set<ToolTabId>,
+  tab: ToolTabId,
+): Set<ToolTabId> {
+  return visited.has(tab) ? visited : new Set([...visited, tab]);
 }
 
 type ReaderToolsContextValue = {
@@ -88,7 +96,7 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
 
   const activate = useCallback((tab: ToolTabId) => {
     setActiveTab(tab);
-    setVisited((prev) => (prev.has(tab) ? prev : new Set([...prev, tab])));
+    setVisited((prev) => withVisitedTab(prev, tab));
   }, []);
 
   const openTools = useCallback(
@@ -130,9 +138,7 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
   // loading the current tab the moment the overlay is opened.
   useEffect(() => {
     if (!open) return;
-    setVisited((prev) =>
-      prev.has(activeTab) ? prev : new Set([...prev, activeTab]),
-    );
+    setVisited((prev) => withVisitedTab(prev, activeTab));
   }, [open, activeTab]);
 
   // Browser/hardware Back should close the overlay instead of leaving the article
@@ -168,10 +174,32 @@ export function ReaderToolsProvider({ children }: { children: ReactNode }) {
     setOpen(false);
   }, [pathname]);
 
+  const value = useMemo<ReaderToolsContextValue>(
+    () => ({
+      open,
+      activeTab,
+      visited,
+      toggle,
+      openTools,
+      closeTools,
+      activate,
+      currentBlock,
+      setCurrentBlock,
+    }),
+    [
+      open,
+      activeTab,
+      visited,
+      toggle,
+      openTools,
+      closeTools,
+      activate,
+      currentBlock,
+    ],
+  );
+
   return (
-    <ReaderToolsContext.Provider
-      value={{ open, activeTab, visited, toggle, openTools, closeTools, activate, currentBlock, setCurrentBlock }}
-    >
+    <ReaderToolsContext.Provider value={value}>
       {children}
     </ReaderToolsContext.Provider>
   );

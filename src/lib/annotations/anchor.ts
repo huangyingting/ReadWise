@@ -20,6 +20,7 @@ export type HighlightColor = (typeof HIGHLIGHT_COLORS)[number];
 const MAX_OFFSET = 10_000_000;
 const MAX_QUOTE_LENGTH = 10_000;
 const MAX_CONTEXT_LENGTH = 256;
+type AnchorValidationResult = { ok: true } | { ok: false; error: string };
 
 // ---------------------------------------------------------------------------
 // Types
@@ -82,37 +83,49 @@ export interface HighlightWithArticle extends HighlightRow {
  */
 export function validateAnchor(
   input: CreateHighlightInput,
-): { ok: true } | { ok: false; error: string } {
-  if (!input.quote || input.quote.trim().length === 0) {
-    return { ok: false, error: "quote is required" };
+): AnchorValidationResult {
+  if (!input.quote || !hasNonBlankText(input.quote)) {
+    return invalidAnchor("quote is required");
   }
   if (input.quote.length > MAX_QUOTE_LENGTH) {
-    return { ok: false, error: `quote must be at most ${MAX_QUOTE_LENGTH} characters` };
+    return invalidAnchor(`quote must be at most ${MAX_QUOTE_LENGTH} characters`);
   }
   if (!Number.isInteger(input.startOffset) || !Number.isInteger(input.endOffset)) {
-    return { ok: false, error: "startOffset and endOffset must be integers" };
+    return invalidAnchor("startOffset and endOffset must be integers");
   }
   if (input.startOffset < 0) {
-    return { ok: false, error: "startOffset must be >= 0" };
+    return invalidAnchor("startOffset must be >= 0");
   }
   if (input.endOffset > MAX_OFFSET) {
-    return { ok: false, error: `endOffset must be <= ${MAX_OFFSET}` };
+    return invalidAnchor(`endOffset must be <= ${MAX_OFFSET}`);
   }
   if (input.startOffset >= input.endOffset) {
-    return { ok: false, error: "startOffset must be less than endOffset" };
+    return invalidAnchor("startOffset must be less than endOffset");
   }
   if (input.prefix && input.prefix.length > MAX_CONTEXT_LENGTH) {
-    return { ok: false, error: `prefix must be at most ${MAX_CONTEXT_LENGTH} characters` };
+    return invalidAnchor(`prefix must be at most ${MAX_CONTEXT_LENGTH} characters`);
   }
   if (input.suffix && input.suffix.length > MAX_CONTEXT_LENGTH) {
-    return { ok: false, error: `suffix must be at most ${MAX_CONTEXT_LENGTH} characters` };
+    return invalidAnchor(`suffix must be at most ${MAX_CONTEXT_LENGTH} characters`);
   }
   if (input.color !== undefined && input.color !== null) {
-    if (!(HIGHLIGHT_COLORS as readonly string[]).includes(input.color)) {
-      return { ok: false, error: `color must be one of: ${HIGHLIGHT_COLORS.join(", ")}` };
+    if (!isHighlightColor(input.color)) {
+      return invalidAnchor(`color must be one of: ${HIGHLIGHT_COLORS.join(", ")}`);
     }
   }
   return { ok: true };
+}
+
+function invalidAnchor(error: string): AnchorValidationResult {
+  return { ok: false, error };
+}
+
+function hasNonBlankText(value: string): boolean {
+  return value.trim().length > 0;
+}
+
+function isHighlightColor(value: string): value is HighlightColor {
+  return (HIGHLIGHT_COLORS as readonly string[]).includes(value);
 }
 
 // ---------------------------------------------------------------------------
@@ -129,16 +142,7 @@ export function annotateHighlightAnchors(
   plainText: string,
 ): HighlightWithAnchor[] {
   return rows.map((row) => {
-    const result = revalidateAnchor(
-      {
-        quote: row.quote,
-        startOffset: row.startOffset,
-        endOffset: row.endOffset,
-        prefix: row.prefix,
-        suffix: row.suffix,
-      },
-      plainText,
-    );
+    const result = revalidateAnchor(toStoredAnchor(row), plainText);
     return {
       ...row,
       stale: result.stale,
@@ -147,4 +151,14 @@ export function annotateHighlightAnchors(
       suggestedEndOffset: result.suggestedEndOffset,
     };
   });
+}
+
+function toStoredAnchor(row: HighlightRow) {
+  return {
+    quote: row.quote,
+    startOffset: row.startOffset,
+    endOffset: row.endOffset,
+    prefix: row.prefix,
+    suffix: row.suffix,
+  };
 }

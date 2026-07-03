@@ -67,6 +67,24 @@ function ctx(params: Record<string, string>) {
   return { params: Promise.resolve(params) };
 }
 
+function deleteReq(): Request {
+  return new Request("http://test/api", { method: "DELETE" });
+}
+
+async function readerHighlightsRoute(): Promise<{ GET: RouteHandler; POST: RouteHandler }> {
+  return (await import("@/app/api/reader/[id]/highlights/route")) as {
+    GET: RouteHandler;
+    POST: RouteHandler;
+  };
+}
+
+async function highlightRoute(): Promise<{ PATCH: RouteHandler; DELETE: RouteHandler }> {
+  return (await import("@/app/api/highlights/[id]/route")) as {
+    PATCH: RouteHandler;
+    DELETE: RouteHandler;
+  };
+}
+
 const validAnchor = {
   quote: "the quick brown fox",
   startOffset: 10,
@@ -74,6 +92,18 @@ const validAnchor = {
   prefix: "Before: ",
   suffix: " jumps",
 };
+
+function highlightRow(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "h-1",
+    ...validAnchor,
+    note: null,
+    color: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // lib/highlights — unit tests
@@ -129,14 +159,7 @@ test("createHighlight returns 400 for invalid anchor", async () => {
 });
 
 test("createHighlight uses upsert for idempotent creation on valid input", async () => {
-  const expectedRow = {
-    id: "h-1",
-    ...validAnchor,
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  const expectedRow = highlightRow();
   stubCreated = expectedRow;
   const { createHighlight } = await import("@/lib/annotations");
   const result = await createHighlight("user-1", "art-1", validAnchor);
@@ -162,14 +185,7 @@ test("updateHighlight returns 400 for invalid color", async () => {
 
 test("updateHighlight succeeds for owner with valid note", async () => {
   stubFindFirst = { id: "h-1" };
-  stubUpdated = {
-    id: "h-1",
-    ...validAnchor,
-    note: "My note",
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  stubUpdated = highlightRow({ note: "My note" });
   const { updateHighlight } = await import("@/lib/annotations");
   const result = await updateHighlight("h-1", "user-1", { note: "My note" });
   assert.equal(result.ok, true);
@@ -197,18 +213,14 @@ test("deleteHighlight succeeds for owner", async () => {
 
 test("GET /api/reader/[id]/highlights returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { GET: RouteHandler };
+  const { GET } = await readerHighlightsRoute();
   const res = await GET(new Request("http://test/api"), ctx({ id: "art-1" }));
   assert.equal(res.status, 401);
 });
 
 test("GET /api/reader/[id]/highlights returns 404 for missing article", async () => {
   stubArticle = null;
-  const { GET } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { GET: RouteHandler };
+  const { GET } = await readerHighlightsRoute();
   const res = await GET(new Request("http://test/api"), ctx({ id: "bad-id" }));
   assert.equal(res.status, 404);
 });
@@ -218,9 +230,7 @@ test("GET /api/reader/[id]/highlights returns highlights array for the user", as
     { id: "h-1", quote: "hello", startOffset: 0, endOffset: 5, prefix: "", suffix: "",
       note: null, color: "yellow", createdAt: new Date(), updatedAt: new Date() },
   ];
-  const { GET } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { GET: RouteHandler };
+  const { GET } = await readerHighlightsRoute();
   const res = await GET(new Request("http://test/api"), ctx({ id: "art-1" }));
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -234,49 +244,29 @@ test("GET /api/reader/[id]/highlights returns highlights array for the user", as
 
 test("POST /api/reader/[id]/highlights returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { POST: RouteHandler };
+  const { POST } = await readerHighlightsRoute();
   const res = await POST(jsonReq(validAnchor), ctx({ id: "art-1" }));
   assert.equal(res.status, 401);
 });
 
 test("POST /api/reader/[id]/highlights returns 404 for missing article", async () => {
   stubArticle = null;
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { POST: RouteHandler };
+  const { POST } = await readerHighlightsRoute();
   const res = await POST(jsonReq(validAnchor), ctx({ id: "bad-id" }));
   assert.equal(res.status, 404);
 });
 
 test("POST /api/reader/[id]/highlights returns 400 for invalid anchor (startOffset >= endOffset)", async () => {
-  stubCreated = { id: "h-1", ...validAnchor, note: null, color: null,
-    createdAt: new Date(), updatedAt: new Date() };
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { POST: RouteHandler };
+  stubCreated = highlightRow();
+  const { POST } = await readerHighlightsRoute();
   const bad = { ...validAnchor, startOffset: 20, endOffset: 10 };
   const res = await POST(jsonReq(bad), ctx({ id: "art-1" }));
   assert.equal(res.status, 400);
 });
 
 test("POST /api/reader/[id]/highlights creates highlight with valid anchor", async () => {
-  stubCreated = {
-    id: "h-new",
-    quote: validAnchor.quote,
-    startOffset: validAnchor.startOffset,
-    endOffset: validAnchor.endOffset,
-    prefix: validAnchor.prefix,
-    suffix: validAnchor.suffix,
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { POST: RouteHandler };
+  stubCreated = highlightRow({ id: "h-new" });
+  const { POST } = await readerHighlightsRoute();
   const res = await POST(jsonReq(validAnchor), ctx({ id: "art-1" }));
   assert.equal(res.status, 201);
   const body = await res.json();
@@ -286,15 +276,8 @@ test("POST /api/reader/[id]/highlights creates highlight with valid anchor", asy
 
 test("POST /api/reader/[id]/highlights creates highlight with note and color", async () => {
   const payload = { ...validAnchor, note: "interesting!", color: "yellow" };
-  stubCreated = {
-    id: "h-new2",
-    ...payload,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  const { POST } = (await import(
-    "@/app/api/reader/[id]/highlights/route"
-  )) as { POST: RouteHandler };
+  stubCreated = highlightRow({ id: "h-new2", ...payload });
+  const { POST } = await readerHighlightsRoute();
   const res = await POST(jsonReq(payload), ctx({ id: "art-1" }));
   assert.equal(res.status, 201);
   const body = await res.json();
@@ -308,35 +291,22 @@ test("POST /api/reader/[id]/highlights creates highlight with note and color", a
 
 test("PATCH /api/highlights/[id] returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { PATCH } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { PATCH: RouteHandler };
+  const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ note: "hi" }, "PATCH"), ctx({ id: "h-1" }));
   assert.equal(res.status, 401);
 });
 
 test("PATCH /api/highlights/[id] returns 404 when not the owner", async () => {
   stubFindFirst = null;
-  const { PATCH } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { PATCH: RouteHandler };
+  const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ note: "hi" }, "PATCH"), ctx({ id: "h-99" }));
   assert.equal(res.status, 404);
 });
 
 test("PATCH /api/highlights/[id] updates note for the owner", async () => {
   stubFindFirst = { id: "h-1" };
-  stubUpdated = {
-    id: "h-1",
-    ...validAnchor,
-    note: "updated note",
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
-  const { PATCH } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { PATCH: RouteHandler };
+  stubUpdated = highlightRow({ note: "updated note" });
+  const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ note: "updated note" }, "PATCH"), ctx({ id: "h-1" }));
   assert.equal(res.status, 200);
   const body = await res.json();
@@ -345,9 +315,7 @@ test("PATCH /api/highlights/[id] updates note for the owner", async () => {
 
 test("PATCH /api/highlights/[id] returns 400 for invalid color", async () => {
   stubFindFirst = { id: "h-1" };
-  const { PATCH } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { PATCH: RouteHandler };
+  const { PATCH } = await highlightRoute();
   const res = await PATCH(jsonReq({ color: "invisible" }, "PATCH"), ctx({ id: "h-1" }));
   assert.equal(res.status, 400);
 });
@@ -358,37 +326,22 @@ test("PATCH /api/highlights/[id] returns 400 for invalid color", async () => {
 
 test("DELETE /api/highlights/[id] returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { DELETE } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { DELETE: RouteHandler };
-  const res = await DELETE(
-    new Request("http://test/api", { method: "DELETE" }),
-    ctx({ id: "h-1" }),
-  );
+  const { DELETE } = await highlightRoute();
+  const res = await DELETE(deleteReq(), ctx({ id: "h-1" }));
   assert.equal(res.status, 401);
 });
 
 test("DELETE /api/highlights/[id] returns 404 when not the owner", async () => {
   stubFindFirst = null;
-  const { DELETE } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { DELETE: RouteHandler };
-  const res = await DELETE(
-    new Request("http://test/api", { method: "DELETE" }),
-    ctx({ id: "h-99" }),
-  );
+  const { DELETE } = await highlightRoute();
+  const res = await DELETE(deleteReq(), ctx({ id: "h-99" }));
   assert.equal(res.status, 404);
 });
 
 test("DELETE /api/highlights/[id] removes the highlight and returns ok", async () => {
   stubFindFirst = { id: "h-1" };
-  const { DELETE } = (await import(
-    "@/app/api/highlights/[id]/route"
-  )) as { DELETE: RouteHandler };
-  const res = await DELETE(
-    new Request("http://test/api", { method: "DELETE" }),
-    ctx({ id: "h-1" }),
-  );
+  const { DELETE } = await highlightRoute();
+  const res = await DELETE(deleteReq(), ctx({ id: "h-1" }));
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.ok, true);

@@ -26,6 +26,15 @@ let findManyRows: Record<string, unknown>[] = [];
 let groupByRows: { articleId: string; _count: { articleId: number } }[] = [];
 
 type StubQuestion = { question: string; options: string[]; correctIndex: number };
+type SubmittedAnswer = { index: number; selectedIndex: number };
+type QuizRouteContext = { params: Promise<{ id: string }> };
+
+const ALL_CORRECT_ANSWERS: SubmittedAnswer[] = [
+  { index: 0, selectedIndex: 1 },
+  { index: 1, selectedIndex: 0 },
+  { index: 2, selectedIndex: 2 },
+];
+
 let quizQuestions: StubQuestion[] = [];
 let quizFallback = false;
 
@@ -102,6 +111,26 @@ beforeEach(() => {
   quizFallback = false;
 });
 
+function quizRouteContext(id = "a1"): QuizRouteContext {
+  return { params: Promise.resolve({ id }) };
+}
+
+function quizAttemptRequest(
+  answers: SubmittedAnswer[],
+  options: { id?: string; extraBody?: Record<string, unknown> } = {},
+): Request {
+  const id = options.id ?? "a1";
+  return new Request(`http://localhost/api/reader/${id}/quiz/attempt`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ...(options.extraBody ?? {}), answers }),
+  });
+}
+
+function quizHistoryRequest(id = "a1"): Request {
+  return new Request(`http://localhost/api/reader/${id}/quiz/history`);
+}
+
 // ---------------------------------------------------------------------------
 // POST /api/reader/[id]/quiz/attempt
 // ---------------------------------------------------------------------------
@@ -111,18 +140,8 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     authState = "unauth";
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers: [
-            { index: 0, selectedIndex: 1 },
-            { index: 1, selectedIndex: 0 },
-            { index: 2, selectedIndex: 2 },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest(ALL_CORRECT_ANSWERS),
+      quizRouteContext(),
     );
     assert.equal(res.status, 401);
   });
@@ -132,12 +151,8 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: null } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/missing/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 1 }] }),
-      }),
-      { params: Promise.resolve({ id: "missing" }) },
+      quizAttemptRequest([{ index: 0, selectedIndex: 1 }], { id: "missing" }),
+      quizRouteContext("missing"),
     );
     assert.equal(res.status, 404);
   });
@@ -146,12 +161,8 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: null } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 1 }] }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest([{ index: 0, selectedIndex: 1 }]),
+      quizRouteContext(),
     );
     assert.equal(res.status, 400);
   });
@@ -160,18 +171,12 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: null } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers: [
-            { index: 0, selectedIndex: 1 },
-            { index: 1, selectedIndex: 0 },
-            { index: 9, selectedIndex: 2 },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest([
+        { index: 0, selectedIndex: 1 },
+        { index: 1, selectedIndex: 0 },
+        { index: 9, selectedIndex: 2 },
+      ]),
+      quizRouteContext(),
     );
     assert.equal(res.status, 400);
   });
@@ -181,12 +186,8 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     quizQuestions = [];
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ answers: [{ index: 0, selectedIndex: 0 }] }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest([{ index: 0, selectedIndex: 0 }]),
+      quizRouteContext(),
     );
     assert.equal(res.status, 400);
   });
@@ -195,18 +196,8 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: 100 } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers: [
-            { index: 0, selectedIndex: 1 },
-            { index: 1, selectedIndex: 0 },
-            { index: 2, selectedIndex: 2 },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest(ALL_CORRECT_ANSWERS),
+      quizRouteContext(),
     );
     assert.equal(res.status, 200);
     const body = await res.json();
@@ -219,20 +210,15 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: 0 } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          correctCount: 3,
-          totalQuestions: 3,
-          answers: [
-            { index: 0, selectedIndex: 0 },
-            { index: 1, selectedIndex: 1 },
-            { index: 2, selectedIndex: 0 },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest(
+        [
+          { index: 0, selectedIndex: 0 },
+          { index: 1, selectedIndex: 1 },
+          { index: 2, selectedIndex: 0 },
+        ],
+        { extraBody: { correctCount: 3, totalQuestions: 3 } },
+      ),
+      quizRouteContext(),
     );
     assert.equal(res.status, 200);
     const body = await res.json();
@@ -245,18 +231,12 @@ describe("POST /api/reader/[id]/quiz/attempt", () => {
     maxAggResult = { _max: { scorePct: 67 } };
     const { POST } = await import("@/app/api/reader/[id]/quiz/attempt/route");
     const res = await POST(
-      new Request("http://localhost/api/reader/a1/quiz/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          answers: [
-            { index: 0, selectedIndex: 1 },
-            { index: 1, selectedIndex: 0 },
-            { index: 2, selectedIndex: 0 },
-          ],
-        }),
-      }),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizAttemptRequest([
+        { index: 0, selectedIndex: 1 },
+        { index: 1, selectedIndex: 0 },
+        { index: 2, selectedIndex: 0 },
+      ]),
+      quizRouteContext(),
     );
     assert.equal(res.status, 200);
     const body = await res.json();
@@ -274,8 +254,8 @@ describe("GET /api/reader/[id]/quiz/history", () => {
     authState = "unauth";
     const { GET } = await import("@/app/api/reader/[id]/quiz/history/route");
     const res = await GET(
-      new Request("http://localhost/api/reader/a1/quiz/history"),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizHistoryRequest(),
+      quizRouteContext(),
     );
     assert.equal(res.status, 401);
   });
@@ -284,8 +264,8 @@ describe("GET /api/reader/[id]/quiz/history", () => {
     articleExists = false;
     const { GET } = await import("@/app/api/reader/[id]/quiz/history/route");
     const res = await GET(
-      new Request("http://localhost/api/reader/missing/quiz/history"),
-      { params: Promise.resolve({ id: "missing" }) },
+      quizHistoryRequest("missing"),
+      quizRouteContext("missing"),
     );
     assert.equal(res.status, 404);
   });
@@ -296,8 +276,8 @@ describe("GET /api/reader/[id]/quiz/history", () => {
     ];
     const { GET } = await import("@/app/api/reader/[id]/quiz/history/route");
     const res = await GET(
-      new Request("http://localhost/api/reader/a1/quiz/history"),
-      { params: Promise.resolve({ id: "a1" }) },
+      quizHistoryRequest(),
+      quizRouteContext(),
     );
     assert.equal(res.status, 200);
     const body = await res.json();

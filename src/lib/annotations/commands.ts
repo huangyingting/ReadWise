@@ -24,8 +24,42 @@
 import { prisma } from "@/lib/prisma";
 import { mergeNoteConflict } from "@/lib/offline-conflict";
 import { validateAnchor, HIGHLIGHT_COLORS } from "./anchor";
-import type { CreateHighlightInput, UpdateHighlightInput, HighlightRow } from "./anchor";
+import type {
+  CreateHighlightInput,
+  HighlightRow,
+  UpdateHighlightInput,
+} from "./anchor";
 import { highlightSelect } from "./queries";
+
+type CommandError = { ok: false; error: string; status: number };
+type HighlightMutationData = { note?: string | null; color?: string | null };
+type HighlightWriteResult = { ok: true; highlight: HighlightRow } | CommandError;
+type HighlightUpdateResult =
+  | { ok: true; highlight: HighlightRow; conflict: boolean }
+  | CommandError;
+
+function isHighlightColor(color: string): boolean {
+  return (HIGHLIGHT_COLORS as readonly string[]).includes(color);
+}
+
+function invalidColorResult(): CommandError {
+  return {
+    ok: false,
+    error: `color must be one of: ${HIGHLIGHT_COLORS.join(", ")}`,
+    status: 400,
+  };
+}
+
+function hasServerNoteChangedSinceBase(
+  existing: { note: string | null; updatedAt: Date },
+  incoming: string | null,
+  baseUpdatedAt: Date | string,
+): boolean {
+  return (
+    existing.note !== incoming &&
+    new Date(existing.updatedAt).getTime() > new Date(baseUpdatedAt).getTime()
+  );
+}
 
 /**
  * Create a new highlight for the authenticated user.
@@ -37,7 +71,7 @@ export async function createHighlight(
   userId: string,
   articleId: string,
   input: CreateHighlightInput,
-): Promise<{ ok: true; highlight: HighlightRow } | { ok: false; error: string; status: number }> {
+): Promise<HighlightWriteResult> {
   const validation = validateAnchor(input);
   if (!validation.ok) {
     return { ok: false, error: validation.error, status: 400 };
@@ -84,18 +118,13 @@ export async function updateHighlight(
   id: string,
   userId: string,
   input: UpdateHighlightInput,
-): Promise<
-  | { ok: true; highlight: HighlightRow; conflict: boolean }
-  | { ok: false; error: string; status: number }
-> {
-  if (input.color !== undefined && input.color !== null) {
-    if (!(HIGHLIGHT_COLORS as readonly string[]).includes(input.color)) {
-      return {
-        ok: false,
-        error: `color must be one of: ${HIGHLIGHT_COLORS.join(", ")}`,
-        status: 400,
-      };
-    }
+): Promise<HighlightUpdateResult> {
+  if (
+    input.color !== undefined &&
+    input.color !== null &&
+    !isHighlightColor(input.color)
+  ) {
+    return invalidColorResult();
   }
 
   const existing = await prisma.highlight.findFirst({
@@ -106,7 +135,7 @@ export async function updateHighlight(
     return { ok: false, error: "Highlight not found", status: 404 };
   }
 
-  const data: { note?: string | null; color?: string | null } = {};
+  const data: HighlightMutationData = {};
   let conflict = false;
   if ("note" in input) {
     const incoming = input.note ?? null;
@@ -114,8 +143,7 @@ export async function updateHighlight(
     // since the offline client based its edit, merge both versions (RW-043).
     if (
       input.baseUpdatedAt != null &&
-      existing.note !== incoming &&
-      new Date(existing.updatedAt).getTime() > new Date(input.baseUpdatedAt).getTime()
+      hasServerNoteChangedSinceBase(existing, incoming, input.baseUpdatedAt)
     ) {
       const merged = mergeNoteConflict(existing.note, incoming);
       data.note = merged.text;
@@ -144,7 +172,7 @@ export async function updateHighlight(
 export async function deleteHighlight(
   id: string,
   userId: string,
-): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
+): Promise<{ ok: true } | CommandError> {
   const existing = await prisma.highlight.findFirst({
     where: { id, userId },
     select: { id: true },

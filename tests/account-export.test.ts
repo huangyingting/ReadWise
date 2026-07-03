@@ -227,29 +227,37 @@ beforeEach(() => {
   storageDeleteShouldFail = false;
 });
 
+async function exportStubUserData() {
+  const { exportUserData } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  const data = await exportUserData("user-1");
+  assert.ok(data, "export should not be null");
+  return data;
+}
+
+async function deleteStubUserAccount() {
+  const { deleteOwnAccount } = await import(
+    "@/lib/account-lifecycle/account-commands"
+  );
+  return deleteOwnAccount("user-1");
+}
+
 // ---------------------------------------------------------------------------
 // 711-A: ReminderPreference in export
 // ---------------------------------------------------------------------------
 
 test("exportUserData includes reminderPreference (711-A)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data, "export should not be null");
-  assert.ok("reminderPreference" in data!, "reminderPreference key must exist in export");
-  assert.deepEqual(data!.reminderPreference, stubExportUser.reminderPreference);
+  const data = await exportStubUserData();
+  assert.ok("reminderPreference" in data, "reminderPreference key must exist in export");
+  assert.deepEqual(data.reminderPreference, stubExportUser.reminderPreference);
 });
 
 test("exportUserData reminderPreference is null when user has none", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
   // The stub returns the full export user which has reminderPreference set;
   // null case is handled by Prisma nullable relation — we verify the key exists.
-  const data = await exportUserData("user-1");
-  assert.ok(data, "export should not be null");
-  assert.ok("reminderPreference" in data!);
+  const data = await exportStubUserData();
+  assert.ok("reminderPreference" in data);
 });
 
 // ---------------------------------------------------------------------------
@@ -257,71 +265,47 @@ test("exportUserData reminderPreference is null when user has none", async () =>
 // ---------------------------------------------------------------------------
 
 test("exportUserData includes levelHistory (711-C)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data, "export should not be null");
-  assert.ok(Array.isArray(data!.levelHistory), "levelHistory must be an array");
-  assert.equal(data!.levelHistory.length, 1);
-  assert.equal(data!.levelHistory[0].level, "B1");
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.levelHistory), "levelHistory must be an array");
+  assert.equal(data.levelHistory.length, 1);
+  assert.equal(data.levelHistory[0].level, "B1");
 });
 
 test("exportUserData includes wordMastery (711-C)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.wordMastery));
-  assert.equal(data!.wordMastery.length, 1);
-  assert.equal(data!.wordMastery[0].lemma, "ephemeral");
-  assert.equal(data!.wordMastery[0].familiarity, 0.8);
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.wordMastery));
+  assert.equal(data.wordMastery.length, 1);
+  assert.equal(data.wordMastery[0].lemma, "ephemeral");
+  assert.equal(data.wordMastery[0].familiarity, 0.8);
 });
 
 test("exportUserData includes articleMastery (711-C)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.articleMastery));
-  assert.equal(data!.articleMastery.length, 1);
-  assert.equal(data!.articleMastery[0].articleId, "art-1");
-  assert.equal(data!.articleMastery[0].comprehensionScore, 0.9);
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.articleMastery));
+  assert.equal(data.articleMastery.length, 1);
+  assert.equal(data.articleMastery[0].articleId, "art-1");
+  assert.equal(data.articleMastery[0].comprehensionScore, 0.9);
 });
 
 test("exportUserData includes skillMastery (711-C)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.skillMastery));
-  assert.equal(data!.skillMastery.length, 1);
-  assert.equal(data!.skillMastery[0].skill, "reading");
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.skillMastery));
+  assert.equal(data.skillMastery.length, 1);
+  assert.equal(data.skillMastery[0].skill, "reading");
 });
 
 test("exportUserData includes difficultyFeedback (711-C)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.difficultyFeedback));
-  assert.equal(data!.difficultyFeedback.length, 1);
-  assert.equal(data!.difficultyFeedback[0].vote, "just_right");
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.difficultyFeedback));
+  assert.equal(data.difficultyFeedback.length, 1);
+  assert.equal(data.difficultyFeedback[0].vote, "just_right");
 });
 
 test("exportUserData includes learnerCoachMemory aggregates only (#810)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.learnerCoachMemories));
-  assert.equal(data!.learnerCoachMemories.length, 1);
-  const row = data!.learnerCoachMemories[0];
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.learnerCoachMemories));
+  assert.equal(data.learnerCoachMemories.length, 1);
+  const row = data.learnerCoachMemories[0];
   assert.equal(row.skill, "comprehension");
   assert.equal(row.trend, "declining");
   // Privacy: only controlled aggregate keys are exported — no text/ids/PII.
@@ -336,49 +320,33 @@ test("exportUserData includes learnerCoachMemory aggregates only (#810)", async 
 // ---------------------------------------------------------------------------
 
 test("exportUserData includes memberships (711-E)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.memberships));
-  assert.equal(data!.memberships.length, 1);
-  assert.equal(data!.memberships[0].orgId, "org-1");
-  assert.equal(data!.memberships[0].role, "Member");
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.memberships));
+  assert.equal(data.memberships.length, 1);
+  assert.equal(data.memberships[0].orgId, "org-1");
+  assert.equal(data.memberships[0].role, "Member");
 });
 
 test("exportUserData includes classroomMemberships (711-E)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.classroomMemberships));
-  assert.equal(data!.classroomMemberships.length, 1);
-  assert.equal(data!.classroomMemberships[0].classroomId, "class-1");
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.classroomMemberships));
+  assert.equal(data.classroomMemberships.length, 1);
+  assert.equal(data.classroomMemberships[0].classroomId, "class-1");
 });
 
 test("exportUserData includes assignmentCompletions (711-E)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok(Array.isArray(data!.assignmentCompletions));
-  assert.equal(data!.assignmentCompletions.length, 1);
-  assert.equal(data!.assignmentCompletions[0].assignmentId, "assign-1");
-  assert.equal(data!.assignmentCompletions[0].status, "COMPLETED");
-  assert.equal(data!.assignmentCompletions[0].quizScore, 95);
+  const data = await exportStubUserData();
+  assert.ok(Array.isArray(data.assignmentCompletions));
+  assert.equal(data.assignmentCompletions.length, 1);
+  assert.equal(data.assignmentCompletions[0].assignmentId, "assign-1");
+  assert.equal(data.assignmentCompletions[0].status, "COMPLETED");
+  assert.equal(data.assignmentCompletions[0].quizScore, 95);
 });
 
 test("exportUserData includes PlacementResult controlled fields (#806)", async () => {
-  const { exportUserData } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const data = await exportUserData("user-1");
-  assert.ok(data);
-  assert.ok("placementResult" in data!, "placementResult key must exist in export");
-  const placement = data!.placementResult as Record<string, unknown>;
+  const data = await exportStubUserData();
+  assert.ok("placementResult" in data, "placementResult key must exist in export");
+  const placement = data.placementResult as Record<string, unknown>;
   assert.equal(placement.seedLevel, "B1");
   assert.equal(placement.recommendedLevel, "B2");
   assert.equal(placement.questionCount, 4);
@@ -408,10 +376,7 @@ test("deleteOwnAccount purges object-storage bytes for owned MediaAssets (711-D)
     { storageKey: "speech/abc123.mp3" },
     { storageKey: "speech/def456.mp3" },
   ];
-  const { deleteOwnAccount } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const result = await deleteOwnAccount("user-1");
+  const result = await deleteStubUserAccount();
 
   assert.equal(result.ok, true);
   assert.deepEqual(storageDeletedKeys.sort(), [
@@ -423,10 +388,7 @@ test("deleteOwnAccount purges object-storage bytes for owned MediaAssets (711-D)
 test("deleteOwnAccount succeeds even when storage purge fails (711-D best-effort)", async () => {
   stubMediaAssets = [{ storageKey: "speech/abc123.mp3" }];
   storageDeleteShouldFail = true;
-  const { deleteOwnAccount } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const result = await deleteOwnAccount("user-1");
+  const result = await deleteStubUserAccount();
 
   // DB deletion should still succeed despite storage failure
   assert.equal(result.ok, true);
@@ -436,10 +398,7 @@ test("deleteOwnAccount succeeds even when storage purge fails (711-D best-effort
 
 test("deleteOwnAccount skips storage purge when no owned MediaAssets exist (711-D)", async () => {
   stubMediaAssets = [];
-  const { deleteOwnAccount } = await import(
-    "@/lib/account-lifecycle/account-commands"
-  );
-  const result = await deleteOwnAccount("user-1");
+  const result = await deleteStubUserAccount();
 
   assert.equal(result.ok, true);
   assert.equal(storageDeletedKeys.length, 0);

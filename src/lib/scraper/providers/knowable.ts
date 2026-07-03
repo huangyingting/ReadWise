@@ -27,7 +27,10 @@ const KNOWABLE_TOPICS = [
 const KNOWABLE_SEARCH_FEED_MAX_PAGES = 100;
 const KNOWABLE_SEARCH_FEED_EMPTY_PAGE_LIMIT = 2;
 
-function knowableSearchFeedUrl(section: (typeof KNOWABLE_SECTIONS)[number], page: number): string {
+type KnowableSection = (typeof KNOWABLE_SECTIONS)[number];
+type KnowableTopic = (typeof KNOWABLE_TOPICS)[number];
+
+function knowableSearchFeedUrl(section: KnowableSection, page: number): string {
   const params = new URLSearchParams({
     option1: "fulltext",
     value1: "",
@@ -46,10 +49,7 @@ function knowableSearchFeedUrl(section: (typeof KNOWABLE_SECTIONS)[number], page
   return `https://knowablemagazine.org/search/rss.action?${params.toString()}`;
 }
 
-function knowableTopicFeedUrl(
-  topic: (typeof KNOWABLE_TOPICS)[number],
-  page: number,
-): string {
+function knowableTopicFeedUrl(topic: KnowableTopic, page: number): string {
   const params = new URLSearchParams({
     option1: "pub_topic",
     value1: `topics/${topic}`,
@@ -76,6 +76,16 @@ function addUrls(target: string[], seen: Set<string>, urls: string[]): number {
   return added;
 }
 
+function markNewUrls(seen: Set<string>, urls: string[]): number {
+  let added = 0;
+  for (const url of urls) {
+    if (seen.has(url)) continue;
+    seen.add(url);
+    added++;
+  }
+  return added;
+}
+
 async function fetchRssUrls(
   fetchFn: Parameters<NonNullable<Provider["urlExtractor"]>>[0]["fetch"],
   url: string,
@@ -84,6 +94,30 @@ async function fetchRssUrls(
     return parseRssUrls(await fetchFn(url));
   } catch {
     return [];
+  }
+}
+
+async function addPagedSearchFeedUrls(
+  fetchFn: Parameters<NonNullable<Provider["urlExtractor"]>>[0]["fetch"],
+  feedUrl: (page: number) => string,
+  urls: string[],
+  seen: Set<string>,
+  candidateCap: number,
+): Promise<void> {
+  const feedSeen = new Set<string>();
+  let consecutiveEmptyPages = 0;
+  for (let page = 1; page <= KNOWABLE_SEARCH_FEED_MAX_PAGES; page++) {
+    if (urls.length >= candidateCap) break;
+    const pageUrls = await fetchRssUrls(fetchFn, feedUrl(page));
+    const feedAdded = markNewUrls(feedSeen, pageUrls);
+    addUrls(urls, seen, pageUrls);
+
+    if (feedAdded === 0) {
+      consecutiveEmptyPages++;
+      if (consecutiveEmptyPages >= KNOWABLE_SEARCH_FEED_EMPTY_PAGE_LIMIT) break;
+    } else {
+      consecutiveEmptyPages = 0;
+    }
   }
 }
 
@@ -99,32 +133,26 @@ async function knowableUrlExtractor({
 
   addUrls(urls, seen, await fetchRssUrls(fetchFn, KNOWABLE_RSS_FEED_URL));
 
-  const pageSearchFeed = async (feedUrl: (page: number) => string) => {
-    const feedSeen = new Set<string>();
-    let consecutiveEmptyPages = 0;
-    for (let page = 1; page <= KNOWABLE_SEARCH_FEED_MAX_PAGES; page++) {
-      if (urls.length >= candidateCap) break;
-      const pageUrls = await fetchRssUrls(fetchFn, feedUrl(page));
-      const feedAdded = addUrls([], feedSeen, pageUrls);
-      addUrls(urls, seen, pageUrls);
-
-      if (feedAdded === 0) {
-        consecutiveEmptyPages++;
-        if (consecutiveEmptyPages >= KNOWABLE_SEARCH_FEED_EMPTY_PAGE_LIMIT) break;
-      } else {
-        consecutiveEmptyPages = 0;
-      }
-    }
-  };
-
   for (const section of KNOWABLE_SECTIONS) {
     if (urls.length >= candidateCap) break;
-    await pageSearchFeed((page) => knowableSearchFeedUrl(section, page));
+    await addPagedSearchFeedUrls(
+      fetchFn,
+      (page) => knowableSearchFeedUrl(section, page),
+      urls,
+      seen,
+      candidateCap,
+    );
   }
 
   for (const topic of KNOWABLE_TOPICS) {
     if (urls.length >= candidateCap) break;
-    await pageSearchFeed((page) => knowableTopicFeedUrl(topic, page));
+    await addPagedSearchFeedUrls(
+      fetchFn,
+      (page) => knowableTopicFeedUrl(topic, page),
+      urls,
+      seen,
+      candidateCap,
+    );
   }
 
   return urls;

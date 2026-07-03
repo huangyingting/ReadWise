@@ -20,8 +20,46 @@
 // Shared utilities
 // ---------------------------------------------------------------------------
 
+const MS_PER_DAY = 86_400_000;
+
+const LEVEL_PROXIMITY_SCORES = {
+  exact: 30,
+  slightlyEasy: 18,
+  easy: 10,
+  tooEasy: 5,
+  slightlyHard: 12,
+  hard: 3,
+  tooHard: 0,
+} as const;
+
+const LEVEL_FIT_SCORES = {
+  unknown: 0.5,
+  exact: 1,
+  slightlyEasy: 0.78,
+  slightlyHard: 0.62,
+  easy: 0.5,
+  hard: 0.32,
+  tooEasy: 0.2,
+  tooHard: 0.12,
+} as const;
+
 /** Shape of a single ArticleTag join row fetched from Prisma. */
 export type ArticleTagRow = { articleId: string; tag: { slug: string } };
+
+function daysBetween(now: Date, publishedAt: Date | string): number {
+  return (now.getTime() - new Date(publishedAt).getTime()) / MS_PER_DAY;
+}
+
+function scoreByAge(
+  ageDays: number,
+  thresholds: readonly [maxAgeDays: number, score: number][],
+  fallback: number,
+): number {
+  for (const [maxAgeDays, score] of thresholds) {
+    if (ageDays <= maxAgeDays) return score;
+  }
+  return fallback;
+}
 
 /**
  * Builds a `Map<articleId, slugs[]>` from a flat list of ArticleTag join rows
@@ -56,13 +94,13 @@ export function buildTagMap(rows: ArticleTagRow[]): Map<string, string[]> {
  */
 export function levelProximityScore(articleRank: number, userRank: number): number {
   const delta = articleRank - userRank;
-  if (delta === 0) return 30; // perfect match
-  if (delta === -1) return 18; // slightly easy  — minor penalty
-  if (delta === -2) return 10; // easy            — moderate penalty
-  if (delta <= -3) return 5; //  way too easy    — large penalty (but still shown)
-  if (delta === 1) return 12; // slightly hard   — bigger penalty than slightly easy
-  if (delta === 2) return 3; //  hard            — strong penalty
-  return 0; //                  way too hard    — still shown via fallback base
+  if (delta === 0) return LEVEL_PROXIMITY_SCORES.exact;
+  if (delta === -1) return LEVEL_PROXIMITY_SCORES.slightlyEasy;
+  if (delta === -2) return LEVEL_PROXIMITY_SCORES.easy;
+  if (delta <= -3) return LEVEL_PROXIMITY_SCORES.tooEasy;
+  if (delta === 1) return LEVEL_PROXIMITY_SCORES.slightlyHard;
+  if (delta === 2) return LEVEL_PROXIMITY_SCORES.hard;
+  return LEVEL_PROXIMITY_SCORES.tooHard;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,21 +119,24 @@ export function levelFitScore(
   articleRank: number | null,
   userRank: number | null,
 ): number {
-  if (articleRank == null || articleRank < 0 || userRank == null) return 0.5;
+  if (articleRank == null || articleRank < 0 || userRank == null) {
+    return LEVEL_FIT_SCORES.unknown;
+  }
+
   const delta = articleRank - userRank;
   switch (delta) {
     case 0:
-      return 1;
+      return LEVEL_FIT_SCORES.exact;
     case -1:
-      return 0.78;
+      return LEVEL_FIT_SCORES.slightlyEasy;
     case 1:
-      return 0.62;
+      return LEVEL_FIT_SCORES.slightlyHard;
     case -2:
-      return 0.5;
+      return LEVEL_FIT_SCORES.easy;
     case 2:
-      return 0.32;
+      return LEVEL_FIT_SCORES.hard;
     default:
-      return delta < 0 ? 0.2 : 0.12;
+      return delta < 0 ? LEVEL_FIT_SCORES.tooEasy : LEVEL_FIT_SCORES.tooHard;
   }
 }
 
@@ -110,12 +151,16 @@ export function levelFitScore(
  */
 export function freshnessScore(publishedAt: Date | null, now: Date): number {
   if (!publishedAt) return 0;
-  const ageDays = (now.getTime() - publishedAt.getTime()) / 86_400_000;
-  if (ageDays <= 7) return 10;
-  if (ageDays <= 30) return 7;
-  if (ageDays <= 90) return 4;
-  if (ageDays <= 180) return 2;
-  return 0;
+  return scoreByAge(
+    daysBetween(now, publishedAt),
+    [
+      [7, 10],
+      [30, 7],
+      [90, 4],
+      [180, 2],
+    ],
+    0,
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -133,13 +178,16 @@ export function freshnessScore01(
   now: Date,
 ): number {
   if (!publishedAt) return 0.1;
-  const ageDays =
-    (now.getTime() - new Date(publishedAt).getTime()) / 86_400_000;
-  if (ageDays <= 7) return 1;
-  if (ageDays <= 30) return 0.75;
-  if (ageDays <= 90) return 0.5;
-  if (ageDays <= 180) return 0.3;
-  return 0.1;
+  return scoreByAge(
+    daysBetween(now, publishedAt),
+    [
+      [7, 1],
+      [30, 0.75],
+      [90, 0.5],
+      [180, 0.3],
+    ],
+    0.1,
+  );
 }
 
 // ---------------------------------------------------------------------------

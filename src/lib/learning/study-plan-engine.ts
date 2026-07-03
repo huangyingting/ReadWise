@@ -52,6 +52,16 @@ function skillConfidence(skills: SkillSummary[], skill: Skill): SkillSummary | u
   return skills.find((s) => s.skill === skill);
 }
 
+function confidenceGap(skill: SkillSummary | undefined): number {
+  return skill?.hasEvidence && skill.confidence < WEAK_SKILL_CONFIDENCE
+    ? 1 - skill.confidence
+    : 0;
+}
+
+function confidenceEvidence(label: string, skill: SkillSummary | undefined): string | null {
+  return skill ? `${label} skill confidence ${Math.round(skill.confidence * 100)}%` : null;
+}
+
 const SKILL_LABEL: Record<WeakAreaKind, string> = {
   vocabulary: "Vocabulary",
   grammar: "Grammar",
@@ -74,10 +84,7 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
     const vocabSkill = skillConfidence(diag.skills, "vocabulary");
     const ratio =
       diag.vocab.totalSaved > 0 ? diag.vocab.weakCount / diag.vocab.totalSaved : 0;
-    const fromSkill =
-      vocabSkill?.hasEvidence && vocabSkill.confidence < WEAK_SKILL_CONFIDENCE
-        ? 1 - vocabSkill.confidence
-        : 0;
+    const fromSkill = confidenceGap(vocabSkill);
     const severity = clamp01(Math.max(ratio, fromSkill, diag.vocab.dueCount > 0 ? 0.4 : 0));
     if (diag.vocab.weakCount > 0 || diag.vocab.dueCount > 0 || fromSkill > 0) {
       const evidence: string[] = [];
@@ -85,8 +92,8 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
         evidence.push(`${diag.vocab.weakCount} saved word(s) below ${Math.round(WEAK_WORD_FAMILIARITY * 100)}% familiarity`);
       if (diag.vocab.dueCount > 0)
         evidence.push(`${diag.vocab.dueCount} flashcard(s) due for review`);
-      if (fromSkill > 0 && vocabSkill)
-        evidence.push(`Vocabulary skill confidence ${Math.round(vocabSkill.confidence * 100)}%`);
+      const skillEvidence = fromSkill > 0 ? confidenceEvidence("Vocabulary", vocabSkill) : null;
+      if (skillEvidence) evidence.push(skillEvidence);
       areas.push({
         kind: "vocabulary",
         severity,
@@ -108,10 +115,7 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
       diag.quiz.averageScore != null && diag.quiz.averageScore < WEAK_QUIZ_AVERAGE
         ? (WEAK_QUIZ_AVERAGE - diag.quiz.averageScore) / WEAK_QUIZ_AVERAGE
         : 0;
-    const fromSkill =
-      compSkill?.hasEvidence && compSkill.confidence < WEAK_SKILL_CONFIDENCE
-        ? 1 - compSkill.confidence
-        : 0;
+    const fromSkill = confidenceGap(compSkill);
     const severity = clamp01(Math.max(lowRatio, quizGap, fromSkill));
     if (
       (diag.comprehension.assessedCount > 0 && diag.comprehension.lowCount > 0) ||
@@ -154,17 +158,14 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
       diag.pronunciation.avgScore != null && diag.pronunciation.avgScore < WEAK_PRON_SCORE
         ? (WEAK_PRON_SCORE - diag.pronunciation.avgScore) / WEAK_PRON_SCORE
         : 0;
-    const fromSkill =
-      pronSkill?.hasEvidence && pronSkill.confidence < WEAK_SKILL_CONFIDENCE
-        ? 1 - pronSkill.confidence
-        : 0;
+    const fromSkill = confidenceGap(pronSkill);
     const severity = clamp01(Math.max(fromScore, fromSkill));
     if (fromScore > 0 || fromSkill > 0) {
       const evidence: string[] = [];
       if (diag.pronunciation.avgScore != null && diag.pronunciation.attempts > 0)
         evidence.push(`Pronunciation average ${Math.round(diag.pronunciation.avgScore)}% across ${diag.pronunciation.attempts} attempt(s)`);
-      if (fromSkill > 0 && pronSkill)
-        evidence.push(`Pronunciation skill confidence ${Math.round(pronSkill.confidence * 100)}%`);
+      const skillEvidence = fromSkill > 0 ? confidenceEvidence("Pronunciation", pronSkill) : null;
+      if (skillEvidence) evidence.push(skillEvidence);
       areas.push({
         kind: "pronunciation",
         severity,
@@ -178,10 +179,11 @@ export function diagnoseWeakAreas(diag: StudyDiagnostics): WeakArea[] {
   // ---- Listening & grammar (skill-mastery driven) -----------------------
   for (const kind of ["listening", "grammar"] as const) {
     const skill = skillConfidence(diag.skills, kind);
-    if (skill?.hasEvidence && skill.confidence < WEAK_SKILL_CONFIDENCE) {
+    const severity = confidenceGap(skill);
+    if (severity > 0 && skill) {
       areas.push({
         kind,
-        severity: clamp01(1 - skill.confidence),
+        severity: clamp01(severity),
         label: SKILL_LABEL[kind],
         detail: `Your ${kind} confidence is ${Math.round(skill.confidence * 100)}%.`,
         evidence: [`${kind} skill confidence ${Math.round(skill.confidence * 100)}%`],
@@ -254,6 +256,31 @@ export function buildWeeklyPlan(
   return items.slice(0, MAX_PLAN_ITEMS);
 }
 
+function applyCoachMemoryToSkills(
+  skillProfile: { skills: SkillSummary[] },
+  coachConfidences: ReadonlyMap<string, number>,
+): SkillSummary[] {
+  if (coachConfidences.size === 0) {
+    return skillProfile.skills;
+  }
+
+  return skillProfile.skills.map((s) => {
+    const coachConfidence = coachConfidences.get(s.skill);
+    return coachConfidence === undefined
+      ? s
+      : { ...s, confidence: coachConfidence, hasEvidence: true };
+  });
+}
+
+function readingRecFromTopPick(
+  topPick: { id: string; title: string } | null,
+  reasons: Record<string, string>,
+): StudyReadingRec | null {
+  return topPick
+    ? { id: topPick.id, title: topPick.title, reason: reasons[topPick.id] ?? "Recommended for you" }
+    : null;
+}
+
 // ---------------------------------------------------------------------------
 // DB gathering + public entry point
 // ---------------------------------------------------------------------------
@@ -307,14 +334,7 @@ export async function gatherStudyDiagnostics(
   // #810 — coach memory informs skill ranking by recency trend, not just the
   // latest snapshot. When memory is empty (cold start), fall back to
   // SkillMastery so existing behaviour is unchanged.
-  const skills =
-    coachConfidences.size > 0
-      ? skillProfile.skills.map((s) =>
-          coachConfidences.has(s.skill)
-            ? { ...s, confidence: coachConfidences.get(s.skill)!, hasEvidence: true }
-            : s,
-        )
-      : skillProfile.skills;
+  const skills = applyCoachMemoryToSkills(skillProfile, coachConfidences);
 
   return {
     skills,
@@ -356,9 +376,7 @@ export async function generateStudyPlan(userId: string): Promise<StudyPlan> {
   const diag = await gatherStudyDiagnostics(userId, async () => {
     const picks = await listScoredPicksPage(userId, { limit: 1 });
     const topPick = picks.articles[0] ?? null;
-    return topPick
-      ? { id: topPick.id, title: topPick.title, reason: picks.reasons[topPick.id] ?? "Recommended for you" }
-      : null;
+    return readingRecFromTopPick(topPick, picks.reasons);
   });
   const weakAreas = diagnoseWeakAreas(diag);
   const items = buildWeeklyPlan(weakAreas, diag);

@@ -17,6 +17,22 @@ let ambientContext: { userId?: string; requestId?: string; path?: string } | nul
 let trustedProxy: { header: string | null; list: string[]; hops: number | null };
 let metricsSnapshot: unknown;
 
+async function withPatchedClock<T>(run: () => Promise<T>): Promise<T> {
+  const realDateNow = Date.now;
+  const realRandom = Math.random;
+  try {
+    return await run();
+  } finally {
+    Date.now = realDateNow;
+    Math.random = realRandom;
+  }
+}
+
+function setDeterministicClock(nowMs: number, randomValue: number) {
+  Date.now = () => nowMs;
+  Math.random = () => randomValue;
+}
+
 class MockApiError extends Error {
   readonly status: number;
 
@@ -167,10 +183,8 @@ test("auth options enrich sessions and bootstrap first users", async () => {
 
 test("rate limiter maps scopes, propagates 429s, and falls back to memory on store errors", async () => {
   const { checkRateLimit, checkRateLimitByKey, clientIpKey } = await import("@/lib/security/rate-limit/index");
-  const realDateNow = Date.now;
-  const realRandom = Math.random;
 
-  try {
+  await withPatchedClock(async () => {
     await checkRateLimitByKey("user-1", "public");
     await checkRateLimitByKey("user-1", "import");
     await checkRateLimitByKey("user-1", "admin-job");
@@ -200,21 +214,14 @@ test("rate limiter maps scopes, propagates 429s, and falls back to memory on sto
       status: 429,
     });
 
-    Date.now = () => 0;
-    Math.random = () => 1;
+    setDeterministicClock(0, 1);
     await checkRateLimitByKey("stale-user", "lookup");
-    Date.now = () => 3_001;
-    Math.random = () => 0;
+    setDeterministicClock(3_001, 0);
     await checkRateLimitByKey("fresh-user", "lookup");
-  } finally {
-    Date.now = realDateNow;
-    Math.random = realRandom;
-  }
+  });
 });
 
 test("security events tolerate metrics, ring, spike-store, and alert failures", async () => {
-  const realDateNow = Date.now;
-  const realRandom = Math.random;
   const {
     getRecentSecurityEvents,
     recordSecurityEvent,
@@ -222,10 +229,9 @@ test("security events tolerate metrics, ring, spike-store, and alert failures", 
     SECURITY_EVENT_TYPES,
   } = await import("@/lib/security/events");
 
-  try {
+  await withPatchedClock(async () => {
     resetSecurityEvents();
-    Date.now = () => 0;
-    Math.random = () => 1;
+    setDeterministicClock(0, 1);
     let record = recordSecurityEvent({
       type: SECURITY_EVENT_TYPES.unauthorized,
       severity: "low",
@@ -234,8 +240,7 @@ test("security events tolerate metrics, ring, spike-store, and alert failures", 
     assert.equal(record.actorId, "ambient-user");
     assert.equal(record.alert, false);
 
-    Date.now = () => 3_001;
-    Math.random = () => 0;
+    setDeterministicClock(3_001, 0);
     sharedCounterError = new Error("spike store down");
     record = recordSecurityEvent({
       type: SECURITY_EVENT_TYPES.forbidden,
@@ -275,10 +280,7 @@ test("security events tolerate metrics, ring, spike-store, and alert failures", 
     assert.equal(record.alert, true);
     assert.ok(getRecentSecurityEvents(1)[0].count >= 2);
     assert.ok(getRecentSecurityEvents(0).length >= 1);
-  } finally {
-    Date.now = realDateNow;
-    Math.random = realRandom;
-  }
+  });
 });
 
 test("client IP helpers normalize, match CIDRs, and resolve trusted proxy strategies", async () => {

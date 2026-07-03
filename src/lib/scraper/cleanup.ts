@@ -146,7 +146,7 @@ function removeEmptyArticleContainers(root: ParentNode): void {
 }
 
 function dropLinkHrefMatches(html: string, keywords: string[]): string {
-  const normalizedKeywords = keywords.map((kw) => kw.trim().toLowerCase()).filter(Boolean);
+  const normalizedKeywords = normalizeKeywords(keywords);
   if (!normalizedKeywords.length) return html;
 
   try {
@@ -166,6 +166,14 @@ function normalizeText(value: string): string {
   return value.replace(/\s+/g, " ").trim().toLowerCase();
 }
 
+function normalizeKeywords(keywords: readonly string[]): string[] {
+  return keywords.map((kw) => kw.trim().toLowerCase()).filter(Boolean);
+}
+
+function normalizeTextKeywords(keywords: readonly string[]): string[] {
+  return keywords.map((kw) => normalizeText(kw)).filter(Boolean);
+}
+
 function blockTextForKeywordMatch(el: Element): string {
   const parts = [el.textContent ?? ""];
   for (const media of Array.from(el.querySelectorAll("img,svg"))) {
@@ -175,7 +183,7 @@ function blockTextForKeywordMatch(el: Element): string {
 }
 
 function dropTextKeywordMatches(html: string, keywords: string[]): string {
-  const normalizedKeywords = keywords.map((kw) => normalizeText(kw)).filter(Boolean);
+  const normalizedKeywords = normalizeTextKeywords(keywords);
   if (!normalizedKeywords.length) return html;
 
   try {
@@ -237,6 +245,7 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
   const textKeywords = cleanup.dropTextKeywords ?? [];
   const hrefKeywords = cleanup.dropLinkHrefKeywords ?? [];
   const dropFigcaptions = cleanup.dropFigcaptions === true;
+  const lowerClassKeywords = keywords.map((kw) => kw.toLowerCase());
 
   // Early-exit: nothing to do.
   if (
@@ -286,7 +295,8 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
               ]
                 .filter(Boolean)
                 .join(" ");
-              return keywords.some((kw) => haystack.toLowerCase().includes(kw.toLowerCase()));
+              const lowerHaystack = haystack.toLowerCase();
+              return lowerClassKeywords.some((kw) => lowerHaystack.includes(kw));
             }
             return false;
           },

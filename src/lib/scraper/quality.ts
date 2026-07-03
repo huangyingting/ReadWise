@@ -70,6 +70,7 @@ export const RECOVERABLE_QUALITY_REJECT_CHECKS = [
   "missing-author",
   "missing-date",
 ] as const;
+const RECOVERABLE_QUALITY_REJECT_CHECK_SET = new Set<string>(RECOVERABLE_QUALITY_REJECT_CHECKS);
 
 // ---------------------------------------------------------------------------
 // Minimal input shape (accepts ScrapedArticle or synthetic test objects)
@@ -259,6 +260,11 @@ function extractLinkText(html: string): string {
   return [...html.matchAll(/<a\b[^>]*>([\s\S]*?)<\/a>/gi)]
     .map((m) => m[1]!.replace(/<[^>]*>/g, " ").trim())
     .join(" ");
+}
+
+function qualityGrade(hasReject: boolean, hasMajorWarn: boolean): QualityGrade {
+  if (hasReject) return "reject";
+  return hasMajorWarn ? "warn" : "ok";
 }
 
 /** Count codepoints that indicate encoding corruption. */
@@ -780,11 +786,11 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
 
   // ── Composite score + grade ───────────────────────────────────────────────
   const score = Math.max(0, 100 - deductions);
-  const grade: QualityGrade = hasReject ? "reject" : hasMajorWarn ? "warn" : "ok";
+  const grade = qualityGrade(hasReject, hasMajorWarn);
 
   // Log only non-PII metrics: grade, score, word count, failed check names.
   if (grade !== "ok") {
-    const failedChecks = signals.filter((s) => !s.passed).map((s) => s.check);
+    const failedChecks = failedQualityChecks({ grade, score, signals });
     log.warn("content quality degraded", {
       grade,
       score,
@@ -813,8 +819,6 @@ export function isRecoverableQualityReject(
   const failedChecks = failedQualityChecks(result);
   return (
     failedChecks.length > 0 &&
-    failedChecks.every((check) =>
-      (RECOVERABLE_QUALITY_REJECT_CHECKS as readonly string[]).includes(check),
-    )
+    failedChecks.every((check) => RECOVERABLE_QUALITY_REJECT_CHECK_SET.has(check))
   );
 }

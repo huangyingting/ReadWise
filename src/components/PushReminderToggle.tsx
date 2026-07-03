@@ -8,6 +8,10 @@ import { ui as pushUi } from "@/lib/copy/push";
 
 type PermissionState = "default" | "granted" | "denied";
 type ToggleState = "loading" | "unsupported" | "unconfigured" | "idle" | "subscribed" | "busy";
+type VapidPublicKeyResponse = {
+  configured?: boolean;
+  publicKey?: string;
+};
 
 /**
  * Converts a VAPID public key (Base64url string) to a Uint8Array
@@ -20,6 +24,44 @@ function urlBase64ToUint8Array(base64url: string): ArrayBuffer {
   const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
   return bytes.buffer;
+}
+
+function isPushSupported(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    "serviceWorker" in navigator &&
+    "PushManager" in window &&
+    "Notification" in window
+  );
+}
+
+async function fetchVapidPublicKey(): Promise<string | null> {
+  try {
+    // non-standard init response: checks configured flag before JSON, not using postJson
+    const res = await fetch("/api/push/vapid-public-key");
+    if (!res.ok) return null;
+
+    const json = (await res.json()) as VapidPublicKeyResponse;
+    if (!json.configured) return null;
+
+    return typeof json.publicKey === "string" ? json.publicKey : "";
+  } catch {
+    return null;
+  }
+}
+
+async function getSubscriptionState(): Promise<Extract<ToggleState, "idle" | "subscribed">> {
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const existing = await reg.pushManager.getSubscription();
+    return existing ? "subscribed" : "idle";
+  } catch {
+    return "idle";
+  }
+}
+
+function errorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
 }
 
 /**
@@ -38,34 +80,18 @@ export default function PushReminderToggle() {
   useEffect(() => {
     async function init() {
       // Browser support check
-      if (
-        typeof window === "undefined" ||
-        !("serviceWorker" in navigator) ||
-        !("PushManager" in window) ||
-        !("Notification" in window)
-      ) {
+      if (!isPushSupported()) {
         setState("unsupported");
         return;
       }
 
       // Fetch VAPID public key from server
-      try {
-        // non-standard init response: checks configured flag before JSON, not using postJson
-        const res = await fetch("/api/push/vapid-public-key");
-        if (!res.ok) {
-          setState("unconfigured");
-          return;
-        }
-        const json = await res.json();
-        if (!json.configured) {
-          setState("unconfigured");
-          return;
-        }
-        setVapidKey(json.publicKey);
-      } catch {
+      const publicKey = await fetchVapidPublicKey();
+      if (publicKey === null) {
         setState("unconfigured");
         return;
       }
+      setVapidKey(publicKey);
 
       const perm = Notification.permission as PermissionState;
       setPermission(perm);
@@ -76,13 +102,7 @@ export default function PushReminderToggle() {
       }
 
       // Check if already subscribed via the SW
-      try {
-        const reg = await navigator.serviceWorker.ready;
-        const existing = await reg.pushManager.getSubscription();
-        setState(existing ? "subscribed" : "idle");
-      } catch {
-        setState("idle");
-      }
+      setState(await getSubscriptionState());
     }
 
     init();
@@ -117,7 +137,7 @@ export default function PushReminderToggle() {
       });
       setState("subscribed");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : pushUi.subscribeError);
+      setError(errorMessage(err, pushUi.subscribeError));
       setState("idle");
     }
   }, [vapidKey]);
@@ -136,7 +156,7 @@ export default function PushReminderToggle() {
       }
       setState("idle");
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : pushUi.unsubscribeError);
+      setError(errorMessage(err, pushUi.unsubscribeError));
       setState("subscribed");
     }
   }, []);

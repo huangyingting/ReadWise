@@ -36,6 +36,15 @@ export const SENSITIVE_KEY_RE =
   /(authorization|body|completion|content|cookie|credential|definition|email|example|explanation|key|pass|phrase|prompt|pwd|response|secret|select|sentence|session|text|token|translation|url)/i;
 
 const REDACTED = "[redacted]";
+const EMAIL_REDACTED = "[email]";
+const TOKEN_REDACTED = "[token]";
+const OBJECT_PLACEHOLDER = "[object]";
+const TRUNCATED = "[truncated]";
+
+const MAX_SAFE_KEYS = 25;
+const MAX_SAFE_ARRAY_ITEMS = 20;
+const MAX_SAFE_STRING_LEN = 200;
+const MAX_SAFE_DEPTH = 3;
 
 // Global-flag regexes are safe with replace() — lastIndex resets after each call.
 const EMAIL_SCRUB_RE = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
@@ -57,7 +66,9 @@ export function isSensitiveMetadataKey(key: string): boolean {
  * while guaranteeing no raw PII or credential passes through.
  */
 export function redactSensitiveValue(value: string): string {
-  return value.replace(EMAIL_SCRUB_RE, "[email]").replace(TOKEN_SCRUB_RE, "[token]");
+  return value
+    .replace(EMAIL_SCRUB_RE, EMAIL_REDACTED)
+    .replace(TOKEN_SCRUB_RE, TOKEN_REDACTED);
 }
 
 // ── High-level object redactors ───────────────────────────────────────────────
@@ -83,31 +94,28 @@ export function redactSensitiveObject(
     if (value === null || value === undefined) {
       out[key] = value;
     } else if (typeof value === "string") {
-      out[key] = redactSensitiveValue(value).slice(0, 200);
+      out[key] = redactAndLimitString(value);
     } else if (typeof value === "number" || typeof value === "boolean") {
       out[key] = value;
     } else {
-      out[key] = "[object]";
+      out[key] = OBJECT_PLACEHOLDER;
     }
   }
   return out;
 }
 
-const MAX_SAFE_KEYS = 25;
-const MAX_SAFE_ARRAY_ITEMS = 20;
-const MAX_SAFE_STRING_LEN = 200;
-const MAX_SAFE_DEPTH = 3;
-
 function sanitizeDeep(value: unknown, depth: number): unknown {
-  if (depth > MAX_SAFE_DEPTH) return "[truncated]";
+  if (depth > MAX_SAFE_DEPTH) return TRUNCATED;
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string") {
-    return redactSensitiveValue(value).slice(0, MAX_SAFE_STRING_LEN);
+    return redactAndLimitString(value);
   }
   if (Array.isArray(value)) {
-    return value.slice(0, MAX_SAFE_ARRAY_ITEMS).map((item) => sanitizeDeep(item, depth + 1));
+    return value
+      .slice(0, MAX_SAFE_ARRAY_ITEMS)
+      .map((item) => sanitizeDeep(item, depth + 1));
   }
   if (typeof value === "object") {
     const out: Record<string, unknown> = {};
@@ -119,6 +127,10 @@ function sanitizeDeep(value: unknown, depth: number): unknown {
     return out;
   }
   return String(value);
+}
+
+function redactAndLimitString(value: string): string {
+  return redactSensitiveValue(value).slice(0, MAX_SAFE_STRING_LEN);
 }
 
 /**

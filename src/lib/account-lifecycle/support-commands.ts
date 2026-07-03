@@ -33,6 +33,8 @@ type AuditFactory<T> = (result: T) => AuditRequestInput;
 
 type RevokeClient = Pick<typeof prisma, "user" | "session">;
 
+const MEMBER_EXISTS_SELECT = { id: true } as const;
+
 /**
  * Revokes (deletes) every `Session` row for the member, signing them out of all
  * devices. With the database session strategy this is real server-side
@@ -45,7 +47,7 @@ export async function revokeMemberSessions(
 ): Promise<DomainResult<{ revoked: number }>> {
   const user = await client.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: MEMBER_EXISTS_SELECT,
   });
   if (!user) return { ok: false, error: "Not found", status: 404 };
 
@@ -68,7 +70,7 @@ export async function exportMemberData(
 ): Promise<DomainResult<{ data: unknown }>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: MEMBER_EXISTS_SELECT,
   });
   if (!user) return { ok: false, error: "Not found", status: 404 };
 
@@ -91,7 +93,7 @@ export async function triggerMemberRepair(
 ): Promise<DomainResult<{ result: BackfillResult | null; articleCount: number }>> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { id: true },
+    select: MEMBER_EXISTS_SELECT,
   });
   if (!user) return { ok: false, error: "Not found", status: 404 };
 

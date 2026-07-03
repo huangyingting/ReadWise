@@ -15,6 +15,14 @@ export type TrustedProxyConfig = {
   header: string | null;
 };
 
+const TRUSTED_APP_ORIGIN_ENVS = [
+  "NEXTAUTH_URL",
+  "APP_URL",
+  "NEXT_PUBLIC_APP_URL",
+] as const;
+const CSRF_ENFORCE_DISABLED_VALUES = new Set(["false", "0", "off", "no"]);
+const SECURITY_EVENT_BUFFER_SIZE_MAX = 2_000;
+
 function optionalNonNegativeIntEnv(name: string): number | null {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return null;
@@ -22,19 +30,21 @@ function optionalNonNegativeIntEnv(name: string): number | null {
   return Number.isInteger(v) && v >= 0 ? v : null;
 }
 
-/** Resolved trusted-proxy configuration (env-driven; all strategies optional). */
-export function trustedProxyConfig(): TrustedProxyConfig {
-  const listRaw = envValue("TRUSTED_PROXY_LIST");
-  const list = listRaw
-    ? listRaw
+function commaSeparatedList(value: string | null): string[] {
+  return value
+    ? value
         .split(",")
         .map((entry) => entry.trim())
         .filter((entry) => entry.length > 0)
     : [];
+}
+
+/** Resolved trusted-proxy configuration (env-driven; all strategies optional). */
+export function trustedProxyConfig(): TrustedProxyConfig {
   const headerRaw = envValue("TRUSTED_PROXY_HEADER");
   return {
     hops: optionalNonNegativeIntEnv("TRUSTED_PROXY_HOPS"),
-    list,
+    list: commaSeparatedList(envValue("TRUSTED_PROXY_LIST")),
     header: headerRaw ? headerRaw.toLowerCase() : null,
   };
 }
@@ -64,22 +74,22 @@ function normalizeOriginValue(value: string | null | undefined): string | null {
   }
 }
 
+function addNormalizedOrigin(out: Set<string>, value: string | null | undefined): void {
+  const origin = normalizeOriginValue(value);
+  if (origin) out.add(origin);
+}
+
 /**
  * Extra origins (beyond the request's own host) allowed to make state-changing
  * API calls. NEXTAUTH_URL / APP_URL / NEXT_PUBLIC_APP_URL are always trusted.
  */
 export function csrfAllowedOrigins(): string[] {
   const out = new Set<string>();
-  const raw = envValue("CSRF_ALLOWED_ORIGINS");
-  if (raw) {
-    for (const entry of raw.split(",")) {
-      const origin = normalizeOriginValue(entry);
-      if (origin) out.add(origin);
-    }
+  for (const entry of commaSeparatedList(envValue("CSRF_ALLOWED_ORIGINS"))) {
+    addNormalizedOrigin(out, entry);
   }
-  for (const name of ["NEXTAUTH_URL", "APP_URL", "NEXT_PUBLIC_APP_URL"]) {
-    const origin = normalizeOriginValue(envValue(name));
-    if (origin) out.add(origin);
+  for (const name of TRUSTED_APP_ORIGIN_ENVS) {
+    addNormalizedOrigin(out, envValue(name));
   }
   return [...out];
 }
@@ -90,8 +100,7 @@ export function csrfAllowedOrigins(): string[] {
  */
 export function csrfEnforceSameOrigin(): boolean {
   const raw = (process.env.CSRF_ENFORCE ?? "").trim().toLowerCase();
-  if (raw === "false" || raw === "0" || raw === "off" || raw === "no") return false;
-  return true;
+  return !CSRF_ENFORCE_DISABLED_VALUES.has(raw);
 }
 
 // ---------------------------------------------------------------------------
@@ -116,7 +125,7 @@ export function securityEventWindowMs(): number {
  */
 export function securityEventBufferSize(): number {
   const v = positiveIntEnv("SECURITY_EVENT_BUFFER_SIZE", 200);
-  return Math.min(v, 2000);
+  return Math.min(v, SECURITY_EVENT_BUFFER_SIZE_MAX);
 }
 
 // ---------------------------------------------------------------------------

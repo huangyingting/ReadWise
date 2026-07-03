@@ -129,6 +129,35 @@ const STORED_LEGACY_WORDS = [
   { word: "world", offset: 500, duration: 600 },
 ];
 
+async function getOrCreateSpeech(articleId = "a1") {
+  const { getOrCreateArticleSpeech } = await loadSpeech();
+  return getOrCreateArticleSpeech(articleId);
+}
+
+function cachedSpeech(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    articleId: "a1",
+    words: STORED_LEGACY_WORDS,
+    storageKey: "speech/cached.mp3",
+    mimeType: "audio/mpeg",
+    voice: "en-US-Cached",
+    plainText: "cached plain text",
+    ...overrides,
+  };
+}
+
+function readableArticle(content = "<p>Some readable text.</p>", title = "Title"): Record<string, unknown> {
+  return { title, content };
+}
+
+function synthesizeSuccess(audio = "AUDIO"): void {
+  synthesizeResult = { audio: Buffer.from(audio), provider: "azure", words: VALID_WORDS };
+}
+
+function audioDataUrl(audio: string): string {
+  return `data:audio/mpeg;base64,${Buffer.from(audio).toString("base64")}`;
+}
+
 // ---------------------------------------------------------------------------
 // isSpeechConfigured
 // ---------------------------------------------------------------------------
@@ -156,18 +185,10 @@ test("isSpeechConfigured is false when Azure Speech credentials are missing", as
 // ---------------------------------------------------------------------------
 
 test("getOrCreateArticleSpeech returns cached speech without calling the provider on a cache hit", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
-  cachedSpeechRow = {
-    articleId: "a1",
-    words: STORED_LEGACY_WORDS,
-    storageKey: "speech/cached.mp3",
-    mimeType: "audio/mpeg",
-    voice: "en-US-Cached",
-    plainText: "cached plain text",
-  };
+  cachedSpeechRow = cachedSpeech();
   articleRow = { content: "<p>Hello world from the article.</p>" };
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.ok(result);
   assert.equal(result!.cached, true);
@@ -180,18 +201,10 @@ test("getOrCreateArticleSpeech returns cached speech without calling the provide
 });
 
 test("getOrCreateArticleSpeech falls back to the stored plainText when the article row is gone", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
-  cachedSpeechRow = {
-    articleId: "a1",
-    words: STORED_LEGACY_WORDS,
-    storageKey: "speech/cached.mp3",
-    mimeType: "audio/mpeg",
-    voice: "en-US-Cached",
-    plainText: "stored fallback text",
-  };
+  cachedSpeechRow = cachedSpeech({ plainText: "stored fallback text" });
   articleRow = null;
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.ok(result);
   assert.equal(result!.cached, true);
@@ -199,19 +212,15 @@ test("getOrCreateArticleSpeech falls back to the stored plainText when the artic
 });
 
 test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes it, and regenerates", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
-  cachedSpeechRow = {
-    articleId: "a1",
+  cachedSpeechRow = cachedSpeech({
     words: [{ word: "broken", offset: -1, duration: 1 }],
     storageKey: "speech/corrupt.mp3",
-    mimeType: "audio/mpeg",
-    voice: "en-US-Cached",
     plainText: "ignored",
-  };
-  articleRow = { title: "T", content: "<p>Fresh article text.</p>" };
-  synthesizeResult = { audio: Buffer.from("NEW"), provider: "azure", words: VALID_WORDS };
+  });
+  articleRow = readableArticle("<p>Fresh article text.</p>", "T");
+  synthesizeSuccess("NEW");
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.deepEqual(deletedArticleIds, ["a1"], "corrupt row must be deleted");
   assert.equal(synthesizeCalls.length, 1, "regeneration must synthesize once");
@@ -225,12 +234,11 @@ test("getOrCreateArticleSpeech treats a malformed cached row as a miss, deletes 
 // ---------------------------------------------------------------------------
 
 test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache miss", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
-  articleRow = { title: "Title", content: "<p>The quick brown fox.</p>" };
-  synthesizeResult = { audio: Buffer.from("AUDIO"), provider: "azure", words: VALID_WORDS };
+  articleRow = readableArticle("<p>The quick brown fox.</p>");
+  synthesizeSuccess();
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.equal(synthesizeCalls.length, 1);
   assert.equal(synthesizeCalls[0].text, "The quick brown fox.");
@@ -239,7 +247,7 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
   assert.equal(result!.fallback, false);
   assert.equal(result!.mimeType, "audio/mpeg");
   assert.equal(result!.voice, "en-US-TestNeural");
-  assert.equal(result!.audio, `data:audio/mpeg;base64,${Buffer.from("AUDIO").toString("base64")}`);
+  assert.equal(result!.audio, audioDataUrl("AUDIO"));
   assert.deepEqual(result!.words, VALID_WORDS);
 });
 
@@ -248,12 +256,11 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
 // ---------------------------------------------------------------------------
 
 test("getOrCreateArticleSpeech returns a graceful fallback when the TTS feature flag is off", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
-  articleRow = { title: "Title", content: "<p>Some readable text.</p>" };
+  articleRow = readableArticle();
   disableTtsFlag();
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.ok(result);
   assert.equal(result!.fallback, true);
@@ -263,12 +270,11 @@ test("getOrCreateArticleSpeech returns a graceful fallback when the TTS feature 
 });
 
 test("getOrCreateArticleSpeech returns a fallback when Azure Speech credentials are absent", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
-  articleRow = { title: "Title", content: "<p>Some readable text.</p>" };
+  articleRow = readableArticle();
   unconfigureAzure();
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.ok(result);
   assert.equal(result!.fallback, true);
@@ -277,22 +283,20 @@ test("getOrCreateArticleSpeech returns a fallback when Azure Speech credentials 
 });
 
 test("getOrCreateArticleSpeech returns null when the article does not exist", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
   articleRow = null;
 
-  const result = await getOrCreateArticleSpeech("missing");
+  const result = await getOrCreateSpeech("missing");
 
   assert.equal(result, null);
   assert.equal(synthesizeCalls.length, 0);
 });
 
 test("getOrCreateArticleSpeech returns a fallback when the article has no readable text", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
-  articleRow = { title: "Title", content: "<p>   </p>" };
+  articleRow = readableArticle("<p>   </p>");
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.ok(result);
   assert.equal(result!.fallback, true);
@@ -301,12 +305,11 @@ test("getOrCreateArticleSpeech returns a fallback when the article has no readab
 });
 
 test("getOrCreateArticleSpeech returns a fallback when synthesis yields no output", async () => {
-  const { getOrCreateArticleSpeech } = await loadSpeech();
   cachedSpeechRow = null;
-  articleRow = { title: "Title", content: "<p>Readable article body.</p>" };
+  articleRow = readableArticle("<p>Readable article body.</p>");
   synthesizeResult = null;
 
-  const result = await getOrCreateArticleSpeech("a1");
+  const result = await getOrCreateSpeech();
 
   assert.equal(synthesizeCalls.length, 1, "synthesis is attempted");
   assert.ok(result);

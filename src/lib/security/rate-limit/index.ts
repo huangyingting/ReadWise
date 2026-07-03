@@ -45,22 +45,17 @@ import {
 
 const log = createLogger("rate-limit");
 
+const LIMIT_RESOLVERS: Record<string, () => number> = {
+  lookup: rateLimitLookupRequests,
+  public: rateLimitPublicRequests,
+  import: rateLimitImportRequests,
+  "admin-job": rateLimitAdminJobRequests,
+  auth: rateLimitAuthRequests,
+  ai: rateLimitAiRequests,
+};
+
 function getLimitForScope(scope: string): number {
-  switch (scope) {
-    case "lookup":
-      return rateLimitLookupRequests();
-    case "public":
-      return rateLimitPublicRequests();
-    case "import":
-      return rateLimitImportRequests();
-    case "admin-job":
-      return rateLimitAdminJobRequests();
-    case "auth":
-      return rateLimitAuthRequests();
-    case "ai":
-    default:
-      return rateLimitAiRequests();
-  }
+  return (LIMIT_RESOLVERS[scope] ?? rateLimitAiRequests)();
 }
 
 function getWindowMs(): number {
@@ -108,6 +103,30 @@ function checkInMemory(bucketKey: string, limit: number, windowMs: number, nowMs
   bucket.count += 1;
 }
 
+async function checkSharedStore(
+  bucketKey: string,
+  scope: string,
+  limit: number,
+  windowMs: number,
+  nowMs: number,
+): Promise<boolean> {
+  if (!isSharedStoreEnabled(nowMs)) return false;
+
+  try {
+    const windowStartMs = windowStartFor(nowMs, windowMs);
+    const count = await incrementSharedCounter(bucketKey, windowStartMs, windowMs);
+    if (count > limit) {
+      throw rateLimitError(limit, windowMs);
+    }
+    return true;
+  } catch (err) {
+    // A genuine 429 must propagate; only a store failure falls back to memory.
+    if (err instanceof ApiError) throw err;
+    log.warn("rate_limit.fallback_memory", { scope });
+    return false;
+  }
+}
+
 /**
  * Core rate-limit check by an arbitrary key (userId, hashed IP, etc.) and scope.
  * Tries the shared DB store first, then falls back to the in-memory limiter when
@@ -119,19 +138,8 @@ export async function checkRateLimitByKey(key: string, scope: string): Promise<v
   const bucketKey = `${key}:${scope}`;
   const nowMs = Date.now();
 
-  if (isSharedStoreEnabled(nowMs)) {
-    try {
-      const windowStartMs = windowStartFor(nowMs, windowMs);
-      const count = await incrementSharedCounter(bucketKey, windowStartMs, windowMs);
-      if (count > limit) {
-        throw rateLimitError(limit, windowMs);
-      }
-      return;
-    } catch (err) {
-      // A genuine 429 must propagate; only a store failure falls back to memory.
-      if (err instanceof ApiError) throw err;
-      log.warn("rate_limit.fallback_memory", { scope });
-    }
+  if (await checkSharedStore(bucketKey, scope, limit, windowMs, nowMs)) {
+    return;
   }
 
   checkInMemory(bucketKey, limit, windowMs, nowMs);

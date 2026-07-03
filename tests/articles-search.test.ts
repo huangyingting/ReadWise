@@ -12,7 +12,6 @@ import {
   ArticleStatus,
   ArticleVisibility,
   type Article,
-  type Prisma,
 } from "@prisma/client";
 import { buildArticle } from "./helpers";
 
@@ -38,6 +37,15 @@ let savedWordRows: SavedWordRow[] = [];
 let articleFindCalls: FindArgs[] = [];
 let highlightFindCalls: FindArgs[] = [];
 let savedWordFindCalls: FindArgs[] = [];
+
+function resetSearchState(): void {
+  articleRows = [];
+  highlightRows = [];
+  savedWordRows = [];
+  articleFindCalls = [];
+  highlightFindCalls = [];
+  savedWordFindCalls = [];
+}
 
 function valueFor(row: unknown, key: string): unknown {
   return (row as Record<string, unknown>)[key];
@@ -95,6 +103,15 @@ function sortArticles(rows: Article[], orderBy: FindArgs["orderBy"]): Article[] 
   });
 }
 
+async function loadSearchReadableArticles() {
+  const { searchReadableArticles } = await import("@/lib/search/providers");
+  return searchReadableArticles;
+}
+
+function articleIds(result: { articles: Article[] }): string[] {
+  return result.articles.map((article) => article.id);
+}
+
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -130,12 +147,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  articleRows = [];
-  highlightRows = [];
-  savedWordRows = [];
-  articleFindCalls = [];
-  highlightFindCalls = [];
-  savedWordFindCalls = [];
+  resetSearchState();
 });
 
 test("buildSearchTerms normalizes punctuation and deduplicates", async () => {
@@ -146,7 +158,7 @@ test("buildSearchTerms normalizes punctuation and deduplicates", async () => {
 });
 
 test("search ranks title matches ahead of body/source matches and then by recency", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
     buildArticle({ id: "body", title: "Other", content: "climate", publishedAt: new Date("2026-01-03") }),
     buildArticle({ id: "title-old", title: "Climate policy", publishedAt: new Date("2026-01-01") }),
@@ -155,12 +167,12 @@ test("search ranks title matches ahead of body/source matches and then by recenc
 
   const result = await searchReadableArticles("climate", { limit: 3 });
 
-  assert.deepEqual(result.articles.map((a) => a.id), ["title-new", "title-old", "body"]);
+  assert.deepEqual(articleIds(result), ["title-new", "title-old", "body"]);
   assert.equal(result.hasMore, false);
 });
 
 test("older title matches are not hidden behind the recency-capped body candidate window", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
     ...Array.from({ length: 30 }, (_, index) =>
       buildArticle({
@@ -195,7 +207,7 @@ test("older title matches are not hidden behind the recency-capped body candidat
 });
 
 test("search returns empty for blank query without touching Prisma", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
 
   const result = await searchReadableArticles("  ");
 
@@ -206,7 +218,7 @@ test("search returns empty for blank query without touching Prisma", async () =>
 });
 
 test("anonymous/public search never leaks owned or draft articles", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
     buildArticle({ id: "public", title: "Climate", ownerId: null, status: ArticleStatus.PUBLISHED }),
     buildArticle({
@@ -221,12 +233,12 @@ test("anonymous/public search never leaks owned or draft articles", async () => 
 
   const result = await searchReadableArticles("climate", { limit: 10 });
 
-  assert.deepEqual(result.articles.map((a) => a.id), ["public"]);
+  assert.deepEqual(articleIds(result), ["public"]);
   assert.equal(highlightFindCalls.length, 0, "anonymous search must not query user annotations");
 });
 
 test("authenticated search includes the user's own private imports but not another user's imports", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
     buildArticle({ id: "public", title: "Import guide", ownerId: null, status: ArticleStatus.PUBLISHED }),
     buildArticle({
@@ -247,11 +259,11 @@ test("authenticated search includes the user's own private imports but not anoth
 
   const result = await searchReadableArticles("import", { limit: 10 }, "user-1");
 
-  assert.deepEqual(result.articles.map((a) => a.id), ["mine", "public"]);
+  assert.deepEqual(articleIds(result), ["mine", "public"]);
 });
 
 test("highlight/note matches are scoped to the requesting user and final article readability", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
     buildArticle({
       id: "mine",
@@ -275,23 +287,23 @@ test("highlight/note matches are scoped to the requesting user and final article
 
   const result = await searchReadableArticles("mitochondria", { limit: 10 }, "user-1");
 
-  assert.deepEqual(result.articles.map((a) => a.id), ["mine"]);
+  assert.deepEqual(articleIds(result), ["mine"]);
   assert.equal(highlightFindCalls[0].where?.userId, "user-1");
 });
 
 test("saved vocabulary matches can surface readable articles", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [buildArticle({ id: "article", title: "General news", ownerId: null, status: ArticleStatus.PUBLISHED })];
   savedWordRows = [{ userId: "user-1", articleId: "article", word: "photosynthesis" }];
 
   const result = await searchReadableArticles("photosynthesis", { limit: 10 }, "user-1");
 
-  assert.deepEqual(result.articles.map((a) => a.id), ["article"]);
+  assert.deepEqual(articleIds(result), ["article"]);
   assert.equal(savedWordFindCalls[0].where?.userId, "user-1");
 });
 
 test("search paginates ranked candidates and reports hasMore", async () => {
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = ["a1", "a2", "a3"].map((id, index) =>
     buildArticle({ id, title: `Climate ${id}`, publishedAt: new Date(`2026-01-0${3 - index}T00:00:00Z`) }),
   );
@@ -299,15 +311,15 @@ test("search paginates ranked candidates and reports hasMore", async () => {
   const page1 = await searchReadableArticles("climate", { offset: 0, limit: 2 });
   const page2 = await searchReadableArticles("climate", { offset: 2, limit: 2 });
 
-  assert.deepEqual(page1.articles.map((a) => a.id), ["a1", "a2"]);
+  assert.deepEqual(articleIds(page1), ["a1", "a2"]);
   assert.equal(page1.hasMore, true);
-  assert.deepEqual(page2.articles.map((a) => a.id), ["a3"]);
+  assert.deepEqual(articleIds(page2), ["a3"]);
   assert.equal(page2.hasMore, false);
 });
 
 test("search does not report hasMore after the capped broad candidate window is exhausted", async () => {
   const { SEARCH_CANDIDATE_LIMIT } = await import("@/lib/search/query");
-  const { searchReadableArticles } = await import("@/lib/search/providers");
+  const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = Array.from({ length: SEARCH_CANDIDATE_LIMIT + 25 }, (_, index) =>
     buildArticle({
       id: `broad-${index}`,

@@ -80,11 +80,21 @@ export const TODAY_REFLECTION_PROMPT =
 // Validators (reject invalid values before persistence)
 // ---------------------------------------------------------------------------
 
+type ControlledValueSet = readonly string[];
+
 function isMember<T extends readonly string[]>(
   set: T,
   value: unknown,
 ): value is T[number] {
-  return typeof value === "string" && (set as readonly string[]).includes(value);
+  return typeof value === "string" && includesControlledValue(set, value);
+}
+
+function includesControlledValue(set: ControlledValueSet, value: string): boolean {
+  return set.includes(value);
+}
+
+function allowedValues(set: ControlledValueSet): string {
+  return set.join(", ");
 }
 
 export function isTodaySessionStatus(v: unknown): v is TodaySessionStatus {
@@ -120,7 +130,7 @@ export function assertControlledValue<T extends readonly string[]>(
 ): T[number] {
   if (!isMember(set, value)) {
     throw new Error(
-      `Invalid TodaySession ${field}: ${JSON.stringify(value)} (allowed: ${set.join(", ")})`,
+      `Invalid TodaySession ${field}: ${JSON.stringify(value)} (allowed: ${allowedValues(set)})`,
     );
   }
   return value;

@@ -33,6 +33,9 @@ import { clientIp } from "@/lib/security/client-ip";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
 
 
+const UUID_V4_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /** Throw from a handler to return a controlled, client-safe error response. */
 export class ApiError extends Error {
   readonly status: number;
@@ -95,6 +98,13 @@ function withRequestId(res: Response, requestId: string): Response {
   return res;
 }
 
+function requestIdFor(req: Request): string {
+  const inboundId = req.headers.get("x-request-id") ?? "";
+  // Accept an inbound x-request-id only if it is a valid UUID v4 to prevent
+  // log injection or correlation confusion via a crafted header value.
+  return UUID_V4_RE.test(inboundId) ? inboundId : crypto.randomUUID();
+}
+
 /**
  * Emit a security event for a denied/limited response status (RW-029). Covers
  * the 401/403/429 surfaces produced by the wrapper so repeated auth failures
@@ -140,12 +150,7 @@ function build<B, P, Q, S extends Session | null>(
 ) {
   return async (req: Request, routeCtx?: unknown): Promise<Response> => {
     const ctx = (routeCtx ?? {}) as RouteContext;
-    const inboundId = req.headers.get("x-request-id") ?? "";
-    // Accept an inbound x-request-id only if it is a valid UUID v4 to prevent
-    // log injection or correlation confusion via a crafted header value.
-    const UUID_V4_RE =
-      /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-    const requestId = UUID_V4_RE.test(inboundId) ? inboundId : crypto.randomUUID();
+    const requestId = requestIdFor(req);
     const url = new URL(req.url);
     return runWithRequestContext(
       { requestId, method: req.method, path: url.pathname },

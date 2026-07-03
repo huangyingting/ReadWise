@@ -35,7 +35,7 @@
  */
 import { prisma } from "@/lib/prisma";
 import { JobType, enqueueJob, ACTIVE_STATUSES } from "@/lib/jobs";
-import { FEATURE_KEYS, FEATURE_REGISTRY, isFeatureKey, type FeatureKey } from "./registry";
+import { FEATURE_KEYS, FEATURE_REGISTRY, isFeatureKey, stepKeysFor, type FeatureKey } from "./registry";
 
 /** Canonical set of features supported for backfill/rebuild. Derived from the registry. */
 export const BACKFILL_FEATURES = FEATURE_KEYS;
@@ -49,6 +49,8 @@ export const DEFAULT_BACKFILL_BATCH_CAP = 50;
 export const MAX_BACKFILL_BATCH_CAP = 500;
 /** Max candidate articles scanned per run (operator re-runs to continue). */
 export const MAX_BACKFILL_SCAN = 1000;
+
+const TRANSLATION_STEP_PREFIX = "translation:";
 
 export type BackfillFilter = {
   status?: string;
@@ -228,6 +230,18 @@ function dedupeKeyFor(articleId: string, stepKey: string): string {
   return `backfill:${stepKey}:${articleId}`;
 }
 
+function unique<T>(items: readonly T[]): T[] {
+  return Array.from(new Set(items));
+}
+
+function featureFor(key: FeatureKey) {
+  return FEATURE_REGISTRY.find((f) => f.key === key);
+}
+
+function langFromTranslationStep(stepKey: string): string {
+  return stepKey.slice(TRANSLATION_STEP_PREFIX.length);
+}
+
 /** Step keys an article is MISSING among the requested features. */
 function missingStepKeys(
   article: CandidateArticle,
@@ -236,11 +250,15 @@ function missingStepKeys(
 ): string[] {
   const out: string[] = [];
   for (const key of features) {
-    const feature = FEATURE_REGISTRY.find((f) => f.key === key);
+    const feature = featureFor(key);
     if (!feature) continue;
     if (feature.supportsLangs) {
       const have = new Set(article.translations.map((t) => t.targetLang));
-      for (const lang of langs) if (!have.has(lang)) out.push(`translation:${lang}`);
+      for (const stepKey of stepKeysFor(key, langs)) {
+        if (!have.has(langFromTranslationStep(stepKey))) {
+          out.push(stepKey);
+        }
+      }
     } else if (feature.isMissingFrom?.(article) ?? false) {
       out.push(key);
     }
@@ -250,17 +268,7 @@ function missingStepKeys(
 
 /** All requested step keys regardless of existing content (rebuild mode). */
 function allStepKeys(features: BackfillFeature[], langs: string[]): string[] {
-  const out: string[] = [];
-  for (const key of features) {
-    const feature = FEATURE_REGISTRY.find((f) => f.key === key);
-    if (!feature) continue;
-    if (feature.supportsLangs) {
-      for (const lang of langs) out.push(`translation:${lang}`);
-    } else {
-      out.push(key);
-    }
-  }
-  return out;
+  return features.flatMap((key) => stepKeysFor(key, langs));
 }
 
 function jobTypeFor(mode: BackfillMode): JobType {
@@ -283,10 +291,43 @@ function payloadFor(
   };
   if (stepKey === "speech") {
     payload.tts = true;
-  } else if (stepKey.startsWith("translation:")) {
-    payload.translateLangs = [stepKey.slice("translation:".length)];
+  } else if (stepKey.startsWith(TRANSLATION_STEP_PREFIX)) {
+    payload.translateLangs = [langFromTranslationStep(stepKey)];
   }
   return payload;
+}
+
+function buildBackfillPlan(
+  candidates: CandidateArticle[],
+  features: BackfillFeature[],
+  langs: string[],
+  mode: BackfillMode,
+): BackfillPlanItem[] {
+  const plan: BackfillPlanItem[] = [];
+  for (const article of candidates) {
+    const stepKeys =
+      mode === "rebuild"
+        ? allStepKeys(features, langs)
+        : missingStepKeys(article, features, langs);
+    for (const stepKey of stepKeys) {
+      plan.push({
+        articleId: article.id,
+        feature: stepKey,
+        dedupeKey: dedupeKeyFor(article.id, stepKey),
+      });
+    }
+  }
+  return plan;
+}
+
+function groupPlanByArticle(plan: BackfillPlanItem[]): Map<string, string[]> {
+  const byArticle = new Map<string, string[]>();
+  for (const item of plan) {
+    const list = byArticle.get(item.articleId) ?? [];
+    list.push(item.feature);
+    byArticle.set(item.articleId, list);
+  }
+  return byArticle;
 }
 
 // ---------------------------------------------------------------------------
@@ -308,7 +349,7 @@ export class BackfillError extends Error {
  * skipped (already active), and enqueued.
  */
 export async function runBackfill(opts: BackfillOptions): Promise<BackfillResult> {
-  const features = Array.from(new Set(opts.features ?? []));
+  const features = unique(opts.features ?? []);
   if (features.length === 0) {
     throw new BackfillError("At least one feature is required");
   }
@@ -323,7 +364,7 @@ export async function runBackfill(opts: BackfillOptions): Promise<BackfillResult
   }
   const mode: BackfillMode = opts.mode ?? "missing";
   const operatorId = opts.operatorId ?? null;
-  const langs = Array.from(new Set((opts.translateLangs ?? []).filter(Boolean)));
+  const langs = unique((opts.translateLangs ?? []).filter(Boolean));
   const cap = Math.min(
     MAX_BACKFILL_BATCH_CAP,
     Math.max(1, opts.batchCap ?? DEFAULT_BACKFILL_BATCH_CAP),
@@ -333,20 +374,7 @@ export async function runBackfill(opts: BackfillOptions): Promise<BackfillResult
   const candidates = await deps.loadCandidates(opts.filter ?? {}, MAX_BACKFILL_SCAN);
 
   // Build the full plan (article × feature), then cap it.
-  const fullPlan: BackfillPlanItem[] = [];
-  for (const article of candidates) {
-    const stepKeys =
-      mode === "rebuild"
-        ? allStepKeys(features, langs)
-        : missingStepKeys(article, features, langs);
-    for (const stepKey of stepKeys) {
-      fullPlan.push({
-        articleId: article.id,
-        feature: stepKey,
-        dedupeKey: dedupeKeyFor(article.id, stepKey),
-      });
-    }
-  }
+  const fullPlan = buildBackfillPlan(candidates, features, langs, mode);
 
   const matched = fullPlan.length;
   const plan = fullPlan.slice(0, cap);
@@ -379,12 +407,7 @@ export async function runBackfill(opts: BackfillOptions): Promise<BackfillResult
   // Rebuild mode: clear the derived caches now (grouped per article), capped to
   // the planned set. Never touches user-owned study data.
   if (mode === "rebuild") {
-    const byArticle = new Map<string, string[]>();
-    for (const item of toEnqueue) {
-      const list = byArticle.get(item.articleId) ?? [];
-      list.push(item.feature);
-      byArticle.set(item.articleId, list);
-    }
+    const byArticle = groupPlanByArticle(toEnqueue);
     for (const [articleId, stepKeys] of byArticle) {
       await deps.clearFeatures(articleId, stepKeys);
     }

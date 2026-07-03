@@ -98,6 +98,13 @@ function captureExit() {
   };
 }
 
+function assertHelpAliases(parseArgs: (argv: string[]) => { help: boolean }) {
+  assert.equal(parseArgs(["--help"]).help, true);
+  assert.equal(parseArgs(["-h"]).help, true);
+}
+
+const TRANSLATE_LANGS = ["es", "fr"];
+
 // ── Shared CLI helpers ─────────────────────────────────────────────────────
 
 describe("parseFlag", async () => {
@@ -411,12 +418,11 @@ describe("process.ts parseArgs", async () => {
   });
 
   test("--translate accumulates comma-separated languages", () => {
-    assert.deepEqual(parseArgs(["--translate", "es,fr"]).translateLangs, ["es", "fr"]);
+    assert.deepEqual(parseArgs(["--translate", "es,fr"]).translateLangs, TRANSLATE_LANGS);
   });
 
   test("--help / -h sets help flag", () => {
-    assert.equal(parseArgs(["--help"]).help, true);
-    assert.equal(parseArgs(["-h"]).help, true);
+    assertHelpAliases(parseArgs);
   });
 
   test("positional args become ids", () => {
@@ -463,8 +469,7 @@ describe("scrape.ts parseArgs", async () => {
   });
 
   test("--help sets help flag", () => {
-    assert.equal(parseArgs(["--help"]).help, true);
-    assert.equal(parseArgs(["-h"]).help, true);
+    assertHelpAliases(parseArgs);
   });
 
   test("positional args become urls", () => {
@@ -500,7 +505,7 @@ describe("worker.ts parseArgs", async () => {
   });
 
   test("--translate value", () => {
-    assert.deepEqual(parseArgs(["--translate", "es,fr"]).translateLangs, ["es", "fr"]);
+    assert.deepEqual(parseArgs(["--translate", "es,fr"]).translateLangs, TRANSLATE_LANGS);
   });
 
   test("--lock-ttl value", () => {
@@ -508,8 +513,7 @@ describe("worker.ts parseArgs", async () => {
   });
 
   test("--help sets help flag", () => {
-    assert.equal(parseArgs(["--help"]).help, true);
-    assert.equal(parseArgs(["-h"]).help, true);
+    assertHelpAliases(parseArgs);
   });
 });
 
@@ -525,8 +529,6 @@ describe("push-reminders.ts parseArgs", async () => {
   });
 
   test("--help / -h sets help flag", () => {
-    assert.equal(parseArgs(["--help"]).help, true);
-    assert.equal(parseArgs(["-h"]).help, true);
+    assertHelpAliases(parseArgs);
   });
 });
-

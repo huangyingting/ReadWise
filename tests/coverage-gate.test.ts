@@ -12,7 +12,15 @@ import {
   runNativeCoverage,
 } from "../scripts/check-node-coverage";
 
-const PASSING_REPORT = [
+function coverageReport(lines: string[]): string {
+  return lines.join("\n");
+}
+
+function parseCoverageRows(lines: string[]) {
+  return parseNodeCoverageText(coverageReport(lines));
+}
+
+const PASSING_REPORT = coverageReport([
   "ℹ start of coverage report",
   "ℹ ---------------------------------------------------------------",
   "ℹ file                  | line % | branch % | funcs % | uncovered lines",
@@ -26,9 +34,9 @@ const PASSING_REPORT = [
   "ℹ  ui-design-system.js  |  98.00 |   100.00 |  100.00 | ",
   "ℹ all files             |  99.00 |   100.00 |  100.00 | ",
   "ℹ end of coverage report",
-].join("\n");
+]);
 
-const FAILING_REPORT = [
+const FAILING_REPORT = coverageReport([
   "ℹ file                  | line % | branch % | funcs % | uncovered lines",
   "ℹ scripts               |        |          |         | ",
   "ℹ  check-node-coverage.ts |  97.00 |   100.00 |  100.00 | 10-12",
@@ -38,7 +46,7 @@ const FAILING_REPORT = [
   "ℹ  ui-design-system.js  | 100.00 |   100.00 |  100.00 | ",
   "ℹ tests                 |        |          |         | ",
   "ℹ  helper.test.ts       |  10.00 |   100.00 |  100.00 | 1-9",
-].join("\n");
+]);
 
 function captureOutput() {
   const logs: string[] = [];
@@ -54,7 +62,7 @@ function captureOutput() {
 }
 
 test("coverage gate parses native Node coverage tree rows and failing files", () => {
-  const report = [
+  const rows = parseCoverageRows([
     "ℹ start of coverage report",
     "ℹ ---------------------------------------------------------------",
     "ℹ file                  | line % | branch % | funcs % | uncovered lines",
@@ -68,9 +76,7 @@ test("coverage gate parses native Node coverage tree rows and failing files", ()
     "ℹ  helper.test.ts       |  10.00 |   100.00 |  100.00 | 1-9",
     "ℹ all files             |  99.00 |   100.00 |  100.00 | ",
     "ℹ end of coverage report",
-  ].join("\n");
-
-  const rows = parseNodeCoverageText(report);
+  ]);
   assert.deepEqual(rows.map((row) => row.file), [
     "src/lib/cache.ts",
     "src/lib/search/providers.ts",
@@ -88,15 +94,13 @@ test("coverage gate parses native Node coverage tree rows and failing files", ()
 });
 
 test("coverage gate defaults to every measured code-file prefix", () => {
-  const rows = parseNodeCoverageText(
-    [
-      "ℹ file                  | line % | branch % | funcs % | uncovered lines",
-      "ℹ scripts               |        |          |         | ",
-      "ℹ  check-node-coverage.ts |  97.99 |   100.00 |  100.00 | 42",
-      "ℹ eslint-rules          |        |          |         | ",
-      "ℹ  ui-design-system.js  |  97.98 |   100.00 |  100.00 | 12",
-    ].join("\n"),
-  );
+  const rows = parseCoverageRows([
+    "ℹ file                  | line % | branch % | funcs % | uncovered lines",
+    "ℹ scripts               |        |          |         | ",
+    "ℹ  check-node-coverage.ts |  97.99 |   100.00 |  100.00 | 42",
+    "ℹ eslint-rules          |        |          |         | ",
+    "ℹ  ui-design-system.js  |  97.98 |   100.00 |  100.00 | 12",
+  ]);
 
   assert.deepEqual(DEFAULT_INCLUDE_PREFIXES, ["src/", "scripts/", "eslint-rules/"]);
   assert.deepEqual(coverageFailures(rows, 98).map((row) => row.file), [

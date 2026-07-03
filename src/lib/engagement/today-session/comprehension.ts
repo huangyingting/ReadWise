@@ -178,6 +178,16 @@ export type TodayComprehensionCheck = {
   alreadySubmitted: boolean;
 };
 
+function unavailableComprehensionCheck(): TodayComprehensionCheck {
+  return {
+    available: false,
+    articleId: null,
+    question: null,
+    completed: false,
+    alreadySubmitted: false,
+  };
+}
+
 /**
  * Load the comprehension self-check for an authenticated learner's local day.
  * Resolves the day's primary article, selects an optional MCQ, and reports
@@ -197,13 +207,7 @@ export async function loadTodayComprehensionCheck(args: {
   });
   const session = await getTodaySession(args.userId, localDate);
   if (!session || !session.primaryArticleId) {
-    return {
-      available: false,
-      articleId: null,
-      question: null,
-      completed: false,
-      alreadySubmitted: false,
-    };
+    return unavailableComprehensionCheck();
   }
 
   const [question, existing] = await Promise.all([
@@ -308,6 +312,43 @@ async function upsertComprehensionFeedback(args: {
   });
 }
 
+function isAnswerableSelection(args: SubmitTodayComprehensionArgs): boolean {
+  return (
+    Boolean(args.questionId) &&
+    typeof args.selectedIndex === "number" &&
+    Number.isInteger(args.selectedIndex)
+  );
+}
+
+async function gradeSubmittedQuestion(
+  args: SubmitTodayComprehensionArgs,
+  articleId: string,
+): Promise<{ effectiveQuestionId: string | null; mcqCorrect: boolean | null }> {
+  if (!isAnswerableSelection(args)) {
+    return { effectiveQuestionId: null, mcqCorrect: null };
+  }
+
+  const question = await prisma.quizQuestion.findFirst({
+    where: { id: args.questionId!, articleId },
+    select: { correctIndex: true },
+  });
+  if (!question) {
+    return { effectiveQuestionId: null, mcqCorrect: null };
+  }
+
+  return {
+    effectiveQuestionId: args.questionId!,
+    mcqCorrect: args.selectedIndex === question.correctIndex,
+  };
+}
+
+function remediationWasViewed(
+  args: SubmitTodayComprehensionArgs,
+  remediationShow: boolean,
+): boolean {
+  return args.remediationViewed === true || remediationShow;
+}
+
 /**
  * Submit a learner's comprehension self-check for their local day.
  *
@@ -341,24 +382,9 @@ export async function submitTodayComprehension(
 
   // ── Grade the optional MCQ server-side (never trust a client outcome) ──────
   const skillTag = isComprehensionSkillTag(args.skillTag) ? args.skillTag : null;
-  let mcqCorrect: boolean | null = null;
-  let effectiveQuestionId: string | null = null;
-  if (
-    args.questionId &&
-    typeof args.selectedIndex === "number" &&
-    Number.isInteger(args.selectedIndex)
-  ) {
-    const question = await prisma.quizQuestion.findFirst({
-      where: { id: args.questionId, articleId },
-      select: { correctIndex: true },
-    });
-    if (question) {
-      effectiveQuestionId = args.questionId;
-      mcqCorrect = args.selectedIndex === question.correctIndex;
-    }
-  }
-
+  const { effectiveQuestionId, mcqCorrect } = await gradeSubmittedQuestion(args, articleId);
   const remediationShow = mcqCorrect === false;
+  const remediationViewed = remediationWasViewed(args, remediationShow);
 
   // ── Advance the comprehension step from the self-rating alone ──────────────
   const view = await markTodayComprehensionComplete({
@@ -379,7 +405,7 @@ export async function submitTodayComprehension(
       questionId: effectiveQuestionId,
       mcqCorrect,
       skillTag,
-      remediationViewed: args.remediationViewed === true || remediationShow,
+      remediationViewed,
     }),
   );
 
@@ -413,7 +439,7 @@ export async function submitTodayComprehension(
       selfRating: args.selfRating,
       skillTag,
       mcqCorrect,
-      remediationViewed: args.remediationViewed === true || remediationShow,
+      remediationViewed,
     });
   }
 

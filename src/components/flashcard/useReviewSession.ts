@@ -8,7 +8,7 @@
  * Uses a pure reducer (reviewSessionReducer) for all sync state transitions.
  */
 import { useReducer, useState, useRef, useEffect, useCallback } from "react";
-import type { ReviewMode } from "./types";
+import type { DueCard, ReviewMode } from "./types";
 import type { Grade } from "@/lib/learning/srs";
 import {
   reviewSessionReducer,
@@ -27,6 +27,31 @@ interface UseReviewSessionOptions {
    * focus back to the show-answer / cloze-input control.
    */
   onAfterGradeAdvance?: () => void;
+}
+
+interface LoadedReviewCards {
+  cards: DueCard[];
+  dueCount: number;
+}
+
+function reviewEndpointForMode(mode: ReviewMode): string {
+  return mode === "cloze" ? "/api/study/cloze" : "/api/study/flashcards";
+}
+
+async function fetchReviewCards(mode: ReviewMode): Promise<LoadedReviewCards> {
+  const res = await fetch(reviewEndpointForMode(mode));
+  if (!res.ok) throw new Error("fetch failed");
+
+  if (mode === "cloze") {
+    const data = (await res.json()) as { items: DueCard[] };
+    return { cards: data.items, dueCount: data.items.length };
+  }
+
+  const data = (await res.json()) as {
+    cards: DueCard[];
+    dueCount: number;
+  };
+  return { cards: data.cards, dueCount: data.dueCount };
 }
 
 export function useReviewSession({
@@ -66,30 +91,8 @@ export function useReviewSession({
     async (mode: ReviewMode) => {
       dispatch({ type: "START_LOADING" });
       try {
-        const endpoint =
-          mode === "cloze" ? "/api/study/cloze" : "/api/study/flashcards";
-        const res = await fetch(endpoint);
-        if (!res.ok) throw new Error("fetch failed");
-
-        let cards: import("./types").DueCard[];
-        let newDueCount: number;
-
-        if (mode === "cloze") {
-          const data = (await res.json()) as {
-            items: import("./types").DueCard[];
-          };
-          cards = data.items;
-          newDueCount = cards.length;
-        } else {
-          const data = (await res.json()) as {
-            cards: import("./types").DueCard[];
-            dueCount: number;
-          };
-          cards = data.cards;
-          newDueCount = data.dueCount;
-        }
-
-        setDueCount(newDueCount);
+        const { cards, dueCount: loadedDueCount } = await fetchReviewCards(mode);
+        setDueCount(loadedDueCount);
         dispatch({ type: "SESSION_LOADED", mode, cards });
       } catch {
         dispatch({ type: "LOAD_FAILED" });

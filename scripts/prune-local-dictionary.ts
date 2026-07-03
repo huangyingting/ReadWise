@@ -18,6 +18,8 @@ import { normalizeCandidates } from "@/lib/lexical/normalize";
 type CompactMeaning = [partOfSpeech: string, definitions: string[]];
 type CompactEntry = [phonetic: string, meanings: CompactMeaning[]];
 type DictionaryJson = Record<string, CompactEntry>;
+type RemovedInflection = { word: string; base: string; cue: string };
+type PruneResult = { pruned: DictionaryJson; removed: RemovedInflection[] };
 
 const DICTIONARY_DIR = path.resolve(process.cwd(), "dict");
 const DICTIONARY_FILES = ["en-50k.json", "cn-50k.json"];
@@ -125,32 +127,45 @@ function baseCandidates(word: string, text: string, keys: Set<string>): string[]
   return out;
 }
 
+function removalForInflection(
+  key: string,
+  text: string,
+  keys: Set<string>,
+  sharedRemovals: Map<string, string>,
+): Omit<RemovedInflection, "word"> | null {
+  const cue = text.match(INFLECTION_CUE_RE)?.[0];
+  const bases = cue ? baseCandidates(key, text, keys) : [];
+  const explicitBase = EXPLICIT_INFLECTION_BASES.get(key);
+  const sharedBase = sharedRemovals.get(key);
+
+  if (cue && bases.length > 0 && !LEXICALIZED_KEEP.has(key)) {
+    return { base: bases[0], cue };
+  }
+  if (explicitBase && keys.has(explicitBase) && !LEXICALIZED_KEEP.has(key)) {
+    return { base: explicitBase, cue: "known irregular inflection" };
+  }
+  if (sharedBase && keys.has(sharedBase) && !LEXICALIZED_KEEP.has(key)) {
+    return { base: sharedBase, cue: "matched English inflection entry" };
+  }
+
+  return null;
+}
+
 function pruneDictionary(
   dictionary: DictionaryJson,
   sharedRemovals: Map<string, string> = new Map(),
-): { pruned: DictionaryJson; removed: Array<{ word: string; base: string; cue: string }> } {
+): PruneResult {
   const keys = new Set(Object.keys(dictionary).map((key) => key.toLowerCase()));
   const pruned: DictionaryJson = {};
-  const removed: Array<{ word: string; base: string; cue: string }> = [];
+  const removed: RemovedInflection[] = [];
 
   for (const [word, entry] of Object.entries(dictionary)) {
     const key = word.toLowerCase();
     const text = flattenText(entry);
-    const cue = text.match(INFLECTION_CUE_RE)?.[0];
-    const bases = cue ? baseCandidates(key, text, keys) : [];
-    const explicitBase = EXPLICIT_INFLECTION_BASES.get(key);
-    const sharedBase = sharedRemovals.get(key);
+    const removal = removalForInflection(key, text, keys, sharedRemovals);
 
-    if (cue && bases.length > 0 && !LEXICALIZED_KEEP.has(key)) {
-      removed.push({ word, base: bases[0], cue });
-      continue;
-    }
-    if (explicitBase && keys.has(explicitBase) && !LEXICALIZED_KEEP.has(key)) {
-      removed.push({ word, base: explicitBase, cue: "known irregular inflection" });
-      continue;
-    }
-    if (sharedBase && keys.has(sharedBase) && !LEXICALIZED_KEEP.has(key)) {
-      removed.push({ word, base: sharedBase, cue: "matched English inflection entry" });
+    if (removal) {
+      removed.push({ word, ...removal });
       continue;
     }
 

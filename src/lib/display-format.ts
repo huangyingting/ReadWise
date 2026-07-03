@@ -9,6 +9,15 @@
 
 /** Placeholder returned for null / invalid inputs. */
 const DASH = "—";
+const DEFAULT_DATE_LOCALE = "en-US";
+
+function coerceDate(d: Date | string): Date {
+  return d instanceof Date ? d : new Date(d);
+}
+
+function isInvalidDate(d: Date): boolean {
+  return Number.isNaN(d.getTime());
+}
 
 // ---------------------------------------------------------------------------
 // Date helpers
@@ -21,9 +30,9 @@ const DASH = "—";
  */
 export function formatShortDate(d: Date | string | null | undefined): string {
   if (d == null) return DASH;
-  const date = d instanceof Date ? d : new Date(d as string);
-  if (isNaN(date.getTime())) return DASH;
-  return date.toLocaleDateString("en-US", {
+  const date = coerceDate(d);
+  if (isInvalidDate(date)) return DASH;
+  return date.toLocaleDateString(DEFAULT_DATE_LOCALE, {
     year: "numeric",
     month: "short",
     day: "numeric",
@@ -35,8 +44,8 @@ export function formatShortDate(d: Date | string | null | undefined): string {
  * (en-US — month short, year numeric).
  */
 export function formatMonthYear(d: Date | string): string {
-  const date = d instanceof Date ? d : new Date(d as string);
-  return date.toLocaleDateString("en-US", {
+  const date = coerceDate(d);
+  return date.toLocaleDateString(DEFAULT_DATE_LOCALE, {
     month: "short",
     year: "numeric",
   });
@@ -52,7 +61,7 @@ export function formatMonthYear(d: Date | string): string {
 export function formatUTCDateLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split("-").map(Number);
   const date = new Date(Date.UTC(y, m - 1, d));
-  return date.toLocaleDateString("en-US", {
+  return date.toLocaleDateString(DEFAULT_DATE_LOCALE, {
     month: "long",
     day: "numeric",
     year: "numeric",
@@ -74,7 +83,7 @@ export function formatMediumDate(d: Date | null): string | null {
  * Formats a Date as "Jun 24" (en-US — month short, day numeric).
  */
 export function formatShortMonthDay(d: Date): string {
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+  return d.toLocaleDateString(DEFAULT_DATE_LOCALE, { month: "short", day: "numeric" });
 }
 
 /**
@@ -83,8 +92,8 @@ export function formatShortMonthDay(d: Date): string {
  */
 export function formatDateTime(d: Date | string | null | undefined): string {
   if (d == null) return DASH;
-  const date = d instanceof Date ? d : new Date(d as string);
-  if (isNaN(date.getTime())) return DASH;
+  const date = coerceDate(d);
+  if (isInvalidDate(date)) return DASH;
   return date.toLocaleString();
 }
 
@@ -93,7 +102,7 @@ export function formatDateTime(d: Date | string | null | undefined): string {
  * (en-US — weekday long, UTC timezone.)
  */
 export function formatWeekdayUTC(d: Date): string {
-  return d.toLocaleDateString("en-US", { weekday: "long", timeZone: "UTC" });
+  return d.toLocaleDateString(DEFAULT_DATE_LOCALE, { weekday: "long", timeZone: "UTC" });
 }
 
 // ---------------------------------------------------------------------------

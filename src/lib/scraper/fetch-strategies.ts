@@ -298,6 +298,14 @@ function isGenuineNotFound(err: unknown): boolean {
   return isFetchHttpError(err) && NOT_FOUND_STATUSES.has(err.status);
 }
 
+function isNotFoundStatus(status: number): boolean {
+  return NOT_FOUND_STATUSES.has(status);
+}
+
+function isSuccessfulStatus(status: number): boolean {
+  return status >= 200 && status < 300;
+}
+
 /** Asserts a constructed proxy URL targets one of the allowlisted fallback hosts. */
 function assertAllowedFallbackHost(proxyUrl: string): void {
   const host = new URL(proxyUrl).hostname;
@@ -313,13 +321,13 @@ function browserStrategy(originalUrl: string): Strategy {
     isOrigin: false,
     run: async (_url, timeoutMs) => {
       const { status, html } = await renderViaBrowser(originalUrl, timeoutMs);
-      if (status === 404 || status === 410) {
+      if (isNotFoundStatus(status)) {
         throw new FetchHttpError(status, originalUrl);
       }
       if (status === 429) {
         throw new FetchHttpError(429, originalUrl);
       }
-      if (status >= 200 && status < 300) {
+      if (isSuccessfulStatus(status)) {
         return html;
       }
       throw new FetchHttpError(status || 503, originalUrl);
@@ -361,6 +369,17 @@ function waybackStrategy(originalUrl: string): Strategy {
   };
 }
 
+function preferRememberedStrategy(chain: Strategy[], host: string): void {
+  const remembered = hostStrategyMemory.get(host);
+  if (!remembered) return;
+
+  const idx = chain.findIndex((strategy) => strategy.id === remembered);
+  if (idx <= 0) return;
+
+  const [preferred] = chain.splice(idx, 1);
+  chain.unshift(preferred);
+}
+
 /**
  * Builds the ordered strategy chain for an origin URL, honoring the env flags.
  * When the host has a remembered winning strategy, it is moved to the front so
@@ -396,14 +415,7 @@ function buildChain(originalUrl: string, host: string): Strategy[] {
     chain.push(waybackStrategy(originalUrl));
   }
 
-  const remembered = hostStrategyMemory.get(host);
-  if (remembered) {
-    const idx = chain.findIndex((s) => s.id === remembered);
-    if (idx > 0) {
-      const [preferred] = chain.splice(idx, 1);
-      chain.unshift(preferred);
-    }
-  }
+  preferRememberedStrategy(chain, host);
 
   return chain;
 }

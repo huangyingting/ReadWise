@@ -103,6 +103,10 @@ function okProcess(articleId: string, ok = true): ArticleProcessResult {
   };
 }
 
+function queueArticleFindMany(...batches: Record<string, unknown>[][]): void {
+  articleFindManyQueue = batches;
+}
+
 function resetState(): void {
   revalidatedTags = [];
   revalidateThrows = false;
@@ -437,7 +441,7 @@ test("search providers cover registry swaps, postgres FTS success/failure, and a
   postgresEnabled = true;
   articleCount = 3;
   postgresRows = [article("pg", "Climate")];
-  articleFindManyQueue = [
+  queueArticleFindMany(
     [article("exact-title", "Climate")],
     [article("title", "Climate report")],
     [article("byline", "Byline")],
@@ -445,7 +449,7 @@ test("search providers cover registry swaps, postgres FTS success/failure, and a
     [],
     [article("text", "Body")],
     [article("annotation", "Annotation")],
-  ];
+  );
   annotationHighlightRows = [{ articleId: "annotation" }];
   annotationSavedWordRows = [{ articleId: "annotation" }];
 
@@ -456,7 +460,7 @@ test("search providers cover registry swaps, postgres FTS success/failure, and a
 
   postgresThrows = true;
   articleCount = 0;
-  articleFindManyQueue = [[], [], [], [], [], [], []];
+  queueArticleFindMany([], [], [], [], [], [], []);
   await provider.search("climate", {}, { role: "Admin" });
   assert.ok(articleFindManyCalls.length > 0);
 
@@ -634,13 +638,19 @@ test("provider client covers no-timeout signal, invalid URL logging, retry-after
   ];
   const sleeps: number[] = [];
   const urls: string[] = [];
+  const rememberSleep = async (ms: number) => {
+    sleeps.push(ms);
+  };
   mock.method(globalThis, "fetch", async (url: string) => {
     urls.push(url);
     return responses.shift()!;
   });
 
-  assert.equal((await providerFetch("https://provider.test/a", {}, { retries: 1, sleep: async (ms) => { sleeps.push(ms); } })).status, 200);
-  assert.equal((await providerFetch("https://provider.test/b", {}, { retries: 1, backoffBaseMs: 0, sleep: async (ms) => { sleeps.push(ms); } })).status, 200);
+  assert.equal((await providerFetch("https://provider.test/a", {}, { retries: 1, sleep: rememberSleep })).status, 200);
+  assert.equal(
+    (await providerFetch("https://provider.test/b", {}, { retries: 1, backoffBaseMs: 0, sleep: rememberSleep })).status,
+    200,
+  );
   assert.equal((await providerFetch("not a url", {}, { timeoutMs: 0 })).status, 200);
   assert.deepEqual(urls.at(-1), "not a url");
   assert.ok(sleeps.length >= 2);

@@ -33,6 +33,31 @@ const IDLE_TIMEOUT_MS = 30_000; // 30 s
 // session if the tab crashes before unmount).
 const PERIODIC_FLUSH_MS = 60_000; // 60 s
 
+type TimerRef = { current: ReturnType<typeof setTimeout> | null };
+
+function clearTimer(timerRef: TimerRef): void {
+  if (timerRef.current != null) {
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+}
+
+function isDocumentVisible(): boolean {
+  return document.visibilityState !== "hidden";
+}
+
+function sendReadingTime(articleId: string, activeMs: number, keepalive: boolean): void {
+  // keepalive beacon: must use raw fetch with keepalive:true to survive navigation
+  void fetch(`/api/reader/${articleId}/reading-time`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ activeMs }),
+    keepalive,
+  }).catch(() => {
+    // Best-effort; a missed flush is non-critical (progress > time tracking).
+  });
+}
+
 export default function ReaderTimeTracker({ articleId }: { articleId: string }) {
   const activeStartRef = useRef<number | null>(null);
   const accumulatedMsRef = useRef<number>(0);
@@ -53,15 +78,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
       const activeMs = clampActiveTime(total);
       if (activeMs <= 0) return;
 
-      // keepalive beacon: must use raw fetch with keepalive:true to survive navigation
-      void fetch(`/api/reader/${articleId}/reading-time`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ activeMs }),
-        keepalive,
-      }).catch(() => {
-        // Best-effort; a missed flush is non-critical (progress > time tracking).
-      });
+      sendReadingTime(articleId, activeMs, keepalive);
     }
 
     // ── Periodic flush ───────────────────────────────────────────────────────
@@ -70,7 +87,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
       periodicTimerRef.current = setTimeout(() => {
         flush(false);
         // Restart the active interval from "now" after the flush.
-        if (document.visibilityState !== "hidden") {
+        if (isDocumentVisible()) {
           activeStartRef.current = Date.now();
           schedulePeriodicFlush();
         }
@@ -78,10 +95,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
     }
 
     function clearPeriodicFlush(): void {
-      if (periodicTimerRef.current != null) {
-        clearTimeout(periodicTimerRef.current);
-        periodicTimerRef.current = null;
-      }
+      clearTimer(periodicTimerRef);
     }
 
     // ── Start / pause helpers ────────────────────────────────────────────────
@@ -100,7 +114,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
 
     // ── Idle timer ───────────────────────────────────────────────────────────
     function resetIdleTimer(): void {
-      if (idleTimerRef.current != null) clearTimeout(idleTimerRef.current);
+      clearTimer(idleTimerRef);
       idleTimerRef.current = setTimeout(pauseTracking, IDLE_TIMEOUT_MS);
     }
 
@@ -134,7 +148,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
     }
 
     // ── Initialise ───────────────────────────────────────────────────────────
-    if (document.visibilityState !== "hidden") {
+    if (isDocumentVisible()) {
       startTracking();
       resetIdleTimer();
     }
@@ -157,7 +171,7 @@ export default function ReaderTimeTracker({ articleId }: { articleId: string }) 
       window.removeEventListener("keydown", handleActivity);
 
       clearPeriodicFlush();
-      if (idleTimerRef.current != null) clearTimeout(idleTimerRef.current);
+      clearTimer(idleTimerRef);
 
       // Final flush on unmount (navigation away). keepalive ensures delivery.
       flush(true);

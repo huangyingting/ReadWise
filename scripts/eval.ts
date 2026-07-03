@@ -31,8 +31,16 @@ type Args = {
   help: boolean;
 };
 
+function defaultArgs(): Args {
+  return { live: false, json: false, feature: null, out: null, help: false };
+}
+
+function nextValue(argv: string[], index: number): string | null {
+  return argv[index + 1] ?? null;
+}
+
 function parseArgs(argv: string[]): Args {
-  const args: Args = { live: false, json: false, feature: null, out: null, help: false };
+  const args = defaultArgs();
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i];
     switch (arg) {
@@ -43,10 +51,12 @@ function parseArgs(argv: string[]): Args {
         args.json = true;
         break;
       case "--feature":
-        args.feature = argv[++i] ?? null;
+        args.feature = nextValue(argv, i);
+        i++;
         break;
       case "--out":
-        args.out = argv[++i] ?? null;
+        args.out = nextValue(argv, i);
+        i++;
         break;
       case "-h":
       case "--help":
@@ -79,6 +89,14 @@ function pct(score: number): string {
   return `${(score * 100).toFixed(1)}%`;
 }
 
+function printFailedProperties(caseResult: EvalReport["features"][number]["cases"][number]): void {
+  for (const property of caseResult.properties) {
+    if (!property.passed) {
+      console.log(`        ✗ ${property.name}: ${property.detail ?? "failed"}`);
+    }
+  }
+}
+
 function printConsoleReport(report: EvalReport): void {
   console.log(`\nAI evaluation report (${report.mode}) — ${report.generatedAt}`);
   console.log("=".repeat(64));
@@ -96,11 +114,7 @@ function printConsoleReport(report: EvalReport): void {
         `  [${mark}] ${caseResult.caseName} ` +
           `(${caseResult.propertiesPassed}/${caseResult.propertiesChecked})`,
       );
-      for (const property of caseResult.properties) {
-        if (!property.passed) {
-          console.log(`        ✗ ${property.name}: ${property.detail ?? "failed"}`);
-        }
-      }
+      printFailedProperties(caseResult);
     }
   }
   console.log("\n" + "=".repeat(64));

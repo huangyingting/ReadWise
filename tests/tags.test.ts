@@ -16,6 +16,16 @@ type Tag = {
   ownerId: string | null;
 };
 
+type ArticleRow = {
+  id: string;
+  status: ArticleStatus;
+  visibility: ArticleVisibility;
+  publishedAt: Date | null;
+  createdAt: Date;
+};
+
+const PUBLIC_TAG_NAMESPACE = "public";
+
 let aiConfigured = false;
 let aiReply: string | null = null;
 const articles = new Map<
@@ -31,14 +41,27 @@ const articles = new Map<
 let tags: Tag[] = [];
 let articleTags: { articleId: string; tagId: string }[] = [];
 let tagFindManyCalls: Array<{ where?: { scope?: TagScope } }> = [];
-let articleRows: {
-  id: string;
-  status: ArticleStatus;
-  visibility: ArticleVisibility;
-  publishedAt: Date | null;
-  createdAt: Date;
-}[] = [];
+let articleRows: ArticleRow[] = [];
 let tagSeq = 0;
+
+function publicTag(tag: Pick<Tag, "id" | "name" | "slug"> & Partial<Tag>): Tag {
+  return {
+    scope: TagScope.PUBLIC,
+    namespace: PUBLIC_TAG_NAMESPACE,
+    ownerId: null,
+    ...tag,
+  };
+}
+
+function publishedPublicArticle(id: string, now = new Date("2026-01-01")): ArticleRow {
+  return {
+    id,
+    status: ArticleStatus.PUBLISHED,
+    visibility: ArticleVisibility.PUBLIC,
+    publishedAt: now,
+    createdAt: now,
+  };
+}
 
 before(() => {
   mock.module("@/lib/api-auth", {
@@ -109,14 +132,14 @@ before(() => {
               t.scope === key.scope && t.namespace === key.namespace && t.slug === key.slug
             );
             if (existing) return existing;
-            const tag = {
+            const tag = publicTag({
               id: `tag-${++tagSeq}`,
               name: a.create.name,
               slug: a.create.slug,
               scope: a.create.scope,
               namespace: a.create.namespace,
               ownerId: a.create.ownerId,
-            };
+            });
             tags.push(tag);
             return tag;
           },
@@ -239,7 +262,7 @@ test("getOrCreateArticleTags scopes private article tags to the owner namespace"
 
 test("listTagsWithCounts excludes private-only tags from public listings", async () => {
   tags = [
-    { id: "public-tag", name: "Shared", slug: "shared", scope: TagScope.PUBLIC, namespace: "public", ownerId: null },
+    publicTag({ id: "public-tag", name: "Shared", slug: "shared" }),
     { id: "private-tag", name: "Private", slug: "private", scope: TagScope.PRIVATE, namespace: "user:user-1", ownerId: "user-1" },
   ];
   articleTags = [
@@ -248,8 +271,8 @@ test("listTagsWithCounts excludes private-only tags from public listings", async
   ];
   const now = new Date("2026-01-01");
   articleRows = [
-    { id: "public-a1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
-    { id: "private-a1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, publishedAt: now, createdAt: now },
+    publishedPublicArticle("public-a1", now),
+    { ...publishedPublicArticle("private-a1", now), visibility: ArticleVisibility.PRIVATE },
   ];
   const { listTagsWithCounts } = await import("@/lib/article-library");
 
@@ -260,14 +283,7 @@ test("listTagsWithCounts excludes private-only tags from public listings", async
 
 test("admin merge target API excludes private tags", async () => {
   tags = [
-    {
-      id: "public-tag",
-      name: "Shared",
-      slug: "shared",
-      scope: TagScope.PUBLIC,
-      namespace: "public",
-      ownerId: null,
-    },
+    publicTag({ id: "public-tag", name: "Shared", slug: "shared" }),
     {
       id: "private-tag",
       name: "Private Import",
@@ -289,8 +305,8 @@ test("admin merge target API excludes private tags", async () => {
 
 test("listRelatedArticles ranks by shared-tag overlap", async () => {
   tags = [
-    { id: "t1", name: "A", slug: "a", scope: TagScope.PUBLIC, namespace: "public", ownerId: null },
-    { id: "t2", name: "B", slug: "b", scope: TagScope.PUBLIC, namespace: "public", ownerId: null },
+    publicTag({ id: "t1", name: "A", slug: "a" }),
+    publicTag({ id: "t2", name: "B", slug: "b" }),
   ];
   articleTags = [
     { articleId: "a1", tagId: "t1" },
@@ -300,10 +316,7 @@ test("listRelatedArticles ranks by shared-tag overlap", async () => {
     { articleId: "rel1", tagId: "t1" },
   ];
   const now = new Date("2026-01-01");
-  articleRows = [
-    { id: "rel1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
-    { id: "rel2", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PUBLIC, publishedAt: now, createdAt: now },
-  ];
+  articleRows = [publishedPublicArticle("rel1", now), publishedPublicArticle("rel2", now)];
   const { listRelatedArticles } = await import("@/lib/article-library");
   const related = await listRelatedArticles("a1");
   assert.deepEqual(related.map((a) => a.id), ["rel2", "rel1"]);

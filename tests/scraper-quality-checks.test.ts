@@ -100,6 +100,20 @@ function linkedProse(minWords: number, hrefPrefix = "/article"): string {
   return out.join(" ");
 }
 
+function digestRoundupItems(): string {
+  return [
+    ["1. Scientists are testing a new battery design", "https://www.nature.com/articles/example-one"],
+    ["2. A robotics lab released a safer walking machine", "https://www.science.org/content/example-two"],
+    ["3. Climate monitors recorded another unusual signal", "https://www.noaa.gov/news/example-three"],
+    ["4. Astronomers found a promising planet candidate", "https://www.nasa.gov/news/example-four"],
+  ]
+    .map(
+      ([headline, href]) =>
+        `<p><strong>${headline}</strong> The brief item summarizes why researchers are paying close attention this week. (<a href="${href}">Source</a>)</p>`,
+    )
+    .join("");
+}
+
 /** Builds a minimal QualityInput with sensible defaults. */
 function makeInput(overrides: Partial<QualityInput> & { content: string }): QualityInput {
   const plainLen = overrides.content.replace(/<[^>]*>/g, " ").trim().split(/\s+/).length;
@@ -116,6 +130,19 @@ function makeInput(overrides: Partial<QualityInput> & { content: string }): Qual
 /** Returns the signal detail for a named check, or undefined. */
 function signalFor(result: ReturnType<typeof checkContentQuality>, check: string) {
   return result.signals.find((s) => s.check === check);
+}
+
+function withScraperQualityClassifier(value: string | undefined, fn: () => void): void {
+  const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
+  if (value === undefined) delete process.env.SCRAPER_QUALITY_CLASSIFIER;
+  else process.env.SCRAPER_QUALITY_CLASSIFIER = value;
+
+  try {
+    fn();
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_QUALITY_CLASSIFIER;
+    else process.env.SCRAPER_QUALITY_CLASSIFIER = prev;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -520,20 +547,9 @@ test("quality/signals: empty body skips non-critical checks (no false signals)",
 });
 
 test("quality/reject: generic must-reads digest roundup listicle is rejected", () => {
-  const digestItems = [
-    ["1. Scientists are testing a new battery design", "https://www.nature.com/articles/example-one"],
-    ["2. A robotics lab released a safer walking machine", "https://www.science.org/content/example-two"],
-    ["3. Climate monitors recorded another unusual signal", "https://www.noaa.gov/news/example-three"],
-    ["4. Astronomers found a promising planet candidate", "https://www.nasa.gov/news/example-four"],
-  ]
-    .map(
-      ([headline, href]) =>
-        `<p><strong>${headline}</strong> The brief item summarizes why researchers are paying close attention this week. (<a href="${href}">Source</a>)</p>`,
-    )
-    .join("");
   const input = makeInput({
     title: "What to know today",
-    content: `<p>The must-reads from across technology and science today.</p>${digestItems}<p>${prose(80)}</p>`,
+    content: `<p>The must-reads from across technology and science today.</p>${digestRoundupItems()}<p>${prose(80)}</p>`,
     sourceUrl: "https://www.technologyreview.com/2026/06/29/1234568/what-to-know-today/",
   });
 
@@ -544,20 +560,9 @@ test("quality/reject: generic must-reads digest roundup listicle is rejected", (
 });
 
 test("quality/reject: Technology Review branded digest roundup listicle is rejected", () => {
-  const digestItems = [
-    ["1. Scientists are testing a new battery design", "https://www.nature.com/articles/example-one"],
-    ["2. A robotics lab released a safer walking machine", "https://www.science.org/content/example-two"],
-    ["3. Climate monitors recorded another unusual signal", "https://www.noaa.gov/news/example-three"],
-    ["4. Astronomers found a promising planet candidate", "https://www.nasa.gov/news/example-four"],
-  ]
-    .map(
-      ([headline, href]) =>
-        `<p><strong>${headline}</strong> The brief item summarizes why researchers are paying close attention this week. (<a href="${href}">Source</a>)</p>`,
-    )
-    .join("");
   const input = makeInput({
     title: "The Download: what you need to know today",
-    content: `<p>The Download: across technology and science today.</p>${digestItems}<p>${prose(80)}</p>`,
+    content: `<p>The Download: across technology and science today.</p>${digestRoundupItems()}<p>${prose(80)}</p>`,
     sourceUrl: "https://www.technologyreview.com/2026/06/29/1234567/the-download/",
   });
 
@@ -727,36 +732,24 @@ const AD_LIKE_BODY = Array.from(
 ).join(" ");
 
 test("quality/ml: classifier flags ad-like body with ml-ad-classifier when enabled", () => {
-  const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
-  delete process.env.SCRAPER_QUALITY_CLASSIFIER; // default ON
-  try {
+  withScraperQualityClassifier(undefined, () => {
     const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
     assert.equal(signalFor(result, "ml-ad-classifier")?.passed, false);
     assert.notEqual(result.grade, "ok");
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_QUALITY_CLASSIFIER;
-    else process.env.SCRAPER_QUALITY_CLASSIFIER = prev;
-  }
+  });
 });
 
 test("quality/ml: classifier signal is absent when SCRAPER_QUALITY_CLASSIFIER=false", () => {
-  const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
-  process.env.SCRAPER_QUALITY_CLASSIFIER = "false";
-  try {
+  withScraperQualityClassifier("false", () => {
     const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
     assert.equal(signalFor(result, "ml-ad-classifier"), undefined);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_QUALITY_CLASSIFIER;
-    else process.env.SCRAPER_QUALITY_CLASSIFIER = prev;
-  }
+  });
 });
 
 test("quality/ml: a clean long article is not down-ranked by the classifier", () => {
-  const prev = process.env.SCRAPER_QUALITY_CLASSIFIER;
-  delete process.env.SCRAPER_QUALITY_CLASSIFIER; // default ON
-  try {
+  withScraperQualityClassifier(undefined, () => {
     const input = makeInput({
       content: articleHtml(prose(MIN_READING_WORD_COUNT)),
       author: "Jane Doe",
@@ -766,10 +759,7 @@ test("quality/ml: a clean long article is not down-ranked by the classifier", ()
     // Conservative guard: clean, long article is skipped entirely → ok / 100.
     assert.equal(result.grade, "ok");
     assert.equal(signalFor(result, "ml-ad-classifier"), undefined);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_QUALITY_CLASSIFIER;
-    else process.env.SCRAPER_QUALITY_CLASSIFIER = prev;
-  }
+  });
 });
 
 // ---------------------------------------------------------------------------

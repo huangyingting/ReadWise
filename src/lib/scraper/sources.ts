@@ -285,6 +285,22 @@ function coarseOutcome(outcome: CrawlRunOutcome): "success" | "empty" | "failed"
   return "success";
 }
 
+function countersFromSource(source: ContentSourceRow | null): CrawlCounters {
+  if (!source) return { ...ZERO_COUNTERS };
+
+  return {
+    lastError: source.lastError,
+    lastDiscoveryCount: source.lastDiscoveryCount,
+    totalDiscovered: source.totalDiscovered,
+    totalScraped: source.totalScraped,
+    totalFailed: source.totalFailed,
+    totalDuplicates: source.totalDuplicates,
+    totalRejected: source.totalRejected,
+    consecutiveFailures: source.consecutiveFailures,
+    consecutiveZeroDiscovery: source.consecutiveZeroDiscovery,
+  };
+}
+
 /**
  * Folds one crawl run's outcome into a provider's persisted counters + health,
  * upserting the row (so health recording is robust even before an explicit
@@ -299,21 +315,7 @@ export async function recordCrawlRun(
     where: { providerKey },
   });
 
-  const prevCounters: CrawlCounters = existing
-    ? {
-        lastError: existing.lastError,
-        lastDiscoveryCount: existing.lastDiscoveryCount,
-        totalDiscovered: existing.totalDiscovered,
-        totalScraped: existing.totalScraped,
-        totalFailed: existing.totalFailed,
-        totalDuplicates: existing.totalDuplicates,
-        totalRejected: existing.totalRejected,
-        consecutiveFailures: existing.consecutiveFailures,
-        consecutiveZeroDiscovery: existing.consecutiveZeroDiscovery,
-      }
-    : { ...ZERO_COUNTERS };
-
-  const folded = applyCrawlOutcome(prevCounters, outcome);
+  const folded = applyCrawlOutcome(countersFromSource(existing), outcome);
   const { healthStatus, ...counters } = folded;
 
   const row = await prisma.contentSource.upsert({

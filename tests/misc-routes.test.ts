@@ -32,25 +32,14 @@ import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 let authState: AuthState = "ok";
 
 // level-recommendation stubs
-let levelRecommendation: Record<string, unknown> | null = {
-  suggestion: "hold",
-  confidence: 0.8,
-  explanation: ["Your level looks right."],
-  targetLevel: null,
-  recommendedLevel: "B1",
-  currentLevel: "B1",
-};
+let levelRecommendation: Record<string, unknown> | null = defaultLevelRecommendation();
 
 // PII capture — captureError is called from client-errors route with scrubbed message
 let capturedErrors: { message: string }[] = [];
 
 // account lifecycle stubs
 let deleteAccountResult: { ok: boolean; status?: number; error?: string } = { ok: true };
-let exportDataResult: Record<string, unknown> = {
-  user: { id: "user-1", email: "t@e.com" },
-  articles: [],
-  savedWords: [],
-};
+let exportDataResult: Record<string, unknown> = defaultExportData();
 
 // study/words stubs
 const savedWordsResult = {
@@ -59,6 +48,21 @@ const savedWordsResult = {
   page: 1,
   totalPages: 1,
 };
+
+function defaultLevelRecommendation(): Record<string, unknown> {
+  return {
+    suggestion: "hold",
+    confidence: 0.8,
+    explanation: ["Your level looks right."],
+    targetLevel: null,
+    recommendedLevel: "B1",
+    currentLevel: "B1",
+  };
+}
+
+function defaultExportData(): Record<string, unknown> {
+  return { user: { id: "user-1", email: "t@e.com" }, articles: [], savedWords: [] };
+}
 
 // ---------------------------------------------------------------------------
 // Module mocks
@@ -160,17 +164,10 @@ before(() => {
 
 beforeEach(() => {
   authState = "ok";
-  levelRecommendation = {
-    suggestion: "hold",
-    confidence: 0.8,
-    explanation: ["Your level looks right."],
-    targetLevel: null,
-    recommendedLevel: "B1",
-    currentLevel: "B1",
-  };
+  levelRecommendation = defaultLevelRecommendation();
   capturedErrors = [];
   deleteAccountResult = { ok: true };
-  exportDataResult = { user: { id: "user-1", email: "t@e.com" }, articles: [], savedWords: [] };
+  exportDataResult = defaultExportData();
 });
 
 // ===========================================================================

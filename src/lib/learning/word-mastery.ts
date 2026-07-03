@@ -21,6 +21,11 @@ import { clamp01, parseStringArray } from "./primitives";
 /** Max source article ids retained per word (most-recent-first, bounded). */
 export const MAX_SOURCE_ARTICLE_IDS = 20;
 
+const EXPOSURE_SCORE_SATURATION = 4;
+const EXPOSURE_ONLY_CEILING = 0.6;
+const REVIEW_TRUST_SATURATION = 4;
+const CONFIDENCE_SATURATION = 5;
+
 export type WordMasteryRecord = {
   lemma: string;
   familiarity: number; // 0–1
@@ -64,14 +69,17 @@ export function computeFamiliarity(
   correctReviews: number,
   incorrectReviews: number,
 ): number {
-  const exposureScore = 1 - Math.exp(-Math.max(0, exposures) / 4); // 0 → ~1
-  const reviews = Math.max(0, correctReviews) + Math.max(0, incorrectReviews);
+  const exposureScore = exposureRecognitionScore(exposures);
+  const reviews = nonNegative(correctReviews) + nonNegative(incorrectReviews);
   if (reviews === 0) {
-    return clamp01(exposureScore * 0.6);
+    return clamp01(exposureScore * EXPOSURE_ONLY_CEILING);
   }
-  const accuracy = Math.max(0, correctReviews) / reviews;
-  const recallTrust = Math.min(1, reviews / 4);
-  return clamp01(exposureScore * 0.6 * (1 - recallTrust) + accuracy * recallTrust);
+  const accuracy = nonNegative(correctReviews) / reviews;
+  const recallTrust = Math.min(1, reviews / REVIEW_TRUST_SATURATION);
+  return clamp01(
+    exposureScore * EXPOSURE_ONLY_CEILING * (1 - recallTrust) +
+      accuracy * recallTrust,
+  );
 }
 
 /**
@@ -84,10 +92,18 @@ export function computeConfidence(
   incorrectReviews: number,
 ): number {
   const evidence =
-    Math.max(0, exposures) +
-    Math.max(0, correctReviews) +
-    Math.max(0, incorrectReviews);
-  return clamp01(1 - Math.exp(-evidence / 5));
+    nonNegative(exposures) +
+    nonNegative(correctReviews) +
+    nonNegative(incorrectReviews);
+  return clamp01(1 - Math.exp(-evidence / CONFIDENCE_SATURATION));
+}
+
+function nonNegative(value: number): number {
+  return Math.max(0, value);
+}
+
+function exposureRecognitionScore(exposures: number): number {
+  return 1 - Math.exp(-nonNegative(exposures) / EXPOSURE_SCORE_SATURATION);
 }
 
 type WordMasteryRow = {
@@ -134,6 +150,61 @@ type WordDelta = {
   reviewed: boolean;
 };
 
+type WordMasteryData = {
+  familiarity: number;
+  exposures: number;
+  correctReviews: number;
+  incorrectReviews: number;
+  confidence: number;
+  sourceArticleIds: string[];
+  lastSeenAt: Date;
+  lastReviewedAt: Date | null;
+};
+
+function incrementCount(existing: number | undefined, delta: number): number {
+  return (existing ?? 0) + nonNegative(delta);
+}
+
+function buildWordMasteryData(
+  existing: WordMasteryRow | null,
+  delta: WordDelta,
+  now: Date,
+): WordMasteryData {
+  const exposures = incrementCount(existing?.exposures, delta.exposureDelta);
+  const correctReviews = incrementCount(
+    existing?.correctReviews,
+    delta.correctDelta,
+  );
+  const incorrectReviews = incrementCount(
+    existing?.incorrectReviews,
+    delta.incorrectDelta,
+  );
+  const familiarity = computeFamiliarity(
+    exposures,
+    correctReviews,
+    incorrectReviews,
+  );
+  const confidence = computeConfidence(
+    exposures,
+    correctReviews,
+    incorrectReviews,
+  );
+
+  return {
+    familiarity,
+    exposures,
+    correctReviews,
+    incorrectReviews,
+    confidence,
+    sourceArticleIds: mergeSourceArticleIds(
+      parseStringArray(existing?.sourceArticleIds),
+      delta.articleId,
+    ),
+    lastSeenAt: now,
+    lastReviewedAt: delta.reviewed ? now : (existing?.lastReviewedAt ?? null),
+  };
+}
+
 /**
  * Reads the current row (if any), applies the delta, recomputes the derived
  * familiarity/confidence and upserts. Used by both the exposure and review
@@ -154,57 +225,20 @@ async function applyWordDelta(
   });
 
   const now = new Date();
-  const exposures =
-    (existing?.exposures ?? 0) + Math.max(0, delta.exposureDelta);
-  const correctReviews =
-    (existing?.correctReviews ?? 0) + Math.max(0, delta.correctDelta);
-  const incorrectReviews =
-    (existing?.incorrectReviews ?? 0) + Math.max(0, delta.incorrectDelta);
-
-  const familiarity = computeFamiliarity(
-    exposures,
-    correctReviews,
-    incorrectReviews,
+  const data = buildWordMasteryData(
+    existing as WordMasteryRow | null,
+    delta,
+    now,
   );
-  const confidence = computeConfidence(
-    exposures,
-    correctReviews,
-    incorrectReviews,
-  );
-
-  const sourceArticleIds = mergeSourceArticleIds(
-    parseStringArray(existing?.sourceArticleIds),
-    delta.articleId,
-  );
-
-  const lastReviewedAt = delta.reviewed
-    ? now
-    : (existing?.lastReviewedAt ?? null);
 
   const row = await prisma.wordMastery.upsert({
     where: { userId_lemma: { userId, lemma } },
     create: {
       userId,
       lemma,
-      familiarity,
-      exposures,
-      correctReviews,
-      incorrectReviews,
-      confidence,
-      sourceArticleIds,
-      lastSeenAt: now,
-      lastReviewedAt,
+      ...data,
     },
-    update: {
-      familiarity,
-      exposures,
-      correctReviews,
-      incorrectReviews,
-      confidence,
-      sourceArticleIds,
-      lastSeenAt: now,
-      lastReviewedAt,
-    },
+    update: data,
   });
 
   return toRecord(row as unknown as WordMasteryRow);

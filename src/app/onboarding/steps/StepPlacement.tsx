@@ -1,13 +1,51 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { LEVEL_HINTS } from "@/lib/option-registries";
-import { type EnglishLevel } from "@/lib/option-registries";
+import { LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
 import { computePlacementScore, type PlacementQuestion } from "@/lib/placement";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { cn } from "@/lib/cn";
 import { STEP_TITLES } from "./StepLevel";
+
+interface StepPlacementProps {
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  selfReportedLevel: string;
+  questions: PlacementQuestion[];
+  answers: (number | null)[];
+  onAnswer: (qIdx: number, optIdx: number) => void;
+  suggestedLevel: EnglishLevel | null;
+  onAcceptSuggestion: () => void;
+  onDismissSuggestion: () => void;
+  suggestionAccepted: boolean;
+}
+
+type PlacementOptionState = "correct" | "wrong" | "selected" | "default";
+
+const PLACEMENT_OPTION_CLASSES: Record<PlacementOptionState, string> = {
+  correct: "border-success bg-[color-mix(in_srgb,var(--success)_8%,transparent)] text-text",
+  wrong:
+    "border-danger-text bg-[color-mix(in_srgb,var(--danger-text)_8%,transparent)] text-text",
+  selected: "border-primary bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] text-text",
+  default: "border-border-strong bg-surface hover:border-text-subtle text-text",
+};
+
+function getPlacementOptionState({
+  isRevealed,
+  isCorrect,
+  isWrong,
+  isSelected,
+}: {
+  isRevealed: boolean;
+  isCorrect: boolean;
+  isWrong: boolean;
+  isSelected: boolean;
+}): PlacementOptionState {
+  if (isRevealed && isCorrect) return "correct";
+  if (isRevealed && isWrong) return "wrong";
+  if (isSelected) return "selected";
+  return "default";
+}
 
 export function StepPlacement({
   headingRef,
@@ -19,17 +57,7 @@ export function StepPlacement({
   onAcceptSuggestion,
   onDismissSuggestion,
   suggestionAccepted,
-}: {
-  headingRef: React.RefObject<HTMLHeadingElement | null>;
-  selfReportedLevel: string;
-  questions: PlacementQuestion[];
-  answers: (number | null)[];
-  onAnswer: (qIdx: number, optIdx: number) => void;
-  suggestedLevel: EnglishLevel | null;
-  onAcceptSuggestion: () => void;
-  onDismissSuggestion: () => void;
-  suggestionAccepted: boolean;
-}) {
+}: StepPlacementProps) {
   const allAnswered = answers.every((a) => a !== null);
   const score = computePlacementScore(answers, questions);
 
@@ -68,6 +96,12 @@ export function StepPlacement({
                   const isRevealed = allAnswered;
                   const isCorrect = oi === q.correctIndex;
                   const isWrong = isSelected && !isCorrect;
+                  const optionState = getPlacementOptionState({
+                    isRevealed,
+                    isCorrect,
+                    isWrong,
+                    isSelected,
+                  });
                   return (
                     <label
                       key={oi}
@@ -76,13 +110,7 @@ export function StepPlacement({
                         "border rounded-[var(--radius-md)] p-[var(--space-3)] cursor-pointer text-[length:var(--text-sm)]",
                         "transition-[background-color,border-color] [transition-duration:var(--duration-fast)]",
                         "has-[:focus-visible]:[box-shadow:0_0_0_2px_var(--ring-offset),0_0_0_4px_var(--focus-ring)]",
-                        isRevealed && isCorrect
-                          ? "border-success bg-[color-mix(in_srgb,var(--success)_8%,transparent)] text-text"
-                          : isRevealed && isWrong
-                          ? "border-danger-text bg-[color-mix(in_srgb,var(--danger-text)_8%,transparent)] text-text"
-                          : isSelected
-                          ? "border-primary bg-[color-mix(in_srgb,var(--primary)_8%,transparent)] text-text"
-                          : "border-border-strong bg-surface hover:border-text-subtle text-text",
+                        PLACEMENT_OPTION_CLASSES[optionState],
                         allAnswered && "pointer-events-none",
                       )}
                     >

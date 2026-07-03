@@ -10,22 +10,12 @@ import { type AuthState, fullAuthExports } from "./support/auth-mock";
 // ---- mutable auth state --------------------------------------------------
 let authState: AuthState = "ok";
 
+const VALID_IMPORT_URL = "https://example.com/article";
+
 // ---- mutable prisma stubs ------------------------------------------------
 let countResult = 0; // number of today's imports
 let createdId = "new-article-id";
-let scrapeResult: unknown = {
-  title: "My Article",
-  author: null,
-  source: "example.com",
-  sourceUrl: "https://example.com/article",
-  heroImage: null,
-  excerpt: null,
-  content: "<p>" + "word ".repeat(60) + "</p>",
-  category: null,
-  wordCount: 60,
-  readingMinutes: 1,
-  publishedAt: null,
-};
+let scrapeResult: unknown = makeScrapeResult();
 let scrapeThrows = false;
 let ssrfThrows = false;
 let updateCalled = false;
@@ -36,6 +26,27 @@ let createArgs: { data?: { content?: string } } | null = null;
 let sanitizeCalls: string[] = [];
 let prismaStub: Record<string, unknown>;
 
+function makeScrapeResult(overrides: Record<string, unknown> = {}) {
+  return {
+    title: "My Article",
+    author: null,
+    source: "example.com",
+    sourceUrl: VALID_IMPORT_URL,
+    heroImage: null,
+    excerpt: null,
+    content: "<p>" + "word ".repeat(60) + "</p>",
+    category: null,
+    wordCount: 60,
+    readingMinutes: 1,
+    publishedAt: null,
+    ...overrides,
+  };
+}
+
+function validText(words = 55): string {
+  return "word ".repeat(words).trim();
+}
+
 before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: fullAuthExports(() => authState),
@@ -45,8 +56,15 @@ before(() => {
     article: {
       count: async () => countResult,
       findFirst: async () => findFirstResult,
-      create: async (args: unknown) => { createCalled = true; createArgs = args as typeof createArgs; return { id: createdId }; },
-      update: async () => { updateCalled = true; return { id: createdId }; },
+      create: async (args: unknown) => {
+        createCalled = true;
+        createArgs = args as typeof createArgs;
+        return { id: createdId };
+      },
+      update: async () => {
+        updateCalled = true;
+        return { id: createdId };
+      },
       findMany: async () => [],
     },
     $transaction: async (fn: unknown) => {
@@ -169,19 +187,7 @@ beforeEach(() => {
   auditCalls = 0;
   createArgs = null;
   sanitizeCalls = [];
-  scrapeResult = {
-    title: "My Article",
-    author: null,
-    source: "example.com",
-    sourceUrl: "https://example.com/article",
-    heroImage: null,
-    excerpt: null,
-    content: "<p>" + "word ".repeat(60) + "</p>",
-    category: null,
-    wordCount: 60,
-    readingMinutes: 1,
-    publishedAt: null,
-  };
+  scrapeResult = makeScrapeResult();
 });
 
 type RouteHandler = (req: Request, ctx?: unknown) => Promise<Response>;
@@ -201,12 +207,12 @@ async function makeReq(body: unknown): Promise<Response> {
 
 test("401 when not authenticated", async () => {
   authState = "unauth";
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 401);
 });
 
 test("URL import succeeds with valid URL and returns article id", async () => {
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 201);
   const data = await res.json();
   assert.equal(data.id, createdId);
@@ -214,14 +220,14 @@ test("URL import succeeds with valid URL and returns article id", async () => {
 });
 
 test("text import succeeds with title + text", async () => {
-  const res = await makeReq({ title: "My Title", text: "word ".repeat(55).trim() });
+  const res = await makeReq({ title: "My Title", text: validText() });
   assert.equal(res.status, 201);
   const data = await res.json();
   assert.equal(data.id, createdId);
 });
 
 test("text import uses Untitled import when no title provided", async () => {
-  const res = await makeReq({ text: "word ".repeat(55).trim() });
+  const res = await makeReq({ text: validText() });
   assert.equal(res.status, 201);
 });
 
@@ -249,7 +255,7 @@ test("400 when text is empty string", async () => {
 
 test("429 when daily import limit is reached", async () => {
   countResult = 5; // already at limit
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 429);
   const data = await res.json();
   assert.ok(data.error.toLowerCase().includes("limit"));
@@ -301,13 +307,13 @@ test("text import sanitizes HTML before storing (strips script/onerror)", async 
 
 test("422 when scraper throws (network error)", async () => {
   scrapeThrows = true;
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 422);
 });
 
 test("422 when scraper returns null (extraction failed)", async () => {
   scrapeResult = null;
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 422);
   const data = await res.json();
   assert.ok(data.error.toLowerCase().includes("extract") || data.error.toLowerCase().includes("content"));
@@ -317,7 +323,7 @@ test("duplicate URL import returns 200 with duplicate flag and does not create o
   findFirstResult = { id: "existing-id" };
   // Even at the daily limit, a duplicate must NOT 429 (dedupe happens first).
   countResult = 5;
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 200);
   const data = await res.json();
   assert.equal(data.duplicate, true);
@@ -328,7 +334,7 @@ test("duplicate URL import returns 200 with duplicate flag and does not create o
 test("non-duplicate URL import at the daily limit returns 429 (quota checked after dedupe)", async () => {
   findFirstResult = null;
   countResult = 5;
-  const res = await makeReq({ url: "https://example.com/article" });
+  const res = await makeReq({ url: VALID_IMPORT_URL });
   assert.equal(res.status, 429);
   assert.equal(createCalled, false);
 });

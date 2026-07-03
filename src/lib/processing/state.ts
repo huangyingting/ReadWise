@@ -24,6 +24,10 @@ import { FEATURE_KEYS, type FeatureKey } from "./registry";
 
 const log = createLogger("processing-state");
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Canonical feature steps tracked by the pipeline.
  * Derived from the feature registry — single source of truth (REF-025).
@@ -101,7 +105,7 @@ export async function beginStep(articleId: string, step: string): Promise<void> 
     log.warn("processing_state.begin_failed", {
       articleId,
       step,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
   }
 }
@@ -111,6 +115,17 @@ export type FinishStepOptions = {
   promptVersion?: string | null;
   lastError?: string | null;
 };
+
+function completionTimeForStatus(
+  status: ProcessingStepStatus,
+  now: Date,
+): Date | null {
+  return status === "running" ? null : now;
+}
+
+function attemptsForCreatedStep(status: ProcessingStepStatus): number {
+  return status === "skipped" ? 0 : 1;
+}
 
 /**
  * Records the terminal outcome of a step (generated | skipped | fallback |
@@ -125,7 +140,7 @@ export async function finishStep(
 ): Promise<void> {
   const now = new Date();
   const lastError = status === "failed" ? clampError(opts.lastError) : null;
-  const completedAt = status === "running" ? null : now;
+  const completedAt = completionTimeForStatus(status, now);
   try {
     await prisma.articleProcessingStep.upsert({
       where: { articleId_step: { articleId, step } },
@@ -133,7 +148,7 @@ export async function finishStep(
         articleId,
         step,
         status,
-        attempts: status === "skipped" ? 0 : 1,
+        attempts: attemptsForCreatedStep(status),
         completedAt,
         modelName: opts.modelName ?? null,
         promptVersion: opts.promptVersion ?? null,
@@ -152,7 +167,7 @@ export async function finishStep(
       articleId,
       step,
       status,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
   }
 }
@@ -169,7 +184,7 @@ export async function getArticleProcessingSteps(
   } catch (err) {
     log.warn("processing_state.read_failed", {
       articleId,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
     return [];
   }

@@ -24,6 +24,8 @@
  * currently visible (not inside a `[hidden]` subtree and actually rendered).
  */
 
+import { useEffect, type RefObject } from "react";
+
 const FOCUSABLE_SELECTOR =
   "a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex='-1'])";
 
@@ -47,11 +49,54 @@ export function getTabbable(root: HTMLElement | null): HTMLElement[] {
   ).filter((el) => el.tabIndex >= 0 && isVisible(el));
 }
 
+function focusInitialTarget(
+  containerRef: RefObject<HTMLElement | null>,
+  initialFocusRef: RefObject<HTMLElement | null> | undefined,
+): void {
+  const target =
+    initialFocusRef?.current ??
+    getTabbable(containerRef.current)[0] ??
+    containerRef.current;
+  target?.focus();
+}
+
+function handleEscapeKey(
+  event: KeyboardEvent,
+  onEscape: () => void,
+  stopEscapePropagation: boolean,
+): void {
+  event.preventDefault();
+  if (stopEscapePropagation) event.stopImmediatePropagation();
+  onEscape();
+}
+
+function handleTabKey(
+  event: KeyboardEvent,
+  container: HTMLElement | null,
+): void {
+  const list = getTabbable(container);
+  if (list.length === 0) {
+    event.preventDefault();
+    container?.focus();
+    return;
+  }
+
+  const firstEl = list[0];
+  const lastEl = list[list.length - 1];
+  const activeEl = document.activeElement;
+
+  if (event.shiftKey && (activeEl === firstEl || activeEl === container)) {
+    event.preventDefault();
+    lastEl.focus();
+  } else if (!event.shiftKey && activeEl === lastEl) {
+    event.preventDefault();
+    firstEl.focus();
+  }
+}
+
 // ---------------------------------------------------------------------------
 // useFocusTrap — React hook
 // ---------------------------------------------------------------------------
-
-import { useEffect, type RefObject } from "react";
 
 export interface FocusTrapOptions {
   /**
@@ -123,41 +168,17 @@ export function useFocusTrap(
     const previouslyFocused = document.activeElement as HTMLElement | null;
 
     // Move initial focus into the trap.
-    const target =
-      initialFocusRef?.current ??
-      getTabbable(containerRef.current)[0] ??
-      containerRef.current;
-    target?.focus();
+    focusInitialTarget(containerRef, initialFocusRef);
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        event.preventDefault();
-        if (stopEscapePropagation) event.stopImmediatePropagation();
-        onEscape();
+        handleEscapeKey(event, onEscape, stopEscapePropagation);
         return;
       }
 
       if (event.key !== "Tab") return;
 
-      const container = containerRef.current;
-      const list = getTabbable(container);
-      if (list.length === 0) {
-        event.preventDefault();
-        container?.focus();
-        return;
-      }
-
-      const firstEl = list[0];
-      const lastEl = list[list.length - 1];
-      const activeEl = document.activeElement;
-
-      if (event.shiftKey && (activeEl === firstEl || activeEl === container)) {
-        event.preventDefault();
-        lastEl.focus();
-      } else if (!event.shiftKey && activeEl === lastEl) {
-        event.preventDefault();
-        firstEl.focus();
-      }
+      handleTabKey(event, containerRef.current);
     }
 
     document.addEventListener("keydown", onKeyDown, capture);

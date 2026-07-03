@@ -28,6 +28,12 @@ let throwP2002OnCreate = false;
 let winnerOnReRead: Record<string, unknown> | null = null;
 
 const NOW = new Date("2026-06-27T12:00:00Z");
+const DEFAULT_SESSION_REQUEST = {
+  userId: "u1",
+  localDate: "2026-06-27",
+  timezoneSnapshot: "UTC",
+  now: NOW,
+};
 
 function persistedRow(data: Record<string, unknown>): Record<string, unknown> {
   return {
@@ -46,6 +52,10 @@ function persistedRow(data: Record<string, unknown>): Record<string, unknown> {
     updatedAt: NOW,
     ...data,
   };
+}
+
+function pickArticleIds(...ids: string[]): Array<{ id: string }> {
+  return ids.map((id) => ({ id }));
 }
 
 before(() => {
@@ -139,10 +149,27 @@ beforeEach(() => {
 const daysAgo = (n: number) =>
   new Date(NOW.getTime() - n * 24 * 60 * 60 * 1000);
 
-test("returns the existing session unchanged (idempotent)", async () => {
+function progressRow(overrides: Partial<ProgressRow>): ProgressRow {
+  return {
+    articleId: "a-resume",
+    userId: "u1",
+    percent: 40,
+    completed: false,
+    updatedAt: daysAgo(1),
+    ...overrides,
+  };
+}
+
+async function getOrCreateDefaultSession(
+  overrides: Partial<typeof DEFAULT_SESSION_REQUEST> = {},
+) {
   const { getOrCreateTodaySession } = await import(
     "@/lib/engagement/today-session/generator"
   );
+  return getOrCreateTodaySession({ ...DEFAULT_SESSION_REQUEST, ...overrides });
+}
+
+test("returns the existing session unchanged (idempotent)", async () => {
   existingSession = persistedRow({
     id: "ts-existing",
     userId: "u1",
@@ -154,30 +181,17 @@ test("returns the existing session unchanged (idempotent)", async () => {
     source: "picks",
     generationReasonCode: "picks_primary",
   });
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  const res = await getOrCreateDefaultSession();
   assert.equal(res.id, "ts-existing");
   assert.equal(createdData, null, "must not create when one exists");
 });
 
 test("selects a recent in-progress article as resume (source=resume)", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
   progressRows = [
-    { articleId: "a-resume", userId: "u1", percent: 40, completed: false, updatedAt: daysAgo(1) },
+    progressRow({ articleId: "a-resume" }),
   ];
-  pickArticles = [{ id: "p1" }, { id: "p2" }];
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  pickArticles = pickArticleIds("p1", "p2");
+  const res = await getOrCreateDefaultSession();
   assert.equal(res.source, "resume");
   assert.equal(res.generationReasonCode, "resume_in_progress");
   assert.equal(res.primaryArticleId, "a-resume");
@@ -187,37 +201,21 @@ test("selects a recent in-progress article as resume (source=resume)", async () 
 });
 
 test("excludes stale (>7d) and out-of-range progress from resume", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
   progressRows = [
-    { articleId: "a-stale", userId: "u1", percent: 50, completed: false, updatedAt: daysAgo(30) },
-    { articleId: "a-too-low", userId: "u1", percent: 5, completed: false, updatedAt: daysAgo(1) },
-    { articleId: "a-too-high", userId: "u1", percent: 96, completed: false, updatedAt: daysAgo(1) },
+    progressRow({ articleId: "a-stale", percent: 50, updatedAt: daysAgo(30) }),
+    progressRow({ articleId: "a-too-low", percent: 5 }),
+    progressRow({ articleId: "a-too-high", percent: 96 }),
   ];
-  pickArticles = [{ id: "p1" }, { id: "p2" }];
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  pickArticles = pickArticleIds("p1", "p2");
+  const res = await getOrCreateDefaultSession();
   // No eligible resume → Picks fallback.
   assert.equal(res.source, "picks");
   assert.equal(res.primaryArticleId, "p1");
 });
 
 test("falls back to Picks for primary + stable backups", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
-  pickArticles = [{ id: "p1" }, { id: "p2" }, { id: "p3" }, { id: "p4" }];
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  pickArticles = pickArticleIds("p1", "p2", "p3", "p4");
+  const res = await getOrCreateDefaultSession();
   assert.equal(res.source, "picks");
   assert.equal(res.generationReasonCode, "picks_primary");
   assert.equal(res.primaryArticleId, "p1");
@@ -225,17 +223,9 @@ test("falls back to Picks for primary + stable backups", async () => {
 });
 
 test("no-candidate fallback yields null primary + browse/import state", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
   progressRows = [];
   pickArticles = [];
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  const res = await getOrCreateDefaultSession();
   assert.equal(res.primaryArticleId, null);
   assert.equal(res.source, "none");
   assert.equal(res.generationReasonCode, "no_candidate");
@@ -243,10 +233,7 @@ test("no-candidate fallback yields null primary + browse/import state", async ()
 });
 
 test("concurrent create (P2002) recovers by re-reading the winner", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
-  pickArticles = [{ id: "p1" }];
+  pickArticles = pickArticleIds("p1");
   throwP2002OnCreate = true;
   winnerOnReRead = persistedRow({
     id: "ts-winner",
@@ -259,26 +246,13 @@ test("concurrent create (P2002) recovers by re-reading the winner", async () => 
     source: "picks",
     generationReasonCode: "picks_primary",
   });
-  const res = await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  const res = await getOrCreateDefaultSession();
   assert.equal(res.id, "ts-winner");
 });
 
 test("persists ids only — no learning content in the created plan", async () => {
-  const { getOrCreateTodaySession } = await import(
-    "@/lib/engagement/today-session/generator"
-  );
-  pickArticles = [{ id: "p1" }, { id: "p2" }];
-  await getOrCreateTodaySession({
-    userId: "u1",
-    localDate: "2026-06-27",
-    timezoneSnapshot: "UTC",
-    now: NOW,
-  });
+  pickArticles = pickArticleIds("p1", "p2");
+  await getOrCreateDefaultSession();
   assert.ok(createdData);
   const json = JSON.stringify(createdData);
   // Persisted plan is strings/arrays of ids; assert no content-bearing keys.

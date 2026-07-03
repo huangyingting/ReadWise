@@ -2,21 +2,23 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES, hasCapability } from "@/lib/rbac";
-import { getAdminArticleDetail } from "@/lib/article-library";
 import { statusBadgeVariant } from "@/lib/admin/overview";
-import { readingMinutesFor } from "@/lib/article-library";
 import { sanitizeArticleHtml } from "@/lib/content-pipeline";
-import { articleAccessContext } from "@/lib/article-library";
 import {
+  articleAccessContext,
+  getAdminArticleDetail,
+  getArticleTags,
   listContentReviews,
-  REVIEW_STATES,
-  REVIEW_STATE_LABELS,
-  QUALITY_FLAGS,
   parseQualityFlags,
+  QUALITY_FLAGS,
+  readingMinutesFor,
+  REVIEW_STATE_LABELS,
+  REVIEW_STATES,
+  TAKEDOWN_STATE_LABELS,
+  TAKEDOWN_STATES,
   type ReviewState,
+  type TakedownState,
 } from "@/lib/article-library";
-import { TAKEDOWN_STATES, TAKEDOWN_STATE_LABELS, type TakedownState } from "@/lib/article-library";
-import { getArticleTags } from "@/lib/article-library";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleReview from "@/components/AdminArticleReview";
 import AdminArticleTakedown from "@/components/AdminArticleTakedown";
@@ -26,15 +28,31 @@ import { StatCard } from "@/components/analytics/StatCard";
 import { AdminTableWrap } from "@/components/admin";
 import { formatDateTime } from "@/lib/display-format";
 
+type BadgeVariant = "success" | "neutral" | "warning" | "danger";
+
+const STEP_STATUS_VARIANTS: Record<string, BadgeVariant> = {
+  failed: "danger",
+  fallback: "warning",
+  generated: "success",
+  running: "warning",
+};
+
+const REVIEW_STATE_VARIANTS: Partial<Record<ReviewState, BadgeVariant>> = {
+  approved: "success",
+  rejected: "danger",
+};
+
 /** Maps a processing-step status to a Badge variant. */
-function stepStatusVariant(
-  status: string,
-): "success" | "neutral" | "warning" | "danger" {
-  if (status === "generated") return "success";
-  if (status === "fallback") return "warning";
-  if (status === "failed") return "danger";
-  if (status === "running") return "warning";
-  return "neutral";
+function stepStatusVariant(status: string): BadgeVariant {
+  return STEP_STATUS_VARIANTS[status] ?? "neutral";
+}
+
+function reviewStatusVariant(reviewState: ReviewState): BadgeVariant {
+  return REVIEW_STATE_VARIANTS[reviewState] ?? "warning";
+}
+
+function formatReviewChanges(changes: unknown): string {
+  return Object.keys((changes as Record<string, unknown>) ?? {}).join(", ") || "—";
 }
 
 export default async function AdminArticleDetailPage({
@@ -58,8 +76,18 @@ export default async function AdminArticleDetailPage({
     ? await Promise.all([listContentReviews(article.id), getArticleTags(article.id)])
     : [[], []];
   const currentFlags = parseQualityFlags(article.qualityFlags);
+  const articleTagNames = articleTags.map((tag) => tag.name).join(", ");
+  const reviewStateOptions = REVIEW_STATES.map((state) => ({
+    value: state,
+    label: REVIEW_STATE_LABELS[state],
+  }));
+  const takedownStateOptions = TAKEDOWN_STATES.map((state) => ({
+    value: state,
+    label: TAKEDOWN_STATE_LABELS[state],
+  }));
+  const qualityFlagOptions = [...QUALITY_FLAGS];
 
-  const aiItems: { label: string; value: number }[] = [
+  const derivedContentItems: { label: string; value: number }[] = [
     { label: "Translations", value: counts.translations },
     { label: "Vocabulary", value: counts.vocabulary },
     { label: "Quiz questions", value: counts.quizQuestions },
@@ -82,15 +110,7 @@ export default async function AdminArticleDetailPage({
           {article.status}
         </Badge>
         {article.reviewState && article.reviewState !== "unreviewed" && (
-          <Badge
-            variant={
-              article.reviewState === "approved"
-                ? "success"
-                : article.reviewState === "rejected"
-                  ? "danger"
-                  : "warning"
-            }
-          >
+          <Badge variant={reviewStatusVariant(article.reviewState as ReviewState)}>
             {REVIEW_STATE_LABELS[article.reviewState as ReviewState] ?? article.reviewState}
           </Badge>
         )}
@@ -129,7 +149,7 @@ export default async function AdminArticleDetailPage({
         <div className="stack">
           <CardTitle level="h3">Derived content</CardTitle>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
-            {aiItems.map((item) => (
+            {derivedContentItems.map((item) => (
               <StatCard key={item.label} label={item.label} value={item.value} />
             ))}
           </div>
@@ -147,11 +167,8 @@ export default async function AdminArticleDetailPage({
             </p>
             <AdminArticleReview
               articleId={article.id}
-              reviewStateOptions={REVIEW_STATES.map((s) => ({
-                value: s,
-                label: REVIEW_STATE_LABELS[s],
-              }))}
-              qualityFlagOptions={[...QUALITY_FLAGS]}
+              reviewStateOptions={reviewStateOptions}
+              qualityFlagOptions={qualityFlagOptions}
               initial={{
                 title: article.title,
                 excerpt: article.excerpt ?? "",
@@ -160,7 +177,7 @@ export default async function AdminArticleDetailPage({
                 status: article.status === "PUBLISHED" ? "PUBLISHED" : "DRAFT",
                 reviewState: article.reviewState ?? "unreviewed",
                 qualityFlags: currentFlags,
-                tags: articleTags.map((t) => t.name).join(", "),
+                tags: articleTagNames,
               }}
             />
           </div>
@@ -186,10 +203,7 @@ export default async function AdminArticleDetailPage({
             <AdminArticleTakedown
               articleId={article.id}
               currentState={article.takedownState ?? "active"}
-              stateOptions={TAKEDOWN_STATES.map((s) => ({
-                value: s,
-                label: TAKEDOWN_STATE_LABELS[s],
-              }))}
+              stateOptions={takedownStateOptions}
               currentRightsNote={article.rightsNote ?? ""}
             />
           </div>
@@ -201,28 +215,27 @@ export default async function AdminArticleDetailPage({
           <div className="stack">
             <CardTitle level="h3">Review history</CardTitle>
             <AdminTableWrap ariaLabel="Review history table (scrollable)">
-                <thead>
-                  <tr>
-                    <th>When</th>
-                    <th>Action</th>
-                    <th>Changes</th>
-                    <th>Note</th>
+              <thead>
+                <tr>
+                  <th>When</th>
+                  <th>Action</th>
+                  <th>Changes</th>
+                  <th>Note</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reviews.map((r) => (
+                  <tr key={r.id}>
+                    <td className="muted">{formatDateTime(r.createdAt)}</td>
+                    <td className="font-medium">{r.action}</td>
+                    <td className="muted text-[length:var(--text-sm)]">
+                      {formatReviewChanges(r.changes)}
+                    </td>
+                    <td className="muted text-[length:var(--text-sm)]">{r.note ?? "—"}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {reviews.map((r) => (
-                    <tr key={r.id}>
-                      <td className="muted">{formatDateTime(r.createdAt)}</td>
-                      <td className="font-medium">{r.action}</td>
-                      <td className="muted text-[length:var(--text-sm)]">
-                        {Object.keys((r.changes as Record<string, unknown>) ?? {}).join(", ") ||
-                          "—"}
-                      </td>
-                      <td className="muted text-[length:var(--text-sm)]">{r.note ?? "—"}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </AdminTableWrap>
+                ))}
+              </tbody>
+            </AdminTableWrap>
           </div>
         </Card>
       )}
@@ -242,36 +255,36 @@ export default async function AdminArticleDetailPage({
           ) : (
             <AdminTableWrap ariaLabel="Processing steps table (scrollable)">
               <thead>
-                  <tr>
-                    <th>Step</th>
-                    <th>Status</th>
-                    <th>Attempts</th>
-                    <th>Model</th>
-                    <th>Started</th>
-                    <th>Completed</th>
-                    <th>Last error</th>
+                <tr>
+                  <th>Step</th>
+                  <th>Status</th>
+                  <th>Attempts</th>
+                  <th>Model</th>
+                  <th>Started</th>
+                  <th>Completed</th>
+                  <th>Last error</th>
+                </tr>
+              </thead>
+              <tbody>
+                {processingSteps.map((step) => (
+                  <tr key={step.id}>
+                    <td className="font-medium">{step.step}</td>
+                    <td>
+                      <Badge variant={stepStatusVariant(step.status)}>
+                        {step.status}
+                      </Badge>
+                    </td>
+                    <td>{step.attempts}</td>
+                    <td className="muted">{step.modelName ?? "—"}</td>
+                    <td className="muted">{formatDateTime(step.startedAt)}</td>
+                    <td className="muted">{formatDateTime(step.completedAt)}</td>
+                    <td className="text-danger-text text-[length:var(--text-sm)]">
+                      {step.lastError ?? "—"}
+                    </td>
                   </tr>
-                </thead>
-                <tbody>
-                  {processingSteps.map((step) => (
-                    <tr key={step.id}>
-                      <td className="font-medium">{step.step}</td>
-                      <td>
-                        <Badge variant={stepStatusVariant(step.status)}>
-                          {step.status}
-                        </Badge>
-                      </td>
-                      <td>{step.attempts}</td>
-                      <td className="muted">{step.modelName ?? "—"}</td>
-                      <td className="muted">{formatDateTime(step.startedAt)}</td>
-                      <td className="muted">{formatDateTime(step.completedAt)}</td>
-                      <td className="text-danger-text text-[length:var(--text-sm)]">
-                        {step.lastError ?? "—"}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </AdminTableWrap>
+                ))}
+              </tbody>
+            </AdminTableWrap>
           )}
         </div>
       </Card>

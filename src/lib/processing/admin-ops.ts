@@ -68,15 +68,80 @@ function roundCost(value: number | null | undefined): number {
   return Math.round(value * 1e6) / 1e6;
 }
 
+function normalizeWindowHours(hours: number | undefined): number {
+  return Number.isFinite(hours) && (hours ?? 0) > 0
+    ? Math.floor(hours as number)
+    : DEFAULT_WINDOW_HOURS;
+}
+
+function fallbackCountsBy(
+  rows: Array<{ _count: { _all: number } } & Record<string, unknown>>,
+  field: string,
+  nullKey = "—",
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  for (const row of rows) {
+    counts.set((row[field] as string | null) ?? nullKey, row._count._all);
+  }
+  return counts;
+}
+
+function mapFeatureCosts(
+  groups: AiUsageGroup[],
+  fallbackByFeature: Map<string, number>,
+): AiEntityUsage[] {
+  return groups
+    .map((group) => {
+      const fallbackCount = fallbackByFeature.get(group.key) ?? 0;
+      return {
+        ...group,
+        estimatedCostUsd: roundCost(group.estimatedCostUsd),
+        fallbackCount,
+        fallbackRatePct: pct(fallbackCount, group.count),
+      };
+    })
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+}
+
+function mapUsageRows(
+  rows: Array<{
+    _count: { _all: number };
+    _sum: {
+      promptTokens: number | null;
+      completionTokens: number | null;
+      totalTokens: number | null;
+      estimatedCostUsd: number | null;
+    };
+  } & Record<string, unknown>>,
+  field: string,
+  fallbackMap?: Map<string, number>,
+): AiEntityUsage[] {
+  return rows
+    .map((row) => {
+      const key = (row[field] as string | null) ?? "—";
+      const count = row._count._all;
+      const fallbackCount = fallbackMap?.get(key) ?? 0;
+      return {
+        key,
+        count,
+        promptTokens: row._sum.promptTokens ?? 0,
+        completionTokens: row._sum.completionTokens ?? 0,
+        totalTokens: row._sum.totalTokens ?? 0,
+        estimatedCostUsd: roundCost(row._sum.estimatedCostUsd),
+        fallbackCount,
+        fallbackRatePct: pct(fallbackCount, count),
+      };
+    })
+    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd || b.count - a.count)
+    .slice(0, TOP_LIMIT);
+}
+
 export async function getAiCostOverview(
   opts: { hours?: number; now?: Date; client?: AiClient } = {},
 ): Promise<AiCostOverview> {
   const client = opts.client ?? prisma;
   const now = opts.now ?? new Date();
-  const windowHours =
-    Number.isFinite(opts.hours) && (opts.hours ?? 0) > 0
-      ? Math.floor(opts.hours as number)
-      : DEFAULT_WINDOW_HOURS;
+  const windowHours = normalizeWindowHours(opts.hours);
   const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
   const where = { createdAt: { gte: since, lt: now } } as const;
 
@@ -122,63 +187,14 @@ export async function getAiCostOverview(
       }),
     ]);
 
-  const fallbackByFeature = new Map<string, number>();
-  for (const row of byFeatureFallback) {
-    fallbackByFeature.set(row.feature ?? "unknown", row._count._all);
-  }
-
-  const byFeatureCost: AiEntityUsage[] = summary.byFeature
-    .map((g) => {
-      const fallbackCount = fallbackByFeature.get(g.key) ?? 0;
-      return {
-        ...g,
-        estimatedCostUsd: roundCost(g.estimatedCostUsd),
-        fallbackCount,
-        fallbackRatePct: pct(fallbackCount, g.count),
-      };
-    })
-    .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd);
+  const fallbackByFeature = fallbackCountsBy(byFeatureFallback, "feature", "unknown");
+  const byFeatureCost = mapFeatureCosts(summary.byFeature, fallbackByFeature);
 
   const highFallbackFeatures = byFeatureCost
     .filter((g) => g.count >= 3 && g.fallbackRatePct >= 25)
     .sort((a, b) => b.fallbackRatePct - a.fallbackRatePct);
 
-  const fallbackByUser = new Map<string, number>();
-  for (const row of byUserFallback) {
-    fallbackByUser.set(row.userId ?? "—", row._count._all);
-  }
-
-  const mapGroup = (
-    rows: Array<{
-      _count: { _all: number };
-      _sum: {
-        promptTokens: number | null;
-        completionTokens: number | null;
-        totalTokens: number | null;
-        estimatedCostUsd: number | null;
-      };
-    } & Record<string, unknown>>,
-    field: string,
-    fallbackMap?: Map<string, number>,
-  ): AiEntityUsage[] =>
-    rows
-      .map((row) => {
-        const key = (row[field] as string | null) ?? "—";
-        const count = row._count._all;
-        const fallbackCount = fallbackMap?.get(key) ?? 0;
-        return {
-          key,
-          count,
-          promptTokens: row._sum.promptTokens ?? 0,
-          completionTokens: row._sum.completionTokens ?? 0,
-          totalTokens: row._sum.totalTokens ?? 0,
-          estimatedCostUsd: roundCost(row._sum.estimatedCostUsd),
-          fallbackCount,
-          fallbackRatePct: pct(fallbackCount, count),
-        };
-      })
-      .sort((a, b) => b.estimatedCostUsd - a.estimatedCostUsd || b.count - a.count)
-      .slice(0, TOP_LIMIT);
+  const fallbackByUser = fallbackCountsBy(byUserFallback, "userId");
 
   return {
     windowHours,
@@ -192,8 +208,8 @@ export async function getAiCostOverview(
       maxMs: latencyAgg._max.latencyMs ?? null,
     },
     byFeatureCost,
-    topUsers: mapGroup(byUser, "userId", fallbackByUser),
-    topArticles: mapGroup(byArticle, "articleId").filter((g) => g.key !== "—"),
+    topUsers: mapUsageRows(byUser, "userId", fallbackByUser),
+    topArticles: mapUsageRows(byArticle, "articleId").filter((g) => g.key !== "—"),
     highFallbackFeatures,
   };
 }
@@ -233,6 +249,77 @@ function emptyStepCounts(): StepStatusCounts {
   return counts;
 }
 
+function buildStepBreakdowns(
+  grouped: Array<{
+    step: string;
+    status: string;
+    _count: { _all: number };
+  }>,
+): { steps: StepBreakdown[]; totals: StepStatusCounts } {
+  const stepMap = new Map<string, StepStatusCounts>();
+  for (const step of PROCESSING_STEPS) stepMap.set(step, emptyStepCounts());
+  const totals = emptyStepCounts();
+
+  for (const row of grouped) {
+    const step = row.step;
+    const status = row.status as ProcessingStepStatus;
+    const n = row._count._all;
+    let counts = stepMap.get(step);
+    if (!counts) {
+      counts = emptyStepCounts();
+      stepMap.set(step, counts);
+    }
+    if (status in counts) {
+      counts[status] += n;
+      totals[status] += n;
+    }
+    counts.total += n;
+    totals.total += n;
+  }
+
+  const steps: StepBreakdown[] = [...stepMap.entries()].map(([step, counts]) => ({
+    step,
+    counts,
+  }));
+  return { steps, totals };
+}
+
+function groupProblemArticles(
+  problemRows: Array<{
+    articleId: string;
+    step: string;
+    status: string;
+    lastError: string | null;
+    article: { title: string | null; status: string } | null;
+  }>,
+): ProblemArticle[] {
+  const articleMap = new Map<string, ProblemArticle>();
+  for (const row of problemRows) {
+    let entry = articleMap.get(row.articleId);
+    if (!entry) {
+      entry = {
+        articleId: row.articleId,
+        title: row.article?.title ?? null,
+        status: row.article?.status ?? "unknown",
+        failed: 0,
+        fallback: 0,
+        steps: [],
+      };
+      articleMap.set(row.articleId, entry);
+    }
+    if (row.status === "failed") entry.failed++;
+    else if (row.status === "fallback") entry.fallback++;
+    entry.steps.push({
+      step: row.step,
+      status: row.status,
+      lastError: row.lastError ?? null,
+    });
+  }
+  return [...articleMap.values()]
+    .sort((a, b) => b.failed - a.failed || b.fallback - a.fallback)
+    .slice(0, TOP_LIMIT);
+}
+
 /**
  * Builds the content-operations overview from the durable
  * `ArticleProcessingStep` timeline + the job queue: per-step status counts, the
@@ -265,56 +352,10 @@ export async function getContentOpsOverview(
   ]);
 
   // Per-step + rolled-up status counts.
-  const stepMap = new Map<string, StepStatusCounts>();
-  for (const step of PROCESSING_STEPS) stepMap.set(step, emptyStepCounts());
-  const totals = emptyStepCounts();
-  for (const row of grouped) {
-    const step = row.step;
-    const status = row.status as ProcessingStepStatus;
-    const n = row._count._all;
-    let counts = stepMap.get(step);
-    if (!counts) {
-      counts = emptyStepCounts();
-      stepMap.set(step, counts);
-    }
-    if (status in counts) {
-      counts[status] += n;
-      totals[status] += n;
-    }
-    counts.total += n;
-    totals.total += n;
-  }
-  const steps: StepBreakdown[] = [...stepMap.entries()].map(([step, counts]) => ({
-    step,
-    counts,
-  }));
+  const { steps, totals } = buildStepBreakdowns(grouped);
 
   // Group problem rows by article (failed + fallback steps).
-  const articleMap = new Map<string, ProblemArticle>();
-  for (const row of problemRows) {
-    let entry = articleMap.get(row.articleId);
-    if (!entry) {
-      entry = {
-        articleId: row.articleId,
-        title: row.article?.title ?? null,
-        status: row.article?.status ?? "unknown",
-        failed: 0,
-        fallback: 0,
-        steps: [],
-      };
-      articleMap.set(row.articleId, entry);
-    }
-    if (row.status === "failed") entry.failed++;
-    else if (row.status === "fallback") entry.fallback++;
-    entry.steps.push({
-      step: row.step,
-      status: row.status,
-      lastError: row.lastError ?? null,
-    });
-  }
-  const problemArticles = [...articleMap.values()]
-    .sort((a, b) => b.failed - a.failed || b.fallback - a.fallback)
-    .slice(0, TOP_LIMIT);
+  const problemArticles = groupProblemArticles(problemRows);
 
   return { steps, totals, problemArticles, jobs };
 }

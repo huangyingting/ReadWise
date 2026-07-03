@@ -65,6 +65,14 @@ function makeJob(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function organization(id: string, slug: string): Record<string, unknown> {
+  return { id, slug };
+}
+
+function membershipKey(userId: string, orgId: string): string {
+  return `${userId}:${orgId}`;
+}
+
 before(() => {
   const prisma = {
     $queryRaw: async (query: unknown) => {
@@ -113,7 +121,7 @@ before(() => {
       findMany: async () => membershipFindManyRows,
       findUnique: async (args: { where: { userId_orgId: { userId: string; orgId: string } } }) => {
         const { userId, orgId } = args.where.userId_orgId;
-        return membershipsByKey.get(`${userId}:${orgId}`) ?? null;
+        return membershipsByKey.get(membershipKey(userId, orgId)) ?? null;
       },
       upsert: async (args: AnyArgs) => {
         membershipUpserts.push(args);
@@ -205,8 +213,8 @@ beforeEach(() => {
   queryRawRows = [];
   queryRawCalls = [];
   metricCalls = [];
-  organizationsById = new Map([["org-1", { id: "org-1", slug: "readers" }]]);
-  organizationsBySlug = new Map([["readers", { id: "org-1", slug: "readers" }]]);
+  organizationsById = new Map([["org-1", organization("org-1", "readers")]]);
+  organizationsBySlug = new Map([["readers", organization("org-1", "readers")]]);
   membershipsByKey = new Map();
   membershipFindManyRows = [];
   membershipUpserts = [];
@@ -387,7 +395,12 @@ test("organization queries, slug generation, profiles, and guards use scoped loo
 
   assert.deepEqual(await queries.getOrganization("org-1"), { id: "org-1", slug: "readers" });
   assert.deepEqual(await queries.getOrganizationBySlug("readers"), { id: "org-1", slug: "readers" });
-  membershipsByKey.set("user-1:org-1", { id: "m1", userId: "user-1", orgId: "org-1", role: "OrgAdmin" });
+  membershipsByKey.set(membershipKey("user-1", "org-1"), {
+    id: "m1",
+    userId: "user-1",
+    orgId: "org-1",
+    role: "OrgAdmin",
+  });
   assert.deepEqual(await commands.addMember("org-1", "user-2", "Member"), {
     id: "membership-upserted",
     orgId: "org-1",
@@ -426,7 +439,7 @@ test("organization queries, slug generation, profiles, and guards use scoped loo
   await guards.requireOrgAdmin("org-1", "/orgs/org-1");
 
   currentSession = { user: { id: "user-1", role: "Reader" } };
-  membershipsByKey.set("user-1:org-1", null);
+  membershipsByKey.set(membershipKey("user-1", "org-1"), null);
   await assert.rejects(() => guards.requireOrgMembership("org-1", "/orgs/org-1"), /redirect:\/forbidden/);
   await assert.rejects(
     () => guards.requireOrgCapability("org-1", CAPABILITIES.orgManage, "/orgs/org-1"),
@@ -440,7 +453,7 @@ test("organization queries, slug generation, profiles, and guards use scoped loo
   assert.equal(await profile.isUserOnboarded("user-1"), true);
 
   assert.equal(slugs.slugifyOrg(" Les élèves & Teachers! "), "les-eleves-and-teachers");
-  organizationsBySlug.set("readers-2", { id: "org-2", slug: "readers-2" });
+  organizationsBySlug.set("readers-2", organization("org-2", "readers-2"));
   assert.equal(await slugs.ensureUniqueOrgSlug("readers"), "readers-3");
   assert.equal(await slugs.ensureUniqueOrgSlug(""), "org");
   for (let i = 0; i < 1000; i++) {

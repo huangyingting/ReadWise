@@ -20,9 +20,11 @@
  */
 
 import { Sun, Contrast, Moon } from "lucide-react";
-import { SegmentedControl } from "@/components/ui/SegmentedControl";
+import {
+  SegmentedControl,
+  type SegmentedControlOption,
+} from "@/components/ui/SegmentedControl";
 import { IconButton } from "@/components/ui/IconButton";
-import { cn } from "@/lib/cn";
 import {
   fontScaleLabel,
   DEFAULT_FONT_SCALE,
@@ -37,22 +39,30 @@ import {
 // ---------------------------------------------------------------------------
 
 const MODE_OPTIONS = [
-  { value: "light" as ReadingMode, label: "Light", icon: Sun, tooltip: "Light reading theme" },
-  { value: "sepia" as ReadingMode, label: "Sepia", icon: Contrast, tooltip: "Sepia reading theme" },
-  { value: "dark" as ReadingMode, label: "Dark", icon: Moon, tooltip: "Dark reading theme" },
-];
+  { value: "light", label: "Light", icon: Sun, tooltip: "Light reading theme" },
+  { value: "sepia", label: "Sepia", icon: Contrast, tooltip: "Sepia reading theme" },
+  { value: "dark", label: "Dark", icon: Moon, tooltip: "Dark reading theme" },
+] satisfies ReadonlyArray<SegmentedControlOption<ReadingMode>>;
 
 const FONT_OPTIONS = [
-  { value: "serif" as ReadingFont, label: "Serif", tooltip: "Serif font (Georgia)" },
-  { value: "sans" as ReadingFont, label: "Sans", tooltip: "Sans-serif font" },
-  { value: "dyslexic" as ReadingFont, label: "Dyslexic", tooltip: "OpenDyslexic — easier for dyslexic readers" },
-];
+  { value: "serif", label: "Serif", tooltip: "Serif font (Georgia)" },
+  { value: "sans", label: "Sans", tooltip: "Sans-serif font" },
+  {
+    value: "dyslexic",
+    label: "Dyslexic",
+    tooltip: "OpenDyslexic — easier for dyslexic readers",
+  },
+] satisfies ReadonlyArray<SegmentedControlOption<ReadingFont>>;
 
 const SPACING_OPTIONS = [
-  { value: "normal" as ReadingSpacing, label: "Normal", tooltip: "Normal line spacing" },
-  { value: "comfortable" as ReadingSpacing, label: "Comfortable", tooltip: "Comfortable spacing (WCAG 1.4.12)" },
-  { value: "spacious" as ReadingSpacing, label: "Spacious", tooltip: "Spacious spacing (WCAG 1.4.12)" },
-];
+  { value: "normal", label: "Normal", tooltip: "Normal line spacing" },
+  { value: "comfortable", label: "Comfortable", tooltip: "Comfortable spacing (WCAG 1.4.12)" },
+  { value: "spacious", label: "Spacious", tooltip: "Spacious spacing (WCAG 1.4.12)" },
+] satisfies ReadonlyArray<SegmentedControlOption<ReadingSpacing>>;
+
+function getFontScaleDisplay(fontScale: ReaderPrefs["fontScale"]): string {
+  return fontScale === DEFAULT_FONT_SCALE ? "1×" : fontScaleLabel(fontScale);
+}
 
 // ---------------------------------------------------------------------------
 // Component
@@ -78,6 +88,8 @@ export function ReaderDisplayPanel({
   onScaleUp,
   onPrefsChange,
 }: ReaderDisplayPanelProps) {
+  const fontScaleDisplay = getFontScaleDisplay(prefs.fontScale);
+
   return (
     <div className="reader-display-panel">
       {/* Text size */}
@@ -105,9 +117,7 @@ export function ReaderDisplayPanel({
             aria-hidden="true"
             className="reader-display-stepper-value tabular-nums select-none"
           >
-            {prefs.fontScale === DEFAULT_FONT_SCALE
-              ? "1×"
-              : fontScaleLabel(prefs.fontScale)}
+            {fontScaleDisplay}
           </span>
           <IconButton
             aria-label="Increase text size"

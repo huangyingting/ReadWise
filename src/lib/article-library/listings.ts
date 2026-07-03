@@ -100,6 +100,14 @@ export type ArticlePage = {
   hasMore: boolean;
 };
 
+function pageFromRows(rows: Article[], limit: number): ArticlePage {
+  return { articles: rows.slice(0, limit), hasMore: rows.length > limit };
+}
+
+function normalizeOffset(offset?: number): number {
+  return Math.max(0, offset ?? 0);
+}
+
 /**
  * Fetches one page of published articles, optionally restricted to a category
  * slug. Pass `null` for the category to list across all categories. Returns
@@ -113,7 +121,7 @@ export async function listCategoryPage(
   opts: { offset?: number; limit?: number; maxLevel?: DifficultyLevel | null } = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
-  const offset = Math.max(0, opts.offset ?? 0);
+  const offset = normalizeOffset(opts.offset);
   const maxLevel = opts.maxLevel ?? null;
   return cachedListCategoryPage(category, maxLevel, offset, limit);
 }
@@ -143,8 +151,7 @@ async function listCategoryPageImpl(
       skip: offset,
       take: limit + 1,
     });
-    const hasMore = rows.length > limit;
-    return { articles: rows.slice(0, limit), hasMore };
+    return pageFromRows(rows, limit);
   }
   const rows = await prisma.article.findMany({
     where: baseWhere,
@@ -152,8 +159,7 @@ async function listCategoryPageImpl(
     skip: offset,
     take: limit + 1,
   });
-  const hasMore = rows.length > limit;
-  return { articles: rows.slice(0, limit), hasMore };
+  return pageFromRows(rows, limit);
 }
 
 const cachedListCategoryPage = createCachedListing(
@@ -206,7 +212,7 @@ export async function listPicksPage(
   opts: { offset?: number; limit?: number } = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
-  const offset = Math.max(0, opts.offset ?? 0);
+  const offset = normalizeOffset(opts.offset);
   return cachedListPicksPage(maxLevel, topics, offset, limit);
 }
 
@@ -266,13 +272,12 @@ export async function listPersonalArticlesPage(
   opts: { offset?: number; limit?: number } = {},
 ): Promise<ArticlePage> {
   const limit = Math.min(opts.limit ?? IMPORTS_PAGE_SIZE, IMPORTS_MAX_LIMIT);
-  const offset = Math.max(0, opts.offset ?? 0);
+  const offset = normalizeOffset(opts.offset);
   const rows = await prisma.article.findMany({
     where: ownedArticleWhere(userId),
     orderBy: [{ createdAt: "desc" }],
     skip: offset,
     take: limit + 1,
   });
-  const hasMore = rows.length > limit;
-  return { articles: rows.slice(0, limit), hasMore };
+  return pageFromRows(rows, limit);
 }

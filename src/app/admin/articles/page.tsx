@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
-import { searchArticles, getAdminArticleStatuses } from "@/lib/article-library";
+import {
+  articleAccessContext,
+  getAdminArticleStatuses,
+  searchArticles,
+} from "@/lib/article-library";
 import { statusBadgeVariant } from "@/lib/admin/overview";
-import { articleAccessContext } from "@/lib/article-library";
 import AdminArticleActions from "@/components/AdminArticleActions";
 import AdminArticleIngest from "@/components/AdminArticleIngest";
 import { Input } from "@/components/ui/Input";
@@ -31,6 +34,30 @@ function buildHref(params: { q: string; status: string; page: number }): string 
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/articles?${qs}` : "/admin/articles";
+}
+
+function getCefrLevel(difficulty: string | null | undefined): CefrLevel | null {
+  return difficulty && (CEFR_LEVELS as readonly string[]).includes(difficulty)
+    ? (difficulty as CefrLevel)
+    : null;
+}
+
+function formatAuthorSource(
+  author: string | null | undefined,
+  source: string | null | undefined,
+): string {
+  return `${author ?? "—"}${source ? ` · ${source}` : ""}`;
+}
+
+function AdminArticleDifficulty({
+  difficulty,
+}: {
+  difficulty: string | null | undefined;
+}) {
+  const level = getCefrLevel(difficulty);
+  if (level) return <CefrBadge level={level} />;
+
+  return <span className="text-text-subtle">{difficulty ?? "—"}</span>;
 }
 
 export default async function AdminArticlesPage({
@@ -118,8 +145,7 @@ export default async function AdminArticlesPage({
                   </Link>
                 </td>
                 <td className="muted">
-                  {a.author ?? "—"}
-                  {a.source ? ` · ${a.source}` : ""}
+                  {formatAuthorSource(a.author, a.source)}
                 </td>
                 <td>
                   <div className="flex flex-wrap gap-[var(--space-1)]">
@@ -129,14 +155,7 @@ export default async function AdminArticlesPage({
                   </div>
                 </td>
                 <td>
-                  {a.difficulty &&
-                  (CEFR_LEVELS as readonly string[]).includes(a.difficulty) ? (
-                    <CefrBadge level={a.difficulty as CefrLevel} />
-                  ) : (
-                    <span className="text-text-subtle">
-                      {a.difficulty ?? "—"}
-                    </span>
-                  )}
+                  <AdminArticleDifficulty difficulty={a.difficulty} />
                 </td>
                 <td>
                   <AdminArticleActions articleId={a.id} />

@@ -39,10 +39,21 @@ const ruleModule = require(
   resolve(__dirname, "../eslint-rules/no-server-imports-in-client.js")
 );
 
-/** Run the rule against a source string and return the list of messages. */
-function lint(source: string): { messageId: string; message: string }[] {
-  const linter = new Linter({ configType: "flat" });
-  const messages = linter.verify(source, {
+type LintMessage = { messageId: string; message: string };
+type ImportBoundaryRuleOptions = { additionalModules?: string[] };
+
+function toLintMessages(messages: ReturnType<Linter["verify"]>): LintMessage[] {
+  return messages.map((m) => ({ messageId: m.messageId ?? "", message: m.message }));
+}
+
+function ruleConfig(
+  options?: ImportBoundaryRuleOptions,
+  files?: Linter.Config["files"],
+): Linter.Config {
+  const configuredRule: Linter.RuleEntry = options ? ["error", options] : "error";
+
+  return {
+    ...(files ? { files } : {}),
     languageOptions: {
       ecmaVersion: 2022,
       sourceType: "module",
@@ -51,14 +62,33 @@ function lint(source: string): { messageId: string; message: string }[] {
       readwise: { rules: { "no-server-imports-in-client": ruleModule } },
     },
     rules: {
-      "readwise/no-server-imports-in-client": "error",
+      "readwise/no-server-imports-in-client": configuredRule,
     },
-  });
-  return messages.map((m) => ({ messageId: m.messageId ?? "", message: m.message }));
+  };
+}
+
+function expectViolationFor(source: string, moduleName: string): void {
+  const messages = lint(source);
+  assert.ok(messages.length > 0, "Expected at least one lint error");
+  assert.ok(
+    messages.some((m) => m.message.includes(moduleName)),
+    `Expected message about ${moduleName}, got: ${JSON.stringify(messages)}`,
+  );
+}
+
+function expectNoViolations(source: string): void {
+  const messages = lint(source);
+  assert.strictEqual(messages.length, 0, `Expected no lint errors, got: ${JSON.stringify(messages)}`);
+}
+
+/** Run the rule against a source string and return the list of messages. */
+function lint(source: string): LintMessage[] {
+  const linter = new Linter({ configType: "flat" });
+  return toLintMessages(linter.verify(source, ruleConfig()));
 }
 
 /** Run the rule against a source string with a specific filename (for allowlist matching). */
-function lintAs(source: string, filename: string): { messageId: string; message: string }[] {
+function lintAs(source: string, filename: string): LintMessage[] {
   // ESLint 9 flat config requires (a) `cwd` in the Linter constructor, (b) an
   // absolute filename, and (c) at least one config `files` pattern that matches
   // the absolute path — only then does the allowlist path check work correctly.
@@ -66,22 +96,10 @@ function lintAs(source: string, filename: string): { messageId: string; message:
   const linter = new Linter({ configType: "flat", cwd: resolve(__dirname, "..") });
   const messages = linter.verify(
     source,
-    {
-      files: ["**/*.{ts,tsx,js,jsx}"],
-      languageOptions: {
-        ecmaVersion: 2022,
-        sourceType: "module",
-      },
-      plugins: {
-        readwise: { rules: { "no-server-imports-in-client": ruleModule } },
-      },
-      rules: {
-        "readwise/no-server-imports-in-client": "error",
-      },
-    },
+    ruleConfig(undefined, ["**/*.{ts,tsx,js,jsx}"]),
     absFilename,
   );
-  return messages.map((m) => ({ messageId: m.messageId ?? "", message: m.message }));
+  return toLintMessages(messages);
 }
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
@@ -203,108 +221,71 @@ describe("readwise/no-server-imports-in-client", () => {
   // ── Violations ─────────────────────────────────────────────────────────────
 
   test("reports error when 'use client' file imports @/lib/prisma", () => {
-    const messages = lint(CLIENT_IMPORTS_PRISMA);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(
-      messages.some((m) => m.message.includes("@/lib/prisma")),
-      `Expected message about @/lib/prisma, got: ${JSON.stringify(messages)}`
-    );
+    expectViolationFor(CLIENT_IMPORTS_PRISMA, "@/lib/prisma");
   });
 
   test("reports error when 'use client' file imports @/lib/session", () => {
-    const messages = lint(CLIENT_IMPORTS_SESSION);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/session")));
+    expectViolationFor(CLIENT_IMPORTS_SESSION, "@/lib/session");
   });
 
   test("reports error when 'use client' file imports @/lib/runtime-config", () => {
-    const messages = lint(CLIENT_IMPORTS_RUNTIME_CONFIG);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/runtime-config")));
+    expectViolationFor(CLIENT_IMPORTS_RUNTIME_CONFIG, "@/lib/runtime-config");
   });
 
   test("reports error when 'use client' file imports @/lib/runtime-config/ai (submodule)", () => {
-    const messages = lint(CLIENT_IMPORTS_RUNTIME_CONFIG_SUBMODULE);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/runtime-config/ai")));
+    expectViolationFor(CLIENT_IMPORTS_RUNTIME_CONFIG_SUBMODULE, "@/lib/runtime-config/ai");
   });
 
   test("reports error when 'use client' file imports @/lib/observability/logger", () => {
-    const messages = lint(CLIENT_IMPORTS_OBSERVABILITY);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/observability/logger")));
+    expectViolationFor(CLIENT_IMPORTS_OBSERVABILITY, "@/lib/observability/logger");
   });
 
   test("reports error when 'use client' file imports @/lib/security/audit", () => {
-    const messages = lint(CLIENT_IMPORTS_SECURITY);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/security/audit")));
+    expectViolationFor(CLIENT_IMPORTS_SECURITY, "@/lib/security/audit");
   });
 
   test("reports error when 'use client' file imports @/lib/primitives/server", () => {
-    const messages = lint(CLIENT_IMPORTS_SERVER_PRIMITIVES);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/primitives/server")));
+    expectViolationFor(CLIENT_IMPORTS_SERVER_PRIMITIVES, "@/lib/primitives/server");
   });
 
   // ── Phase 1 high-risk boundaries (Issue #678) ───────────────────────────────
 
   test("reports error when 'use client' file imports @/lib/cache", () => {
-    const messages = lint(CLIENT_IMPORTS_CACHE);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/cache")));
+    expectViolationFor(CLIENT_IMPORTS_CACHE, "@/lib/cache");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/provider", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_PROVIDER);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/provider")));
+    expectViolationFor(CLIENT_IMPORTS_AI_PROVIDER, "@/lib/ai/provider");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/registry", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_REGISTRY);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/registry")));
+    expectViolationFor(CLIENT_IMPORTS_AI_REGISTRY, "@/lib/ai/registry");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/runner", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_RUNNER);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/runner")));
+    expectViolationFor(CLIENT_IMPORTS_AI_RUNNER, "@/lib/ai/runner");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/azure-provider", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_AZURE_PROVIDER);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/azure-provider")));
+    expectViolationFor(CLIENT_IMPORTS_AI_AZURE_PROVIDER, "@/lib/ai/azure-provider");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/budget", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_BUDGET);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/budget")));
+    expectViolationFor(CLIENT_IMPORTS_AI_BUDGET, "@/lib/ai/budget");
   });
 
   test("reports error when 'use client' file imports @/lib/ai/ledger", () => {
-    const messages = lint(CLIENT_IMPORTS_AI_LEDGER);
-    assert.ok(messages.length > 0, "Expected at least one lint error");
-    assert.ok(messages.some((m) => m.message.includes("@/lib/ai/ledger")));
+    expectViolationFor(CLIENT_IMPORTS_AI_LEDGER, "@/lib/ai/ledger");
   });
 
   // ── No violations ───────────────────────────────────────────────────────────
 
   test("no error when 'use client' file imports client-safe @/lib/storage-keys", () => {
-    const messages = lint(CLIENT_IMPORTS_STORAGE_KEYS);
-    assert.strictEqual(
-      messages.length,
-      0,
-      `Expected no lint errors, got: ${JSON.stringify(messages)}`
-    );
+    expectNoViolations(CLIENT_IMPORTS_STORAGE_KEYS);
   });
 
   test("no error when 'use client' file imports client-safe @/lib/cn", () => {
-    const messages = lint(CLIENT_IMPORTS_CN);
-    assert.strictEqual(messages.length, 0);
+    expectNoViolations(CLIENT_IMPORTS_CN);
   });
 
   test("no error when server component (no directive) imports @/lib/prisma", () => {
@@ -317,8 +298,7 @@ describe("readwise/no-server-imports-in-client", () => {
   });
 
   test("no error when plain server module imports @/lib/session", () => {
-    const messages = lint(SERVER_MODULE_IMPORTS_SESSION);
-    assert.strictEqual(messages.length, 0);
+    expectNoViolations(SERVER_MODULE_IMPORTS_SESSION);
   });
 
   // ── additionalModules option ────────────────────────────────────────────────
@@ -331,18 +311,10 @@ export default function Widget() { return null; }
 `.trim();
 
     const linter = new Linter({ configType: "flat" });
-    const messages = linter.verify(source, {
-      languageOptions: { ecmaVersion: 2022, sourceType: "module" },
-      plugins: {
-        readwise: { rules: { "no-server-imports-in-client": ruleModule } },
-      },
-      rules: {
-        "readwise/no-server-imports-in-client": [
-          "error",
-          { additionalModules: ["@/lib/my-custom-server-module"] },
-        ],
-      },
-    });
+    const messages = linter.verify(
+      source,
+      ruleConfig({ additionalModules: ["@/lib/my-custom-server-module"] }),
+    );
     assert.ok(messages.length > 0, "Expected violation for custom module");
     assert.ok(messages.some((m) => m.message.includes("@/lib/my-custom-server-module")));
   });
@@ -355,15 +327,7 @@ export default function Widget() { return null; }
 `.trim();
 
     const linter = new Linter({ configType: "flat" });
-    const messages = linter.verify(source, {
-      languageOptions: { ecmaVersion: 2022, sourceType: "module" },
-      plugins: {
-        readwise: { rules: { "no-server-imports-in-client": ruleModule } },
-      },
-      rules: {
-        "readwise/no-server-imports-in-client": ["error", { additionalModules: [] }],
-      },
-    });
+    const messages = linter.verify(source, ruleConfig({ additionalModules: [] }));
     assert.strictEqual(messages.length, 0);
   });
 
@@ -448,4 +412,3 @@ export default function Widget() { return null; }
     assert.strictEqual(messages.length, 0);
   });
 });
-

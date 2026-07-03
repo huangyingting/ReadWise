@@ -32,6 +32,22 @@ function wordBlock(n: number, seed: string): string {
   return Array.from({ length: n }, (_, i) => `${seed}${i + 1}`).join(" ");
 }
 
+function withReadabilityDisabled(run: () => void): void {
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = "false";
+  try {
+    run();
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+}
+
+function assertNoPlaceholderText(content: string): void {
+  assert.doesNotMatch(content, /Some Placeholder Text/i, "no placeholder text in the final body");
+  assert.doesNotMatch(content, /Institution Name/i, "no placeholder text in the final body");
+}
+
 /**
  * Minimal Knowable page fixture mirroring the real DOM shape: a `<main>` with
  * the `.fr-view` body (real prose + a `/docserver/` portrait in
@@ -256,9 +272,7 @@ test("extractArticle on a Knowable page keeps the portrait, drops donate/placeho
   // Force the legacy harvest path: on real Knowable pages Readability extracts
   // only ~76 words (no <article> wrapper around the Froala body) so the harvest
   // wins — this mirrors production.
-  const prev = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  withReadabilityDisabled(() => {
     const result = extractArticle(KNOWABLE_HTML, ARTICLE_URL);
     assert.ok(result, "extraction must succeed");
 
@@ -278,16 +292,12 @@ test("extractArticle on a Knowable page keeps the portrait, drops donate/placeho
     assert.doesNotMatch(content, /give now/i, "no give-now text in the final body");
 
     // Placeholder template junk is gone.
-    assert.doesNotMatch(content, /Some Placeholder Text/i, "no placeholder text in the final body");
-    assert.doesNotMatch(content, /Institution Name/i, "no placeholder text in the final body");
+    assertNoPlaceholderText(content);
 
     // Body prose retained and the word count is sane (not the old bloat).
     assert.match(content, /synapse1\b/, "body prose retained");
     assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prev;
-  }
+  });
 });
 
 test("knowable cleanup strips the article-layout-mode-menu widget, keeps body + portrait", () => {
@@ -311,9 +321,7 @@ test("extractArticle drops the LAYOUT MENU chrome but keeps the body + /docserve
   // Force the legacy harvest path (no <article> wrapper → harvest wins), mirroring
   // production. Without the layout-mode-menu cleanup the <h4>LAYOUT MENU</h4> heading
   // is harvested into the body — the residual reported across all 14 Knowable articles.
-  const prev = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  withReadabilityDisabled(() => {
     const result = extractArticle(KNOWABLE_LAYOUT_MENU_HTML, ARTICLE_URL);
     assert.ok(result, "extraction must succeed");
     assert.equal(result!.source, "Knowable Magazine");
@@ -334,10 +342,7 @@ test("extractArticle drops the LAYOUT MENU chrome but keeps the body + /docserve
     assert.match(content, /synapse1\b/, "body prose retained");
     assert.match(content, /plasticity1\b/, "body prose retained");
     assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prev;
-  }
+  });
 });
 
 test("knowable cleanup strips the deep-dive citation rail + visible DOI, keeps body + /docserver/ image", () => {
@@ -373,9 +378,7 @@ test("extractArticle strips the deep-dive/DOI boilerplate, keeps the body + /doc
   // production: real Knowable pages carry no JSON-LD articleBody, so the DOM harvest
   // is canonical and the trailing deep-dive/DOI blocks leak into the body without
   // the cleanup (verified across all 12 stored Knowable articles).
-  const prev = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  withReadabilityDisabled(() => {
     const result = extractArticle(KNOWABLE_DEEP_DIVE_HTML, ARTICLE_URL);
     assert.ok(result, "extraction must succeed");
     assert.equal(result!.source, "Knowable Magazine");
@@ -399,8 +402,5 @@ test("extractArticle strips the deep-dive/DOI boilerplate, keeps the body + /doc
     assert.match(content, /synapse1\b/, "body prose retained");
     assert.match(content, /plasticity1\b/, "body prose retained");
     assert.ok(result!.wordCount >= 50, `word count should be article-sized, got ${result!.wordCount}`);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prev;
-  }
+  });
 });

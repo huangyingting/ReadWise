@@ -26,6 +26,20 @@ let auditCountRows = 0;
 let jobDeleteManyArgs: unknown[] = [];
 let jobDeleteManyCount = 0;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function isoDate(date: Date): string {
+  return date.toISOString().slice(0, 10);
+}
+
+function daysBefore(date: Date, days: number): Date {
+  return new Date(date.getTime() - days * MS_PER_DAY);
+}
+
+function capturedWhere<T>(calls: unknown[]): T {
+  return (calls[0] as { where: T }).where;
+}
+
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -78,10 +92,10 @@ test("pruneOldAiInvocations: deletes records older than the cutoff date", async 
   const removed = await pruneOldAiInvocations(30, undefined, now);
   assert.equal(removed, 5);
   assert.equal(aiDeleteManyArgs.length, 1);
-  const where = (aiDeleteManyArgs[0] as { where: { createdAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ createdAt: { lt: Date } }>(aiDeleteManyArgs);
   const cutoff = where.createdAt.lt;
   // 30 days before 2026-06-01 is 2026-05-02
-  assert.equal(cutoff.toISOString().slice(0, 10), "2026-05-02");
+  assert.equal(isoDate(cutoff), "2026-05-02");
 });
 
 test("pruneOldAiInvocations: returns 0 when nothing matches (mocked count=0)", async () => {
@@ -98,11 +112,11 @@ test("pruneOldAiInvocations: falls back to default days when given invalid value
   const now = new Date("2026-06-01T00:00:00Z");
   // -1 is invalid; should fall back to the env default (365)
   await pruneOldAiInvocations(-1, undefined, now);
-  const where = (aiDeleteManyArgs[0] as { where: { createdAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ createdAt: { lt: Date } }>(aiDeleteManyArgs);
   const cutoff = where.createdAt.lt;
   // 365 days before 2026-06-01
-  const expected = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-  assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+  const expected = daysBefore(now, 365);
+  assert.equal(isoDate(cutoff), isoDate(expected));
 });
 
 test("deleteAiInvocationsForUser: issues deleteMany with the correct userId filter", async () => {
@@ -110,7 +124,7 @@ test("deleteAiInvocationsForUser: issues deleteMany with the correct userId filt
   aiDeleteManyCount = 3;
   const removed = await deleteAiInvocationsForUser("user-abc");
   assert.equal(removed, 3);
-  const where = (aiDeleteManyArgs[0] as { where: { userId: string } }).where;
+  const where = capturedWhere<{ userId: string }>(aiDeleteManyArgs);
   assert.equal(where.userId, "user-abc");
 });
 
@@ -154,11 +168,11 @@ test("pruneOldAuditLogs: deletes entries older than the cutoff date", async () =
   const removed = await pruneOldAuditLogs(730, undefined, now);
   assert.equal(removed, 12);
   assert.equal(auditDeleteManyArgs.length, 1);
-  const where = (auditDeleteManyArgs[0] as { where: { createdAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ createdAt: { lt: Date } }>(auditDeleteManyArgs);
   const cutoff = where.createdAt.lt;
   // 730 days before 2026-06-15
-  const expected = new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000);
-  assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+  const expected = daysBefore(now, 730);
+  assert.equal(isoDate(cutoff), isoDate(expected));
 });
 
 test("pruneOldAuditLogs: falls back to default days when given invalid value", async () => {
@@ -167,10 +181,10 @@ test("pruneOldAuditLogs: falls back to default days when given invalid value", a
   const now = new Date("2026-06-01T00:00:00Z");
   // 0 is invalid; should fall back to env default (730)
   await pruneOldAuditLogs(0, undefined, now);
-  const where = (auditDeleteManyArgs[0] as { where: { createdAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ createdAt: { lt: Date } }>(auditDeleteManyArgs);
   const cutoff = where.createdAt.lt;
-  const expected = new Date(now.getTime() - 730 * 24 * 60 * 60 * 1000);
-  assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+  const expected = daysBefore(now, 730);
+  assert.equal(isoDate(cutoff), isoDate(expected));
 });
 
 test("pruneOldAuditLogs: respects AUDIT_LOG_RETENTION_DAYS env override", async () => {
@@ -180,11 +194,11 @@ test("pruneOldAuditLogs: respects AUDIT_LOG_RETENTION_DAYS env override", async 
     auditDeleteManyCount = 0;
     const now = new Date("2026-06-01T00:00:00Z");
     await pruneOldAuditLogs(undefined, undefined, now);
-    const where = (auditDeleteManyArgs[0] as { where: { createdAt: { lt: Date } } }).where;
+    const where = capturedWhere<{ createdAt: { lt: Date } }>(auditDeleteManyArgs);
     const cutoff = where.createdAt.lt;
     // Should use 365 from env
-    const expected = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
-    assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+    const expected = daysBefore(now, 365);
+    assert.equal(isoDate(cutoff), isoDate(expected));
   } finally {
     delete process.env.AUDIT_LOG_RETENTION_DAYS;
   }
@@ -228,14 +242,14 @@ test("pruneTerminalJobs: deletes COMPLETED and DEAD_LETTER rows older than cutof
   const removed = await pruneTerminalJobs(90, JOB_TERMINAL_STATUSES, undefined, now);
   assert.equal(removed, 8);
   assert.equal(jobDeleteManyArgs.length, 1);
-  const where = (jobDeleteManyArgs[0] as { where: { status: { in: string[] }; updatedAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ status: { in: string[] }; updatedAt: { lt: Date } }>(jobDeleteManyArgs);
   // Both terminal statuses must appear in the filter
   assert.ok(where.status.in.includes("COMPLETED"), "filter includes COMPLETED");
   assert.ok(where.status.in.includes("DEAD_LETTER"), "filter includes DEAD_LETTER");
   const cutoff = where.updatedAt.lt;
   // 90 days before 2026-06-01
-  const expected = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+  const expected = daysBefore(now, 90);
+  assert.equal(isoDate(cutoff), isoDate(expected));
 });
 
 test("pruneTerminalJobs: with an empty statuses array returns 0 and makes no DB call", async () => {
@@ -250,11 +264,11 @@ test("pruneTerminalJobs: falls back to default days for invalid olderThanDays", 
   jobDeleteManyCount = 0;
   const now = new Date("2026-06-01T00:00:00Z");
   await pruneTerminalJobs(-5, JOB_TERMINAL_STATUSES, undefined, now);
-  const where = (jobDeleteManyArgs[0] as { where: { updatedAt: { lt: Date } } }).where;
+  const where = capturedWhere<{ updatedAt: { lt: Date } }>(jobDeleteManyArgs);
   const cutoff = where.updatedAt.lt;
   // Default is 90 days
-  const expected = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
-  assert.equal(cutoff.toISOString().slice(0, 10), expected.toISOString().slice(0, 10));
+  const expected = daysBefore(now, 90);
+  assert.equal(isoDate(cutoff), isoDate(expected));
 });
 
 test("pruneTerminalJobs: can be scoped to DEAD_LETTER only", async () => {
@@ -264,7 +278,7 @@ test("pruneTerminalJobs: can be scoped to DEAD_LETTER only", async () => {
   const now = new Date("2026-06-01T00:00:00Z");
   const removed = await pruneTerminalJobs(30, [JobStatus.DEAD_LETTER], undefined, now);
   assert.equal(removed, 2);
-  const where = (jobDeleteManyArgs[0] as { where: { status: { in: string[] } } }).where;
+  const where = capturedWhere<{ status: { in: string[] } }>(jobDeleteManyArgs);
   assert.deepEqual(where.status.in, ["DEAD_LETTER"]);
 });
 

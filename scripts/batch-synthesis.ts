@@ -37,6 +37,52 @@ const DEFAULT_LOOP_SLEEP_MS = 60_000;
 const DEFAULT_LOOP_LIMIT = 50;
 const DEFAULT_LOOP_MAX_ERRORS = 5;
 
+const ARG_VALUE_FLAGS = new Set([
+  "--ids",
+  "--status",
+  "--source",
+  "--limit",
+  "--endpoint",
+  "--job-prefix",
+  "--voice",
+  "--voices",
+  "--voice-mode",
+  "--style",
+  "--style-degree",
+  "--role",
+  "--rate",
+  "--pitch",
+  "--volume",
+  "--paragraph-break-ms",
+  "--sentence-break-ms",
+  "--max-chars",
+  "--format",
+  "--max-inputs-per-job",
+  "--max-payload-bytes",
+  "--poll-interval-ms",
+  "--timeout-ms",
+  "--ttl-hours",
+  "--sleep",
+  "--max-passes",
+  "--max-errors",
+]);
+
+const KNOWN_FLAGS = new Set([
+  "--all",
+  "--include-existing",
+  "--include-private",
+  "--dry-run",
+  "--submit-only",
+  "--hd",
+  "--list-hd-voices",
+  "--lowest-storage",
+  "--concatenate",
+  "--help",
+  "-h",
+  "--loop",
+  ...ARG_VALUE_FLAGS,
+]);
+
 const ENGLISH_DRAGON_HD_VOICES = [
   { name: "en-US-Adam:DragonHDLatestNeural", gender: "Male", note: "" },
   { name: "en-US-Alloy:DragonHDLatestNeural", gender: "Male", note: "" },
@@ -291,52 +337,8 @@ function parseArgs(argv: string[]): Args {
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
     if (arg.startsWith("-")) {
-      const takesValue = new Set([
-        "--ids",
-        "--status",
-        "--source",
-        "--limit",
-        "--endpoint",
-        "--job-prefix",
-        "--voice",
-        "--voices",
-        "--voice-mode",
-        "--style",
-        "--style-degree",
-        "--role",
-        "--rate",
-        "--pitch",
-        "--volume",
-        "--paragraph-break-ms",
-        "--sentence-break-ms",
-        "--max-chars",
-        "--format",
-        "--max-inputs-per-job",
-        "--max-payload-bytes",
-        "--poll-interval-ms",
-        "--timeout-ms",
-        "--ttl-hours",
-        "--sleep",
-        "--max-passes",
-        "--max-errors",
-      ]);
-      const knownFlags = new Set([
-        "--all",
-        "--include-existing",
-        "--include-private",
-        "--dry-run",
-        "--submit-only",
-        "--hd",
-        "--list-hd-voices",
-        "--lowest-storage",
-        "--concatenate",
-        "--help",
-        "-h",
-        "--loop",
-        ...takesValue,
-      ]);
-      if (!knownFlags.has(arg)) warnUnknown(arg);
-      if (takesValue.has(arg)) i++;
+      if (!KNOWN_FLAGS.has(arg)) warnUnknown(arg);
+      if (ARG_VALUE_FLAGS.has(arg)) i++;
       continue;
     }
     if (!ids.includes(arg)) ids.push(arg);
@@ -723,38 +725,47 @@ function findBatchFile(files: string[], index: number, kind: "audio" | "word"): 
   );
 }
 
+function isNonNegativeBatchOffset(value: unknown): value is number {
+  return typeof value === "number" && !(value < 0);
+}
+
+function isFiniteNonNegativeNumber(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && value >= 0;
+}
+
+function batchWordFromBoundary(item: BatchWordBoundary): SpeechWord | null {
+  if (
+    typeof item.Text !== "string" ||
+    !isNonNegativeBatchOffset(item.AudioOffset) ||
+    !isNonNegativeBatchOffset(item.Duration)
+  ) {
+    return null;
+  }
+
+  const word: SpeechWord = {
+    word: item.Text,
+    startMs: item.AudioOffset,
+    endMs: item.AudioOffset + item.Duration,
+  };
+  const textOffset = item.TextOffset;
+  const textLength = item.WordLength ?? item.TextLength;
+  if (
+    isFiniteNonNegativeNumber(textOffset) &&
+    isFiniteNonNegativeNumber(textLength) &&
+    textLength > 0
+  ) {
+    word.textStart = textOffset;
+    word.textEnd = textOffset + textLength;
+  }
+  return word;
+}
+
 function parseBatchWords(raw: unknown): SpeechWord[] {
   if (!Array.isArray(raw)) return [];
   const words: SpeechWord[] = [];
   for (const item of raw as BatchWordBoundary[]) {
-    if (
-      typeof item.Text !== "string" ||
-      typeof item.AudioOffset !== "number" ||
-      typeof item.Duration !== "number" ||
-      item.AudioOffset < 0 ||
-      item.Duration < 0
-    ) {
-      continue;
-    }
-    const word: SpeechWord = {
-      word: item.Text,
-      startMs: item.AudioOffset,
-      endMs: item.AudioOffset + item.Duration,
-    };
-    const textOffset = item.TextOffset;
-    const textLength = item.WordLength ?? item.TextLength;
-    if (
-      typeof textOffset === "number" &&
-      typeof textLength === "number" &&
-      Number.isFinite(textOffset) &&
-      Number.isFinite(textLength) &&
-      textOffset >= 0 &&
-      textLength > 0
-    ) {
-      word.textStart = textOffset;
-      word.textEnd = textOffset + textLength;
-    }
-    words.push(word);
+    const word = batchWordFromBoundary(item);
+    if (word) words.push(word);
   }
   return words.sort((a, b) => a.startMs - b.startMs);
 }

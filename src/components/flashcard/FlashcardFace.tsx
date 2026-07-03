@@ -5,6 +5,10 @@ import { GradeButtons } from "./GradeButtons";
 import { PronounceButton, ShowAnswerButton } from "./FlashcardPrimitives";
 import type { DueCard, Grade } from "./types";
 
+const FLIP_CARD_MIN_HEIGHT = "min-h-[calc(var(--space-12)*2+var(--space-7))]";
+const FACE_CONTENT_CLASS =
+  "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]";
+
 interface FlashcardFaceProps {
   card: DueCard;
   flipped: boolean;
@@ -16,6 +20,43 @@ interface FlashcardFaceProps {
   onFlip: () => void;
   onSpeak: (word: string, cardId: string) => void;
   onGrade: (grade: Grade) => void;
+}
+
+function FlashcardContext({ card }: { card: DueCard }) {
+  if (card.contextSentence) {
+    return (
+      <div className="flex max-w-[52ch] flex-col gap-[var(--space-1)]">
+        <p className="text-[length:var(--text-xs)] text-text-muted m-0 uppercase tracking-wide font-semibold">
+          Original context
+        </p>
+        <p className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0">
+          &ldquo;{card.contextSentence}&rdquo;
+        </p>
+      </div>
+    );
+  }
+
+  if (card.example) {
+    return (
+      <p className="max-w-[52ch] font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0">
+        &ldquo;{card.example}&rdquo;
+      </p>
+    );
+  }
+
+  return null;
+}
+
+function ArticleLink({ articleId, word }: { articleId: string; word: string }) {
+  return (
+    <a
+      href={`/reader/${articleId}`}
+      className="inline-flex items-center gap-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted hover:text-primary underline underline-offset-2 transition-colors"
+      aria-label={`Go to article where "${word}" was saved`}
+    >
+      Go to article ↗
+    </a>
+  );
 }
 
 /** Classic flip-card faces: word on front, definition + context on back. */
@@ -32,16 +73,16 @@ export function FlashcardFace({
   onGrade,
 }: FlashcardFaceProps) {
   return (
-    <div className="rw-flip mt-[var(--space-5)] min-h-[calc(var(--space-12)*2+var(--space-7))]">
+    <div className={cn("rw-flip mt-[var(--space-5)]", FLIP_CARD_MIN_HEIGHT)}>
       <div
         data-flipped={flipped ? "true" : "false"}
-        className="rw-flip-inner min-h-[calc(var(--space-12)*2+var(--space-7))]"
+        className={cn("rw-flip-inner", FLIP_CARD_MIN_HEIGHT)}
       >
         {/* Front face */}
         <div
           className={cn(
             "rw-flip-face",
-            "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
+            FACE_CONTENT_CLASS,
             flipped ? "opacity-0" : "opacity-100",
           )}
         >
@@ -80,7 +121,7 @@ export function FlashcardFace({
         <div
           className={cn(
             "rw-flip-face rw-flip-back",
-            "flex flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]",
+            FACE_CONTENT_CLASS,
             flipped ? "opacity-100" : "opacity-0",
           )}
         >
@@ -105,33 +146,10 @@ export function FlashcardFace({
             </p>
           ) : null}
 
-          {card.contextSentence ? (
-            <div
-              className="flex max-w-[52ch] flex-col gap-[var(--space-1)]"
-            >
-              <p className="text-[length:var(--text-xs)] text-text-muted m-0 uppercase tracking-wide font-semibold">
-                Original context
-              </p>
-              <p className="font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0">
-                &ldquo;{card.contextSentence}&rdquo;
-              </p>
-            </div>
-          ) : card.example ? (
-            <p
-              className="max-w-[52ch] font-[family-name:var(--font-reading)] italic text-[length:var(--text-base)] text-text-muted m-0"
-            >
-              &ldquo;{card.example}&rdquo;
-            </p>
-          ) : null}
+          <FlashcardContext card={card} />
 
           {card.articleId ? (
-            <a
-              href={`/reader/${card.articleId}`}
-              className="inline-flex items-center gap-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted hover:text-primary underline underline-offset-2 transition-colors"
-              aria-label={`Go to article where "${card.word}" was saved`}
-            >
-              Go to article ↗
-            </a>
+            <ArticleLink articleId={card.articleId} word={card.word} />
           ) : null}
 
           <GradeButtons

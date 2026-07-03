@@ -54,6 +54,10 @@ export default function ProfileSettingsForm({
   const [levelError, setLevelError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const { busy, error, run } = useMutation("Network error. Please try again.");
+  const goalPathHelp =
+    goalPath === ""
+      ? null
+      : GOAL_PATH_HELP[goalPath as keyof typeof GOAL_PATH_HELP];
 
   function markDirty() {
     setSaved(false);
@@ -66,6 +70,32 @@ export default function ProfileSettingsForm({
     );
   }
 
+  function handleEnglishLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    const nextEnglishLevel = e.target.value;
+    markDirty();
+    setEnglishLevel(nextEnglishLevel);
+    if (nextEnglishLevel) setLevelError(null);
+  }
+
+  function handleAgeRangeChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    markDirty();
+    setAgeRange(e.target.value);
+  }
+
+  function handleGenderChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    markDirty();
+    setGender(e.target.value);
+  }
+
+  function handleGoalPathChange(e: React.ChangeEvent<HTMLSelectElement>) {
+    markDirty();
+    setGoalPath(e.target.value);
+  }
+
+  function handleDailyGoalChange(nextDailyGoal: number) {
+    setDailyGoal(nextDailyGoal);
+    markDirty();
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -110,11 +140,7 @@ export default function ProfileSettingsForm({
             >
               <Select
                 value={englishLevel}
-                onChange={(e) => {
-                  markDirty();
-                  setEnglishLevel(e.target.value);
-                  if (e.target.value) setLevelError(null);
-                }}
+                onChange={handleEnglishLevelChange}
                 required
               >
                 <option value="">Select a level…</option>
@@ -130,10 +156,7 @@ export default function ProfileSettingsForm({
               <Field label="Age range" hint="Optional">
                 <Select
                   value={ageRange}
-                  onChange={(e) => {
-                    markDirty();
-                    setAgeRange(e.target.value);
-                  }}
+                  onChange={handleAgeRangeChange}
                 >
                   <option value="">Prefer not to say</option>
                   {AGE_RANGES.map((range) => (
@@ -147,10 +170,7 @@ export default function ProfileSettingsForm({
               <Field label="Gender" hint="Optional">
                 <Select
                   value={gender}
-                  onChange={(e) => {
-                    markDirty();
-                    setGender(e.target.value);
-                  }}
+                  onChange={handleGenderChange}
                 >
                   <option value="">Prefer not to say</option>
                   {GENDERS.map((g) => (
@@ -182,10 +202,7 @@ export default function ProfileSettingsForm({
             >
               <Select
                 value={goalPath}
-                onChange={(e) => {
-                  markDirty();
-                  setGoalPath(e.target.value);
-                }}
+                onChange={handleGoalPathChange}
               >
                 <option value="">No specific goal</option>
                 {GOAL_PATHS.map((path) => (
@@ -194,9 +211,9 @@ export default function ProfileSettingsForm({
                   </option>
                 ))}
               </Select>
-              {goalPath !== "" && GOAL_PATH_HELP[goalPath as keyof typeof GOAL_PATH_HELP] ? (
+              {goalPathHelp ? (
                 <p className="text-text-subtle text-[length:var(--text-xs)]">
-                  {GOAL_PATH_HELP[goalPath as keyof typeof GOAL_PATH_HELP]}
+                  {goalPathHelp}
                 </p>
               ) : null}
             </Field>
@@ -204,10 +221,7 @@ export default function ProfileSettingsForm({
             {/* Daily reading goal stepper */}
             <DailyGoalStepper
               value={dailyGoal}
-              onChange={(v) => {
-                setDailyGoal(v);
-                markDirty();
-              }}
+              onChange={handleDailyGoalChange}
             />
 
             {/* Topics chip group */}

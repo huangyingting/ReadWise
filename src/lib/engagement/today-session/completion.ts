@@ -305,6 +305,21 @@ type MarkArgs = {
   requestTimezone?: string | null;
 };
 
+async function loadLocalTodaySession(
+  args: MarkArgs,
+  now: Date,
+): Promise<{ localDate: string; session: TodaySessionView | null }> {
+  const { localDate } = await resolveLocalDate({
+    userId: args.userId,
+    requestTimezone: args.requestTimezone,
+    now,
+  });
+  return {
+    localDate,
+    session: await getTodaySession(args.userId, localDate),
+  };
+}
+
 /**
  * Mark today's reading step complete for `articleId`. No-op (returns `null`)
  * when there is no Today session for the learner's local day, or when
@@ -316,12 +331,7 @@ export async function markTodayReadingComplete(
   args: MarkArgs & { userId: string; articleId: string },
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
-  const { localDate } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-  const session = await getTodaySession(args.userId, localDate);
+  const { localDate, session } = await loadLocalTodaySession(args, now);
   if (!session) return null;
   if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
     return null;
@@ -352,12 +362,7 @@ export async function markTodayReadingCompleteManual(
   args: MarkArgs,
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
-  const { localDate } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-  const session = await getTodaySession(args.userId, localDate);
+  const { localDate, session } = await loadLocalTodaySession(args, now);
   if (!session || !session.primaryArticleId) return null;
   const wasComplete = session.readingCompletedAt != null;
   if (!wasComplete) {
@@ -403,12 +408,7 @@ export async function markTodayComprehensionComplete(
   args: MarkArgs & { userId: string; articleId: string; selfRating?: string | null },
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
-  const { localDate } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-  const session = await getTodaySession(args.userId, localDate);
+  const { localDate, session } = await loadLocalTodaySession(args, now);
   if (!session) return null;
   if (!session.primaryArticleId || session.primaryArticleId !== args.articleId) {
     return null;
@@ -434,12 +434,7 @@ export async function markTodayWordReviewComplete(
   args: MarkArgs,
 ): Promise<TodaySessionView | null> {
   const now = args.now ?? new Date();
-  const { localDate } = await resolveLocalDate({
-    userId: args.userId,
-    requestTimezone: args.requestTimezone,
-    now,
-  });
-  const session = await getTodaySession(args.userId, localDate);
+  const { localDate, session } = await loadLocalTodaySession(args, now);
   if (!session) return null;
   return recomputeTodayCompletion(args.userId, localDate, now);
 }

@@ -14,7 +14,9 @@ let loadedSession: { user: { id: string; role?: string | null } } | null;
 let onboarded: boolean;
 let capabilityAllowed: boolean;
 let pushConfigured: boolean;
-let pushSubs: Array<{ id: string; endpoint: string; p256dh: string; auth: string; failureCount?: number }>;
+type PushSub = { id: string; endpoint: string; p256dh: string; auth: string; failureCount?: number };
+
+let pushSubs: PushSub[];
 let pushSent: Array<{ endpoint: string; payload: string }>;
 let pushFailures: Record<string, { statusCode?: number; message?: string }>;
 let healthCalls: Record<string, string[]>;
@@ -41,6 +43,16 @@ const MockJobType = {
   TTS_GENERATE: "TTS_GENERATE",
   PUSH_REMINDER: "PUSH_REMINDER",
 } as const;
+
+function makePushSub(id: string, overrides: Partial<PushSub> = {}): PushSub {
+  return {
+    id,
+    endpoint: `https://push.test/${id}`,
+    p256dh: "p",
+    auth: "a",
+    ...overrides,
+  };
+}
 
 before(() => {
   mock.module("next/navigation", {
@@ -161,7 +173,7 @@ beforeEach(() => {
   onboarded = true;
   capabilityAllowed = true;
   pushConfigured = true;
-  pushSubs = [{ id: "sub-1", endpoint: "https://push.test/sub-1", p256dh: "p", auth: "a" }];
+  pushSubs = [makePushSub("sub-1")];
   pushSent = [];
   pushFailures = {};
   healthCalls = { dead: [], success: [], fail: [] };
@@ -238,10 +250,10 @@ test("push delivery skips unconfigured providers and sends to loaded subscriptio
   };
   const delivered = await sendToSubs(
     [
-      { id: "success", endpoint: "https://push.test/success", p256dh: "p", auth: "a" },
-      { id: "dead", endpoint: "https://push.test/dead", p256dh: "p", auth: "a" },
-      { id: "threshold", endpoint: "https://push.test/threshold", p256dh: "p", auth: "a", failureCount: 2 },
-      { id: "transient", endpoint: "https://push.test/transient", p256dh: "p", auth: "a", failureCount: 1 },
+      makePushSub("success"),
+      makePushSub("dead"),
+      makePushSub("threshold", { failureCount: 2 }),
+      makePushSub("transient", { failureCount: 1 }),
     ],
     "{}",
   );

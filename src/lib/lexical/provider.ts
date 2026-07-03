@@ -172,6 +172,56 @@ function normalizeLocalDictionaryData(data: unknown): Map<string, DictionaryEntr
   return dictionary;
 }
 
+function collectPhoneticData(
+  raw: RawEntry,
+  current: { phonetic?: string; audio?: string },
+): { phonetic?: string; audio?: string } {
+  let { phonetic, audio } = current;
+  phonetic = phonetic ?? nonEmptyString(raw.phonetic);
+
+  if (Array.isArray(raw.phonetics)) {
+    for (const p of raw.phonetics as RawPhonetic[]) {
+      phonetic = phonetic ?? nonEmptyString(p.text);
+      audio = audio ?? nonEmptyString(p.audio);
+    }
+  }
+
+  return { phonetic, audio };
+}
+
+function partOfSpeechFor(raw: RawMeaning): string {
+  return nonEmptyString(raw.partOfSpeech) ?? "other";
+}
+
+function collectDefinitions(
+  rawDefinitions: unknown,
+  definitions: DictionaryDefinition[],
+): void {
+  if (!Array.isArray(rawDefinitions)) return;
+
+  for (const d of rawDefinitions as RawDefinition[]) {
+    const definition = nonEmptyString(d.definition);
+    if (definition && definitions.length < MAX_DEFINITIONS_PER_POS) {
+      definitions.push({
+        definition,
+        example: nonEmptyString(d.example),
+      });
+    }
+  }
+}
+
+function collectMeaning(
+  grouped: Map<string, DictionaryDefinition[]>,
+  raw: RawMeaning,
+): void {
+  const partOfSpeech = partOfSpeechFor(raw);
+  const definitions = grouped.get(partOfSpeech) ?? [];
+  collectDefinitions(raw.definitions, definitions);
+  if (definitions.length > 0) {
+    grouped.set(partOfSpeech, definitions);
+  }
+}
+
 function loadLocalDictionary(filePath: string): Map<string, DictionaryEntry> {
   const cached = localDictionaryCache.get(filePath);
   if (cached) return cached;
@@ -255,46 +305,10 @@ export class FreeDictionaryProvider implements DictionaryProvider {
     const grouped = new Map<string, DictionaryDefinition[]>();
 
     for (const raw of data as RawEntry[]) {
-      if (!phonetic && typeof raw.phonetic === "string" && raw.phonetic.trim()) {
-        phonetic = raw.phonetic.trim();
-      }
-      if (Array.isArray(raw.phonetics)) {
-        for (const p of raw.phonetics as RawPhonetic[]) {
-          if (!phonetic && typeof p.text === "string" && p.text.trim()) {
-            phonetic = p.text.trim();
-          }
-          if (!audio && typeof p.audio === "string" && p.audio.trim()) {
-            audio = p.audio.trim();
-          }
-        }
-      }
+      ({ phonetic, audio } = collectPhoneticData(raw, { phonetic, audio }));
       if (Array.isArray(raw.meanings)) {
         for (const m of raw.meanings as RawMeaning[]) {
-          const pos =
-            typeof m.partOfSpeech === "string" && m.partOfSpeech.trim()
-              ? m.partOfSpeech.trim()
-              : "other";
-          const defs = grouped.get(pos) ?? [];
-          if (Array.isArray(m.definitions)) {
-            for (const d of m.definitions as RawDefinition[]) {
-              if (
-                typeof d.definition === "string" &&
-                d.definition.trim() &&
-                defs.length < MAX_DEFINITIONS_PER_POS
-              ) {
-                defs.push({
-                  definition: d.definition.trim(),
-                  example:
-                    typeof d.example === "string" && d.example.trim()
-                      ? d.example.trim()
-                      : undefined,
-                });
-              }
-            }
-          }
-          if (defs.length > 0) {
-            grouped.set(pos, defs);
-          }
+          collectMeaning(grouped, m);
         }
       }
     }

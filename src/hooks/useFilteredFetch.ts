@@ -18,6 +18,7 @@
  */
 
 import { useCallback, useEffect, useRef } from "react";
+import type { MutableRefObject } from "react";
 
 export interface FilteredFetchRun<T> {
   /** Performs the request. Receives the AbortSignal; throw on HTTP error. */
@@ -44,18 +45,26 @@ function isAbort(error: unknown): boolean {
   );
 }
 
+function clearPendingTimer(timerRef: MutableRefObject<ReturnType<typeof setTimeout> | null>) {
+  if (timerRef.current) {
+    clearTimeout(timerRef.current);
+    timerRef.current = null;
+  }
+}
+
+function abortInFlight(abortRef: MutableRefObject<AbortController | null>) {
+  abortRef.current?.abort();
+  abortRef.current = null;
+}
+
 export function useFilteredFetch<T>(debounceMs = 200): UseFilteredFetchResult<T> {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const requestIdRef = useRef(0);
 
   const cancel = useCallback(() => {
-    if (timerRef.current) {
-      clearTimeout(timerRef.current);
-      timerRef.current = null;
-    }
-    abortRef.current?.abort();
-    abortRef.current = null;
+    clearPendingTimer(timerRef);
+    abortInFlight(abortRef);
   }, []);
 
   // Cancel any pending debounce + in-flight request on unmount.
@@ -63,14 +72,11 @@ export function useFilteredFetch<T>(debounceMs = 200): UseFilteredFetchResult<T>
 
   const run = useCallback(
     ({ fetcher, onResult, onError, immediate = false }: FilteredFetchRun<T>) => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-        timerRef.current = null;
-      }
+      clearPendingTimer(timerRef);
 
       const fire = () => {
         // Abort any prior request so only the latest one can resolve.
-        abortRef.current?.abort();
+        abortInFlight(abortRef);
         const controller = new AbortController();
         abortRef.current = controller;
         const requestId = ++requestIdRef.current;

@@ -68,6 +68,12 @@ async function loadRepo() {
   return import("@/lib/speech/repository");
 }
 
+function assertParseRejects<Raw>(parseStoredSpeechWords: (value: Raw) => unknown, values: Raw[]): void {
+  for (const value of values) {
+    assert.equal(parseStoredSpeechWords(value), null);
+  }
+}
+
 /** Build a scriptable in-memory MediaStorage. */
 function makeStorage(opts: {
   put?: (input: PutMediaInput) => Promise<PutMediaResult>;
@@ -89,37 +95,44 @@ function makeStorage(opts: {
 
 test("parseStoredSpeechWords returns null for null or undefined input", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(parseStoredSpeechWords(null), null);
-  assert.equal(parseStoredSpeechWords(undefined), null);
+  assertParseRejects(parseStoredSpeechWords, [null, undefined]);
 });
 
 test("parseStoredSpeechWords returns null when the stored value is not an array", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(parseStoredSpeechWords("not-an-array"), null);
-  assert.equal(parseStoredSpeechWords(42), null);
-  assert.equal(parseStoredSpeechWords({ word: "hi", offset: 0, duration: 1 }), null);
+  assertParseRejects(parseStoredSpeechWords, [
+    "not-an-array",
+    42,
+    { word: "hi", offset: 0, duration: 1 },
+  ]);
 });
 
 test("parseStoredSpeechWords returns null when an item is null, a primitive, or a nested array", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(parseStoredSpeechWords([null]), null);
-  assert.equal(parseStoredSpeechWords(["hello"]), null);
-  assert.equal(parseStoredSpeechWords([[{ word: "x", offset: 0, duration: 1 }]]), null);
+  assertParseRejects(parseStoredSpeechWords, [
+    [null],
+    ["hello"],
+    [[{ word: "x", offset: 0, duration: 1 }]],
+  ]);
 });
 
 test("parseStoredSpeechWords returns null when word is missing, non-string, or blank", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(parseStoredSpeechWords([{ offset: 0, duration: 1 }]), null);
-  assert.equal(parseStoredSpeechWords([{ word: 123, offset: 0, duration: 1 }]), null);
-  assert.equal(parseStoredSpeechWords([{ word: "   ", offset: 0, duration: 1 }]), null);
+  assertParseRejects(parseStoredSpeechWords, [
+    [{ offset: 0, duration: 1 }],
+    [{ word: 123, offset: 0, duration: 1 }],
+    [{ word: "   ", offset: 0, duration: 1 }],
+  ]);
 });
 
 test("parseStoredSpeechWords returns null for non-finite or negative offset/duration", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(parseStoredSpeechWords([{ word: "a", offset: Number.NaN, duration: 1 }]), null);
-  assert.equal(parseStoredSpeechWords([{ word: "a", offset: 0, duration: "1" }]), null);
-  assert.equal(parseStoredSpeechWords([{ word: "a", offset: -1, duration: 1 }]), null);
-  assert.equal(parseStoredSpeechWords([{ word: "a", offset: 0, duration: -1 }]), null);
+  assertParseRejects(parseStoredSpeechWords, [
+    [{ word: "a", offset: Number.NaN, duration: 1 }],
+    [{ word: "a", offset: 0, duration: "1" }],
+    [{ word: "a", offset: -1, duration: 1 }],
+    [{ word: "a", offset: 0, duration: -1 }],
+  ]);
 });
 
 test("parseStoredSpeechWords returns an empty array for an empty stored array", async () => {
@@ -164,22 +177,12 @@ test("parseStoredSpeechWords parses versioned V2 columnar payloads", async () =>
 
 test("parseStoredSpeechWords rejects incomplete or invalid text offsets", async () => {
   const { parseStoredSpeechWords } = await loadRepo();
-  assert.equal(
-    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, wordLength: 1 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: -1, wordLength: 1 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ word: "a", offset: 0, duration: 1, textOffset: 0, wordLength: 0 }]),
-    null,
-  );
+  assertParseRejects(parseStoredSpeechWords, [
+    [{ word: "a", offset: 0, duration: 1, textOffset: 0 }],
+    [{ word: "a", offset: 0, duration: 1, wordLength: 1 }],
+    [{ word: "a", offset: 0, duration: 1, textOffset: -1, wordLength: 1 }],
+    [{ word: "a", offset: 0, duration: 1, textOffset: 0, wordLength: 0 }],
+  ]);
 });
 
 // ---------------------------------------------------------------------------

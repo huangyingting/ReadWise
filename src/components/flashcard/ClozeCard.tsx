@@ -56,6 +56,19 @@ export function ClozeCard({
   onSpeak,
   onGrade,
 }: ClozeCardProps) {
+  const cloze = card.cloze;
+  const pronunciationDisabled = Boolean(cloze && !clozeSubmitted);
+  const submitDisabled = clozeInput.trim() === "";
+
+  function handleClozeSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    onSubmitCloze(clozeInput);
+  }
+
+  function handleClozeInputChange(e: React.ChangeEvent<HTMLInputElement>) {
+    onClozeInput(e.target.value);
+  }
+
   return (
     <div
       className="mt-[var(--space-5)] flex min-h-[calc(var(--space-12)*2+var(--space-7))] flex-col items-center justify-center text-center gap-[var(--space-4)] p-[var(--space-4)]"
@@ -65,11 +78,11 @@ export function ClozeCard({
       </p>
 
       {/* Masked sentence or definition-fallback word */}
-      {card.cloze ? (
+      {cloze ? (
         <p
           className="max-w-[52ch] font-[family-name:var(--font-reading)] text-[length:var(--text-lg)] text-text m-0"
         >
-          {card.cloze.masked}
+          {cloze.masked}
         </p>
       ) : (
         <>
@@ -89,27 +102,24 @@ export function ClozeCard({
           word={card.word}
           cardId={card.id}
           speaking={speaking}
-          disabled={!!card.cloze && !clozeSubmitted}
+          disabled={pronunciationDisabled}
           disabledTitle="Available after you answer"
           onSpeak={onSpeak}
         />
       )}
 
       {/* Input form — only when cloze data is available and not yet submitted */}
-      {card.cloze && !clozeSubmitted && (
+      {cloze && !clozeSubmitted && (
         <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSubmitCloze(clozeInput);
-          }}
+          onSubmit={handleClozeSubmit}
           className="flex w-full max-w-[32ch] flex-col items-center gap-[var(--space-3)]"
         >
           <Input
             ref={clozeInputRef}
             type="text"
             value={clozeInput}
-            onChange={(e) => onClozeInput(e.target.value)}
-            placeholder={`${"_".repeat(card.cloze.answerLength)}`}
+            onChange={handleClozeInputChange}
+            placeholder={`${"_".repeat(cloze.answerLength)}`}
             autoComplete="off"
             spellCheck={false}
             autoFocus
@@ -120,7 +130,7 @@ export function ClozeCard({
           <Button
             type="submit"
             variant="primary"
-            disabled={clozeInput.trim() === ""}
+            disabled={submitDisabled}
           >
             Check
           </Button>

@@ -26,6 +26,8 @@ import { IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
+const FALLBACK_LIST_NAME = "list";
+
 export interface CardBookmarkButtonProps {
   articleId: string;
   articleTitle: string;
@@ -61,46 +63,52 @@ export default function CardBookmarkButton({
     }
   }, [saved]);
 
+  async function removeFromList(listId: string) {
+    const wrapper = buttonRef.current?.closest<HTMLElement>("[data-card-wrapper]");
+    try {
+      await deleteJson(
+        `/api/lists/${encodeURIComponent(listId)}/items/${encodeURIComponent(articleId)}`,
+      );
+      wrapper?.setAttribute("data-card-removed", "true");
+    } catch {
+      // silent — card stays visible
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function toggleDefaultBookmark() {
+    const nextSaved = !saved;
+    setSaved(nextSaved);
+
+    try {
+      const data = await postJson<{ bookmarked: boolean }>("/api/bookmarks/toggle", {
+        articleId,
+      });
+      setSaved(data.bookmarked);
+      markBookmarkChanged(articleId);
+    } catch {
+      setSaved(!nextSaved);
+    } finally {
+      setPending(false);
+    }
+  }
+
   async function handleClick(e: React.MouseEvent) {
     e.preventDefault();
     if (pending) return;
     setPending(true);
 
     if (isRemoveMode && removeListId) {
-      // Remove from specific list — animate card out via data attribute on wrapper
-      const wrapper = buttonRef.current?.closest<HTMLElement>("[data-card-wrapper]");
-      try {
-        await deleteJson(
-          `/api/lists/${encodeURIComponent(removeListId)}/items/${encodeURIComponent(articleId)}`,
-        );
-        // Trigger CSS fade-out on the card wrapper
-        wrapper?.setAttribute("data-card-removed", "true");
-      } catch {
-        // silent — card stays visible
-      } finally {
-        setPending(false);
-      }
-    } else {
-      // Toggle default list — optimistic fill swap
-      const newSaved = !saved;
-      setSaved(newSaved);
-
-      try {
-        const data = await postJson<{ bookmarked: boolean }>("/api/bookmarks/toggle", {
-          articleId,
-        });
-        setSaved(data.bookmarked);
-        markBookmarkChanged(articleId);
-      } catch {
-        setSaved(!newSaved); // revert
-      } finally {
-        setPending(false);
-      }
+      await removeFromList(removeListId);
+      return;
     }
+
+    await toggleDefaultBookmark();
   }
 
   const ariaLabel = isRemoveMode
-    ? `Remove "${articleTitle}" from ${removeListName ?? "list"}`
+    ? `Remove "${articleTitle}" from ${removeListName ?? FALLBACK_LIST_NAME}`
     : `Save "${articleTitle}"`;
 
   return (

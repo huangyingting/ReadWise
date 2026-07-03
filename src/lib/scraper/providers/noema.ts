@@ -1,26 +1,11 @@
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { parseRssUrls } from "@/lib/scraper/rss";
-import { categoryFromRules, excludes } from "./shared";
+import { categoryFromRules, excludes, parseSitemapLocs } from "./shared";
 
 const NOEMA_SITEMAP_INDEX_URL = "https://www.noemamag.com/sitemap_index.xml";
 const NOEMA_MAX_RSS_PAGES = 500;
 const NOEMA_MAX_TOPIC_PAGES = 500;
 const NOEMA_EMPTY_TOPIC_PAGE_LIMIT = 2;
-
-function decodeXmlText(value: string): string {
-  return value
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'");
-}
-
-function parseSitemapLocs(xml: string): string[] {
-  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)]
-    .map((match) => decodeXmlText(match[1]?.trim() ?? ""))
-    .filter(Boolean);
-}
 
 function isNoemaArticleSitemap(url: string): boolean {
   try {
@@ -49,6 +34,28 @@ function candidateCap(limit: number): number {
   return Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
 }
 
+function createCandidateCollector(limit: number) {
+  const cap = candidateCap(limit);
+  const seen = new Set<string>();
+  const urls: string[] = [];
+
+  return {
+    urls,
+    hasCapacity: () => urls.length < cap,
+    add(candidates: readonly string[]): number {
+      let added = 0;
+      for (const url of candidates) {
+        if (urls.length >= cap) break;
+        if (seen.has(url)) continue;
+        seen.add(url);
+        urls.push(url);
+        added++;
+      }
+      return added;
+    },
+  };
+}
+
 function normalizeDiscoveredUrl(raw: string, baseUrl: string): string | null {
   try {
     const url = new URL(raw, baseUrl);
@@ -72,31 +79,15 @@ function parseHtmlLinks(html: string, baseUrl: string): string[] {
 }
 
 async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise<string[]> {
-  const cap = candidateCap(limit);
-  const seen = new Set<string>();
-  const urls: string[] = [];
-
-  const add = (candidates: readonly string[]): number => {
-    let added = 0;
-    for (const url of candidates) {
-      if (urls.length >= cap) break;
-      if (seen.has(url)) continue;
-      seen.add(url);
-      urls.push(url);
-      added++;
-    }
-    return added;
-  };
-
-  const hasCapacity = () => urls.length < cap;
+  const candidates = createCandidateCollector(limit);
 
   try {
     const indexXml = await fetch(NOEMA_SITEMAP_INDEX_URL);
     const articleSitemaps = parseSitemapLocs(indexXml).filter(isNoemaArticleSitemap);
     for (const sitemapUrl of articleSitemaps) {
-      if (!hasCapacity()) break;
+      if (!candidates.hasCapacity()) break;
       try {
-        add(parseSitemapLocs(await fetch(sitemapUrl)));
+        candidates.add(parseSitemapLocs(await fetch(sitemapUrl)));
       } catch {
         // Keep other Noema sources available if one child sitemap is blocked.
       }
@@ -106,7 +97,7 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
   }
 
   let consecutiveEmptyPages = 0;
-  for (let page = 1; page <= NOEMA_MAX_RSS_PAGES && hasCapacity(); page++) {
+  for (let page = 1; page <= NOEMA_MAX_RSS_PAGES && candidates.hasCapacity(); page++) {
     let feedUrls: string[];
     try {
       feedUrls = parseRssUrls(await fetch(noemaRssFeedUrl(page)));
@@ -114,7 +105,7 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
       break;
     }
 
-    add(feedUrls);
+    candidates.add(feedUrls);
     if (feedUrls.length === 0) {
       consecutiveEmptyPages++;
       if (consecutiveEmptyPages >= 2) break;
@@ -124,9 +115,9 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
   }
 
   for (const seed of noema.seeds) {
-    if (!hasCapacity()) break;
+    if (!candidates.hasCapacity()) break;
     let consecutiveEmptyPages = 0;
-    for (let page = 1; page <= NOEMA_MAX_TOPIC_PAGES && hasCapacity(); page++) {
+    for (let page = 1; page <= NOEMA_MAX_TOPIC_PAGES && candidates.hasCapacity(); page++) {
       const pageUrl = noemaTopicPageUrl(seed, page);
       let topicUrls: string[];
       try {
@@ -135,7 +126,7 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
         break;
       }
 
-      const added = add(topicUrls);
+      const added = candidates.add(topicUrls);
       if (added === 0) {
         consecutiveEmptyPages++;
         if (consecutiveEmptyPages >= NOEMA_EMPTY_TOPIC_PAGE_LIMIT) break;
@@ -145,7 +136,7 @@ async function noemaUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
     }
   }
 
-  return urls;
+  return candidates.urls;
 }
 
 const noema: Provider = {

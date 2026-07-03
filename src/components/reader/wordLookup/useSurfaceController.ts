@@ -50,18 +50,34 @@ const initialState: SurfaceState = {
   editMarkEl: null,
 };
 
+function resetState(
+  state: SurfaceState,
+  overrides: Partial<SurfaceState> = {},
+): SurfaceState {
+  return {
+    ...initialState,
+    toolbarColor: state.toolbarColor,
+    ...overrides,
+  };
+}
+
+function transitionSurface(
+  state: SurfaceState,
+  openSurface: Exclude<OpenSurface, null>,
+): SurfaceState {
+  return { ...state, openSurface, toolbarRect: null };
+}
+
 function surfaceReducer(state: SurfaceState, action: SurfaceAction): SurfaceState {
   switch (action.type) {
     case "CLOSE_ALL":
-      return { ...initialState, toolbarColor: state.toolbarColor };
+      return resetState(state);
 
     case "OPEN_DICTIONARY":
-      return {
-        ...initialState,
-        toolbarColor: state.toolbarColor,
+      return resetState(state, {
         openSurface: "dictionary",
         dictAnchor: { x: action.x, y: action.y },
-      };
+      });
 
     case "OPEN_TOOLBAR":
       return {
@@ -77,21 +93,19 @@ function surfaceReducer(state: SurfaceState, action: SurfaceAction): SurfaceStat
       };
 
     case "OPEN_EDIT_POPOVER":
-      return {
-        ...initialState,
-        toolbarColor: state.toolbarColor,
+      return resetState(state, {
         openSurface: "popover",
         editHlId: action.hlId,
         editMarkEl: action.markEl,
-      };
+      });
 
     // Transitions toolbar → translate/grammar: preserve savedAnchorRef and
     // toolbarColor, clear toolbarRect, change the surface.
     case "TRANSITION_TO_TRANSLATE":
-      return { ...state, openSurface: "translate", toolbarRect: null };
+      return transitionSurface(state, "translate");
 
     case "TRANSITION_TO_GRAMMAR":
-      return { ...state, openSurface: "grammar", toolbarRect: null };
+      return transitionSurface(state, "grammar");
 
     // Atomic: only dismisses when the toolbar is actually the open surface.
     // Used by the selectionchange listener to avoid a stale-closure race.

@@ -10,8 +10,19 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
 registerIntegrationCleanup();
 
+const POSTGRES_REQUIRED_MESSAGE = "test:db requires a PostgreSQL DATABASE_URL";
+const UNIQUE_CONSTRAINT_ERROR = /Unique constraint failed|Unique constraint|duplicate key value/;
+
+function assertPostgresIntegrationEnabled(): void {
+  assert.equal(isPostgres, true, POSTGRES_REQUIRED_MESSAGE);
+}
+
+async function createReaderUser(userId: string, name: string): Promise<void> {
+  await prisma.user.create({ data: { id: userId, name, role: "Reader" } });
+}
+
 test("audit logs persist security event details on PostgreSQL", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const actorId = id("audit_actor");
   const row = await prisma.auditLog.create({
@@ -36,7 +47,7 @@ test("audit logs persist security event details on PostgreSQL", { skip: !enabled
 });
 
 test("audit logs are retained when actor or target rows are deleted", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const userId = id("audit_retention_user");
   const articleId = id("audit_retention_article");
@@ -70,7 +81,7 @@ test("audit logs are retained when actor or target rows are deleted", { skip: !e
 });
 
 test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const columns = await prisma.$queryRaw<
     Array<{ table_name: string; column_name: string; data_type: string; column_default: string | null }>
@@ -92,7 +103,7 @@ test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () =>
   assert.equal(byColumn.get("ArticleSpeech.words")?.data_type, "jsonb");
 
   const userId = id("json_user");
-  await prisma.user.create({ data: { id: userId, name: "DB Integration JSON User", role: "Reader" } });
+  await createReaderUser(userId, "DB Integration JSON User");
   const profile = await prisma.profile.create({
     data: { userId, englishLevel: "B1", topics: ["technology", "science"] },
     select: { topics: true },
@@ -132,7 +143,7 @@ test("PostgreSQL JSON fields use jsonb columns", { skip: !enabled }, async () =>
 });
 
 test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const ownerA = id("owner_a");
   const ownerB = id("owner_b");
@@ -167,7 +178,7 @@ test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, as
         visibility: ArticleVisibility.PRIVATE,
       },
     }),
-    /Unique constraint failed|Unique constraint|duplicate key value/,
+    UNIQUE_CONSTRAINT_ERROR,
   );
 
   await prisma.article.create({
@@ -216,7 +227,7 @@ test("ownership uniqueness matches PostgreSQL semantics", { skip: !enabled }, as
 });
 
 test("scoped tag uniqueness allows duplicate slugs only across namespaces", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const ownerA = id("tag_owner_a");
   const ownerB = id("tag_owner_b");
@@ -231,7 +242,7 @@ test("scoped tag uniqueness allows duplicate slugs only across namespaces", { sk
   await prisma.tag.create({ data: { id: id("public_tag"), name: "Public Scoped Tag", slug } });
   await assert.rejects(
     prisma.tag.create({ data: { id: id("public_tag_dup"), name: "Public Scoped Tag Duplicate", slug } }),
-    /Unique constraint failed|Unique constraint|duplicate key value/,
+    UNIQUE_CONSTRAINT_ERROR,
   );
 
   await prisma.tag.create({
@@ -255,7 +266,7 @@ test("scoped tag uniqueness allows duplicate slugs only across namespaces", { sk
         ownerId: ownerA,
       },
     }),
-    /Unique constraint failed|Unique constraint|duplicate key value/,
+    UNIQUE_CONSTRAINT_ERROR,
   );
 
   await prisma.tag.create({
@@ -275,10 +286,10 @@ test("scoped tag uniqueness allows duplicate slugs only across namespaces", { sk
 });
 
 test("PostgreSQL privacy checks enforce owner and visibility invariants", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  assertPostgresIntegrationEnabled();
 
   const ownerId = id("privacy_owner");
-  await prisma.user.create({ data: { id: ownerId, name: "DB Integration Privacy Owner", role: "Reader" } });
+  await createReaderUser(ownerId, "DB Integration Privacy Owner");
 
   await assert.rejects(
     prisma.article.create({

@@ -88,6 +88,8 @@ export type SloReport = {
   slis: SliEvaluation[];
 };
 
+type MeasurementResult = { value: number | null; sampleCount: number };
+
 /**
  * The SLI catalog. Targets are intentionally conservative initial values to be
  * refined with production data (see docs/observability/overview.md).
@@ -234,6 +236,11 @@ function sumCounters(
     .reduce((total, point) => total + point.value, 0);
 }
 
+function ratioOrNoData(numerator: number, denominator: number): MeasurementResult {
+  if (denominator === 0) return { value: null, sampleCount: 0 };
+  return { value: numerator / denominator, sampleCount: denominator };
+}
+
 function routeLabelMatcher(measurement: {
   routeExact?: string;
   routePrefix?: string;
@@ -280,65 +287,60 @@ function histogramsMatching(
 function evaluateApi(
   snapshot: MetricsSnapshot,
   measurement: Extract<SliMeasurement, { metric: "api" }>,
-): { value: number | null; sampleCount: number } {
+): MeasurementResult {
   const routeFilter = routeLabelMatcher(measurement);
   if (measurement.kind === "availability") {
     const total = sumCounters(snapshot, "readwise_api_requests_total", routeFilter);
-    if (total === 0) return { value: null, sampleCount: 0 };
     const failing = sumCounters(
       snapshot,
       "readwise_api_requests_total",
       (labels) => routeFilter(labels) && labels.status_class === "5xx",
     );
-    return { value: (total - failing) / total, sampleCount: total };
+    return ratioOrNoData(total - failing, total);
   }
   const points = histogramsMatching(snapshot, "readwise_api_request_duration_ms", routeFilter);
   const { fast, total } = histogramFastFraction(points, measurement.latencyThresholdMs ?? 0);
-  if (total === 0) return { value: null, sampleCount: 0 };
-  return { value: fast / total, sampleCount: total };
+  return ratioOrNoData(fast, total);
 }
 
 function evaluateWorker(
   snapshot: MetricsSnapshot,
   measurement: Extract<SliMeasurement, { metric: "worker" }>,
-): { value: number | null; sampleCount: number } {
+): MeasurementResult {
   if (measurement.kind === "availability") {
     const denom = sumCounters(
       snapshot,
       "readwise_worker_jobs_total",
       (labels) => labels.outcome === "success" || labels.outcome === "failed",
     );
-    if (denom === 0) return { value: null, sampleCount: 0 };
     const good = sumCounters(
       snapshot,
       "readwise_worker_jobs_total",
       (labels) => labels.outcome === "success",
     );
-    return { value: good / denom, sampleCount: denom };
+    return ratioOrNoData(good, denom);
   }
   const points = histogramsMatching(snapshot, "readwise_worker_job_duration_ms");
   const { fast, total } = histogramFastFraction(points, measurement.latencyThresholdMs ?? 0);
-  if (total === 0) return { value: null, sampleCount: 0 };
-  return { value: fast / total, sampleCount: total };
+  return ratioOrNoData(fast, total);
 }
 
 function evaluateAi(
   snapshot: MetricsSnapshot,
   measurement: Extract<SliMeasurement, { metric: "ai" }>,
-): { value: number | null; sampleCount: number } {
+): MeasurementResult {
   if (measurement.kind === "availability") {
     const denom = sumCounters(
       snapshot,
       "readwise_ai_calls_total",
       (labels) => labels.outcome === "success" || labels.outcome === "error",
     );
-    if (denom === 0) return { value: null, sampleCount: 0 };
     const good = sumCounters(
       snapshot,
       "readwise_ai_calls_total",
       (labels) => labels.outcome === "success",
     );
-    return { value: good / denom, sampleCount: denom };
+    return ratioOrNoData(good, denom);
   }
   const points = histogramsMatching(
     snapshot,
@@ -346,21 +348,28 @@ function evaluateAi(
     (labels) => labels.outcome === "success",
   );
   const { fast, total } = histogramFastFraction(points, measurement.latencyThresholdMs ?? 0);
-  if (total === 0) return { value: null, sampleCount: 0 };
-  return { value: fast / total, sampleCount: total };
+  return ratioOrNoData(fast, total);
+}
+
+function evaluateMeasurement(snapshot: MetricsSnapshot, measurement: SliMeasurement): MeasurementResult {
+  switch (measurement.metric) {
+    case "api":
+      return evaluateApi(snapshot, measurement);
+    case "worker":
+      return evaluateWorker(snapshot, measurement);
+    case "ai":
+      return evaluateAi(snapshot, measurement);
+  }
+}
+
+function statusFor(value: number | null, objective: number): SliStatus {
+  return value === null ? "no_data" : value >= objective ? "ok" : "breaching";
 }
 
 function evaluateOne(snapshot: MetricsSnapshot, def: SliDefinition): SliEvaluation {
   const { measurement } = def;
-  const result =
-    measurement.metric === "api"
-      ? evaluateApi(snapshot, measurement)
-      : measurement.metric === "worker"
-        ? evaluateWorker(snapshot, measurement)
-        : evaluateAi(snapshot, measurement);
-
-  const status: SliStatus =
-    result.value === null ? "no_data" : result.value >= def.objective ? "ok" : "breaching";
+  const result = evaluateMeasurement(snapshot, measurement);
+  const status = statusFor(result.value, def.objective);
 
   return {
     key: def.key,
@@ -377,6 +386,10 @@ function evaluateOne(snapshot: MetricsSnapshot, def: SliDefinition): SliEvaluati
   };
 }
 
+function countByStatus(slis: SliEvaluation[], status: SliStatus): number {
+  return slis.filter((sli) => sli.status === status).length;
+}
+
 /**
  * Evaluate every SLI against a metrics snapshot (defaults to the live one) and
  * summarize. SLIs with no data yet are reported as `no_data`, not failing.
@@ -386,9 +399,9 @@ export function evaluateSlos(snapshot: MetricsSnapshot = getMetricsSnapshot()): 
   return {
     evaluatedAt: new Date().toISOString(),
     total: slis.length,
-    ok: slis.filter((sli) => sli.status === "ok").length,
-    breaching: slis.filter((sli) => sli.status === "breaching").length,
-    noData: slis.filter((sli) => sli.status === "no_data").length,
+    ok: countByStatus(slis, "ok"),
+    breaching: countByStatus(slis, "breaching"),
+    noData: countByStatus(slis, "no_data"),
     slis,
   };
 }

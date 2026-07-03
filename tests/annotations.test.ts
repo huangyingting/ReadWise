@@ -48,6 +48,47 @@ beforeEach(() => {
   stubUpdated = null;
 });
 
+type HighlightRow = {
+  id: string;
+  quote: string;
+  startOffset: number;
+  endOffset: number;
+  prefix: string;
+  suffix: string;
+  note: string | null;
+  color: string | null;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+function highlightRow(overrides: Partial<HighlightRow> = {}): HighlightRow {
+  return {
+    id: "h-1",
+    quote: "q",
+    startOffset: 0,
+    endOffset: 1,
+    prefix: "",
+    suffix: "",
+    note: null,
+    color: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  };
+}
+
+function temporaryHighlightRow(id: string): HighlightRow {
+  return highlightRow({ id, quote: "temporary", endOffset: 9 });
+}
+
+function temporaryHighlightInput() {
+  return {
+    quote: "temporary",
+    startOffset: 0,
+    endOffset: 9,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // validateAnchor — edge cases
 // ---------------------------------------------------------------------------
@@ -103,18 +144,12 @@ test("validateAnchor rejects non-integer offsets", async () => {
 test("annotateHighlightAnchors marks a valid anchor as not stale", async () => {
   const { annotateHighlightAnchors } = await import("@/lib/annotations");
   const plainText = "Hello world, this is a test.";
-  const row = {
+  const row = highlightRow({
     id: "h-1",
     quote: "Hello world",
-    startOffset: 0,
     endOffset: 11,
-    prefix: "",
     suffix: ",",
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   const [annotated] = annotateHighlightAnchors([row], plainText);
   assert.equal(annotated.stale, false);
   assert.equal(annotated.anchorStatus, "valid");
@@ -123,18 +158,12 @@ test("annotateHighlightAnchors marks a valid anchor as not stale", async () => {
 test("annotateHighlightAnchors marks a moved anchor as stale with suggested offsets", async () => {
   const { annotateHighlightAnchors } = await import("@/lib/annotations");
   const plainText = "Prefix: Hello world, this is a test.";
-  const row = {
+  const row = highlightRow({
     id: "h-2",
     quote: "Hello world",
     startOffset: 0, // was at start, now moved
     endOffset: 11,
-    prefix: "",
-    suffix: "",
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   const [annotated] = annotateHighlightAnchors([row], plainText);
   assert.equal(annotated.stale, true);
   assert.equal(annotated.anchorStatus, "moved");
@@ -143,18 +172,11 @@ test("annotateHighlightAnchors marks a moved anchor as stale with suggested offs
 
 test("annotateHighlightAnchors marks a missing anchor as stale", async () => {
   const { annotateHighlightAnchors } = await import("@/lib/annotations");
-  const row = {
+  const row = highlightRow({
     id: "h-3",
     quote: "deleted text",
-    startOffset: 0,
     endOffset: 12,
-    prefix: "",
-    suffix: "",
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   const [annotated] = annotateHighlightAnchors([row], "completely different content");
   assert.equal(annotated.stale, true);
   assert.equal(annotated.anchorStatus, "missing");
@@ -197,18 +219,14 @@ test("revalidateAnchor falls back to first occurrence when context not found", a
 // ---------------------------------------------------------------------------
 
 test("createHighlight is idempotent: upsert returns the existing row unchanged", async () => {
-  const existing = {
+  const existing = highlightRow({
     id: "h-idem",
     quote: "same text",
     startOffset: 5,
     endOffset: 14,
-    prefix: "",
-    suffix: "",
     note: "original note",
     color: "yellow",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   stubCreated = existing; // upsert returns the existing row (update:{} path)
   const { createHighlight } = await import("@/lib/annotations");
   const r = await createHighlight("u-1", "a-1", {
@@ -254,27 +272,12 @@ test("create-then-delete in order leaves no highlight (correct offline queue beh
   // Simulate: offline queue delivers CREATE then DELETE in the correct order.
   // create: upsert inserts/finds the row
   // delete: ownership check passes, row is removed → ok:true
-  const row = {
-    id: "h-ctd",
-    quote: "temporary",
-    startOffset: 0,
-    endOffset: 9,
-    prefix: "",
-    suffix: "",
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  const row = temporaryHighlightRow("h-ctd");
 
   const { createHighlight, deleteHighlight } = await import("@/lib/annotations");
 
   stubCreated = row;
-  const created = await createHighlight("u-1", "a-1", {
-    quote: "temporary",
-    startOffset: 0,
-    endOffset: 9,
-  });
+  const created = await createHighlight("u-1", "a-1", temporaryHighlightInput());
   assert.equal(created.ok, true);
 
   // Now the delete step: ownership check finds the row, then removes it.
@@ -287,18 +290,7 @@ test("delete-then-create out of order: delete returns 404, create re-creates (do
   // Simulates offline queue out-of-order delivery.
   // This is the documented edge case where the highlight ends up present after
   // sync because the queue must be ordered to reconcile create-then-delete.
-  const row = {
-    id: "h-ooo",
-    quote: "temporary",
-    startOffset: 0,
-    endOffset: 9,
-    prefix: "",
-    suffix: "",
-    note: null,
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  const row = temporaryHighlightRow("h-ooo");
 
   const { createHighlight, deleteHighlight } = await import("@/lib/annotations");
 
@@ -310,11 +302,7 @@ test("delete-then-create out of order: delete returns 404, create re-creates (do
 
   // Create arrives second — upsert creates the row → ok:true
   stubCreated = row;
-  const created = await createHighlight("u-1", "a-1", {
-    quote: "temporary",
-    startOffset: 0,
-    endOffset: 9,
-  });
+  const created = await createHighlight("u-1", "a-1", temporaryHighlightInput());
   assert.equal(created.ok, true);
   // Net result: highlight is present (wrong intent, but documented behavior).
 });
@@ -327,18 +315,11 @@ test("updateHighlight detects note conflict when server note changed after baseU
   const baseTime = new Date("2026-01-01T00:00:00Z");
   const serverTime = new Date("2026-01-02T00:00:00Z"); // server newer than base
   stubFindFirst = { id: "h-1", note: "server edit", updatedAt: serverTime };
-  stubUpdated = {
+  stubUpdated = highlightRow({
     id: "h-1",
-    quote: "q",
-    startOffset: 0,
-    endOffset: 1,
-    prefix: "",
-    suffix: "",
     note: "client edit\n\n--- ⚠ also edited on another device ---\nserver edit",
-    color: null,
-    createdAt: new Date(),
     updatedAt: serverTime,
-  };
+  });
   const { updateHighlight } = await import("@/lib/annotations");
   const r = await updateHighlight("h-1", "u-1", {
     note: "client edit",
@@ -350,18 +331,9 @@ test("updateHighlight detects note conflict when server note changed after baseU
 
 test("updateHighlight last-write-wins when no baseUpdatedAt is provided", async () => {
   stubFindFirst = { id: "h-1", note: "old note", updatedAt: new Date() };
-  stubUpdated = {
-    id: "h-1",
-    quote: "q",
-    startOffset: 0,
-    endOffset: 1,
-    prefix: "",
-    suffix: "",
+  stubUpdated = highlightRow({
     note: "new note",
-    color: null,
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   const { updateHighlight } = await import("@/lib/annotations");
   const r = await updateHighlight("h-1", "u-1", { note: "new note" });
   assert.equal(r.ok, true);
@@ -373,18 +345,10 @@ test("updateHighlight last-write-wins when no baseUpdatedAt is provided", async 
 
 test("updateHighlight color-only update does not touch note or trigger conflict", async () => {
   stubFindFirst = { id: "h-1", note: "keep this", updatedAt: new Date() };
-  stubUpdated = {
-    id: "h-1",
-    quote: "q",
-    startOffset: 0,
-    endOffset: 1,
-    prefix: "",
-    suffix: "",
+  stubUpdated = highlightRow({
     note: "keep this",
     color: "green",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-  };
+  });
   const { updateHighlight } = await import("@/lib/annotations");
   const r = await updateHighlight("h-1", "u-1", { color: "green" });
   assert.equal(r.ok, true);

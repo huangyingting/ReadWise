@@ -45,6 +45,35 @@ export type ReaderPageData = {
   hadRelated: boolean;
 };
 
+type DifficultyVote = ReaderPageData["userDifficultyVote"];
+type ListMembership = Awaited<ReturnType<typeof getArticleListMembership>>;
+
+async function resolveKeepReadingArticles(
+  article: Article,
+  relatedArticles: Article[],
+): Promise<{ keepReadingArticles: Article[]; hadRelated: boolean }> {
+  const keepReadingArticles = relatedArticles.slice(0, 3);
+  if (keepReadingArticles.length > 0) {
+    return { keepReadingArticles, hadRelated: true };
+  }
+
+  const fallbackPage = await listCategoryPage(article.category ?? null, { limit: 4 });
+  return {
+    keepReadingArticles: fallbackPage.articles
+      .filter((a) => a.id !== article.id)
+      .slice(0, 3),
+    hadRelated: false,
+  };
+}
+
+function isDefaultListBookmarked(membership: ListMembership): boolean {
+  return membership?.find((l) => l.isDefault)?.hasArticle ?? false;
+}
+
+function difficultyVoteFromFeedback(feedback: { vote: string } | null): DifficultyVote {
+  return (feedback?.vote as DifficultyVote) ?? null;
+}
+
 /**
  * Loads all data required by the reader page for the given article id and
  * authenticated session. Returns `null` when the article does not exist or is
@@ -92,14 +121,10 @@ export async function loadReaderPageData(
     ]);
 
   // If no related articles, fall back to articles from the same category.
-  const hadRelated = relatedArticles.length > 0;
-  let keepReadingArticles = relatedArticles.slice(0, 3);
-  if (keepReadingArticles.length === 0) {
-    const fallbackPage = await listCategoryPage(article.category ?? null, { limit: 4 });
-    keepReadingArticles = fallbackPage.articles
-      .filter((a) => a.id !== article.id)
-      .slice(0, 3);
-  }
+  const { keepReadingArticles, hadRelated } = await resolveKeepReadingArticles(
+    article,
+    relatedArticles,
+  );
 
   // relatedProgress depends on keepReadingArticles — must come after
   const relatedProgress = await getProgressMap(
@@ -120,10 +145,9 @@ export async function loadReaderPageData(
     tags,
     keepReadingArticles,
     relatedProgress,
-    isBookmarked: membership?.find((l) => l.isDefault)?.hasArticle ?? false,
+    isBookmarked: isDefaultListBookmarked(membership),
     isCompleted: progress?.completed ?? false,
-    userDifficultyVote:
-      (existingFeedback?.vote as "too_easy" | "just_right" | "too_hard" | null) ?? null,
+    userDifficultyVote: difficultyVoteFromFeedback(existingFeedback),
     readingMinutes: readingMinutesFor(article),
     cleanBody: sanitizeArticleHtml(article.content),
     articlePlainText: articleHtmlToReaderText(article.content),

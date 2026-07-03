@@ -20,19 +20,45 @@ import { Button, EmptyState, IconButton, Textarea } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import {
   useDictationPanel,
-  type DictationSegment,
+  type DictationPhase,
   type DiffToken,
 } from "@/components/reader/study/useDictationPanel";
+
+type ArticleDictationProps = {
+  articleId: string;
+  plainText: string;
+  active: boolean;
+};
+
+type SentenceNavigatorProps = {
+  currentIdx: number;
+  total: number;
+  onPrev: () => void;
+  onNext: () => void;
+};
+
+type DictationFormProps = {
+  typed: string;
+  phase: DictationPhase;
+  onTyped: (e: ChangeEvent<HTMLTextAreaElement>) => void;
+  onCheck: (e: FormEvent) => void;
+  onReset: () => void;
+};
+
+type ScoreVariant = "good" | "fair" | "poor" | "bad";
+
+function getScoreVariant(accuracy: number): ScoreVariant {
+  if (accuracy >= 90) return "good";
+  if (accuracy >= 70) return "fair";
+  if (accuracy >= 50) return "poor";
+  return "bad";
+}
 
 export default function ArticleDictation({
   articleId,
   plainText,
   active,
-}: {
-  articleId: string;
-  plainText: string;
-  active: boolean;
-}) {
+}: ArticleDictationProps) {
   const panel = useDictationPanel(articleId, plainText, active);
 
   if (panel.phase === "warming") {
@@ -138,12 +164,7 @@ function SentenceNavigator({
   total,
   onPrev,
   onNext,
-}: {
-  currentIdx: number;
-  total: number;
-  onPrev: () => void;
-  onNext: () => void;
-}) {
+}: SentenceNavigatorProps) {
   return (
     <div
       className="rw-dictate-stepper"
@@ -183,13 +204,10 @@ function DictationForm({
   onTyped,
   onCheck,
   onReset,
-}: {
-  typed: string;
-  phase: string;
-  onTyped: (e: ChangeEvent<HTMLTextAreaElement>) => void;
-  onCheck: (e: FormEvent) => void;
-  onReset: () => void;
-}) {
+}: DictationFormProps) {
+  const isPlaying = phase === "playing";
+  const showReset = phase === "typed" || phase === "graded";
+
   return (
     <form onSubmit={onCheck} className="rw-dictate-form">
       <label htmlFor="dictation-input" className="rw-dictate-label">
@@ -206,18 +224,18 @@ function DictationForm({
         spellCheck={false}
         autoComplete="off"
         aria-label="Your dictation"
-        disabled={phase === "playing"}
+        disabled={isPlaying}
       />
       <div className="rw-dictate-form-row">
         <Button
           type="submit"
           variant="primary"
           size="sm"
-          disabled={!typed.trim() || phase === "playing"}
+          disabled={!typed.trim() || isPlaying}
         >
           Check
         </Button>
-        {(phase === "typed" || phase === "graded") && (
+        {showReset && (
           <Button
             type="button"
             variant="ghost"
@@ -236,14 +254,7 @@ function DictationForm({
 }
 
 function ScoreBar({ accuracy }: { accuracy: number }) {
-  const variant =
-    accuracy >= 90
-      ? "good"
-      : accuracy >= 70
-      ? "fair"
-      : accuracy >= 50
-      ? "poor"
-      : "bad";
+  const variant = getScoreVariant(accuracy);
 
   return (
     <div className="rw-dictate-score">

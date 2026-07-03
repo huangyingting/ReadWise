@@ -24,13 +24,21 @@ export type FailJobOptions = {
   now?: Date;
 };
 
+function transitionNow(opts: TransitionOptions): Date {
+  return opts.now ?? new Date();
+}
+
+function releaseLockData(): { lockedBy: null; lockedAt: null } {
+  return { lockedBy: null, lockedAt: null };
+}
+
 /** Marks a claimed job as RUNNING and refreshes its lock (heartbeat anchor). */
 export async function startJob(
   jobId: string,
   workerId: string,
   opts: TransitionOptions = {},
 ): Promise<Job | null> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   try {
     return await prisma.job.update({
       where: { id: jobId },
@@ -53,7 +61,7 @@ export async function heartbeatJob(
   workerId: string,
   opts: TransitionOptions = {},
 ): Promise<boolean> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   const res = await prisma.job.updateMany({
     where: { id: jobId, lockedBy: workerId },
     data: { lockedAt: now, updatedAt: now },
@@ -63,7 +71,7 @@ export async function heartbeatJob(
 
 /** Marks a job COMPLETED and releases its lock. */
 export async function completeJob(jobId: string, opts: TransitionOptions = {}): Promise<Job | null> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
   const done = await prisma.job.update({
@@ -71,8 +79,7 @@ export async function completeJob(jobId: string, opts: TransitionOptions = {}): 
     data: {
       status: JobStatus.COMPLETED,
       completedAt: now,
-      lockedBy: null,
-      lockedAt: null,
+      ...releaseLockData(),
       lastError: null,
       updatedAt: now,
     },
@@ -92,7 +99,7 @@ export async function failJob(
   error: unknown,
   opts: FailJobOptions = {},
 ): Promise<Job | null> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
 
@@ -118,8 +125,7 @@ export async function failJob(
         errorHistory: errorHistory as unknown as Prisma.InputJsonValue,
         failedAt: now,
         deadLetteredAt: now,
-        lockedBy: null,
-        lockedAt: null,
+        ...releaseLockData(),
         updatedAt: now,
       },
     });
@@ -144,8 +150,7 @@ export async function failJob(
       errorHistory: errorHistory as unknown as Prisma.InputJsonValue,
       runAfter: new Date(now.getTime() + delay),
       failedAt: now,
-      lockedBy: null,
-      lockedAt: null,
+      ...releaseLockData(),
       updatedAt: now,
     },
   });
@@ -165,7 +170,7 @@ export async function failJob(
  * and error state, and makes it immediately runnable.
  */
 export async function retryJob(jobId: string, opts: TransitionOptions = {}): Promise<Job | null> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
   return prisma.job.update({
@@ -175,8 +180,7 @@ export async function retryJob(jobId: string, opts: TransitionOptions = {}): Pro
       attempts: 0,
       runAfter: now,
       lastError: null,
-      lockedBy: null,
-      lockedAt: null,
+      ...releaseLockData(),
       failedAt: null,
       deadLetteredAt: null,
       completedAt: null,
@@ -191,7 +195,7 @@ export async function cancelJob(
   jobId: string,
   opts: TransitionOptions & { reason?: string } = {},
 ): Promise<Job | null> {
-  const now = opts.now ?? new Date();
+  const now = transitionNow(opts);
   const job = await prisma.job.findUnique({ where: { id: jobId } });
   if (!job) return null;
   return prisma.job.update({
@@ -200,8 +204,7 @@ export async function cancelJob(
       status: JobStatus.DEAD_LETTER,
       lastError: opts.reason ?? "cancelled by admin",
       deadLetteredAt: now,
-      lockedBy: null,
-      lockedAt: null,
+      ...releaseLockData(),
       updatedAt: now,
     },
   });

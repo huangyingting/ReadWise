@@ -54,6 +54,31 @@ function blankRow(providerKey: string, data: Partial<SourceRow> = {}): SourceRow
   };
 }
 
+function emptyCrawlState() {
+  return {
+    lastError: null,
+    lastDiscoveryCount: 0,
+    totalDiscovered: 0,
+    totalScraped: 0,
+    totalFailed: 0,
+    totalDuplicates: 0,
+    totalRejected: 0,
+    consecutiveFailures: 0,
+    consecutiveZeroDiscovery: 0,
+  };
+}
+
+function failedDiscoveryOutcome(error = "boom") {
+  return {
+    discovered: 0,
+    scraped: 0,
+    failed: 0,
+    duplicates: 0,
+    rejected: 0,
+    error,
+  };
+}
+
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -108,26 +133,17 @@ beforeEach(() => {
 
 test("computeHealthStatus buckets by consecutive failures and zero-discovery", async () => {
   const { computeHealthStatus } = await import("@/lib/scraper/sources");
-  assert.equal(
-    computeHealthStatus({ lastError: null, consecutiveFailures: 0, consecutiveZeroDiscovery: 0 }),
-    "healthy",
-  );
-  assert.equal(
-    computeHealthStatus({ lastError: "boom", consecutiveFailures: 0, consecutiveZeroDiscovery: 0 }),
-    "degraded",
-  );
-  assert.equal(
-    computeHealthStatus({ lastError: null, consecutiveFailures: 1, consecutiveZeroDiscovery: 0 }),
-    "degraded",
-  );
-  assert.equal(
-    computeHealthStatus({ lastError: null, consecutiveFailures: 3, consecutiveZeroDiscovery: 0 }),
-    "failing",
-  );
-  assert.equal(
-    computeHealthStatus({ lastError: null, consecutiveFailures: 0, consecutiveZeroDiscovery: 3 }),
-    "failing",
-  );
+  const cases = [
+    [{ lastError: null, consecutiveFailures: 0, consecutiveZeroDiscovery: 0 }, "healthy"],
+    [{ lastError: "boom", consecutiveFailures: 0, consecutiveZeroDiscovery: 0 }, "degraded"],
+    [{ lastError: null, consecutiveFailures: 1, consecutiveZeroDiscovery: 0 }, "degraded"],
+    [{ lastError: null, consecutiveFailures: 3, consecutiveZeroDiscovery: 0 }, "failing"],
+    [{ lastError: null, consecutiveFailures: 0, consecutiveZeroDiscovery: 3 }, "failing"],
+  ] as const;
+
+  for (const [input, expected] of cases) {
+    assert.equal(computeHealthStatus(input), expected);
+  }
 });
 
 test("applyCrawlOutcome folds counters and resets streaks on a good run", async () => {
@@ -161,17 +177,7 @@ test("applyCrawlOutcome folds counters and resets streaks on a good run", async 
 
 test("applyCrawlOutcome treats discovered-but-none-scraped and errors as failures", async () => {
   const { applyCrawlOutcome } = await import("@/lib/scraper/sources");
-  const zero = {
-    lastError: null,
-    lastDiscoveryCount: 0,
-    totalDiscovered: 0,
-    totalScraped: 0,
-    totalFailed: 0,
-    totalDuplicates: 0,
-    totalRejected: 0,
-    consecutiveFailures: 0,
-    consecutiveZeroDiscovery: 0,
-  };
+  const zero = emptyCrawlState();
   const discoveredNoScrape = applyCrawlOutcome(zero, {
     discovered: 3,
     scraped: 0,
@@ -260,14 +266,7 @@ test("setContentSourceEnabled returns null for an unknown provider", async () =>
 test("recordCrawlRun upserts a row and computes failing health after repeated failures", async () => {
   const { recordCrawlRun } = await import("@/lib/scraper/sources");
 
-  const failOutcome = {
-    discovered: 0,
-    scraped: 0,
-    failed: 0,
-    duplicates: 0,
-    rejected: 0,
-    error: "boom",
-  };
+  const failOutcome = failedDiscoveryOutcome();
   await recordCrawlRun("nbc", failOutcome);
   await recordCrawlRun("nbc", failOutcome);
   const row = await recordCrawlRun("nbc", failOutcome);

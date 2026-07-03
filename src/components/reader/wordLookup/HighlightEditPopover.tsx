@@ -12,7 +12,7 @@
  * Positioning mirrors the SelectionToolbar clamp/flip/mini-player logic.
  */
 
-import { useRef, useEffect, useState } from "react";
+import { useCallback, useRef, useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
 import { cn, focusRing } from "@/lib/cn";
 import { Button, IconButton, Textarea } from "@/components/ui";
@@ -37,6 +37,12 @@ interface HighlightEditPopoverProps {
   popoverRef: React.RefObject<HTMLDivElement | null>;
 }
 
+function noteCounterToneClass(nearLimit: boolean, atLimit: boolean): string {
+  if (atLimit) return "at-limit";
+  if (nearLimit) return "near-limit";
+  return "";
+}
+
 export default function HighlightEditPopover({
   highlight,
   anchorEl,
@@ -52,6 +58,14 @@ export default function HighlightEditPopover({
   const [noteText, setNoteText] = useState(highlight.note ?? "");
   const [noteOpen, setNoteOpen] = useState(!!highlight.note);
   const [deleting, setDeleting] = useState(false);
+
+  const setPopoverElement = useCallback(
+    (el: HTMLDivElement | null) => {
+      (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      (popoverRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    },
+    [popoverRef],
+  );
 
   // Sync note text when highlight changes externally
   useEffect(() => {
@@ -89,17 +103,25 @@ export default function HighlightEditPopover({
     setNoteOpen(false);
   }
 
+  const handleDelete = useCallback(async () => {
+    setDeleting(true);
+    try {
+      await onDelete();
+      onClose();
+    } finally {
+      setDeleting(false);
+    }
+  }, [onClose, onDelete]);
+
   const currentColor = (highlight.color as HighlightColor | null) ?? "yellow";
   const noteLen = noteText.length;
   const nearLimit = noteLen > NOTE_MAX * 0.85;
   const atLimit = noteLen >= NOTE_MAX;
+  const showNoteCounter = nearLimit || atLimit;
 
   return (
     <div
-      ref={(el) => {
-        (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-        (popoverRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      }}
+      ref={setPopoverElement}
       role="dialog"
       aria-label="Edit highlight"
       className="rw-hl-popover"
@@ -175,11 +197,11 @@ export default function HighlightEditPopover({
               // Auto-focus when note editor opens
               autoFocus
             />
-            {(nearLimit || atLimit) && (
+            {showNoteCounter && (
               <p
                 className={cn(
                   "rw-note-counter",
-                  atLimit ? "at-limit" : nearLimit ? "near-limit" : "",
+                  noteCounterToneClass(nearLimit, atLimit),
                 )}
               >
                 {noteLen}/{NOTE_MAX}
@@ -214,15 +236,7 @@ export default function HighlightEditPopover({
           size="sm"
           confirmMessage="Delete this highlight and its note?"
           loading={deleting}
-          onConfirm={async () => {
-            setDeleting(true);
-            try {
-              await onDelete();
-              onClose();
-            } finally {
-              setDeleting(false);
-            }
-          }}
+          onConfirm={handleDelete}
         />
       </div>
     </div>

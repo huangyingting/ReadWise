@@ -15,6 +15,14 @@ export type StudyWord = {
   articleId: string | null;
 };
 
+function hasSpeechSynthesis(): boolean {
+  return "speechSynthesis" in window;
+}
+
+function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
 export default function StudyList({
   words,
   reviewing = false,
@@ -30,12 +38,12 @@ export default function StudyList({
   const [speaking, setSpeaking] = useState<string | null>(null);
 
   useEffect(() => {
-    setSpeechAvailable("speechSynthesis" in window);
+    setSpeechAvailable(hasSpeechSynthesis());
   }, []);
 
   const speak = useCallback(
     (item: StudyWord) => {
-      if (!("speechSynthesis" in window)) return;
+      if (!hasSpeechSynthesis()) return;
       // Toggle off if already speaking this word.
       if (speaking === item.id) {
         window.speechSynthesis.cancel();
@@ -52,7 +60,7 @@ export default function StudyList({
     [speaking],
   );
 
-  async function remove(word: StudyWord) {
+  const remove = useCallback(async (word: StudyWord) => {
     if (pending) {
       return;
     }
@@ -62,11 +70,11 @@ export default function StudyList({
       await postJson("/api/vocabulary/unsave", { word: word.word });
       setItems((prev) => prev.filter((it) => it.id !== word.id));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not remove word");
+      setError(getErrorMessage(err, "Could not remove word"));
     } finally {
       setPending(null);
     }
-  }
+  }, [pending]);
 
   if (items.length === 0) {
     return (
@@ -94,46 +102,51 @@ export default function StudyList({
         </p>
       ) : null}
       <ul className="vocabulary-list">
-        {items.map((item) => (
-          <li key={item.id} className="vocabulary-item">
-            <div className="vocabulary-item-main">
-              <strong className="vocabulary-word">{item.word}</strong>
-              {item.explanation ? (
-                <p className="vocabulary-explanation">{item.explanation}</p>
-              ) : null}
-              {item.example ? (
-                <p className="vocabulary-example muted">&ldquo;{item.example}&rdquo;</p>
-              ) : null}
-            </div>
-            <div className="vocabulary-item-actions">
-              {speechAvailable ? (
+        {items.map((item) => {
+          const isSpeaking = speaking === item.id;
+          const isRemoving = pending === item.id;
+
+          return (
+            <li key={item.id} className="vocabulary-item">
+              <div className="vocabulary-item-main">
+                <strong className="vocabulary-word">{item.word}</strong>
+                {item.explanation ? (
+                  <p className="vocabulary-explanation">{item.explanation}</p>
+                ) : null}
+                {item.example ? (
+                  <p className="vocabulary-example muted">&ldquo;{item.example}&rdquo;</p>
+                ) : null}
+              </div>
+              <div className="vocabulary-item-actions">
+                {speechAvailable ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="md"
+                    onClick={() => speak(item)}
+                    aria-label={`Play pronunciation of ${item.word}`}
+                    aria-pressed={isSpeaking}
+                    className={cn(
+                      "min-h-[44px] min-w-[44px] p-0 shrink-0",
+                      isSpeaking && "text-primary",
+                    )}
+                  >
+                    <Volume2 size={18} aria-hidden />
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
-                  variant="ghost"
-                  size="md"
-                  onClick={() => speak(item)}
-                  aria-label={`Play pronunciation of ${item.word}`}
-                  aria-pressed={speaking === item.id}
-                  className={cn(
-                    "min-h-[44px] min-w-[44px] p-0 shrink-0",
-                    speaking === item.id && "text-primary",
-                  )}
+                  variant="outline"
+                  size="sm"
+                  onClick={() => remove(item)}
+                  disabled={isRemoving}
                 >
-                  <Volume2 size={18} aria-hidden />
+                  {isRemoving ? "…" : "Remove"}
                 </Button>
-              ) : null}
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                onClick={() => remove(item)}
-                disabled={pending === item.id}
-              >
-                {pending === item.id ? "…" : "Remove"}
-              </Button>
-            </div>
-          </li>
-        ))}
+              </div>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

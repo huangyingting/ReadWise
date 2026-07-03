@@ -44,6 +44,14 @@ export type QuizMastery = {
   recentTrend: TrendPoint[]; // last ≤10 attempts, oldest→newest (sparkline)
 };
 
+const QUIZ_ATTEMPT_RECORD_SELECT = {
+  id: true,
+  correctCount: true,
+  totalQuestions: true,
+  scorePct: true,
+  completedAt: true,
+} as const;
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -69,23 +77,18 @@ export async function recordQuizAttempt(
   const scorePct = computeCountScorePct(correctCount, totalQuestions);
   const clientMutationId = options.clientMutationId?.trim() || null;
 
-  const select = {
-    id: true,
-    correctCount: true,
-    totalQuestions: true,
-    scorePct: true,
-    completedAt: true,
-  } as const;
-
   // Idempotency (RW-042): a duplicate offline delivery returns the original row.
   const { record: attempt } = await findOrCreateIdempotent({
     clientMutationId,
     find: (id) =>
-      prisma.quizAttempt.findUnique({ where: { clientMutationId: id }, select }),
+      prisma.quizAttempt.findUnique({
+        where: { clientMutationId: id },
+        select: QUIZ_ATTEMPT_RECORD_SELECT,
+      }),
     create: () =>
       prisma.quizAttempt.create({
         data: { userId, articleId, correctCount, totalQuestions, scorePct, clientMutationId },
-        select,
+        select: QUIZ_ATTEMPT_RECORD_SELECT,
       }),
     isUniqueConstraintViolation: (err) =>
       err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002",
@@ -118,13 +121,7 @@ export async function getArticleQuizHistory(
   const rows = await prisma.quizAttempt.findMany({
     where: { userId, articleId },
     orderBy: { completedAt: "desc" },
-    select: {
-      id: true,
-      correctCount: true,
-      totalQuestions: true,
-      scorePct: true,
-      completedAt: true,
-    },
+    select: QUIZ_ATTEMPT_RECORD_SELECT,
   });
 
   const best = rows.length > 0 ? Math.max(...rows.map((r) => r.scorePct)) : null;
@@ -174,9 +171,11 @@ export async function getQuizMastery(userId: string): Promise<QuizMastery> {
       : null;
 
   // Reverse so the sparkline goes oldest→newest
-  const recentTrend: TrendPoint[] = trendRows
-    .reverse()
-    .map((r) => ({ completedAt: r.completedAt, scorePct: r.scorePct }));
+  const recentTrend = trendRows.reverse().map(toTrendPoint);
 
   return { totalAttempts, articlesQuizzed, averageScore, recentTrend };
+}
+
+function toTrendPoint(row: { completedAt: Date; scorePct: number }): TrendPoint {
+  return { completedAt: row.completedAt, scorePct: row.scorePct };
 }

@@ -67,6 +67,48 @@ function notReadyMessage(status: ArticleStatus): string {
   }
 }
 
+async function getPublishedReadableArticle(args: {
+  user: { id: string; role?: string | null };
+  articleId: string;
+}): Promise<{ id: string; status: ArticleStatus }> {
+  const context = articleAccessContext({
+    id: args.user.id,
+    role: args.user.role ?? null,
+  });
+  const article = await getReadableArticleById(args.articleId, context, {
+    select: { id: true, status: true },
+  });
+
+  if (!article) {
+    throw new SetTodayArticleError(
+      "not_found",
+      "That article isn't available to read.",
+    );
+  }
+  if (article.status !== ArticleStatus.PUBLISHED) {
+    // Readable (owned) but still processing / failed / otherwise not ready.
+    throw new SetTodayArticleError("not_ready", notReadyMessage(article.status));
+  }
+
+  return article;
+}
+
+function backupIdsAfterPrimarySwap(
+  session: TodaySessionView,
+  articleId: string,
+): string[] {
+  const replacedId = session.primaryArticleId;
+  const nextBackupIds = session.backupArticleIds.filter((id) => id !== articleId);
+  if (
+    replacedId &&
+    replacedId !== articleId &&
+    !nextBackupIds.includes(replacedId)
+  ) {
+    return [...nextBackupIds, replacedId];
+  }
+  return nextBackupIds;
+}
+
 /**
  * Set a readable article as the learner's primary article for their local day.
  *
@@ -87,20 +129,10 @@ export async function setTodayPrimaryArticle(args: {
   // Validate readable access for THIS user BEFORE any session write (fail
   // closed). A missing id or another user's private article resolves to null —
   // surfaced as 404 so we never confirm the existence of an inaccessible row.
-  const context = articleAccessContext({ id: userId, role: args.user.role ?? null });
-  const article = await getReadableArticleById(args.articleId, context, {
-    select: { id: true, status: true },
+  const article = await getPublishedReadableArticle({
+    user: args.user,
+    articleId: args.articleId,
   });
-  if (!article) {
-    throw new SetTodayArticleError(
-      "not_found",
-      "That article isn't available to read.",
-    );
-  }
-  if (article.status !== ArticleStatus.PUBLISHED) {
-    // Readable (owned) but still processing / failed / otherwise not ready.
-    throw new SetTodayArticleError("not_ready", notReadyMessage(article.status));
-  }
 
   const { localDate, timezone } = await resolveLocalDate({
     userId,
@@ -130,10 +162,7 @@ export async function setTodayPrimaryArticle(args: {
   // without duplicating an id already present and without listing the new
   // primary among the backups.
   const replacedId = session.primaryArticleId;
-  let nextBackupIds = session.backupArticleIds.filter((id) => id !== article.id);
-  if (replacedId && replacedId !== article.id && !nextBackupIds.includes(replacedId)) {
-    nextBackupIds = [...nextBackupIds, replacedId];
-  }
+  const nextBackupIds = backupIdsAfterPrimarySwap(session, article.id);
 
   const updated = await updateTodaySession(userId, localDate, {
     primaryArticleId: article.id,
@@ -149,7 +178,9 @@ export async function setTodayPrimaryArticle(args: {
   // metadata only (source/flags/counts) — never article content. Includes
   // whether a generated primary was replaced so the override funnel is visible.
   if (updated != null) {
-    await emitTodayArticleSelected(result, { replacedGenerated: replacedId != null });
+    await emitTodayArticleSelected(result, {
+      replacedGenerated: replacedId != null,
+    });
   }
 
   return result;

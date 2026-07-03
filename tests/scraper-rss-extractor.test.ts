@@ -77,12 +77,34 @@ function discoverWithFeeds(
   feedMap: Record<string, string>,
   limit = 20,
 ): Promise<string[]> {
+  return discoverWithFetch(
+    provider,
+    async (url) => feedMap[url] ?? "<rss><channel></channel></rss>",
+    limit,
+  );
+}
+
+function discoverWithFetch(
+  provider: Provider,
+  extractorFetch: (url: string) => string | Promise<string>,
+  limit = Number.POSITIVE_INFINITY,
+): Promise<string[]> {
   return discoverProviderUrls(provider, limit, {
     isProviderEnabled: async () => true,
     isUrlAllowed: async () => true,
-    extractorFetch: async (url: string) =>
-      feedMap[url] ?? "<rss><channel></channel></rss>",
+    extractorFetch: async (url) => extractorFetch(url),
   });
+}
+
+function feedMapFetch(
+  feedMap: Record<string, string>,
+  fallback: string | ((url: string) => string),
+  fetched?: string[],
+): (url: string) => string {
+  return (url) => {
+    fetched?.push(url);
+    return feedMap[url] ?? (typeof fallback === "function" ? fallback(url) : fallback);
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -234,14 +256,10 @@ test("smithsonian discovery: can filter monthly sitemaps by year and excluded se
   };
   const fetched: string[] = [];
 
-  const urls = await discoverProviderUrls(provider, Number.POSITIVE_INFINITY, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url: string) => {
-      fetched.push(url);
-      return feedMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    provider,
+    feedMapFetch(feedMap, makeSitemap([]), fetched),
+  );
 
   assert.deepEqual(urls, [
     "https://www.smithsonianmag.com/science-nature/kept-science-180000004/",
@@ -278,14 +296,10 @@ test("smithsonian discovery: category archive crawl follows deep pagination and 
   };
   const fetched: string[] = [];
 
-  const urls = await discoverProviderUrls(provider, Number.POSITIVE_INFINITY, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url: string) => {
-      fetched.push(url);
-      return feedMap[url] ?? makeCategoryPage([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    provider,
+    feedMapFetch(feedMap, makeCategoryPage([]), fetched),
+  );
 
   assert.deepEqual(urls, [sitemapArticle]);
   assert.ok(fetched.includes(categoryPageTwo));
@@ -346,17 +360,16 @@ test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion
   }
   const fetchedFeeds: string[] = [];
 
-  const urls = await discoverProviderUrls(noema, Number.POSITIVE_INFINITY, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url: string) => {
+  const urls = await discoverWithFetch(
+    noema,
+    async (url: string) => {
       fetchedFeeds.push(url);
       if (url === "https://www.noemamag.com/?feed=noemarss&paged=32") {
         throw new Error("rss exhausted");
       }
       return feedMap[url] ?? "";
     },
-  });
+  );
 
   assert.deepEqual(fetchedFeeds.slice(0, 3), [
     "https://www.noemamag.com/sitemap_index.xml",
@@ -425,14 +438,10 @@ test("natgeo discovery: combines hubmore pagination with the public sitemap", as
     ]),
   };
 
-  const urls = await discoverProviderUrls(natgeo, Number.POSITIVE_INFINITY, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url: string) => {
-      fetched.push(url);
-      return feedMap[url] ?? makeCategoryPage([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    natgeo,
+    feedMapFetch(feedMap, makeCategoryPage([]), fetched),
+  );
 
   assert.ok(fetched.includes(hubmoreUrl(2)));
   assert.ok(fetched.includes(sitemapChild));
@@ -496,14 +505,11 @@ test("technologyreview discovery: combines sitemaps, WP REST, RSS, and topic pag
     "https://www.technologyreview.com/topic/artificial-intelligence": makeCategoryPage([topicHtmlUrl]),
   };
 
-  const urls = await discoverProviderUrls(tr, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return sitemapMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    tr,
+    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
+    10,
+  );
 
   assert.deepEqual(urls, [
     newest,
@@ -560,14 +566,11 @@ test("theconversation discovery: uses English edition archive sitemaps newest fi
     ]),
   };
 
-  const urls = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return sitemapMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    provider,
+    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
+    10,
+  );
 
   assert.deepEqual(urls, [ukRecent, usRecent, oldUs]);
   assert.equal(fetched.includes("https://theconversation.com/br/sitemap_archive_2026.xml"), false);
@@ -592,14 +595,11 @@ test("propublica discovery: iterates day sitemaps newest first", async () => {
     "https://www.propublica.org/sitemap.xml?yyyy=2026&mm=06&dd=29": makeSitemap([older]),
   };
 
-  const urls = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return sitemapMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    provider,
+    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
+    10,
+  );
 
   assert.deepEqual(urls, [recent, older]);
   assert.ok(
@@ -628,14 +628,11 @@ test("grist discovery: walks post sitemaps newest first and filters updates", as
     "https://grist.org/feed/": makeFeed(["https://grist.org/climate-energy/rss-fallback/"]),
   };
 
-  const urls = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return sitemapMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    provider,
+    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
+    10,
+  );
 
   assert.deepEqual(urls, [newest, older]);
   assert.ok(fetched.indexOf("https://grist.org/post-sitemap63.xml") < fetched.indexOf("https://grist.org/post-sitemap.xml"));
@@ -645,10 +642,9 @@ test("grist discovery: walks post sitemaps newest first and filters updates", as
 
 test("undark discovery: returns only dated article URLs from the public WordPress.com posts API", async () => {
   const undark = getProvider("undark")!;
-  const urls = await discoverProviderUrls(undark, 20, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
+  const urls = await discoverWithFetch(
+    undark,
+    async (url) => {
       const parsed = new URL(url);
       assert.equal(
         `${parsed.origin}${parsed.pathname}`,
@@ -664,7 +660,8 @@ test("undark discovery: returns only dated article URLs from the public WordPres
         "https://undark.org/author/john-smith/",
       ]);
     },
-  });
+    20,
+  );
 
   assert.deepEqual(urls.sort(), [
     "https://undark.org/2024/03/10/the-science-of-sleep/",
@@ -680,10 +677,9 @@ test("undark discovery: paginates the public WordPress.com API for exhaustive di
   );
   const pageTwo = ["https://undark.org/2024/03/11/page-two-story/"];
   const fetchedPages: string[] = [];
-  const urls = await discoverProviderUrls(undark, Number.POSITIVE_INFINITY, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
+  const urls = await discoverWithFetch(
+    undark,
+    async (url) => {
       const parsed = new URL(url);
       const page = parsed.searchParams.get("page") ?? "1";
       fetchedPages.push(page);
@@ -691,7 +687,7 @@ test("undark discovery: paginates the public WordPress.com API for exhaustive di
         ? makeWordPressPosts(pageOne, 101)
         : makeWordPressPosts(pageTwo, 101);
     },
-  });
+  );
 
   assert.equal(urls.length, 101);
   assert.deepEqual(fetchedPages, ["1", "2"]);
@@ -708,14 +704,14 @@ test("undark discovery: falls back to RSS when the WordPress.com API fails", asy
     "https://undark.org/tag/climate-change/",
     "https://undark.org/author/john-smith/",
   ]);
-  const urls = await discoverProviderUrls(undark, 20, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
+  const urls = await discoverWithFetch(
+    undark,
+    async (url) => {
       if (url === "https://undark.org/feed/") return feed;
       throw new Error("api down");
     },
-  });
+    20,
+  );
   assert.deepEqual(urls.sort(), [
     "https://undark.org/2024/03/10/the-science-of-sleep/",
     "https://undark.org/2024/04/22/climate-tipping-points/",
@@ -798,14 +794,11 @@ test("knowable discovery: pages section RSS feeds beyond the latest feed", async
     [knowableTopicFeedUrl("climate-change")]: makeFeed([climateTopic]),
   };
 
-  const urls = await discoverProviderUrls(knowable, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return feedMap[url] ?? makeFeed([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    knowable,
+    feedMapFetch(feedMap, makeFeed([]), fetched),
+    10,
+  );
 
   assert.deepEqual(
     urls.sort(),
@@ -873,15 +866,15 @@ test("nautilus discovery: uses the public content sitemap index before RSS", asy
     "https://nautil.us/feed": makeFeed(["https://nautil.us/rss-fallback-99999/"]),
   };
 
-  const urls = await discoverProviderUrls(nautilus, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
+  const urls = await discoverWithFetch(
+    nautilus,
+    async (url) => {
       fetched.push(url);
       if (url.includes("/wp-json/wp/v2/posts")) return JSON.stringify([]);
       return feedMap[url] ?? makeSitemap([]);
     },
-  });
+    10,
+  );
 
   assert.deepEqual(urls.sort(), [validLegacy, validNested, validRecent].sort());
   assert.ok(fetched.includes("https://nautil.us/sitemap-index-1.xml"));
@@ -911,14 +904,11 @@ test("smithsonian discovery: returns article URLs from monthly article sitemaps"
     ]),
   };
 
-  const urls = await discoverProviderUrls(smithsonian, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async (url) => {
-      fetched.push(url);
-      return sitemapMap[url] ?? makeSitemap([]);
-    },
-  });
+  const urls = await discoverWithFetch(
+    smithsonian,
+    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
+    10,
+  );
 
   assert.deepEqual(urls, [validOne, validTwo]);
   assert.deepEqual(fetched, [

@@ -26,6 +26,8 @@ import { syncCoachMemory } from "./coach-memory";
 /** Smoothing factor for the confidence EMA (per unit weight, capped). */
 const BASE_ALPHA = 0.3;
 const MAX_ALPHA = 0.8;
+const MAX_EVIDENCE_WEIGHT = 5;
+const DEFAULT_EVIDENCE_WEIGHT = 1;
 
 /** Max recent-evidence summaries retained per skill. */
 export const MAX_RECENT_EVIDENCE = 10;
@@ -57,6 +59,23 @@ type SkillMasteryRow = {
   recentEvidence: unknown;
 };
 
+function evidenceSummaryFromUnknown(item: unknown): EvidenceSummary | null {
+  if (
+    !item ||
+    typeof item !== "object" ||
+    typeof (item as EvidenceSummary).outcome !== "number"
+  ) {
+    return null;
+  }
+
+  const evidence = item as EvidenceSummary;
+  return {
+    outcome: evidence.outcome,
+    weight: typeof evidence.weight === "number" ? evidence.weight : DEFAULT_EVIDENCE_WEIGHT,
+    at: typeof evidence.at === "string" ? evidence.at : "",
+  };
+}
+
 function parseRecentEvidence(value: unknown): EvidenceSummary[] {
   let arr: unknown = value;
   if (typeof value === "string") {
@@ -69,20 +88,46 @@ function parseRecentEvidence(value: unknown): EvidenceSummary[] {
   if (!Array.isArray(arr)) return [];
   const out: EvidenceSummary[] = [];
   for (const item of arr) {
-    if (
-      item &&
-      typeof item === "object" &&
-      typeof (item as EvidenceSummary).outcome === "number"
-    ) {
-      const e = item as EvidenceSummary;
-      out.push({
-        outcome: e.outcome,
-        weight: typeof e.weight === "number" ? e.weight : 1,
-        at: typeof e.at === "string" ? e.at : "",
-      });
-    }
+    const evidence = evidenceSummaryFromUnknown(item);
+    if (evidence) out.push(evidence);
   }
   return out;
+}
+
+function normalizeEvidenceWeight(weight: number): number {
+  return Math.min(
+    MAX_EVIDENCE_WEIGHT,
+    Math.max(0, Number.isFinite(weight) ? weight : DEFAULT_EVIDENCE_WEIGHT),
+  );
+}
+
+function nextConfidence(
+  existing: SkillMasteryRow | null | undefined,
+  outcome: number,
+  weight: number,
+): number {
+  if (!existing) return outcome;
+  const alpha = Math.min(MAX_ALPHA, BASE_ALPHA * weight);
+  return clamp01(existing.confidence * (1 - alpha) + outcome * alpha);
+}
+
+function makeEvidenceSummary(
+  outcome: number,
+  weight: number,
+  at: Date,
+): EvidenceSummary {
+  return {
+    outcome: Math.round(outcome * 100) / 100,
+    weight,
+    at: at.toISOString(),
+  };
+}
+
+function prependRecentEvidence(
+  existing: unknown,
+  evidence: EvidenceSummary,
+): EvidenceSummary[] {
+  return [evidence, ...parseRecentEvidence(existing)].slice(0, MAX_RECENT_EVIDENCE);
 }
 
 /**
@@ -99,27 +144,23 @@ export async function recordSkillEvidence(
 ): Promise<SkillSummary | null> {
   if (!isSkill(skill)) return null;
   const clampedOutcome = clamp01(outcome);
-  const clampedWeight = Math.min(5, Math.max(0, Number.isFinite(weight) ? weight : 1));
+  const clampedWeight = normalizeEvidenceWeight(weight);
 
   const existing = await prisma.skillMastery.findUnique({
     where: { userId_skill: { userId, skill } },
   });
 
   const now = new Date();
-  let confidence: number;
-  if (!existing) {
-    confidence = clampedOutcome;
-  } else {
-    const alpha = Math.min(MAX_ALPHA, BASE_ALPHA * clampedWeight);
-    confidence = clamp01(existing.confidence * (1 - alpha) + clampedOutcome * alpha);
-  }
-
+  const confidence = nextConfidence(
+    existing as SkillMasteryRow | null,
+    clampedOutcome,
+    clampedWeight,
+  );
   const evidenceCount = (existing?.evidenceCount ?? 0) + 1;
-  const recent = parseRecentEvidence(existing?.recentEvidence);
-  const recentEvidence: EvidenceSummary[] = [
-    { outcome: Math.round(clampedOutcome * 100) / 100, weight: clampedWeight, at: now.toISOString() },
-    ...recent,
-  ].slice(0, MAX_RECENT_EVIDENCE);
+  const recentEvidence = prependRecentEvidence(
+    existing?.recentEvidence,
+    makeEvidenceSummary(clampedOutcome, clampedWeight, now),
+  );
 
   const data = {
     confidence,
@@ -146,6 +187,50 @@ export async function recordSkillEvidence(
   };
 }
 
+function summarizeSkillRows(rows: SkillMasteryRow[]): SkillSummary[] {
+  const bySkill = new Map<string, SkillMasteryRow>();
+  for (const row of rows) bySkill.set(row.skill, row);
+
+  return SKILLS.map((skill) => {
+    const row = bySkill.get(skill);
+    const evidenceCount = row?.evidenceCount ?? 0;
+    return {
+      skill,
+      confidence: row?.confidence ?? 0,
+      evidenceCount,
+      hasEvidence: evidenceCount > 0,
+    };
+  });
+}
+
+function averageConfidence(skills: SkillSummary[]): number {
+  return skills.length > 0
+    ? skills.reduce((sum, skill) => sum + skill.confidence, 0) / skills.length
+    : 0;
+}
+
+function countEvidence(skills: SkillSummary[]): number {
+  return skills.reduce((sum, skill) => sum + skill.evidenceCount, 0);
+}
+
+function findSkillExtremes(skills: SkillSummary[]): {
+  weakest: Skill | null;
+  strongest: Skill | null;
+} {
+  let weakest: SkillSummary | null = null;
+  let strongest: SkillSummary | null = null;
+
+  for (const skill of skills) {
+    if (!weakest || skill.confidence < weakest.confidence) weakest = skill;
+    if (!strongest || skill.confidence > strongest.confidence) strongest = skill;
+  }
+
+  return {
+    weakest: weakest?.skill ?? null,
+    strongest: strongest?.skill ?? null,
+  };
+}
+
 /**
  * Returns a confidence summary across ALL six skills (skills with no evidence
  * yet are reported with confidence 0 and `hasEvidence: false`), plus the
@@ -156,42 +241,14 @@ export async function getSkillProfile(userId: string): Promise<SkillProfile> {
     where: { userId },
   })) as SkillMasteryRow[];
 
-  const bySkill = new Map<string, SkillMasteryRow>();
-  for (const row of rows) bySkill.set(row.skill, row);
-
-  const skills: SkillSummary[] = SKILLS.map((skill) => {
-    const row = bySkill.get(skill);
-    const evidenceCount = row?.evidenceCount ?? 0;
-    return {
-      skill,
-      confidence: row?.confidence ?? 0,
-      evidenceCount,
-      hasEvidence: evidenceCount > 0,
-    };
-  });
-
+  const skills = summarizeSkillRows(rows);
   const evidenced = skills.filter((s) => s.hasEvidence);
-  const overallConfidence =
-    evidenced.length > 0
-      ? evidenced.reduce((sum, s) => sum + s.confidence, 0) / evidenced.length
-      : 0;
-  const totalEvidence = skills.reduce((sum, s) => sum + s.evidenceCount, 0);
-
-  let weakest: Skill | null = null;
-  let strongest: Skill | null = null;
-  for (const s of evidenced) {
-    if (weakest === null || s.confidence < (byName(skills, weakest)?.confidence ?? 1)) {
-      weakest = s.skill;
-    }
-    if (strongest === null || s.confidence > (byName(skills, strongest)?.confidence ?? -1)) {
-      strongest = s.skill;
-    }
-  }
+  const { weakest, strongest } = findSkillExtremes(evidenced);
 
   return {
     skills,
-    overallConfidence,
-    totalEvidence,
+    overallConfidence: averageConfidence(evidenced),
+    totalEvidence: countEvidence(skills),
     weakest,
     strongest,
   };

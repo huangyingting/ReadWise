@@ -19,6 +19,16 @@ import { cn } from "@/lib/cn";
 import type { ListingArticle } from "@/lib/article-library";
 import type { SelectableItem } from "./command-items";
 
+function getCategoryLabel(categorySlug: ListingArticle["category"]) {
+  return categorySlug
+    ? CATEGORIES.find((category) => category.slug === categorySlug)?.label
+    : null;
+}
+
+function isCefrLevel(difficulty: ListingArticle["difficulty"]): difficulty is CefrLevel {
+  return typeof difficulty === "string" && (CEFR_LEVELS as readonly string[]).includes(difficulty);
+}
+
 // ---- OptionRow -----------------------------------------------------------
 
 interface OptionRowProps {
@@ -132,12 +142,9 @@ export function CommandGroup({ id, label, hasBorderTop, children }: CommandGroup
 // ---- ArticleMeta ---------------------------------------------------------
 
 export function ArticleMeta({ article }: { article: ListingArticle }) {
-  const category = article.category
-    ? CATEGORIES.find((c) => c.slug === article.category)?.label
-    : null;
-  const isCefr =
-    article.difficulty != null &&
-    (CEFR_LEVELS as readonly string[]).includes(article.difficulty);
+  const category = getCategoryLabel(article.category);
+  const difficulty = article.difficulty;
+  const isCefr = isCefrLevel(difficulty);
 
   if (!isCefr && !category && article.readingMinutes == null) return null;
 
@@ -146,7 +153,7 @@ export function ArticleMeta({ article }: { article: ListingArticle }) {
       className="hidden min-[380px]:flex items-center gap-[var(--space-2)] shrink-0 pointer-events-none"
       aria-hidden
     >
-      {isCefr && <CefrBadge level={article.difficulty as CefrLevel} />}
+      {isCefr && <CefrBadge level={difficulty} />}
       {category && <CategoryBadge>{category}</CategoryBadge>}
       {article.readingMinutes != null && (
         <span className="hidden sm:inline text-[length:var(--text-xs)] text-text-subtle whitespace-nowrap">

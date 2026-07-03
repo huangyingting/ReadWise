@@ -14,6 +14,8 @@ import { useMutation } from "@/hooks/useMutation";
 
 export const TOTAL_STEPS = 5;
 
+const PLACEMENT_QUESTION_COUNT = 3;
+
 type WizardDefaults = {
   ageRange: string;
   gender: string;
@@ -59,6 +61,14 @@ export type OnboardingWizardState = {
   headingRef: React.RefObject<HTMLHeadingElement | null>;
 };
 
+function isEnglishLevel(value: string): value is EnglishLevel {
+  return ENGLISH_LEVELS.includes(value as EnglishLevel);
+}
+
+function emptyPlacementAnswers(): (number | null)[] {
+  return Array.from({ length: PLACEMENT_QUESTION_COUNT }, () => null);
+}
+
 export function useOnboardingWizard(
   defaults: WizardDefaults,
 ): OnboardingWizardState {
@@ -77,19 +87,17 @@ export function useOnboardingWizard(
   const [validationError, setValidationError] = useState<string | null>(null);
 
   // Placement quiz state
-  const [placementAnswers, setPlacementAnswers] = useState<(number | null)[]>([
-    null,
-    null,
-    null,
-  ]);
+  const [placementAnswers, setPlacementAnswers] = useState<(number | null)[]>(
+    emptyPlacementAnswers,
+  );
   const [suggestionAccepted, setSuggestionAccepted] = useState(false);
 
   const headingRef = useRef<HTMLHeadingElement>(null);
 
   // Derived placement values
   const placementQuestions: PlacementQuestion[] =
-    englishLevel && ENGLISH_LEVELS.includes(englishLevel as EnglishLevel)
-      ? getPlacementQuestions(englishLevel as EnglishLevel)
+    englishLevel && isEnglishLevel(englishLevel)
+      ? getPlacementQuestions(englishLevel)
       : [];
 
   const answeredCount = placementAnswers.filter((a) => a !== null).length;
@@ -97,11 +105,11 @@ export function useOnboardingWizard(
   const suggestedPlacementLevel: EnglishLevel | null =
     answeredCount === placementQuestions.length &&
     englishLevel &&
-    ENGLISH_LEVELS.includes(englishLevel as EnglishLevel)
+    isEnglishLevel(englishLevel)
       ? suggestLevel(
           placementScore,
           placementQuestions.length,
-          englishLevel as EnglishLevel,
+          englishLevel,
         )
       : null;
 
@@ -136,6 +144,14 @@ export function useOnboardingWizard(
 
   const handleDismissSuggestion = useCallback(() => {
     setSuggestionAccepted(true);
+  }, []);
+
+  const handleEnglishLevelChange = useCallback((v: string) => {
+    setEnglishLevel(v);
+    setValidationError(null);
+    // Reset placement state when the self-reported level changes
+    setPlacementAnswers(emptyPlacementAnswers());
+    setSuggestionAccepted(false);
   }, []);
 
   const goNext = useCallback(() => {
@@ -196,13 +212,7 @@ export function useOnboardingWizard(
     gender,
     setGender,
     englishLevel,
-    setEnglishLevel: (v: string) => {
-      setEnglishLevel(v);
-      setValidationError(null);
-      // Reset placement state when the self-reported level changes
-      setPlacementAnswers([null, null, null]);
-      setSuggestionAccepted(false);
-    },
+    setEnglishLevel: handleEnglishLevelChange,
     topics,
     toggleTopic,
     placementQuestions,

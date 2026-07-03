@@ -54,6 +54,28 @@ export type ListTagsOpts = {
   pageSize?: number;
 };
 
+const PUBLIC_TAG_WHERE = { scope: TagScope.PUBLIC } as const;
+
+function mapAdminTagRow(
+  tag: {
+    id: string;
+    name: string;
+    slug: string;
+    createdAt: Date;
+    _count: { articles: number };
+  },
+  publishedByTag: Map<string, number>,
+): AdminTagRow {
+  return {
+    id: tag.id,
+    name: tag.name,
+    slug: tag.slug,
+    createdAt: tag.createdAt,
+    articleCount: tag._count.articles,
+    publishedCount: publishedByTag.get(tag.id) ?? 0,
+  };
+}
+
 /**
  * Lists global public tags for the admin area. Private user/import tags are
  * intentionally excluded so they cannot leak into global tag management.
@@ -71,13 +93,13 @@ export async function listAdminTags(
 
   const where = query
     ? {
-        scope: TagScope.PUBLIC,
+        ...PUBLIC_TAG_WHERE,
         OR: [
           { name: { contains: query } },
           { slug: { contains: query } },
         ],
       }
-    : { scope: TagScope.PUBLIC };
+    : PUBLIC_TAG_WHERE;
 
   const [total, rows] = await Promise.all([
     prisma.tag.count({ where }),
@@ -108,17 +130,8 @@ export async function listAdminTags(
     publishedGroups.map((g) => [g.tagId, g._count._all]),
   );
 
-  const tags: AdminTagRow[] = rows.map((t) => ({
-    id: t.id,
-    name: t.name,
-    slug: t.slug,
-    createdAt: t.createdAt,
-    articleCount: t._count.articles,
-    publishedCount: publishedByTag.get(t.id) ?? 0,
-  }));
-
   return {
-    tags,
+    tags: rows.map((tag) => mapAdminTagRow(tag, publishedByTag)),
     total,
     page,
     pageSize,
@@ -130,7 +143,7 @@ export async function listAdminTags(
 /** Returns public tags for admin merge target controls, capped to a safe limit. */
 export async function listAdminTagMergeTargets(limit = 500): Promise<AdminTagOption[]> {
   return prisma.tag.findMany({
-    where: { scope: TagScope.PUBLIC },
+    where: PUBLIC_TAG_WHERE,
     select: { id: true, name: true },
     orderBy: { name: "asc" },
     take: limit,

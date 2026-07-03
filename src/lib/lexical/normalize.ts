@@ -236,14 +236,32 @@ export const IRREGULAR_BASES: Record<string, string[]> = {
   women: ["woman"],
 };
 
+const APOSTROPHE_NORMALIZATION_RE = /[''`]/g;
+const TOKEN_BOUNDARY_RE = /^[^a-z']+|[^a-z']+$/g;
+const DOUBLED_TRAILING_CHAR_RE = /(.)\1$/;
+
+function addUnique(out: string[], value: string): void {
+  if (value && !out.includes(value)) {
+    out.push(value);
+  }
+}
+
+function hasDoubledTrailingChar(value: string): boolean {
+  return DOUBLED_TRAILING_CHAR_RE.test(value);
+}
+
+function cleanToken(raw: string): string {
+  return raw
+    .toLowerCase()
+    .trim()
+    .replace(APOSTROPHE_NORMALIZATION_RE, "'")
+    .replace(TOKEN_BOUNDARY_RE, "");
+}
+
 /** Generates morphological base-form candidates for an already-cleaned word. */
 export function morphCandidates(word: string): string[] {
   const out: string[] = [];
-  const add = (w: string) => {
-    if (w && w.length >= 1 && !out.includes(w)) {
-      out.push(w);
-    }
-  };
+  const add = (w: string) => addUnique(out, w);
 
   add(word);
 
@@ -274,7 +292,7 @@ export function morphCandidates(word: string): string[] {
     if (word.endsWith("ying") && word.length > 5) {
       add(word.slice(0, -4) + "ie");
     }
-    if (/(.)\1$/.test(stem)) {
+    if (hasDoubledTrailingChar(stem)) {
       add(stem.slice(0, -1));
     }
     add(stem + "e");
@@ -286,7 +304,7 @@ export function morphCandidates(word: string): string[] {
   }
   if (word.endsWith("ed") && word.length > 3) {
     const stem = word.slice(0, -2);
-    if (/(.)\1$/.test(stem)) {
+    if (hasDoubledTrailingChar(stem)) {
       add(stem.slice(0, -1));
     }
     add(word.slice(0, -1));
@@ -295,7 +313,7 @@ export function morphCandidates(word: string): string[] {
 
   if (word.endsWith("er") && word.length > 4) {
     const stem = word.slice(0, -2);
-    if (/(.)\1$/.test(stem)) {
+    if (hasDoubledTrailingChar(stem)) {
       add(stem.slice(0, -1));
     }
     add(stem);
@@ -303,7 +321,7 @@ export function morphCandidates(word: string): string[] {
   }
   if (word.endsWith("est") && word.length > 5) {
     const stem = word.slice(0, -3);
-    if (/(.)\1$/.test(stem)) {
+    if (hasDoubledTrailingChar(stem)) {
       add(stem.slice(0, -1));
     }
     add(stem);
@@ -321,20 +339,13 @@ export function morphCandidates(word: string): string[] {
  * to try, handling contractions, possessives and common inflections.
  */
 export function normalizeCandidates(raw: string): string[] {
-  let w = raw.toLowerCase().trim();
-  w = w.replace(/[''`]/g, "'");
-  // Strip leading/trailing characters that are neither letters nor apostrophes.
-  w = w.replace(/^[^a-z']+|[^a-z']+$/g, "");
+  let w = cleanToken(raw);
   if (!w) {
     return [];
   }
 
   const out: string[] = [];
-  const add = (x: string) => {
-    if (x && !out.includes(x)) {
-      out.push(x);
-    }
-  };
+  const add = (x: string) => addUnique(out, x);
 
   if (CONTRACTIONS[w]) {
     const contractionBase = CONTRACTIONS[w];

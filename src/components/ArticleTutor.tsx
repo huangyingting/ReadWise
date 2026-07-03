@@ -71,6 +71,8 @@ export default function ArticleTutor({ active }: { active: boolean }) {
   const { composerRef, handleInputChange, resetHeight } = useAutoGrowingTextarea(setQuestion);
 
   const hasConversation = messages.length > 0 || transient.length > 0;
+  const showEmptyState = !fetching && loaded && messages.length === 0 && transient.length === 0;
+  const sendDisabled = !question.trim() || asking || fetching;
 
   // ---- Focus composer on tab activation ----
   // The textarea is disabled while fetching, so we must wait for loaded before
@@ -81,6 +83,16 @@ export default function ArticleTutor({ active }: { active: boolean }) {
       requestAnimationFrame(() => composerRef.current?.focus());
     }
   }, [active, loaded, composerRef]);
+
+  const handleSend = useCallback(async () => {
+    const q = question.trim();
+    if (!q || asking || fetching) return;
+    setQuestion("");
+    resetHeight();
+    // Keep focus in composer for follow-up
+    composerRef.current?.focus();
+    await ask(q);
+  }, [question, asking, fetching, ask, resetHeight, composerRef]);
 
   // ---- Input handlers ----
   const handleKeyDown = useCallback(
@@ -94,20 +106,8 @@ export default function ArticleTutor({ active }: { active: boolean }) {
         void handleSend();
       }
     },
-    // handleSend is defined below; captured via closure on each render
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [question, asking, fetching],
+    [handleSend],
   );
-
-  const handleSend = useCallback(async () => {
-    const q = question.trim();
-    if (!q || asking || fetching) return;
-    setQuestion("");
-    resetHeight();
-    // Keep focus in composer for follow-up
-    composerRef.current?.focus();
-    await ask(q);
-  }, [question, asking, fetching, ask, resetHeight, composerRef]);
 
   const handleClear = useCallback(async () => {
     const ok = await clear();
@@ -130,6 +130,45 @@ export default function ArticleTutor({ active }: { active: boolean }) {
       composerRef.current?.scrollIntoView({ block: "nearest" });
     }, 300);
   }, [composerRef]);
+
+  const renderTransientItem = (item: (typeof transient)[number]) => {
+    if (item.kind === "user") {
+      return (
+        <div
+          key={item.id}
+          className="rw-tutor-msg rw-tutor-msg--user rw-fade-up"
+        >
+          <div className="rw-tutor-bubble-user">{item.content}</div>
+          <span className="rw-tutor-msg-time" title={item.createdAt}>
+            {formatRelative(item.createdAt)}
+          </span>
+        </div>
+      );
+    }
+    if (item.kind === "thinking") {
+      return <TutorThinking key={item.id} />;
+    }
+    if (item.kind === "fallback") {
+      return (
+        <TutorUnavailable
+          key={item.id}
+          content={item.content}
+          isError={false}
+        />
+      );
+    }
+    if (item.kind === "error") {
+      return (
+        <TutorUnavailable
+          key={item.id}
+          content="Something went wrong sending that. Tap to retry."
+          isError={true}
+          onRetry={() => void ask(item.question)}
+        />
+      );
+    }
+    return null;
+  };
 
   // ---------------------------------------------------------------------------
   // Render
@@ -187,7 +226,7 @@ export default function ArticleTutor({ active }: { active: boolean }) {
         ) : null}
 
         {/* Empty state: only shown once loaded with no messages */}
-        {!fetching && loaded && messages.length === 0 && transient.length === 0 ? (
+        {showEmptyState ? (
           <div className="rw-tutor-empty">
             <EmptyState
               icon={Sparkles}
@@ -222,44 +261,7 @@ export default function ArticleTutor({ active }: { active: boolean }) {
         ))}
 
         {/* Transient items (optimistic + in-flight + fallback + error) */}
-        {transient.map((item) => {
-          if (item.kind === "user") {
-            return (
-              <div
-                key={item.id}
-                className="rw-tutor-msg rw-tutor-msg--user rw-fade-up"
-              >
-                <div className="rw-tutor-bubble-user">{item.content}</div>
-                <span className="rw-tutor-msg-time" title={item.createdAt}>
-                  {formatRelative(item.createdAt)}
-                </span>
-              </div>
-            );
-          }
-          if (item.kind === "thinking") {
-            return <TutorThinking key={item.id} />;
-          }
-          if (item.kind === "fallback") {
-            return (
-              <TutorUnavailable
-                key={item.id}
-                content={item.content}
-                isError={false}
-              />
-            );
-          }
-          if (item.kind === "error") {
-            return (
-              <TutorUnavailable
-                key={item.id}
-                content="Something went wrong sending that. Tap to retry."
-                isError={true}
-                onRetry={() => void ask(item.question)}
-              />
-            );
-          }
-          return null;
-        })}
+        {transient.map(renderTransientItem)}
 
         {/* "↓ New answer" jump pill — sticky bottom of list */}
         {jumpVisible ? (
@@ -297,10 +299,10 @@ export default function ArticleTutor({ active }: { active: boolean }) {
           size="sm"
           className="rw-tutor-send"
           onClick={() => void handleSend()}
-          disabled={!question.trim() || asking || fetching}
+          disabled={sendDisabled}
           loading={asking}
           aria-label="Send question"
-          aria-disabled={!question.trim() || asking || fetching}
+          aria-disabled={sendDisabled}
         >
           <Send size={14} aria-hidden="true" />
         </Button>

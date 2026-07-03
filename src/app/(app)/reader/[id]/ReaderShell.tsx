@@ -23,6 +23,7 @@
  * Suspense (loading.tsx), leaving the streaming container visible and
  * duplicating the DOM (#48).
  */
+import type { ReactNode } from "react";
 import { SUPPORTED_LANGUAGES } from "@/lib/translation";
 import type { ReaderPageData } from "@/lib/reader/page-loader";
 import ArticleHero from "@/components/ArticleHero";
@@ -49,7 +50,30 @@ type Props = {
   setTodayEnabled?: boolean;
 };
 
-export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
+type ReaderProvidersProps = {
+  articleId: string;
+  children: ReactNode;
+};
+
+type ReaderArticleColumnProps = {
+  data: ReaderPageData;
+  setTodayEnabled: boolean;
+};
+
+function ReaderProviders({ articleId, children }: ReaderProvidersProps) {
+  return (
+    <ReaderAudioProvider>
+      <ReaderHighlightsProvider articleId={articleId}>
+        <ReaderToolsProvider>{children}</ReaderToolsProvider>
+
+        {/* Fixed bottom audio mini-player (appears after first narration load) */}
+        <ReaderMiniPlayer />
+      </ReaderHighlightsProvider>
+    </ReaderAudioProvider>
+  );
+}
+
+function ReaderArticleColumn({ data, setTodayEnabled }: ReaderArticleColumnProps) {
   const {
     article,
     progress,
@@ -63,9 +87,78 @@ export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
     userDifficultyVote,
     readingMinutes,
     cleanBody,
-    articlePlainText,
     hadRelated,
   } = data;
+
+  return (
+    <div className="reader-column">
+      {/* Reader-local skip link: lets keyboard users jump past the sticky
+          controls directly to the article (WCAG 2.4.1, #65).
+          Sits before ReaderControls so Tab from global skip target reaches
+          it first. */}
+      <a href="#reader-article" className="skip-link">
+        Skip to article
+      </a>
+
+      {/* Slim sticky toolbar: Back · Listen · Aa (display settings) · Tools */}
+      <ReaderControls articleId={article.id} />
+
+      <article id="reader-article" tabIndex={-1} aria-labelledby="article-title">
+        <ArticleHeader
+          article={article}
+          difficultyLevel={difficultyLevel}
+          isValidCefrLevel={isValidCefrLevel}
+          readingMinutes={readingMinutes}
+          progress={progress}
+          isBookmarked={isBookmarked}
+          tags={tags}
+          setTodayEnabled={setTodayEnabled}
+        />
+
+        {/* Hero image — graceful 16:9 frame that collapses on error */}
+        <ArticleHero src={article.heroImage} alt={article.title} />
+
+        {/* Word-lookup / highlight hint — dismissible (localStorage) */}
+        <WordLookupHint />
+
+        {/* Prose — bilingual-capable wrapper (falls back to normal WordLookup when disabled) */}
+        <BilingualBody
+          html={cleanBody}
+          articleId={article.id}
+          languages={SUPPORTED_LANGUAGES}
+        />
+      </article>
+
+      {/* #376 — Observe the prose to track current reading block.
+          #378 — Track active reading time for WPM analytics.
+          Both render null and must be inside ReaderToolsProvider. */}
+      <ReaderReadingBlockTracker />
+      <ReaderTimeTracker articleId={article.id} />
+
+      {/* Difficulty feedback widget (#124) */}
+      <ArticleDifficultyFeedback
+        articleId={article.id}
+        initialVote={userDifficultyVote}
+        difficulty={difficultyLevel}
+      />
+
+      {/* Read-after practice & study tools — in-flow SSR anchor/CTA
+          that opens the responsive Tools surface (#153). */}
+      <ArticleStudySection />
+
+      {/* Keep reading — CTA section after the article body (#110) */}
+      <KeepReadingSection
+        articles={keepReadingArticles}
+        relatedProgress={relatedProgress}
+        isCompleted={isCompleted}
+        hadRelated={hadRelated}
+      />
+    </div>
+  );
+}
+
+export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
+  const { article, articlePlainText } = data;
 
   return (
     <div id="reader-root" suppressHydrationWarning>
@@ -80,85 +173,16 @@ export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
       <ReaderPrefsScript />
 
       {/* Provider tree scoped inside #reader-root — see module docblock. */}
-      <ReaderAudioProvider>
-        <ReaderHighlightsProvider articleId={article.id}>
-          <ReaderToolsProvider>
-            <ReaderLayout>
-              {/* ---- Reading column ---- */}
-              <div className="reader-column">
-                {/* Reader-local skip link: lets keyboard users jump past the sticky
-                    controls directly to the article (WCAG 2.4.1, #65).
-                    Sits before ReaderControls so Tab from global skip target reaches
-                    it first. */}
-                <a href="#reader-article" className="skip-link">
-                  Skip to article
-                </a>
+      <ReaderProviders articleId={article.id}>
+        <ReaderLayout>
+          {/* ---- Reading column ---- */}
+          <ReaderArticleColumn data={data} setTodayEnabled={setTodayEnabled} />
 
-                {/* Slim sticky toolbar: Back · Listen · Aa (display settings) · Tools */}
-                <ReaderControls articleId={article.id} />
-
-                <article id="reader-article" tabIndex={-1} aria-labelledby="article-title">
-                  <ArticleHeader
-                    article={article}
-                    difficultyLevel={difficultyLevel}
-                    isValidCefrLevel={isValidCefrLevel}
-                    readingMinutes={readingMinutes}
-                    progress={progress}
-                    isBookmarked={isBookmarked}
-                    tags={tags}
-                    setTodayEnabled={setTodayEnabled}
-                  />
-
-                  {/* Hero image — graceful 16:9 frame that collapses on error */}
-                  <ArticleHero src={article.heroImage} alt={article.title} />
-
-                  {/* Word-lookup / highlight hint — dismissible (localStorage) */}
-                  <WordLookupHint />
-
-                  {/* Prose — bilingual-capable wrapper (falls back to normal WordLookup when disabled) */}
-                  <BilingualBody
-                    html={cleanBody}
-                    articleId={article.id}
-                    languages={SUPPORTED_LANGUAGES}
-                  />
-                </article>
-
-                {/* #376 — Observe the prose to track current reading block.
-                    #378 — Track active reading time for WPM analytics.
-                    Both render null and must be inside ReaderToolsProvider. */}
-                <ReaderReadingBlockTracker />
-                <ReaderTimeTracker articleId={article.id} />
-
-                {/* Difficulty feedback widget (#124) */}
-                <ArticleDifficultyFeedback
-                  articleId={article.id}
-                  initialVote={userDifficultyVote}
-                  difficulty={difficultyLevel}
-                />
-
-                {/* Read-after practice & study tools — in-flow SSR anchor/CTA
-                    that opens the responsive Tools surface (#153). */}
-                <ArticleStudySection />
-
-                {/* Keep reading — CTA section after the article body (#110) */}
-                <KeepReadingSection
-                  articles={keepReadingArticles}
-                  relatedProgress={relatedProgress}
-                  isCompleted={isCompleted}
-                  hadRelated={hadRelated}
-                />
-              </div>
-
-              {/* ---- Tools surface ---- second grid column on xl (sticky rail),
-                   a focus-trapped bottom sheet on <xl. Single mounted instance. */}
-              <ReaderToolsSurface articleId={article.id} plainText={articlePlainText} />
-            </ReaderLayout>
-          </ReaderToolsProvider>
-
-          {/* Fixed bottom audio mini-player (appears after first narration load) */}
-          <ReaderMiniPlayer />
-        </ReaderHighlightsProvider>
-      </ReaderAudioProvider>
+          {/* ---- Tools surface ---- second grid column on xl (sticky rail),
+               a focus-trapped bottom sheet on <xl. Single mounted instance. */}
+          <ReaderToolsSurface articleId={article.id} plainText={articlePlainText} />
+        </ReaderLayout>
+      </ReaderProviders>
     </div>
   );
 }

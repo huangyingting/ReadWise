@@ -25,13 +25,14 @@ let savedWords: Row[] = [];
 let writes: string[] = [];
 
 const NOW = new Date("2026-06-27T12:00:00Z");
+const DEFAULT_QUOTE = "The mitochondria is the powerhouse of the cell.";
 
 function makeHighlight(overrides: Row = {}): Row {
   return {
     id: "h1",
     userId: "u1",
     articleId: "a1",
-    quote: "The mitochondria is the powerhouse of the cell.",
+    quote: DEFAULT_QUOTE,
     startOffset: 10,
     endOffset: 57,
     prefix: "",
@@ -42,6 +43,10 @@ function makeHighlight(overrides: Row = {}): Row {
     updatedAt: new Date("2026-06-26T00:00:00Z"),
     ...overrides,
   };
+}
+
+function addHighlights(...rows: Row[]): void {
+  highlights.push(...rows);
 }
 
 before(() => {
@@ -129,13 +134,17 @@ beforeEach(() => {
 
 const importAssets = () => import("@/lib/learning/review-assets");
 
+function assertNoWrites(): void {
+  assert.deepEqual(writes, []);
+}
+
 // ===========================================================================
 // Highlight/note → review card (reuses SavedWord/SRS)
 // ===========================================================================
 
 test("convertHighlightToReviewCard creates an SRS card from a highlight", async () => {
   const { convertHighlightToReviewCard } = await importAssets();
-  highlights.push(makeHighlight({ note: "powerhouse = main energy source" }));
+  addHighlights(makeHighlight({ note: "powerhouse = main energy source" }));
 
   const result = await convertHighlightToReviewCard("u1", "h1");
   assert.ok(result);
@@ -147,17 +156,14 @@ test("convertHighlightToReviewCard creates an SRS card from a highlight", async 
   // highlight/flashcard domain where the learner already keeps such text.
   assert.equal(savedWords.length, 1);
   assert.equal(savedWords[0].explanation, "powerhouse = main energy source");
-  assert.equal(
-    savedWords[0].contextSentence,
-    "The mitochondria is the powerhouse of the cell.",
-  );
+  assert.equal(savedWords[0].contextSentence, DEFAULT_QUOTE);
   assert.equal(savedWords[0].articleId, "a1");
 });
 
 test("convertHighlightToReviewCard is idempotent (no duplicate, no schedule reset)", async () => {
   const { convertHighlightToReviewCard, reviewCardFront } = await importAssets();
   const quote = makeHighlight().quote as string;
-  highlights.push(makeHighlight());
+  addHighlights(makeHighlight());
   // Simulate an already-converted, partially-reviewed card.
   savedWords.push({
     id: "sw-existing",
@@ -177,7 +183,7 @@ test("convertHighlightToReviewCard is idempotent (no duplicate, no schedule rese
 
 test("convertHighlightToReviewCard is scoped to the owner (IDOR-safe)", async () => {
   const { convertHighlightToReviewCard } = await importAssets();
-  highlights.push(makeHighlight({ userId: "owner" }));
+  addHighlights(makeHighlight({ userId: "owner" }));
 
   // A different user cannot convert someone else's highlight.
   const result = await convertHighlightToReviewCard("attacker", "h1");
@@ -197,7 +203,7 @@ test("convertHighlightToReviewCard returns null for a missing highlight", async 
 
 test("getReviewAssetSummary returns content-free aggregate counts only", async () => {
   const { getReviewAssetSummary } = await importAssets();
-  highlights.push(
+  addHighlights(
     makeHighlight({ id: "h1", articleId: "a1", note: "n", createdAt: NOW }),
     makeHighlight({ id: "h2", articleId: "a1", note: null, createdAt: NOW }),
     makeHighlight({
@@ -229,7 +235,7 @@ test("getReviewAssetSummary returns content-free aggregate counts only", async (
 
 test("recordTodayReflection stores the sentence in the highlight note domain", async () => {
   const { recordTodayReflection } = await importAssets();
-  highlights.push(makeHighlight({ note: null }));
+  addHighlights(makeHighlight({ note: null }));
 
   const result = await recordTodayReflection({
     userId: "u1",
@@ -248,7 +254,7 @@ test("recordTodayReflection stores the sentence in the highlight note domain", a
 
 test("recordTodayReflection rejects an empty sentence (400)", async () => {
   const { recordTodayReflection } = await importAssets();
-  highlights.push(makeHighlight());
+  addHighlights(makeHighlight());
 
   const result = await recordTodayReflection({
     userId: "u1",
@@ -257,12 +263,12 @@ test("recordTodayReflection rejects an empty sentence (400)", async () => {
   });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 400);
-  assert.deepEqual(writes, []);
+  assertNoWrites();
 });
 
 test("recordTodayReflection is IDOR-safe (404 for another user's highlight)", async () => {
   const { recordTodayReflection } = await importAssets();
-  highlights.push(makeHighlight({ userId: "owner" }));
+  addHighlights(makeHighlight({ userId: "owner" }));
 
   const result = await recordTodayReflection({
     userId: "attacker",
@@ -271,7 +277,7 @@ test("recordTodayReflection is IDOR-safe (404 for another user's highlight)", as
   });
   assert.equal(result.ok, false);
   if (!result.ok) assert.equal(result.status, 404);
-  assert.deepEqual(writes, []);
+  assertNoWrites();
 });
 
 // ===========================================================================
@@ -280,7 +286,7 @@ test("recordTodayReflection is IDOR-safe (404 for another user's highlight)", as
 
 test("conversion payload exposes ids/schedule only — never raw selected text", async () => {
   const { convertHighlightToReviewCard } = await importAssets();
-  highlights.push(makeHighlight({ note: "secret note text" }));
+  addHighlights(makeHighlight({ note: "secret note text" }));
 
   const result = await convertHighlightToReviewCard("u1", "h1");
   assert.ok(result);

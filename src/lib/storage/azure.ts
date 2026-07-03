@@ -7,6 +7,26 @@ export { azureStorageConfig } from "@/lib/runtime-config/storage";
 
 const log = createLogger("storage");
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function statusCodeFromError(err: unknown): number | undefined {
+  return err instanceof Object && "statusCode" in err
+    ? (err as { statusCode?: number }).statusCode
+    : undefined;
+}
+
+async function streamToBuffer(
+  stream: AsyncIterable<Buffer | Uint8Array | string>,
+): Promise<Buffer> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of stream) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+  }
+  return Buffer.concat(chunks);
+}
+
 /** Azure Blob Storage–backed {@link MediaStorage}. */
 export class AzureBlobMediaStorage implements MediaStorage {
   readonly kind = "azure" as const;
@@ -20,33 +40,38 @@ export class AzureBlobMediaStorage implements MediaStorage {
     this.config = config;
   }
 
+  private createServiceClient(
+    azure: typeof import("@azure/storage-blob"),
+  ): import("@azure/storage-blob").BlobServiceClient {
+    const cfg = this.config;
+    if ("connectionString" in cfg) {
+      return azure.BlobServiceClient.fromConnectionString(
+        cfg.connectionString,
+      );
+    }
+
+    const credential = new azure.StorageSharedKeyCredential(
+      cfg.accountName,
+      cfg.accountKey,
+    );
+    return new azure.BlobServiceClient(
+      `https://${cfg.accountName}.blob.core.windows.net`,
+      credential,
+    );
+  }
+
   /** Returns a `ContainerClient` or null if the SDK or config is unavailable. */
   private async getContainer(): Promise<import("@azure/storage-blob").ContainerClient | null> {
     try {
-      const { BlobServiceClient, StorageSharedKeyCredential } =
-        await import("@azure/storage-blob");
+      const azure = await import("@azure/storage-blob");
       const cfg = this.config;
-      let serviceClient: import("@azure/storage-blob").BlobServiceClient;
-      if ("connectionString" in cfg) {
-        serviceClient = BlobServiceClient.fromConnectionString(
-          cfg.connectionString,
-        );
-      } else {
-        const credential = new StorageSharedKeyCredential(
-          cfg.accountName,
-          cfg.accountKey,
-        );
-        serviceClient = new BlobServiceClient(
-          `https://${cfg.accountName}.blob.core.windows.net`,
-          credential,
-        );
-      }
+      const serviceClient = this.createServiceClient(azure);
       const container = serviceClient.getContainerClient(cfg.container);
       await container.createIfNotExists();
       return container;
     } catch (err) {
       log.warn("storage.azure_container_unavailable", {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return null;
     }
@@ -58,6 +83,7 @@ export class AzureBlobMediaStorage implements MediaStorage {
       normalizeExtension(input.extension) ?? extensionForMime(input.mimeType);
     const prefix = sanitizeKeyHint(input.keyHint);
     const storageKey = `${prefix}/${checksum}${ext}`;
+    const sizeBytes = input.data.byteLength;
 
     const container = await this.getContainer();
     if (!container) {
@@ -70,11 +96,11 @@ export class AzureBlobMediaStorage implements MediaStorage {
     });
     log.info("storage.azure_put", {
       storageKey,
-      sizeBytes: input.data.byteLength,
+      sizeBytes,
     });
     return {
       storageKey,
-      sizeBytes: input.data.byteLength,
+      sizeBytes,
       checksum,
     };
   }
@@ -86,20 +112,16 @@ export class AzureBlobMediaStorage implements MediaStorage {
       const blobClient = container.getBlockBlobClient(storageKey);
       const response = await blobClient.download();
       if (!response.readableStreamBody) return null;
-      const chunks: Buffer[] = [];
-      for await (const chunk of response.readableStreamBody as AsyncIterable<Buffer>) {
-        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
-      }
-      return Buffer.concat(chunks);
+      return streamToBuffer(
+        response.readableStreamBody as AsyncIterable<
+          Buffer | Uint8Array | string
+        >,
+      );
     } catch (err: unknown) {
-      const status =
-        err instanceof Object && "statusCode" in err
-          ? (err as { statusCode?: number }).statusCode
-          : undefined;
-      if (status === 404) return null;
+      if (statusCodeFromError(err) === 404) return null;
       log.warn("storage.azure_get_failed", {
         storageKey,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       return null;
     }
@@ -114,7 +136,7 @@ export class AzureBlobMediaStorage implements MediaStorage {
     } catch (err) {
       log.warn("storage.azure_delete_failed", {
         storageKey,
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
     }
   }

@@ -115,6 +115,46 @@ export type ArticleAiSpec<TArticle extends ArticleText, TParsed, TCache, TResult
     maxOutputTokens?: number;
   };
 
+async function loadArticleForSpec<TArticle extends ArticleText>(
+  articleId: string,
+  spec: LoadArticleField<TArticle>,
+  context: ArticleAccessContext | null,
+): Promise<TArticle | null> {
+  const rawArticle = spec.loadArticle !== undefined
+    ? await spec.loadArticle(articleId, context)
+    : await loadAiProcessableArticleText(articleId, context);
+  return rawArticle as TArticle | null;
+}
+
+type CallModelConfig = {
+  feature: string;
+  promptVersion: string;
+  articleId?: string;
+  maxOutputTokens?: number;
+};
+
+function createCallModel(config: CallModelConfig): CallModel {
+  return (messages, override) => {
+    const options: {
+      feature: string;
+      promptVersion: string;
+      articleId?: string;
+      maxOutputTokens?: number;
+    } = {
+      feature: config.feature,
+      promptVersion: config.promptVersion,
+    };
+    if (config.articleId != null) {
+      options.articleId = config.articleId;
+    }
+    const maxOutputTokens = override?.maxOutputTokens ?? config.maxOutputTokens;
+    if (maxOutputTokens != null) {
+      options.maxOutputTokens = maxOutputTokens;
+    }
+    return chatComplete(messages, options);
+  };
+}
+
 /**
  * Runs the shared cache-first AI lifecycle described by `spec`.
  *
@@ -134,10 +174,7 @@ export async function getOrCreateArticleAi<
 ): Promise<TResult | null> {
   let article: TArticle | null | undefined;
   if (!isArticleOperator(context)) {
-    const rawArticle = spec.loadArticle !== undefined
-      ? await spec.loadArticle(articleId, context)
-      : await loadAiProcessableArticleText(articleId, context);
-    article = rawArticle as TArticle | null;
+    article = await loadArticleForSpec(articleId, spec, context);
     if (article === null) {
       return null;
     }
@@ -154,10 +191,7 @@ export async function getOrCreateArticleAi<
   // the default loadAiProcessableArticleText is safe.  The single `as` cast is
   // valid because the conditional type in the spec guarantees the required shape
   // at the call site.
-  const rawArticle = article ?? (spec.loadArticle !== undefined
-    ? await spec.loadArticle(articleId, context)
-    : await loadAiProcessableArticleText(articleId, context));
-  article = rawArticle as TArticle | null;
+  article = article ?? await loadArticleForSpec(articleId, spec, context);
   if (article === null) {
     return null;
   }
@@ -167,23 +201,12 @@ export async function getOrCreateArticleAi<
   }
 
   const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
-  const callModel: CallModel = (messages, override) => {
-    const options: {
-      feature: string;
-      articleId: string;
-      promptVersion: string;
-      maxOutputTokens?: number;
-    } = {
-      feature: spec.feature,
-      articleId,
-      promptVersion,
-    };
-    const maxOutputTokens = override?.maxOutputTokens ?? spec.maxOutputTokens;
-    if (maxOutputTokens != null) {
-      options.maxOutputTokens = maxOutputTokens;
-    }
-    return chatComplete(messages, options);
-  };
+  const callModel = createCallModel({
+    feature: spec.feature,
+    articleId,
+    promptVersion,
+    maxOutputTokens: spec.maxOutputTokens,
+  });
 
   let parsed: TParsed | null;
   if (spec.generate) {
@@ -262,22 +285,12 @@ export async function getOrCreateSelectionAi<TResult>(
   }
 
   const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
-  const callModel: CallModel = (messages, override) => {
-    const options: {
-      feature: string;
-      promptVersion: string;
-      articleId?: string;
-      maxOutputTokens?: number;
-    } = { feature: spec.feature, promptVersion };
-    if (spec.articleId != null) {
-      options.articleId = spec.articleId;
-    }
-    const maxOutputTokens = override?.maxOutputTokens ?? spec.maxOutputTokens;
-    if (maxOutputTokens != null) {
-      options.maxOutputTokens = maxOutputTokens;
-    }
-    return chatComplete(messages, options);
-  };
+  const callModel = createCallModel({
+    feature: spec.feature,
+    articleId: spec.articleId,
+    promptVersion,
+    maxOutputTokens: spec.maxOutputTokens,
+  });
 
   const text = await spec.generate(callModel);
   if (!text) {

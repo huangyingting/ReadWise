@@ -40,6 +40,28 @@ async function listMigrationNames(dir: string): Promise<string[]> {
   return entries.filter((e) => /^\d{14}_/.test(e)).sort();
 }
 
+function migrationNamesMissingFrom(source: string[], target: string[]): string[] {
+  return source.filter((m) => !target.includes(m));
+}
+
+function reportFirstSchemaDifference(expected: string, actual: string): void {
+  const expectedLines = expected.split("\n");
+  const actualLines = actual.split("\n");
+  const maxLen = Math.max(expectedLines.length, actualLines.length);
+  for (let i = 0; i < maxLen; i++) {
+    if (expectedLines[i] !== actualLines[i]) {
+      console.error(`  First difference at line ${i + 1}:`);
+      console.error(
+        `    Expected (normalized sqlite): ${JSON.stringify(expectedLines[i])}`,
+      );
+      console.error(
+        `    Actual   (postgres):          ${JSON.stringify(actualLines[i])}`,
+      );
+      break;
+    }
+  }
+}
+
 async function checkSchemaParity(): Promise<boolean> {
   const [sqliteSchema, postgresSchema] = await Promise.all([
     readFile(SQLITE_SCHEMA, "utf8"),
@@ -58,21 +80,7 @@ async function checkSchemaParity(): Promise<boolean> {
   );
 
   // Show the first differing line for quick triage.
-  const sqliteLines = normalized.split("\n");
-  const pgLines = postgresSchema.split("\n");
-  const maxLen = Math.max(sqliteLines.length, pgLines.length);
-  for (let i = 0; i < maxLen; i++) {
-    if (sqliteLines[i] !== pgLines[i]) {
-      console.error(`  First difference at line ${i + 1}:`);
-      console.error(
-        `    Expected (normalized sqlite): ${JSON.stringify(sqliteLines[i])}`,
-      );
-      console.error(
-        `    Actual   (postgres):          ${JSON.stringify(pgLines[i])}`,
-      );
-      break;
-    }
-  }
+  reportFirstSchemaDifference(normalized, postgresSchema);
   return false;
 }
 
@@ -82,11 +90,13 @@ async function checkMigrationParity(): Promise<boolean> {
     listMigrationNames(POSTGRES_MIGRATIONS),
   ]);
 
-  const onlyInSqlite = sqliteMigrations.filter(
-    (m) => !postgresMigrations.includes(m),
+  const onlyInSqlite = migrationNamesMissingFrom(
+    sqliteMigrations,
+    postgresMigrations,
   );
-  const onlyInPostgres = postgresMigrations.filter(
-    (m) => !sqliteMigrations.includes(m),
+  const onlyInPostgres = migrationNamesMissingFrom(
+    postgresMigrations,
+    sqliteMigrations,
   );
 
   if (onlyInSqlite.length === 0 && onlyInPostgres.length === 0) {

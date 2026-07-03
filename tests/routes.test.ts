@@ -31,6 +31,19 @@ const AUDIT_ACTIONS = {
   adminAuditLogRead: "admin.audit_logs.read",
 };
 
+function resetRouteState(): void {
+  authState = "ok";
+  articleExists = true;
+  saveProgressResult = { percent: 50, completed: false };
+  progressSummaries = {};
+  supportedLang = true;
+  revalidateCalls = 0;
+  lastSavedWord = null;
+  deleteArticleResult = true;
+  auditCalls = [];
+  resetMetrics();
+}
+
 before(() => {
   mock.module("@/lib/api-auth", {
     namedExports: fullAuthExports(() => authState),
@@ -124,18 +137,7 @@ before(() => {
   });
 });
 
-beforeEach(() => {
-  authState = "ok";
-  articleExists = true;
-  saveProgressResult = { percent: 50, completed: false };
-  progressSummaries = {};
-  supportedLang = true;
-  revalidateCalls = 0;
-  lastSavedWord = null;
-  deleteArticleResult = true;
-  auditCalls = [];
-  resetMetrics();
-});
+beforeEach(resetRouteState);
 
 function jsonReq(body: unknown): Request {
   return new Request("http://test/api/route", {
@@ -149,6 +151,10 @@ function ctx(id = "a1") {
   return { params: Promise.resolve({ id }) };
 }
 
+function assertHasRequestId(res: Response): void {
+  assert.equal(res.headers.get("x-request-id")?.length ? true : false, true);
+}
+
 // ---- progress -----------------------------------------------------------
 test("POST progress saves and returns percent/completed", async () => {
   saveProgressResult = { percent: 80, completed: false };
@@ -156,7 +162,7 @@ test("POST progress saves and returns percent/completed", async () => {
   const res = await POST(jsonReq({ percent: 80 }), ctx());
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { percent: 80, completed: false });
-  assert.equal(res.headers.get("x-request-id")?.length ? true : false, true);
+  assertHasRequestId(res);
 });
 
 test("POST progress returns 404 for a missing article", async () => {

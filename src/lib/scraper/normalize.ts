@@ -107,6 +107,34 @@ export type NormalizeOptions = {
   force?: boolean;
 };
 
+function byteLength(html: string): number {
+  return Buffer.byteLength(html, "utf8");
+}
+
+function normalizationEnabled(opts: NormalizeOptions): boolean {
+  return opts.force === true || scraperHtmlNormalize();
+}
+
+function disabledResult(html: string, originalLength: number): NormalizeResult {
+  return { html, originalLength, normalizedLength: originalLength, compressionRatio: 1 };
+}
+
+function applyNormalization(html: string): string {
+  // Apply each transformation in order. Patterns are non-overlapping, so order
+  // matters only for readability / performance (heavier removals first).
+  return html
+    .replace(STRIP_WITH_CONTENT_RE, "")
+    .replace(COMMENTS_RE, "")
+    .replace(INLINE_EVENTS_RE, "")
+    .replace(INLINE_STYLE_RE, "")
+    .replace(BLANK_LINES_RE, "\n\n")
+    .replace(SPACES_RE, " ");
+}
+
+function compressionRatio(originalLength: number, normalizedLength: number): number {
+  return originalLength > 0 ? normalizedLength / originalLength : 0;
+}
+
 /**
  * Optional HTML normalization pass — **disabled by default**.
  *
@@ -123,31 +151,22 @@ export type NormalizeOptions = {
  * When disabled, returns the original HTML string without any allocation.
  */
 export function normalizeArticleHtml(html: string, opts: NormalizeOptions = {}): NormalizeResult {
-  const enabled = opts.force === true || scraperHtmlNormalize();
-  const originalLength = Buffer.byteLength(html, "utf8");
+  const enabled = normalizationEnabled(opts);
+  const originalLength = byteLength(html);
 
   if (!enabled) {
-    return { html, originalLength, normalizedLength: originalLength, compressionRatio: 1 };
+    return disabledResult(html, originalLength);
   }
 
-  // Apply each transformation in order.  Patterns are non-overlapping, so
-  // order matters only for readability / performance (heavier removals first).
-  const normalized = html
-    .replace(STRIP_WITH_CONTENT_RE, "")
-    .replace(COMMENTS_RE, "")
-    .replace(INLINE_EVENTS_RE, "")
-    .replace(INLINE_STYLE_RE, "")
-    .replace(BLANK_LINES_RE, "\n\n")
-    .replace(SPACES_RE, " ");
-
-  const normalizedLength = Buffer.byteLength(normalized, "utf8");
-  const compressionRatio = originalLength > 0 ? normalizedLength / originalLength : 0;
+  const normalized = applyNormalization(html);
+  const normalizedLength = byteLength(normalized);
+  const ratio = compressionRatio(originalLength, normalizedLength);
 
   log.debug("html normalized", {
     originalLength,
     normalizedLength,
-    compressionRatio: compressionRatio.toFixed(3),
+    compressionRatio: ratio.toFixed(3),
   });
 
-  return { html: normalized, originalLength, normalizedLength, compressionRatio };
+  return { html: normalized, originalLength, normalizedLength, compressionRatio: ratio };
 }

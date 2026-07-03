@@ -103,6 +103,34 @@ function toEnrollmentSummary(
   };
 }
 
+function isLearnerVisibleSeries(series: {
+  status: string;
+  public: boolean;
+}): boolean {
+  return series.status === "active" && series.public === true;
+}
+
+async function advanceEnrollmentToIndex(
+  enrollmentId: string,
+  nextIndex: number,
+): Promise<void> {
+  await prisma.seriesEnrollment.update({
+    where: { id: enrollmentId },
+    data: { nextIndex },
+  });
+}
+
+async function completeEnrollment(
+  enrollmentId: string,
+  nextIndex: number,
+  completedAt: Date = new Date(),
+): Promise<void> {
+  await prisma.seriesEnrollment.update({
+    where: { id: enrollmentId },
+    data: { nextIndex, status: "completed", completedAt },
+  });
+}
+
 // ---------------------------------------------------------------------------
 // Listing
 // ---------------------------------------------------------------------------
@@ -140,7 +168,7 @@ export async function listPublicSeriesForUser(
       completedAt: true,
     },
   });
-  const byseries = new Map(enrollments.map((e) => [e.seriesId, e]));
+  const bySeries = new Map(enrollments.map((e) => [e.seriesId, e]));
 
   return rows.map((r) => ({
     id: r.id,
@@ -151,7 +179,7 @@ export async function listPublicSeriesForUser(
     targetLevelMin: r.targetLevelMin,
     targetLevelMax: r.targetLevelMax,
     articleCount: toArticleIds(r.articleIds).length,
-    enrollment: toEnrollmentSummary(byseries.get(r.id) ?? null),
+    enrollment: toEnrollmentSummary(bySeries.get(r.id) ?? null),
   }));
 }
 
@@ -254,7 +282,7 @@ export async function resolveNextSeriesArticle(
   });
   if (!enrollment || !enrollment.series) return null;
   // Series flipped to archived / private after enrollment — stop surfacing it.
-  if (enrollment.series.status !== "active" || enrollment.series.public !== true) {
+  if (!isLearnerVisibleSeries(enrollment.series)) {
     return null;
   }
 
@@ -268,10 +296,7 @@ export async function resolveNextSeriesArticle(
     if (article) {
       // Persist any forward skip past inaccessible ids before this one.
       if (i !== enrollment.nextIndex) {
-        await prisma.seriesEnrollment.update({
-          where: { id: enrollment.id },
-          data: { nextIndex: i },
-        });
+        await advanceEnrollmentToIndex(enrollment.id, i);
       }
       return {
         seriesId: enrollment.seriesId,
@@ -283,10 +308,7 @@ export async function resolveNextSeriesArticle(
   }
 
   // No accessible article remains — complete the enrollment (idempotent).
-  await prisma.seriesEnrollment.update({
-    where: { id: enrollment.id },
-    data: { nextIndex: ids.length, status: "completed", completedAt: new Date() },
-  });
+  await completeEnrollment(enrollment.id, ids.length);
   return null;
 }
 
@@ -318,11 +340,9 @@ export async function advanceSeriesOnArticleRead(
   const next = resolved.index + 1;
   const completed = next >= total;
 
-  await prisma.seriesEnrollment.update({
-    where: { id: resolved.enrollmentId },
-    data: {
-      nextIndex: next,
-      ...(completed ? { status: "completed", completedAt: now } : {}),
-    },
-  });
+  if (completed) {
+    await completeEnrollment(resolved.enrollmentId, next, now);
+  } else {
+    await advanceEnrollmentToIndex(resolved.enrollmentId, next);
+  }
 }

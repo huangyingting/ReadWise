@@ -9,6 +9,24 @@ import { applySql, quoteIdentifier, readPostgresMigrations, registerIntegrationC
 
 registerIntegrationCleanup();
 
+const BASELINE_MIGRATION_NAME = "20260625010000_init";
+const EXPECTED_BASELINE_INDEXES = [
+  "Article_public_category_feed_idx",
+  "Article_public_feed_idx",
+  "Article_public_level_feed_idx",
+  "Article_search_vector_idx",
+  "AuditLog_action_createdAt_idx",
+  "AuditLog_actorId_createdAt_idx",
+  "AuditLog_createdAt_idx",
+  "AuditLog_targetType_targetId_idx",
+  "ReadingProgress_user_completedAt_idx",
+  "SavedWord_user_created_idx",
+];
+
+function scratchSchemaName(): string {
+  return `dbit_schema_${randomUUID().replace(/-/g, "")}`;
+}
+
 test("PostgreSQL baseline migration is applied and includes the article FTS index", { skip: !enabled }, async () => {
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
@@ -19,7 +37,7 @@ test("PostgreSQL baseline migration is applied and includes the article FTS inde
   `;
 
   assert.ok(
-    migrations.some((migration) => migration.migration_name === "20260625010000_init"),
+    migrations.some((migration) => migration.migration_name === BASELINE_MIGRATION_NAME),
     "PostgreSQL baseline migration should be recorded",
   );
   assert.equal(migrations.filter((migration) => migration.finished_at == null).length, 0);
@@ -47,18 +65,7 @@ test("PostgreSQL baseline migration is applied and includes the article FTS inde
   `;
   assert.deepEqual(
     indexes.map((index) => index.indexname).sort(),
-    [
-      "Article_public_category_feed_idx",
-      "Article_public_feed_idx",
-      "Article_public_level_feed_idx",
-      "Article_search_vector_idx",
-      "AuditLog_action_createdAt_idx",
-      "AuditLog_actorId_createdAt_idx",
-      "AuditLog_createdAt_idx",
-      "AuditLog_targetType_targetId_idx",
-      "ReadingProgress_user_completedAt_idx",
-      "SavedWord_user_created_idx",
-    ],
+    EXPECTED_BASELINE_INDEXES,
   );
 });
 
@@ -66,8 +73,8 @@ test("PostgreSQL baseline applies from scratch with representative rows", { skip
   assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
 
   const migrations = await readPostgresMigrations();
-  assert.equal(migrations[0]?.name, "20260625010000_init");
-  const schemaName = `dbit_schema_${randomUUID().replace(/-/g, "")}`;
+  assert.equal(migrations[0]?.name, BASELINE_MIGRATION_NAME);
+  const schemaName = scratchSchemaName();
   const quotedSchema = quoteIdentifier(schemaName);
 
   await prisma.$transaction(

@@ -174,14 +174,46 @@ beforeEach(() => {
   articleStub = { id: "a1" };
 });
 
+async function postClassrooms(body: Record<string, unknown>) {
+  const { POST } = (await import("@/app/api/classrooms/route")) as { POST: RouteHandler };
+  return POST(jsonPost("http://test/api/classrooms", body));
+}
+
+async function getClassroomAnalytics(id = "c1") {
+  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as {
+    GET: RouteHandler;
+  };
+  return GET(new Request(`http://test/api/classrooms/${id}/analytics`), withParams({ id }));
+}
+
+async function postClassroomMember(id: string, body: Record<string, unknown>) {
+  const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/classrooms/${id}/members`, body), withParams({ id }));
+}
+
+async function postClassroomAssignment(id: string, body: Record<string, unknown>) {
+  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/classrooms/${id}/assignments`, body), withParams({ id }));
+}
+
+async function postAssignmentCompletion(id: string, body: Record<string, unknown>) {
+  const { POST } = (await import("@/app/api/assignments/[id]/completion/route")) as {
+    POST: RouteHandler;
+  };
+  return POST(jsonPost(`http://test/api/assignments/${id}/completion`, body), withParams({ id }));
+}
+
 // ===========================================================================
 // POST /api/classrooms
 // ===========================================================================
 
 test("POST /api/classrooms returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/classrooms/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/classrooms", { orgId: "org-1", name: "Class A" }));
+  const res = await postClassrooms({ orgId: "org-1", name: "Class A" });
   assert.equal(res.status, 401);
 });
 
@@ -189,8 +221,7 @@ test("POST /api/classrooms returns 403 when caller lacks org capability", async 
   // membershipStub = null + isOrgAdminStub = false → real requireOrgCapabilityApi throws 403
   membershipStub = null;
   isOrgAdminStub = false;
-  const { POST } = (await import("@/app/api/classrooms/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/classrooms", { orgId: "org-1", name: "Class A" }));
+  const res = await postClassrooms({ orgId: "org-1", name: "Class A" });
   assert.equal(res.status, 403);
   const body = await res.json() as { error: string };
   assert.ok(typeof body.error === "string");
@@ -199,8 +230,7 @@ test("POST /api/classrooms returns 403 when caller lacks org capability", async 
 test("POST /api/classrooms returns 201 with the new classroom on success", async () => {
   // isOrgAdminStub = true → real requireOrgCapabilityApi passes
   isOrgAdminStub = true;
-  const { POST } = (await import("@/app/api/classrooms/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/classrooms", { orgId: "org-1", name: "Class A" }));
+  const res = await postClassrooms({ orgId: "org-1", name: "Class A" });
   assert.equal(res.status, 201);
   const body = await res.json() as { classroom: { id: string } };
   assert.equal(body.classroom.id, "c1");
@@ -212,15 +242,13 @@ test("POST /api/classrooms returns 201 with the new classroom on success", async
 
 test("GET /api/classrooms/[id]/analytics returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/classrooms/c1/analytics"), withParams({ id: "c1" }));
+  const res = await getClassroomAnalytics();
   assert.equal(res.status, 401);
 });
 
 test("GET /api/classrooms/[id]/analytics returns 404 when classroom not found", async () => {
   classroomStub = null;
-  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/classrooms/missing/analytics"), withParams({ id: "missing" }));
+  const res = await getClassroomAnalytics("missing");
   assert.equal(res.status, 404);
 });
 
@@ -229,8 +257,7 @@ test("GET /api/classrooms/[id]/analytics returns 403 for a learner (not teacher,
   currentSession = { user: { id: "learner-1", role: "Reader", name: "L", email: "l@e.com" } };
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
   isOrgAdminStub = false;
-  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/classrooms/c1/analytics"), withParams({ id: "c1" }));
+  const res = await getClassroomAnalytics();
   assert.equal(res.status, 403);
 });
 
@@ -241,8 +268,7 @@ test("GET /api/classrooms/[id]/analytics returns full detail for the classroom t
   isOrgAdminStub = false;
   analyticsViewerRoleStub = "teacher";
   analyticsDataStub = { classroomId: "c1", completionRate: 0.8, members: [{ userId: "u2", completions: 2 }] };
-  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/classrooms/c1/analytics"), withParams({ id: "c1" }));
+  const res = await getClassroomAnalytics();
   assert.equal(res.status, 200);
   const body = await res.json() as { role: string; analytics: Record<string, unknown> };
   assert.equal(body.role, "teacher");
@@ -257,8 +283,7 @@ test("GET /api/classrooms/[id]/analytics returns aggregate data for an org admin
   analyticsViewerRoleStub = "orgAdmin";
   // aggregate stub — individual rows redacted (simulating what the real fn returns)
   analyticsDataStub = { classroomId: "c1", completionRate: 0.7, members: [] };
-  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/classrooms/c1/analytics"), withParams({ id: "c1" }));
+  const res = await getClassroomAnalytics();
   assert.equal(res.status, 200);
   const body = await res.json() as { role: string; analytics: Record<string, unknown> };
   assert.equal(body.role, "orgAdmin");
@@ -273,43 +298,27 @@ test("GET /api/classrooms/[id]/analytics returns aggregate data for an org admin
 
 test("POST /api/classrooms/[id]/members returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/members", { userId: "u2", role: "Student" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomMember("c1", { userId: "u2", role: "Student" });
   assert.equal(res.status, 401);
 });
 
 test("POST /api/classrooms/[id]/members returns 404 when classroom not found", async () => {
   classroomStub = null;
-  const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/missing/members", { userId: "u2", role: "Student" }),
-    withParams({ id: "missing" }),
-  );
+  const res = await postClassroomMember("missing", { userId: "u2", role: "Student" });
   assert.equal(res.status, 404);
 });
 
 test("POST /api/classrooms/[id]/members returns 403 when caller cannot manage classroom", async () => {
   // teacherId !== user-1 (readerSession), membership is null → canManageClassroom = false → 403
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
-  const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/members", { userId: "u2", role: "Student" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomMember("c1", { userId: "u2", role: "Student" });
   assert.equal(res.status, 403);
 });
 
 test("POST /api/classrooms/[id]/members returns 201 and new member on success", async () => {
   // teacherId === user-1 (readerSession) → canManageClassroom = true
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
-  const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/members", { userId: "u2", role: "Student" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomMember("c1", { userId: "u2", role: "Student" });
   assert.equal(res.status, 201);
   const body = await res.json() as { ok: boolean; member: { id: string } };
   assert.equal(body.ok, true);
@@ -322,32 +331,20 @@ test("POST /api/classrooms/[id]/members returns 201 and new member on success", 
 
 test("POST /api/classrooms/[id]/assignments returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/assignments", { articleId: "a1" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomAssignment("c1", { articleId: "a1" });
   assert.equal(res.status, 401);
 });
 
 test("POST /api/classrooms/[id]/assignments returns 403 when caller cannot manage classroom", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
-  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/assignments", { articleId: "a1" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomAssignment("c1", { articleId: "a1" });
   assert.equal(res.status, 403);
 });
 
 test("POST /api/classrooms/[id]/assignments returns 404 when article not found", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
   articleStub = null;
-  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/assignments", { articleId: "missing-article" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomAssignment("c1", { articleId: "missing-article" });
   assert.equal(res.status, 404);
   const body = await res.json() as { error: string };
   assert.match(body.error, /article/i);
@@ -355,11 +352,7 @@ test("POST /api/classrooms/[id]/assignments returns 404 when article not found",
 
 test("POST /api/classrooms/[id]/assignments returns 400 for an invalid due date", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
-  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/assignments", { articleId: "a1", dueDate: "not-a-date" }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomAssignment("c1", { articleId: "a1", dueDate: "not-a-date" });
   assert.equal(res.status, 400);
   const body = await res.json() as { error: string };
   assert.match(body.error, /due date/i);
@@ -367,15 +360,11 @@ test("POST /api/classrooms/[id]/assignments returns 400 for an invalid due date"
 
 test("POST /api/classrooms/[id]/assignments returns 201 with assignment on success", async () => {
   classroomStub = { id: "c1", orgId: "org-1", teacherId: "user-1" };
-  const { POST } = (await import("@/app/api/classrooms/[id]/assignments/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/classrooms/c1/assignments", {
-      articleId: "a1",
-      dueDate: "2026-12-31",
-      instructions: "Read carefully",
-    }),
-    withParams({ id: "c1" }),
-  );
+  const res = await postClassroomAssignment("c1", {
+    articleId: "a1",
+    dueDate: "2026-12-31",
+    instructions: "Read carefully",
+  });
   assert.equal(res.status, 201);
   const body = await res.json() as { assignment: { id: string } };
   assert.equal(body.assignment.id, "asgn1");
@@ -387,30 +376,18 @@ test("POST /api/classrooms/[id]/assignments returns 201 with assignment on succe
 
 test("POST /api/assignments/[id]/completion returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/assignments/[id]/completion/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/assignments/asgn1/completion", { status: "COMPLETED" }),
-    withParams({ id: "asgn1" }),
-  );
+  const res = await postAssignmentCompletion("asgn1", { status: "COMPLETED" });
   assert.equal(res.status, 401);
 });
 
 test("POST /api/assignments/[id]/completion returns 404 when student is not in the classroom", async () => {
   assignmentContext = null;
-  const { POST } = (await import("@/app/api/assignments/[id]/completion/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/assignments/asgn-x/completion", { status: "COMPLETED" }),
-    withParams({ id: "asgn-x" }),
-  );
+  const res = await postAssignmentCompletion("asgn-x", { status: "COMPLETED" });
   assert.equal(res.status, 404);
 });
 
 test("POST /api/assignments/[id]/completion returns 201 with completion record on success", async () => {
-  const { POST } = (await import("@/app/api/assignments/[id]/completion/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/assignments/asgn1/completion", { status: "COMPLETED", quizScore: 90 }),
-    withParams({ id: "asgn1" }),
-  );
+  const res = await postAssignmentCompletion("asgn1", { status: "COMPLETED", quizScore: 90 });
   assert.equal(res.status, 201);
   const body = await res.json() as { ok: boolean; completion: { id: string } };
   assert.equal(body.ok, true);

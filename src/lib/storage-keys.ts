@@ -99,6 +99,41 @@ export const STORAGE_KEYS = {
 
 export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
 
+type BrowserStorageName = "localStorage" | "sessionStorage";
+
+function getBrowserStorage(name: BrowserStorageName): Storage | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return window[name] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function storageGet(name: BrowserStorageName, key: string): string | null {
+  try {
+    return getBrowserStorage(name)?.getItem(key) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function storageSet(name: BrowserStorageName, key: string, value: string): void {
+  try {
+    getBrowserStorage(name)?.setItem(key, value);
+  } catch {
+    // Ignore storage failures — private mode, quota exceeded.
+  }
+}
+
+function storageRemove(name: BrowserStorageName, key: string): void {
+  try {
+    getBrowserStorage(name)?.removeItem(key);
+  } catch {
+    // ignore
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Safe localStorage helpers
 // ---------------------------------------------------------------------------
@@ -108,12 +143,7 @@ export type StorageKey = (typeof STORAGE_KEYS)[keyof typeof STORAGE_KEYS];
  * Returns null on SSR or when storage is unavailable (private mode, quota).
  */
 export function lsGet(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.localStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  return storageGet("localStorage", key);
 }
 
 /**
@@ -121,12 +151,7 @@ export function lsGet(key: string): string | null {
  * Silently ignores SSR and storage errors (private mode, quota).
  */
 export function lsSet(key: string, value: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(key, value);
-  } catch {
-    // Ignore storage failures — private mode, quota exceeded.
-  }
+  storageSet("localStorage", key, value);
 }
 
 /**
@@ -134,12 +159,7 @@ export function lsSet(key: string, value: string): void {
  * Silently ignores SSR and storage errors.
  */
 export function lsRemove(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
+  storageRemove("localStorage", key);
 }
 
 // ---------------------------------------------------------------------------
@@ -151,12 +171,7 @@ export function lsRemove(key: string): void {
  * Returns null on SSR or when storage is unavailable.
  */
 export function ssGet(key: string): string | null {
-  if (typeof window === "undefined") return null;
-  try {
-    return window.sessionStorage.getItem(key);
-  } catch {
-    return null;
-  }
+  return storageGet("sessionStorage", key);
 }
 
 /**
@@ -164,12 +179,7 @@ export function ssGet(key: string): string | null {
  * Silently ignores SSR and storage errors (private mode, quota).
  */
 export function ssSet(key: string, value: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.setItem(key, value);
-  } catch {
-    // Ignore storage failures — private mode, quota exceeded.
-  }
+  storageSet("sessionStorage", key, value);
 }
 
 /**
@@ -177,10 +187,5 @@ export function ssSet(key: string, value: string): void {
  * Silently ignores SSR and storage errors.
  */
 export function ssRemove(key: string): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.sessionStorage.removeItem(key);
-  } catch {
-    // ignore
-  }
+  storageRemove("sessionStorage", key);
 }

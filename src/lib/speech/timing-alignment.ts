@@ -166,6 +166,35 @@ function isInsideAlignmentBand(
   return column >= bandStart(row, rows, columns, radius) && column <= bandEnd(row, rows, columns, radius);
 }
 
+function isMatchingTokenForPiece(
+  piece: TimingPiece,
+  pieceIndex: number,
+  tokenIndex: number,
+  tokens: ComparableToken[],
+  rows: number,
+  columns: number,
+  radius: number,
+): boolean {
+  const token = tokens[tokenIndex];
+  return Boolean(
+    token &&
+      isInsideAlignmentBand(pieceIndex, tokenIndex, rows, columns, radius) &&
+      boundaryKeysMatch(piece.normalized, token.normalized),
+  );
+}
+
+function buildTokenIndexesByKey(tokens: ComparableToken[]): Map<string, number[]> {
+  const tokenIndexesByKey = new Map<string, number[]>();
+  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
+    const token = tokens[tokenIndex];
+    if (!token?.normalized) continue;
+    const indexes = tokenIndexesByKey.get(token.normalized) ?? [];
+    indexes.push(tokenIndex);
+    tokenIndexesByKey.set(token.normalized, indexes);
+  }
+  return tokenIndexesByKey;
+}
+
 function matchingTokenIndexes(
   piece: TimingPiece,
   pieceIndex: number,
@@ -183,12 +212,7 @@ function matchingTokenIndexes(
     const result: number[] = [];
     for (let index = indexes.length - 1; index >= 0; index--) {
       const tokenIndex = indexes[index] ?? -1;
-      const token = tokens[tokenIndex];
-      if (
-        token &&
-        isInsideAlignmentBand(pieceIndex, tokenIndex, rows, columns, radius) &&
-        boundaryKeysMatch(piece.normalized, token.normalized)
-      ) {
+      if (isMatchingTokenForPiece(piece, pieceIndex, tokenIndex, tokens, rows, columns, radius)) {
         result.push(tokenIndex);
       }
     }
@@ -200,12 +224,7 @@ function matchingTokenIndexes(
     const indexes = tokenIndexesByKey.get(key) ?? [];
     for (const tokenIndex of indexes) {
       if (seen.has(tokenIndex)) continue;
-      const token = tokens[tokenIndex];
-      if (
-        token &&
-        isInsideAlignmentBand(pieceIndex, tokenIndex, rows, columns, radius) &&
-        boundaryKeysMatch(piece.normalized, token.normalized)
-      ) {
+      if (isMatchingTokenForPiece(piece, pieceIndex, tokenIndex, tokens, rows, columns, radius)) {
         seen.add(tokenIndex);
       }
     }
@@ -223,15 +242,7 @@ function buildBandedBoundaryPairs(
   if (rows === 0 || columns === 0) return [];
 
   const radius = Math.max(ALIGNMENT_BAND_RADIUS, Math.abs(rows - columns) + 64);
-
-  const tokenIndexesByKey = new Map<string, number[]>();
-  for (let tokenIndex = 0; tokenIndex < tokens.length; tokenIndex++) {
-    const token = tokens[tokenIndex];
-    if (!token?.normalized) continue;
-    const indexes = tokenIndexesByKey.get(token.normalized) ?? [];
-    indexes.push(tokenIndex);
-    tokenIndexesByKey.set(token.normalized, indexes);
-  }
+  const tokenIndexesByKey = buildTokenIndexesByKey(tokens);
 
   const tree = new Int32Array(columns + 1);
   tree.fill(-1);

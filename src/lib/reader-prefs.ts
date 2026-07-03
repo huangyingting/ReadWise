@@ -36,9 +36,23 @@ export const FONT_SCALE_STEPS = [0.9, 1.0, 1.15, 1.3, 1.45] as const;
 export const DEFAULT_FONT_SCALE = 1.0;
 export const READER_PREFS_KEY = STORAGE_KEYS.READER_PREFS;
 
+const DEFAULT_FONT_SCALE_INDEX = 1;
+const DEFAULT_READING_FONT: ReadingFont = "serif";
+const DEFAULT_READING_SPACING: ReadingSpacing = "normal";
 const READING_MODES: readonly ReadingMode[] = ["light", "sepia", "dark"];
 const READING_FONTS: readonly ReadingFont[] = ["serif", "sans", "dyslexic"];
 const READING_SPACINGS: readonly ReadingSpacing[] = ["normal", "comfortable", "spacious"];
+const FONT_SCALE_LABELS = new Map<number, string>([
+  [0.9, "Small"],
+  [1.0, "Default"],
+  [1.15, "Large"],
+  [1.3, "Extra large"],
+  [1.45, "Huge"],
+]);
+
+function isObjectRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
 
 function isReadingMode(value: unknown): value is ReadingMode {
   return (
@@ -75,26 +89,18 @@ export function getStoredReaderPrefs(): ReaderPrefs | null {
     const raw = window.localStorage.getItem(READER_PREFS_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as unknown;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "mode" in parsed &&
-      "fontScale" in parsed &&
-      isReadingMode((parsed as { mode: unknown }).mode) &&
-      isFontScale((parsed as { fontScale: unknown }).fontScale)
-    ) {
-      return {
-        mode: (parsed as ReaderPrefs).mode,
-        fontScale: (parsed as ReaderPrefs).fontScale,
-        fontFamily: isReadingFont((parsed as { fontFamily?: unknown }).fontFamily)
-          ? (parsed as ReaderPrefs).fontFamily
-          : "serif",
-        lineSpacing: isReadingSpacing((parsed as { lineSpacing?: unknown }).lineSpacing)
-          ? (parsed as ReaderPrefs).lineSpacing
-          : "normal",
-      };
-    }
-    return null;
+    if (!isObjectRecord(parsed)) return null;
+    if (!isReadingMode(parsed.mode) || !isFontScale(parsed.fontScale)) return null;
+    return {
+      mode: parsed.mode,
+      fontScale: parsed.fontScale,
+      fontFamily: isReadingFont(parsed.fontFamily)
+        ? parsed.fontFamily
+        : DEFAULT_READING_FONT,
+      lineSpacing: isReadingSpacing(parsed.lineSpacing)
+        ? parsed.lineSpacing
+        : DEFAULT_READING_SPACING,
+    };
   } catch {
     return null;
   }
@@ -108,7 +114,12 @@ export function getReaderPrefs(): ReaderPrefs {
   const stored = getStoredReaderPrefs();
   if (stored) return stored;
   const resolvedTheme = getActiveTheme(); // "light" | "dark"
-  return { mode: resolvedTheme, fontScale: DEFAULT_FONT_SCALE, fontFamily: "serif", lineSpacing: "normal" };
+  return {
+    mode: resolvedTheme,
+    fontScale: DEFAULT_FONT_SCALE,
+    fontFamily: DEFAULT_READING_FONT,
+    lineSpacing: DEFAULT_READING_SPACING,
+  };
 }
 
 /**
@@ -151,7 +162,7 @@ export function stepFontScale(
   direction: "up" | "down",
 ): number {
   const idx = (FONT_SCALE_STEPS as readonly number[]).indexOf(current);
-  const currentIdx = idx >= 0 ? idx : 1; // default to step 2 (1.0)
+  const currentIdx = idx >= 0 ? idx : DEFAULT_FONT_SCALE_INDEX;
   if (direction === "up") {
     return FONT_SCALE_STEPS[Math.min(currentIdx + 1, FONT_SCALE_STEPS.length - 1)];
   }
@@ -160,14 +171,7 @@ export function stepFontScale(
 
 /** Label for a font scale step (for aria-live announcements). */
 export function fontScaleLabel(scale: number): string {
-  const map: Record<number, string> = {
-    0.9: "Small",
-    1.0: "Default",
-    1.15: "Large",
-    1.3: "Extra large",
-    1.45: "Huge",
-  };
-  return map[scale] ?? "Default";
+  return FONT_SCALE_LABELS.get(scale) ?? "Default";
 }
 
 /**

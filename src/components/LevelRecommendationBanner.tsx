@@ -30,6 +30,15 @@ interface LevelRecommendationBannerProps {
 }
 
 const DISMISS_KEY = STORAGE_KEYS.LEVEL_REC_DISMISSED;
+const MIN_RECOMMENDATION_CONFIDENCE = 0.6;
+
+function shouldShowRecommendation(data: Recommendation | null | undefined): data is Recommendation {
+  return (
+    data != null &&
+    data.suggestion !== "hold" &&
+    data.confidence >= MIN_RECOMMENDATION_CONFIDENCE
+  );
+}
 
 /**
  * Fetches the level recommendation from the API and shows a dismissible banner
@@ -54,7 +63,7 @@ export default function LevelRecommendationBanner({
     fetch("/api/level-recommendation")
       .then((r) => (r.ok ? r.json() : null))
       .then((data: Recommendation | null) => {
-        if (data && data.suggestion !== "hold" && data.confidence >= 0.6) {
+        if (shouldShowRecommendation(data)) {
           setRec(data);
         }
       })
@@ -164,4 +173,3 @@ export default function LevelRecommendationBanner({
     </div>
   );
 }
-

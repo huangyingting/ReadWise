@@ -4,6 +4,12 @@ import { useState } from "react";
 import { deleteJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 
+const CLEAR_MEMORY_ERROR = "Could not clear learning memory";
+
+function clearLearningMemoryErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : CLEAR_MEMORY_ERROR;
+}
+
 /**
  * "Clear learning memory" control (#810).
  *
@@ -25,7 +31,7 @@ export default function ClearLearningMemory() {
       await deleteJson("/api/coach-memory");
       setDone(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not clear learning memory");
+      setError(clearLearningMemoryErrorMessage(err));
     } finally {
       setBusy(false);
     }

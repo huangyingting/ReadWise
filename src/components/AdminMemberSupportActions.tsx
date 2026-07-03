@@ -7,6 +7,20 @@ import { Button } from "@/components/ui/Button";
 import ConfirmAction from "@/components/ConfirmAction";
 
 type Busy = null | "revoke" | "export" | "repair" | "resend";
+type SupportAction = "revoke_sessions" | "export" | "repair" | "resend_help";
+type SupportResponse = Record<string, unknown>;
+
+function downloadMemberExport(memberId: string, data: unknown): void {
+  const blob = new Blob([JSON.stringify(data, null, 2)], {
+    type: "application/json",
+  });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `member-${memberId}-export.json`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
 
 /**
  * Client controls for the admin member-support actions (RW-053): revoke all
@@ -27,15 +41,15 @@ export default function AdminMemberSupportActions({
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
 
-  async function post(
-    action: "revoke_sessions" | "export" | "repair" | "resend_help",
-    busyKey: Busy,
-  ): Promise<Record<string, unknown> | null> {
+  async function postSupportAction(
+    action: SupportAction,
+    busyKey: Exclude<Busy, null>,
+  ): Promise<SupportResponse | null> {
     setBusy(busyKey);
     setError(null);
     setMessage(null);
     try {
-      return await postJson<Record<string, unknown>>(
+      return await postJson<SupportResponse>(
         `/api/admin/members/${memberId}/support`,
         { action },
       );
@@ -48,7 +62,7 @@ export default function AdminMemberSupportActions({
   }
 
   async function revoke() {
-    const data = await post("revoke_sessions", "revoke");
+    const data = await postSupportAction("revoke_sessions", "revoke");
     if (data) {
       setMessage(`Revoked ${data.revoked ?? 0} session(s).`);
       router.refresh();
@@ -56,23 +70,15 @@ export default function AdminMemberSupportActions({
   }
 
   async function exportData() {
-    const data = await post("export", "export");
+    const data = await postSupportAction("export", "export");
     if (data?.data) {
-      const blob = new Blob([JSON.stringify(data.data, null, 2)], {
-        type: "application/json",
-      });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `member-${memberId}-export.json`;
-      a.click();
-      URL.revokeObjectURL(url);
+      downloadMemberExport(memberId, data.data);
       setMessage("Export downloaded.");
     }
   }
 
   async function repair() {
-    const data = await post("repair", "repair");
+    const data = await postSupportAction("repair", "repair");
     if (data) {
       setMessage(
         `Repair queued: ${data.enqueued ?? 0} job(s) across ${data.articleCount ?? 0} article(s).`,
@@ -82,7 +88,7 @@ export default function AdminMemberSupportActions({
   }
 
   async function resend() {
-    const data = await post("resend_help", "resend");
+    const data = await postSupportAction("resend_help", "resend");
     if (data) {
       setMessage(
         data.delivered

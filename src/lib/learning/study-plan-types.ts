@@ -109,6 +109,8 @@ export function readingRecItem(rec: StudyReadingRec): StudyPlanItem {
 
 /** Maps a weak area to an actionable study plan item. Pure. */
 export function planItemForArea(area: WeakArea, diag: StudyDiagnostics): StudyPlanItem | null {
+  const readerHref = preferredReaderHref(diag);
+
   switch (area.kind) {
     case "vocabulary":
       return diag.vocab.dueCount > 0
@@ -154,7 +156,7 @@ export function planItemForArea(area: WeakArea, diag: StudyDiagnostics): StudyPl
         kind: "pronunciation",
         title: "Practise pronunciation aloud",
         description: "Read a passage aloud and check your pronunciation score in the reader.",
-        href: diag.readingRec ? `/reader/${diag.readingRec.id}` : "/browse?view=picks",
+        href: readerHref,
         cta: "Practise speaking",
       };
     case "listening":
@@ -163,7 +165,7 @@ export function planItemForArea(area: WeakArea, diag: StudyDiagnostics): StudyPl
         kind: "listening",
         title: "Listen to an article narration",
         description: "Follow along with the audio narration to train your listening ear.",
-        href: diag.readingRec ? `/reader/${diag.readingRec.id}` : "/browse?view=picks",
+        href: readerHref,
         cta: "Listen now",
       };
     case "grammar":
@@ -172,10 +174,14 @@ export function planItemForArea(area: WeakArea, diag: StudyDiagnostics): StudyPl
         kind: "grammar",
         title: "Study grammar in context",
         description: "Tap tricky sentences in the reader for an instant grammar explanation.",
-        href: diag.readingRec ? `/reader/${diag.readingRec.id}` : "/browse?view=picks",
+        href: readerHref,
         cta: "Read with grammar help",
       };
     default:
       return null;
   }
+}
+
+function preferredReaderHref(diag: StudyDiagnostics): string {
+  return diag.readingRec ? `/reader/${diag.readingRec.id}` : "/browse?view=picks";
 }

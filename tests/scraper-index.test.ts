@@ -42,6 +42,10 @@ const BASE_ARTICLE: ScrapedArticle = {
   readingMinutes: 5,
 };
 
+function article(overrides: Partial<ScrapedArticle> = {}): ScrapedArticle {
+  return { ...BASE_ARTICLE, ...overrides };
+}
+
 // ── Module mocks (registered before the module under test is first loaded) ───
 
 before(() => {
@@ -158,7 +162,7 @@ before(() => {
 beforeEach(() => {
   scraperEnabled = true;
   fetchHtmlResult = "<html><body>mock-html</body></html>";
-  extractArticleResult = { ...BASE_ARTICLE };
+  extractArticleResult = article();
   existingArticle = null;
   qualityGrade = "ok";
   qualityScore = 90;
@@ -184,7 +188,7 @@ test("scrapeUrl returns null when extractArticle cannot parse the HTML", async (
 });
 
 test("scrapeUrl returns a populated ScrapedArticle on success", async () => {
-  extractArticleResult = { ...BASE_ARTICLE };
+  extractArticleResult = article();
   const { scrapeUrl } = await import("@/lib/scraper");
   const result = await scrapeUrl("https://www.noemamag.com/the-philosophy-of-networks");
   assert.ok(result, "expected a ScrapedArticle, got null");
@@ -199,7 +203,7 @@ test("scrapeUrl returns a populated ScrapedArticle on success", async () => {
 test("saveDraftArticle returns skipped when sourceUrl already exists in the public library", async () => {
   existingArticle = { id: "existing-1" };
   const { saveDraftArticle } = await import("@/lib/scraper");
-  const outcome = await saveDraftArticle({ ...BASE_ARTICLE });
+  const outcome = await saveDraftArticle(article());
   assert.equal(outcome.status, "skipped");
   if (outcome.status === "skipped") {
     assert.equal(outcome.reason, "duplicate sourceUrl");
@@ -210,7 +214,7 @@ test("saveDraftArticle returns skipped when sourceUrl already exists in the publ
 test("saveDraftArticle persists the article and returns saved with the new id", async () => {
   txCreateStub = async () => ({ id: "created-999" });
   const { saveDraftArticle } = await import("@/lib/scraper");
-  const outcome = await saveDraftArticle({ ...BASE_ARTICLE });
+  const outcome = await saveDraftArticle(article());
   assert.equal(outcome.status, "saved");
   if (outcome.status === "saved") {
     assert.equal(outcome.id, "created-999");
@@ -226,7 +230,7 @@ test("saveDraftArticle calls the audit callback with the created row id", async 
     capturedIds.push(created.id);
     return { action: "article.scrape", targetType: "article" } as unknown as AuditRequestInput;
   };
-  await saveDraftArticle({ ...BASE_ARTICLE }, audit);
+  await saveDraftArticle(article(), audit);
   assert.equal(capturedIds.length, 1);
   assert.equal(capturedIds[0], "audit-target-id");
   // recordAuditFromRequest should also have been called once.
@@ -241,7 +245,7 @@ test("saveDraftArticle returns skipped when a P2002 unique-constraint error is t
     });
   };
   const { saveDraftArticle } = await import("@/lib/scraper");
-  const outcome = await saveDraftArticle({ ...BASE_ARTICLE });
+  const outcome = await saveDraftArticle(article());
   assert.equal(outcome.status, "skipped");
   if (outcome.status === "skipped") {
     assert.equal(outcome.reason, "duplicate sourceUrl");
@@ -254,7 +258,7 @@ test("saveDraftArticle rethrows non-unique-constraint database errors", async ()
   };
   const { saveDraftArticle } = await import("@/lib/scraper");
   await assert.rejects(
-    () => saveDraftArticle({ ...BASE_ARTICLE }),
+    () => saveDraftArticle(article()),
     /connection pool exhausted/,
   );
 });
@@ -295,7 +299,7 @@ test("scrapeAndSave returns failed when content quality grade is reject", async 
 });
 
 test("scrapeAndSave recovers long articles rejected only for weak quality checks", async () => {
-  extractArticleResult = { ...BASE_ARTICLE, wordCount: 760, readingMinutes: 4 };
+  extractArticleResult = article({ wordCount: 760, readingMinutes: 4 });
   qualityGrade = "reject";
   qualityScore = 60;
   qualitySignals = [
@@ -313,7 +317,7 @@ test("scrapeAndSave recovers long articles rejected only for weak quality checks
 });
 
 test("scrapeAndSave does not recover weak quality rejects below the recovery word threshold", async () => {
-  extractArticleResult = { ...BASE_ARTICLE, wordCount: 759, readingMinutes: 4 };
+  extractArticleResult = article({ wordCount: 759, readingMinutes: 4 });
   qualityGrade = "reject";
   qualityScore = 60;
   qualitySignals = [{ check: "reading-time", passed: false }];
@@ -323,7 +327,7 @@ test("scrapeAndSave does not recover weak quality rejects below the recovery wor
 });
 
 test("scrapeAndSave does not recover rejects with non-bypassable quality checks", async () => {
-  extractArticleResult = { ...BASE_ARTICLE, wordCount: 1200, readingMinutes: 6 };
+  extractArticleResult = article({ wordCount: 1200, readingMinutes: 6 });
   qualityGrade = "reject";
   qualityScore = 40;
   qualitySignals = [

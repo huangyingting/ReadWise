@@ -24,6 +24,41 @@ const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
   "audio-48khz-96kbitrate-mono-mp3",
 ]);
 
+const TUNING_ENV = [
+  "AI_REQUEST_TIMEOUT_MS",
+  "AI_MAX_RETRIES",
+  "SPEECH_TIMEOUT_MS",
+  "RATE_LIMIT_AI_REQUESTS",
+  "RATE_LIMIT_LOOKUP_REQUESTS",
+  "RATE_LIMIT_PUBLIC_REQUESTS",
+  "RATE_LIMIT_IMPORT_REQUESTS",
+  "RATE_LIMIT_ADMIN_JOB_REQUESTS",
+  "RATE_LIMIT_AUTH_REQUESTS",
+  "RATE_LIMIT_WINDOW_MS",
+  "LOG_LEVEL",
+];
+
+const POSITIVE_INTEGER_TUNING_ENV = [
+  "AI_REQUEST_TIMEOUT_MS",
+  "SPEECH_TIMEOUT_MS",
+  "RATE_LIMIT_AI_REQUESTS",
+  "RATE_LIMIT_LOOKUP_REQUESTS",
+  "RATE_LIMIT_PUBLIC_REQUESTS",
+  "RATE_LIMIT_IMPORT_REQUESTS",
+  "RATE_LIMIT_ADMIN_JOB_REQUESTS",
+  "RATE_LIMIT_AUTH_REQUESTS",
+  "RATE_LIMIT_WINDOW_MS",
+];
+
+const LOCAL_STORAGE_ENV = ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"];
+const AZURE_STORAGE_ENV = [
+  "MEDIA_STORAGE",
+  "AZURE_STORAGE_CONNECTION_STRING",
+  "AZURE_STORAGE_ACCOUNT",
+  "AZURE_STORAGE_KEY",
+  "AZURE_STORAGE_CONTAINER",
+];
+
 function isValidDatabaseUrl(value: string): boolean {
   if (value.startsWith("file:")) {
     return value.length > "file:".length;
@@ -37,19 +72,6 @@ function isValidDatabaseUrl(value: string): boolean {
 }
 
 function evaluateTuning(): ConfigCheckReport {
-  const env = [
-    "AI_REQUEST_TIMEOUT_MS",
-    "AI_MAX_RETRIES",
-    "SPEECH_TIMEOUT_MS",
-    "RATE_LIMIT_AI_REQUESTS",
-    "RATE_LIMIT_LOOKUP_REQUESTS",
-    "RATE_LIMIT_PUBLIC_REQUESTS",
-    "RATE_LIMIT_IMPORT_REQUESTS",
-    "RATE_LIMIT_ADMIN_JOB_REQUESTS",
-    "RATE_LIMIT_AUTH_REQUESTS",
-    "RATE_LIMIT_WINDOW_MS",
-    "LOG_LEVEL",
-  ];
   const issues: ConfigIssue[] = [];
 
   const positiveInt = (name: string) => {
@@ -62,15 +84,7 @@ function evaluateTuning(): ConfigCheckReport {
       );
     }
   };
-  positiveInt("AI_REQUEST_TIMEOUT_MS");
-  positiveInt("SPEECH_TIMEOUT_MS");
-  positiveInt("RATE_LIMIT_AI_REQUESTS");
-  positiveInt("RATE_LIMIT_LOOKUP_REQUESTS");
-  positiveInt("RATE_LIMIT_PUBLIC_REQUESTS");
-  positiveInt("RATE_LIMIT_IMPORT_REQUESTS");
-  positiveInt("RATE_LIMIT_ADMIN_JOB_REQUESTS");
-  positiveInt("RATE_LIMIT_AUTH_REQUESTS");
-  positiveInt("RATE_LIMIT_WINDOW_MS");
+  for (const name of POSITIVE_INTEGER_TUNING_ENV) positiveInt(name);
 
   const retries = envValue("AI_MAX_RETRIES");
   if (retries) {
@@ -97,10 +111,86 @@ function evaluateTuning(): ConfigCheckReport {
     status: issues.length ? "degraded" : "ok",
     configured: issues.length === 0,
     required: false,
-    env,
+    env: [...TUNING_ENV],
     missing: [],
     issues,
   };
+}
+
+function localStorageReport(): ConfigCheckReport {
+  return {
+    status: "configured",
+    configured: true,
+    required: false,
+    env: [...LOCAL_STORAGE_ENV],
+    missing: [],
+    issues: [],
+  };
+}
+
+function azureStorageReport(): ConfigCheckReport {
+  if (azureStorageConfig() !== null) {
+    return {
+      status: "configured",
+      configured: true,
+      required: false,
+      env: [...AZURE_STORAGE_ENV],
+      missing: [],
+      issues: [],
+    };
+  }
+
+  return {
+    status: "degraded",
+    configured: false,
+    required: false,
+    env: [...AZURE_STORAGE_ENV],
+    missing: ["AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY"],
+    issues: [
+      issue(
+        "warning",
+        "azure_storage_creds_missing",
+        "MEDIA_STORAGE=azure but credentials are missing; speech audio will not be persisted until Azure Storage is configured.",
+        ["AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"],
+      ),
+    ],
+  };
+}
+
+function removedDatabaseStorageReport(): ConfigCheckReport {
+  return {
+    status: "degraded",
+    configured: true,
+    required: false,
+    env: [...LOCAL_STORAGE_ENV],
+    missing: [],
+    issues: [
+      issue("warning", "database_storage_removed", "MEDIA_STORAGE=database is no longer supported; local filesystem storage will be used instead.", ["MEDIA_STORAGE"]),
+    ],
+  };
+}
+
+function unknownStorageReport(storageModeRaw: string): ConfigCheckReport {
+  return {
+    status: "degraded",
+    configured: true,
+    required: false,
+    env: [...LOCAL_STORAGE_ENV],
+    missing: [],
+    issues: [
+      issue("warning", "unknown_storage_kind", `MEDIA_STORAGE="${storageModeRaw}" is not a known backend; local filesystem storage will be used instead.`, ["MEDIA_STORAGE"]),
+    ],
+  };
+}
+
+function evaluateStorage(): ConfigCheckReport {
+  const storageModeRaw = (envValue("MEDIA_STORAGE") ?? "").toLowerCase();
+  if (!storageModeRaw || storageModeRaw === "filesystem" || storageModeRaw === "local") {
+    return localStorageReport();
+  }
+  if (storageModeRaw === "azure") return azureStorageReport();
+  if (storageModeRaw === "database") return removedDatabaseStorageReport();
+  return unknownStorageReport(storageModeRaw);
 }
 
 function validateRuntimeSections() {
@@ -172,68 +262,7 @@ function validateRuntimeSections() {
   const googleOAuth = evaluateOptional(["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"]);
   const azureAdOAuth = evaluateOptional(["AZURE_AD_CLIENT_ID", "AZURE_AD_CLIENT_SECRET", "AZURE_AD_TENANT_ID"]);
 
-  const storageModeRaw = (envValue("MEDIA_STORAGE") ?? "").toLowerCase();
-  let storage: ConfigCheckReport;
-  if (!storageModeRaw || storageModeRaw === "filesystem" || storageModeRaw === "local") {
-    storage = {
-      status: "configured",
-      configured: true,
-      required: false,
-      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
-      missing: [],
-      issues: [],
-    };
-  } else if (storageModeRaw === "azure") {
-    const hasCreds = azureStorageConfig() !== null;
-    if (hasCreds) {
-      storage = {
-        status: "configured",
-        configured: true,
-        required: false,
-        env: ["MEDIA_STORAGE", "AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "AZURE_STORAGE_CONTAINER"],
-        missing: [],
-        issues: [],
-      };
-    } else {
-      storage = {
-        status: "degraded",
-        configured: false,
-        required: false,
-        env: ["MEDIA_STORAGE", "AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY", "AZURE_STORAGE_CONTAINER"],
-        missing: ["AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY"],
-        issues: [
-          issue(
-            "warning",
-            "azure_storage_creds_missing",
-            "MEDIA_STORAGE=azure but credentials are missing; speech audio will not be persisted until Azure Storage is configured.",
-            ["AZURE_STORAGE_CONNECTION_STRING", "AZURE_STORAGE_ACCOUNT", "AZURE_STORAGE_KEY"],
-          ),
-        ],
-      };
-    }
-  } else if (storageModeRaw === "database") {
-    storage = {
-      status: "degraded",
-      configured: true,
-      required: false,
-      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
-      missing: [],
-      issues: [
-        issue("warning", "database_storage_removed", "MEDIA_STORAGE=database is no longer supported; local filesystem storage will be used instead.", ["MEDIA_STORAGE"]),
-      ],
-    };
-  } else {
-    storage = {
-      status: "degraded",
-      configured: true,
-      required: false,
-      env: ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"],
-      missing: [],
-      issues: [
-        issue("warning", "unknown_storage_kind", `MEDIA_STORAGE="${storageModeRaw}" is not a known backend; local filesystem storage will be used instead.`, ["MEDIA_STORAGE"]),
-      ],
-    };
-  }
+  const storage = evaluateStorage();
 
   const scraper = evaluateOptional(["SCRAPER_MAX_BYTES", "SCRAPER_TIMEOUT_MS", "SCRAPER_HTML_NORMALIZE"]);
 

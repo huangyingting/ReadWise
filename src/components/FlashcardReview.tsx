@@ -11,6 +11,17 @@ import { FlashcardFace } from "@/components/flashcard/FlashcardFace";
 import { ClozeCard } from "@/components/flashcard/ClozeCard";
 import type { Grade } from "@/components/flashcard/types";
 
+const GRADE_BY_KEY = {
+  "1": "again",
+  "2": "hard",
+  "3": "good",
+  "4": "easy",
+} satisfies Record<string, Grade>;
+
+function gradeForKey(key: string): Grade | undefined {
+  return GRADE_BY_KEY[key as keyof typeof GRADE_BY_KEY];
+}
+
 interface FlashcardReviewProps {
   /** Due count from SSR — avoids an extra fetch on mount. */
   initialDueCount: number;
@@ -116,37 +127,24 @@ export default function FlashcardReview({
         return;
       }
 
-      const gradeMap: Record<string, Grade> = {
-        "1": "again",
-        "2": "hard",
-        "3": "good",
-        "4": "easy",
-      };
+      const canGrade =
+        s.mode === "flashcard" ? s.flipped : s.clozeSubmitted;
+      const grade = canGrade ? gradeForKey(e.key) : undefined;
+      if (grade) {
+        e.preventDefault();
+        void submitGrade(grade);
+        return;
+      }
 
-      if (s.mode === "flashcard") {
-        if (!s.flipped) {
-          if (e.key === " " || e.key === "Enter") {
-            const tag = (document.activeElement as HTMLElement)?.tagName;
-            if (tag !== "BUTTON") {
-              e.preventDefault();
-              flipCard();
-            }
-          }
-        } else {
-          const g = gradeMap[e.key];
-          if (g) {
-            e.preventDefault();
-            void submitGrade(g);
-          }
-        }
-      } else {
-        // Cloze mode: number keys grade after answer is revealed
-        if (s.clozeSubmitted) {
-          const g = gradeMap[e.key];
-          if (g) {
-            e.preventDefault();
-            void submitGrade(g);
-          }
+      if (
+        s.mode === "flashcard" &&
+        !s.flipped &&
+        (e.key === " " || e.key === "Enter")
+      ) {
+        const tag = (document.activeElement as HTMLElement)?.tagName;
+        if (tag !== "BUTTON") {
+          e.preventDefault();
+          flipCard();
         }
       }
     }

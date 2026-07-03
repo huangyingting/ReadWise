@@ -1,7 +1,6 @@
-import { Check, ChevronRight } from "lucide-react";
+import { Check, ChevronRight, Sparkles } from "lucide-react";
 import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement";
-import { Sparkles } from "lucide-react";
 import { Badge, CefrBadge, type CefrLevel, CEFR_LEVELS } from "@/components/ui/Badge";
 import { humanizeCategorySlug } from "@/lib/categories";
 import { cn, focusRing } from "@/lib/cn";
@@ -13,8 +12,27 @@ import SetTodayArticleButton from "@/components/SetTodayArticleButton";
 
 export type ArticleCardProgress = ProgressSummary;
 
+type ArticleCardViewProps = {
+  article: ListingArticle;
+  progress?: ArticleCardProgress;
+  variant?: "grid" | "rail";
+  /** SSR initial saved state for the bookmark overlay. */
+  saved?: boolean;
+  /** When provided on the /lists page: remove from this list instead of toggling default. */
+  removeListId?: string;
+  removeListName?: string;
+  /** Optional "why" chip text (M15 For You feed). Renders a quiet metadata chip
+   *  between the byline and the progress footer. Does NOT touch any progress/bookmark DOM hooks. */
+  reason?: string;
+  /** When true (Today Session v1.1, #805), render the "Set as today's article"
+   *  overlay. Only passed by surfaces that have checked the Today feature flag. */
+  setTodayEnabled?: boolean;
+};
+
+const NEW_ARTICLE_WINDOW_MS = 24 * 60 * 60 * 1000;
+
 /** Short descriptions for each CEFR level shown as a tooltip on the difficulty badge. */
-const CEFR_DESCRIPTIONS: Record<string, string> = {
+const CEFR_DESCRIPTIONS: Record<CefrLevel, string> = {
   A1: "A1 · Beginner — estimated reading level",
   A2: "A2 · Elementary — estimated reading level",
   B1: "B1 · Intermediate — estimated reading level",
@@ -22,6 +40,20 @@ const CEFR_DESCRIPTIONS: Record<string, string> = {
   C1: "C1 · Advanced — estimated reading level",
   C2: "C2 · Proficient — estimated reading level",
 };
+
+function getCefrLevel(difficulty: ListingArticle["difficulty"]): CefrLevel | null {
+  return difficulty && (CEFR_LEVELS as readonly string[]).includes(difficulty)
+    ? (difficulty as CefrLevel)
+    : null;
+}
+
+function isRecentlyPublished(publishedAt: ListingArticle["publishedAt"]): boolean {
+  if (!publishedAt) return false;
+
+  const published =
+    typeof publishedAt === "string" ? new Date(publishedAt) : publishedAt;
+  return Date.now() - published.getTime() < NEW_ARTICLE_WINDOW_MS;
+}
 
 /**
  * Presentational article card — M4 redesign.
@@ -52,22 +84,7 @@ export default function ArticleCardView({
   removeListName,
   reason,
   setTodayEnabled = false,
-}: {
-  article: ListingArticle;
-  progress?: ArticleCardProgress;
-  variant?: "grid" | "rail";
-  /** SSR initial saved state for the bookmark overlay. */
-  saved?: boolean;
-  /** When provided on the /lists page: remove from this list instead of toggling default. */
-  removeListId?: string;
-  removeListName?: string;
-  /** Optional "why" chip text (M15 For You feed). Renders a quiet metadata chip
-   *  between the byline and the progress footer. Does NOT touch any progress/bookmark DOM hooks. */
-  reason?: string;
-  /** When true (Today Session v1.1, #805), render the "Set as today's article"
-   *  overlay. Only passed by surfaces that have checked the Today feature flag. */
-  setTodayEnabled?: boolean;
-}) {
+}: ArticleCardViewProps) {
   const percent = progress?.percent ?? 0;
   const completed = progress?.completed ?? false;
   const notStarted = percent === 0 && !completed;
@@ -78,24 +95,12 @@ export default function ArticleCardView({
     ? humanizeCategorySlug(article.category)
     : null;
 
-  const level =
-    article.difficulty &&
-    (CEFR_LEVELS as readonly string[]).includes(article.difficulty)
-      ? (article.difficulty as CefrLevel)
-      : null;
+  const level = getCefrLevel(article.difficulty);
 
   const readingTimeLabel =
     article.readingMinutes != null ? `${article.readingMinutes} min read` : null;
 
-  /** True when the article was published within the last 24 hours. */
-  const isNew = (() => {
-    if (!article.publishedAt) return false;
-    const published =
-      typeof article.publishedAt === "string"
-        ? new Date(article.publishedAt)
-        : article.publishedAt;
-    return Date.now() - published.getTime() < 24 * 60 * 60 * 1000;
-  })();
+  const isNew = isRecentlyPublished(article.publishedAt);
 
   return (
     /*

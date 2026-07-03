@@ -14,7 +14,7 @@
  * prevent SSR/hydration mismatch.
  */
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Languages } from "lucide-react";
 import { Button, Select } from "@/components/ui";
 import WordLookup from "./wordLookup/WordLookup";
@@ -30,10 +30,26 @@ import { STORAGE_KEYS } from "@/lib/storage-keys";
 import { t } from "@/lib/i18n";
 
 const BILINGUAL_PREFS_KEY = STORAGE_KEYS.BILINGUAL_PREFS;
+const BILINGUAL_TRANSLATION_SELECTOR = ".bilingual-translation";
+const WORD_LOOKUP_PROSE_SELECTOR = ".word-lookup-prose";
+const TRANSLATABLE_BLOCK_SELECTOR =
+  ":scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > blockquote, :scope > li, :scope > div";
+const TRANSLATION_TIMEOUT_MS = 30_000;
 
 interface BilingualPrefs {
   enabled: boolean;
   lang: string;
+}
+
+function isBilingualPrefs(value: unknown): value is BilingualPrefs {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    "enabled" in value &&
+    "lang" in value &&
+    typeof (value as { enabled: unknown }).enabled === "boolean" &&
+    typeof (value as { lang: unknown }).lang === "string"
+  );
 }
 
 function loadBilingualPrefs(defaultLang: string): BilingualPrefs {
@@ -42,15 +58,8 @@ function loadBilingualPrefs(defaultLang: string): BilingualPrefs {
     const raw = localStorage.getItem(BILINGUAL_PREFS_KEY);
     if (!raw) return { enabled: false, lang: getTranslateLang() };
     const parsed = JSON.parse(raw) as unknown;
-    if (
-      parsed &&
-      typeof parsed === "object" &&
-      "enabled" in parsed &&
-      "lang" in parsed &&
-      typeof (parsed as { enabled: unknown }).enabled === "boolean" &&
-      typeof (parsed as { lang: unknown }).lang === "string"
-    ) {
-      return parsed as BilingualPrefs;
+    if (isBilingualPrefs(parsed)) {
+      return parsed;
     }
   } catch {
     // ignore
@@ -73,6 +82,21 @@ type TranslationData = {
   content: string;
   fallback: boolean;
 };
+
+function removeBilingualTranslations(root: ParentNode): void {
+  root
+    .querySelectorAll(BILINGUAL_TRANSLATION_SELECTOR)
+    .forEach((el) => el.remove());
+}
+
+function createTranslationParagraph(lang: string, text: string): HTMLParagraphElement {
+  const transEl = document.createElement("p");
+  transEl.className = "bilingual-translation";
+  transEl.setAttribute("lang", lang);
+  transEl.setAttribute("aria-label", "Translation");
+  transEl.textContent = text;
+  return transEl;
+}
 
 export default function BilingualBody({
   html,
@@ -134,7 +158,7 @@ export default function BilingualBody({
   useEffect(() => {
     if (!enabled) return;
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 30_000);
+    const timer = setTimeout(() => controller.abort(), TRANSLATION_TIMEOUT_MS);
     void fetchTranslation(lang, controller.signal);
     return () => {
       clearTimeout(timer);
@@ -146,27 +170,20 @@ export default function BilingualBody({
   // DOM injection: insert translated paragraphs after each source <p> in the
   // WordLookup prose div. We find the prose by its stable class name.
   // -------------------------------------------------------------------------
-  const injectedRef = useRef(false);
-
   useEffect(() => {
     if (!enabled || !translation || loading || translation.fallback) {
       // Remove any injected bilingual translations when mode is off, loading,
       // or the translation is a fallback (no real per-paragraph text exists —
       // the fallback is surfaced as a single banner above the body instead).
-      document
-        .querySelectorAll(".bilingual-translation")
-        .forEach((el) => el.remove());
-      injectedRef.current = false;
+      removeBilingualTranslations(document);
       return;
     }
 
-    const proseEl = document.querySelector<HTMLElement>(".word-lookup-prose");
+    const proseEl = document.querySelector<HTMLElement>(WORD_LOOKUP_PROSE_SELECTOR);
     if (!proseEl) return;
 
     // Remove stale translations before re-injecting (e.g. lang change).
-    proseEl
-      .querySelectorAll(".bilingual-translation")
-      .forEach((el) => el.remove());
+    removeBilingualTranslations(proseEl);
 
     const srcParagraphs = splitHtmlParagraphs(html);
     const transParagraphs = splitTranslationParagraphs(translation.content);
@@ -174,28 +191,21 @@ export default function BilingualBody({
 
     // Build a flat index of direct paragraph-like children in the prose el
     // that correspond to our source paragraph chunks.
-    const proseParagraphs = Array.from(proseEl.querySelectorAll(":scope > p, :scope > h1, :scope > h2, :scope > h3, :scope > h4, :scope > h5, :scope > h6, :scope > blockquote, :scope > li, :scope > div"));
+    const proseParagraphs = Array.from(
+      proseEl.querySelectorAll(TRANSLATABLE_BLOCK_SELECTOR),
+    );
 
     pairs.forEach(({ trans }, i) => {
       if (!trans) return;
       const sourcePara = proseParagraphs[i];
       if (!sourcePara) return;
 
-      const transEl = document.createElement("p");
-      transEl.className = "bilingual-translation";
-      transEl.setAttribute("lang", translation.lang);
-      transEl.setAttribute("aria-label", "Translation");
-      transEl.textContent = trans; // plain text — safe (no innerHTML)
+      const transEl = createTranslationParagraph(translation.lang, trans);
       sourcePara.insertAdjacentElement("afterend", transEl);
     });
 
-    injectedRef.current = true;
-
     return () => {
-      proseEl
-        .querySelectorAll(".bilingual-translation")
-        .forEach((el) => el.remove());
-      injectedRef.current = false;
+      removeBilingualTranslations(proseEl);
     };
   }, [enabled, translation, loading, html, lang]);
 

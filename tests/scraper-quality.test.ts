@@ -43,6 +43,23 @@ function countParagraphs(html: string): number {
   return (html.match(/<p>/g) ?? []).length;
 }
 
+async function withScraperReadability<T>(
+  value: string,
+  runAssertions: () => Promise<T>,
+): Promise<T> {
+  const previous = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = value;
+  try {
+    return await runAssertions();
+  } finally {
+    if (previous === undefined) {
+      delete process.env.SCRAPER_READABILITY;
+    } else {
+      process.env.SCRAPER_READABILITY = previous;
+    }
+  }
+}
+
 // ---------------------------------------------------------------------------
 // Fixture 1: JSON-LD article body
 // ---------------------------------------------------------------------------
@@ -263,9 +280,8 @@ test("quality/images: img src and alt survive sanitization", async () => {
 
 test("quality/video: orphan video label is dropped while YouTube iframe becomes a link", async () => {
   const { extractArticle } = await import("@/lib/scraper/extract");
-  const prevReadability = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+
+  await withScraperReadability("false", async () => {
     const body = wordBlock(70, "videoarticle");
     const html =
       "<html><head><title>Video Article</title></head><body><article>" +
@@ -281,13 +297,7 @@ test("quality/video: orphan video label is dropped while YouTube iframe becomes 
     assert.doesNotMatch(result!.content, /<iframe/i);
     assert.match(result!.content, /https:\/\/www\.youtube\.com\/embed\/abc123/i);
     assert.match(result!.content, /article-photo\.jpg/i, "article image must survive");
-  } finally {
-    if (prevReadability == null) {
-      delete process.env.SCRAPER_READABILITY;
-    } else {
-      process.env.SCRAPER_READABILITY = prevReadability;
-    }
-  }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -424,9 +434,7 @@ test("quality/scripts: inline analytics <script> never leaks into body", async (
   // Real-world leak: minified analytics JS (NewRelic) contains `<p>…</p>`
   // substrings that the legacy `<p>`-harvest regex captured because scripts were
   // not stripped first. Force the legacy path so we exercise that harvest.
-  const prevReadability = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  await withScraperReadability("false", async () => {
     const jsBlob =
       'window.NREUM||(NREUM={});NREUM.info={beacon:"bam.nr-data.net"};' +
       't.addEventListener("progress",function(t){var e=window.NREUM;' +
@@ -463,8 +471,5 @@ test("quality/scripts: inline analytics <script> never leaks into body", async (
     assert.doesNotMatch(result!.content, /NREUM/i, "no NREUM token in body");
     assert.doesNotMatch(result!.content, /function\s*\(/i, "no JS function( in body");
     assert.doesNotMatch(result!.content, /\.prototype/i, "no .prototype in body");
-  } finally {
-    if (prevReadability === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prevReadability;
-  }
+  });
 });

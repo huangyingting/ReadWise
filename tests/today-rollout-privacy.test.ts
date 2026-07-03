@@ -42,6 +42,13 @@ let pushSubs: {
 }[] = [];
 let sendCalls: { endpoint: string; payload: string }[] = [];
 
+const TODAY_RUNTIME_ENV = {
+  VAPID_PUBLIC_KEY: "BFakePubKey1234567890abcdef",
+  VAPID_PRIVATE_KEY: "FakePrivKey1234567890abcdef",
+  VAPID_SUBJECT: "mailto:test@example.com",
+  FEATURE_TODAY_SESSION_ENABLED: "true",
+};
+
 function baseRow(overrides: Data = {}): Data {
   const now = new Date("2026-06-27T00:00:00Z");
   return {
@@ -126,10 +133,7 @@ beforeEach(() => {
   savedWordGroups = [];
   pushSubs = [];
   sendCalls = [];
-  process.env.VAPID_PUBLIC_KEY = "BFakePubKey1234567890abcdef";
-  process.env.VAPID_PRIVATE_KEY = "FakePrivKey1234567890abcdef";
-  process.env.VAPID_SUBJECT = "mailto:test@example.com";
-  process.env.FEATURE_TODAY_SESSION_ENABLED = "true";
+  Object.assign(process.env, TODAY_RUNTIME_ENV);
 });
 
 after(() => {
@@ -300,6 +304,24 @@ describe("Today analytics payloads are metadata-only", () => {
     "properties",
   ]);
 
+  function assertTodayAnalyticsEventMetadataOnly(rec: Data): void {
+    // Top-level columns are id anchors / type / properties only.
+    for (const key of Object.keys(rec)) {
+      assert.ok(EVENT_ANCHOR_KEYS.has(key), `unexpected event column "${key}"`);
+    }
+    assertSafeValue(rec.type, "event.type");
+    assertSafeValue(rec.userId, "event.userId");
+    assertSafeValue(rec.anonymousId, "event.anonymousId");
+    assertSafeValue(rec.articleId, "event.articleId");
+    assertSafeValue(rec.sessionId, "event.sessionId");
+    // The properties bag is gated by the per-event allowlist + safe values.
+    assertMetadataOnly(
+      rec.properties as Data,
+      ALLOWED_PROPS,
+      `${String(rec.type)}.properties`,
+    );
+  }
+
   type TodaySessionView =
     import("@/lib/engagement/today-session/types").TodaySessionView;
 
@@ -360,21 +382,7 @@ describe("Today analytics payloads are metadata-only", () => {
 
     assert.equal(analyticsEvents.length, 8, "every emit helper wrote one event");
     for (const rec of analyticsEvents) {
-      // Top-level columns are id anchors / type / properties only.
-      for (const key of Object.keys(rec)) {
-        assert.ok(EVENT_ANCHOR_KEYS.has(key), `unexpected event column "${key}"`);
-      }
-      assertSafeValue(rec.type, "event.type");
-      assertSafeValue(rec.userId, "event.userId");
-      assertSafeValue(rec.anonymousId, "event.anonymousId");
-      assertSafeValue(rec.articleId, "event.articleId");
-      assertSafeValue(rec.sessionId, "event.sessionId");
-      // The properties bag is gated by the per-event allowlist + safe values.
-      assertMetadataOnly(
-        rec.properties as Data,
-        ALLOWED_PROPS,
-        `${String(rec.type)}.properties`,
-      );
+      assertTodayAnalyticsEventMetadataOnly(rec);
     }
   });
 });

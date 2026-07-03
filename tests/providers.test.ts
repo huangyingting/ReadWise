@@ -19,6 +19,12 @@ function getProviderOrFail(key: string) {
   return p!;
 }
 
+function assertSectionCategories(cases: ReadonlyArray<readonly [section: string, category: string | null]>) {
+  for (const [section, category] of cases) {
+    assert.equal(mapSectionToCategory(section), category, `"${section}" should map to ${category}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // General provider registry
 // ---------------------------------------------------------------------------
@@ -306,53 +312,63 @@ test("smithsonian paginates category seeds with page query", () => {
 // ---------------------------------------------------------------------------
 
 test("mapSectionToCategory handles learner-English topic strings", () => {
-  assert.equal(mapSectionToCategory("science"), "science");
-  assert.equal(mapSectionToCategory("sports"), "sports");
-  assert.equal(mapSectionToCategory("health"), "health");
-  assert.equal(mapSectionToCategory("technology"), "tech");
-  assert.equal(mapSectionToCategory("entertainment"), "entertainment");
-  assert.equal(mapSectionToCategory("unknown-topic"), null);
+  assertSectionCategories([
+    ["science", "science"],
+    ["sports", "sports"],
+    ["health", "health"],
+    ["technology", "tech"],
+    ["entertainment", "entertainment"],
+    ["unknown-topic", null],
+  ]);
 });
 
 test("mapSectionToCategory routes granular sections to new categories", () => {
-  assert.equal(mapSectionToCategory("environment"), "environment");
-  assert.equal(mapSectionToCategory("climate"), "environment");
-  assert.equal(mapSectionToCategory("wildlife"), "animals");
-  assert.equal(mapSectionToCategory("history"), "history");
-  assert.equal(mapSectionToCategory("ancient"), "history");
-  assert.equal(mapSectionToCategory("travel"), "travel");
-  assert.equal(mapSectionToCategory("philosophy"), "ideas");
-  assert.equal(mapSectionToCategory("essay"), "ideas");
+  assertSectionCategories([
+    ["environment", "environment"],
+    ["climate", "environment"],
+    ["wildlife", "animals"],
+    ["history", "history"],
+    ["ancient", "history"],
+    ["travel", "travel"],
+    ["philosophy", "ideas"],
+    ["essay", "ideas"],
+  ]);
 });
 
 test("mapSectionToCategory routes animal/wildlife sections to animals", () => {
-  assert.equal(mapSectionToCategory("animal"), "animals");
-  assert.equal(mapSectionToCategory("animals"), "animals");
-  assert.equal(mapSectionToCategory("wildlife"), "animals");
-  assert.equal(mapSectionToCategory("species"), "animals");
-  assert.equal(mapSectionToCategory("endangered species"), "animals");
-  assert.equal(mapSectionToCategory("extinction"), "animals");
-  assert.equal(mapSectionToCategory("marine life"), "animals");
-  assert.equal(mapSectionToCategory("pets"), "animals");
-  assert.equal(mapSectionToCategory("fauna"), "animals");
-  assert.equal(mapSectionToCategory("creature"), "animals");
+  assertSectionCategories([
+    ["animal", "animals"],
+    ["animals", "animals"],
+    ["wildlife", "animals"],
+    ["species", "animals"],
+    ["endangered species", "animals"],
+    ["extinction", "animals"],
+    ["marine life", "animals"],
+    ["pets", "animals"],
+    ["fauna", "animals"],
+    ["creature", "animals"],
+  ]);
 });
 
 test("mapSectionToCategory: science discipline framing beats animals", () => {
   // zoology/biology/evolution are science-first even though they concern animals
-  assert.equal(mapSectionToCategory("zoology"), "science");
-  assert.equal(mapSectionToCategory("biology"), "science");
-  assert.equal(mapSectionToCategory("evolution"), "science");
-  assert.equal(mapSectionToCategory("science-nature"), "science");
-  assert.equal(mapSectionToCategory("living world"), "science");
+  assertSectionCategories([
+    ["zoology", "science"],
+    ["biology", "science"],
+    ["evolution", "science"],
+    ["science-nature", "science"],
+    ["living world", "science"],
+  ]);
 });
 
 test("mapSectionToCategory: environment keeps non-animal nature/conservation terms", () => {
-  assert.equal(mapSectionToCategory("climate"), "environment");
-  assert.equal(mapSectionToCategory("conservation"), "environment");
-  assert.equal(mapSectionToCategory("ecosystem"), "environment");
-  assert.equal(mapSectionToCategory("nature"), "environment");
-  assert.equal(mapSectionToCategory("ocean"), "environment");
+  assertSectionCategories([
+    ["climate", "environment"],
+    ["conservation", "environment"],
+    ["ecosystem", "environment"],
+    ["nature", "environment"],
+    ["ocean", "environment"],
+  ]);
 });
 
 test("mapSectionToCategory: animals border does NOT catch wildfire/wilderness/marine corps", () => {
@@ -362,24 +378,28 @@ test("mapSectionToCategory: animals border does NOT catch wildfire/wilderness/ma
 });
 
 test("mapSectionToCategory regression: science/culture/entertainment buckets unchanged", () => {
-  assert.equal(mapSectionToCategory("space"), "science");
-  assert.equal(mapSectionToCategory("astronomy"), "science");
-  assert.equal(mapSectionToCategory("physics"), "science");
-  assert.equal(mapSectionToCategory("art"), "culture");
-  assert.equal(mapSectionToCategory("book"), "culture");
-  assert.equal(mapSectionToCategory("movie"), "entertainment");
+  assertSectionCategories([
+    ["space", "science"],
+    ["astronomy", "science"],
+    ["physics", "science"],
+    ["art", "culture"],
+    ["book", "culture"],
+    ["movie", "entertainment"],
+  ]);
 });
 
 test("mapSectionToCategory FIX: 'living world' and 'science-nature' resolve to science", () => {
   // BUG 1: "living world" used to leak into `world` via the \bworld rule.
-  assert.equal(mapSectionToCategory("living world"), "science");
-  assert.equal(mapSectionToCategory("living-world"), "science");
   // BUG 2: "science-nature" used to leak into `environment` via the `nature` rule.
-  assert.equal(mapSectionToCategory("science-nature"), "science");
-  assert.equal(mapSectionToCategory("science & nature"), "science");
-  assert.equal(mapSectionToCategory("science nature"), "science");
-  assert.equal(mapSectionToCategory("the mind"), "science");
-  assert.equal(mapSectionToCategory("mind"), "science");
+  assertSectionCategories([
+    ["living world", "science"],
+    ["living-world", "science"],
+    ["science-nature", "science"],
+    ["science & nature", "science"],
+    ["science nature", "science"],
+    ["the mind", "science"],
+    ["mind", "science"],
+  ]);
 });
 
 test("mapSectionToCategory: new science keywords route to science", () => {

@@ -21,6 +21,8 @@ export type SaveOutcome =
   | { status: "skipped"; reason: string; sourceUrl: string }
   | { status: "failed"; reason: string; sourceUrl: string };
 
+const DUPLICATE_SOURCE_URL_REASON = "duplicate sourceUrl";
+
 /** Fetches and parses a single article URL. Returns null when extraction fails or scraper is disabled. */
 export async function scrapeUrl(url: string): Promise<ScrapedArticle | null> {
   if (!isScraperFeatureEnabled()) return null;
@@ -42,7 +44,7 @@ export async function saveDraftArticle(
 ): Promise<SaveOutcome> {
   const existing = await findPublicLibraryArticleBySourceUrl(article.sourceUrl);
   if (existing) {
-    return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
+    return duplicateSourceUrlOutcome(article.sourceUrl);
   }
 
   try {
@@ -74,7 +76,7 @@ export async function saveDraftArticle(
   } catch (err) {
     // A concurrent scrape created the same (sourceUrl, ownerId) first.
     if (isUniqueConstraintError(err)) {
-      return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: article.sourceUrl };
+      return duplicateSourceUrlOutcome(article.sourceUrl);
     }
     throw err;
   }
@@ -83,28 +85,44 @@ export async function saveDraftArticle(
 /** Scrapes a single URL and saves it, capturing failures as outcomes. */
 export async function scrapeAndSave(url: string): Promise<SaveOutcome> {
   if (!isScraperFeatureEnabled()) {
-    return { status: "failed", reason: "scraper is disabled", sourceUrl: url };
+    return failedOutcome("scraper is disabled", url);
   }
   try {
     const article = await scrapeUrl(url);
     if (!article) {
-      return { status: "failed", reason: "could not extract article content", sourceUrl: url };
+      return failedOutcome("could not extract article content", url);
     }
     // Run quality checks as a non-breaking signal. A "reject" grade usually
     // means the extractor produced obvious garbage; only long-enough articles
     // rejected for weak reading-time/metadata checks are recovered.
     const quality = checkContentQuality(article);
-    if (quality.grade === "reject" && !isRecoverableQualityReject(article, quality)) {
-      return {
-        status: "failed",
-        reason: `content quality check failed (score=${quality.score})`,
-        sourceUrl: url,
-      };
+    if (isUnrecoverableQualityReject(article, quality)) {
+      return failedOutcome(`content quality check failed (score=${quality.score})`, url);
     }
     return await saveDraftArticle(article);
   } catch (err) {
-    return { status: "failed", reason: errorMessage(err), sourceUrl: url };
+    return failedOutcome(errorMessage(err), url);
   }
+}
+
+function duplicateSourceUrlOutcome(
+  sourceUrl: string,
+): Extract<SaveOutcome, { status: "skipped" }> {
+  return { status: "skipped", reason: DUPLICATE_SOURCE_URL_REASON, sourceUrl };
+}
+
+function failedOutcome(
+  reason: string,
+  sourceUrl: string,
+): Extract<SaveOutcome, { status: "failed" }> {
+  return { status: "failed", reason, sourceUrl };
+}
+
+function isUnrecoverableQualityReject(
+  article: ScrapedArticle,
+  quality: ReturnType<typeof checkContentQuality>,
+): boolean {
+  return quality.grade === "reject" && !isRecoverableQualityReject(article, quality);
 }
 
 function errorMessage(err: unknown): string {

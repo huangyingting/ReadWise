@@ -53,6 +53,8 @@ type PlacementSubmitResponse = {
   skipped: boolean;
 };
 
+type PlacementAnswers = Record<string, number>;
+
 export type ReadingPlacementCardProps = {
   seedLevel: PlacementSeedLevel;
   attempt?: "initial" | "retake";
@@ -60,6 +62,20 @@ export type ReadingPlacementCardProps = {
   onDone?: () => void;
   className?: string;
 };
+
+function placementUrl(seedLevel: PlacementSeedLevel): string {
+  return `/api/placement?seedLevel=${encodeURIComponent(seedLevel)}`;
+}
+
+function countCorrectAnswers(
+  questions: PlacementQuestionDto[],
+  answers: PlacementAnswers,
+): number {
+  return questions.reduce(
+    (acc, question) => acc + (answers[question.id] === question.correctIndex ? 1 : 0),
+    0,
+  );
+}
 
 export function ReadingPlacementCard({
   seedLevel,
@@ -70,7 +86,7 @@ export function ReadingPlacementCard({
   const [loading, setLoading] = useState(true);
   const [passage, setPassage] = useState<PlacementPassageDto | null>(null);
   const [unavailable, setUnavailable] = useState(false);
-  const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [answers, setAnswers] = useState<PlacementAnswers>({});
   const [lookupCount, setLookupCount] = useState(0);
   const [result, setResult] = useState<string | null>(null);
 
@@ -80,7 +96,7 @@ export function ReadingPlacementCard({
     let active = true;
     setLoading(true);
     setUnavailable(false);
-    getJson<PlacementFetch>(`/api/placement?seedLevel=${encodeURIComponent(seedLevel)}`)
+    getJson<PlacementFetch>(placementUrl(seedLevel))
       .then((res) => {
         if (!active) return;
         if (res.available) setPassage(res.passage);
@@ -104,20 +120,17 @@ export function ReadingPlacementCard({
   const submit = useCallback(
     (skipped: boolean) => {
       if (!passage) return;
-      const correctCount = skipped
-        ? 0
-        : passage.questions.reduce(
-            (acc, q) => acc + (answers[q.id] === q.correctIndex ? 1 : 0),
-            0,
-          );
+      const correctCount = skipped ? 0 : countCorrectAnswers(passage.questions, answers);
+      const totalCount = skipped ? 0 : passage.questions.length;
+      const submittedLookupCount = skipped ? 0 : lookupCount;
       run(
         async () =>
           postJson<PlacementSubmitResponse>("/api/placement", {
             articleId: passage.articleId,
             seedLevel: passage.seedLevel,
             correctCount,
-            totalCount: skipped ? 0 : passage.questions.length,
-            lookupCount: skipped ? 0 : lookupCount,
+            totalCount,
+            lookupCount: submittedLookupCount,
             skipped,
             attempt,
           }),

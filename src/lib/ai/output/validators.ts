@@ -42,6 +42,8 @@ export type ValidationReport<T> = {
   rejected: number;
 };
 
+const TITLE_CASE_MINOR_WORDS = new Set(["and", "or", "of", "the", "a", "an", "to", "in", "on", "for", "with"]);
+
 /**
  * Recovers the first top-level JSON array from a model response, tolerating
  * markdown code fences and surrounding prose. Returns null when no parseable
@@ -68,6 +70,10 @@ function asTrimmedString(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object";
+}
+
 /**
  * Title-cases a tag name: each word's first alphanumeric character uppercased,
  * the rest lowercased. Small connective words stay lowercased unless leading.
@@ -75,7 +81,6 @@ function asTrimmedString(value: unknown): string {
  * preserving all-caps tokens of length <= 3.
  */
 export function toTitleCase(name: string): string {
-  const minor = new Set(["and", "or", "of", "the", "a", "an", "to", "in", "on", "for", "with"]);
   const words = name.trim().split(/\s+/);
   return words
     .map((word, i) => {
@@ -85,7 +90,7 @@ export function toTitleCase(name: string): string {
         return word;
       }
       const lower = word.toLowerCase();
-      if (i > 0 && minor.has(lower)) return lower;
+      if (i > 0 && TITLE_CASE_MINOR_WORDS.has(lower)) return lower;
       return lower.charAt(0).toUpperCase() + lower.slice(1);
     })
     .join(" ");
@@ -104,14 +109,13 @@ export function validateVocabulary(raw: string): ValidationReport<ValidatedVocab
   const items: ValidatedVocabularyItem[] = [];
   let rejected = 0;
   for (const row of arr) {
-    if (!row || typeof row !== "object") {
+    if (!isRecord(row)) {
       rejected++;
       continue;
     }
-    const record = row as Record<string, unknown>;
-    const word = asTrimmedString(record.word);
-    const explanation = asTrimmedString(record.explanation);
-    const example = asTrimmedString(record.example);
+    const word = asTrimmedString(row.word);
+    const explanation = asTrimmedString(row.explanation);
+    const example = asTrimmedString(row.example);
     if (!word || !explanation) {
       rejected++;
       continue;
@@ -141,18 +145,17 @@ export function validateQuiz(raw: string): ValidationReport<ValidatedQuizQuestio
   const items: ValidatedQuizQuestion[] = [];
   let rejected = 0;
   for (const row of arr) {
-    if (!row || typeof row !== "object") {
+    if (!isRecord(row)) {
       rejected++;
       continue;
     }
-    const record = row as Record<string, unknown>;
-    const question = asTrimmedString(record.question);
-    const rawOptions = Array.isArray(record.options) ? record.options : [];
+    const question = asTrimmedString(row.question);
+    const rawOptions = Array.isArray(row.options) ? row.options : [];
     const options = rawOptions
       .map((o) => asTrimmedString(o))
       .filter((o) => o.length > 0);
     const correctIndex =
-      typeof record.correctIndex === "number" ? Math.trunc(record.correctIndex) : -1;
+      typeof row.correctIndex === "number" ? Math.trunc(row.correctIndex) : -1;
 
     if (
       !question ||

@@ -37,6 +37,39 @@ type StepView = {
   hrefLabel?: string;
 };
 
+type NoticeKind = "status" | "alert";
+
+function buildStepViews(steps: TodaySteps, primaryHref: string | null): StepView[] {
+  return [
+    {
+      key: "reading",
+      title: "Read the article",
+      hint: "Read today's article at your own pace.",
+      href: primaryHref ?? undefined,
+      hrefLabel: "Open reader",
+    },
+    {
+      key: "comprehension",
+      title: "Check comprehension",
+      hint: "Do the quick comprehension check-in below, or take the reader quiz.",
+      href: primaryHref ?? undefined,
+      hrefLabel: "Open reader",
+    },
+    {
+      key: "wordReview",
+      title: "Review your words",
+      hint:
+        steps.wordReview.available
+          ? `Review ${steps.wordReview.targetCount} saved ${
+              steps.wordReview.targetCount === 1 ? "word" : "words"
+            } in Study.`
+          : "No words to review today.",
+      href: steps.wordReview.available ? "/study" : undefined,
+      hrefLabel: "Open study",
+    },
+  ];
+}
+
 function stepBadge(state: TodayStepState) {
   if (state === "complete") {
     return (
@@ -49,6 +82,25 @@ function stepBadge(state: TodayStepState) {
     return <Badge variant="neutral">Not needed today</Badge>;
   }
   return <Badge variant="primary">To do</Badge>;
+}
+
+function WorkflowNotice({
+  kind,
+  children,
+}: {
+  kind: NoticeKind;
+  children: string;
+}) {
+  return (
+    <p
+      role={kind}
+      className={`m-0 text-[length:var(--text-sm)] ${
+        kind === "alert" ? "text-danger-text" : "text-text-muted"
+      }`}
+    >
+      {children}
+    </p>
+  );
 }
 
 export interface TodayWorkflowProps {
@@ -109,35 +161,7 @@ export default function TodayWorkflow({
   }, []);
 
   const mutationContext = { userId, localDate, timezone };
-
-  const stepViews: StepView[] = [
-    {
-      key: "reading",
-      title: "Read the article",
-      hint: "Read today's article at your own pace.",
-      href: primaryHref ?? undefined,
-      hrefLabel: "Open reader",
-    },
-    {
-      key: "comprehension",
-      title: "Check comprehension",
-      hint: "Do the quick comprehension check-in below, or take the reader quiz.",
-      href: primaryHref ?? undefined,
-      hrefLabel: "Open reader",
-    },
-    {
-      key: "wordReview",
-      title: "Review your words",
-      hint:
-        steps.wordReview.available
-          ? `Review ${steps.wordReview.targetCount} saved ${
-              steps.wordReview.targetCount === 1 ? "word" : "words"
-            } in Study.`
-          : "No words to review today.",
-      href: steps.wordReview.available ? "/study" : undefined,
-      hrefLabel: "Open study",
-    },
-  ];
+  const stepViews = buildStepViews(steps, primaryHref);
 
   async function markRead() {
     setBusy("read");
@@ -293,24 +317,16 @@ export default function TodayWorkflow({
       ) : null}
 
       {skipNotice ? (
-        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
-          {skipNotice}
-        </p>
+        <WorkflowNotice kind="status">{skipNotice}</WorkflowNotice>
       ) : null}
       {offlineNotice ? (
-        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
-          {offlineNotice}
-        </p>
+        <WorkflowNotice kind="status">{offlineNotice}</WorkflowNotice>
       ) : null}
       {conflictNotice ? (
-        <p role="status" className="m-0 text-[length:var(--text-sm)] text-text-muted">
-          {conflictNotice}
-        </p>
+        <WorkflowNotice kind="status">{conflictNotice}</WorkflowNotice>
       ) : null}
       {error ? (
-        <p role="alert" className="m-0 text-[length:var(--text-sm)] text-danger-text">
-          {error}
-        </p>
+        <WorkflowNotice kind="alert">{error}</WorkflowNotice>
       ) : null}
     </Stack>
   );

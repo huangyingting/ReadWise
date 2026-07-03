@@ -10,6 +10,19 @@ import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import { useKeyboardShortcut } from "@/lib/use-keyboard-shortcut";
 import type { ShellUser } from "./types";
 
+const FIRST_MENU_ITEM_SELECTOR = '[role="menuitem"]';
+
+const menuItemClass = cn(
+  "flex items-center gap-[var(--space-2)] w-full text-left",
+  "px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] text-text",
+  "transition-colors [transition-duration:var(--duration-fast)]",
+  "hover:bg-bg-subtle",
+  focusRing,
+);
+
+const menuButtonClass =
+  "h-auto w-full justify-start rounded-none px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] font-normal text-text hover:bg-bg-subtle";
+
 export default function UserMenu({ user }: { user: ShellUser }) {
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
@@ -32,22 +45,26 @@ export default function UserMenu({ user }: { user: ShellUser }) {
     if (open) {
       // Small delay to let Popover render before querying.
       const raf = requestAnimationFrame(() => {
-        const first = document.querySelector<HTMLElement>('[role="menuitem"]');
+        const first = document.querySelector<HTMLElement>(FIRST_MENU_ITEM_SELECTOR);
         first?.focus();
       });
       return () => cancelAnimationFrame(raf);
     }
   }, [open]);
 
-  const itemClass = cn(
-    "flex items-center gap-[var(--space-2)] w-full text-left",
-    "px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] text-text",
-    "transition-colors [transition-duration:var(--duration-fast)]",
-    "hover:bg-bg-subtle",
-    focusRing,
-  );
-  const itemButtonClass =
-    "h-auto w-full justify-start rounded-none px-[var(--space-4)] py-[var(--space-2)] text-[length:var(--text-sm)] font-normal text-text hover:bg-bg-subtle";
+  function closeMenu() {
+    setOpen(false);
+  }
+
+  function openShortcuts() {
+    setOpen(false);
+    setShortcutsOpen(true);
+  }
+
+  function signOutToHome() {
+    setOpen(false);
+    void signOut({ callbackUrl: "/" });
+  }
 
   return (
     <div className="relative">
@@ -63,16 +80,16 @@ export default function UserMenu({ user }: { user: ShellUser }) {
         )}
       >
         <Avatar
-            src={user.image}
-            name={user.name ?? user.email}
-            size={32}
-            className="h-8 w-8"
-          />
-          </IconButton>
+          src={user.image}
+          name={user.name ?? user.email}
+          size={32}
+          className="h-8 w-8"
+        />
+      </IconButton>
 
       <Popover
         open={open}
-        onClose={() => setOpen(false)}
+        onClose={closeMenu}
         anchorRef={triggerRef}
         label="User menu"
         align="end"
@@ -94,8 +111,8 @@ export default function UserMenu({ user }: { user: ShellUser }) {
           <Link
             href="/settings"
             role="menuitem"
-            className={itemClass}
-            onClick={() => setOpen(false)}
+            className={menuItemClass}
+            onClick={closeMenu}
           >
             <Settings size={16} aria-hidden />
             Settings
@@ -105,8 +122,8 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             <Link
               href="/admin"
               role="menuitem"
-              className={itemClass}
-              onClick={() => setOpen(false)}
+              className={menuItemClass}
+              onClick={closeMenu}
             >
               <Shield size={16} aria-hidden />
               Admin Panel
@@ -117,12 +134,9 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             variant="ghost"
             size="sm"
             role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              setShortcutsOpen(true);
-            }}
+            onClick={openShortcuts}
             leadingIcon={<Keyboard size={16} aria-hidden />}
-            className={itemButtonClass}
+            className={menuButtonClass}
           >
             Keyboard shortcuts
           </Button>
@@ -133,12 +147,9 @@ export default function UserMenu({ user }: { user: ShellUser }) {
             variant="ghost"
             size="sm"
             role="menuitem"
-            onClick={() => {
-              setOpen(false);
-              void signOut({ callbackUrl: "/" });
-            }}
+            onClick={signOutToHome}
             leadingIcon={<LogOut size={16} aria-hidden />}
-            className={cn(itemButtonClass, "text-text hover:text-danger-text")}
+            className={cn(menuButtonClass, "text-text hover:text-danger-text")}
           >
             Sign out
           </Button>

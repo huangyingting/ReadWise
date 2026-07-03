@@ -44,12 +44,7 @@ import {
   splitPracticeSentences,
 } from "@/lib/speech/practice";
 
-export default function ArticlePronunciation({
-  articleId,
-  plainText,
-  active,
-  currentBlockText,
-}: {
+type ArticlePronunciationProps = {
   articleId: string;
   plainText: string;
   active: boolean;
@@ -57,7 +52,50 @@ export default function ArticlePronunciation({
    *  provided and the panel is in idle state, the component defaults to the
    *  first sentence belonging to that paragraph. */
   currentBlockText?: string;
-}) {
+};
+
+type HearItButtonProps = {
+  label: string;
+  size: "sm" | "md";
+  onClick: () => void;
+  loading: boolean;
+  disabled?: boolean;
+  title?: string;
+  ariaDisabled?: boolean;
+};
+
+function HearItButton({
+  label,
+  size,
+  onClick,
+  loading,
+  disabled,
+  title,
+  ariaDisabled,
+}: HearItButtonProps) {
+  return (
+    <Button
+      variant="ghost"
+      size={size}
+      leadingIcon={<Volume2 size={14} aria-hidden />}
+      onClick={onClick}
+      loading={loading}
+      disabled={disabled}
+      aria-disabled={ariaDisabled || undefined}
+      title={title}
+      aria-label="Hear this sentence"
+    >
+      {label}
+    </Button>
+  );
+}
+
+export default function ArticlePronunciation({
+  articleId,
+  plainText,
+  active,
+  currentBlockText,
+}: ArticlePronunciationProps) {
   const audio = useReaderAudio();
   const sentences = useMemo(() => splitPracticeSentences(plainText), [plainText]);
   const { playRange, stopRange } = useAudioRangePlayback(audio.audioRef);
@@ -149,17 +187,14 @@ export default function ArticlePronunciation({
         />
         {/* "Hear it" even when scoring is unavailable */}
         {!audio.isFallback && (
-          <Button
-            variant="ghost"
+          <HearItButton
+            label="Hear this sentence"
             size="sm"
-            leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
             loading={audio.isWarming}
-            aria-disabled={hearItDisabled || undefined}
+            ariaDisabled={hearItDisabled}
             title={hearItTitle}
-          >
-            Hear this sentence
-          </Button>
+          />
         )}
       </div>
     );
@@ -167,7 +202,7 @@ export default function ArticlePronunciation({
 
   return (
     <div className="rw-speak-panel">
-      <div style={{ marginBottom: "var(--space-3)" }}>
+      <div className="mb-[var(--space-3)]">
         <AiBadge />
       </div>
 
@@ -262,36 +297,28 @@ export default function ArticlePronunciation({
             </Button>
           )}
 
-          <Button
-            variant="ghost"
+          <HearItButton
+            label="Hear it"
             size="md"
-            leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
             loading={audio.isWarming}
             disabled={hearItDisabled}
             title={hearItTitle}
-            aria-label="Hear this sentence"
-          >
-            Hear it
-          </Button>
+          />
         </div>
       )}
 
       {/* ── Record-again controls ─────────────────────────────────────── */}
       {session.phase === "result" && (
         <div className="rw-speak-controls">
-          <Button
-            variant="ghost"
+          <HearItButton
+            label="Hear it"
             size="sm"
-            leadingIcon={<Volume2 size={14} aria-hidden />}
             onClick={() => void handleHearIt()}
             loading={audio.isWarming}
             disabled={hearItDisabled}
             title={hearItTitle}
-            aria-label="Hear this sentence"
-          >
-            Hear it
-          </Button>
+          />
         </div>
       )}
 

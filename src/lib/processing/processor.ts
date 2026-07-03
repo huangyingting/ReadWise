@@ -84,6 +84,9 @@ type ArticleState = {
   hasSpeech: boolean;
 };
 
+type StepRunnerResult = { fallback: boolean; detail?: string };
+type StepRunner = () => Promise<StepRunnerResult>;
+
 async function loadArticleState(articleId: string): Promise<ArticleState | null> {
   const article = await getAiProcessableArticleById(articleId, SYSTEM_ARTICLE_CONTEXT, {
     select: {
@@ -133,7 +136,7 @@ async function runStep(
   articleId: string,
   step: StepName,
   alreadyDone: boolean,
-  fn: () => Promise<{ fallback: boolean; detail?: string }>,
+  fn: StepRunner,
   persistAs: string = step,
 ): Promise<StepResult> {
   if (alreadyDone) {
@@ -173,7 +176,7 @@ function isAlreadyDone(feature: FeatureDefinition, state: ArticleState): boolean
  */
 function buildStepRunners(
   articleId: string,
-): Partial<Record<FeatureKey, () => Promise<{ fallback: boolean; detail?: string }>>> {
+): Partial<Record<FeatureKey, StepRunner>> {
   return {
     difficulty: async () => {
       const res = await getOrCreateArticleDifficulty(articleId, SYSTEM_ARTICLE_CONTEXT);
@@ -217,6 +220,79 @@ function buildStepRunners(
   };
 }
 
+async function runTranslationStep(
+  articleId: string,
+  lang: string,
+  alreadyTranslated: boolean,
+): Promise<StepResult> {
+  return runStep(
+    articleId,
+    "translation",
+    alreadyTranslated,
+    async () => {
+      const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
+      return {
+        fallback: res?.fallback ?? true,
+        detail: res ? res.languageLabel : lang,
+      };
+    },
+    translationStepKey(lang),
+  );
+}
+
+async function runTranslationSteps(
+  articleId: string,
+  langs: string[],
+  state: ArticleState,
+): Promise<StepResult[]> {
+  const results: StepResult[] = [];
+  for (const lang of langs) {
+    results.push(
+      await runTranslationStep(articleId, lang, state.translationLangs.has(lang)),
+    );
+  }
+  return results;
+}
+
+function shouldRunFeature(feature: FeatureDefinition, opts: ProcessOptions): boolean {
+  if (feature.key === "grammar") return false;
+  if (feature.isTts && !opts.tts) return false;
+  return true;
+}
+
+function stepResultNameFor(feature: FeatureDefinition): StepName {
+  return (feature.stepResultName as StepName | undefined) ?? (feature.key as StepName);
+}
+
+function persistKeyFor(feature: FeatureDefinition): string {
+  return feature.isTts ? "speech" : feature.key;
+}
+
+async function publishDraftIfReady(
+  articleId: string,
+  status: string,
+  ok: boolean,
+): Promise<{ published: boolean; publishStep?: StepResult }> {
+  if (ok && status === ArticleStatus.DRAFT) {
+    await prisma.article.update({
+      where: { id: articleId },
+      data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
+    });
+    revalidateArticlesCache();
+    return {
+      published: true,
+      publishStep: { step: "publish", status: "generated", detail: "draft → published" },
+    };
+  }
+  if (status === ArticleStatus.PUBLISHED) {
+    return {
+      published: true,
+      publishStep: { step: "publish", status: "skipped", detail: "already published" },
+    };
+  }
+  return { published: false };
+}
+
 /**
  * Enriches a single article with deterministic difficulty plus AI-derived tags,
  * vocabulary, comprehension quiz, optional translations + TTS, and publishes it
@@ -248,73 +324,41 @@ async function processArticleInner(
   const runners = buildStepRunners(articleId);
 
   for (const feature of FEATURE_REGISTRY) {
-    // Grammar is generated on-demand via the reader UI; skip in the pipeline.
-    if (feature.key === "grammar") continue;
+    if (!shouldRunFeature(feature, opts)) continue;
 
     if (feature.supportsLangs) {
       // Translation: expand one step per requested target language.
-      for (const lang of opts.translateLangs ?? []) {
-        steps.push(
-          await runStep(
-            articleId,
-            "translation",
-            before.translationLangs.has(lang),
-            async () => {
-              const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
-              return {
-                fallback: res?.fallback ?? true,
-                detail: res ? res.languageLabel : lang,
-              };
-            },
-            translationStepKey(lang),
-          ),
-        );
-      }
+      steps.push(...(await runTranslationSteps(articleId, opts.translateLangs ?? [], before)));
       continue;
     }
-
-    // TTS/speech: only when opts.tts is requested.
-    if (feature.isTts && !opts.tts) continue;
 
     const runner = runners[feature.key];
     if (!runner) continue;
 
     // stepResultName from registry handles the "tts" vs "speech" naming convention.
-    const stepName: StepName = (feature.stepResultName as StepName | undefined) ?? (feature.key as StepName);
-    const persistKey = feature.isTts ? "speech" : feature.key;
-
     steps.push(
       await runStep(
         articleId,
-        stepName,
+        stepResultNameFor(feature),
         isAlreadyDone(feature, before),
         runner,
-        persistKey,
+        persistKeyFor(feature),
       ),
     );
   }
 
   const ok = !steps.some((s) => s.status === "failed");
-
-  let published = before.status === ArticleStatus.PUBLISHED;
-  if (ok && before.status === ArticleStatus.DRAFT) {
-    await prisma.article.update({
-      where: { id: articleId },
-      data: { status: ArticleStatus.PUBLISHED, publishedAt: new Date() },
-    });
-    published = true;
-    steps.push({ step: "publish", status: "generated", detail: "draft → published" });
-    revalidateArticlesCache();
-  } else if (before.status === ArticleStatus.PUBLISHED) {
-    steps.push({ step: "publish", status: "skipped", detail: "already published" });
+  const publish = await publishDraftIfReady(articleId, before.status, ok);
+  if (publish.publishStep) {
+    steps.push(publish.publishStep);
   }
 
   for (const step of steps) {
     recordContentProcessingStep({ step: step.step, status: step.status });
   }
-  recordContentProcessingRun({ outcome: ok ? "success" : "failed", published });
+  recordContentProcessingRun({ outcome: ok ? "success" : "failed", published: publish.published });
 
-  return { articleId, title: before.title, published, steps, ok };
+  return { articleId, title: before.title, published: publish.published, steps, ok };
 }
 
 /**

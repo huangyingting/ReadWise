@@ -78,6 +78,14 @@ type FreshUrlSelection = {
   skippedVisited: number;
 };
 
+type SaveOutcomeCounts = {
+  saved: number;
+  skipped: number;
+  duplicates: number;
+  failed: number;
+  rejected: number;
+};
+
 type NoisePattern = {
   key: string;
   label: string;
@@ -400,6 +408,24 @@ function summarize(outcome: SaveOutcome): void {
   }
 }
 
+function isDuplicateSkipped(outcome: SaveOutcome): boolean {
+  return outcome.status === "skipped" && /duplicate/i.test(outcome.reason);
+}
+
+function isExtractionOrQualityFailure(outcome: SaveOutcome): boolean {
+  return outcome.status === "failed" && /extract|quality/i.test(outcome.reason);
+}
+
+function countSaveOutcomes(outcomes: SaveOutcome[]): SaveOutcomeCounts {
+  return {
+    saved: outcomes.filter((outcome) => outcome.status === "saved").length,
+    skipped: outcomes.filter((outcome) => outcome.status === "skipped").length,
+    duplicates: outcomes.filter(isDuplicateSkipped).length,
+    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
+    rejected: outcomes.filter(isExtractionOrQualityFailure).length,
+  };
+}
+
 function providerOrThrow(): Provider {
   const provider = getProvider(PROVIDER_KEY);
   if (!provider) throw new Error("Smithsonian provider is not registered.");
@@ -481,29 +507,20 @@ async function scrapeFreshSmithsonian(
       ) {
         break;
       }
-    } else if (
-      outcome.status === "skipped" &&
-      /duplicate/i.test(outcome.reason)
-    ) {
+    } else if (isDuplicateSkipped(outcome)) {
       markVisited(record, outcome.sourceUrl, "duplicate");
     } else if (outcome.status === "failed") {
       markVisited(record, outcome.sourceUrl, "failed");
     }
   }
 
-  const failed = outcomes.filter((o) => o.status === "failed").length;
-  const duplicates = outcomes.filter(
-    (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
-  ).length;
-  const rejected = outcomes.filter(
-    (o) => o.status === "failed" && /extract|quality/i.test(o.reason),
-  ).length;
+  const counts = countSaveOutcomes(outcomes);
   await recordCrawlRun(provider.key, {
     discovered: discoveredUrls.length,
-    scraped: outcomes.filter((o) => o.status === "saved").length,
-    failed,
-    duplicates,
-    rejected,
+    scraped: counts.saved,
+    failed: counts.failed,
+    duplicates: counts.duplicates,
+    rejected: counts.rejected,
   });
 
   return {
@@ -762,22 +779,17 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     await publishSmithsonianArticles();
   }
 
-  const saved = outcomes.filter((o) => o.status === "saved").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
-  const duplicates = outcomes.filter(
-    (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
-  ).length;
-  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const counts = countSaveOutcomes(outcomes);
   if (!args.analyzeOnly) {
     console.log(
-      `\nDone. discovered=${discovered} saved=${saved} skipped=${skipped} duplicates=${duplicates} failed=${failed} ` +
+      `\nDone. discovered=${discovered} saved=${counts.saved} skipped=${counts.skipped} duplicates=${counts.duplicates} failed=${counts.failed} ` +
         `discoveryExhausted=${discoveryExhausted ? "yes" : "no"} ` +
         `visitedSkipped=${skippedVisited} visitedRecord=${path.relative(repoRoot(), visitedFile)} ` +
         `visitedTotal=${record.urls.length}`,
     );
   }
 
-  return failed > 0 && saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
+  return counts.failed > 0 && counts.saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
 }
 
 export const __scrapeSmithsonianTest = {

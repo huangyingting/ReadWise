@@ -107,6 +107,22 @@ beforeEach(() => {
 
 const NOW = new Date("2026-06-23T00:00:00Z");
 
+function articleRow(overrides: Record<string, unknown>): Record<string, unknown> {
+  return {
+    id: "a1",
+    title: "A1",
+    author: "x",
+    source: "s",
+    category: "science",
+    difficulty: "B1",
+    readingMinutes: 5,
+    wordCount: 600,
+    publishedAt: NOW,
+    heroImage: null,
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pure component scorers
 // ---------------------------------------------------------------------------
@@ -453,9 +469,9 @@ test("scoreAndRankArticles reflects the adaptive level: repeated too_hard favour
 test("listScoredPicksPage paginates scored candidates and carries reasons + explanations", async () => {
   const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
   articleRows = [
-    { id: "a1", title: "A1", author: "x", source: "s", category: "science", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: NOW, heroImage: null },
-    { id: "a2", title: "A2", author: "x", source: "s", category: "sports", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: NOW, heroImage: null },
-    { id: "a3", title: "A3", author: "x", source: "s", category: "health", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: NOW, heroImage: null },
+    articleRow({ id: "a1", title: "A1" }),
+    articleRow({ id: "a2", title: "A2", category: "sports" }),
+    articleRow({ id: "a3", title: "A3", category: "health" }),
   ];
   const page = await listScoredPicksPage("u1", { limit: 2 });
   assert.equal(page.articles.length, 2);

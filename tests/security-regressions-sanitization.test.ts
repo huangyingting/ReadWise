@@ -37,6 +37,9 @@ let assertSafeThrows = false;
 let scrapeCalls: string[] = [];
 let auditCalls = 0;
 
+const OFFLINE_XSS_PATTERN = /script|onerror|onclick|javascript:|alert/i;
+const IMPORT_XSS_PATTERN = /script|onerror|javascript:|alert/i;
+
 const scrapedArticle = {
   title: "Scraped article",
   author: null,
@@ -236,6 +239,10 @@ function ctx(id = "private-article") {
   return { params: Promise.resolve({ id }) };
 }
 
+function importedContent(): string {
+  return String(importCreateData?.content);
+}
+
 // ---------------------------------------------------------------------------
 // Offline article HTML sanitization
 // ---------------------------------------------------------------------------
@@ -258,7 +265,7 @@ describe("offline article payload sanitization", () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.match(body.sanitizedHtml, /Safe text/);
-    assert.doesNotMatch(body.sanitizedHtml, /script|onerror|onclick|javascript:|alert/i);
+    assert.doesNotMatch(body.sanitizedHtml, OFFLINE_XSS_PATTERN);
   });
 });
 
@@ -308,8 +315,9 @@ describe("text import content sanitization", () => {
     assert.equal(importCreateData?.visibility, ArticleVisibility.PRIVATE);
     assert.equal(importCreateData?.sourceType, ArticleSourceType.IMPORTED);
     assert.equal(importCreateData?.source, "Personal");
-    assert.match(String(importCreateData?.content), /Hello/);
-    assert.match(String(importCreateData?.content), /World/);
-    assert.doesNotMatch(String(importCreateData?.content), /script|onerror|javascript:|alert/i);
+    const content = importedContent();
+    assert.match(content, /Hello/);
+    assert.match(content, /World/);
+    assert.doesNotMatch(content, IMPORT_XSS_PATTERN);
   });
 });

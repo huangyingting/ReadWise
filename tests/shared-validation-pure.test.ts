@@ -45,6 +45,32 @@ function setTestWindow(value: unknown): void {
   });
 }
 
+function mapBackedStorage(store: Map<string, string>) {
+  return {
+    getItem: (key: string) => store.get(key) ?? null,
+    setItem: (key: string, value: string) => {
+      store.set(key, value);
+    },
+    removeItem: (key: string) => {
+      store.delete(key);
+    },
+  };
+}
+
+function throwingStorage() {
+  return {
+    getItem: () => {
+      throw new Error("blocked");
+    },
+    setItem: () => {
+      throw new Error("blocked");
+    },
+    removeItem: () => {
+      throw new Error("blocked");
+    },
+  };
+}
+
 afterEach(() => {
   if (windowDescriptor) {
     Object.defineProperty(globalThis, "window", windowDescriptor);
@@ -322,16 +348,8 @@ test("storage helpers use browser storage and gracefully ignore storage failures
   const local = new Map<string, string>();
   const session = new Map<string, string>();
   setTestWindow({
-    localStorage: {
-      getItem: (key: string) => local.get(key) ?? null,
-      setItem: (key: string, value: string) => local.set(key, value),
-      removeItem: (key: string) => local.delete(key),
-    },
-    sessionStorage: {
-      getItem: (key: string) => session.get(key) ?? null,
-      setItem: (key: string, value: string) => session.set(key, value),
-      removeItem: (key: string) => session.delete(key),
-    },
+    localStorage: mapBackedStorage(local),
+    sessionStorage: mapBackedStorage(session),
   });
 
   lsSet(STORAGE_KEYS.THEME, "dark");
@@ -345,28 +363,8 @@ test("storage helpers use browser storage and gracefully ignore storage failures
   assert.equal(ssGet(STORAGE_KEYS.READER_REFERRER), null);
 
   setTestWindow({
-    localStorage: {
-      getItem: () => {
-        throw new Error("blocked");
-      },
-      setItem: () => {
-        throw new Error("blocked");
-      },
-      removeItem: () => {
-        throw new Error("blocked");
-      },
-    },
-    sessionStorage: {
-      getItem: () => {
-        throw new Error("blocked");
-      },
-      setItem: () => {
-        throw new Error("blocked");
-      },
-      removeItem: () => {
-        throw new Error("blocked");
-      },
-    },
+    localStorage: throwingStorage(),
+    sessionStorage: throwingStorage(),
   });
 
   assert.equal(lsGet(STORAGE_KEYS.THEME), null);

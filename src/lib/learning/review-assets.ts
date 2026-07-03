@@ -44,6 +44,20 @@ export const REVIEW_CARD_CONTEXT_MAX = 1_000;
 /** How many days back the "this week" highlight count window spans. */
 export const REVIEW_WEEK_DAYS = 7;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+const reviewCardSelect = { id: true, dueAt: true } as const;
+
+function toReviewCardConversion(
+  card: { id: string; dueAt: Date | null },
+  created: boolean,
+): ReviewCardConversion {
+  return { cardId: card.id, dueAt: card.dueAt, created };
+}
+
+function daysBefore(date: Date, days: number): Date {
+  return new Date(date.getTime() - days * MS_PER_DAY);
+}
+
 // ---------------------------------------------------------------------------
 // Highlight/note → review card (reuses the flashcard/SRS SavedWord store)
 // ---------------------------------------------------------------------------
@@ -97,10 +111,10 @@ export async function convertHighlightToReviewCard(
 
   const existing = await prisma.savedWord.findUnique({
     where: { userId_word: { userId, word: front } },
-    select: { id: true, dueAt: true },
+    select: reviewCardSelect,
   });
   if (existing) {
-    return { cardId: existing.id, dueAt: existing.dueAt, created: false };
+    return toReviewCardConversion(existing, false);
   }
 
   const card = await prisma.savedWord.create({
@@ -111,9 +125,9 @@ export async function convertHighlightToReviewCard(
       contextSentence: highlight.quote.slice(0, REVIEW_CARD_CONTEXT_MAX),
       articleId: highlight.articleId,
     },
-    select: { id: true, dueAt: true },
+    select: reviewCardSelect,
   });
-  return { cardId: card.id, dueAt: card.dueAt, created: true };
+  return toReviewCardConversion(card, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +158,7 @@ export async function getReviewAssetSummary(
   userId: string,
   now: Date = new Date(),
 ): Promise<ReviewAssetSummary> {
-  const weekStart = new Date(now.getTime() - REVIEW_WEEK_DAYS * 24 * 60 * 60 * 1000);
+  const weekStart = daysBefore(now, REVIEW_WEEK_DAYS);
 
   const [totalHighlights, notedHighlights, weeklyHighlights, articleGroups] =
     await Promise.all([

@@ -84,6 +84,10 @@ function setRequiredRuntimeEnv() {
   process.env.NEXTAUTH_URL = "http://localhost:3000";
 }
 
+function assertHasDiagnosticCode(items: Array<{ code: string }>, code: string) {
+  assert.ok(items.some((item) => item.code === code));
+}
+
 test("observability config resolves defaults, tracing, and thresholds", async () => {
   const {
     appVersion,
@@ -299,13 +303,13 @@ test("validateRuntimeConfig reports malformed required, optional, and tuning set
   report = validateRuntimeConfig();
   assert.equal(report.ready, false);
   assert.equal(report.required.database.status, "malformed");
-  assert.ok(report.errors.some((item) => item.code === "invalid_database_url"));
+  assertHasDiagnosticCode(report.errors, "invalid_database_url");
 
   setRequiredRuntimeEnv();
   process.env.NEXTAUTH_SECRET = "change-me";
   report = validateRuntimeConfig();
   assert.equal(report.required.auth.status, "malformed");
-  assert.ok(report.errors.some((item) => item.code === "placeholder_secret"));
+  assertHasDiagnosticCode(report.errors, "placeholder_secret");
 
   setRequiredRuntimeEnv();
   process.env.AZURE_SPEECH_KEY = "test-key";
@@ -317,9 +321,9 @@ test("validateRuntimeConfig reports malformed required, optional, and tuning set
   report = validateRuntimeConfig();
   assert.equal(report.optional.speech.status, "degraded");
   assert.equal(report.tuning.status, "degraded");
-  assert.ok(report.warnings.some((item) => item.code === "unsupported_speech_format"));
-  assert.ok(report.warnings.some((item) => item.code === "invalid_nonnegative_integer"));
-  assert.ok(report.warnings.some((item) => item.code === "invalid_log_level"));
+  assertHasDiagnosticCode(report.warnings, "unsupported_speech_format");
+  assertHasDiagnosticCode(report.warnings, "invalid_nonnegative_integer");
+  assertHasDiagnosticCode(report.warnings, "invalid_log_level");
 
   process.env.MEDIA_STORAGE = "azure";
   delete process.env.AZURE_STORAGE_CONNECTION_STRING;
@@ -332,12 +336,12 @@ test("validateRuntimeConfig reports malformed required, optional, and tuning set
   process.env.MEDIA_STORAGE = "unknown";
   report = validateRuntimeConfig();
   assert.equal(report.optional.storage.status, "degraded");
-  assert.ok(report.warnings.some((item) => item.code === "unknown_storage_kind"));
+  assertHasDiagnosticCode(report.warnings, "unknown_storage_kind");
 
   setRequiredRuntimeEnv();
   process.env.DATABASE_URL = "not a database url";
   report = validateRuntimeConfig();
-  assert.ok(report.errors.some((item) => item.code === "invalid_database_url"));
+  assertHasDiagnosticCode(report.errors, "invalid_database_url");
 
   setRequiredRuntimeEnv();
   process.env.AZURE_OPENAI_ENDPOINT = "ftp://azure.example";
@@ -348,9 +352,9 @@ test("validateRuntimeConfig reports malformed required, optional, and tuning set
   process.env.VAPID_PRIVATE_KEY = "private";
   process.env.VAPID_SUBJECT = "not-a-subject";
   report = validateRuntimeConfig();
-  assert.ok(report.warnings.some((item) => item.code === "invalid_url_protocol"));
-  assert.ok(report.warnings.some((item) => item.code === "invalid_api_version"));
-  assert.ok(report.warnings.some((item) => item.code === "invalid_vapid_subject"));
+  assertHasDiagnosticCode(report.warnings, "invalid_url_protocol");
+  assertHasDiagnosticCode(report.warnings, "invalid_api_version");
+  assertHasDiagnosticCode(report.warnings, "invalid_vapid_subject");
 
   setRequiredRuntimeEnv();
   process.env.MEDIA_STORAGE = "filesystem";

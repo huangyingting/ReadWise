@@ -103,21 +103,17 @@ function summarize(result: ArticleProcessResult): void {
   }
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
-
-  if (args.help) {
-    printHelp();
-    return 0;
-  }
-
-  for (const lang of args.translateLangs) {
+function validateTranslateLangs(langs: string[]): boolean {
+  for (const lang of langs) {
     if (!isSupportedLanguage(lang)) {
       console.error(`Unsupported translation language: "${lang}".`);
-      return 1;
+      return false;
     }
   }
+  return true;
+}
 
+function warnProviderFallbacks(args: Args): void {
   if (!isAiConfigured()) {
     console.warn(
       "⚠ Azure OpenAI is not configured — AI steps will fall back gracefully (no vocab/quiz/tags). Difficulty is deterministic and still runs.",
@@ -126,48 +122,45 @@ async function main(): Promise<number> {
   if (args.tts && !isSpeechConfigured()) {
     console.warn("⚠ Azure Speech is not configured — TTS will fall back gracefully.");
   }
+}
 
-  let ids: string[] = args.ids;
-  if (args.all) {
-    const discovered = await listUnprocessedArticleIds({
-      includePublished: args.includePublished,
-      limit: args.limit ?? undefined,
-    });
-    ids = [...new Set([...ids, ...discovered])];
-  } else if (ids.length === 0) {
-    printHelp();
-    return 0;
-  }
+async function collectArticleIds(args: Args): Promise<string[]> {
+  if (!args.all) return args.ids;
 
-  if (ids.length === 0) {
-    console.log("No unprocessed articles found.");
-    return 0;
-  }
+  const discovered = await listUnprocessedArticleIds({
+    includePublished: args.includePublished,
+    limit: args.limit ?? undefined,
+  });
+  return [...new Set([...args.ids, ...discovered])];
+}
 
-  const opts: ProcessOptions = {
+function processOptions(args: Args): ProcessOptions {
+  return {
     tts: args.tts,
     translateLangs: args.translateLangs,
   };
+}
 
-  if (args.enqueue) {
-    console.log(`Enqueuing ${ids.length} ARTICLE_PROCESS job(s)…\n`);
-    let enqueued = 0;
-    let failed = 0;
-    for (const id of ids) {
-      try {
-        const job = await enqueueArticleProcess(id, opts);
-        console.log(`✓ ${id} → job ${job.id} (${job.status})`);
-        enqueued++;
-      } catch (err) {
-        console.error(`✗ could not enqueue ${id}: ${err instanceof Error ? err.message : String(err)}`);
-        failed++;
-      }
+async function enqueueArticles(ids: string[], opts: ProcessOptions): Promise<number> {
+  console.log(`Enqueuing ${ids.length} ARTICLE_PROCESS job(s)…\n`);
+  let enqueued = 0;
+  let failed = 0;
+  for (const id of ids) {
+    try {
+      const job = await enqueueArticleProcess(id, opts);
+      console.log(`✓ ${id} → job ${job.id} (${job.status})`);
+      enqueued++;
+    } catch (err) {
+      console.error(`✗ could not enqueue ${id}: ${err instanceof Error ? err.message : String(err)}`);
+      failed++;
     }
-    console.log(`\nDone. enqueued=${enqueued} failed=${failed}`);
-    console.log("Run `npm run worker` to drain the durable Job queue.");
-    return failed > 0 ? 1 : 0;
   }
+  console.log(`\nDone. enqueued=${enqueued} failed=${failed}`);
+  console.log("Run `npm run worker` to drain the durable Job queue.");
+  return failed > 0 ? 1 : 0;
+}
 
+async function processArticles(ids: string[], opts: ProcessOptions): Promise<number> {
   console.log(`Processing ${ids.length} article(s)…\n`);
 
   let published = 0;
@@ -189,6 +182,32 @@ async function main(): Promise<number> {
     `\nDone. processed=${ids.length} published=${published} failed=${failed} missing=${missing}`,
   );
   return failed > 0 || missing > 0 ? 1 : 0;
+}
+
+async function main(): Promise<number> {
+  const args = parseArgs(process.argv.slice(2));
+
+  if (args.help) {
+    printHelp();
+    return 0;
+  }
+
+  if (!validateTranslateLangs(args.translateLangs)) return 1;
+  warnProviderFallbacks(args);
+
+  const ids = await collectArticleIds(args);
+  if (!args.all && ids.length === 0) {
+    printHelp();
+    return 0;
+  }
+
+  if (ids.length === 0) {
+    console.log("No unprocessed articles found.");
+    return 0;
+  }
+
+  const opts = processOptions(args);
+  return args.enqueue ? enqueueArticles(ids, opts) : processArticles(ids, opts);
 }
 
 export { main };

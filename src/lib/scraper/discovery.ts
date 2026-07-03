@@ -45,21 +45,31 @@ function urlBelongsToProvider(url: string, provider: Provider): boolean {
   }
 }
 
+function canonicalUrl(raw: string, baseUrl?: string): string | null {
+  try {
+    const url = baseUrl === undefined ? new URL(raw) : new URL(raw, baseUrl);
+    return url.href.split("#")[0];
+  } catch {
+    return null;
+  }
+}
+
+function isProviderArticleUrl(url: string, provider: Provider): boolean {
+  if (!urlBelongsToProvider(url, provider)) return false;
+  if (!provider.articleUrlPattern.test(url)) return false;
+  if (provider.articleUrlFilter && !provider.articleUrlFilter(url)) return false;
+  return true;
+}
+
 /** Extracts candidate article links from a section/landing page's HTML. */
 export function discoverLinks(provider: Provider, html: string, baseUrl: string): string[] {
   const hrefs = [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].map((m) => m[1]);
   const seen = new Set<string>();
   const links: string[] = [];
   for (const href of hrefs) {
-    let abs: string;
-    try {
-      abs = new URL(href, baseUrl).href.split("#")[0];
-    } catch {
-      continue;
-    }
-    if (!urlBelongsToProvider(abs, provider)) continue;
-    if (!provider.articleUrlPattern.test(abs)) continue;
-    if (provider.articleUrlFilter && !provider.articleUrlFilter(abs)) continue;
+    const abs = canonicalUrl(href, baseUrl);
+    if (!abs) continue;
+    if (!isProviderArticleUrl(abs, provider)) continue;
     if (seen.has(abs)) continue;
     seen.add(abs);
     links.push(abs);
@@ -136,17 +146,11 @@ async function discoverViaExtractor(
 
   for (const raw of candidates) {
     if (collected.length >= limit) break;
-    let url: string;
-    try {
-      url = new URL(raw).href.split("#")[0];
-    } catch {
-      continue;
-    }
+    const url = canonicalUrl(raw);
+    if (!url) continue;
     if (seen.has(url)) continue;
     seen.add(url);
-    if (!urlBelongsToProvider(url, provider)) continue;
-    if (!provider.articleUrlPattern.test(url)) continue;
-    if (provider.articleUrlFilter && !provider.articleUrlFilter(url)) continue;
+    if (!isProviderArticleUrl(url, provider)) continue;
     if (!(await allowedCheck(url))) continue;
     collected.push(url);
   }

@@ -16,6 +16,7 @@ import { buildTokenAlignment } from "./timing-alignment";
 
 const DEFAULT_MIN_WORDS = 3;
 const DEFAULT_MAX_CHARS = 300;
+const SENTENCE_BOUNDARY_RE = /[.!?]+\s+(?=[A-Z"'])/g;
 
 export type PracticeSentenceOptions = {
   minWords?: number;
@@ -50,39 +51,51 @@ export function splitPracticeSentences(
     if (!p) continue;
 
     let cursor = 0;
-    const re = /[.!?]+\s+(?=[A-Z"'])/g;
+    const re = SENTENCE_BOUNDARY_RE;
+    re.lastIndex = 0;
     let m: RegExpExecArray | null;
 
     while ((m = re.exec(p)) !== null) {
-      const punctLen = (m[0].match(/^[.!?]+/) ?? [""])[0].length;
-      const segEnd = m.index + punctLen;
+      const segEnd = m.index + leadingPunctuationLength(m[0]);
       const raw = p.slice(cursor, segEnd);
-
-      const segWords = raw.trim().split(/\s+/).filter(Boolean);
-      const lastWord = segWords.at(-1)?.replace(/[.!?]+$/, "") ?? "";
-      const isAbbrev = lastWord.length <= 2 && /^[A-Z]/.test(lastWord);
-      const isDecimal = /\d$/.test(raw.trimEnd().slice(0, -1) || "");
-
-      if (!isAbbrev && !isDecimal) {
-        const trimmed = raw.trim();
-        const wc = trimmed.split(/\s+/).filter(Boolean).length;
-        if (wc >= minWords && trimmed.length <= maxChars) {
-          results.push(trimmed);
-        }
+      if (!isFalseSentenceBoundary(raw)) {
+        pushIfPracticable(results, raw, minWords, maxChars);
         cursor = m.index + m[0].length;
       }
     }
 
-    const remaining = p.slice(cursor).trim();
-    if (remaining) {
-      const wc = remaining.split(/\s+/).filter(Boolean).length;
-      if (wc >= minWords && remaining.length <= maxChars) {
-        results.push(remaining);
-      }
-    }
+    pushIfPracticable(results, p.slice(cursor), minWords, maxChars);
   }
 
   return results;
+}
+
+function leadingPunctuationLength(value: string): number {
+  return (value.match(/^[.!?]+/) ?? [""])[0].length;
+}
+
+function wordCount(value: string): number {
+  return value.split(/\s+/).filter(Boolean).length;
+}
+
+function isFalseSentenceBoundary(raw: string): boolean {
+  const segWords = raw.trim().split(/\s+/).filter(Boolean);
+  const lastWord = segWords.at(-1)?.replace(/[.!?]+$/, "") ?? "";
+  const isAbbrev = lastWord.length <= 2 && /^[A-Z]/.test(lastWord);
+  const isDecimal = /\d$/.test(raw.trimEnd().slice(0, -1) || "");
+  return isAbbrev || isDecimal;
+}
+
+function pushIfPracticable(
+  results: string[],
+  raw: string,
+  minWords: number,
+  maxChars: number,
+): void {
+  const trimmed = raw.trim();
+  if (trimmed && wordCount(trimmed) >= minWords && trimmed.length <= maxChars) {
+    results.push(trimmed);
+  }
 }
 
 type AlignmentData = {

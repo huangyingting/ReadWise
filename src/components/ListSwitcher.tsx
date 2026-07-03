@@ -48,6 +48,14 @@ interface ListRowProps {
   onDeleteSuccess: (deletedId: string) => void;
 }
 
+function listHref(list: SwitcherList): string {
+  return list.isDefault ? "/lists" : `/lists?list=${encodeURIComponent(list.id)}`;
+}
+
+function isListActive(list: SwitcherList, activeListId: string | null): boolean {
+  return list.id === activeListId || (!activeListId && list.isDefault);
+}
+
 function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowProps) {
   const [renaming, setRenaming] = useState(false);
 
@@ -78,7 +86,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
   return (
     <div className="group/list-row flex items-center gap-[var(--space-1)]">
       <Link
-        href={list.isDefault ? "/lists" : `/lists?list=${encodeURIComponent(list.id)}`}
+        href={listHref(list)}
         aria-current={isActive ? "page" : undefined}
         className={cn(
           "flex items-center gap-[var(--space-2)] flex-1 min-w-0",
@@ -228,6 +236,21 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
     }
   }
 
+  function handleCreateSuccess(list: { id: string }) {
+    setCreating(false);
+    router.push(`/lists?list=${encodeURIComponent(list.id)}`);
+  }
+
+  function handleMobileRenameSuccess() {
+    setMobileManagingId(null);
+    router.refresh();
+  }
+
+  function handleMobileDeleteSuccess(id: string) {
+    setMobileManagingId(null);
+    handleDeleteSuccess(id);
+  }
+
   function showCreate() {
     setCreating(true);
     setMobileManagingId(null);
@@ -242,26 +265,27 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
         aria-orientation="vertical"
         className="flex flex-col gap-[var(--space-1)]"
       >
-        {lists.map((list) => (
-          <div key={list.id} role="tab" aria-selected={list.id === activeListId || (!activeListId && list.isDefault)}>
-            <ListRow
-              list={list}
-              isActive={list.id === activeListId || (!activeListId && list.isDefault)}
-              onRenameSuccess={handleRenameSuccess}
-              onDeleteSuccess={handleDeleteSuccess}
-            />
-          </div>
-        ))}
+        {lists.map((list) => {
+          const active = isListActive(list, activeListId);
+
+          return (
+            <div key={list.id} role="tab" aria-selected={active}>
+              <ListRow
+                list={list}
+                isActive={active}
+                onRenameSuccess={handleRenameSuccess}
+                onDeleteSuccess={handleDeleteSuccess}
+              />
+            </div>
+          );
+        })}
       </nav>
 
       {/* Create new list */}
       <div className="mt-[var(--space-2)]">
         {creating ? (
           <ListCreateForm
-            onSuccess={(list) => {
-              setCreating(false);
-              router.push(`/lists?list=${encodeURIComponent(list.id)}`);
-            }}
+            onSuccess={handleCreateSuccess}
             onCancel={() => {
               setCreating(false);
               createBtnRef.current?.focus();
@@ -299,12 +323,12 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
       aria-label="Reading lists"
     >
       {lists.map((list) => {
-        const isActive = list.id === activeListId || (!activeListId && list.isDefault);
+        const isActive = isListActive(list, activeListId);
         const isManaging = mobileManagingId === list.id;
         return (
           <Fragment key={list.id}>
             <Link
-              href={list.isDefault ? "/lists" : `/lists?list=${encodeURIComponent(list.id)}`}
+              href={listHref(list)}
               aria-current={isActive ? "page" : undefined}
               className={cn(
                 "inline-flex items-center gap-[var(--space-1)] shrink-0 snap-start",
@@ -373,6 +397,10 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
       </Button>
     </nav>
   );
+  const mobileManagingList =
+    mobileManagingId && !creating
+      ? lists.find((list) => list.id === mobileManagingId && !list.isDefault)
+      : null;
 
   return (
     <>
@@ -388,31 +416,20 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
         {creating ? (
           <ListCreateForm
             className="mt-[var(--space-3)]"
-            onSuccess={(list) => {
-              setCreating(false);
-              router.push(`/lists?list=${encodeURIComponent(list.id)}`);
-            }}
+            onSuccess={handleCreateSuccess}
             onCancel={() => setCreating(false)}
           />
         ) : null}
         {/* Mobile management panel — shown when ⋯ is tapped on a custom list */}
-        {mobileManagingId && !creating ? (() => {
-          const mgList = lists.find((l) => l.id === mobileManagingId && !l.isDefault);
-          if (!mgList) return null;
-          return (
-            <MobileListManager
-              key={mobileManagingId}
-              list={mgList}
-              onClose={() => setMobileManagingId(null)}
-              onRenameSuccess={() => { setMobileManagingId(null); router.refresh(); }}
-              onDeleteSuccess={(id) => {
-                setMobileManagingId(null);
-                if (id === activeListId) router.push("/lists");
-                else router.refresh();
-              }}
-            />
-          );
-        })() : null}
+        {mobileManagingList ? (
+          <MobileListManager
+            key={mobileManagingList.id}
+            list={mobileManagingList}
+            onClose={() => setMobileManagingId(null)}
+            onRenameSuccess={handleMobileRenameSuccess}
+            onDeleteSuccess={handleMobileDeleteSuccess}
+          />
+        ) : null}
       </div>
     </>
   );

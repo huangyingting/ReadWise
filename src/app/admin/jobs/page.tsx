@@ -33,6 +33,15 @@ const STATUS_VALUES = Object.values(JobStatus);
 const TYPE_VALUES = Object.values(JobType);
 const TERMINAL = new Set<string>([JobStatus.COMPLETED, JobStatus.DEAD_LETTER]);
 
+function jobActionState(status: AdminJobRow["status"]) {
+  const isTerminal = TERMINAL.has(status);
+  return {
+    canRetry: status === JobStatus.FAILED || status === JobStatus.DEAD_LETTER,
+    canCancel: !isTerminal,
+    canArchive: isTerminal,
+  };
+}
+
 function statusVariant(status: string): BadgeProps["variant"] {
   if (status === JobStatus.COMPLETED) return "success";
   if (status === JobStatus.DEAD_LETTER || status === JobStatus.FAILED) return "danger";
@@ -55,63 +64,60 @@ function JobsTable({ jobs }: { jobs: AdminJobRow[] }) {
   return (
     <AdminTableWrap ariaLabel="Jobs table (scrollable)">
       <thead>
-          <tr>
-            <th>Type / Article</th>
-            <th>Status</th>
-            <th>Attempts</th>
-            <th>Lock age</th>
-            <th>Created</th>
-            <th>Last error</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {jobs.map((job) => {
-            const canRetry =
-              job.status === JobStatus.FAILED || job.status === JobStatus.DEAD_LETTER;
-            const canCancel = !TERMINAL.has(job.status);
-            const canArchive = TERMINAL.has(job.status);
-            return (
-              <tr key={job.id}>
-                <td>
-                  <div className="font-medium">{job.type}</div>
-                  {job.articleId ? (
-                    <Link
-                      href={`/admin/articles/${job.articleId}`}
-                      className="text-primary-text hover:underline text-[length:var(--text-sm)]"
-                    >
-                      {job.feature ? `${job.feature} · ` : ""}
-                      {job.articleId}
-                    </Link>
-                  ) : (
-                    <span className="muted text-[length:var(--text-sm)]">
-                      {job.dedupeKey ?? job.id}
-                    </span>
-                  )}
-                </td>
-                <td>
-                  <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
-                </td>
-                <td>
-                  {job.attempts}/{job.maxAttempts}
-                </td>
-                <td className="muted">{formatLockAge(job.lockAgeMs)}</td>
-                <td className="muted">{formatDateTime(job.createdAt)}</td>
-                <td className="text-danger-text text-[length:var(--text-sm)]">
-                  {job.lastError ?? "—"}
-                </td>
-                <td>
-                  <AdminJobActions
-                    jobId={job.id}
-                    canRetry={canRetry}
-                    canCancel={canCancel}
-                    canArchive={canArchive}
-                  />
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
+        <tr>
+          <th>Type / Article</th>
+          <th>Status</th>
+          <th>Attempts</th>
+          <th>Lock age</th>
+          <th>Created</th>
+          <th>Last error</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {jobs.map((job) => {
+          const { canRetry, canCancel, canArchive } = jobActionState(job.status);
+          return (
+            <tr key={job.id}>
+              <td>
+                <div className="font-medium">{job.type}</div>
+                {job.articleId ? (
+                  <Link
+                    href={`/admin/articles/${job.articleId}`}
+                    className="text-primary-text hover:underline text-[length:var(--text-sm)]"
+                  >
+                    {job.feature ? `${job.feature} · ` : ""}
+                    {job.articleId}
+                  </Link>
+                ) : (
+                  <span className="muted text-[length:var(--text-sm)]">
+                    {job.dedupeKey ?? job.id}
+                  </span>
+                )}
+              </td>
+              <td>
+                <Badge variant={statusVariant(job.status)}>{job.status}</Badge>
+              </td>
+              <td>
+                {job.attempts}/{job.maxAttempts}
+              </td>
+              <td className="muted">{formatLockAge(job.lockAgeMs)}</td>
+              <td className="muted">{formatDateTime(job.createdAt)}</td>
+              <td className="text-danger-text text-[length:var(--text-sm)]">
+                {job.lastError ?? "—"}
+              </td>
+              <td>
+                <AdminJobActions
+                  jobId={job.id}
+                  canRetry={canRetry}
+                  canCancel={canCancel}
+                  canArchive={canArchive}
+                />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
     </AdminTableWrap>
   );
 }
@@ -151,7 +157,7 @@ export default async function AdminJobsPage({
       <Card>
         <div className="stack">
           <CardTitle level="h3">Backfill &amp; rebuild</CardTitle>
-          <p className="muted" style={{ margin: 0 }}>
+          <p className="m-0 muted">
             Enqueue controlled, capped jobs to (re)generate derived content. Use{" "}
             <strong>Dry run</strong> first to preview the plan. Rebuilds clear cached
             AI content only — never saved words or reading progress.

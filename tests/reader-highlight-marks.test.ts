@@ -69,6 +69,15 @@ function installDom(html: string): Document {
   return document;
 }
 
+function installProse(html: string): HTMLElement {
+  const document = installDom(html);
+  return document.getElementById("prose") as HTMLElement;
+}
+
+function highlightMarks(prose: HTMLElement): HTMLElement[] {
+  return Array.from(prose.querySelectorAll<HTMLElement>("mark.rw-hl"));
+}
+
 afterEach(() => {
   restoreGlobals();
 });
@@ -175,8 +184,7 @@ describe("highlight mark helpers", () => {
   });
 
   test("collectTextNodes returns DOM-order offsets across nested text nodes", () => {
-    const document = installDom("<div id='prose'>One <em>two</em> three</div>");
-    const prose = document.getElementById("prose") as HTMLElement;
+    const prose = installProse("<div id='prose'>One <em>two</em> three</div>");
 
     const entries = collectTextNodes(prose);
 
@@ -195,10 +203,9 @@ describe("highlight mark helpers", () => {
   });
 
   test("applyHighlightMarks wraps exact multi-node matches and marks note metadata once", () => {
-    const document = installDom(
+    const prose = installProse(
       "<div id='prose'>Hello <em>wonderful world</em> again</div>",
     );
-    const prose = document.getElementById("prose") as HTMLElement;
 
     applyHighlightMarks(
       prose,
@@ -215,7 +222,7 @@ describe("highlight mark helpers", () => {
       () => assert.fail("highlight should resolve"),
     );
 
-    const marks = Array.from(prose.querySelectorAll<HTMLElement>("mark.rw-hl"));
+    const marks = highlightMarks(prose);
     assert.equal(marks.length, 2);
     assert.deepEqual(
       marks.map((mark) => [mark.dataset.hlId, mark.dataset.hlColor]),
@@ -228,8 +235,7 @@ describe("highlight mark helpers", () => {
   });
 
   test("applyHighlightMarks unwraps old marks and handles no-highlight input", () => {
-    const document = installDom("<div id='prose'>Alpha beta gamma</div>");
-    const prose = document.getElementById("prose") as HTMLElement;
+    const prose = installProse("<div id='prose'>Alpha beta gamma</div>");
     const original = prose.textContent;
 
     applyHighlightMarks(
@@ -245,19 +251,18 @@ describe("highlight mark helpers", () => {
       ],
       () => assert.fail("highlight should resolve"),
     );
-    assert.equal(prose.querySelectorAll("mark.rw-hl").length, 1);
+    assert.equal(highlightMarks(prose).length, 1);
 
     applyHighlightMarks(prose, [], () => assert.fail("no orphan checks"));
 
-    assert.equal(prose.querySelectorAll("mark.rw-hl").length, 0);
+    assert.equal(highlightMarks(prose).length, 0);
     assert.equal(prose.textContent, original);
   });
 
   test("applyHighlightMarks repairs stale offsets and reports orphaned highlights", () => {
-    const document = installDom(
+    const prose = installProse(
       "<div id='prose'>Alpha world omega beta world gamma</div>",
     );
-    const prose = document.getElementById("prose") as HTMLElement;
     const orphaned: string[] = [];
 
     applyHighlightMarks(
@@ -288,8 +293,7 @@ describe("highlight mark helpers", () => {
   });
 
   test("applyHighlightMarks ignores zero-length resolved segments", () => {
-    const document = installDom("<div id='prose'>Alpha</div>");
-    const prose = document.getElementById("prose") as HTMLElement;
+    const prose = installProse("<div id='prose'>Alpha</div>");
 
     applyHighlightMarks(
       prose,
@@ -304,7 +308,7 @@ describe("highlight mark helpers", () => {
       () => assert.fail("empty exact range should not orphan"),
     );
 
-    assert.equal(prose.querySelectorAll("mark.rw-hl").length, 0);
+    assert.equal(highlightMarks(prose).length, 0);
   });
 
   test("overlapsAny excludes optimistic highlights and honors half-open ranges", () => {

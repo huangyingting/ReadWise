@@ -105,6 +105,48 @@ function lastWordEnd(words: SpeechWord[]): number | undefined {
   return max > 0 ? max : undefined;
 }
 
+function mediaAssetData(params: {
+  put: PutMediaResult;
+  mimeType: string;
+  durationSec: number | undefined;
+  voice: string;
+  format: string;
+  articleId: string;
+}) {
+  const { put, mimeType, durationSec, voice, format, articleId } = params;
+  return {
+    kind: "speech" as const,
+    mimeType,
+    sizeBytes: put.sizeBytes,
+    checksum: put.checksum,
+    durationSec,
+    voice,
+    format,
+    articleId,
+  };
+}
+
+function articleSpeechData(params: {
+  voice: string;
+  format: string;
+  mimeType: string;
+  storageKey: string;
+  mediaAssetId: string;
+  plainText: string;
+  words: ReturnType<typeof createSpeechTimingPayloadV2>;
+}) {
+  const { voice, format, mimeType, storageKey, mediaAssetId, plainText, words } = params;
+  return {
+    voice,
+    format,
+    mimeType,
+    storageKey,
+    mediaAssetId,
+    plainText,
+    words,
+  };
+}
+
 /**
  * Persists synthesized audio to media storage and upserts both the MediaAsset
  * record and the ArticleSpeech cache row.
@@ -149,52 +191,39 @@ export async function saveSpeechResult(params: {
   }
 
   const durationSec = lastWordEnd(words);
+  const assetData = mediaAssetData({
+    put,
+    mimeType,
+    durationSec,
+    voice,
+    format,
+    articleId,
+  });
   const asset = await prisma.mediaAsset.upsert({
     where: { storageKey: put.storageKey },
-    update: {
-      kind: "speech",
-      mimeType,
-      sizeBytes: put.sizeBytes,
-      checksum: put.checksum,
-      durationSec,
-      voice,
-      format,
-      articleId,
-    },
+    update: assetData,
     create: {
       storageKey: put.storageKey,
-      kind: "speech",
-      mimeType,
-      sizeBytes: put.sizeBytes,
-      checksum: put.checksum,
-      durationSec,
-      voice,
-      format,
-      articleId,
+      ...assetData,
     },
     select: { id: true },
   });
 
+  const speechData = articleSpeechData({
+    voice,
+    format,
+    mimeType,
+    storageKey: put.storageKey,
+    mediaAssetId: asset.id,
+    plainText,
+    words: timingPayload,
+  });
   await prisma.articleSpeech.upsert({
     where: { articleId },
-    update: {
-      voice,
-      format,
-      mimeType,
-      storageKey: put.storageKey,
-      mediaAssetId: asset.id,
-      plainText,
-      words: timingPayload,
-    },
+    update: speechData,
     create: {
       articleId,
-      voice,
-      format,
-      mimeType,
-      storageKey: put.storageKey,
-      mediaAssetId: asset.id,
-      plainText,
-      words: timingPayload,
+      ...speechData,
     },
   });
   return true;

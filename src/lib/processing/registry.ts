@@ -124,6 +124,28 @@ export type FeatureDefinition = {
   readonly stepResultName?: RegistryStepName;
 };
 
+type ClearFeature = NonNullable<FeatureDefinition["clearFrom"]>;
+type CountKey = keyof FeatureCandidateState["_count"];
+
+const missingCount =
+  (countKey: CountKey) =>
+  (article: FeatureCandidateState): boolean =>
+    article._count[countKey] === 0;
+
+const clearDifficulty: ClearFeature = async (tx, articleId) => {
+  await tx.article.update({
+    where: { id: articleId },
+    data: {
+      difficulty: null,
+      difficultyScore: null,
+      lexileApprox: null,
+      difficultyVersion: null,
+    },
+  });
+};
+
+const clearTranslationsNoop: ClearFeature = async (_tx, _articleId) => {};
+
 export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
   {
     key: "difficulty",
@@ -135,17 +157,7 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
       a.difficulty == null ||
       a.lexileApprox == null ||
       a.difficultyVersion !== DIFFICULTY_ALGORITHM_VERSION,
-    clearFrom: async (tx, articleId) => {
-      await tx.article.update({
-        where: { id: articleId },
-        data: {
-          difficulty: null,
-          difficultyScore: null,
-          lexileApprox: null,
-          difficultyVersion: null,
-        },
-      });
-    },
+    clearFrom: clearDifficulty,
     isDoneIn: (s) => s.hasDifficulty,
   },
   {
@@ -154,7 +166,7 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     supportsLangs: false,
     isTts: false,
     isRequired: true,
-    isMissingFrom: (a) => a._count.tags === 0,
+    isMissingFrom: missingCount("tags"),
     clearFrom: async (tx, articleId) => {
       await tx.articleTag.deleteMany({ where: { articleId } });
     },
@@ -166,7 +178,7 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     supportsLangs: false,
     isTts: false,
     isRequired: true,
-    isMissingFrom: (a) => a._count.vocabulary === 0,
+    isMissingFrom: missingCount("vocabulary"),
     clearFrom: async (tx, articleId) => {
       await tx.vocabularyItem.deleteMany({ where: { articleId } });
     },
@@ -178,7 +190,7 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     supportsLangs: false,
     isTts: false,
     isRequired: true,
-    isMissingFrom: (a) => a._count.quizQuestions === 0,
+    isMissingFrom: missingCount("quizQuestions"),
     clearFrom: async (tx, articleId) => {
       await tx.quizQuestion.deleteMany({ where: { articleId } });
     },
@@ -191,12 +203,8 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     isTts: false,
     isRequired: false,
     // translation is handled per-lang in the caller; no scalar isMissingFrom/isDoneIn
-    clearFrom: async (tx, articleId) => {
-      // Translation step keys arrive as "translation:<lang>"; the registry entry
-      // only defines the base clear when the caller passes the full key.
-      // Per-lang clearing is handled directly in defaultClearFeatures.
-      void articleId; void tx;
-    },
+    // Per-lang clearing is handled directly in defaultClearFeatures.
+    clearFrom: clearTranslationsNoop,
   },
   {
     key: "speech",
@@ -217,7 +225,7 @@ export const FEATURE_REGISTRY: readonly FeatureDefinition[] = [
     supportsLangs: false,
     isTts: false,
     isRequired: false,
-    isMissingFrom: (a) => a._count.grammarExplanations === 0,
+    isMissingFrom: missingCount("grammarExplanations"),
     clearFrom: async (tx, articleId) => {
       await tx.grammarExplanation.deleteMany({ where: { articleId } });
     },

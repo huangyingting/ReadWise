@@ -49,6 +49,39 @@ export interface TutorConversationState {
   clear: () => Promise<boolean>;
 }
 
+type TutorMessagesResponse = { messages: TutorMessage[] };
+type TutorAskResponse = {
+  answer: string;
+  fallback: boolean;
+  messages: TutorMessage[];
+};
+
+const THINKING_TRANSIENT_ID = "t-thinking";
+
+function getTutorEndpoint(articleId: string) {
+  return `/api/reader/${articleId}/tutor`;
+}
+
+function createTransientId(kind: "user" | "fallback" | "error") {
+  return `t-${kind}-${Date.now()}`;
+}
+
+function createUserTransient(
+  content: string,
+  createdAt: string,
+): Extract<TransientItem, { kind: "user" }> {
+  return {
+    kind: "user",
+    id: createTransientId("user"),
+    content,
+    createdAt,
+  };
+}
+
+function getErrorMessage(err: unknown) {
+  return err instanceof Error ? err.message : "Something went wrong.";
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -72,10 +105,9 @@ export function useTutorConversation(
     setFetching(true);
     void (async () => {
       try {
-        const data = await getJson<{ messages: TutorMessage[] }>(
-          `/api/reader/${articleId}/tutor`,
-          { signal: controller.signal },
-        );
+        const data = await getJson<TutorMessagesResponse>(getTutorEndpoint(articleId), {
+          signal: controller.signal,
+        });
         if (!cancelled) setMessages(data.messages ?? []);
       } catch {
         /* silently degrade — empty conversation shown */
@@ -100,21 +132,12 @@ export function useTutorConversation(
 
       setAsking(true);
       const now = new Date().toISOString();
-      const userItem: TransientItem = {
-        kind: "user",
-        id: `t-user-${Date.now()}`,
-        content: q,
-        createdAt: now,
-      };
+      const userItem = createUserTransient(q, now);
 
-      setTransient([userItem, { kind: "thinking", id: "t-thinking" }]);
+      setTransient([userItem, { kind: "thinking", id: THINKING_TRANSIENT_ID }]);
 
       try {
-        const data = await postJson<{
-          answer: string;
-          fallback: boolean;
-          messages: TutorMessage[];
-        }>(`/api/reader/${articleId}/tutor`, {
+        const data = await postJson<TutorAskResponse>(getTutorEndpoint(articleId), {
           question: q,
           // #377 — Privacy: only the current paragraph of the article the
           // user is reading is sent as optional context. Capped at 500 chars
@@ -132,7 +155,7 @@ export function useTutorConversation(
             userItem,
             {
               kind: "fallback",
-              id: `t-fallback-${Date.now()}`,
+              id: createTransientId("fallback"),
               content: data.answer,
               createdAt: new Date().toISOString(),
             },
@@ -142,14 +165,12 @@ export function useTutorConversation(
           setTransient([]);
         }
       } catch (err) {
-        const msg =
-          err instanceof Error ? err.message : "Something went wrong.";
         setTransient([
           userItem,
           {
             kind: "error",
-            id: `t-error-${Date.now()}`,
-            content: msg,
+            id: createTransientId("error"),
+            content: getErrorMessage(err),
             question: q,
           },
         ]);
@@ -165,7 +186,7 @@ export function useTutorConversation(
     setClearLoading(true);
     setClearError(null);
     try {
-      await deleteJson(`/api/reader/${articleId}/tutor`);
+      await deleteJson(getTutorEndpoint(articleId));
       setMessages([]);
       setTransient([]);
       return true;

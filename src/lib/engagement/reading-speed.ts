@@ -61,6 +61,23 @@ export function computeWpm(
   return Math.round(Math.min(MAX_WPM, Math.max(MIN_WPM, raw)));
 }
 
+function mean(values: readonly number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
+}
+
+function roundedMean(values: readonly number[]): number {
+  return Math.round(mean(values));
+}
+
+function validWpmSamples(records: readonly SpeedRecord[]): number[] {
+  const valid: number[] = [];
+  for (const record of records) {
+    const wpm = computeWpm(record.wordCount, record.timeSpentMs);
+    if (wpm !== null) valid.push(wpm);
+  }
+  return valid;
+}
+
 // ---------------------------------------------------------------------------
 // Trend helpers
 // ---------------------------------------------------------------------------
@@ -86,21 +103,14 @@ export function computeWpmTrend(
   records: SpeedRecord[],
   recentCount = 5,
 ): { averageWpm: number | null; recentWpm: number | null } {
-  const valid: number[] = [];
-  for (const r of records) {
-    const wpm = computeWpm(r.wordCount, r.timeSpentMs);
-    if (wpm !== null) valid.push(wpm);
-  }
+  const valid = validWpmSamples(records);
   if (valid.length === 0) {
     return { averageWpm: null, recentWpm: null };
   }
-  const avg = Math.round(valid.reduce((a, b) => a + b, 0) / valid.length);
   const recent = valid.slice(-recentCount);
   const recentWpm =
-    recent.length > 0
-      ? Math.round(recent.reduce((a, b) => a + b, 0) / recent.length)
-      : null;
-  return { averageWpm: avg, recentWpm };
+    recent.length > 0 ? roundedMean(recent) : null;
+  return { averageWpm: roundedMean(valid), recentWpm };
 }
 
 // ---------------------------------------------------------------------------
@@ -174,12 +184,7 @@ export function computeFluencyTrend(
   const levelFilter = filters.level ?? null;
   const categoryFilter = filters.category ?? null;
 
-  const valid: number[] = [];
-  for (const r of records) {
-    const wpm = computeWpm(r.wordCount, r.timeSpentMs);
-    if (wpm !== null) valid.push(wpm);
-  }
-
+  const valid = validWpmSamples(records);
   const sampleCount = valid.length;
   if (sampleCount < MIN_FLUENCY_SAMPLES) {
     return {
@@ -191,7 +196,7 @@ export function computeFluencyTrend(
     };
   }
 
-  const avgWpm = Math.round(valid.reduce((a, b) => a + b, 0) / sampleCount);
+  const avgWpm = roundedMean(valid);
 
   // Need two non-empty windows to compare; otherwise call it stable.
   const recent = valid.slice(-FLUENCY_WINDOW);
@@ -200,7 +205,6 @@ export function computeFluencyTrend(
     return { avgWpm, trend: "stable", sampleCount, levelFilter, categoryFilter };
   }
 
-  const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length;
   const recentMean = mean(recent);
   const priorMean = mean(prior);
   const delta = (recentMean - priorMean) / priorMean;

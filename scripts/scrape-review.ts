@@ -219,6 +219,10 @@ function parseOrder(value: string | undefined): Order {
   return value === "oldest" || value === "random" ? value : "newest";
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function printHelp(): void {
   console.log(`ReadWise scrape review
 
@@ -374,21 +378,28 @@ async function loadPreviewItems(args: ScrapeReviewArgs): Promise<ReviewItem[]> {
 async function collectPreviewUrls(args: ScrapeReviewArgs): Promise<string[]> {
   const urls: string[] = [];
   if (args.urlsFile) {
-    const text = await readFile(args.urlsFile, "utf8");
-    urls.push(...text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean));
+    urls.push(...(await readUrlsFile(args.urlsFile)));
   }
   urls.push(...args.urls);
 
   if (args.discover) {
-    const provider = requireProvider(args.provider);
-    const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
-    const discovered = await discoverProviderUrls(provider, args.limit, {
-      isProviderEnabled: async () => true,
-    });
-    urls.push(...discovered);
+    urls.push(...(await discoverPreviewUrls(args)));
   }
 
   return dedupeUrls(urls);
+}
+
+async function readUrlsFile(filePath: string): Promise<string[]> {
+  const text = await readFile(filePath, "utf8");
+  return text.split(/\r?\n/).map((line) => line.trim()).filter(Boolean);
+}
+
+async function discoverPreviewUrls(args: ScrapeReviewArgs): Promise<string[]> {
+  const provider = requireProvider(args.provider);
+  const { discoverProviderUrls } = await import("@/lib/scraper/discovery");
+  return discoverProviderUrls(provider, args.limit, {
+    isProviderEnabled: async () => true,
+  });
 }
 
 async function previewUrl(url: string): Promise<ReviewItem> {
@@ -422,7 +433,7 @@ async function previewUrl(url: string): Promise<ReviewItem> {
       error: null,
     };
   } catch (err) {
-    return failedReviewItem(url, err instanceof Error ? err.message : String(err));
+    return failedReviewItem(url, errorMessage(err));
   }
 }
 
@@ -479,10 +490,8 @@ function dedupeUrls(urls: string[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const raw of urls) {
-    let url: string;
-    try {
-      url = new URL(raw).href.split("#")[0]!;
-    } catch {
+    const url = normalizeReviewUrl(raw);
+    if (!url) {
       console.warn(`Skipping invalid URL: ${raw}`);
       continue;
     }
@@ -491,6 +500,14 @@ function dedupeUrls(urls: string[]): string[] {
     out.push(url);
   }
   return out;
+}
+
+function normalizeReviewUrl(raw: string): string | null {
+  try {
+    return new URL(raw).href.split("#")[0]!;
+  } catch {
+    return null;
+  }
 }
 
 function shuffle<T>(items: T[]): T[] {
@@ -508,7 +525,7 @@ async function startReviewServer(
   mode: ReviewMode,
 ): Promise<Server> {
   const itemById = new Map(items.map((item) => [item.id, item]));
-  const feedbackFile = args.feedbackFile ? path.resolve(process.cwd(), args.feedbackFile) : null;
+  const feedbackFile = feedbackFilePath(args.feedbackFile);
   if (feedbackFile) await mkdir(path.dirname(feedbackFile), { recursive: true });
 
   const server = createServer(async (req, res) => {
@@ -522,11 +539,11 @@ async function startReviewServer(
       });
     } catch (err) {
       console.error(err);
-      sendJson(res, 500, { error: err instanceof Error ? err.message : String(err) });
+      sendJson(res, 500, { error: errorMessage(err) });
     }
   });
 
-  await new Promise<void>((resolve) => server.listen(args.port, args.host, resolve));
+  await listen(server, args);
   const url = `http://${args.host}:${args.port}`;
   console.log(`Review server ready: ${url}`);
   console.log(`Articles loaded: ${items.length}`);
@@ -540,6 +557,14 @@ async function startReviewServer(
   process.on("SIGINT", () => void shutdown());
   process.on("SIGTERM", () => void shutdown());
   return server;
+}
+
+function feedbackFilePath(feedbackFile: string | null): string | null {
+  return feedbackFile ? path.resolve(process.cwd(), feedbackFile) : null;
+}
+
+async function listen(server: Server, args: ScrapeReviewArgs): Promise<void> {
+  await new Promise<void>((resolve) => server.listen(args.port, args.host, resolve));
 }
 
 type RouteContext = {
@@ -597,13 +622,7 @@ function validateFeedback(
   if (typeof payload.itemId !== "string") throw new Error("itemId is required");
   const item = itemById.get(payload.itemId);
   if (!item) throw new Error(`Unknown itemId: ${payload.itemId}`);
-  const rawFeedback =
-    typeof payload.feedback === "string"
-      ? payload.feedback
-      : typeof payload.note === "string"
-        ? payload.note
-        : "";
-  const feedback = rawFeedback.trim().slice(0, MAX_FEEDBACK_CHARS);
+  const feedback = feedbackText(payload);
   if (!feedback) throw new Error("feedback text is required");
 
   return {
@@ -617,6 +636,16 @@ function validateFeedback(
     provider: item.provider,
     feedback,
   };
+}
+
+function feedbackText(payload: FeedbackPayload): string {
+  const raw =
+    typeof payload.feedback === "string"
+      ? payload.feedback
+      : typeof payload.note === "string"
+        ? payload.note
+        : "";
+  return raw.trim().slice(0, MAX_FEEDBACK_CHARS);
 }
 
 function sendHtml(res: ServerResponse, html: string): void {
@@ -840,6 +869,7 @@ export const __scrapeReviewTest = {
   printHelp,
   positiveInt,
   parseOrder,
+  errorMessage,
   startReviewServer,
   loadDbReviewItems,
   fetchArticlesByIds,
@@ -854,10 +884,14 @@ export const __scrapeReviewTest = {
   countWords,
   requireProvider,
   dedupeUrls,
+  normalizeReviewUrl,
   shuffle,
+  feedbackFilePath,
+  listen,
   routeRequest,
   readJsonBody,
   validateFeedback,
+  feedbackText,
   sendHtml,
   sendJson,
   renderPage,

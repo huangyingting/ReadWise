@@ -28,6 +28,10 @@ interface Preference {
 }
 
 const HOURS = Array.from({ length: 24 }, (_, h) => h);
+const DEFAULT_QUIET_HOURS = {
+  start: 22,
+  end: 7,
+} as const;
 
 function hourLabel(h: number): string {
   const ampm = h < 12 ? "AM" : "PM";
@@ -41,6 +45,35 @@ function detectTimezone(): string | null {
   } catch {
     return null;
   }
+}
+
+function HourOptions() {
+  return HOURS.map((h) => (
+    <option key={h} value={h}>
+      {hourLabel(h)}
+    </option>
+  ));
+}
+
+function parseOptionalHour(value: string): number | null {
+  return value === "" ? null : Number(value);
+}
+
+function quietHoursPatch(enabled: boolean): Pick<Preference, "quietHoursStart" | "quietHoursEnd"> {
+  return enabled
+    ? { quietHoursStart: DEFAULT_QUIET_HOURS.start, quietHoursEnd: DEFAULT_QUIET_HOURS.end }
+    : { quietHoursStart: null, quietHoursEnd: null };
+}
+
+function buildPreferencePayload(pref: Preference) {
+  return {
+    enabled: pref.enabled,
+    preferredHour: pref.preferredHour,
+    // Quiet hours must be sent together (or both cleared).
+    quietHoursStart: pref.quietHoursStart,
+    quietHoursEnd: pref.quietHoursEnd,
+    timezone: detectTimezone(),
+  };
 }
 
 export default function ReminderPreferencesForm() {
@@ -76,15 +109,10 @@ export default function ReminderPreferencesForm() {
     setSaving(true);
     setStatus("idle");
     try {
-      const body = {
-        enabled: pref.enabled,
-        preferredHour: pref.preferredHour,
-        // Quiet hours must be sent together (or both cleared).
-        quietHoursStart: pref.quietHoursStart,
-        quietHoursEnd: pref.quietHoursEnd,
-        timezone: detectTimezone(),
-      };
-      const data = await putJson<{ preference: Preference }>("/api/push/preferences", body);
+      const data = await putJson<{ preference: Preference }>(
+        "/api/push/preferences",
+        buildPreferencePayload(pref),
+      );
       setPref(data.preference);
       setStatus("saved");
     } catch {
@@ -137,17 +165,13 @@ export default function ReminderPreferencesForm() {
             value={pref.preferredHour ?? ""}
             onChange={(e) =>
               update({
-                preferredHour: e.target.value === "" ? null : Number(e.target.value),
+                preferredHour: parseOptionalHour(e.target.value),
               })
             }
             disabled={!pref.enabled}
           >
             <option value="">Any time</option>
-            {HOURS.map((h) => (
-              <option key={h} value={h}>
-                {hourLabel(h)}
-              </option>
-            ))}
+            <HourOptions />
           </Select>
         </div>
       </div>
@@ -163,13 +187,7 @@ export default function ReminderPreferencesForm() {
         </div>
         <Switch
           checked={quietEnabled}
-          onCheckedChange={(v) =>
-            update(
-              v
-                ? { quietHoursStart: 22, quietHoursEnd: 7 }
-                : { quietHoursStart: null, quietHoursEnd: null },
-            )
-          }
+          onCheckedChange={(v) => update(quietHoursPatch(v))}
           aria-label="Enable quiet hours"
           disabled={!pref.enabled}
           className="shrink-0"
@@ -188,15 +206,11 @@ export default function ReminderPreferencesForm() {
             <Select
               id="quiet-start"
               selectSize="sm"
-              value={pref.quietHoursStart ?? 22}
+              value={pref.quietHoursStart ?? DEFAULT_QUIET_HOURS.start}
               onChange={(e) => update({ quietHoursStart: Number(e.target.value) })}
               disabled={!pref.enabled}
             >
-              {HOURS.map((h) => (
-                <option key={h} value={h}>
-                  {hourLabel(h)}
-                </option>
-              ))}
+              <HourOptions />
             </Select>
           </div>
           <div className="flex flex-col gap-[var(--space-1)]">
@@ -209,15 +223,11 @@ export default function ReminderPreferencesForm() {
             <Select
               id="quiet-end"
               selectSize="sm"
-              value={pref.quietHoursEnd ?? 7}
+              value={pref.quietHoursEnd ?? DEFAULT_QUIET_HOURS.end}
               onChange={(e) => update({ quietHoursEnd: Number(e.target.value) })}
               disabled={!pref.enabled}
             >
-              {HOURS.map((h) => (
-                <option key={h} value={h}>
-                  {hourLabel(h)}
-                </option>
-              ))}
+              <HourOptions />
             </Select>
           </div>
         </div>

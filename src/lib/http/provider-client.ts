@@ -68,6 +68,35 @@ export type ProviderFetchOptions = {
   sleep?: (ms: number) => Promise<void>;
 };
 
+type ResolvedProviderFetchOptions = {
+  timeoutMs: number;
+  maxRetries: number;
+  backoffBaseMs: number;
+  backoffMaxMs: number;
+  provider: string;
+  sleep: (ms: number) => Promise<void>;
+};
+
+function resolveProviderFetchOptions(opts?: ProviderFetchOptions): ResolvedProviderFetchOptions {
+  return {
+    timeoutMs: opts?.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS,
+    maxRetries: opts?.retries ?? 0,
+    backoffBaseMs: opts?.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS,
+    backoffMaxMs: opts?.backoffMaxMs ?? DEFAULT_BACKOFF_MAX_MS,
+    provider: opts?.provider ?? "unknown",
+    sleep:
+      opts?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms))),
+  };
+}
+
+function hostFromUrl(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return "unknown";
+  }
+}
+
 /**
  * Parses a `Retry-After` header value (seconds or HTTP-date) into ms.
  * Returns null when the header is absent or unparseable.
@@ -118,6 +147,22 @@ function buildSignal(
   };
 }
 
+function retryDelayMs(
+  res: Response,
+  attempt: number,
+  backoffBaseMs: number,
+  backoffMaxMs: number,
+): number {
+  const retryAfterMs =
+    res.status === 429 ? parseRetryAfterMs(res.headers.get("Retry-After")) : null;
+  const backoffMs = jitteredExponentialBackoff({
+    attempt: attempt + 1,
+    baseMs: backoffBaseMs,
+    maxMs: backoffMaxMs,
+  });
+  return retryAfterMs !== null ? Math.max(retryAfterMs, backoffMs) : backoffMs;
+}
+
 /**
  * Fetches a trusted-provider URL with a configurable timeout and optional
  * retries. Throws a `TypeError` on network/timeout failure (same as native
@@ -137,21 +182,9 @@ export async function providerFetch(
   init?: RequestInit,
   opts?: ProviderFetchOptions,
 ): Promise<Response> {
-  const timeoutMs = opts?.timeoutMs ?? DEFAULT_PROVIDER_TIMEOUT_MS;
-  const maxRetries = opts?.retries ?? 0;
-  const backoffBase = opts?.backoffBaseMs ?? DEFAULT_BACKOFF_BASE_MS;
-  const backoffMax = opts?.backoffMaxMs ?? DEFAULT_BACKOFF_MAX_MS;
-  const provider = opts?.provider ?? "unknown";
-  const sleep =
-    opts?.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
-
-  // Extract host for low-cardinality logging — never include path or query.
-  let host = "unknown";
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    // keep "unknown" if URL is malformed
-  }
+  const { timeoutMs, maxRetries, backoffBaseMs, backoffMaxMs, provider, sleep } =
+    resolveProviderFetchOptions(opts);
+  const host = hostFromUrl(url);
 
   let attempt = 0;
 
@@ -189,14 +222,7 @@ export async function providerFetch(
     }
 
     // Transient failure — compute delay and retry.
-    const retryAfterMs =
-      status === 429 ? parseRetryAfterMs(res.headers.get("Retry-After")) : null;
-    const backoffMs = jitteredExponentialBackoff({
-      attempt: attempt + 1,
-      baseMs: backoffBase,
-      maxMs: backoffMax,
-    });
-    const delayMs = retryAfterMs !== null ? Math.max(retryAfterMs, backoffMs) : backoffMs;
+    const delayMs = retryDelayMs(res, attempt, backoffBaseMs, backoffMaxMs);
 
     log.warn("http.provider.retry", {
       provider,

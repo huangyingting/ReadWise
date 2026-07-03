@@ -27,6 +27,19 @@ afterEach(() => {
   }
 });
 
+async function withPrismaArticleStub<T>(
+  stub: Record<string, unknown>,
+  run: () => Promise<T>,
+): Promise<T> {
+  const orig = (prisma as unknown as Record<string, unknown>).article;
+  (prisma as unknown as Record<string, unknown>).article = stub;
+  try {
+    return await run();
+  } finally {
+    (prisma as unknown as Record<string, unknown>).article = orig;
+  }
+}
+
 test("fleschReadingEase returns null for too-little text", () => {
   assert.equal(fleschReadingEase("Short text."), null);
 });
@@ -243,35 +256,34 @@ test("ensureArticleDifficulties uses levelToScore when difficultyScore is null",
 // ---------------------------------------------------------------------------
 
 test("ensureArticleDifficulties computes deterministic difficulty and persists via prisma.article.update", async () => {
-  const orig = (prisma as unknown as Record<string, unknown>).article;
   const updatedIds: string[] = [];
-  (prisma as unknown as Record<string, unknown>).article = {
-    update: async ({ where }: { where: { id: string } }) => {
-      updatedIds.push(where.id);
-      return {};
+  await withPrismaArticleStub(
+    {
+      update: async ({ where }: { where: { id: string } }) => {
+        updatedIds.push(where.id);
+        return {};
+      },
     },
-  };
-  try {
-    const content = wrap("The cat ran fast big and basket garden summer winter.");
-    const articles = [
-      { id: "h1", title: "T1", content, difficulty: null, difficultyScore: null },
-      { id: "h2", title: "T2", content: "<p>tiny</p>", difficulty: null, difficultyScore: null },
-    ];
-    const map = await ensureArticleDifficulties(articles);
+    async () => {
+      const content = wrap("The cat ran fast big and basket garden summer winter.");
+      const articles = [
+        { id: "h1", title: "T1", content, difficulty: null, difficultyScore: null },
+        { id: "h2", title: "T2", content: "<p>tiny</p>", difficulty: null, difficultyScore: null },
+      ];
+      const map = await ensureArticleDifficulties(articles);
 
-    assert.equal(map.size, 2);
-    assert.equal(map.get("h1")!.source, "deterministic");
-    assert.ok(isDifficultyLevel(map.get("h1")!.level));
-    assert.ok(isDifficultyLevel(map.get("h2")!.level));
-    assert.ok(map.get("h1")!.lexileApprox >= 200);
-    // Articles are mutated in place
-    assert.ok(isDifficultyLevel(articles[0].difficulty));
-    assert.ok(isDifficultyLevel(articles[1].difficulty));
-    // Both persisted via prisma.article.update
-    assert.deepEqual(updatedIds.sort(), ["h1", "h2"]);
-  } finally {
-    (prisma as unknown as Record<string, unknown>).article = orig;
-  }
+      assert.equal(map.size, 2);
+      assert.equal(map.get("h1")!.source, "deterministic");
+      assert.ok(isDifficultyLevel(map.get("h1")!.level));
+      assert.ok(isDifficultyLevel(map.get("h2")!.level));
+      assert.ok(map.get("h1")!.lexileApprox >= 200);
+      // Articles are mutated in place
+      assert.ok(isDifficultyLevel(articles[0].difficulty));
+      assert.ok(isDifficultyLevel(articles[1].difficulty));
+      // Both persisted via prisma.article.update
+      assert.deepEqual(updatedIds.sort(), ["h1", "h2"]);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -279,105 +291,101 @@ test("ensureArticleDifficulties computes deterministic difficulty and persists v
 // ---------------------------------------------------------------------------
 
 test("getOrCreateArticleDifficulty returns null when the article is not found", async () => {
-  const orig = (prisma as unknown as Record<string, unknown>).article;
-  (prisma as unknown as Record<string, unknown>).article = {
-    findUnique: async () => null,
-  };
-  try {
-    const result = await getOrCreateArticleDifficulty("missing-id");
-    assert.equal(result, null);
-  } finally {
-    (prisma as unknown as Record<string, unknown>).article = orig;
-  }
+  await withPrismaArticleStub(
+    {
+      findUnique: async () => null,
+    },
+    async () => {
+      const result = await getOrCreateArticleDifficulty("missing-id");
+      assert.equal(result, null);
+    },
+  );
 });
 
 test("getOrCreateArticleDifficulty returns cached difficulty when the article already has a valid level", async () => {
-  const orig = (prisma as unknown as Record<string, unknown>).article;
-  (prisma as unknown as Record<string, unknown>).article = {
-    findUnique: async ({ where }: { where: { id: string } }) => ({
-      id: where.id,
-      title: "Cached Article",
-      content: "<p>c</p>",
-      difficulty: "B1",
-      difficultyScore: 22,
-      lexileApprox: 760,
-      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
-    }),
-  };
-  try {
-    const result = await getOrCreateArticleDifficulty("art-1");
-    assert.ok(result !== null);
-    assert.equal(result!.articleId, "art-1");
-    assert.equal(result!.level, "B1");
-    assert.equal(result!.score, 22);
-    assert.equal(result!.lexileApprox, 760);
-    assert.equal(result!.source, "cache");
-  } finally {
-    (prisma as unknown as Record<string, unknown>).article = orig;
-  }
+  await withPrismaArticleStub(
+    {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        title: "Cached Article",
+        content: "<p>c</p>",
+        difficulty: "B1",
+        difficultyScore: 22,
+        lexileApprox: 760,
+        difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
+      }),
+    },
+    async () => {
+      const result = await getOrCreateArticleDifficulty("art-1");
+      assert.ok(result !== null);
+      assert.equal(result!.articleId, "art-1");
+      assert.equal(result!.level, "B1");
+      assert.equal(result!.score, 22);
+      assert.equal(result!.lexileApprox, 760);
+      assert.equal(result!.source, "cache");
+    },
+  );
 });
 
 test("getOrCreateArticleDifficulty uses levelToScore when difficultyScore is null in cached result", async () => {
   // C1 → rank 4, levelToScore = round((4.5/6)*100) = 75
-  const orig = (prisma as unknown as Record<string, unknown>).article;
-  (prisma as unknown as Record<string, unknown>).article = {
-    findUnique: async ({ where }: { where: { id: string } }) => ({
-      id: where.id,
-      title: "C1 Article",
-      content: "<p>c</p>",
-      difficulty: "C1",
-      difficultyScore: null,
-      lexileApprox: 1200,
-      difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
-    }),
-  };
-  try {
-    const result = await getOrCreateArticleDifficulty("art-2");
-    assert.ok(result !== null);
-    assert.equal(result!.level, "C1");
-    assert.equal(result!.score, 75);
-    assert.equal(result!.lexileApprox, 1200);
-    assert.equal(result!.source, "cache");
-  } finally {
-    (prisma as unknown as Record<string, unknown>).article = orig;
-  }
+  await withPrismaArticleStub(
+    {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        title: "C1 Article",
+        content: "<p>c</p>",
+        difficulty: "C1",
+        difficultyScore: null,
+        lexileApprox: 1200,
+        difficultyVersion: DIFFICULTY_ALGORITHM_VERSION,
+      }),
+    },
+    async () => {
+      const result = await getOrCreateArticleDifficulty("art-2");
+      assert.ok(result !== null);
+      assert.equal(result!.level, "C1");
+      assert.equal(result!.score, 75);
+      assert.equal(result!.lexileApprox, 1200);
+      assert.equal(result!.source, "cache");
+    },
+  );
 });
 
 test("getOrCreateArticleDifficulty assesses and persists difficulty when none is cached", async () => {
-  const orig = (prisma as unknown as Record<string, unknown>).article;
   let updateArgs: Record<string, unknown> | null = null;
   const content = wrap("The cat ran fast big and basket garden summer winter.");
-  (prisma as unknown as Record<string, unknown>).article = {
-    findUnique: async ({ where }: { where: { id: string } }) => ({
-      id: where.id,
-      title: "Unrated Article",
-      content,
-      difficulty: null,
-      difficultyScore: null,
-      lexileApprox: null,
-      difficultyVersion: null,
-    }),
-    update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
-      updateArgs = args;
-      return {};
+  await withPrismaArticleStub(
+    {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        title: "Unrated Article",
+        content,
+        difficulty: null,
+        difficultyScore: null,
+        lexileApprox: null,
+        difficultyVersion: null,
+      }),
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        updateArgs = args;
+        return {};
+      },
     },
-  };
-  try {
-    const result = await getOrCreateArticleDifficulty("art-3");
-    assert.ok(result !== null);
-    assert.equal(result!.articleId, "art-3");
-    assert.ok(isDifficultyLevel(result!.level));
-    assert.ok(result!.score >= 0 && result!.score <= 100);
-    assert.ok(result!.lexileApprox >= 200 && result!.lexileApprox <= 1600);
-    assert.equal(result!.version, DIFFICULTY_ALGORITHM_VERSION);
-    assert.equal(result!.source, "deterministic");
-    // Verify prisma.article.update was called with the assessed values
-    assert.ok(updateArgs !== null, "expected prisma.article.update to be called");
-    assert.equal((updateArgs as any).where.id, "art-3");
-    assert.ok(isDifficultyLevel((updateArgs as any).data.difficulty));
-    assert.equal((updateArgs as any).data.difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
-    assert.ok((updateArgs as any).data.lexileApprox >= 200);
-  } finally {
-    (prisma as unknown as Record<string, unknown>).article = orig;
-  }
+    async () => {
+      const result = await getOrCreateArticleDifficulty("art-3");
+      assert.ok(result !== null);
+      assert.equal(result!.articleId, "art-3");
+      assert.ok(isDifficultyLevel(result!.level));
+      assert.ok(result!.score >= 0 && result!.score <= 100);
+      assert.ok(result!.lexileApprox >= 200 && result!.lexileApprox <= 1600);
+      assert.equal(result!.version, DIFFICULTY_ALGORITHM_VERSION);
+      assert.equal(result!.source, "deterministic");
+      // Verify prisma.article.update was called with the assessed values
+      assert.ok(updateArgs !== null, "expected prisma.article.update to be called");
+      assert.equal((updateArgs as any).where.id, "art-3");
+      assert.ok(isDifficultyLevel((updateArgs as any).data.difficulty));
+      assert.equal((updateArgs as any).data.difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
+      assert.ok((updateArgs as any).data.lexileApprox >= 200);
+    },
+  );
 });

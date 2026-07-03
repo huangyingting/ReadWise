@@ -32,9 +32,9 @@ import {
   type HighlightColor,
   HIGHLIGHT_COLORS,
 } from "@/components/ReaderHighlightsProvider";
-import { SWATCH_COLORS } from "./wordLookup/SelectionToolbar";
 
 const NOTE_MAX = 2000;
+const NOTE_NEAR_LIMIT_RATIO = 0.85;
 
 const COLOR_SWATCH_BG: Record<HighlightColor, string> = {
   yellow: "var(--hl-yellow)",
@@ -42,6 +42,12 @@ const COLOR_SWATCH_BG: Record<HighlightColor, string> = {
   blue:   "var(--hl-blue)",
   pink:   "var(--hl-pink)",
 };
+
+function getCounterClass(nearLimit: boolean, atLimit: boolean) {
+  if (atLimit) return "at-limit";
+  if (nearLimit) return "near-limit";
+  return "";
+}
 
 /** Flash a <mark> in the prose by its data-hl-id and scroll it into view. */
 function flashAndScroll(hlId: string) {
@@ -84,8 +90,9 @@ interface NoteEditorProps {
 
 function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
   const [text, setText] = useState(initialNote);
-  const nearLimit = text.length > NOTE_MAX * 0.85;
+  const nearLimit = text.length > NOTE_MAX * NOTE_NEAR_LIMIT_RATIO;
   const atLimit = text.length >= NOTE_MAX;
+  const counterClass = getCounterClass(nearLimit, atLimit);
 
   return (
     <div className="rw-note-inline-edit">
@@ -98,7 +105,10 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
         aria-label="Highlight note"
         onChange={(e) => setText(e.target.value)}
         onKeyDown={(e) => {
-          if (e.key === "Escape") { e.preventDefault(); onCancel(); }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            onCancel();
+          }
         }}
         autoFocus
       />
@@ -106,7 +116,7 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
         <p
           className={cn(
             "rw-note-counter",
-            atLimit ? "at-limit" : nearLimit ? "near-limit" : "",
+            counterClass,
           )}
         >
           {text.length}/{NOTE_MAX}
@@ -135,7 +145,6 @@ function NoteEditor({ initialNote, onSave, onCancel }: NoteEditorProps) {
 interface NoteRowProps {
   highlight: Highlight;
   isOrphaned: boolean;
-  onUpdateColor: (color: HighlightColor) => void;
   onUpdateNote: (note: string | null) => void;
   onDelete: () => Promise<void>;
 }
@@ -143,7 +152,6 @@ interface NoteRowProps {
 function NoteRow({
   highlight,
   isOrphaned,
-  onUpdateColor,
   onUpdateNote,
   onDelete,
 }: NoteRowProps) {
@@ -257,7 +265,7 @@ function NoteRow({
 // ---------------------------------------------------------------------------
 
 export default function ReaderNotesPanel() {
-  const { highlights, loading, orphanedIds, updateColor, updateNote, remove } =
+  const { highlights, loading, orphanedIds, updateNote, remove } =
     useHighlights();
 
   if (loading) {
@@ -293,7 +301,6 @@ export default function ReaderNotesPanel() {
           key={hl.id}
           highlight={hl}
           isOrphaned={orphanedIds.has(hl.id)}
-          onUpdateColor={(color) => void updateColor(hl.id, color)}
           onUpdateNote={(note) => void updateNote(hl.id, note)}
           onDelete={() => remove(hl.id)}
         />

@@ -53,6 +53,11 @@ const PICKS_FETCH_LIMIT = BACKUP_ARTICLE_COUNT + 3;
 
 const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
+type ArticlePlanSelection = Pick<
+  TodaySessionPlan,
+  "primaryArticleId" | "backupArticleIds" | "source" | "generationReasonCode"
+>;
+
 /** True for a Prisma unique-constraint violation (P2002). */
 function isUniqueConstraintError(err: unknown): boolean {
   return (
@@ -131,6 +136,66 @@ async function fetchPickIds(
   return page.articles.map((a) => a.id).filter((id) => !exclude.has(id));
 }
 
+async function fetchBackupPickIds(
+  userId: string,
+  exclude: Set<string>,
+  placementLevel: DifficultyLevel | null,
+  seriesCandidateId: string | null,
+): Promise<string[]> {
+  return (
+    await fetchPickIds(userId, exclude, placementLevel, seriesCandidateId)
+  ).slice(0, BACKUP_ARTICLE_COUNT);
+}
+
+async function buildResumeSelection(
+  userId: string,
+  resumeArticleId: string,
+  placementLevel: DifficultyLevel | null,
+  seriesCandidateId: string | null,
+): Promise<ArticlePlanSelection> {
+  return {
+    primaryArticleId: resumeArticleId,
+    backupArticleIds: await fetchBackupPickIds(
+      userId,
+      new Set([resumeArticleId]),
+      placementLevel,
+      seriesCandidateId,
+    ),
+    source: "resume",
+    generationReasonCode: "resume_in_progress",
+  };
+}
+
+function buildNoCandidateSelection(): ArticlePlanSelection {
+  return {
+    primaryArticleId: null,
+    backupArticleIds: [],
+    source: "none",
+    generationReasonCode: "no_candidate",
+  };
+}
+
+async function buildPicksSelection(
+  userId: string,
+  placementLevel: DifficultyLevel | null,
+  seriesCandidateId: string | null,
+): Promise<ArticlePlanSelection> {
+  const pickIds = await fetchPickIds(
+    userId,
+    new Set(),
+    placementLevel,
+    seriesCandidateId,
+  );
+  if (pickIds.length === 0) return buildNoCandidateSelection();
+
+  return {
+    primaryArticleId: pickIds[0],
+    backupArticleIds: pickIds.slice(1, 1 + BACKUP_ARTICLE_COUNT),
+    source: "picks",
+    generationReasonCode: "picks_primary",
+  };
+}
+
 /**
  * Resolve the next access-checked series article for an active enrollment, or
  * null when the learner has no active enrollment / no remaining accessible
@@ -161,57 +226,36 @@ export async function buildTodayPlan(args: {
   const resumeArticleId = await findResumeArticleId(userId, now);
   const seriesCandidateId = await resolveSeriesCandidateId(userId);
 
-  let primaryArticleId: string | null;
-  let backupArticleIds: string[];
-  let source: TodaySessionPlan["source"];
-  let generationReasonCode: TodaySessionPlan["generationReasonCode"];
-
-  if (resumeArticleId) {
-    primaryArticleId = resumeArticleId;
-    backupArticleIds = (
-      await fetchPickIds(
+  const articleSelection = resumeArticleId
+    ? await buildResumeSelection(
         userId,
-        new Set([resumeArticleId]),
+        resumeArticleId,
         placementLevel,
         seriesCandidateId,
       )
-    ).slice(0, BACKUP_ARTICLE_COUNT);
-    source = "resume";
-    generationReasonCode = "resume_in_progress";
-  } else {
-    const pickIds = await fetchPickIds(
-      userId,
-      new Set(),
-      placementLevel,
-      seriesCandidateId,
-    );
-    if (pickIds.length > 0) {
-      primaryArticleId = pickIds[0];
-      backupArticleIds = pickIds.slice(1, 1 + BACKUP_ARTICLE_COUNT);
-      source = "picks";
-      generationReasonCode = "picks_primary";
-    } else {
-      primaryArticleId = null;
-      backupArticleIds = [];
-      source = "none";
-      generationReasonCode = "no_candidate";
-    }
-  }
+    : await buildPicksSelection(userId, placementLevel, seriesCandidateId);
 
   const { targetSavedWordIds, reviewTargetCount } = await selectTargetWordIds({
     userId,
-    primaryArticleId,
+    primaryArticleId: articleSelection.primaryArticleId,
     now,
   });
 
   return {
-    primaryArticleId,
-    backupArticleIds,
+    primaryArticleId: articleSelection.primaryArticleId,
+    backupArticleIds: articleSelection.backupArticleIds,
     targetSavedWordIds,
     reviewTargetCount,
-    source,
-    generationReasonCode,
+    source: articleSelection.source,
+    generationReasonCode: articleSelection.generationReasonCode,
   };
+}
+
+async function emitTodayCreationAnalytics(created: TodaySessionView): Promise<void> {
+  await emitTodaySessionGenerated(created);
+  if (created.generationReasonCode === "no_candidate") {
+    await emitTodayNoCandidate(created);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -259,10 +303,7 @@ export async function getOrCreateTodaySession(args: {
     // metadata only (source/reasonCode/counts) — fires once per local day on
     // first creation, never on the idempotent re-read above. A no-candidate day
     // additionally records the browse/import prompt branch.
-    await emitTodaySessionGenerated(created);
-    if (created.generationReasonCode === "no_candidate") {
-      await emitTodayNoCandidate(created);
-    }
+    await emitTodayCreationAnalytics(created);
     return created;
   } catch (err) {
     // A concurrent first-load won the unique race — re-read its winning row.
