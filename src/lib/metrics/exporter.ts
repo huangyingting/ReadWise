@@ -14,10 +14,30 @@ export function escapePrometheusLabelValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
 }
 
+type MetricType = "counter" | "histogram";
+
 function renderLabels(labels: Record<string, string>): string {
   const keys = Object.keys(labels).sort();
   if (keys.length === 0) return "";
   return `{${keys.map((key) => `${key}="${escapePrometheusLabelValue(labels[key])}"`).join(",")}}`;
+}
+
+function emitMetricHeaderOnce(
+  lines: string[],
+  emitted: Set<string>,
+  name: string,
+  help: string,
+  type: MetricType,
+): void {
+  if (emitted.has(name)) return;
+
+  lines.push(`# HELP ${name} ${help}`);
+  lines.push(`# TYPE ${name} ${type}`);
+  emitted.add(name);
+}
+
+function renderHistogramLabels(labels: Record<string, string>, le: string): string {
+  return renderLabels({ ...labels, le });
 }
 
 /**
@@ -31,26 +51,18 @@ export function exportMetricsPrometheus(): string {
   const emitted = new Set<string>();
 
   for (const counter of snapshot.counters) {
-    if (!emitted.has(counter.name)) {
-      lines.push(`# HELP ${counter.name} ${counter.help}`);
-      lines.push(`# TYPE ${counter.name} counter`);
-      emitted.add(counter.name);
-    }
+    emitMetricHeaderOnce(lines, emitted, counter.name, counter.help, "counter");
     lines.push(`${counter.name}${renderLabels(counter.labels)} ${counter.value}`);
   }
 
   for (const histogram of snapshot.histograms) {
-    if (!emitted.has(histogram.name)) {
-      lines.push(`# HELP ${histogram.name} ${histogram.help}`);
-      lines.push(`# TYPE ${histogram.name} histogram`);
-      emitted.add(histogram.name);
-    }
+    emitMetricHeaderOnce(lines, emitted, histogram.name, histogram.help, "histogram");
     for (const bucket of histogram.buckets) {
       lines.push(
-        `${histogram.name}_bucket${renderLabels({ ...histogram.labels, le: String(bucket.le) })} ${bucket.count}`,
+        `${histogram.name}_bucket${renderHistogramLabels(histogram.labels, String(bucket.le))} ${bucket.count}`,
       );
     }
-    lines.push(`${histogram.name}_bucket${renderLabels({ ...histogram.labels, le: "+Inf" })} ${histogram.count}`);
+    lines.push(`${histogram.name}_bucket${renderHistogramLabels(histogram.labels, "+Inf")} ${histogram.count}`);
     lines.push(`${histogram.name}_sum${renderLabels(histogram.labels)} ${histogram.sum}`);
     lines.push(`${histogram.name}_count${renderLabels(histogram.labels)} ${histogram.count}`);
   }

@@ -26,12 +26,14 @@ export {
   type EnglishLevel,
 };
 
+const ENGLISH_LEVEL_VALUES = ENGLISH_LEVELS as readonly string[];
+
 /**
  * Ordinal rank of a CEFR level (A1 = 0 … C2 = 5). Returns -1 for unknown
  * values. Used to sort and compare levels numerically.
  */
 export function levelRank(level: string): number {
-  return (ENGLISH_LEVELS as readonly string[]).indexOf(level);
+  return ENGLISH_LEVEL_VALUES.indexOf(level);
 }
 
 /**
@@ -42,7 +44,9 @@ export function levelRank(level: string): number {
  */
 export function levelsAtOrBelow(maxLevel: EnglishLevel): EnglishLevel[] {
   const max = levelRank(maxLevel);
-  if (max < 0) return [];
+  if (max < 0) {
+    return [];
+  }
   return ENGLISH_LEVELS.filter((_, i) => i <= max);
 }
 
@@ -50,8 +54,5 @@ export function levelsAtOrBelow(maxLevel: EnglishLevel): EnglishLevel[] {
  * Type guard: returns true when `value` is a valid CEFR level string.
  */
 export function isDifficultyLevel(value: unknown): value is EnglishLevel {
-  return (
-    typeof value === "string" &&
-    (ENGLISH_LEVELS as readonly string[]).includes(value)
-  );
+  return typeof value === "string" && ENGLISH_LEVEL_VALUES.includes(value);
 }

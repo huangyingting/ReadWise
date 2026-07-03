@@ -5,6 +5,24 @@ import { deleteJson, postJson } from "@/lib/client-fetch";
 import ConfirmAction from "@/components/ConfirmAction";
 import { useAdminAction } from "@/hooks/useAdminAction";
 
+type ArticleAction = "rebuild" | "delete";
+type RebuildResponse = {
+  cleared?: Record<string, number>;
+};
+
+const REBUILD_COMPLETE_MESSAGE =
+  "Rebuild queued — cleared %d cached item(s); AI content will regenerate on next read.";
+
+function countClearedItems(cleared?: Record<string, number>): number {
+  return cleared
+    ? Object.values(cleared).reduce((sum, count) => sum + count, 0)
+    : 0;
+}
+
+function rebuildCompleteMessage(total: number): string {
+  return REBUILD_COMPLETE_MESSAGE.replace("%d", String(total));
+}
+
 export default function AdminArticleActions({
   articleId,
   redirectOnDelete,
@@ -13,21 +31,20 @@ export default function AdminArticleActions({
   redirectOnDelete?: string;
 }) {
   const { busy, error, openPanel, setOpenPanel, run, router } =
-    useAdminAction<"rebuild" | "delete">();
+    useAdminAction<ArticleAction>();
   const [message, setMessage] = useState<string | null>(null);
+
+  const setPanelOpen = (panel: ArticleAction) => (open: boolean) => {
+    setOpenPanel(open ? panel : null);
+  };
 
   async function runRebuild() {
     setMessage(null);
     await run("rebuild", async () => {
-      const data = await postJson<{
-        cleared?: Record<string, number>;
-      }>(`/api/admin/articles/${articleId}/rebuild`);
-      const total = data.cleared
-        ? Object.values(data.cleared).reduce((sum, n) => sum + n, 0)
-        : 0;
-      setMessage(
-        `Rebuild queued — cleared ${total} cached item(s); AI content will regenerate on next read.`,
+      const data = await postJson<RebuildResponse>(
+        `/api/admin/articles/${articleId}/rebuild`,
       );
+      setMessage(rebuildCompleteMessage(countClearedItems(data.cleared)));
     });
   }
 
@@ -38,7 +55,7 @@ export default function AdminArticleActions({
       if (redirectOnDelete) {
         router.push(redirectOnDelete);
       }
-    }, { skipRefresh: !!redirectOnDelete });
+    }, { skipRefresh: Boolean(redirectOnDelete) });
   }
 
   return (
@@ -54,7 +71,7 @@ export default function AdminArticleActions({
           loading={busy === "rebuild"}
           disabled={busy === "delete"}
           open={openPanel === "rebuild"}
-          onOpenChange={(v) => setOpenPanel(v ? "rebuild" : null)}
+          onOpenChange={setPanelOpen("rebuild")}
         />
         <ConfirmAction
           triggerLabel="Delete"
@@ -66,20 +83,17 @@ export default function AdminArticleActions({
           loading={busy === "delete"}
           disabled={busy === "rebuild"}
           open={openPanel === "delete"}
-          onOpenChange={(v) => setOpenPanel(v ? "delete" : null)}
+          onOpenChange={setPanelOpen("delete")}
         />
       </div>
 
       {message && (
-        <p className="muted" style={{ margin: 0 }}>
+        <p className="muted m-0">
           {message}
         </p>
       )}
       {error && (
-        <p
-          className="text-danger-text text-[length:var(--text-sm)]"
-          style={{ margin: 0 }}
-        >
+        <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
           {error}
         </p>
       )}

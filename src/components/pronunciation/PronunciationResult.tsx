@@ -21,6 +21,27 @@ type Props = {
   onRecordAgain: () => void;
 };
 
+function SavedAttemptNote({ savedNote }: { savedNote: SavedNote }) {
+  if (savedNote === "saving") {
+    return "Saving…";
+  }
+
+  if (savedNote === "saved") {
+    return (
+      <>
+        <Check size={12} aria-hidden />
+        {" "}Attempt saved
+      </>
+    );
+  }
+
+  if (savedNote === "failed") {
+    return "Couldn't save this attempt";
+  }
+
+  return null;
+}
+
 export function PronunciationResult({
   result,
   sentenceHistory,
@@ -28,6 +49,8 @@ export function PronunciationResult({
   isNewBest,
   onRecordAgain,
 }: Props) {
+  const showSentenceHistory = sentenceHistory.best !== null || isNewBest;
+
   return (
     <div
       role="status"
@@ -44,7 +67,7 @@ export function PronunciationResult({
       <WordsToWorkOn wordResults={result.words} />
 
       {/* Per-sentence best / last */}
-      {(sentenceHistory.best !== null || isNewBest) && (
+      {showSentenceHistory && (
         <div className={cn("rw-speak-history-line", isNewBest && "rw-speak-new-best")}>
           <span className="rw-speak-best-badge">
             <Star size={12} aria-hidden />
@@ -61,16 +84,7 @@ export function PronunciationResult({
 
       {/* Saved note */}
       <p className="rw-speak-saved-note" aria-live="polite">
-        {savedNote === "saving" ? (
-          "Saving…"
-        ) : savedNote === "saved" ? (
-          <>
-            <Check size={12} aria-hidden />
-            {" "}Attempt saved
-          </>
-        ) : savedNote === "failed" ? (
-          "Couldn't save this attempt"
-        ) : null}
+        <SavedAttemptNote savedNote={savedNote} />
       </p>
 
       {/* Record again */}

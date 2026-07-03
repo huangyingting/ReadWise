@@ -24,7 +24,13 @@ export type ArticleSearchProvider = {
   search(query: string, opts: SearchOptions, context?: SearchContext | null): Promise<ArticlePage>;
 };
 
-let _provider: ArticleSearchProvider = new PrismaArticleSearchProvider();
+const READER_SEARCH_ROLE = "Reader";
+
+let activeProvider: ArticleSearchProvider = new PrismaArticleSearchProvider();
+
+function searchContextForUser(userId?: string): SearchContext | null {
+  return userId ? { userId, role: READER_SEARCH_ROLE } : null;
+}
 
 /**
  * Registers a custom article search provider, replacing the default
@@ -32,7 +38,7 @@ let _provider: ArticleSearchProvider = new PrismaArticleSearchProvider();
  * (e.g. in a runtime-config module) before any searches are issued.
  */
 export function registerSearchProvider(provider: ArticleSearchProvider): void {
-  _provider = provider;
+  activeProvider = provider;
 }
 
 /**
@@ -41,7 +47,7 @@ export function registerSearchProvider(provider: ArticleSearchProvider): void {
  * `registerSearchProvider`.
  */
 export function resolveSearchProvider(): ArticleSearchProvider {
-  return _provider;
+  return activeProvider;
 }
 
 /**
@@ -55,6 +61,5 @@ export function searchReadableArticles(
   opts: SearchOptions = {},
   userId?: string,
 ): Promise<ArticlePage> {
-  return resolveSearchProvider().search(query, opts, userId ? { userId, role: "Reader" } : null);
+  return resolveSearchProvider().search(query, opts, searchContextForUser(userId));
 }
-

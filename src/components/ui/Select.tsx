@@ -3,6 +3,8 @@ import { ChevronDown } from "lucide-react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const CHEVRON_SIZE = 16;
+
 const selectVariants = cva(
   cn(
     "w-full appearance-none bg-surface text-text rounded-[var(--radius-md)] border cursor-pointer",
@@ -73,12 +75,14 @@ export const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         </select>
         <ChevronDown
           aria-hidden
-          size={16}
+          size={CHEVRON_SIZE}
           className="pointer-events-none absolute right-[var(--space-3)] text-text-subtle"
         />
       </div>
     );
   },
 );
+
+Select.displayName = "Select";
 
 export { selectVariants };

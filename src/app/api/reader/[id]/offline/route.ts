@@ -7,6 +7,50 @@ import { sanitizeArticleHtml } from "@/lib/content-pipeline";
 import { contentHash, makeArticleVersion } from "@/lib/cache-version";
 import { parseOfflineQuery } from "@/lib/reader/schemas";
 
+type OfflineArticle = Awaited<ReturnType<typeof requireReadableArticle>>["article"];
+
+type OfflineArticleMetadata = {
+  id: string;
+  version: string;
+  contentHash: string;
+  updatedAt: string;
+};
+
+function isoString(value: Date | string): string {
+  return new Date(value).toISOString();
+}
+
+function buildOfflineMetadata(article: OfflineArticle, sanitizedHtml: string): OfflineArticleMetadata {
+  const hash = contentHash(sanitizedHtml);
+  return {
+    id: article.id,
+    version: makeArticleVersion({ contentHash: hash, updatedAt: article.updatedAt }),
+    contentHash: hash,
+    updatedAt: isoString(article.updatedAt),
+  };
+}
+
+function buildOfflinePayload(
+  article: OfflineArticle,
+  sanitizedHtml: string,
+  metadata: OfflineArticleMetadata,
+) {
+  return {
+    id: article.id,
+    title: article.title,
+    sanitizedHtml,
+    author: article.author ?? null,
+    source: article.source ?? null,
+    sourceUrl: article.sourceUrl ?? null,
+    heroImage: article.heroImage ?? null,
+    difficulty: article.difficulty ?? null,
+    readingMinutes: readingMinutesFor(article) ?? null,
+    publishedAt: article.publishedAt ? isoString(article.publishedAt) : null,
+    version: metadata.version,
+    contentHash: metadata.contentHash,
+  };
+}
+
 /**
  * GET /api/reader/[id]/offline
  *
@@ -28,34 +72,13 @@ export const GET = createHandler(
     const { article } = await requireReadableArticle(params.id, session.user);
 
     const sanitizedHtml = sanitizeArticleHtml(article.content);
-    const hash = contentHash(sanitizedHtml);
-    const version = makeArticleVersion({ contentHash: hash, updatedAt: article.updatedAt });
+    const metadata = buildOfflineMetadata(article, sanitizedHtml);
 
     // Cheap metadata-only response for stale-cache checks.
     if (query.meta) {
-      return NextResponse.json({
-        id: article.id,
-        version,
-        contentHash: hash,
-        updatedAt: new Date(article.updatedAt).toISOString(),
-      });
+      return NextResponse.json(metadata);
     }
 
-    return NextResponse.json({
-      id: article.id,
-      title: article.title,
-      sanitizedHtml,
-      author: article.author ?? null,
-      source: article.source ?? null,
-      sourceUrl: article.sourceUrl ?? null,
-      heroImage: article.heroImage ?? null,
-      difficulty: article.difficulty ?? null,
-      readingMinutes: readingMinutesFor(article) ?? null,
-      publishedAt: article.publishedAt
-        ? new Date(article.publishedAt).toISOString()
-        : null,
-      version,
-      contentHash: hash,
-    });
+    return NextResponse.json(buildOfflinePayload(article, sanitizedHtml, metadata));
   },
 );

@@ -24,6 +24,21 @@ export function isIndexedDbAvailable(): boolean {
   return typeof window !== "undefined" && typeof indexedDB !== "undefined";
 }
 
+function createArticleStore(db: IDBDatabase): void {
+  const store = db.createObjectStore(STORE_ARTICLES, { keyPath: "id" });
+  // Index by savedAt for LRU eviction.
+  store.createIndex("savedAt", "savedAt", { unique: false });
+}
+
+function createMutationStore(db: IDBDatabase): void {
+  const mutations = db.createObjectStore(STORE_MUTATIONS, {
+    keyPath: "clientMutationId",
+  });
+  // Index by createdAt (FIFO delivery) and dedupeKey (latest-wins collapse).
+  mutations.createIndex("createdAt", "createdAt", { unique: false });
+  mutations.createIndex("dedupeKey", "dedupeKey", { unique: false });
+}
+
 /**
  * Open (and upgrade if necessary) the ReadWise offline database.
  * Resolves to an open {@link IDBDatabase}; rejects on hard error.
@@ -36,18 +51,11 @@ export function openDb(): Promise<IDBDatabase> {
       const db = (e.target as IDBOpenDBRequest).result;
 
       if (!db.objectStoreNames.contains(STORE_ARTICLES)) {
-        const store = db.createObjectStore(STORE_ARTICLES, { keyPath: "id" });
-        // Index by savedAt for LRU eviction.
-        store.createIndex("savedAt", "savedAt", { unique: false });
+        createArticleStore(db);
       }
 
       if (!db.objectStoreNames.contains(STORE_MUTATIONS)) {
-        const mutations = db.createObjectStore(STORE_MUTATIONS, {
-          keyPath: "clientMutationId",
-        });
-        // Index by createdAt (FIFO delivery) and dedupeKey (latest-wins collapse).
-        mutations.createIndex("createdAt", "createdAt", { unique: false });
-        mutations.createIndex("dedupeKey", "dedupeKey", { unique: false });
+        createMutationStore(db);
       }
     };
 

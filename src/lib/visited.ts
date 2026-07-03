@@ -8,8 +8,20 @@ import { STORAGE_KEYS } from "./storage-keys";
 
 const STORAGE_KEY = STORAGE_KEYS.VISITED_ARTICLES;
 
+function canUseSessionStorage(): boolean {
+  return typeof window !== "undefined";
+}
+
+function parseVisitedIds(raw: string): string[] {
+  const parsed: unknown = JSON.parse(raw);
+  if (!Array.isArray(parsed)) {
+    return [];
+  }
+  return parsed.filter((id): id is string => typeof id === "string");
+}
+
 function read(): string[] {
-  if (typeof window === "undefined") {
+  if (!canUseSessionStorage()) {
     return [];
   }
   try {
@@ -17,18 +29,14 @@ function read(): string[] {
     if (!raw) {
       return [];
     }
-    const parsed: unknown = JSON.parse(raw);
-    if (!Array.isArray(parsed)) {
-      return [];
-    }
-    return parsed.filter((id): id is string => typeof id === "string");
+    return parseVisitedIds(raw);
   } catch {
     return [];
   }
 }
 
 function write(ids: string[]): void {
-  if (typeof window === "undefined") {
+  if (!canUseSessionStorage()) {
     return;
   }
   try {

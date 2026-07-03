@@ -24,6 +24,28 @@ const bodySchema = object({
   articleId: optional(nonEmptyString(200)),
 });
 
+type PronunciationAttemptBody = Parameters<typeof recordPronunciationAttempt>[1];
+
+async function assertReadableArticle(articleId: string | undefined, user: Parameters<typeof articleAccessContext>[0]) {
+  if (!articleId) return;
+
+  const article = await getReadableArticleById(articleId, articleAccessContext(user));
+  if (!article) {
+    throw new ApiError(404, "Article not found");
+  }
+}
+
+async function recordPronunciationMastery(userId: string, body: PronunciationAttemptBody) {
+  await Promise.all([
+    bestEffortMastery("pronunciation.skill", () =>
+      recordSkillEvidence(userId, "pronunciation", body.pronScore / 100),
+    ),
+    bestEffortMastery("pronunciation.listening_skill", () =>
+      recordSkillEvidence(userId, "listening", body.accuracyScore / 100, 0.5),
+    ),
+  ]);
+}
+
 /**
  * POST /api/pronunciation/attempt
  *
@@ -33,24 +55,11 @@ const bodySchema = object({
 export const POST = createHandler({ body: bodySchema }, async ({ session, body }) => {
   await checkRateLimit(session.user.id, "ai");
 
-  // Validate articleId existence when provided.
-  if (body.articleId) {
-    const article = await getReadableArticleById(body.articleId, articleAccessContext(session.user));
-    if (!article) {
-      throw new ApiError(404, "Article not found");
-    }
-  }
+  await assertReadableArticle(body.articleId, session.user);
 
   const result = await recordPronunciationAttempt(session.user.id, body);
   // Best-effort mastery: pronunciation score feeds the pronunciation skill;
   // accuracy is a (weaker) listening signal. Never break the attempt write.
-  await Promise.all([
-    bestEffortMastery("pronunciation.skill", () =>
-      recordSkillEvidence(session.user.id, "pronunciation", body.pronScore / 100),
-    ),
-    bestEffortMastery("pronunciation.listening_skill", () =>
-      recordSkillEvidence(session.user.id, "listening", body.accuracyScore / 100, 0.5),
-    ),
-  ]);
+  await recordPronunciationMastery(session.user.id, body);
   return NextResponse.json(result);
 });

@@ -11,6 +11,48 @@ import ArticleCardView from "@/components/ArticleCardView";
 import ListingSync from "@/components/ListingSync";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 
+type TaggedArticle = Awaited<ReturnType<typeof listArticlesByTag>>[number];
+type ProgressMap = Awaited<ReturnType<typeof getProgressMap>>;
+type ProgressEntry = ProgressMap extends Map<string, infer Entry> ? Entry : never;
+type BookmarkedIds = Awaited<ReturnType<typeof getBookmarkedArticleIds>>;
+
+function articleCountLabel(count: number): string {
+  return count === 1 ? "1 article" : `${count} articles`;
+}
+
+function tagDescription(tagName: string, count: number): string {
+  return `${articleCountLabel(count)} tagged "${tagName}"`;
+}
+
+function cardProgress(progress: ProgressEntry | undefined) {
+  return progress
+    ? { percent: progress.percent, completed: progress.completed }
+    : undefined;
+}
+
+function TaggedArticleGrid({
+  articles,
+  progressMap,
+  bookmarkedIds,
+}: {
+  articles: TaggedArticle[];
+  progressMap: ProgressMap;
+  bookmarkedIds: BookmarkedIds;
+}) {
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)] rw-fade-up">
+      {articles.map((article) => (
+        <ArticleCardView
+          key={article.id}
+          article={toListingArticle(article)}
+          saved={bookmarkedIds.has(article.id)}
+          progress={cardProgress(progressMap.get(article.id))}
+        />
+      ))}
+    </div>
+  );
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -36,7 +78,7 @@ export default async function TagPage({
 
   const articles = await listArticlesByTag(slug);
   await ensureArticleDifficulties(articles);
-  const articleIds = articles.map((a) => a.id);
+  const articleIds = articles.map((article) => article.id);
   const [progressMap, bookmarkedIds] = await Promise.all([
     getProgressMap(session.user.id, articleIds),
     getBookmarkedArticleIds(session.user.id, articleIds),
@@ -55,7 +97,7 @@ export default async function TagPage({
 
       <PageHeader
         title={`#${tag.name}`}
-        description={`${count === 1 ? "1 article" : `${count} articles`} tagged "${tag.name}"`}
+        description={tagDescription(tag.name, count)}
       />
 
       {articles.length === 0 ? (
@@ -66,26 +108,14 @@ export default async function TagPage({
           action={{ label: "Browse all", href: "/browse" }}
         />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)] rw-fade-up">
-          {articles.map((article) => {
-            const progress = progressMap.get(article.id);
-            return (
-              <ArticleCardView
-                key={article.id}
-                article={toListingArticle(article)}
-                saved={bookmarkedIds.has(article.id)}
-                progress={
-                  progress
-                    ? { percent: progress.percent, completed: progress.completed }
-                    : undefined
-                }
-              />
-            );
-          })}
-        </div>
+        <TaggedArticleGrid
+          articles={articles}
+          progressMap={progressMap}
+          bookmarkedIds={bookmarkedIds}
+        />
       )}
 
-      <ListingSync articleIds={articles.map((a) => a.id)} />
+      <ListingSync articleIds={articleIds} />
     </PageShell>
   );
 }

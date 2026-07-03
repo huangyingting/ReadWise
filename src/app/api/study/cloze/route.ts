@@ -5,6 +5,24 @@ import { buildCloze } from "@/lib/learning/cloze";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { parseClozeQuery } from "@/lib/study/schemas";
 
+type DueFlashcard = Awaited<ReturnType<typeof getDueFlashcards>>[number];
+
+function toClozeItem(card: DueFlashcard) {
+  const result = card.example ? buildCloze(card.word, card.example) : null;
+
+  return {
+    id: card.id,
+    word: card.word,
+    explanation: card.explanation,
+    example: card.example,
+    contextSentence: card.contextSentence,
+    articleId: card.articleId,
+    cloze: result?.ok
+      ? { masked: result.card.masked, answerLength: result.card.answerLength }
+      : null,
+  };
+}
+
 /**
  * GET /api/study/cloze
  *
@@ -34,23 +52,7 @@ export const GET = createHandler({ query: parseClozeQuery }, async ({ session, q
 
   const cards = await getDueFlashcards(session.user.id, query.limit);
 
-  const items = cards.map((card) => {
-    const result =
-      card.example ? buildCloze(card.word, card.example) : null;
-
-    return {
-      id: card.id,
-      word: card.word,
-      explanation: card.explanation,
-      example: card.example,
-      contextSentence: card.contextSentence,
-      articleId: card.articleId,
-      cloze:
-        result?.ok
-          ? { masked: result.card.masked, answerLength: result.card.answerLength }
-          : null,
-    };
-  });
+  const items = cards.map(toClozeItem);
 
   return NextResponse.json({ items });
 });

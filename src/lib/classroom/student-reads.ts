@@ -21,6 +21,50 @@ export type StudentAssignment = {
   completedAt: Date | null;
 };
 
+type AssignmentWithStudentCompletion = Awaited<
+  ReturnType<typeof prisma.assignment.findMany>
+>[number] & {
+  classroom: { id: string; name: string };
+  article: { id: string; title: string };
+  completions: Array<{
+    status: AssignmentStatus;
+    quizScore: number | null;
+    completedAt: Date | null;
+  }>;
+};
+
+function assignmentIncludeForStudent(studentId: string) {
+  return {
+    classroom: { select: { id: true, name: true } },
+    article: { select: { id: true, title: true } },
+    completions: { where: { studentId }, take: 1 },
+  };
+}
+
+function mapStudentAssignment(assignment: AssignmentWithStudentCompletion): StudentAssignment {
+  const completion = assignment.completions[0];
+  return {
+    assignmentId: assignment.id,
+    classroomId: assignment.classroom.id,
+    classroomName: assignment.classroom.name,
+    articleId: assignment.article.id,
+    articleTitle: assignment.article.title,
+    dueDate: assignment.dueDate,
+    instructions: assignment.instructions,
+    status: completion?.status ?? AssignmentStatus.ASSIGNED,
+    quizScore: completion?.quizScore ?? null,
+    completedAt: completion?.completedAt ?? null,
+  };
+}
+
+function dueDateSortValue(assignment: StudentAssignment): number {
+  return assignment.dueDate?.getTime() ?? Number.POSITIVE_INFINITY;
+}
+
+function compareByDueDateAsc(left: StudentAssignment, right: StudentAssignment): number {
+  return dueDateSortValue(left) - dueDateSortValue(right);
+}
+
 /**
  * A student's assigned readings across all their classrooms, with the student's
  * OWN completion status. Sorted by due date (soonest first, undated last) then
@@ -29,33 +73,11 @@ export type StudentAssignment = {
 export async function listAssignmentsForStudent(
   studentId: string,
 ): Promise<StudentAssignment[]> {
-  const rows = await prisma.assignment.findMany({
+  const rows = (await prisma.assignment.findMany({
     where: { classroom: { members: { some: { userId: studentId } } } },
-    include: {
-      classroom: { select: { id: true, name: true } },
-      article: { select: { id: true, title: true } },
-      completions: { where: { studentId }, take: 1 },
-    },
+    include: assignmentIncludeForStudent(studentId),
     orderBy: [{ createdAt: "desc" }],
-  });
-  const mapped: StudentAssignment[] = rows.map((a) => {
-    const mine = a.completions[0];
-    return {
-      assignmentId: a.id,
-      classroomId: a.classroom.id,
-      classroomName: a.classroom.name,
-      articleId: a.article.id,
-      articleTitle: a.article.title,
-      dueDate: a.dueDate,
-      instructions: a.instructions,
-      status: mine?.status ?? AssignmentStatus.ASSIGNED,
-      quizScore: mine?.quizScore ?? null,
-      completedAt: mine?.completedAt ?? null,
-    };
-  });
-  return mapped.sort((x, y) => {
-    const dx = x.dueDate ? x.dueDate.getTime() : Number.POSITIVE_INFINITY;
-    const dy = y.dueDate ? y.dueDate.getTime() : Number.POSITIVE_INFINITY;
-    return dx - dy;
-  });
+  })) as AssignmentWithStudentCompletion[];
+
+  return rows.map(mapStudentAssignment).sort(compareByDueDateAsc);
 }

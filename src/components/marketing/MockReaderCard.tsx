@@ -12,6 +12,25 @@ const TOOLS = [
   { icon: HelpCircle, label: "Quiz" },
 ] as const;
 
+const DESKTOP_TILT = "perspective(1200px) rotateY(-6deg) rotateX(2deg)";
+const TILT_TRANSITION =
+  "transform var(--duration-slow) var(--ease-emphasized)";
+const PROGRESS_STYLE: React.CSSProperties = {
+  background: "linear-gradient(90deg, var(--teal) 68%, var(--border) 0)",
+};
+
+function mockReaderTransform({
+  isDesktop,
+  reduced,
+  hovered,
+}: {
+  isDesktop: boolean;
+  reduced: boolean;
+  hovered: boolean;
+}): string | undefined {
+  return isDesktop && !reduced && !hovered ? DESKTOP_TILT : undefined;
+}
+
 /**
  * Pure-CSS stylised reader mock for the hero — zero image dependency. On desktop
  * it carries a subtle 3D tilt that resets flat on hover; under
@@ -22,10 +41,7 @@ export function MockReaderCard() {
   const reduced = useMediaQuery("(prefers-reduced-motion: reduce)");
   const isDesktop = useMediaQuery("(min-width: 1024px)");
 
-  const tilt =
-    isDesktop && !reduced && !hovered
-      ? "perspective(1200px) rotateY(-6deg) rotateX(2deg)"
-      : undefined;
+  const tilt = mockReaderTransform({ isDesktop, reduced, hovered });
 
   return (
     <div
@@ -33,8 +49,7 @@ export function MockReaderCard() {
       onMouseLeave={() => setHovered(false)}
       style={{
         transform: tilt,
-        transition:
-          "transform var(--duration-slow) var(--ease-emphasized)",
+        transition: TILT_TRANSITION,
       }}
       className="mx-auto w-full max-w-[360px] lg:max-w-[420px]"
     >
@@ -61,10 +76,7 @@ export function MockReaderCard() {
         <div className="mt-[var(--space-6)] flex items-center gap-[var(--space-3)]">
           <span
             className="block h-1 flex-1 rounded-[var(--radius-full)]"
-            style={{
-              background:
-                "linear-gradient(90deg, var(--teal) 68%, var(--border) 0)",
-            }}
+            style={PROGRESS_STYLE}
             aria-hidden="true"
           />
           <span className="text-[length:var(--text-sm)] font-medium tabular-nums text-text-muted">

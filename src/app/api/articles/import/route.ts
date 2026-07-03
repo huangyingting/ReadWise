@@ -8,6 +8,35 @@ import { buildArticleListResponse } from "@/lib/article-library/listing-response
 import { importArticleFromUrl, importArticleFromText } from "@/lib/import";
 import { importBody, parseListQuery } from "@/lib/import/schemas";
 
+const UNTITLED_IMPORT_TITLE = "Untitled import";
+
+function importTitle(title: string | undefined): string {
+  return title?.trim() || UNTITLED_IMPORT_TITLE;
+}
+
+async function importUrl(
+  body: { url: string },
+  context: Omit<Parameters<typeof importArticleFromUrl>[0], "rawUrl">,
+) {
+  const result = await importArticleFromUrl({ ...context, rawUrl: body.url });
+  if (result.status === 200) {
+    return NextResponse.json({ id: result.id, duplicate: true }, { status: 200 });
+  }
+  return NextResponse.json({ id: result.id }, { status: 201 });
+}
+
+async function importText(
+  body: { title?: string; text: string },
+  context: Omit<Parameters<typeof importArticleFromText>[0], "title" | "text">,
+) {
+  const result = await importArticleFromText({
+    ...context,
+    title: importTitle(body.title),
+    text: body.text,
+  });
+  return NextResponse.json({ id: result.id }, { status: 201 });
+}
+
 /**
  * POST /api/articles/import
  *
@@ -24,17 +53,14 @@ export const POST = createHandler(
     const userId = session.user.id;
 
     if (body.url) {
-      const result = await importArticleFromUrl({ rawUrl: body.url, userId, req, session, requestId });
-      if (result.status === 200) {
-        return NextResponse.json({ id: result.id, duplicate: true }, { status: 200 });
-      }
-      return NextResponse.json({ id: result.id }, { status: 201 });
+      return importUrl({ url: body.url }, { userId, req, session, requestId });
     }
 
     if (body.text !== undefined && body.text !== null) {
-      const title = body.title?.trim() || "Untitled import";
-      const result = await importArticleFromText({ title, text: body.text, userId, req, session, requestId });
-      return NextResponse.json({ id: result.id }, { status: 201 });
+      return importText(
+        { title: body.title, text: body.text },
+        { userId, req, session, requestId },
+      );
     }
 
     throw new ApiError(400, "Provide either `url` or `text` in the request body.");

@@ -11,20 +11,51 @@ import { progressBody } from "@/lib/reader/schemas";
 import { revalidateUserCache } from "@/lib/cache";
 import { syncTodayReadingFromProgress } from "@/lib/engagement/today-session/completion";
 
+type ProgressWrite = {
+  percent: number;
+  completed: boolean;
+};
+
+function progressResponse(progress: ProgressWrite) {
+  return NextResponse.json({
+    percent: progress.percent,
+    completed: progress.completed,
+  });
+}
+
+async function recordProgressMastery(userId: string, articleId: string, percent: number) {
+  await Promise.all([
+    bestEffortMastery("progress.article_mastery", () =>
+      updateArticleMastery(userId, articleId),
+    ),
+    bestEffortMastery("progress.reading_skill", () =>
+      recordSkillEvidence(userId, "reading", percent / 100, 0.5),
+    ),
+  ]);
+}
+
+async function syncTodayReadingProgress(
+  userId: string,
+  articleId: string,
+  progress: ProgressWrite,
+) {
+  await bestEffortMastery("progress.today_reading", () =>
+    syncTodayReadingFromProgress({
+      userId,
+      articleId,
+      percent: progress.percent,
+      completed: progress.completed,
+    }),
+  );
+}
+
 export const POST = createHandler(
   { params: idParams, body: progressBody },
   async ({ params, body, session }) => {
     const { article } = await requireReadableArticle(params.id, session.user);
     const progress = await saveProgress(session.user.id, article.id, body.percent);
     // Best-effort mastery side-effects — never break the progress write.
-    await Promise.all([
-      bestEffortMastery("progress.article_mastery", () =>
-        updateArticleMastery(session.user.id, article.id),
-      ),
-      bestEffortMastery("progress.reading_skill", () =>
-        recordSkillEvidence(session.user.id, "reading", progress.percent / 100, 0.5),
-      ),
-    ]);
+    await recordProgressMastery(session.user.id, article.id, progress.percent);
     // Product analytics (RW-051): emit progress_complete when the article first
     // reaches completion. saveProgress is forward-only + sticky, so this fires
     // around the completion transition. Metadata only.
@@ -42,17 +73,7 @@ export const POST = createHandler(
     // Best-effort: advance the learner's active Today session reading step when
     // the primary article reaches the completion threshold. Never breaks the
     // progress write and never mutates ReadingProgress.
-    await bestEffortMastery("progress.today_reading", () =>
-      syncTodayReadingFromProgress({
-        userId: session.user.id,
-        articleId: article.id,
-        percent: progress.percent,
-        completed: progress.completed,
-      }),
-    );
-    return NextResponse.json({
-      percent: progress.percent,
-      completed: progress.completed,
-    });
+    await syncTodayReadingProgress(session.user.id, article.id, progress);
+    return progressResponse(progress);
   },
 );

@@ -13,12 +13,32 @@ export type ListJobsFilter = {
   skip?: number;
 };
 
+function scalarOrIn<T>(value: T | T[] | undefined): T | { in: T[] } | undefined {
+  if (!value) return undefined;
+  return Array.isArray(value) ? { in: value } : value;
+}
+
+function listJobsWhere(filter: ListJobsFilter): Prisma.JobWhereInput {
+  return {
+    ...(filter.status ? { status: scalarOrIn(filter.status) } : {}),
+    ...(filter.type ? { type: scalarOrIn(filter.type) } : {}),
+  };
+}
+
+function groupCounts<T extends string>(
+  groups: Array<{ [K in T]: string } & { _count: { _all: number } }>,
+  key: T,
+): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const group of groups) {
+    out[group[key]] = group._count._all;
+  }
+  return out;
+}
+
 export function listJobs(filter: ListJobsFilter = {}): Promise<Job[]> {
-  const where: Prisma.JobWhereInput = {};
-  if (filter.status) where.status = Array.isArray(filter.status) ? { in: filter.status } : filter.status;
-  if (filter.type) where.type = Array.isArray(filter.type) ? { in: filter.type } : filter.type;
   return prisma.job.findMany({
-    where,
+    where: listJobsWhere(filter),
     orderBy: [{ createdAt: "desc" }],
     take: filter.take ?? 100,
     skip: filter.skip ?? 0,
@@ -36,19 +56,11 @@ export function getJob(jobId: string): Promise<Job | null> {
 /** Returns a `{ status: count }` map for dashboards/monitoring. */
 export async function countJobsByStatus(): Promise<Record<string, number>> {
   const groups = await prisma.job.groupBy({ by: ["status"], _count: { _all: true } });
-  const out: Record<string, number> = {};
-  for (const g of groups) {
-    out[g.status] = g._count._all;
-  }
-  return out;
+  return groupCounts(groups, "status");
 }
 
 /** Returns a `{ type: count }` map for dashboards/monitoring. */
 export async function countJobsByType(): Promise<Record<string, number>> {
   const groups = await prisma.job.groupBy({ by: ["type"], _count: { _all: true } });
-  const out: Record<string, number> = {};
-  for (const g of groups) {
-    out[g.type] = g._count._all;
-  }
-  return out;
+  return groupCounts(groups, "type");
 }

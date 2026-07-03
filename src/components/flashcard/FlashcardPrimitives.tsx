@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode, RefObject } from "react";
 /**
  * Shared card UI primitives used across FlashcardFace and ClozeCard.
  * Extracted to eliminate duplication (FE2-6) and centralise design-token usage (DSGN2-8).
@@ -34,6 +35,8 @@ export function PronounceButton({
   disabledTitle,
   onSpeak,
 }: PronounceButtonProps) {
+  const label = speaking === cardId ? "Playing…" : "Pronounce";
+
   return (
     <Button
       variant="ghost"
@@ -45,7 +48,7 @@ export function PronounceButton({
       leadingIcon={<Volume2 size={16} aria-hidden />}
       className="min-h-[44px] text-text-muted hover:text-text disabled:hover:text-text-muted"
     >
-      {speaking === cardId ? "Playing…" : "Pronounce"}
+      {label}
     </Button>
   );
 }
@@ -53,10 +56,10 @@ export function PronounceButton({
 // ── ShowAnswerButton ───────────────────────────────────────────────────────
 
 interface ShowAnswerButtonProps {
-  showAnswerRef: React.RefObject<HTMLButtonElement | null>;
+  showAnswerRef: RefObject<HTMLButtonElement | null>;
   flipped: boolean;
   onFlip: () => void;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 /**

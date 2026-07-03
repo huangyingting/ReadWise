@@ -12,6 +12,21 @@ interface DailyGoalStepperProps {
   onChange: (value: number) => void;
 }
 
+function parseDailyGoal(value: string) {
+  const parsed = parseInt(value, 10);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+function clampDailyGoal(value: number) {
+  return Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, value));
+}
+
+function stepDailyGoal(value: number, delta: number) {
+  return delta < 0
+    ? Math.max(DAILY_GOAL_MIN, value + delta)
+    : Math.min(DAILY_GOAL_MAX, value + delta);
+}
+
 /**
  * Stepper control for the articles-per-day reading goal.
  * Used in the profile settings form and extracted here so it can be reused
@@ -21,6 +36,7 @@ export function DailyGoalStepper({ value, onChange }: DailyGoalStepperProps) {
   const uid = useId();
   const dailyGoalId = `${uid}-daily-goal`;
   const dailyGoalHintId = `${uid}-daily-goal-hint`;
+  const unitLabel = value === 1 ? "article" : "articles";
 
   return (
     <div className="flex flex-col gap-[var(--space-2)]">
@@ -37,7 +53,7 @@ export function DailyGoalStepper({ value, onChange }: DailyGoalStepperProps) {
           variant="outline"
           size="sm"
           aria-label="Decrease daily goal"
-          onClick={() => onChange(Math.max(DAILY_GOAL_MIN, value - 1))}
+          onClick={() => onChange(stepDailyGoal(value, -1))}
           disabled={value <= DAILY_GOAL_MIN}
         >
           <Minus size={16} aria-hidden />
@@ -51,15 +67,12 @@ export function DailyGoalStepper({ value, onChange }: DailyGoalStepperProps) {
           step={1}
           value={value}
           onChange={(e) => {
-            const v = parseInt(e.target.value, 10);
-            if (!isNaN(v)) onChange(v);
+            const nextValue = parseDailyGoal(e.target.value);
+            if (nextValue !== null) onChange(nextValue);
           }}
           onBlur={(e) => {
-            const v = parseInt(e.target.value, 10);
-            const clamped = isNaN(v)
-              ? DAILY_GOAL_MIN
-              : Math.max(DAILY_GOAL_MIN, Math.min(DAILY_GOAL_MAX, v));
-            onChange(clamped);
+            const nextValue = parseDailyGoal(e.target.value);
+            onChange(nextValue === null ? DAILY_GOAL_MIN : clampDailyGoal(nextValue));
           }}
           aria-describedby={dailyGoalHintId}
           className="w-[3.5rem] text-center tabular-nums [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
@@ -69,13 +82,13 @@ export function DailyGoalStepper({ value, onChange }: DailyGoalStepperProps) {
           variant="outline"
           size="sm"
           aria-label="Increase daily goal"
-          onClick={() => onChange(Math.min(DAILY_GOAL_MAX, value + 1))}
+          onClick={() => onChange(stepDailyGoal(value, 1))}
           disabled={value >= DAILY_GOAL_MAX}
         >
           <Plus size={16} aria-hidden />
         </Button>
         <span className="text-text-muted text-[length:var(--text-sm)]">
-          {value === 1 ? "article" : "articles"} / day
+          {unitLabel} / day
         </span>
       </div>
       {/* Reserve error row height (Field parity) */}

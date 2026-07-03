@@ -8,6 +8,23 @@ import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 const WELCOME_SEEN_KEY = STORAGE_KEYS.WELCOME_SEEN;
+const WELCOME_SEEN_VALUE = "1";
+
+function hasSeenWelcome() {
+  try {
+    return Boolean(localStorage.getItem(WELCOME_SEEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function markWelcomeSeen() {
+  try {
+    localStorage.setItem(WELCOME_SEEN_KEY, WELCOME_SEEN_VALUE);
+  } catch {
+    // Ignore storage errors.
+  }
+}
 
 /**
  * First-run welcome banner on the dashboard.
@@ -19,22 +36,14 @@ export default function DashboardWelcomeBanner() {
 
   // Hide immediately if the welcome tour was already seen.
   useEffect(() => {
-    try {
-      if (localStorage.getItem(WELCOME_SEEN_KEY)) {
-        setVisible(false);
-      }
-    } catch {
-      // Ignore storage errors.
+    if (hasSeenWelcome()) {
+      setVisible(false);
     }
   }, []);
 
   function dismiss() {
     setVisible(false);
-    try {
-      localStorage.setItem(WELCOME_SEEN_KEY, "1");
-    } catch {
-      // Ignore storage errors.
-    }
+    markWelcomeSeen();
   }
 
   if (!visible) return null;

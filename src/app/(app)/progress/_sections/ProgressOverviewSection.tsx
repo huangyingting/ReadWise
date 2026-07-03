@@ -12,6 +12,19 @@ interface ProgressOverviewSectionProps {
   speedStats: ProgressSpeedStats;
 }
 
+function pluralize(count: number, singular: string, plural = `${singular}s`) {
+  return count === 1 ? singular : plural;
+}
+
+function formatReadingSpeedSub(speedStats: ProgressSpeedStats) {
+  const { averageWpm, recentWpm, sessionCount } = speedStats;
+  if (recentWpm !== null && recentWpm !== averageWpm) {
+    return `Recent: ${recentWpm} wpm (${recentWpm > (averageWpm ?? 0) ? "↑ faster" : "↓ slower"})`;
+  }
+
+  return `${sessionCount} ${pluralize(sessionCount, "session")}`;
+}
+
 export function ProgressOverviewSection({
   analytics,
   speedStats,
@@ -25,6 +38,9 @@ export function ProgressOverviewSection({
     currentStreak,
     longestStreak,
   } = analytics;
+
+  const streakSub = `Best: ${longestStreak} ${pluralize(longestStreak, "day")}`;
+  const quizAttemptSub = `${totalQuizAttempts} ${pluralize(totalQuizAttempts, "attempt")}`;
 
   return (
     <section aria-labelledby="overview-h">
@@ -57,7 +73,7 @@ export function ProgressOverviewSection({
           icon={Zap}
           label="Current streak"
           value={`${currentStreak}d`}
-          sub={`Best: ${longestStreak} day${longestStreak !== 1 ? "s" : ""}`}
+          sub={streakSub}
           color="var(--stat-streak)"
         />
         {averageQuizScore !== null && (
@@ -65,7 +81,7 @@ export function ProgressOverviewSection({
             icon={Star}
             label="Avg quiz score"
             value={`${averageQuizScore}%`}
-            sub={`${totalQuizAttempts} attempt${totalQuizAttempts !== 1 ? "s" : ""}`}
+            sub={quizAttemptSub}
             color="var(--stat-quiz)"
           />
         )}
@@ -74,11 +90,7 @@ export function ProgressOverviewSection({
             icon={TrendingUp}
             label="Reading speed"
             value={`${speedStats.averageWpm} wpm`}
-            sub={
-              speedStats.recentWpm !== null && speedStats.recentWpm !== speedStats.averageWpm
-                ? `Recent: ${speedStats.recentWpm} wpm (${speedStats.recentWpm > speedStats.averageWpm ? "↑ faster" : "↓ slower"})`
-                : `${speedStats.sessionCount} session${speedStats.sessionCount !== 1 ? "s" : ""}`
-            }
+            sub={formatReadingSpeedSub(speedStats)}
             color="var(--primary)"
           />
         )}

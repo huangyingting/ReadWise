@@ -12,6 +12,27 @@ const DIVERSITY_STEP = 6;
 /** Maximum diversity penalty applied to any single article. */
 const DIVERSITY_MAX_PENALTY = 18;
 
+function categoryKey(recommendation: ScoredRecommendation): string {
+  return recommendation.category ?? "";
+}
+
+function diversityPenalty(seen: number): number {
+  return Math.min(DIVERSITY_MAX_PENALTY, seen * DIVERSITY_STEP);
+}
+
+function seenCategoryCount(categoryCount: Map<string, number>, category: string): number {
+  return category ? categoryCount.get(category) ?? 0 : 0;
+}
+
+function effectiveScore(
+  recommendation: ScoredRecommendation,
+  categoryCount: Map<string, number>,
+): number {
+  const cat = categoryKey(recommendation);
+  const seen = seenCategoryCount(categoryCount, cat);
+  return recommendation.baseScore - diversityPenalty(seen);
+}
+
 /**
  * Greedy diversity-aware ordering. Repeatedly selects the highest-scoring
  * remaining article, applying an increasing penalty to categories already
@@ -30,19 +51,16 @@ export function rankWithDiversity(
     let bestIdx = 0;
     let bestEff = -Infinity;
     for (let i = 0; i < remaining.length; i++) {
-      const cat = remaining[i].category ?? "";
-      const seen = cat ? categoryCount.get(cat) ?? 0 : 0;
-      const penalty = Math.min(DIVERSITY_MAX_PENALTY, seen * DIVERSITY_STEP);
-      const eff = remaining[i].baseScore - penalty;
+      const eff = effectiveScore(remaining[i], categoryCount);
       if (eff > bestEff) {
         bestEff = eff;
         bestIdx = i;
       }
     }
     const [picked] = remaining.splice(bestIdx, 1);
-    const cat = picked.category ?? "";
-    const seen = cat ? categoryCount.get(cat) ?? 0 : 0;
-    const penalty = Math.min(DIVERSITY_MAX_PENALTY, seen * DIVERSITY_STEP);
+    const cat = categoryKey(picked);
+    const seen = seenCategoryCount(categoryCount, cat);
+    const penalty = diversityPenalty(seen);
     picked.diversityPenalty = penalty;
     picked.score = Math.max(0, Math.round((picked.baseScore - penalty) * 10) / 10);
     if (penalty > 0) {

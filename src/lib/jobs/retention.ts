@@ -17,6 +17,9 @@ import { JobStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
 import { positiveIntEnv } from "@/lib/runtime-config/env";
 
+const DEFAULT_TERMINAL_RETENTION_DAYS = 90;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
 export const JOB_TERMINAL_STATUSES: JobStatus[] = [JobStatus.COMPLETED, JobStatus.DEAD_LETTER];
 
 export type PruneJobsClient = Pick<Prisma.TransactionClient, "job">;
@@ -26,7 +29,17 @@ export type PruneJobsClient = Pick<Prisma.TransactionClient, "job">;
  * Set via `JOB_TERMINAL_RETENTION_DAYS`.
  */
 export function jobTerminalRetentionDays(): number {
-  return positiveIntEnv("JOB_TERMINAL_RETENTION_DAYS", 90);
+  return positiveIntEnv("JOB_TERMINAL_RETENTION_DAYS", DEFAULT_TERMINAL_RETENTION_DAYS);
+}
+
+function retentionDaysOrDefault(olderThanDays: number): number {
+  return Number.isFinite(olderThanDays) && olderThanDays > 0
+    ? Math.floor(olderThanDays)
+    : jobTerminalRetentionDays();
+}
+
+function retentionCutoff(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * DAY_MS);
 }
 
 /**
@@ -43,12 +56,8 @@ export async function pruneTerminalJobs(
   client: PruneJobsClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days =
-    Number.isFinite(olderThanDays) && olderThanDays > 0
-      ? Math.floor(olderThanDays)
-      : jobTerminalRetentionDays();
   if (statuses.length === 0) return 0;
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const cutoff = retentionCutoff(now, retentionDaysOrDefault(olderThanDays));
   const result = await client.job.deleteMany({
     where: {
       status: { in: statuses },

@@ -30,6 +30,24 @@ const setArticleBody = object({
   timezone: optional(string({ max: 100 })),
 });
 
+type SetArticleRequestBody = {
+  articleId: string;
+  timezone?: string | undefined;
+};
+type TodayRouteUser = Parameters<typeof setTodayPrimaryArticle>[0]["user"];
+
+function routeUserFromSession(session: { user: TodayRouteUser }): TodayRouteUser {
+  return { id: session.user.id, role: session.user.role };
+}
+
+function requestTimezoneFromBody(body: SetArticleRequestBody): string | null {
+  return body.timezone ?? null;
+}
+
+function apiErrorForSetArticleError(err: SetTodayArticleError): ApiError {
+  return new ApiError(err.code === "not_found" ? 404 : 409, err.message);
+}
+
 export const POST = createHandler(
   { body: setArticleBody },
   async ({ body, session }) => {
@@ -39,21 +57,21 @@ export const POST = createHandler(
 
     try {
       await setTodayPrimaryArticle({
-        user: { id: session.user.id, role: session.user.role },
+        user: routeUserFromSession(session),
         articleId: body.articleId,
-        requestTimezone: body.timezone ?? null,
+        requestTimezone: requestTimezoneFromBody(body),
       });
     } catch (err) {
       if (err instanceof SetTodayArticleError) {
         // not_found → 404 (IDOR-safe); not_ready (processing/failed) → 409.
-        throw new ApiError(err.code === "not_found" ? 404 : 409, err.message);
+        throw apiErrorForSetArticleError(err);
       }
       throw err;
     }
 
     const view = await loadTodayViewModel({
-      user: { id: session.user.id, role: session.user.role },
-      requestTimezone: body.timezone ?? null,
+      user: routeUserFromSession(session),
+      requestTimezone: requestTimezoneFromBody(body),
     });
 
     return NextResponse.json(view);

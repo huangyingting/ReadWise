@@ -11,25 +11,17 @@ import { loadReaderPageData, buildArticleJsonLd } from "@/lib/reader/page-loader
 import ReaderProgress from "@/components/ReaderProgress";
 import ReaderShell from "./ReaderShell";
 
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}): Promise<Metadata> {
-  const { id } = await params;
-  // Use a non-throwing session read so unauthenticated crawlers get the
-  // generic fallback title (no redirect/crash). Authenticated owners can then
-  // see titles of their private articles in the <title> tag.
-  const session = await getServerSession(authOptions);
-  const article = await getReadableArticleById(id, articleAccessContext(session?.user ?? null));
-  if (!article) {
-    return { title: "Article" };
-  }
+type MetadataArticle = NonNullable<Awaited<ReturnType<typeof getReadableArticleById>>>;
 
-  const description = articleHtmlToReaderText(article.content)
+function articleDescription(content: string) {
+  return articleHtmlToReaderText(content)
     .trim()
     .replace(/\s+/g, " ")
     .slice(0, 160);
+}
+
+function metadataForArticle(article: MetadataArticle): Metadata {
+  const description = articleDescription(article.content);
 
   return {
     title: article.title,
@@ -51,6 +43,24 @@ export async function generateMetadata({
       ...(article.heroImage ? { images: [article.heroImage] } : {}),
     },
   };
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  // Use a non-throwing session read so unauthenticated crawlers get the
+  // generic fallback title (no redirect/crash). Authenticated owners can then
+  // see titles of their private articles in the <title> tag.
+  const session = await getServerSession(authOptions);
+  const article = await getReadableArticleById(id, articleAccessContext(session?.user ?? null));
+  if (!article) {
+    return { title: "Article" };
+  }
+
+  return metadataForArticle(article);
 }
 
 export default async function ReaderPage({

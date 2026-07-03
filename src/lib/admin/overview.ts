@@ -23,6 +23,14 @@ export type AdminOverview = {
   statusCounts: StatusCount[];
 };
 
+function toStatusCount(group: { status: ArticleStatus; _count: { _all: number } }): StatusCount {
+  return { status: group.status, count: group._count._all };
+}
+
+function byCountDesc(a: StatusCount, b: StatusCount): number {
+  return b.count - a.count;
+}
+
 export async function getAdminOverview(): Promise<AdminOverview> {
   const [users, admins, articles, published, tags, readingProgress, grouped] =
     await Promise.all([
@@ -38,9 +46,7 @@ export async function getAdminOverview(): Promise<AdminOverview> {
       }),
     ]);
 
-  const statusCounts: StatusCount[] = grouped
-    .map((g) => ({ status: g.status, count: g._count._all }))
-    .sort((a, b) => b.count - a.count);
+  const statusCounts: StatusCount[] = grouped.map(toStatusCount).sort(byCountDesc);
 
   return {
     users,

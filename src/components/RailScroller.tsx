@@ -9,6 +9,35 @@ interface RailScrollerProps {
   children: React.ReactNode;
 }
 
+const SCROLL_EDGE_THRESHOLD = 4;
+const DEFAULT_CARD_WIDTH = 260;
+const CARD_GAP_PX = 16;
+const RAIL_BUTTON_CLASS = cn(
+  "absolute top-1/2 -translate-y-1/2 z-10",
+  "h-9 w-9 inline-flex items-center justify-center shrink-0",
+  "rounded-full bg-surface border border-border shadow-[var(--shadow-md)]",
+  "text-text-muted hover:text-text hover:bg-bg-subtle",
+  "transition-[opacity,transform] [transition-duration:var(--duration-fast)]",
+);
+
+function canScrollBack(el: HTMLElement): boolean {
+  return el.scrollLeft > SCROLL_EDGE_THRESHOLD;
+}
+
+function canScrollForward(el: HTMLElement): boolean {
+  return (
+    el.scrollLeft + el.clientWidth <
+    el.scrollWidth - SCROLL_EDGE_THRESHOLD
+  );
+}
+
+function firstCardWidth(el: HTMLElement): number {
+  return (
+    el.querySelector<HTMLElement>(":scope > *")?.offsetWidth ??
+    DEFAULT_CARD_WIDTH
+  );
+}
+
 /**
  * Horizontal scroll rail with prev/next chevron buttons for pointer users.
  * Touch/trackpad users scroll naturally; buttons appear/disappear based on
@@ -22,8 +51,8 @@ export default function RailScroller({ children }: RailScrollerProps) {
   const updateArrows = useCallback(() => {
     const el = railRef.current;
     if (!el) return;
-    setCanScrollLeft(el.scrollLeft > 4);
-    setCanScrollRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+    setCanScrollLeft(canScrollBack(el));
+    setCanScrollRight(canScrollForward(el));
   }, []);
 
   useEffect(() => {
@@ -42,17 +71,9 @@ export default function RailScroller({ children }: RailScrollerProps) {
   function scrollBy(dir: 1 | -1) {
     const el = railRef.current;
     if (!el) return;
-    const cardWidth = el.querySelector<HTMLElement>(":scope > *")?.offsetWidth ?? 260;
-    el.scrollBy({ left: dir * (cardWidth + 16), behavior: "smooth" });
+    const cardWidth = firstCardWidth(el);
+    el.scrollBy({ left: dir * (cardWidth + CARD_GAP_PX), behavior: "smooth" });
   }
-
-  const chevronClass = cn(
-    "absolute top-1/2 -translate-y-1/2 z-10",
-    "h-9 w-9 inline-flex items-center justify-center shrink-0",
-    "rounded-full bg-surface border border-border shadow-[var(--shadow-md)]",
-    "text-text-muted hover:text-text hover:bg-bg-subtle",
-    "transition-[opacity,transform] [transition-duration:var(--duration-fast)]",
-  );
 
   return (
     <div className="relative">
@@ -60,7 +81,7 @@ export default function RailScroller({ children }: RailScrollerProps) {
         <IconButton
           aria-label="Scroll left"
           onClick={() => scrollBy(-1)}
-          className={cn(chevronClass, "left-0 -translate-x-1/2")}
+          className={cn(RAIL_BUTTON_CLASS, "left-0 -translate-x-1/2")}
         >
           <ChevronLeft size={18} aria-hidden />
         </IconButton>
@@ -70,7 +91,10 @@ export default function RailScroller({ children }: RailScrollerProps) {
         ref={railRef}
         tabIndex={0}
         className="flex gap-[var(--space-4)] overflow-x-auto pb-[var(--space-3)] -mx-[var(--space-1)] px-[var(--space-1)] snap-x snap-mandatory rw-rail-mask"
-        style={{ scrollbarWidth: "thin", scrollbarColor: "var(--border) transparent" }}
+        style={{
+          scrollbarWidth: "thin",
+          scrollbarColor: "var(--border) transparent",
+        }}
       >
         {children}
       </div>
@@ -79,7 +103,7 @@ export default function RailScroller({ children }: RailScrollerProps) {
         <IconButton
           aria-label="Scroll right"
           onClick={() => scrollBy(1)}
-          className={cn(chevronClass, "right-0 translate-x-1/2")}
+          className={cn(RAIL_BUTTON_CLASS, "right-0 translate-x-1/2")}
         >
           <ChevronRight size={18} aria-hidden />
         </IconButton>

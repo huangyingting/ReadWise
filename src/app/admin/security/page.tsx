@@ -11,6 +11,37 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const SECURITY_EVENT_LIMIT = 100;
+const EMPTY_CELL = "—";
+const EVENT_HEADERS = [
+  "Time",
+  "Type",
+  "Severity",
+  "Status",
+  "Route",
+  "Actor",
+  "IP",
+  "Count",
+] as const;
+
+type TrustedProxyConfig = ReturnType<typeof trustedProxyConfig>;
+type SecurityEvent = ReturnType<typeof getRecentSecurityEvents>[number];
+
+function formatProxyMode(proxy: TrustedProxyConfig): string {
+  if (proxy.header) return `header: ${proxy.header}`;
+  if (proxy.list.length > 0) return `cidr list (${proxy.list.length})`;
+  if (proxy.hops !== null) return `hops: ${proxy.hops}`;
+  return "best-effort (soft)";
+}
+
+function formatSecurityEventTime(timestamp: SecurityEvent["timestamp"]): string {
+  return new Date(timestamp).toISOString().replace("T", " ").slice(0, 19);
+}
+
+function cellValue(value: string | number | null | undefined) {
+  return value ?? EMPTY_CELL;
+}
+
 /**
  * Admin security overview (RW-029) — shows the current trusted-proxy / CSRF
  * posture plus the most recent security events from the in-process ring buffer.
@@ -19,16 +50,8 @@ export const dynamic = "force-dynamic";
  */
 export default async function AdminSecurityPage() {
   await requireCapability(CAPABILITIES.securityView, "/admin/security");
-  const events = getRecentSecurityEvents(100);
+  const events = getRecentSecurityEvents(SECURITY_EVENT_LIMIT);
   const proxy = trustedProxyConfig();
-
-  const proxyMode = proxy.header
-    ? `header: ${proxy.header}`
-    : proxy.list.length > 0
-      ? `cidr list (${proxy.list.length})`
-      : proxy.hops !== null
-        ? `hops: ${proxy.hops}`
-        : "best-effort (soft)";
 
   return (
     <section className="stack">
@@ -41,7 +64,7 @@ export default async function AdminSecurityPage() {
           label="Trusted proxy"
           value={isTrustedProxyConfigured() ? "configured" : "unconfigured"}
         />
-        <StatCard label="Proxy mode" value={proxyMode} />
+        <StatCard label="Proxy mode" value={formatProxyMode(proxy)} />
         <StatCard
           label="CSRF same-origin"
           value={csrfEnforceSameOrigin() ? "enforced" : "disabled"}
@@ -57,38 +80,28 @@ export default async function AdminSecurityPage() {
         </p>
       ) : (
         <AdminTableWrap ariaLabel="Recent security events (scrollable)">
-            <thead>
-              <tr>
-                <th>Time</th>
-                <th>Type</th>
-                <th>Severity</th>
-                <th>Status</th>
-                <th>Route</th>
-                <th>Actor</th>
-                <th>IP</th>
-                <th>Count</th>
-              </tr>
-            </thead>
-            <tbody>
-              {events.map((event, index) => (
-                <tr key={`${event.timestamp}-${index}`}>
-                  <td>
-                    {new Date(event.timestamp)
-                      .toISOString()
-                      .replace("T", " ")
-                      .slice(0, 19)}
-                  </td>
-                  <td>{event.type}</td>
-                  <td>{event.severity}</td>
-                  <td>{event.status ?? "—"}</td>
-                  <td>{event.route ?? "—"}</td>
-                  <td>{event.actorId ?? "—"}</td>
-                  <td>{event.ip ?? "—"}</td>
-                  <td>{event.count}</td>
-                </tr>
+          <thead>
+            <tr>
+              {EVENT_HEADERS.map((header) => (
+                <th key={header}>{header}</th>
               ))}
-            </tbody>
-          </AdminTableWrap>
+            </tr>
+          </thead>
+          <tbody>
+            {events.map((event, index) => (
+              <tr key={`${event.timestamp}-${index}`}>
+                <td>{formatSecurityEventTime(event.timestamp)}</td>
+                <td>{event.type}</td>
+                <td>{event.severity}</td>
+                <td>{cellValue(event.status)}</td>
+                <td>{cellValue(event.route)}</td>
+                <td>{cellValue(event.actorId)}</td>
+                <td>{cellValue(event.ip)}</td>
+                <td>{event.count}</td>
+              </tr>
+            ))}
+          </tbody>
+        </AdminTableWrap>
       )}
     </section>
   );
