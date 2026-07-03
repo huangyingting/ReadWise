@@ -46,6 +46,12 @@ type CreatedList = {
   isDefault: boolean;
 };
 
+type ListRowProps = {
+  list: ListMembershipEntry;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  onToggle: (list: ListMembershipEntry) => void;
+};
+
 interface ListPickerPopoverProps {
   id: string;
   articleId: string;
@@ -55,6 +61,65 @@ interface ListPickerPopoverProps {
   onDefaultListChange?: (saved: boolean) => void;
   /** Called once after membership data loads (used to detect named-list presence). */
   onMembershipLoaded?: (lists: ListMembershipEntry[]) => void;
+}
+
+function encodeId(id: string) {
+  return encodeURIComponent(id);
+}
+
+function membershipUrl(articleId: string) {
+  return `/api/bookmarks/membership?articleId=${encodeId(articleId)}`;
+}
+
+function listItemUrl(listId: string) {
+  return `/api/lists/${encodeId(listId)}/items`;
+}
+
+function listArticleUrl(listId: string, articleId: string) {
+  return `${listItemUrl(listId)}/${encodeId(articleId)}`;
+}
+
+function createdListMembership(newList: CreatedList): ListMembershipEntry {
+  return {
+    id: newList.id,
+    name: newList.name,
+    isDefault: newList.isDefault,
+    hasArticle: true,
+  };
+}
+
+function hasOnlyDefaultList(lists: ListMembershipEntry[]) {
+  return lists.length === 1 && lists[0].isDefault;
+}
+
+function ListRow({ list, inputRef, onToggle }: ListRowProps) {
+  return (
+    <label
+      className={cn(
+        "flex items-center gap-[var(--space-2)]",
+        "h-9 px-[var(--space-3)] w-full",
+        "rounded-[var(--radius-md)] cursor-pointer",
+        "hover:bg-bg-subtle",
+        "text-[length:var(--text-sm)] text-text",
+        focusRing,
+      )}
+    >
+      <input
+        ref={inputRef}
+        type="checkbox"
+        checked={list.hasArticle}
+        onChange={() => onToggle(list)}
+        className="accent-[var(--primary)] shrink-0"
+        aria-label={list.name}
+      />
+      <span className="flex-1 truncate">{list.name}</span>
+      {list.isDefault ? (
+        <span className="text-[length:var(--text-xs)] text-text-subtle ml-auto shrink-0">
+          (default)
+        </span>
+      ) : null}
+    </label>
+  );
 }
 
 export default function ListPickerPopover({
@@ -77,20 +142,11 @@ export default function ListPickerPopover({
   const createRowRef = useRef<HTMLButtonElement>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusId = useId();
-  const encodedArticleId = encodeURIComponent(articleId);
-  const membershipEndpoint = `/api/bookmarks/membership?articleId=${encodedArticleId}`;
+  const membershipEndpoint = membershipUrl(articleId);
 
   // Use ref so the callback never causes re-runs of the data-fetch effect
   const onMembershipLoadedRef = useRef(onMembershipLoaded);
   onMembershipLoadedRef.current = onMembershipLoaded;
-
-  function listItemUrl(listId: string) {
-    return `/api/lists/${encodeURIComponent(listId)}/items`;
-  }
-
-  function listArticleUrl(listId: string) {
-    return `${listItemUrl(listId)}/${encodedArticleId}`;
-  }
 
   function setListMembership(listId: string, hasArticle: boolean) {
     setLists((prev) =>
@@ -180,7 +236,7 @@ export default function ListPickerPopover({
 
     try {
       if (wasChecked) {
-        await deleteJson(listArticleUrl(list.id));
+        await deleteJson(listArticleUrl(list.id, articleId));
       } else {
         await postJson(listItemUrl(list.id), { articleId });
       }
@@ -208,10 +264,7 @@ export default function ListPickerPopover({
     // Add article to the newly created list
     await postJson(listItemUrl(newList.id), { articleId });
     // Append to list with hasArticle=true
-    setLists((prev) => [
-      ...prev,
-      { id: newList.id, name: newList.name, isDefault: newList.isDefault, hasArticle: true },
-    ]);
+    setLists((prev) => [...prev, createdListMembership(newList)]);
     markBookmarkChanged(articleId);
     setCreating(false);
   }
@@ -253,35 +306,15 @@ export default function ListPickerPopover({
         ) : (
           <>
             {lists.map((list, idx) => (
-              <label
+              <ListRow
                 key={list.id}
-                className={cn(
-                  "flex items-center gap-[var(--space-2)]",
-                  "h-9 px-[var(--space-3)] w-full",
-                  "rounded-[var(--radius-md)] cursor-pointer",
-                  "hover:bg-bg-subtle",
-                  "text-[length:var(--text-sm)] text-text",
-                  focusRing,
-                )}
-              >
-                <input
-                  ref={idx === 0 ? firstCheckRef : undefined}
-                  type="checkbox"
-                  checked={list.hasArticle}
-                  onChange={() => void handleCheckbox(list)}
-                  className="accent-[var(--primary)] shrink-0"
-                  aria-label={list.name}
-                />
-                <span className="flex-1 truncate">{list.name}</span>
-                {list.isDefault ? (
-                  <span className="text-[length:var(--text-xs)] text-text-subtle ml-auto shrink-0">
-                    (default)
-                  </span>
-                ) : null}
-              </label>
+                list={list}
+                inputRef={idx === 0 ? firstCheckRef : undefined}
+                onToggle={(selectedList) => void handleCheckbox(selectedList)}
+              />
             ))}
 
-            {lists.length === 1 && lists[0].isDefault ? (
+            {hasOnlyDefaultList(lists) ? (
               <p className="px-[var(--space-3)] py-[var(--space-1)] text-[length:var(--text-xs)] text-text-subtle">
                 Create a list to organize saved articles.
               </p>

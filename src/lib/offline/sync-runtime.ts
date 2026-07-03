@@ -49,6 +49,8 @@ export const MUTATION_HEADER = "x-client-mutation-id";
 export const SYNC_TAG = "readwise-mutations";
 const SW_FLUSH_MESSAGE = STORAGE_KEYS.SW_FLUSH_QUEUE;
 const BODYLESS_METHODS = new Set(["GET", "DELETE"]);
+const SUCCESS_STATUS_MIN = 200;
+const SUCCESS_STATUS_MAX_EXCLUSIVE = 300;
 
 export interface MutationSpec {
   type: string;
@@ -309,19 +311,14 @@ export async function todayMutationReplayHandler(
   }
 
   // 3. Success (incl. idempotent no-op) — drop from the queue.
-  if (status >= 200 && status < 300) {
+  if (isSuccessfulStatus(status)) {
     await deps.remove(mutation.clientMutationId);
     return "removed";
   }
 
   // 4. Conflict — the server already resolved this elsewhere. Non-destructive.
   if (status === 409) {
-    await deps.update(mutation.clientMutationId, {
-      status: "conflict",
-      lastError: `HTTP ${status}`,
-    });
-    deps.onConflict?.({ mutationType: mutation.type, statusCode: status });
-    return "conflict";
+    return markTodayConflict(mutation, deps, status);
   }
 
   // 5. Transient — retry with back-off.
@@ -330,10 +327,35 @@ export async function todayMutationReplayHandler(
   }
 
   // 6. Other 4xx — permanent failure.
+  return markTodayFailed(mutation, deps, `HTTP ${status}`);
+}
+
+function isSuccessfulStatus(status: number): boolean {
+  return status >= SUCCESS_STATUS_MIN && status < SUCCESS_STATUS_MAX_EXCLUSIVE;
+}
+
+async function markTodayConflict(
+  mutation: QueuedMutation,
+  deps: TodayReplayDeps,
+  status: number,
+): Promise<TodayReplayOutcome> {
+  await deps.update(mutation.clientMutationId, {
+    status: "conflict",
+    lastError: `HTTP ${status}`,
+  });
+  deps.onConflict?.({ mutationType: mutation.type, statusCode: status });
+  return "conflict";
+}
+
+async function markTodayFailed(
+  mutation: QueuedMutation,
+  deps: TodayReplayDeps,
+  lastError: string,
+): Promise<TodayReplayOutcome> {
   await deps.update(mutation.clientMutationId, {
     status: "failed",
     retryCount: mutation.retryCount + 1,
-    lastError: `HTTP ${status}`,
+    lastError,
   });
   return "failed";
 }

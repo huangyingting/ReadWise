@@ -13,15 +13,52 @@ import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
 // Helpers
 // ---------------------------------------------------------------------------
 
+type CategoryCase = readonly [section: string, category: string | null];
+type ProviderUrlCase = readonly [providerKey: string, url: string];
+
+const SOURCE_DERIVED_PROVIDER_KEYS = [
+  "bbc",
+  "theconversation",
+  "propublica",
+  "grist",
+  "smithsonian",
+  "knowable",
+  "nautilus",
+  "technologyreview",
+  "noema",
+  "undark",
+] as const;
+
+const LONG_FORM_PROVIDER_KEYS = [
+  "natgeo",
+  "smithsonian",
+  "knowable",
+  "nautilus",
+  "technologyreview",
+  "noema",
+  "undark",
+  "theconversation",
+  "propublica",
+  "grist",
+] as const;
+
+const NEWS_LEARNING_PROVIDER_KEYS = ["nbc", "time", "huffpost", "bbc"] as const;
+
 function getProviderOrFail(key: string) {
-  const p = getProvider(key);
-  assert.ok(p, `Provider "${key}" must be registered`);
-  return p!;
+  const provider = getProvider(key);
+  assert.ok(provider, `Provider "${key}" must be registered`);
+  return provider!;
 }
 
-function assertSectionCategories(cases: ReadonlyArray<readonly [section: string, category: string | null]>) {
+function assertSectionCategories(cases: ReadonlyArray<CategoryCase>) {
   for (const [section, category] of cases) {
     assert.equal(mapSectionToCategory(section), category, `"${section}" should map to ${category}`);
+  }
+}
+
+function assertProviderUrlPatterns(cases: ReadonlyArray<ProviderUrlCase>) {
+  for (const [providerKey, url] of cases) {
+    assert.ok(getProviderOrFail(providerKey).articleUrlPattern.test(url), `${providerKey} should match ${url}`);
   }
 }
 
@@ -85,21 +122,10 @@ test("getProvider is case-insensitive", () => {
 });
 
 test("source-derived providers are registered", () => {
-  for (const key of [
-    "bbc",
-    "theconversation",
-    "propublica",
-    "grist",
-    "smithsonian",
-    "knowable",
-    "nautilus",
-    "technologyreview",
-    "noema",
-    "undark",
-  ]) {
-    const p = getProvider(key);
-    assert.ok(p, `Provider "${key}" must be registered`);
-    assert.ok(p?.seeds.length, `Provider "${key}" must have discovery seeds`);
+  for (const key of SOURCE_DERIVED_PROVIDER_KEYS) {
+    const provider = getProvider(key);
+    assert.ok(provider, `Provider "${key}" must be registered`);
+    assert.ok(provider?.seeds.length, `Provider "${key}" must have discovery seeds`);
   }
 });
 
@@ -158,59 +184,28 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
 });
 
 test("source-derived provider URL patterns match article URLs", () => {
-  assert.ok(getProviderOrFail("bbc").articleUrlPattern.test("https://www.bbc.com/news/articles/c1234567890"));
-  assert.ok(
-    getProviderOrFail("smithsonian").articleUrlPattern.test(
-      "https://www.smithsonianmag.com/science-nature/example-story-180987800/",
-    ),
-  );
-  assert.ok(
-    getProviderOrFail("knowable").articleUrlPattern.test(
-      "https://knowablemagazine.org/content/article/technology/2026/example-story",
-    ),
-  );
-  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/example-story-123456/"));
-  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/legacy-feature/"));
-  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/legacy_feature/"));
-  assert.ok(getProviderOrFail("nautilus").articleUrlPattern.test("https://nautil.us/encoded-%e2%80%99/"));
-  assert.ok(
-    getProviderOrFail("technologyreview").articleUrlPattern.test(
-      "https://www.technologyreview.com/2026/06/23/123456/example-story/",
-    ),
-  );
-  assert.ok(
-    getProviderOrFail("theconversation").articleUrlPattern.test(
+  assertProviderUrlPatterns([
+    ["bbc", "https://www.bbc.com/news/articles/c1234567890"],
+    ["smithsonian", "https://www.smithsonianmag.com/science-nature/example-story-180987800/"],
+    ["knowable", "https://knowablemagazine.org/content/article/technology/2026/example-story"],
+    ["nautilus", "https://nautil.us/example-story-123456/"],
+    ["nautilus", "https://nautil.us/legacy-feature/"],
+    ["nautilus", "https://nautil.us/legacy_feature/"],
+    ["nautilus", "https://nautil.us/encoded-%e2%80%99/"],
+    ["technologyreview", "https://www.technologyreview.com/2026/06/23/123456/example-story/"],
+    [
+      "theconversation",
       "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931",
-    ),
-  );
-  assert.ok(
-    getProviderOrFail("propublica").articleUrlPattern.test(
-      "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis",
-    ),
-  );
-  assert.ok(
-    getProviderOrFail("grist").articleUrlPattern.test(
-      "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/",
-    ),
-  );
-  assert.ok(getProviderOrFail("noema").articleUrlPattern.test("https://www.noemamag.com/example-story/"));
-  assert.ok(
-    getProviderOrFail("natgeo").articleUrlPattern.test(
-      "https://www.nationalgeographic.com/travel/national-parks/article/acadia-national-park",
-    ),
-  );
-  assert.ok(
-    getProviderOrFail("natgeo").articleUrlPattern.test(
-      "https://www.nationalgeographic.com/premium/article/benefits-pet-dog-ownership-mental-health",
-    ),
-  );
-  assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/2026/06/23/example-story/"));
-  assert.ok(getProviderOrFail("undark").articleUrlPattern.test("https://undark.org/shreds-of-evidence-edna/"));
-  assert.ok(
-    getProviderOrFail("undark").articleUrlPattern.test(
-      "https://race.undark.org/articles/good-blood-bad-policy-the-red-cross-and-jim-crow",
-    ),
-  );
+    ],
+    ["propublica", "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"],
+    ["grist", "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"],
+    ["noema", "https://www.noemamag.com/example-story/"],
+    ["natgeo", "https://www.nationalgeographic.com/travel/national-parks/article/acadia-national-park"],
+    ["natgeo", "https://www.nationalgeographic.com/premium/article/benefits-pet-dog-ownership-mental-health"],
+    ["undark", "https://undark.org/2026/06/23/example-story/"],
+    ["undark", "https://undark.org/shreds-of-evidence-edna/"],
+    ["undark", "https://race.undark.org/articles/good-blood-bad-policy-the-red-cross-and-jim-crow"],
+  ]);
 });
 
 test("source-derived URL filters reject non-article pages", () => {
@@ -403,15 +398,33 @@ test("mapSectionToCategory FIX: 'living world' and 'science-nature' resolve to s
 });
 
 test("mapSectionToCategory: new science keywords route to science", () => {
-  for (const s of ["biology", "zoology", "paleontology", "psychology", "neuroscience", "astronomy", "astrophysics", "physics", "chemistry", "math", "mathematics", "genetics", "cosmos"]) {
-    assert.equal(mapSectionToCategory(s), "science", `"${s}" should map to science`);
-  }
+  assertSectionCategories([
+    ["biology", "science"],
+    ["zoology", "science"],
+    ["paleontology", "science"],
+    ["psychology", "science"],
+    ["neuroscience", "science"],
+    ["astronomy", "science"],
+    ["astrophysics", "science"],
+    ["physics", "science"],
+    ["chemistry", "science"],
+    ["math", "science"],
+    ["mathematics", "science"],
+    ["genetics", "science"],
+    ["cosmos", "science"],
+  ]);
 });
 
 test("mapSectionToCategory: new tech keywords route to tech (AI → tech)", () => {
-  for (const s of ["innovation", "computing", "artificial intelligence", "ai", "robotics", "software", "gadget"]) {
-    assert.equal(mapSectionToCategory(s), "tech", `"${s}" should map to tech`);
-  }
+  assertSectionCategories([
+    ["innovation", "tech"],
+    ["computing", "tech"],
+    ["artificial intelligence", "tech"],
+    ["ai", "tech"],
+    ["robotics", "tech"],
+    ["software", "tech"],
+    ["gadget", "tech"],
+  ]);
 });
 
 test("mapSectionToCategory: society routes to culture", () => {
@@ -568,31 +581,20 @@ test("every provider's readingCategories (when set) are valid slugs ⊆ its cate
 });
 
 test("long-form publishers override readingCategories to their FULL categories[]", () => {
-  for (const key of [
-    "natgeo",
-    "smithsonian",
-    "knowable",
-    "nautilus",
-    "technologyreview",
-    "noema",
-    "undark",
-    "theconversation",
-    "propublica",
-    "grist",
-  ]) {
-    const p = getProviderOrFail(key);
+  for (const key of LONG_FORM_PROVIDER_KEYS) {
+    const provider = getProviderOrFail(key);
     assert.deepEqual(
-      p.readingCategories,
-      p.categories,
+      provider.readingCategories,
+      provider.categories,
       `${key}: long-form provider should treat every category as reading-suitable`,
     );
   }
 });
 
 test("news/learning providers OMIT readingCategories (fall back to the global tier)", () => {
-  for (const key of ["nbc", "time", "huffpost", "bbc"]) {
-    const p = getProviderOrFail(key);
-    assert.equal(p.readingCategories, undefined, `${key}: should omit readingCategories`);
+  for (const key of NEWS_LEARNING_PROVIDER_KEYS) {
+    const provider = getProviderOrFail(key);
+    assert.equal(provider.readingCategories, undefined, `${key}: should omit readingCategories`);
   }
 });
 

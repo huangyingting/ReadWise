@@ -10,13 +10,28 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
 registerIntegrationCleanup();
 
+const POSTGRES_REQUIRED = "test:db requires a PostgreSQL DATABASE_URL";
+
+function requirePostgres(): void {
+  assert.equal(isPostgres, true, POSTGRES_REQUIRED);
+}
+
+function assertPresent<T>(value: T | null | undefined, message: string): asserts value is T {
+  assert.ok(value, message);
+}
+
+function onlyFixtureIds(articleIds: string[], fixtureIds: string[]): string[] {
+  return articleIds.filter((articleId) => fixtureIds.includes(articleId));
+}
+
 test("worker/processor selection uses article state for the derived queue", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const publishedMissingId = id("processor_missing");
   const draftOldId = id("processor_draft_old");
   const draftNewId = id("processor_draft_new");
   const enrichedId = id("processor_enriched");
+  const fixtureIds = [draftOldId, draftNewId, publishedMissingId, enrichedId];
   const tagId = id("processor_tag");
   const now = new Date();
   const old = new Date(now.getTime() - 60_000);
@@ -66,20 +81,14 @@ test("worker/processor selection uses article state for the derived queue", { sk
 
   const { listUnprocessedArticleIds } = await import("@/lib/processing/processor");
   const draftsOnly = await listUnprocessedArticleIds();
-  assert.deepEqual(
-    draftsOnly.filter((articleId) => [draftOldId, draftNewId, publishedMissingId, enrichedId].includes(articleId)),
-    [draftOldId, draftNewId],
-  );
+  assert.deepEqual(onlyFixtureIds(draftsOnly, fixtureIds), [draftOldId, draftNewId]);
 
   const withPublishedBackfill = await listUnprocessedArticleIds({ includePublished: true });
-  assert.deepEqual(
-    withPublishedBackfill.filter((articleId) => [draftOldId, draftNewId, publishedMissingId, enrichedId].includes(articleId)),
-    [draftOldId, publishedMissingId, draftNewId],
-  );
+  assert.deepEqual(onlyFixtureIds(withPublishedBackfill, fixtureIds), [draftOldId, publishedMissingId, draftNewId]);
 });
 
 test("persistent Job table exists with the expected enums", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const jobTables = await prisma.$queryRaw<Array<{ table_name: string }>>`
     SELECT table_name
@@ -99,7 +108,7 @@ test("persistent Job table exists with the expected enums", { skip: !enabled }, 
 });
 
 test("claimNextJob uses FOR UPDATE SKIP LOCKED so concurrent workers never collide", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const { enqueueJob, claimNextJob } = await import("@/lib/jobs");
 
@@ -112,8 +121,8 @@ test("claimNextJob uses FOR UPDATE SKIP LOCKED so concurrent workers never colli
     claimNextJob("worker-b"),
   ]);
 
-  assert.ok(claimA, "worker-a should claim a job");
-  assert.ok(claimB, "worker-b should claim a job");
+  assertPresent(claimA, "worker-a should claim a job");
+  assertPresent(claimB, "worker-b should claim a job");
   assert.notEqual(claimA.id, claimB.id, "two workers must not claim the same job");
   assert.deepEqual(
     [claimA.id, claimB.id].sort(),
@@ -130,7 +139,7 @@ test("claimNextJob uses FOR UPDATE SKIP LOCKED so concurrent workers never colli
 });
 
 test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const { enqueueJob, claimNextJob, DEFAULT_LOCK_TTL_MS } = await import("@/lib/jobs");
 
@@ -138,7 +147,7 @@ test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled
   const job = await enqueueJob(JobType.PUSH_REMINDER, { stale: true }, { dedupeKey: id("job_stale") });
 
   const claimed = await claimNextJob("worker-1", { now: t0 });
-  assert.ok(claimed, "worker-1 should claim the job");
+  assertPresent(claimed, "worker-1 should claim the job");
   assert.equal(claimed.id, job.id);
   assert.equal(claimed.lockedBy, "worker-1");
 
@@ -150,13 +159,13 @@ test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled
   const reclaimed = await claimNextJob("worker-2", {
     now: new Date(t0.getTime() + DEFAULT_LOCK_TTL_MS + 1_000),
   });
-  assert.ok(reclaimed, "worker-2 should reclaim the stale job");
+  assertPresent(reclaimed, "worker-2 should reclaim the stale job");
   assert.equal(reclaimed.id, job.id);
   assert.equal(reclaimed.lockedBy, "worker-2");
 });
 
 test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const { enqueueJob, claimNextJob, failJob, JobError, listDeadLetterJobs } = await import("@/lib/jobs");
 
@@ -166,10 +175,10 @@ test("failJob moves an exhausted job to the dead-letter queue", { skip: !enabled
   });
 
   const claimed = await claimNextJob("worker-dlq");
-  assert.ok(claimed, "should claim the job");
+  assertPresent(claimed, "should claim the job");
 
   const failed = await failJob(claimed.id, new JobError("provider exploded", { kind: "provider" }));
-  assert.ok(failed, "failJob should return the updated job");
+  assertPresent(failed, "failJob should return the updated job");
   assert.equal(failed.status, JobStatus.DEAD_LETTER, "exhausted attempts must dead-letter");
   assert.equal(failed.lastError, "provider exploded");
   assert.ok(failed.deadLetteredAt, "deadLetteredAt should be set");

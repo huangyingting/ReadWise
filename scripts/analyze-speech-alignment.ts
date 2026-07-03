@@ -233,11 +233,22 @@ function emptyCoverageBuckets(): Record<CoverageBucket, number> {
   };
 }
 
+function coverageRatio(covered: number, total: number): number {
+  return total ? covered / total : 0;
+}
+
+function compareWorstCoverage(
+  a: ArticleAlignmentStats,
+  b: ArticleAlignmentStats,
+): number {
+  return a.coverage - b.coverage || b.uncovered - a.uncovered;
+}
+
 function buildArticleStats(row: ArticleSpeechAlignmentRow): ArticleAlignmentStats {
   const tokens = extractSpeechBoundaryTokens(articleHtmlToReaderText(row.content));
   const words = timingWordsFromJson(row.speech?.words);
   const result = coverage(tokens, words);
-  const ratio = tokens.length ? result.covered / tokens.length : 0;
+  const ratio = coverageRatio(result.covered, tokens.length);
 
   return {
     id: row.id,
@@ -260,7 +271,7 @@ function pushWorst(
   limit: number,
 ): void {
   worst.push(item);
-  worst.sort((a, b) => a.coverage - b.coverage || b.uncovered - a.uncovered);
+  worst.sort(compareWorstCoverage);
   if (worst.length > limit) worst.pop();
 }
 
@@ -342,7 +353,7 @@ async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
 
     for (const row of rows) {
       const stats = buildArticleStats(row);
-      const ratio = stats.boundaryTokens ? stats.covered / stats.boundaryTokens : 0;
+      const ratio = coverageRatio(stats.covered, stats.boundaryTokens);
       totalRows++;
       buckets[coverageBucket(ratio)]++;
       totalTokens += stats.boundaryTokens;
@@ -406,7 +417,7 @@ async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
                 : localStorageKeys.length,
               keys: localStorageKeys,
             },
-            selected: deletionCandidates.sort((a, b) => a.coverage - b.coverage || b.uncovered - a.uncovered),
+            selected: deletionCandidates.sort(compareWorstCoverage),
           },
         }),
   };

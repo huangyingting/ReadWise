@@ -15,6 +15,9 @@ import { useArticleSearch, type SearchStatus } from "./useArticleSearch";
 import type { ShellUser } from "@/components/shell/types";
 import type { ListingArticle } from "@/lib/article-library";
 
+const MIN_ARTICLE_QUERY_LENGTH = 2;
+const MORE_ARIA_ID = "cmdk-opt-more";
+
 export interface UseCommandPaletteSearchOptions {
   user: ShellUser | null;
   query: string;
@@ -45,6 +48,33 @@ export interface UseCommandPaletteSearchResult {
   trimmedQuery: string;
 }
 
+function addCommandAriaId<T extends { id: string }>(item: T): T & { ariaId: string } {
+  return { ...item, ariaId: `cmdk-opt-${item.id}` };
+}
+
+function hasArticleQuery(trimmedQuery: string): boolean {
+  return trimmedQuery.length >= MIN_ARTICLE_QUERY_LENGTH;
+}
+
+function toArticleSelectable(article: ListingArticle): ArticleSelectable {
+  return {
+    kind: "article",
+    ariaId: `cmdk-opt-article-${article.id}`,
+    article,
+  };
+}
+
+function getSelectableItems(
+  filteredPages: PageSelectable[],
+  filteredActions: ActionSelectable[],
+  articleSelectables: ArticleSelectable[],
+  moreSelectable: MoreSelectable | null,
+): SelectableItem[] {
+  return moreSelectable
+    ? [...filteredPages, ...filteredActions, ...articleSelectables, moreSelectable]
+    : [...filteredPages, ...filteredActions, ...articleSelectables];
+}
+
 /**
  * Combines page/action item derivation and filtering with the article search
  * hook into a single search state for the command palette.
@@ -67,40 +97,39 @@ export function useCommandPaletteSearch({
 
   const filteredPages = useMemo<PageSelectable[]>(() => {
     const pages = trimmedQuery ? fuzzyFilter(pageItems, query) : pageItems;
-    return pages.map((p) => ({ ...p, ariaId: `cmdk-opt-${p.id}` }));
+    return pages.map(addCommandAriaId);
   }, [query, trimmedQuery, pageItems]);
 
   const filteredActions = useMemo<ActionSelectable[]>(() => {
     const actions = trimmedQuery
       ? fuzzyFilter(ACTION_ITEMS, query)
       : ACTION_ITEMS.filter((a) => a.showOnEmpty);
-    return actions.map((a) => ({ ...a, ariaId: `cmdk-opt-${a.id}` }));
+    return actions.map(addCommandAriaId);
   }, [query, trimmedQuery]);
 
   // Show articles only when query ≥ 2 chars; keep stale list during refinement.
   const articleSelectables = useMemo<ArticleSelectable[]>(() => {
-    if (trimmedQuery.length < 2 || (status === "loading" && articles.length === 0)) return [];
-    return articles.map((a) => ({
-      kind: "article" as const,
-      ariaId: `cmdk-opt-article-${a.id}`,
-      article: a,
-    }));
+    if (!hasArticleQuery(trimmedQuery) || (status === "loading" && articles.length === 0)) {
+      return [];
+    }
+    return articles.map(toArticleSelectable);
   }, [trimmedQuery, status, articles]);
 
   const moreSelectable = useMemo<MoreSelectable | null>(() => {
     if (status !== "done" || !hasMore) return null;
-    return { kind: "more" as const, ariaId: "cmdk-opt-more", offset: nextOffset };
+    return { kind: "more" as const, ariaId: MORE_ARIA_ID, offset: nextOffset };
   }, [status, hasMore, nextOffset]);
 
-  const selectableItems = useMemo<SelectableItem[]>(() => {
-    const items: SelectableItem[] = [
-      ...filteredPages,
-      ...filteredActions,
-      ...articleSelectables,
-    ];
-    if (moreSelectable) items.push(moreSelectable);
-    return items;
-  }, [filteredPages, filteredActions, articleSelectables, moreSelectable]);
+  const selectableItems = useMemo(
+    () =>
+      getSelectableItems(
+        filteredPages,
+        filteredActions,
+        articleSelectables,
+        moreSelectable,
+      ),
+    [filteredPages, filteredActions, articleSelectables, moreSelectable],
+  );
 
   const ariaIdToIndex = useMemo(
     () => new Map(selectableItems.map((item, i) => [item.ariaId, i])),
@@ -108,13 +137,14 @@ export function useCommandPaletteSearch({
   );
 
   const isLoading = status === "loading";
-  const isFirstLoad = isLoading && articles.length === 0 && trimmedQuery.length >= 2;
+  const hasArticleSearchQuery = hasArticleQuery(trimmedQuery);
+  const isFirstLoad = isLoading && articles.length === 0 && hasArticleSearchQuery;
   const showArticleGroup =
-    trimmedQuery.length >= 2 &&
+    hasArticleSearchQuery &&
     (isLoading || (status === "done" && articles.length > 0) || status === "error");
   const hasNoResults =
     status === "done" &&
-    trimmedQuery.length >= 2 &&
+    hasArticleSearchQuery &&
     filteredPages.length === 0 &&
     filteredActions.length === 0 &&
     articles.length === 0;

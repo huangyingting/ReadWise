@@ -20,6 +20,53 @@ type FeedApiResponse = {
   reasons?: Record<string, string>;
 };
 
+type ForYouFeedProps = {
+  initialArticles: ListingArticle[];
+  initialProgress: Record<string, ProgressSummary>;
+  initialHasMore: boolean;
+  initialOffset: number;
+  /** SSR saved article ids — bookmark overlay initial state. */
+  initialSavedIds?: string[];
+  /** SSR personalisation reasons keyed by articleId. */
+  initialReasons?: Record<string, string>;
+  /** Active CEFR level cap — threaded to /api/feed so Load more stays filtered. */
+  level?: string | null;
+};
+
+const FEED_PAGE_SIZE = 6;
+
+function feedUrl(nextOffset: number, level?: string | null): string {
+  const params = new URLSearchParams({
+    offset: String(nextOffset),
+    limit: String(FEED_PAGE_SIZE),
+  });
+  if (level) params.set("level", level);
+  return `/api/feed?${params.toString()}`;
+}
+
+function loadedAnnouncement(count: number): string {
+  return `${count} more article${count === 1 ? "" : "s"} loaded`;
+}
+
+function EndOfFeedCap() {
+  return (
+    <p
+      role="status"
+      className="text-center text-text-muted text-[length:var(--text-sm)] mt-[var(--space-7)]"
+    >
+      <CheckCircle2
+        size={14}
+        aria-hidden
+        className="inline -mt-px mr-[var(--space-1)] text-text-subtle"
+      />
+      {"You're all caught up. "}
+      <Link href="/browse" className={buttonVariants({ variant: "ghost", size: "sm" })}>
+        Browse by topic <span aria-hidden="true">→</span>
+      </Link>
+    </p>
+  );
+}
+
 /**
  * M15 "For You" feed client component.
  *
@@ -40,18 +87,7 @@ export default function ForYouFeed({
   initialSavedIds,
   initialReasons,
   level,
-}: {
-  initialArticles: ListingArticle[];
-  initialProgress: Record<string, ProgressSummary>;
-  initialHasMore: boolean;
-  initialOffset: number;
-  /** SSR saved article ids — bookmark overlay initial state. */
-  initialSavedIds?: string[];
-  /** SSR personalisation reasons keyed by articleId. */
-  initialReasons?: Record<string, string>;
-  /** Active CEFR level cap — threaded to /api/feed so Load more stays filtered. */
-  level?: string | null;
-}) {
+}: ForYouFeedProps) {
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
   const [reasons, setReasons] = useState<Record<string, string>>(initialReasons ?? {});
   // live-region text for a11y ("N more articles loaded")
@@ -59,12 +95,7 @@ export default function ForYouFeed({
 
   const fetchPage = useCallback(
     async (nextOffset: number): Promise<FeedApiResponse> => {
-      const params = new URLSearchParams({
-        offset: String(nextOffset),
-        limit: "6",
-      });
-      if (level) params.set("level", level);
-      return getJson<FeedApiResponse>(`/api/feed?${params.toString()}`);
+      return getJson<FeedApiResponse>(feedUrl(nextOffset, level));
     },
     [level],
   );
@@ -80,9 +111,7 @@ export default function ForYouFeed({
         (page: FeedApiResponse, newArticles: ListingArticle[]) => {
           setReasons((prev) => ({ ...prev, ...(page.reasons ?? {}) }));
           if (newArticles.length > 0) {
-            setAnnouncement(
-              `${newArticles.length} more article${newArticles.length === 1 ? "" : "s"} loaded`,
-            );
+            setAnnouncement(loadedAnnouncement(newArticles.length));
           }
         },
         [],
@@ -122,16 +151,7 @@ export default function ForYouFeed({
         }
         endCap={
           /* End-of-feed cap: shown once all pages are loaded */
-          <p
-            role="status"
-            className="text-center text-text-muted text-[length:var(--text-sm)] mt-[var(--space-7)]"
-          >
-            <CheckCircle2 size={14} aria-hidden className="inline -mt-px mr-[var(--space-1)] text-text-subtle" />
-            {"You're all caught up. "}
-            <Link href="/browse" className={buttonVariants({ variant: "ghost", size: "sm" })}>
-              Browse by topic <span aria-hidden="true">→</span>
-            </Link>
-          </p>
+          <EndOfFeedCap />
         }
       />
     </div>

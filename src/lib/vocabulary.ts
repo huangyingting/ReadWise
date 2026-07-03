@@ -32,6 +32,72 @@ function parseVocabularyJson(raw: string): VocabularyEntry[] {
   return validateVocabulary(raw).items;
 }
 
+async function readCachedVocabulary(articleId: string): Promise<VocabularyEntry[] | null> {
+  const entries: VocabularyEntry[] = (
+    await prisma.vocabularyItem.findMany({
+      where: { articleId },
+      orderBy: { createdAt: "asc" },
+      select: { word: true, explanation: true, example: true },
+    })
+  ).map((v) => ({
+    word: v.word,
+    explanation: v.explanation,
+    example: v.example,
+  }));
+  return entries.length > 0 ? entries : null;
+}
+
+function buildVocabularyMessages(article: { title: string; content: string }) {
+  const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "vocabulary");
+  return renderPrompt("vocabulary", { title: article.title, source });
+}
+
+async function persistVocabularyItems(
+  articleId: string,
+  generated: VocabularyEntry[],
+): Promise<VocabularyEntry[]> {
+  await Promise.all(
+    generated.map((entry) =>
+      prisma.vocabularyItem.upsert({
+        where: {
+          articleId_word: { articleId, word: entry.word },
+        },
+        update: {
+          explanation: entry.explanation,
+          example: entry.example,
+        },
+        create: {
+          articleId,
+          word: entry.word,
+          explanation: entry.explanation,
+          example: entry.example,
+        },
+      }),
+    ),
+  );
+  return generated;
+}
+
+async function toArticleVocabularyResult(
+  articleId: string,
+  userId: string,
+  entries: VocabularyEntry[],
+  fallback: boolean,
+): Promise<ArticleVocabularyResult> {
+  const savedSet = await getSavedWordSet(
+    userId,
+    entries.map((entry) => entry.word),
+  );
+  return {
+    articleId,
+    items: entries.map((entry) => ({
+      ...entry,
+      saved: savedSet.has(entry.word.toLowerCase()),
+    })),
+    fallback,
+  };
+}
+
 /**
  * Returns cached extracted vocabulary for an article, generating and caching it
  * via the AI provider on a cache miss. When AI is unconfigured or the request
@@ -42,24 +108,6 @@ export async function getOrCreateArticleVocabulary(
   userId: string,
   context?: ArticleAccessContext | null,
 ): Promise<ArticleVocabularyResult | null> {
-  const toResult = async (
-    entries: VocabularyEntry[],
-    fallback: boolean,
-  ): Promise<ArticleVocabularyResult> => {
-    const savedSet = await getSavedWordSet(
-      userId,
-      entries.map((e) => e.word),
-    );
-    return {
-      articleId,
-      items: entries.map((e) => ({
-        ...e,
-        saved: savedSet.has(e.word.toLowerCase()),
-      })),
-      fallback,
-    };
-  };
-
   return getOrCreateArticleAi<
     { title: string; content: string },
     VocabularyEntry[],
@@ -70,50 +118,13 @@ export async function getOrCreateArticleVocabulary(
     {
       feature: "vocabulary",
       maxOutputTokens: promptModelParams("vocabulary").maxOutputTokens,
-      readCache: async () => {
-      const entries: VocabularyEntry[] = (
-        await prisma.vocabularyItem.findMany({
-          where: { articleId },
-          orderBy: { createdAt: "asc" },
-          select: { word: true, explanation: true, example: true },
-        })
-      ).map((v) => ({
-        word: v.word,
-        explanation: v.explanation,
-        example: v.example,
-      }));
-      return entries.length > 0 ? entries : null;
-      },
-      buildMessages: (article) => {
-      const source = boundedSampleForFeature(articleHtmlToReaderText(article.content), "vocabulary");
-      return renderPrompt("vocabulary", { title: article.title, source });
-      },
+      readCache: () => readCachedVocabulary(articleId),
+      buildMessages: buildVocabularyMessages,
       parse: parseVocabularyJson,
       isEmpty: (entries) => entries.length === 0,
-      persist: async (id, generated) => {
-      await Promise.all(
-        generated.map((entry) =>
-          prisma.vocabularyItem.upsert({
-            where: {
-              articleId_word: { articleId: id, word: entry.word },
-            },
-            update: {
-              explanation: entry.explanation,
-              example: entry.example,
-            },
-            create: {
-              articleId: id,
-              word: entry.word,
-              explanation: entry.explanation,
-              example: entry.example,
-            },
-          }),
-        ),
-      );
-      return generated;
-      },
-      toResult: (entries) => toResult(entries, false),
-      fallback: () => toResult([], true),
+      persist: persistVocabularyItems,
+      toResult: (entries) => toArticleVocabularyResult(articleId, userId, entries, false),
+      fallback: () => toArticleVocabularyResult(articleId, userId, [], true),
     },
     context,
   );

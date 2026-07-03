@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { aiModelName } from "@/lib/ai";
-import { getOrCreateArticleAi } from "@/lib/ai/cache";
+import { getOrCreateArticleAi, type CallModel } from "@/lib/ai/cache";
 import { chunkForFeature } from "@/lib/ai/chunking";
 import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import type { ArticleAccessContext } from "@/lib/article-library";
@@ -23,6 +23,42 @@ export type TranslationResult = {
   fallback: boolean;
 };
 
+type TranslationCache = { content: string };
+type TranslationArticle = { title: string; content: string };
+
+function translationWhere(articleId: string, lang: string) {
+  return { articleId_targetLang: { articleId, targetLang: lang } };
+}
+
+async function translateChunks(
+  article: TranslationArticle,
+  label: string,
+  callModel: CallModel,
+): Promise<string | null> {
+  const chunks = chunkForFeature(articleHtmlToReaderText(article.content), "translation");
+  if (chunks.length === 0) {
+    return null;
+  }
+
+  const parts: string[] = [];
+  for (const chunk of chunks) {
+    const completion = await callModel(
+      renderPrompt("translation", {
+        label,
+        title: article.title,
+        chunk,
+        isPart: chunks.length > 1,
+      }),
+    );
+    // Any chunk failing → fallback; never cache a partial translation.
+    if (!completion) {
+      return null;
+    }
+    parts.push(completion.trim());
+  }
+  return parts.join("\n\n");
+}
+
 /**
  * Returns the cached translation for an article+language, generating and
  * caching it via the AI provider on a cache miss. Long articles are translated
@@ -38,9 +74,9 @@ export async function getOrCreateTranslation(
   const label = languageLabel(lang);
 
   return getOrCreateArticleAi<
-    { title: string; content: string },
+    TranslationArticle,
     string,
-    { content: string },
+    TranslationCache,
     TranslationResult
   >(
     articleId,
@@ -49,37 +85,15 @@ export async function getOrCreateTranslation(
       maxOutputTokens: promptModelParams("translation").maxOutputTokens,
       readCache: async () => {
         const cached = await prisma.translation.findUnique({
-          where: { articleId_targetLang: { articleId, targetLang: lang } },
+          where: translationWhere(articleId, lang),
         });
         return cached ? { content: cached.content } : null;
       },
-      generate: async (article, { callModel }) => {
-        const chunks = chunkForFeature(articleHtmlToReaderText(article.content), "translation");
-        if (chunks.length === 0) {
-          return null;
-        }
-        const parts: string[] = [];
-        for (const chunk of chunks) {
-          const completion = await callModel(
-            renderPrompt("translation", {
-              label,
-              title: article.title,
-              chunk,
-              isPart: chunks.length > 1,
-            }),
-          );
-          // Any chunk failing → fallback; never cache a partial translation.
-          if (!completion) {
-            return null;
-          }
-          parts.push(completion.trim());
-        }
-        return parts.join("\n\n");
-      },
+      generate: (article, { callModel }) => translateChunks(article, label, callModel),
       isEmpty: (text) => text.length === 0,
       persist: async (id, completion) => {
         const saved = await prisma.translation.upsert({
-          where: { articleId_targetLang: { articleId: id, targetLang: lang } },
+          where: translationWhere(id, lang),
           update: { content: completion, model: aiModelName() },
           create: {
             articleId: id,

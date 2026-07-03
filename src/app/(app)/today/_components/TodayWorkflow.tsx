@@ -38,6 +38,7 @@ type StepView = {
 };
 
 type NoticeKind = "status" | "alert";
+type BusyAction = "read" | "skip";
 
 function buildStepViews(steps: TodaySteps, primaryHref: string | null): StepView[] {
   return [
@@ -82,6 +83,53 @@ function stepBadge(state: TodayStepState) {
     return <Badge variant="neutral">Not needed today</Badge>;
   }
   return <Badge variant="primary">To do</Badge>;
+}
+
+function TodayStepList({
+  steps,
+  stepViews,
+}: {
+  steps: TodaySteps;
+  stepViews: StepView[];
+}) {
+  return (
+    <ol className="m-0 list-none p-0">
+      {stepViews.map((step, index) => {
+        const state = steps[step.key].state;
+        return (
+          <li
+            key={step.key}
+            className="flex flex-col gap-[var(--space-2)] border-t border-border py-[var(--space-4)] first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
+          >
+            <div className="flex flex-col gap-[var(--space-1)]">
+              <Inline gap="2" align="center">
+                <span className="text-[length:var(--text-sm)] font-semibold text-text-muted">
+                  {index + 1}.
+                </span>
+                <span className="text-[length:var(--text-base)] font-semibold text-text">
+                  {step.title}
+                </span>
+              </Inline>
+              <span className="text-[length:var(--text-sm)] text-text-muted">
+                {step.hint}
+              </span>
+            </div>
+            <Inline gap="3" align="center">
+              {step.href && state !== "complete" && state !== "unavailable" ? (
+                <Link
+                  href={step.href}
+                  className="text-[length:var(--text-sm)] font-semibold text-primary-text underline underline-offset-2"
+                >
+                  {step.hrefLabel}
+                </Link>
+              ) : null}
+              {stepBadge(state)}
+            </Inline>
+          </li>
+        );
+      })}
+    </ol>
+  );
 }
 
 function WorkflowNotice({
@@ -143,7 +191,7 @@ export default function TodayWorkflow({
   timezone,
 }: TodayWorkflowProps) {
   const router = useRouter();
-  const [busy, setBusy] = useState<null | "read" | "skip">(null);
+  const [busy, setBusy] = useState<BusyAction | null>(null);
   const [skipReason, setSkipReason] = useState<string>(SKIP_REASON_OPTIONS[0].value);
   const [error, setError] = useState<string | null>(null);
   const [skipNotice, setSkipNotice] = useState<string | null>(null);
@@ -222,42 +270,7 @@ export default function TodayWorkflow({
             </h2>
           </Inline>
 
-          <ol className="m-0 list-none p-0">
-            {stepViews.map((step, index) => {
-              const state = steps[step.key].state;
-              return (
-                <li
-                  key={step.key}
-                  className="flex flex-col gap-[var(--space-2)] border-t border-border py-[var(--space-4)] first:border-t-0 first:pt-0 sm:flex-row sm:items-center sm:justify-between"
-                >
-                  <div className="flex flex-col gap-[var(--space-1)]">
-                    <Inline gap="2" align="center">
-                      <span className="text-[length:var(--text-sm)] font-semibold text-text-muted">
-                        {index + 1}.
-                      </span>
-                      <span className="text-[length:var(--text-base)] font-semibold text-text">
-                        {step.title}
-                      </span>
-                    </Inline>
-                    <span className="text-[length:var(--text-sm)] text-text-muted">
-                      {step.hint}
-                    </span>
-                  </div>
-                  <Inline gap="3" align="center">
-                    {step.href && state !== "complete" && state !== "unavailable" ? (
-                      <Link
-                        href={step.href}
-                        className="text-[length:var(--text-sm)] font-semibold text-primary-text underline underline-offset-2"
-                      >
-                        {step.hrefLabel}
-                      </Link>
-                    ) : null}
-                    {stepBadge(state)}
-                  </Inline>
-                </li>
-              );
-            })}
-          </ol>
+          <TodayStepList steps={steps} stepViews={stepViews} />
         </Stack>
       </Card>
 

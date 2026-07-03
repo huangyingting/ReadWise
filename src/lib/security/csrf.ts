@@ -46,6 +46,19 @@ function toOrigin(value: string | null | undefined): string | null {
   }
 }
 
+function firstHeaderValue(value: string | null, fallback?: string): string {
+  return value?.split(",")[0].trim() ?? fallback ?? "";
+}
+
+function addOrigin(origins: Set<string>, value: string | null | undefined): void {
+  const origin = toOrigin(value);
+  if (origin) origins.add(origin);
+}
+
+function isExplicitCrossSiteFetch(req: Request): boolean {
+  return req.headers.get("sec-fetch-site")?.toLowerCase() === "cross-site";
+}
+
 /**
  * The set of origins that count as "this server". Derived from the request URL
  * plus the `Host` / `X-Forwarded-Host` headers (reconstructed with the
@@ -54,26 +67,20 @@ function toOrigin(value: string | null | undefined): string | null {
  */
 function acceptableOrigins(req: Request): Set<string> {
   const origins = new Set<string>();
-  const add = (value: string | null | undefined) => {
-    const origin = toOrigin(value);
-    if (origin) origins.add(origin);
-  };
 
   try {
-    add(new URL(req.url).origin);
+    addOrigin(origins, new URL(req.url).origin);
   } catch {
     // ignore an unparseable request URL
   }
 
-  const proto = (req.headers.get("x-forwarded-proto") ?? "https")
-    .split(",")[0]
-    .trim();
+  const proto = firstHeaderValue(req.headers.get("x-forwarded-proto"), "https");
   const host = req.headers.get("host");
-  if (host) add(`${proto}://${host.split(",")[0].trim()}`);
+  if (host) addOrigin(origins, `${proto}://${firstHeaderValue(host)}`);
   const forwardedHost = req.headers.get("x-forwarded-host");
-  if (forwardedHost) add(`${proto}://${forwardedHost.split(",")[0].trim()}`);
+  if (forwardedHost) addOrigin(origins, `${proto}://${firstHeaderValue(forwardedHost)}`);
 
-  for (const origin of csrfAllowedOrigins()) add(origin);
+  for (const origin of csrfAllowedOrigins()) addOrigin(origins, origin);
   return origins;
 }
 
@@ -91,8 +98,7 @@ export function checkSameOrigin(req: Request): CsrfDecision {
   if (!originHeader) {
     // No Origin → not a cross-site browser request. Honor an explicit
     // `Sec-Fetch-Site: cross-site` hint if a browser sent one without Origin.
-    const fetchSite = req.headers.get("sec-fetch-site");
-    if (fetchSite && fetchSite.toLowerCase() === "cross-site") {
+    if (isExplicitCrossSiteFetch(req)) {
       return { ok: false, reason: "cross-site request blocked", origin: "(none)" };
     }
     return { ok: true };

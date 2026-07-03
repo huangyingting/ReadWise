@@ -53,6 +53,11 @@ type SumShape = {
   estimatedCostUsd: number | null;
 };
 
+type GroupRow = {
+  _count: { _all: number };
+  _sum: SumShape;
+} & Record<string, unknown>;
+
 function totalsFrom(count: number, sum: SumShape): AiUsageTotals {
   return {
     count,
@@ -77,6 +82,26 @@ function buildWhere(filter: AiUsageFilter): Prisma.AiInvocationWhereInput {
   return where;
 }
 
+function usageGroupKey(row: Record<string, unknown>, field: string): string {
+  return (row[field] as string | null) ?? "unknown";
+}
+
+function toUsageGroups(rows: GroupRow[], field: string): AiUsageGroup[] {
+  return rows
+    .map((row) => ({
+      key: usageGroupKey(row, field),
+      ...totalsFrom(row._count._all, row._sum),
+    }))
+    .sort((a, b) => b.count - a.count);
+}
+
+function rangeFromFilter(filter: AiUsageFilter): AiUsageSummary["range"] {
+  return {
+    since: filter.since ? filter.since.toISOString() : null,
+    until: filter.until ? filter.until.toISOString() : null,
+  };
+}
+
 /**
  * Aggregate ledger usage (counts + token/cost sums) grouped by feature, model,
  * and status within an optional time range. Intended for admin analytics and
@@ -98,29 +123,15 @@ export async function summarizeAiUsage(
       client.aiInvocation.groupBy({ by: ["status"], where, _count: { _all: true }, _sum: SUM_SELECT }),
     ]);
 
-  const toGroup = (
-    rows: Array<{ _count: { _all: number }; _sum: SumShape } & Record<string, unknown>>,
-    field: string,
-  ): AiUsageGroup[] =>
-    rows
-      .map((row) => ({
-        key: (row[field] as string | null) ?? "unknown",
-        ...totalsFrom(row._count._all, row._sum),
-      }))
-      .sort((a, b) => b.count - a.count);
-
   return {
     total: {
       ...totalsFrom(aggregate._count._all, aggregate._sum),
       fallbackCount,
       cacheHitCount,
     },
-    byFeature: toGroup(byFeature, "feature"),
-    byModel: toGroup(byModel, "model"),
-    byStatus: toGroup(byStatus, "status"),
-    range: {
-      since: filter.since ? filter.since.toISOString() : null,
-      until: filter.until ? filter.until.toISOString() : null,
-    },
+    byFeature: toUsageGroups(byFeature, "feature"),
+    byModel: toUsageGroups(byModel, "model"),
+    byStatus: toUsageGroups(byStatus, "status"),
+    range: rangeFromFilter(filter),
   };
 }

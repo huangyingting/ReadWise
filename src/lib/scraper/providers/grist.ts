@@ -2,6 +2,45 @@ import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { categoryFromRules, excludes, parseSitemapLocs, rssUrlExtractor } from "./shared";
 
 const GRIST_SITEMAP_INDEX = "https://grist.org/sitemap_index.xml";
+const GRIST_HOSTNAME = "grist.org";
+const POST_SITEMAP_PATH = /^\/post-sitemap\d*\.xml$/i;
+const GRIST_CATEGORIES = [
+  "environment",
+  "politics",
+  "business",
+  "health",
+  "science",
+  "tech",
+  "culture",
+] as const;
+const GRIST_EXCLUDED_PATHS = [
+  "/about",
+  "/author/",
+  "/category/",
+  "/events/",
+  "/grist-50/",
+  "/newsletter",
+  "/page/",
+  "/press/",
+  "/sponsored",
+  "/updates/",
+  "/wp-content/",
+];
+const GRIST_CATEGORY_RULES: [RegExp, (typeof GRIST_CATEGORIES)[number]][] = [
+  [/health|disease|public.?health|heat.?stress|mental.?health/, "health"],
+  [/science|research|study|scientist/, "science"],
+  [/technology|tech|data.?center|grid|solar|wind|battery|electric|\bev\b|\bai\b/, "tech"],
+  [/business|econom|finance|insurance|jobs|labor|industry|market/, "business"],
+  [
+    /politic|policy|justice|accountability|protest|green.?new.?deal|government|election|regulation/,
+    "politics",
+  ],
+  [/culture|food|fashion|books?|film|art|therapy/, "culture"],
+  [
+    /climate|energy|environment|extreme.?weather|heat|wildfire|flood|water|agriculture|conservation|pollution|carbon|emissions/,
+    "environment",
+  ],
+];
 const gristRssFallback = rssUrlExtractor(["https://grist.org/feed/"]);
 
 function postSitemapNumber(url: string): number {
@@ -13,7 +52,7 @@ function postSitemapNumber(url: string): number {
 function isPostSitemap(url: string): boolean {
   try {
     const parsed = new URL(url);
-    return parsed.hostname === "grist.org" && /^\/post-sitemap\d*\.xml$/i.test(parsed.pathname);
+    return parsed.hostname === GRIST_HOSTNAME && POST_SITEMAP_PATH.test(parsed.pathname);
   } catch {
     return false;
   }
@@ -64,22 +103,10 @@ const grist: Provider = {
   ],
   articleUrlPattern: /^https:\/\/(?:www\.)?grist\.org\/[a-z0-9-]+\/[a-z0-9][a-z0-9-]+\/?(?:[?#].*)?$/i,
   articleUrlFilter: (url) =>
-    excludes(url, [
-      "/about",
-      "/author/",
-      "/category/",
-      "/events/",
-      "/grist-50/",
-      "/newsletter",
-      "/page/",
-      "/press/",
-      "/sponsored",
-      "/updates/",
-      "/wp-content/",
-    ]),
+    excludes(url, GRIST_EXCLUDED_PATHS),
   defaultCategory: "environment",
-  categories: ["environment", "politics", "business", "health", "science", "tech", "culture"],
-  readingCategories: ["environment", "politics", "business", "health", "science", "tech", "culture"],
+  categories: [...GRIST_CATEGORIES],
+  readingCategories: [...GRIST_CATEGORIES],
   cleanup: {
     dropClassKeywords: [
       "donate",
@@ -97,20 +124,7 @@ const grist: Provider = {
     ],
   },
   categoryFor: (url, section) =>
-    categoryFromRules(
-      url,
-      section,
-      [
-        [/health|disease|public.?health|heat.?stress|mental.?health/, "health"],
-        [/science|research|study|scientist/, "science"],
-        [/technology|tech|data.?center|grid|solar|wind|battery|electric|\bev\b|\bai\b/, "tech"],
-        [/business|econom|finance|insurance|jobs|labor|industry|market/, "business"],
-        [/politic|policy|justice|accountability|protest|green.?new.?deal|government|election|regulation/, "politics"],
-        [/culture|food|fashion|books?|film|art|therapy/, "culture"],
-        [/climate|energy|environment|extreme.?weather|heat|wildfire|flood|water|agriculture|conservation|pollution|carbon|emissions/, "environment"],
-      ],
-      "environment",
-    ),
+    categoryFromRules(url, section, GRIST_CATEGORY_RULES, "environment"),
   /**
    * Uses Grist's Yoast post sitemaps, newest numbered sitemap first. This
    * prioritizes current substantive climate articles and leaves old short posts

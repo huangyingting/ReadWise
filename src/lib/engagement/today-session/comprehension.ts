@@ -265,6 +265,11 @@ export type TodayComprehensionResult = {
   };
 };
 
+type GradedSubmittedQuestion = {
+  effectiveQuestionId: string | null;
+  mcqCorrect: boolean | null;
+};
+
 /**
  * Upsert (idempotently) the single `TodayComprehensionFeedback` row for a Today
  * session. Persists IDS / ENUMS / BOOLEANS ONLY. `remediationViewed` is sticky:
@@ -285,13 +290,14 @@ async function upsertComprehensionFeedback(args: {
     select: { id: true, remediationViewed: true },
   });
 
+  const remediationViewed =
+    args.remediationViewed || (existing?.remediationViewed ?? false);
   const data = {
     selfRating: args.selfRating,
     questionId: args.questionId,
     mcqCorrect: args.mcqCorrect,
     skillTag: args.skillTag,
-    remediationViewed:
-      args.remediationViewed || (existing?.remediationViewed ?? false),
+    remediationViewed,
   };
 
   if (existing) {
@@ -312,24 +318,29 @@ async function upsertComprehensionFeedback(args: {
   });
 }
 
-function isAnswerableSelection(args: SubmitTodayComprehensionArgs): boolean {
-  return (
-    Boolean(args.questionId) &&
-    typeof args.selectedIndex === "number" &&
-    Number.isInteger(args.selectedIndex)
-  );
+function answerableQuestionId(args: SubmitTodayComprehensionArgs): string | null {
+  const { questionId, selectedIndex } = args;
+  if (
+    !questionId ||
+    typeof selectedIndex !== "number" ||
+    !Number.isInteger(selectedIndex)
+  ) {
+    return null;
+  }
+  return questionId;
 }
 
 async function gradeSubmittedQuestion(
   args: SubmitTodayComprehensionArgs,
   articleId: string,
-): Promise<{ effectiveQuestionId: string | null; mcqCorrect: boolean | null }> {
-  if (!isAnswerableSelection(args)) {
+): Promise<GradedSubmittedQuestion> {
+  const questionId = answerableQuestionId(args);
+  if (!questionId) {
     return { effectiveQuestionId: null, mcqCorrect: null };
   }
 
   const question = await prisma.quizQuestion.findFirst({
-    where: { id: args.questionId!, articleId },
+    where: { id: questionId, articleId },
     select: { correctIndex: true },
   });
   if (!question) {
@@ -337,7 +348,7 @@ async function gradeSubmittedQuestion(
   }
 
   return {
-    effectiveQuestionId: args.questionId!,
+    effectiveQuestionId: questionId,
     mcqCorrect: args.selectedIndex === question.correctIndex,
   };
 }
@@ -347,6 +358,47 @@ function remediationWasViewed(
   remediationShow: boolean,
 ): boolean {
   return args.remediationViewed === true || remediationShow;
+}
+
+function remediationFor(
+  articleId: string,
+  show: boolean,
+): TodayComprehensionResult["remediation"] {
+  return {
+    show,
+    articleHref: show ? `/reader/${articleId}` : null,
+  };
+}
+
+function masteryUpdates(args: {
+  userId: string;
+  articleId: string;
+  selfRating: ComprehensionSelfRating;
+  skillTag: ComprehensionSkillTag | null;
+  mcqCorrect: boolean | null;
+}): Array<Promise<unknown>> {
+  return [
+    bestEffortMastery("today.comprehension_article_mastery", () =>
+      updateArticleMastery(args.userId, args.articleId),
+    ),
+    bestEffortMastery("today.comprehension_self_rating_skill", () =>
+      recordSkillEvidence(
+        args.userId,
+        "comprehension",
+        SELF_RATING_OUTCOME[args.selfRating],
+        SELF_RATING_WEIGHT,
+      ),
+    ),
+    args.mcqCorrect != null
+      ? bestEffortMastery("today.comprehension_mcq_skill", () =>
+          recordSkillEvidence(
+            args.userId,
+            comprehensionSkillForTag(args.skillTag),
+            args.mcqCorrect ? 1 : 0,
+          ),
+        )
+      : Promise.resolve(null),
+  ];
 }
 
 /**
@@ -410,28 +462,15 @@ export async function submitTodayComprehension(
   );
 
   // ── Feed weakness signals into the EXISTING mastery paths (best-effort) ────
-  await Promise.all([
-    bestEffortMastery("today.comprehension_article_mastery", () =>
-      updateArticleMastery(args.userId, articleId),
-    ),
-    bestEffortMastery("today.comprehension_self_rating_skill", () =>
-      recordSkillEvidence(
-        args.userId,
-        "comprehension",
-        SELF_RATING_OUTCOME[args.selfRating],
-        SELF_RATING_WEIGHT,
-      ),
-    ),
-    mcqCorrect != null
-      ? bestEffortMastery("today.comprehension_mcq_skill", () =>
-          recordSkillEvidence(
-            args.userId,
-            comprehensionSkillForTag(skillTag),
-            mcqCorrect ? 1 : 0,
-          ),
-        )
-      : Promise.resolve(null),
-  ]);
+  await Promise.all(
+    masteryUpdates({
+      userId: args.userId,
+      articleId,
+      selfRating: args.selfRating,
+      skillTag,
+      mcqCorrect,
+    }),
+  );
 
   // ── Product analytics (metadata only — enums/booleans, never content) ──────
   if (view) {
@@ -449,9 +488,6 @@ export async function submitTodayComprehension(
     completionTier: view?.completionTier ?? null,
     completed: view?.completedAt != null,
     mcqCorrect,
-    remediation: {
-      show: remediationShow,
-      articleHref: remediationShow ? `/reader/${articleId}` : null,
-    },
+    remediation: remediationFor(articleId, remediationShow),
   };
 }

@@ -51,6 +51,10 @@ export function isPlacementSeedLevel(value: unknown): value is PlacementSeedLeve
   );
 }
 
+function safeRatio(numerator: number, denominator: number): number {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
 /**
  * Maps any profile CEFR level onto the nearest placement seed band
  * (`A2` | `B1` | `B2`). A1/A2 (and unknown) seed at A2; B1 seeds at B1;
@@ -105,8 +109,8 @@ export function computePlacementScore(
   lookups: number,
   wordCount: number,
 ): EnglishLevel {
-  const correctRatio = total > 0 ? correct / total : 0;
-  const lookupRate = wordCount > 0 ? lookups / wordCount : 0;
+  const correctRatio = safeRatio(correct, total);
+  const lookupRate = safeRatio(lookups, wordCount);
 
   const offset = placementOffset(correctRatio, lookupRate);
   const targetRank = levelRank(seedLevel) + offset;

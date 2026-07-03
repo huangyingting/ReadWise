@@ -63,6 +63,14 @@ const SAFE_ATTRIBUTE_KEYS = new Set<string>([
   "server.address",
 ]);
 
+function isSafeAttributeValue(value: unknown): value is AttributeValue {
+  return (
+    typeof value === "string" ||
+    typeof value === "number" ||
+    typeof value === "boolean"
+  );
+}
+
 /**
  * Keep only allow-listed keys with primitive (string/number/boolean) values.
  * This is the privacy guard: unknown keys or object/array values are dropped.
@@ -73,13 +81,7 @@ export function sanitizeAttributes(attrs?: Attributes): Attributes {
   for (const [key, value] of Object.entries(attrs)) {
     if (!SAFE_ATTRIBUTE_KEYS.has(key)) continue;
     if (value === undefined || value === null) continue;
-    if (
-      typeof value === "string" ||
-      typeof value === "number" ||
-      typeof value === "boolean"
-    ) {
-      safe[key] = value as AttributeValue;
-    }
+    if (isSafeAttributeValue(value)) safe[key] = value;
   }
   return safe;
 }
@@ -88,6 +90,10 @@ export function sanitizeAttributes(attrs?: Attributes): Attributes {
 function requestIdAttributes(): Attributes {
   const requestId = getRequestId();
   return requestId ? { "readwise.request_id": requestId } : {};
+}
+
+function spanAttributes(attrs?: Attributes): Attributes {
+  return { ...requestIdAttributes(), ...sanitizeAttributes(attrs) };
 }
 
 /**
@@ -101,8 +107,7 @@ export async function withSpan<T>(
   attrs: Attributes,
   fn: (span: Span) => Promise<T> | T,
 ): Promise<T> {
-  const safeAttrs = { ...requestIdAttributes(), ...sanitizeAttributes(attrs) };
-  return tracer().startActiveSpan(name, { attributes: safeAttrs }, async (span) => {
+  return tracer().startActiveSpan(name, { attributes: spanAttributes(attrs) }, async (span) => {
     try {
       const result = await fn(span);
       return result;
@@ -121,8 +126,7 @@ export async function withSpan<T>(
  * {@link withSpan} unless you need manual control (e.g. ending in a callback).
  */
 export function startChildSpan(name: string, attrs?: Attributes): Span {
-  const safeAttrs = { ...requestIdAttributes(), ...sanitizeAttributes(attrs) };
-  return tracer().startSpan(name, { attributes: safeAttrs }, otelContext.active());
+  return tracer().startSpan(name, { attributes: spanAttributes(attrs) }, otelContext.active());
 }
 
 /** Set additional (sanitized) attributes on an existing span. */

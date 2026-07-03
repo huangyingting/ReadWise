@@ -11,7 +11,7 @@
  * above/below the selection rect, dodge the mini-player band.
  */
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, type RefObject } from "react";
 import { BookMarked, RotateCcw, X } from "lucide-react";
 import { Button, IconButton } from "@/components/ui";
 import { usePopoverPosition } from "@/lib/use-popover-position";
@@ -29,7 +29,17 @@ interface Props {
   error: string | null;
   onClose: () => void;
   onRetry: () => void;
-  popoverRef: React.RefObject<HTMLDivElement | null>;
+  popoverRef: RefObject<HTMLDivElement | null>;
+}
+
+const POSITION_OPTIONS = {
+  placement: "below" as const,
+  estimatedHeight: 200,
+  estimatedWidth: 360,
+};
+
+function getExplanationLines(explanation?: string | null): string[] {
+  return explanation ? explanation.split(/\n+/).filter((line) => line.trim()) : [];
 }
 
 export default function GrammarPopover({
@@ -45,9 +55,7 @@ export default function GrammarPopover({
   const closeRef = useRef<HTMLButtonElement>(null);
 
   usePopoverPosition(popoverRef, selectionRect, {
-    placement: "below",
-    estimatedHeight: 200,
-    estimatedWidth: 360,
+    ...POSITION_OPTIONS,
     deps: [selectionRect, loading, result, error],
   });
 
@@ -59,15 +67,15 @@ export default function GrammarPopover({
   // Keyboard: Escape closes
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); onClose(); }
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      onClose();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const lines = result?.explanation
-    ? result.explanation.split(/\n+/).filter((l) => l.trim())
-    : [];
+  const lines = getExplanationLines(result?.explanation);
 
   return (
     <div

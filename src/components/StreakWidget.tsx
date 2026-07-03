@@ -5,11 +5,32 @@ import type { StreakSummary } from "@/lib/engagement";
 import { formatWeekdayUTC } from "@/lib/display-format";
 
 const WEEKDAY_INITIALS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const TODAY_INDEX = 6;
 
 interface StreakWidgetProps {
   streak: StreakSummary;
   /** When true, plays the one-shot flame flicker (streak just extended). */
   extendedToday?: boolean;
+}
+
+type StreakDay = StreakSummary["last7Days"][number];
+
+function getStreakLabel(currentStreak: number): string {
+  if (currentStreak === 0) return "Start a streak today";
+  return currentStreak === 1 ? "day streak" : "days";
+}
+
+function getWeekdayLabels(date: StreakDay["date"]) {
+  const dateObj = new Date(date + "T00:00:00Z");
+  return {
+    initial: WEEKDAY_INITIALS[dateObj.getUTCDay()],
+    full: formatWeekdayUTC(dateObj),
+  };
+}
+
+function getActivityLabel(day: StreakDay): string {
+  const { full } = getWeekdayLabels(day.date);
+  return `${full}: ${day.active ? "read" : "no reading"}`;
 }
 
 /**
@@ -51,11 +72,7 @@ export default function StreakWidget({
             {currentStreak}
           </span>
           <span className="text-[length:var(--text-base)] text-text-muted leading-none">
-            {isZero
-              ? "Start a streak today"
-              : currentStreak === 1
-                ? "day streak"
-                : "days"}
+            {getStreakLabel(currentStreak)}
           </span>
         </div>
       </div>
@@ -76,17 +93,14 @@ export default function StreakWidget({
         style={{ marginTop: "var(--space-3)" }}
       >
         {last7Days.map((day, i) => {
-          const isToday = i === 6;
-          const dateObj = new Date(day.date + "T00:00:00Z");
-          const weekdayInitial = WEEKDAY_INITIALS[dateObj.getUTCDay()];
-          const weekdayFull = formatWeekdayUTC(dateObj);
-          const label = `${weekdayFull}: ${day.active ? "read" : "no reading"}`;
+          const isToday = i === TODAY_INDEX;
+          const { initial } = getWeekdayLabels(day.date);
 
           return (
             <li
               key={day.date}
               className="flex flex-col items-center gap-[var(--space-1)]"
-              aria-label={label}
+              aria-label={getActivityLabel(day)}
             >
               <span
                 className={cn(
@@ -103,7 +117,7 @@ export default function StreakWidget({
                 className="text-[length:var(--text-xs)] text-text-subtle hidden min-[360px]:block"
                 aria-hidden
               >
-                {weekdayInitial}
+                {initial}
               </span>
             </li>
           );

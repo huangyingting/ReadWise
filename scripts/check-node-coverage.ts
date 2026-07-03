@@ -80,6 +80,11 @@ type ParsedCoverageLine = {
   linePct: number | null;
 };
 
+type CoverageDirectory = {
+  depth: number;
+  name: string;
+};
+
 function parsePercent(value: string): number | null {
   if (!/^\d+(?:\.\d+)?$/.test(value)) return null;
   return Number(value);
@@ -120,7 +125,7 @@ function isCoverageMetadataRow(rawName: string): boolean {
 }
 
 function pushDirectoryRow(
-  dirs: Array<{ depth: number; name: string }>,
+  dirs: CoverageDirectory[],
   depth: number,
   name: string,
 ): void {
@@ -129,7 +134,7 @@ function pushDirectoryRow(
 }
 
 function filePathForCoverageRow(
-  dirs: Array<{ depth: number; name: string }>,
+  dirs: CoverageDirectory[],
   depth: number,
   rawName: string,
 ): string {
@@ -141,7 +146,7 @@ function filePathForCoverageRow(
 
 export function parseNodeCoverageText(text: string): CoverageRow[] {
   const rows: CoverageRow[] = [];
-  const dirs: Array<{ depth: number; name: string }> = [];
+  const dirs: CoverageDirectory[] = [];
 
   for (const line of text.split(/\r?\n/)) {
     const parsed = parseCoverageLine(line);
@@ -167,13 +172,17 @@ export function parseNodeCoverageText(text: string): CoverageRow[] {
   return rows;
 }
 
+function isIncludedCoverageRow(row: CoverageRow, includePrefixes: string[]): boolean {
+  return includePrefixes.some((prefix) => row.file.startsWith(prefix));
+}
+
 export function coverageFailures(
   rows: CoverageRow[],
   threshold = DEFAULT_THRESHOLD,
   includePrefixes = DEFAULT_INCLUDE_PREFIXES,
 ): CoverageFailure[] {
   return rows
-    .filter((row) => includePrefixes.some((prefix) => row.file.startsWith(prefix)))
+    .filter((row) => isIncludedCoverageRow(row, includePrefixes))
     .filter((row) => row.linePct < threshold)
     .map((row) => ({ ...row, threshold }))
     .sort((a, b) => a.linePct - b.linePct || a.file.localeCompare(b.file));
@@ -326,9 +335,7 @@ export function printGateResult(
   includePrefixes: string[],
   output: CoverageOutput = console,
 ): void {
-  const measured = rows.filter((row) =>
-    includePrefixes.some((prefix) => row.file.startsWith(prefix)),
-  );
+  const measured = rows.filter((row) => isIncludedCoverageRow(row, includePrefixes));
   if (failures.length === 0) {
     output.log(
       `Coverage gate passed: ${measured.length} measured file(s) at line coverage >= ${threshold}%.`,

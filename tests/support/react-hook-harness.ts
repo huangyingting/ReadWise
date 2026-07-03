@@ -15,6 +15,19 @@ type MutableGlobal = typeof globalThis & {
   window?: Window;
 };
 
+const DOM_GLOBAL_KEYS = [
+  "CSS",
+  "document",
+  "Highlight",
+  "IntersectionObserver",
+  "Node",
+  "NodeFilter",
+  "Range",
+  "window",
+] as const;
+
+type DomGlobalKey = (typeof DOM_GLOBAL_KEYS)[number];
+
 let states: unknown[] = [];
 let refs: Array<{ current: unknown }> = [];
 let stateCursor = 0;
@@ -53,36 +66,43 @@ export function popHookCleanup(): Cleanup | undefined {
   return cleanups.pop();
 }
 
+function resolveInitialState<T>(initial: T | (() => T)): T {
+  return typeof initial === "function" ? (initial as () => T)() : initial;
+}
+
+function resolveNextState<T>(previous: T, next: T | ((prev: T) => T)): T {
+  return typeof next === "function" ? (next as (prev: T) => T)(previous) : next;
+}
+
 function useStateMock<T>(initial: T | (() => T)): [T, (next: T | ((prev: T) => T)) => void] {
   const index = stateCursor++;
   if (!(index in states)) {
-    states[index] =
-      typeof initial === "function" ? (initial as () => T)() : initial;
+    states[index] = resolveInitialState(initial);
   }
   return [
     states[index] as T,
     (next) => {
-      states[index] =
-        typeof next === "function"
-          ? (next as (prev: T) => T)(states[index] as T)
-          : next;
+      states[index] = resolveNextState(states[index] as T, next);
     },
   ];
 }
 
 function useRefMock<T>(initial: T): { current: T } {
   const index = refCursor++;
-  if (!refs[index]) refs[index] = { current: initial };
+  if (!refs[index]) {
+    refs[index] = { current: initial };
+  }
   return refs[index] as { current: T };
+}
+
+function rememberCleanup(cleanup: unknown): void {
+  if (typeof cleanup === "function") cleanups.push(cleanup as Cleanup);
 }
 
 mock.module("react", {
   namedExports: {
     useCallback: (fn: unknown) => fn,
-    useEffect: (effect: () => unknown) => {
-      const cleanup = effect();
-      if (typeof cleanup === "function") cleanups.push(cleanup as Cleanup);
-    },
+    useEffect: (effect: () => unknown) => rememberCleanup(effect()),
     useRef: useRefMock,
     useState: useStateMock,
   },
@@ -101,9 +121,7 @@ const originalGlobals = {
   clearTimeout: globalThis.clearTimeout,
 };
 
-function restoreGlobal<K extends keyof Omit<typeof originalGlobals, "setTimeout" | "clearTimeout">>(
-  key: K,
-): void {
+function restoreGlobal(key: DomGlobalKey): void {
   const g = globalThis as MutableGlobal;
   const value = originalGlobals[key];
   if (value === undefined) {
@@ -114,14 +132,7 @@ function restoreGlobal<K extends keyof Omit<typeof originalGlobals, "setTimeout"
 }
 
 export function restoreGlobals(): void {
-  restoreGlobal("CSS");
-  restoreGlobal("document");
-  restoreGlobal("Highlight");
-  restoreGlobal("IntersectionObserver");
-  restoreGlobal("Node");
-  restoreGlobal("NodeFilter");
-  restoreGlobal("Range");
-  restoreGlobal("window");
+  for (const key of DOM_GLOBAL_KEYS) restoreGlobal(key);
   globalThis.setTimeout = originalGlobals.setTimeout;
   globalThis.clearTimeout = originalGlobals.clearTimeout;
 }

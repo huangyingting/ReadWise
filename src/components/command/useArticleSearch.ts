@@ -24,6 +24,7 @@ const INITIAL_STATE: ArticleSearchState = {
 
 const SEARCH_LIMIT = 7;
 const DEBOUNCE_MS = 200;
+const MIN_QUERY_LENGTH = 2;
 
 type SearchResponse = {
   articles: ListingArticle[];
@@ -39,14 +40,34 @@ class SearchHttpError extends Error {
   }
 }
 
+function normalizeSearchQuery(query: string): string {
+  return query.trim();
+}
+
+function isSearchableQuery(query: string): boolean {
+  return query.length >= MIN_QUERY_LENGTH;
+}
+
+function getSearchUrl(query: string, offset?: number): string {
+  const offsetParam = offset !== undefined ? `&offset=${offset}` : "";
+  return `/api/search?q=${encodeURIComponent(query)}&limit=${SEARCH_LIMIT}${offsetParam}`;
+}
+
+function markLoading(prev: ArticleSearchState): ArticleSearchState {
+  return { ...prev, status: "loading" };
+}
+
+function formatSearchError(err: unknown, includeStatus: boolean): string {
+  if (!(err instanceof SearchHttpError)) return "Couldn't load articles.";
+  return includeStatus ? `Search failed (${err.status})` : "Search failed.";
+}
+
 async function fetchSearch(
   query: string,
   signal: AbortSignal,
   offset?: number,
 ): Promise<SearchResponse> {
-  const offsetParam = offset !== undefined ? `&offset=${offset}` : "";
-  const url = `/api/search?q=${encodeURIComponent(query)}&limit=${SEARCH_LIMIT}${offsetParam}`;
-  const res = await fetch(url, { signal });
+  const res = await fetch(getSearchUrl(query, offset), { signal });
   if (!res.ok) throw new SearchHttpError(res.status);
   return (await res.json()) as SearchResponse;
 }
@@ -58,9 +79,9 @@ export function useArticleSearch() {
 
   const search = useCallback(
     (query: string) => {
-      const trimmed = query.trim();
+      const trimmed = normalizeSearchQuery(query);
 
-      if (trimmed.length < 2) {
+      if (!isSearchableQuery(trimmed)) {
         cancel();
         setState(INITIAL_STATE);
         return;
@@ -68,7 +89,7 @@ export function useArticleSearch() {
 
       // Immediately switch to loading so the spinner + skeletons appear.
       // Keep existing articles so refinements don't flash empty.
-      setState((prev) => ({ ...prev, status: "loading" }));
+      setState(markLoading);
 
       run({
         fetcher: (signal) => fetchSearch(trimmed, signal),
@@ -84,10 +105,7 @@ export function useArticleSearch() {
           setState((prev) => ({
             ...prev,
             status: "error",
-            error:
-              err instanceof SearchHttpError
-                ? `Search failed (${err.status})`
-                : "Couldn't load articles.",
+            error: formatSearchError(err, true),
           })),
       });
     },
@@ -96,10 +114,10 @@ export function useArticleSearch() {
 
   const loadMore = useCallback(
     (query: string, offset: number) => {
-      const trimmed = query.trim();
-      if (trimmed.length < 2) return;
+      const trimmed = normalizeSearchQuery(query);
+      if (!isSearchableQuery(trimmed)) return;
 
-      setState((prev) => ({ ...prev, status: "loading" }));
+      setState(markLoading);
 
       run({
         immediate: true,
@@ -117,10 +135,7 @@ export function useArticleSearch() {
           setState((prev) => ({
             ...prev,
             status: "error",
-            error:
-              err instanceof SearchHttpError
-                ? "Search failed."
-                : "Couldn't load articles.",
+            error: formatSearchError(err, false),
           })),
       });
     },

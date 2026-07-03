@@ -9,6 +9,20 @@
 
 import { STORAGE_KEYS } from "./storage-keys";
 
+const FNV_OFFSET_BASIS = 0x811c9dc5;
+const HASH_HEX_LENGTH = 8;
+
+function fnvPrimeMultiply(hash: number): number {
+  return (
+    hash +
+    ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))
+  ) >>> 0;
+}
+
+function updatedAtEpoch(updatedAt: Date | string | number | null | undefined): number {
+  return updatedAt == null ? 0 : new Date(updatedAt).getTime() || 0;
+}
+
 /**
  * Format version of the stored offline article payload. Bump when the shape of
  * the cached record changes so old records are treated as stale and refreshed.
@@ -32,13 +46,13 @@ export const SW_CACHE_NAME = `${SW_CACHE_PREFIX}${SW_CACHE_VERSION}`;
  * across server and client so versions computed in either place compare equal.
  */
 export function contentHash(text: string): string {
-  let hash = 0x811c9dc5;
+  let hash = FNV_OFFSET_BASIS;
   for (let i = 0; i < text.length; i++) {
     hash ^= text.charCodeAt(i);
     // 32-bit FNV prime multiply via shifts to stay in 32-bit range.
-    hash = (hash + ((hash << 1) + (hash << 4) + (hash << 7) + (hash << 8) + (hash << 24))) >>> 0;
+    hash = fnvPrimeMultiply(hash);
   }
-  return hash.toString(16).padStart(8, "0");
+  return hash.toString(16).padStart(HASH_HEX_LENGTH, "0");
 }
 
 /**
@@ -51,8 +65,7 @@ export function makeArticleVersion(input: {
   contentHash: string;
   updatedAt?: Date | string | number | null;
 }): string {
-  const updated =
-    input.updatedAt == null ? 0 : new Date(input.updatedAt).getTime() || 0;
+  const updated = updatedAtEpoch(input.updatedAt);
   return `${OFFLINE_PAYLOAD_VERSION}:${updated}:${input.contentHash}`;
 }
 

@@ -5,6 +5,16 @@ import { markArticleVisited } from "@/lib/visited";
 import { submitMutation } from "@/lib/offline/sync-runtime";
 
 const THROTTLE_MS = 1000;
+const PROGRESS_METHOD = "POST";
+const JSON_HEADERS = { "Content-Type": "application/json" };
+
+function progressEndpoint(articleId: string): string {
+  return `/api/reader/${articleId}/progress`;
+}
+
+function progressBody(percent: number): { percent: number } {
+  return { percent };
+}
 
 function computeScrollPercent(): number {
   const doc = document.documentElement;
@@ -14,6 +24,22 @@ function computeScrollPercent(): number {
   }
   const ratio = window.scrollY / max;
   return Math.min(100, Math.max(0, Math.round(ratio * 100)));
+}
+
+function queueProgressMutation(articleId: string, endpoint: string, percent: number): void {
+  void submitMutation({
+    type: "progress",
+    endpoint,
+    method: PROGRESS_METHOD,
+    body: progressBody(percent),
+    // Collapse to the latest position — the server is forward-only so an
+    // older queued percent would be a no-op anyway (RW-042/RW-043).
+    dedupeKey: `progress:${articleId}`,
+  });
+}
+
+function isOffline(): boolean {
+  return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
 export default function ReaderProgress({
@@ -38,27 +64,18 @@ export default function ReaderProgress({
     function send(value: number, useKeepalive = false) {
       lastSentRef.current = Date.now();
       lastSentValueRef.current = value;
-      const endpoint = `/api/reader/${articleId}/progress`;
-      const queueOffline = () =>
-        void submitMutation({
-          type: "progress",
-          endpoint,
-          method: "POST",
-          body: { percent: value },
-          // Collapse to the latest position — the server is forward-only so an
-          // older queued percent would be a no-op anyway (RW-042/RW-043).
-          dedupeKey: `progress:${articleId}`,
-        });
+      const endpoint = progressEndpoint(articleId);
+      const queueOffline = () => queueProgressMutation(articleId, endpoint, value);
 
       // Offline: enqueue for background sync instead of a doomed fetch.
-      if (typeof navigator !== "undefined" && navigator.onLine === false) {
+      if (isOffline()) {
         queueOffline();
         return;
       }
       void fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ percent: value }),
+        method: PROGRESS_METHOD,
+        headers: JSON_HEADERS,
+        body: JSON.stringify(progressBody(value)),
         keepalive: useKeepalive,
       }).catch(() => {
         // Online send failed (flaky network) — queue it; server stays

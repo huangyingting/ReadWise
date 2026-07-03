@@ -6,6 +6,8 @@ import { ArticleSourceType, ArticleStatus, ArticleVisibility, TagScope, type Art
 
 type AnyArgs = Record<string, any>;
 
+const FIXTURE_DATE = "2026-01-01T00:00:00.000Z";
+
 let articleRows: AnyArgs[];
 let articleFindManyArgs: AnyArgs[];
 let articleFindFirstResult: AnyArgs | null;
@@ -31,7 +33,7 @@ let tagFindManyArgs: AnyArgs[];
 let articleAiMode: "null" | "cached" | "persist" | "fallback";
 
 function article(id: string, overrides: AnyArgs = {}): Article {
-  const now = new Date("2026-01-01T00:00:00.000Z");
+  const now = new Date(FIXTURE_DATE);
   return {
     id,
     slug: null,
@@ -74,8 +76,17 @@ function publicTag(id: string, name: string, slug = name.toLowerCase()) {
     scope: TagScope.PUBLIC,
     namespace: "public",
     ownerId: null,
-    createdAt: new Date("2026-01-01T00:00:00.000Z"),
+    createdAt: new Date(FIXTURE_DATE),
   };
+}
+
+function defaultArticleRows(): AnyArgs[] {
+  return [
+    article("a1", { category: "science", difficulty: "A1", difficultyScore: 1 }),
+    article("a2", { category: "history", difficulty: "B1", difficultyScore: 2 }),
+    article("a3", { category: "science", difficulty: "C1", difficultyScore: 3 }),
+    article("a4", { category: "science", difficulty: null, difficultyScore: null }),
+  ];
 }
 
 function defaultReadingLists(): AnyArgs[] {
@@ -101,6 +112,39 @@ function matchesTagWhere(tag: AnyArgs, where: AnyArgs = {}) {
     );
   }
   return true;
+}
+
+function resetMockState(): void {
+  articleRows = defaultArticleRows();
+  articleFindManyArgs = [];
+  articleFindFirstResult = article("readable");
+  articleFindUniqueResult = article("a1");
+  ensuredDifficultyRows = null;
+  readingListRows = defaultReadingLists();
+  readingListFindFirstResult = readingListRows[1];
+  readingListCreates = [];
+  readingListUpdates = [];
+  readingListDeletes = [];
+  readingListItemRows = [
+    { id: "item-1", listId: "default-list", articleId: "a1" },
+    { id: "item-2", listId: "later-list", articleId: "a2" },
+  ];
+  readingListItemCreates = [];
+  readingListItemDeletes = [];
+  readingListItemUpserts = [];
+  readingListItemDeleteManyArgs = [];
+  tags = [publicTag("tag-1", "Science", "science"), publicTag("tag-2", "Nature", "nature")];
+  articleTags = [
+    { articleId: "a1", tagId: "tag-1" },
+    { articleId: "a2", tagId: "tag-1" },
+    { articleId: "a2", tagId: "tag-2" },
+  ];
+  articleTagCreates = [];
+  articleTagDeleteManyArgs = [];
+  articleTagGroupByArgs = [];
+  tagCountArgs = [];
+  tagFindManyArgs = [];
+  articleAiMode = "null";
 }
 
 before(() => {
@@ -340,43 +384,7 @@ before(() => {
   });
 });
 
-beforeEach(() => {
-  articleRows = [
-    article("a1", { category: "science", difficulty: "A1", difficultyScore: 1 }),
-    article("a2", { category: "history", difficulty: "B1", difficultyScore: 2 }),
-    article("a3", { category: "science", difficulty: "C1", difficultyScore: 3 }),
-    article("a4", { category: "science", difficulty: null, difficultyScore: null }),
-  ];
-  articleFindManyArgs = [];
-  articleFindFirstResult = article("readable");
-  articleFindUniqueResult = article("a1");
-  ensuredDifficultyRows = null;
-  readingListRows = defaultReadingLists();
-  readingListFindFirstResult = readingListRows[1];
-  readingListCreates = [];
-  readingListUpdates = [];
-  readingListDeletes = [];
-  readingListItemRows = [
-    { id: "item-1", listId: "default-list", articleId: "a1" },
-    { id: "item-2", listId: "later-list", articleId: "a2" },
-  ];
-  readingListItemCreates = [];
-  readingListItemDeletes = [];
-  readingListItemUpserts = [];
-  readingListItemDeleteManyArgs = [];
-  tags = [publicTag("tag-1", "Science", "science"), publicTag("tag-2", "Nature", "nature")];
-  articleTags = [
-    { articleId: "a1", tagId: "tag-1" },
-    { articleId: "a2", tagId: "tag-1" },
-    { articleId: "a2", tagId: "tag-2" },
-  ];
-  articleTagCreates = [];
-  articleTagDeleteManyArgs = [];
-  articleTagGroupByArgs = [];
-  tagCountArgs = [];
-  tagFindManyArgs = [];
-  articleAiMode = "null";
-});
+beforeEach(resetMockState);
 
 test("article listing helpers paginate, rank by level, and list personal imports", async () => {
   const listings = await import("@/lib/article-library/listings");

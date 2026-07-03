@@ -13,6 +13,19 @@
  */
 
 import { useCallback, useRef } from "react";
+import type { KeyboardEvent, RefObject } from "react";
+
+const DEFAULT_SELECTOR = "button";
+
+type RovingIndexOptions = { vertical?: boolean; homeEnd?: boolean };
+
+function isForwardKey(key: string, vertical: boolean): boolean {
+  return key === "ArrowRight" || (vertical && key === "ArrowDown");
+}
+
+function isBackwardKey(key: string, vertical: boolean): boolean {
+  return key === "ArrowLeft" || (vertical && key === "ArrowUp");
+}
 
 // ---------------------------------------------------------------------------
 // Pure helper (testable without DOM)
@@ -28,15 +41,15 @@ export function computeRovingIndex(
   key: string,
   current: number,
   total: number,
-  options: { vertical?: boolean; homeEnd?: boolean } = {},
+  options: RovingIndexOptions = {},
 ): number | null {
   if (total === 0) return null;
   const { vertical = false, homeEnd = false } = options;
 
-  if (key === "ArrowRight" || (vertical && key === "ArrowDown")) {
+  if (isForwardKey(key, vertical)) {
     return (current + 1) % total;
   }
-  if (key === "ArrowLeft" || (vertical && key === "ArrowUp")) {
+  if (isBackwardKey(key, vertical)) {
     return (current - 1 + total) % total;
   }
   if (homeEnd && key === "Home") return 0;
@@ -99,13 +112,13 @@ export interface RovingTabindexOptions {
  * ```
  */
 export function useRovingTabindex(
-  containerRef: React.RefObject<HTMLElement | null>,
+  containerRef: RefObject<HTMLElement | null>,
   options: RovingTabindexOptions = {},
 ): {
-  handleKeyDown: (e: React.KeyboardEvent, index: number) => void;
+  handleKeyDown: (e: KeyboardEvent, index: number) => void;
 } {
   const {
-    selector = "button",
+    selector = DEFAULT_SELECTOR,
     vertical = false,
     homeEnd = false,
     onNavigate,
@@ -119,7 +132,7 @@ export function useRovingTabindex(
   onEscapeRef.current = onEscape;
 
   const handleKeyDown = useCallback(
-    (e: React.KeyboardEvent, index: number) => {
+    (e: KeyboardEvent, index: number) => {
       if (e.key === "Escape") {
         e.preventDefault();
         onEscapeRef.current?.();
@@ -138,9 +151,7 @@ export function useRovingTabindex(
       items[next]?.focus();
       onNavigateRef.current?.(next);
     },
-    // containerRef is stable by definition (useRef); include only primitives.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [selector, vertical, homeEnd],
+    [containerRef, selector, vertical, homeEnd],
   );
 
   return { handleKeyDown };

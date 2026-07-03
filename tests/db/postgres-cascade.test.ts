@@ -10,24 +10,77 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
 registerIntegrationCleanup();
 
+const POSTGRES_REQUIRED = "test:db requires a PostgreSQL DATABASE_URL";
+
+type CountCase = readonly [label: string, count: () => Promise<number>];
+
+function requirePostgres(): void {
+  assert.equal(isPostgres, true, POSTGRES_REQUIRED);
+}
+
+async function createPublishedPrivateArticle({
+  articleId,
+  ownerId,
+  title,
+  content,
+}: {
+  articleId: string;
+  ownerId: string;
+  title: string;
+  content: string;
+}): Promise<void> {
+  await prisma.article.create({
+    data: {
+      id: articleId,
+      title,
+      content,
+      status: ArticleStatus.PUBLISHED,
+      publishedAt: new Date(),
+      ownerId,
+      visibility: ArticleVisibility.PRIVATE,
+    },
+  });
+}
+
+function derivedArticleCounts(articleId: string): CountCase[] {
+  return [
+    ["article tags", () => prisma.articleTag.count({ where: { articleId } })],
+    ["translations", () => prisma.translation.count({ where: { articleId } })],
+    ["sentence translations", () => prisma.sentenceTranslation.count({ where: { articleId } })],
+    ["vocabulary", () => prisma.vocabularyItem.count({ where: { articleId } })],
+    ["quiz questions", () => prisma.quizQuestion.count({ where: { articleId } })],
+    ["speech", () => prisma.articleSpeech.count({ where: { articleId } })],
+    ["progress", () => prisma.readingProgress.count({ where: { articleId } })],
+    ["reading list items", () => prisma.readingListItem.count({ where: { articleId } })],
+    ["highlights", () => prisma.highlight.count({ where: { articleId } })],
+    ["tutor messages", () => prisma.tutorMessage.count({ where: { articleId } })],
+    ["quiz attempts", () => prisma.quizAttempt.count({ where: { articleId } })],
+    ["pronunciation attempts", () => prisma.pronunciationAttempt.count({ where: { articleId } })],
+    ["grammar explanations", () => prisma.grammarExplanation.count({ where: { articleId } })],
+    ["difficulty feedback", () => prisma.articleDifficultyFeedback.count({ where: { articleId } })],
+  ];
+}
+
+async function assertAllCascadeDeleted(cases: CountCase[]): Promise<void> {
+  const counts = await Promise.all(cases.map(([, count]) => count()));
+  cases.forEach(([label], index) => {
+    assert.equal(counts[index], 0, `${label} should be cascade-deleted with the article`);
+  });
+}
+
 test("article deletes cascade derived data but keep saved-word study history", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const userId = id("cascade_user");
   const articleId = id("cascade_article");
   const tagId = id("cascade_tag");
 
   await prisma.user.create({ data: { id: userId, name: "DB Integration User", role: "Reader" } });
-  await prisma.article.create({
-    data: {
-      id: articleId,
-      title: "Cascade Article",
-      content: "A long enough body for derived data.",
-      status: ArticleStatus.PUBLISHED,
-      publishedAt: new Date(),
-      ownerId: userId,
-      visibility: ArticleVisibility.PRIVATE,
-    },
+  await createPublishedPrivateArticle({
+    articleId,
+    ownerId: userId,
+    title: "Cascade Article",
+    content: "A long enough body for derived data.",
   });
   await prisma.tag.create({ data: { id: tagId, name: `Integration ${tagId}`, slug: tagId } });
 
@@ -35,20 +88,48 @@ test("article deletes cascade derived data but keep saved-word study history", {
     prisma.articleTag.create({ data: { articleId, tagId } }),
     prisma.translation.create({ data: { articleId, targetLang: "es", content: "Texto" } }),
     prisma.sentenceTranslation.create({
-      data: { articleId, sourceHash: id("hash"), targetLang: "es", sourceText: "Hello", translation: "Hola" },
+      data: {
+        articleId,
+        sourceHash: id("hash"),
+        targetLang: "es",
+        sourceText: "Hello",
+        translation: "Hola",
+      },
     }),
-    prisma.vocabularyItem.create({ data: { articleId, word: "cascade", explanation: "test", example: "cascade test" } }),
-    prisma.quizQuestion.create({ data: { articleId, question: "Question?", options: ["A", "B"], correctIndex: 0 } }),
+    prisma.vocabularyItem.create({
+      data: { articleId, word: "cascade", explanation: "test", example: "cascade test" },
+    }),
+    prisma.quizQuestion.create({
+      data: { articleId, question: "Question?", options: ["A", "B"], correctIndex: 0 },
+    }),
     prisma.articleSpeech.create({
-      data: { articleId, voice: "test", format: "mp3", mimeType: "audio/mpeg", storageKey: "speech/test.mp3", plainText: "Hello", words: [] },
+      data: {
+        articleId,
+        voice: "test",
+        format: "mp3",
+        mimeType: "audio/mpeg",
+        storageKey: "speech/test.mp3",
+        plainText: "Hello",
+        words: [],
+      },
     }),
     prisma.readingProgress.create({ data: { userId, articleId, percent: 50 } }),
-    prisma.readingList.create({ data: { id: id("list"), userId, name: "Integration List", items: { create: { articleId } } } }),
+    prisma.readingList.create({
+      data: { id: id("list"), userId, name: "Integration List", items: { create: { articleId } } },
+    }),
     prisma.highlight.create({ data: { userId, articleId, quote: "long", startOffset: 0, endOffset: 4 } }),
     prisma.tutorMessage.create({ data: { userId, articleId, role: "user", content: "Explain this." } }),
     prisma.quizAttempt.create({ data: { userId, articleId, correctCount: 1, totalQuestions: 2, scorePct: 50 } }),
     prisma.pronunciationAttempt.create({
-      data: { userId, articleId, referenceText: "Hello", accuracyScore: 90, fluencyScore: 90, completenessScore: 90, pronScore: 90 },
+      data: {
+        userId,
+        articleId,
+        referenceText: "Hello",
+        accuracyScore: 90,
+        fluencyScore: 90,
+        completenessScore: 90,
+        pronScore: 90,
+      },
     }),
     prisma.grammarExplanation.create({ data: { articleId, phrase: "because of", explanation: "Grammar note" } }),
     prisma.articleDifficultyFeedback.create({ data: { userId, articleId, vote: "just_right" } }),
@@ -57,79 +138,23 @@ test("article deletes cascade derived data but keep saved-word study history", {
 
   await prisma.article.delete({ where: { id: articleId } });
 
-  const [
-    articleTags,
-    translations,
-    sentenceTranslations,
-    vocabulary,
-    quizQuestions,
-    speech,
-    progress,
-    readingListItems,
-    highlights,
-    tutorMessages,
-    quizAttempts,
-    pronunciationAttempts,
-    grammarExplanations,
-    difficultyFeedback,
-    savedWord,
-  ] = await Promise.all([
-    prisma.articleTag.count({ where: { articleId } }),
-    prisma.translation.count({ where: { articleId } }),
-    prisma.sentenceTranslation.count({ where: { articleId } }),
-    prisma.vocabularyItem.count({ where: { articleId } }),
-    prisma.quizQuestion.count({ where: { articleId } }),
-    prisma.articleSpeech.count({ where: { articleId } }),
-    prisma.readingProgress.count({ where: { articleId } }),
-    prisma.readingListItem.count({ where: { articleId } }),
-    prisma.highlight.count({ where: { articleId } }),
-    prisma.tutorMessage.count({ where: { articleId } }),
-    prisma.quizAttempt.count({ where: { articleId } }),
-    prisma.pronunciationAttempt.count({ where: { articleId } }),
-    prisma.grammarExplanation.count({ where: { articleId } }),
-    prisma.articleDifficultyFeedback.count({ where: { articleId } }),
-    prisma.savedWord.findUnique({ where: { userId_word: { userId, word: "cascade" } } }),
-  ]);
-
-  assert.deepEqual(
-    [
-      articleTags,
-      translations,
-      sentenceTranslations,
-      vocabulary,
-      quizQuestions,
-      speech,
-      progress,
-      readingListItems,
-      highlights,
-      tutorMessages,
-      quizAttempts,
-      pronunciationAttempts,
-      grammarExplanations,
-      difficultyFeedback,
-    ],
-    Array(14).fill(0),
-  );
+  await assertAllCascadeDeleted(derivedArticleCounts(articleId));
+  const savedWord = await prisma.savedWord.findUnique({ where: { userId_word: { userId, word: "cascade" } } });
   assert.equal(savedWord?.articleId, articleId);
 });
 
 test("ArticleMastery row is cascade-deleted when its article is deleted", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const userId = id("mastery_casc_user");
   const articleId = id("mastery_casc_article");
 
   await prisma.user.create({ data: { id: userId, name: "DB Integration Mastery Cascade User", role: "Reader" } });
-  await prisma.article.create({
-    data: {
-      id: articleId,
-      title: "Mastery Cascade Article",
-      content: "A body long enough for reading mastery.",
-      status: ArticleStatus.PUBLISHED,
-      publishedAt: new Date(),
-      ownerId: userId,
-      visibility: ArticleVisibility.PRIVATE,
-    },
+  await createPublishedPrivateArticle({
+    articleId,
+    ownerId: userId,
+    title: "Mastery Cascade Article",
+    content: "A body long enough for reading mastery.",
   });
   await prisma.articleMastery.create({
     data: {

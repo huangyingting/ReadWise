@@ -82,6 +82,17 @@ const TIER_RANK: Record<TodayCompletionTier, number> = {
   full: 3,
 };
 
+function higherTier(
+  computed: TodayCompletionTier,
+  current: TodayCompletionTier,
+): TodayCompletionTier {
+  return TIER_RANK[computed] >= TIER_RANK[current] ? computed : current;
+}
+
+function sameTimestamp(a: Date | null, b: Date | null): boolean {
+  return (a?.getTime() ?? null) === (b?.getTime() ?? null);
+}
+
 /**
  * Compute the completion tier from the satisfied dimensions.
  *
@@ -148,10 +159,7 @@ export function deriveCompletionState(
   }
 
   const computed = computeCompletionTier(inputs);
-  const completionTier =
-    TIER_RANK[computed] >= TIER_RANK[current.completionTier]
-      ? computed
-      : current.completionTier;
+  const completionTier = higherTier(computed, current.completionTier);
 
   const complete =
     current.status === "completed" || isBestAvailableComplete(inputs);
@@ -161,7 +169,7 @@ export function deriveCompletionState(
   const changed =
     completionTier !== current.completionTier ||
     status !== current.status ||
-    (completedAt?.getTime() ?? null) !== (current.completedAt?.getTime() ?? null);
+    !sameTimestamp(completedAt, current.completedAt);
 
   return { completionTier, status, completedAt, changed };
 }
@@ -169,6 +177,48 @@ export function deriveCompletionState(
 // ---------------------------------------------------------------------------
 // Recompute + persist (server-only)
 // ---------------------------------------------------------------------------
+
+type WordReviewState = {
+  hasTargetWords: boolean;
+  reviewMet: boolean;
+  effectiveTargetCount: number;
+};
+
+function wordReviewThreshold(effectiveTargetCount: number): number {
+  return effectiveTargetCount <= WORD_REVIEW_ALL_AT_MOST
+    ? effectiveTargetCount
+    : WORD_REVIEW_LARGE_THRESHOLD;
+}
+
+async function loadWordReviewState(
+  userId: string,
+  session: TodaySessionView,
+): Promise<WordReviewState> {
+  if (session.targetSavedWordIds.length === 0) {
+    return { hasTargetWords: false, reviewMet: false, effectiveTargetCount: 0 };
+  }
+
+  // ids + review timestamp ONLY — never word text or definitions.
+  const rows = await prisma.savedWord.findMany({
+    where: { userId, id: { in: session.targetSavedWordIds } },
+    select: { id: true, lastReviewedAt: true },
+  });
+  const effectiveTargetCount = rows.length; // deleted/inaccessible targets drop out
+  const hasTargetWords = effectiveTargetCount > 0;
+  if (!hasTargetWords) {
+    return { hasTargetWords, reviewMet: false, effectiveTargetCount };
+  }
+
+  const windowStart = session.createdAt.getTime();
+  const reviewedCount = rows.filter(
+    (r) => r.lastReviewedAt != null && r.lastReviewedAt.getTime() >= windowStart,
+  ).length;
+  return {
+    hasTargetWords,
+    reviewMet: reviewedCount >= wordReviewThreshold(effectiveTargetCount),
+    effectiveTargetCount,
+  };
+}
 
 /**
  * Re-evaluate every completion dimension for an existing session and persist
@@ -190,30 +240,8 @@ export async function recomputeTodayCompletion(
   if (!session) return null;
   if (session.status === "skipped") return session;
 
-  let hasTargetWords = false;
-  let reviewMet = false;
-  let effectiveTargetCount = 0;
-  if (session.targetSavedWordIds.length > 0) {
-    // ids + review timestamp ONLY — never word text or definitions.
-    const rows = await prisma.savedWord.findMany({
-      where: { userId, id: { in: session.targetSavedWordIds } },
-      select: { id: true, lastReviewedAt: true },
-    });
-    const effectiveCount = rows.length; // deleted/inaccessible targets drop out
-    effectiveTargetCount = effectiveCount;
-    hasTargetWords = effectiveCount > 0;
-    if (effectiveCount > 0) {
-      const windowStart = session.createdAt.getTime();
-      const reviewedCount = rows.filter(
-        (r) => r.lastReviewedAt != null && r.lastReviewedAt.getTime() >= windowStart,
-      ).length;
-      const threshold =
-        effectiveCount <= WORD_REVIEW_ALL_AT_MOST
-          ? effectiveCount
-          : WORD_REVIEW_LARGE_THRESHOLD;
-      reviewMet = reviewedCount >= threshold;
-    }
-  }
+  const { hasTargetWords, reviewMet, effectiveTargetCount } =
+    await loadWordReviewState(userId, session);
 
   // Word-review completion is sticky once reached.
   const nextWordReviewCompletedAt =
@@ -241,10 +269,7 @@ export async function recomputeTodayCompletion(
   const update: TodaySessionUpdate = {};
   let changed = false;
 
-  if (
-    (nextWordReviewCompletedAt?.getTime() ?? null) !==
-    (session.wordReviewCompletedAt?.getTime() ?? null)
-  ) {
+  if (!sameTimestamp(nextWordReviewCompletedAt, session.wordReviewCompletedAt)) {
     update.wordReviewCompletedAt = nextWordReviewCompletedAt;
     changed = true;
   }

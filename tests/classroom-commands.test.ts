@@ -13,15 +13,19 @@ import assert from "node:assert/strict";
 
 // ---- mutable stub state ---------------------------------------------------
 
-let createdClassroom: Record<string, unknown> = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
-let upsertedMembership: Record<string, unknown> = { classroomId: "c1", userId: "s1", role: "Student" };
-let createdAssignment: Record<string, unknown> = {
+const DEFAULT_CLASSROOM = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
+const DEFAULT_UPSERTED_MEMBERSHIP = { classroomId: "c1", userId: "s1", role: "Student" };
+const DEFAULT_ASSIGNMENT = {
   id: "asgn1",
   classroomId: "c1",
   articleId: "art1",
   dueDate: null,
   instructions: null,
 };
+
+let createdClassroom: Record<string, unknown> = { ...DEFAULT_CLASSROOM };
+let upsertedMembership: Record<string, unknown> = { ...DEFAULT_UPSERTED_MEMBERSHIP };
+let createdAssignment: Record<string, unknown> = { ...DEFAULT_ASSIGNMENT };
 
 // Call recorders
 let classroomCreateArgs: unknown = null;
@@ -78,10 +82,14 @@ before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: mockPrisma } });
 });
 
+async function loadCommands(): Promise<typeof import("@/lib/classroom/commands")> {
+  return import("@/lib/classroom/commands");
+}
+
 beforeEach(() => {
-  createdClassroom = { id: "c1", name: "Math", orgId: "o1", teacherId: "t1" };
-  upsertedMembership = { classroomId: "c1", userId: "s1", role: "Student" };
-  createdAssignment = { id: "asgn1", classroomId: "c1", articleId: "art1", dueDate: null, instructions: null };
+  createdClassroom = { ...DEFAULT_CLASSROOM };
+  upsertedMembership = { ...DEFAULT_UPSERTED_MEMBERSHIP };
+  createdAssignment = { ...DEFAULT_ASSIGNMENT };
   classroomCreateArgs = null;
   membershipCreateArgs = null;
   membershipUpsertArgs = null;
@@ -94,7 +102,7 @@ beforeEach(() => {
 // ---- createClassroom -------------------------------------------------------
 
 test("createClassroom creates the classroom and teacher membership inside a transaction", async () => {
-  const { createClassroom } = await import("@/lib/classroom/commands");
+  const { createClassroom } = await loadCommands();
   const result = await createClassroom({ orgId: "o1", name: "Math", teacherId: "t1" });
   assert.equal(transactionCalled, true);
   assert.deepEqual(result, createdClassroom);
@@ -103,14 +111,14 @@ test("createClassroom creates the classroom and teacher membership inside a tran
 });
 
 test("createClassroom trims whitespace from the classroom name", async () => {
-  const { createClassroom } = await import("@/lib/classroom/commands");
+  const { createClassroom } = await loadCommands();
   await createClassroom({ orgId: "o1", name: "  Trimmed Name  ", teacherId: "t1" });
   const args = classroomCreateArgs as { data: { name: string } };
   assert.equal(args.data.name, "Trimmed Name");
 });
 
 test("createClassroom seats the teacher as a Teacher member", async () => {
-  const { createClassroom } = await import("@/lib/classroom/commands");
+  const { createClassroom } = await loadCommands();
   await createClassroom({ orgId: "o1", name: "Class A", teacherId: "teacher-99" });
   const mArgs = membershipCreateArgs as { data: { userId: string; role: string } };
   assert.equal(mArgs.data.userId, "teacher-99");
@@ -118,7 +126,7 @@ test("createClassroom seats the teacher as a Teacher member", async () => {
 });
 
 test("createClassroom stores the correct orgId and teacherId on the classroom", async () => {
-  const { createClassroom } = await import("@/lib/classroom/commands");
+  const { createClassroom } = await loadCommands();
   await createClassroom({ orgId: "org-X", name: "Org X Class", teacherId: "t-X" });
   const args = classroomCreateArgs as { data: { orgId: string; teacherId: string } };
   assert.equal(args.data.orgId, "org-X");
@@ -126,7 +134,7 @@ test("createClassroom stores the correct orgId and teacherId on the classroom", 
 });
 
 test("createClassroom links the membership to the correct classroom", async () => {
-  const { createClassroom } = await import("@/lib/classroom/commands");
+  const { createClassroom } = await loadCommands();
   await createClassroom({ orgId: "o1", name: "Link Test", teacherId: "t1" });
   const mArgs = membershipCreateArgs as { data: { classroomId: string } };
   // The membership classroomId must equal the newly created classroom's id.
@@ -136,7 +144,7 @@ test("createClassroom links the membership to the correct classroom", async () =
 // ---- addClassroomMember ----------------------------------------------------
 
 test("addClassroomMember upserts with Student role by default", async () => {
-  const { addClassroomMember } = await import("@/lib/classroom/commands");
+  const { addClassroomMember } = await loadCommands();
   const result = await addClassroomMember("c1", "s1");
   assert.deepEqual(result, upsertedMembership);
   const args = membershipUpsertArgs as { create: { role: string }; update: { role: string } };
@@ -146,7 +154,7 @@ test("addClassroomMember upserts with Student role by default", async () => {
 
 test("addClassroomMember upserts with an explicitly provided role", async () => {
   upsertedMembership = { classroomId: "c1", userId: "t2", role: "Teacher" };
-  const { addClassroomMember } = await import("@/lib/classroom/commands");
+  const { addClassroomMember } = await loadCommands();
   const result = await addClassroomMember("c1", "t2", "Teacher");
   assert.deepEqual(result, upsertedMembership);
   const args = membershipUpsertArgs as { create: { role: string }; update: { role: string } };
@@ -155,7 +163,7 @@ test("addClassroomMember upserts with an explicitly provided role", async () => 
 });
 
 test("addClassroomMember uses the classroomId_userId composite key for the upsert where clause", async () => {
-  const { addClassroomMember } = await import("@/lib/classroom/commands");
+  const { addClassroomMember } = await loadCommands();
   await addClassroomMember("c1", "s1");
   const args = membershipUpsertArgs as {
     where: { classroomId_userId: { classroomId: string; userId: string } };
@@ -165,7 +173,7 @@ test("addClassroomMember uses the classroomId_userId composite key for the upser
 
 test("addClassroomMember is idempotent — re-roles an existing member via update", async () => {
   upsertedMembership = { classroomId: "c1", userId: "s1", role: "Teacher" };
-  const { addClassroomMember } = await import("@/lib/classroom/commands");
+  const { addClassroomMember } = await loadCommands();
   const result = await addClassroomMember("c1", "s1", "Teacher");
   assert.deepEqual(result, upsertedMembership);
   const args = membershipUpsertArgs as { update: { role: string } };
@@ -175,7 +183,7 @@ test("addClassroomMember is idempotent — re-roles an existing member via updat
 // ---- removeClassroomMember -------------------------------------------------
 
 test("removeClassroomMember deletes the membership by classroomId and userId", async () => {
-  const { removeClassroomMember } = await import("@/lib/classroom/commands");
+  const { removeClassroomMember } = await loadCommands();
   await removeClassroomMember("c1", "s1");
   assert.ok(membershipDeleteManyArgs, "deleteMany must be called");
   const args = membershipDeleteManyArgs as { where: { classroomId: string; userId: string } };
@@ -184,12 +192,12 @@ test("removeClassroomMember deletes the membership by classroomId and userId", a
 });
 
 test("removeClassroomMember resolves without error when member does not exist", async () => {
-  const { removeClassroomMember } = await import("@/lib/classroom/commands");
+  const { removeClassroomMember } = await loadCommands();
   await assert.doesNotReject(() => removeClassroomMember("c1", "nonexistent-user"));
 });
 
 test("removeClassroomMember returns void (no useful return value)", async () => {
-  const { removeClassroomMember } = await import("@/lib/classroom/commands");
+  const { removeClassroomMember } = await loadCommands();
   const result = await removeClassroomMember("c1", "s1");
   assert.equal(result, undefined);
 });
@@ -197,7 +205,7 @@ test("removeClassroomMember returns void (no useful return value)", async () => 
 // ---- assignArticle ---------------------------------------------------------
 
 test("assignArticle creates an assignment with the provided classroomId and articleId", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
+  const { assignArticle } = await loadCommands();
   const result = await assignArticle({ classroomId: "c1", articleId: "art1" });
   assert.deepEqual(result, createdAssignment);
   const args = assignmentCreateArgs as { data: { classroomId: string; articleId: string } };
@@ -207,58 +215,48 @@ test("assignArticle creates an assignment with the provided classroomId and arti
 
 test("assignArticle stores the dueDate when provided", async () => {
   const dueDate = new Date("2026-12-31");
-  const { assignArticle } = await import("@/lib/classroom/commands");
+  const { assignArticle } = await loadCommands();
   await assignArticle({ classroomId: "c1", articleId: "art1", dueDate });
   const args = assignmentCreateArgs as { data: { dueDate: Date } };
   assert.deepEqual(args.data.dueDate, dueDate);
 });
 
-test("assignArticle stores null for dueDate when not provided", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
-  await assignArticle({ classroomId: "c1", articleId: "art1" });
-  const args = assignmentCreateArgs as { data: { dueDate: null } };
-  assert.equal(args.data.dueDate, null);
-});
-
-test("assignArticle stores null for dueDate when explicitly set to null", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
-  await assignArticle({ classroomId: "c1", articleId: "art1", dueDate: null });
-  const args = assignmentCreateArgs as { data: { dueDate: null } };
-  assert.equal(args.data.dueDate, null);
-});
+for (const { name, input } of [
+  { name: "not provided", input: {} },
+  { name: "explicitly set to null", input: { dueDate: null } },
+]) {
+  test(`assignArticle stores null for dueDate when ${name}`, async () => {
+    const { assignArticle } = await loadCommands();
+    await assignArticle({ classroomId: "c1", articleId: "art1", ...input });
+    const args = assignmentCreateArgs as { data: { dueDate: null } };
+    assert.equal(args.data.dueDate, null);
+  });
+}
 
 test("assignArticle trims whitespace from instructions", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
+  const { assignArticle } = await loadCommands();
   await assignArticle({ classroomId: "c1", articleId: "art1", instructions: "  Read carefully  " });
   const args = assignmentCreateArgs as { data: { instructions: string } };
   assert.equal(args.data.instructions, "Read carefully");
 });
 
-test("assignArticle stores null when instructions is an empty string", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
-  await assignArticle({ classroomId: "c1", articleId: "art1", instructions: "" });
-  const args = assignmentCreateArgs as { data: { instructions: null } };
-  assert.equal(args.data.instructions, null);
-});
-
-test("assignArticle stores null when instructions is whitespace only", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
-  await assignArticle({ classroomId: "c1", articleId: "art1", instructions: "   " });
-  const args = assignmentCreateArgs as { data: { instructions: null } };
-  assert.equal(args.data.instructions, null);
-});
-
-test("assignArticle stores null when instructions is not provided", async () => {
-  const { assignArticle } = await import("@/lib/classroom/commands");
-  await assignArticle({ classroomId: "c1", articleId: "art1" });
-  const args = assignmentCreateArgs as { data: { instructions: null } };
-  assert.equal(args.data.instructions, null);
-});
+for (const { name, input } of [
+  { name: "an empty string", input: { instructions: "" } },
+  { name: "whitespace only", input: { instructions: "   " } },
+  { name: "not provided", input: {} },
+]) {
+  test(`assignArticle stores null when instructions is ${name}`, async () => {
+    const { assignArticle } = await loadCommands();
+    await assignArticle({ classroomId: "c1", articleId: "art1", ...input });
+    const args = assignmentCreateArgs as { data: { instructions: null } };
+    assert.equal(args.data.instructions, null);
+  });
+}
 
 // ---- deleteAssignment ------------------------------------------------------
 
 test("deleteAssignment calls deleteMany with the assignment id", async () => {
-  const { deleteAssignment } = await import("@/lib/classroom/commands");
+  const { deleteAssignment } = await loadCommands();
   await deleteAssignment("asgn-1");
   assert.ok(assignmentDeleteManyArgs, "deleteMany must be called");
   const args = assignmentDeleteManyArgs as { where: { id: string } };
@@ -266,12 +264,12 @@ test("deleteAssignment calls deleteMany with the assignment id", async () => {
 });
 
 test("deleteAssignment resolves without error when assignment does not exist", async () => {
-  const { deleteAssignment } = await import("@/lib/classroom/commands");
+  const { deleteAssignment } = await loadCommands();
   await assert.doesNotReject(() => deleteAssignment("nonexistent-asgn"));
 });
 
 test("deleteAssignment returns void (no useful return value)", async () => {
-  const { deleteAssignment } = await import("@/lib/classroom/commands");
+  const { deleteAssignment } = await loadCommands();
   const result = await deleteAssignment("asgn-1");
   assert.equal(result, undefined);
 });

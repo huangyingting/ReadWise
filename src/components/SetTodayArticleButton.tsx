@@ -37,6 +37,20 @@ export interface SetTodayArticleButtonProps {
 const SUCCESS_MESSAGE = "Set as today's article.";
 const DEFAULT_ERROR = "Couldn't set today's article. Please try again.";
 
+function getOverlayLabel(status: Status, articleTitle: string): string {
+  return status === "success"
+    ? `"${articleTitle}" is today's article`
+    : `Set "${articleTitle}" as today's article`;
+}
+
+function getInlineLabel(status: Status): string {
+  return status === "success" ? "Today's article" : "Set as today's article";
+}
+
+function getErrorMessage(err: unknown): string {
+  return err instanceof ApiResponseError && err.message ? err.message : DEFAULT_ERROR;
+}
+
 export default function SetTodayArticleButton({
   articleId,
   articleTitle,
@@ -57,24 +71,23 @@ export default function SetTodayArticleButton({
       setMessage(SUCCESS_MESSAGE);
     } catch (err) {
       setStatus("error");
-      setMessage(
-        err instanceof ApiResponseError && err.message ? err.message : DEFAULT_ERROR,
-      );
+      setMessage(getErrorMessage(err));
     }
   }
 
+  const isPending = status === "pending";
+  const isSuccess = status === "success";
+  const isError = status === "error";
+
   if (variant === "overlay") {
-    const label =
-      status === "success"
-        ? `"${articleTitle}" is today's article`
-        : `Set "${articleTitle}" as today's article`;
+    const label = getOverlayLabel(status, articleTitle);
     return (
       <IconButton
         type="button"
         size="md"
         aria-label={label}
-        title={status === "error" ? (message ?? DEFAULT_ERROR) : label}
-        disabled={status === "pending" || status === "success"}
+        title={isError ? (message ?? DEFAULT_ERROR) : label}
+        disabled={isPending || isSuccess}
         onClick={(e) => {
           e.preventDefault();
           void submit();
@@ -89,13 +102,13 @@ export default function SetTodayArticleButton({
           "motion-reduce:transition-none",
           // Hidden until card hover / focus, like the bookmark overlay.
           "opacity-0 group-hover/card:opacity-100 focus-visible:opacity-100",
-          status === "success" &&
+          isSuccess &&
             "opacity-100 text-primary-text border-[color-mix(in_srgb,var(--primary)_38%,transparent)] bg-[color-mix(in_srgb,var(--primary)_10%,transparent)]",
-          status === "error" && "opacity-100 text-[var(--danger-text)] border-[var(--danger)]",
+          isError && "opacity-100 text-[var(--danger-text)] border-[var(--danger)]",
           className,
         )}
       >
-        {status === "success" ? (
+        {isSuccess ? (
           <Check size={16} aria-hidden />
         ) : (
           <CalendarPlus size={16} aria-hidden />
@@ -111,10 +124,10 @@ export default function SetTodayArticleButton({
           type="button"
           variant="secondary"
           size={size}
-          loading={status === "pending"}
-          disabled={status === "success"}
+          loading={isPending}
+          disabled={isSuccess}
           leadingIcon={
-            status === "success" ? (
+            isSuccess ? (
               <Check size={16} aria-hidden />
             ) : (
               <CalendarCheck size={16} aria-hidden />
@@ -122,15 +135,15 @@ export default function SetTodayArticleButton({
           }
           onClick={() => void submit()}
         >
-          {status === "success" ? "Today's article" : "Set as today's article"}
+          {getInlineLabel(status)}
         </Button>
       </div>
       {message ? (
         <span
-          role={status === "error" ? "alert" : "status"}
+          role={isError ? "alert" : "status"}
           className={cn(
             "text-[length:var(--text-xs)]",
-            status === "error" ? "text-[var(--danger-text)]" : "text-text-muted",
+            isError ? "text-[var(--danger-text)]" : "text-text-muted",
           )}
         >
           {message}

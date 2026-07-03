@@ -10,6 +10,10 @@ type RequestHandlers<T> = {
   onerror: (() => void) | null;
 };
 
+type UpgradableRequest<T> = FakeRequest<T> & {
+  onupgradeneeded?: (event: { target: FakeRequest<T> }) => void;
+};
+
 class FakeRequest<T> implements RequestHandlers<T> {
   result!: T;
   error: unknown = null;
@@ -237,8 +241,9 @@ class FakeIndexedDb {
     if (this.openFails) return req.fail(new Error("open failed"));
     queueMicrotask(() => {
       if (!this.db.objectStoreNames.contains("articles") || !this.db.objectStoreNames.contains("mutations")) {
-        (req as FakeRequest<FakeDb> & { onupgradeneeded?: (event: { target: FakeRequest<FakeDb> }) => void }).result = this.db;
-        (req as FakeRequest<FakeDb> & { onupgradeneeded?: (event: { target: FakeRequest<FakeDb> }) => void }).onupgradeneeded?.({ target: req });
+        const upgradableRequest = req as UpgradableRequest<FakeDb>;
+        upgradableRequest.result = this.db;
+        upgradableRequest.onupgradeneeded?.({ target: req });
       }
       req.result = this.db;
       req.onsuccess?.({ target: req });
@@ -315,6 +320,10 @@ function makeArticle(id: string, savedAt?: string): Record<string, unknown> {
   };
 }
 
+function seedArticle(id: string, savedAt?: string): void {
+  fakeIndexedDb.db.store("articles").set(id, makeArticle(id, savedAt));
+}
+
 function queued(partial: Partial<QueuedMutation> = {}): QueuedMutation {
   return {
     clientMutationId: partial.clientMutationId ?? "m1",
@@ -371,20 +380,11 @@ test("offline article store saves, expires, lists, evicts, removes, and purges",
   assert.equal(await getOfflineArticleVersion("a1"), "v-a1");
   assert.equal(await isArticleOffline("a1"), true);
 
-  fakeIndexedDb.db.store("articles").set(
-    "expired",
-    makeArticle("expired", "2020-01-01T00:00:00.000Z"),
-  );
+  seedArticle("expired", "2020-01-01T00:00:00.000Z");
   assert.equal(await getOfflineArticle("expired"), null);
 
-  fakeIndexedDb.db.store("articles").set(
-    "older",
-    makeArticle("older", new Date(Date.now() - 2_000).toISOString()),
-  );
-  fakeIndexedDb.db.store("articles").set(
-    "newer",
-    makeArticle("newer", new Date(Date.now() - 1_000).toISOString()),
-  );
+  seedArticle("older", new Date(Date.now() - 2_000).toISOString());
+  seedArticle("newer", new Date(Date.now() - 1_000).toISOString());
   const all = await getAllOfflineArticles();
   const ids = all.map((article) => article.id);
   assert.ok(ids.indexOf("newer") < ids.indexOf("older"));

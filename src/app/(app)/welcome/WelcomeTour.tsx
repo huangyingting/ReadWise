@@ -3,14 +3,23 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { BookOpen, Bookmark, BarChart2 } from "lucide-react";
+import { BookOpen, Bookmark, BarChart2, type LucideIcon } from "lucide-react";
 import { Button, IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
 const WELCOME_SEEN_KEY = STORAGE_KEYS.WELCOME_SEEN;
 
-const STEPS = [
+type WelcomeStep = {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+  href: string;
+  cta: string;
+  color: string;
+};
+
+const STEPS: WelcomeStep[] = [
   {
     icon: BookOpen,
     title: "Read articles at your level",
@@ -37,6 +46,22 @@ const STEPS = [
   },
 ];
 
+function hasSeenWelcome(): boolean {
+  try {
+    return Boolean(localStorage.getItem(WELCOME_SEEN_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function markWelcomeSeen() {
+  try {
+    localStorage.setItem(WELCOME_SEEN_KEY, "1");
+  } catch {
+    // Ignore storage errors.
+  }
+}
+
 export default function WelcomeTour({
   landingPath = "/dashboard",
 }: {
@@ -48,21 +73,13 @@ export default function WelcomeTour({
 
   // If already seen, go straight to the learner's landing page.
   useEffect(() => {
-    try {
-      if (localStorage.getItem(WELCOME_SEEN_KEY)) {
-        router.replace(landingPath);
-      }
-    } catch {
-      // Ignore storage errors.
+    if (hasSeenWelcome()) {
+      router.replace(landingPath);
     }
   }, [router, landingPath]);
 
   function markSeen() {
-    try {
-      localStorage.setItem(WELCOME_SEEN_KEY, "1");
-    } catch {
-      // Ignore storage errors.
-    }
+    markWelcomeSeen();
   }
 
   function handleSkip() {
@@ -81,6 +98,7 @@ export default function WelcomeTour({
 
   const current = STEPS[step];
   const Icon = current.icon;
+  const isLastStep = step === STEPS.length - 1;
 
   return (
     <div className="welcome-tour-container">
@@ -130,7 +148,7 @@ export default function WelcomeTour({
         </Button>
 
         <Button onClick={handleNext} variant="primary" size="md">
-          {step < STEPS.length - 1 ? "Next →" : "Start reading →"}
+          {isLastStep ? "Start reading →" : "Next →"}
         </Button>
       </div>
     </div>
