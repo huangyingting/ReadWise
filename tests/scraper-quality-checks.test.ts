@@ -128,8 +128,22 @@ function makeInput(overrides: Partial<QualityInput> & { content: string }): Qual
 }
 
 /** Returns the signal detail for a named check, or undefined. */
-function signalFor(result: ReturnType<typeof checkContentQuality>, check: string) {
+type QualityResult = ReturnType<typeof checkContentQuality>;
+
+function signalFor(result: QualityResult, check: string) {
   return result.signals.find((s) => s.check === check);
+}
+
+function assertSignalPassed(result: QualityResult, check: string): void {
+  assert.equal(signalFor(result, check)?.passed, true);
+}
+
+function assertSignalFailed(result: QualityResult, check: string): void {
+  assert.equal(signalFor(result, check)?.passed, false);
+}
+
+function assertSignalAbsent(result: QualityResult, check: string): void {
+  assert.equal(signalFor(result, check), undefined);
 }
 
 function withScraperQualityClassifier(value: string | undefined, fn: () => void): void {
@@ -184,7 +198,7 @@ test("quality/reject: empty body is rejected", () => {
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "empty-body")?.passed, false);
+  assertSignalFailed(result, "empty-body");
 });
 
 test("quality/reject: whitespace-only body is rejected", () => {
@@ -192,7 +206,7 @@ test("quality/reject: whitespace-only body is rejected", () => {
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "empty-body")?.passed, false);
+  assertSignalFailed(result, "empty-body");
 });
 
 // ---------------------------------------------------------------------------
@@ -205,7 +219,7 @@ test(`quality/reject: article with fewer than ${MIN_WORD_COUNT} words is rejecte
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "word-count")?.passed, false);
+  assertSignalFailed(result, "word-count");
   assert.match(signalFor(result, "word-count")?.detail ?? "", /words=\d+/);
 });
 
@@ -213,8 +227,8 @@ test(`quality/reject: article with exactly ${MIN_WORD_COUNT} words passes word-c
   const input = makeInput({ content: articleHtml(prose(MIN_WORD_COUNT)), wordCount: MIN_WORD_COUNT });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "word-count")?.passed, true);
-  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assertSignalPassed(result, "word-count");
+  assertSignalFailed(result, "reading-time");
   assert.equal(result.grade, "reject");
 });
 
@@ -225,8 +239,8 @@ test(`quality/reject: article with ${SHORT_WORD_COUNT} words passes word-count b
   });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "word-count")?.passed, true);
-  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assertSignalPassed(result, "word-count");
+  assertSignalFailed(result, "reading-time");
   assert.equal(result.grade, "reject");
 });
 
@@ -237,7 +251,7 @@ test(`quality/ok: article with at least ${MIN_READING_MINUTES} reading minutes p
   });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "reading-time")?.passed, true);
+  assertSignalPassed(result, "reading-time");
   assert.equal(result.grade, "ok");
 });
 
@@ -248,7 +262,7 @@ test(`quality/reject: article with ${MIN_READING_WORD_COUNT - 1} words fails rea
   });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assertSignalFailed(result, "reading-time");
   assert.equal(result.grade, "reject");
 });
 
@@ -260,7 +274,7 @@ test(`quality/recovery: ${RECOVERY_MIN_WORD_COUNT} words can bypass reading-time
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assertSignalFailed(result, "reading-time");
   assert.equal(isRecoverableQualityReject(input, result), true);
 });
 
@@ -283,7 +297,7 @@ test("quality/recovery: non-bypassable failed checks still block recovery", () =
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "link-density")?.passed, false);
+  assertSignalFailed(result, "link-density");
   assert.equal(isRecoverableQualityReject(input, result), false);
 });
 
@@ -299,7 +313,7 @@ test("quality/warn: paywall marker — 'subscribers only' text triggers warn", (
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "paywall-marker")?.passed, false);
+  assertSignalFailed(result, "paywall-marker");
 });
 
 test("quality/warn: paywall marker — 'reached your free article limit'", () => {
@@ -310,7 +324,7 @@ test("quality/warn: paywall marker — 'reached your free article limit'", () =>
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "paywall-marker")?.passed, false);
+  assertSignalFailed(result, "paywall-marker");
 });
 
 test("quality/warn: paywall marker — 'sign in to read'", () => {
@@ -319,7 +333,7 @@ test("quality/warn: paywall marker — 'sign in to read'", () => {
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "paywall-marker")?.passed, false);
+  assertSignalFailed(result, "paywall-marker");
 });
 
 test("quality/ok: 'subscribe' in a non-gate context does not trigger paywall check", () => {
@@ -328,7 +342,7 @@ test("quality/ok: 'subscribe' in a non-gate context does not trigger paywall che
   const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "paywall-marker")?.passed, true);
+  assertSignalPassed(result, "paywall-marker");
 });
 
 // ---------------------------------------------------------------------------
@@ -344,7 +358,7 @@ test("quality/warn: high ratio of replacement chars triggers encoding-garbage", 
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "encoding-garbage")?.passed, false);
+  assertSignalFailed(result, "encoding-garbage");
   assert.match(signalFor(result, "encoding-garbage")?.detail ?? "", /garbageRatio=/);
 });
 
@@ -354,7 +368,7 @@ test("quality/ok: a single stray replacement char stays below the garbage thresh
   const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "encoding-garbage")?.passed, true);
+  assertSignalPassed(result, "encoding-garbage");
 });
 
 // ---------------------------------------------------------------------------
@@ -369,7 +383,7 @@ test("quality/warn: nav-heavy page with link density > threshold triggers warn",
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "link-density")?.passed, false);
+  assertSignalFailed(result, "link-density");
   assert.match(signalFor(result, "link-density")?.detail ?? "", /linkDensity=/);
 });
 
@@ -380,7 +394,7 @@ test("quality/ok: article with a few inline links stays below link-density thres
   const input = makeInput({ content: body });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "link-density")?.passed, true);
+  assertSignalPassed(result, "link-density");
 });
 
 // ---------------------------------------------------------------------------
@@ -401,7 +415,7 @@ test(`quality/warn: ${BOILERPLATE_HIT_THRESHOLD}+ boilerplate patterns trigger w
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "boilerplate-heavy")?.passed, false);
+  assertSignalFailed(result, "boilerplate-heavy");
   assert.match(signalFor(result, "boilerplate-heavy")?.detail ?? "", /boilerplateHits=\d+/);
 });
 
@@ -411,7 +425,7 @@ test(`quality/ok: fewer than ${BOILERPLATE_HIT_THRESHOLD} boilerplate hints does
   const input = makeInput({ content: `<p>${body}</p>` });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "boilerplate-heavy")?.passed, true);
+  assertSignalPassed(result, "boilerplate-heavy");
 });
 
 // ---------------------------------------------------------------------------
@@ -427,7 +441,7 @@ test("quality/ok: missing author alone does not produce a warn grade", () => {
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "ok");
-  assert.equal(signalFor(result, "missing-author")?.passed, false);
+  assertSignalFailed(result, "missing-author");
 });
 
 test("quality/ok: missing date alone does not produce a warn grade", () => {
@@ -439,7 +453,7 @@ test("quality/ok: missing date alone does not produce a warn grade", () => {
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "ok");
-  assert.equal(signalFor(result, "missing-date")?.passed, false);
+  assertSignalFailed(result, "missing-date");
 });
 
 test("quality/ok: missing both author and date does not produce a warn grade", () => {
@@ -468,8 +482,8 @@ test("quality/warn: paywall + high link density both fire for a gated index page
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "warn");
-  assert.equal(signalFor(result, "paywall-marker")?.passed, false);
-  assert.equal(signalFor(result, "link-density")?.passed, false);
+  assertSignalFailed(result, "paywall-marker");
+  assertSignalFailed(result, "link-density");
   assert.ok(result.score < 60, `score ${result.score} should be < 60 for dual major signals`);
 });
 
@@ -556,7 +570,7 @@ test("quality/reject: generic must-reads digest roundup listicle is rejected", (
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "digest-listicle")?.passed, false);
+  assertSignalFailed(result, "digest-listicle");
 });
 
 test("quality/reject: Technology Review branded digest roundup listicle is rejected", () => {
@@ -569,7 +583,7 @@ test("quality/reject: Technology Review branded digest roundup listicle is rejec
   const result = checkContentQuality(input);
 
   assert.equal(result.grade, "reject");
-  assert.equal(signalFor(result, "digest-listicle")?.passed, false);
+  assertSignalFailed(result, "digest-listicle");
 });
 
 test("quality/ok: normal article with a download reference is not digest-listicle", () => {
@@ -585,7 +599,7 @@ test("quality/ok: normal article with a download reference is not digest-listicl
   const result = checkContentQuality(input);
 
   assert.notEqual(result.grade, "reject");
-  assert.equal(signalFor(result, "digest-listicle")?.passed, true);
+  assertSignalPassed(result, "digest-listicle");
 });
 
 // ---------------------------------------------------------------------------
@@ -604,7 +618,7 @@ test("quality/reject: non-English body is flagged and rejected (franc)", () => {
   const input = makeInput({ content: articleHtml(SPANISH_BODY), wordCount: 60 });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "non-english")?.passed, false);
+  assertSignalFailed(result, "non-english");
   assert.equal(result.grade, "reject");
   assert.match(signalFor(result, "non-english")?.detail ?? "", /lang=/);
 });
@@ -613,7 +627,7 @@ test("quality/ok: clean English article passes the non-english language check", 
   const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "non-english")?.passed, true);
+  assertSignalPassed(result, "non-english");
 });
 
 test("quality/reject: short non-English snippet does NOT false-positive (und passes)", () => {
@@ -622,9 +636,9 @@ test("quality/reject: short non-English snippet does NOT false-positive (und pas
   const input = makeInput({ content: articleHtml("Bonjour le monde, ça va bien"), wordCount: 60 });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "non-english")?.passed, true);
+  assertSignalPassed(result, "non-english");
   assert.match(signalFor(result, "non-english")?.detail ?? "", /skipped/);
-  assert.equal(signalFor(result, "reading-time")?.passed, false);
+  assertSignalFailed(result, "reading-time");
   assert.equal(result.grade, "reject");
 });
 
@@ -636,7 +650,7 @@ test("quality/warn: keyword-stuffing with very low stopword ratio triggers low-s
   const input = makeInput({ content: articleHtml(stuffed) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "low-stopword-ratio")?.passed, false);
+  assertSignalFailed(result, "low-stopword-ratio");
   assert.notEqual(result.grade, "ok");
   assert.match(signalFor(result, "low-stopword-ratio")?.detail ?? "", /stopwordRatio=/);
 });
@@ -645,7 +659,7 @@ test("quality/ok: real prose has a healthy stopword ratio", () => {
   const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "low-stopword-ratio")?.passed, true);
+  assertSignalPassed(result, "low-stopword-ratio");
 });
 
 test("quality/warn: dense ad / call-to-action copy triggers ad-copy", () => {
@@ -658,7 +672,7 @@ test("quality/warn: dense ad / call-to-action copy triggers ad-copy", () => {
   const input = makeInput({ content: articleHtml(ad) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "ad-copy")?.passed, false);
+  assertSignalFailed(result, "ad-copy");
   assert.notEqual(result.grade, "ok");
   assert.match(signalFor(result, "ad-copy")?.detail ?? "", /adDensity=/);
 });
@@ -668,7 +682,7 @@ test("quality/ok: an article mentioning a price once does not trip ad-copy", () 
   const input = makeInput({ content: articleHtml(body) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "ad-copy")?.passed, true);
+  assertSignalPassed(result, "ad-copy");
 });
 
 test("quality/warn: fragment / nav-list body triggers weak-sentence-structure", () => {
@@ -682,7 +696,7 @@ test("quality/warn: fragment / nav-list body triggers weak-sentence-structure", 
   const input = makeInput({ content: articleHtml(fragments) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "weak-sentence-structure")?.passed, false);
+  assertSignalFailed(result, "weak-sentence-structure");
   assert.match(signalFor(result, "weak-sentence-structure")?.detail ?? "", /sentences=\d+/);
 });
 
@@ -690,7 +704,7 @@ test("quality/ok: well-formed prose passes weak-sentence-structure", () => {
   const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "weak-sentence-structure")?.passed, true);
+  assertSignalPassed(result, "weak-sentence-structure");
 });
 
 test("quality/advisory: all-caps shouting fires the advisory shouting signal", () => {
@@ -708,7 +722,7 @@ test("quality/warn: repeated 3-gram (ad repeating a CTA) triggers repetitive", (
   const input = makeInput({ content: articleHtml(repeated) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "repetitive")?.passed, false);
+  assertSignalFailed(result, "repetitive");
   assert.match(signalFor(result, "repetitive")?.detail ?? "", /maxTrigram=\d+/);
 });
 
@@ -716,7 +730,7 @@ test("quality/ok: varied prose is not flagged as repetitive", () => {
   const input = makeInput({ content: articleHtml(prose(MIN_READING_WORD_COUNT)) });
   const result = checkContentQuality(input);
 
-  assert.equal(signalFor(result, "repetitive")?.passed, true);
+  assertSignalPassed(result, "repetitive");
 });
 
 // ---------------------------------------------------------------------------
@@ -735,7 +749,7 @@ test("quality/ml: classifier flags ad-like body with ml-ad-classifier when enabl
   withScraperQualityClassifier(undefined, () => {
     const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
-    assert.equal(signalFor(result, "ml-ad-classifier")?.passed, false);
+    assertSignalFailed(result, "ml-ad-classifier");
     assert.notEqual(result.grade, "ok");
   });
 });
@@ -744,7 +758,7 @@ test("quality/ml: classifier signal is absent when SCRAPER_QUALITY_CLASSIFIER=fa
   withScraperQualityClassifier("false", () => {
     const input = makeInput({ content: articleHtml(AD_LIKE_BODY) });
     const result = checkContentQuality(input);
-    assert.equal(signalFor(result, "ml-ad-classifier"), undefined);
+    assertSignalAbsent(result, "ml-ad-classifier");
   });
 });
 
@@ -758,7 +772,7 @@ test("quality/ml: a clean long article is not down-ranked by the classifier", ()
     const result = checkContentQuality(input);
     // Conservative guard: clean, long article is skipped entirely → ok / 100.
     assert.equal(result.grade, "ok");
-    assert.equal(signalFor(result, "ml-ad-classifier"), undefined);
+    assertSignalAbsent(result, "ml-ad-classifier");
   });
 });
 

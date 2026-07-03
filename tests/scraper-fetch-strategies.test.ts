@@ -187,6 +187,20 @@ test("origin 403 retries with browser profiles; first 200 profile wins", async (
   assert.equal(fetchHeaders[2]["sec-fetch-mode"], "navigate");
 });
 
+test("origin 406 retries with search-bot profile before proxy fallbacks", async () => {
+  const { fetchHtml } = await import("@/lib/scraper/fetch");
+  const u = urls();
+  routes = {
+    [u.origin]: [{ status: 406 }, { status: 200, body: "GOOGLEBOT-OK" }],
+  };
+
+  const html = await fetchHtml(u.origin);
+
+  assert.equal(html, "GOOGLEBOT-OK");
+  assert.deepEqual(fetchCalls, [u.origin, u.origin]);
+  assert.match(fetchHeaders[1]["user-agent"], /Googlebot/);
+});
+
 test("all profiles 403 → reader (r.jina.ai) is called with X-Return-Format html", async () => {
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();

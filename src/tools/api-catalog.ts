@@ -137,6 +137,9 @@ function fileToApiPath(filePath: string): string {
 // ── Static-analysis helpers ───────────────────────────────────────────────
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
+const CONFIG_WINDOW_CHARS = 500;
+const HANDLER_WINDOW_CHARS = 5000;
+const NEXT_RESPONSE_JSON_PREFIX = "NextResponse.json(";
 const DEFAULT_AUTH_COUNTS: Record<AuthMode, number> = {
   public: 0,
   session: 0,
@@ -268,7 +271,11 @@ function extractObjectKeyNames(body: string): string[] {
     i++;
   }
 
-  return [...new Set(keys)].sort();
+  return sortedUnique(keys);
+}
+
+function sortedUnique(values: Iterable<string>): string[] {
+  return [...new Set(values)].sort();
 }
 
 /**
@@ -299,7 +306,7 @@ function extractResponseKeys(handlerWindow: string): string[] | null {
   const match = re.exec(handlerWindow);
   if (!match) return null;
 
-  const bracePos = handlerWindow.indexOf("{", match.index + "NextResponse.json(".length);
+  const bracePos = handlerWindow.indexOf("{", match.index + NEXT_RESPONSE_JSON_PREFIX.length);
   if (bracePos === -1) return null;
 
   const body = sliceBracketContent(handlerWindow, bracePos);
@@ -318,13 +325,20 @@ function extractQueryParamNames(source: string): string[] | null {
   const names = new Set<string>();
 
   const helperRe = /\bquery(?:String|Int|Bool|Float)\s*\(\s*\w+\s*,\s*["'](\w+)["']/g;
-  let m: RegExpExecArray | null;
-  while ((m = helperRe.exec(source)) !== null) names.add(m[1]);
+  addRegexCaptures(names, helperRe, source);
 
   const getterRe = /\bparams\.get\(\s*["'](\w+)["']/g;
-  while ((m = getterRe.exec(source)) !== null) names.add(m[1]);
+  addRegexCaptures(names, getterRe, source);
 
-  return names.size > 0 ? [...names].sort() : null;
+  return names.size > 0 ? sortedUnique(names) : null;
+}
+
+function addRegexCaptures(target: Set<string>, regex: RegExp, source: string): void {
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) {
+    const value = match[1];
+    if (value !== undefined) target.add(value);
+  }
 }
 
 /**
@@ -342,18 +356,24 @@ function extractBodyFieldNames(
 ): string[] | null {
   if (!/\bbody\s*:/.test(configWindow)) return null;
 
-  // Case 1: inline body schema — body: object({...})
-  const inlineMatch = /\bbody\s*:\s*object\s*\(/.exec(configWindow);
-  if (inlineMatch) {
-    const bracePos = configWindow.indexOf("{", inlineMatch.index + inlineMatch[0].length);
-    if (bracePos !== -1) {
-      const body = sliceBracketContent(configWindow, bracePos);
-      const keys = extractObjectKeyNames(body);
-      if (keys.length > 0) return keys;
-    }
-  }
+  const inlineFields = extractInlineBodyFields(configWindow);
+  if (inlineFields) return inlineFields;
 
-  // Case 2: body: varName — look up the variable definition in the full source.
+  return extractReferencedBodyFields(configWindow, fullSource);
+}
+
+function extractInlineBodyFields(configWindow: string): string[] | null {
+  const inlineMatch = /\bbody\s*:\s*object\s*\(/.exec(configWindow);
+  if (!inlineMatch) return null;
+
+  const bracePos = configWindow.indexOf("{", inlineMatch.index + inlineMatch[0].length);
+  if (bracePos === -1) return null;
+
+  const keys = extractObjectKeyNames(sliceBracketContent(configWindow, bracePos));
+  return keys.length > 0 ? keys : null;
+}
+
+function extractReferencedBodyFields(configWindow: string, fullSource: string): string[] | null {
   const varRefMatch = /\bbody\s*:\s*([a-zA-Z_$][\w$]*)/.exec(configWindow);
   if (varRefMatch) {
     const varName = varRefMatch[1];
@@ -392,7 +412,7 @@ function extractHandlerWindow(source: string, matchIndex: number): string {
   const nextMatch = nextMethodRe.exec(source);
   return source.slice(
     matchIndex,
-    nextMatch ? nextMatch.index : Math.min(matchIndex + 5000, source.length),
+    nextMatch ? nextMatch.index : Math.min(matchIndex + HANDLER_WINDOW_CHARS, source.length),
   );
 }
 
@@ -422,7 +442,7 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
   // Config window: 500 chars from the match start — covers the config object
   // for all handler types (including createCapabilityHandler where the config
   // is the second argument after the capability literal).
-  const configWindow = source.slice(match.index, match.index + 500);
+  const configWindow = source.slice(match.index, match.index + CONFIG_WINDOW_CHARS);
   const hasBodySchema = /\bbody\s*:/.test(configWindow);
   const hasParamsSchema = /\bparams\s*:/.test(configWindow);
   const hasQuerySchema = /\bquery\s*:/.test(configWindow);

@@ -84,6 +84,41 @@ function getStoredToolbarColor(): HighlightColor | undefined {
   return isHighlightColor(stored) ? stored : undefined;
 }
 
+type ToolbarSelection = {
+  savedAnchor: NonNullable<ReturnType<typeof computeAnchor>> & {
+    selectionWord: string;
+  };
+  rect: DOMRect;
+  isSingleWord: boolean;
+  isShortPhrase: boolean;
+};
+
+function readToolbarSelection(
+  prose: HTMLDivElement,
+  selection: Selection,
+  requireVisibleRect: boolean,
+): ToolbarSelection | null {
+  const anchor = computeAnchor(prose, selection);
+  if (!anchor) return null;
+
+  const rect = selection.getRangeAt(0).getBoundingClientRect();
+  if (requireVisibleRect && rect.width === 0 && rect.height === 0) return null;
+
+  const { isSingleWord, isShortPhrase, selectionWord } =
+    getSelectionToolbarDetails(anchor.quote);
+
+  return {
+    savedAnchor: { ...anchor, selectionWord },
+    rect,
+    isSingleWord,
+    isShortPhrase,
+  };
+}
+
+function targetIsInsideAny(target: Node, elements: Array<HTMLElement | null>): boolean {
+  return elements.some((element) => element?.contains(target));
+}
+
 export default function WordLookup({
   html,
   articleId,
@@ -208,6 +243,27 @@ export default function WordLookup({
     [surface, runLookup, setWord, saveWord],
   );
 
+  const openToolbarFromSelection = useCallback(
+    (selection: Selection, useStoredColor: boolean, requireVisibleRect: boolean) => {
+      const prose = proseRef.current;
+      if (!prose) return;
+      const toolbarSelection = readToolbarSelection(
+        prose,
+        selection,
+        requireVisibleRect,
+      );
+      if (!toolbarSelection) return;
+      savedAnchorRef.current = toolbarSelection.savedAnchor;
+      surface.openToolbar(
+        toolbarSelection.rect,
+        toolbarSelection.isSingleWord,
+        toolbarSelection.isShortPhrase,
+        useStoredColor ? getStoredToolbarColor() : undefined,
+      );
+    },
+    [surface, savedAnchorRef],
+  );
+
   // Clamp/flip the dictionary popover — now handled by DictionaryPopover via usePopoverPosition.
   // Return focus to the reader prose (selection origin) when the dictionary closes.
   useEffect(() => {
@@ -223,16 +279,7 @@ export default function WordLookup({
       const isCollapsed = !sel || sel.isCollapsed;
 
       if (!isCollapsed && sel && sel.rangeCount > 0) {
-        const prose = proseRef.current;
-        if (!prose) return;
-        const anchor = computeAnchor(prose, sel);
-        if (!anchor) return;
-        const rect = sel.getRangeAt(0).getBoundingClientRect();
-        if (rect.width === 0 && rect.height === 0) return;
-        const { isSingleWord, isShortPhrase, selectionWord } =
-          getSelectionToolbarDetails(anchor.quote);
-        savedAnchorRef.current = { ...anchor, selectionWord };
-        surface.openToolbar(rect, isSingleWord, isShortPhrase, getStoredToolbarColor());
+        openToolbarFromSelection(sel, true, true);
         return;
       }
 
@@ -249,7 +296,7 @@ export default function WordLookup({
       closeAll();
       openDictionary(candidate, e.clientX, e.clientY);
     },
-    [surface, savedAnchorRef, closeAll, openDictionary],
+    [surface, closeAll, openDictionary, openToolbarFromSelection],
   );
 
   // Cmd/Ctrl+E keyboard summon
@@ -261,17 +308,11 @@ export default function WordLookup({
       const prose = proseRef.current;
       if (!prose || !prose.contains(sel.anchorNode)) return;
       e.preventDefault();
-      const anchor = computeAnchor(prose, sel);
-      if (!anchor) return;
-      const rect = sel.getRangeAt(0).getBoundingClientRect();
-      const { isSingleWord, isShortPhrase, selectionWord } =
-        getSelectionToolbarDetails(anchor.quote);
-      savedAnchorRef.current = { ...anchor, selectionWord };
-      surface.openToolbar(rect, isSingleWord, isShortPhrase);
+      openToolbarFromSelection(sel, false, false);
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [surface, savedAnchorRef]);
+  }, [openToolbarFromSelection]);
 
   // selectionchange → dismiss toolbar when selection collapses
   useEffect(() => {
@@ -296,14 +337,14 @@ export default function WordLookup({
     if (!openSurface) return;
     const onDown = (e: MouseEvent) => {
       const t = e.target as Node;
-      if (
-        popoverRef.current?.contains(t) ||
-        toolbarRef.current?.contains(t) ||
-        editPopoverRef.current?.contains(t) ||
-        translatePopoverRef.current?.contains(t) ||
-        grammarPopoverRef.current?.contains(t) ||
-        proseRef.current?.contains(t)
-      ) return;
+      if (targetIsInsideAny(t, [
+        popoverRef.current,
+        toolbarRef.current,
+        editPopoverRef.current,
+        translatePopoverRef.current,
+        grammarPopoverRef.current,
+        proseRef.current,
+      ])) return;
       closeAll();
     };
     const onKey = (e: KeyboardEvent) => {
@@ -392,12 +433,12 @@ export default function WordLookup({
     closeAll();
   }, [editHlId, remove, closeAll]);
 
-  function playAudio(src: string) {
+  const playAudio = useCallback((src: string) => {
     audioRef.current?.pause();
     const audio = new Audio(src);
     audioRef.current = audio;
     void audio.play().catch(() => {});
-  }
+  }, []);
 
   // Stable object reference for dangerouslySetInnerHTML — React 19 uses reference
   // equality to decide whether to reset innerHTML; recreating the object inline on

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useTransition } from "react";
+import { useState, useCallback, useMemo, useTransition } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { BookOpen } from "lucide-react";
 import {
@@ -88,6 +88,33 @@ function buildWordsQueryString(currentParams: string, opts: FetchWordsOptions): 
   return params.toString();
 }
 
+function toggleWordSelection(selected: Set<string>, word: string): Set<string> {
+  const next = new Set(selected);
+  if (next.has(word)) next.delete(word);
+  else next.add(word);
+  return next;
+}
+
+function visibleWordSelection(words: WordEntry[]): Set<string> {
+  return new Set(words.map((word) => word.word));
+}
+
+function wordCountLabel(total: number): string {
+  return `${total} ${total === 1 ? "word" : "words"}`;
+}
+
+function emptyStateCopy(hasNoSavedWords: boolean) {
+  return hasNoSavedWords
+    ? {
+        title: "No saved words yet",
+        description: "Start reading and save vocabulary to build your list.",
+      }
+    : {
+        title: "No words match your search",
+        description: "Try a different word or definition — or clear your filters.",
+      };
+}
+
 export default function VocabularyJournal({
   initial,
   initialQuery,
@@ -168,19 +195,14 @@ export default function VocabularyJournal({
   );
 
   const toggleSelect = useCallback((word: string) => {
-    setSelected((prev) => {
-      const next = new Set(prev);
-      if (next.has(word)) next.delete(word);
-      else next.add(word);
-      return next;
-    });
+    setSelected((prev) => toggleWordSelection(prev, word));
   }, []);
 
   const toggleSelectAll = useCallback(() => {
     if (selected.size === data.words.length) {
       setSelected(new Set());
     } else {
-      setSelected(new Set(data.words.map((w) => w.word)));
+      setSelected(visibleWordSelection(data.words));
     }
   }, [data.words, selected.size]);
 
@@ -200,10 +222,11 @@ export default function VocabularyJournal({
   }, [fetchWords, selected]);
 
   // Build list of articles that have saved words (for filter dropdown)
-  const articleOptions = Object.entries(data.articles);
+  const articleOptions = useMemo(() => Object.entries(data.articles), [data.articles]);
   const hasWords = data.words.length > 0;
   const allVisibleSelected = hasWords && selected.size === data.words.length;
   const hasNoSavedWords = data.total === 0 && !query && !articleId;
+  const emptyCopy = emptyStateCopy(hasNoSavedWords);
 
   return (
     <div className="flex flex-col gap-[var(--space-5)]">
@@ -259,7 +282,7 @@ export default function VocabularyJournal({
       {/* Toolbar */}
       <Toolbar justify="start">
         <p className="text-[length:var(--text-sm)] text-text-muted m-0" aria-live="polite">
-          {isPending ? "Loading…" : `${data.total} ${data.total === 1 ? "word" : "words"}`}
+          {isPending ? "Loading…" : wordCountLabel(data.total)}
         </p>
 
         {hasWords && (
@@ -297,16 +320,8 @@ export default function VocabularyJournal({
       {!hasWords ? (
         <EmptyState
           icon={BookOpen}
-          title={
-            hasNoSavedWords
-              ? "No saved words yet"
-              : "No words match your search"
-          }
-          description={
-            hasNoSavedWords
-              ? "Start reading and save vocabulary to build your list."
-              : "Try a different word or definition — or clear your filters."
-          }
+          title={emptyCopy.title}
+          description={emptyCopy.description}
         />
       ) : (
         <TableSurface>

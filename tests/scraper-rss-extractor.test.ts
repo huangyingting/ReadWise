@@ -107,6 +107,14 @@ function feedMapFetch(
   };
 }
 
+function assertFetched(fetched: string[], url: string, message?: string): void {
+  assert.ok(fetched.includes(url), message ?? `expected ${url} to be fetched`);
+}
+
+function assertNotFetched(fetched: string[], url: string): void {
+  assert.equal(fetched.includes(url), false);
+}
+
 // ---------------------------------------------------------------------------
 // rssUrlExtractor unit tests
 // ---------------------------------------------------------------------------
@@ -302,7 +310,7 @@ test("smithsonian discovery: category archive crawl follows deep pagination and 
   );
 
   assert.deepEqual(urls, [sitemapArticle]);
-  assert.ok(fetched.includes(categoryPageTwo));
+  assertFetched(fetched, categoryPageTwo);
   assert.equal(urls.includes(categoryOnly), false);
 });
 
@@ -376,9 +384,9 @@ test("noema discovery: uses article sitemaps plus paginated RSS until exhaustion
     "https://www.noemamag.com/wpm-article-sitemap.xml",
     "https://www.noemamag.com/wpm-article-sitemap2.xml",
   ]);
-  assert.ok(fetchedFeeds.includes("https://www.noemamag.com/?feed=noemarss&paged=32"));
-  assert.ok(fetchedFeeds.includes(topicSeed));
-  assert.ok(fetchedFeeds.includes(topicPage2));
+  assertFetched(fetchedFeeds, "https://www.noemamag.com/?feed=noemarss&paged=32");
+  assertFetched(fetchedFeeds, topicSeed);
+  assertFetched(fetchedFeeds, topicPage2);
   assert.ok(
     urls.includes("https://www.noemamag.com/rss-page-31/"),
     "RSS pagination must continue beyond the old 30-page cutoff",
@@ -443,8 +451,8 @@ test("natgeo discovery: combines hubmore pagination with the public sitemap", as
     feedMapFetch(feedMap, makeCategoryPage([]), fetched),
   );
 
-  assert.ok(fetched.includes(hubmoreUrl(2)));
-  assert.ok(fetched.includes(sitemapChild));
+  assertFetched(fetched, hubmoreUrl(2));
+  assertFetched(fetched, sitemapChild);
   assert.deepEqual(urls, [
     seedOnly,
     hubPageOne,
@@ -521,18 +529,18 @@ test("technologyreview discovery: combines sitemaps, WP REST, RSS, and topic pag
     topicHtmlUrl,
   ]);
   assert.ok(fetched.indexOf("https://www.technologyreview.com/sitemap-36.xml") < fetched.indexOf("https://www.technologyreview.com/sitemap-1.xml"));
-  assert.equal(fetched.includes("https://www.technologyreview.com/image-sitemap-index-1.xml"), false);
-  assert.equal(fetched.includes("https://www.technologyreview.com/news-sitemap.xml"), true);
-  assert.equal(
-    fetched.includes("https://www.technologyreview.com/wp-json/wp/v2/posts?per_page=100&page=1&_fields=link"),
-    true,
+  assertNotFetched(fetched, "https://www.technologyreview.com/image-sitemap-index-1.xml");
+  assertFetched(fetched, "https://www.technologyreview.com/news-sitemap.xml");
+  assertFetched(
+    fetched,
+    "https://www.technologyreview.com/wp-json/wp/v2/posts?per_page=100&page=1&_fields=link",
   );
-  assert.equal(fetched.includes("https://www.technologyreview.com/feed/"), true);
-  assert.equal(
-    fetched.includes("https://www.technologyreview.com/topic/artificial-intelligence/feed/"),
-    true,
+  assertFetched(fetched, "https://www.technologyreview.com/feed/");
+  assertFetched(
+    fetched,
+    "https://www.technologyreview.com/topic/artificial-intelligence/feed/",
   );
-  assert.equal(fetched.includes("https://www.technologyreview.com/topic/artificial-intelligence"), true);
+  assertFetched(fetched, "https://www.technologyreview.com/topic/artificial-intelligence");
 });
 
 test("theconversation discovery: uses English edition archive sitemaps newest first", async () => {
@@ -573,8 +581,8 @@ test("theconversation discovery: uses English edition archive sitemaps newest fi
   );
 
   assert.deepEqual(urls, [ukRecent, usRecent, oldUs]);
-  assert.equal(fetched.includes("https://theconversation.com/br/sitemap_archive_2026.xml"), false);
-  assert.equal(fetched.includes("https://theconversation.com/ca-fr/sitemap_archive_2026.xml"), false);
+  assertNotFetched(fetched, "https://theconversation.com/br/sitemap_archive_2026.xml");
+  assertNotFetched(fetched, "https://theconversation.com/ca-fr/sitemap_archive_2026.xml");
 });
 
 test("propublica discovery: iterates day sitemaps newest first", async () => {
@@ -636,8 +644,8 @@ test("grist discovery: walks post sitemaps newest first and filters updates", as
 
   assert.deepEqual(urls, [newest, older]);
   assert.ok(fetched.indexOf("https://grist.org/post-sitemap63.xml") < fetched.indexOf("https://grist.org/post-sitemap.xml"));
-  assert.equal(fetched.includes("https://grist.org/guide-post-sitemap.xml"), false);
-  assert.equal(fetched.includes("https://grist.org/feed/"), false);
+  assertNotFetched(fetched, "https://grist.org/guide-post-sitemap.xml");
+  assertNotFetched(fetched, "https://grist.org/feed/");
 });
 
 test("undark discovery: returns only dated article URLs from the public WordPress.com posts API", async () => {
@@ -877,10 +885,10 @@ test("nautilus discovery: uses the public content sitemap index before RSS", asy
   );
 
   assert.deepEqual(urls.sort(), [validLegacy, validNested, validRecent].sort());
-  assert.ok(fetched.includes("https://nautil.us/sitemap-index-1.xml"));
-  assert.ok(fetched.includes("https://nautil.us/sitemap-1.xml"));
-  assert.equal(fetched.includes("https://nautil.us/image-sitemap-1.xml"), false);
-  assert.equal(fetched.includes("https://nautil.us/feed"), false);
+  assertFetched(fetched, "https://nautil.us/sitemap-index-1.xml");
+  assertFetched(fetched, "https://nautil.us/sitemap-1.xml");
+  assertNotFetched(fetched, "https://nautil.us/image-sitemap-1.xml");
+  assertNotFetched(fetched, "https://nautil.us/feed");
 });
 
 test("smithsonian discovery: returns article URLs from monthly article sitemaps", async () => {

@@ -56,6 +56,23 @@ function isListActive(list: SwitcherList, activeListId: string | null): boolean 
   return list.id === activeListId || (!activeListId && list.isDefault);
 }
 
+function getMobileManagingList(
+  lists: SwitcherList[],
+  mobileManagingId: string | null,
+  creating: boolean,
+): SwitcherList | null {
+  if (!mobileManagingId || creating) return null;
+  return lists.find((list) => list.id === mobileManagingId && !list.isDefault) ?? null;
+}
+
+function ListCountBadge({ count }: { count: number }) {
+  return (
+    <Badge variant="neutral" className="ml-auto shrink-0 min-w-[1.25rem] h-5 px-1 font-medium">
+      {count}
+    </Badge>
+  );
+}
+
 function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowProps) {
   const [renaming, setRenaming] = useState(false);
 
@@ -103,9 +120,7 @@ function ListRow({ list, isActive, onRenameSuccess, onDeleteSuccess }: ListRowPr
             (default)
           </span>
         ) : (
-          <Badge variant="neutral" className="ml-auto shrink-0 min-w-[1.25rem] h-5 px-1 font-medium">
-            {list.count}
-          </Badge>
+          <ListCountBadge count={list.count} />
         )}
       </Link>
 
@@ -343,9 +358,7 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
               )}
             >
               {list.name}
-              <Badge variant="neutral" className="ml-auto shrink-0 min-w-[1.25rem] h-5 px-1 font-medium">
-                {list.count}
-              </Badge>
+              <ListCountBadge count={list.count} />
             </Link>
             {/* Per-list ⋯ manage button — only for non-default lists */}
             {!list.isDefault ? (
@@ -397,10 +410,11 @@ export default function ListSwitcher({ lists, activeListId }: ListSwitcherProps)
       </Button>
     </nav>
   );
-  const mobileManagingList =
-    mobileManagingId && !creating
-      ? lists.find((list) => list.id === mobileManagingId && !list.isDefault)
-      : null;
+  const mobileManagingList = getMobileManagingList(
+    lists,
+    mobileManagingId,
+    creating,
+  );
 
   return (
     <>

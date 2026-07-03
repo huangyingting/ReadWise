@@ -103,6 +103,14 @@ function okProcess(articleId: string, ok = true): ArticleProcessResult {
   };
 }
 
+function articleIds(articles: Array<{ id: string }>): string[] {
+  return articles.map((article) => article.id);
+}
+
+function assertIncludesArticleId(articles: Array<{ id: string }>, id: string): void {
+  assert.ok(articleIds(articles).includes(id));
+}
+
 function queueArticleFindMany(...batches: Record<string, unknown>[][]): void {
   articleFindManyQueue = batches;
 }
@@ -434,7 +442,7 @@ test("search providers cover registry swaps, postgres FTS success/failure, and a
   };
   registerSearchProvider(custom as never);
   assert.equal(resolveSearchProvider(), custom);
-  assert.deepEqual((await searchReadableArticles("anything")).articles.map((a) => a.id), ["custom"]);
+  assert.deepEqual(articleIds((await searchReadableArticles("anything")).articles), ["custom"]);
 
   const { PrismaArticleSearchProvider } = await import("@/lib/search/fulltext");
   const provider = new PrismaArticleSearchProvider();
@@ -454,8 +462,8 @@ test("search providers cover registry swaps, postgres FTS success/failure, and a
   annotationSavedWordRows = [{ articleId: "annotation" }];
 
   const result = await provider.search(" climate ", { limit: 10 }, { userId: "u1", role: "Reader" });
-  assert.ok(result.articles.some((row) => row.id === "pg"));
-  assert.ok(result.articles.some((row) => row.id === "annotation"));
+  assertIncludesArticleId(result.articles, "pg");
+  assertIncludesArticleId(result.articles, "annotation");
   assert.equal(result.hasMore, false);
 
   postgresThrows = true;

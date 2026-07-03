@@ -213,6 +213,12 @@ type RunLoopDeps = {
   logger?: LoopLogger;
 };
 
+type IntegerArgOptions = {
+  fallback: number | null;
+  min?: number;
+  clampToZero?: boolean;
+};
+
 function printHelp(): void {
   console.log(`ReadWise Azure Batch Synthesis
 
@@ -288,25 +294,26 @@ function printHdVoices(): void {
   }
 }
 
-function parsePositiveIntArg(argv: string[], flag: string, fallback: number): number {
+function parseIntegerArg(argv: string[], flag: string, options: IntegerArgOptions): number | null {
   const idx = argv.indexOf(flag);
-  if (idx < 0 || idx + 1 >= argv.length) return fallback;
+  if (idx < 0 || idx + 1 >= argv.length) return options.fallback;
   const value = Number(argv[idx + 1]);
-  return Number.isInteger(value) && value > 0 ? value : fallback;
+  if (!Number.isInteger(value)) return options.fallback;
+  if (options.clampToZero) return Math.max(0, value);
+  if (options.min !== undefined && value < options.min) return options.fallback;
+  return value;
+}
+
+function parsePositiveIntArg(argv: string[], flag: string, fallback: number): number {
+  return parseIntegerArg(argv, flag, { fallback, min: 1 }) ?? fallback;
 }
 
 function parseOptionalPositiveIntArg(argv: string[], flag: string): number | null {
-  const idx = argv.indexOf(flag);
-  if (idx < 0 || idx + 1 >= argv.length) return null;
-  const value = Number(argv[idx + 1]);
-  return Number.isInteger(value) && value > 0 ? value : null;
+  return parseIntegerArg(argv, flag, { fallback: null, min: 1 });
 }
 
 function parseNonNegativeIntArg(argv: string[], flag: string, fallback: number): number {
-  const idx = argv.indexOf(flag);
-  if (idx < 0 || idx + 1 >= argv.length) return fallback;
-  const value = Number(argv[idx + 1]);
-  return Number.isInteger(value) ? Math.max(0, value) : fallback;
+  return parseIntegerArg(argv, flag, { fallback, clampToZero: true }) ?? fallback;
 }
 
 function parseStringArg(argv: string[], flag: string): string | null {
@@ -399,10 +406,10 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
-function validateArgs(args: Args): string | null {
+function validateArgs(args: Args, argv = process.argv.slice(2)): string | null {
   if (args.listHdVoices) return null;
   if (!args.all && args.ids.length === 0) return "Pass article ids or --all.";
-  if (parseStringArg(process.argv.slice(2), "--voice-mode") && !args.voiceMode) {
+  if (parseStringArg(argv, "--voice-mode") && !args.voiceMode) {
     return "--voice-mode must be rotate or random.";
   }
   if (args.role && !args.style) return "--role requires --style.";
@@ -423,6 +430,21 @@ function validateArgs(args: Args): string | null {
     return "--status must be one of DRAFT, PUBLISHED, PROCESSING, FAILED, or ARCHIVED.";
   }
   return null;
+}
+
+function articleWhere(args: Args): Prisma.ArticleWhereInput {
+  const where: Prisma.ArticleWhereInput = {};
+  if (args.ids.length > 0) where.id = { in: args.ids };
+  if (args.ids.length === 0 && !args.includePrivate) {
+    where.ownerId = null;
+    where.visibility = ArticleVisibility.PUBLIC;
+  }
+  if (args.status) where.status = args.status;
+  if (args.source) where.source = args.source;
+  if (!args.includeExisting) {
+    where.speech = { is: null };
+  }
+  return where;
 }
 
 function speechEndpoint(args: Args, region: string): string {
@@ -608,19 +630,8 @@ function jobId(prefix: string, chunkIndex: number): string {
 }
 
 async function selectArticles(args: Args): Promise<ArticleRow[]> {
-  const where: Prisma.ArticleWhereInput = {};
-  if (args.ids.length > 0) where.id = { in: args.ids };
-  if (args.ids.length === 0 && !args.includePrivate) {
-    where.ownerId = null;
-    where.visibility = ArticleVisibility.PUBLIC;
-  }
-  if (args.status) where.status = args.status;
-  if (args.source) where.source = args.source;
-  if (!args.includeExisting) {
-    where.speech = { is: null };
-  }
   const rows = await prisma.article.findMany({
-    where,
+    where: articleWhere(args),
     orderBy: { createdAt: "asc" },
     ...(args.limit ? { take: args.limit } : {}),
     select: {
@@ -961,8 +972,9 @@ async function runLoop(args: Args, deps: RunLoopDeps): Promise<number> {
 }
 
 async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
-  if (process.argv.includes("--help") || process.argv.includes("-h")) {
+  const argv = process.argv.slice(2);
+  const args = parseArgs(argv);
+  if (argv.includes("--help") || argv.includes("-h")) {
     printHelp();
     return 0;
   }
@@ -972,7 +984,7 @@ async function main(): Promise<number> {
     return 0;
   }
 
-  const validationError = validateArgs(args);
+  const validationError = validateArgs(args, argv);
   if (validationError) {
     console.error(validationError);
     printHelp();

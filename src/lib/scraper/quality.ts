@@ -267,6 +267,15 @@ function qualityGrade(hasReject: boolean, hasMajorWarn: boolean): QualityGrade {
   return hasMajorWarn ? "warn" : "ok";
 }
 
+function pushSignal(
+  signals: QualitySignal[],
+  check: string,
+  passed: boolean,
+  detail?: string,
+): void {
+  signals.push(detail === undefined ? { check, passed } : { check, passed, detail });
+}
+
 /** Count codepoints that indicate encoding corruption. */
 function countGarbageChars(text: string): number {
   let count = 0;
@@ -519,7 +528,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
 
   // ── Critical: empty body ───────────────────────────────────────────────────
   const emptyBody = textLen === 0;
-  signals.push({ check: "empty-body", passed: !emptyBody, detail: `textLen=${textLen}` });
+  pushSignal(signals, "empty-body", !emptyBody, `textLen=${textLen}`);
   if (emptyBody) {
     hasReject = true;
     deductions += 100;
@@ -529,7 +538,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
   const { wordCount } = article;
   const tooShort = wordCount < MIN_WORD_COUNT;
   const barelyShort = !tooShort && wordCount < SHORT_WORD_COUNT;
-  signals.push({ check: "word-count", passed: !tooShort, detail: `words=${wordCount}` });
+  pushSignal(signals, "word-count", !tooShort, `words=${wordCount}`);
   if (tooShort) {
     hasReject = true;
     deductions += 50;
@@ -539,11 +548,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
 
   // ── Critical: under minimum reading time (< 5 min) ─────────────────────────
   const tooBrief = wordCount < MIN_READING_WORD_COUNT;
-  signals.push({
-    check: "reading-time",
-    passed: !tooBrief,
-    detail: `words=${wordCount} minWords=${MIN_READING_WORD_COUNT}`,
-  });
+  pushSignal(signals, "reading-time", !tooBrief, `words=${wordCount} minWords=${MIN_READING_WORD_COUNT}`);
   if (tooBrief && !tooShort) {
     hasReject = true;
     deductions += 40;
@@ -552,7 +557,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
   if (!emptyBody) {
     // ── Major: paywall / subscription gate ────────────────────────────────────
     const paywallHit = PAYWALL_PATTERNS.some((re) => re.test(plainText));
-    signals.push({ check: "paywall-marker", passed: !paywallHit });
+    pushSignal(signals, "paywall-marker", !paywallHit);
     if (paywallHit) {
       hasMajorWarn = true;
       deductions += 30;
@@ -562,11 +567,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     const garbageCount = countGarbageChars(plainText);
     const garbageRatio = garbageCount / textLen;
     const garbageHit = garbageRatio > MAX_GARBAGE_RATIO;
-    signals.push({
-      check: "encoding-garbage",
-      passed: !garbageHit,
-      detail: `garbageRatio=${garbageRatio.toFixed(4)}`,
-    });
+    pushSignal(signals, "encoding-garbage", !garbageHit, `garbageRatio=${garbageRatio.toFixed(4)}`);
     if (garbageHit) {
       hasMajorWarn = true;
       deductions += 25;
@@ -577,11 +578,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     const linkLen = linkText.replace(/\s+/g, " ").trim().length;
     const linkDensity = textLen > 0 ? linkLen / textLen : 0;
     const linkDenseHit = linkDensity > MAX_LINK_DENSITY;
-    signals.push({
-      check: "link-density",
-      passed: !linkDenseHit,
-      detail: `linkDensity=${linkDensity.toFixed(3)}`,
-    });
+    pushSignal(signals, "link-density", !linkDenseHit, `linkDensity=${linkDensity.toFixed(3)}`);
     if (linkDenseHit) {
       hasMajorWarn = true;
       deductions += 20;
@@ -590,11 +587,7 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     // ── Major: boilerplate-heavy ──────────────────────────────────────────────
     const boilerplateHits = BOILERPLATE_PATTERNS.filter((re) => re.test(plainText)).length;
     const boilerplateHeavy = boilerplateHits >= BOILERPLATE_HIT_THRESHOLD;
-    signals.push({
-      check: "boilerplate-heavy",
-      passed: !boilerplateHeavy,
-      detail: `boilerplateHits=${boilerplateHits}`,
-    });
+    pushSignal(signals, "boilerplate-heavy", !boilerplateHeavy, `boilerplateHits=${boilerplateHits}`);
     if (boilerplateHeavy) {
       hasMajorWarn = true;
       deductions += 20;
@@ -620,11 +613,12 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
       stopRatioForCode <= CODE_CONTENT_MAX_STOPWORD_RATIO &&
       symbolDensity >= MAX_CODE_SYMBOL_DENSITY * 0.75;
     const codeContent = textLen >= CODE_CONTENT_MIN_LEN && (strongCode || minifiedCode);
-    signals.push({
-      check: "code-content",
-      passed: !codeContent,
-      detail: `symbolDensity=${symbolDensity.toFixed(3)} codeTokens=${tokenHits}`,
-    });
+    pushSignal(
+      signals,
+      "code-content",
+      !codeContent,
+      `symbolDensity=${symbolDensity.toFixed(3)} codeTokens=${tokenHits}`,
+    );
     if (codeContent) {
       hasReject = true;
       deductions += 60;
@@ -636,11 +630,12 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     // than a standalone article. Requires a digest header/title AND list-like
     // structure AND multiple parenthetical outbound source links.
     const digest = digestListicleSignal(article, plainText);
-    signals.push({
-      check: "digest-listicle",
-      passed: !digest.hit,
-      detail: `numberedItems=${digest.numberedItems} strongHeadlines=${digest.strongHeadlines} sourceLinks=${digest.sourceLinks}`,
-    });
+    pushSignal(
+      signals,
+      "digest-listicle",
+      !digest.hit,
+      `numberedItems=${digest.numberedItems} strongHeadlines=${digest.strongHeadlines} sourceLinks=${digest.sourceLinks}`,
+    );
     if (digest.hit) {
       hasReject = true;
       deductions += 60;
@@ -653,9 +648,9 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     if (textLen >= MIN_LANG_TEXT_LEN && proseReliable) {
       const lang = franc(plainText);
       nonEnglish = lang !== "und" && lang !== "eng";
-      signals.push({ check: "non-english", passed: !nonEnglish, detail: `lang=${lang}` });
+      pushSignal(signals, "non-english", !nonEnglish, `lang=${lang}`);
     } else {
-      signals.push({ check: "non-english", passed: true, detail: "lang=skipped" });
+      pushSignal(signals, "non-english", true, "lang=skipped");
     }
     if (nonEnglish) {
       hasReject = true;
@@ -667,17 +662,18 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     if (proseReliable) {
       const ratio = stopwordRatio(tokens);
       lowStopwordPassed = ratio >= MIN_STOPWORD_RATIO;
-      signals.push({
-        check: "low-stopword-ratio",
-        passed: lowStopwordPassed,
-        detail: `stopwordRatio=${ratio.toFixed(3)}`,
-      });
+      pushSignal(
+        signals,
+        "low-stopword-ratio",
+        lowStopwordPassed,
+        `stopwordRatio=${ratio.toFixed(3)}`,
+      );
       if (!lowStopwordPassed) {
         hasMajorWarn = true;
         deductions += 25;
       }
     } else {
-      signals.push({ check: "low-stopword-ratio", passed: true, detail: "stopwordRatio=skipped" });
+      pushSignal(signals, "low-stopword-ratio", true, "stopwordRatio=skipped");
     }
 
     // ── Major: ad / call-to-action keyword density ───────────────────────────
@@ -686,17 +682,13 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
       const adHits = countAdKeywords(plainText);
       const adDensity = (adHits / wordTotal) * 100;
       adCopyHit = adDensity > MAX_AD_KEYWORD_DENSITY;
-      signals.push({
-        check: "ad-copy",
-        passed: !adCopyHit,
-        detail: `adDensity=${adDensity.toFixed(2)}`,
-      });
+      pushSignal(signals, "ad-copy", !adCopyHit, `adDensity=${adDensity.toFixed(2)}`);
       if (adCopyHit) {
         hasMajorWarn = true;
         deductions += 25;
       }
     } else {
-      signals.push({ check: "ad-copy", passed: true, detail: "adDensity=skipped" });
+      pushSignal(signals, "ad-copy", true, "adDensity=skipped");
     }
 
     // ── Major: weak sentence structure (fragments / nav lists) ───────────────
@@ -705,28 +697,25 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
       const { count, avgWords } = sentenceStats(plainText, wordTotal);
       const weak = count < 2 || avgWords < MIN_AVG_SENTENCE_WORDS;
       weakSentencePassed = !weak;
-      signals.push({
-        check: "weak-sentence-structure",
-        passed: weakSentencePassed,
-        detail: `sentences=${count} avgWords=${avgWords.toFixed(1)}`,
-      });
+      pushSignal(
+        signals,
+        "weak-sentence-structure",
+        weakSentencePassed,
+        `sentences=${count} avgWords=${avgWords.toFixed(1)}`,
+      );
       if (weak) {
         hasMajorWarn = true;
         deductions += 20;
       }
     } else {
-      signals.push({ check: "weak-sentence-structure", passed: true, detail: "sentences=skipped" });
+      pushSignal(signals, "weak-sentence-structure", true, "sentences=skipped");
     }
 
     // ── Advisory: all-caps / punctuation spam ("shouting") ───────────────────
     const upperRatio = uppercaseWordRatio(plainText);
     const punctSpam = /[!?]{3,}/.test(plainText);
     const shouting = upperRatio > MAX_UPPERCASE_RATIO || punctSpam;
-    signals.push({
-      check: "shouting",
-      passed: !shouting,
-      detail: `upperRatio=${upperRatio.toFixed(3)}`,
-    });
+    pushSignal(signals, "shouting", !shouting, `upperRatio=${upperRatio.toFixed(3)}`);
     if (shouting) deductions += 5;
 
     // ── Major: repetitive n-grams (ads repeating a product / CTA) ────────────
@@ -734,17 +723,18 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
     if (proseReliable) {
       const { maxCount, ratio } = topTrigramRepetition(tokens);
       repetitive = maxCount >= MAX_TRIGRAM_REPEAT_COUNT && ratio >= MAX_TRIGRAM_REPEAT_RATIO;
-      signals.push({
-        check: "repetitive",
-        passed: !repetitive,
-        detail: `maxTrigram=${maxCount} ratio=${ratio.toFixed(3)}`,
-      });
+      pushSignal(
+        signals,
+        "repetitive",
+        !repetitive,
+        `maxTrigram=${maxCount} ratio=${ratio.toFixed(3)}`,
+      );
       if (repetitive) {
         hasMajorWarn = true;
         deductions += 15;
       }
     } else {
-      signals.push({ check: "repetitive", passed: true, detail: "maxTrigram=skipped" });
+      pushSignal(signals, "repetitive", true, "maxTrigram=skipped");
     }
 
     // ── Major: local Naive-Bayes ad classifier (env-gated, conservative) ─────
@@ -757,31 +747,33 @@ export function checkContentQuality(article: QualityInput): ContentQualityResult
       const { label, confidence } = classifyArticleText(plainText);
       const mlAd = label === "ad" && confidence >= ML_AD_CONFIDENCE;
       if (mlAd) {
-        signals.push({
-          check: "ml-ad-classifier",
-          passed: false,
-          detail: `label=ad confidence=${confidence.toFixed(2)}`,
-        });
+        pushSignal(
+          signals,
+          "ml-ad-classifier",
+          false,
+          `label=ad confidence=${confidence.toFixed(2)}`,
+        );
         hasMajorWarn = true;
         deductions += 25;
       } else {
-        signals.push({
-          check: "ml-ad-classifier",
-          passed: true,
-          detail: `label=${label} confidence=${confidence.toFixed(2)}`,
-        });
+        pushSignal(
+          signals,
+          "ml-ad-classifier",
+          true,
+          `label=${label} confidence=${confidence.toFixed(2)}`,
+        );
       }
     }
   }
 
   // ── Advisory: missing author ──────────────────────────────────────────────
   const missingAuthor = !article.author;
-  signals.push({ check: "missing-author", passed: !missingAuthor });
+  pushSignal(signals, "missing-author", !missingAuthor);
   if (missingAuthor) deductions += 5;
 
   // ── Advisory: missing publish date ────────────────────────────────────────
   const missingDate = !article.publishedAt;
-  signals.push({ check: "missing-date", passed: !missingDate });
+  pushSignal(signals, "missing-date", !missingDate);
   if (missingDate) deductions += 5;
 
   // ── Composite score + grade ───────────────────────────────────────────────

@@ -95,6 +95,16 @@ function savedOutcome(url: string, source = "Fixture News"): SaveOutcomeLike {
   return { status: "saved", id: `id-${url.replace(/\W+/g, "-")}`, article: articleFor(url, source) };
 }
 
+function assertOutcomeStatuses(
+  outcomes: SaveOutcomeLike[],
+  statuses: SaveOutcomeLike["status"][],
+): void {
+  assert.deepEqual(
+    outcomes.map((outcome) => outcome.status),
+    statuses,
+  );
+}
+
 function scrapeArgs(overrides: Record<string, unknown> = {}) {
   return {
     urls: [],
@@ -428,10 +438,7 @@ test("scrape.ts exercises file, URL, provider, main, and CLI cleanup paths", asy
     ],
     true,
   );
-  assert.deepEqual(
-    dryUrlOutcomes.map((outcome: SaveOutcomeLike) => outcome.status),
-    ["skipped", "failed", "failed"],
-  );
+  assertOutcomeStatuses(dryUrlOutcomes, ["skipped", "failed", "failed"]);
 
   scrapeAndSaveImpl = async (url) =>
     url.includes("bad")
@@ -441,10 +448,7 @@ test("scrape.ts exercises file, URL, provider, main, and CLI cleanup paths", asy
     ["https://example.com/save", "https://example.com/bad"],
     false,
   );
-  assert.deepEqual(
-    savedUrls.map((outcome: SaveOutcomeLike) => outcome.status),
-    ["saved", "failed"],
-  );
+  assertOutcomeStatuses(savedUrls, ["saved", "failed"]);
 
   providerEnabledImpl = async (key) => key !== "disabled";
   assert.deepEqual(
@@ -602,6 +606,10 @@ function fakeRes(): FakeResponse {
   } as unknown as FakeResponse;
 }
 
+function responseJson<T = unknown>(res: FakeResponse): T {
+  return JSON.parse(res.body) as T;
+}
+
 test("scrape-review covers preview, DB loading, routing, server startup, and main seams", async (t) => {
   const consoleCapture = captureConsole(t);
   await resetStateRoot();
@@ -735,11 +743,11 @@ test("scrape-review covers preview, DB loading, routing, server startup, and mai
 
   res = fakeRes();
   await scrapeReview.__scrapeReviewTest.routeRequest(fakeReq("GET", "/api/articles"), res, ctx);
-  assert.equal(JSON.parse(res.body).articles.length, 1);
+  assert.equal(responseJson<{ articles: unknown[] }>(res).articles.length, 1);
 
   res = fakeRes();
   await scrapeReview.__scrapeReviewTest.routeRequest(fakeReq("GET", "/healthz"), res, ctx);
-  assert.deepEqual(JSON.parse(res.body), { ok: true, count: 1 });
+  assert.deepEqual(responseJson(res), { ok: true, count: 1 });
 
   res = fakeRes();
   await scrapeReview.__scrapeReviewTest.routeRequest(
@@ -747,7 +755,7 @@ test("scrape-review covers preview, DB loading, routing, server startup, and mai
     res,
     ctx,
   );
-  assert.equal(JSON.parse(res.body).stored, true);
+  assert.equal(responseJson<{ stored: boolean }>(res).stored, true);
   assert.match(await readFile(feedbackFile, "utf8"), /Needs cleanup/);
 
   res = fakeRes();

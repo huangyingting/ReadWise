@@ -41,6 +41,8 @@ const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
  */
 const READABILITY_LD_MIN_WORD_RATIO = 0.6;
 
+type ParsedDocument = ReturnType<typeof parseHTML>["document"];
+
 const ENTITIES: Record<string, string> = {
   amp: "&",
   lt: "<",
@@ -176,6 +178,11 @@ function jsonLdImage(value: unknown): string | null {
   return null;
 }
 
+function titleTagContent(html: string): string | null {
+  const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
+  return match?.[1] ? decodeEntities(match[1]).trim() : null;
+}
+
 function toAbsolute(url: string | null, base: string): string | null {
   if (!url) return null;
   try {
@@ -202,6 +209,9 @@ function paragraphsToHtml(text: string): string {
  * dropped on the providers where Readability under-performs and legacy wins.
  */
 const HARVEST_SELECTOR = "p,h2,h3,h4,h5,h6,ul,ol,blockquote,figure,figcaption,img,iframe,a";
+const HARVEST_TEXT_SELECTOR = "p,h2,h3,h4,h5,h6,li,blockquote";
+const HARVEST_CONTAINER_SELECTOR = "div,section,article,main";
+const LAZY_IMAGE_SRC_ATTRS = ["data-src", "data-original", "data-lazy-src"] as const;
 
 /**
  * Resolved-`src` fragments that mark site chrome (logos, sprites, tracking
@@ -245,12 +255,20 @@ function videoLinkHtml(url: string): string {
   return `<a href="${url}">Watch video</a>`;
 }
 
-type DomElement = NonNullable<ReturnType<typeof parseHTML>["document"]["body"]> | null;
+function firstAttributeValue(el: Element, attrs: readonly string[]): string {
+  for (const attr of attrs) {
+    const value = el.getAttribute(attr);
+    if (value != null) return value;
+  }
+  return "";
+}
+
+type DomElement = NonNullable<ParsedDocument["body"]> | null;
 
 /** Has at least one harvestable text block or a content image. */
 function hasHarvestableContent(el: DomElement): boolean {
   if (!el) return false;
-  for (const block of Array.from(el.querySelectorAll("p,h2,h3,h4,h5,h6,li,blockquote"))) {
+  for (const block of Array.from(el.querySelectorAll(HARVEST_TEXT_SELECTOR))) {
     if ((block.textContent ?? "").trim().length > 0) return true;
   }
   return el.querySelector("img,figure") !== null;
@@ -273,14 +291,14 @@ function paragraphTextLen(el: DomElement): number {
  * keeps the harvest conservative — when prose is spread across the body we fall
  * back to `<body>` (the previous whole-page behavior).
  */
-function largestContentContainer(document: ReturnType<typeof parseHTML>["document"]): DomElement {
+function largestContentContainer(document: ParsedDocument): DomElement {
   const body = document.body;
   if (!body) return null;
   const totalP = paragraphTextLen(body);
   if (totalP === 0) return null;
   let best: DomElement = null;
   let bestLen = 0;
-  for (const el of Array.from(body.querySelectorAll("div,section,article,main"))) {
+  for (const el of Array.from(body.querySelectorAll(HARVEST_CONTAINER_SELECTOR))) {
     const len = paragraphTextLen(el as DomElement);
     if (len > bestLen) {
       bestLen = len;
@@ -296,7 +314,7 @@ function largestContentContainer(document: ReturnType<typeof parseHTML>["documen
  * the largest plausible content container, then `<body>`. Falls back to the
  * document element so a fragment without `<body>` still harvests.
  */
-function selectScope(document: ReturnType<typeof parseHTML>["document"]): DomElement {
+function selectScope(document: ParsedDocument): DomElement {
   const article = document.querySelector("article") as DomElement;
   if (article && hasHarvestableContent(article)) return article;
   const main = document.querySelector("main") as DomElement;
@@ -317,12 +335,7 @@ function harvestContent(scope: NonNullable<DomElement>, baseUrl: string): string
   // Pass 1: normalize images — absolutize real ones, drop chrome/placeholders.
   for (const img of Array.from(scope.querySelectorAll("img"))) {
     let raw = (img.getAttribute("src") ?? "").trim();
-    const lazy = (
-      img.getAttribute("data-src") ??
-      img.getAttribute("data-original") ??
-      img.getAttribute("data-lazy-src") ??
-      ""
-    ).trim();
+    const lazy = firstAttributeValue(img, LAZY_IMAGE_SRC_ATTRS).trim();
     if (isLazyPlaceholderSrc(raw) && lazy) raw = lazy;
     const abs = toAbsolute(raw, baseUrl);
     if (!abs || isChromeImage(abs)) {
@@ -414,7 +427,7 @@ function legacyParagraphHarvest(html: string): string {
  */
 function extractBodyHtml(html: string, baseUrl: string): string {
   if (typeof html !== "string" || html.trim().length === 0) return "";
-  let document: ReturnType<typeof parseHTML>["document"];
+  let document: ParsedDocument;
   try {
     ({ document } = parseHTML(html));
   } catch {
@@ -524,9 +537,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   const title =
     (ld && (jsonLdString(ld.headline) ?? jsonLdString(ld.name))) ??
     metaContent(cleanedHtml, "og:title") ??
-    (cleanedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]
-      ? decodeEntities(cleanedHtml.match(/<title[^>]*>([\s\S]*?)<\/title>/i)![1]).trim()
-      : null);
+    titleTagContent(cleanedHtml);
 
   if (!title) return null;
 

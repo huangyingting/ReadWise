@@ -26,6 +26,11 @@ import type {
 
 const MAX_RECORD_MS = 20_000; // 20 s auto-stop safety net
 const COUNTDOWN_START_S = 5; // show countdown in last N seconds
+const PROCESSING_TRANSITION_DELAY_MS = 400;
+const SPEECH_SERVICE_RETRY_MESSAGE =
+  "Could not reach the speech service. Check your connection and try again.";
+const ASSESSMENT_RETRY_MESSAGE =
+  "Something went wrong scoring that. Check your connection and try again.";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -106,6 +111,26 @@ function isNoDeviceError(message: string): boolean {
     message.includes("NotFoundError") ||
     message.toLowerCase().includes("no device")
   );
+}
+
+function tokenFailurePhase(status: SpeechTokenResult["status"]): PronunciationPhase {
+  return status === "unconfigured" ? "unavailable" : "error";
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : "Recognition failed";
+}
+
+function assessmentFailurePhase(message: string): PronunciationPhase | null {
+  if (isMicDeniedError(message)) return "mic-denied";
+  if (isNoDeviceError(message)) return "no-device";
+  return null;
+}
+
+function waitForProcessingTransition(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, PROCESSING_TRANSITION_DELAY_MS);
+  });
 }
 
 // ─── Hook ─────────────────────────────────────────────────────────────────────
@@ -227,7 +252,7 @@ export function usePronunciationSession({
       } else if (fallbackMessage !== undefined) {
         setErrorMsg(fallbackMessage);
       }
-      setPhase(tokenResult.status === "unconfigured" ? "unavailable" : "error");
+      setPhase(tokenFailurePhase(tokenResult.status));
       return false;
     }
     rememberToken(tokenResult.token, tokenResult.region);
@@ -247,8 +272,7 @@ export function usePronunciationSession({
     if (
       !applyTokenResult(
         freshToken,
-        errorMsg ??
-          "Could not reach the speech service. Check your connection and try again.",
+        errorMsg ?? SPEECH_SERVICE_RETRY_MESSAGE,
       )
     )
       return;
@@ -280,7 +304,7 @@ export function usePronunciationSession({
       stopMeter();
       setPhase("processing");
       // Small deliberate pause so the UI visually transitions.
-      await new Promise<void>((r) => setTimeout(r, 400));
+      await waitForProcessingTransition();
       setResult(assessment);
       setPhase("result");
       // Fire-and-forget persist.
@@ -299,19 +323,13 @@ export function usePronunciationSession({
   }
 
   function handleAssessmentError(err: unknown) {
-    const msg = err instanceof Error ? err.message : "Recognition failed";
-    if (isMicDeniedError(msg)) {
-      setPhase("mic-denied");
-      return;
-    }
-    if (isNoDeviceError(msg)) {
-      setPhase("no-device");
+    const phaseForError = assessmentFailurePhase(errorMessage(err));
+    if (phaseForError) {
+      setPhase(phaseForError);
       return;
     }
     setPhase("error");
-    setErrorMsg(
-      "Something went wrong scoring that. Check your connection and try again.",
-    );
+    setErrorMsg(ASSESSMENT_RETRY_MESSAGE);
   }
 
   async function stopRecording(andProcess: boolean) {
