@@ -11,18 +11,22 @@ const badgeBase = cn(
   "px-[var(--space-3)] py-[var(--space-1)] text-[length:var(--text-xs)]",
 );
 
+const badgeToneClasses = {
+  neutral: "bg-bg-subtle text-text-muted border border-border",
+  primary:
+    "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-primary-text border border-[color-mix(in_srgb,var(--primary)_30%,transparent)]",
+  success:
+    "bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-success-text border border-[color-mix(in_srgb,var(--success)_32%,transparent)]",
+  warning:
+    "bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning-text border border-[color-mix(in_srgb,var(--warning)_34%,transparent)]",
+  danger:
+    "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger-text border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]",
+} as const;
+
 const badgeVariants = cva(badgeBase, {
   variants: {
     variant: {
-      neutral: "bg-bg-subtle text-text-muted border border-border",
-      primary:
-        "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-primary-text border border-[color-mix(in_srgb,var(--primary)_30%,transparent)]",
-      success:
-        "bg-[color-mix(in_srgb,var(--success)_16%,transparent)] text-success-text border border-[color-mix(in_srgb,var(--success)_32%,transparent)]",
-      warning:
-        "bg-[color-mix(in_srgb,var(--warning)_18%,transparent)] text-warning-text border border-[color-mix(in_srgb,var(--warning)_34%,transparent)]",
-      danger:
-        "bg-[color-mix(in_srgb,var(--danger)_14%,transparent)] text-danger-text border border-[color-mix(in_srgb,var(--danger)_30%,transparent)]",
+      ...badgeToneClasses,
     },
     uppercase: {
       true: "uppercase tracking-wide",
@@ -81,6 +85,9 @@ export interface CategoryBadgeProps
   active?: boolean;
 }
 
+const categoryActiveClass =
+  "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-primary-text border border-primary";
+
 /** Category/topic pill: neutral by default, brand-tinted when active/selected. */
 export function CategoryBadge({
   active,
@@ -91,9 +98,7 @@ export function CategoryBadge({
     <span
       className={cn(
         badgeBase,
-        active
-          ? "bg-[color-mix(in_srgb,var(--primary)_14%,transparent)] text-primary-text border border-primary"
-          : "bg-bg-subtle text-text-muted border border-border",
+        active ? categoryActiveClass : badgeToneClasses.neutral,
         className,
       )}
       {...props}

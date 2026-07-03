@@ -21,10 +21,19 @@ export type GrammarResult = {
 
 export const MAX_PHRASE_CHARS = 200;
 export const MAX_CONTEXT_CHARS = 500;
+const DEFAULT_LEVEL = "B1";
 
 /** Normalise whitespace and case so variants share a cache row. */
 function normalizePhrase(phrase: string): string {
   return phrase.trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function fallbackResult(): GrammarResult {
+  return { explanation: null, fallback: true };
+}
+
+function contextSnippet(contextSentence: string): string {
+  return contextSentence.trim().slice(0, MAX_CONTEXT_CHARS);
 }
 
 /**
@@ -44,11 +53,11 @@ export async function explainGrammar(
 ): Promise<GrammarResult> {
   const normalized = normalizePhrase(phrase);
   if (!normalized || normalized.length > MAX_PHRASE_CHARS) {
-    return { explanation: null, fallback: true };
+    return fallbackResult();
   }
 
-  const ctx = contextSentence.trim().slice(0, MAX_CONTEXT_CHARS);
-  const levelLabel = level || "B1";
+  const ctx = contextSnippet(contextSentence);
+  const levelLabel = level || DEFAULT_LEVEL;
 
   return getOrCreateSelectionAi<GrammarResult>({
     feature: "grammar",
@@ -73,6 +82,6 @@ export async function explainGrammar(
       });
       return { explanation: text, fallback: false };
     },
-    fallback: () => ({ explanation: null, fallback: true }),
+    fallback: fallbackResult,
   });
 }

@@ -23,6 +23,39 @@ export * from "./types";
 export * from "./engine";
 export * from "./cefr-primitives";
 
+type FeedbackGroupRow = { vote: string; _count: { _all: number } };
+
+const FEEDBACK_VOTES = ["too_easy", "just_right", "too_hard"] as const;
+
+function normalizeEnglishLevel(level: string): (typeof ENGLISH_LEVELS)[number] {
+  return (ENGLISH_LEVELS as readonly string[]).includes(level)
+    ? (level as (typeof ENGLISH_LEVELS)[number])
+    : ENGLISH_LEVELS[0];
+}
+
+function emptyFeedbackCounts(): FeedbackCounts {
+  return { too_easy: 0, just_right: 0, too_hard: 0 };
+}
+
+function isFeedbackVote(vote: string): vote is keyof FeedbackCounts {
+  return (FEEDBACK_VOTES as readonly string[]).includes(vote);
+}
+
+function feedbackCountsFromRows(rows: FeedbackGroupRow[]): FeedbackCounts {
+  const feedback = emptyFeedbackCounts();
+  for (const row of rows) {
+    if (isFeedbackVote(row.vote)) {
+      feedback[row.vote] = row._count._all;
+    }
+  }
+  return feedback;
+}
+
+function averageQuizScore(attempts: Array<{ scorePct: number }>): number | null {
+  if (attempts.length === 0) return null;
+  return attempts.reduce((sum, attempt) => sum + attempt.scorePct, 0) / attempts.length;
+}
+
 /**
  * Reads all level evidence for a user from the DB. Returns null when the user
  * has no profile (we cannot place them on the CEFR scale yet).
@@ -58,11 +91,7 @@ export async function getLevelEvidence(
 
   if (!profile) return null;
 
-  const currentLevel = (ENGLISH_LEVELS as readonly string[]).includes(
-    profile.englishLevel,
-  )
-    ? (profile.englishLevel as (typeof ENGLISH_LEVELS)[number])
-    : ENGLISH_LEVELS[0];
+  const currentLevel = normalizeEnglishLevel(profile.englishLevel);
 
   // Separate round-trip: this query depends on `currentLevel` from profile.
   const completedAtLevel = await prisma.readingProgress.count({
@@ -73,18 +102,8 @@ export async function getLevelEvidence(
     },
   });
 
-  const feedback: FeedbackCounts = { too_easy: 0, just_right: 0, too_hard: 0 };
-  for (const row of feedbackRows as Array<{ vote: string; _count: { _all: number } }>) {
-    if (row.vote === "too_easy") feedback.too_easy = row._count._all;
-    else if (row.vote === "just_right") feedback.just_right = row._count._all;
-    else if (row.vote === "too_hard") feedback.too_hard = row._count._all;
-  }
-
-  const avgQuizScore =
-    recentAttempts.length > 0
-      ? recentAttempts.reduce((sum, a) => sum + a.scorePct, 0) /
-        recentAttempts.length
-      : null;
+  const feedback = feedbackCountsFromRows(feedbackRows as FeedbackGroupRow[]);
+  const avgQuizScore = averageQuizScore(recentAttempts);
 
   return {
     currentLevel,

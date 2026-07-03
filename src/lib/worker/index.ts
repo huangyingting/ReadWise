@@ -4,6 +4,7 @@ import { claimNextJob, completeJob, failJob, startJob, type JobType } from "@/li
 import { sleep } from "./sleep";
 import { createDefaultRegistry } from "./registry";
 import { runWorkerLoop } from "./loop";
+import type { WorkerLoopDeps } from "./loop";
 import type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats } from "./types";
 
 export type { WorkerLogger, JobHandler, JobWorkerOptions, JobWorkerStats };
@@ -23,6 +24,23 @@ export function createConsoleLogger(): WorkerLogger {
   return createLogger("worker");
 }
 
+function buildHandlers(options: JobWorkerOptions, processFn: typeof processArticle): Partial<Record<JobType, JobHandler>> {
+  return {
+    ...createDefaultRegistry(processFn).toRecord(),
+    ...options.handlers,
+  };
+}
+
+function buildWorkerDeps(options: JobWorkerOptions): WorkerLoopDeps {
+  return {
+    claimNextJob: options.deps?.claimNextJob ?? claimNextJob,
+    startJob: options.deps?.startJob ?? startJob,
+    completeJob: options.deps?.completeJob ?? completeJob,
+    failJob: options.deps?.failJob ?? failJob,
+    sleep: options.deps?.sleep ?? sleep,
+  };
+}
+
 /**
  * Long-running worker that drains the persistent `Job` table. Claims one job at
  * a time (locked so multiple workers never run the same job), runs its handler,
@@ -36,12 +54,7 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
   const workerId = options.workerId ?? generateWorkerId();
   const logger = options.logger ?? createConsoleLogger();
   const processFn = options.deps?.processArticle ?? processArticle;
-
-  const registry = createDefaultRegistry(processFn);
-  const handlers: Partial<Record<JobType, JobHandler>> = {
-    ...registry.toRecord(),
-    ...options.handlers,
-  };
+  const handlers = buildHandlers(options, processFn);
 
   logger.info("job worker started", {
     workerId,
@@ -62,13 +75,7 @@ export async function runJobWorker(options: JobWorkerOptions = {}): Promise<JobW
       process: options.process,
     },
     logger,
-    {
-      claimNextJob: options.deps?.claimNextJob ?? claimNextJob,
-      startJob: options.deps?.startJob ?? startJob,
-      completeJob: options.deps?.completeJob ?? completeJob,
-      failJob: options.deps?.failJob ?? failJob,
-      sleep: options.deps?.sleep ?? sleep,
-    },
+    buildWorkerDeps(options),
   );
 
   logger.info("job worker stopped", { ...stats });

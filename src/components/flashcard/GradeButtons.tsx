@@ -1,6 +1,7 @@
 "use client";
 
 import { RotateCcw, Frown, Check, ChevronsRight } from "lucide-react";
+import type { CSSProperties, ReactNode, RefObject } from "react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import type { Grade } from "./types";
@@ -8,47 +9,59 @@ import type { Grade } from "./types";
 interface GradeButtonsProps {
   onGrade: (g: Grade) => void;
   disabled: boolean;
-  goodRef: React.RefObject<HTMLButtonElement | null>;
+  goodRef: RefObject<HTMLButtonElement | null>;
 }
 
-const GRADES: {
+type GradeButtonConfig = {
   grade: Grade;
   label: string;
-  key: string;
+  shortcutKey: string;
   tooltip: string;
-  icon: React.ReactNode;
+  icon: ReactNode;
   variant: "outline" | "primary";
   tintClass: string;
-  hoverStyle?: React.CSSProperties;
-}[] = [
+  hoverStyle?: CSSProperties;
+};
+
+function gradeHoverStyle(token: "danger" | "warning" | "success"): CSSProperties {
+  return {
+    "--hover-bg": `color-mix(in srgb, var(--${token}) 10%, transparent)`,
+  } as CSSProperties;
+}
+
+function getGradeButtonClassName(variant: GradeButtonConfig["variant"]) {
+  return cn(
+    "flex flex-col items-center justify-center gap-0.5",
+    "h-11 min-h-[44px] px-[var(--space-2)] w-full",
+    variant !== "primary" && "hover:bg-[color:var(--hover-bg)]",
+  );
+}
+
+const GRADES: GradeButtonConfig[] = [
   {
     grade: "again",
     label: "Again",
-    key: "1",
+    shortcutKey: "1",
     tooltip: "Didn't remember — repeat today",
     icon: <RotateCcw size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--danger-text)]",
-    hoverStyle: {
-      "--hover-bg": "color-mix(in srgb, var(--danger) 10%, transparent)",
-    } as React.CSSProperties,
+    hoverStyle: gradeHoverStyle("danger"),
   },
   {
     grade: "hard",
     label: "Hard",
-    key: "2",
+    shortcutKey: "2",
     tooltip: "Remembered with difficulty — review sooner",
     icon: <Frown size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--warning-text)]",
-    hoverStyle: {
-      "--hover-bg": "color-mix(in srgb, var(--warning) 10%, transparent)",
-    } as React.CSSProperties,
+    hoverStyle: gradeHoverStyle("warning"),
   },
   {
     grade: "good",
     label: "Good",
-    key: "3",
+    shortcutKey: "3",
     tooltip: "Remembered well — normal interval",
     icon: <Check size={14} aria-hidden />,
     variant: "primary",
@@ -57,14 +70,12 @@ const GRADES: {
   {
     grade: "easy",
     label: "Easy",
-    key: "4",
+    shortcutKey: "4",
     tooltip: "Too easy — longer interval next time",
     icon: <ChevronsRight size={14} aria-hidden />,
     variant: "outline",
     tintClass: "text-[color:var(--success-text)]",
-    hoverStyle: {
-      "--hover-bg": "color-mix(in srgb, var(--success) 10%, transparent)",
-    } as React.CSSProperties,
+    hoverStyle: gradeHoverStyle("success"),
   },
 ];
 
@@ -74,7 +85,16 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
       className="mt-[var(--space-4)] grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-2)] w-full"
     >
       {GRADES.map(
-        ({ grade, label, key, tooltip, icon, variant, tintClass, hoverStyle }) => (
+        ({
+          grade,
+          label,
+          shortcutKey,
+          tooltip,
+          icon,
+          variant,
+          tintClass,
+          hoverStyle,
+        }) => (
           <Button
             key={grade}
             ref={grade === "good" ? goodRef : undefined}
@@ -84,11 +104,7 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
             onClick={() => onGrade(grade)}
             title={tooltip}
             style={hoverStyle}
-            className={cn(
-              "flex flex-col items-center justify-center gap-0.5",
-              "h-11 min-h-[44px] px-[var(--space-2)] w-full",
-              variant !== "primary" && "hover:bg-[color:var(--hover-bg)]",
-            )}
+            className={getGradeButtonClassName(variant)}
           >
             <span
               className={cn(
@@ -100,7 +116,7 @@ export function GradeButtons({ onGrade, disabled, goodRef }: GradeButtonsProps) 
               <span className="text-[length:var(--text-sm)]">{label}</span>
             </span>
             <span className="hidden sm:block text-[length:var(--text-xs)] text-text-subtle">
-              {key}
+              {shortcutKey}
             </span>
           </Button>
         ),

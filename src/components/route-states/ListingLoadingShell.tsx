@@ -15,6 +15,18 @@ import { SkeletonCardGrid } from "@/components/SkeletonCard";
 import { Skeleton } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 
+const DEFAULT_CARD_COUNT = 6;
+const TAB_WIDTH_BASE_PX = 60;
+const TAB_WIDTH_STEP_PX = 10;
+
+function indexRange(count: number) {
+  return Array.from({ length: count }, (_, index) => index);
+}
+
+function getTabSkeletonWidth(index: number) {
+  return `${TAB_WIDTH_BASE_PX + index * TAB_WIDTH_STEP_PX}px`;
+}
+
 export interface ListingLoadingShellProps {
   /**
    * Width class for the heading placeholder (e.g. "w-48"). When omitted the
@@ -51,11 +63,14 @@ export function ListingLoadingShell({
   headingWidthClass,
   subtitle = false,
   tabCount = 0,
-  cardCount = 6,
+  cardCount = DEFAULT_CARD_COUNT,
   filterBar,
   statCardCount,
   children,
 }: ListingLoadingShellProps) {
+  const tabIndexes = indexRange(tabCount);
+  const statCardIndexes = statCardCount ? indexRange(statCardCount) : [];
+
   return (
     <div className="listing-container" aria-hidden>
       {/* Page heading placeholder — omitted when headingWidthClass is not set */}
@@ -80,12 +95,12 @@ export function ListingLoadingShell({
 
       {tabCount > 0 && (
         <div className="flex gap-[var(--space-2)] mb-[var(--space-6)] overflow-hidden">
-          {Array.from({ length: tabCount }).map((_, i) => (
+          {tabIndexes.map((i) => (
             <Skeleton
               key={i}
               shape="block"
               className="h-8 rounded-full flex-shrink-0"
-              style={{ width: `${60 + i * 10}px` }}
+              style={{ width: getTabSkeletonWidth(i) }}
             />
           ))}
         </div>
@@ -93,7 +108,7 @@ export function ListingLoadingShell({
 
       {statCardCount && statCardCount > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-[var(--space-4)] mb-[var(--space-6)]">
-          {Array.from({ length: statCardCount }).map((_, i) => (
+          {statCardIndexes.map((i) => (
             <div
               key={i}
               className="bg-surface border border-border rounded-[var(--radius-lg)] p-[var(--space-4)] flex flex-col gap-[var(--space-2)]"

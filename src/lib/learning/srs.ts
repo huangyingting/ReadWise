@@ -19,6 +19,9 @@ const QUALITY: Record<Exclude<Grade, "again">, number> = {
 
 /** Minimum ease factor — SM-2 spec says >= 1.3. */
 const MIN_EF = 1.3;
+const AGAIN_EASE_PENALTY = 0.2;
+const HARD_INTERVAL_MULTIPLIER = 0.6;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export interface SrsState {
   intervalDays: number;
@@ -28,6 +31,21 @@ export interface SrsState {
 
 export interface SrsResult extends SrsState {
   dueAt: Date;
+}
+
+function easeFactorDelta(quality: number): number {
+  const qualityGap = 5 - quality;
+  return 0.1 - qualityGap * (0.08 + qualityGap * 0.02);
+}
+
+function clampEaseFactor(easeFactor: number): number {
+  return Math.max(MIN_EF, easeFactor);
+}
+
+function nextIntervalDays(intervalDays: number, easeFactor: number, repetitions: number): number {
+  if (repetitions === 0) return 1;
+  if (repetitions === 1) return 6;
+  return Math.round(intervalDays * easeFactor);
 }
 
 /**
@@ -47,32 +65,23 @@ export function applySm2(state: SrsState, grade: Grade): SrsResult {
   if (grade === "again") {
     repetitions = 0;
     intervalDays = 1;
-    easeFactor = Math.max(MIN_EF, easeFactor - 0.2);
+    easeFactor = clampEaseFactor(easeFactor - AGAIN_EASE_PENALTY);
   } else {
     const q = QUALITY[grade];
     // EF' = EF + (0.1 − (5−q)×(0.08 + (5−q)×0.02))
-    easeFactor = Math.max(
-      MIN_EF,
-      easeFactor + (0.1 - (5 - q) * (0.08 + (5 - q) * 0.02)),
-    );
+    easeFactor = clampEaseFactor(easeFactor + easeFactorDelta(q));
 
     // Advance interval per SM-2 schedule
-    if (repetitions === 0) {
-      intervalDays = 1;
-    } else if (repetitions === 1) {
-      intervalDays = 6;
-    } else {
-      intervalDays = Math.round(intervalDays * easeFactor);
-    }
+    intervalDays = nextIntervalDays(intervalDays, easeFactor, repetitions);
 
     // Hard caps growth so a weak card doesn't jump too far
     if (grade === "hard") {
-      intervalDays = Math.max(1, Math.round(intervalDays * 0.6));
+      intervalDays = Math.max(1, Math.round(intervalDays * HARD_INTERVAL_MULTIPLIER));
     }
 
     repetitions += 1;
   }
 
-  const dueAt = new Date(Date.now() + intervalDays * 24 * 60 * 60 * 1000);
+  const dueAt = new Date(Date.now() + intervalDays * MS_PER_DAY);
   return { intervalDays, easeFactor, repetitions, dueAt };
 }

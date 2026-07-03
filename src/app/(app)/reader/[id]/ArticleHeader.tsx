@@ -27,6 +27,123 @@ type Props = {
   setTodayEnabled?: boolean;
 };
 
+function ArticleByline({
+  article,
+}: {
+  article: Pick<Article, "author" | "source" | "sourceUrl">;
+}) {
+  if (!article.author && !article.source) return null;
+
+  return (
+    <p className="reader-byline">
+      {article.author ? article.author : null}
+      {article.author && article.source ? " · " : null}
+      {article.source && article.sourceUrl ? (
+        <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
+          {article.source}
+        </a>
+      ) : article.source ? (
+        article.source
+      ) : null}
+    </p>
+  );
+}
+
+function ReadingLevelBadge({
+  difficultyLevel,
+  isValidCefrLevel,
+}: {
+  difficultyLevel: CefrLevel | null;
+  isValidCefrLevel: boolean;
+}) {
+  if (isValidCefrLevel) {
+    return (
+      <CefrBadge
+        level={difficultyLevel as CefrLevel}
+        title="Estimated reading level"
+      />
+    );
+  }
+
+  if (difficultyLevel) {
+    return (
+      <Badge variant="neutral" title="Estimated reading level">
+        Level {difficultyLevel}
+      </Badge>
+    );
+  }
+
+  return null;
+}
+
+function ArticleMeta({
+  article,
+  difficultyLevel,
+  isValidCefrLevel,
+  readingMinutes,
+  progress,
+  isBookmarked,
+  setTodayEnabled,
+}: Pick<
+  Props,
+  | "article"
+  | "difficultyLevel"
+  | "isValidCefrLevel"
+  | "readingMinutes"
+  | "progress"
+  | "isBookmarked"
+  | "setTodayEnabled"
+>) {
+  return (
+    <div className="reader-meta">
+      <ReadingLevelBadge
+        difficultyLevel={difficultyLevel}
+        isValidCefrLevel={isValidCefrLevel}
+      />
+
+      {readingMinutes != null ? (
+        <Badge variant="neutral">⏱ {readingMinutes} min read</Badge>
+      ) : null}
+
+      {progress?.completed ? <Badge variant="success">✓ Completed</Badge> : null}
+
+      {/* M10 bookmark split-pill (segment A toggle + segment B list picker) */}
+      <ReaderBookmarkCluster articleId={article.id} initialSaved={isBookmarked} />
+
+      {/* #117 offline download button */}
+      <OfflineDownloadButton articleId={article.id} />
+
+      {/* Today Session v1.1 (#805) — set this readable article as today's primary. */}
+      {setTodayEnabled ? (
+        <SetTodayArticleButton
+          articleId={article.id}
+          articleTitle={article.title}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function ArticleTags({ tags }: { tags: TagView[] }) {
+  if (tags.length === 0) return null;
+
+  return (
+    <div className="reader-tags" aria-label="Article tags">
+      {tags.map((tag) =>
+        tag.scope === TagScope.PUBLIC ? (
+          <Link key={tag.id} href={`/tags/${tag.slug}`} className="tag-chip">
+            #{tag.name}
+          </Link>
+        ) : (
+          <span key={tag.id} className="tag-chip">
+            #{tag.name}
+          </span>
+        ),
+      )}
+    </div>
+  );
+}
+
 export default function ArticleHeader({
   article,
   difficultyLevel,
@@ -44,67 +161,21 @@ export default function ArticleHeader({
       </h1>
 
       {/* Byline / source */}
-      {article.author || article.source ? (
-        <p className="reader-byline">
-          {article.author ? article.author : null}
-          {article.author && article.source ? " · " : null}
-          {article.source && article.sourceUrl ? (
-            <a href={article.sourceUrl} target="_blank" rel="noopener noreferrer nofollow">
-              {article.source}
-            </a>
-          ) : article.source ? (
-            article.source
-          ) : null}
-        </p>
-      ) : null}
+      <ArticleByline article={article} />
 
       {/* Meta row: CEFR badge · reading time · completed · bookmark */}
-      <div className="reader-meta">
-        {isValidCefrLevel ? (
-          <CefrBadge level={difficultyLevel as CefrLevel} title="Estimated reading level" />
-        ) : difficultyLevel ? (
-          <Badge variant="neutral" title="Estimated reading level">
-            Level {difficultyLevel}
-          </Badge>
-        ) : null}
-
-        {readingMinutes != null ? (
-          <Badge variant="neutral">⏱ {readingMinutes} min read</Badge>
-        ) : null}
-
-        {progress?.completed ? <Badge variant="success">✓ Completed</Badge> : null}
-
-        {/* M10 bookmark split-pill (segment A toggle + segment B list picker) */}
-        <ReaderBookmarkCluster articleId={article.id} initialSaved={isBookmarked} />
-
-        {/* #117 offline download button */}
-        <OfflineDownloadButton articleId={article.id} />
-
-        {/* Today Session v1.1 (#805) — set this readable article as today's primary. */}
-        {setTodayEnabled ? (
-          <SetTodayArticleButton
-            articleId={article.id}
-            articleTitle={article.title}
-          />
-        ) : null}
-      </div>
+      <ArticleMeta
+        article={article}
+        difficultyLevel={difficultyLevel}
+        isValidCefrLevel={isValidCefrLevel}
+        readingMinutes={readingMinutes}
+        progress={progress}
+        isBookmarked={isBookmarked}
+        setTodayEnabled={setTodayEnabled}
+      />
 
       {/* Tags */}
-      {tags.length > 0 ? (
-        <div className="reader-tags" aria-label="Article tags">
-          {tags.map((tag) =>
-            tag.scope === TagScope.PUBLIC ? (
-              <Link key={tag.id} href={`/tags/${tag.slug}`} className="tag-chip">
-                #{tag.name}
-              </Link>
-            ) : (
-              <span key={tag.id} className="tag-chip">
-                #{tag.name}
-              </span>
-            ),
-          )}
-        </div>
-      ) : null}
+      <ArticleTags tags={tags} />
     </header>
   );
 }

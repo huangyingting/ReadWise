@@ -27,6 +27,64 @@ const EMPTY_COUNTS: Record<Grade, number> = {
   easy: 0,
 };
 
+type SessionState = Extract<AppState, { phase: "session" }>;
+
+const RESET_CARD_PROGRESS = {
+  flipped: false,
+  grading: false,
+  clozeInput: "",
+  clozeSubmitted: false,
+  clozeCorrect: null,
+} as const;
+
+function initialGradeCounts(): Record<string, number> {
+  return { ...EMPTY_COUNTS };
+}
+
+function createSessionState(
+  mode: ReviewMode,
+  cards: DueCard[],
+): SessionState {
+  return {
+    phase: "session",
+    mode,
+    cards,
+    index: 0,
+    gradeCounts: initialGradeCounts(),
+    ...RESET_CARD_PROGRESS,
+  };
+}
+
+function incrementGradeCount(
+  gradeCounts: Record<string, number>,
+  grade: Grade,
+) {
+  return {
+    ...gradeCounts,
+    [grade]: (gradeCounts[grade] ?? 0) + 1,
+  };
+}
+
+function advanceSessionGrade(state: SessionState, grade: Grade): AppState {
+  const nextIndex = state.index + 1;
+  const newCounts = incrementGradeCount(state.gradeCounts, grade);
+
+  if (nextIndex >= state.cards.length) {
+    return {
+      phase: "complete",
+      total: state.cards.length,
+      gradeCounts: newCounts,
+    };
+  }
+
+  return {
+    ...state,
+    index: nextIndex,
+    gradeCounts: newCounts,
+    ...RESET_CARD_PROGRESS,
+  };
+}
+
 export function reviewSessionReducer(
   state: AppState,
   action: ReviewAction,
@@ -37,18 +95,7 @@ export function reviewSessionReducer(
 
     case "SESSION_LOADED":
       if (action.cards.length === 0) return { phase: "idle" };
-      return {
-        phase: "session",
-        mode: action.mode,
-        cards: action.cards,
-        index: 0,
-        flipped: false,
-        grading: false,
-        gradeCounts: { ...EMPTY_COUNTS },
-        clozeInput: "",
-        clozeSubmitted: false,
-        clozeCorrect: null,
-      };
+      return createSessionState(action.mode, action.cards);
 
     case "LOAD_FAILED":
       return { phase: "idle" };
@@ -71,28 +118,7 @@ export function reviewSessionReducer(
 
     case "GRADE_ADVANCE": {
       if (state.phase !== "session") return state;
-      const nextIndex = state.index + 1;
-      const newCounts = {
-        ...state.gradeCounts,
-        [action.grade]: (state.gradeCounts[action.grade] ?? 0) + 1,
-      };
-      if (nextIndex >= state.cards.length) {
-        return {
-          phase: "complete",
-          total: state.cards.length,
-          gradeCounts: newCounts,
-        };
-      }
-      return {
-        ...state,
-        index: nextIndex,
-        flipped: false,
-        grading: false,
-        gradeCounts: newCounts,
-        clozeInput: "",
-        clozeSubmitted: false,
-        clozeCorrect: null,
-      };
+      return advanceSessionGrade(state, action.grade);
     }
 
     case "END_SESSION":

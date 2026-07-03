@@ -28,6 +28,7 @@ export type RateLimitStoreClient = {
 
 /** How long to skip the DB store after a failure before retrying it. */
 const FAILURE_COOLDOWN_MS = 30_000;
+const EXPIRED_COUNTER_SWEEP_PROBABILITY = 0.05;
 let disabledUntil = 0;
 
 /** Reset the circuit breaker (test seam). */
@@ -46,6 +47,21 @@ export function isSharedStoreEnabled(now = Date.now()): boolean {
 /** Align a timestamp to the start of its fixed window. */
 export function windowStartFor(nowMs: number, windowMs: number): number {
   return Math.floor(nowMs / windowMs) * windowMs;
+}
+
+function maybeSweepExpiredCounters(client: RateLimitStoreClient): void {
+  if (Math.random() >= EXPIRED_COUNTER_SWEEP_PROBABILITY) return;
+  void client.rateLimitCounter
+    .deleteMany({ where: { expiresAt: { lt: new Date() } } })
+    .catch(() => {});
+}
+
+function tripStoreCircuitBreaker(err: unknown): void {
+  disabledUntil = Date.now() + FAILURE_COOLDOWN_MS;
+  log.warn("rate_limit_store.unavailable", {
+    error: err instanceof Error ? err.message : String(err),
+    cooldownMs: FAILURE_COOLDOWN_MS,
+  });
 }
 
 /**
@@ -68,19 +84,11 @@ export async function incrementSharedCounter(
       select: { count: true },
     });
     // Best-effort, cheap sweep of expired rows (5% of calls).
-    if (Math.random() < 0.05) {
-      void client.rateLimitCounter
-        .deleteMany({ where: { expiresAt: { lt: new Date() } } })
-        .catch(() => {});
-    }
+    maybeSweepExpiredCounters(client);
     return row.count;
   } catch (err) {
     // Trip the circuit breaker so we don't retry a dead store every request.
-    disabledUntil = Date.now() + FAILURE_COOLDOWN_MS;
-    log.warn("rate_limit_store.unavailable", {
-      error: err instanceof Error ? err.message : String(err),
-      cooldownMs: FAILURE_COOLDOWN_MS,
-    });
+    tripStoreCircuitBreaker(err);
     throw err;
   }
 }

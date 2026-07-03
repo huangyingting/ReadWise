@@ -38,6 +38,8 @@ const buttonVariants = cva(
   },
 );
 
+const iconSlotClass = "inline-flex shrink-0";
+
 export interface ButtonProps
   extends React.ButtonHTMLAttributes<HTMLButtonElement>,
     VariantProps<typeof buttonVariants> {
@@ -80,26 +82,29 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     },
     ref,
   ) {
-    return (
-      <button
-        ref={ref}
-        type={type}
-        disabled={disabled || loading}
-        aria-busy={loading || undefined}
-        className={cn(buttonVariants({ variant, size }), className)}
-        {...props}
-      >
-        {loading ? (
-          <Spinner size={16} />
-        ) : (
-          leadingIcon && <span className="inline-flex shrink-0">{leadingIcon}</span>
-        )}
-        <span className={cn(loading && "opacity-70")}>{children}</span>
-        {trailingIcon && !loading && (
-          <span className="inline-flex shrink-0">{trailingIcon}</span>
-        )}
-      </button>
-    );
+   const isDisabled = disabled || loading;
+   const leadingContent = loading ? (
+     <Spinner size={16} />
+   ) : (
+     leadingIcon && <span className={iconSlotClass}>{leadingIcon}</span>
+   );
+
+   return (
+     <button
+       ref={ref}
+       type={type}
+       disabled={isDisabled}
+       aria-busy={loading || undefined}
+       className={cn(buttonVariants({ variant, size }), className)}
+       {...props}
+     >
+       {leadingContent}
+       <span className={cn(loading && "opacity-70")}>{children}</span>
+       {trailingIcon && !loading && (
+         <span className={iconSlotClass}>{trailingIcon}</span>
+       )}
+     </button>
+   );
   },
 );
 

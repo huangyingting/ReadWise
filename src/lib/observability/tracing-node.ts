@@ -21,6 +21,47 @@ const log = createLogger("tracing");
 
 let started = false;
 
+type TracingModules = Awaited<ReturnType<typeof loadTracingModules>>;
+
+async function loadTracingModules() {
+  const [
+    { NodeSDK },
+    { resourceFromAttributes },
+    semconv,
+    { OTLPTraceExporter },
+    { ConsoleSpanExporter },
+  ] = await Promise.all([
+    import("@opentelemetry/sdk-node"),
+    import("@opentelemetry/resources"),
+    import("@opentelemetry/semantic-conventions"),
+    import("@opentelemetry/exporter-trace-otlp-http"),
+    import("@opentelemetry/sdk-trace-base"),
+  ]);
+
+  return {
+    NodeSDK,
+    resourceFromAttributes,
+    semconv,
+    OTLPTraceExporter,
+    ConsoleSpanExporter,
+  };
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function createTraceExporter(
+  config: NonNullable<ReturnType<typeof tracingConfig>>,
+  modules: Pick<TracingModules, "OTLPTraceExporter" | "ConsoleSpanExporter">,
+) {
+  return config.exporter === "otlp"
+    ? new modules.OTLPTraceExporter(
+        config.endpoint ? { url: config.endpoint } : {},
+      )
+    : new modules.ConsoleSpanExporter();
+}
+
 /**
  * Initialize the OpenTelemetry Node SDK if tracing is configured. Idempotent
  * and never throws — any failure logs a warning and leaves tracing disabled so
@@ -36,34 +77,17 @@ export async function startTracing(): Promise<void> {
   started = true;
 
   try {
-    const [
-      { NodeSDK },
-      { resourceFromAttributes },
-      semconv,
-      { OTLPTraceExporter },
-      { ConsoleSpanExporter },
-    ] = await Promise.all([
-      import("@opentelemetry/sdk-node"),
-      import("@opentelemetry/resources"),
-      import("@opentelemetry/semantic-conventions"),
-      import("@opentelemetry/exporter-trace-otlp-http"),
-      import("@opentelemetry/sdk-trace-base"),
-    ]);
+    const modules = await loadTracingModules();
 
-    const traceExporter =
-      config.exporter === "otlp"
-        ? new OTLPTraceExporter(
-            config.endpoint ? { url: config.endpoint } : {},
-          )
-        : new ConsoleSpanExporter();
+    const traceExporter = createTraceExporter(config, modules);
 
-    const resource = resourceFromAttributes({
-      [semconv.ATTR_SERVICE_NAME]: config.serviceName,
-      [semconv.ATTR_SERVICE_VERSION]: config.serviceVersion,
+    const resource = modules.resourceFromAttributes({
+      [modules.semconv.ATTR_SERVICE_NAME]: config.serviceName,
+      [modules.semconv.ATTR_SERVICE_VERSION]: config.serviceVersion,
       "deployment.environment.name": config.environment,
     });
 
-    const sdk = new NodeSDK({ resource, traceExporter });
+    const sdk = new modules.NodeSDK({ resource, traceExporter });
     sdk.start();
     log.info("tracing.started", {
       exporter: config.exporter,
@@ -76,7 +100,7 @@ export async function startTracing(): Promise<void> {
         .shutdown()
         .catch((err: unknown) =>
           log.warn("tracing.shutdown_failed", {
-            error: err instanceof Error ? err.message : String(err),
+            error: errorMessage(err),
           }),
         );
     };
@@ -86,7 +110,7 @@ export async function startTracing(): Promise<void> {
     // Never let a tracing init failure break the app.
     started = false;
     log.warn("tracing.init_failed", {
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
   }
 }

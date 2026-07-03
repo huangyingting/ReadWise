@@ -18,6 +18,88 @@ import {
 import CreateOrgForm from "@/components/teacher/CreateOrgForm";
 import CreateClassroomForm from "@/components/teacher/CreateClassroomForm";
 
+type OrganizationMembership = Awaited<
+  ReturnType<typeof listUserOrganizations>
+>[number];
+type TeacherClassroom = Awaited<
+  ReturnType<typeof listClassroomsForTeacher>
+>[number];
+type TeachableOrg = { id: string; name: string };
+
+function getTeachableOrgs(
+  memberships: OrganizationMembership[],
+): TeachableOrg[] {
+  return memberships
+    .filter((m) => hasOrgCapability(m, CAPABILITIES.classroomManage))
+    .map((m) => ({ id: m.org.id, name: m.org.name }));
+}
+
+function getOrgNameById(memberships: OrganizationMembership[]) {
+  return new Map(memberships.map((m) => [m.org.id, m.org.name]));
+}
+
+function ClassroomList({
+  classrooms,
+  orgNameById,
+}: {
+  classrooms: TeacherClassroom[];
+  orgNameById: Map<string, string>;
+}) {
+  return (
+    <ul className="flex flex-col gap-[var(--space-3)]">
+      {classrooms.map((c) => (
+        <li key={c.id}>
+          <Link href={`/teacher/classrooms/${c.id}`} className="block">
+            <Card className="transition-shadow hover:shadow-[var(--shadow-md)]">
+              <CardBody className="flex items-center justify-between gap-[var(--space-3)]">
+                <div>
+                  <p className="font-medium text-text">{c.name}</p>
+                  <p className="text-[length:var(--text-sm)] text-text-muted">
+                    {orgNameById.get(c.orgId) ?? "Organization"}
+                  </p>
+                </div>
+                <Badge variant="neutral">
+                  <Users aria-hidden className="size-3.5" /> Class
+                </Badge>
+              </CardBody>
+            </Card>
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TeacherSidebar({ teachableOrgs }: { teachableOrgs: TeachableOrg[] }) {
+  if (teachableOrgs.length > 0) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>New classroom</CardTitle>
+        </CardHeader>
+        <CardBody>
+          <CreateClassroomForm orgs={teachableOrgs} />
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Start an organization</CardTitle>
+      </CardHeader>
+      <CardBody className="flex flex-col gap-[var(--space-3)]">
+        <p className="text-[length:var(--text-sm)] text-text-muted">
+          Classrooms live inside an organization. Create one to become its admin
+          and start teaching.
+        </p>
+        <CreateOrgForm />
+      </CardBody>
+    </Card>
+  );
+}
+
 /**
  * Teacher workspace (RW-061). Lists the classrooms the signed-in user teaches
  * and lets them create new ones in any org where they hold `classroom.manage`.
@@ -33,11 +115,8 @@ export default async function TeacherPage() {
     listClassroomsForTeacher(userId),
   ]);
 
-  const teachableOrgs = memberships
-    .filter((m) => hasOrgCapability(m, CAPABILITIES.classroomManage))
-    .map((m) => ({ id: m.org.id, name: m.org.name }));
-
-  const orgNameById = new Map(memberships.map((m) => [m.org.id, m.org.name]));
+  const teachableOrgs = getTeachableOrgs(memberships);
+  const orgNameById = getOrgNameById(memberships);
 
   return (
     <PageShell>
@@ -55,54 +134,12 @@ export default async function TeacherPage() {
               description="Create a classroom to start assigning readings to your students."
             />
           ) : (
-            <ul className="flex flex-col gap-[var(--space-3)]">
-              {classrooms.map((c) => (
-                <li key={c.id}>
-                  <Link href={`/teacher/classrooms/${c.id}`} className="block">
-                    <Card className="transition-shadow hover:shadow-[var(--shadow-md)]">
-                      <CardBody className="flex items-center justify-between gap-[var(--space-3)]">
-                        <div>
-                          <p className="font-medium text-text">{c.name}</p>
-                          <p className="text-[length:var(--text-sm)] text-text-muted">
-                            {orgNameById.get(c.orgId) ?? "Organization"}
-                          </p>
-                        </div>
-                        <Badge variant="neutral">
-                          <Users aria-hidden className="size-3.5" /> Class
-                        </Badge>
-                      </CardBody>
-                    </Card>
-                  </Link>
-                </li>
-              ))}
-            </ul>
+            <ClassroomList classrooms={classrooms} orgNameById={orgNameById} />
           )}
         </Section>
 
         <aside className="flex flex-col gap-[var(--space-4)]">
-          {teachableOrgs.length > 0 ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>New classroom</CardTitle>
-              </CardHeader>
-              <CardBody>
-                <CreateClassroomForm orgs={teachableOrgs} />
-              </CardBody>
-            </Card>
-          ) : (
-            <Card>
-              <CardHeader>
-                <CardTitle>Start an organization</CardTitle>
-              </CardHeader>
-              <CardBody className="flex flex-col gap-[var(--space-3)]">
-                <p className="text-[length:var(--text-sm)] text-text-muted">
-                  Classrooms live inside an organization. Create one to become its
-                  admin and start teaching.
-                </p>
-                <CreateOrgForm />
-              </CardBody>
-            </Card>
-          )}
+          <TeacherSidebar teachableOrgs={teachableOrgs} />
         </aside>
       </div>
     </PageShell>

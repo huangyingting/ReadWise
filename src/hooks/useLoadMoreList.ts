@@ -71,6 +71,26 @@ export function deduplicateArticles(
   return [...prev, ...next.filter((a) => !seen.has(a.id))];
 }
 
+function useLatestRef<T>(value: T) {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}
+
+function normalisePage<TPage extends LoadMorePage>(
+  page: TPage,
+  fallbackOffset: number,
+) {
+  const nextArticles = page.articles ?? [];
+
+  return {
+    nextArticles,
+    nextProgress: page.progress ?? {},
+    nextOffset: page.offset ?? fallbackOffset + nextArticles.length,
+    nextHasMore: Boolean(page.hasMore),
+  };
+}
+
 export function useLoadMoreList<TPage extends LoadMorePage>({
   initialArticles,
   initialProgress,
@@ -94,12 +114,9 @@ export function useLoadMoreList<TPage extends LoadMorePage>({
 
   // Keep mutable refs so these don't need to be useCallback dependencies.
   // The async IIFE always reads .current at call time, never a stale closure.
-  const fetchPageRef = useRef(fetchPage);
-  fetchPageRef.current = fetchPage;
-  const onPageLoadedRef = useRef(onPageLoaded);
-  onPageLoadedRef.current = onPageLoaded;
-  const errorMessageRef = useRef(errorMessage);
-  errorMessageRef.current = errorMessage;
+  const fetchPageRef = useLatestRef(fetchPage);
+  const onPageLoadedRef = useLatestRef(onPageLoaded);
+  const errorMessageRef = useLatestRef(errorMessage);
 
   const loadMore = useCallback(() => {
     if (loadingRef.current || !hasMore) return;
@@ -110,12 +127,13 @@ export function useLoadMoreList<TPage extends LoadMorePage>({
     void (async () => {
       try {
         const page = await fetchPageRef.current(offset);
-        const next = page.articles ?? [];
-        setArticles((prev) => deduplicateArticles(prev, next));
-        setProgress((prev) => ({ ...prev, ...(page.progress ?? {}) }));
-        setOffset(page.offset ?? offset + next.length);
-        setHasMore(Boolean(page.hasMore));
-        onPageLoadedRef.current?.(page, next);
+        const { nextArticles, nextProgress, nextOffset, nextHasMore } =
+          normalisePage(page, offset);
+        setArticles((prev) => deduplicateArticles(prev, nextArticles));
+        setProgress((prev) => ({ ...prev, ...nextProgress }));
+        setOffset(nextOffset);
+        setHasMore(nextHasMore);
+        onPageLoadedRef.current?.(page, nextArticles);
       } catch {
         setLoadError(errorMessageRef.current);
       } finally {
@@ -123,9 +141,9 @@ export function useLoadMoreList<TPage extends LoadMorePage>({
         setLoading(false);
       }
     })();
-    // offset + hasMore are the only values captured inside the closure body
-    // that must be fresh on each call. All other deps go through refs.
-  }, [offset, hasMore]);
+    // offset + hasMore are the only non-ref values captured inside the closure
+    // body that must be fresh on each call.
+  }, [offset, hasMore, fetchPageRef, onPageLoadedRef, errorMessageRef]);
 
   return { articles, progress, hasMore, loading, loadError, loadMore };
 }

@@ -46,6 +46,17 @@ type MessageParams<K extends ParamKey> = MessageCatalog[K] extends (
   ? P
   : never;
 
+type MessageEntry = (params?: unknown) => string;
+
+function catalogEntry(key: MessageKey): MessageEntry | undefined {
+  const entry = en[key] as MessageEntry | undefined;
+  return typeof entry === "function" ? entry : undefined;
+}
+
+function hasParamsArgument(paramsOrLocale: unknown): boolean {
+  return paramsOrLocale !== undefined && typeof paramsOrLocale !== "string";
+}
+
 /**
  * Look up a UI message by key and return the formatted string.
  *
@@ -67,18 +78,17 @@ export function t<K extends ParamKey>(
   _locale?: string,
 ): string;
 export function t(key: MessageKey, paramsOrLocale?: unknown, _locale?: string): string {
-  const entry = en[key] as ((p?: unknown) => string) | undefined;
-  if (typeof entry === "function") {
-    try {
-      if (paramsOrLocale === undefined || typeof paramsOrLocale === "string") {
-        // Parameterless call — invoke with no arguments.
-        return (entry as () => string)();
-      }
-      // Parameterized call — pass the params record.
-      return (entry as (p: unknown) => string)(paramsOrLocale);
-    } catch {
-      return key;
+  const entry = catalogEntry(key);
+  if (!entry) return key;
+
+  try {
+    if (!hasParamsArgument(paramsOrLocale)) {
+      // Parameterless call — invoke with no arguments.
+      return (entry as () => string)();
     }
+    // Parameterized call — pass the params record.
+    return (entry as (p: unknown) => string)(paramsOrLocale);
+  } catch {
+    return key;
   }
-  return key;
 }

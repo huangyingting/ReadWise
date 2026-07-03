@@ -34,6 +34,21 @@ function titleCase(slug: string): string {
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
+function dominantWeightedComponent(
+  components: ScoreComponents,
+): keyof ScoreComponents {
+  let topKey: keyof ScoreComponents = "freshness";
+  let topVal = -Infinity;
+  for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
+    const weighted = components[key] * COMPONENT_WEIGHTS[key];
+    if (weighted > topVal) {
+      topVal = weighted;
+      topKey = key;
+    }
+  }
+  return topKey;
+}
+
 // ---------------------------------------------------------------------------
 // Public generators
 // ---------------------------------------------------------------------------
@@ -46,17 +61,7 @@ export function headlineReason(
   components: ScoreComponents,
   ctx: RecommendationContext,
 ): string {
-  let topKey: keyof ScoreComponents = "freshness";
-  let topVal = -Infinity;
-  for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
-    const weighted = components[key] * COMPONENT_WEIGHTS[key];
-    if (weighted > topVal) {
-      topVal = weighted;
-      topKey = key;
-    }
-  }
-
-  switch (topKey) {
+  switch (dominantWeightedComponent(components)) {
     case "topicInterest":
       return candidate.category
         ? `Matches your interest in ${titleCase(candidate.category)}`

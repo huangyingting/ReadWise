@@ -53,6 +53,18 @@ function normalizeOptionalId(value: string | null | undefined): string | null {
   return trimmed ? truncateStr(trimmed, MAX_ID_LEN) : null;
 }
 
+function normalizeEventType(type: AnalyticsEventInput["type"]): string {
+  return truncateStr(type || "unknown", MAX_TYPE_LEN);
+}
+
+function resolveUserId(inputUserId: string | null | undefined): string | null {
+  return (
+    normalizeOptionalId(inputUserId) ??
+    normalizeOptionalId(getRequestContext()?.userId) ??
+    null
+  );
+}
+
 /**
  * Persists one product analytics event (best-effort, metadata only). Never
  * throws — a write failure must never break the emitting user action. No-op
@@ -67,14 +79,10 @@ export async function recordEvent(
 ): Promise<void> {
   if (!analyticsEnabled()) return;
   try {
-    const userId =
-      normalizeOptionalId(input.userId) ??
-      normalizeOptionalId(getRequestContext()?.userId) ??
-      null;
     await client.analyticsEvent.create({
       data: {
-        type: truncateStr(input.type || "unknown", MAX_TYPE_LEN),
-        userId,
+        type: normalizeEventType(input.type),
+        userId: resolveUserId(input.userId),
         anonymousId: normalizeOptionalId(input.anonymousId),
         articleId: normalizeOptionalId(input.articleId),
         sessionId: normalizeOptionalId(input.sessionId),

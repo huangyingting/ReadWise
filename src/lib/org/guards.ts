@@ -45,6 +45,16 @@ export function isSystemAdmin(role: string | null | undefined): boolean {
   return roleHasCapability(role, CAPABILITIES.adminAccess);
 }
 
+async function loadOrgSession(orgId: string, callbackUrl: string): Promise<OrgSession> {
+  const session = await requireSession(callbackUrl);
+  const membership = await getMembership(session.user.id, orgId);
+  return { session, membership };
+}
+
+function hasSystemAdminBypass(session: Session): boolean {
+  return isSystemAdmin(session.user.role);
+}
+
 /**
  * Requires an authenticated session that is a member of `orgId` (or a system
  * admin). Non-members are redirected to `/forbidden`. Returns the session plus
@@ -54,14 +64,11 @@ export async function requireOrgMembership(
   orgId: string,
   callbackUrl: string,
 ): Promise<OrgSession> {
-  const session = await requireSession(callbackUrl);
-  if (isSystemAdmin(session.user.role)) {
-    const membership = await getMembership(session.user.id, orgId);
-    return { session, membership };
+  const orgSession = await loadOrgSession(orgId, callbackUrl);
+  if (!hasSystemAdminBypass(orgSession.session) && !orgSession.membership) {
+    redirect("/forbidden");
   }
-  const membership = await getMembership(session.user.id, orgId);
-  if (!membership) redirect("/forbidden");
-  return { session, membership };
+  return orgSession;
 }
 
 /**
@@ -73,14 +80,12 @@ export async function requireOrgCapability(
   capability: Capability,
   callbackUrl: string,
 ): Promise<OrgSession> {
-  const session = await requireSession(callbackUrl);
-  if (isSystemAdmin(session.user.role)) {
-    const membership = await getMembership(session.user.id, orgId);
-    return { session, membership };
+  const orgSession = await loadOrgSession(orgId, callbackUrl);
+  if (hasSystemAdminBypass(orgSession.session)) {
+    return orgSession;
   }
-  const membership = await getMembership(session.user.id, orgId);
-  if (!hasOrgCapability(membership, capability)) redirect("/forbidden");
-  return { session, membership };
+  if (!hasOrgCapability(orgSession.membership, capability)) redirect("/forbidden");
+  return orgSession;
 }
 
 /** Requires the session to administer `orgId` (OrgAdmin or system admin). */

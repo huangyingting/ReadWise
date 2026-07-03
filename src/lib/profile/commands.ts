@@ -9,6 +9,31 @@ import { getProfile } from "@/lib/profile/repository";
 import type { ProfileInput } from "@/lib/profile/schema";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 
+function baseProfileData(input: ProfileInput) {
+  return {
+    ageRange: input.ageRange,
+    gender: input.gender,
+    englishLevel: input.englishLevel,
+    topics: input.topics,
+    ...(input.dailyGoal !== undefined ? { dailyGoal: input.dailyGoal } : {}),
+  };
+}
+
+function updateProfileData(input: ProfileInput, levelChanged: boolean) {
+  return {
+    ...baseProfileData(input),
+    ...(input.goalPath !== undefined ? { goalPath: input.goalPath } : {}),
+    ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
+  };
+}
+
+function onboardingProfileData(input: ProfileInput) {
+  return {
+    ...baseProfileData(input),
+    completedAt: new Date(),
+  };
+}
+
 /**
  * Upserts a user's profile with a potential level-history record.
  *
@@ -21,15 +46,7 @@ export async function updateProfile(userId: string, input: ProfileInput): Promis
   const goalPathChanged =
     input.goalPath !== undefined && input.goalPath !== (existing?.goalPath ?? null);
 
-  const data = {
-    ageRange: input.ageRange,
-    gender: input.gender,
-    englishLevel: input.englishLevel,
-    topics: input.topics,
-    ...(input.dailyGoal !== undefined ? { dailyGoal: input.dailyGoal } : {}),
-    ...(input.goalPath !== undefined ? { goalPath: input.goalPath } : {}),
-    ...(levelChanged ? { levelUpdatedAt: new Date() } : {}),
-  };
+  const data = updateProfileData(input, levelChanged);
 
   await prisma.$transaction(async (tx) => {
     await tx.profile.upsert({
@@ -60,14 +77,7 @@ export async function updateProfile(userId: string, input: ProfileInput): Promis
  * (and on update, to handle re-submissions from the onboarding flow).
  */
 export async function completeOnboarding(userId: string, input: ProfileInput): Promise<void> {
-  const data = {
-    ageRange: input.ageRange,
-    gender: input.gender,
-    englishLevel: input.englishLevel,
-    topics: input.topics,
-    completedAt: new Date(),
-    ...(input.dailyGoal !== undefined ? { dailyGoal: input.dailyGoal } : {}),
-  };
+  const data = onboardingProfileData(input);
   await prisma.profile.upsert({
     where: { userId },
     create: { userId, ...data },

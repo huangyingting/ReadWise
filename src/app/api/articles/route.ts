@@ -9,11 +9,10 @@ import {
   type ListingArticle,
 } from "@/lib/article-library";
 import { listScoredPicksPage } from "@/lib/recommendations";
-import { ENGLISH_LEVELS } from "@/lib/option-registries";
 import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
 import { isValidCategorySlug } from "@/lib/categories";
-import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
+import { isDifficultyLevel, type EnglishLevel } from "@/lib/leveling/cefr-primitives";
 
 const MAX_LIMIT = 24;
 
@@ -40,6 +39,53 @@ function parseQuery(params: URLSearchParams) {
   return { ok: true as const, value };
 }
 
+type ArticleListPage = {
+  articles: ListingArticle[];
+  hasMore: boolean;
+};
+
+type PageRequest = Pick<ArticlesQuery, "offset" | "limit">;
+
+function parseLevelParam(levelParam: string): EnglishLevel | null {
+  return isDifficultyLevel(levelParam) ? levelParam : null;
+}
+
+function parseCategoryParam(categoryParam: string): string | null {
+  return categoryParam && categoryParam !== "all" && isValidCategorySlug(categoryParam)
+    ? categoryParam
+    : null;
+}
+
+async function listPicksArticles(
+  userId: string,
+  urlLevel: EnglishLevel | null,
+  page: PageRequest,
+): Promise<ArticleListPage> {
+  const profile = await getProfile(userId);
+  const profileLevel = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
+  const picks = await listScoredPicksPage(userId, {
+    maxLevel: urlLevel ?? profileLevel,
+    topics: parseTopics(profile?.topics),
+    offset: page.offset,
+    limit: page.limit,
+  });
+  return { articles: picks.articles, hasMore: picks.hasMore };
+}
+
+async function listBrowseArticles(
+  categoryParam: string,
+  urlLevel: EnglishLevel | null,
+  pageRequest: PageRequest,
+): Promise<ArticleListPage> {
+  const category = parseCategoryParam(categoryParam);
+  const page = await listCategoryPage(category, {
+    offset: pageRequest.offset,
+    limit: pageRequest.limit,
+    maxLevel: urlLevel,
+  });
+  return { articles: page.articles.map(toListingArticle), hasMore: page.hasMore };
+}
+
 /**
  * Paginated listing feed for the browse homepage. Query params:
  *   - `view`     : "picks" for the personalized view (overrides `category`).
@@ -52,38 +98,16 @@ function parseQuery(params: URLSearchParams) {
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
   const { view, category: categoryParam, level: levelParam, offset, limit } = query;
 
-  // Validate the level param against known CEFR levels.
-  const urlLevel =
-    levelParam && (ENGLISH_LEVELS as readonly string[]).includes(levelParam)
-      ? (levelParam as (typeof ENGLISH_LEVELS)[number])
-      : null;
-
-  let articles: ListingArticle[];
-  let hasMore: boolean;
-  if (view === "picks") {
-    const profile = await getProfile(session.user.id);
-    const profileLevel = isDifficultyLevel(profile?.englishLevel) ? profile.englishLevel : null;
-    const maxLevel = urlLevel ?? profileLevel;
-    const topics = parseTopics(profile?.topics);
-    const picks = await listScoredPicksPage(session.user.id, {
-      maxLevel,
-      topics,
-      offset,
-      limit,
-    });
-    articles = picks.articles;
-    hasMore = picks.hasMore;
-  } else {
-    const category =
-      categoryParam && categoryParam !== "all" && isValidCategorySlug(categoryParam)
-        ? categoryParam
-        : null;
-    const page = await listCategoryPage(category, { offset, limit, maxLevel: urlLevel });
-    articles = page.articles.map(toListingArticle);
-    hasMore = page.hasMore;
-  }
+  const urlLevel = parseLevelParam(levelParam);
+  const page =
+    view === "picks"
+      ? await listPicksArticles(session.user.id, urlLevel, { offset, limit })
+      : await listBrowseArticles(categoryParam, urlLevel, { offset, limit });
 
   return NextResponse.json(
-    await buildArticleListResponse(session.user.id, articles, { offset, hasMore })
+    await buildArticleListResponse(session.user.id, page.articles, {
+      offset,
+      hasMore: page.hasMore,
+    })
   );
 });

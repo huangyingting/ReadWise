@@ -15,6 +15,17 @@ import { ArticleVisibility, TagScope, type Article } from "@prisma/client";
 /** Storage namespace string used for all globally-public tags. */
 export const PUBLIC_NAMESPACE = "public";
 
+const UNKNOWN_NAMESPACE_ID = "unknown";
+const PRIVATE_NAMESPACE_PREFIX = "user";
+const ORG_NAMESPACE_PREFIX = "org";
+const DIACRITIC_MARKS_RE = /[\u0300-\u036f]/g;
+const NON_SLUG_CHARS_RE = /[^a-z0-9]+/g;
+const EDGE_HYPHENS_RE = /^-+|-+$/g;
+
+function scopedNamespace(prefix: string, id?: string | null): string {
+  return `${prefix}:${id ?? UNKNOWN_NAMESPACE_ID}`;
+}
+
 /**
  * Converts a free-form tag name into a URL-safe slug. Lowercases, strips
  * accents/punctuation, and collapses whitespace to single hyphens.
@@ -22,11 +33,11 @@ export const PUBLIC_NAMESPACE = "public";
 export function slugifyTag(name: string): string {
   return name
     .normalize("NFKD")
-    .replace(/[\u0300-\u036f]/g, "")
+    .replace(DIACRITIC_MARKS_RE, "")
     .toLowerCase()
     .replace(/&/g, " and ")
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
+    .replace(NON_SLUG_CHARS_RE, "-")
+    .replace(EDGE_HYPHENS_RE, "");
 }
 
 /**
@@ -42,8 +53,8 @@ export function namespaceFor(
   ownerId?: string | null,
   orgId?: string | null,
 ): string {
-  if (scope === TagScope.PRIVATE) return `user:${ownerId ?? "unknown"}`;
-  if (scope === TagScope.ORG) return `org:${orgId ?? "unknown"}`;
+  if (scope === TagScope.PRIVATE) return scopedNamespace(PRIVATE_NAMESPACE_PREFIX, ownerId);
+  if (scope === TagScope.ORG) return scopedNamespace(ORG_NAMESPACE_PREFIX, orgId);
   return PUBLIC_NAMESPACE;
 }
 
@@ -53,6 +64,18 @@ export type TagScopeInfo = {
   ownerId: string | null;
   namespace: string;
 };
+
+function privateTagScopeInfo(ownerId: string | null): TagScopeInfo {
+  return {
+    scope: TagScope.PRIVATE,
+    ownerId,
+    namespace: namespaceFor(TagScope.PRIVATE, ownerId),
+  };
+}
+
+function publicTagScopeInfo(): TagScopeInfo {
+  return { scope: TagScope.PUBLIC, ownerId: null, namespace: PUBLIC_NAMESPACE };
+}
 
 /**
  * Derives the tag scope, owner, and namespace for an article based on its
@@ -68,11 +91,7 @@ export function tagScopeForArticle(
   article: Pick<Article, "visibility" | "ownerId">,
 ): TagScopeInfo {
   if (article.visibility === ArticleVisibility.PRIVATE) {
-    return {
-      scope: TagScope.PRIVATE,
-      ownerId: article.ownerId,
-      namespace: namespaceFor(TagScope.PRIVATE, article.ownerId),
-    };
+    return privateTagScopeInfo(article.ownerId);
   }
-  return { scope: TagScope.PUBLIC, ownerId: null, namespace: PUBLIC_NAMESPACE };
+  return publicTagScopeInfo();
 }

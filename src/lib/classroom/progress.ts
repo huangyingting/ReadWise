@@ -31,6 +31,51 @@ export type ClassroomProgressData = {
   completions: ClassroomProgressCompletion[];
 };
 
+type ClassroomMemberRow = {
+  userId: string;
+  user: { name: string | null; email: string | null };
+};
+
+type ClassroomAssignmentRow = {
+  id: string;
+  articleId: string;
+  article: { title: string };
+  dueDate: Date | null;
+  createdAt: Date;
+};
+
+function toProgressStudent(member: ClassroomMemberRow): ClassroomProgressStudent {
+  return {
+    userId: member.userId,
+    name: member.user.name,
+    email: member.user.email,
+  };
+}
+
+function toProgressAssignment(
+  assignment: ClassroomAssignmentRow,
+): ClassroomProgressAssignment {
+  return {
+    id: assignment.id,
+    articleId: assignment.articleId,
+    articleTitle: assignment.article.title,
+    dueDate: assignment.dueDate,
+    createdAt: assignment.createdAt,
+  };
+}
+
+function toProgressCompletion(
+  completion: ClassroomProgressCompletion,
+): ClassroomProgressCompletion {
+  return {
+    assignmentId: completion.assignmentId,
+    studentId: completion.studentId,
+    status: completion.status,
+    quizScore: completion.quizScore,
+    completedAt: completion.completedAt,
+  };
+}
+
 /**
  * Fetches the raw matrix the class-progress / analytics layer aggregates over:
  * the roster's STUDENTS, the classroom's assignments, and every student
@@ -69,24 +114,8 @@ export async function getClassroomProgressData(
 
   return {
     classroom,
-    students: memberRows.map((m) => ({
-      userId: m.userId,
-      name: m.user.name,
-      email: m.user.email,
-    })),
-    assignments: assignmentRows.map((a) => ({
-      id: a.id,
-      articleId: a.articleId,
-      articleTitle: a.article.title,
-      dueDate: a.dueDate,
-      createdAt: a.createdAt,
-    })),
-    completions: completionRows.map((c) => ({
-      assignmentId: c.assignmentId,
-      studentId: c.studentId,
-      status: c.status,
-      quizScore: c.quizScore,
-      completedAt: c.completedAt,
-    })),
+    students: memberRows.map(toProgressStudent),
+    assignments: assignmentRows.map(toProgressAssignment),
+    completions: completionRows.map(toProgressCompletion),
   };
 }

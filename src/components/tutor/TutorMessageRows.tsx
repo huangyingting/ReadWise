@@ -14,17 +14,39 @@ import { formatRelative } from "@/lib/format-relative";
 import { TutorMarkdownRenderer } from "@/components/tutor/TutorMarkdownRenderer";
 import type { TutorMessage } from "@/components/tutor/useTutorConversation";
 
+const TYPING_DOT_DELAYS = ["0ms", "160ms", "320ms"] as const;
+
+function TutorAvatar() {
+  return (
+    <span className="rw-tutor-avatar" aria-hidden="true">
+      <Sparkles size={14} />
+    </span>
+  );
+}
+
+function MessageTime({ createdAt }: { createdAt?: string | null }) {
+  if (!createdAt) return null;
+
+  return (
+    <span className="rw-tutor-msg-time" title={createdAt}>
+      {formatRelative(createdAt)}
+    </span>
+  );
+}
+
+type TutorUnavailableProps = {
+  content: string;
+  isError?: boolean;
+  onRetry?: () => void;
+};
+
 /** Persisted message bubble — user (indigo, right-aligned) or assistant (un-tinted). */
 export function TutorMsgRow({ msg }: { msg: TutorMessage }) {
   if (msg.role === "user") {
     return (
       <div className="rw-tutor-msg rw-tutor-msg--user rw-fade-up">
         <div className="rw-tutor-bubble-user">{msg.content}</div>
-        {msg.createdAt ? (
-          <span className="rw-tutor-msg-time" title={msg.createdAt}>
-            {formatRelative(msg.createdAt)}
-          </span>
-        ) : null}
+        <MessageTime createdAt={msg.createdAt} />
       </div>
     );
   }
@@ -37,16 +59,10 @@ export function TutorMsgRow({ msg }: { msg: TutorMessage }) {
       data-role="assistant"
     >
       <div className="rw-tutor-msg-header">
-        <span className="rw-tutor-avatar" aria-hidden="true">
-          <Sparkles size={14} />
-        </span>
+        <TutorAvatar />
       </div>
       <TutorMarkdownRenderer content={msg.content} />
-      {msg.createdAt ? (
-        <span className="rw-tutor-msg-time" title={msg.createdAt}>
-          {formatRelative(msg.createdAt)}
-        </span>
-      ) : null}
+      <MessageTime createdAt={msg.createdAt} />
     </div>
   );
 }
@@ -59,13 +75,15 @@ export function TutorThinking() {
       role="status"
       aria-label="Tutor is thinking"
     >
-      <span className="rw-tutor-avatar" aria-hidden="true">
-        <Sparkles size={14} />
-      </span>
+      <TutorAvatar />
       <div className="rw-tutor-dots" aria-hidden="true">
-        <span className="rw-tutor-dot" style={{ animationDelay: "0ms" }} />
-        <span className="rw-tutor-dot" style={{ animationDelay: "160ms" }} />
-        <span className="rw-tutor-dot" style={{ animationDelay: "320ms" }} />
+        {TYPING_DOT_DELAYS.map((delay) => (
+          <span
+            key={delay}
+            className="rw-tutor-dot"
+            style={{ animationDelay: delay }}
+          />
+        ))}
       </div>
       <span className="rw-tutor-thinking-label">Thinking…</span>
     </div>
@@ -77,11 +95,7 @@ export function TutorUnavailable({
   content,
   isError = false,
   onRetry,
-}: {
-  content: string;
-  isError?: boolean;
-  onRetry?: () => void;
-}) {
+}: TutorUnavailableProps) {
   return (
     <div
       className="rw-tutor-msg rw-tutor-msg--assistant rw-fade-up"

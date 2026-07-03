@@ -5,6 +5,33 @@ import type { RefObject } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { extractContextSentence } from "./selectionHelpers";
 
+const SAVE_ENDPOINT = "/api/vocabulary/save";
+const UNSAVE_ENDPOINT = "/api/vocabulary/unsave";
+const DEFAULT_SAVE_ERROR = "Could not update study list";
+
+function cacheKey(word: string) {
+  return word.toLowerCase();
+}
+
+function applyDefinitionDetails(
+  body: Record<string, unknown>,
+  result: DictionaryResult | null,
+) {
+  const firstMeaning = result?.found ? result.meanings[0] : null;
+  const firstDefinition = firstMeaning?.definitions[0];
+
+  if (firstMeaning && firstDefinition?.definition) {
+    body.explanation = `(${firstMeaning.partOfSpeech}) ${firstDefinition.definition}`;
+  }
+  if (firstDefinition?.example) {
+    body.example = firstDefinition.example;
+  }
+}
+
+function getUpdateError(err: unknown) {
+  return err instanceof Error ? err.message : DEFAULT_SAVE_ERROR;
+}
+
 /**
  * Manages the save/unsave vocabulary state for the dictionary popover.
  *
@@ -30,7 +57,7 @@ export function useSaveWord(
   const openForWord = useCallback(
     (candidate: string) => {
       setSaveError(null);
-      const cached = savedCacheRef.current.get(candidate.toLowerCase());
+      const cached = savedCacheRef.current.get(cacheKey(candidate));
       setWordSaved(cached ?? false);
     },
     [],
@@ -51,21 +78,14 @@ export function useSaveWord(
     const isSaved = wordSaved;
     // Optimistic update
     setWordSaved(!isSaved);
-    savedCacheRef.current.set(word.toLowerCase(), !isSaved);
+    savedCacheRef.current.set(cacheKey(word), !isSaved);
 
     try {
-      const endpoint = isSaved ? "/api/vocabulary/unsave" : "/api/vocabulary/save";
+      const endpoint = isSaved ? UNSAVE_ENDPOINT : SAVE_ENDPOINT;
       const body: Record<string, unknown> = { word };
 
       if (!isSaved) {
-        const firstMeaning = result?.found ? result.meanings[0] : null;
-        const firstDef = firstMeaning?.definitions[0];
-        if (firstDef?.definition) {
-          body.explanation = `(${firstMeaning!.partOfSpeech}) ${firstDef.definition}`;
-        }
-        if (firstDef?.example) {
-          body.example = firstDef.example;
-        }
+        applyDefinitionDetails(body, result);
         const prose = proseRef.current;
         if (prose) {
           const ctx = extractContextSentence(prose, word);
@@ -86,10 +106,8 @@ export function useSaveWord(
     } catch (err) {
       // Revert on error
       setWordSaved(isSaved);
-      savedCacheRef.current.set(word.toLowerCase(), isSaved);
-      setSaveError(
-        err instanceof Error ? err.message : "Could not update study list",
-      );
+      savedCacheRef.current.set(cacheKey(word), isSaved);
+      setSaveError(getUpdateError(err));
     } finally {
       setSavePending(false);
     }

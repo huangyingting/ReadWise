@@ -17,6 +17,13 @@
 export const CEFR_LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
 export type CefrLevel = (typeof CEFR_LEVELS)[number];
 
+function isRegistryValue<T extends string>(
+  values: readonly T[],
+  value: unknown,
+): value is T {
+  return typeof value === "string" && (values as readonly string[]).includes(value);
+}
+
 /** Human-readable label for each CEFR level (e.g. "B1 · Intermediate"). */
 export const LEVEL_HINTS: Record<string, string> = {
   A1: "A1 · Beginner",
@@ -28,7 +35,7 @@ export const LEVEL_HINTS: Record<string, string> = {
 };
 
 export function isCefrLevel(value: unknown): value is CefrLevel {
-  return typeof value === "string" && (CEFR_LEVELS as readonly string[]).includes(value);
+  return isRegistryValue(CEFR_LEVELS, value);
 }
 
 // ENGLISH_LEVELS is the same CEFR scale used in reader profiles.
@@ -67,6 +74,7 @@ export const DAILY_GOAL_DEFAULT = 2;
 // ---------------------------------------------------------------------------
 
 export type FrequencyTier = "top1k" | "top5k" | "academic";
+const FREQUENCY_TIERS: readonly FrequencyTier[] = ["top1k", "top5k", "academic"];
 
 /** Human-readable label for a frequency tier. */
 export const TIER_LABELS: Record<FrequencyTier, string> = {
@@ -83,5 +91,5 @@ export const TIER_VARIANTS: Record<FrequencyTier, "success" | "primary" | "warni
 };
 
 export function isFrequencyTier(value: unknown): value is FrequencyTier {
-  return value === "top1k" || value === "top5k" || value === "academic";
+  return isRegistryValue(FREQUENCY_TIERS, value);
 }

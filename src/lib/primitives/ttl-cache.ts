@@ -36,6 +36,15 @@ export class TtlCache<K, V> {
     this.maxSize = opts.maxSize ?? Infinity;
   }
 
+  private isExpired(entry: Entry<V>, now: number): boolean {
+    return now >= entry.expiresAt;
+  }
+
+  private evictOldest(): void {
+    const oldest = this.store.keys().next().value as K | undefined;
+    if (oldest !== undefined) this.store.delete(oldest);
+  }
+
   /**
    * Returns the cached value for `key` if it exists and has not expired.
    * Stale entries are lazily deleted on access.
@@ -43,7 +52,7 @@ export class TtlCache<K, V> {
   get(key: K, now = Date.now()): V | undefined {
     const entry = this.store.get(key);
     if (!entry) return undefined;
-    if (now >= entry.expiresAt) {
+    if (this.isExpired(entry, now)) {
       this.store.delete(key);
       return undefined;
     }
@@ -60,8 +69,7 @@ export class TtlCache<K, V> {
     if (this.store.has(key)) {
       this.store.delete(key);
     } else if (this.store.size >= this.maxSize) {
-      const oldest = this.store.keys().next().value as K | undefined;
-      if (oldest !== undefined) this.store.delete(oldest);
+      this.evictOldest();
     }
     this.store.set(key, { value, expiresAt: now + this.ttlMs });
   }

@@ -18,6 +18,8 @@
 import { prisma } from "@/lib/prisma";
 import { dateKey } from "../time";
 
+const DEFAULT_TIMEZONE = "UTC";
+
 /**
  * True when `tz` is a usable IANA timezone string. Invalid or empty strings
  * (and non-strings) return false so callers can fall through the chain.
@@ -44,7 +46,7 @@ export function resolveTimezone(
 ): string {
   if (isValidTimezone(profileTimezone)) return profileTimezone;
   if (isValidTimezone(requestTimezone)) return requestTimezone;
-  return "UTC";
+  return DEFAULT_TIMEZONE;
 }
 
 /** Resolved local-date anchor for a Today session. */
@@ -54,6 +56,14 @@ export type LocalDateResolution = {
   /** The IANA timezone actually used (already validated). */
   timezone: string;
 };
+
+async function loadProfileTimezone(userId: string): Promise<string | null> {
+  const profile = await prisma.profile.findUnique({
+    where: { userId },
+    select: { timezone: true },
+  });
+  return profile?.timezone ?? null;
+}
 
 /**
  * Compute the learner's local date + the timezone snapshot used to derive it.
@@ -68,11 +78,6 @@ export async function resolveLocalDate(args: {
 }): Promise<LocalDateResolution> {
   const { userId, requestTimezone, now = new Date() } = args;
 
-  const profile = await prisma.profile.findUnique({
-    where: { userId },
-    select: { timezone: true },
-  });
-
-  const timezone = resolveTimezone(profile?.timezone ?? null, requestTimezone);
+  const timezone = resolveTimezone(await loadProfileTimezone(userId), requestTimezone);
   return { localDate: dateKey(now, timezone), timezone };
 }
