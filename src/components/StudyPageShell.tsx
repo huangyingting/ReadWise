@@ -13,6 +13,22 @@ interface StudyPageShellProps {
   initialDueCount: number;
 }
 
+function getSavedWordsLabel(wordCount: number): string {
+  return `${wordCount} saved ${wordCount === 1 ? "word" : "words"}`;
+}
+
+function VocabularyJournalLink() {
+  return (
+    <Link
+      href="/study/words"
+      className={`${buttonVariants({ variant: "ghost", size: "sm" })} inline-flex items-center gap-[var(--space-1)]`}
+    >
+      <BookOpen size={15} aria-hidden />
+      Vocabulary journal
+    </Link>
+  );
+}
+
 /**
  * Client coordinator for the study page.
  *
@@ -42,16 +58,10 @@ export default function StudyPageShell({
       >
         <Toolbar className="mb-[var(--space-4)]">
           <p className="text-text-muted text-[length:var(--text-sm)] m-0">
-            {words.length} saved {words.length === 1 ? "word" : "words"}
+            {getSavedWordsLabel(words.length)}
           </p>
           <div className="flex items-center gap-[var(--space-2)] flex-wrap">
-            <Link
-              href="/study/words"
-              className={buttonVariants({ variant: "ghost", size: "sm" }) + " inline-flex items-center gap-[var(--space-1)]"}
-            >
-              <BookOpen size={15} aria-hidden />
-              Vocabulary journal
-            </Link>
+            <VocabularyJournalLink />
             {words.length > 0 && <VocabularyExportButtons />}
           </div>
         </Toolbar>

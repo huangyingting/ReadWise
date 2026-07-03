@@ -1,5 +1,11 @@
+import { Fragment } from "react";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import { Wordmark } from "./Wordmark";
+
+const LEGAL_LINKS = [
+  { label: "Privacy", href: "#" },
+  { label: "Terms", href: "#" },
+];
 
 /**
  * Lightweight marketing footer — distinct from the M2 app shell footer. Brand
@@ -12,13 +18,14 @@ export function MarketingFooter() {
         <Wordmark />
 
         <nav className="flex items-center gap-[var(--space-4)]" aria-label="Legal">
-          <a href="#" className="text-text-subtle hover:text-primary-text">
-            Privacy
-          </a>
-          <span aria-hidden="true">·</span>
-          <a href="#" className="text-text-subtle hover:text-primary-text">
-            Terms
-          </a>
+          {LEGAL_LINKS.map(({ label, href }, index) => (
+            <Fragment key={label}>
+              {index > 0 && <span aria-hidden="true">·</span>}
+              <a href={href} className="text-text-subtle hover:text-primary-text">
+                {label}
+              </a>
+            </Fragment>
+          ))}
         </nav>
 
         <div className="flex items-center gap-[var(--space-4)]">

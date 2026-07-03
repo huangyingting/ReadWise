@@ -25,6 +25,14 @@ let feedbackRows: { vote: string }[] = [
   { vote: "just_right" },
 ];
 
+type FeedbackDistribution = {
+  vote: string;
+  tooEasy: number;
+  justRight: number;
+  tooHard: number;
+  total: number;
+};
+
 // ---- mocks ----------------------------------------------------------------
 
 before(() => {
@@ -78,13 +86,18 @@ beforeEach(() => {
 // ---- helpers ---------------------------------------------------------------
 
 async function POST(body: unknown, id = "a1") {
-  const { POST: handler } = (await import(
-    "@/app/api/reader/[id]/difficulty-feedback/route"
-  )) as { POST: RouteHandler };
+  const { POST: handler } = (await import("@/app/api/reader/[id]/difficulty-feedback/route")) as {
+    POST: RouteHandler;
+  };
   return handler(
     jsonPost("http://localhost/api/reader/a1/difficulty-feedback", body),
     withParams({ id }),
   );
+}
+
+async function postJson<T>(body: unknown, id?: string): Promise<{ res: Response; body: T }> {
+  const res = await POST(body, id);
+  return { res, body: (await res.json()) as T };
 }
 
 // ---- tests ----------------------------------------------------------------
@@ -112,15 +125,8 @@ test("returns 400 when vote is missing", async () => {
 });
 
 test("upserts vote and returns aggregate distribution", async () => {
-  const res = await POST({ vote: "just_right" });
+  const { res, body } = await postJson<FeedbackDistribution>({ vote: "just_right" });
   assert.equal(res.status, 200);
-  const body = (await res.json()) as {
-    vote: string;
-    tooEasy: number;
-    justRight: number;
-    tooHard: number;
-    total: number;
-  };
   assert.equal(body.vote, "just_right");
   assert.equal(body.tooEasy, 1);
   assert.equal(body.justRight, 2);
@@ -130,17 +136,15 @@ test("upserts vote and returns aggregate distribution", async () => {
 });
 
 test("upserts with too_easy vote", async () => {
-  const res = await POST({ vote: "too_easy" });
+  const { res, body } = await postJson<{ vote: string }>({ vote: "too_easy" });
   assert.equal(res.status, 200);
-  const body = (await res.json()) as { vote: string };
   assert.equal(body.vote, "too_easy");
 });
 
 test("upserts with too_hard vote", async () => {
   feedbackRows = [{ vote: "too_hard" }];
-  const res = await POST({ vote: "too_hard" });
+  const { res, body } = await postJson<{ tooHard: number; total: number }>({ vote: "too_hard" });
   assert.equal(res.status, 200);
-  const body = (await res.json()) as { tooHard: number; total: number };
   assert.equal(body.tooHard, 1);
   assert.equal(body.total, 1);
 });

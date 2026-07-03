@@ -6,6 +6,13 @@ import BottomTabBar from "./BottomTabBar";
 import CommandPaletteProvider from "@/components/command/CommandPaletteProvider";
 import type { ShellUser } from "./types";
 
+const MAIN_CONTENT_ID = "main-content";
+
+interface AppShellProps {
+  user: ShellUser | null;
+  children: ReactNode;
+}
+
 /**
  * Global app shell: full-width sticky header on top, then a row below with the
  * collapsible left sidebar (md+) and the main content column on the right, plus
@@ -18,22 +25,19 @@ import type { ShellUser } from "./types";
 export default function AppShell({
   user,
   children,
-}: {
-  user: ShellUser | null;
-  children: ReactNode;
-}) {
+}: AppShellProps) {
   return (
     <CommandPaletteProvider user={user}>
       <div className="flex min-h-screen flex-col">
         {/* Skip link — first focusable element, visible on focus (WCAG 2.4.1). */}
-        <a href="#main-content" className="skip-link">
+        <a href={`#${MAIN_CONTENT_ID}`} className="skip-link">
           Skip to main content
         </a>
         <AppHeader user={user} />
         <div className="flex flex-1 flex-row">
           {user ? <AppSidebar user={user} /> : null}
           <div className="flex min-w-0 flex-1 flex-col pb-[var(--bottom-bar-h)] md:pb-0">
-            <main id="main-content" className="flex-1" tabIndex={-1}>
+            <main id={MAIN_CONTENT_ID} className="flex-1" tabIndex={-1}>
               {children}
             </main>
             <AppFooter />

@@ -1,6 +1,9 @@
 import Link from "next/link";
 import { cn } from "@/lib/cn";
 
+const HOME_LABEL = "ReadWise home";
+const WORDMARK_TEXT = "ReadWise";
+
 /**
  * ReadWise brand wordmark: an inline diamond glyph (no image asset) plus the
  * Space Grotesk logotype. Links home and is reused by the marketing header and
@@ -10,7 +13,7 @@ export function Wordmark({ className }: { className?: string }) {
   return (
     <Link
       href="/"
-      aria-label="ReadWise home"
+      aria-label={HOME_LABEL}
       className={cn(
         "inline-flex items-center gap-[var(--space-2)] no-underline",
         className,
@@ -31,7 +34,7 @@ export function Wordmark({ className }: { className?: string }) {
         <path d="M8 4.5v7" />
       </svg>
       <span className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-xl)] text-text">
-        ReadWise
+        {WORDMARK_TEXT}
       </span>
     </Link>
   );

@@ -24,6 +24,12 @@ let wordCount: number | null; // Article.wordCount
 let feedbackVote: string | null; // ArticleDifficultyFeedback.vote
 
 const keyOf = (userId: string, articleId: string) => `${userId}::${articleId}`;
+const expectClose = (actual: number, expected: number, message?: string) =>
+  assert.ok(Math.abs(actual - expected) < 1e-9, message ?? `${actual} ~= ${expected}`);
+
+async function masteryLib() {
+  return import("@/lib/learning/article-mastery");
+}
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -92,29 +98,29 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("computeComprehensionScore: reading alone is capped (no quiz)", async () => {
-  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
+  const { computeComprehensionScore } = await masteryLib();
   const full = computeComprehensionScore({
     readingCompletion: 1,
     quizScore: null,
     lookupDensity: null,
     difficultyFeedback: null,
   });
-  assert.ok(Math.abs(full - 0.6) < 1e-9, `completed read without quiz → 0.6 (${full})`);
+  expectClose(full, 0.6, `completed read without quiz → 0.6 (${full})`);
 });
 
 test("computeComprehensionScore: a quiz is the strongest comprehension signal", async () => {
-  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
+  const { computeComprehensionScore } = await masteryLib();
   const pass = computeComprehensionScore({
     readingCompletion: 1,
     quizScore: 0.9,
     lookupDensity: null,
     difficultyFeedback: null,
   });
-  assert.ok(Math.abs(pass - 0.95) < 1e-9, `0.5*1 + 0.5*0.9 = 0.95 (${pass})`);
+  expectClose(pass, 0.95, `0.5*1 + 0.5*0.9 = 0.95 (${pass})`);
 });
 
 test("computeComprehensionScore: too_hard lowers, too_easy raises", async () => {
-  const { computeComprehensionScore } = await import("@/lib/learning/article-mastery");
+  const { computeComprehensionScore } = await masteryLib();
   const base = { readingCompletion: 1, quizScore: 0.8, lookupDensity: null };
   const neutral = computeComprehensionScore({ ...base, difficultyFeedback: null });
   const hard = computeComprehensionScore({ ...base, difficultyFeedback: "too_hard" });
@@ -128,27 +134,27 @@ test("computeComprehensionScore: too_hard lowers, too_easy raises", async () => 
 // ---------------------------------------------------------------------------
 
 test("partial read without a quiz yields a low comprehension score", async () => {
-  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { updateArticleMastery } = await masteryLib();
   progressPercent = 40;
   const rec = await updateArticleMastery("u1", "a1");
-  assert.ok(Math.abs(rec!.readingCompletion - 0.4) < 1e-9);
+  expectClose(rec!.readingCompletion, 0.4);
   assert.equal(rec!.quizScore, null);
-  assert.ok(Math.abs(rec!.comprehensionScore - 0.24) < 1e-9, `0.4*0.6 = 0.24 (${rec!.comprehensionScore})`);
+  expectClose(rec!.comprehensionScore, 0.24, `0.4*0.6 = 0.24 (${rec!.comprehensionScore})`);
 });
 
 test("completed read without a quiz reaches the reading-only ceiling", async () => {
-  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { updateArticleMastery } = await masteryLib();
   progressPercent = 100;
   const rec = await updateArticleMastery("u1", "a1");
-  assert.ok(Math.abs(rec!.comprehensionScore - 0.6) < 1e-9, `(${rec!.comprehensionScore})`);
+  expectClose(rec!.comprehensionScore, 0.6, `(${rec!.comprehensionScore})`);
 });
 
 test("a passing quiz pushes comprehension high; a failing quiz keeps it modest", async () => {
-  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { updateArticleMastery } = await masteryLib();
   progressPercent = 100;
   maxScorePct = 90;
   const pass = await updateArticleMastery("u-pass", "a1");
-  assert.ok(Math.abs(pass!.quizScore! - 0.9) < 1e-9);
+  expectClose(pass!.quizScore!, 0.9);
   assert.ok(pass!.comprehensionScore > 0.9, `pass ${pass!.comprehensionScore}`);
 
   maxScorePct = 20;
@@ -157,7 +163,7 @@ test("a passing quiz pushes comprehension high; a failing quiz keeps it modest",
 });
 
 test("lookup density applies a bounded penalty", async () => {
-  const { updateArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { updateArticleMastery } = await masteryLib();
   progressPercent = 100;
   maxScorePct = 100;
   wordCount = 100;
@@ -170,7 +176,7 @@ test("lookup density applies a bounded penalty", async () => {
 });
 
 test("difficulty feedback recomputes and persists into the same row", async () => {
-  const { updateArticleMastery, getArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { updateArticleMastery, getArticleMastery } = await masteryLib();
   progressPercent = 100;
   maxScorePct = 80;
   const before = await updateArticleMastery("u1", "a1");
@@ -185,6 +191,6 @@ test("difficulty feedback recomputes and persists into the same row", async () =
 });
 
 test("getArticleMastery returns null when nothing recorded", async () => {
-  const { getArticleMastery } = await import("@/lib/learning/article-mastery");
+  const { getArticleMastery } = await masteryLib();
   assert.equal(await getArticleMastery("u1", "missing"), null);
 });

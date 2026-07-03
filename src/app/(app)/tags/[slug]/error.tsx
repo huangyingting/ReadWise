@@ -3,14 +3,18 @@
 import { TagIcon } from "lucide-react";
 import { SegmentError } from "@/components/route-states";
 
+type TagErrorProps = {
+  error: Error & { digest?: string };
+  reset: () => void;
+};
+
+const DASHBOARD_ACTION = { label: "Back to dashboard", href: "/dashboard" };
+
 /** Error boundary for the tag-browsing page. */
 export default function TagError({
   error,
   reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+}: TagErrorProps) {
   return (
     <SegmentError
       error={error}
@@ -19,7 +23,7 @@ export default function TagError({
       icon={TagIcon}
       title="Could not load this tag"
       description="Something went wrong while loading articles for this tag. Try again or return to the dashboard."
-      secondaryAction={{ label: "Back to dashboard", href: "/dashboard" }}
+      secondaryAction={DASHBOARD_ACTION}
     />
   );
 }

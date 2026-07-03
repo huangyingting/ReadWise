@@ -17,10 +17,14 @@ export interface ReaderReferrer {
   label: string;
 }
 
+function serializeReaderReferrer(referrer: ReaderReferrer): string {
+  return JSON.stringify(referrer);
+}
+
 /** Persist the reader referrer. Safe to call in any browser context. */
 export function setReaderReferrer(referrer: ReaderReferrer): void {
   try {
-    sessionStorage.setItem(READER_REFERRER_KEY, JSON.stringify(referrer));
+    sessionStorage.setItem(READER_REFERRER_KEY, serializeReaderReferrer(referrer));
   } catch {
     // Ignore storage errors (private mode, quota, SSR misuse).
   }

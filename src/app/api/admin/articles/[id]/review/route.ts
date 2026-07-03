@@ -2,10 +2,27 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { reviewArticle, type ReviewState } from "@/lib/article-library";
+import { reviewArticle } from "@/lib/article-library";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { revalidateArticlesCache, revalidateTagsCache } from "@/lib/cache";
 import { reviewBody } from "@/lib/admin/articles/schemas";
+
+type SuccessfulReview = Extract<Awaited<ReturnType<typeof reviewArticle>>, { ok: true }>;
+
+function auditMetadata(result: SuccessfulReview) {
+  return {
+    reviewState: result.reviewState,
+    changed: Object.keys(result.changes),
+  };
+}
+
+function reviewResponse(result: SuccessfulReview) {
+  return {
+    ok: true,
+    reviewState: result.reviewState,
+    changes: result.changes,
+  };
+}
 
 /**
  * Records a content review / moderation action on an article (RW-048): applies
@@ -31,10 +48,10 @@ export const POST = createCapabilityHandler(
       action: AUDIT_ACTIONS.adminArticleReview,
       targetType: "article",
       targetId: params.id,
-      metadata: { reviewState: result.reviewState, changed: Object.keys(result.changes) },
+      metadata: auditMetadata(result),
     });
     revalidateArticlesCache();
     revalidateTagsCache();
-    return NextResponse.json({ ok: true, reviewState: result.reviewState, changes: result.changes });
+    return NextResponse.json(reviewResponse(result));
   },
 );

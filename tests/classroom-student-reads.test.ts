@@ -21,6 +21,14 @@ import { AssignmentStatus } from "@prisma/client";
 let assignmentRowStub: Record<string, unknown>[] = [];
 let lastFindManyArgs: unknown = null;
 
+type StudentScopeFindManyArgs = {
+  where: { classroom: { members: { some: { userId: string } } } };
+};
+
+type CompletionIncludeFindManyArgs = {
+  include: { completions: { where: { studentId: string }; take: number } };
+};
+
 // ---- mock setup ------------------------------------------------------------
 
 before(() => {
@@ -82,49 +90,52 @@ function makeRow(overrides: {
   };
 }
 
+async function studentReads() {
+  return import("@/lib/classroom/student-reads");
+}
+
+function lastStudentScopeArgs(): StudentScopeFindManyArgs {
+  assert.ok(lastFindManyArgs, "assignment.findMany should have been called");
+  return lastFindManyArgs as StudentScopeFindManyArgs;
+}
+
 // ---- listAssignmentsForStudent ---------------------------------------------
 
 test("listAssignmentsForStudent returns empty array when student has no assignments", async () => {
   assignmentRowStub = [];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.deepEqual(result, []);
 });
 
 test("listAssignmentsForStudent scopes assignments to the student's classroom memberships", async () => {
   assignmentRowStub = [makeRow()];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   await listAssignmentsForStudent("s1");
-  const args = lastFindManyArgs as {
-    where: { classroom: { members: { some: { userId: string } } } };
-  };
+  const args = lastStudentScopeArgs();
   assert.equal(args.where.classroom.members.some.userId, "s1");
 });
 
 test("listAssignmentsForStudent uses a different userId scope per call", async () => {
   assignmentRowStub = [];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   await listAssignmentsForStudent("student-99");
-  const args = lastFindManyArgs as {
-    where: { classroom: { members: { some: { userId: string } } } };
-  };
+  const args = lastStudentScopeArgs();
   assert.equal(args.where.classroom.members.some.userId, "student-99");
 });
 
 test("listAssignmentsForStudent only includes the requesting student's completion data", async () => {
   assignmentRowStub = [makeRow()];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   await listAssignmentsForStudent("s1");
-  const args = lastFindManyArgs as {
-    include: { completions: { where: { studentId: string }; take: number } };
-  };
+  const args = lastFindManyArgs as CompletionIncludeFindManyArgs;
   assert.equal(args.include.completions.where.studentId, "s1");
   assert.equal(args.include.completions.take, 1);
 });
 
 test("listAssignmentsForStudent defaults status to ASSIGNED when no completion exists", async () => {
   assignmentRowStub = [makeRow()]; // no completions
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].status, AssignmentStatus.ASSIGNED);
   assert.equal(result[0].quizScore, null);
@@ -133,7 +144,7 @@ test("listAssignmentsForStudent defaults status to ASSIGNED when no completion e
 
 test("listAssignmentsForStudent uses the IN_PROGRESS completion status when present", async () => {
   assignmentRowStub = [makeRow({ completionStatus: AssignmentStatus.IN_PROGRESS })];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].status, AssignmentStatus.IN_PROGRESS);
 });
@@ -147,7 +158,7 @@ test("listAssignmentsForStudent returns COMPLETED status with quizScore and comp
       completedAt,
     }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].status, AssignmentStatus.COMPLETED);
   assert.equal(result[0].quizScore, 87);
@@ -168,7 +179,7 @@ test("listAssignmentsForStudent maps all output fields from the Prisma row", asy
       completionStatus: AssignmentStatus.ASSIGNED,
     }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result.length, 1);
   assert.deepEqual(result[0], {
@@ -192,7 +203,7 @@ test("listAssignmentsForStudent sorts by dueDate ascending (soonest first)", asy
     makeRow({ id: "a-later", dueDate: later }),
     makeRow({ id: "a-soon", dueDate: soon }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].assignmentId, "a-soon");
   assert.equal(result[1].assignmentId, "a-later");
@@ -204,7 +215,7 @@ test("listAssignmentsForStudent places undated assignments after all dated ones"
     makeRow({ id: "no-date", dueDate: null }),
     makeRow({ id: "dated", dueDate: soon }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].assignmentId, "dated");
   assert.equal(result[1].assignmentId, "no-date");
@@ -217,7 +228,7 @@ test("listAssignmentsForStudent places multiple undated assignments all after da
     makeRow({ id: "dated", dueDate: soon }),
     makeRow({ id: "no-date-2", dueDate: null }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result[0].assignmentId, "dated");
   assert.ok(
@@ -235,7 +246,7 @@ test("listAssignmentsForStudent sorts correctly when all assignments are undated
     makeRow({ id: "u1", dueDate: null }),
     makeRow({ id: "u2", dueDate: null }),
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   // Both undated — relative order is stable (all at Infinity)
   assert.equal(result.length, 2);
@@ -248,7 +259,7 @@ test("listAssignmentsForStudent returns multiple rows each with correct fields",
     makeRow({ id: "a1", completionStatus: AssignmentStatus.COMPLETED, quizScore: 95 }),
     makeRow({ id: "a2" }), // no completion → ASSIGNED
   ];
-  const { listAssignmentsForStudent } = await import("@/lib/classroom/student-reads");
+  const { listAssignmentsForStudent } = await studentReads();
   const result = await listAssignmentsForStudent("s1");
   assert.equal(result.length, 2);
   const r1 = result.find((r) => r.assignmentId === "a1");

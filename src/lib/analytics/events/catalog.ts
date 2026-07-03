@@ -7,6 +7,12 @@
  * catalog without pulling in Prisma/logger dependencies.
  */
 
+type AnalyticsEventCatalog = Record<string, string>;
+
+const catalogValues = <const Catalog extends AnalyticsEventCatalog>(
+  catalog: Catalog,
+): Catalog[keyof Catalog][] => Object.values(catalog) as Catalog[keyof Catalog][];
+
 /**
  * The versioned set of product-critical event types (RW-051). The string value
  * is the persisted `type`. Bump {@link ANALYTICS_SCHEMA_VERSION} whenever the
@@ -54,7 +60,7 @@ export const ANALYTICS_EVENT_TYPES = {
   // filter ONLY — never WPM values, article ids, or content.
   seriesEnrolled: "series_enrolled",
   fluencyTrendViewed: "fluency_trend_viewed",
-} as const;
+} as const satisfies AnalyticsEventCatalog;
 
 /** Union of all canonical event type string literals. */
 export type AnalyticsEventType =
@@ -62,7 +68,7 @@ export type AnalyticsEventType =
 
 /** Every event type value, useful for documentation/tests/validation. */
 export const ALL_ANALYTICS_EVENT_TYPES: readonly AnalyticsEventType[] =
-  Object.values(ANALYTICS_EVENT_TYPES);
+  catalogValues(ANALYTICS_EVENT_TYPES);
 
 /**
  * Schema version for the analytics event stream. Stamped into every event's

@@ -14,6 +14,41 @@ interface DashboardContinueReadingRailProps {
   railIds: string[];
 }
 
+function ContinueReadingHeader({ count }: { count: number }) {
+  return (
+    <div className="flex items-center justify-between mb-[var(--space-4)]">
+      <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
+        Continue reading
+      </h2>
+      <span className="text-text-muted text-[length:var(--text-sm)]">
+        {count} in progress
+      </span>
+    </div>
+  );
+}
+
+function ContinueReadingCards({
+  entries,
+  bookmarkedIds,
+}: {
+  entries: InProgressEntry[];
+  bookmarkedIds: Set<string>;
+}) {
+  return (
+    <>
+      {entries.map((entry) => (
+        <ArticleCardView
+          key={entry.article.id}
+          article={entry.article}
+          progress={entry.progress}
+          variant="rail"
+          saved={bookmarkedIds.has(entry.article.id)}
+        />
+      ))}
+    </>
+  );
+}
+
 export function DashboardContinueReadingRail({
   inProgressEntries,
   bookmarkedIds,
@@ -23,24 +58,12 @@ export function DashboardContinueReadingRail({
 
   return (
     <section className="mt-[var(--space-7)]" aria-label="Continue reading">
-      <div className="flex items-center justify-between mb-[var(--space-4)]">
-        <h2 className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0">
-          Continue reading
-        </h2>
-        <span className="text-text-muted text-[length:var(--text-sm)]">
-          {inProgressEntries.length} in progress
-        </span>
-      </div>
+      <ContinueReadingHeader count={inProgressEntries.length} />
       <RailScroller>
-        {inProgressEntries.map((entry) => (
-          <ArticleCardView
-            key={entry.article.id}
-            article={entry.article}
-            progress={entry.progress}
-            variant="rail"
-            saved={bookmarkedIds.has(entry.article.id)}
-          />
-        ))}
+        <ContinueReadingCards
+          entries={inProgressEntries}
+          bookmarkedIds={bookmarkedIds}
+        />
       </RailScroller>
       {/* Rail sync — rail ids are disjoint from feed ids (in-progress vs unread) */}
       <ListingProgressSync articleIds={railIds} />

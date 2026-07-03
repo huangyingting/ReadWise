@@ -22,6 +22,19 @@ function makePosts(count: number, startIndex = 1): Array<{ link: string }> {
   }));
 }
 
+async function getNautilusProvider() {
+  const { getProvider } = await import("@/lib/scraper/providers");
+  const nautilus = getProvider("nautilus");
+  assert.ok(nautilus, "Nautilus provider must be registered");
+  assert.ok(nautilus.urlExtractor, "Nautilus provider must have a urlExtractor");
+  return nautilus;
+}
+
+function assertNautilusUrls(urls: string[], expectedLength: number) {
+  assert.equal(urls.length, expectedLength);
+  assert.ok(urls.every((u) => u.startsWith("https://nautil.us/")));
+}
+
 // ---------------------------------------------------------------------------
 // fetchNautilusUrls unit tests
 // ---------------------------------------------------------------------------
@@ -32,8 +45,7 @@ test("fetchNautilusUrls: returns post links from a single page", async () => {
 
   const urls = await fetchNautilusUrls(10, mockFetch);
 
-  assert.equal(urls.length, 3);
-  assert.ok(urls.every((u) => u.startsWith("https://nautil.us/")));
+  assertNautilusUrls(urls, 3);
 });
 
 test("fetchNautilusUrls: paginates until limit×2 candidates reached", async () => {
@@ -151,25 +163,20 @@ test("NAUTILUS_WP_CATEGORY_MAP: all Nautilus section slugs have entries", () => 
 // ---------------------------------------------------------------------------
 
 test("Nautilus urlExtractor: delegates to WP API via injected fetch", async () => {
-  const { getProvider } = await import("@/lib/scraper/providers");
-  const nautilus = getProvider("nautilus");
-  assert.ok(nautilus?.urlExtractor, "Nautilus provider must have a urlExtractor");
+  const nautilus = await getNautilusProvider();
 
   const posts = makePosts(3);
   const mockFetch = async () => JSON.stringify(posts);
 
-  const urls = await nautilus!.urlExtractor!({ limit: 10, fetch: mockFetch });
+  const urls = await nautilus.urlExtractor!({ limit: 10, fetch: mockFetch });
 
-  assert.equal(urls.length, 3);
-  assert.ok(urls.every((u) => u.startsWith("https://nautil.us/")));
+  assertNautilusUrls(urls, 3);
 });
 
 test("Nautilus urlExtractor: degrades gracefully on API failure", async () => {
-  const { getProvider } = await import("@/lib/scraper/providers");
-  const nautilus = getProvider("nautilus");
-  assert.ok(nautilus?.urlExtractor);
+  const nautilus = await getNautilusProvider();
 
-  const urls = await nautilus!.urlExtractor!({
+  const urls = await nautilus.urlExtractor!({
     limit: 10,
     fetch: async () => {
       throw new Error("network timeout");

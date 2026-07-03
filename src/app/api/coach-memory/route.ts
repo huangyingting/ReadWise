@@ -2,6 +2,12 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { deleteCoachMemory } from "@/lib/learning/coach-memory";
 
+const NO_CONTENT_STATUS = 204;
+
+function noContent() {
+  return new NextResponse(null, { status: NO_CONTENT_STATUS });
+}
+
 /**
  * DELETE /api/coach-memory — user-facing "clear learning memory" (#810).
  *
@@ -12,5 +18,5 @@ import { deleteCoachMemory } from "@/lib/learning/coach-memory";
  */
 export const DELETE = createHandler({}, async ({ session }) => {
   await deleteCoachMemory(session.user.id);
-  return new NextResponse(null, { status: 204 });
+  return noContent();
 });

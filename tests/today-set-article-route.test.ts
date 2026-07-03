@@ -25,12 +25,53 @@ const FLAG = "FEATURE_TODAY_SESSION_ENABLED";
 
 type Row = Record<string, unknown>;
 
+function articleFixture(overrides: Row): Row {
+  return {
+    title: "Fixture Article",
+    author: null,
+    source: null,
+    category: null,
+    difficulty: null,
+    readingMinutes: 4,
+    wordCount: 800,
+    publishedAt: null,
+    heroImage: null,
+    visibility: ArticleVisibility.PRIVATE,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: USER_ID,
+    ...overrides,
+  };
+}
+
 const ARTICLES: Row[] = [
-  { id: "pub1", title: "Public One", author: null, source: null, category: null, difficulty: null, readingMinutes: 4, wordCount: 800, publishedAt: null, heroImage: null, visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
-  { id: "priv1", title: "Private One", author: null, source: null, category: null, difficulty: null, readingMinutes: 3, wordCount: 600, publishedAt: null, heroImage: null, visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PUBLISHED, ownerId: USER_ID },
-  { id: "other1", title: "Theirs", author: null, source: null, category: null, difficulty: null, readingMinutes: 5, wordCount: 900, publishedAt: null, heroImage: null, visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PUBLISHED, ownerId: OTHER_ID },
-  { id: "proc1", title: "Processing", author: null, source: null, category: null, difficulty: null, readingMinutes: null, wordCount: 0, publishedAt: null, heroImage: null, visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.PROCESSING, ownerId: USER_ID },
-  { id: "fail1", title: "Failed", author: null, source: null, category: null, difficulty: null, readingMinutes: null, wordCount: 0, publishedAt: null, heroImage: null, visibility: ArticleVisibility.PRIVATE, status: ArticleStatus.FAILED, ownerId: USER_ID },
+  articleFixture({
+    id: "pub1",
+    title: "Public One",
+    visibility: ArticleVisibility.PUBLIC,
+    ownerId: null,
+  }),
+  articleFixture({ id: "priv1", title: "Private One" }),
+  articleFixture({
+    id: "other1",
+    title: "Theirs",
+    ownerId: OTHER_ID,
+    readingMinutes: 5,
+    wordCount: 900,
+  }),
+  articleFixture({
+    id: "proc1",
+    title: "Processing",
+    status: ArticleStatus.PROCESSING,
+    readingMinutes: null,
+    wordCount: 0,
+  }),
+  articleFixture({
+    id: "fail1",
+    title: "Failed",
+    status: ArticleStatus.FAILED,
+    readingMinutes: null,
+    wordCount: 0,
+  }),
 ];
 
 function branchMatches(a: Row, branch: Row): boolean {

@@ -14,6 +14,12 @@ import {
   topicInterestScore,
 } from "@/lib/discovery-ranking";
 
+const MS_PER_DAY = 86_400_000;
+
+function daysBefore(now: Date, daysAgo: number): Date {
+  return new Date(now.getTime() - daysAgo * MS_PER_DAY);
+}
+
 // ---------------------------------------------------------------------------
 // buildTagMap
 // ---------------------------------------------------------------------------
@@ -152,7 +158,7 @@ describe("freshnessScore", () => {
 
   for (const [daysAgo, expected] of cases) {
     test(`${daysAgo} days ago → ${expected}`, () => {
-      const publishedAt = new Date(now.getTime() - daysAgo * 86_400_000);
+      const publishedAt = daysBefore(now, daysAgo);
       assert.equal(freshnessScore(publishedAt, now), expected);
     });
   }
@@ -170,7 +176,7 @@ describe("freshnessScore01", () => {
   });
 
   test("accepts an ISO date string as well as a Date object", () => {
-    const dateObj = new Date(now.getTime() - 3 * 86_400_000); // 3 days ago
+    const dateObj = daysBefore(now, 3);
     const isoStr = dateObj.toISOString();
     assert.equal(freshnessScore01(dateObj, now), freshnessScore01(isoStr, now));
   });
@@ -191,7 +197,7 @@ describe("freshnessScore01", () => {
 
   for (const [daysAgo, expected] of cases) {
     test(`${daysAgo} days ago → ${expected}`, () => {
-      const publishedAt = new Date(now.getTime() - daysAgo * 86_400_000);
+      const publishedAt = daysBefore(now, daysAgo);
       assert.equal(freshnessScore01(publishedAt, now), expected);
     });
   }

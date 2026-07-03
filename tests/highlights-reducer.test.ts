@@ -32,6 +32,13 @@ function makeHighlight(overrides: Partial<Highlight> = {}): Highlight {
   };
 }
 
+function assertHighlightIds(highlights: Highlight[], expectedIds: string[]) {
+  assert.deepEqual(
+    highlights.map((highlight) => highlight.id),
+    expectedIds,
+  );
+}
+
 // ---------------------------------------------------------------------------
 // SET
 // ---------------------------------------------------------------------------
@@ -67,9 +74,7 @@ describe("ADD_OPTIMISTIC", () => {
       type: "ADD_OPTIMISTIC",
       optimistic,
     });
-    assert.equal(next.length, 2);
-    assert.equal(next[0].id, "optimistic-1");
-    assert.equal(next[1].id, "h-1");
+    assertHighlightIds(next, ["optimistic-1", "h-1"]);
   });
 });
 
@@ -89,12 +94,9 @@ describe("REPLACE_OPTIMISTIC", () => {
       real,
     });
 
-    assert.equal(next.length, 2);
+    assertHighlightIds(next, ["h-1", "h-2"]);
     assert.ok(!next.find((h) => h.id === "optimistic-1"));
     assert.ok(next.find((h) => h.id === "h-2"));
-    // Sort preserved
-    assert.equal(next[0].id, "h-1");
-    assert.equal(next[1].id, "h-2");
   });
 });
 
@@ -110,8 +112,7 @@ describe("REVERT_OPTIMISTIC", () => {
       type: "REVERT_OPTIMISTIC",
       tempId: "optimistic-1",
     });
-    assert.equal(next.length, 1);
-    assert.equal(next[0].id, "h-1");
+    assertHighlightIds(next, ["h-1"]);
   });
 
   test("is a no-op for an unknown id", () => {
@@ -172,8 +173,7 @@ describe("REMOVE", () => {
     const h1 = makeHighlight({ id: "h-1" });
     const h2 = makeHighlight({ id: "h-2" });
     const next = highlightsReducer([h1, h2], { type: "REMOVE", id: "h-1" });
-    assert.equal(next.length, 1);
-    assert.equal(next[0].id, "h-2");
+    assertHighlightIds(next, ["h-2"]);
   });
 
   test("is a no-op for an unknown id", () => {

@@ -7,40 +7,40 @@ import assert from "node:assert/strict";
 
 import { jitteredExponentialBackoff } from "@/lib/backoff";
 
+const NO_JITTER = () => 0;
+
+function backoffDelay(overrides: Partial<Parameters<typeof jitteredExponentialBackoff>[0]> = {}): number {
+  return jitteredExponentialBackoff({
+    attempt: 1,
+    baseMs: 1000,
+    maxMs: 5000,
+    ...overrides,
+  });
+}
+
 describe("jitteredExponentialBackoff", () => {
   test("returns 0 when baseMs is 0", () => {
-    assert.strictEqual(
-      jitteredExponentialBackoff({ attempt: 1, baseMs: 0, maxMs: 5000 }),
-      0,
-    );
+    assert.strictEqual(backoffDelay({ baseMs: 0 }), 0);
   });
 
   test("returns 0 when maxMs is 0", () => {
-    assert.strictEqual(
-      jitteredExponentialBackoff({ attempt: 1, baseMs: 1000, maxMs: 0 }),
-      0,
-    );
+    assert.strictEqual(backoffDelay({ maxMs: 0 }), 0);
   });
 
   test("returns 0 when baseMs is negative", () => {
-    assert.strictEqual(
-      jitteredExponentialBackoff({ attempt: 1, baseMs: -100, maxMs: 5000 }),
-      0,
-    );
+    assert.strictEqual(backoffDelay({ baseMs: -100 }), 0);
   });
 
   test("result is >= base delay on attempt 1 (no jitter path with random=0)", () => {
-    const delay = jitteredExponentialBackoff({
-      attempt: 1,
-      baseMs: 1000,
+    const delay = backoffDelay({
       maxMs: 30000,
-      random: () => 0,
+      random: NO_JITTER,
     });
     assert.strictEqual(delay, 1000);
   });
 
   test("doubles on each attempt (no jitter path)", () => {
-    const opts = { baseMs: 500, maxMs: 10000, random: () => 0 };
+    const opts = { baseMs: 500, maxMs: 10000, random: NO_JITTER };
     const d1 = jitteredExponentialBackoff({ ...opts, attempt: 1 });
     const d2 = jitteredExponentialBackoff({ ...opts, attempt: 2 });
     const d3 = jitteredExponentialBackoff({ ...opts, attempt: 3 });
@@ -73,11 +73,9 @@ describe("jitteredExponentialBackoff", () => {
   });
 
   test("caps at maxMs for very high attempts", () => {
-    const delay = jitteredExponentialBackoff({
+    const delay = backoffDelay({
       attempt: 100,
-      baseMs: 1000,
-      maxMs: 5000,
-      random: () => 0,
+      random: NO_JITTER,
     });
     assert.strictEqual(delay, 5000);
   });

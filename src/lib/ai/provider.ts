@@ -24,9 +24,12 @@
 
 import type { AiErrorKind } from "./output/error-classifier";
 
+export type AiChatRole = "system" | "user" | "assistant";
+export type AiTokenParamName = "max_completion_tokens" | "max_tokens";
+
 /** A single chat message exchanged with a model. */
 export type AiChatMessage = {
-  role: "system" | "user" | "assistant";
+  role: AiChatRole;
   content: string;
 };
 
@@ -104,7 +107,7 @@ export type AiProviderCapabilities = {
   /** Whether a custom `temperature` is accepted (gpt-5-mini rejects it). */
   supportsTemperature: boolean;
   /** The request field used to cap output tokens for this model family. */
-  tokenParamName: "max_completion_tokens" | "max_tokens";
+  tokenParamName: AiTokenParamName;
 };
 
 /**

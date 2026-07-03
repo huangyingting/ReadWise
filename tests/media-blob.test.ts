@@ -40,13 +40,21 @@ function stringToBase64(text: string): string {
   return Buffer.from(text).toString("base64");
 }
 
+async function loadMediaBlob() {
+  return import("@/lib/media-blob");
+}
+
+function resetRevokedUrls(): void {
+  revokedUrls = [];
+}
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
 
 describe("base64ToBlobUrl", () => {
   test("converts a plain base64 string to a Blob URL", async () => {
-    const { base64ToBlobUrl } = await import("@/lib/media-blob");
+    const { base64ToBlobUrl } = await loadMediaBlob();
     const b64 = stringToBase64("hello audio");
     const url = base64ToBlobUrl(b64, "audio/mpeg");
     assert.ok(url.startsWith("blob:"), `expected blob: URL, got: ${url}`);
@@ -54,7 +62,7 @@ describe("base64ToBlobUrl", () => {
   });
 
   test("strips the data-URI header before decoding", async () => {
-    const { base64ToBlobUrl } = await import("@/lib/media-blob");
+    const { base64ToBlobUrl } = await loadMediaBlob();
     const b64 = stringToBase64("hello data-uri audio");
     const dataUri = `data:audio/mpeg;base64,${b64}`;
     const url = base64ToBlobUrl(dataUri, "audio/mpeg");
@@ -62,7 +70,7 @@ describe("base64ToBlobUrl", () => {
   });
 
   test("returns different URLs on successive calls (new Blob each time)", async () => {
-    const { base64ToBlobUrl } = await import("@/lib/media-blob");
+    const { base64ToBlobUrl } = await loadMediaBlob();
     const b64 = stringToBase64("data");
     const url1 = base64ToBlobUrl(b64, "audio/mpeg");
     const url2 = base64ToBlobUrl(b64, "audio/mpeg");
@@ -72,29 +80,29 @@ describe("base64ToBlobUrl", () => {
 
 describe("revokeBlobUrl", () => {
   test("calls URL.revokeObjectURL for a real URL string", async () => {
-    const { revokeBlobUrl } = await import("@/lib/media-blob");
-    revokedUrls = [];
+    const { revokeBlobUrl } = await loadMediaBlob();
+    resetRevokedUrls();
     revokeBlobUrl("blob:test-999");
     assert.deepEqual(revokedUrls, ["blob:test-999"]);
   });
 
   test("is a no-op for null", async () => {
-    const { revokeBlobUrl } = await import("@/lib/media-blob");
-    revokedUrls = [];
+    const { revokeBlobUrl } = await loadMediaBlob();
+    resetRevokedUrls();
     revokeBlobUrl(null);
     assert.deepEqual(revokedUrls, []);
   });
 
   test("is a no-op for undefined", async () => {
-    const { revokeBlobUrl } = await import("@/lib/media-blob");
-    revokedUrls = [];
+    const { revokeBlobUrl } = await loadMediaBlob();
+    resetRevokedUrls();
     revokeBlobUrl(undefined);
     assert.deepEqual(revokedUrls, []);
   });
 
   test("is a no-op for empty string", async () => {
-    const { revokeBlobUrl } = await import("@/lib/media-blob");
-    revokedUrls = [];
+    const { revokeBlobUrl } = await loadMediaBlob();
+    resetRevokedUrls();
     revokeBlobUrl("");
     assert.deepEqual(revokedUrls, []);
   });

@@ -3,6 +3,22 @@
 import { useEffect } from "react";
 import { reportClientError } from "@/lib/client-error-reporter";
 
+function getErrorDetails(
+  value: unknown,
+  fallbackMessage: string,
+  useStringValue = false,
+) {
+  if (value instanceof Error) {
+    return { message: value.message, stack: value.stack };
+  }
+
+  if (useStringValue && typeof value === "string") {
+    return { message: value, stack: undefined };
+  }
+
+  return { message: fallbackMessage, stack: undefined };
+}
+
 /**
  * Global client-side error capture (US-029). Registers `window.onerror` and
  * `unhandledrejection` listeners once and reports any uncaught runtime error or
@@ -13,22 +29,21 @@ import { reportClientError } from "@/lib/client-error-reporter";
 export default function ClientErrorReporter() {
   useEffect(() => {
     const onError = (event: ErrorEvent) => {
-      const message =
-        event.message ||
-        (event.error instanceof Error ? event.error.message : "Unknown error");
-      const stack = event.error instanceof Error ? event.error.stack : undefined;
+      const { message, stack } = event.message
+        ? {
+            message: event.message,
+            stack: event.error instanceof Error ? event.error.stack : undefined,
+          }
+        : getErrorDetails(event.error, "Unknown error");
       reportClientError({ message, source: "window.onerror", stack });
     };
 
     const onRejection = (event: PromiseRejectionEvent) => {
-      const reason = event.reason;
-      const message =
-        reason instanceof Error
-          ? reason.message
-          : typeof reason === "string"
-            ? reason
-            : "Unhandled promise rejection";
-      const stack = reason instanceof Error ? reason.stack : undefined;
+      const { message, stack } = getErrorDetails(
+        event.reason,
+        "Unhandled promise rejection",
+        true,
+      );
       reportClientError({ message, source: "unhandledrejection", stack });
     };
 

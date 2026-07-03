@@ -32,6 +32,8 @@ const jsonOnly = args.includes("--json-only");
 const mdOnly = args.includes("--md-only");
 
 const catalog = buildCatalog();
+const generatedLinePattern = /^> Last generated: .+$/m;
+const lastUpdatedPattern = /^last_updated: ".+"$/m;
 
 /**
  * Returns the JSON catalog with `generatedAt` removed, serialised
@@ -44,6 +46,14 @@ function contentHash(c: ApiCatalog): string {
   return JSON.stringify(rest);
 }
 
+function normalizeMarkdown(s: string): string {
+  return s.replace(generatedLinePattern, "").replace(lastUpdatedPattern, "");
+}
+
+function relativeCatalogPath(pathname: string): string {
+  return relative(ROOT, pathname);
+}
+
 if (!dryRun) {
   if (!mdOnly) {
     // Only write (and update the timestamp) when route content has changed.
@@ -52,7 +62,7 @@ if (!dryRun) {
       const existing: ApiCatalog = JSON.parse(readFileSync(CATALOG_JSON, "utf8"));
       if (contentHash(existing) === contentHash(catalog)) {
         skipJson = true;
-        console.log(`✓ ${relative(ROOT, CATALOG_JSON)} is up to date (no route changes)`);
+        console.log(`✓ ${relativeCatalogPath(CATALOG_JSON)} is up to date (no route changes)`);
       }
     } catch {
       // File missing or unparseable — write unconditionally.
@@ -60,7 +70,7 @@ if (!dryRun) {
     if (!skipJson) {
       writeFileSync(CATALOG_JSON, JSON.stringify(catalog, null, 2) + "\n");
       console.log(
-        `✓ wrote ${relative(ROOT, CATALOG_JSON)} (${catalog.routeCount} routes, ${catalog.methodCount} methods)`,
+        `✓ wrote ${relativeCatalogPath(CATALOG_JSON)} (${catalog.routeCount} routes, ${catalog.methodCount} methods)`,
       );
     }
   }
@@ -71,20 +81,16 @@ if (!dryRun) {
     try {
       const existingMd = readFileSync(CATALOG_MD, "utf8");
       // Strip volatile generated-date lines before comparing.
-      const normalize = (s: string) =>
-        s
-          .replace(/^> Last generated: .+$/m, "")
-          .replace(/^last_updated: ".+"$/m, "");
-      if (normalize(existingMd) === normalize(freshMd)) {
+      if (normalizeMarkdown(existingMd) === normalizeMarkdown(freshMd)) {
         skipMd = true;
-        console.log(`✓ ${relative(ROOT, CATALOG_MD)} is up to date (no route changes)`);
+        console.log(`✓ ${relativeCatalogPath(CATALOG_MD)} is up to date (no route changes)`);
       }
     } catch {
       // File missing — write unconditionally.
     }
     if (!skipMd) {
       writeFileSync(CATALOG_MD, freshMd);
-      console.log(`✓ wrote ${relative(ROOT, CATALOG_MD)}`);
+      console.log(`✓ wrote ${relativeCatalogPath(CATALOG_MD)}`);
     }
   }
 } else {

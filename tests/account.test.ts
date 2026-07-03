@@ -10,6 +10,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { deleteReq } from "./support/route";
 
 // Mutable stub state
 let stubUser: null | { id: string; role: string } = { id: "user-1", role: "Reader" };
@@ -121,7 +122,7 @@ test("deleteOwnAccount rolls back deletion when the required audit write fails",
 
   await assert.rejects(
     deleteOwnAccount("user-1", {
-      req: new Request("http://test/api/account", { method: "DELETE" }),
+      req: deleteReq("http://test/api/account"),
       session: { user: { id: "user-1", role: "Reader" } },
       action: "account.delete",
       targetType: "account",

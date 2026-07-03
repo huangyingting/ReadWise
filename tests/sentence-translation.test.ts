@@ -11,6 +11,20 @@ const cache = new Map<string, CacheRow>(); // key: "articleId|sourceHash|lang"
 const articles = new Map<string, { id: string }>();
 let createCalls = 0;
 
+async function sourceHash(text: string): Promise<string> {
+  const { createHash } = await import("crypto");
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
+async function seedTranslation(articleId: string, sourceText: string, targetLang: string, translation: string) {
+  cache.set(`${articleId}|${await sourceHash(sourceText)}|${targetLang}`, { translation });
+}
+
+async function translateDefault(text = "Hello world") {
+  const { translateSentence } = await import("@/lib/sentence-translation");
+  return translateSentence("a1", text, "es");
+}
+
 before(() => {
   mock.module("@/lib/ai", {
     namedExports: {
@@ -74,8 +88,7 @@ beforeEach(() => {
 test("cache miss → AI generates and persists translation", async () => {
   aiConfigured = true;
   aiReply = "Hola mundo";
-  const { translateSentence } = await import("@/lib/sentence-translation");
-  const result = await translateSentence("a1", "Hello world", "es");
+  const result = await translateDefault();
   assert.ok(result);
   assert.equal(result.fallback, false);
   assert.equal(result.translation, "Hola mundo");
@@ -85,13 +98,9 @@ test("cache miss → AI generates and persists translation", async () => {
 test("cache hit → returns cached translation without calling AI", async () => {
   aiConfigured = true;
   aiReply = "should not be used";
-  // Pre-seed the cache with the expected hash for "Hello world" → "es"
-  const { createHash } = await import("crypto");
-  const hash = createHash("sha256").update("Hello world", "utf8").digest("hex");
-  cache.set(`a1|${hash}|es`, { translation: "Cached translation" });
+  await seedTranslation("a1", "Hello world", "es", "Cached translation");
 
-  const { translateSentence } = await import("@/lib/sentence-translation");
-  const result = await translateSentence("a1", "Hello world", "es");
+  const result = await translateDefault();
   assert.ok(result);
   assert.equal(result.fallback, false);
   assert.equal(result.translation, "Cached translation");
@@ -107,8 +116,7 @@ test("article not found → returns null", async () => {
 
 test("AI unconfigured → fallback:true, nothing cached", async () => {
   aiConfigured = false;
-  const { translateSentence } = await import("@/lib/sentence-translation");
-  const result = await translateSentence("a1", "Hello world", "es");
+  const result = await translateDefault();
   assert.ok(result);
   assert.equal(result.fallback, true);
   assert.equal(result.translation, null);
@@ -118,8 +126,7 @@ test("AI unconfigured → fallback:true, nothing cached", async () => {
 test("AI configured but request fails → fallback:true, nothing cached", async () => {
   aiConfigured = true;
   aiReply = null; // simulate network/AI failure
-  const { translateSentence } = await import("@/lib/sentence-translation");
-  const result = await translateSentence("a1", "Hello world", "es");
+  const result = await translateDefault();
   assert.ok(result);
   assert.equal(result.fallback, true);
   assert.equal(result.translation, null);

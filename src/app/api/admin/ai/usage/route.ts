@@ -4,6 +4,27 @@ import { queryInt } from "@/lib/validation";
 import { summarizeAiUsage } from "@/lib/ai/usage-summary";
 import { getAiBudgetStatus } from "@/lib/ai";
 
+const DEFAULT_LOOKBACK_HOURS = 24;
+const MAX_LOOKBACK_HOURS = 168;
+const MS_PER_HOUR = 3_600_000;
+
+function usageQuery(params: URLSearchParams) {
+  return {
+    ok: true as const,
+    value: {
+      hours: queryInt(params, "hours", {
+        fallback: DEFAULT_LOOKBACK_HOURS,
+        min: 1,
+        max: MAX_LOOKBACK_HOURS,
+      }),
+    },
+  };
+}
+
+function lookbackStart(hours: number) {
+  return new Date(Date.now() - hours * MS_PER_HOUR);
+}
+
 /**
  * GET /api/admin/ai/usage (RW-022) — admin reporting of AI usage vs configured
  * budgets/quotas. Returns the current-window budget status (per-feature/global
@@ -12,13 +33,10 @@ import { getAiBudgetStatus } from "@/lib/ai";
  */
 export const GET = createAdminHandler(
   {
-    query: (params) => ({
-      ok: true as const,
-      value: { hours: queryInt(params, "hours", { fallback: 24, min: 1, max: 168 }) },
-    }),
+    query: usageQuery,
   },
   async ({ query }) => {
-    const since = new Date(Date.now() - query.hours * 3_600_000);
+    const since = lookbackStart(query.hours);
     const [budget, usage] = await Promise.all([
       getAiBudgetStatus(),
       summarizeAiUsage({ since }),

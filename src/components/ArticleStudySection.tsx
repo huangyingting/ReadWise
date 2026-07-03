@@ -25,6 +25,32 @@ const TOOL_SURFACE_DIALOG_PROPS = {
   "aria-controls": READER_TOOLS_SURFACE_ID,
 } as const;
 
+type ToolTab = (typeof TOOL_TABS)[number];
+
+function ToolJumpButton({
+  tab,
+  onOpen,
+}: {
+  tab: ToolTab;
+  onOpen: (id: ToolTab["id"]) => void;
+}) {
+  const { id, label, icon, hint } = tab;
+
+  return (
+    <Button
+      variant="ghost"
+      size="sm"
+      title={hint}
+      onClick={() => onOpen(id)}
+      {...TOOL_SURFACE_DIALOG_PROPS}
+      leadingIcon={<span aria-hidden="true">{icon}</span>}
+      className="article-study-cta-chip"
+    >
+      {label}
+    </Button>
+  );
+}
+
 export default function ArticleStudySection() {
   const { openTools } = useReaderTools();
 
@@ -52,19 +78,8 @@ export default function ArticleStudySection() {
         </Button>
 
         <div className="article-study-cta-chips" aria-label="Jump to a tool">
-          {TOOL_TABS.map(({ id, label, icon, hint }) => (
-            <Button
-              key={id}
-              variant="ghost"
-              size="sm"
-              title={hint}
-              onClick={() => openTools(id)}
-              {...TOOL_SURFACE_DIALOG_PROPS}
-              leadingIcon={<span aria-hidden="true">{icon}</span>}
-              className="article-study-cta-chip"
-            >
-              {label}
-            </Button>
+          {TOOL_TABS.map((tab) => (
+            <ToolJumpButton key={tab.id} tab={tab} onOpen={openTools} />
           ))}
         </div>
       </div>

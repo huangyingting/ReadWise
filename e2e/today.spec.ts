@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -26,19 +26,27 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
-test("learner lands on /today and sees the daily plan", async ({
-  context,
-  page,
-}) => {
+async function signInLearner(context: BrowserContext) {
   const { sessionToken, expires } = await createUserWithSession();
   await addSessionCookie(context, sessionToken, expires);
+}
 
+async function gotoToday(context: BrowserContext, page: Page) {
+  await signInLearner(context);
   // Onboarded learners default to /today when the feature flag is on; the
   // post-sign-in and onboarding redirects (see learner-landing) target it.
   await page.goto("/today");
   await expect(page).toHaveURL(/\/today$/);
 
   await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+}
+
+test("learner lands on /today and sees the daily plan", async ({
+  context,
+  page,
+}) => {
+  await gotoToday(context, page);
+
   // The day's primary article resolves to a readable card linking to the reader.
   const articleLink = page
     .getByRole("link", { name: /E2E .* Practice|E2E Critical Reading/ })
@@ -53,11 +61,7 @@ test("learner completes today's reading via the manual fallback", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await gotoToday(context, page);
 
   // Open the primary article from Today and confirm the reader loads.
   const openReader = page.getByRole("link", { name: "Open reader" }).first();
@@ -85,11 +89,7 @@ test("learner can skip today and is shown a browse fallback", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto("/today");
-  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await gotoToday(context, page);
 
   const skip = page.getByRole("button", { name: "Skip today" });
   await expect(skip).toBeVisible();

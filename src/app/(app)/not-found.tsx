@@ -1,5 +1,12 @@
 import { FileQuestion } from "lucide-react";
 import { SegmentNotFound } from "@/components/route-states";
+import type { SegmentNotFoundProps } from "@/components/route-states";
+
+const APP_NOT_FOUND_CONFIG = {
+  icon: FileQuestion,
+  title: "Page not found",
+  description: "The page you're looking for doesn't exist or has been moved.",
+} satisfies SegmentNotFoundProps;
 
 /**
  * Not-found boundary for the authenticated (app) route group. Living inside the
@@ -9,10 +16,6 @@ import { SegmentNotFound } from "@/components/route-states";
  */
 export default function AppNotFound() {
   return (
-    <SegmentNotFound
-      icon={FileQuestion}
-      title="Page not found"
-      description="The page you're looking for doesn't exist or has been moved."
-    />
+    <SegmentNotFound {...APP_NOT_FOUND_CONFIG} />
   );
 }

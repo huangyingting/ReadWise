@@ -3,15 +3,17 @@
 import { TopicSelector } from "@/features/profile-preferences";
 import { STEP_TITLES } from "./StepLevel";
 
+interface StepTopicsProps {
+  headingRef: React.RefObject<HTMLHeadingElement | null>;
+  topics: string[];
+  toggleTopic: (slug: string) => void;
+}
+
 export function StepTopics({
   headingRef,
   topics,
   toggleTopic,
-}: {
-  headingRef: React.RefObject<HTMLHeadingElement | null>;
-  topics: string[];
-  toggleTopic: (slug: string) => void;
-}) {
+}: StepTopicsProps) {
   return (
     <div>
       <h2

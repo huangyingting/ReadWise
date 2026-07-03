@@ -51,6 +51,14 @@ export const PROVIDERS: readonly Provider[] = [
   undark,
 ];
 
+function normalizeUrlHostname(hostname: string): string {
+  return hostname.toLowerCase().replace(/^www\./, "");
+}
+
+function providerMatchesHost(provider: Provider, hostname: string): boolean {
+  return provider.hostnames.some((candidate) => candidate.replace(/^www\./, "") === hostname);
+}
+
 export function getProvider(key: string): Provider | null {
   return PROVIDERS.find((p) => p.key === key.toLowerCase()) ?? null;
 }
@@ -69,12 +77,10 @@ export function getProviderByName(name: string): Provider | null {
 export function providerForUrl(rawUrl: string): Provider | null {
   let host: string;
   try {
-    host = new URL(rawUrl).hostname.toLowerCase().replace(/^www\./, "");
+    host = normalizeUrlHostname(new URL(rawUrl).hostname);
   } catch {
     return null;
   }
-  const hostMatches = PROVIDERS.filter((p) =>
-    p.hostnames.some((h) => h.replace(/^www\./, "") === host),
-  );
+  const hostMatches = PROVIDERS.filter((p) => providerMatchesHost(p, host));
   return hostMatches.find((p) => p.articleUrlPattern.test(rawUrl)) ?? hostMatches[0] ?? null;
 }

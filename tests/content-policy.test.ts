@@ -13,6 +13,29 @@ type ArticleRow = {
 let articles: Map<string, ArticleRow>;
 let reviews: Array<Record<string, unknown>>;
 
+function articleRow(overrides: Partial<ArticleRow> = {}): ArticleRow {
+  return {
+    id: "a1",
+    takedownState: "active",
+    status: "PUBLISHED",
+    rightsNote: null,
+    ...overrides,
+  };
+}
+
+function setArticle(overrides: Partial<ArticleRow>): void {
+  articles.set("a1", articleRow(overrides));
+}
+
+function assertStoredArticle(
+  expected: Partial<Pick<ArticleRow, "status" | "takedownState" | "rightsNote">>,
+): void {
+  const row = articles.get("a1");
+  for (const [field, value] of Object.entries(expected)) {
+    assert.equal(row?.[field as keyof ArticleRow], value);
+  }
+}
+
 before(() => {
   const article = {
     findUnique: async (a: { where: { id: string }; select?: Record<string, boolean> }) => {
@@ -49,9 +72,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  articles = new Map([
-    ["a1", { id: "a1", takedownState: "active", status: "PUBLISHED", rightsNote: null }],
-  ]);
+  articles = new Map([["a1", articleRow()]]);
   reviews = [];
 });
 
@@ -70,10 +91,11 @@ test("applyTakedown unpublishes a published article and records history", async 
   assert.equal(result.state, "takedown");
   assert.equal(result.status, "DRAFT");
 
-  const row = articles.get("a1");
-  assert.equal(row?.takedownState, "takedown");
-  assert.equal(row?.status, "DRAFT");
-  assert.equal(row?.rightsNote, "removed at publisher request");
+  assertStoredArticle({
+    takedownState: "takedown",
+    status: "DRAFT",
+    rightsNote: "removed at publisher request",
+  });
 
   assert.equal(reviews.length, 1);
   assert.equal(reviews[0].action, "takedown.takedown");
@@ -81,14 +103,13 @@ test("applyTakedown unpublishes a published article and records history", async 
 });
 
 test("restoring to active does NOT auto-publish", async () => {
-  articles.set("a1", { id: "a1", takedownState: "takedown", status: "DRAFT", rightsNote: null });
+  setArticle({ takedownState: "takedown", status: "DRAFT" });
   const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "active" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.status, "DRAFT");
-  assert.equal(articles.get("a1")?.status, "DRAFT");
-  assert.equal(articles.get("a1")?.takedownState, "active");
+  assertStoredArticle({ status: "DRAFT", takedownState: "active" });
 });
 
 test("applyTakedown returns 404 for an unknown article", async () => {
@@ -111,43 +132,42 @@ test("applyTakedown rejects an invalid state with 400", async () => {
 });
 
 test("applyTakedown on a FAILED article preserves FAILED status", async () => {
-  articles.set("a1", { id: "a1", takedownState: "active", status: "FAILED", rightsNote: null });
+  setArticle({ status: "FAILED" });
   const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "takedown" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   // FAILED is already non-public — status must NOT be forced to DRAFT
   assert.equal(result.status, "FAILED");
-  assert.equal(articles.get("a1")?.status, "FAILED");
-  assert.equal(articles.get("a1")?.takedownState, "takedown");
+  assertStoredArticle({ status: "FAILED", takedownState: "takedown" });
 });
 
 test("applyTakedown on an ARCHIVED article preserves ARCHIVED status", async () => {
-  articles.set("a1", { id: "a1", takedownState: "active", status: "ARCHIVED", rightsNote: null });
+  setArticle({ status: "ARCHIVED" });
   const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "unpublished" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.status, "ARCHIVED");
-  assert.equal(articles.get("a1")?.status, "ARCHIVED");
+  assertStoredArticle({ status: "ARCHIVED" });
 });
 
 test("applyTakedown on a DRAFT article preserves DRAFT status", async () => {
-  articles.set("a1", { id: "a1", takedownState: "active", status: "DRAFT", rightsNote: null });
+  setArticle({ status: "DRAFT" });
   const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "archived" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.status, "DRAFT");
-  assert.equal(articles.get("a1")?.status, "DRAFT");
+  assertStoredArticle({ status: "DRAFT" });
 });
 
 test("restoring a FAILED article to active leaves status as FAILED", async () => {
-  articles.set("a1", { id: "a1", takedownState: "takedown", status: "FAILED", rightsNote: null });
+  setArticle({ takedownState: "takedown", status: "FAILED" });
   const { applyTakedown } = await import("@/lib/article-library");
   const result = await applyTakedown({ articleId: "a1", state: "active" });
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.status, "FAILED");
-  assert.equal(articles.get("a1")?.takedownState, "active");
+  assertStoredArticle({ takedownState: "active" });
 });

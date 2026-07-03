@@ -6,6 +6,8 @@ import type {
   SentenceHistory,
 } from "@/components/reader/pronunciationTypes";
 
+const EMPTY_SENTENCE_HISTORY: SentenceHistory = { best: null, last: null };
+
 export function usePronunciationHistory(currentSentence: string) {
   const [allAttempts, setAllAttempts] = useState<PronunciationAttemptSummary[]>([]);
   const historyLoaded = useRef(false);
@@ -28,15 +30,19 @@ export function usePronunciationHistory(currentSentence: string) {
   }, []);
 
   const sentenceHistory = useMemo<SentenceHistory>(() => {
-    if (allAttempts.length === 0 || !currentSentence) return { best: null, last: null };
-    const matching = allAttempts.filter(
-      (a) => a.referenceText.trim() === currentSentence.trim(),
-    );
-    if (matching.length === 0) return { best: null, last: null };
-    return {
-      last: matching[0].pronScore,
-      best: Math.max(...matching.map((a) => a.pronScore)),
-    };
+    if (allAttempts.length === 0 || !currentSentence) return EMPTY_SENTENCE_HISTORY;
+
+    const normalizedSentence = currentSentence.trim();
+    let last: number | null = null;
+    let best: number | null = null;
+
+    for (const attempt of allAttempts) {
+      if (attempt.referenceText.trim() !== normalizedSentence) continue;
+      last ??= attempt.pronScore;
+      best = best === null ? attempt.pronScore : Math.max(best, attempt.pronScore);
+    }
+
+    return best === null ? EMPTY_SENTENCE_HISTORY : { best, last };
   }, [allAttempts, currentSentence]);
 
   return { allAttempts, sentenceHistory, loadHistory, addAttempt };

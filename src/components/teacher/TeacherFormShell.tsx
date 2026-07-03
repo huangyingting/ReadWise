@@ -1,5 +1,7 @@
 "use client";
 
+import type { FormEvent, ReactNode } from "react";
+
 /**
  * Shared mutation hook and form shell for teacher action forms (RW-061).
  *
@@ -14,7 +16,7 @@ import { Button } from "@/components/ui/Button";
 
 export interface TeacherFormShellProps {
   /** Form submit handler — called with the native FormEvent. */
-  onSubmit: (e: React.FormEvent) => void;
+  onSubmit: (e: FormEvent) => void;
   /** Whether an async operation is in progress. */
   busy: boolean;
   /** Whether all required fields are filled and valid. */
@@ -26,7 +28,7 @@ export interface TeacherFormShellProps {
   /** Size forwarded to the submit Button. Defaults to "sm". */
   buttonSize?: "sm" | "md" | "lg";
   /** Form field content. */
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 /**
@@ -45,12 +47,15 @@ export function TeacherFormShell({
   buttonSize = "sm",
   children,
 }: TeacherFormShellProps) {
+  const isSubmitDisabled = busy || !canSubmit;
+  const buttonLabel = busy ? busyLabel : submitLabel;
+
   return (
     <form onSubmit={onSubmit} className="flex flex-col gap-[var(--space-3)]">
       {children}
       <div>
-        <Button type="submit" size={buttonSize} disabled={busy || !canSubmit}>
-          {busy ? busyLabel : submitLabel}
+        <Button type="submit" size={buttonSize} disabled={isSubmitDisabled}>
+          {buttonLabel}
         </Button>
       </div>
     </form>

@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import { type RouteHandler } from "./support/route";
 import { fullAuthExports } from "./support/auth-mock";
 
+type ProfileRouteModule = typeof import("@/app/api/profile/route");
+
 // Capture the last upsert call's arguments so tests can inspect them.
 let lastUpsertArgs: { create?: Record<string, unknown>; update?: Record<string, unknown> } | null =
   null;
@@ -61,6 +63,18 @@ function putReq(body: unknown): Request {
   });
 }
 
+async function loadPut(): Promise<RouteHandler> {
+  const { PUT } = (await import("@/app/api/profile/route")) as ProfileRouteModule;
+  return PUT as RouteHandler;
+}
+
+function assertUpdateOmits(field: string): void {
+  assert.equal(
+    Object.prototype.hasOwnProperty.call(lastUpsertArgs?.update ?? {}, field),
+    false,
+  );
+}
+
 const baseProfile = {
   englishLevel: "B1",
   ageRange: "25-34",
@@ -71,7 +85,7 @@ const baseProfile = {
 // ---- dailyGoal persistence ----------------------------------------------
 
 test("PUT /api/profile persists dailyGoal when valid", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq({ ...baseProfile, dailyGoal: 5 }));
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { ok: true });
@@ -79,34 +93,28 @@ test("PUT /api/profile persists dailyGoal when valid", async () => {
   assert.equal(lastUpsertArgs?.create?.dailyGoal, 5);
 });
 
-test("PUT /api/profile rejects dailyGoal below minimum (0)", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
-  const res = await PUT(putReq({ ...baseProfile, dailyGoal: 0 }));
-  assert.equal(res.status, 400);
-});
-
-test("PUT /api/profile rejects dailyGoal above maximum (11)", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
-  const res = await PUT(putReq({ ...baseProfile, dailyGoal: 11 }));
-  assert.equal(res.status, 400);
-});
-
-test("PUT /api/profile rejects non-integer dailyGoal", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
-  const res = await PUT(putReq({ ...baseProfile, dailyGoal: 3.5 }));
-  assert.equal(res.status, 400);
-});
+for (const [name, dailyGoal] of [
+  ["below minimum (0)", 0],
+  ["above maximum (11)", 11],
+  ["non-integer", 3.5],
+] as const) {
+  test(`PUT /api/profile rejects dailyGoal ${name}`, async () => {
+    const PUT = await loadPut();
+    const res = await PUT(putReq({ ...baseProfile, dailyGoal }));
+    assert.equal(res.status, 400);
+  });
+}
 
 test("PUT /api/profile omits dailyGoal from upsert when not provided", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq(baseProfile));
   assert.equal(res.status, 200);
   // dailyGoal must NOT be present so we don't overwrite an existing value
-  assert.equal(Object.prototype.hasOwnProperty.call(lastUpsertArgs?.update ?? {}, "dailyGoal"), false);
+  assertUpdateOmits("dailyGoal");
 });
 
 test("PUT /api/profile preserves other fields alongside dailyGoal", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq({ ...baseProfile, dailyGoal: 3 }));
   assert.equal(res.status, 200);
   const update = lastUpsertArgs?.update ?? {};
@@ -120,7 +128,7 @@ test("PUT /api/profile preserves other fields alongside dailyGoal", async () => 
 // ---- goalPath persistence (#809) ----------------------------------------
 
 test("PUT /api/profile persists a valid goalPath", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq({ ...baseProfile, goalPath: "business" }));
   assert.equal(res.status, 200);
   assert.equal(lastUpsertArgs?.update?.goalPath, "business");
@@ -128,25 +136,22 @@ test("PUT /api/profile persists a valid goalPath", async () => {
 });
 
 test("PUT /api/profile clears goalPath when null", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq({ ...baseProfile, goalPath: null }));
   assert.equal(res.status, 200);
   assert.equal(lastUpsertArgs?.update?.goalPath, null);
 });
 
 test("PUT /api/profile rejects an invalid goalPath with 400", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq({ ...baseProfile, goalPath: "casual" }));
   assert.equal(res.status, 400);
 });
 
 test("PUT /api/profile omits goalPath from upsert when not provided", async () => {
-  const { PUT } = (await import("@/app/api/profile/route")) as { PUT: RouteHandler };
+  const PUT = await loadPut();
   const res = await PUT(putReq(baseProfile));
   assert.equal(res.status, 200);
   // goalPath must NOT be present so we don't overwrite an existing value
-  assert.equal(
-    Object.prototype.hasOwnProperty.call(lastUpsertArgs?.update ?? {}, "goalPath"),
-    false,
-  );
+  assertUpdateOmits("goalPath");
 });

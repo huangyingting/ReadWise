@@ -41,6 +41,14 @@ afterEach(() => {
   while (restores.length) restores.pop()!();
 });
 
+function restoreAfterTest(restore: () => void) {
+  restores.push(restore);
+}
+
+function findSecurityEvent<T extends { type: string }>(events: T[], type: string) {
+  return events.find((event) => event.type === type);
+}
+
 // ---- field capture + redaction -------------------------------------------
 
 test("a 403 event captures the expected fields and redacts sensitive metadata", async () => {
@@ -108,7 +116,7 @@ test("repeated events past the threshold fire the alert hook", async () => {
   const { setAlertHook } = await import("@/lib/observability/errors");
 
   let alerts = 0;
-  restores.push(setAlertHook(() => { alerts += 1; }));
+  restoreAfterTest(setAlertHook(() => { alerts += 1; }));
 
   // Same type + actor → counts toward the spike window.
   recordSecurityEvent({ type: "auth.forbidden", severity: "medium", actorId: "spiky" });
@@ -123,7 +131,7 @@ test("a HIGH severity event is routed through the error-reporting seam", async (
   const { setErrorSink } = await import("@/lib/observability/errors");
 
   const captured: Array<{ name: string; source: string }> = [];
-  restores.push(setErrorSink((record) => captured.push(record)));
+  restoreAfterTest(setErrorSink((record) => captured.push(record)));
 
   const record = recordSecurityEvent({
     type: "import.blocked",
@@ -140,7 +148,7 @@ test("a single LOW severity event does not escalate", async () => {
   const { recordSecurityEvent } = await import("@/lib/security/events");
   const { setErrorSink } = await import("@/lib/observability/errors");
   const captured: unknown[] = [];
-  restores.push(setErrorSink((record) => captured.push(record)));
+  restoreAfterTest(setErrorSink((record) => captured.push(record)));
   const record = recordSecurityEvent({ type: "auth.unauthorized", severity: "low" });
   assert.equal(record.alert, false);
   assert.equal(captured.length, 0);
@@ -158,7 +166,7 @@ test("an unauthenticated request emits an auth.unauthorized event", async () => 
   assert.equal(res.status, 401);
 
   const events = getRecentSecurityEvents(10);
-  const event = events.find((e) => e.type === "auth.unauthorized");
+  const event = findSecurityEvent(events, "auth.unauthorized");
   assert.ok(event, "should emit auth.unauthorized");
   assert.equal(event?.status, 401);
 });
@@ -181,5 +189,5 @@ test("GET /api/admin/security/events returns buffered events for an admin", asyn
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(Array.isArray(body.events));
-  assert.ok(body.events.some((e: { type: string }) => e.type === "rate_limit.exceeded"));
+  assert.ok(findSecurityEvent(body.events, "rate_limit.exceeded"));
 });

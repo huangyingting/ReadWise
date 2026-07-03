@@ -12,6 +12,9 @@ export interface StepCardProps {
   className?: string;
 }
 
+const STEP_CONNECTOR_CLASS =
+  "lg:after:absolute lg:after:left-full lg:after:top-5 lg:after:h-0.5 lg:after:w-[var(--space-6)] lg:after:bg-border lg:after:content-['']";
+
 /**
  * A single "How It Works" step. On desktop the cards form a horizontal stepper
  * with a faint connector line between them (via an ::after pseudo on lg+); on
@@ -29,8 +32,7 @@ export function StepCard({
     <div
       className={cn(
         "relative flex flex-1 flex-col gap-[var(--space-3)]",
-        !isLast &&
-          "lg:after:absolute lg:after:left-full lg:after:top-5 lg:after:h-0.5 lg:after:w-[var(--space-6)] lg:after:bg-border lg:after:content-['']",
+        !isLast && STEP_CONNECTOR_CLASS,
         className,
       )}
     >

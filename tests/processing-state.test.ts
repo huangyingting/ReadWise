@@ -49,60 +49,65 @@ beforeEach(() => {
   };
 });
 
+function lastUpsertArgs(): UpsertArgs {
+  assert.ok(upsertArgs);
+  return upsertArgs;
+}
+
 test("beginStep marks the step running and increments attempts", async () => {
   const { beginStep } = await import("@/lib/processing/state");
   await beginStep("article-1", "tags");
 
-  assert.ok(upsertArgs);
-  assert.deepEqual(upsertArgs!.where.articleId_step, {
+  const args = lastUpsertArgs();
+  assert.deepEqual(args.where.articleId_step, {
     articleId: "article-1",
     step: "tags",
   });
-  assert.equal(upsertArgs!.create.status, "running");
-  assert.equal(upsertArgs!.create.attempts, 1);
-  assert.equal(upsertArgs!.update.status, "running");
-  assert.deepEqual(upsertArgs!.update.attempts, { increment: 1 });
-  assert.equal(upsertArgs!.update.completedAt, null);
-  assert.equal(upsertArgs!.update.lastError, null);
+  assert.equal(args.create.status, "running");
+  assert.equal(args.create.attempts, 1);
+  assert.equal(args.update.status, "running");
+  assert.deepEqual(args.update.attempts, { increment: 1 });
+  assert.equal(args.update.completedAt, null);
+  assert.equal(args.update.lastError, null);
 });
 
 test("finishStep records a generated step with the model name and no error", async () => {
   const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "quiz", "generated", { modelName: "gpt-test" });
 
-  assert.ok(upsertArgs);
-  assert.equal(upsertArgs!.update.status, "generated");
-  assert.equal(upsertArgs!.update.modelName, "gpt-test");
-  assert.equal(upsertArgs!.update.lastError, null);
-  assert.notEqual(upsertArgs!.update.completedAt, null);
+  const args = lastUpsertArgs();
+  assert.equal(args.update.status, "generated");
+  assert.equal(args.update.modelName, "gpt-test");
+  assert.equal(args.update.lastError, null);
+  assert.notEqual(args.update.completedAt, null);
 });
 
 test("finishStep skipped creates a row with zero attempts", async () => {
   const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "speech", "skipped");
 
-  assert.ok(upsertArgs);
-  assert.equal(upsertArgs!.create.status, "skipped");
-  assert.equal(upsertArgs!.create.attempts, 0);
-  assert.equal(upsertArgs!.update.status, "skipped");
+  const args = lastUpsertArgs();
+  assert.equal(args.create.status, "skipped");
+  assert.equal(args.create.attempts, 0);
+  assert.equal(args.update.status, "skipped");
 });
 
 test("finishStep failed persists the (clamped) error message", async () => {
   const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "vocabulary", "failed", { lastError: "boom" });
 
-  assert.ok(upsertArgs);
-  assert.equal(upsertArgs!.update.status, "failed");
-  assert.equal(upsertArgs!.update.lastError, "boom");
+  const args = lastUpsertArgs();
+  assert.equal(args.update.status, "failed");
+  assert.equal(args.update.lastError, "boom");
 });
 
 test("finishStep only stores lastError for failed steps", async () => {
   const { finishStep } = await import("@/lib/processing/state");
   await finishStep("article-1", "tags", "fallback", { lastError: "ignored" });
 
-  assert.ok(upsertArgs);
-  assert.equal(upsertArgs!.update.status, "fallback");
-  assert.equal(upsertArgs!.update.lastError, null);
+  const args = lastUpsertArgs();
+  assert.equal(args.update.status, "fallback");
+  assert.equal(args.update.lastError, null);
 });
 
 test("beginStep is best-effort: a Prisma failure does not throw", async () => {

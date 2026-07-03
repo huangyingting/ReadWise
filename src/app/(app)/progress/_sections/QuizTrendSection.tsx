@@ -13,6 +13,10 @@ interface QuizTrendSectionProps {
   sparkLabel: string;
 }
 
+function formatAttemptCount(totalQuizAttempts: number): string {
+  return `${totalQuizAttempts} attempt${totalQuizAttempts !== 1 ? "s" : ""}`;
+}
+
 export function QuizTrendSection({
   quizScoreTrend,
   averageQuizScore,
@@ -20,6 +24,10 @@ export function QuizTrendSection({
   sparkLabel,
 }: QuizTrendSectionProps) {
   if (quizScoreTrend.length === 0) return null;
+
+  const averageScoreDisplay = averageQuizScore ?? "—";
+  const hasAverageScore = averageQuizScore !== null;
+  const attemptCountLabel = formatAttemptCount(totalQuizAttempts);
 
   return (
     <section aria-labelledby="quiz-h">
@@ -34,13 +42,13 @@ export function QuizTrendSection({
           <div>
             <p className="text-[length:var(--text-sm)] text-text-subtle">Average score</p>
             <p className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-3xl)] text-text">
-              {averageQuizScore ?? "—"}
-              {averageQuizScore !== null && (
+              {averageScoreDisplay}
+              {hasAverageScore && (
                 <span className="text-[length:var(--text-xl)]">%</span>
               )}
             </p>
             <p className="text-[length:var(--text-xs)] text-text-subtle">
-              {totalQuizAttempts} attempt{totalQuizAttempts !== 1 ? "s" : ""}
+              {attemptCountLabel}
             </p>
           </div>
           <div className="flex-1">

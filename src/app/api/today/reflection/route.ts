@@ -24,16 +24,22 @@ const reflectionBody = object({
   sentence: nonEmptyString(HIGHLIGHT_NOTE_MAX),
 });
 
+function requireTodayReflectionEnabled(): void {
+  if (!isTodaySessionFeatureEnabled()) {
+    throw new ApiError(404, "Not found");
+  }
+}
+
 export const POST = createHandler(
   { body: reflectionBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    requireTodayReflectionEnabled();
+
+    const { highlightId, sentence } = body;
     const result = await recordTodayReflection({
       userId: session.user.id,
-      highlightId: body.highlightId,
-      sentence: body.sentence,
+      highlightId,
+      sentence,
     });
     if (!result.ok) {
       throw new ApiError(result.status, result.error);

@@ -1,6 +1,7 @@
 import { before, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { dirname, join, relative } from "node:path";
+import type { ApiCatalog } from "@/tools/api-catalog";
 
 const ROOT = process.cwd();
 const API_ROOT = join(ROOT, "src", "app", "api");
@@ -22,6 +23,10 @@ function directChildren(dir: string): string[] {
 
 function isDirectory(path: string): boolean {
   return [...files.keys()].some((file) => dirname(file) === path || file.startsWith(`${path}/`));
+}
+
+function findRoute(catalog: ApiCatalog, path: string) {
+  return catalog.routes.find((route) => route.path === path);
 }
 
 before(() => {
@@ -72,6 +77,119 @@ export const GET = createPublicHandler({}, async () => {
 `,
   );
   addRoute(
+    "helper-download",
+    `
+import { NextResponse } from "next/server";
+import { createHandler } from "@/lib/api-handler";
+const EXPORT_RESPONSE_INIT = {
+  status: 200,
+  headers: {
+    "Content-Type": "application/json; charset=utf-8",
+  },
+} as const;
+function exportJsonResponse(json, filename) {
+  return new NextResponse(json, {
+    ...EXPORT_RESPONSE_INIT,
+    headers: {
+      ...EXPORT_RESPONSE_INIT.headers,
+      "Content-Disposition": \`attachment; filename="\${filename}"\`,
+    },
+  });
+}
+export const GET = createHandler({}, async () => {
+  return exportJsonResponse("{}", "demo.json");
+});
+`,
+  );
+  addRoute(
+    "helper-response",
+    `
+import { NextResponse } from "next/server";
+import { createHandler } from "@/lib/api-handler";
+import { queryInt } from "@/lib/validation";
+const CREATED_RESPONSE_INIT = { status: 201 } as const;
+const NO_CONTENT_STATUS = 204;
+function createdResponse(member) {
+  return NextResponse.json({ ok: true, member }, CREATED_RESPONSE_INIT);
+}
+function noContent() {
+  return new NextResponse(null, { status: NO_CONTENT_STATUS });
+}
+function helperQuery(params) {
+  return { ok: true, value: { hours: queryInt(params, "hours") } };
+}
+export const POST = createHandler({ query: helperQuery }, async () => {
+  return createdResponse({ id: "member-1" });
+});
+export const DELETE = createHandler({}, async () => {
+  return noContent();
+});
+`,
+  );
+  addRoute(
+    "inline-helper-query",
+    `
+import { NextResponse } from "next/server";
+import { createHandler } from "@/lib/api-handler";
+import { queryString } from "@/lib/validation";
+function parseFormat(params) {
+  return params.get("format") === "csv" ? "csv" : "json";
+}
+function parseTimezone(params) {
+  return queryString(params, "timezone").trim() || null;
+}
+export const GET = createHandler({
+  query: (params) => ({
+    ok: true,
+    value: {
+      days: params.get("days"),
+      format: parseFormat(params),
+      timezone: parseTimezone(params),
+    },
+  }),
+}, async () => {
+  return NextResponse.json({ ok: true });
+});
+`,
+  );
+  addRoute(
+    "placement",
+    `
+import { NextResponse } from "next/server";
+import { createHandler } from "@/lib/api-handler";
+import { object, number, nonEmptyString, oneOf, type ValidationResult } from "@/lib/validation";
+
+type PlacementSeedLevel = "a1" | "a2";
+const PLACEMENT_SEED_LEVELS = ["a1", "a2"] as const;
+const placementSchema = object({
+  articleId: nonEmptyString(200),
+  correctCount: number({ int: true }),
+  seedLevel: oneOf(PLACEMENT_SEED_LEVELS),
+});
+
+function placementQuery(
+  params: URLSearchParams,
+): ValidationResult<{ seedLevel: PlacementSeedLevel }> {
+  const raw = params.get("seedLevel");
+  return { ok: true, value: { seedLevel: raw as PlacementSeedLevel } };
+}
+
+export const GET = createHandler(
+  { query: placementQuery },
+  async ({ query }) => {
+    return NextResponse.json({ seedLevel: query.seedLevel });
+  },
+);
+
+export const POST = createHandler(
+  { body: placementSchema },
+  async ({ body }) => {
+    return NextResponse.json({ ok: true, articleId: body.articleId });
+  },
+);
+`,
+  );
+  addRoute(
     "broken",
     `
 import { createHandler } from "@/lib/api-handler";
@@ -106,7 +224,7 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
   const { buildCatalog, buildCatalogMarkdown } = await import("@/tools/api-catalog");
 
   const catalog = buildCatalog();
-  const demo = catalog.routes.find((route) => route.path === "/api/demo");
+  const demo = findRoute(catalog, "/api/demo");
   assert.ok(demo);
   assert.equal(demo.runtime, "edge");
   const post = demo.methods.find((method) => method.method === "POST");
@@ -118,12 +236,45 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
   const patch = demo.methods.find((method) => method.method === "PATCH");
   assert.deepEqual(patch?.bodyFieldNames, ["note", "title"]);
 
-  const auth = catalog.routes.find((route) => route.path === "/api/auth/{...nextauth}");
+  const auth = findRoute(catalog, "/api/auth/{...nextauth}");
   assert.deepEqual(auth?.methods.map((method) => method.responseFormat), ["nextauth", "nextauth"]);
 
-  const download = catalog.routes.find((route) => route.path === "/api/download");
+  const download = findRoute(catalog, "/api/download");
   assert.equal(download?.methods[0].successStatus, 204);
   assert.equal(download?.methods[0].responseFormat, "download-json");
+
+  const helperDownload = findRoute(catalog, "/api/helper-download");
+  assert.equal(helperDownload?.methods[0].responseFormat, "download-json");
+
+  const helperResponse = findRoute(catalog, "/api/helper-response");
+  const helperPost = helperResponse?.methods.find((method) => method.method === "POST");
+  assert.equal(helperPost?.successStatus, 201);
+  assert.deepEqual(helperPost?.responseKeys, ["member", "ok"]);
+  assert.deepEqual(helperPost?.queryParamNames, ["hours"]);
+  const helperDelete = helperResponse?.methods.find((method) => method.method === "DELETE");
+  assert.equal(helperDelete?.successStatus, 204);
+
+  const inlineHelperQuery = findRoute(catalog, "/api/inline-helper-query");
+  assert.deepEqual(inlineHelperQuery?.methods[0]?.queryParamNames, [
+    "days",
+    "format",
+    "timezone",
+  ]);
+
+  const placement = findRoute(catalog, "/api/placement");
+  const placementGet = placement?.methods.find((method) => method.method === "GET");
+  assert.equal(placementGet?.hasBodySchema, false);
+  assert.equal(placementGet?.hasQuerySchema, true);
+  assert.equal(placementGet?.bodyFieldNames, null);
+  assert.deepEqual(placementGet?.queryParamNames, ["seedLevel"]);
+  const placementPost = placement?.methods.find((method) => method.method === "POST");
+  assert.equal(placementPost?.hasBodySchema, true);
+  assert.equal(placementPost?.hasQuerySchema, false);
+  assert.deepEqual(placementPost?.bodyFieldNames, [
+    "articleId",
+    "correctCount",
+    "seedLevel",
+  ]);
 
   const markdown = buildCatalogMarkdown({
     ...catalog,

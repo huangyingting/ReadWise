@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import type { ComponentPropsWithoutRef } from "react";
+import type { ComponentPropsWithoutRef, MouseEvent } from "react";
 import { setReaderReferrer } from "@/lib/reader-referrer";
 
 interface ReferrerLinkProps extends ComponentPropsWithoutRef<typeof Link> {
@@ -24,7 +24,7 @@ export default function ReferrerLink({
   children,
   ...props
 }: ReferrerLinkProps) {
-  function handleClick(e: React.MouseEvent<HTMLAnchorElement>) {
+  function handleClick(e: MouseEvent<HTMLAnchorElement>) {
     try {
       const href = referrerHref ?? window.location.pathname + window.location.search;
       const label = referrerLabel ?? document.title ?? "Back";

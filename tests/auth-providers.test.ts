@@ -17,6 +17,30 @@ import { test, before } from "node:test";
 import assert from "node:assert/strict";
 import { mock } from "node:test";
 
+const GOOGLE_CREDENTIALS = {
+  GOOGLE_CLIENT_ID: "test-google-client-id",
+  GOOGLE_CLIENT_SECRET: "test-google-client-secret",
+} as const;
+
+function clearProviderEnv(): void {
+  delete process.env.GOOGLE_CLIENT_ID;
+  delete process.env.GOOGLE_CLIENT_SECRET;
+  delete process.env.AZURE_AD_CLIENT_ID;
+  delete process.env.AZURE_AD_CLIENT_SECRET;
+  delete process.env.AZURE_AD_TENANT_ID;
+}
+
+async function withGoogleOnly<T>(callback: () => Promise<T>): Promise<T> {
+  Object.assign(process.env, GOOGLE_CREDENTIALS);
+  delete process.env.AZURE_AD_CLIENT_ID;
+  try {
+    return await callback();
+  } finally {
+    delete process.env.GOOGLE_CLIENT_ID;
+    delete process.env.GOOGLE_CLIENT_SECRET;
+  }
+}
+
 before(() => {
   // Stub the Prisma singleton — auth.ts and auth-bootstrap.ts import it at module level.
   mock.module("@/lib/prisma", {
@@ -36,29 +60,20 @@ before(() => {
 });
 
 test("buildProviders returns non-empty array when Google credentials are set", async () => {
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
-  delete process.env.AZURE_AD_CLIENT_ID;
+  await withGoogleOnly(async () => {
+    const { buildProviders } = await import("@/lib/auth-providers");
+    const providers = buildProviders();
 
-  const { buildProviders } = await import("@/lib/auth-providers");
-  const providers = buildProviders();
-
-  assert.ok(Array.isArray(providers), "providers must be an array");
-  assert.ok(
-    providers.length >= 1,
-    `Expected at least 1 provider but got ${providers.length} — GoogleProvider was likely not called as a function`,
-  );
-
-  delete process.env.GOOGLE_CLIENT_ID;
-  delete process.env.GOOGLE_CLIENT_SECRET;
+    assert.ok(Array.isArray(providers), "providers must be an array");
+    assert.ok(
+      providers.length >= 1,
+      `Expected at least 1 provider but got ${providers.length} — GoogleProvider was likely not called as a function`,
+    );
+  });
 });
 
 test("buildProviders returns empty array when no credentials are set", async () => {
-  delete process.env.GOOGLE_CLIENT_ID;
-  delete process.env.GOOGLE_CLIENT_SECRET;
-  delete process.env.AZURE_AD_CLIENT_ID;
-  delete process.env.AZURE_AD_CLIENT_SECRET;
-  delete process.env.AZURE_AD_TENANT_ID;
+  clearProviderEnv();
 
   const { buildProviders } = await import("@/lib/auth-providers");
   const providers = buildProviders();
@@ -68,35 +83,25 @@ test("buildProviders returns empty array when no credentials are set", async () 
 });
 
 test("getConfiguredProviders returns metadata for configured providers", async () => {
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
-  delete process.env.AZURE_AD_CLIENT_ID;
+  await withGoogleOnly(async () => {
+    const { getConfiguredProviders } = await import("@/lib/auth-providers");
+    const meta = getConfiguredProviders();
 
-  const { getConfiguredProviders } = await import("@/lib/auth-providers");
-  const meta = getConfiguredProviders();
-
-  assert.ok(Array.isArray(meta));
-  assert.ok(meta.length >= 1);
-  assert.ok(typeof meta[0].id === "string");
-  assert.ok(typeof meta[0].name === "string");
-
-  delete process.env.GOOGLE_CLIENT_ID;
-  delete process.env.GOOGLE_CLIENT_SECRET;
+    assert.ok(Array.isArray(meta));
+    assert.ok(meta.length >= 1);
+    assert.ok(typeof meta[0].id === "string");
+    assert.ok(typeof meta[0].name === "string");
+  });
 });
 
 test("authOptions.providers is non-empty when Google credentials are set", async () => {
-  process.env.GOOGLE_CLIENT_ID = "test-google-client-id";
-  process.env.GOOGLE_CLIENT_SECRET = "test-google-client-secret";
-  delete process.env.AZURE_AD_CLIENT_ID;
+  await withGoogleOnly(async () => {
+    const { authOptions } = await import("@/lib/auth");
 
-  const { authOptions } = await import("@/lib/auth");
-
-  assert.ok(Array.isArray(authOptions.providers), "providers must be an array");
-  assert.ok(
-    authOptions.providers.length >= 1,
-    `Expected at least 1 provider but got ${authOptions.providers.length} — GoogleProvider was likely not called as a function`,
-  );
-
-  delete process.env.GOOGLE_CLIENT_ID;
-  delete process.env.GOOGLE_CLIENT_SECRET;
+    assert.ok(Array.isArray(authOptions.providers), "providers must be an array");
+    assert.ok(
+      authOptions.providers.length >= 1,
+      `Expected at least 1 provider but got ${authOptions.providers.length} — GoogleProvider was likely not called as a function`,
+    );
+  });
 });

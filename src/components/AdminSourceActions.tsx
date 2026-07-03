@@ -5,6 +5,15 @@ import { useRouter } from "next/navigation";
 import { patchJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
 
+interface AdminSourceActionsProps {
+  providerKey: string;
+  enabled: boolean;
+}
+
+function getStatusLabel(enabled: boolean) {
+  return enabled ? "Enabled" : "Disabled";
+}
+
 /**
  * Per-row enable/disable toggle for a content source (RW-046). Disabling a
  * source stops the scraper from crawling that provider. The change is audited
@@ -13,14 +22,12 @@ import { Switch } from "@/components/ui/Switch";
 export default function AdminSourceActions({
   providerKey,
   enabled,
-}: {
-  providerKey: string;
-  enabled: boolean;
-}) {
+}: AdminSourceActionsProps) {
   const router = useRouter();
   const [on, setOn] = useState(enabled);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const statusLabel = getStatusLabel(on);
 
   async function toggle(next: boolean) {
     setBusy(true);
@@ -48,7 +55,7 @@ export default function AdminSourceActions({
         disabled={busy}
         aria-label={`${on ? "Disable" : "Enable"} ${providerKey}`}
       />
-      <span className="text-[length:var(--text-sm)] muted">{on ? "Enabled" : "Disabled"}</span>
+      <span className="text-[length:var(--text-sm)] muted">{statusLabel}</span>
       {error && (
         <span className="text-danger-text text-[length:var(--text-sm)]">{error}</span>
       )}

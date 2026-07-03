@@ -36,13 +36,23 @@ beforeEach(() => {
 });
 
 type SimpleResult = { value: string | null; fallback: boolean };
+type PersistCounter = { n: number };
+
+async function loadGetOrCreateSelectionAi() {
+  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  return getOrCreateSelectionAi;
+}
+
+function counter(): PersistCounter {
+  return { n: 0 };
+}
 
 function makeSpec(overrides: {
   cached?: SimpleResult | null;
   validateFn?: (text: string) => boolean;
-  persistCount?: { n: number };
+  persistCount?: PersistCounter;
 }) {
-  const persistCount = overrides.persistCount ?? { n: 0 };
+  const persistCount = overrides.persistCount ?? counter();
 
   return {
     feature: "test-feature",
@@ -60,18 +70,18 @@ function makeSpec(overrides: {
 }
 
 test("cache hit: returns cached result without calling AI", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   const cached: SimpleResult = { value: "cached-value", fallback: false };
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(makeSpec({ cached, persistCount }));
   assert.deepEqual(result, cached);
   assert.equal(persistCount.n, 0);
 });
 
 test("AI unconfigured: returns fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   aiConfigured = false;
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(makeSpec({ persistCount }));
   assert.equal(result.fallback, true);
   assert.equal(result.value, null);
@@ -79,20 +89,20 @@ test("AI unconfigured: returns fallback without caching", async () => {
 });
 
 test("AI configured + null reply: returns fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   aiConfigured = true;
   aiReply = null;
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(makeSpec({ persistCount }));
   assert.equal(result.fallback, true);
   assert.equal(persistCount.n, 0);
 });
 
 test("AI configured + valid reply: persists and returns result", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   aiConfigured = true;
   aiReply = "generated text";
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(makeSpec({ persistCount }));
   assert.equal(result.fallback, false);
   assert.equal(result.value, "generated text");
@@ -100,10 +110,10 @@ test("AI configured + valid reply: persists and returns result", async () => {
 });
 
 test("validate returns false: fallback without caching", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   aiConfigured = true;
   aiReply = "unsafe content";
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(
     makeSpec({ persistCount, validateFn: () => false }),
   );
@@ -112,10 +122,10 @@ test("validate returns false: fallback without caching", async () => {
 });
 
 test("validate returns true: persists and returns result", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const getOrCreateSelectionAi = await loadGetOrCreateSelectionAi();
   aiConfigured = true;
   aiReply = "safe content";
-  const persistCount = { n: 0 };
+  const persistCount = counter();
   const result = await getOrCreateSelectionAi(
     makeSpec({ persistCount, validateFn: () => true }),
   );

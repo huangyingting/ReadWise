@@ -33,10 +33,13 @@ export type SpeechTokenResult =
   | { status: "unconfigured" }
   | { status: "transient"; message?: string };
 
+const GOOD_WORD_SCORE = 80;
+const FAIR_WORD_SCORE = 60;
+
 /** Returns the band for a word given its accuracy score and error type. */
 export function getWordBand(score: number, errorType: string): WordBand {
   if (errorType === "Omission") return "omitted";
-  if (score >= 80) return "good";
-  if (score >= 60) return "fair";
+  if (score >= GOOD_WORD_SCORE) return "good";
+  if (score >= FAIR_WORD_SCORE) return "fair";
   return "poor";
 }

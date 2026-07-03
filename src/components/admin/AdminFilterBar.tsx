@@ -1,5 +1,10 @@
 import { cn } from "@/lib/cn";
 
+interface AdminFilterBarProps {
+  children: React.ReactNode;
+  className?: string;
+}
+
 /**
  * Wraps admin filter controls in a `<form method="get">` with the shared flex
  * layout. Children should be `Input`, `Select`, checkboxes, and a submit
@@ -8,10 +13,7 @@ import { cn } from "@/lib/cn";
 export function AdminFilterBar({
   children,
   className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
+}: AdminFilterBarProps) {
   return (
     <form
       method="get"

@@ -14,11 +14,11 @@
 import ListingProgressSync from "@/components/ListingProgressSync";
 import ListingBookmarkSync from "@/components/ListingBookmarkSync";
 
-export default function ListingSync({
-  articleIds,
-}: {
+interface ListingSyncProps {
   articleIds: string[];
-}) {
+}
+
+export default function ListingSync({ articleIds }: ListingSyncProps) {
   return (
     <>
       <ListingProgressSync articleIds={articleIds} />

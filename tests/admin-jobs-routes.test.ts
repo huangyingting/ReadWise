@@ -10,7 +10,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler } from "./support/route";
+import { getReq, jsonPost, readJson, type RouteHandler, withParams } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 let authState: AuthState = "ok";
@@ -140,30 +140,22 @@ beforeEach(() => {
   };
 });
 
-function jsonReq(url: string, body: unknown): Request {
-  return new Request(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 // ---- GET /api/admin/jobs -------------------------------------------------
 
 test("GET /api/admin/jobs requires admin", async () => {
   authState = "forbidden";
   const { GET } = (await import("@/app/api/admin/jobs/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/jobs"));
+  const res = await GET(getReq("http://test/api/admin/jobs"));
   assert.equal(res.status, 403);
   assert.equal(listCalls, 0);
 });
 
 test("GET /api/admin/jobs lists jobs for an admin", async () => {
   const { GET } = (await import("@/app/api/admin/jobs/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/jobs?status=FAILED"));
+  const res = await GET(getReq("http://test/api/admin/jobs?status=FAILED"));
   assert.equal(res.status, 200);
   assert.equal(listCalls, 1);
-  const data = (await res.json()) as { dashboard: unknown };
+  const data = await readJson<{ dashboard: unknown }>(res);
   assert.ok("dashboard" in data);
 });
 
@@ -172,18 +164,20 @@ test("GET /api/admin/jobs lists jobs for an admin", async () => {
 test("POST /api/admin/jobs/[id] requires admin", async () => {
   authState = "forbidden";
   const { POST } = (await import("@/app/api/admin/jobs/[id]/route")) as { POST: RouteHandler };
-  const res = await POST(jsonReq("http://test/api/admin/jobs/job-1", { action: "retry" }), {
-    params: Promise.resolve({ id: "job-1" }),
-  });
+  const res = await POST(
+    jsonPost("http://test/api/admin/jobs/job-1", { action: "retry" }),
+    withParams({ id: "job-1" }),
+  );
   assert.equal(res.status, 403);
   assert.equal(actionCalls.length, 0);
 });
 
 test("POST /api/admin/jobs/[id] runs the action and audits it", async () => {
   const { POST } = (await import("@/app/api/admin/jobs/[id]/route")) as { POST: RouteHandler };
-  const res = await POST(jsonReq("http://test/api/admin/jobs/job-1", { action: "retry" }), {
-    params: Promise.resolve({ id: "job-1" }),
-  });
+  const res = await POST(
+    jsonPost("http://test/api/admin/jobs/job-1", { action: "retry" }),
+    withParams({ id: "job-1" }),
+  );
   assert.equal(res.status, 200);
   assert.deepEqual(actionCalls, [{ id: "job-1", action: "retry" }]);
   assert.equal(auditCalls.at(-1)?.action, "admin.job.retry");
@@ -192,17 +186,19 @@ test("POST /api/admin/jobs/[id] runs the action and audits it", async () => {
 test("POST /api/admin/jobs/[id] surfaces a guard failure as its status", async () => {
   actionResult = { ok: false, status: 409, error: "Cannot retry a PENDING job" };
   const { POST } = (await import("@/app/api/admin/jobs/[id]/route")) as { POST: RouteHandler };
-  const res = await POST(jsonReq("http://test/api/admin/jobs/job-1", { action: "retry" }), {
-    params: Promise.resolve({ id: "job-1" }),
-  });
+  const res = await POST(
+    jsonPost("http://test/api/admin/jobs/job-1", { action: "retry" }),
+    withParams({ id: "job-1" }),
+  );
   assert.equal(res.status, 409);
 });
 
 test("POST /api/admin/jobs/[id] rejects an unknown action", async () => {
   const { POST } = (await import("@/app/api/admin/jobs/[id]/route")) as { POST: RouteHandler };
-  const res = await POST(jsonReq("http://test/api/admin/jobs/job-1", { action: "explode" }), {
-    params: Promise.resolve({ id: "job-1" }),
-  });
+  const res = await POST(
+    jsonPost("http://test/api/admin/jobs/job-1", { action: "explode" }),
+    withParams({ id: "job-1" }),
+  );
   assert.equal(res.status, 400);
   assert.equal(actionCalls.length, 0);
 });
@@ -213,7 +209,7 @@ test("POST /api/admin/jobs/backfill requires admin", async () => {
   authState = "forbidden";
   const { POST } = (await import("@/app/api/admin/jobs/backfill/route")) as { POST: RouteHandler };
   const res = await POST(
-    jsonReq("http://test/api/admin/jobs/backfill", { features: ["tags"], reason: "x" }),
+    jsonPost("http://test/api/admin/jobs/backfill", { features: ["tags"], reason: "x" }),
   );
   assert.equal(res.status, 403);
   assert.equal(backfillCalls.length, 0);
@@ -222,7 +218,7 @@ test("POST /api/admin/jobs/backfill requires admin", async () => {
 test("POST /api/admin/jobs/backfill runs the backfill with the operator id and audits", async () => {
   const { POST } = (await import("@/app/api/admin/jobs/backfill/route")) as { POST: RouteHandler };
   const res = await POST(
-    jsonReq("http://test/api/admin/jobs/backfill", {
+    jsonPost("http://test/api/admin/jobs/backfill", {
       features: ["tags"],
       reason: "new prompts",
       dryRun: false,
@@ -240,7 +236,7 @@ test("POST /api/admin/jobs/backfill maps a BackfillError to its status", async (
   backfillThrows = true;
   const { POST } = (await import("@/app/api/admin/jobs/backfill/route")) as { POST: RouteHandler };
   const res = await POST(
-    jsonReq("http://test/api/admin/jobs/backfill", { features: ["tags"], reason: "x" }),
+    jsonPost("http://test/api/admin/jobs/backfill", { features: ["tags"], reason: "x" }),
   );
   assert.equal(res.status, 400);
 });
@@ -248,7 +244,7 @@ test("POST /api/admin/jobs/backfill maps a BackfillError to its status", async (
 test("POST /api/admin/jobs/backfill rejects a missing reason at validation", async () => {
   const { POST } = (await import("@/app/api/admin/jobs/backfill/route")) as { POST: RouteHandler };
   const res = await POST(
-    jsonReq("http://test/api/admin/jobs/backfill", { features: ["tags"] }),
+    jsonPost("http://test/api/admin/jobs/backfill", { features: ["tags"] }),
   );
   assert.equal(res.status, 400);
   assert.equal(backfillCalls.length, 0);

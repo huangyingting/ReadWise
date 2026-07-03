@@ -12,6 +12,10 @@ interface ReviewCompleteProps {
   onReviewAgain: () => void;
 }
 
+function getKnownCount(gradeCounts: Record<Grade, number>) {
+  return (gradeCounts.good ?? 0) + (gradeCounts.easy ?? 0);
+}
+
 /** Session-complete summary screen. */
 export function ReviewComplete({
   total,
@@ -20,6 +24,11 @@ export function ReviewComplete({
   onDone,
   onReviewAgain,
 }: ReviewCompleteProps) {
+  const reviewedCardLabel = total === 1 ? "card" : "cards";
+  const reviewAgainLabel =
+    gradeCounts.again > 0 ? `${gradeCounts.again} to review again · ` : "";
+  const knownCount = getKnownCount(gradeCounts);
+
   return (
     <div className="flex flex-col items-center text-center gap-[var(--space-4)] py-[var(--space-6)]">
       <div
@@ -35,11 +44,8 @@ export function ReviewComplete({
         <p
           className="mt-[var(--space-1)] text-[length:var(--text-sm)] text-text-muted m-0"
         >
-          Reviewed {total} card{total === 1 ? "" : "s"}.{" "}
-          {gradeCounts.again > 0
-            ? `${gradeCounts.again} to review again · `
-            : ""}
-          {(gradeCounts.good ?? 0) + (gradeCounts.easy ?? 0)} known
+          Reviewed {total} {reviewedCardLabel}. {reviewAgainLabel}
+          {knownCount} known
         </p>
       </div>
 

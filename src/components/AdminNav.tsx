@@ -4,6 +4,11 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { adminNavLinkVariants } from "./admin/adminNavLinkVariants";
 
+interface AdminSection {
+  href: string;
+  label: string;
+}
+
 const SECTIONS = [
   { href: "/admin", label: "Dashboard" },
   { href: "/admin/articles", label: "Articles" },
@@ -13,7 +18,13 @@ const SECTIONS = [
   { href: "/admin/jobs", label: "Jobs" },
   { href: "/admin/analytics", label: "Analytics" },
   { href: "/admin/security", label: "Security" },
-];
+] satisfies readonly AdminSection[];
+
+function isSectionActive(pathname: string, sectionHref: string) {
+  return sectionHref === "/admin"
+    ? pathname === "/admin"
+    : pathname === sectionHref || pathname.startsWith(`${sectionHref}/`);
+}
 
 /**
  * Admin secondary sub-nav — a horizontal tab strip rendered inside the unified
@@ -27,11 +38,7 @@ export default function AdminNav() {
     <nav className="admin-subnav" aria-label="Admin sections">
       <div className="admin-subnav-track">
         {SECTIONS.map((section) => {
-          const isActive =
-            section.href === "/admin"
-              ? pathname === "/admin"
-              : pathname === section.href ||
-                pathname.startsWith(`${section.href}/`);
+          const isActive = isSectionActive(pathname, section.href);
 
           return (
             <Link

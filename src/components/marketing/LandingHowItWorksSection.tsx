@@ -5,6 +5,12 @@ import { StepCard } from "@/components/marketing/StepCard";
 import { Reveal } from "@/components/marketing/Reveal";
 import { CONTAINER, STEPS } from "@/components/marketing/landing-content";
 
+const STEP_REVEAL_DELAY_MS = 60;
+
+function getStepRevealDelay(index: number) {
+  return `${index * STEP_REVEAL_DELAY_MS}ms`;
+}
+
 export function LandingHowItWorksSection() {
   return (
     <section className="bg-bg-subtle py-[var(--space-12)]">
@@ -24,7 +30,7 @@ export function LandingHowItWorksSection() {
             <Reveal
               key={s.step}
               className="flex flex-1"
-              style={{ transitionDelay: `${i * 60}ms` }}
+              style={{ transitionDelay: getStepRevealDelay(i) }}
             >
               <StepCard
                 step={s.step}

@@ -18,6 +18,15 @@ let accessibleIds: Set<string> = new Set();
 
 const NOW = new Date("2026-06-27T12:00:00Z");
 
+function activeEnrollment(articleIds: string[]): Record<string, unknown> {
+  return {
+    id: "e1",
+    seriesId: "s1",
+    nextIndex: 0,
+    series: { id: "s1", status: "active", public: true, articleIds },
+  };
+}
+
 before(() => {
   mock.module("@/lib/article-library", {
     namedExports: {
@@ -71,12 +80,7 @@ beforeEach(() => {
 });
 
 test("injects the resolved series article as an extra Picks candidate", async () => {
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a-series"] },
-  };
+  enrollment = activeEnrollment(["a-series"]);
   accessibleIds = new Set(["a-series"]);
 
   const { buildTodayPlan } = await import("@/lib/engagement/today-session/generator");
@@ -86,12 +90,7 @@ test("injects the resolved series article as an extra Picks candidate", async ()
 });
 
 test("a PRIVATE series article is never injected; the next accessible one is", async () => {
-  enrollment = {
-    id: "e1",
-    seriesId: "s1",
-    nextIndex: 0,
-    series: { id: "s1", status: "active", public: true, articleIds: ["a-priv", "a-pub"] },
-  };
+  enrollment = activeEnrollment(["a-priv", "a-pub"]);
   accessibleIds = new Set(["a-pub"]); // a-priv is not public-listable
 
   const { buildTodayPlan } = await import("@/lib/engagement/today-session/generator");

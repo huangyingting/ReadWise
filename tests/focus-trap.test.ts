@@ -3,6 +3,8 @@ import assert from "node:assert/strict";
 
 import { beginRender, runCleanups } from "./support/react-hook-harness";
 
+type KeyListener = (event: KeyboardEvent) => void;
+
 function makeEl(opts: {
   tabIndex?: number;
   hidden?: boolean;
@@ -56,7 +58,7 @@ describe("getTabbable", () => {
 
 describe("focus trap hook behavior", () => {
   function installFocusDocument() {
-    let listener: ((event: KeyboardEvent) => void) | null = null;
+    let listener: KeyListener | null = null;
     const removed: boolean[] = [];
     const documentStub = {
       activeElement: null as HTMLElement | null,

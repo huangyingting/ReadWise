@@ -1,4 +1,4 @@
-import { describe, test } from "node:test";
+import { before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 import {
@@ -7,9 +7,21 @@ import {
   popHookCleanup,
 } from "./support/react-hook-harness";
 
+let currentReadingBlockModule: Awaited<
+  typeof import("@/components/reader/useCurrentReadingBlock")
+>;
+
+before(async () => {
+  currentReadingBlockModule = await import(
+    "@/components/reader/useCurrentReadingBlock"
+  );
+});
+
+type TimerHandle = { callback: () => void; cleared: boolean };
+type ObserverEntry = { target: Element; intersectionRatio: number };
+
 describe("useCurrentReadingBlock hook behavior", () => {
   function installFakeTimers() {
-    type TimerHandle = { callback: () => void; cleared: boolean };
     const handles: TimerHandle[] = [];
     globalThis.setTimeout = ((callback: () => void) => {
       const handle = { callback, cleared: false };
@@ -30,9 +42,7 @@ describe("useCurrentReadingBlock hook behavior", () => {
   }
 
   test("falls back gracefully without a container or IntersectionObserver", async () => {
-    const { useCurrentReadingBlock } = await import(
-      "@/components/reader/useCurrentReadingBlock"
-    );
+    const { useCurrentReadingBlock } = currentReadingBlockModule;
 
     beginRender();
     assert.equal(useCurrentReadingBlock(null), null);
@@ -47,9 +57,7 @@ describe("useCurrentReadingBlock hook behavior", () => {
   });
 
   test("observes block tags, debounces updates, avoids duplicate state, and cleans up", async () => {
-    const { useCurrentReadingBlock } = await import(
-      "@/components/reader/useCurrentReadingBlock"
-    );
+    const { useCurrentReadingBlock } = currentReadingBlockModule;
     const timers = installFakeTimers();
     const short = { tagName: "P", textContent: "short" };
     const best = {
@@ -63,9 +71,8 @@ describe("useCurrentReadingBlock hook behavior", () => {
     const container = {
       querySelectorAll: () => [short, best, filtered],
     } as unknown as HTMLElement;
-    let callback: (
-      entries: Array<{ target: Element; intersectionRatio: number }>
-    ) => void = () => assert.fail("observer callback was not installed");
+    let callback: (entries: ObserverEntry[]) => void = () =>
+      assert.fail("observer callback was not installed");
     const observed: Element[] = [];
     let disconnected = false;
 
@@ -73,7 +80,7 @@ describe("useCurrentReadingBlock hook behavior", () => {
       readonly options: IntersectionObserverInit;
 
       constructor(
-        cb: (entries: Array<{ target: Element; intersectionRatio: number }>) => void,
+        cb: (entries: ObserverEntry[]) => void,
         options: IntersectionObserverInit,
       ) {
         callback = cb;

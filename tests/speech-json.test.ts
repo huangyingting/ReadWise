@@ -1,10 +1,19 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import type { Prisma } from "@prisma/client";
 import { legacySpeechWordsToTimingPayloadV2 } from "@/lib/speech";
 import {
   parseStoredSpeechTimingPayload,
   parseStoredSpeechWords,
 } from "@/lib/speech/repository";
+
+function assertRejectsStoredSpeechWords(value: Prisma.JsonValue | null | undefined): void {
+  assert.equal(parseStoredSpeechWords(value), null);
+}
+
+function assertRejectsStoredTimingPayload(value: Prisma.JsonValue | null | undefined): void {
+  assert.equal(parseStoredSpeechTimingPayload(value), null);
+}
 
 test("parseStoredSpeechWords accepts legacy arrays and normalizes timings", () => {
   assert.deepEqual(parseStoredSpeechWords([]), []);
@@ -74,77 +83,56 @@ test("legacySpeechWordsToTimingPayloadV2 converts legacy arrays to canonical V2"
 });
 
 test("parseStoredSpeechWords rejects malformed timing shapes", () => {
-  assert.equal(parseStoredSpeechWords("not json"), null);
-  assert.equal(parseStoredSpeechWords({}), null);
-  assert.equal(
-    parseStoredSpeechWords([{ word: "Hello", offset: 100, duration: -1 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ textOffset: 0, length: 4, start: 0, end: 0.5 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ word: "Hello", offset: 0, duration: 500, textOffset: 0 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([{ word: "Hello", offset: 0, duration: 500, wordLength: 5 }]),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechWords([
-      { word: "Hello", offset: 0, duration: 500, textOffset: null, wordLength: 5 },
-    ]),
-    null,
-  );
+  assertRejectsStoredSpeechWords("not json");
+  assertRejectsStoredSpeechWords({});
+  assertRejectsStoredSpeechWords([{ word: "Hello", offset: 100, duration: -1 }]);
+  assertRejectsStoredSpeechWords([
+    { textOffset: 0, length: 4, start: 0, end: 0.5 },
+  ]);
+  assertRejectsStoredSpeechWords([
+    { word: "Hello", offset: 0, duration: 500, textOffset: 0 },
+  ]);
+  assertRejectsStoredSpeechWords([
+    { word: "Hello", offset: 0, duration: 500, wordLength: 5 },
+  ]);
+  assertRejectsStoredSpeechWords([
+    { word: "Hello", offset: 0, duration: 500, textOffset: null, wordLength: 5 },
+  ]);
 });
 
 test("parseStoredSpeechTimingPayload rejects malformed V2 payloads", () => {
-  assert.equal(
-    parseStoredSpeechTimingPayload({
-      version: 1,
-      provider: "azure",
-      timeUnit: "ms",
-      textUnit: "utf16",
-      words: [{ word: "Hello", offset: 0, duration: 500 }],
-    }),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechTimingPayload({
-      version: 2,
-      provider: "azure",
-      timeUnit: "ms",
-      textUnit: "utf16",
-      words: ["Hello"],
-      startMs: [0],
-      endMs: [],
-    }),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechTimingPayload({
-      version: 2,
-      provider: "azure",
-      timeUnit: "seconds",
-      textUnit: "utf16",
-      words: ["Hello"],
-      startMs: [0],
-      endMs: [500],
-    }),
-    null,
-  );
-  assert.equal(
-    parseStoredSpeechTimingPayload({
-      version: 2,
-      provider: "azure",
-      timeUnit: "ms",
-      textUnit: "utf16",
-      words: ["Hello"],
-      startMs: [600],
-      endMs: [500],
-    }),
-    null,
-  );
+  assertRejectsStoredTimingPayload({
+    version: 1,
+    provider: "azure",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    words: [{ word: "Hello", offset: 0, duration: 500 }],
+  });
+  assertRejectsStoredTimingPayload({
+    version: 2,
+    provider: "azure",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    words: ["Hello"],
+    startMs: [0],
+    endMs: [],
+  });
+  assertRejectsStoredTimingPayload({
+    version: 2,
+    provider: "azure",
+    timeUnit: "seconds",
+    textUnit: "utf16",
+    words: ["Hello"],
+    startMs: [0],
+    endMs: [500],
+  });
+  assertRejectsStoredTimingPayload({
+    version: 2,
+    provider: "azure",
+    timeUnit: "ms",
+    textUnit: "utf16",
+    words: ["Hello"],
+    startMs: [600],
+    endMs: [500],
+  });
 });

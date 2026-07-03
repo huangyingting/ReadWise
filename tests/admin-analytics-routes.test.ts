@@ -10,7 +10,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
-import { type RouteHandler } from "./support/route";
+import { getReq, jsonPost, readJson, type RouteHandler, withParams } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 let authState: AuthState = "ok";
@@ -130,14 +130,6 @@ beforeEach(() => {
   revokeResult = { ok: true, revoked: 2 };
 });
 
-function jsonReq(url: string, body: unknown): Request {
-  return new Request(url, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
-}
-
 // ---- GET /api/admin/analytics/export ------------------------------------
 
 test("export requires the analytics.view capability", async () => {
@@ -145,7 +137,7 @@ test("export requires the analytics.view capability", async () => {
   const { GET } = (await import("@/app/api/admin/analytics/export/route")) as {
     GET: RouteHandler;
   };
-  const res = await GET(new Request("http://test/api/admin/analytics/export?format=json"));
+  const res = await GET(getReq("http://test/api/admin/analytics/export?format=json"));
   assert.equal(res.status, 403);
 });
 
@@ -153,9 +145,9 @@ test("export returns JSON for an authorized analyst", async () => {
   const { GET } = (await import("@/app/api/admin/analytics/export/route")) as {
     GET: RouteHandler;
   };
-  const res = await GET(new Request("http://test/api/admin/analytics/export?format=json&days=30"));
+  const res = await GET(getReq("http://test/api/admin/analytics/export?format=json&days=30"));
   assert.equal(res.status, 200);
-  const data = (await res.json()) as { overview: unknown; retention: unknown };
+  const data = await readJson<{ overview: unknown; retention: unknown }>(res);
   assert.ok("overview" in data);
   assert.ok("retention" in data);
 });
@@ -164,7 +156,7 @@ test("export returns CSV when format=csv", async () => {
   const { GET } = (await import("@/app/api/admin/analytics/export/route")) as {
     GET: RouteHandler;
   };
-  const res = await GET(new Request("http://test/api/admin/analytics/export?format=csv&days=30"));
+  const res = await GET(getReq("http://test/api/admin/analytics/export?format=csv&days=30"));
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type") ?? "", /text\/csv/);
   const text = await res.text();
@@ -180,8 +172,8 @@ test("support requires the support.assist capability", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 403);
   assert.equal(revokeCalls, 0);
@@ -192,8 +184,8 @@ test("support revoke_sessions runs the action and audits it", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 200);
   assert.equal(revokeCalls, 1);
@@ -205,12 +197,12 @@ test("support export returns the assembled data and audits it", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "export" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "export" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 200);
   assert.equal(exportCalls, 1);
-  const data = (await res.json()) as { data: unknown };
+  const data = await readJson<{ data: unknown }>(res);
   assert.ok("data" in data);
   assert.equal(auditCalls.at(-1)?.action, "admin.member.export");
 });
@@ -220,8 +212,8 @@ test("support repair queues a rebuild and audits it", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "repair" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "repair" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 200);
   assert.equal(repairCalls, 1);
@@ -233,12 +225,12 @@ test("support resend_help reports email-not-configured and audits it", async () 
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "resend_help" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "resend_help" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 200);
   assert.equal(resendCalls, 1);
-  const data = (await res.json()) as { delivered: boolean; reason: string };
+  const data = await readJson<{ delivered: boolean; reason: string }>(res);
   assert.equal(data.delivered, false);
   assert.equal(data.reason, "email_not_configured");
   assert.equal(auditCalls.at(-1)?.action, "admin.member.resend_help");
@@ -249,8 +241,8 @@ test("support rejects an unknown action", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "explode" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "explode" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 400);
   assert.equal(revokeCalls, 0);
@@ -262,8 +254,8 @@ test("support surfaces a lib failure as its status", async () => {
     POST: RouteHandler;
   };
   const res = await POST(
-    jsonReq("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
-    { params: Promise.resolve({ id: "u9" }) },
+    jsonPost("http://test/api/admin/members/u9/support", { action: "revoke_sessions" }),
+    withParams({ id: "u9" }),
   );
   assert.equal(res.status, 404);
 });

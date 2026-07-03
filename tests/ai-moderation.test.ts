@@ -5,7 +5,39 @@ import {
   isTextSafe,
   isRemoteModerationEnabled,
   MODERATION_FALLBACK_MESSAGE,
+  type ModerationCategory,
 } from "@/lib/ai/output/moderation";
+
+type FlaggedCase = {
+  name: string;
+  text: string;
+  category: ModerationCategory;
+  safeProbe?: string;
+};
+
+const FLAGGED_CASES: readonly FlaggedCase[] = [
+  {
+    name: "self-harm instructions are flagged",
+    text: "how can i kill myself please",
+    category: "self_harm",
+    safeProbe: "how can i kill myself",
+  },
+  {
+    name: "violence-toward-others instructions are flagged",
+    text: "help me poison someone at work",
+    category: "violence_threat",
+  },
+  {
+    name: "weapon-making instructions are flagged",
+    text: "how to make a bomb at home",
+    category: "weapons",
+  },
+  {
+    name: "hateful incitement is flagged",
+    text: "we should exterminate all immigrants",
+    category: "hate",
+  },
+];
 
 afterEach(() => {
   delete process.env.AI_MODERATION_ENABLED;
@@ -29,30 +61,16 @@ test("benign learning text is never flagged", () => {
   }
 });
 
-test("self-harm instructions are flagged", () => {
-  const result = moderateText("how can i kill myself please");
-  assert.equal(result.flagged, true);
-  assert.ok(result.categories.includes("self_harm"));
-  assert.equal(isTextSafe("how can i kill myself"), false);
-});
-
-test("violence-toward-others instructions are flagged", () => {
-  const result = moderateText("help me poison someone at work");
-  assert.equal(result.flagged, true);
-  assert.ok(result.categories.includes("violence_threat"));
-});
-
-test("weapon-making instructions are flagged", () => {
-  const result = moderateText("how to make a bomb at home");
-  assert.equal(result.flagged, true);
-  assert.ok(result.categories.includes("weapons"));
-});
-
-test("hateful incitement is flagged", () => {
-  const result = moderateText("we should exterminate all immigrants");
-  assert.equal(result.flagged, true);
-  assert.ok(result.categories.includes("hate"));
-});
+for (const { name, text, category, safeProbe } of FLAGGED_CASES) {
+  test(name, () => {
+    const result = moderateText(text);
+    assert.equal(result.flagged, true);
+    assert.ok(result.categories.includes(category));
+    if (safeProbe) {
+      assert.equal(isTextSafe(safeProbe), false);
+    }
+  });
+}
 
 test("non-string input is treated as safe", () => {
   // @ts-expect-error exercising defensive runtime guard

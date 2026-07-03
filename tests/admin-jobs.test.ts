@@ -9,6 +9,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import type { JobStatus, JobType } from "@prisma/client";
 
 type FindManyArgs = {
   where: Record<string, unknown>;
@@ -22,10 +23,14 @@ let countResult = 0;
 let findManyResult: Record<string, unknown>[] = [];
 
 // ---- jobs stubs ----------------------------------------------------------
-let stubJob: { id: string; status: string; type: string } | null = null;
+type StubJob = { id: string; status: JobStatus; type: JobType };
+
+let stubJob: StubJob | null = null;
 let retryCalls: string[] = [];
 let cancelCalls: string[] = [];
 let archiveCalls: string[] = [];
+
+type AdminJobsModule = typeof import("@/lib/admin/jobs");
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -101,12 +106,20 @@ function jobRow(partial: Record<string, unknown> = {}): Record<string, unknown> 
   };
 }
 
+async function loadAdminJobs(): Promise<AdminJobsModule> {
+  return import("@/lib/admin/jobs") as Promise<AdminJobsModule>;
+}
+
+function setStubJob(status: StubJob["status"], id = "job-1"): void {
+  stubJob = { id, status, type: "ARTICLE_PROCESS" };
+}
+
 // ---- listAdminJobs -------------------------------------------------------
 
 test("listAdminJobs maps status/type/articleId/reason filters to a Prisma where", async () => {
   countResult = 1;
   findManyResult = [jobRow()];
-  const { listAdminJobs } = await import("@/lib/admin/jobs");
+  const { listAdminJobs } = await loadAdminJobs();
 
   const result = await listAdminJobs({
     status: "failed",
@@ -128,7 +141,7 @@ test("listAdminJobs maps status/type/articleId/reason filters to a Prisma where"
 
 test("listAdminJobs stuck filter queries in-flight jobs with an old lock", async () => {
   findManyResult = [];
-  const { listAdminJobs } = await import("@/lib/admin/jobs");
+  const { listAdminJobs } = await loadAdminJobs();
   await listAdminJobs({ stuck: true });
 
   assert.ok(findManyArgs);
@@ -137,7 +150,7 @@ test("listAdminJobs stuck filter queries in-flight jobs with an old lock", async
 });
 
 test("listAdminJobs ignores unknown status/type filters", async () => {
-  const { listAdminJobs } = await import("@/lib/admin/jobs");
+  const { listAdminJobs } = await loadAdminJobs();
   await listAdminJobs({ status: "bogus", type: "nope" });
 
   assert.ok(findManyArgs);
@@ -147,7 +160,7 @@ test("listAdminJobs ignores unknown status/type filters", async () => {
 
 test("listAdminJobs paginates with the configured page size", async () => {
   countResult = 60;
-  const { listAdminJobs, ADMIN_JOBS_PAGE_SIZE } = await import("@/lib/admin/jobs");
+  const { listAdminJobs, ADMIN_JOBS_PAGE_SIZE } = await loadAdminJobs();
   const result = await listAdminJobs({ page: 2 });
 
   assert.equal(findManyArgs!.skip, ADMIN_JOBS_PAGE_SIZE);
@@ -160,52 +173,52 @@ test("listAdminJobs paginates with the configured page size", async () => {
 
 test("runJobAction returns 404 for a missing job", async () => {
   stubJob = null;
-  const { runJobAction } = await import("@/lib/admin/jobs");
+  const { runJobAction } = await loadAdminJobs();
   const res = await runJobAction("missing", "retry");
   assert.equal(res.ok, false);
   if (!res.ok) assert.equal(res.status, 404);
 });
 
 test("runJobAction retry only allows FAILED / DEAD_LETTER", async () => {
-  const { runJobAction } = await import("@/lib/admin/jobs");
+  const { runJobAction } = await loadAdminJobs();
 
-  stubJob = { id: "job-1", status: "PENDING", type: "ARTICLE_PROCESS" };
+  setStubJob("PENDING");
   const blocked = await runJobAction("job-1", "retry");
   assert.equal(blocked.ok, false);
   if (!blocked.ok) assert.equal(blocked.status, 409);
   assert.equal(retryCalls.length, 0);
 
-  stubJob = { id: "job-1", status: "FAILED", type: "ARTICLE_PROCESS" };
+  setStubJob("FAILED");
   const ok = await runJobAction("job-1", "retry");
   assert.equal(ok.ok, true);
   assert.deepEqual(retryCalls, ["job-1"]);
 });
 
 test("runJobAction cancel rejects terminal jobs", async () => {
-  const { runJobAction } = await import("@/lib/admin/jobs");
+  const { runJobAction } = await loadAdminJobs();
 
-  stubJob = { id: "job-1", status: "COMPLETED", type: "ARTICLE_PROCESS" };
+  setStubJob("COMPLETED");
   const blocked = await runJobAction("job-1", "cancel");
   assert.equal(blocked.ok, false);
   if (!blocked.ok) assert.equal(blocked.status, 409);
   assert.equal(cancelCalls.length, 0);
 
-  stubJob = { id: "job-1", status: "RUNNING", type: "ARTICLE_PROCESS" };
+  setStubJob("RUNNING");
   const ok = await runJobAction("job-1", "cancel");
   assert.equal(ok.ok, true);
   assert.deepEqual(cancelCalls, ["job-1"]);
 });
 
 test("runJobAction archive only allows terminal jobs", async () => {
-  const { runJobAction } = await import("@/lib/admin/jobs");
+  const { runJobAction } = await loadAdminJobs();
 
-  stubJob = { id: "job-1", status: "RUNNING", type: "ARTICLE_PROCESS" };
+  setStubJob("RUNNING");
   const blocked = await runJobAction("job-1", "archive");
   assert.equal(blocked.ok, false);
   if (!blocked.ok) assert.equal(blocked.status, 409);
   assert.equal(archiveCalls.length, 0);
 
-  stubJob = { id: "job-1", status: "DEAD_LETTER", type: "ARTICLE_PROCESS" };
+  setStubJob("DEAD_LETTER");
   const ok = await runJobAction("job-1", "archive");
   assert.equal(ok.ok, true);
   if (ok.ok) assert.equal(ok.previousStatus, "DEAD_LETTER");

@@ -19,6 +19,9 @@ import {
   type FlushDeps,
 } from "@/lib/offline-sync";
 
+type SendResult = { status: number };
+type RecordedUpdate = { id: string; patch: Partial<QueuedMutation> };
+
 function mut(partial: Partial<QueuedMutation> = {}): QueuedMutation {
   return {
     clientMutationId: partial.clientMutationId ?? "m1",
@@ -34,14 +37,21 @@ function mut(partial: Partial<QueuedMutation> = {}): QueuedMutation {
   };
 }
 
+function assertStatusClassifications(
+  expected: ReturnType<typeof classifyStatus>,
+  statuses: number[],
+) {
+  for (const status of statuses) {
+    assert.equal(classifyStatus(status), expected, `status ${status}`);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // classifyStatus
 // ---------------------------------------------------------------------------
 
 test("classifyStatus: 2xx is success", () => {
-  assert.equal(classifyStatus(200), "success");
-  assert.equal(classifyStatus(201), "success");
-  assert.equal(classifyStatus(204), "success");
+  assertStatusClassifications("success", [200, 201, 204]);
 });
 
 test("classifyStatus: 409 is success (server already resolved the conflict)", () => {
@@ -49,10 +59,7 @@ test("classifyStatus: 409 is success (server already resolved the conflict)", ()
 });
 
 test("classifyStatus: 408/429/5xx are retryable", () => {
-  assert.equal(classifyStatus(408), "retry");
-  assert.equal(classifyStatus(429), "retry");
-  assert.equal(classifyStatus(500), "retry");
-  assert.equal(classifyStatus(503), "retry");
+  assertStatusClassifications("retry", [408, 429, 500, 503]);
 });
 
 test("classifyStatus: network error (0) is retryable", () => {
@@ -60,9 +67,7 @@ test("classifyStatus: network error (0) is retryable", () => {
 });
 
 test("classifyStatus: other 4xx are permanent", () => {
-  assert.equal(classifyStatus(400), "permanent");
-  assert.equal(classifyStatus(401), "permanent");
-  assert.equal(classifyStatus(404), "permanent");
+  assertStatusClassifications("permanent", [400, 401, 404]);
 });
 
 // ---------------------------------------------------------------------------
@@ -116,10 +121,10 @@ test("isPermanentlyFailed true only for failed + exhausted retries", () => {
 
 function recordingDeps(
   queue: QueuedMutation[],
-  send: (m: QueuedMutation) => Promise<{ status: number }>,
-): { deps: FlushDeps; removed: string[]; updated: { id: string; patch: Partial<QueuedMutation> }[] } {
+  send: (m: QueuedMutation) => Promise<SendResult>,
+): { deps: FlushDeps; removed: string[]; updated: RecordedUpdate[] } {
   const removed: string[] = [];
-  const updated: { id: string; patch: Partial<QueuedMutation> }[] = [];
+  const updated: RecordedUpdate[] = [];
   const deps: FlushDeps = {
     list: async () => queue,
     send,

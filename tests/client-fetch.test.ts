@@ -33,6 +33,15 @@ function jsonResponse(body: unknown, status = 200): Response {
   });
 }
 
+function assertJsonRequest(method: string, body: unknown): void {
+  assert.equal(calls[0].init.method, method);
+  assert.equal(calls[0].init.body, JSON.stringify(body));
+  assert.equal(
+    (calls[0].init.headers as Record<string, string>)["Content-Type"],
+    "application/json",
+  );
+}
+
 beforeEach(() => {
   calls = [];
 });
@@ -46,12 +55,7 @@ test("postJson sends a JSON body and parses the JSON response", async () => {
   const out = await postJson<{ ok: boolean; value: number }>("/api/x", { a: 1 });
   assert.deepEqual(out, { ok: true, value: 42 });
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].init.method, "POST");
-  assert.equal(calls[0].init.body, JSON.stringify({ a: 1 }));
-  assert.equal(
-    (calls[0].init.headers as Record<string, string>)["Content-Type"],
-    "application/json",
-  );
+  assertJsonRequest("POST", { a: 1 });
 });
 
 test("getJson issues a GET and parses the JSON response", async () => {
@@ -117,24 +121,14 @@ test("putJson sends a PUT request with a JSON body", async () => {
   stubFetch(async () => jsonResponse({ ok: true }));
   const out = await putJson<{ ok: boolean }>("/api/put", { value: 1 });
   assert.deepEqual(out, { ok: true });
-  assert.equal(calls[0].init.method, "PUT");
-  assert.equal(calls[0].init.body, JSON.stringify({ value: 1 }));
-  assert.equal(
-    (calls[0].init.headers as Record<string, string>)["Content-Type"],
-    "application/json",
-  );
+  assertJsonRequest("PUT", { value: 1 });
 });
 
 test("patchJson sends a PATCH request with a JSON body", async () => {
   stubFetch(async () => jsonResponse({ ok: true }));
   const out = await patchJson<{ ok: boolean }>("/api/patch", { value: 2 });
   assert.deepEqual(out, { ok: true });
-  assert.equal(calls[0].init.method, "PATCH");
-  assert.equal(calls[0].init.body, JSON.stringify({ value: 2 }));
-  assert.equal(
-    (calls[0].init.headers as Record<string, string>)["Content-Type"],
-    "application/json",
-  );
+  assertJsonRequest("PATCH", { value: 2 });
 });
 
 test("deleteJson omits Content-Type without a body and sets it with a body", async () => {

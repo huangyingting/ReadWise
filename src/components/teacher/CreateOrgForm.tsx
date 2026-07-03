@@ -7,6 +7,8 @@ import { Field } from "@/components/ui/Field";
 import { useMutation } from "@/hooks/useMutation";
 import { TeacherFormShell } from "./TeacherFormShell";
 
+const ORG_NAME_MAX_LENGTH = 120;
+
 /**
  * Creates an organization (RW-060). The creator becomes its first OrgAdmin so
  * they can then spin up classrooms. Posts to `/api/orgs` and refreshes.
@@ -14,10 +16,11 @@ import { TeacherFormShell } from "./TeacherFormShell";
 export default function CreateOrgForm() {
   const [name, setName] = useState("");
   const { busy, error, run } = useMutation("Failed to create organization");
+  const hasName = name.trim().length > 0;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
-    if (!name.trim()) return;
+    if (!hasName) return;
     await run(async () => {
       await postJson("/api/orgs", { name });
       setName("");
@@ -28,7 +31,7 @@ export default function CreateOrgForm() {
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={!!name.trim()}
+      canSubmit={hasName}
       submitLabel="Create organization"
       busyLabel="Creating…"
     >
@@ -37,7 +40,7 @@ export default function CreateOrgForm() {
           value={name}
           onChange={(e) => setName(e.target.value)}
           placeholder="e.g. Lincoln High ESL"
-          maxLength={120}
+          maxLength={ORG_NAME_MAX_LENGTH}
           required
         />
       </Field>

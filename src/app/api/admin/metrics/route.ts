@@ -1,12 +1,18 @@
 import { exportMetricsPrometheus } from "@/lib/metrics";
 import { createAdminHandler } from "@/lib/api-handler";
 
-export const GET = createAdminHandler({}, () => {
-  return new Response(exportMetricsPrometheus(), {
+const PROMETHEUS_HEADERS = {
+  "content-type": "text/plain; version=0.0.4; charset=utf-8",
+  "cache-control": "no-store",
+};
+
+function prometheusResponse(body: string): Response {
+  return new Response(body, {
     status: 200,
-    headers: {
-      "content-type": "text/plain; version=0.0.4; charset=utf-8",
-      "cache-control": "no-store",
-    },
+    headers: PROMETHEUS_HEADERS,
   });
+}
+
+export const GET = createAdminHandler({}, () => {
+  return prometheusResponse(exportMetricsPrometheus());
 });

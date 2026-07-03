@@ -55,13 +55,21 @@ beforeEach(() => {
   articles.set("a1", { title: "Title", content: "<p>Hard vocabulary words</p>" });
 });
 
+async function importVocabulary() {
+  return import("@/lib/vocabulary");
+}
+
+async function importSavedWords() {
+  return import("@/lib/lexical/saved-words");
+}
+
 test("returns cached vocabulary with per-user saved flags", async () => {
   vocabRows = [
     { word: "ephemeral", explanation: "short-lived", example: "An ephemeral fad." },
     { word: "Robust", explanation: "strong", example: "A robust system." },
   ];
   savedRows = [{ word: "ROBUST" }];
-  const { getOrCreateArticleVocabulary } = await import("@/lib/vocabulary");
+  const { getOrCreateArticleVocabulary } = await importVocabulary();
   const result = await getOrCreateArticleVocabulary("a1", "user-1");
   assert.equal(result?.fallback, false);
   assert.equal(result?.items.length, 2);
@@ -72,12 +80,12 @@ test("returns cached vocabulary with per-user saved flags", async () => {
 });
 
 test("returns null for a missing article", async () => {
-  const { getOrCreateArticleVocabulary } = await import("@/lib/vocabulary");
+  const { getOrCreateArticleVocabulary } = await importVocabulary();
   assert.equal(await getOrCreateArticleVocabulary("missing", "u"), null);
 });
 
 test("falls back without caching when AI is unconfigured", async () => {
-  const { getOrCreateArticleVocabulary } = await import("@/lib/vocabulary");
+  const { getOrCreateArticleVocabulary } = await importVocabulary();
   const result = await getOrCreateArticleVocabulary("a1", "u");
   assert.equal(result?.fallback, true);
   assert.equal(result?.items.length, 0);
@@ -92,7 +100,7 @@ test("parses fenced JSON from the model, dedups, and caches", async () => {
     '{"word":"lucid","explanation":"dup","example":"dup."},' +
     '{"word":"","explanation":"x","example":"y"}' +
     "]\n```";
-  const { getOrCreateArticleVocabulary } = await import("@/lib/vocabulary");
+  const { getOrCreateArticleVocabulary } = await importVocabulary();
   const result = await getOrCreateArticleVocabulary("a1", "u");
   assert.equal(result?.fallback, false);
   assert.equal(result?.items.length, 1);
@@ -101,7 +109,7 @@ test("parses fenced JSON from the model, dedups, and caches", async () => {
 });
 
 test("saveWord upserts a trimmed word for the user", async () => {
-  const { saveWord } = await import("@/lib/lexical/saved-words");
+  const { saveWord } = await importSavedWords();
   await saveWord("user-1", { word: "  curious  ", explanation: "eager" });
   const args = lastSaveUpsert as {
     where: { userId_word: { userId: string; word: string } };
@@ -113,7 +121,7 @@ test("saveWord upserts a trimmed word for the user", async () => {
 });
 
 test("saveWord is a no-op for a blank word", async () => {
-  const { saveWord } = await import("@/lib/lexical/saved-words");
+  const { saveWord } = await importSavedWords();
   await saveWord("user-1", { word: "   " });
   assert.equal(lastSaveUpsert, null);
 });

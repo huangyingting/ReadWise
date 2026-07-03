@@ -3,6 +3,16 @@ import { createHandler } from "@/lib/api-handler";
 import { prisma } from "@/lib/prisma";
 import { unsaveBatchBody } from "@/lib/vocabulary/schemas";
 
+async function removeSavedWords(userId: string, words: string[]): Promise<number> {
+  const { count } = await prisma.savedWord.deleteMany({
+    where: {
+      userId,
+      word: { in: words },
+    },
+  });
+  return count;
+}
+
 /**
  * POST /api/vocabulary/unsave-batch
  *
@@ -13,11 +23,6 @@ import { unsaveBatchBody } from "@/lib/vocabulary/schemas";
  * Response 200: { removed: number }
  */
 export const POST = createHandler({ body: unsaveBatchBody }, async ({ body, session }) => {
-  const { count } = await prisma.savedWord.deleteMany({
-    where: {
-      userId: session.user.id,
-      word: { in: body.words },
-    },
-  });
-  return NextResponse.json({ removed: count });
+  const removed = await removeSavedWords(session.user.id, body.words);
+  return NextResponse.json({ removed });
 });

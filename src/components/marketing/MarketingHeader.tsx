@@ -8,12 +8,21 @@ export interface MarketingHeaderProps {
   signedIn: boolean;
 }
 
+const SIGNED_IN_CTA = (
+  <>
+    Dashboard <span aria-hidden="true">→</span>
+  </>
+);
+
 /**
  * Glassmorphic sticky marketing header — wordmark + theme toggle + auth-aware
  * CTA. Standalone (not the M2 app shell); contains no collapsible nav, so it
  * needs no hamburger on mobile.
  */
 export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
+  const ctaHref = signedIn ? "/dashboard" : "/signin";
+  const ctaLabel = signedIn ? SIGNED_IN_CTA : "Sign In";
+
   return (
     <header
       className="sticky top-0 z-[var(--z-overlay)] border-b border-border [background:color-mix(in_srgb,var(--surface)_85%,transparent)] [backdrop-filter:blur(12px)]"
@@ -29,10 +38,10 @@ export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
         <div className="flex items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
           <ThemeToggle />
           <Link
-            href={signedIn ? "/dashboard" : "/signin"}
+            href={ctaHref}
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            {signedIn ? <>Dashboard <span aria-hidden="true">→</span></> : "Sign In"}
+            {ctaLabel}
           </Link>
         </div>
       </div>

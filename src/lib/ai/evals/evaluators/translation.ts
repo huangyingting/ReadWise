@@ -2,15 +2,18 @@ import { renderPrompt } from "@/lib/ai/prompts";
 import { str, pass, paragraphCount } from "@/lib/ai/evals/assertions";
 import type { FeatureEvaluator } from "@/lib/ai/evals/types";
 
+function buildTranslationMessages(input: Parameters<FeatureEvaluator["buildMessages"]>[0]) {
+  return renderPrompt("translation", {
+    label: str(input.targetLangLabel, str(input.targetLang, "Spanish")),
+    title: str(input.title),
+    chunk: str(input.source),
+    isPart: false,
+  });
+}
+
 export const translationEvaluator: FeatureEvaluator = {
   feature: "translation",
-  buildMessages: (input) =>
-    renderPrompt("translation", {
-      label: str(input.targetLangLabel, str(input.targetLang, "Spanish")),
-      title: str(input.title),
-      chunk: str(input.source),
-      isPart: false,
-    }),
+  buildMessages: buildTranslationMessages,
   check: (output, input) => {
     const trimmed = output.trim();
     const expectedParagraphs = paragraphCount(str(input.source));

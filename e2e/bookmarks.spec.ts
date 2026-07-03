@@ -6,7 +6,7 @@
  * clicking it flips the aria-pressed state (optimistic UI) and that a second
  * click restores the original state.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -26,14 +26,21 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
-test("bookmark toggle: saves and then un-saves an article", async ({ context, page }) => {
+async function signInReader(context: BrowserContext) {
   const { sessionToken, expires } = await createUserWithSession();
   await addSessionCookie(context, sessionToken, expires);
+}
 
+async function gotoSeededArticle(page: Page) {
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
   await expect(
     page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
   ).toBeVisible();
+}
+
+test("bookmark toggle: saves and then un-saves an article", async ({ context, page }) => {
+  await signInReader(context);
+  await gotoSeededArticle(page);
 
   const saveBtn = page.getByRole("button", { name: "Save to reading list" });
   await expect(saveBtn).toBeVisible();
@@ -51,10 +58,8 @@ test("bookmark toggle: saves and then un-saves an article", async ({ context, pa
 });
 
 test("bookmark group is visible on the article page", async ({ context, page }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
+  await signInReader(context);
+  await gotoSeededArticle(page);
   await expect(page.getByRole("group", { name: "Bookmark controls" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save to reading list" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add to list" })).toBeVisible();

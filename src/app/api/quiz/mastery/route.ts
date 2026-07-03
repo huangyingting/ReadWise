@@ -17,6 +17,10 @@ import { getQuizMastery } from "@/lib/learning/quiz-mastery";
  * Errors: 401 unauthenticated
  */
 export const GET = createHandler({}, async ({ session }) => {
-  const mastery = await getQuizMastery(session.user.id);
-  return NextResponse.json(mastery);
+  return quizMasteryResponse(session.user.id);
 });
+
+async function quizMasteryResponse(userId: string): Promise<NextResponse> {
+  const mastery = await getQuizMastery(userId);
+  return NextResponse.json(mastery);
+}

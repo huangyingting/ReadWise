@@ -12,7 +12,7 @@
  *
  * No live AI, Speech, OAuth, or Push providers are required.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 import {
   addSessionCookie,
   createUserWithSession,
@@ -23,6 +23,7 @@ import {
 
 // Mobile viewport matching iPhone 14 form-factor.
 const MOBILE_VIEWPORT = { width: 390, height: 844 };
+const ARTICLE_HEADING = "E2E Critical Reading Smoke Article";
 
 test.describe.configure({ mode: "serial" });
 
@@ -36,6 +37,16 @@ test.afterAll(async () => {
   await disconnectDb();
 });
 
+async function signInReader(context: BrowserContext) {
+  const { sessionToken, expires } = await createUserWithSession();
+  await addSessionCookie(context, sessionToken, expires);
+}
+
+async function gotoSeededArticle(page: Page) {
+  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
+  await expect(page.getByRole("heading", { name: ARTICLE_HEADING })).toBeVisible();
+}
+
 // ---------------------------------------------------------------------------
 // 1. Reader loads on mobile viewport
 // ---------------------------------------------------------------------------
@@ -44,14 +55,8 @@ test("reader renders article heading on mobile viewport", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
-
-  await expect(
-    page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
-  ).toBeVisible();
+  await signInReader(context);
+  await gotoSeededArticle(page);
 });
 
 // ---------------------------------------------------------------------------
@@ -62,13 +67,8 @@ test("reader toolbar back button is visible on mobile viewport", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-
-  await page.goto(`/reader/${TEST_ARTICLE_ID}`);
-  await expect(
-    page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
-  ).toBeVisible();
+  await signInReader(context);
+  await gotoSeededArticle(page);
 
   // The Back button is always present in ReaderControls regardless of viewport.
   await expect(page.getByRole("link", { name: /back/i })).toBeVisible();
@@ -82,8 +82,7 @@ test("offline library shows correct heading on mobile viewport", async ({
   context,
   page,
 }) => {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
+  await signInReader(context);
 
   await page.goto("/offline");
   await expect(page).toHaveURL(/\/offline$/);

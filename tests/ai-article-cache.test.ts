@@ -11,6 +11,10 @@ let defaultArticle: { title: string; content: string } | null = {
 let chatCalls: Array<{ messages: unknown[]; options: Record<string, unknown> }> = [];
 let chatResult: string | null = "model-output";
 
+async function loadAiCache() {
+  return import("@/lib/ai/cache");
+}
+
 before(() => {
   mock.module("@/lib/ai", {
     namedExports: {
@@ -64,7 +68,7 @@ function makeArticleSpec(overrides: Record<string, unknown> = {}) {
 }
 
 test("getOrCreateArticleAi returns null when access-checked custom loading misses", async () => {
-  const { getOrCreateArticleAi } = await import("@/lib/ai/cache");
+  const { getOrCreateArticleAi } = await loadAiCache();
   const { spec } = makeArticleSpec({
     loadArticle: async () => null,
   });
@@ -74,7 +78,7 @@ test("getOrCreateArticleAi returns null when access-checked custom loading misse
 });
 
 test("getOrCreateArticleAi returns cached rows before article loading or model calls", async () => {
-  const { getOrCreateArticleAi } = await import("@/lib/ai/cache");
+  const { getOrCreateArticleAi } = await loadAiCache();
   const { spec } = makeArticleSpec({
     readCache: async () => "cached-row",
   });
@@ -84,7 +88,7 @@ test("getOrCreateArticleAi returns cached rows before article loading or model c
 });
 
 test("getOrCreateArticleAi falls back without caching when AI is unconfigured", async () => {
-  const { getOrCreateArticleAi } = await import("@/lib/ai/cache");
+  const { getOrCreateArticleAi } = await loadAiCache();
   configured = false;
   const { spec, persisted } = makeArticleSpec();
 
@@ -93,7 +97,7 @@ test("getOrCreateArticleAi falls back without caching when AI is unconfigured", 
 });
 
 test("getOrCreateArticleAi builds messages, parses, persists, and forwards token metadata", async () => {
-  const { getOrCreateArticleAi } = await import("@/lib/ai/cache");
+  const { getOrCreateArticleAi } = await loadAiCache();
   const { spec, persisted } = makeArticleSpec({ maxOutputTokens: 33 });
 
   assert.equal(await getOrCreateArticleAi("article-1", spec as never), "fresh:stored:MODEL-OUTPUT");
@@ -104,7 +108,7 @@ test("getOrCreateArticleAi builds messages, parses, persists, and forwards token
 });
 
 test("getOrCreateArticleAi supports custom generation and graceful empty/misconfigured fallbacks", async () => {
-  const { getOrCreateArticleAi } = await import("@/lib/ai/cache");
+  const { getOrCreateArticleAi } = await loadAiCache();
   const generated = makeArticleSpec({
     buildMessages: undefined,
     parse: undefined,
@@ -127,7 +131,7 @@ test("getOrCreateArticleAi supports custom generation and graceful empty/misconf
 });
 
 test("getOrCreateSelectionAi forwards article and max-token options", async () => {
-  const { getOrCreateSelectionAi } = await import("@/lib/ai/cache");
+  const { getOrCreateSelectionAi } = await loadAiCache();
   const result = await getOrCreateSelectionAi({
     feature: "selection",
     articleId: "article-9",

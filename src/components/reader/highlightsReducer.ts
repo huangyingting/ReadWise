@@ -30,6 +30,10 @@ function sortByOffset(highlights: Highlight[]): Highlight[] {
   return [...highlights].sort((a, b) => a.startOffset - b.startOffset);
 }
 
+function highlightIdMatches(highlight: Highlight, id: string): boolean {
+  return highlight.id === id;
+}
+
 export function highlightsReducer(
   state: Highlight[],
   action: HighlightAction,
@@ -41,16 +45,16 @@ export function highlightsReducer(
       return sortByOffset([...state, action.optimistic]);
     case "REPLACE_OPTIMISTIC":
       return sortByOffset(
-        state.map((h) => (h.id === action.tempId ? action.real : h)),
+        state.map((h) => (highlightIdMatches(h, action.tempId) ? action.real : h)),
       );
     case "REVERT_OPTIMISTIC":
-      return state.filter((h) => h.id !== action.tempId);
+      return state.filter((h) => !highlightIdMatches(h, action.tempId));
     case "UPDATE":
       return state.map((h) =>
-        h.id === action.id ? { ...h, ...action.patch } : h,
+        highlightIdMatches(h, action.id) ? { ...h, ...action.patch } : h,
       );
     case "REMOVE":
-      return state.filter((h) => h.id !== action.id);
+      return state.filter((h) => !highlightIdMatches(h, action.id));
     default:
       return state;
   }

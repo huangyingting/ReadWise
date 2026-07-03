@@ -3,6 +3,15 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { getArticleListMembership } from "@/lib/article-library";
 import { parseMembershipQuery } from "@/lib/article-library/collections/schemas";
 
+const ARTICLE_NOT_FOUND_ERROR = "Article not found";
+
+function requireMembershipResult<T>(result: T | null): T {
+  if (result === null) {
+    throw new ApiError(404, ARTICLE_NOT_FOUND_ERROR);
+  }
+  return result;
+}
+
 /**
  * GET /api/bookmarks/membership?articleId=<id>
  *
@@ -14,8 +23,5 @@ import { parseMembershipQuery } from "@/lib/article-library/collections/schemas"
  */
 export const GET = createHandler({ query: parseMembershipQuery }, async ({ query, session }) => {
   const result = await getArticleListMembership(session.user.id, query.articleId, session.user.role);
-  if (result === null) {
-    throw new ApiError(404, "Article not found");
-  }
-  return NextResponse.json({ lists: result });
+  return NextResponse.json({ lists: requireMembershipResult(result) });
 });

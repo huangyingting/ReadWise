@@ -16,13 +16,16 @@
  *
  * ## Contract metadata extraction — known limitations
  *
- * - `successStatus`: reliably extracted when the route returns an explicit
- *   `status: 204/201` literal; defaults to 200 otherwise.
- * - `responseKeys`: extracted from the first `NextResponse.json({ ... })` call
- *   in the handler; `null` when the argument is a variable/expression.
+ * - `successStatus`: extracted from explicit 2xx `status` literals, simple
+ *   local numeric constants, or local response-init constants; defaults to 200.
+ * - `responseKeys`: extracted from the first successful
+ *   `NextResponse.json({ ... })` / `Response.json({ ... })` call in the
+ *   handler or a simple local response helper; `null` when the argument is an
+ *   opaque variable/expression.
  * - `queryParamNames`: extracted from `queryString/queryInt/queryBool/queryFloat`
- *   helper calls and `params.get("name")` usages; `null` when the route
- *   delegates query parsing to an external function with no discoverable calls.
+ *   helper calls and `params.get("name")` usages in handlers, inline query
+ *   functions, and simple local query helpers; `null` when the route delegates
+ *   query parsing to an external function with no discoverable calls.
  * - `bodyFieldNames`: extracted from inline `object({...})` body schemas or
  *   from a `const varName = object({...})` variable referenced in the config;
  *   `null` for custom schema functions, Zod schemas, or opaque references.
@@ -137,9 +140,10 @@ function fileToApiPath(filePath: string): string {
 // ── Static-analysis helpers ───────────────────────────────────────────────
 
 const HTTP_METHODS = ["GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"] as const;
-const CONFIG_WINDOW_CHARS = 500;
 const HANDLER_WINDOW_CHARS = 5000;
-const NEXT_RESPONSE_JSON_PREFIX = "NextResponse.json(";
+const IDENTIFIER_SOURCE = "[a-zA-Z_$][\\w$]*";
+const IDENTIFIER_RE = /^[a-zA-Z_$][\w$]*$/;
+const JSON_RESPONSE_CALL_RE = /\b(?:NextResponse|Response)\.json\s*\(/g;
 const DEFAULT_AUTH_COUNTS: Record<AuthMode, number> = {
   public: 0,
   session: 0,
@@ -154,14 +158,104 @@ const DEFAULT_AUTH_COUNTS: Record<AuthMode, number> = {
  * `openPos` in `source` (openPos must point at the `{` character).
  */
 function sliceBracketContent(source: string, openPos: number): string {
+  return sliceBalancedContent(source, openPos, "{", "}");
+}
+
+function sliceParenContent(source: string, openPos: number): string {
+  return sliceBalancedContent(source, openPos, "(", ")");
+}
+
+function findBalancedClose(
+  source: string,
+  openPos: number,
+  openChar: string,
+  closeChar: string,
+): number {
+  let depth = 0;
+  for (let i = openPos; i < source.length; i++) {
+    const ch = source[i];
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === q) { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === "`") { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (i < source.length - 1 && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+    if (ch === openChar) {
+      depth++;
+    } else if (ch === closeChar) {
+      depth--;
+      if (depth === 0) return i;
+    }
+  }
+  return -1;
+}
+
+function sliceBalancedContent(
+  source: string,
+  openPos: number,
+  openChar: string,
+  closeChar: string,
+): string {
   let depth = 0;
   let start = -1;
   for (let i = openPos; i < source.length; i++) {
     const ch = source[i];
-    if (ch === "{") {
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === q) { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === "`") { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (i < source.length - 1 && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+    if (ch === openChar) {
       depth++;
       if (depth === 1) start = i + 1;
-    } else if (ch === "}") {
+    } else if (ch === closeChar) {
       depth--;
       if (depth === 0) return source.slice(start, i);
     }
@@ -278,21 +372,455 @@ function sortedUnique(values: Iterable<string>): string[] {
   return [...new Set(values)].sort();
 }
 
+function splitTopLevelArguments(argsSource: string): string[] {
+  const args: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let i = 0; i < argsSource.length; i++) {
+    const ch = argsSource[i];
+
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < argsSource.length) {
+        if (argsSource[i] === "\\") { i++; }
+        else if (argsSource[i] === q) { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < argsSource.length) {
+        if (argsSource[i] === "\\") { i++; }
+        else if (argsSource[i] === "`") { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && argsSource[i + 1] === "/") {
+      while (i < argsSource.length && argsSource[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && argsSource[i + 1] === "*") {
+      i += 2;
+      while (i < argsSource.length - 1 && !(argsSource[i] === "*" && argsSource[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[" || ch === "(") { depth++; continue; }
+    if (ch === "}" || ch === "]" || ch === ")") { depth--; continue; }
+    if (ch === "," && depth === 0) {
+      args.push(argsSource.slice(start, i).trim());
+      start = i + 1;
+    }
+  }
+
+  const last = argsSource.slice(start).trim();
+  if (last) args.push(last);
+  return args;
+}
+
+function callArgumentsAt(source: string, openParenPos: number): string[] {
+  const content = sliceParenContent(source, openParenPos);
+  return content ? splitTopLevelArguments(content) : [];
+}
+
+function stripConstAssertions(expression: string): string {
+  return expression
+    .trim()
+    .replace(/\s+as\s+const\s*$/s, "")
+    .replace(/\s+satisfies\s+[^,)}]+$/s, "")
+    .trim();
+}
+
+function findConstObjectBody(source: string, name: string): string | null {
+  const constRe = new RegExp(`\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*\\{`);
+  const match = constRe.exec(source);
+  if (!match) return null;
+  const bracePos = source.indexOf("{", match.index + match[0].length - 1);
+  if (bracePos === -1) return null;
+  return sliceBracketContent(source, bracePos) || null;
+}
+
+function resolveNumberExpression(expression: string, fullSource: string): number | null {
+  const normalized = stripConstAssertions(expression);
+  if (/^\d{3}$/.test(normalized)) return parseInt(normalized, 10);
+  if (!IDENTIFIER_RE.test(normalized)) return null;
+
+  const constRe = new RegExp(`\\bconst\\s+${normalized}\\s*(?::[^=]+)?=\\s*(\\d{3})\\b`);
+  const match = constRe.exec(fullSource);
+  return match ? parseInt(match[1], 10) : null;
+}
+
+function readTopLevelPropertyValue(body: string, propertyName: string): string | null {
+  let depth = 0;
+
+  for (let i = 0; i < body.length; i++) {
+    const ch = body[i];
+
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < body.length) {
+        if (body[i] === "\\") { i++; }
+        else if (body[i] === q) { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < body.length) {
+        if (body[i] === "\\") { i++; }
+        else if (body[i] === "`") { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && body[i + 1] === "/") {
+      while (i < body.length && body[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && body[i + 1] === "*") {
+      i += 2;
+      while (i < body.length - 1 && !(body[i] === "*" && body[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[" || ch === "(") { depth++; continue; }
+    if (ch === "}" || ch === "]" || ch === ")") { depth--; continue; }
+
+    if (depth === 0 && /[a-zA-Z_$]/.test(ch)) {
+      const idMatch = /^[a-zA-Z_$][\w$]*/.exec(body.slice(i));
+      if (!idMatch) continue;
+      const id = idMatch[0];
+      const afterId = body.slice(i + id.length);
+      const colonOffset = afterId.search(/\S/);
+      if (id === propertyName && colonOffset !== -1 && afterId[colonOffset] === ":") {
+        const valueStart = i + id.length + colonOffset + 1;
+        return readTopLevelValue(body, valueStart);
+      }
+      i += id.length - 1;
+    }
+  }
+
+  return null;
+}
+
+function readTopLevelValue(source: string, start: number): string {
+  let depth = 0;
+  let valueStart = start;
+  while (/\s/.test(source[valueStart] ?? "")) valueStart++;
+
+  for (let i = valueStart; i < source.length; i++) {
+    const ch = source[i];
+
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === q) { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "`") {
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i++; }
+        else if (source[i] === "`") { break; }
+        i++;
+      }
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "/") {
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (ch === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (i < source.length - 1 && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i++;
+      continue;
+    }
+
+    if (ch === "{" || ch === "[" || ch === "(") { depth++; continue; }
+    if (ch === "}" || ch === "]" || ch === ")") {
+      if (depth === 0) return source.slice(valueStart, i).trim();
+      depth--;
+      continue;
+    }
+    if (ch === "," && depth === 0) return source.slice(valueStart, i).trim();
+  }
+
+  return source.slice(valueStart).trim();
+}
+
+function extractStatusFromObjectBody(
+  body: string,
+  fullSource: string,
+  visited = new Set<string>(),
+): number | null {
+  const directStatus = readTopLevelPropertyValue(body, "status");
+  if (directStatus) {
+    const status = resolveNumberExpression(directStatus, fullSource);
+    if (status !== null) return status;
+  }
+
+  const spreadRe = /\.\.\.\s*([a-zA-Z_$][\w$]*)/g;
+  let match: RegExpExecArray | null;
+  while ((match = spreadRe.exec(body)) !== null) {
+    const name = match[1];
+    if (visited.has(name)) continue;
+    visited.add(name);
+    const spreadBody = findConstObjectBody(fullSource, name);
+    if (!spreadBody) continue;
+    const status = extractStatusFromObjectBody(spreadBody, fullSource, visited);
+    if (status !== null) return status;
+  }
+
+  return null;
+}
+
+function extractStatusFromInitArg(initArg: string | undefined, fullSource: string): number | null {
+  if (!initArg) return null;
+  const arg = stripConstAssertions(initArg);
+  if (arg.startsWith("{")) {
+    const bracePos = initArg.indexOf("{");
+    const body = sliceBracketContent(initArg, bracePos);
+    return extractStatusFromObjectBody(body, fullSource);
+  }
+  if (IDENTIFIER_RE.test(arg)) {
+    const body = findConstObjectBody(fullSource, arg);
+    return body ? extractStatusFromObjectBody(body, fullSource) : null;
+  }
+  return null;
+}
+
+function skipWhitespaceAndComments(source: string, start: number): number {
+  let i = start;
+  while (i < source.length) {
+    while (/\s/.test(source[i] ?? "")) i++;
+    if (source[i] === "/" && source[i + 1] === "/") {
+      i += 2;
+      while (i < source.length && source[i] !== "\n") i++;
+      continue;
+    }
+    if (source[i] === "/" && source[i + 1] === "*") {
+      i += 2;
+      while (i < source.length - 1 && !(source[i] === "*" && source[i + 1] === "/")) i++;
+      i += 2;
+      continue;
+    }
+    break;
+  }
+  return i;
+}
+
+function findImplementationBraceAfterSignature(source: string, start: number): number {
+  let i = skipWhitespaceAndComments(source, start);
+  if (source[i] === "{") return i;
+  if (source[i] !== ":") return -1;
+
+  i++;
+  let expectTypeToken = true;
+  while (i < source.length) {
+    i = skipWhitespaceAndComments(source, i);
+    const ch = source[i];
+    if (!ch) return -1;
+
+    if (ch === "{") {
+      if (!expectTypeToken) return i;
+      const closePos = findBalancedClose(source, i, "{", "}");
+      if (closePos === -1) return -1;
+      i = closePos + 1;
+      expectTypeToken = false;
+      continue;
+    }
+    if (ch === "<" || ch === "(" || ch === "[") {
+      const closePos = findBalancedClose(
+        source,
+        i,
+        ch,
+        ch === "<" ? ">" : ch === "(" ? ")" : "]",
+      );
+      if (closePos === -1) return -1;
+      i = closePos + 1;
+      expectTypeToken = false;
+      continue;
+    }
+    if (ch === '"' || ch === "'") {
+      const q = ch;
+      i++;
+      while (i < source.length) {
+        if (source[i] === "\\") { i += 2; continue; }
+        if (source[i] === q) { i++; break; }
+        i++;
+      }
+      expectTypeToken = false;
+      continue;
+    }
+    if (/[a-zA-Z_$]/.test(ch)) {
+      const idMatch = /^[a-zA-Z_$][\w$]*/.exec(source.slice(i));
+      if (!idMatch) return -1;
+      i += idMatch[0].length;
+      expectTypeToken = false;
+      continue;
+    }
+    if (ch === ".") {
+      i++;
+      expectTypeToken = true;
+      continue;
+    }
+    if (ch === "|" || ch === "&" || ch === "," || ch === ":") {
+      i++;
+      expectTypeToken = true;
+      continue;
+    }
+    if (ch === "?" || ch === "!" || ch === "*") {
+      i++;
+      continue;
+    }
+    i++;
+  }
+
+  return -1;
+}
+
+function findFunctionBody(source: string, name: string): string | null {
+  const functionRe = new RegExp(`(?:async\\s+)?function\\s+${name}\\b`);
+  const functionMatch = functionRe.exec(source);
+  if (functionMatch) {
+    let cursor = skipWhitespaceAndComments(
+      source,
+      functionMatch.index + functionMatch[0].length,
+    );
+    if (source[cursor] === "<") {
+      const typeParamsEnd = findBalancedClose(source, cursor, "<", ">");
+      if (typeParamsEnd === -1) return null;
+      cursor = skipWhitespaceAndComments(source, typeParamsEnd + 1);
+    }
+    if (source[cursor] !== "(") return null;
+    const paramsEnd = findBalancedClose(source, cursor, "(", ")");
+    if (paramsEnd === -1) return null;
+    const bracePos = findImplementationBraceAfterSignature(source, paramsEnd + 1);
+    return bracePos === -1 ? null : sliceBracketContent(source, bracePos);
+  }
+
+  const arrowBlockRe = new RegExp(
+    `\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:\\([^)]*\\)|${IDENTIFIER_SOURCE})\\s*(?::[^=]+)?=>\\s*\\{`,
+  );
+  const arrowBlockMatch = arrowBlockRe.exec(source);
+  if (arrowBlockMatch) {
+    const bracePos = source.indexOf("{", arrowBlockMatch.index + arrowBlockMatch[0].length - 1);
+    return bracePos === -1 ? null : sliceBracketContent(source, bracePos);
+  }
+
+  const arrowExpressionRe = new RegExp(
+    `\\bconst\\s+${name}\\s*(?::[^=]+)?=\\s*(?:async\\s*)?(?:\\([^)]*\\)|${IDENTIFIER_SOURCE})\\s*(?::[^=]+)?=>\\s*([^;]+);`,
+  );
+  const arrowExpressionMatch = arrowExpressionRe.exec(source);
+  return arrowExpressionMatch ? `return ${arrowExpressionMatch[1]};` : null;
+}
+
+function collectCalledHelperNames(source: string): Set<string> {
+  const names = new Set<string>();
+  const returnCallRe = new RegExp(`\\breturn\\s+(${IDENTIFIER_SOURCE})\\s*\\(`, "g");
+  addNamedMatches(names, returnCallRe, source);
+
+  const jsonPayloadCallRe = new RegExp(
+    `\\b(?:NextResponse|Response)\\.json\\s*\\(\\s*(${IDENTIFIER_SOURCE})\\s*\\(`,
+    "g",
+  );
+  addNamedMatches(names, jsonPayloadCallRe, source);
+
+  return names;
+}
+
+function addNamedMatches(target: Set<string>, regex: RegExp, source: string): void {
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) target.add(match[1]);
+}
+
+function collectResponseWindows(handlerWindow: string, fullSource: string): string[] {
+  const windows = [handlerWindow];
+  const queue = [handlerWindow];
+  const visited = new Set<string>();
+
+  while (queue.length > 0 && windows.length < 20) {
+    const current = queue.shift() ?? "";
+    for (const name of collectCalledHelperNames(current)) {
+      if (visited.has(name)) continue;
+      visited.add(name);
+      const body = findFunctionBody(fullSource, name);
+      if (!body) continue;
+      windows.push(body);
+      queue.push(body);
+    }
+  }
+
+  return windows;
+}
+
+function extractReferencedConstObjectBodies(windows: string[], fullSource: string): string[] {
+  const bodies: string[] = [];
+  const seen = new Set<string>();
+  const queue = windows.join("\n");
+  const identifierRe = new RegExp(`\\b(${IDENTIFIER_SOURCE})\\b`, "g");
+
+  let match: RegExpExecArray | null;
+  while ((match = identifierRe.exec(queue)) !== null) {
+    const name = match[1];
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const body = findConstObjectBody(fullSource, name);
+    if (body) bodies.push(body);
+  }
+
+  return bodies;
+}
+
+function extractJsonResponseCalls(source: string): string[][] {
+  const calls: string[][] = [];
+  let match: RegExpExecArray | null;
+  const re = new RegExp(JSON_RESPONSE_CALL_RE);
+  while ((match = re.exec(source)) !== null) {
+    const openParenPos = source.indexOf("(", match.index);
+    if (openParenPos === -1) continue;
+    const args = callArgumentsAt(source, openParenPos);
+    if (args.length > 0) calls.push(args);
+  }
+  return calls;
+}
+
 /**
  * Detect the HTTP success status code from a handler source window.
  * Returns 204 when a `new (Next)Response(null, { status: 204 })` pattern is
  * found, 201 when `NextResponse.json({...}, { status: 201 })`, otherwise 200.
  */
-function extractSuccessStatus(handlerWindow: string): number {
-  if (
-    /new\s+(?:Next)?Response\s*\(\s*null\s*,\s*\{[^}]*\bstatus\s*:\s*204\b/.test(handlerWindow)
-  ) {
-    return 204;
+function extractSuccessStatus(handlerWindow: string, fullSource: string): number {
+  for (const windowSource of collectResponseWindows(handlerWindow, fullSource)) {
+    for (const args of extractJsonResponseCalls(windowSource)) {
+      const status = extractStatusFromInitArg(args[1], fullSource) ?? 200;
+      if (status >= 200 && status < 300) return status;
+    }
+
+    const responseRe = /\bnew\s+(?:Next)?Response\s*\(/g;
+    let match: RegExpExecArray | null;
+    while ((match = responseRe.exec(windowSource)) !== null) {
+      const openParenPos = windowSource.indexOf("(", match.index);
+      if (openParenPos === -1) continue;
+      const args = callArgumentsAt(windowSource, openParenPos);
+      const status = extractStatusFromInitArg(args[1], fullSource) ?? 200;
+      if (status >= 200 && status < 300) return status;
+    }
   }
-  const jsonStatus = /NextResponse\.json\([^)]+,\s*\{\s*status\s*:\s*(\d{3})\s*\}/.exec(
-    handlerWindow,
-  );
-  if (jsonStatus) return parseInt(jsonStatus[1], 10);
+
   return 200;
 }
 
@@ -301,18 +829,56 @@ function extractSuccessStatus(handlerWindow: string): number {
  * call in `handlerWindow`.  Returns `null` when the argument is not a literal
  * object (e.g. `NextResponse.json(result)`).
  */
-function extractResponseKeys(handlerWindow: string): string[] | null {
-  const re = /NextResponse\.json\(\s*\{/g;
-  const match = re.exec(handlerWindow);
-  if (!match) return null;
+function extractResponseKeys(handlerWindow: string, fullSource: string): string[] | null {
+  for (const windowSource of collectResponseWindows(handlerWindow, fullSource)) {
+    for (const args of extractJsonResponseCalls(windowSource)) {
+      const status = extractStatusFromInitArg(args[1], fullSource) ?? 200;
+      if (status < 200 || status >= 300) continue;
 
-  const bracePos = handlerWindow.indexOf("{", match.index + NEXT_RESPONSE_JSON_PREFIX.length);
+      const keys = extractJsonPayloadKeys(args[0], fullSource);
+      if (keys) return keys;
+    }
+  }
+
+  return null;
+}
+
+function extractJsonPayloadKeys(payloadArg: string | undefined, fullSource: string): string[] | null {
+  if (!payloadArg) return null;
+  const payload = stripConstAssertions(payloadArg);
+
+  if (payload.startsWith("{")) {
+    const bracePos = payloadArg.indexOf("{");
+    const body = sliceBracketContent(payloadArg, bracePos);
+    if (!body.trim()) return null;
+    const keys = extractObjectKeyNames(body);
+    return keys.length > 0 ? keys : null;
+  }
+
+  if (IDENTIFIER_RE.test(payload)) {
+    const body = findConstObjectBody(fullSource, payload);
+    if (!body) return null;
+    const keys = extractObjectKeyNames(body);
+    return keys.length > 0 ? keys : null;
+  }
+
+  const helperCall = new RegExp(`^(${IDENTIFIER_SOURCE})\\s*\\(`).exec(payload);
+  if (helperCall) return extractReturnObjectKeys(helperCall[1], fullSource);
+
+  return null;
+}
+
+function extractReturnObjectKeys(functionName: string, fullSource: string): string[] | null {
+  const body = findFunctionBody(fullSource, functionName);
+  if (!body) return null;
+
+  const returnObjectRe = /\breturn\s+(?:\(\s*)?\{/g;
+  const match = returnObjectRe.exec(body);
+  if (!match) return null;
+  const bracePos = body.indexOf("{", match.index);
   if (bracePos === -1) return null;
 
-  const body = sliceBracketContent(handlerWindow, bracePos);
-  if (!body.trim()) return null;
-
-  const keys = extractObjectKeyNames(body);
+  const keys = extractObjectKeyNames(sliceBracketContent(body, bracePos));
   return keys.length > 0 ? keys : null;
 }
 
@@ -321,16 +887,99 @@ function extractResponseKeys(handlerWindow: string): string[] | null {
  * Detects `queryString/queryInt/queryBool/queryFloat(params, "name")` and
  * `params.get("name")` patterns.
  */
-function extractQueryParamNames(source: string): string[] | null {
+function extractQueryParamNames(
+  configWindow: string,
+  handlerWindow: string,
+  fullSource: string,
+): string[] | null {
   const names = new Set<string>();
 
   const helperRe = /\bquery(?:String|Int|Bool|Float)\s*\(\s*\w+\s*,\s*["'](\w+)["']/g;
-  addRegexCaptures(names, helperRe, source);
+  addRegexCaptures(names, helperRe, handlerWindow);
 
   const getterRe = /\bparams\.get\(\s*["'](\w+)["']/g;
-  addRegexCaptures(names, getterRe, source);
+  addRegexCaptures(names, getterRe, handlerWindow);
+
+  for (const queryWindow of collectQueryConfigWindows(configWindow, fullSource)) {
+    addRegexCaptures(names, helperRe, queryWindow);
+    addRegexCaptures(names, getterRe, queryWindow);
+    addQueryParamsFromForwardedHelperCalls(names, queryWindow, fullSource);
+  }
 
   return names.size > 0 ? sortedUnique(names) : null;
+}
+
+function collectQueryConfigWindows(configWindow: string, fullSource: string): string[] {
+  const queryValue = readConfigPropertyValue(configWindow, "query");
+  const normalizedQueryValue = queryValue ? stripConstAssertions(queryValue) : null;
+
+  if (normalizedQueryValue && IDENTIFIER_RE.test(normalizedQueryValue)) {
+    const queryBody = findFunctionBody(fullSource, normalizedQueryValue);
+    return queryBody ? collectLocalFunctionWindows(queryBody, fullSource) : [];
+  }
+
+  if (queryValue) return collectLocalFunctionWindows(queryValue, fullSource);
+
+  const queryRefMatch = /\bquery\s*:\s*([a-zA-Z_$][\w$]*)/.exec(configWindow);
+  if (!queryRefMatch) return [];
+
+  const queryBody = findFunctionBody(fullSource, queryRefMatch[1]);
+  return queryBody ? collectLocalFunctionWindows(queryBody, fullSource) : [];
+}
+
+function readConfigPropertyValue(configWindow: string, propertyName: string): string | null {
+  const normalized = stripConstAssertions(configWindow);
+  if (normalized.startsWith("{")) {
+    const bracePos = configWindow.indexOf("{");
+    if (bracePos !== -1) {
+      return readTopLevelPropertyValue(sliceBracketContent(configWindow, bracePos), propertyName);
+    }
+  }
+
+  return readTopLevelPropertyValue(configWindow, propertyName);
+}
+
+function collectLocalFunctionWindows(rootBody: string, fullSource: string): string[] {
+  const windows = [rootBody];
+  const queue = [rootBody];
+  const visited = new Set<string>();
+  const localCallRe = new RegExp(`\\b(${IDENTIFIER_SOURCE})\\s*\\(`, "g");
+
+  while (queue.length > 0 && windows.length < 20) {
+    const current = queue.shift() ?? "";
+    let match: RegExpExecArray | null;
+    localCallRe.lastIndex = 0;
+    while ((match = localCallRe.exec(current)) !== null) {
+      const name = match[1];
+      if (visited.has(name)) continue;
+      visited.add(name);
+      const body = findFunctionBody(fullSource, name);
+      if (!body) continue;
+      windows.push(body);
+      queue.push(body);
+    }
+  }
+
+  return windows;
+}
+
+function addQueryParamsFromForwardedHelperCalls(
+  names: Set<string>,
+  queryBody: string,
+  fullSource: string,
+): void {
+  const localCallRe = new RegExp(
+    `\\b(${IDENTIFIER_SOURCE})\\s*\\(\\s*\\w+\\s*,\\s*["'](\\w+)["']`,
+    "g",
+  );
+  let match: RegExpExecArray | null;
+  while ((match = localCallRe.exec(queryBody)) !== null) {
+    const helperBody = findFunctionBody(fullSource, match[1]);
+    if (!helperBody) continue;
+    if (/\bquery(?:String|Int|Bool|Float)\s*\(/.test(helperBody) || /\bparams\.get\(/.test(helperBody)) {
+      names.add(match[2]);
+    }
+  }
 }
 
 function addRegexCaptures(target: Set<string>, regex: RegExp, source: string): void {
@@ -439,24 +1088,27 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
     }
   }
 
-  // Config window: 500 chars from the match start — covers the config object
-  // for all handler types (including createCapabilityHandler where the config
-  // is the second argument after the capability literal).
-  const configWindow = source.slice(match.index, match.index + CONFIG_WINDOW_CHARS);
-  const hasBodySchema = /\bbody\s*:/.test(configWindow);
-  const hasParamsSchema = /\bparams\s*:/.test(configWindow);
-  const hasQuerySchema = /\bquery\s*:/.test(configWindow);
+  const openParenPos = source.indexOf("(", match.index + match[0].length - 1);
+  const handlerArgs = openParenPos === -1 ? [] : callArgumentsAt(source, openParenPos);
+  const methodConfigSource =
+    (wrapperName === "createCapabilityHandler" ? handlerArgs[1] : handlerArgs[0]) ??
+    "";
+  const hasBodySchema = readConfigPropertyValue(methodConfigSource, "body") !== null;
+  const hasParamsSchema = readConfigPropertyValue(methodConfigSource, "params") !== null;
+  const hasQuerySchema = readConfigPropertyValue(methodConfigSource, "query") !== null;
 
   // Handler window: from the export to the next method export (or +5000 chars).
   // Used for success-status and response-key extraction.
   const handlerWindow = extractHandlerWindow(source, match.index);
 
-  const responseFormat = detectResponseFormat(source);
+  const responseFormat = detectResponseFormat(handlerWindow, source);
 
-  const successStatus = extractSuccessStatus(handlerWindow);
-  const responseKeys = extractResponseKeys(handlerWindow);
-  const queryParamNames = hasQuerySchema ? extractQueryParamNames(handlerWindow) : null;
-  const bodyFieldNames = extractBodyFieldNames(configWindow, source);
+  const successStatus = extractSuccessStatus(handlerWindow, source);
+  const responseKeys = extractResponseKeys(handlerWindow, source);
+  const queryParamNames = hasQuerySchema
+    ? extractQueryParamNames(methodConfigSource, handlerWindow, source)
+    : null;
+  const bodyFieldNames = hasBodySchema ? extractBodyFieldNames(methodConfigSource, source) : null;
 
   const notes: string[] = [];
   if (authMode === "capability" && capability) {
@@ -479,16 +1131,33 @@ function extractMethodEntry(method: string, source: string): MethodEntry | null 
   };
 }
 
-function detectResponseFormat(source: string): ResponseFormat {
-  if (/"audio\//.test(source) || /mimeType/.test(source)) return "binary";
-  if (/text\/csv/.test(source)) return "text/csv";
-  if (/text\/plain/.test(source)) return "text/plain";
-  if (
-    /Content-Disposition.*attachment/i.test(source) ||
-    /content-disposition.*attachment/i.test(source)
-  ) {
-    return /\.json"/.test(source) ? "download-json" : "text/csv";
-  }
+function detectResponseFormat(handlerWindow: string, fullSource: string): ResponseFormat {
+  const responseWindows = sortedUnique(
+    collectResponseWindows(handlerWindow, fullSource).flatMap((windowSource) =>
+      collectLocalFunctionWindows(windowSource, fullSource),
+    ),
+  );
+  const responseSource = [
+    ...responseWindows,
+    ...extractReferencedConstObjectBodies(responseWindows, fullSource),
+  ].join("\n");
+  const lower = responseSource.toLowerCase();
+  const hasJsonResponseCall = responseWindows.some((windowSource) =>
+    /\b(?:NextResponse|Response)\.json\s*\(/.test(windowSource),
+  );
+  const hasAttachment = /content-disposition[^,\n}]*attachment/i.test(responseSource);
+  const hasJson = /application\/json/i.test(responseSource) || /\.json\b/i.test(responseSource);
+  const hasCsv = /text\/csv/i.test(responseSource) || /\.csv\b/i.test(responseSource);
+  const hasPlain = /text\/plain/i.test(responseSource);
+
+  if (/"audio\//.test(responseSource) || /mimeType/.test(responseSource)) return "binary";
+  if (hasAttachment && hasJson && hasCsv) return "mixed";
+  if (hasAttachment && hasJson) return "download-json";
+  if (hasAttachment && hasCsv) return "text/csv";
+  if (hasCsv) return "text/csv";
+  if (hasPlain) return "text/plain";
+  if (hasJsonResponseCall || lower.includes("application/json")) return "json";
+  if (hasAttachment) return "mixed";
   return "json";
 }
 

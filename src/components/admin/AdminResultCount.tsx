@@ -1,3 +1,25 @@
+const ZERO_MARGIN_STYLE = { margin: 0 };
+
+function formatResultCount({
+  noun,
+  page,
+  pageSize,
+  total,
+}: {
+  noun: string;
+  page: number;
+  pageSize: number;
+  total: number;
+}) {
+  if (total === 0) {
+    return `No ${noun} match.`;
+  }
+
+  const showingFrom = (page - 1) * pageSize + 1;
+  const showingTo = Math.min(page * pageSize, total);
+  return `Showing ${showingFrom}–${showingTo} of ${total}`;
+}
+
 /**
  * Displays "No {noun} match." or "Showing X–Y of total" above a paginated
  * admin list. Pass the same `page` / `pageSize` / `total` values used to
@@ -14,14 +36,11 @@ export function AdminResultCount({
   pageSize: number;
   noun?: string;
 }) {
-  const showingFrom = total === 0 ? 0 : (page - 1) * pageSize + 1;
-  const showingTo = Math.min(page * pageSize, total);
+  const resultText = formatResultCount({ noun, page, pageSize, total });
 
   return (
-    <p className="muted" style={{ margin: 0 }}>
-      {total === 0
-        ? `No ${noun} match.`
-        : `Showing ${showingFrom}–${showingTo} of ${total}`}
+    <p className="muted" style={ZERO_MARGIN_STYLE}>
+      {resultText}
     </p>
   );
 }

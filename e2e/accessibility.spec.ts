@@ -31,7 +31,7 @@
  * to run all e2e specs including this one.
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type BrowserContext, type Page } from "@playwright/test";
 
 import {
   addSessionCookie,
@@ -52,6 +52,7 @@ const ALLOWLISTED_RULES: string[] = [
 
 // Only fail on serious / critical violations at baseline.
 const BLOCKING_IMPACTS = ["serious", "critical"] as const;
+const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 type Impact = (typeof BLOCKING_IMPACTS)[number];
 
 function assertNoBlockingViolations(
@@ -84,6 +85,18 @@ function assertNoBlockingViolations(
   }
 }
 
+async function signIn(
+  context: BrowserContext,
+  options: Parameters<typeof createUserWithSession>[0] = {},
+) {
+  const { sessionToken, expires } = await createUserWithSession(options);
+  await addSessionCookie(context, sessionToken, expires);
+}
+
+async function analyzePage(page: Page) {
+  return new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
+}
+
 // ---------------------------------------------------------------------------
 // Shared setup
 // ---------------------------------------------------------------------------
@@ -107,9 +120,7 @@ test.describe("a11y: sign-in page (unauthenticated)", () => {
     // Wait for main content to be present before scanning.
     await page.waitForSelector("main, [role='main'], form", { timeout: 10_000 });
 
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
+    const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
   });
@@ -123,15 +134,12 @@ test.describe("a11y: dashboard (authenticated reader)", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession();
-    await addSessionCookie(context, sessionToken, expires);
+    await signIn(context);
 
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
+    const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
   });
@@ -145,17 +153,14 @@ test.describe("a11y: reader surface", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession();
-    await addSessionCookie(context, sessionToken, expires);
+    await signIn(context);
 
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expect(
       page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
     ).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
+    const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
   });
@@ -164,8 +169,7 @@ test.describe("a11y: reader surface", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession();
-    await addSessionCookie(context, sessionToken, expires);
+    await signIn(context);
 
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expect(page.getByLabel("Display settings")).toBeVisible();
@@ -185,17 +189,14 @@ test.describe("a11y: admin surface", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession({
+    await signIn(context, {
       role: "Admin",
     });
-    await addSessionCookie(context, sessionToken, expires);
 
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
+    const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
   });
@@ -209,16 +210,13 @@ test.describe("a11y: teacher surface", () => {
     context,
     page,
   }) => {
-    const { sessionToken, expires } = await createUserWithSession();
-    await addSessionCookie(context, sessionToken, expires);
+    await signIn(context);
 
     await page.goto("/teacher");
     // Accept either a loaded teaching page or an empty/redirect state.
     await page.waitForSelector("main, [role='main'], h1", { timeout: 10_000 });
 
-    const results = await new AxeBuilder({ page })
-      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
-      .analyze();
+    const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
   });

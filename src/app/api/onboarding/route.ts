@@ -14,13 +14,15 @@ const profileSchema: Schema<ProfileInput> = (value) => {
 };
 
 export const POST = createHandler({ body: profileSchema }, async ({ body, session }) => {
-  await completeOnboarding(session.user.id, body);
+  const userId = session.user.id;
+
+  await completeOnboarding(userId, body);
 
   // Product analytics (RW-051): onboarding completion is the funnel entry point.
   // Metadata only — never the user's free-text answers.
   await recordEvent({
     type: ANALYTICS_EVENT_TYPES.onboardingComplete,
-    userId: session.user.id,
+    userId,
     properties: {
       englishLevel: body.englishLevel,
       topicCount: Array.isArray(body.topics) ? body.topics.length : 0,
@@ -29,7 +31,7 @@ export const POST = createHandler({ body: profileSchema }, async ({ body, sessio
 
   // Onboarding creates the user profile that drives feed personalisation — bust
   // the user's feed cache so the next request reflects the new profile.
-  revalidateUserCache(session.user.id);
+  revalidateUserCache(userId);
 
   return NextResponse.json({ ok: true });
 });

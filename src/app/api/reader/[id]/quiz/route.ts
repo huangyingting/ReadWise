@@ -5,8 +5,9 @@ import { getOrCreateArticleQuiz } from "@/lib/quiz";
 import { requireReadableArticleForAI } from "@/lib/reader/route-guard";
 
 export const POST = createHandler({ params: idParams }, async ({ params, session }) => {
-  const { context } = await requireReadableArticleForAI(params.id, session.user);
-  const result = await getOrCreateArticleQuiz(params.id, context);
+  const articleId = params.id;
+  const { context } = await requireReadableArticleForAI(articleId, session.user);
+  const result = await getOrCreateArticleQuiz(articleId, context);
   if (!result) {
     throw new ApiError(404, "Article not found");
   }

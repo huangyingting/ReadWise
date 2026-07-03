@@ -8,12 +8,16 @@
 
 import { normalizeLabelValue, incCacheLookup, incCacheMiss } from "@/lib/metrics/registry";
 
+function normalizeCacheName(cache: string): string {
+  return normalizeLabelValue(cache);
+}
+
 export function recordCacheLookup(cache: string): void {
-  incCacheLookup(normalizeLabelValue(cache));
+  incCacheLookup(normalizeCacheName(cache));
 }
 
 export function recordCacheMiss(cache: string): void {
-  incCacheMiss(normalizeLabelValue(cache));
+  incCacheMiss(normalizeCacheName(cache));
 }
 
 export function recordCacheAccess(cache: string, outcome: "hit" | "miss"): void {

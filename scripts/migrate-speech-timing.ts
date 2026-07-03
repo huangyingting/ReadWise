@@ -15,11 +15,15 @@ type Args = {
   provider: string | undefined;
 };
 
+function parseOptionalInt(value: string | null): number | undefined {
+  return value !== null ? parseInt(value, 10) : undefined;
+}
+
 function parseArgs(argv: string[]): Args {
   const limitStr = parseString(argv, "--limit");
   const provider = parseString(argv, "--provider");
   return {
-    limit: limitStr !== null ? parseInt(limitStr, 10) : undefined,
+    limit: parseOptionalInt(limitStr),
     provider: provider ?? undefined,
   };
 }

@@ -6,6 +6,15 @@ import { useMutation } from "@/hooks/useMutation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 
+interface SourceSyncResult {
+  created: number;
+  updated: number;
+}
+
+function formatSyncMessage({ created, updated }: SourceSyncResult) {
+  return `Synced. ${created} added, ${updated} updated.`;
+}
+
 /**
  * Syncs `ContentSource` rows from the code provider registry (RW-046). Inserts
  * any providers missing a row and refreshes display metadata. Audited.
@@ -18,10 +27,8 @@ export default function AdminSourceSync() {
   async function sync() {
     setMessage(null);
     await run(async () => {
-      const data = await postJson<{ created: number; updated: number }>(
-        "/api/admin/sources/sync",
-      );
-      setMessage(`Synced. ${data.created} added, ${data.updated} updated.`);
+      const data = await postJson<SourceSyncResult>("/api/admin/sources/sync");
+      setMessage(formatSyncMessage(data));
       router.refresh();
     });
   }

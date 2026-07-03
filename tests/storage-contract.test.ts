@@ -120,6 +120,15 @@ async function withAzure() {
   return { storage: storage!, sha256Hex };
 }
 
+async function putSpeech(
+  storage: Awaited<ReturnType<typeof withFilesystem>>["storage"],
+  payload: string,
+) {
+  const data = Buffer.from(payload);
+  const result = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
+  return result;
+}
+
 // ─── Contract: FilesystemMediaStorage ────────────────────────────────────────
 
 test("[filesystem] put returns content-addressed key (checksum in path)", async () => {
@@ -141,9 +150,8 @@ test("[filesystem] put is content-addressed: same bytes → same key", async () 
 
 test("[filesystem] put/get round trip preserves bytes", async () => {
   const { storage } = await withFilesystem();
-  const data = Buffer.from("hello-from-contract-test");
-  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
-  const fetched = await storage.get(put.storageKey);
+  const result = await putSpeech(storage, "hello-from-contract-test");
+  const fetched = await storage.get(result.storageKey);
   assert.ok(fetched);
   assert.equal(fetched!.toString(), "hello-from-contract-test");
 });
@@ -162,10 +170,9 @@ test("[filesystem] get path-traversal key returns null without throwing", async 
 
 test("[filesystem] delete existing key removes file", async () => {
   const { storage } = await withFilesystem();
-  const data = Buffer.from("delete-me");
-  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
-  await storage.delete(put.storageKey);
-  assert.equal(await storage.get(put.storageKey), null);
+  const result = await putSpeech(storage, "delete-me");
+  await storage.delete(result.storageKey);
+  assert.equal(await storage.get(result.storageKey), null);
 });
 
 test("[filesystem] delete missing key is idempotent (no throw)", async () => {
@@ -199,9 +206,8 @@ test("[azure] put is content-addressed: same bytes → same key", async () => {
 
 test("[azure] put/get round trip preserves bytes", async () => {
   const { storage } = await withAzure();
-  const data = Buffer.from("round-trip-azure");
-  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
-  const fetched = await storage.get(put.storageKey);
+  const result = await putSpeech(storage, "round-trip-azure");
+  const fetched = await storage.get(result.storageKey);
   assert.ok(fetched);
   assert.equal(fetched!.toString(), "round-trip-azure");
 });
@@ -214,10 +220,9 @@ test("[azure] get missing key returns null without throwing", async () => {
 
 test("[azure] delete existing key is idempotent (uses deleteIfExists)", async () => {
   const { storage } = await withAzure();
-  const data = Buffer.from("azure-delete-me");
-  const put = await storage.put({ data, mimeType: "audio/mpeg", keyHint: "speech" });
-  await storage.delete(put.storageKey);
-  assert.equal(await storage.get(put.storageKey), null);
+  const result = await putSpeech(storage, "azure-delete-me");
+  await storage.delete(result.storageKey);
+  assert.equal(await storage.get(result.storageKey), null);
 });
 
 test("[azure] delete missing key does not throw", async () => {
@@ -247,4 +252,3 @@ test("azure without credentials degrades gracefully to null", async () => {
   const { getMediaStorage } = await import("@/lib/storage");
   assert.equal(getMediaStorage(), null);
 });
-

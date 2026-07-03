@@ -15,18 +15,22 @@
 
 import { useEffect, useState } from "react";
 
+function canMatchMedia(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function";
+}
+
 export function useMediaQuery(query: string): boolean {
   const [matches, setMatches] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
+    if (!canMatchMedia()) {
       return;
     }
     const mq = window.matchMedia(query);
-    const update = () => setMatches(mq.matches);
-    update();
-    mq.addEventListener("change", update);
-    return () => mq.removeEventListener("change", update);
+    const updateMatches = () => setMatches(mq.matches);
+    updateMatches();
+    mq.addEventListener("change", updateMatches);
+    return () => mq.removeEventListener("change", updateMatches);
   }, [query]);
 
   return matches;

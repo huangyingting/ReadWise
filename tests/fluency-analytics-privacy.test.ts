@@ -20,6 +20,13 @@ let fluencyTrend: Record<string, unknown> = {
   categoryFilter: null,
 };
 
+function assertNoProperties(properties: Record<string, unknown> | undefined, bannedKeys: string[]) {
+  const keys = Object.keys(properties ?? {});
+  for (const banned of bannedKeys) {
+    assert.equal(keys.includes(banned), false, `must not include ${banned}`);
+  }
+}
+
 before(() => {
   mock.module("@/lib/analytics/learner", {
     namedExports: {
@@ -88,8 +95,5 @@ test("fluency_trend_viewed emits ONLY { trend, sampleCount, levelFilter } — no
     levelFilter: null,
   });
   // Defense: no WPM / article fields leak through.
-  const keys = Object.keys(event!.properties ?? {});
-  for (const banned of ["avgWpm", "wpm", "articleId", "title", "categoryFilter"]) {
-    assert.equal(keys.includes(banned), false, `must not include ${banned}`);
-  }
+  assertNoProperties(event!.properties, ["avgWpm", "wpm", "articleId", "title", "categoryFilter"]);
 });

@@ -8,6 +8,14 @@ import { prisma } from "@/lib/prisma";
 
 export const DEFAULT_LIST_NAME = "Saved";
 
+function defaultListKey(userId: string): { userId: string; name: string } {
+  return { userId, name: DEFAULT_LIST_NAME };
+}
+
+function defaultListCreateData(userId: string): { userId: string; name: string; isDefault: true } {
+  return { userId, name: DEFAULT_LIST_NAME, isDefault: true };
+}
+
 /**
  * Returns the user's default "Saved" list, creating it lazily if it does not
  * yet exist.
@@ -16,8 +24,8 @@ export async function getOrCreateDefaultList(
   userId: string,
 ): Promise<{ id: string; name: string; isDefault: boolean }> {
   return prisma.readingList.upsert({
-    where: { userId_name: { userId, name: DEFAULT_LIST_NAME } },
-    create: { userId, name: DEFAULT_LIST_NAME, isDefault: true },
+    where: { userId_name: defaultListKey(userId) },
+    create: defaultListCreateData(userId),
     update: {},
   });
 }

@@ -6,7 +6,7 @@
  *          flag on / absent → unchanged behavior.
  */
 
-import { test, beforeEach, afterEach } from "node:test";
+import { test, beforeEach, afterEach, type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import {
   isFeatureEnabled,
@@ -80,6 +80,19 @@ function enableSpeechCreds() {
   process.env.AZURE_SPEECH_REGION = "eastus";
 }
 
+function installFetchSpy(t: TestContext): () => boolean {
+  const originalFetch = globalThis.fetch;
+  let called = false;
+  t.after(() => {
+    globalThis.fetch = originalFetch;
+  });
+  globalThis.fetch = (async () => {
+    called = true;
+    return new Response("{}", { status: 200 });
+  }) as typeof fetch;
+  return () => called;
+}
+
 // ---------------------------------------------------------------------------
 // isFeatureEnabled — unit tests for the helper itself
 // ---------------------------------------------------------------------------
@@ -151,20 +164,14 @@ test("chatComplete returns null when FEATURE_AI_ENABLED=false (no network call)"
   process.env.FEATURE_AI_ENABLED = "false";
   process.env.AI_MAX_RETRIES = "0";
 
-  const originalFetch = globalThis.fetch;
-  let networkCalled = false;
+  const wasNetworkCalled = installFetchSpy(t);
   t.after(() => {
-    globalThis.fetch = originalFetch;
     delete process.env.AI_MAX_RETRIES;
   });
-  globalThis.fetch = (async () => {
-    networkCalled = true;
-    return new Response("{}", { status: 200 });
-  }) as typeof fetch;
 
   const result = await chatComplete([{ role: "user", content: "hello" }]);
   assert.equal(result, null);
-  assert.equal(networkCalled, false, "network must not be called when AI is disabled");
+  assert.equal(wasNetworkCalled(), false, "network must not be called when AI is disabled");
 });
 
 // ---------------------------------------------------------------------------
@@ -221,17 +228,11 @@ test("vapidPublicKey returns null when FEATURE_PUSH_ENABLED=false", () => {
 test("scrapeUrl returns null when FEATURE_SCRAPER_ENABLED=false (no network)", async (t) => {
   process.env.FEATURE_SCRAPER_ENABLED = "false";
 
-  const originalFetch = globalThis.fetch;
-  let networkCalled = false;
-  t.after(() => { globalThis.fetch = originalFetch; });
-  globalThis.fetch = (async () => {
-    networkCalled = true;
-    return new Response("", { status: 200 });
-  }) as typeof fetch;
+  const wasNetworkCalled = installFetchSpy(t);
 
   const result = await scrapeUrl("https://example.com/article");
   assert.equal(result, null);
-  assert.equal(networkCalled, false, "network must not be called when scraper is disabled");
+  assert.equal(wasNetworkCalled(), false, "network must not be called when scraper is disabled");
 });
 
 test("scrapeAndSave returns failed outcome when FEATURE_SCRAPER_ENABLED=false", async () => {

@@ -16,13 +16,14 @@ export function Reveal({
 }: React.HTMLAttributes<HTMLDivElement>) {
   const ref = React.useRef<HTMLDivElement | null>(null);
   const [revealed, setRevealed] = React.useState(false);
+  const reveal = React.useCallback(() => setRevealed(true), []);
 
   React.useEffect(() => {
     const node = ref.current;
     if (!node || revealed) return;
 
     if (typeof IntersectionObserver === "undefined") {
-      setRevealed(true);
+      reveal();
       return;
     }
 
@@ -30,7 +31,7 @@ export function Reveal({
       (entries) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            setRevealed(true);
+            reveal();
             observer.disconnect();
             break;
           }
@@ -41,7 +42,7 @@ export function Reveal({
 
     observer.observe(node);
     return () => observer.disconnect();
-  }, [revealed]);
+  }, [reveal, revealed]);
 
   return (
     <div

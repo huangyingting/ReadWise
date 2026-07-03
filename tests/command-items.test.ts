@@ -16,22 +16,23 @@ import {
   ACTION_ITEMS,
 } from "@/components/command/command-items";
 
+const BASIC_ITEMS = [
+  { label: "Dashboard", keywords: "home" },
+  { label: "Browse", keywords: "explore" },
+];
+
+function pageLabels(role: Parameters<typeof getPageItems>[0]) {
+  return getPageItems(role).map((p) => p.label);
+}
+
 // ---- fuzzyFilter ---------------------------------------------------------
 
 test("fuzzyFilter - returns all items when query is empty", () => {
-  const items = [
-    { label: "Dashboard", keywords: "home" },
-    { label: "Browse", keywords: "explore" },
-  ];
-  assert.deepEqual(fuzzyFilter(items, ""), items);
+  assert.deepEqual(fuzzyFilter(BASIC_ITEMS, ""), BASIC_ITEMS);
 });
 
 test("fuzzyFilter - matches by label prefix", () => {
-  const items = [
-    { label: "Dashboard", keywords: "home" },
-    { label: "Browse", keywords: "explore" },
-  ];
-  const result = fuzzyFilter(items, "das");
+  const result = fuzzyFilter(BASIC_ITEMS, "das");
   assert.equal(result.length, 1);
   assert.equal(result[0].label, "Dashboard");
 });
@@ -47,11 +48,7 @@ test("fuzzyFilter - matches by keyword", () => {
 });
 
 test("fuzzyFilter - returns empty array when no match", () => {
-  const items = [
-    { label: "Dashboard", keywords: "home" },
-    { label: "Browse", keywords: "explore" },
-  ];
-  const result = fuzzyFilter(items, "zzz");
+  const result = fuzzyFilter(BASIC_ITEMS, "zzz");
   assert.equal(result.length, 0);
 });
 
@@ -76,21 +73,15 @@ test("fuzzyFilter - ranks contiguous match higher than scattered", () => {
 // ---- getPageItems ---------------------------------------------------------
 
 test("getPageItems - returns pages without Admin for non-admin user", () => {
-  const pages = getPageItems("Member");
-  const labels = pages.map((p) => p.label);
-  assert.ok(!labels.includes("Admin"), "Admin page should not appear for non-admin user");
+  assert.ok(!pageLabels("Member").includes("Admin"), "Admin page should not appear for non-admin user");
 });
 
 test("getPageItems - includes Admin page for Admin role", () => {
-  const pages = getPageItems("Admin");
-  const labels = pages.map((p) => p.label);
-  assert.ok(labels.includes("Admin"), "Admin page should appear for Admin role");
+  assert.ok(pageLabels("Admin").includes("Admin"), "Admin page should appear for Admin role");
 });
 
 test("getPageItems - includes Settings page for all roles", () => {
-  const pages = getPageItems(null);
-  const labels = pages.map((p) => p.label);
-  assert.ok(labels.includes("Settings"));
+  assert.ok(pageLabels(null).includes("Settings"));
 });
 
 test("getPageItems - all items have required shape", () => {

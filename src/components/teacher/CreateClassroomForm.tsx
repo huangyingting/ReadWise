@@ -1,5 +1,6 @@
 "use client";
 
+import type { FormEvent } from "react";
 import { useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
@@ -10,6 +11,10 @@ import { TeacherFormShell } from "./TeacherFormShell";
 
 export type TeachableOrg = { id: string; name: string };
 
+function canCreateClassroom(orgId: string, name: string) {
+  return Boolean(orgId && name.trim());
+}
+
 /**
  * Creates a classroom inside an org the teacher can manage (RW-061). Posts to
  * `/api/classrooms`; the creator becomes the classroom's teacher.
@@ -18,10 +23,11 @@ export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) 
   const [orgId, setOrgId] = useState(orgs[0]?.id ?? "");
   const [name, setName] = useState("");
   const { busy, error, run } = useMutation("Failed to create classroom");
+  const canSubmit = canCreateClassroom(orgId, name);
 
-  async function submit(e: React.FormEvent) {
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    if (!orgId || !name.trim()) return;
+    if (!canSubmit) return;
     await run(async () => {
       await postJson("/api/classrooms", { orgId, name });
       setName("");
@@ -32,7 +38,7 @@ export default function CreateClassroomForm({ orgs }: { orgs: TeachableOrg[] }) 
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={!!orgId && !!name.trim()}
+      canSubmit={canSubmit}
       submitLabel="Create classroom"
       busyLabel="Creating…"
     >

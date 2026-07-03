@@ -16,15 +16,17 @@ export function RetakePlacement({ seedLevel }: { seedLevel: PlacementSeedLevel }
   const [open, setOpen] = useState(false);
   const router = useRouter();
 
+  function handleDone() {
+    setOpen(false);
+    router.refresh();
+  }
+
   if (open) {
     return (
       <ReadingPlacementCard
         seedLevel={seedLevel}
         attempt="retake"
-        onDone={() => {
-          setOpen(false);
-          router.refresh();
-        }}
+        onDone={handleDone}
       />
     );
   }

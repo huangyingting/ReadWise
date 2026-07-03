@@ -7,6 +7,20 @@ type CountdownOptions = {
   countdownStartSeconds: number;
 };
 
+function clearTimerRef(ref: { current: ReturnType<typeof setTimeout> | null }): void {
+  if (ref.current !== null) {
+    clearTimeout(ref.current);
+    ref.current = null;
+  }
+}
+
+function clearIntervalRef(ref: { current: ReturnType<typeof setInterval> | null }): void {
+  if (ref.current !== null) {
+    clearInterval(ref.current);
+    ref.current = null;
+  }
+}
+
 export function useRecordingCountdown({
   maxRecordMs,
   countdownStartSeconds,
@@ -17,18 +31,12 @@ export function useRecordingCountdown({
   const recordingStartRef = useRef<number>(0);
 
   const stopCountdown = useCallback(() => {
-    if (countdownIntervalRef.current !== null) {
-      clearInterval(countdownIntervalRef.current);
-      countdownIntervalRef.current = null;
-    }
+    clearIntervalRef(countdownIntervalRef);
     setSecondsRemaining(null);
   }, []);
 
   const cancelAutoStop = useCallback(() => {
-    if (autoStopTimerRef.current !== null) {
-      clearTimeout(autoStopTimerRef.current);
-      autoStopTimerRef.current = null;
-    }
+    clearTimerRef(autoStopTimerRef);
     stopCountdown();
   }, [stopCountdown]);
 

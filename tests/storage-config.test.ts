@@ -25,6 +25,24 @@ function setRequiredEnv() {
   process.env.NEXTAUTH_URL = "http://localhost:3000";
 }
 
+function currentStorageConfig() {
+  return validateRuntimeConfig().optional.storage;
+}
+
+function assertStorageConfigured() {
+  const storage = currentStorageConfig();
+  assert.equal(storage.status, "configured");
+  assert.equal(storage.configured, true);
+  return storage;
+}
+
+function assertStorageDegraded() {
+  const storage = currentStorageConfig();
+  assert.equal(storage.status, "degraded");
+  assert.equal(storage.configured, true);
+  return storage;
+}
+
 beforeEach(() => {
   savedEnv = {};
   for (const key of STORAGE_ENV_KEYS) {
@@ -57,16 +75,12 @@ test("storage reports configured local storage when MEDIA_STORAGE is unset", () 
 
 test("storage reports configured for filesystem mode", () => {
   process.env.MEDIA_STORAGE = "filesystem";
-  const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "configured");
-  assert.equal(cfg.optional.storage.configured, true);
+  assertStorageConfigured();
 });
 
 test("storage reports configured for local filesystem alias", () => {
   process.env.MEDIA_STORAGE = "local";
-  const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "configured");
-  assert.equal(cfg.optional.storage.configured, true);
+  assertStorageConfigured();
 });
 
 test("storage reports degraded for azure with no credentials", () => {
@@ -85,11 +99,9 @@ test("storage reports configured for azure with connection string", () => {
   process.env.MEDIA_STORAGE = "azure";
   process.env.AZURE_STORAGE_CONNECTION_STRING =
     "DefaultEndpointsProtocol=https;AccountName=x;AccountKey=dGVzdA==;EndpointSuffix=core.windows.net";
-  const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "configured");
-  assert.equal(cfg.optional.storage.configured, true);
+  const storage = assertStorageConfigured();
   // the connection string (which contains the key) must NOT appear in the report
-  const reportJson = JSON.stringify(cfg.optional.storage);
+  const reportJson = JSON.stringify(storage);
   assert.ok(!reportJson.includes("AccountKey="), "Connection string must not appear in report");
 });
 
@@ -97,10 +109,9 @@ test("storage reports configured for azure with account+key", () => {
   process.env.MEDIA_STORAGE = "azure";
   process.env.AZURE_STORAGE_ACCOUNT = "myaccount";
   process.env.AZURE_STORAGE_KEY = "supersecretkey==";
-  const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "configured");
+  const storage = assertStorageConfigured();
   // key must NOT appear in the report
-  const reportJson = JSON.stringify(cfg.optional.storage);
+  const reportJson = JSON.stringify(storage);
   assert.ok(!reportJson.includes("supersecretkey"), "Storage key must not appear in report");
 });
 
@@ -115,10 +126,9 @@ test("storage reports degraded for unknown backend kind", () => {
 
 test("storage reports degraded for removed database backend kind", () => {
   process.env.MEDIA_STORAGE = "database";
+  const storage = assertStorageDegraded();
+  assert.ok(storage.issues.some((item) => item.code === "database_storage_removed"));
   const cfg = validateRuntimeConfig();
-  assert.equal(cfg.optional.storage.status, "degraded");
-  assert.equal(cfg.optional.storage.configured, true);
-  assert.ok(cfg.optional.storage.issues.some((item) => item.code === "database_storage_removed"));
   assert.equal(cfg.ready, true);
 });
 

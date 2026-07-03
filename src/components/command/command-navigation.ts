@@ -6,6 +6,8 @@
 
 export type NavKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
 
+const EMPTY_NAV_INDEX = 0;
+
 /**
  * Returns the next active index given the current index, list length, and
  * the pressed navigation key.  ArrowDown/Up wrap around; Home/End clamp.
@@ -13,7 +15,7 @@ export type NavKey = "ArrowDown" | "ArrowUp" | "Home" | "End";
  * Returns 0 when `len` is 0 (empty list — no-op sentinel).
  */
 export function nextNavIndex(current: number, len: number, key: NavKey): number {
-  if (len === 0) return 0;
+  if (len === 0) return EMPTY_NAV_INDEX;
   switch (key) {
     case "ArrowDown":
       return current >= len - 1 ? 0 : current + 1;

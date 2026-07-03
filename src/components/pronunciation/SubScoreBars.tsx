@@ -8,36 +8,45 @@ type Props = {
   completeness: number;
 };
 
+const SCORE_BARS = [
+  { key: "accuracy", label: "Accuracy" },
+  { key: "fluency", label: "Fluency" },
+  { key: "completeness", label: "Completeness" },
+] as const satisfies ReadonlyArray<{
+  key: keyof Props;
+  label: string;
+}>;
+
 export function SubScoreBars({ accuracy, fluency, completeness }: Props) {
-  const bars = [
-    { label: "Accuracy", score: accuracy },
-    { label: "Fluency", score: fluency },
-    { label: "Completeness", score: completeness },
-  ];
+  const scores = { accuracy, fluency, completeness };
 
   return (
     <div className="rw-speak-subbar-list">
-      {bars.map(({ label, score }) => (
-        <div key={label} className="rw-speak-subbar-row">
-          <span className="rw-speak-subbar-label">{label}</span>
-          <div
-            role="meter"
-            aria-label={`${label}: ${score} out of 100`}
-            aria-valuenow={score}
-            aria-valuemin={0}
-            aria-valuemax={100}
-            className="rw-speak-subbar-track"
-          >
+      {SCORE_BARS.map(({ key, label }) => {
+        const score = scores[key];
+
+        return (
+          <div key={key} className="rw-speak-subbar-row">
+            <span className="rw-speak-subbar-label">{label}</span>
             <div
-              className="rw-speak-subbar-fill"
-              style={{ width: `${score}%` }}
-            />
+              role="meter"
+              aria-label={`${label}: ${score} out of 100`}
+              aria-valuenow={score}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              className="rw-speak-subbar-track"
+            >
+              <div
+                className="rw-speak-subbar-fill"
+                style={{ width: `${score}%` }}
+              />
+            </div>
+            <span className="rw-speak-subbar-value" aria-hidden>
+              {score}
+            </span>
           </div>
-          <span className="rw-speak-subbar-value" aria-hidden>
-            {score}
-          </span>
-        </div>
-      ))}
+        );
+      })}
       <details className="rw-speak-score-legend">
         <summary>
           <Info size={11} aria-hidden />

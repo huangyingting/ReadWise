@@ -4,6 +4,12 @@ import { CAPABILITIES } from "@/lib/rbac";
 import { syncContentSources } from "@/lib/scraper/sources";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 
+type SourceSyncResult = Awaited<ReturnType<typeof syncContentSources>>;
+
+function sourceSyncAuditMetadata(result: SourceSyncResult) {
+  return { created: result.created, updated: result.updated, total: result.total };
+}
+
 /**
  * Syncs `ContentSource` rows from the code provider registry (RW-046):
  * inserts missing providers, refreshes display metadata. Audited. Gated on
@@ -20,7 +26,7 @@ export const POST = createCapabilityHandler(
       requestId,
       action: AUDIT_ACTIONS.adminSourceSync,
       targetType: "content_source",
-      metadata: { created: result.created, updated: result.updated, total: result.total },
+      metadata: sourceSyncAuditMetadata(result),
     });
     return NextResponse.json({ ok: true, ...result });
   },

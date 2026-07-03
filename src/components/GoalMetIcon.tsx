@@ -8,6 +8,8 @@ interface GoalMetIconProps {
   size: number;
 }
 
+const GOAL_MET_ICON_CLASS_NAME = "text-[color:var(--success-text)]";
+
 /**
  * Animated check icon for the DailyGoal card.
  *
@@ -34,7 +36,7 @@ export function GoalMetIcon({ size }: GoalMetIconProps) {
     <Check
       size={size}
       aria-hidden
-      className={cn("text-[color:var(--success-text)]", pop && "rw-pop")}
+      className={cn(GOAL_MET_ICON_CLASS_NAME, pop && "rw-pop")}
     />
   );
 }

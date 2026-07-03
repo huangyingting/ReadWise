@@ -16,8 +16,10 @@ export const SKILLS = [
 
 export type Skill = (typeof SKILLS)[number];
 
+const SKILL_VALUES: readonly string[] = SKILLS;
+
 export function isSkill(value: unknown): value is Skill {
-  return typeof value === "string" && (SKILLS as readonly string[]).includes(value);
+  return typeof value === "string" && SKILL_VALUES.includes(value);
 }
 
 export type EvidenceSummary = {

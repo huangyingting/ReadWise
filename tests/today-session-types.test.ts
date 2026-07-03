@@ -18,42 +18,58 @@ import {
   TODAY_SKIP_REASONS,
 } from "@/lib/engagement/today-session/types";
 
+type ControlledValueValidator = (value: unknown) => boolean;
+
+function assertAcceptedValues(
+  validator: ControlledValueValidator,
+  values: readonly unknown[],
+): void {
+  for (const value of values) {
+    assert.equal(validator(value), true);
+  }
+}
+
+function assertRejectedValues(
+  validator: ControlledValueValidator,
+  values: readonly unknown[],
+): void {
+  for (const value of values) {
+    assert.equal(validator(value), false);
+  }
+}
+
 test("status validator accepts known values and rejects others", () => {
-  assert.equal(isTodaySessionStatus("active"), true);
-  assert.equal(isTodaySessionStatus("completed"), true);
-  assert.equal(isTodaySessionStatus("skipped"), true);
-  assert.equal(isTodaySessionStatus("bogus"), false);
-  assert.equal(isTodaySessionStatus(""), false);
-  assert.equal(isTodaySessionStatus(null), false);
-  assert.equal(isTodaySessionStatus(42), false);
+  assertAcceptedValues(isTodaySessionStatus, ["active", "completed", "skipped"]);
+  assertRejectedValues(isTodaySessionStatus, ["bogus", "", null, 42]);
 });
 
 test("source validator", () => {
-  for (const v of ["resume", "picks", "none"]) {
-    assert.equal(isTodaySessionSource(v), true);
-  }
-  assert.equal(isTodaySessionSource("rss"), false);
+  assertAcceptedValues(isTodaySessionSource, ["resume", "picks", "none"]);
+  assertRejectedValues(isTodaySessionSource, ["rss"]);
 });
 
 test("completion tier validator", () => {
-  for (const v of ["none", "reading", "comprehension", "full"]) {
-    assert.equal(isTodayCompletionTier(v), true);
-  }
-  assert.equal(isTodayCompletionTier("partial"), false);
+  assertAcceptedValues(isTodayCompletionTier, [
+    "none",
+    "reading",
+    "comprehension",
+    "full",
+  ]);
+  assertRejectedValues(isTodayCompletionTier, ["partial"]);
 });
 
 test("generation reason validator", () => {
-  for (const v of ["resume_in_progress", "picks_primary", "no_candidate"]) {
-    assert.equal(isTodayGenerationReasonCode(v), true);
-  }
-  assert.equal(isTodayGenerationReasonCode("magic"), false);
+  assertAcceptedValues(isTodayGenerationReasonCode, [
+    "resume_in_progress",
+    "picks_primary",
+    "no_candidate",
+  ]);
+  assertRejectedValues(isTodayGenerationReasonCode, ["magic"]);
 });
 
 test("skip reason validator", () => {
-  for (const v of TODAY_SKIP_REASONS) {
-    assert.equal(isTodaySkipReason(v), true);
-  }
-  assert.equal(isTodaySkipReason("dog_ate_it"), false);
+  assertAcceptedValues(isTodaySkipReason, TODAY_SKIP_REASONS);
+  assertRejectedValues(isTodaySkipReason, ["dog_ate_it"]);
 });
 
 test("assertControlledValue returns the value when valid", () => {

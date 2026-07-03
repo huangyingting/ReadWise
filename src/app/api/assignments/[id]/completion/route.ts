@@ -19,6 +19,13 @@ const completionBody = object({
   quizScore: optional(clampedInt(0, 100)),
 });
 
+function completionInput(body: { status?: AssignmentStatusType; quizScore?: number }) {
+  return {
+    status: body.status,
+    quizScore: body.quizScore,
+  };
+}
+
 /**
  * Records the AUTHENTICATED student's own progress on an assignment (RW-061).
  * A student may only report completion for an assignment in a classroom they
@@ -31,10 +38,11 @@ export const POST = createHandler(
     const context = await getStudentAssignmentContext(params.id, session.user.id);
     if (!context) throw new ApiError(404, "Assignment not found");
 
-    const completion = await recordAssignmentCompletion(params.id, session.user.id, {
-      status: body.status,
-      quizScore: body.quizScore,
-    });
+    const completion = await recordAssignmentCompletion(
+      params.id,
+      session.user.id,
+      completionInput(body),
+    );
     return NextResponse.json({ ok: true, completion }, { status: 201 });
   },
 );

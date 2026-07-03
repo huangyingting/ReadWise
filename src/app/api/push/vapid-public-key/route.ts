@@ -1,6 +1,8 @@
 import { createPublicHandler } from "@/lib/api-handler";
 import { vapidPublicKey } from "@/lib/push/provider";
 
+const PUSH_NOT_CONFIGURED_STATUS = 503;
+
 /**
  * GET /api/push/vapid-public-key
  *
@@ -12,7 +14,15 @@ export const GET = createPublicHandler({}, async ({ log }) => {
   const key = vapidPublicKey();
   if (!key) {
     log.info("vapid-public-key: push not configured");
-    return Response.json({ configured: false }, { status: 503 });
+    return pushNotConfiguredResponse();
   }
-  return Response.json({ configured: true, publicKey: key });
+  return vapidPublicKeyResponse(key);
 });
+
+function pushNotConfiguredResponse(): Response {
+  return Response.json({ configured: false }, { status: PUSH_NOT_CONFIGURED_STATUS });
+}
+
+function vapidPublicKeyResponse(publicKey: string): Response {
+  return Response.json({ configured: true, publicKey });
+}

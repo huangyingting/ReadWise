@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 
 let auditCalls: { action: string }[] = [];
 
+type MemberDetailModule = typeof import("@/lib/account-lifecycle/member-detail");
+type SupportCommandsModule = typeof import("@/lib/account-lifecycle/support-commands");
+
 before(() => {
   mock.module("@/lib/prisma", { namedExports: { prisma: {} } });
   mock.module("@/lib/security/audit", {
@@ -92,8 +95,16 @@ function detailClient(user: unknown) {
   };
 }
 
+async function loadMemberDetail(): Promise<MemberDetailModule> {
+  return import("@/lib/account-lifecycle/member-detail") as Promise<MemberDetailModule>;
+}
+
+async function loadSupportCommands(): Promise<SupportCommandsModule> {
+  return import("@/lib/account-lifecycle/support-commands") as Promise<SupportCommandsModule>;
+}
+
 test("getMemberDetail assembles profile, progress, imports and audit", async () => {
-  const { getMemberDetail } = await import("@/lib/account-lifecycle/member-detail");
+  const { getMemberDetail } = await loadMemberDetail();
   const user = {
     id: "u1",
     name: "Ada",
@@ -130,13 +141,13 @@ test("getMemberDetail assembles profile, progress, imports and audit", async () 
 });
 
 test("getMemberDetail returns null for a missing user", async () => {
-  const { getMemberDetail } = await import("@/lib/account-lifecycle/member-detail");
+  const { getMemberDetail } = await loadMemberDetail();
   const detail = await getMemberDetail("nope", detailClient(null) as never);
   assert.equal(detail, null);
 });
 
 test("revokeMemberSessions deletes sessions and audits", async () => {
-  const { revokeMemberSessions } = await import("@/lib/account-lifecycle/support-commands");
+  const { revokeMemberSessions } = await loadSupportCommands();
   let deletedFor: string | null = null;
   const client = {
     user: { findUnique: async () => ({ id: "u1" }) },
@@ -158,7 +169,7 @@ test("revokeMemberSessions deletes sessions and audits", async () => {
 });
 
 test("revokeMemberSessions returns 404 for a missing user", async () => {
-  const { revokeMemberSessions } = await import("@/lib/account-lifecycle/support-commands");
+  const { revokeMemberSessions } = await loadSupportCommands();
   const client = {
     user: { findUnique: async () => null },
     session: { deleteMany: async () => ({ count: 0 }) },

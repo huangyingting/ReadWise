@@ -34,6 +34,20 @@ function isNewBestScore(score: number, priorBest: number | null) {
   return priorBest === null || score > priorBest;
 }
 
+async function savePronunciationAttempt(
+  payload: ReturnType<typeof buildAttemptPayload>,
+) {
+  const res = await fetch("/api/pronunciation/attempt", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  if (!res.ok) throw new Error("save failed");
+
+  const data = (await res.json()) as { attempt: PronunciationAttemptSummary };
+  return data.attempt;
+}
+
 export function usePronunciationPersistence() {
   const recordedRef = useRef(false);
   const [savedNote, setSavedNote] = useState<SavedNote>("idle");
@@ -57,20 +71,16 @@ export function usePronunciationPersistence() {
     setSavedNote("saving");
 
     try {
-      const res = await fetch("/api/pronunciation/attempt", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(buildAttemptPayload({
+      const attempt = await savePronunciationAttempt(
+        buildAttemptPayload({
           articleId,
           assessment,
           referenceText,
-        })),
-      });
-      if (!res.ok) throw new Error("save failed");
+        }),
+      );
 
-      const data = (await res.json()) as { attempt: PronunciationAttemptSummary };
       setSavedNote("saved");
-      onSaved(data.attempt);
+      onSaved(attempt);
 
       if (isNewBestScore(assessment.pronScore, priorBest)) {
         setIsNewBest(true);

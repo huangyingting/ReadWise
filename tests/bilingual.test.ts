@@ -5,9 +5,14 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-describe("bilingual helpers", async () => {
-  test("splitHtmlParagraphs — splits on </p> boundaries", async () => {
-    const { splitHtmlParagraphs } = await import("@/lib/bilingual");
+import {
+  alignParagraphs,
+  splitHtmlParagraphs,
+  splitTranslationParagraphs,
+} from "@/lib/bilingual";
+
+describe("bilingual helpers", () => {
+  test("splitHtmlParagraphs — splits on </p> boundaries", () => {
     const html = "<p>First</p><p>Second</p><p>Third</p>";
     const result = splitHtmlParagraphs(html);
     assert.equal(result.length, 3);
@@ -16,8 +21,7 @@ describe("bilingual helpers", async () => {
     assert.equal(result[2], "<p>Third</p>");
   });
 
-  test("splitHtmlParagraphs — preserves headings as separate chunks", async () => {
-    const { splitHtmlParagraphs } = await import("@/lib/bilingual");
+  test("splitHtmlParagraphs — preserves headings as separate chunks", () => {
     const html = "<h2>Title</h2><p>Body</p>";
     const result = splitHtmlParagraphs(html);
     assert.equal(result.length, 2);
@@ -25,23 +29,20 @@ describe("bilingual helpers", async () => {
     assert.match(result[1], /^<p>/);
   });
 
-  test("splitHtmlParagraphs — returns whole string when no block tags", async () => {
-    const { splitHtmlParagraphs } = await import("@/lib/bilingual");
+  test("splitHtmlParagraphs — returns whole string when no block tags", () => {
     const html = "Just some plain text";
     const result = splitHtmlParagraphs(html);
     assert.equal(result.length, 1);
     assert.equal(result[0], "Just some plain text");
   });
 
-  test("splitHtmlParagraphs — filters empty chunks", async () => {
-    const { splitHtmlParagraphs } = await import("@/lib/bilingual");
+  test("splitHtmlParagraphs — filters empty chunks", () => {
     const html = "<p>A</p>   \n  <p>B</p>";
     const result = splitHtmlParagraphs(html);
     assert.equal(result.length, 2);
   });
 
-  test("splitTranslationParagraphs — splits on double newlines", async () => {
-    const { splitTranslationParagraphs } = await import("@/lib/bilingual");
+  test("splitTranslationParagraphs — splits on double newlines", () => {
     const text = "Primera.\n\nSegunda.\n\nTercera.";
     const result = splitTranslationParagraphs(text);
     assert.equal(result.length, 3);
@@ -50,8 +51,7 @@ describe("bilingual helpers", async () => {
     assert.equal(result[2], "Tercera.");
   });
 
-  test("splitTranslationParagraphs — trims whitespace", async () => {
-    const { splitTranslationParagraphs } = await import("@/lib/bilingual");
+  test("splitTranslationParagraphs — trims whitespace", () => {
     const text = "  Hello.  \n\n  World.  ";
     const result = splitTranslationParagraphs(text);
     assert.equal(result.length, 2);
@@ -59,15 +59,13 @@ describe("bilingual helpers", async () => {
     assert.equal(result[1], "World.");
   });
 
-  test("splitTranslationParagraphs — returns single paragraph with no double newline", async () => {
-    const { splitTranslationParagraphs } = await import("@/lib/bilingual");
+  test("splitTranslationParagraphs — returns single paragraph with no double newline", () => {
     const result = splitTranslationParagraphs("Only one paragraph.");
     assert.equal(result.length, 1);
     assert.equal(result[0], "Only one paragraph.");
   });
 
-  test("alignParagraphs — 1:1 when counts match", async () => {
-    const { alignParagraphs } = await import("@/lib/bilingual");
+  test("alignParagraphs — 1:1 when counts match", () => {
     const src = ["<p>A</p>", "<p>B</p>", "<p>C</p>"];
     const trans = ["AA", "BB", "CC"];
     const result = alignParagraphs(src, trans);
@@ -78,8 +76,7 @@ describe("bilingual helpers", async () => {
     assert.equal(result[2].trans, "CC");
   });
 
-  test("alignParagraphs — null trans when translation is shorter", async () => {
-    const { alignParagraphs } = await import("@/lib/bilingual");
+  test("alignParagraphs — null trans when translation is shorter", () => {
     const src = ["<p>A</p>", "<p>B</p>", "<p>C</p>"];
     const trans = ["AA", "BB"]; // one short
     const result = alignParagraphs(src, trans);
@@ -89,8 +86,7 @@ describe("bilingual helpers", async () => {
     assert.equal(result[2].trans, null); // no translation for last paragraph
   });
 
-  test("alignParagraphs — discards extra translation paragraphs", async () => {
-    const { alignParagraphs } = await import("@/lib/bilingual");
+  test("alignParagraphs — discards extra translation paragraphs", () => {
     const src = ["<p>A</p>"];
     const trans = ["AA", "BB", "CC"]; // more translation than source
     const result = alignParagraphs(src, trans);
@@ -98,14 +94,12 @@ describe("bilingual helpers", async () => {
     assert.equal(result[0].trans, "AA");
   });
 
-  test("alignParagraphs — empty source returns empty array", async () => {
-    const { alignParagraphs } = await import("@/lib/bilingual");
+  test("alignParagraphs — empty source returns empty array", () => {
     const result = alignParagraphs([], ["AA"]);
     assert.equal(result.length, 0);
   });
 
-  test("alignParagraphs — all null trans when translation array is empty", async () => {
-    const { alignParagraphs } = await import("@/lib/bilingual");
+  test("alignParagraphs — all null trans when translation array is empty", () => {
     const result = alignParagraphs(["<p>A</p>", "<p>B</p>"], []);
     assert.equal(result.length, 2);
     assert.equal(result[0].trans, null);

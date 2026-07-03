@@ -5,6 +5,24 @@ import type { GrammarResult } from "@/components/GrammarPopover";
 
 type ContextSentenceProvider = (phrase: string) => string;
 
+const GRAMMAR_ERROR_MESSAGE = "Couldn't fetch grammar explanation. Try again.";
+
+async function requestGrammarExplanation(
+  articleId: string,
+  phrase: string,
+  contextSentence: string,
+) {
+  const res = await fetch(`/api/reader/${articleId}/grammar`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ phrase, contextSentence }),
+  });
+
+  if (!res.ok) throw new Error("Request failed");
+
+  return (await res.json()) as GrammarResult;
+}
+
 export function useGrammarExplanation(
   articleId: string,
   contextSentenceFor: ContextSentenceProvider,
@@ -29,15 +47,9 @@ export function useGrammarExplanation(
     setGrammarError(null);
     try {
       const contextSentence = contextSentenceFor(phrase);
-      const res = await fetch(`/api/reader/${articleId}/grammar`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ phrase, contextSentence }),
-      });
-      if (!res.ok) throw new Error("Request failed");
-      setGrammarResult((await res.json()) as GrammarResult);
+      setGrammarResult(await requestGrammarExplanation(articleId, phrase, contextSentence));
     } catch {
-      setGrammarError("Couldn't fetch grammar explanation. Try again.");
+      setGrammarError(GRAMMAR_ERROR_MESSAGE);
     } finally {
       setGrammarLoading(false);
     }

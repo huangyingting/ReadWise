@@ -9,8 +9,7 @@ process.env.LOG_LEVEL = "error";
 
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import type { DictionaryProvider, DictionaryEntry } from "@/lib/lexical/provider";
 import { lookupWord } from "@/lib/lexical/lookup";
@@ -125,7 +124,9 @@ test("lookupWord never throws when provider throws", async () => {
 // ---------------------------------------------------------------------------
 
 function withLocalDictionaryDir(files: Record<string, unknown>): string {
-  const dir = mkdtempSync(path.join(tmpdir(), "readwise-dict-"));
+  const parentDir = path.join(process.cwd(), ".test-artifacts");
+  mkdirSync(parentDir, { recursive: true });
+  const dir = mkdtempSync(path.join(parentDir, "readwise-dict-"));
   for (const [file, data] of Object.entries(files)) {
     writeFileSync(path.join(dir, file), JSON.stringify(data), "utf-8");
   }

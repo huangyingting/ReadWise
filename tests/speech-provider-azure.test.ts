@@ -23,6 +23,12 @@ let timeoutMs: number;
 let closedCount: number;
 let capturedConfig: Record<string, unknown> | null;
 const originalSpeechTimeoutMs = process.env.SPEECH_TIMEOUT_MS;
+const AZURE_CONFIG = {
+  key: "test-key",
+  region: "eastus",
+  voice: "en-US-TestNeural",
+  format: "audio-16khz-32kbitrate-mono-mp3",
+};
 
 before(() => {
   const SpeechSynthesisOutputFormat = {
@@ -153,12 +159,7 @@ test("synthesize returns sorted audio timings and closes the synthesizer", async
 
   const result = await synthesize(
     "hello world",
-    {
-      key: "test-key",
-      region: "eastus",
-      voice: "en-US-TestNeural",
-      format: "audio-16khz-32kbitrate-mono-mp3",
-    },
+    AZURE_CONFIG,
     "article-1",
   );
 
@@ -179,30 +180,19 @@ test("synthesize returns sorted audio timings and closes the synthesizer", async
 
 test("synthesize gracefully returns null for empty audio, callbacks, exceptions, and timeouts", async () => {
   const { synthesize } = await import("@/lib/speech/provider-azure");
-  const config = {
-    key: "test-key",
-    region: "eastus",
-    voice: "en-US-TestNeural",
-    format: "unknown-format",
+  const unknownFormatConfig = { ...AZURE_CONFIG, format: "unknown-format" };
+  const expectNullForMode = async (nextMode: SpeechMode, expectedClosedCount?: number) => {
+    mode = nextMode;
+    assert.equal(await synthesize("hello", unknownFormatConfig, "article-1"), null);
+    if (expectedClosedCount !== undefined) assert.equal(closedCount, expectedClosedCount);
   };
 
-  mode = "empty-audio";
-  assert.equal(await synthesize("hello", config, "article-1"), null);
-  assert.equal(closedCount, 1);
+  await expectNullForMode("empty-audio", 1);
+  await expectNullForMode("error-callback", 2);
+  await expectNullForMode("speak-throws", 3);
+  await expectNullForMode("constructor-throws");
 
-  mode = "error-callback";
-  assert.equal(await synthesize("hello", config, "article-1"), null);
-  assert.equal(closedCount, 2);
-
-  mode = "speak-throws";
-  assert.equal(await synthesize("hello", config, "article-1"), null);
-  assert.equal(closedCount, 3);
-
-  mode = "constructor-throws";
-  assert.equal(await synthesize("hello", config, "article-1"), null);
-
-  mode = "timeout";
   timeoutMs = 1;
   process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
-  assert.equal(await synthesize("hello", config, "article-1"), null);
+  await expectNullForMode("timeout");
 });

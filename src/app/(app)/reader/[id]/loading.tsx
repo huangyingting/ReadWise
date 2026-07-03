@@ -1,5 +1,8 @@
 import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
 
+const READER_ACTION_PLACEHOLDERS = ["listen", "appearance", "tools"] as const;
+const ARTICLE_PARAGRAPH_LINE_COUNTS = [4, 4, 2, 4, 4] as const;
+
 /**
  * Reader-segment Suspense fallback. Mirrors the full reader column layout —
  * including the sticky toolbar and the article header action row — so the page
@@ -16,9 +19,9 @@ export default function ReaderLoading() {
 
           {/* Right-side action buttons */}
           <div className="reader-controls-actions">
-            <Skeleton shape="block" className="h-8 w-8 rounded-[var(--radius-md)]" />
-            <Skeleton shape="block" className="h-8 w-8 rounded-[var(--radius-md)]" />
-            <Skeleton shape="block" className="h-8 w-8 rounded-[var(--radius-md)]" />
+            {READER_ACTION_PLACEHOLDERS.map((action) => (
+              <Skeleton key={action} shape="block" className="h-8 w-8 rounded-[var(--radius-md)]" />
+            ))}
           </div>
         </div>
 
@@ -40,8 +43,8 @@ export default function ReaderLoading() {
 
         {/* ── Article body: several paragraphs ── */}
         <div className="flex flex-col gap-[var(--space-6)]" aria-hidden>
-          {Array.from({ length: 5 }).map((_, i) => (
-            <SkeletonText key={i} lines={i === 2 ? 2 : 4} />
+          {ARTICLE_PARAGRAPH_LINE_COUNTS.map((lineCount, index) => (
+            <SkeletonText key={index} lines={lineCount} />
           ))}
         </div>
       </div>

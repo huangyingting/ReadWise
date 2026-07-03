@@ -1,56 +1,79 @@
-import { describe, test } from "node:test";
+import { before, describe, test } from "node:test";
 import assert from "node:assert/strict";
 
 import { beginRender } from "./support/react-hook-harness";
 
+let rovingModule: Awaited<typeof import("@/lib/use-roving-tabindex")>;
+
+before(async () => {
+  rovingModule = await import("@/lib/use-roving-tabindex");
+});
+
+type RovingCase = {
+  key: Parameters<typeof import("@/lib/use-roving-tabindex").computeRovingIndex>[0];
+  current: number;
+  total: number;
+  options?: Parameters<typeof import("@/lib/use-roving-tabindex").computeRovingIndex>[3];
+  expected: number | null;
+};
+
+function assertRovingCases(cases: RovingCase[]) {
+  for (const { key, current, total, options, expected } of cases) {
+    const { computeRovingIndex } = rovingModule;
+    assert.equal(computeRovingIndex(key, current, total, options), expected);
+  }
+}
+
 describe("computeRovingIndex", () => {
-  test("handles horizontal arrow navigation and wrapping", async () => {
-    const { computeRovingIndex } = await import("@/lib/use-roving-tabindex");
+  test("handles horizontal arrow navigation and wrapping", () => {
     const total = 4;
 
-    assert.equal(computeRovingIndex("ArrowRight", 0, total), 1);
-    assert.equal(computeRovingIndex("ArrowRight", 2, total), 3);
-    assert.equal(computeRovingIndex("ArrowRight", 3, total), 0);
-    assert.equal(computeRovingIndex("ArrowLeft", 2, total), 1);
-    assert.equal(computeRovingIndex("ArrowLeft", 3, total), 2);
-    assert.equal(computeRovingIndex("ArrowLeft", 0, total), 3);
+    assertRovingCases([
+      { key: "ArrowRight", current: 0, total, expected: 1 },
+      { key: "ArrowRight", current: 2, total, expected: 3 },
+      { key: "ArrowRight", current: 3, total, expected: 0 },
+      { key: "ArrowLeft", current: 2, total, expected: 1 },
+      { key: "ArrowLeft", current: 3, total, expected: 2 },
+      { key: "ArrowLeft", current: 0, total, expected: 3 },
+    ]);
   });
 
-  test("gates vertical and Home/End navigation behind options", async () => {
-    const { computeRovingIndex } = await import("@/lib/use-roving-tabindex");
+  test("gates vertical and Home/End navigation behind options", () => {
     const total = 4;
 
-    assert.equal(computeRovingIndex("ArrowDown", 1, total), null);
-    assert.equal(computeRovingIndex("ArrowUp", 1, total), null);
-    assert.equal(computeRovingIndex("ArrowDown", 1, total, { vertical: true }), 2);
-    assert.equal(computeRovingIndex("ArrowDown", 3, total, { vertical: true }), 0);
-    assert.equal(computeRovingIndex("ArrowUp", 2, total, { vertical: true }), 1);
-    assert.equal(computeRovingIndex("ArrowUp", 0, total, { vertical: true }), 3);
-    assert.equal(computeRovingIndex("Home", 3, total), null);
-    assert.equal(computeRovingIndex("End", 0, total), null);
-    assert.equal(computeRovingIndex("Home", 3, total, { homeEnd: true }), 0);
-    assert.equal(computeRovingIndex("Home", 0, total, { homeEnd: true }), 0);
-    assert.equal(computeRovingIndex("End", 0, total, { homeEnd: true }), 3);
-    assert.equal(computeRovingIndex("End", 3, total, { homeEnd: true }), 3);
+    assertRovingCases([
+      { key: "ArrowDown", current: 1, total, expected: null },
+      { key: "ArrowUp", current: 1, total, expected: null },
+      { key: "ArrowDown", current: 1, total, options: { vertical: true }, expected: 2 },
+      { key: "ArrowDown", current: 3, total, options: { vertical: true }, expected: 0 },
+      { key: "ArrowUp", current: 2, total, options: { vertical: true }, expected: 1 },
+      { key: "ArrowUp", current: 0, total, options: { vertical: true }, expected: 3 },
+      { key: "Home", current: 3, total, expected: null },
+      { key: "End", current: 0, total, expected: null },
+      { key: "Home", current: 3, total, options: { homeEnd: true }, expected: 0 },
+      { key: "Home", current: 0, total, options: { homeEnd: true }, expected: 0 },
+      { key: "End", current: 0, total, options: { homeEnd: true }, expected: 3 },
+      { key: "End", current: 3, total, options: { homeEnd: true }, expected: 3 },
+    ]);
   });
 
-  test("ignores non-navigation keys and empty lists", async () => {
-    const { computeRovingIndex } = await import("@/lib/use-roving-tabindex");
-
-    assert.equal(computeRovingIndex("Escape", 0, 4), null);
-    assert.equal(computeRovingIndex("Enter", 0, 4), null);
-    assert.equal(computeRovingIndex("Tab", 0, 4), null);
-    assert.equal(computeRovingIndex(" ", 0, 4), null);
-    assert.equal(computeRovingIndex("1", 0, 4), null);
-    assert.equal(computeRovingIndex("4", 3, 4), null);
-    assert.equal(computeRovingIndex("ArrowRight", 0, 0), null);
+  test("ignores non-navigation keys and empty lists", () => {
+    assertRovingCases([
+      { key: "Escape", current: 0, total: 4, expected: null },
+      { key: "Enter", current: 0, total: 4, expected: null },
+      { key: "Tab", current: 0, total: 4, expected: null },
+      { key: " ", current: 0, total: 4, expected: null },
+      { key: "1", current: 0, total: 4, expected: null },
+      { key: "4", current: 3, total: 4, expected: null },
+      { key: "ArrowRight", current: 0, total: 0, expected: null },
+    ]);
   });
 
-  test("keeps a single-item group on index 0", async () => {
-    const { computeRovingIndex } = await import("@/lib/use-roving-tabindex");
-
-    assert.equal(computeRovingIndex("ArrowRight", 0, 1), 0);
-    assert.equal(computeRovingIndex("ArrowLeft", 0, 1), 0);
+  test("keeps a single-item group on index 0", () => {
+    assertRovingCases([
+      { key: "ArrowRight", current: 0, total: 1, expected: 0 },
+      { key: "ArrowLeft", current: 0, total: 1, expected: 0 },
+    ]);
   });
 });
 

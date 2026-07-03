@@ -18,6 +18,18 @@ type Props = {
   hadRelated: boolean;
 };
 
+function relatedDescription(hadRelated: boolean) {
+  return hadRelated
+    ? "Other articles that share tags with this one."
+    : "More articles from the same category.";
+}
+
+function cardProgress(progress: ReadingProgress | undefined) {
+  return progress
+    ? { percent: progress.percent, completed: progress.completed }
+    : undefined;
+}
+
 export default function KeepReadingSection({
   articles,
   relatedProgress,
@@ -38,9 +50,7 @@ export default function KeepReadingSection({
         Keep reading
       </h2>
       <p className="muted" style={{ marginTop: 0 }}>
-        {hadRelated
-          ? "Other articles that share tags with this one."
-          : "More articles from the same category."}
+        {relatedDescription(hadRelated)}
       </p>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
         {articles.map((related) => {
@@ -49,7 +59,7 @@ export default function KeepReadingSection({
             <ArticleCardView
               key={related.id}
               article={toListingArticle(related)}
-              progress={rel ? { percent: rel.percent, completed: rel.completed } : undefined}
+              progress={cardProgress(rel)}
             />
           );
         })}

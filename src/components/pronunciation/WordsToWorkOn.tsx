@@ -6,11 +6,19 @@ type Props = {
   wordResults: WordResult[];
 };
 
+function needsWork({ band, errorType }: WordResult) {
+  return band !== "good" && errorType !== "Insertion";
+}
+
+function compareWordScore(a: WordResult, b: WordResult) {
+  return a.score - b.score;
+}
+
 export function WordsToWorkOn({ wordResults }: Props) {
   // Filter non-good words, worst first.
   const nonGood = wordResults
-    .filter((w) => w.band !== "good" && w.errorType !== "Insertion")
-    .sort((a, b) => a.score - b.score);
+    .filter(needsWork)
+    .sort(compareWordScore);
 
   return (
     <div className="rw-speak-words-section">

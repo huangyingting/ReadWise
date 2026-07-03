@@ -10,10 +10,17 @@ import { TeacherFormShell } from "./TeacherFormShell";
 
 const ARTICLE_ID_MAX_LENGTH = 200;
 const INSTRUCTIONS_MAX_LENGTH = 2000;
+const EMPTY_ASSIGNMENT_FORM = {
+  articleId: "",
+  dueDate: "",
+  instructions: "",
+};
 
 interface AssignArticleFormProps {
   classroomId: string;
 }
+
+type AssignmentFormField = keyof typeof EMPTY_ASSIGNMENT_FORM;
 
 function buildAssignmentPayload(
   articleId: string,
@@ -32,17 +39,17 @@ function buildAssignmentPayload(
  * date, and optional instructions. Posts to `/api/classrooms/[id]/assignments`.
  */
 export default function AssignArticleForm({ classroomId }: AssignArticleFormProps) {
-  const [articleId, setArticleId] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [instructions, setInstructions] = useState("");
+  const [form, setForm] = useState(EMPTY_ASSIGNMENT_FORM);
   const { busy, error, run } = useMutation("Failed to assign article");
 
-  const trimmedArticleId = articleId.trim();
+  const trimmedArticleId = form.articleId.trim();
 
   function resetForm() {
-    setArticleId("");
-    setDueDate("");
-    setInstructions("");
+    setForm(EMPTY_ASSIGNMENT_FORM);
+  }
+
+  function updateField(field: AssignmentFormField, value: string) {
+    setForm((current) => ({ ...current, [field]: value }));
   }
 
   async function submit(e: FormEvent) {
@@ -52,7 +59,7 @@ export default function AssignArticleForm({ classroomId }: AssignArticleFormProp
     await run(async () => {
       await postJson(
         `/api/classrooms/${classroomId}/assignments`,
-        buildAssignmentPayload(trimmedArticleId, dueDate, instructions),
+        buildAssignmentPayload(trimmedArticleId, form.dueDate, form.instructions),
       );
       resetForm();
     }, { refreshOnSuccess: true });
@@ -69,20 +76,24 @@ export default function AssignArticleForm({ classroomId }: AssignArticleFormProp
     >
       <Field label="Article ID" error={error ?? undefined}>
         <Input
-          value={articleId}
-          onChange={(e) => setArticleId(e.target.value)}
+          value={form.articleId}
+          onChange={(e) => updateField("articleId", e.target.value)}
           placeholder="Article id to assign"
           maxLength={ARTICLE_ID_MAX_LENGTH}
           required
         />
       </Field>
       <Field label="Due date (optional)">
-        <Input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} />
+        <Input
+          type="date"
+          value={form.dueDate}
+          onChange={(e) => updateField("dueDate", e.target.value)}
+        />
       </Field>
       <Field label="Instructions (optional)">
         <Textarea
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
+          value={form.instructions}
+          onChange={(e) => updateField("instructions", e.target.value)}
           placeholder="What should students focus on?"
           rows={3}
           maxLength={INSTRUCTIONS_MAX_LENGTH}

@@ -1,26 +1,61 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { exportUserData } from "@/lib/account-lifecycle";
-import { AUDIT_ACTIONS } from "@/lib/security/audit";
+import { AUDIT_ACTIONS, type AuditRequestInput } from "@/lib/security/audit";
 
-export const GET = createHandler({}, async ({ req, session, requestId }) => {
-  const data = await exportUserData(session.user.id, {
+const EXPORT_FILENAME_PREFIX = "readwise-data-export";
+const EXPORT_FILENAME_DATE_LENGTH = 10;
+const EXPORT_RESPONSE_INIT = {
+  status: 200,
+  headers: {
+    "Content-Type": "application/json; charset=utf-8",
+  },
+} as const;
+
+type AccountExportAuditContext = Pick<AuditRequestInput, "req" | "session" | "requestId"> & {
+  userId: string;
+};
+
+function accountExportAudit({
+  req,
+  session,
+  requestId,
+  userId,
+}: AccountExportAuditContext): AuditRequestInput {
+  return {
     req,
     session,
     requestId,
     action: AUDIT_ACTIONS.accountExport,
     targetType: "account",
-    targetId: session.user.id,
+    targetId: userId,
     metadata: { format: "json" },
-  });
-  const date = new Date().toISOString().slice(0, 10);
-  const json = JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2);
+  };
+}
 
+function exportFilename(date: Date): string {
+  const day = date.toISOString().slice(0, EXPORT_FILENAME_DATE_LENGTH);
+  return `${EXPORT_FILENAME_PREFIX}-${day}.json`;
+}
+
+function exportJsonResponse(json: string, filename: string): NextResponse {
   return new NextResponse(json, {
-    status: 200,
+    ...EXPORT_RESPONSE_INIT,
     headers: {
-      "Content-Type": "application/json; charset=utf-8",
-      "Content-Disposition": `attachment; filename="readwise-data-export-${date}.json"`,
+      ...EXPORT_RESPONSE_INIT.headers,
+      "Content-Disposition": `attachment; filename="${filename}"`,
     },
   });
+}
+
+export const GET = createHandler({}, async ({ req, session, requestId }) => {
+  const userId = session.user.id;
+  const data = await exportUserData(
+    userId,
+    accountExportAudit({ req, session, requestId, userId }),
+  );
+  const filename = exportFilename(new Date());
+  const json = JSON.stringify({ exportedAt: new Date().toISOString(), data }, null, 2);
+
+  return exportJsonResponse(json, filename);
 });

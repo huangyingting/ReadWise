@@ -6,6 +6,12 @@ import { CefrBadge } from "@/components/ui";
 import { Reveal } from "@/components/marketing/Reveal";
 import { CONTAINER, LEVELS } from "@/components/marketing/landing-content";
 
+const LEVEL_REVEAL_DELAY_MS = 40;
+
+function getLevelRevealDelay(index: number) {
+  return `${index * LEVEL_REVEAL_DELAY_MS}ms`;
+}
+
 export function LandingCefrSection() {
   return (
     <section className="bg-bg py-[var(--space-11)]">
@@ -26,7 +32,7 @@ export function LandingCefrSection() {
             <Reveal
               key={level}
               className="flex flex-col items-center gap-[var(--space-2)]"
-              style={{ transitionDelay: `${i * 40}ms` }}
+              style={{ transitionDelay: getLevelRevealDelay(i) }}
             >
               <CefrBadge level={level} />
               <span className="text-[length:var(--text-sm)] text-text-subtle">

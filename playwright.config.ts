@@ -6,12 +6,12 @@ import path from "node:path";
 const baseURL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const appUrl = new URL(baseURL);
 const databaseUrl = process.env.PLAYWRIGHT_DATABASE_URL ?? "file:./e2e.db";
+const defaultChromiumExecutable = path.join(
+  homedir(),
+  ".cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
+);
 const chromiumExecutable =
-  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ??
-  path.join(
-    homedir(),
-    ".cache/ms-playwright/chromium-1228/chrome-linux64/chrome",
-  );
+  process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? defaultChromiumExecutable;
 
 const e2eEnv = {
   DATABASE_URL: databaseUrl,
@@ -30,6 +30,9 @@ const e2eEnv = {
 for (const [key, value] of Object.entries(e2eEnv)) {
   process.env[key] = value;
 }
+
+const host = appUrl.hostname;
+const port = appUrl.port || "3000";
 
 export default defineConfig({
   testDir: "./e2e",
@@ -50,7 +53,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `npx prisma migrate deploy && npx next dev --webpack -H ${appUrl.hostname} -p ${appUrl.port || "3000"}`,
+    command: `npx prisma migrate deploy && npx next dev --webpack -H ${host} -p ${port}`,
     url: baseURL,
     timeout: 120_000,
     reuseExistingServer: false,

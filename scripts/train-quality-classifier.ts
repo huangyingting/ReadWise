@@ -32,17 +32,29 @@ type BayesClassifier = {
 };
 type NaturalModule = { BayesClassifier: new () => BayesClassifier };
 
-function main(): void {
-  const natural = require("natural") as NaturalModule;
+const ARTICLE_LABEL = "article";
+const AD_LABEL = "ad";
+const MODEL_OUTPUT_PATH = "../src/lib/scraper/quality-classifier-model.json";
+
+function trainClassifier(natural: NaturalModule): BayesClassifier {
   const classifier = new natural.BayesClassifier();
 
-  for (const sample of ARTICLE_SAMPLES) classifier.addDocument(sample, "article");
-  for (const sample of AD_SAMPLES) classifier.addDocument(sample, "ad");
+  for (const sample of ARTICLE_SAMPLES) classifier.addDocument(sample, ARTICLE_LABEL);
+  for (const sample of AD_SAMPLES) classifier.addDocument(sample, AD_LABEL);
 
   classifier.train();
+  return classifier;
+}
 
+function resolveOutputPath(): string {
   const here = path.dirname(fileURLToPath(import.meta.url));
-  const outPath = path.resolve(here, "../src/lib/scraper/quality-classifier-model.json");
+  return path.resolve(here, MODEL_OUTPUT_PATH);
+}
+
+function main(): void {
+  const natural = require("natural") as NaturalModule;
+  const classifier = trainClassifier(natural);
+  const outPath = resolveOutputPath();
 
   // `BayesClassifier` is JSON-serializable; `JSON.stringify` captures the full
   // trained state that `BayesClassifier.restore` expects.

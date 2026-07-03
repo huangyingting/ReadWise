@@ -5,6 +5,10 @@ import HeaderSearch from "./HeaderSearch";
 import { WordmarkLink } from "@/components/Wordmark";
 import type { ShellUser } from "./types";
 
+interface AppHeaderProps {
+  user: ShellUser | null;
+}
+
 /**
  * Top app bar — chrome only (US #150): wordmark on the left, the search / theme
  * / user action cluster on the right, nothing in the center. Primary navigation
@@ -12,7 +16,7 @@ import type { ShellUser } from "./types";
  * BottomTabBar + More sheet (#151). The header carries no primary nav links on
  * any breakpoint.
  */
-export default function AppHeader({ user }: { user: ShellUser | null }) {
+export default function AppHeader({ user }: AppHeaderProps) {
   return (
     <HeaderShell>
       <div className="flex min-w-0 items-center gap-[var(--space-4)]">

@@ -93,14 +93,22 @@ function unsubBody(endpoint = "https://push.example.com/sub") {
   return jsonPost("http://test/api/push/unsubscribe", { endpoint });
 }
 
+async function subscribePost() {
+  const { POST } = (await import("@/app/api/push/subscribe/route")) as { POST: RouteHandler };
+  return POST;
+}
+
+async function unsubscribePost() {
+  const { POST } = (await import("@/app/api/push/unsubscribe/route")) as { POST: RouteHandler };
+  return POST;
+}
+
 // ---------------------------------------------------------------------------
 // Subscribe — 400 bad URL
 // ---------------------------------------------------------------------------
 
 test("POST /api/push/subscribe returns 400 for a non-URL endpoint", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/subscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await subscribePost();
 
   const res = await POST(
     subBody("not-a-url"),
@@ -112,9 +120,7 @@ test("POST /api/push/subscribe returns 400 for a non-URL endpoint", async () => 
 });
 
 test("POST /api/push/subscribe returns 400 for an HTTP (non-HTTPS) endpoint", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/subscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await subscribePost();
 
   const res = await POST(
     subBody("http://push.example.com/sub"),
@@ -130,9 +136,7 @@ test("POST /api/push/subscribe returns 400 for an HTTP (non-HTTPS) endpoint", as
 // ---------------------------------------------------------------------------
 
 test("POST /api/push/subscribe returns 409 when per-user cap is reached", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/subscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await subscribePost();
 
   // No existing subscription for this endpoint — triggers count check.
   existingSubForEndpoint = null;
@@ -149,9 +153,7 @@ test("POST /api/push/subscribe returns 409 when per-user cap is reached", async 
 // ---------------------------------------------------------------------------
 
 test("POST /api/push/subscribe returns 201 for a valid new subscription", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/subscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await subscribePost();
 
   existingSubForEndpoint = null;
   subscriptionCount = 0;
@@ -163,9 +165,7 @@ test("POST /api/push/subscribe returns 201 for a valid new subscription", async 
 });
 
 test("POST /api/push/subscribe returns 201 when re-subscribing an existing endpoint (upsert)", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/subscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await subscribePost();
 
   // Existing sub for this endpoint — skips count check, goes straight to upsert.
   existingSubForEndpoint = { userId: "user-1" };
@@ -176,9 +176,7 @@ test("POST /api/push/subscribe returns 201 when re-subscribing an existing endpo
 });
 
 test("POST /api/push/unsubscribe removes the authenticated user's endpoint", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/unsubscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await unsubscribePost();
 
   const res = await POST(unsubBody(), undefined);
 
@@ -190,9 +188,7 @@ test("POST /api/push/unsubscribe removes the authenticated user's endpoint", asy
 });
 
 test("POST /api/push/unsubscribe returns 503 when push is not configured", async () => {
-  const { POST } = (await import(
-    "@/app/api/push/unsubscribe/route"
-  )) as { POST: RouteHandler };
+  const POST = await unsubscribePost();
 
   pushEnabled = false;
   const res = await POST(unsubBody(), undefined);

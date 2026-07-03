@@ -10,6 +10,17 @@ import { onboarding } from "@/lib/copy/pages";
 
 export const metadata = onboarding;
 
+type OnboardingProfile = Awaited<ReturnType<typeof getProfile>>;
+
+function getOnboardingDefaults(profile: OnboardingProfile) {
+  return {
+    ageRange: profile?.ageRange ?? "",
+    gender: profile?.gender ?? "",
+    englishLevel: profile?.englishLevel ?? "",
+    topics: parseTopics(profile?.topics),
+  };
+}
+
 export default async function OnboardingPage() {
   const session = await requireSession("/onboarding");
   const profile = await getProfile(session.user.id);
@@ -36,12 +47,7 @@ export default async function OnboardingPage() {
           and interests. You can change these anytime.
         </p>
         <OnboardingForm
-          defaults={{
-            ageRange: profile?.ageRange ?? "",
-            gender: profile?.gender ?? "",
-            englishLevel: profile?.englishLevel ?? "",
-            topics: parseTopics(profile?.topics),
-          }}
+          defaults={getOnboardingDefaults(profile)}
         />
       </div>
     </main>

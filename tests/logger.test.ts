@@ -24,6 +24,14 @@ async function captureConsole(fn: () => Promise<void> | void): Promise<string[]>
   return lines;
 }
 
+function parseLogLine(line: string): Record<string, unknown> {
+  return JSON.parse(line) as Record<string, unknown>;
+}
+
+function parseLastLogLine(lines: string[]): Record<string, unknown> {
+  return parseLogLine(lines[lines.length - 1]);
+}
+
 beforeEach(() => {
   // Reset LOG_LEVEL to a known default before each test.
   process.env.LOG_LEVEL = "info";
@@ -101,7 +109,7 @@ test("createLogger auto-merges requestId and userId into log lines", async () =>
     });
   });
   assert.ok(lines.length >= 1, "expected at least one log line");
-  const parsed = JSON.parse(lines[lines.length - 1]) as Record<string, unknown>;
+  const parsed = parseLastLogLine(lines);
   assert.equal(parsed.requestId, "req-merge-1");
   assert.equal(parsed.userId, "u-77");
   assert.equal(parsed.scope, "test-scope");
@@ -116,7 +124,7 @@ test("createLogger includes base fields in every line", async () => {
     const log = createLogger("worker", { component: "processor" });
     log.info("processing");
   });
-  const parsed = JSON.parse(lines[lines.length - 1]) as Record<string, unknown>;
+  const parsed = parseLastLogLine(lines);
   assert.equal(parsed.component, "processor");
   assert.equal(parsed.scope, "worker");
 });
@@ -130,7 +138,7 @@ test("createLogger merges per-call meta on top of base and context", async () =>
       log.info("with meta", { extra: "value" });
     });
   });
-  const parsed = JSON.parse(lines[lines.length - 1]) as Record<string, unknown>;
+  const parsed = parseLastLogLine(lines);
   assert.equal(parsed.requestId, "req-meta");
   assert.equal(parsed.base, "yes");
   assert.equal(parsed.extra, "value");
@@ -149,7 +157,7 @@ test("LOG_LEVEL=warn drops debug and info lines", async () => {
     log.error("error-msg");
   });
   assert.equal(lines.length, 2, "only warn + error should pass");
-  const parsed = lines.map((l) => JSON.parse(l) as Record<string, unknown>);
+  const parsed = lines.map(parseLogLine);
   assert.equal(parsed[0].level, "warn");
   assert.equal(parsed[0].message, "warn-msg");
   assert.equal(parsed[1].level, "error");
@@ -167,7 +175,7 @@ test("LOG_LEVEL=error drops debug, info, and warn lines", async () => {
     log.error("error-only");
   });
   assert.equal(lines.length, 1, "only error should pass");
-  const parsed = JSON.parse(lines[0]) as Record<string, unknown>;
+  const parsed = parseLogLine(lines[0]);
   assert.equal(parsed.level, "error");
   assert.equal(parsed.message, "error-only");
 });
@@ -196,7 +204,7 @@ test("LOG_LEVEL=info drops only debug", async () => {
     log.error("kept-error");
   });
   assert.equal(lines.length, 3);
-  const levels = lines.map((l) => (JSON.parse(l) as Record<string, unknown>).level);
+  const levels = lines.map((line) => parseLogLine(line).level);
   assert.deepEqual(levels, ["info", "warn", "error"]);
 });
 
@@ -208,7 +216,7 @@ test("log lines contain ts, level, scope, message fields", async () => {
   const lines = await captureConsole(() => {
     createLogger("struct-test").info("structure check");
   });
-  const parsed = JSON.parse(lines[lines.length - 1]) as Record<string, unknown>;
+  const parsed = parseLastLogLine(lines);
   assert.ok(typeof parsed.ts === "string", "ts must be a string");
   assert.ok(typeof parsed.level === "string", "level must be a string");
   assert.ok(typeof parsed.scope === "string", "scope must be a string");

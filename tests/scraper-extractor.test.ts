@@ -52,6 +52,22 @@ function makeProvider(overrides: Partial<import("@/lib/scraper/types").Provider>
   } as import("@/lib/scraper/types").Provider;
 }
 
+function discoveryDeps(
+  overrides: Partial<{
+    extractorFetch: () => Promise<string>;
+    fetchHtml: () => Promise<string>;
+    isProviderEnabled: () => Promise<boolean>;
+    isUrlAllowed: (url: string) => Promise<boolean>;
+  }> = {},
+) {
+  return {
+    isProviderEnabled: async () => true,
+    isUrlAllowed: async () => true,
+    extractorFetch: async () => "",
+    ...overrides,
+  };
+}
+
 const VALID_URL_1 = "https://test.example.com/articles/story-one";
 const VALID_URL_2 = "https://test.example.com/articles/story-two";
 const VALID_URL_3 = "https://test.example.com/articles/story-three";
@@ -74,9 +90,7 @@ test("urlExtractor: disabled provider skips extractor entirely", async () => {
   });
 
   const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => false,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
+    ...discoveryDeps({ isProviderEnabled: async () => false }),
   });
 
   assert.deepEqual(result, []);
@@ -90,11 +104,7 @@ test("urlExtractor: deduplicates candidate URLs", async () => {
     urlExtractor: async () => [VALID_URL_1, VALID_URL_1, VALID_URL_1],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, [VALID_URL_1]);
 });
@@ -106,11 +116,7 @@ test("urlExtractor: filters URLs that don't belong to the provider", async () =>
     urlExtractor: async () => [NON_PROVIDER_URL, VALID_URL_1],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, [VALID_URL_1]);
 });
@@ -124,11 +130,7 @@ test("urlExtractor: filters URLs that don't match articleUrlPattern", async () =
     urlExtractor: async () => [PATTERN_MISS, VALID_URL_1],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, [VALID_URL_1]);
 });
@@ -142,11 +144,7 @@ test("urlExtractor: applies articleUrlFilter", async () => {
     urlExtractor: async () => [FILTERED_URL, VALID_URL_1],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, [VALID_URL_1]);
 });
@@ -160,9 +158,7 @@ test("urlExtractor: robots-disallowed URLs are excluded", async () => {
 
   // Disallow URL_2 via robots
   const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async (url) => url !== VALID_URL_2,
-    extractorFetch: async () => "",
+    ...discoveryDeps({ isUrlAllowed: async (url) => url !== VALID_URL_2 }),
   });
 
   assert.deepEqual(result, [VALID_URL_1]);
@@ -177,11 +173,7 @@ test("urlExtractor: throwing extractor degrades gracefully to empty list", async
     },
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, []);
 });
@@ -194,11 +186,7 @@ test("urlExtractor: extractor returning non-array-of-strings degrades gracefully
     urlExtractor: async () => [VALID_URL_1, "", "not a url", VALID_URL_2],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   // Only the two valid URLs should survive
   assert.equal(result.length, 2);
@@ -213,11 +201,7 @@ test("urlExtractor: respects the limit", async () => {
     urlExtractor: async () => [VALID_URL_1, VALID_URL_2, VALID_URL_3],
   });
 
-  const result = await discoverProviderUrls(provider, 2, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 2, discoveryDeps());
 
   assert.equal(result.length, 2);
 });
@@ -230,11 +214,7 @@ test("urlExtractor: strips #fragments from candidate URLs", async () => {
     urlExtractor: async () => [withFragment],
   });
 
-  const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    extractorFetch: async () => "",
-  });
+  const result = await discoverProviderUrls(provider, 10, discoveryDeps());
 
   assert.deepEqual(result, [VALID_URL_1]);
 });
@@ -252,9 +232,7 @@ test("seed-HTML discovery works when no urlExtractor is defined", async () => {
   `;
 
   const result = await discoverProviderUrls(provider, 10, {
-    isProviderEnabled: async () => true,
-    isUrlAllowed: async () => true,
-    fetchHtml: async () => seedHtml,
+    ...discoveryDeps({ fetchHtml: async () => seedHtml }),
   });
 
   assert.equal(result.length, 2);

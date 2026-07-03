@@ -3,6 +3,14 @@ import assert from "node:assert/strict";
 
 import { SHORTCUT_GROUPS } from "@/lib/keyboard-shortcuts";
 
+const allShortcuts = SHORTCUT_GROUPS.flatMap((group) => group.shortcuts);
+
+function findGroup(label: string) {
+  const group = SHORTCUT_GROUPS.find((item) => item.label === label);
+  assert.ok(group, `${label} group must exist`);
+  return group;
+}
+
 describe("SHORTCUT_GROUPS registry metadata", () => {
   test("all groups have a non-empty label", () => {
     for (const group of SHORTCUT_GROUPS) {
@@ -32,9 +40,9 @@ describe("SHORTCUT_GROUPS registry metadata", () => {
   });
 
   test("global shortcuts suppressed in inputs include command palette and shortcuts modal entries", () => {
-    const globalSuppressed = SHORTCUT_GROUPS
-      .flatMap((group) => group.shortcuts)
-      .filter((shortcut) => shortcut.scope === "global" && shortcut.disabledInInput === true);
+    const globalSuppressed = allShortcuts.filter(
+      (shortcut) => shortcut.scope === "global" && shortcut.disabledInInput === true,
+    );
     const descriptions = globalSuppressed.map((shortcut) => shortcut.description);
 
     assert.ok(
@@ -48,8 +56,7 @@ describe("SHORTCUT_GROUPS registry metadata", () => {
   });
 
   test("⌘K shortcut is in Navigation and owned by CommandPaletteProvider", () => {
-    const nav = SHORTCUT_GROUPS.find((group) => group.label === "Navigation");
-    assert.ok(nav, "Navigation group must exist");
+    const nav = findGroup("Navigation");
     const cmdK = nav.shortcuts.find((shortcut) => shortcut.keys.includes("⌘K"));
     assert.ok(cmdK, "⌘K shortcut must be listed");
     assert.equal(cmdK.runtimeOwner, "CommandPaletteProvider");
@@ -57,8 +64,7 @@ describe("SHORTCUT_GROUPS registry metadata", () => {
   });
 
   test("flashcard shortcuts are scoped to flashcard and owned by FlashcardReview", () => {
-    const flashcard = SHORTCUT_GROUPS.find((group) => group.label === "Flashcard study");
-    assert.ok(flashcard, "Flashcard study group must exist");
+    const flashcard = findGroup("Flashcard study");
     for (const shortcut of flashcard.shortcuts) {
       assert.equal(shortcut.scope, "flashcard", `"${shortcut.description}" must have scope=flashcard`);
       assert.equal(shortcut.runtimeOwner, "FlashcardReview", `"${shortcut.description}" must be owned by FlashcardReview`);
@@ -66,8 +72,7 @@ describe("SHORTCUT_GROUPS registry metadata", () => {
   });
 
   test("reader tool tab arrow shortcut is scoped to reader and owned by ReaderTools", () => {
-    const reader = SHORTCUT_GROUPS.find((group) => group.label === "Reader");
-    assert.ok(reader, "Reader group must exist");
+    const reader = findGroup("Reader");
     const arrows = reader.shortcuts.find((shortcut) => shortcut.keys.includes("←") && shortcut.keys.includes("→"));
     assert.ok(arrows, "Arrow shortcut must be listed in Reader group");
     assert.equal(arrows.scope, "reader");
@@ -75,7 +80,6 @@ describe("SHORTCUT_GROUPS registry metadata", () => {
   });
 
   test("shortcut modal entries correspond to runtime behavior or are explicitly reference-only", () => {
-    const allShortcuts = SHORTCUT_GROUPS.flatMap((group) => group.shortcuts);
     for (const shortcut of allShortcuts) {
       assert.ok(
         shortcut.scope !== undefined,

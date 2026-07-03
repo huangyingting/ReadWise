@@ -15,11 +15,25 @@ import {
 } from "@/lib/ai/chunking";
 
 function buildLongText(sentences: number): string {
-  const parts: string[] = [];
-  for (let i = 0; i < sentences; i++) {
-    parts.push(`This is sentence number ${i} with a little filler content to add length.`);
+  return Array.from(
+    { length: sentences },
+    (_, i) => `This is sentence number ${i} with a little filler content to add length.`,
+  ).join(" ");
+}
+
+function assertChunksWithinTokenCap(chunks: string[], maxTokens: number): void {
+  for (const chunk of chunks) {
+    assert.ok(
+      estimateTokens(chunk) <= maxTokens,
+      `chunk exceeded cap: ${estimateTokens(chunk)} > ${maxTokens}`,
+    );
   }
-  return parts.join(" ");
+}
+
+function assertContainsEverySentence(text: string, sentenceCount: number, label: string): void {
+  for (let i = 0; i < sentenceCount; i++) {
+    assert.ok(text.includes(`sentence number ${i} `), `${label} missing sentence ${i}`);
+  }
 }
 
 test("estimateTokens is monotonic and over-estimates", () => {
@@ -55,12 +69,7 @@ test("chunkText keeps every chunk within the cap", () => {
   const maxTokens = 40;
   const chunks = chunkText(text, maxTokens, 0);
   assert.ok(chunks.length > 1, "long text should be split into multiple chunks");
-  for (const chunk of chunks) {
-    assert.ok(
-      estimateTokens(chunk) <= maxTokens,
-      `chunk exceeded cap: ${estimateTokens(chunk)} > ${maxTokens}`,
-    );
-  }
+  assertChunksWithinTokenCap(chunks, maxTokens);
 });
 
 test("chunkText covers all sentences (no content dropped)", () => {
@@ -68,9 +77,7 @@ test("chunkText covers all sentences (no content dropped)", () => {
   const chunks = chunkText(text, 40, 0);
   // Every sentence index should appear somewhere across the chunks.
   const joined = chunks.join(" ");
-  for (let i = 0; i < 40; i++) {
-    assert.ok(joined.includes(`sentence number ${i} `), `missing sentence ${i}`);
-  }
+  assertContainsEverySentence(joined, 40, "chunkText");
 });
 
 test("chunkText overlap repeats trailing context between chunks", () => {
@@ -85,9 +92,7 @@ test("chunkText overlap repeats trailing context between chunks", () => {
   const lenOv = withOverlap.join("").length;
   assert.ok(lenOv > lenNo, "overlap should repeat some context");
   // Each overlapped chunk still respects the cap.
-  for (const chunk of withOverlap) {
-    assert.ok(estimateTokens(chunk) <= 60);
-  }
+  assertChunksWithinTokenCap(withOverlap, 60);
 });
 
 test("chunkText handles empty and tiny inputs", () => {
@@ -100,9 +105,7 @@ test("chunkText hard-splits a single oversized token", () => {
   const giant = "a".repeat(1000);
   const chunks = chunkText(giant, 20, 0);
   assert.ok(chunks.length > 1);
-  for (const chunk of chunks) {
-    assert.ok(estimateTokens(chunk) <= 20);
-  }
+  assertChunksWithinTokenCap(chunks, 20);
   assert.equal(chunks.join(""), giant);
 });
 
@@ -114,15 +117,11 @@ test("translation feature uses full-coverage chunking", () => {
   const text = buildLongText(Math.ceil((budget * 4) / 60) + 50);
   const chunks = chunkForFeature(text, "translation");
   assert.ok(chunks.length > 1, "long article should produce multiple translation chunks");
-  for (const chunk of chunks) {
-    assert.ok(estimateTokens(chunk) <= budget);
-  }
+  assertChunksWithinTokenCap(chunks, budget);
   // Full coverage: concatenated chunks contain every sentence.
   const joined = chunks.join(" ");
   const sentenceCount = (text.match(/sentence number/g) ?? []).length;
-  for (let i = 0; i < sentenceCount; i++) {
-    assert.ok(joined.includes(`sentence number ${i} `), `translation dropped sentence ${i}`);
-  }
+  assertContainsEverySentence(joined, sentenceCount, "translation");
 });
 
 test("boundedSampleForFeature clamps sampled features to their budget", () => {

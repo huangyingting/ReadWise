@@ -14,10 +14,7 @@ import { importPage } from "@/lib/copy/pages";
 
 export const metadata: Metadata = importPage;
 
-export default async function ImportPage() {
-  const session = await requireOnboardedSession("/import");
-  const userId = session.user.id;
-
+async function loadInitialImports(userId: string) {
   const { articles: personalArticles, hasMore } = await listPersonalArticlesPage(
     userId,
     { offset: 0, limit: IMPORTS_PAGE_SIZE },
@@ -29,6 +26,15 @@ export default async function ImportPage() {
           personalArticles.map((a) => a.id),
         )
       : {};
+
+  return { personalArticles, hasMore, progressMap };
+}
+
+export default async function ImportPage() {
+  const session = await requireOnboardedSession("/import");
+  const { personalArticles, hasMore, progressMap } = await loadInitialImports(
+    session.user.id,
+  );
 
   return (
     <PageShell variant="narrow">

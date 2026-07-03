@@ -38,7 +38,7 @@ export function useTutor(): TutorConversationState {
 // Provider
 // ---------------------------------------------------------------------------
 
-interface Props {
+interface ReaderTutorProviderProps {
   articleId: string;
   children: ReactNode;
   /**
@@ -53,7 +53,11 @@ interface Props {
   paragraphContext?: string;
 }
 
-export function ReaderTutorProvider({ articleId, children, paragraphContext }: Props) {
+export function ReaderTutorProvider({
+  articleId,
+  children,
+  paragraphContext,
+}: ReaderTutorProviderProps) {
   const state = useTutorConversation(articleId, paragraphContext);
 
   return (

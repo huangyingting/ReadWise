@@ -22,6 +22,29 @@ interface SkeletonCardGridProps {
   count?: number;
 }
 
+function SkeletonCardMetaRow() {
+  return (
+    <div className="flex items-center gap-[var(--space-2)]">
+      <Skeleton shape="block" className="h-5 w-12 rounded-full" />
+      <Skeleton shape="block" className="h-4 w-24 rounded-[var(--radius-sm)]" />
+    </div>
+  );
+}
+
+function SkeletonCardBody() {
+  return (
+    <div className={CARD_BODY_CLASS_NAME}>
+      <SkeletonCardMetaRow />
+      <SkeletonText lines={2} />
+      <Skeleton shape="text" className="w-1/2" />
+      <Skeleton
+        shape="block"
+        className="mt-auto h-1.5 w-full rounded-full"
+      />
+    </div>
+  );
+}
+
 /**
  * Skeleton placeholder that mirrors the M4 ArticleCardView footprint so the
  * listing grid doesn't reflow when real cards land. Built from M1 Skeleton
@@ -42,26 +65,7 @@ export function SkeletonCard({ className }: SkeletonCardProps) {
         className="w-full aspect-[16/9] rounded-none"
       />
 
-      {/* Card body */}
-      <div className={CARD_BODY_CLASS_NAME}>
-        {/* Top row: badge chip + meta chip */}
-        <div className="flex items-center gap-[var(--space-2)]">
-          <Skeleton shape="block" className="h-5 w-12 rounded-full" />
-          <Skeleton shape="block" className="h-4 w-24 rounded-[var(--radius-sm)]" />
-        </div>
-
-        {/* Title: 2 lines */}
-        <SkeletonText lines={2} />
-
-        {/* Byline: 1 line at 50% */}
-        <Skeleton shape="text" className="w-1/2" />
-
-        {/* Progress track pinned to bottom */}
-        <Skeleton
-          shape="block"
-          className="mt-auto h-1.5 w-full rounded-full"
-        />
-      </div>
+      <SkeletonCardBody />
     </div>
   );
 }
@@ -73,8 +77,8 @@ export function SkeletonCard({ className }: SkeletonCardProps) {
 export function SkeletonCardGrid({ count = 6 }: SkeletonCardGridProps) {
   return (
     <div className={GRID_CLASS_NAME}>
-      {Array.from({ length: count }).map((_, i) => (
-        <SkeletonCard key={i} />
+      {Array.from({ length: count }, (_, index) => (
+        <SkeletonCard key={index} />
       ))}
     </div>
   );

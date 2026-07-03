@@ -19,6 +19,8 @@ export function MiniBar({
   color = "var(--teal)",
 }: MiniBarProps) {
   const pct = max > 0 ? Math.round((value / max) * 100) : 0;
+  const valueLabel = `${value} ${label}`;
+
   return (
     <div className="flex items-center gap-[var(--space-2)]" title={label}>
       <div
@@ -27,13 +29,18 @@ export function MiniBar({
         role="presentation"
       >
         <div
-          style={{ width: `${pct}%`, height: "100%", backgroundColor: color, borderRadius: 9999 }}
+          style={{
+            width: `${pct}%`,
+            height: "100%",
+            backgroundColor: color,
+            borderRadius: 9999,
+          }}
         />
       </div>
       <span
         className="text-[length:var(--text-xs)] text-text-subtle tabular-nums"
         style={{ minWidth: "2ch", textAlign: "right" }}
-        aria-label={`${value} ${label}`}
+        aria-label={valueLabel}
       >
         {value}
       </span>

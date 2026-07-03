@@ -19,11 +19,25 @@ type FeedResult = {
   reasons: Record<string, string>;
 };
 
-let feedResult: FeedResult = {
-  articles: [{ id: "a1", title: "Test", author: null, source: null, category: "tech", difficulty: "B1", readingMinutes: 3 }],
-  hasMore: false,
-  reasons: { "a1": "Matches your interest in Tech" },
+const defaultFeedArticle: FeedResult["articles"][number] = {
+  id: "a1",
+  title: "Test",
+  author: null,
+  source: null,
+  category: "tech",
+  difficulty: "B1",
+  readingMinutes: 3,
 };
+
+function defaultFeedResult(): FeedResult {
+  return {
+    articles: [defaultFeedArticle],
+    hasMore: false,
+    reasons: { "a1": "Matches your interest in Tech" },
+  };
+}
+
+let feedResult: FeedResult = defaultFeedResult();
 let progressResult: Record<string, { percent: number; completed: boolean }> = {};
 
 // ---- mocks ----------------------------------------------------------------
@@ -50,20 +64,20 @@ before(() => {
 
 beforeEach(() => {
   authState = "ok";
-  feedResult = {
-    articles: [{ id: "a1", title: "Test", author: null, source: null, category: "tech", difficulty: "B1", readingMinutes: 3 }],
-    hasMore: false,
-    reasons: { "a1": "Matches your interest in Tech" },
-  };
+  feedResult = defaultFeedResult();
   progressResult = {};
 });
 
 // ---- tests ----------------------------------------------------------------
 
+async function getFeedResponse(url = "http://test/api/feed"): Promise<Response> {
+  const { GET } = (await import("@/app/api/feed/route")) as { GET: RouteHandler };
+  return GET(new Request(url), undefined);
+}
+
 test("GET /api/feed returns articles + progress + reasons + hasMore + offset", async () => {
   progressResult = { "a1": { percent: 20, completed: false } };
-  const { GET } = (await import("@/app/api/feed/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/feed"), undefined);
+  const res = await getFeedResponse();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.ok(Array.isArray(body.articles), "articles is array");
@@ -79,15 +93,13 @@ test("GET /api/feed returns articles + progress + reasons + hasMore + offset", a
 
 test("GET /api/feed returns 401 when unauthenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/feed/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/feed"), undefined);
+  const res = await getFeedResponse();
   assert.equal(res.status, 401);
 });
 
 test("GET /api/feed respects offset and limit query params", async () => {
   feedResult = { articles: [], hasMore: true, reasons: {} };
-  const { GET } = (await import("@/app/api/feed/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/feed?offset=10&limit=5"), undefined);
+  const res = await getFeedResponse("http://test/api/feed?offset=10&limit=5");
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.equal(body.offset, 10); // offset(10) + articles.length(0)
@@ -96,8 +108,7 @@ test("GET /api/feed respects offset and limit query params", async () => {
 
 test("GET /api/feed returns empty articles array gracefully", async () => {
   feedResult = { articles: [], hasMore: false, reasons: {} };
-  const { GET } = (await import("@/app/api/feed/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/feed"), undefined);
+  const res = await getFeedResponse();
   assert.equal(res.status, 200);
   const body = await res.json();
   assert.deepEqual(body.articles, []);

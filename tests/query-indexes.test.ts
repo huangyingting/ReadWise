@@ -69,8 +69,12 @@ test("public feed predicate matches ownerless partial-index contract", () => {
   const articlePolicy = read("src/lib/article-library/policy.ts");
   const docs = read("docs/reader/search-and-indexing.md");
   const migration = readAllMigrations("prisma/postgresql/migrations");
+  const publicAccessWhere = articlePolicy.match(
+    /function\s+publicListableAccessWhere\(\):\s*Prisma\.ArticleWhereInput\s*{[\s\S]*?^}/m,
+  )?.[0];
 
-  assert.match(articlePolicy, /publicListableArticleWhere[\s\S]{0,250}ownerId:\s*null/);
+  assert.match(articlePolicy, /publicListableArticleWhere[\s\S]{0,250}publicListableAccessWhere\(\)/);
+  assert.match(publicAccessWhere ?? "", /ownerId:\s*null/);
   assert.match(docs, /ownerId IS NULL/);
   assert.match(migration, /"ownerId" IS NULL/);
 });
