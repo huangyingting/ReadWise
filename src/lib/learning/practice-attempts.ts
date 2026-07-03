@@ -13,12 +13,31 @@
 // Score validation
 // ---------------------------------------------------------------------------
 
+const SCORE_MIN = 0;
+const SCORE_MAX = 100;
+const COUNT_SCORE_ERROR =
+  "correctCount must be 0–totalQuestions and totalQuestions must be > 0";
+
+function isIntegerInRange(value: number, min: number, max: number): boolean {
+  return Number.isInteger(value) && value >= min && value <= max;
+}
+
+function isValidCountScore(correctCount: number, totalQuestions: number): boolean {
+  return (
+    Number.isInteger(totalQuestions) &&
+    totalQuestions > 0 &&
+    Number.isInteger(correctCount) &&
+    correctCount >= 0 &&
+    correctCount <= totalQuestions
+  );
+}
+
 /**
  * Validates that a score is a 0–100 integer.
  * Throws with the field name so callers can map the error to a 400 response.
  */
 export function validateBoundedScore(score: number, name: string): void {
-  if (!Number.isInteger(score) || score < 0 || score > 100) {
+  if (!isIntegerInRange(score, SCORE_MIN, SCORE_MAX)) {
     throw new Error(`${name} must be an integer between 0 and 100`);
   }
 }
@@ -31,16 +50,8 @@ export function validateCountScore(
   correctCount: number,
   totalQuestions: number,
 ): void {
-  if (
-    !Number.isInteger(totalQuestions) ||
-    totalQuestions <= 0 ||
-    !Number.isInteger(correctCount) ||
-    correctCount < 0 ||
-    correctCount > totalQuestions
-  ) {
-    throw new Error(
-      "correctCount must be 0–totalQuestions and totalQuestions must be > 0",
-    );
+  if (!isValidCountScore(correctCount, totalQuestions)) {
+    throw new Error(COUNT_SCORE_ERROR);
   }
 }
 

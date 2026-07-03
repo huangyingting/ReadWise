@@ -66,6 +66,34 @@ function minLevel(): LogLevel {
   return logLevel();
 }
 
+function shouldEmit(level: LogLevel, threshold: number): boolean {
+  return order[level] >= threshold;
+}
+
+function buildLogLine(
+  scope: string,
+  level: LogLevel,
+  message: string,
+  base: Record<string, unknown>,
+  meta?: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    ts: new Date().toISOString(),
+    level,
+    scope,
+    message,
+    ...getRequestContext(),
+    ...base,
+    ...meta,
+  };
+}
+
+function writeLogLine(level: LogLevel, line: string): void {
+  if (level === "error") console.error(line);
+  else if (level === "warn") console.warn(line);
+  else console.log(line);
+}
+
 /**
  * Build a logger bound to a `scope` (e.g. "api", "worker"). Each call merges:
  * the ambient request context, then the logger's `base` fields, then the
@@ -79,20 +107,8 @@ export function createLogger(
   const emit =
     (level: LogLevel) =>
     (message: string, meta?: Record<string, unknown>) => {
-      if (order[level] < threshold) return;
-      const line: Record<string, unknown> = {
-        ts: new Date().toISOString(),
-        level,
-        scope,
-        message,
-        ...getRequestContext(),
-        ...base,
-        ...meta,
-      };
-      const out = JSON.stringify(line);
-      if (level === "error") console.error(out);
-      else if (level === "warn") console.warn(out);
-      else console.log(out);
+      if (!shouldEmit(level, threshold)) return;
+      writeLogLine(level, JSON.stringify(buildLogLine(scope, level, message, base, meta)));
     };
   return {
     debug: emit("debug"),

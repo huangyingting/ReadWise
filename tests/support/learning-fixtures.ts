@@ -37,7 +37,7 @@ export function makeLevelEvidence(partial: Partial<LevelEvidence> = {}): LevelEv
 // Study-plan fixtures
 // ---------------------------------------------------------------------------
 
-const SKILL_LIST: Skill[] = [
+const SKILL_LIST: readonly Skill[] = [
   "reading",
   "vocabulary",
   "grammar",
@@ -79,11 +79,10 @@ export function makeStudyDiagnostics(partial: Partial<StudyDiagnostics> = {}): S
 
 const NOW = new Date("2026-06-23T00:00:00Z");
 
-export function makeRecommendationCandidate(
-  partial: Partial<RecommendationCandidate> & { id: string },
-): RecommendationCandidate {
+function defaultRecommendationCandidate(id: string): RecommendationCandidate {
   return {
-    title: `Title ${partial.id}`,
+    id,
+    title: `Title ${id}`,
     author: "Author",
     source: "Source",
     category: null,
@@ -93,8 +92,16 @@ export function makeRecommendationCandidate(
     publishedAt: NOW,
     heroImage: null,
     tagSlugs: [],
-    ...partial,
   } as RecommendationCandidate;
+}
+
+export function makeRecommendationCandidate(
+  partial: Partial<RecommendationCandidate> & { id: string },
+): RecommendationCandidate {
+  return {
+    ...defaultRecommendationCandidate(partial.id),
+    ...partial,
+  };
 }
 
 export function makeRecommendationContext(

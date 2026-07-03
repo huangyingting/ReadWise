@@ -46,6 +46,52 @@ function parseOptions(raw: unknown): string[] {
   return parseStringArray(raw).filter((o) => o.length > 0);
 }
 
+type PlacementArticleCandidate = {
+  id: string;
+  title: string;
+  excerpt: string | null;
+  wordCount: number | null;
+};
+
+type PlacementQuestionRow = {
+  id: string;
+  question: string;
+  options: unknown;
+  correctIndex: number;
+};
+
+function isRenderableQuestion(q: PlacementQuestionDto): boolean {
+  return q.options.length >= 2 && q.correctIndex >= 0 && q.correctIndex < q.options.length;
+}
+
+function toPlacementQuestion(q: PlacementQuestionRow): PlacementQuestionDto {
+  return {
+    id: q.id,
+    question: q.question,
+    options: parseOptions(q.options),
+    correctIndex: q.correctIndex,
+  };
+}
+
+function toRenderableQuestions(questionRows: PlacementQuestionRow[]): PlacementQuestionDto[] {
+  return questionRows.map(toPlacementQuestion).filter(isRenderableQuestion);
+}
+
+function createPlacementPassage(
+  article: PlacementArticleCandidate,
+  seedLevel: PlacementSeedLevel,
+  questions: PlacementQuestionDto[],
+): PlacementPassage {
+  return {
+    articleId: article.id,
+    seedLevel,
+    title: article.title,
+    excerpt: article.excerpt,
+    wordCount: article.wordCount ?? 0,
+    questions,
+  };
+}
+
 /**
  * Selects a placement passage for the given seed level, or `null` when the
  * public library has no eligible article (graceful fallback — the UI then
@@ -76,26 +122,10 @@ export async function loadPlacementPassage(
       select: { id: true, question: true, options: true, correctIndex: true },
     });
 
-    const questions: PlacementQuestionDto[] = questionRows
-      .map((q) => ({
-        id: q.id,
-        question: q.question,
-        options: parseOptions(q.options),
-        correctIndex: q.correctIndex,
-      }))
-      .filter(
-        (q) => q.options.length >= 2 && q.correctIndex >= 0 && q.correctIndex < q.options.length,
-      );
+    const questions = toRenderableQuestions(questionRows);
 
     if (questions.length >= MIN_PLACEMENT_QUESTIONS) {
-      return {
-        articleId: article.id,
-        seedLevel,
-        title: article.title,
-        excerpt: article.excerpt,
-        wordCount: article.wordCount ?? 0,
-        questions,
-      };
+      return createPlacementPassage(article, seedLevel, questions);
     }
   }
 

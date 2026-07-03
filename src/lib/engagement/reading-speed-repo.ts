@@ -14,6 +14,28 @@ import {
   type SpeedRecord,
 } from "./reading-speed";
 
+type SpeedSourceRow = {
+  timeSpentMs: number | null;
+  article: { wordCount: number | null };
+};
+
+const SPEED_RECORD_LIMIT = 50;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function hasCompleteSpeedSource(row: SpeedSourceRow): row is {
+  timeSpentMs: number;
+  article: { wordCount: number };
+} {
+  return row.timeSpentMs != null && row.article.wordCount != null;
+}
+
+function toSpeedRecords(rows: SpeedSourceRow[]): SpeedRecord[] {
+  return rows.filter(hasCompleteSpeedSource).map((row) => ({
+    wordCount: row.article.wordCount,
+    timeSpentMs: row.timeSpentMs,
+  }));
+}
+
 /**
  * Fetches the user's reading-speed stats from their ArticleMastery records.
  *
@@ -39,16 +61,10 @@ export async function getReadingSpeedStats(userId: string): Promise<{
       article: { select: { wordCount: true } },
     },
     orderBy: { lastActivityAt: "asc" },
-    take: 50,
+    take: SPEED_RECORD_LIMIT,
   });
 
-  const records: SpeedRecord[] = rows
-    .filter((r) => r.timeSpentMs != null && r.article.wordCount != null)
-    .map((r) => ({
-      wordCount: r.article.wordCount as number,
-      timeSpentMs: r.timeSpentMs as number,
-    }));
-
+  const records = toSpeedRecords(rows);
   const trend = computeWpmTrend(records);
   return { ...trend, sessionCount: records.length };
 }
@@ -76,7 +92,7 @@ export async function getFluencyTrend(
   const level = opts.level ?? null;
   const category = opts.category ?? null;
   const windowDays = opts.windowDays ?? FLUENCY_DEFAULT_WINDOW_DAYS;
-  const since = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
+  const since = new Date(Date.now() - windowDays * DAY_MS);
 
   const rows = await prisma.articleMastery.findMany({
     where: {
@@ -94,15 +110,8 @@ export async function getFluencyTrend(
       article: { select: { wordCount: true } },
     },
     orderBy: { lastActivityAt: "asc" },
-    take: 50,
+    take: SPEED_RECORD_LIMIT,
   });
 
-  const records: SpeedRecord[] = rows
-    .filter((r) => r.timeSpentMs != null && r.article.wordCount != null)
-    .map((r) => ({
-      wordCount: r.article.wordCount as number,
-      timeSpentMs: r.timeSpentMs as number,
-    }));
-
-  return computeFluencyTrend(records, { level, category });
+  return computeFluencyTrend(toSpeedRecords(rows), { level, category });
 }

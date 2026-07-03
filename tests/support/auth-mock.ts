@@ -29,6 +29,7 @@ import { readerSession, adminSession } from "./route";
 export type AuthState = "ok" | "unauth" | "forbidden";
 
 type SessionShape = { user: { id: string; role: string; name: string; email: string | null } };
+type AuthResult = { session: SessionShape; error?: NextResponse } | { error: NextResponse };
 
 // ---------------------------------------------------------------------------
 // Shared session fixture
@@ -49,6 +50,17 @@ export function makeSession(role: "Admin" | "Reader", id = "u1"): Session {
 // Named-export builders
 // ---------------------------------------------------------------------------
 
+function authError(message: "Unauthorized" | "Forbidden", status: 401 | 403): AuthResult {
+  return { error: NextResponse.json({ error: message }, { status }) };
+}
+
+function forbiddenWithSession(session: SessionShape): AuthResult {
+  return {
+    session,
+    error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+  };
+}
+
 /**
  * Build `namedExports` for `mock.module("@/lib/api-auth", ...)` that expose
  * only `requireSessionApi`.
@@ -63,7 +75,7 @@ export function sessionAuthExports(
   return {
     requireSessionApi: async () => {
       if (getState() === "unauth") {
-        return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+        return authError("Unauthorized", 401);
       }
       return { session };
     },
@@ -93,19 +105,16 @@ export function fullAuthExports(
   return {
     requireSessionApi: async () => {
       if (getState() === "unauth") {
-        return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+        return authError("Unauthorized", 401);
       }
       return { session };
     },
     requireCapabilityApi: async () => {
       if (getState() === "unauth") {
-        return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+        return authError("Unauthorized", 401);
       }
       if (getState() === "forbidden") {
-        return {
-          session,
-          error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
-        };
+        return forbiddenWithSession(session);
       }
       return { session: adminSess };
     },

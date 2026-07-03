@@ -7,6 +7,8 @@ import { isPostgresDatabase } from "@/lib/db-utils";
 import { bucketize } from "@/lib/aggregation";
 
 export type BucketCount = { key: string; label: string; count: number };
+type ArticleGroup = { _count: { _all: number } };
+type TopTagRecord = { slug: string; name: string; _count: { articles: number } };
 
 export type AdminAnalytics = {
 	articlesByCategory: BucketCount[];
@@ -20,6 +22,19 @@ export type AdminAnalytics = {
 	};
 	topTags: BucketCount[];
 };
+
+function toArticleGroupRows<T extends ArticleGroup, K extends keyof T>(
+	groups: T[],
+	key: K,
+): { key: string | null; count: number }[] {
+	return groups.map((group) => ({ key: group[key] as string | null, count: group._count._all }));
+}
+
+function publicTagCounts(records: TopTagRecord[]): BucketCount[] {
+	return records
+		.filter((tag) => tag._count.articles > 0)
+		.map((tag) => ({ key: tag.slug, label: tag.name, count: tag._count.articles }));
+}
 
 /**
  * Returns the number of distinct users who have at least one `ReadingProgress`
@@ -78,19 +93,17 @@ export async function getAdminAnalytics(): Promise<AdminAnalytics> {
 
 	const articlesByCategory = bucketize(
 		CATEGORIES.map((c) => ({ key: c.slug, label: c.label })),
-		categoryGroups.map((g) => ({ key: g.category, count: g._count._all })),
+		toArticleGroupRows(categoryGroups, "category"),
 		{ key: "uncategorized", label: "Uncategorized" },
 	);
 
 	const articlesByLevel = bucketize(
 		ENGLISH_LEVELS.map((lvl) => ({ key: lvl, label: lvl })),
-		levelGroups.map((g) => ({ key: g.difficulty, count: g._count._all })),
+		toArticleGroupRows(levelGroups, "difficulty"),
 		{ key: "unassessed", label: "Unassessed" },
 	);
 
-	const topTags: BucketCount[] = topTagRecords
-		.filter((t) => t._count.articles > 0)
-		.map((t) => ({ key: t.slug, label: t.name, count: t._count.articles }));
+	const topTags = publicTagCounts(topTagRecords);
 
 	return {
 		articlesByCategory,

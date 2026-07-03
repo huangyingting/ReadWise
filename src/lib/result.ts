@@ -42,6 +42,10 @@ export type DomainResult<T extends object = Record<never, never>> = DomainOk<T> 
 
 // ── Constructors ───────────────────────────────────────────────────────────
 
+function err(status: number, message: string): DomainErr {
+  return { ok: false, error: message, status };
+}
+
 /** Returns a successful result with no extra payload fields. */
 export function ok(): DomainOk;
 /** Returns a successful result that merges `data` into the ok shape. */
@@ -52,32 +56,32 @@ export function ok<T extends object>(data?: T): DomainOk | DomainOk<T> {
 
 /** Resource was not found — 404. */
 export function notFound(message = "Not found"): DomainErr {
-  return { ok: false, error: message, status: 404 };
+  return err(404, message);
 }
 
 /** Client-supplied input failed validation — 400. */
 export function validationError(message: string): DomainErr {
-  return { ok: false, error: message, status: 400 };
+  return err(400, message);
 }
 
 /** A business-rule conflict prevents the operation — 409. */
 export function conflict(message: string): DomainErr {
-  return { ok: false, error: message, status: 409 };
+  return err(409, message);
 }
 
 /** The caller is not authorized for this operation — 403. */
 export function forbidden(message = "Forbidden"): DomainErr {
-  return { ok: false, error: message, status: 403 };
+  return err(403, message);
 }
 
 /** A required upstream dependency is temporarily unavailable — 503. */
 export function unavailable(message = "Service unavailable"): DomainErr {
-  return { ok: false, error: message, status: 503 };
+  return err(503, message);
 }
 
 /** An unexpected or unclassified failure — 500. */
 export function unexpected(message = "Unexpected error"): DomainErr {
-  return { ok: false, error: message, status: 500 };
+  return err(500, message);
 }
 
 // ── Route helper ───────────────────────────────────────────────────────────

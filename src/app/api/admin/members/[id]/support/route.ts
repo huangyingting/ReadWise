@@ -28,16 +28,19 @@ export const POST = createCapabilityHandler(
   { params: idParams, body: supportBody },
   async ({ req, params, body, session, requestId }) => {
     const targetId = params.id;
+    const auditBase = {
+      req,
+      session,
+      requestId,
+      targetType: "user" as const,
+      targetId,
+    };
 
     switch (body.action) {
       case "revoke_sessions": {
         const result = await revokeMemberSessions(targetId, ({ revoked }) => ({
-          req,
-          session,
-          requestId,
+          ...auditBase,
           action: AUDIT_ACTIONS.adminMemberRevokeSessions,
-          targetType: "user",
-          targetId,
           metadata: { revoked },
         }));
         throwIfFailed(result);
@@ -46,12 +49,8 @@ export const POST = createCapabilityHandler(
 
       case "export": {
         const result = await exportMemberData(targetId, {
-          req,
-          session,
-          requestId,
+          ...auditBase,
           action: AUDIT_ACTIONS.adminMemberExport,
-          targetType: "user",
-          targetId,
           metadata: { exported: true },
         });
         throwIfFailed(result);
@@ -63,12 +62,8 @@ export const POST = createCapabilityHandler(
           targetId,
           session.user.id,
           ({ result: backfill, articleCount }) => ({
-            req,
-            session,
-            requestId,
+            ...auditBase,
             action: AUDIT_ACTIONS.adminMemberRepair,
-            targetType: "user",
-            targetId,
             metadata: {
               articleCount,
               enqueued: backfill.enqueued,
@@ -86,12 +81,8 @@ export const POST = createCapabilityHandler(
 
       case "resend_help": {
         const result = await resendSignInHelp(targetId, ({ delivered }) => ({
-          req,
-          session,
-          requestId,
+          ...auditBase,
           action: AUDIT_ACTIONS.adminMemberResendHelp,
-          targetType: "user",
-          targetId,
           metadata: { delivered },
         }));
         throwIfFailed(result);

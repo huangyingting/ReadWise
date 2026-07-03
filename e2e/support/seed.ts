@@ -11,6 +11,8 @@ import {
 export { TEST_ARTICLE_ID, createUserWithSession } from "@/lib/testing/e2e-fixtures";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
+const SESSION_COOKIE_NAME = "next-auth.session-token";
+const MS_PER_SECOND = 1000;
 
 export async function seedSmokeData(): Promise<void> {
   await resetE2eDatabase();
@@ -24,12 +26,12 @@ export async function addSessionCookie(
 ): Promise<void> {
   await context.addCookies([
     {
-      name: "next-auth.session-token",
+      name: SESSION_COOKIE_NAME,
       value: sessionToken,
       url: BASE_URL,
       httpOnly: true,
       sameSite: "Lax",
-      expires: Math.floor(expires.getTime() / 1000),
+      expires: Math.floor(expires.getTime() / MS_PER_SECOND),
     },
   ]);
 }

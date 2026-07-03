@@ -9,8 +9,54 @@ import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
-import { quizAttemptBody } from "@/lib/reader/schemas";
+import { quizAttemptBody, type QuizAttemptBody } from "@/lib/reader/schemas";
 import { markTodayComprehensionComplete } from "@/lib/engagement/today-session/completion";
+
+type QuizAttemptResult = Awaited<ReturnType<typeof recordQuizAttempt>>;
+type QuizAttemptRecord = QuizAttemptResult["attempt"];
+
+function badAttemptRequest(err: unknown, fallback: string): ApiError {
+  return new ApiError(400, err instanceof Error ? err.message : fallback);
+}
+
+function clientMutationIdFrom(body: QuizAttemptBody, req: Request): string | null {
+  return body.clientMutationId ?? req.headers.get("x-client-mutation-id") ?? null;
+}
+
+async function updateQuizMasterySignals(
+  userId: string,
+  articleId: string,
+  score: number,
+): Promise<void> {
+  await Promise.all([
+    bestEffortMastery("quiz.article_mastery", () =>
+      updateArticleMastery(userId, articleId),
+    ),
+    bestEffortMastery("quiz.comprehension_skill", () =>
+      recordSkillEvidence(userId, "comprehension", score),
+    ),
+    bestEffortMastery("quiz.reading_skill", () =>
+      recordSkillEvidence(userId, "reading", score, 0.5),
+    ),
+  ]);
+}
+
+async function recordQuizCompletionEvent(
+  userId: string,
+  articleId: string,
+  attempt: QuizAttemptRecord,
+): Promise<void> {
+  await recordEvent({
+    type: ANALYTICS_EVENT_TYPES.quizComplete,
+    userId,
+    articleId,
+    properties: {
+      scorePct: attempt.scorePct,
+      correctCount: attempt.correctCount,
+      totalQuestions: attempt.totalQuestions,
+    },
+  });
+}
 
 /**
  * POST /api/reader/[id]/quiz/attempt
@@ -42,11 +88,10 @@ export const POST = createHandler(
     try {
       graded = gradeQuizAnswers(quiz.questions, body.answers);
     } catch (err) {
-      throw new ApiError(400, err instanceof Error ? err.message : "Invalid answers");
+      throw badAttemptRequest(err, "Invalid answers");
     }
 
-    const clientMutationId =
-      body.clientMutationId ?? req.headers.get("x-client-mutation-id") ?? null;
+    const clientMutationId = clientMutationIdFrom(body, req);
 
     let result;
     try {
@@ -58,36 +103,17 @@ export const POST = createHandler(
         { clientMutationId },
       );
     } catch (err) {
-      throw new ApiError(400, err instanceof Error ? err.message : "Invalid attempt data");
+      throw badAttemptRequest(err, "Invalid attempt data");
     }
 
     // Best-effort mastery side-effects — never break the attempt write. A quiz
     // is the strongest comprehension signal; it also feeds reading.
     const score = result.attempt.scorePct / 100;
-    await Promise.all([
-      bestEffortMastery("quiz.article_mastery", () =>
-        updateArticleMastery(session.user.id, article.id),
-      ),
-      bestEffortMastery("quiz.comprehension_skill", () =>
-        recordSkillEvidence(session.user.id, "comprehension", score),
-      ),
-      bestEffortMastery("quiz.reading_skill", () =>
-        recordSkillEvidence(session.user.id, "reading", score, 0.5),
-      ),
-    ]);
+    await updateQuizMasterySignals(session.user.id, article.id, score);
 
     // Product analytics (RW-051): quiz completion is a core engagement signal.
     // Metadata only — only the server-derived score/counts, never quiz content.
-    await recordEvent({
-      type: ANALYTICS_EVENT_TYPES.quizComplete,
-      userId: session.user.id,
-      articleId: article.id,
-      properties: {
-        scorePct: result.attempt.scorePct,
-        correctCount: result.attempt.correctCount,
-        totalQuestions: result.attempt.totalQuestions,
-      },
-    });
+    await recordQuizCompletionEvent(session.user.id, article.id, result.attempt);
 
     // Best-effort: a quiz attempt on today's primary article completes the
     // Today comprehension step. Never breaks the attempt write.

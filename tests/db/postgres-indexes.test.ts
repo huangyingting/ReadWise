@@ -8,24 +8,34 @@ import { seedQueryPlanFixture } from "./support/fixtures";
 
 registerIntegrationCleanup();
 
-test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+type IndexExpectation =
+  | { readonly mode: "all"; readonly indexes: readonly string[] }
+  | { readonly mode: "any"; readonly indexes: readonly string[] };
 
-  const { userId } = await seedQueryPlanFixture();
+type QueryPlanCase = {
+  readonly name: string;
+  readonly sql: string;
+  readonly params?: (fixture: { userId: string; now: Date }) => unknown[];
+  readonly expectation: IndexExpectation;
+};
 
-  const feedIndexes = await explainIndexNames(
-    `SELECT "id"
+const TWELVE_WEEKS_MS = 12 * 7 * 86_400_000;
+
+const queryPlanCases: readonly QueryPlanCase[] = [
+  {
+    name: "public feed",
+    sql: `SELECT "id"
      FROM "Article"
      WHERE "status" = 'published'::"ArticleStatus"
        AND "visibility" = 'PUBLIC'::"ArticleVisibility"
        AND "ownerId" IS NULL
      ORDER BY "publishedAt" DESC, "createdAt" DESC
      LIMIT 20`,
-  );
-  assertUsesIndexes(feedIndexes, ["Article_public_feed_idx"]);
-
-  const categoryIndexes = await explainIndexNames(
-    `SELECT "id"
+    expectation: { mode: "all", indexes: ["Article_public_feed_idx"] },
+  },
+  {
+    name: "public category feed",
+    sql: `SELECT "id"
      FROM "Article"
      WHERE "status" = 'published'::"ArticleStatus"
        AND "visibility" = 'PUBLIC'::"ArticleVisibility"
@@ -33,14 +43,14 @@ test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled
        AND "category" = 'science'
      ORDER BY "publishedAt" DESC, "createdAt" DESC
      LIMIT 20`,
-  );
-  assertUsesAnyIndex(categoryIndexes, [
-    "Article_public_category_feed_idx",
-    "Article_public_feed_idx",
-  ]);
-
-  const recommendationIndexes = await explainIndexNames(
-    `SELECT "id"
+    expectation: {
+      mode: "any",
+      indexes: ["Article_public_category_feed_idx", "Article_public_feed_idx"],
+    },
+  },
+  {
+    name: "recommendations by level",
+    sql: `SELECT "id"
      FROM "Article"
      WHERE "status" = 'published'::"ArticleStatus"
        AND "visibility" = 'PUBLIC'::"ArticleVisibility"
@@ -48,72 +58,89 @@ test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled
        AND "difficulty" = 'B1'
      ORDER BY "difficultyScore" ASC, "publishedAt" DESC
      LIMIT 20`,
-  );
-  assertUsesIndexes(recommendationIndexes, ["Article_public_level_feed_idx"]);
-
-  const workerIndexes = await explainIndexNames(
-    `SELECT "id"
+    expectation: { mode: "all", indexes: ["Article_public_level_feed_idx"] },
+  },
+  {
+    name: "draft worker queue",
+    sql: `SELECT "id"
      FROM "Article"
      WHERE "status" = $1::"ArticleStatus"
      ORDER BY "createdAt" ASC
      LIMIT 20`,
-    "draft",
-  );
-  assertUsesIndexes(workerIndexes, ["Article_status_created_idx"]);
-
-  const progressIndexes = await explainIndexNames(
-    `SELECT "articleId", "percent", "completed"
+    params: () => ["draft"],
+    expectation: { mode: "all", indexes: ["Article_status_created_idx"] },
+  },
+  {
+    name: "incomplete reading progress",
+    sql: `SELECT "articleId", "percent", "completed"
      FROM "ReadingProgress"
      WHERE "userId" = $1
        AND "completed" = false
      ORDER BY "updatedAt" DESC
      LIMIT 10`,
-    userId,
-  );
-  assertUsesIndexes(progressIndexes, ["ReadingProgress_user_completed_updated_idx"]);
-
-  const analyticsIndexes = await explainIndexNames(
-    `SELECT "completedAt"
+    params: ({ userId }) => [userId],
+    expectation: { mode: "all", indexes: ["ReadingProgress_user_completed_updated_idx"] },
+  },
+  {
+    name: "completed reading progress analytics",
+    sql: `SELECT "completedAt"
      FROM "ReadingProgress"
      WHERE "userId" = $1
        AND "completed" = true
        AND "completedAt" >= $2
      ORDER BY "completedAt" DESC
      LIMIT 50`,
-    userId,
-    new Date(Date.now() - 12 * 7 * 86_400_000),
-  );
-  assertUsesIndexes(analyticsIndexes, ["ReadingProgress_user_completedAt_idx"]);
-
-  const savedWordsIndexes = await explainIndexNames(
-    `SELECT "id", "word"
+    params: ({ userId, now }) => [userId, new Date(now.getTime() - TWELVE_WEEKS_MS)],
+    expectation: { mode: "all", indexes: ["ReadingProgress_user_completedAt_idx"] },
+  },
+  {
+    name: "saved words by created date",
+    sql: `SELECT "id", "word"
      FROM "SavedWord"
      WHERE "userId" = $1
      ORDER BY "createdAt" DESC
      LIMIT 20`,
-    userId,
-  );
-  assertUsesIndexes(savedWordsIndexes, ["SavedWord_user_created_idx"]);
-
-  const dueWordIndexes = await explainIndexNames(
-    `SELECT "id", "word"
+    params: ({ userId }) => [userId],
+    expectation: { mode: "all", indexes: ["SavedWord_user_created_idx"] },
+  },
+  {
+    name: "due saved words",
+    sql: `SELECT "id", "word"
      FROM "SavedWord"
      WHERE "userId" = $1
        AND ("dueAt" IS NULL OR "dueAt" <= $2)
      ORDER BY "dueAt" ASC
      LIMIT 20`,
-    userId,
-    new Date(),
-  );
-  assertUsesIndexes(dueWordIndexes, ["SavedWord_due_idx"]);
-
-  const searchIndexes = await explainIndexNames(
-    `SELECT "id"
+    params: ({ userId, now }) => [userId, now],
+    expectation: { mode: "all", indexes: ["SavedWord_due_idx"] },
+  },
+  {
+    name: "article full-text search",
+    sql: `SELECT "id"
      FROM "Article"
      WHERE to_tsvector('english', coalesce("title", '') || ' ' || coalesce("excerpt", '') || ' ' || coalesce("content", ''))
        @@ plainto_tsquery('english', $1)
      LIMIT 20`,
-    "nebula",
-  );
-  assertUsesIndexes(searchIndexes, ["Article_search_vector_idx"]);
+    params: () => ["nebula"],
+    expectation: { mode: "all", indexes: ["Article_search_vector_idx"] },
+  },
+];
+
+function assertIndexExpectation(actual: Set<string>, expectation: IndexExpectation): void {
+  if (expectation.mode === "any") {
+    assertUsesAnyIndex(actual, expectation.indexes);
+    return;
+  }
+  assertUsesIndexes(actual, expectation.indexes);
+}
+
+test("PostgreSQL core flow query plans use documented indexes", { skip: !enabled }, async () => {
+  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+
+  const fixture = { ...(await seedQueryPlanFixture()), now: new Date() };
+
+  for (const queryCase of queryPlanCases) {
+    const indexes = await explainIndexNames(queryCase.sql, ...(queryCase.params?.(fixture) ?? []));
+    assertIndexExpectation(indexes, queryCase.expectation);
+  }
 });

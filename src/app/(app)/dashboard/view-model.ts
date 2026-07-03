@@ -21,6 +21,9 @@ import { getPersonalizedFeed } from "@/lib/feed";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 import { loadTodayViewModel, type TodayViewModel } from "@/lib/engagement/today-session";
 
+const NEW_USER_WINDOW_MS = 60 * 60 * 1000;
+const DASHBOARD_FEED_LIMIT = 10;
+
 export interface DashboardUser {
   id: string;
   name?: string | null;
@@ -58,6 +61,38 @@ export interface DashboardViewModel {
   todaySummary: TodayViewModel | null;
 }
 
+function uniqueIds(...groups: string[][]): string[] {
+  return [...new Set(groups.flat())];
+}
+
+function buildProfileShape(
+  profile: Awaited<ReturnType<typeof getProfile>>,
+  topics: string[],
+): DashboardProfileShape | null {
+  if (!profile) return null;
+
+  return {
+    englishLevel: profile.englishLevel,
+    ageRange: profile.ageRange ?? null,
+    gender: profile.gender ?? null,
+    topics,
+    dailyGoal: profile.dailyGoal,
+  };
+}
+
+function isRecentNewUser(
+  profile: Awaited<ReturnType<typeof getProfile>>,
+  inProgressEntries: InProgressEntry[],
+  streak: StreakSummary,
+): boolean {
+  return (
+    inProgressEntries.length === 0 &&
+    streak.currentStreak === 0 &&
+    profile?.completedAt != null &&
+    Date.now() - new Date(profile.completedAt).getTime() < NEW_USER_WINDOW_MS
+  );
+}
+
 export async function loadDashboardViewModel(
   user: DashboardUser,
   maxLevel: DifficultyLevel | null,
@@ -68,7 +103,7 @@ export async function loadDashboardViewModel(
       getStreakSummary(user.id),
       getQuizMastery(user.id),
       getProfile(user.id),
-      getPersonalizedFeed(user.id, { offset: 0, limit: 10, maxLevel }),
+      getPersonalizedFeed(user.id, { offset: 0, limit: DASHBOARD_FEED_LIMIT, maxLevel }),
       getReviewSummary(user.id),
     ]);
 
@@ -78,7 +113,7 @@ export async function loadDashboardViewModel(
 
   const railIds = inProgressEntries.map((e) => e.article.id);
   const feedIds = filteredArticles.map((a) => a.id);
-  const allIds = [...new Set([...railIds, ...feedIds])];
+  const allIds = uniqueIds(railIds, feedIds);
 
   const [feedProgress, bookmarkedIds] = await Promise.all([
     getProgressSummaries(user.id, feedIds),
@@ -94,26 +129,12 @@ export async function loadDashboardViewModel(
   const userTopics = parseTopics(profile?.topics);
   const hasTopics = userTopics.length > 0;
 
-  const isNewUser =
-    inProgressEntries.length === 0 &&
-    streak.currentStreak === 0 &&
-    profile?.completedAt != null &&
-    Date.now() - new Date(profile.completedAt).getTime() < 60 * 60 * 1000;
-
-  const profileShape: DashboardProfileShape | null = profile
-    ? {
-        englishLevel: profile.englishLevel,
-        ageRange: profile.ageRange ?? null,
-        gender: profile.gender ?? null,
-        topics: userTopics,
-        dailyGoal: profile.dailyGoal,
-      }
-    : null;
+  const profileShape = buildProfileShape(profile, userTopics);
 
   return {
     user,
     profile: profileShape,
-    isNewUser,
+    isNewUser: isRecentNewUser(profile, inProgressEntries, streak),
     hasTopics,
     dueCount,
     streak,

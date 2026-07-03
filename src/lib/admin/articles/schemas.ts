@@ -46,6 +46,22 @@ export type ArticlesAdminQuery = {
 const MAX_Q_LENGTH = 200;
 const MAX_PAGE = 10_000;
 
+const ARTICLE_STATUS_VALUES = ARTICLE_STATUSES as readonly string[];
+
+function parseArticleStatus(rawStatus: string): ValidationResult<ArticleStatus | null> {
+  if (rawStatus === "") return { ok: true, value: null };
+
+  const normalizedStatus = rawStatus.toUpperCase();
+  if (!ARTICLE_STATUS_VALUES.includes(normalizedStatus)) {
+    return {
+      ok: false,
+      error: `status must be one of: ${ARTICLE_STATUSES.join(", ")}`,
+    };
+  }
+
+  return { ok: true, value: normalizedStatus as ArticleStatus };
+}
+
 export function parseAdminArticlesQuery(
   params: URLSearchParams,
 ): ValidationResult<ArticlesAdminQuery> {
@@ -54,22 +70,12 @@ export function parseAdminArticlesQuery(
     return { ok: false, error: `q must be at most ${MAX_Q_LENGTH} characters` };
   }
 
-  const rawStatus = params.get("status") ?? "";
-  let status: ArticleStatus | null = null;
-  if (rawStatus !== "") {
-    const normalizedStatus = rawStatus.toUpperCase();
-    if (!(ARTICLE_STATUSES as readonly string[]).includes(normalizedStatus)) {
-      return {
-        ok: false,
-        error: `status must be one of: ${ARTICLE_STATUSES.join(", ")}`,
-      };
-    }
-    status = normalizedStatus as ArticleStatus;
-  }
+  const status = parseArticleStatus(params.get("status") ?? "");
+  if (!status.ok) return status;
 
   const page = queryInt(params, "page", { fallback: 1, min: 1, max: MAX_PAGE });
 
-  return { ok: true, value: { query: q, status, page } };
+  return { ok: true, value: { query: q, status: status.value, page } };
 }
 
 // ---------------------------------------------------------------------------
