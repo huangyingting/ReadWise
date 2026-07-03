@@ -14,14 +14,17 @@
 
 import { useEffect } from "react";
 import type { LucideIcon } from "lucide-react";
+import type { CSSProperties } from "react";
 import { reportClientError } from "@/lib/client-error-reporter";
 import ErrorScreen from "@/components/ErrorScreen";
 import type { ErrorScreenAction } from "@/components/ErrorScreen";
 import type { ErrorScreenProps } from "@/components/ErrorScreen";
 
+type SegmentBoundaryError = Error & { digest?: string };
+
 export interface SegmentErrorProps {
   /** Next.js-injected error object from the error boundary. */
-  error: Error & { digest?: string };
+  error: SegmentBoundaryError;
   /** Next.js-injected reset callback. */
   reset: () => void;
   /** Identifier sent with the error report (e.g. "browse-error"). */
@@ -41,7 +44,16 @@ export interface SegmentErrorProps {
   /** Pass-through to ErrorScreen for admin outer wrapper class. */
   className?: ErrorScreenProps["className"];
   /** Pass-through to ErrorScreen for admin extra top margin. */
-  style?: React.CSSProperties;
+  style?: CSSProperties;
+}
+
+function reportSegmentError(error: SegmentBoundaryError, source: string): void {
+  reportClientError({
+    message: error.message || `${source} render error`,
+    source,
+    digest: error.digest,
+    stack: error.stack,
+  });
 }
 
 export function SegmentError({
@@ -58,12 +70,7 @@ export function SegmentError({
   style,
 }: SegmentErrorProps) {
   useEffect(() => {
-    reportClientError({
-      message: error.message || `${source} render error`,
-      source,
-      digest: error.digest,
-      stack: error.stack,
-    });
+    reportSegmentError(error, source);
   }, [error, source]);
 
   return (

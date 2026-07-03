@@ -6,6 +6,27 @@ import { Button, IconButton } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useCommandPalette } from "@/components/command/CommandPaletteProvider";
 
+const SEARCH_LABEL = "Search articles, pages, and actions";
+const SEARCH_SHORTCUTS = "Meta+K Control+K";
+
+type NavigatorWithUserAgentData = Navigator & {
+  userAgentData?: {
+    platform?: string;
+  };
+};
+
+function getPlatformModifierKey(): "⌘" | "Ctrl" {
+  const currentNavigator = globalThis.navigator as
+    | NavigatorWithUserAgentData
+    | undefined;
+  const isMac =
+    currentNavigator !== undefined &&
+    (currentNavigator.userAgent.includes("Mac") ||
+      currentNavigator.userAgentData?.platform === "macOS");
+
+  return isMac ? "⌘" : "Ctrl";
+}
+
 /**
  * Header search affordance (M9). Replaces the disabled placeholder button.
  *
@@ -21,15 +42,8 @@ export default function HeaderSearch() {
 
   // Detect platform after mount to avoid SSR/hydration mismatch
   useEffect(() => {
-    const isMac =
-      typeof navigator !== "undefined" &&
-      (navigator.userAgent.includes("Mac") ||
-        // @ts-expect-error — userAgentData is not yet in TS lib but is widely supported
-        navigator.userAgentData?.platform === "macOS");
-    setModKey(isMac ? "⌘" : "Ctrl");
+    setModKey(getPlatformModifierKey());
   }, []);
-
-  const sharedLabel = "Search articles, pages, and actions";
 
   return (
     <>
@@ -39,9 +53,9 @@ export default function HeaderSearch() {
         variant="outline"
         size="sm"
         onClick={open}
-        aria-label={sharedLabel}
+        aria-label={SEARCH_LABEL}
         aria-haspopup="dialog"
-        aria-keyshortcuts="Meta+K Control+K"
+        aria-keyshortcuts={SEARCH_SHORTCUTS}
         leadingIcon={<Search size={16} aria-hidden className="shrink-0" />}
         trailingIcon={
           modKey !== null ? (
@@ -61,9 +75,9 @@ export default function HeaderSearch() {
       {/* Mobile: icon-only button (resolves M2 N4 — search reachable below 640px) */}
       <IconButton
         onClick={open}
-        aria-label={sharedLabel}
+        aria-label={SEARCH_LABEL}
         aria-haspopup="dialog"
-        aria-keyshortcuts="Meta+K Control+K"
+        aria-keyshortcuts={SEARCH_SHORTCUTS}
         className="h-10 w-10 rounded-[var(--radius-md)] text-text-muted hover:text-text sm:hidden"
       >
         <Search size={20} aria-hidden />

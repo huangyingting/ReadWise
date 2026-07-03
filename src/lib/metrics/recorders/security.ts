@@ -8,6 +8,24 @@
 
 import { incCounter, statusClass } from "@/lib/metrics/registry";
 
+const ERROR_CAPTURED_METRIC = {
+  name: "readwise_errors_captured_total",
+  help: "Captured application errors by source and severity.",
+} as const;
+
+const SECURITY_EVENT_METRIC = {
+  name: "readwise_security_events_total",
+  help: "Security-relevant events by type and severity.",
+} as const;
+
+function booleanLabel(value: boolean | undefined): "true" | "false" {
+  return value ? "true" : "false";
+}
+
+function statusClassLabel(status: number | undefined): string {
+  return status !== undefined ? statusClass(status) : "none";
+}
+
 /**
  * Records a captured application error (RW-033). Labels are low-cardinality on
  * purpose: `source` (server/client/worker), `severity`, and an `alert` flag set
@@ -20,10 +38,10 @@ export function recordErrorCaptured(input: {
   severity: string;
   alert?: boolean;
 }): void {
-  incCounter("readwise_errors_captured_total", "Captured application errors by source and severity.", {
+  incCounter(ERROR_CAPTURED_METRIC.name, ERROR_CAPTURED_METRIC.help, {
     source: input.source,
     severity: input.severity,
-    alert: input.alert ? "true" : "false",
+    alert: booleanLabel(input.alert),
   });
 }
 
@@ -41,10 +59,10 @@ export function recordSecurityEventMetric(input: {
   status?: number;
   alert?: boolean;
 }): void {
-  incCounter("readwise_security_events_total", "Security-relevant events by type and severity.", {
+  incCounter(SECURITY_EVENT_METRIC.name, SECURITY_EVENT_METRIC.help, {
     type: input.type,
     severity: input.severity,
-    status_class: input.status !== undefined ? statusClass(input.status) : "none",
-    alert: input.alert ? "true" : "false",
+    status_class: statusClassLabel(input.status),
+    alert: booleanLabel(input.alert),
   });
 }

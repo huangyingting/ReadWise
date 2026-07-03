@@ -34,9 +34,13 @@ export const SUPPORTED_LANGUAGES: SupportedLanguage[] = [
 ];
 
 export function isSupportedLanguage(code: string): boolean {
-  return SUPPORTED_LANGUAGES.some((l) => l.code === code);
+  return findSupportedLanguage(code) !== undefined;
 }
 
 export function languageLabel(code: string): string {
-  return SUPPORTED_LANGUAGES.find((l) => l.code === code)?.label ?? code;
+  return findSupportedLanguage(code)?.label ?? code;
+}
+
+function findSupportedLanguage(code: string): SupportedLanguage | undefined {
+  return SUPPORTED_LANGUAGES.find((language) => language.code === code);
 }

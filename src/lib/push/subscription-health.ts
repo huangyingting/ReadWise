@@ -18,26 +18,32 @@ import { prisma } from "@/lib/prisma";
  */
 export const MAX_CONSECUTIVE_FAILURES = 8;
 
+const hasSubscriptionIds = (ids: string[]): boolean => ids.length > 0;
+
+function subscriptionIdFilter(ids: string[]) {
+  return { id: { in: ids } };
+}
+
 /** Records a successful delivery: resets failure count, stamps lastSuccessAt. */
 export async function recordDeliverySuccess(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
+  if (!hasSubscriptionIds(ids)) return;
   await prisma.pushSubscription.updateMany({
-    where: { id: { in: ids } },
+    where: subscriptionIdFilter(ids),
     data: { failureCount: 0, lastSuccessAt: new Date() },
   });
 }
 
 /** Records a transient failure: increments failure count, stamps lastFailureAt. */
 export async function recordTransientFailure(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
+  if (!hasSubscriptionIds(ids)) return;
   await prisma.pushSubscription.updateMany({
-    where: { id: { in: ids } },
+    where: subscriptionIdFilter(ids),
     data: { failureCount: { increment: 1 }, lastFailureAt: new Date() },
   });
 }
 
 /** Prunes dead/expired subscriptions by deleting their database rows. */
 export async function pruneDeadSubscriptions(ids: string[]): Promise<void> {
-  if (ids.length === 0) return;
-  await prisma.pushSubscription.deleteMany({ where: { id: { in: ids } } });
+  if (!hasSubscriptionIds(ids)) return;
+  await prisma.pushSubscription.deleteMany({ where: subscriptionIdFilter(ids) });
 }

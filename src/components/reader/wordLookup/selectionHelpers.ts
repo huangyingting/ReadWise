@@ -15,6 +15,55 @@ export interface SavedAnchor {
   selectionWord: string;
 }
 
+type CaretDocument = Document & {
+  caretPositionFromPoint?: (
+    x: number,
+    y: number,
+  ) => { offsetNode: Node; offset: number } | null;
+  caretRangeFromPoint?: (x: number, y: number) => Range | null;
+};
+
+type CaretPosition = {
+  node: Node;
+  offset: number;
+};
+
+const WORD_CHAR_PATTERN = /[A-Za-z'-]/;
+const MAX_CONTEXT_SENTENCE_LENGTH = 400;
+const SENTENCE_SPLIT_PATTERN = /(?<=[.?!])\s+/;
+
+function caretAtPoint(x: number, y: number): CaretPosition | null {
+  const doc = document as CaretDocument;
+
+  if (typeof doc.caretRangeFromPoint === "function") {
+    const range = doc.caretRangeFromPoint(x, y);
+    return range
+      ? { node: range.startContainer, offset: range.startOffset }
+      : null;
+  }
+
+  if (typeof doc.caretPositionFromPoint === "function") {
+    const pos = doc.caretPositionFromPoint(x, y);
+    return pos ? { node: pos.offsetNode, offset: pos.offset } : null;
+  }
+
+  return null;
+}
+
+function isWordChar(char: string): boolean {
+  return WORD_CHAR_PATTERN.test(char);
+}
+
+function wordBoundsAtOffset(text: string, offset: number): [number, number] {
+  let start = Math.min(offset, text.length);
+  let end = start;
+
+  while (start > 0 && isWordChar(text[start - 1])) start--;
+  while (end < text.length && isWordChar(text[end])) end++;
+
+  return [start, end];
+}
+
 /**
  * Returns the word under the pointer (x, y), or null when the pointer is not
  * over a text node. Tries `caretRangeFromPoint` (Chrome/Safari) first and
@@ -22,39 +71,12 @@ export interface SavedAnchor {
  */
 export function wordAtPoint(x: number, y: number): string | null {
   if (typeof document === "undefined") return null;
-  const doc = document as Document & {
-    caretPositionFromPoint?: (
-      x: number,
-      y: number,
-    ) => { offsetNode: Node; offset: number } | null;
-    caretRangeFromPoint?: (x: number, y: number) => Range | null;
-  };
+  const caret = caretAtPoint(x, y);
 
-  let node: Node | null = null;
-  let offset = 0;
+  if (!caret || caret.node.nodeType !== Node.TEXT_NODE) return null;
 
-  if (typeof doc.caretRangeFromPoint === "function") {
-    const range = doc.caretRangeFromPoint(x, y);
-    if (range) {
-      node = range.startContainer;
-      offset = range.startOffset;
-    }
-  } else if (typeof doc.caretPositionFromPoint === "function") {
-    const pos = doc.caretPositionFromPoint(x, y);
-    if (pos) {
-      node = pos.offsetNode;
-      offset = pos.offset;
-    }
-  }
-
-  if (!node || node.nodeType !== Node.TEXT_NODE) return null;
-
-  const text = node.textContent ?? "";
-  const isWordChar = (c: string) => /[A-Za-z'''-]/.test(c);
-  let start = Math.min(offset, text.length);
-  let end = start;
-  while (start > 0 && isWordChar(text[start - 1])) start--;
-  while (end < text.length && isWordChar(text[end])) end++;
+  const text = caret.node.textContent ?? "";
+  const [start, end] = wordBoundsAtOffset(text, caret.offset);
   return text.slice(start, end).trim() || null;
 }
 
@@ -71,12 +93,17 @@ export function extractContextSentence(
 ): string | null {
   const text = proseEl.textContent ?? "";
   if (!text || !word) return null;
-  const sentences = text.split(/(?<=[.?!])\s+/);
+  const sentences = text.split(SENTENCE_SPLIT_PATTERN);
   const lower = word.toLowerCase();
   for (const sentence of sentences) {
     if (sentence.toLowerCase().includes(lower)) {
       const trimmed = sentence.trim();
-      if (trimmed.length > 0 && trimmed.length <= 400) return trimmed;
+      if (
+        trimmed.length > 0 &&
+        trimmed.length <= MAX_CONTEXT_SENTENCE_LENGTH
+      ) {
+        return trimmed;
+      }
     }
   }
   return null;

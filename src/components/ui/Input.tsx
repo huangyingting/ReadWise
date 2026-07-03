@@ -2,16 +2,18 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const baseInputClasses = cn(
+  "w-full bg-surface text-text rounded-[var(--radius-md)] border",
+  "px-[var(--space-3)] text-[length:var(--text-base)]",
+  "placeholder:text-text-subtle",
+  "transition-[border-color,box-shadow]",
+  "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
+  "outline-none",
+  "disabled:bg-bg-subtle disabled:opacity-60 disabled:cursor-not-allowed",
+);
+
 const inputVariants = cva(
-  cn(
-    "w-full bg-surface text-text rounded-[var(--radius-md)] border",
-    "px-[var(--space-3)] text-[length:var(--text-base)]",
-    "placeholder:text-text-subtle",
-    "transition-[border-color,box-shadow]",
-    "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-    "outline-none",
-    "disabled:bg-bg-subtle disabled:opacity-60 disabled:cursor-not-allowed",
-  ),
+  baseInputClasses,
   {
     variants: {
       inputSize: {

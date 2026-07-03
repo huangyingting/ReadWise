@@ -7,18 +7,33 @@
 
 import { incCounter } from "@/lib/metrics/registry";
 
+const CONTENT_PROCESSING_RUNS_METRIC = {
+  name: "readwise_content_processing_runs_total",
+  description: "Article processing runs by outcome.",
+} as const;
+
+const CONTENT_PROCESSING_STEPS_METRIC = {
+  name: "readwise_content_processing_steps_total",
+  description: "Article processing steps by status.",
+} as const;
+
+const INGESTION_RUNS_METRIC = {
+  name: "readwise_ingestion_runs_total",
+  description: "Provider ingestion runs by outcome.",
+} as const;
+
 export function recordContentProcessingRun(input: {
   outcome: "success" | "failed" | "missing";
   published?: boolean;
 }): void {
-  incCounter("readwise_content_processing_runs_total", "Article processing runs by outcome.", {
+  incCounter(CONTENT_PROCESSING_RUNS_METRIC.name, CONTENT_PROCESSING_RUNS_METRIC.description, {
     outcome: input.outcome,
     published: input.published ? "true" : "false",
   });
 }
 
 export function recordContentProcessingStep(input: { step: string; status: string }): void {
-  incCounter("readwise_content_processing_steps_total", "Article processing steps by status.", {
+  incCounter(CONTENT_PROCESSING_STEPS_METRIC.name, CONTENT_PROCESSING_STEPS_METRIC.description, {
     step: input.step,
     status: input.status,
   });
@@ -35,7 +50,7 @@ export function recordIngestionRun(input: {
   outcome: "success" | "empty" | "failed";
   health?: string;
 }): void {
-  incCounter("readwise_ingestion_runs_total", "Provider ingestion runs by outcome.", {
+  incCounter(INGESTION_RUNS_METRIC.name, INGESTION_RUNS_METRIC.description, {
     provider: input.provider,
     outcome: input.outcome,
     health: input.health ?? "unknown",

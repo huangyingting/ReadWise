@@ -20,6 +20,21 @@ export type SegmentResolver = (
   segment: AnalyticsSegment,
 ) => Promise<string[] | null>;
 
+type ProfileUserRow = { userId: string };
+type ProfileTopicRow = ProfileUserRow & { topics: Parameters<typeof parseTopics>[0] };
+
+function segmentFilter(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+function userIds(rows: ProfileUserRow[]): string[] {
+  return rows.map((row) => row.userId);
+}
+
+function hasTopic(row: ProfileTopicRow, topic: string): boolean {
+  return parseTopics(row.topics).includes(topic);
+}
+
 /**
  * Resolves the set of user ids matching a segment (level/topic) against
  * `Profile`. Returns `null` when no segment is requested (no user filter), or
@@ -29,8 +44,8 @@ export async function resolveSegmentUserIds(
   segment: AnalyticsSegment,
   client: ProfileClient = prisma,
 ): Promise<string[] | null> {
-  const level = segment.level?.trim() || null;
-  const topic = segment.topic?.trim() || null;
+  const level = segmentFilter(segment.level);
+  const topic = segmentFilter(segment.topic);
   if (!level && !topic) return null;
 
   if (level && !topic) {
@@ -38,7 +53,7 @@ export async function resolveSegmentUserIds(
       where: { englishLevel: level },
       select: { userId: true },
     });
-    return rows.map((r) => r.userId);
+    return userIds(rows);
   }
 
   // Topic (optionally + level) requires parsing the JSON topics column.
@@ -46,8 +61,8 @@ export async function resolveSegmentUserIds(
     where: level ? { englishLevel: level } : {},
     select: { userId: true, topics: true },
   });
-  if (!topic) return rows.map((r) => r.userId);
+  if (!topic) return userIds(rows);
   return rows
-    .filter((r) => parseTopics(r.topics).includes(topic))
-    .map((r) => r.userId);
+    .filter((row) => hasTopic(row, topic))
+    .map((row) => row.userId);
 }

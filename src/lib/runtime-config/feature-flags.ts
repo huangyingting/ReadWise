@@ -25,14 +25,19 @@ const FEATURE_ENV: Record<FeatureKey, string> = {
   todaySession: "FEATURE_TODAY_SESSION_ENABLED",
 };
 
+const DISABLED_ENV_VALUES = new Set(["0", "false", "off"]);
+
+function featureEnvValue(feature: FeatureKey): string | undefined {
+  return process.env[FEATURE_ENV[feature]]?.trim().toLowerCase();
+}
+
 /**
  * Returns `false` only when the corresponding `FEATURE_<NAME>_ENABLED` env var
  * is explicitly set to a falsy value ("0", "false", or "off"). Returns `true`
  * by default (absent or any other value) so existing behavior is unchanged.
  */
 export function isFeatureEnabled(feature: FeatureKey): boolean {
-  const raw = process.env[FEATURE_ENV[feature]]?.trim().toLowerCase();
-  return raw !== "0" && raw !== "false" && raw !== "off";
+  return !DISABLED_ENV_VALUES.has(featureEnvValue(feature) ?? "");
 }
 
 /** Convenience helpers — preferred over `isFeatureEnabled` for single-feature gates. */

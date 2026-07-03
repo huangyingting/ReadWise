@@ -10,12 +10,22 @@
 import { createLogger } from "@/lib/observability/logger";
 
 const log = createLogger("learning");
+const SCORE_MIN = 0;
+const SCORE_MAX = 1;
+
+function isString(value: unknown): value is string {
+  return typeof value === "string";
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
 
 /** Clamps a number into the inclusive 0–1 range (NaN → 0). */
 export function clamp01(value: number): number {
-  if (!Number.isFinite(value)) return 0;
-  if (value < 0) return 0;
-  if (value > 1) return 1;
+  if (!Number.isFinite(value)) return SCORE_MIN;
+  if (value < SCORE_MIN) return SCORE_MIN;
+  if (value > SCORE_MAX) return SCORE_MAX;
   return value;
 }
 
@@ -35,7 +45,7 @@ export async function bestEffortMastery<T>(
   } catch (err) {
     log.warn("mastery.side_effect_failed", {
       label,
-      error: err instanceof Error ? err.message : String(err),
+      error: errorMessage(err),
     });
     return null;
   }
@@ -48,7 +58,7 @@ export async function bestEffortMastery<T>(
 export function parseStringArray(value: unknown): string[] {
   if (value == null) return [];
   if (Array.isArray(value)) {
-    return value.filter((v): v is string => typeof v === "string");
+    return value.filter(isString);
   }
   return [];
 }

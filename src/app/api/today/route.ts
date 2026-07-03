@@ -21,12 +21,18 @@ import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags
  */
 type TodayQuery = { timezone: string };
 
+const MAX_TIMEZONE_LENGTH = 100;
+
 function parseTodayQuery(params: URLSearchParams): ValidationResult<TodayQuery> {
   const timezone = queryString(params, "timezone");
-  if (timezone.length > 100) {
-    return { ok: false, error: "timezone must be at most 100 characters" };
+  if (timezone.length > MAX_TIMEZONE_LENGTH) {
+    return { ok: false, error: `timezone must be at most ${MAX_TIMEZONE_LENGTH} characters` };
   }
   return { ok: true, value: { timezone } };
+}
+
+function toRequestTimezone(timezone: string): string | null {
+  return timezone || null;
 }
 
 export const GET = createHandler(
@@ -38,7 +44,7 @@ export const GET = createHandler(
 
     const view = await loadTodayViewModel({
       user: { id: session.user.id, role: session.user.role },
-      requestTimezone: query.timezone || null,
+      requestTimezone: toRequestTimezone(query.timezone),
     });
 
     return NextResponse.json(view);

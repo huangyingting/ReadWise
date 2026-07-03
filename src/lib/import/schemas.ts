@@ -9,7 +9,7 @@ import {
   nonEmptyString,
   optional,
   string,
-  queryInt,
+  parsePaginationParams,
   type Schema,
 } from "@/lib/validation";
 import { MAX_TEXT_BYTES } from "@/lib/import";
@@ -41,13 +41,9 @@ export function parseListQuery(
 ): { ok: true; value: ImportsListQuery } {
   return {
     ok: true as const,
-    value: {
-      offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
-      limit: queryInt(params, "limit", {
-        fallback: IMPORTS_PAGE_SIZE,
-        min: 1,
-        max: IMPORTS_MAX_LIMIT,
-      }),
-    },
+    value: parsePaginationParams(params, {
+      defaultLimit: IMPORTS_PAGE_SIZE,
+      maxLimit: IMPORTS_MAX_LIMIT,
+    }),
   };
 }

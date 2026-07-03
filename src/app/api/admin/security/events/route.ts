@@ -7,6 +7,7 @@ import {
 } from "@/lib/security/events";
 
 const SEVERITIES: readonly SecuritySeverity[] = ["low", "medium", "high", "critical"];
+const QUERY_VALUE_MAX_LENGTH = 120;
 
 type SecurityEventsQuery = {
   limit: number;
@@ -15,19 +16,32 @@ type SecurityEventsQuery = {
 };
 
 function parseQuery(params: URLSearchParams) {
-  const rawSeverity = queryString(params, "severity").trim().toLowerCase();
-  const severity = (SEVERITIES as readonly string[]).includes(rawSeverity)
-    ? (rawSeverity as SecuritySeverity)
-    : null;
   const rawType = queryString(params, "type").trim();
   return {
     ok: true as const,
     value: {
       limit: queryInt(params, "limit", { fallback: 100, min: 1, max: 500 }),
-      type: rawType ? rawType.slice(0, 120) : null,
-      severity,
+      type: rawType ? rawType.slice(0, QUERY_VALUE_MAX_LENGTH) : null,
+      severity: parseSeverity(params),
     } satisfies SecurityEventsQuery,
   };
+}
+
+function parseSeverity(params: URLSearchParams): SecuritySeverity | null {
+  const severity = queryString(params, "severity").trim().toLowerCase();
+  return (SEVERITIES as readonly string[]).includes(severity)
+    ? (severity as SecuritySeverity)
+    : null;
+}
+
+function filterSecurityEvents(
+  events: ReturnType<typeof getRecentSecurityEvents>,
+  query: SecurityEventsQuery,
+) {
+  let filtered = events;
+  if (query.type) filtered = filtered.filter((event) => event.type === query.type);
+  if (query.severity) filtered = filtered.filter((event) => event.severity === query.severity);
+  return filtered;
 }
 
 /**
@@ -43,9 +57,7 @@ function parseQuery(params: URLSearchParams) {
 export const GET = createAdminHandler(
   { query: parseQuery },
   async ({ query }) => {
-    let events = getRecentSecurityEvents(query.limit);
-    if (query.type) events = events.filter((event) => event.type === query.type);
-    if (query.severity) events = events.filter((event) => event.severity === query.severity);
+    const events = filterSecurityEvents(getRecentSecurityEvents(query.limit), query);
     return NextResponse.json(
       { events, count: events.length },
       { status: 200, headers: { "cache-control": "no-store" } },

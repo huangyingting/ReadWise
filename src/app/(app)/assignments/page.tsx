@@ -8,6 +8,8 @@ import { Badge } from "@/components/ui/Badge";
 import CompleteAssignmentButton from "@/components/teacher/CompleteAssignmentButton";
 import { formatMediumDate } from "@/lib/display-format";
 
+type StudentAssignment = Awaited<ReturnType<typeof listAssignmentsForStudent>>[number];
+
 /**
  * Student assignments (RW-061). Shows the signed-in student's assigned readings
  * across all their classrooms, with ONLY their own completion status — never a
@@ -31,48 +33,63 @@ export default async function AssignmentsPage() {
           description="When a teacher assigns you a reading, it'll show up here."
         />
       ) : (
-        <ul className="flex flex-col gap-[var(--space-3)]">
-          {assignments.map((a) => {
-            const due = formatMediumDate(a.dueDate);
-            const completed = a.status === "COMPLETED";
-            return (
-              <li key={a.assignmentId}>
-                <Card>
-                  <CardBody className="flex items-start justify-between gap-[var(--space-4)]">
-                    <div className="flex flex-col gap-[var(--space-1)]">
-                      <Link
-                        href={`/reader/${a.articleId}`}
-                        className="font-medium text-text hover:underline"
-                      >
-                        {a.articleTitle}
-                      </Link>
-                      <p className="text-[length:var(--text-sm)] text-text-muted">
-                        {a.classroomName}
-                        {due ? ` · Due ${due}` : ""}
-                      </p>
-                      {a.instructions ? (
-                        <p className="text-[length:var(--text-sm)] text-text">
-                          {a.instructions}
-                        </p>
-                      ) : null}
-                      {completed ? (
-                        <Badge variant="success" className="mt-1 w-fit">
-                          Completed
-                          {a.quizScore == null ? "" : ` · quiz ${a.quizScore}%`}
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <CompleteAssignmentButton
-                      assignmentId={a.assignmentId}
-                      completed={completed}
-                    />
-                  </CardBody>
-                </Card>
-              </li>
-            );
-          })}
-        </ul>
+        <AssignmentList assignments={assignments} />
       )}
     </PageShell>
+  );
+}
+
+function AssignmentList({ assignments }: { assignments: StudentAssignment[] }) {
+  return (
+    <ul className="flex flex-col gap-[var(--space-3)]">
+      {assignments.map((assignment) => (
+        <AssignmentCard key={assignment.assignmentId} assignment={assignment} />
+      ))}
+    </ul>
+  );
+}
+
+function AssignmentCard({ assignment }: { assignment: StudentAssignment }) {
+  const due = formatMediumDate(assignment.dueDate);
+  const completed = assignment.status === "COMPLETED";
+
+  return (
+    <li>
+      <Card>
+        <CardBody className="flex items-start justify-between gap-[var(--space-4)]">
+          <div className="flex flex-col gap-[var(--space-1)]">
+            <Link
+              href={`/reader/${assignment.articleId}`}
+              className="font-medium text-text hover:underline"
+            >
+              {assignment.articleTitle}
+            </Link>
+            <p className="text-[length:var(--text-sm)] text-text-muted">
+              {assignment.classroomName}
+              {due ? ` · Due ${due}` : ""}
+            </p>
+            {assignment.instructions ? (
+              <p className="text-[length:var(--text-sm)] text-text">
+                {assignment.instructions}
+              </p>
+            ) : null}
+            {completed ? <CompletionBadge quizScore={assignment.quizScore} /> : null}
+          </div>
+          <CompleteAssignmentButton
+            assignmentId={assignment.assignmentId}
+            completed={completed}
+          />
+        </CardBody>
+      </Card>
+    </li>
+  );
+}
+
+function CompletionBadge({ quizScore }: { quizScore: StudentAssignment["quizScore"] }) {
+  return (
+    <Badge variant="success" className="mt-1 w-fit">
+      Completed
+      {quizScore == null ? "" : ` · quiz ${quizScore}%`}
+    </Badge>
   );
 }

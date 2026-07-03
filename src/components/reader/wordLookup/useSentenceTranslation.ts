@@ -4,8 +4,28 @@ import { useCallback, useRef, useState } from "react";
 import { getTranslateLang, setTranslateLang } from "@/lib/translate-lang";
 import type { TranslateSentenceResult } from "@/components/SentenceTranslatePopover";
 
+const DEFAULT_TRANSLATE_LANG = "zh-Hans";
+const TRANSLATE_ERROR_MESSAGE = "Couldn't translate that. Try again.";
+
+async function translateSentence(
+  articleId: string,
+  text: string,
+  lang: string,
+): Promise<TranslateSentenceResult> {
+  const res = await fetch(`/api/reader/${articleId}/translate-sentence`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, lang }),
+  });
+
+  if (!res.ok) throw new Error("Translation failed");
+  return (await res.json()) as TranslateSentenceResult;
+}
+
 export function useSentenceTranslation(articleId: string) {
-  const [translateLang, setTranslateLangState] = useState<string>("zh-Hans");
+  const [translateLang, setTranslateLangState] = useState<string>(
+    DEFAULT_TRANSLATE_LANG,
+  );
   const [translateLoading, setTranslateLoading] = useState(false);
   const [translateResult, setTranslateResult] = useState<TranslateSentenceResult | null>(null);
   const [translateError, setTranslateError] = useState<string | null>(null);
@@ -31,19 +51,12 @@ export function useSentenceTranslation(articleId: string) {
     setTranslateResult(null);
     setTranslateError(null);
     try {
-      const res = await fetch(`/api/reader/${articleId}/translate-sentence`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, lang }),
-      });
-      if (requestRef.current !== reqId) return;
-      if (!res.ok) throw new Error("Translation failed");
-      const data = (await res.json()) as TranslateSentenceResult;
+      const data = await translateSentence(articleId, text, lang);
       if (requestRef.current !== reqId) return;
       setTranslateResult(data);
     } catch {
       if (requestRef.current !== reqId) return;
-      setTranslateError("Couldn't translate that. Try again.");
+      setTranslateError(TRANSLATE_ERROR_MESSAGE);
     } finally {
       if (requestRef.current === reqId) setTranslateLoading(false);
     }

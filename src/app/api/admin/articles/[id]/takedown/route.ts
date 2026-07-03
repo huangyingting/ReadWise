@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { CAPABILITIES } from "@/lib/rbac";
-import { applyTakedown, type TakedownState } from "@/lib/article-library";
+import { applyTakedown } from "@/lib/article-library";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { takedownBody } from "@/lib/admin/articles/schemas";

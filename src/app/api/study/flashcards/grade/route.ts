@@ -24,26 +24,27 @@ import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/comp
  *   404 — savedWordId not found or belongs to another user
  */
 export const POST = createHandler({ body: flashcardGradeBody }, async ({ body, session }) => {
+  const userId = session.user.id;
   const result = await gradeFlashcard(
-    session.user.id,
+    userId,
     body.savedWordId,
     body.grade as Grade,
   );
   if (!result) throw new ApiError(404, "Flashcard not found");
 
-  const { dueCount } = await getReviewSummary(session.user.id);
+  const { dueCount } = await getReviewSummary(userId);
   // Product analytics (RW-051): a study review is the funnel's return signal.
   // Metadata only — only the grade, never the reviewed word.
   await recordEvent({
     type: ANALYTICS_EVENT_TYPES.studyReview,
-    userId: session.user.id,
+    userId,
     properties: { grade: body.grade },
   });
   // Best-effort: a flashcard grade may complete the Today word-review step when
   // enough of the session's target words have been reviewed. Never breaks the
   // SM-2 grade write.
   await bestEffortMastery("flashcard.today_word_review", () =>
-    markTodayWordReviewComplete({ userId: session.user.id }),
+    markTodayWordReviewComplete({ userId }),
   );
   return NextResponse.json({ dueAt: result.dueAt, dueCount });
 });

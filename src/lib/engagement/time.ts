@@ -8,26 +8,39 @@
  * No Prisma dependency — safe to import in pure-function tests.
  */
 
+const UTC_TIME_ZONE = "UTC";
+const DATE_KEY_LOCALE = "en-CA";
+const DATE_KEY_FORMAT_OPTIONS = {
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+} as const satisfies Intl.DateTimeFormatOptions;
+
 /**
  * Returns the YYYY-MM-DD date string for `d` in the given IANA timezone.
  * Falls back to UTC on an invalid or missing timezone string.
  */
-export function dateKey(d: Date, tz = "UTC"): string {
+export function dateKey(d: Date, tz = UTC_TIME_ZONE): string {
   try {
-    const parts = new Intl.DateTimeFormat("en-CA", {
+    const parts = new Intl.DateTimeFormat(DATE_KEY_LOCALE, {
+      ...DATE_KEY_FORMAT_OPTIONS,
       timeZone: tz,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
     }).formatToParts(d);
-    const p: Record<string, string> = {};
-    for (const part of parts) {
-      if (part.type !== "literal") p[part.type] = part.value;
-    }
+    const p = nonLiteralDateParts(parts);
     return `${p.year}-${p.month}-${p.day}`;
   } catch {
     return d.toISOString().slice(0, 10);
   }
+}
+
+function nonLiteralDateParts(parts: Intl.DateTimeFormatPart[]): Record<string, string> {
+  const p: Record<string, string> = {};
+
+  for (const part of parts) {
+    if (part.type !== "literal") p[part.type] = part.value;
+  }
+
+  return p;
 }
 
 /**
@@ -38,6 +51,6 @@ export function dateKey(d: Date, tz = "UTC"): string {
  * reading at (say) 23:00 local is stored under the LOCAL calendar date rather
  * than the next UTC day.
  */
-export function localDayStart(d: Date = new Date(), tz = "UTC"): Date {
-  return new Date(dateKey(d, tz) + "T00:00:00Z");
+export function localDayStart(d: Date = new Date(), tz = UTC_TIME_ZONE): Date {
+  return new Date(`${dateKey(d, tz)}T00:00:00Z`);
 }

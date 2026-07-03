@@ -14,6 +14,18 @@ import { analyticsRetentionDays } from "@/lib/runtime-config/analytics";
 
 type RetentionClient = Pick<typeof prisma, "analyticsEvent">;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function retentionDays(olderThanDays: number): number {
+  return Number.isFinite(olderThanDays) && olderThanDays > 0
+    ? Math.floor(olderThanDays)
+    : analyticsRetentionDays();
+}
+
+function cutoffDate(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * MS_PER_DAY);
+}
+
 /**
  * Deletes analytics events older than the retention window (privacy/retention,
  * RW-051). `olderThanDays` defaults to {@link analyticsRetentionDays}. Returns
@@ -24,11 +36,7 @@ export async function pruneOldEvents(
   client: RetentionClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days =
-    Number.isFinite(olderThanDays) && olderThanDays > 0
-      ? Math.floor(olderThanDays)
-      : analyticsRetentionDays();
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const cutoff = cutoffDate(now, retentionDays(olderThanDays));
   const result = await client.analyticsEvent.deleteMany({
     where: { occurredAt: { lt: cutoff } },
   });

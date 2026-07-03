@@ -12,7 +12,29 @@ interface WordTableRowProps {
   onToggle: () => void;
 }
 
+const ARTICLE_TITLE_MAX_LENGTH = 35;
+const ARTICLE_TITLE_PREFIX_LENGTH = 32;
+
+function getContextSnippet(word: WordEntry): string | null {
+  if (!word.contextSentence && !word.example) return null;
+  return word.contextSentence ?? word.example ?? "";
+}
+
+function getArticleTitle(word: WordEntry, articles: Record<string, string>): string | null {
+  if (!word.articleId) return null;
+  return articles[word.articleId] ?? null;
+}
+
+function formatArticleTitle(title: string): string {
+  return title.length > ARTICLE_TITLE_MAX_LENGTH
+    ? `${title.slice(0, ARTICLE_TITLE_PREFIX_LENGTH)}…`
+    : title;
+}
+
 export function WordTableRow({ word, articles, selected, onToggle }: WordTableRowProps) {
+  const contextSnippet = getContextSnippet(word);
+  const articleTitle = getArticleTitle(word, articles);
+
   return (
     <tr>
       <td>
@@ -26,9 +48,9 @@ export function WordTableRow({ word, articles, selected, onToggle }: WordTableRo
       </td>
       <td>
         <strong className="vocabulary-word text-[length:var(--text-sm)]">{word.word}</strong>
-        {word.contextSentence || word.example ? (
+        {contextSnippet != null ? (
           <p className="text-[length:var(--text-xs)] text-text-muted m-0 mt-[var(--space-1)] italic max-w-[28ch]">
-            &ldquo;{word.contextSentence ?? word.example}&rdquo;
+            &ldquo;{contextSnippet}&rdquo;
           </p>
         ) : null}
       </td>
@@ -38,15 +60,13 @@ export function WordTableRow({ word, articles, selected, onToggle }: WordTableRo
         </p>
       </td>
       <td>
-        {word.articleId && articles[word.articleId] ? (
+        {word.articleId && articleTitle ? (
           <Link
             href={`/reader/${word.articleId}`}
             className="text-[length:var(--text-xs)] text-primary hover:underline"
-            title={articles[word.articleId]}
+            title={articleTitle}
           >
-            {articles[word.articleId].length > 35
-              ? articles[word.articleId].slice(0, 32) + "…"
-              : articles[word.articleId]}
+            {formatArticleTitle(articleTitle)}
           </Link>
         ) : (
           <span className="text-text-muted text-[length:var(--text-xs)]">—</span>
@@ -61,16 +81,32 @@ export function WordTableRow({ word, articles, selected, onToggle }: WordTableRo
         </time>
       </td>
       <td>
-        {word.dueAt == null ? (
-          <Badge variant="primary" className="text-[length:var(--text-xs)]">New</Badge>
-        ) : new Date(word.dueAt) <= new Date() ? (
-          <Badge variant="warning" className="text-[length:var(--text-xs)]">Due</Badge>
-        ) : (
-          <Badge variant="neutral" className="text-[length:var(--text-xs)] whitespace-nowrap">
-            {formatShortDate(word.dueAt)}
-          </Badge>
-        )}
+        <DueBadge dueAt={word.dueAt} />
       </td>
     </tr>
+  );
+}
+
+function DueBadge({ dueAt }: { dueAt: WordEntry["dueAt"] }) {
+  if (dueAt == null) {
+    return (
+      <Badge variant="primary" className="text-[length:var(--text-xs)]">
+        New
+      </Badge>
+    );
+  }
+
+  if (new Date(dueAt) <= new Date()) {
+    return (
+      <Badge variant="warning" className="text-[length:var(--text-xs)]">
+        Due
+      </Badge>
+    );
+  }
+
+  return (
+    <Badge variant="neutral" className="text-[length:var(--text-xs)] whitespace-nowrap">
+      {formatShortDate(dueAt)}
+    </Badge>
   );
 }

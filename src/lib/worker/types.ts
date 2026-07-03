@@ -1,10 +1,26 @@
 import type { ProcessOptions, processArticle } from "@/lib/processing/processor";
-import type { claimNextJob, completeJob, failJob, startJob, Job, JobType } from "@/lib/jobs";
+import type {
+  claimNextJob,
+  completeJob,
+  failJob,
+  startJob,
+  Job,
+  JobType,
+} from "@/lib/jobs";
 
 export type WorkerLogger = {
   info: (message: string, meta?: Record<string, unknown>) => void;
   warn: (message: string, meta?: Record<string, unknown>) => void;
   error: (message: string, meta?: Record<string, unknown>) => void;
+};
+
+type JobWorkerDeps = {
+  claimNextJob?: typeof claimNextJob;
+  startJob?: typeof startJob;
+  completeJob?: typeof completeJob;
+  failJob?: typeof failJob;
+  processArticle?: typeof processArticle;
+  sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
 };
 
 /** Handles a single claimed job. Throw to fail it (JobError sets retry intent). */
@@ -31,14 +47,7 @@ export type JobWorkerOptions = {
   handlers?: Partial<Record<JobType, JobHandler>>;
   /** Forwarded to processArticle for article jobs (e.g. tts / translateLangs). */
   process?: ProcessOptions;
-  deps?: {
-    claimNextJob?: typeof claimNextJob;
-    startJob?: typeof startJob;
-    completeJob?: typeof completeJob;
-    failJob?: typeof failJob;
-    processArticle?: typeof processArticle;
-    sleep?: (ms: number, signal?: AbortSignal) => Promise<void>;
-  };
+  deps?: JobWorkerDeps;
 };
 
 export type JobWorkerStats = {

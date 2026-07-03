@@ -4,6 +4,10 @@ import type { MediaStorage, PutMediaInput, PutMediaResult } from "@/lib/storage/
 import { extensionForMime, normalizeExtension, sanitizeKeyHint, sha256Hex } from "@/lib/storage/key";
 export { mediaStorageDir } from "@/lib/runtime-config/storage";
 
+function isPathWithinBase(fullPath: string, basePath: string): boolean {
+  return fullPath === basePath || fullPath.startsWith(basePath + path.sep);
+}
+
 /** Filesystem-backed {@link MediaStorage}. Content-addressed, traversal-safe. */
 export class FilesystemMediaStorage implements MediaStorage {
   readonly kind = "local" as const;
@@ -17,17 +21,21 @@ export class FilesystemMediaStorage implements MediaStorage {
   private resolve(storageKey: string): string {
     const full = path.resolve(this.baseDir, storageKey);
     const base = path.resolve(this.baseDir);
-    if (full !== base && !full.startsWith(base + path.sep)) {
+    if (!isPathWithinBase(full, base)) {
       throw new Error("storage key escapes media base directory");
     }
     return full;
   }
 
-  async put(input: PutMediaInput): Promise<PutMediaResult> {
-    const checksum = sha256Hex(input.data);
+  private storageKeyFor(input: PutMediaInput, checksum: string): string {
     const ext = normalizeExtension(input.extension) ?? extensionForMime(input.mimeType);
     const prefix = sanitizeKeyHint(input.keyHint);
-    const storageKey = `${prefix}/${checksum}${ext}`;
+    return `${prefix}/${checksum}${ext}`;
+  }
+
+  async put(input: PutMediaInput): Promise<PutMediaResult> {
+    const checksum = sha256Hex(input.data);
+    const storageKey = this.storageKeyFor(input, checksum);
     const full = this.resolve(storageKey);
     await fs.mkdir(path.dirname(full), { recursive: true });
     await fs.writeFile(full, input.data);

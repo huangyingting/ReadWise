@@ -23,6 +23,19 @@ const skipBody = object({
   timezone: optional(string({ max: 100 })),
 });
 
+type SkipTodayResult = Awaited<ReturnType<typeof skipTodaySession>>;
+
+function skipResponse(result: SkipTodayResult) {
+  return {
+    skipped: result.skipped,
+    limitReached: result.limitReached,
+    browseFallback: result.browseFallback,
+    status: result.session.status,
+    completionTier: result.session.completionTier,
+    promotedBackupIds: result.promotedBackupIds,
+  };
+}
+
 export const POST = createHandler(
   { body: skipBody },
   async ({ body, session }) => {
@@ -36,13 +49,6 @@ export const POST = createHandler(
       requestTimezone: body.timezone ?? null,
     });
 
-    return NextResponse.json({
-      skipped: result.skipped,
-      limitReached: result.limitReached,
-      browseFallback: result.browseFallback,
-      status: result.session.status,
-      completionTier: result.session.completionTier,
-      promotedBackupIds: result.promotedBackupIds,
-    });
+    return NextResponse.json(skipResponse(result));
   },
 );

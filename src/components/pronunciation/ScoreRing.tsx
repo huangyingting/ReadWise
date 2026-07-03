@@ -4,21 +4,29 @@ import { Badge } from "@/components/ui/Badge";
 
 const RING_R = 28;
 const RING_C = 2 * Math.PI * RING_R; // ≈ 175.93
+const EXCELLENT_SCORE = 85;
+const GOOD_SCORE = 70;
+
+type ScoreBadgeVariant = "success" | "warning" | "neutral";
 
 function scoreLabel(score: number): string {
-  if (score >= 85) return "Excellent";
-  if (score >= 70) return "Good";
+  if (score >= EXCELLENT_SCORE) return "Excellent";
+  if (score >= GOOD_SCORE) return "Good";
   return "Keep practicing";
 }
 
-function scoreBadgeVariant(score: number): "success" | "warning" | "neutral" {
-  if (score >= 85) return "success";
-  if (score >= 70) return "warning";
+function scoreBadgeVariant(score: number): ScoreBadgeVariant {
+  if (score >= EXCELLENT_SCORE) return "success";
+  if (score >= GOOD_SCORE) return "warning";
   return "neutral";
 }
 
+function scoreOffset(score: number): number {
+  return RING_C * (1 - score / 100);
+}
+
 export function ScoreRing({ score }: { score: number }) {
-  const offset = RING_C * (1 - score / 100);
+  const offset = scoreOffset(score);
   const label = scoreLabel(score);
   const variant = scoreBadgeVariant(score);
 

@@ -31,7 +31,28 @@ export interface ProgressViewModel {
   sparkLabel: string;
 }
 
-export async function loadProgressViewModel(userId: string): Promise<ProgressViewModel> {
+type ProgressData = Omit<ProgressViewModel, "hasAnyData" | "sparkLabel">;
+
+function hasProgressData(analytics: LearnerAnalytics): boolean {
+  const {
+    totalCompleted,
+    totalInProgress,
+    totalSavedWords,
+    totalQuizAttempts,
+  } = analytics;
+
+  return (
+    totalCompleted + totalInProgress + totalSavedWords + totalQuizAttempts > 0
+  );
+}
+
+function getQuizSparkLabel(quizScoreTrend: number[]): string {
+  return quizScoreTrend.length > 0
+    ? `Recent quiz scores oldest to newest: ${quizScoreTrend.join(", ")} percent.`
+    : "No quiz attempts yet.";
+}
+
+async function loadProgressData(userId: string): Promise<ProgressData> {
   const [analytics, heatmapCells, levelHistory, currentLevel, speedStats, fluencyTrend] =
     await Promise.all([
       getLearnerAnalytics(userId),
@@ -42,6 +63,20 @@ export async function loadProgressViewModel(userId: string): Promise<ProgressVie
       getFluencyTrend(userId),
     ]);
 
+  return {
+    analytics,
+    heatmapCells,
+    levelHistory,
+    currentLevel,
+    speedStats,
+    fluencyTrend,
+  };
+}
+
+async function recordFluencyTrendViewed({
+  fluencyTrend,
+  userId,
+}: Pick<ProgressData, "fluencyTrend"> & { userId: string }) {
   // #813 — record that the learner viewed their fluency trend. Metadata only:
   // the controlled trend enum, the sample COUNT, and the optional level filter.
   // NEVER any WPM value or article content.
@@ -54,25 +89,17 @@ export async function loadProgressViewModel(userId: string): Promise<ProgressVie
       levelFilter: fluencyTrend.levelFilter,
     },
   });
+}
 
-  const { totalCompleted, totalInProgress, totalSavedWords, totalQuizAttempts, quizScoreTrend } =
-    analytics;
+export async function loadProgressViewModel(userId: string): Promise<ProgressViewModel> {
+  const data = await loadProgressData(userId);
+  const { analytics } = data;
 
-  const hasAnyData = totalCompleted + totalInProgress + totalSavedWords + totalQuizAttempts > 0;
-
-  const sparkLabel =
-    quizScoreTrend.length > 0
-      ? `Recent quiz scores oldest to newest: ${quizScoreTrend.join(", ")} percent.`
-      : "No quiz attempts yet.";
+  await recordFluencyTrendViewed({ fluencyTrend: data.fluencyTrend, userId });
 
   return {
-    analytics,
-    heatmapCells,
-    levelHistory,
-    currentLevel,
-    speedStats,
-    fluencyTrend,
-    hasAnyData,
-    sparkLabel,
+    ...data,
+    hasAnyData: hasProgressData(analytics),
+    sparkLabel: getQuizSparkLabel(analytics.quizScoreTrend),
   };
 }

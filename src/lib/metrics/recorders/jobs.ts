@@ -24,25 +24,39 @@ const JOB_QUEUE_EVENTS = [
 
 export type JobQueueEvent = (typeof JOB_QUEUE_EVENTS)[number];
 
+const JOB_QUEUE_EVENT_METRIC = {
+  name: "readwise_job_queue_events_total",
+  help: "Background job queue lifecycle events by type and event.",
+} as const;
+
+const JOB_STALE_LOCK_AGE_METRIC = {
+  name: "readwise_job_stale_lock_age_ms",
+  help: "Age of recovered stale job locks in milliseconds.",
+} as const;
+
+function normalizedJobLabels(type: string) {
+  return { type: normalizeLabelValue(type) };
+}
+
 /**
  * Records a background-job-queue lifecycle event (RW-013/014/015). `type` is the
  * job type (low cardinality); `event` is normalized to a known lifecycle stage,
  * giving operators visibility into retries, dead-letters, and stale-lock recovery.
  */
 export function recordJobQueueEvent(input: { event: JobQueueEvent; type: string }): void {
-  incCounter("readwise_job_queue_events_total", "Background job queue lifecycle events by type and event.", {
+  incCounter(JOB_QUEUE_EVENT_METRIC.name, JOB_QUEUE_EVENT_METRIC.help, {
     event: normalizeOutcome(input.event, JOB_QUEUE_EVENTS),
-    type: normalizeLabelValue(input.type),
+    ...normalizedJobLabels(input.type),
   });
 }
 
 /** Observes the age (ms) of a lock that was recovered as stale during claiming. */
 export function recordJobLockAge(type: string, ageMs: number): void {
   observeHistogram(
-    "readwise_job_stale_lock_age_ms",
-    "Age of recovered stale job locks in milliseconds.",
+    JOB_STALE_LOCK_AGE_METRIC.name,
+    JOB_STALE_LOCK_AGE_METRIC.help,
     JOB_DURATION_BUCKETS_MS,
-    { type: normalizeLabelValue(type) },
+    normalizedJobLabels(type),
     ageMs,
   );
 }

@@ -38,9 +38,22 @@ const toolbarVariants = cva("flex w-full flex-wrap", {
   },
 });
 
+type ToolbarVariantProps = VariantProps<typeof toolbarVariants>;
+type ToolbarElementProps = Omit<React.HTMLAttributes<HTMLDivElement>, "color">;
+
 export interface ToolbarProps
-  extends Omit<React.HTMLAttributes<HTMLDivElement>, "color">,
-    VariantProps<typeof toolbarVariants> {}
+  extends ToolbarElementProps,
+    ToolbarVariantProps {}
+
+function getToolbarClassName({
+  density,
+  align,
+  justify,
+  surface,
+  className,
+}: ToolbarVariantProps & { className?: string }) {
+  return cn(toolbarVariants({ density, align, justify, surface }), className);
+}
 
 /**
  * Standard action/filter row.
@@ -64,10 +77,7 @@ export function Toolbar({
 }: ToolbarProps): React.ReactElement {
   return (
     <div
-      className={cn(
-        toolbarVariants({ density, align, justify, surface }),
-        className,
-      )}
+      className={getToolbarClassName({ density, align, justify, surface, className })}
       {...props}
     />
   );

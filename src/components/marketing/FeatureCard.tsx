@@ -5,6 +5,15 @@ import { cn } from "@/lib/cn";
 
 export type FeatureAccent = "primary" | "teal";
 
+const FEATURE_ACCENT_VARS: Record<FeatureAccent, string> = {
+  primary: "var(--primary)",
+  teal: "var(--teal)",
+};
+
+function getAccentVar(accent: FeatureAccent): string {
+  return accent === "teal" ? FEATURE_ACCENT_VARS.teal : FEATURE_ACCENT_VARS.primary;
+}
+
 export interface FeatureCardProps {
   icon: React.ReactNode;
   title: string;
@@ -27,7 +36,8 @@ export function FeatureCard({
   accent = "primary",
   className,
 }: FeatureCardProps) {
-  const accentVar = accent === "teal" ? "var(--teal)" : "var(--primary)";
+  const accentVar = getAccentVar(accent);
+  const accentTint = `color-mix(in srgb, ${accentVar} 12%, transparent)`;
 
   return (
     <Card
@@ -42,7 +52,7 @@ export function FeatureCard({
         className="inline-flex h-10 w-10 items-center justify-center rounded-[var(--radius-md)]"
         style={{
           color: accentVar,
-          background: `color-mix(in srgb, ${accentVar} 12%, transparent)`,
+          background: accentTint,
         }}
         aria-hidden="true"
       >

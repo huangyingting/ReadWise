@@ -6,6 +6,9 @@
 
 import { dateKey, localDayStart } from "./time";
 
+const DAY_MS = 86_400_000;
+const HEATMAP_LOOKBACK_DAYS = 364;
+
 export type HeatCell = {
   /** YYYY-MM-DD */
   date: string;
@@ -15,11 +18,21 @@ export type HeatCell = {
   level: 0 | 1 | 2 | 3 | 4;
 };
 
+type HeatLevel = HeatCell["level"];
+
+function heatmapToday(todayStr?: string): Date {
+  return todayStr ? new Date(`${todayStr}T00:00:00Z`) : localDayStart();
+}
+
+function dateDaysBefore(today: Date, daysBefore: number): Date {
+  return new Date(today.getTime() - daysBefore * DAY_MS);
+}
+
 /**
  * Compute a 0–4 heat level from an article count.
  * Thresholds: 0 → 0, 1 → 1, 2–3 → 2, 4–5 → 3, 6+ → 4.
  */
-export function heatLevel(count: number): 0 | 1 | 2 | 3 | 4 {
+export function heatLevel(count: number): HeatLevel {
   if (count <= 0) return 0;
   if (count === 1) return 1;
   if (count <= 3) return 2;
@@ -38,13 +51,11 @@ export function buildHeatmapCells(
   activityMap: Map<string, number>,
   todayStr?: string,
 ): HeatCell[] {
-  const today = todayStr
-    ? new Date(todayStr + "T00:00:00Z")
-    : localDayStart();
+  const today = heatmapToday(todayStr);
   const cells: HeatCell[] = [];
   // 364 days back (= 52 weeks) + today = 365 cells
-  for (let i = 364; i >= 0; i--) {
-    const d = new Date(today.getTime() - i * 86_400_000);
+  for (let i = HEATMAP_LOOKBACK_DAYS; i >= 0; i--) {
+    const d = dateDaysBefore(today, i);
     const key = dateKey(d);
     const count = activityMap.get(key) ?? 0;
     cells.push({ date: key, count, level: heatLevel(count) });

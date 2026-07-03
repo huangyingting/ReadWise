@@ -4,6 +4,8 @@ import { useState } from "react";
 import Image from "next/image";
 import { cn } from "@/lib/cn";
 
+const AVATAR_LABEL_FALLBACK = "avatar";
+
 function getInitials(name: string | null | undefined): string {
   if (!name?.trim()) return "?";
   return name
@@ -12,6 +14,12 @@ function getInitials(name: string | null | undefined): string {
     .slice(0, 2)
     .map((part) => part[0]?.toUpperCase() ?? "")
     .join("");
+}
+
+function getFontSize(size: number): string {
+  if (size <= 28) return "var(--text-sm)";
+  if (size <= 40) return "var(--text-base)";
+  return "var(--text-lg)";
 }
 
 export interface AvatarProps {
@@ -35,15 +43,8 @@ export function Avatar({ src, name, size = 56, className }: AvatarProps) {
   const [imgError, setImgError] = useState(false);
   const showImage = Boolean(src) && !imgError;
   const initials = getInitials(name);
-  const label = name ?? "avatar";
-
-  // Derive a readable font size relative to the avatar size.
-  const fontSize =
-    size <= 28
-      ? "var(--text-sm)"
-      : size <= 40
-        ? "var(--text-base)"
-        : "var(--text-lg)";
+  const label = name ?? AVATAR_LABEL_FALLBACK;
+  const fontSize = getFontSize(size);
 
   if (showImage) {
     return (

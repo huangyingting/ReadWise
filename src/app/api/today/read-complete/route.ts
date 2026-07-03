@@ -21,6 +21,24 @@ const readCompleteBody = object({
   timezone: optional(string({ max: 100 })),
 });
 
+type ManualCompletionView = NonNullable<
+  Awaited<ReturnType<typeof markTodayReadingCompleteManual>>
+>;
+
+function readCompleteResponse(view: ManualCompletionView | null) {
+  if (!view) {
+    // No active Today session, or a no-candidate day with no primary article.
+    return NextResponse.json({ updated: false });
+  }
+
+  return NextResponse.json({
+    updated: true,
+    status: view.status,
+    completionTier: view.completionTier,
+    completed: view.completedAt != null,
+  });
+}
+
 export const POST = createHandler(
   { body: readCompleteBody },
   async ({ body, session }) => {
@@ -33,16 +51,6 @@ export const POST = createHandler(
       requestTimezone: body.timezone ?? null,
     });
 
-    if (!view) {
-      // No active Today session, or a no-candidate day with no primary article.
-      return NextResponse.json({ updated: false });
-    }
-
-    return NextResponse.json({
-      updated: true,
-      status: view.status,
-      completionTier: view.completionTier,
-      completed: view.completedAt != null,
-    });
+    return readCompleteResponse(view);
   },
 );

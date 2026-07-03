@@ -17,6 +17,14 @@ export type ArticleListResponse = {
   reasons?: Record<string, string>;
 };
 
+type BuildArticleListResponseOptions = {
+  offset: number;
+  hasMore: boolean;
+  reasons?: Record<string, string>;
+};
+
+const articleIds = (articles: ListingArticle[]): string[] => articles.map(({ id }) => id);
+
 /**
  * Fetches progress data for `articles` (scoped to `userId`) and returns the
  * standard `{ articles, progress, hasMore, offset, reasons? }` response shape
@@ -26,12 +34,9 @@ export type ArticleListResponse = {
 export async function buildArticleListResponse(
   userId: string,
   articles: ListingArticle[],
-  opts: { offset: number; hasMore: boolean; reasons?: Record<string, string> },
+  opts: BuildArticleListResponseOptions,
 ): Promise<ArticleListResponse> {
-  const progress = await getProgressSummaries(
-    userId,
-    articles.map((a) => a.id),
-  );
+  const progress = await getProgressSummaries(userId, articleIds(articles));
   const response: ArticleListResponse = {
     articles,
     progress,

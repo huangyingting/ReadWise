@@ -15,23 +15,36 @@ const globalForPrisma = globalThis as unknown as {
 };
 
 const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
-const log: Array<"error" | "warn"> = process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"];
+const prismaLogLevels: Array<"error" | "warn"> =
+  process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"];
+
+function postgresSchema(databaseUrl: string): string | undefined {
+  const url = new URL(databaseUrl);
+  return url.searchParams.get("schema") ?? undefined;
+}
+
+function createPostgresPrismaClient(databaseUrl: string): PrismaClient {
+  const schema = postgresSchema(databaseUrl);
+
+  return new PrismaClient({
+    adapter: new PrismaPg(databaseUrl, schema ? { schema } : undefined),
+    log: prismaLogLevels,
+  });
+}
+
+function createSqlitePrismaClient(databaseUrl: string): PrismaClient {
+  return new PrismaClient({
+    adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
+    log: prismaLogLevels,
+  });
+}
 
 function createPrismaClient(): PrismaClient {
   if (isPostgresDatabase()) {
-    const url = new URL(databaseUrl);
-    const schema = url.searchParams.get("schema") ?? undefined;
-
-    return new PrismaClient({
-      adapter: new PrismaPg(databaseUrl, schema ? { schema } : undefined),
-      log,
-    });
+    return createPostgresPrismaClient(databaseUrl);
   }
 
-  return new PrismaClient({
-    adapter: new PrismaBetterSqlite3({ url: databaseUrl }),
-    log,
-  });
+  return createSqlitePrismaClient(databaseUrl);
 }
 
 export const prisma =

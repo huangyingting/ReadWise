@@ -11,10 +11,17 @@ import { isUserOnboarded } from "@/lib/profile";
 import type { Capability } from "@/lib/rbac";
 import { loadSession, sessionHasCapability } from "@/lib/auth-core";
 
+const ONBOARDING_PATH = "/onboarding";
+const FORBIDDEN_PATH = "/forbidden";
+
+function signInPath(callbackUrl: string): string {
+  return `/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`;
+}
+
 export async function requireSession(callbackUrl: string): Promise<Session> {
   const session = await loadSession();
   if (!session) {
-    redirect(`/signin?callbackUrl=${encodeURIComponent(callbackUrl)}`);
+    redirect(signInPath(callbackUrl));
   }
   return session;
 }
@@ -24,7 +31,7 @@ export async function requireOnboardedSession(
 ): Promise<Session> {
   const session = await requireSession(callbackUrl);
   if (!(await isUserOnboarded(session.user.id))) {
-    redirect("/onboarding");
+    redirect(ONBOARDING_PATH);
   }
   return session;
 }
@@ -41,8 +48,7 @@ export async function requireCapability(
 ): Promise<Session> {
   const session = await requireSession(callbackUrl);
   if (!sessionHasCapability(session, capability)) {
-    redirect("/forbidden");
+    redirect(FORBIDDEN_PATH);
   }
   return session;
 }
-
