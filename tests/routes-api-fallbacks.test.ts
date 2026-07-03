@@ -41,6 +41,10 @@ async function assertApiError(action: () => Promise<unknown>, status: number): P
   await assert.rejects(action, { name: "ApiError", status });
 }
 
+async function assertJson(res: Response, expected: unknown): Promise<void> {
+  assert.deepEqual(await res.json(), expected);
+}
+
 let progressResult: { percent: number; completed: boolean };
 let recordedEvents: unknown[];
 let revalidatedUsers: string[];
@@ -477,7 +481,7 @@ test("reader progress route records completion side effects only when completed"
   const { POST } = await import("@/app/api/reader/[id]/progress/route");
 
   let res = await POST({ params: { id: "a1" }, body: { percent: 60 }, session } as never);
-  assert.deepEqual(await res.json(), { percent: 60, completed: false });
+  await assertJson(res, { percent: 60, completed: false });
   assert.deepEqual(recordedEvents, []);
   assert.deepEqual(revalidatedUsers, []);
   assert.equal(todaySyncCalls.length, 1);
@@ -489,7 +493,7 @@ test("reader progress route records completion side effects only when completed"
 
   progressResult = { percent: 100, completed: true };
   res = await POST({ params: { id: "a1" }, body: { percent: 100 }, session } as never);
-  assert.deepEqual(await res.json(), { percent: 100, completed: true });
+  await assertJson(res, { percent: 100, completed: true });
   assert.deepEqual(recordedEvents[0], {
     type: "progress.complete",
     userId: "user-1",
@@ -520,7 +524,7 @@ test("reader offline route returns metadata-only and full offline payloads", asy
   const { GET } = await import("@/app/api/reader/[id]/offline/route");
 
   let res = await GET({ params: { id: "a1" }, query: { meta: true }, session } as never);
-  assert.deepEqual(await res.json(), {
+  await assertJson(res, {
     id: "a1",
     version: "v:hash:26",
     contentHash: "hash:26",
@@ -541,7 +545,7 @@ test("article import route handles URL duplicates, text defaults, validation, an
   importUrlResult = { id: "url-import", status: 200 };
   let res = await POST(requestCtx({ body: { url: "https://example.test/a1" } }));
   assert.equal(res.status, 200);
-  assert.deepEqual(await res.json(), { id: "url-import", duplicate: true });
+  await assertJson(res, { id: "url-import", duplicate: true });
 
   importUrlResult = { id: "url-import-2", status: 201 };
   res = await POST(requestCtx({ body: { url: "https://example.test/a2" } }));
@@ -554,7 +558,7 @@ test("article import route handles URL duplicates, text defaults, validation, an
   await assertApiError(() => POST(requestCtx({ body: {} })), 400);
 
   res = await GET(sessionCtx({ query: { offset: 10, limit: 5 } }));
-  assert.deepEqual(await res.json(), {
+  await assertJson(res, {
     articles: [{ id: "a1", title: "Mapped" }],
     opts: { offset: 10, hasMore: true },
     progress: {},
@@ -651,7 +655,7 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
     value: { level: "B1" },
   });
   let res = await profileRoute.PUT({ body: { level: "B1" }, session } as never);
-  assert.deepEqual(await res.json(), { ok: true });
+  await assertJson(res, { ok: true });
   assert.deepEqual(profileUpdates, [{ userId: "user-1", body: { level: "B1" } }]);
   assert.deepEqual(revalidatedUsers, ["user-1"]);
 
@@ -664,7 +668,7 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
     { ok: true, value: { q: "term", offset: 2, limit: 5 } },
   );
   res = await searchRoute.GET({ query: { q: "term", offset: 2, limit: 5 }, session } as never);
-  assert.deepEqual(await res.json(), {
+  await assertJson(res, {
     articles: [{ id: "search-a1", title: "Mapped" }],
     opts: { offset: 2, hasMore: true },
     progress: {},
@@ -681,16 +685,16 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
     { ok: true, value: { timezone: "UTC" } },
   );
   res = await todayComprehensionRoute.GET({ query: { timezone: "UTC" }, session } as never);
-  assert.deepEqual(await res.json(), { question: null, completed: false });
+  await assertJson(res, { question: null, completed: false });
   todaySubmitResult = null;
   res = await todayComprehensionRoute.POST({ body: { selfRating: "hard" }, session } as never);
-  assert.deepEqual(await res.json(), { updated: false });
+  await assertJson(res, { updated: false });
   todaySubmitResult = { updated: true, completed: true };
   res = await todayComprehensionRoute.POST({
     body: { selfRating: "ok", selectedIndex: 1 },
     session,
   } as never);
-  assert.deepEqual(await res.json(), { updated: true, completed: true });
+  await assertJson(res, { updated: true, completed: true });
 
   setTodayError = new MockSetTodayArticleError("missing", "not_found");
   await assertApiError(() => todaySetArticleRoute.POST(sessionCtx({ body: { articleId: "missing" } })), 404);
@@ -703,7 +707,7 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   );
   setTodayError = null;
   res = await todaySetArticleRoute.POST({ body: { articleId: "a1", timezone: "UTC" }, session } as never);
-  assert.deepEqual(await res.json(), { today: true });
+  await assertJson(res, { today: true });
 
   pushConfigured = false;
   await assertApiError(() => pushSubscribe("https://push.test/sub"), 503);
@@ -718,11 +722,11 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
 
   speechConfigured = false;
   res = await speechTokenRoute.GET({ session } as never);
-  assert.deepEqual(await res.json(), { configured: false });
+  await assertJson(res, { configured: false });
   speechConfigured = true;
   speechRuntimeConfig = null;
   res = await speechTokenRoute.GET({ session } as never);
-  assert.deepEqual(await res.json(), { configured: false });
+  await assertJson(res, { configured: false });
   speechRuntimeConfig = { key: "test-key", region: "eastus" };
   speechTokenResponse = new Error("network");
   res = await speechTokenRoute.GET({ session } as never);
@@ -732,7 +736,7 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   assert.equal(res.status, 502);
   speechTokenResponse = new Response("token-2");
   res = await speechTokenRoute.GET({ session } as never);
-  assert.deepEqual(await res.json(), { configured: true, token: "token-2", region: "eastus" });
+  await assertJson(res, { configured: true, token: "token-2", region: "eastus" });
 });
 
 test("admin backfill route maps domain errors, rethrows crashes, and records audit metadata", async () => {
@@ -755,7 +759,7 @@ test("admin backfill route maps domain errors, rethrows crashes, and records aud
 
   backfillError = null;
   const res = await POST(requestCtx({ body }));
-  assert.deepEqual(await res.json(), backfillResult);
+  await assertJson(res, backfillResult);
   assert.ok(JSON.stringify(auditCalls).includes("admin.job.backfill"));
 });
 
@@ -783,7 +787,7 @@ test("account, onboarding, takedown, and series routes map domain results", asyn
     body: { englishLevel: "B1", topics: ["news", "science"] },
     session,
   } as never);
-  assert.deepEqual(await res.json(), { ok: true });
+  await assertJson(res, { ok: true });
   assert.equal(completeOnboardingCalls.length, 1);
   assert.deepEqual(recordedEvents.at(-1), {
     type: "onboarding.complete",
@@ -803,18 +807,18 @@ test("account, onboarding, takedown, and series routes map domain results", asyn
       body: { state: "blocked", note: "rights", rightsNote: "reviewed" },
     }),
   );
-  assert.deepEqual(await res.json(), { ok: true, state: "blocked", status: "DRAFT" });
+  await assertJson(res, { ok: true, state: "blocked", status: "DRAFT" });
   assert.equal(revalidateArticlesCalls, 1);
 
   enrollResult = { ok: false };
   await assertApiError(() => seriesRoute.POST(sessionCtx({ params: { id: "series-1" } })), 404);
   enrollResult = { ok: true, status: "enrolled" };
   res = await seriesRoute.POST({ params: { id: "series-1" }, session } as never);
-  assert.deepEqual(await res.json(), { ok: true, status: "enrolled" });
+  await assertJson(res, { ok: true, status: "enrolled" });
 
   unenrollResult = { ok: false };
   await assertApiError(() => seriesRoute.DELETE(sessionCtx({ params: { id: "series-1" } })), 404);
   unenrollResult = { ok: true };
   res = await seriesRoute.DELETE({ params: { id: "series-1" }, session } as never);
-  assert.deepEqual(await res.json(), { ok: true });
+  await assertJson(res, { ok: true });
 });

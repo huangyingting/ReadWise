@@ -263,6 +263,16 @@ function accuracyOn(model: BayesClassifier, test: readonly Labeled[]): number {
   return correct / test.length;
 }
 
+function labeledSamples(
+  articles: readonly string[],
+  ads: readonly string[],
+): Labeled[] {
+  return [
+    ...articles.map((text) => ({ text, label: "article" as const })),
+    ...ads.map((text) => ({ text, label: "ad" as const })),
+  ];
+}
+
 /**
  * Fair accuracy-gain measurement. The held-out 20% test set is drawn from the
  * REALISTIC harvested samples only (the distribution we actually care about).
@@ -278,19 +288,13 @@ function evalGain(
   seedArticles: readonly string[],
   seedAds: readonly string[],
 ): { seedAcc: number; expandedAcc: number; testSize: number } {
-  const harvested: Labeled[] = [
-    ...harvestedArticles.map((text) => ({ text, label: "article" as const })),
-    ...harvestedAds.map((text) => ({ text, label: "ad" as const })),
-  ];
+  const harvested = labeledSamples(harvestedArticles, harvestedAds);
   const pool = shuffled(harvested, 0x5eed);
   const testN = Math.floor(pool.length * 0.2);
   const test = pool.slice(0, testN);
   const trainHarvested = pool.slice(testN);
 
-  const seedSamples: Labeled[] = [
-    ...seedArticles.map((text) => ({ text, label: "article" as const })),
-    ...seedAds.map((text) => ({ text, label: "ad" as const })),
-  ];
+  const seedSamples = labeledSamples(seedArticles, seedAds);
 
   const seedModel = trainModel(seedSamples);
   const expandedModel = trainModel([...seedSamples, ...trainHarvested]);
@@ -471,6 +475,25 @@ function writeCorpusFile(articles: readonly string[], ads: readonly string[]): s
   return outPath;
 }
 
+function logCorpusSummary(
+  expandedArticles: readonly string[],
+  expandedAds: readonly string[],
+  evalResult: { seedAcc: number; expandedAcc: number; testSize: number },
+  outPath: string,
+): void {
+  console.log("\n──────────────────────────────────────────────");
+  console.log("CORPUS SIZE (article / ad):");
+  console.log(`  seed-only : ${SEED_ARTICLE_SAMPLES.length} / ${SEED_AD_SAMPLES.length}`);
+  console.log(`  expanded  : ${expandedArticles.length} / ${expandedAds.length}`);
+  console.log("HELD-OUT ACCURACY (80/20 on harvested test set):");
+  console.log(`  test samples : ${evalResult.testSize}`);
+  console.log(`  seed-only    : ${(evalResult.seedAcc * 100).toFixed(1)}%`);
+  console.log(`  expanded     : ${(evalResult.expandedAcc * 100).toFixed(1)}%`);
+  console.log(`Wrote: ${outPath}`);
+  console.log("Next: run scripts/train-quality-classifier.ts to rebuild the model JSON.");
+  console.log("──────────────────────────────────────────────");
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 async function main(): Promise<void> {
@@ -495,7 +518,7 @@ async function main(): Promise<void> {
 
   // ── Held-out accuracy: seed-only vs. expanded (same realistic test set) ──
   console.log("Evaluating held-out accuracy (80/20 on harvested test set)…");
-  const { seedAcc, expandedAcc, testSize } = evalGain(
+  const evalResult = evalGain(
     harvestedArticles,
     harvestedAds,
     SEED_ARTICLE_SAMPLES,
@@ -505,17 +528,7 @@ async function main(): Promise<void> {
   // ── Write corpus file ──
   const outPath = writeCorpusFile(harvestedArticles, harvestedAds);
 
-  console.log("\n──────────────────────────────────────────────");
-  console.log("CORPUS SIZE (article / ad):");
-  console.log(`  seed-only : ${SEED_ARTICLE_SAMPLES.length} / ${SEED_AD_SAMPLES.length}`);
-  console.log(`  expanded  : ${expandedArticles.length} / ${expandedAds.length}`);
-  console.log("HELD-OUT ACCURACY (80/20 on harvested test set):");
-  console.log(`  test samples : ${testSize}`);
-  console.log(`  seed-only    : ${(seedAcc * 100).toFixed(1)}%`);
-  console.log(`  expanded     : ${(expandedAcc * 100).toFixed(1)}%`);
-  console.log(`Wrote: ${outPath}`);
-  console.log("Next: run scripts/train-quality-classifier.ts to rebuild the model JSON.");
-  console.log("──────────────────────────────────────────────");
+  logCorpusSummary(expandedArticles, expandedAds, evalResult, outPath);
 }
 
 main().catch((err) => {

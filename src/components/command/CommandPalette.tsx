@@ -51,6 +51,46 @@ function getResultAnnouncement({
   return parts.join(", ");
 }
 
+function getRowState(
+  ariaIdToIndex: Map<string, number>,
+  activeIndex: number,
+  ariaId: string,
+) {
+  const idx = ariaIdToIndex.get(ariaId) ?? -1;
+  return { idx, isActive: idx === activeIndex };
+}
+
+function ArticleSearchErrorRow({
+  error,
+  onRetry,
+}: {
+  error: string | null;
+  onRetry: () => void;
+}) {
+  return (
+    <div
+      role="option"
+      id="cmdk-opt-error"
+      aria-selected={false}
+      className={cn(
+        "flex items-center gap-[var(--space-3)]",
+        "min-h-[44px] px-[var(--space-3)] py-[var(--space-2)]",
+        "rounded-[var(--radius-md)] cursor-pointer",
+        "hover:bg-bg-subtle",
+        focusRing,
+      )}
+      tabIndex={0}
+      onClick={onRetry}
+      onKeyDown={(e) => { if (e.key === "Enter") onRetry(); }}
+    >
+      <AlertTriangle size={20} className="shrink-0 text-danger-text" aria-hidden />
+      <span className="text-[length:var(--text-sm)] text-text-muted">
+        {error ?? "Couldn't load articles."} Press Enter to retry.
+      </span>
+    </div>
+  );
+}
+
 // ---- Main component ------------------------------------------------------
 
 export default function CommandPalette({ user, onClose, openerRef }: CommandPaletteProps) {
@@ -158,12 +198,15 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
 
   const activeItem = selectableItems[activeIndex] ?? null;
   const rowStateFor = (ariaId: string) => {
-    const idx = ariaIdToIndex.get(ariaId) ?? -1;
-    return { idx, isActive: idx === activeIndex };
+    return getRowState(ariaIdToIndex, activeIndex, ariaId);
   };
   const moveActiveTo = (idx: number) => {
     if (idx !== -1) setActiveIndex(idx);
   };
+  const retryArticleSearch = () => search(query);
+  const hasPageResults = filteredPages.length > 0;
+  const hasActionResults = filteredActions.length > 0;
+  const articleGroupHasBorderTop = hasPageResults || hasActionResults;
 
   const renderPageOrActionRow = (
     item: PageSelectable | ActionSelectable,
@@ -375,18 +418,18 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
             )}
 
             {/* Pages group */}
-            {filteredPages.length > 0 && (
+            {hasPageResults && (
               <CommandGroup id="cmdk-grp-pages" label="Pages" hasBorderTop={false}>
                 {filteredPages.map((item) => renderPageOrActionRow(item, true))}
               </CommandGroup>
             )}
 
             {/* Actions group */}
-            {filteredActions.length > 0 && (
+            {hasActionResults && (
               <CommandGroup
                 id="cmdk-grp-actions"
                 label="Actions"
-                hasBorderTop={filteredPages.length > 0}
+                hasBorderTop={hasPageResults}
               >
                 {filteredActions.map((item) => renderPageOrActionRow(item))}
               </CommandGroup>
@@ -397,46 +440,27 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
               <CommandGroup
                 id="cmdk-grp-articles"
                 label="Articles"
-                hasBorderTop={filteredPages.length > 0 || filteredActions.length > 0}
+                hasBorderTop={articleGroupHasBorderTop}
               >
                 {/* Error state */}
-                  {status === "error" && (
-                    <div
-                      role="option"
-                      id="cmdk-opt-error"
-                      aria-selected={false}
-                      className={cn(
-                        "flex items-center gap-[var(--space-3)]",
-                        "min-h-[44px] px-[var(--space-3)] py-[var(--space-2)]",
-                        "rounded-[var(--radius-md)] cursor-pointer",
-                        "hover:bg-bg-subtle",
-                        focusRing,
-                      )}
-                      tabIndex={0}
-                      onClick={() => search(query)}
-                      onKeyDown={(e) => { if (e.key === "Enter") search(query); }}
-                    >
-                      <AlertTriangle size={20} className="shrink-0 text-danger-text" aria-hidden />
-                      <span className="text-[length:var(--text-sm)] text-text-muted">
-                        {error ?? "Couldn't load articles."} Press Enter to retry.
-                      </span>
-                    </div>
-                  )}
+                {status === "error" && (
+                  <ArticleSearchErrorRow error={error} onRetry={retryArticleSearch} />
+                )}
 
-                  {/* Skeleton rows on first load */}
-                  {isFirstLoad && (
-                    <>
-                      <CommandResultSkeleton />
-                      <CommandResultSkeleton />
-                      <CommandResultSkeleton />
-                    </>
-                  )}
+                {/* Skeleton rows on first load */}
+                {isFirstLoad && (
+                  <>
+                    <CommandResultSkeleton />
+                    <CommandResultSkeleton />
+                    <CommandResultSkeleton />
+                  </>
+                )}
 
-                  {/* Article rows (fresh or stale during refinement) */}
-                  {!isFirstLoad && articleSelectables.map(renderArticleRow)}
+                {/* Article rows (fresh or stale during refinement) */}
+                {!isFirstLoad && articleSelectables.map(renderArticleRow)}
 
-                  {/* "Show more results" row */}
-                  {moreSelectable && renderMoreRow(moreSelectable)}
+                {/* "Show more results" row */}
+                {moreSelectable && renderMoreRow(moreSelectable)}
               </CommandGroup>
             )}
           </ul>

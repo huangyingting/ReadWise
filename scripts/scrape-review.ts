@@ -21,6 +21,15 @@ const DEFAULT_LIMIT = 50;
 const DEFAULT_FEEDBACK_FILE = ".scraper-state/scrape-review-feedback.jsonl";
 const MAX_FEEDBACK_CHARS = 4_000;
 const MAX_REQUEST_BYTES = 64 * 1024;
+const NO_STORE_HEADERS = { "cache-control": "no-store" } as const;
+const HTML_HEADERS = {
+  ...NO_STORE_HEADERS,
+  "content-type": "text/html; charset=utf-8",
+} as const;
+const JSON_HEADERS = {
+  ...NO_STORE_HEADERS,
+  "content-type": "application/json; charset=utf-8",
+} as const;
 
 type ReviewMode = "db" | "preview";
 type Order = "newest" | "oldest" | "random";
@@ -103,8 +112,15 @@ type DbArticleRow = {
   readingMinutes: number | null;
 };
 
-export function parseArgs(argv: string[]): ScrapeReviewArgs {
-  const args: ScrapeReviewArgs = {
+type MainOverrides = {
+  loadPreviewItems?: typeof loadPreviewItems;
+  loadDbReviewItems?: typeof loadDbReviewItems;
+  startReviewServer?: typeof startReviewServer;
+  closeBrowser?: typeof closeBrowser;
+};
+
+function defaultArgs(): ScrapeReviewArgs {
+  return {
     noDb: false,
     db: null,
     provider: null,
@@ -119,6 +135,10 @@ export function parseArgs(argv: string[]): ScrapeReviewArgs {
     feedbackFile: DEFAULT_FEEDBACK_FILE,
     help: false,
   };
+}
+
+export function parseArgs(argv: string[]): ScrapeReviewArgs {
+  const args = defaultArgs();
 
   for (let i = 0; i < argv.length; i++) {
     const arg = argv[i]!;
@@ -258,10 +278,7 @@ async function loadDbReviewItems(args: ScrapeReviewArgs): Promise<ReviewItem[]> 
 
   try {
     const limit = args.limit;
-    const where = {
-      ...(provider ? { source: provider.name } : {}),
-      sourceUrl: { not: null },
-    };
+    const where = dbReviewWhere(provider);
 
     if (args.order === "random") {
       const rows = await prisma.article.findMany({
@@ -298,6 +315,13 @@ const articleSelect = {
   wordCount: true,
   readingMinutes: true,
 } as const;
+
+function dbReviewWhere(provider: Provider | null): { source?: string; sourceUrl: { not: null } } {
+  return {
+    ...(provider ? { source: provider.name } : {}),
+    sourceUrl: { not: null },
+  };
+}
 
 async function fetchArticlesByIds(prisma: PrismaClient, ids: string[]): Promise<DbArticleRow[]> {
   if (ids.length === 0) return [];
@@ -649,18 +673,12 @@ function feedbackText(payload: FeedbackPayload): string {
 }
 
 function sendHtml(res: ServerResponse, html: string): void {
-  res.writeHead(200, {
-    "content-type": "text/html; charset=utf-8",
-    "cache-control": "no-store",
-  });
+  res.writeHead(200, HTML_HEADERS);
   res.end(html);
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
-  res.writeHead(status, {
-    "content-type": "application/json; charset=utf-8",
-    "cache-control": "no-store",
-  });
+  res.writeHead(status, JSON_HEADERS);
   res.end(JSON.stringify(body));
 }
 
@@ -831,12 +849,7 @@ function jsonForScript(value: unknown): string {
 
 async function main(
   argv = process.argv.slice(2),
-  overrides: {
-    loadPreviewItems?: typeof loadPreviewItems;
-    loadDbReviewItems?: typeof loadDbReviewItems;
-    startReviewServer?: typeof startReviewServer;
-    closeBrowser?: typeof closeBrowser;
-  } = {},
+  overrides: MainOverrides = {},
 ): Promise<number> {
   const args = parseArgs(argv);
   if (args.help) {

@@ -320,6 +320,14 @@ function textLen(el: Element): number {
   return (el.textContent ?? "").trim().length;
 }
 
+function trimmedText(el: Element): string {
+  return (el.textContent ?? "").trim();
+}
+
+function leafBlocks(root: Element): Element[] {
+  return Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+}
+
 /**
  * TEXT-based boilerplate test for class-less blocks (Readability strips
  * class/id). A SHORT block whose normalized text matches a strong CTA phrase is
@@ -398,7 +406,7 @@ function collectTextBoilerplate(root: Element, out: Candidate[]): void {
   for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
     if (el === root) continue;
     if (!isLeafBlock(el)) continue;
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (isTextBoilerplate(text)) {
       out.push({ el, confidence: HIGH });
     }
@@ -410,7 +418,7 @@ function collectOrphanVideoLabels(root: Element, out: Candidate[]): void {
     if (el === root) continue;
     if (!isLeafBlock(el)) continue;
     if (el.querySelector("a,img,figure,video,audio,iframe")) continue;
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (ORPHAN_VIDEO_LABEL_RE.test(text)) {
       out.push({ el, confidence: HIGH });
     }
@@ -421,7 +429,7 @@ function collectTechnologyReviewResidue(root: Element, out: Candidate[]): void {
   for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
     if (el === root) continue;
     if (!isLeafBlock(el)) continue;
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (text.length > 0 && text.length <= TEXT_BOILERPLATE_MAXLEN) {
       if (TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE.test(normalizeText(text))) {
         out.push({ el, confidence: HIGH });
@@ -460,7 +468,7 @@ function isStandaloneImageCredit(text: string): boolean {
 
 function collectImageCreditBlocks(root: Element, out: Candidate[]): void {
   for (const caption of Array.from(root.querySelectorAll("figcaption"))) {
-    const text = (caption.textContent ?? "").trim();
+    const text = trimmedText(caption);
     if (isStandaloneImageCredit(text)) out.push({ el: caption, confidence: HIGH });
   }
 
@@ -468,7 +476,7 @@ function collectImageCreditBlocks(root: Element, out: Candidate[]): void {
     if (el === root) continue;
     if (!isLeafBlock(el)) continue;
     if (el.querySelector("img,figure,video,audio,iframe,svg")) continue;
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (isStandaloneImageCredit(text)) out.push({ el, confidence: HIGH });
   }
 }
@@ -494,7 +502,7 @@ function collectBoilerplateImages(root: Element, out: Candidate[]): void {
     out.push({ el: img, confidence: HIGH });
     const parent = img.parentElement;
     if (!parent || parent === root) continue;
-    const parentText = (parent.textContent ?? "").trim();
+    const parentText = trimmedText(parent);
     const onlyBoilerplateImage =
       parentText.length === 0 &&
       parent.querySelectorAll("img,video,audio,iframe").length === 1;
@@ -551,12 +559,12 @@ function collectLeadingByline(
   publishedParts: DateParts | null,
   out: Candidate[],
 ): void {
-  const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+  const leaves = leafBlocks(root);
   let expectingDateAfterAuthor = false;
   let scanned = 0;
   for (let i = 0; i < leaves.length && scanned < LEADING_SCAN; i++) {
     const el = leaves[i];
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (text.length === 0) continue; // skip empty, don't count
     scanned++;
 
@@ -590,7 +598,7 @@ function hasMedia(el: Element): boolean {
 
 function isSmithsonianAuthorAvatarBlock(el: Element, normName: string | null): boolean {
   if (!/^(p|div|figure|section)$/i.test(el.tagName)) return false;
-  const text = (el.textContent ?? "").trim();
+  const text = trimmedText(el);
   if (text.length > 80) return false;
   const images = Array.from(el.querySelectorAll("img"));
   if (images.length !== 1 || el.querySelector("video,audio,iframe")) return false;
@@ -635,14 +643,14 @@ function collectSmithsonianLeadingByline(
   publishedParts: DateParts | null,
   out: Candidate[],
 ): void {
-  const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(isLeafBlock);
+  const leaves = leafBlocks(root);
   const leading = leaves
-    .filter((el) => (el.textContent ?? "").trim().length > 0 || hasMedia(el))
+    .filter((el) => trimmedText(el).length > 0 || hasMedia(el))
     .slice(0, 8);
 
   for (let i = 0; i < leading.length; i++) {
     const el = leading[i]!;
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (
       publishedParts &&
       !hasMedia(el) &&
@@ -659,10 +667,10 @@ function collectSmithsonianLeadingByline(
     if (isAvatar) {
       out.push({ el, confidence: HIGH });
       const next = leading[i + 1];
-      if (next && isSmithsonianAuthorLine((next.textContent ?? "").trim(), normName)) {
+      if (next && isSmithsonianAuthorLine(trimmedText(next), normName)) {
         out.push({ el: next, confidence: HIGH });
         const date = leading[i + 2];
-        if (date && isStandaloneDateLine((date.textContent ?? "").trim(), publishedParts)) {
+        if (date && isStandaloneDateLine(trimmedText(date), publishedParts)) {
           out.push({ el: date, confidence: HIGH });
         }
       }
@@ -675,7 +683,7 @@ function collectSmithsonianLeadingByline(
       out.push({ el: prev, confidence: HIGH });
     }
     const next = leading[i + 1];
-    if (next && isStandaloneDateLine((next.textContent ?? "").trim(), publishedParts)) {
+    if (next && isStandaloneDateLine(trimmedText(next), publishedParts)) {
       out.push({ el: next, confidence: HIGH });
     }
   }
@@ -687,13 +695,11 @@ function collectTrailingByline(
   normName: string | null,
   out: Candidate[],
 ): void {
-  const leaves = Array.from(root.querySelectorAll(BLOCK_SELECTOR)).filter(
-    isLeafBlock,
-  );
+  const leaves = leafBlocks(root);
   let scanned = 0;
   for (let i = leaves.length - 1; i >= 0 && scanned < TRAILING_SCAN; i--) {
     const el = leaves[i];
-    const text = (el.textContent ?? "").trim();
+    const text = trimmedText(el);
     if (text.length === 0) continue; // skip empty, don't count
     scanned++;
     const conf = bylineConfidence(text, normName);
@@ -716,7 +722,7 @@ function removeEmptyBlocks(root: Element): void {
     changed = false;
     for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
       if (el === root) continue;
-      const hasText = (el.textContent ?? "").trim().length > 0;
+      const hasText = trimmedText(el).length > 0;
       const hasMedia = el.querySelector("img,figure,video,audio,iframe,svg") !== null;
       if (!hasText && !hasMedia) {
         el.remove();

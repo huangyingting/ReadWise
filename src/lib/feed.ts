@@ -38,6 +38,7 @@ import { createTenantCachedListing } from "@/lib/cache";
 import { LISTING_KEYS } from "@/lib/listing-cache";
 
 const log = createLogger("feed");
+type UserProfile = Awaited<ReturnType<typeof getProfile>>;
 
 function categoryLabel(category: string): string {
   return category.charAt(0).toUpperCase() + category.slice(1);
@@ -324,6 +325,113 @@ function collectInProgressIds(
   return ids;
 }
 
+function emptyFeedPage(): FeedPage {
+  return { articles: [], hasMore: false, reasons: {} };
+}
+
+async function loadCompletedArticleIds(userId: string): Promise<Set<string>> {
+  const completedRows = await prisma.readingProgress.findMany({
+    where: { userId, completed: true },
+    select: { articleId: true },
+  });
+  return new Set(completedRows.map((r) => r.articleId));
+}
+
+function candidateArticleWhere(
+  completedIds: Set<string>,
+  maxLevel: DifficultyLevel | null,
+): Prisma.ArticleWhereInput {
+  return publicListableArticleWhere({
+    ...(completedIds.size > 0 ? { id: { notIn: [...completedIds] } } : {}),
+    ...(maxLevel ? { difficulty: { in: levelsAtOrBelow(maxLevel) } } : {}),
+  });
+}
+
+async function loadCandidateArticles(
+  completedIds: Set<string>,
+  maxLevel: DifficultyLevel | null,
+): Promise<FeedArticle[]> {
+  return prisma.article.findMany({
+    where: candidateArticleWhere(completedIds, maxLevel),
+    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    take: MAX_FETCH,
+    select: FEED_ARTICLE_SELECT,
+  });
+}
+
+async function loadCandidateInProgressIds(
+  userId: string,
+  articleIds: string[],
+): Promise<Set<string>> {
+  const progressRows = await prisma.readingProgress.findMany({
+    where: { userId, articleId: { in: articleIds }, completed: false },
+    select: { articleId: true, percent: true },
+  });
+  return collectInProgressIds(progressRows);
+}
+
+async function loadCandidateTagMap(articleIds: string[]): Promise<Map<string, string[]>> {
+  const tagRows = await prisma.articleTag.findMany({
+    where: { articleId: { in: articleIds } },
+    select: { articleId: true, tag: { select: { slug: true } } },
+  });
+  return buildTagMap(tagRows);
+}
+
+function buildScoringContext(
+  profile: NonNullable<UserProfile>,
+  completedIds: Set<string>,
+  inProgressIds: Set<string>,
+  now: Date,
+): ScoringContext {
+  const userLevel = isDifficultyLevel(profile.englishLevel) ? profile.englishLevel : null;
+  return {
+    userLevel,
+    userLevelRank: userLevel ? levelRank(userLevel) : null,
+    topicSet: new Set(parseTopics(profile.topics)),
+    tagSlugsForArticle: [],
+    completedIds,
+    inProgressIds,
+    now,
+  };
+}
+
+function scoreCandidates(
+  articles: FeedArticle[],
+  tagMap: Map<string, string[]>,
+  ctx: ScoringContext,
+): ScoredArticle[] {
+  const scored: ScoredArticle[] = [];
+  for (const article of articles) {
+    const result = scoreArticle(article, {
+      ...ctx,
+      tagSlugsForArticle: tagMap.get(article.id) ?? [],
+    });
+    if (result !== null) {
+      scored.push(result);
+    }
+  }
+  return scored;
+}
+
+function pageScoredArticles(
+  diversified: ScoredArticle[],
+  offset: number,
+  limit: number,
+): FeedPage {
+  const page = diversified.slice(offset, offset + limit);
+  const reasons: Record<string, string> = {};
+  for (const item of page) {
+    reasons[item.article.id] = item.reason;
+  }
+
+  return {
+    articles: page.map((s) => toListingArticle(s.article)),
+    hasMore: offset + limit < diversified.length,
+    reasons,
+  };
+}
+
 const cachedGetPersonalizedFeed = createTenantCachedListing(
   fetchPersonalizedFeed,
   LISTING_KEYS.personalizedFeed,
@@ -355,29 +463,16 @@ async function computePersonalizedFeed(
   // 2) Pre-collect the user's COMPLETED article ids so we can exclude them at
   // the DB layer — completed articles are never "For You" discovery content,
   // and dropping them before fetch keeps the candidate set lean.
-  const completedRows = await prisma.readingProgress.findMany({
-    where: { userId, completed: true },
-    select: { articleId: true },
-  });
-  const completedIds = new Set(completedRows.map((r) => r.articleId));
+  const completedIds = await loadCompletedArticleIds(userId);
 
   // 3) Fetch candidate published articles (newest-first; content-free
   // projection; capped for memory safety). Completed articles are excluded at
   // the DB layer, and when a level cap is active we constrain difficulty too so
   // level-filtered feeds paginate correctly without over-fetching.
-  const where: Prisma.ArticleWhereInput = publicListableArticleWhere({
-    ...(completedIds.size > 0 ? { id: { notIn: [...completedIds] } } : {}),
-    ...(maxLevel ? { difficulty: { in: levelsAtOrBelow(maxLevel) } } : {}),
-  });
-  const allArticles = await prisma.article.findMany({
-    where,
-    orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-    take: MAX_FETCH,
-    select: FEED_ARTICLE_SELECT,
-  });
+  const allArticles = await loadCandidateArticles(completedIds, maxLevel);
 
   if (allArticles.length === 0) {
-    return { articles: [], hasMore: false, reasons: {} };
+    return emptyFeedPage();
   }
 
   // Warn when the corpus is approaching the cap (>= 80% of MAX_FETCH).
@@ -398,48 +493,16 @@ async function computePersonalizedFeed(
 
   // 4) Batch-load in-progress reading state for the candidates (one query —
   // no N+1). Completed rows were already handled via the DB exclusion above.
-  const progressRows = await prisma.readingProgress.findMany({
-    where: { userId, articleId: { in: articleIds }, completed: false },
-    select: { articleId: true, percent: true },
-  });
-
-  const inProgressIds = collectInProgressIds(progressRows);
+  const inProgressIds = await loadCandidateInProgressIds(userId, articleIds);
 
   // 5) Batch-load article tags (one query — no N+1)
-  const tagRows = await prisma.articleTag.findMany({
-    where: { articleId: { in: articleIds } },
-    select: { articleId: true, tag: { select: { slug: true } } },
-  });
-  const tagMap = buildTagMap(tagRows);
+  const tagMap = await loadCandidateTagMap(articleIds);
 
   // 6) Build scoring context
-  const userLevel = isDifficultyLevel(profile!.englishLevel)
-    ? profile!.englishLevel
-    : null;
-  const userLvlRank = userLevel ? levelRank(userLevel) : null;
-  const topicSet = new Set(parseTopics(profile!.topics));
+  const ctx = buildScoringContext(profile!, completedIds, inProgressIds, now);
 
   // 7) Score every article (null = hard-excluded)
-  const ctx: ScoringContext = {
-    userLevel,
-    userLevelRank: userLvlRank,
-    topicSet,
-    tagSlugsForArticle: [], // placeholder; set per-article below
-    completedIds,
-    inProgressIds,
-    now,
-  };
-
-  const scored: ScoredArticle[] = [];
-  for (const article of allArticles) {
-    const result = scoreArticle(article, {
-      ...ctx,
-      tagSlugsForArticle: tagMap.get(article.id) ?? [],
-    });
-    if (result !== null) {
-      scored.push(result);
-    }
-  }
+  const scored = scoreCandidates(allArticles, tagMap, ctx);
 
   // 8) Sort descending by score (DB recency order preserved within equal scores)
   scored.sort((a, b) => b.score - a.score);
@@ -448,15 +511,5 @@ async function computePersonalizedFeed(
   const diversified = diversify(scored);
 
   // 10) Paginate
-  const page = diversified.slice(offset, offset + limit);
-  const reasons: Record<string, string> = {};
-  for (const item of page) {
-    reasons[item.article.id] = item.reason;
-  }
-
-  return {
-    articles: page.map((s) => toListingArticle(s.article)),
-    hasMore: offset + limit < diversified.length,
-    reasons,
-  };
+  return pageScoredArticles(diversified, offset, limit);
 }

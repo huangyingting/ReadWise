@@ -2,7 +2,7 @@
  * Multi-strategy HTTP fetch fallback chain for the scraper's `fetchHtml` (GET).
  *
  * Bot-protection layers (Cloudflare / DataDome) increasingly answer a plain
- * crawler request with a challenge status (401/403/429/451/503) even when a
+ * crawler request with a challenge status (401/403/406/429/451/503) even when a
  * realistic desktop User-Agent is used. This module layers a fallback chain on
  * top of the SSRF-safe core fetch so those pages can still be captured:
  *
@@ -61,7 +61,7 @@ import { jitteredExponentialBackoff } from "@/lib/backoff";
 const log = createLogger("scraper.fetch-strategies");
 
 /** Statuses that indicate a bot challenge worth retrying with another strategy. */
-const BOT_CHALLENGE_STATUSES = new Set([401, 403, 429, 451, 503]);
+const BOT_CHALLENGE_STATUSES = new Set([401, 403, 406, 429, 451, 503]);
 
 /**
  * Named vendor markers that uniquely identify a bot-protection interstitial
@@ -288,7 +288,7 @@ function isRateLimit(err: unknown): err is FetchHttpError {
   return isFetchHttpError(err) && err.status === 429;
 }
 
-/** A bot-challenge status (401/403/429/451/503) — advances the chain. */
+/** A bot-challenge status (401/403/406/429/451/503) — advances the chain. */
 function isBotChallenge(err: unknown): boolean {
   return isFetchHttpError(err) && BOT_CHALLENGE_STATUSES.has(err.status);
 }
@@ -422,6 +422,14 @@ function buildChain(originalUrl: string, host: string): Strategy[] {
 
 const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
+function strategyDeadline(timeoutMs: number): number {
+  return Date.now() + Math.max(timeoutMs, timeoutMs * OVERALL_BUDGET_FACTOR);
+}
+
+function remainingBudgetMs(deadline: number): number {
+  return deadline - Date.now();
+}
+
 async function runStrategyWith429Retry(
   strategy: Strategy,
   url: string,
@@ -438,7 +446,7 @@ async function runStrategyWith429Retry(
   let retryAttempt = 0;
 
   for (;;) {
-    const remaining = deadline - Date.now();
+    const remaining = remainingBudgetMs(deadline);
     if (remaining <= 0) {
       throw new Error(`Fetch strategy timed out before attempt: ${strategy.id}`);
     }
@@ -495,7 +503,7 @@ export async function fetchHtmlWithStrategies(
   const host = new URL(url).hostname;
   const chain = buildChain(url, host);
 
-  const deadline = Date.now() + Math.max(timeoutMs, timeoutMs * OVERALL_BUDGET_FACTOR);
+  const deadline = strategyDeadline(timeoutMs);
   let firstChallengeError: unknown = null;
   // Tracks the most recent 200-but-challenge body so, if the whole chain only
   // ever yields challenge pages, we throw a clear blocked error instead of
@@ -503,7 +511,7 @@ export async function fetchHtmlWithStrategies(
   let sawContentChallenge = false;
 
   for (const strategy of chain) {
-    const remaining = deadline - Date.now();
+    const remaining = remainingBudgetMs(deadline);
     if (remaining <= 0) break;
     const attemptTimeout = Math.min(timeoutMs, remaining);
 
