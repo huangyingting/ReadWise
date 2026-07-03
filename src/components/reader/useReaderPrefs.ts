@@ -48,6 +48,21 @@ export interface UseReaderPrefsResult {
   atMax: boolean;
 }
 
+function mergeReaderPrefs(
+  prefs: ReaderPrefs,
+  next: Partial<ReaderPrefs>,
+): ReaderPrefs {
+  return { ...prefs, ...next };
+}
+
+function getScaleIndex(fontScale: ReaderPrefs["fontScale"]): number {
+  return (FONT_SCALE_STEPS as readonly number[]).indexOf(fontScale);
+}
+
+function textSizeAnnouncement(fontScale: ReaderPrefs["fontScale"]): string {
+  return `Text size: ${fontScaleLabel(fontScale)}`;
+}
+
 export function useReaderPrefs(): UseReaderPrefsResult {
   const [_prefs, setPrefsState] = useState<ReaderPrefs | null>(null);
   const [announcement, setAnnouncement] = useState("");
@@ -65,7 +80,7 @@ export function useReaderPrefs(): UseReaderPrefsResult {
 
   function updatePrefs(next: Partial<ReaderPrefs>) {
     if (!_prefs) return;
-    const merged: ReaderPrefs = { ..._prefs, ...next };
+    const merged = mergeReaderPrefs(_prefs, next);
     setPrefsState(merged);
     setReaderPrefs(merged);
   }
@@ -74,20 +89,28 @@ export function useReaderPrefs(): UseReaderPrefsResult {
     if (!_prefs) return;
     const next = stepFontScale(_prefs.fontScale, "down");
     updatePrefs({ fontScale: next });
-    announce(`Text size: ${fontScaleLabel(next)}`);
+    announce(textSizeAnnouncement(next));
   }
 
   function handleScaleUp() {
     if (!_prefs) return;
     const next = stepFontScale(_prefs.fontScale, "up");
     updatePrefs({ fontScale: next });
-    announce(`Text size: ${fontScaleLabel(next)}`);
+    announce(textSizeAnnouncement(next));
   }
 
   const prefs = _prefs ?? DEFAULT_READER_PREFS;
-  const scaleIdx = (FONT_SCALE_STEPS as readonly number[]).indexOf(prefs.fontScale);
+  const scaleIdx = getScaleIndex(prefs.fontScale);
   const atMin = scaleIdx === 0;
   const atMax = scaleIdx === FONT_SCALE_STEPS.length - 1;
 
-  return { prefs, announcement, updatePrefs, handleScaleDown, handleScaleUp, atMin, atMax };
+  return {
+    prefs,
+    announcement,
+    updatePrefs,
+    handleScaleDown,
+    handleScaleUp,
+    atMin,
+    atMax,
+  };
 }

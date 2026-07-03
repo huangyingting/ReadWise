@@ -18,6 +18,14 @@ import { aiLedgerRetentionDays } from "@/lib/runtime-config/ai";
 
 export type AiInvocationRetentionClient = Pick<Prisma.TransactionClient, "aiInvocation">;
 
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function normalizeRetentionDays(olderThanDays: number): number {
+  return Number.isFinite(olderThanDays) && olderThanDays > 0
+    ? Math.floor(olderThanDays)
+    : aiLedgerRetentionDays();
+}
+
 /**
  * Deletes AI invocation records older than the retention window (#712-A).
  * `olderThanDays` defaults to {@link aiLedgerRetentionDays} (env:
@@ -29,11 +37,8 @@ export async function pruneOldAiInvocations(
   client: AiInvocationRetentionClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days =
-    Number.isFinite(olderThanDays) && olderThanDays > 0
-      ? Math.floor(olderThanDays)
-      : aiLedgerRetentionDays();
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const days = normalizeRetentionDays(olderThanDays);
+  const cutoff = new Date(now.getTime() - days * MS_PER_DAY);
   const result = await client.aiInvocation.deleteMany({
     where: { createdAt: { lt: cutoff } },
   });

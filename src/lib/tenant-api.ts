@@ -19,6 +19,10 @@ import {
 } from "@/lib/org";
 import { canManageClassroom, getClassroom } from "@/lib/classroom";
 
+function forbidden(): never {
+  throw new ApiError(403, "Forbidden");
+}
+
 /**
  * Requires the session to hold `capability` within `orgId` (via its membership)
  * or be a system admin. Returns the membership (null only for a system-admin
@@ -32,7 +36,7 @@ export async function requireOrgCapabilityApi(
   const membership = await getMembership(session.user.id, orgId);
   if (isSystemAdmin(session.user.role)) return membership;
   if (!hasOrgCapability(membership, capability)) {
-    throw new ApiError(403, "Forbidden");
+    forbidden();
   }
   return membership;
 }
@@ -50,7 +54,7 @@ export async function requireClassroomManageApi(
   if (!classroom) throw new ApiError(404, "Classroom not found");
   const membership = await getMembership(session.user.id, classroom.orgId);
   if (!canManageClassroom(session.user, classroom, membership)) {
-    throw new ApiError(403, "Forbidden");
+    forbidden();
   }
   return { classroom, membership };
 }

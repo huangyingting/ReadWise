@@ -18,6 +18,26 @@ const triggerBody = object({
   limit: optional(number({ int: true, min: 1, max: ADMIN_SCRAPE_TRIGGER_MAX_LIMIT })),
 });
 
+function scrapeTriggerNote(totalSaved: number): string {
+  return totalSaved > 0
+    ? "Drafts saved. The background worker will process them automatically."
+    : "No new articles saved.";
+}
+
+async function runTrigger(
+  body: Parameters<typeof runAdminScrapeTrigger>[0],
+  context: Parameters<typeof runAdminScrapeTrigger>[1],
+) {
+  try {
+    return await runAdminScrapeTrigger(body, context);
+  } catch (err) {
+    if (err instanceof AdminScrapeTriggerInputError) {
+      throw new ApiError(400, err.message);
+    }
+    throw err;
+  }
+}
+
 /**
  * POST /api/admin/scrape/trigger
  *
@@ -32,26 +52,14 @@ const triggerBody = object({
 export const POST = createAdminHandler(
   { body: triggerBody },
   async ({ req, body, session, requestId, log }) => {
-    let triggerResult;
-    try {
-      triggerResult = await runAdminScrapeTrigger(body, { req, session, requestId, log });
-    } catch (err) {
-      if (err instanceof AdminScrapeTriggerInputError) {
-        throw new ApiError(400, err.message);
-      }
-      throw err;
-    }
-
+    const triggerResult = await runTrigger(body, { req, session, requestId, log });
     const { results, totalSaved } = triggerResult;
 
     return NextResponse.json({
       ok: true,
       results,
       totalSaved,
-      note:
-        totalSaved > 0
-          ? "Drafts saved. The background worker will process them automatically."
-          : "No new articles saved.",
+      note: scrapeTriggerNote(totalSaved),
     });
   },
 );

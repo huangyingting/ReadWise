@@ -15,6 +15,33 @@ export type SubmittedAnswer = {
   selectedIndex: number;
 };
 
+type QuizGradeResult = {
+  correctCount: number;
+  total: number;
+};
+
+function assertAnswerCount(questions: QuizQuestion[], answers: SubmittedAnswer[]): void {
+  if (questions.length === 0) {
+    throw new Error("No quiz questions to grade");
+  }
+  if (answers.length !== questions.length) {
+    throw new Error("Submitted answers do not match the quiz");
+  }
+}
+
+function assertKnownQuestionIndex(index: number, totalQuestions: number): void {
+  if (!Number.isInteger(index) || index < 0 || index >= totalQuestions) {
+    throw new Error("Unknown question index");
+  }
+}
+
+function assertUniqueQuestionIndex(index: number, seen: Set<number>): void {
+  if (seen.has(index)) {
+    throw new Error("Duplicate answer for a question");
+  }
+  seen.add(index);
+}
+
 /**
  * Grades a set of client-submitted answers against the canonical cached quiz
  * questions for an article (the source of truth for `correctIndex`).
@@ -26,28 +53,14 @@ export type SubmittedAnswer = {
 export function gradeQuizAnswers(
   questions: QuizQuestion[],
   answers: SubmittedAnswer[],
-): { correctCount: number; total: number } {
-  if (questions.length === 0) {
-    throw new Error("No quiz questions to grade");
-  }
-  if (answers.length !== questions.length) {
-    throw new Error("Submitted answers do not match the quiz");
-  }
+): QuizGradeResult {
+  assertAnswerCount(questions, answers);
 
   const seen = new Set<number>();
   let correctCount = 0;
   for (const answer of answers) {
-    if (
-      !Number.isInteger(answer.index) ||
-      answer.index < 0 ||
-      answer.index >= questions.length
-    ) {
-      throw new Error("Unknown question index");
-    }
-    if (seen.has(answer.index)) {
-      throw new Error("Duplicate answer for a question");
-    }
-    seen.add(answer.index);
+    assertKnownQuestionIndex(answer.index, questions.length);
+    assertUniqueQuestionIndex(answer.index, seen);
 
     if (answer.selectedIndex === questions[answer.index].correctIndex) {
       correctCount += 1;

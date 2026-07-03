@@ -31,6 +31,19 @@ const wordReviewCompleteBody = object({
   localDate: optional(string({ max: 10 })),
 });
 
+type WordReviewCompletionView = NonNullable<
+  Awaited<ReturnType<typeof markTodayWordReviewComplete>>
+>;
+
+function wordReviewCompleteResponse(view: WordReviewCompletionView) {
+  return NextResponse.json({
+    updated: true,
+    status: view.status,
+    completionTier: view.completionTier,
+    completed: view.completedAt != null,
+  });
+}
+
 export const POST = createHandler(
   { body: wordReviewCompleteBody },
   async ({ body, session }) => {
@@ -48,11 +61,6 @@ export const POST = createHandler(
       return NextResponse.json({ updated: false });
     }
 
-    return NextResponse.json({
-      updated: true,
-      status: view.status,
-      completionTier: view.completionTier,
-      completed: view.completedAt != null,
-    });
+    return wordReviewCompleteResponse(view);
   },
 );

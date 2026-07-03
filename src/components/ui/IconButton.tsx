@@ -14,6 +14,10 @@ const FG_MAP = {
   reading: "var(--reading-text, var(--text))",
 } as const;
 
+type IconButtonStyle = React.CSSProperties & {
+  "--ib-fg"?: string;
+};
+
 const iconButtonVariants = cva(
   cn(
     "inline-flex items-center justify-center shrink-0",
@@ -51,6 +55,13 @@ export interface IconButtonProps
   context?: IconButtonContext;
 }
 
+function iconButtonStyle(
+  context: IconButtonContext,
+  style?: React.CSSProperties,
+): IconButtonStyle {
+  return { "--ib-fg": FG_MAP[context], ...style };
+}
+
 /**
  * Minimal square icon button with a centralised focus ring.
  *
@@ -82,7 +93,7 @@ export const IconButton = React.forwardRef<HTMLButtonElement, IconButtonProps>(
       <button
         ref={ref}
         type={type}
-        style={{ "--ib-fg": FG_MAP[context], ...style } as React.CSSProperties}
+        style={iconButtonStyle(context, style)}
         className={cn(iconButtonVariants({ size }), className)}
         {...props}
       />

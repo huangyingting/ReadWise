@@ -11,6 +11,11 @@ import { type DomainResult, ok, conflict } from "@/lib/result";
 
 const MAX_SUBSCRIPTIONS_PER_USER = 10;
 
+async function hasReachedSubscriptionLimit(userId: string): Promise<boolean> {
+  const count = await prisma.pushSubscription.count({ where: { userId } });
+  return count >= MAX_SUBSCRIPTIONS_PER_USER;
+}
+
 /**
  * Saves (or updates) a browser PushSubscription for the given user.
  * Upserts by endpoint so re-subscribing is idempotent.
@@ -27,11 +32,8 @@ export async function subscribePush(
     where: { endpoint },
     select: { userId: true },
   });
-  if (!existing) {
-    const count = await prisma.pushSubscription.count({ where: { userId } });
-    if (count >= MAX_SUBSCRIPTIONS_PER_USER) {
-      return conflict("Too many subscriptions");
-    }
+  if (!existing && (await hasReachedSubscriptionLimit(userId))) {
+    return conflict("Too many subscriptions");
   }
 
   await prisma.pushSubscription.upsert({

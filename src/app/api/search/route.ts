@@ -15,24 +15,43 @@ type SearchQuery = {
   limit: number;
 };
 
-function parseQuery(params: URLSearchParams) {
+type ParsedSearchQuery =
+  | { ok: true; value: SearchQuery }
+  | { ok: false; error: string };
+
+function searchQueryError(message: string): ParsedSearchQuery {
+  return { ok: false, error: message };
+}
+
+function parseQuery(params: URLSearchParams): ParsedSearchQuery {
   const q = queryString(params, "q");
   if (q.length > SEARCH_QUERY_MAX_LENGTH) {
-    return {
-      ok: false as const,
-      error: `q must be at most ${SEARCH_QUERY_MAX_LENGTH} characters`,
-    };
+    return searchQueryError(`q must be at most ${SEARCH_QUERY_MAX_LENGTH} characters`);
   }
-  const value: SearchQuery = {
-    q,
-    offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
-    limit: queryInt(params, "limit", {
-      fallback: SEARCH_PAGE_SIZE,
-      min: 1,
-      max: SEARCH_MAX_LIMIT,
-    }),
+
+  return {
+    ok: true,
+    value: {
+      q,
+      offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
+      limit: queryInt(params, "limit", {
+        fallback: SEARCH_PAGE_SIZE,
+        min: 1,
+        max: SEARCH_MAX_LIMIT,
+      }),
+    },
   };
-  return { ok: true as const, value };
+}
+
+async function searchResponse(query: SearchQuery, userId: string) {
+  const { q, offset, limit } = query;
+  const page = await searchReadableArticles(q, { offset, limit }, userId);
+  const articles = page.articles.map(toListingArticle);
+
+  return buildArticleListResponse(userId, articles, {
+    offset,
+    hasMore: articles.length > 0 && page.hasMore,
+  });
 }
 
 /**
@@ -48,15 +67,5 @@ function parseQuery(params: URLSearchParams) {
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
   await checkRateLimit(session.user.id, "lookup");
 
-  const { q, offset, limit } = query;
-
-  const page = await searchReadableArticles(q, { offset, limit }, session.user.id);
-  const articles = page.articles.map(toListingArticle);
-
-  return NextResponse.json(
-    await buildArticleListResponse(session.user.id, articles, {
-      offset,
-      hasMore: articles.length > 0 && page.hasMore,
-    })
-  );
+  return NextResponse.json(await searchResponse(query, session.user.id));
 });
