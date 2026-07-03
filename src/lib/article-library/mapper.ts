@@ -9,8 +9,19 @@ import type { Article } from "@prisma/client";
 
 const WORDS_PER_MINUTE = 200;
 
+function stripHtmlTags(text: string): string {
+  return text.replace(/<[^>]*>/g, " ");
+}
+
+function publishedAtFor(value: unknown): string | null {
+  if (value instanceof Date) {
+    return value.toISOString();
+  }
+  return value ? new Date(value as string | number | Date).toISOString() : null;
+}
+
 export function countWords(text: string): number {
-  const stripped = text.replace(/<[^>]*>/g, " ");
+  const stripped = stripHtmlTags(text);
   const matches = stripped.trim().match(/\S+/g);
   return matches ? matches.length : 0;
 }
@@ -73,11 +84,7 @@ export function toListingArticle(article: ArticleCardSource): ListingArticle {
     category: article.category,
     difficulty: article.difficulty,
     readingMinutes: readingMinutesFor(article),
-    publishedAt: article.publishedAt instanceof Date
-      ? article.publishedAt.toISOString()
-      : article.publishedAt
-      ? new Date(article.publishedAt).toISOString()
-      : null,
+    publishedAt: publishedAtFor(article.publishedAt),
     heroImage: article.heroImage ?? null,
   };
 }

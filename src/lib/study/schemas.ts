@@ -62,15 +62,22 @@ export function parseClozeQuery(
 export type WordsQuery = {
   q: string;
   articleId: string;
-  filter: "all" | "due" | "new";
+  filter: WordsFilter;
   page: number;
 };
+
+const WORD_FILTERS = ["all", "due", "new"] as const;
+type WordsFilter = (typeof WORD_FILTERS)[number];
+
+function isWordsFilter(value: string): value is WordsFilter {
+  return (WORD_FILTERS as readonly string[]).includes(value);
+}
 
 export function parseWordsQuery(
   params: URLSearchParams,
 ): ValidationResult<WordsQuery> {
   const filter = queryString(params, "filter", "all");
-  if (filter !== "all" && filter !== "due" && filter !== "new") {
+  if (!isWordsFilter(filter)) {
     return { ok: false as const, error: 'filter must be "all", "due", or "new"' };
   }
   return {
@@ -78,7 +85,7 @@ export function parseWordsQuery(
     value: {
       q: queryString(params, "q", ""),
       articleId: queryString(params, "articleId", ""),
-      filter: filter as "all" | "due" | "new",
+      filter,
       page: queryInt(params, "page", { fallback: 1, min: 1, max: 9999 }),
     },
   };

@@ -14,7 +14,13 @@
  * aria-describedby links the input to the error message.
  */
 
-import { useState, useId } from "react";
+import {
+  useState,
+  useId,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { validateListName } from "@/lib/list-name-validation";
@@ -39,8 +45,18 @@ export function ListCreateForm({ onSuccess, onCancel, className }: ListCreateFor
   const { create } = useReadingListMutations();
   const errorId = useId();
   const displayError = validationError ?? create.error;
+  const trimmedName = name.trim();
 
-  async function handleSubmit(e?: React.FormEvent) {
+  function handleNameChange(e: ChangeEvent<HTMLInputElement>) {
+    setName(e.target.value);
+    setValidationError(null);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") onCancel();
+  }
+
+  async function handleSubmit(e?: FormEvent<HTMLFormElement>) {
     e?.preventDefault();
     const validErr = validateListName(name);
     if (validErr) {
@@ -48,7 +64,7 @@ export function ListCreateForm({ onSuccess, onCancel, className }: ListCreateFor
       return;
     }
     setValidationError(null);
-    const created = await create.run(name.trim());
+    const created = await create.run(trimmedName);
     if (created) onSuccess(created);
   }
 
@@ -63,16 +79,11 @@ export function ListCreateForm({ onSuccess, onCancel, className }: ListCreateFor
         value={name}
         maxLength={60}
         autoFocus
-        onChange={(e) => {
-          setName(e.target.value);
-          setValidationError(null);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onCancel();
-        }}
+        onChange={handleNameChange}
+        onKeyDown={handleKeyDown}
         aria-label="New list name"
         aria-describedby={displayError ? errorId : undefined}
-        invalid={displayError ? true : false}
+        invalid={Boolean(displayError)}
       />
       {displayError ? (
         <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
@@ -85,7 +96,7 @@ export function ListCreateForm({ onSuccess, onCancel, className }: ListCreateFor
           size="sm"
           variant="primary"
           loading={create.busy}
-          disabled={!name.trim()}
+          disabled={!trimmedName}
           leadingIcon={<Check size={14} aria-hidden />}
         >
           Create

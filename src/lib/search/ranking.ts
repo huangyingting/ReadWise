@@ -13,6 +13,21 @@ export type SearchCandidate = {
   sources: Set<SearchSource>;
 };
 
+const FIELD_WEIGHTS = {
+  title: 60,
+  excerpt: 28,
+  author: 22,
+  source: 22,
+  category: 12,
+  content: 10,
+} as const;
+
+const SOURCE_BOOSTS = {
+  highlight: 45,
+  savedWord: 35,
+  owner: 20,
+} as const;
+
 function recencyTime(article: Pick<Article, "publishedAt" | "createdAt">): number {
   return (article.publishedAt ?? article.createdAt).getTime();
 }
@@ -39,15 +54,15 @@ export function scoreArticleSearchCandidate(
 ): number {
   const sourceSet = sources instanceof Set ? sources : new Set(sources);
   let score = 0;
-  score += fieldScore(article.title, query, terms, 60);
-  score += fieldScore(article.excerpt, query, terms, 28);
-  score += fieldScore(article.author, query, terms, 22);
-  score += fieldScore(article.source, query, terms, 22);
-  score += fieldScore(article.category, query, terms, 12);
-  score += fieldScore(article.content, query, terms, 10);
-  if (sourceSet.has("highlight")) score += 45;
-  if (sourceSet.has("savedWord")) score += 35;
-  if (article.ownerId) score += 20;
+  score += fieldScore(article.title, query, terms, FIELD_WEIGHTS.title);
+  score += fieldScore(article.excerpt, query, terms, FIELD_WEIGHTS.excerpt);
+  score += fieldScore(article.author, query, terms, FIELD_WEIGHTS.author);
+  score += fieldScore(article.source, query, terms, FIELD_WEIGHTS.source);
+  score += fieldScore(article.category, query, terms, FIELD_WEIGHTS.category);
+  score += fieldScore(article.content, query, terms, FIELD_WEIGHTS.content);
+  if (sourceSet.has("highlight")) score += SOURCE_BOOSTS.highlight;
+  if (sourceSet.has("savedWord")) score += SOURCE_BOOSTS.savedWord;
+  if (article.ownerId) score += SOURCE_BOOSTS.owner;
   return score;
 }
 

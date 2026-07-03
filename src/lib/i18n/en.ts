@@ -11,6 +11,10 @@
 import type { MessageCatalog } from "./catalog";
 import { SITE_NAME } from "@/lib/copy/site";
 
+function reviewWordCount(count: number): string {
+  return count === 1 ? "1 word" : `${count} words`;
+}
+
 export const en: MessageCatalog = {
   // ---------------------------------------------------------------------------
   // Reader
@@ -45,16 +49,12 @@ export const en: MessageCatalog = {
   "push.reminder.title": () => "Time to review! 📚",
 
   "push.reminder.body": ({ count }) =>
-    count === 1
-      ? `You have 1 word due for review in ${SITE_NAME}.`
-      : `You have ${count} words due for review in ${SITE_NAME}.`,
+    `You have ${reviewWordCount(count)} due for review in ${SITE_NAME}.`,
 
   "push.reminder.todayTitle": () => "Your Today session is ready 📅",
 
   "push.reminder.todayBody": ({ count }) =>
-    count === 1
-      ? `You have 1 word due in your ${SITE_NAME} Today session.`
-      : `You have ${count} words due in your ${SITE_NAME} Today session.`,
+    `You have ${reviewWordCount(count)} due in your ${SITE_NAME} Today session.`,
 
   // ---------------------------------------------------------------------------
   // Reading fluency feedback (#813)

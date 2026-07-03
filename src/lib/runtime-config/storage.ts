@@ -9,6 +9,16 @@ import { envValue } from "@/lib/runtime-config/env";
 import type { MediaStorageKind } from "@/lib/storage/types";
 
 const log = createLogger("storage");
+const LOCAL_STORAGE_KIND_ALIASES = new Set(["", "filesystem", "local"]);
+const DEFAULT_MEDIA_CONTAINER = "media";
+
+function rawMediaStorageKind(): string {
+  return (process.env.MEDIA_STORAGE ?? "").trim().toLowerCase();
+}
+
+function warnLocalStorageFallback(event: string, value: string): void {
+  log.warn(event, { value, fallback: "local" });
+}
 
 // ---------------------------------------------------------------------------
 // Storage kind
@@ -19,14 +29,14 @@ const log = createLogger("storage");
  * `filesystem` is accepted as a legacy alias for `local`.
  */
 export function mediaStorageKind(): MediaStorageKind {
-  const raw = (process.env.MEDIA_STORAGE ?? "").trim().toLowerCase();
-  if (raw === "" || raw === "filesystem" || raw === "local") return "local";
+  const raw = rawMediaStorageKind();
+  if (LOCAL_STORAGE_KIND_ALIASES.has(raw)) return "local";
   if (raw === "azure") return "azure";
   if (raw === "database") {
-    log.warn("storage.database_kind_removed", { value: raw, fallback: "local" });
+    warnLocalStorageFallback("storage.database_kind_removed", raw);
     return "local";
   }
-  log.warn("storage.unknown_kind", { value: raw, fallback: "local" });
+  warnLocalStorageFallback("storage.unknown_kind", raw);
   return "local";
 }
 
@@ -69,7 +79,7 @@ export function azureStorageConfig():
   | AzureStorageConfig
   | AzureStorageConnectionStringConfig
   | null {
-  const container = envValue("AZURE_STORAGE_CONTAINER") ?? "media";
+  const container = envValue("AZURE_STORAGE_CONTAINER") ?? DEFAULT_MEDIA_CONTAINER;
   const connStr = envValue("AZURE_STORAGE_CONNECTION_STRING");
   if (connStr) {
     return { connectionString: connStr, container };

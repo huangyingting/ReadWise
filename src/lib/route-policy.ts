@@ -39,6 +39,12 @@ export const SESSION_COOKIES = [
   "__Secure-next-auth.session-token",
 ] as const;
 
+const ROOT_MATCHER = "/";
+
+function subtreeMatcher(prefix: ProtectedPrefix): `${ProtectedPrefix}/:path*` {
+  return `${prefix}/:path*`;
+}
+
 /**
  * Next.js middleware `config.matcher` patterns.
  *
@@ -52,31 +58,31 @@ export const SESSION_COOKIES = [
  * a corresponding matcher entry.
  */
 export const MIDDLEWARE_MATCHER: readonly string[] = [
-  "/",
-  "/dashboard/:path*",
+  ROOT_MATCHER,
+  subtreeMatcher("/dashboard"),
   "/today",
-  "/today/:path*",
-  "/reader/:path*",
-  "/settings/:path*",
-  "/onboarding/:path*",
-  "/admin/:path*",
-  "/study/:path*",
-  "/tags/:path*",
-  "/browse/:path*",
-  "/lists/:path*",
+  subtreeMatcher("/today"),
+  subtreeMatcher("/reader"),
+  subtreeMatcher("/settings"),
+  subtreeMatcher("/onboarding"),
+  subtreeMatcher("/admin"),
+  subtreeMatcher("/study"),
+  subtreeMatcher("/tags"),
+  subtreeMatcher("/browse"),
+  subtreeMatcher("/lists"),
   "/lists",
-  "/notes/:path*",
+  subtreeMatcher("/notes"),
   "/notes",
-  "/progress/:path*",
+  subtreeMatcher("/progress"),
   "/progress",
-  "/offline/:path*",
+  subtreeMatcher("/offline"),
   "/offline",
   "/import",
-  "/import/:path*",
+  subtreeMatcher("/import"),
   "/teacher",
-  "/teacher/:path*",
+  subtreeMatcher("/teacher"),
   "/assignments",
-  "/assignments/:path*",
+  subtreeMatcher("/assignments"),
   "/series",
-  "/series/:path*",
+  subtreeMatcher("/series"),
 ];

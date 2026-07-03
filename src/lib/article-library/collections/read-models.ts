@@ -21,6 +21,38 @@ export type ListWithArticles = {
   articles: ListingArticle[];
 };
 
+type UserListRow = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  _count: { items: number };
+};
+
+type ListWithArticlesRow = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  items: Array<{ article: Parameters<typeof toListingArticle>[0] }>;
+};
+
+function toUserList(row: UserListRow): UserList {
+  return {
+    id: row.id,
+    name: row.name,
+    isDefault: row.isDefault,
+    count: row._count.items,
+  };
+}
+
+function toListWithArticles(row: ListWithArticlesRow): ListWithArticles {
+  return {
+    id: row.id,
+    name: row.name,
+    isDefault: row.isDefault,
+    articles: row.items.map((item) => toListingArticle(item.article)),
+  };
+}
+
 /**
  * Returns all lists for a user, default list first, then oldest-first.
  * Each list includes the number of items it contains.
@@ -31,12 +63,7 @@ export async function getUserLists(userId: string): Promise<UserList[]> {
     orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }],
     include: { _count: { select: { items: true } } },
   });
-  return rows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    isDefault: row.isDefault,
-    count: row._count.items,
-  }));
+  return rows.map(toUserList);
 }
 
 /**
@@ -57,12 +84,7 @@ export async function getListWithArticles(
     },
   });
   if (!row) return null;
-  return {
-    id: row.id,
-    name: row.name,
-    isDefault: row.isDefault,
-    articles: row.items.map((item) => toListingArticle(item.article)),
-  };
+  return toListWithArticles(row);
 }
 
 /**

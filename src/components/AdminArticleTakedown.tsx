@@ -18,6 +18,14 @@ export type AdminArticleTakedownProps = {
   currentRightsNote: string;
 };
 
+function optionalTrimmed(value: string) {
+  return value.trim() || undefined;
+}
+
+function willForceDraft(nextState: string, currentState: string) {
+  return nextState !== "active" && nextState !== currentState;
+}
+
 /**
  * Rights / takedown control (RW-047) on the admin article detail page. Applying
  * any non-active state forces the article to DRAFT so it leaves public feeds and
@@ -36,14 +44,14 @@ export default function AdminArticleTakedown({
   const { busy, error, run } = useMutation("Takedown failed");
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
-  const willUnpublish = state !== "active" && state !== currentState;
+  const willUnpublish = willForceDraft(state, currentState);
 
   async function apply() {
     await run(async () => {
       await postJson(`/api/admin/articles/${articleId}/takedown`, {
         state,
-        note: note.trim() || undefined,
-        rightsNote: rightsNote.trim() || undefined,
+        note: optionalTrimmed(note),
+        rightsNote: optionalTrimmed(rightsNote),
       });
       setNote("");
       setSavedAt(Date.now());
@@ -78,7 +86,7 @@ export default function AdminArticleTakedown({
       </Field>
 
       {willUnpublish && (
-        <p className="text-warning-text text-[length:var(--text-sm)]" style={{ margin: 0 }}>
+        <p className="m-0 text-warning-text text-[length:var(--text-sm)]">
           This will unpublish the article and remove it from public feeds.
         </p>
       )}
@@ -99,7 +107,7 @@ export default function AdminArticleTakedown({
       </div>
 
       {error && (
-        <p className="text-danger-text text-[length:var(--text-sm)]" style={{ margin: 0 }}>
+        <p className="m-0 text-danger-text text-[length:var(--text-sm)]">
           {error}
         </p>
       )}

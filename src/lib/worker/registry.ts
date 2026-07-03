@@ -2,6 +2,25 @@ import { type processArticle, type ProcessOptions } from "@/lib/processing/proce
 import { JobError, JobType, type Job } from "@/lib/jobs";
 import type { WorkerLogger, JobHandler } from "./types";
 
+type ArticleJobPayload = {
+  articleId?: string;
+  tts?: boolean;
+  translateLangs?: string[];
+};
+
+function articlePayload(job: Job): ArticleJobPayload {
+  return (job.payload ?? {}) as ArticleJobPayload;
+}
+
+function failedStepSummary(
+  steps: Array<{ step: string; status: string; detail?: string | null }>,
+): string {
+  return steps
+    .filter((step) => step.status === "failed")
+    .map((step) => `${step.step}: ${step.detail ?? "unknown"}`)
+    .join("; ");
+}
+
 /**
  * Registry mapping JobType → JobHandler. Supports testable registration and
  * override of individual handlers.
@@ -36,11 +55,7 @@ export class JobHandlerRegistry {
  */
 export function makeArticleHandler(processFn: typeof processArticle): JobHandler {
   return async (job: Job, ctx: { logger: WorkerLogger; signal?: AbortSignal; process?: ProcessOptions }) => {
-    const payload = (job.payload ?? {}) as {
-      articleId?: string;
-      tts?: boolean;
-      translateLangs?: string[];
-    };
+    const payload = articlePayload(job);
     const articleId = payload.articleId;
     if (!articleId) {
       throw new JobError("job payload missing articleId", { kind: "validation" });
@@ -53,10 +68,7 @@ export function makeArticleHandler(processFn: typeof processArticle): JobHandler
       throw new JobError(`article ${articleId} not found`, { kind: "missing" });
     }
     if (!result.ok) {
-      const failedSteps = result.steps
-        .filter((s) => s.status === "failed")
-        .map((s) => `${s.step}: ${s.detail ?? "unknown"}`)
-        .join("; ");
+      const failedSteps = failedStepSummary(result.steps);
       throw new JobError(`processing failed (${failedSteps || "unknown"})`, { kind: "provider" });
     }
     ctx.logger.info("article job processed", {

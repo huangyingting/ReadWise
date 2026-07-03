@@ -82,20 +82,23 @@ export function priorityTake(offset: number, limit: number): number {
 }
 
 function textFieldsWhere<TWhere extends TextWhereInput>(
-  fields: readonly string[],
   terms: string[],
+  termWhere: (term: string) => TWhere,
+  andWhere: (perTerm: TWhere[]) => TWhere,
 ): TWhere {
-  const perTerm = terms.map((term) => ({
-    OR: fields.map((field) => ({ [field]: containsFilter(term) })),
-  })) as TWhere[];
-  return perTerm.length === 1 ? perTerm[0] : ({ AND: perTerm } as TWhere);
+  const perTerm = terms.map(termWhere);
+  return perTerm.length === 1 ? perTerm[0] : andWhere(perTerm);
 }
 
 export function articleFieldsWhere(
   fields: readonly ArticleSearchField[],
   terms: string[],
 ): Prisma.ArticleWhereInput {
-  return textFieldsWhere<Prisma.ArticleWhereInput>(fields, terms);
+  return textFieldsWhere<Prisma.ArticleWhereInput>(
+    terms,
+    (term) => ({ OR: fields.map((field) => ({ [field]: containsFilter(term) })) }),
+    (perTerm) => ({ AND: perTerm }),
+  );
 }
 
 export function articleTextWhere(terms: string[]): Prisma.ArticleWhereInput {
@@ -111,14 +114,24 @@ export function articleExactWhere(
 
 export function highlightTextWhere(terms: string[]): Prisma.HighlightWhereInput {
   return textFieldsWhere<Prisma.HighlightWhereInput>(
-    HIGHLIGHT_SEARCH_FIELDS satisfies readonly HighlightSearchField[],
     terms,
+    (term) => ({
+      OR: (HIGHLIGHT_SEARCH_FIELDS satisfies readonly HighlightSearchField[]).map((field) => ({
+        [field]: containsFilter(term),
+      })),
+    }),
+    (perTerm) => ({ AND: perTerm }),
   );
 }
 
 export function savedWordTextWhere(terms: string[]): Prisma.SavedWordWhereInput {
   return textFieldsWhere<Prisma.SavedWordWhereInput>(
-    SAVED_WORD_SEARCH_FIELDS satisfies readonly SavedWordSearchField[],
     terms,
+    (term) => ({
+      OR: (SAVED_WORD_SEARCH_FIELDS satisfies readonly SavedWordSearchField[]).map((field) => ({
+        [field]: containsFilter(term),
+      })),
+    }),
+    (perTerm) => ({ AND: perTerm }),
   );
 }

@@ -21,6 +21,56 @@ import { Volume2, Play, Pause, Loader2, VolumeX } from "lucide-react";
 import { Button, Tooltip } from "@/components/ui";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
+type ListenState = "unavailable" | "warming" | "playing" | "ready" | "idle";
+
+const LISTEN_ICON_SIZE = 14;
+const LISTEN_LABELS: Record<ListenState, string> = {
+  unavailable: "Narration unavailable",
+  warming: "Loading narration…",
+  playing: "Pause narration",
+  ready: "Play narration",
+  idle: "Listen to this article",
+};
+
+function getListenState({
+  unavailable,
+  isWarming,
+  isPlaying,
+  isLoaded,
+}: {
+  unavailable: boolean;
+  isWarming: boolean;
+  isPlaying: boolean;
+  isLoaded: boolean;
+}): ListenState {
+  if (unavailable) return "unavailable";
+  if (isWarming) return "warming";
+  if (isPlaying) return "playing";
+  if (isLoaded) return "ready";
+  return "idle";
+}
+
+function renderListenIcon(state: ListenState) {
+  switch (state) {
+    case "unavailable":
+      return <VolumeX size={LISTEN_ICON_SIZE} aria-hidden />;
+    case "warming":
+      return (
+        <Loader2
+          size={LISTEN_ICON_SIZE}
+          aria-hidden
+          className="reader-listen-spin"
+        />
+      );
+    case "playing":
+      return <Pause size={LISTEN_ICON_SIZE} aria-hidden />;
+    case "ready":
+      return <Play size={LISTEN_ICON_SIZE} aria-hidden />;
+    case "idle":
+      return <Volume2 size={LISTEN_ICON_SIZE} aria-hidden />;
+  }
+}
+
 export default function ReaderListenButton({ articleId }: { articleId: string }) {
   const audio = useReaderAudio();
   const [isPlaying, setIsPlaying] = useState(false);
@@ -70,27 +120,14 @@ export default function ReaderListenButton({ articleId }: { articleId: string })
   }
 
   const unavailable = audio.isFallback;
-  const label = unavailable
-    ? "Narration unavailable"
-    : audio.isWarming
-      ? "Loading narration…"
-      : isPlaying
-        ? "Pause narration"
-        : audio.isLoaded
-          ? "Play narration"
-          : "Listen to this article";
-
-  const icon = unavailable ? (
-    <VolumeX size={14} aria-hidden />
-  ) : audio.isWarming ? (
-    <Loader2 size={14} aria-hidden className="reader-listen-spin" />
-  ) : isPlaying ? (
-    <Pause size={14} aria-hidden />
-  ) : audio.isLoaded ? (
-    <Play size={14} aria-hidden />
-  ) : (
-    <Volume2 size={14} aria-hidden />
-  );
+  const listenState = getListenState({
+    unavailable,
+    isWarming: audio.isWarming,
+    isPlaying,
+    isLoaded: audio.isLoaded,
+  });
+  const label = LISTEN_LABELS[listenState];
+  const icon = renderListenIcon(listenState);
 
   return (
     <Tooltip content={label} side="bottom">

@@ -3,6 +3,26 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
+const ROVING_ITEM_SELECTOR = '[role="menuitem"], [role="option"]';
+
+function containsEventTarget(
+  ref: React.RefObject<HTMLElement | null>,
+  target: Node,
+) {
+  return ref.current?.contains(target) ?? false;
+}
+
+function nextRovingItem(
+  items: HTMLElement[],
+  activeElement: Element | null,
+  direction: 1 | -1,
+) {
+  const currentIndex = items.indexOf(activeElement as HTMLElement);
+  return (
+    items[(currentIndex + direction + items.length) % items.length] ?? items[0]!
+  );
+}
+
 export interface PopoverProps {
   /** Whether the popover is rendered. When false, nothing renders. */
   open: boolean;
@@ -52,7 +72,7 @@ export function Popover({
       const target = event.target as Node;
       if (
         panelRef.current?.contains(target) ||
-        anchorRef.current?.contains(target)
+        containsEventTarget(anchorRef, target)
       ) {
         return;
       }
@@ -67,15 +87,13 @@ export function Popover({
         return;
       }
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-        const items = panelRef.current?.querySelectorAll<HTMLElement>(
-          '[role="menuitem"], [role="option"]',
-        );
+        const items =
+          panelRef.current?.querySelectorAll<HTMLElement>(ROVING_ITEM_SELECTOR);
         if (!items || items.length === 0) return;
         event.preventDefault();
         const list = Array.from(items);
-        const idx = list.indexOf(document.activeElement as HTMLElement);
         const dir = event.key === "ArrowDown" ? 1 : -1;
-        const next = list[(idx + dir + list.length) % list.length] ?? list[0];
+        const next = nextRovingItem(list, document.activeElement, dir);
         next.focus();
       }
     }

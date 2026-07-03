@@ -38,23 +38,27 @@
  * Keys follow the `domain:qualifier` convention. The EXACT strings are
  * preserved so no existing cached entries are invalidated by this refactor.
  */
+function listingKey<T extends string>(key: T): readonly [T] {
+  return [key] as const;
+}
+
 export const LISTING_KEYS = {
   /** Published article feed (homepage, browse). */
-  published: ["articles:published"],
+  published: listingKey("articles:published"),
   /** Category/level-filtered article page. */
-  categoryPage: ["articles:category-page"],
+  categoryPage: listingKey("articles:category-page"),
   /** Personalized picks page (level + topic ranked). */
-  picksPage: ["articles:picks-page"],
+  picksPage: listingKey("articles:picks-page"),
   /** Articles belonging to a given public tag slug. */
-  articlesByTag: ["tags:articles-by-tag"],
+  articlesByTag: listingKey("tags:articles-by-tag"),
   /** Related articles for a single article (by shared tags). */
-  relatedArticles: ["tags:related-articles"],
+  relatedArticles: listingKey("tags:related-articles"),
   /** Tag taxonomy with per-tag article counts. */
-  tagsWithCounts: ["tags:with-counts"],
+  tagsWithCounts: listingKey("tags:with-counts"),
   /** User-agnostic candidate pool for the scored picks feed. */
-  picksCandidates: ["recommendations:picks-candidates"],
+  picksCandidates: listingKey("recommendations:picks-candidates"),
   /** Personalized "For You" feed — per user, ranked by heuristic scoring signals. */
-  personalizedFeed: ["feed:personalized"],
+  personalizedFeed: listingKey("feed:personalized"),
 } as const satisfies Record<string, readonly string[]>;
 
 /**

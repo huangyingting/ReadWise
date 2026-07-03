@@ -30,6 +30,41 @@ export function isEditableTarget(target: EventTarget | null): boolean {
   return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable === true;
 }
 
+function hasPlatformModifier(e: KeyboardEvent): boolean {
+  return e.metaKey || e.ctrlKey;
+}
+
+function hasSuppressedModifier(e: KeyboardEvent): boolean {
+  return e.metaKey || e.ctrlKey || e.altKey;
+}
+
+function matchesShortcutKey(eventKey: string, shortcutKey: string): boolean {
+  return (
+    eventKey.toLowerCase() === shortcutKey.toLowerCase() ||
+    eventKey === shortcutKey
+  );
+}
+
+function shouldHandleShortcut(
+  e: KeyboardEvent,
+  key: string,
+  {
+    requireMeta,
+    suppressOnModifiers,
+    suppressInInput,
+  }: {
+    requireMeta: boolean;
+    suppressOnModifiers: boolean;
+    suppressInInput: boolean;
+  },
+): boolean {
+  if (requireMeta && !hasPlatformModifier(e)) return false;
+  if (suppressOnModifiers && hasSuppressedModifier(e)) return false;
+  if (!matchesShortcutKey(e.key, key)) return false;
+  if (suppressInInput && isEditableTarget(e.target)) return false;
+  return true;
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -98,12 +133,15 @@ export function useKeyboardShortcut(
     if (disabled) return;
 
     function onKeyDown(e: KeyboardEvent) {
-      if (requireMeta) {
-        if (!e.metaKey && !e.ctrlKey) return;
+      if (
+        !shouldHandleShortcut(e, key, {
+          requireMeta,
+          suppressOnModifiers,
+          suppressInInput,
+        })
+      ) {
+        return;
       }
-      if (suppressOnModifiers && (e.metaKey || e.ctrlKey || e.altKey)) return;
-      if (e.key.toLowerCase() !== key.toLowerCase() && e.key !== key) return;
-      if (suppressInInput && isEditableTarget(e.target)) return;
       handlerRef.current(e);
     }
 

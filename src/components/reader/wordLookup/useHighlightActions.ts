@@ -10,6 +10,83 @@ import type {
 import { overlapsAny } from "./highlightMarks";
 import type { SavedAnchor } from "./selectionHelpers";
 
+const CONTEXT_WINDOW_CHARS = 32;
+const MARK_PAINT_DELAY_MS = 80;
+
+type HighlightRange = {
+  startOffset: number;
+  endOffset: number;
+};
+
+function getMergedRange(
+  savedAnchor: SavedAnchor,
+  overlapping: RwHighlight[],
+): HighlightRange {
+  return {
+    startOffset: Math.min(
+      savedAnchor.startOffset,
+      ...overlapping.map((h) => h.startOffset),
+    ),
+    endOffset: Math.max(
+      savedAnchor.endOffset,
+      ...overlapping.map((h) => h.endOffset),
+    ),
+  };
+}
+
+function getFirstMergedNote(overlapping: RwHighlight[]) {
+  return (
+    overlapping
+      .filter((h) => h.note)
+      .sort((a, b) => a.startOffset - b.startOffset)[0]?.note ?? null
+  );
+}
+
+function buildSavedHighlightInput(
+  savedAnchor: SavedAnchor,
+  color: HighlightColor,
+): CreateHighlightInput {
+  const { quote, startOffset, endOffset, prefix, suffix } = savedAnchor;
+  return { quote, startOffset, endOffset, prefix, suffix, color };
+}
+
+function buildMergedHighlightInput({
+  fullText,
+  range,
+  color,
+  note,
+}: {
+  fullText: string;
+  range: HighlightRange;
+  color: HighlightColor;
+  note?: string | null;
+}): CreateHighlightInput {
+  const { startOffset, endOffset } = range;
+
+  return {
+    quote: fullText.slice(startOffset, endOffset),
+    startOffset,
+    endOffset,
+    prefix: fullText.slice(
+      Math.max(0, startOffset - CONTEXT_WINDOW_CHARS),
+      startOffset,
+    ),
+    suffix: fullText.slice(
+      endOffset,
+      Math.min(fullText.length, endOffset + CONTEXT_WINDOW_CHARS),
+    ),
+    color,
+    note: note ?? undefined,
+  };
+}
+
+async function removeHighlights(
+  highlights: RwHighlight[],
+  remove: (id: string) => Promise<void>,
+) {
+  for (const h of highlights) await remove(h.id);
+}
+
 /**
  * Provides the two highlight-creation actions used by the selection toolbar:
  * plain highlight and highlight-with-note. Both implement the same overlap-merge
@@ -31,28 +108,24 @@ export function useHighlightActions(
     async (savedAnchor: SavedAnchor, color: HighlightColor): Promise<void> => {
       const prose = proseRef.current;
       if (!prose) return;
-      const { quote, startOffset, endOffset, prefix, suffix } = savedAnchor;
+      const { startOffset, endOffset } = savedAnchor;
       const overlapping = overlapsAny(startOffset, endOffset, highlights);
       if (overlapping.length > 0) {
         const fullText = prose.textContent ?? "";
-        const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
-        const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
-        const mergedNote =
-          overlapping
-            .filter((h) => h.note)
-            .sort((a, b) => a.startOffset - b.startOffset)[0]?.note ?? null;
-        for (const h of overlapping) await remove(h.id);
-        await add({
-          quote: fullText.slice(ns, ne),
-          startOffset: ns,
-          endOffset: ne,
-          prefix: fullText.slice(Math.max(0, ns - 32), ns),
-          suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)),
-          color,
-          note: mergedNote ?? undefined,
-        });
+        const range = getMergedRange(savedAnchor, overlapping);
+        const mergedNote = getFirstMergedNote(overlapping);
+
+        await removeHighlights(overlapping, remove);
+        await add(
+          buildMergedHighlightInput({
+            fullText,
+            range,
+            color,
+            note: mergedNote,
+          }),
+        );
       } else {
-        await add({ quote, startOffset, endOffset, prefix, suffix, color });
+        await add(buildSavedHighlightInput(savedAnchor, color));
       }
     },
     [highlights, add, remove, proseRef],
@@ -71,25 +144,24 @@ export function useHighlightActions(
       onReadyForEdit: (hlId: string, markEl: HTMLElement) => void,
     ): Promise<void> => {
       const prose = proseRef.current;
-      const { quote, startOffset, endOffset, prefix, suffix } = savedAnchor;
+      const { startOffset, endOffset } = savedAnchor;
       const overlapping = overlapsAny(startOffset, endOffset, highlights);
       let newHl: RwHighlight | null = null;
 
       if (overlapping.length > 0) {
         const fullText = prose?.textContent ?? "";
-        const ns = Math.min(startOffset, ...overlapping.map((h) => h.startOffset));
-        const ne = Math.max(endOffset, ...overlapping.map((h) => h.endOffset));
-        for (const h of overlapping) await remove(h.id);
-        newHl = await add({
-          quote: fullText.slice(ns, ne),
-          startOffset: ns,
-          endOffset: ne,
-          prefix: fullText.slice(Math.max(0, ns - 32), ns),
-          suffix: fullText.slice(ne, Math.min(fullText.length, ne + 32)),
-          color,
-        });
+        const range = getMergedRange(savedAnchor, overlapping);
+
+        await removeHighlights(overlapping, remove);
+        newHl = await add(
+          buildMergedHighlightInput({
+            fullText,
+            range,
+            color,
+          }),
+        );
       } else {
-        newHl = await add({ quote, startOffset, endOffset, prefix, suffix, color });
+        newHl = await add(buildSavedHighlightInput(savedAnchor, color));
       }
 
       if (newHl) {
@@ -99,7 +171,7 @@ export function useHighlightActions(
             `mark.rw-hl[data-hl-id="${hlId}"]`,
           );
           if (markEl) onReadyForEdit(hlId, markEl);
-        }, 80);
+        }, MARK_PAINT_DELAY_MS);
       }
     },
     [highlights, add, remove, proseRef],
