@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, type KeyboardEvent } from "react";
 import { Pencil, Check, X } from "lucide-react";
 import { patchJson } from "@/lib/client-fetch";
 import { Button, IconButton, Textarea } from "@/components/ui";
@@ -12,7 +12,28 @@ interface Props {
   maxLength?: number;
 }
 
-export default function InlineNoteEditor({ highlightId, initialNote, maxLength = 2000 }: Props) {
+const NOTE_SAVE_HINT = "⌘↵ to save · Esc to cancel";
+
+function normalizeNote(draft: string): { trimmed: string; payload: string | null } {
+  const trimmed = draft.trim();
+  return { trimmed, payload: trimmed || null };
+}
+
+function queueNoteEdit(highlightId: string, note: string | null) {
+  void submitMutation({
+    type: "highlight.note",
+    endpoint: `/api/highlights/${highlightId}`,
+    method: "PATCH",
+    body: { note },
+    dedupeKey: `hl-note:${highlightId}`,
+  });
+}
+
+export default function InlineNoteEditor({
+  highlightId,
+  initialNote,
+  maxLength = 2000,
+}: Props) {
   const [note, setNote] = useState(initialNote ?? "");
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(note);
@@ -31,22 +52,18 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
   }, [note]);
 
   const save = useCallback(async () => {
-    const trimmed = draft.trim();
+    const { trimmed, payload } = normalizeNote(draft);
+    const endpoint = `/api/highlights/${highlightId}`;
+
     setSaving(true);
     try {
-      await patchJson(`/api/highlights/${highlightId}`, { note: trimmed || null });
+      await patchJson(endpoint, { note: payload });
       setNote(trimmed);
       setEditing(false);
     } catch {
       // Offline / network failure — queue the note edit and keep it locally so
       // the user's text is never lost (RW-042). Server uses last-write-wins.
-      void submitMutation({
-        type: "highlight.note",
-        endpoint: `/api/highlights/${highlightId}`,
-        method: "PATCH",
-        body: { note: trimmed || null },
-        dedupeKey: `hl-note:${highlightId}`,
-      });
+      queueNoteEdit(highlightId, payload);
       setNote(trimmed);
       setEditing(false);
     } finally {
@@ -55,7 +72,7 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
   }, [draft, highlightId]);
 
   const onKeyDown = useCallback(
-    (e: React.KeyboardEvent) => {
+    (e: KeyboardEvent) => {
       if (e.key === "Escape") cancel();
       if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) save();
     },
@@ -96,7 +113,7 @@ export default function InlineNoteEditor({ highlightId, initialNote, maxLength =
             Cancel
           </Button>
           <span className="ml-auto text-[length:var(--text-xs)] text-text-subtle">
-            ⌘↵ to save · Esc to cancel
+            {NOTE_SAVE_HINT}
           </span>
         </div>
       </div>

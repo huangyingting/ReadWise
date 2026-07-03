@@ -6,6 +6,9 @@ export type WeekBucket = {
   count: number;
 };
 
+const DAY_MS = 86_400_000;
+const WEEK_DAYS = 7;
+
 /** Percentage helper. Returns 0 for empty denominators. */
 export function percentage(
   numerator: number,
@@ -38,7 +41,7 @@ export function isoWeek(dateLike: Date): string {
   ));
   date.setUTCDate(date.getUTCDate() + 4 - (date.getUTCDay() || 7));
   const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
-  const weekNum = Math.ceil(((date.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7);
+  const weekNum = Math.ceil(((date.getTime() - yearStart.getTime()) / DAY_MS + 1) / WEEK_DAYS);
   return `${date.getUTCFullYear()}-W${String(weekNum).padStart(2, "0")}`;
 }
 
@@ -46,7 +49,7 @@ export function isoWeek(dateLike: Date): string {
 export function lastNWeeks(n: number, now: Date = new Date()): WeekBucket[] {
   const buckets: WeekBucket[] = [];
   for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 7 * 86_400_000);
+    const d = new Date(now.getTime() - i * WEEK_DAYS * DAY_MS);
     buckets.push({ week: isoWeek(d), count: 0 });
   }
   return buckets;
@@ -83,10 +86,10 @@ export function bucketize<K extends { key: string; label: string }>(
   rows: { key: string | null; count: number }[],
   spillover: { key: string; label: string } | null = { key: "other", label: "Other" },
 ): (K & { count: number })[] {
-  const countByKey = new Map<string | null, number>();
-  for (const r of rows) {
-    countByKey.set(r.key, (countByKey.get(r.key) ?? 0) + r.count);
-  }
+  const countByKey = rows.reduce((counts, row) => {
+    counts.set(row.key, (counts.get(row.key) ?? 0) + row.count);
+    return counts;
+  }, new Map<string | null, number>());
 
   const result: (K & { count: number })[] = registry.map((entry) => ({
     ...entry,
@@ -96,8 +99,8 @@ export function bucketize<K extends { key: string; label: string }>(
   if (spillover !== null) {
     const knownKeys = new Set(registry.map((e) => e.key));
     let extra = 0;
-    for (const [k, v] of countByKey) {
-      if (k === null || !knownKeys.has(k)) extra += v;
+    for (const [key, count] of countByKey) {
+      if (key === null || !knownKeys.has(key)) extra += count;
     }
     if (extra > 0) {
       result.push({ ...(spillover as K), count: extra });

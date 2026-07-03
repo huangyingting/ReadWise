@@ -18,6 +18,17 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
 registerIntegrationCleanup();
 
+const DAY_MS = 86_400_000;
+const RETENTION_DAYS = 60;
+
+function daysAgo(now: Date, days: number): Date {
+  return new Date(now.getTime() - days * DAY_MS);
+}
+
+async function countEventsForUser(userId: string): Promise<number> {
+  return prisma.analyticsEvent.count({ where: { userId } });
+}
+
 test(
   "pruneOldEvents deletes events older than the window and retains recent ones",
   { skip: !enabled },
@@ -28,30 +39,22 @@ test(
     await prisma.user.create({ data: { id: userId, name: "DB Integration Analytics Retention User" } });
 
     const now = new Date();
-    const thirtyDaysAgo = new Date(now.getTime() - 30 * 86_400_000);
-    const ninetyDaysAgo = new Date(now.getTime() - 90 * 86_400_000);
+    const thirtyDaysAgo = daysAgo(now, 30);
+    const ninetyDaysAgo = daysAgo(now, 90);
 
     await prisma.analyticsEvent.createMany({
       data: [
-        { type: "page_view", userId, occurredAt: ninetyDaysAgo }, // > 60 days → should be pruned
-        { type: "page_view", userId, occurredAt: thirtyDaysAgo }, // < 60 days → should remain
-        { type: "page_view", userId, occurredAt: now },           // now → should remain
+        { type: "page_view", userId, occurredAt: ninetyDaysAgo },
+        { type: "page_view", userId, occurredAt: thirtyDaysAgo },
+        { type: "page_view", userId, occurredAt: now },
       ],
     });
 
-    assert.equal(
-      await prisma.analyticsEvent.count({ where: { userId } }),
-      3,
-      "3 events should exist before pruning",
-    );
+    assert.equal(await countEventsForUser(userId), 3, "3 events should exist before pruning");
 
-    const deleted = await pruneOldEvents(60, prisma, now);
+    const deleted = await pruneOldEvents(RETENTION_DAYS, prisma, now);
 
     assert.equal(deleted, 1, "exactly 1 event (90-day-old) should be pruned");
-    assert.equal(
-      await prisma.analyticsEvent.count({ where: { userId } }),
-      2,
-      "2 events should remain after pruning",
-    );
+    assert.equal(await countEventsForUser(userId), 2, "2 events should remain after pruning");
   },
 );

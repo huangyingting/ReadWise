@@ -24,9 +24,16 @@ export type ResolvedTheme = "light" | "dark";
 export const THEME_STORAGE_KEY = STORAGE_KEYS.THEME;
 
 const THEME_VALUES: readonly Theme[] = ["light", "dark", "system"];
+const RESOLVED_THEME_VALUES: readonly ResolvedTheme[] = ["light", "dark"];
+const THEME_ORDER: readonly Theme[] = ["light", "dark", "system"];
+const SYSTEM_DARK_QUERY = "(prefers-color-scheme: dark)";
 
 function isTheme(value: unknown): value is Theme {
   return typeof value === "string" && (THEME_VALUES as readonly string[]).includes(value);
+}
+
+function isResolvedTheme(value: unknown): value is ResolvedTheme {
+  return typeof value === "string" && (RESOLVED_THEME_VALUES as readonly string[]).includes(value);
 }
 
 /** Read the stored theme preference; returns null when unset/invalid. */
@@ -50,7 +57,7 @@ export function getSystemTheme(): ResolvedTheme {
   if (typeof window === "undefined" || typeof window.matchMedia !== "function") {
     return "light";
   }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia(SYSTEM_DARK_QUERY).matches ? "dark" : "light";
 }
 
 /** Resolve a preference to a concrete light/dark value. */
@@ -66,7 +73,7 @@ export function resolveTheme(theme: Theme): ResolvedTheme {
 export function getActiveTheme(): ResolvedTheme {
   if (typeof document !== "undefined") {
     const attr = document.documentElement.dataset.theme;
-    if (attr === "light" || attr === "dark") return attr;
+    if (isResolvedTheme(attr)) return attr;
   }
   return resolveTheme(getThemePreference());
 }
@@ -100,9 +107,8 @@ export function setTheme(theme: Theme): void {
 
 /** Cycle Light → Dark → System → Light, persist, and return the new value. */
 export function toggleTheme(): Theme {
-  const order: Theme[] = ["light", "dark", "system"];
   const current = getThemePreference();
-  const next = order[(order.indexOf(current) + 1) % order.length];
+  const next = THEME_ORDER[(THEME_ORDER.indexOf(current) + 1) % THEME_ORDER.length];
   setTheme(next);
   return next;
 }

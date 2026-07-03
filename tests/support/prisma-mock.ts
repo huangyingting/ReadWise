@@ -20,6 +20,7 @@
 // ---------------------------------------------------------------------------
 
 type ArticleStub = { id: string } & Record<string, unknown>;
+type DelegateMap = Record<string, Record<string, unknown>>;
 
 /**
  * Build a minimal `prisma` mock whose `article` delegate returns a stub or
@@ -34,10 +35,13 @@ type ArticleStub = { id: string } & Record<string, unknown>;
 export function makeArticlePrisma(
   getExists: () => boolean,
   stub: ArticleStub = { id: "a1" },
-): { article: Record<string, unknown> } {  return {
+): { article: Record<string, unknown> } {
+  const findArticle = async () => (getExists() ? stub : null);
+
+  return {
     article: {
-      findUnique: async () => (getExists() ? stub : null),
-      findFirst: async () => (getExists() ? stub : null),
+      findUnique: findArticle,
+      findFirst: findArticle,
     },
   };
 }
@@ -62,9 +66,7 @@ export function makeArticlePrisma(
  *     },
  *   });
  */
-export function makePrisma(
-  delegates: Record<string, Record<string, unknown>>,
-): Record<string, Record<string, unknown>> {
+export function makePrisma(delegates: DelegateMap): DelegateMap {
   return delegates;
 }
 
@@ -90,7 +92,7 @@ export function makePrisma(
  *   await importArticleFromUrl({ …, deps: { db, … } });
  */
 export function makeTransactionDb(
-  delegates: Record<string, Record<string, unknown>>,
+  delegates: DelegateMap,
 ): { $transaction<R>(fn: (tx: Record<string, unknown>) => Promise<R>): Promise<R> } {
   return {
     $transaction<R>(fn: (tx: Record<string, unknown>) => Promise<R>): Promise<R> {

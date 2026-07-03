@@ -42,6 +42,21 @@ const sectionVariants = cva("w-full", {
   defaultVariants: { surface: "plain", density: "default" },
 });
 
+const sectionHeaderClasses =
+  "mb-[var(--space-4)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-start sm:justify-between";
+
+const sectionTitleBaseClasses =
+  "m-0 font-[family-name:var(--font-display)] font-semibold leading-[var(--leading-snug)] text-text";
+
+function sectionTitleClasses(density: SectionProps["density"]) {
+  return cn(
+    sectionTitleBaseClasses,
+    density === "compact"
+      ? "text-[length:var(--text-lg)]"
+      : "text-[length:var(--text-2xl)]",
+  );
+}
+
 export interface SectionProps
   extends Omit<React.HTMLAttributes<HTMLElement>, "title">,
     VariantProps<typeof sectionVariants> {
@@ -81,6 +96,7 @@ export function Section({
 }: SectionProps): React.ReactElement {
   const reactId = React.useId();
   const headingId = title ? `${reactId}-section-title` : undefined;
+  const hasHeader = title || description || actions;
 
   return (
     <section
@@ -88,33 +104,52 @@ export function Section({
       className={cn(sectionVariants({ surface, density }), className)}
       {...props}
     >
-      {title || description || actions ? (
-        <div className="mb-[var(--space-4)] flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-start sm:justify-between">
-          <div className="min-w-0">
-            {title ? (
-              <Title
-                id={headingId}
-                className={cn(
-                  "m-0 font-[family-name:var(--font-display)] font-semibold leading-[var(--leading-snug)] text-text",
-                  density === "compact"
-                    ? "text-[length:var(--text-lg)]"
-                    : "text-[length:var(--text-2xl)]",
-                )}
-              >
-                {title}
-              </Title>
-            ) : null}
-            {description ? (
-              <p className="mt-[var(--space-2)] max-w-[70ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted">
-                {description}
-              </p>
-            ) : null}
-          </div>
-          {actions ? <div className="shrink-0">{actions}</div> : null}
-        </div>
+      {hasHeader ? (
+        <SectionHeader
+          title={title}
+          description={description}
+          actions={actions}
+          Title={Title}
+          headingId={headingId}
+          density={density}
+        />
       ) : null}
       {children}
     </section>
+  );
+}
+
+function SectionHeader({
+  title,
+  description,
+  actions,
+  Title,
+  headingId,
+  density,
+}: {
+  title: React.ReactNode;
+  description: React.ReactNode;
+  actions: React.ReactNode;
+  Title: NonNullable<SectionProps["titleAs"]>;
+  headingId?: string;
+  density: SectionProps["density"];
+}) {
+  return (
+    <div className={sectionHeaderClasses}>
+      <div className="min-w-0">
+        {title ? (
+          <Title id={headingId} className={sectionTitleClasses(density)}>
+            {title}
+          </Title>
+        ) : null}
+        {description ? (
+          <p className="mt-[var(--space-2)] max-w-[70ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted">
+            {description}
+          </p>
+        ) : null}
+      </div>
+      {actions ? <div className="shrink-0">{actions}</div> : null}
+    </div>
   );
 }
 

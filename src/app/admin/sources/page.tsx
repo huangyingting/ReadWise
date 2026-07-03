@@ -11,6 +11,10 @@ import { AdminPageHeader, AdminTableWrap } from "@/components/admin";
 import { Badge, Card, CardBody } from "@/components/ui";
 import { formatDateTime } from "@/lib/display-format";
 
+type ContentSource = Awaited<ReturnType<typeof listContentSources>>[number];
+type SourceHealth = ReturnType<typeof summarizeSourceHealth>;
+type SourceRow = { source: ContentSource; health: SourceHealth };
+
 function healthBadgeVariant(
   status: SourceHealthStatus,
 ): "success" | "warning" | "danger" | "neutral" {
@@ -20,14 +24,18 @@ function healthBadgeVariant(
   return "neutral";
 }
 
+function sourceRows(sources: ContentSource[]): SourceRow[] {
+  return sources.map((source) => ({
+    source,
+    health: summarizeSourceHealth(source),
+  }));
+}
+
 export default async function AdminSourcesPage() {
   await requireCapability(CAPABILITIES.sourcesManage, "/admin/sources");
 
   const sources = await listContentSources();
-  const rows = sources.map((source) => ({
-    source,
-    health: summarizeSourceHealth(source),
-  }));
+  const rows = sourceRows(sources);
 
   return (
     <section className="stack">
@@ -42,77 +50,94 @@ export default async function AdminSourcesPage() {
       <AdminSourceSync />
 
       {rows.length === 0 ? (
-        <Card>
-          <CardBody className="mt-0">
-            <p className="m-0 text-text-muted">
-              No content sources yet. Use{" "}
-              <strong>Sync from registry</strong> to create a row per code-registry
-              provider.
-            </p>
-          </CardBody>
-        </Card>
+        <EmptySourcesState />
       ) : (
-        <AdminTableWrap ariaLabel="Content sources table (scrollable)">
-            <thead>
-              <tr>
-                <th>Provider</th>
-                <th>Health</th>
-                <th>Last crawl</th>
-                <th>Discovered / Scraped</th>
-                <th>Failed / Dupes / Rejected</th>
-                <th>State</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map(({ source, health }) => (
-                <tr key={source.id}>
-                  <td className="font-medium">
-                    {source.displayName}
-                    <div className="text-text-muted text-[length:var(--text-sm)]">
-                      {source.providerKey}
-                    </div>
-                  </td>
-                  <td>
-                    <Badge variant={healthBadgeVariant(health.status)}>
-                      {health.status}
-                    </Badge>
-                    {health.flagged && (
-                      <div className="text-danger-text text-[length:var(--text-sm)]">
-                        ⚠ needs attention
-                      </div>
-                    )}
-                    {health.reasons.length > 0 && (
-                      <div className="text-text-muted text-[length:var(--text-sm)]">
-                        {health.reasons.join("; ")}
-                      </div>
-                    )}
-                  </td>
-                  <td className="text-text-muted text-[length:var(--text-sm)]">
-                    {source.lastCrawledAt
-                      ? formatDateTime(source.lastCrawledAt)
-                      : "never"}
-                  </td>
-                  <td className="text-text-muted">
-                    {source.totalDiscovered} / {source.totalScraped}
-                    <div className="text-[length:var(--text-sm)]">
-                      last: {source.lastDiscoveryCount}
-                    </div>
-                  </td>
-                  <td className="text-text-muted text-[length:var(--text-sm)]">
-                    {source.totalFailed} / {source.totalDuplicates} /{" "}
-                    {source.totalRejected}
-                  </td>
-                  <td>
-                    <AdminSourceActions
-                      providerKey={source.providerKey}
-                      enabled={source.enabled}
-                    />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </AdminTableWrap>
+        <SourcesTable rows={rows} />
       )}
     </section>
+  );
+}
+
+function EmptySourcesState() {
+  return (
+    <Card>
+      <CardBody className="mt-0">
+        <p className="m-0 text-text-muted">
+          No content sources yet. Use <strong>Sync from registry</strong> to
+          create a row per code-registry provider.
+        </p>
+      </CardBody>
+    </Card>
+  );
+}
+
+function SourcesTable({ rows }: { rows: SourceRow[] }) {
+  return (
+    <AdminTableWrap ariaLabel="Content sources table (scrollable)">
+      <thead>
+        <tr>
+          <th>Provider</th>
+          <th>Health</th>
+          <th>Last crawl</th>
+          <th>Discovered / Scraped</th>
+          <th>Failed / Dupes / Rejected</th>
+          <th>State</th>
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map(({ source, health }) => (
+          <tr key={source.id}>
+            <td className="font-medium">
+              {source.displayName}
+              <div className="text-text-muted text-[length:var(--text-sm)]">
+                {source.providerKey}
+              </div>
+            </td>
+            <td>
+              <SourceHealthSummary health={health} />
+            </td>
+            <td className="text-text-muted text-[length:var(--text-sm)]">
+              {source.lastCrawledAt
+                ? formatDateTime(source.lastCrawledAt)
+                : "never"}
+            </td>
+            <td className="text-text-muted">
+              {source.totalDiscovered} / {source.totalScraped}
+              <div className="text-[length:var(--text-sm)]">
+                last: {source.lastDiscoveryCount}
+              </div>
+            </td>
+            <td className="text-text-muted text-[length:var(--text-sm)]">
+              {source.totalFailed} / {source.totalDuplicates} /{" "}
+              {source.totalRejected}
+            </td>
+            <td>
+              <AdminSourceActions
+                providerKey={source.providerKey}
+                enabled={source.enabled}
+              />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </AdminTableWrap>
+  );
+}
+
+function SourceHealthSummary({ health }: { health: SourceHealth }) {
+  return (
+    <>
+      <Badge variant={healthBadgeVariant(health.status)}>{health.status}</Badge>
+      {health.flagged ? (
+        <div className="text-danger-text text-[length:var(--text-sm)]">
+          ⚠ needs attention
+        </div>
+      ) : null}
+      {health.reasons.length > 0 ? (
+        <div className="text-text-muted text-[length:var(--text-sm)]">
+          {health.reasons.join("; ")}
+        </div>
+      ) : null}
+    </>
   );
 }

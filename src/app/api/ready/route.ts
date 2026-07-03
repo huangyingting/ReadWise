@@ -14,6 +14,25 @@ type MigrationRow = {
   finished_at: Date | string | null;
 };
 
+type CheckStatus = "ok" | "error";
+
+type MigrationHealth = {
+  status: CheckStatus;
+  pending: number;
+  unfinished: number;
+  unappliedNames: string[];
+};
+
+const MIGRATIONS_QUERY =
+  'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE rolled_back_at IS NULL';
+
+const FAILED_MIGRATION_HEALTH: MigrationHealth = {
+  status: "error",
+  pending: 0,
+  unfinished: 0,
+  unappliedNames: [],
+};
+
 async function listRepositoryMigrationNames(): Promise<string[]> {
   const schemaPath = prismaSchemaPath();
   const migrationDir = join(dirname(schemaPath), "migrations");
@@ -24,6 +43,35 @@ async function listRepositoryMigrationNames(): Promise<string[]> {
     .sort();
 }
 
+async function checkDatabase(): Promise<CheckStatus> {
+  try {
+    await prisma.$queryRaw`SELECT 1`;
+    return "ok";
+  } catch {
+    return "error";
+  }
+}
+
+async function checkMigrations(): Promise<MigrationHealth> {
+  try {
+    const rows = await prisma.$queryRawUnsafe<MigrationRow[]>(MIGRATIONS_QUERY);
+    const repositoryMigrations = await listRepositoryMigrationNames();
+    const trackedMigrations = new Set(rows.map((row) => row.migration_name));
+    const unfinished = rows.filter((row) => !row.finished_at).length;
+    const unappliedNames = repositoryMigrations.filter((name) => !trackedMigrations.has(name));
+    const pending = unfinished + unappliedNames.length;
+
+    return {
+      status: pending > 0 ? "error" : "ok",
+      pending,
+      unfinished,
+      unappliedNames,
+    };
+  } catch {
+    return FAILED_MIGRATION_HEALTH;
+  }
+}
+
 /**
  * GET /api/ready — readiness probe.
  * Checks only local dependencies: runtime config, DB connectivity and Prisma
@@ -32,41 +80,11 @@ async function listRepositoryMigrationNames(): Promise<string[]> {
  * features intentionally degrade gracefully. No external provider calls happen.
  */
 export const GET = createPublicHandler({}, async () => {
-  let dbStatus: "ok" | "error" = "ok";
-  let migrationStatus: "ok" | "error" = "ok";
-  let migrationPending = 0;
-  let migrationUnfinished = 0;
-  let unappliedMigrationNames: string[] = [];
-
-  try {
-    await prisma.$queryRaw`SELECT 1`;
-  } catch {
-    dbStatus = "error";
-  }
-
-  if (dbStatus === "ok") {
-    try {
-      const rows = await prisma.$queryRawUnsafe<MigrationRow[]>(
-        'SELECT migration_name, finished_at FROM "_prisma_migrations" WHERE rolled_back_at IS NULL',
-      );
-      const repositoryMigrations = await listRepositoryMigrationNames();
-      const trackedMigrations = new Set(rows.map((row) => row.migration_name));
-
-      migrationUnfinished = rows.filter((row) => !row.finished_at).length;
-      unappliedMigrationNames = repositoryMigrations.filter((name) => !trackedMigrations.has(name));
-      migrationPending = migrationUnfinished + unappliedMigrationNames.length;
-      if (migrationPending > 0) {
-        migrationStatus = "error";
-      }
-    } catch {
-      migrationStatus = "error";
-    }
-  } else {
-    migrationStatus = "error";
-  }
-
+  const dbStatus = await checkDatabase();
+  const migrationHealth =
+    dbStatus === "ok" ? await checkMigrations() : FAILED_MIGRATION_HEALTH;
   const config = validateRuntimeConfig();
-  const ready = dbStatus === "ok" && migrationStatus === "ok" && config.ready;
+  const ready = dbStatus === "ok" && migrationHealth.status === "ok" && config.ready;
 
   return NextResponse.json(
     {
@@ -74,7 +92,7 @@ export const GET = createPublicHandler({}, async () => {
       timestamp: new Date().toISOString(),
       checks: {
         db: dbStatus,
-        migrations: migrationStatus,
+        migrations: migrationHealth.status,
         config: config.ready ? "ok" : "error",
         providers: {
           ai: config.optional.ai.status,
@@ -86,10 +104,10 @@ export const GET = createPublicHandler({}, async () => {
         },
       },
       migrations: {
-        pending: migrationPending,
-        unfinished: migrationUnfinished,
-        unapplied: unappliedMigrationNames.length,
-        unappliedNames: unappliedMigrationNames,
+        pending: migrationHealth.pending,
+        unfinished: migrationHealth.unfinished,
+        unapplied: migrationHealth.unappliedNames.length,
+        unappliedNames: migrationHealth.unappliedNames,
       },
       config: {
         required: config.required,

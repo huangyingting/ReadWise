@@ -34,6 +34,9 @@ export default function ArticleVocabulary({
 }) {
   const { loading, loaded, error, fallback, items, pending, toggleSaved } =
     useArticleVocabularyPanel(articleId);
+  const showFallback = !loading && loaded && fallback;
+  const showEmpty = !loading && loaded && !fallback && items.length === 0;
+  const hasItems = items.length > 0;
 
   return (
     <div className="vocabulary-panel">
@@ -41,21 +44,21 @@ export default function ArticleVocabulary({
 
       {error ? <PanelError message={error} /> : null}
 
-      {!loading && loaded && fallback ? (
+      {showFallback ? (
         <PanelFallback
           title={t("ai.vocabulary.unavailable.title")}
           description={t("ai.vocabulary.unavailable.description")}
         />
       ) : null}
 
-      {!loading && loaded && !fallback && items.length === 0 ? (
+      {showEmpty ? (
         <PanelEmpty
           title="No vocabulary found"
           description={<>We couldn&rsquo;t pull key words from this article.</>}
         />
       ) : null}
 
-      {items.length > 0 ? (
+      {hasItems ? (
         <>
           <div className="mb-[var(--space-3)]">
             <AiBadge />
@@ -88,6 +91,11 @@ function VocabularyListItem({
   onToggle: (item: VocabularyItem) => void;
 }) {
   const tier = item.frequencyTier;
+  const pendingThisWord = pending === item.word;
+  const saveLabel = item.saved
+    ? `Remove saved word: ${item.word}`
+    : `Save word: ${item.word}`;
+
   return (
     <li className="vocabulary-item">
       <div className="vocabulary-item-main">
@@ -114,15 +122,11 @@ function VocabularyListItem({
         variant={item.saved ? "outline" : "secondary"}
         size="sm"
         onClick={() => onToggle(item)}
-        disabled={pending === item.word}
+        disabled={pendingThisWord}
         aria-pressed={item.saved}
-        aria-label={
-          item.saved
-            ? `Remove saved word: ${item.word}`
-            : `Save word: ${item.word}`
-        }
+        aria-label={saveLabel}
       >
-        {pending === item.word ? "…" : item.saved ? "✓ Saved" : "Save"}
+        {pendingThisWord ? "…" : item.saved ? "✓ Saved" : "Save"}
       </Button>
     </li>
   );

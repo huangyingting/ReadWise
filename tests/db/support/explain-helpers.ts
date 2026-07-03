@@ -14,6 +14,8 @@ import { prisma } from "@/lib/prisma";
 export type ExplainRow = { "QUERY PLAN": unknown };
 export type PlanNode = Record<string, unknown>;
 
+const EXPLAIN_PREFIX = "EXPLAIN (FORMAT JSON, COSTS OFF)";
+
 export function asPlanNodes(value: unknown): PlanNode[] {
   const parsed = typeof value === "string" ? JSON.parse(value) : value;
   if (!Array.isArray(parsed)) {
@@ -26,11 +28,13 @@ export function collectIndexNames(node: unknown, result = new Set<string>()): Se
   if (!node || typeof node !== "object") {
     return result;
   }
+
   const record = node as PlanNode;
   const indexName = record["Index Name"];
   if (typeof indexName === "string") {
     result.add(indexName);
   }
+
   const plans = record.Plans;
   if (Array.isArray(plans)) {
     for (const child of plans) {
@@ -53,26 +57,27 @@ export function indexesFromExplainRows(rows: ExplainRow[]): Set<string> {
 export async function explainIndexNames(sql: string, ...params: unknown[]): Promise<Set<string>> {
   return prisma.$transaction(async (tx) => {
     await tx.$executeRawUnsafe("SET LOCAL enable_seqscan = off");
-    const rows = await tx.$queryRawUnsafe<ExplainRow[]>(
-      `EXPLAIN (FORMAT JSON, COSTS OFF) ${sql}`,
-      ...params,
-    );
+    const rows = await tx.$queryRawUnsafe<ExplainRow[]>(`${EXPLAIN_PREFIX} ${sql}`, ...params);
     return indexesFromExplainRows(rows);
   });
 }
 
-export function assertUsesIndexes(actual: Set<string>, expected: string[]): void {
+function formatIndexList(indexes: Set<string>): string {
+  return [...indexes].sort().join(", ") || "(none)";
+}
+
+export function assertUsesIndexes(actual: Set<string>, expected: readonly string[]): void {
   for (const indexName of expected) {
     assert.ok(
       actual.has(indexName),
-      `expected plan to use ${indexName}; used indexes: ${[...actual].sort().join(", ") || "(none)"}`,
+      `expected plan to use ${indexName}; used indexes: ${formatIndexList(actual)}`,
     );
   }
 }
 
-export function assertUsesAnyIndex(actual: Set<string>, expected: string[]): void {
+export function assertUsesAnyIndex(actual: Set<string>, expected: readonly string[]): void {
   assert.ok(
     expected.some((indexName) => actual.has(indexName)),
-    `expected plan to use one of ${expected.join(", ")}; used indexes: ${[...actual].sort().join(", ") || "(none)"}`,
+    `expected plan to use one of ${expected.join(", ")}; used indexes: ${formatIndexList(actual)}`,
   );
 }

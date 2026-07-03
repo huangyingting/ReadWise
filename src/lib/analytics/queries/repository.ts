@@ -12,6 +12,15 @@ import { type EventUserStat, computeOverview, type AnalyticsOverview } from "@/l
 import { computeRetentionCohorts, startOfUtcWeek, WEEK_MS, type RetentionCohort } from "@/lib/analytics/queries/retention";
 
 type GroupClient = Pick<typeof prisma, "analyticsEvent">;
+type AnalyticsEventGroup = {
+  type: string;
+  userId: string | null;
+  _count: { _all: number };
+};
+
+const DEFAULT_RETENTION_WEEKS = 8;
+const MIN_RETENTION_WEEKS = 1;
+const MAX_RETENTION_WEEKS = 52;
 
 function buildWhere(
   range: AnalyticsTimeRange,
@@ -30,6 +39,32 @@ function buildWhere(
   return where;
 }
 
+function resolveSegment(
+  segment: AnalyticsSegment | undefined,
+  resolve: SegmentResolver,
+): Promise<string[] | null> {
+  return segment ? resolve(segment) : Promise.resolve(null);
+}
+
+function hasEmptySegment(userIds: string[] | null): boolean {
+  return userIds !== null && userIds.length === 0;
+}
+
+function toEventUserStats(rows: AnalyticsEventGroup[]): EventUserStat[] {
+  return rows.map((row) => ({
+    type: row.type,
+    userId: row.userId,
+    count: row._count._all,
+  }));
+}
+
+function clampRetentionWeeks(weeks: number | undefined): number {
+  return Math.max(
+    MIN_RETENTION_WEEKS,
+    Math.min(MAX_RETENTION_WEEKS, Math.floor(weeks ?? DEFAULT_RETENTION_WEEKS)),
+  );
+}
+
 export type OverviewOpts = AnalyticsTimeRange & {
   segment?: AnalyticsSegment;
   client?: GroupClient;
@@ -45,11 +80,11 @@ export async function getAnalyticsOverview(
 ): Promise<AnalyticsOverview & { segmentUserCount: number | null }> {
   const client = opts.client ?? prisma;
   const resolve = opts.resolveSegment ?? ((s: AnalyticsSegment) => resolveSegmentUserIds(s));
-  const userIds = opts.segment ? await resolve(opts.segment) : null;
+  const userIds = await resolveSegment(opts.segment, resolve);
 
   // A requested segment that matches nobody → empty overview (avoid `in: []`
   // scanning the whole table; just short-circuit).
-  if (userIds !== null && userIds.length === 0) {
+  if (hasEmptySegment(userIds)) {
     return { ...computeOverview([]), segmentUserCount: 0 };
   }
 
@@ -59,13 +94,8 @@ export async function getAnalyticsOverview(
     where,
     _count: { _all: true },
   });
-  const stats: EventUserStat[] = rows.map((r) => ({
-    type: r.type,
-    userId: r.userId,
-    count: r._count._all,
-  }));
   return {
-    ...computeOverview(stats),
+    ...computeOverview(toEventUserStats(rows)),
     segmentUserCount: userIds === null ? null : userIds.length,
   };
 }
@@ -89,9 +119,9 @@ export async function getRetentionCohorts(
   const client = opts.client ?? prisma;
   const resolve = opts.resolveSegment ?? ((s: AnalyticsSegment) => resolveSegmentUserIds(s));
   const now = opts.now ?? new Date();
-  const weeks = Math.max(1, Math.min(52, Math.floor(opts.weeks ?? 8)));
-  const userIds = opts.segment ? await resolve(opts.segment) : null;
-  if (userIds !== null && userIds.length === 0) {
+  const weeks = clampRetentionWeeks(opts.weeks);
+  const userIds = await resolveSegment(opts.segment, resolve);
+  if (hasEmptySegment(userIds)) {
     return computeRetentionCohorts([], { now, weeks });
   }
 

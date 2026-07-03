@@ -70,6 +70,22 @@ function loadClassifier(): BayesClassifierInstance | null {
   return cached;
 }
 
+function normalizeInputText(text: string): string {
+  return typeof text === "string" ? text.trim() : "";
+}
+
+function countWords(text: string): number {
+  return text ? text.split(/\s+/).length : 0;
+}
+
+function toClassifierResult(classifications: Classification[]): ClassifierResult {
+  const total = classifications.reduce((sum, c) => sum + (c.value || 0), 0);
+  const top = classifications[0]!;
+  const confidence = total > 0 ? top.value / total : 0;
+  const label = top.label === "ad" ? "ad" : "article";
+  return { label, confidence };
+}
+
 /**
  * Classifies `text` as genuine article prose or ad/junk copy.
  *
@@ -78,9 +94,8 @@ function loadClassifier(): BayesClassifierInstance | null {
  * throws.
  */
 export function classifyArticleText(text: string): ClassifierResult {
-  const trimmed = typeof text === "string" ? text.trim() : "";
-  const wordCount = trimmed ? trimmed.split(/\s+/).length : 0;
-  if (wordCount < CLASSIFIER_MIN_WORDS) return NEUTRAL;
+  const trimmed = normalizeInputText(text);
+  if (countWords(trimmed) < CLASSIFIER_MIN_WORDS) return NEUTRAL;
 
   const classifier = loadClassifier();
   if (!classifier) return NEUTRAL;
@@ -91,11 +106,7 @@ export function classifyArticleText(text: string): ClassifierResult {
 
     // `getClassifications` returns entries sorted best-first with raw (unnormalized)
     // likelihood values; normalize the top value into a [0, 1] confidence.
-    const total = classifications.reduce((sum, c) => sum + (c.value || 0), 0);
-    const top = classifications[0]!;
-    const confidence = total > 0 ? top.value / total : 0;
-    const label = top.label === "ad" ? "ad" : "article";
-    return { label, confidence };
+    return toClassifierResult(classifications);
   } catch {
     return NEUTRAL;
   }

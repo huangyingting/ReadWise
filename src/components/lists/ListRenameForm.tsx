@@ -13,7 +13,13 @@
  * wired to the input for screen-reader error announcements.
  */
 
-import { useState, useId } from "react";
+import {
+  useState,
+  useId,
+  type ChangeEvent,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { validateListName } from "@/lib/list-name-validation";
@@ -31,6 +37,8 @@ interface ListRenameFormProps {
   className?: string;
 }
 
+const LIST_NAME_MAX_LENGTH = 60;
+
 export function ListRenameForm({
   list,
   onSuccess,
@@ -43,8 +51,9 @@ export function ListRenameForm({
   const { rename } = useReadingListMutations();
   const errorId = useId();
   const displayError = validationError ?? rename.error;
+  const describedBy = displayError ? errorId : undefined;
 
-  async function handleSubmit(e?: React.FormEvent) {
+  async function handleSubmit(e?: FormEvent) {
     e?.preventDefault();
     const trimmed = value.trim();
 
@@ -64,6 +73,15 @@ export function ListRenameForm({
     if (ok) onSuccess();
   }
 
+  function handleValueChange(e: ChangeEvent<HTMLInputElement>) {
+    setValue(e.target.value);
+    setValidationError(null);
+  }
+
+  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>) {
+    if (e.key === "Escape") onCancel();
+  }
+
   return (
     <form
       onSubmit={(e) => void handleSubmit(e)}
@@ -72,21 +90,19 @@ export function ListRenameForm({
       <Input
         inputSize="sm"
         value={value}
-        maxLength={60}
+        maxLength={LIST_NAME_MAX_LENGTH}
         autoFocus={autoFocus}
-        onChange={(e) => {
-          setValue(e.target.value);
-          setValidationError(null);
-        }}
-        onKeyDown={(e) => {
-          if (e.key === "Escape") onCancel();
-        }}
+        onChange={handleValueChange}
+        onKeyDown={handleKeyDown}
         aria-label={`Rename ${list.name}`}
-        aria-describedby={displayError ? errorId : undefined}
-        invalid={displayError ? true : false}
+        aria-describedby={describedBy}
+        invalid={Boolean(displayError)}
       />
       {displayError ? (
-        <p id={errorId} className="text-[length:var(--text-xs)] text-danger-text m-0">
+        <p
+          id={errorId}
+          className="text-[length:var(--text-xs)] text-danger-text m-0"
+        >
           {displayError}
         </p>
       ) : null}

@@ -22,6 +22,12 @@ const textLinkClasses = cn(
   focusRing,
 );
 
+const backHomeLinkClasses = cn(
+  "inline-flex items-center gap-[var(--space-1)] rounded-[var(--radius-xs)] text-text-subtle text-[length:var(--text-sm)] no-underline transition-colors",
+  "[transition-duration:var(--duration-fast)] hover:text-text hover:underline",
+  focusRing,
+);
+
 export default async function SignInPage({
   searchParams,
 }: {
@@ -45,80 +51,94 @@ export default async function SignInPage({
 
   return (
     <main className="flex min-h-[100dvh] flex-col bg-bg">
-      {/* Minimal top bar */}
-      <PageShell
-        variant="listing"
-        density="compact"
-        className="flex min-h-[var(--marketing-header-h)] items-center justify-between px-[var(--space-6)] py-0"
-      >
-        <Wordmark />
-        <ThemeToggle />
-      </PageShell>
+      <AuthTopBar />
 
-      {/* Centered auth region */}
       <div className="flex-1 grid place-items-center px-[var(--space-4)] py-[var(--space-10)]">
         <Card className="w-full max-w-[400px] rw-fade-up">
           <Stack gap="5">
-            {/* Brand mark + heading */}
-            <Stack gap="2" align="center" className="text-center">
-              <AppWordmark size="large" />
-              <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] leading-[var(--leading-snug)] text-text">
-                Sign in to ReadWise
-              </h1>
-              <p className="text-text-muted text-[length:var(--text-base)]">
-                Read real news at your level — with instant translation,
-                vocabulary, and narration.
-              </p>
-            </Stack>
+            <SignInIntro />
 
-            {/* Error banner */}
-            {errorMessage && (
-              <div
-                role="alert"
-                className="flex items-start gap-[var(--space-2)] text-danger-text text-[length:var(--text-sm)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_28%,transparent)] rounded-[var(--radius-md)] p-[var(--space-3)]"
-              >
-                <AlertTriangle
-                  size={16}
-                  aria-hidden
-                  className="shrink-0 translate-y-[calc(var(--space-1)/4)]"
-                />
-                <span>{errorMessage}</span>
-              </div>
-            )}
+            {errorMessage ? <SignInErrorBanner message={errorMessage} /> : null}
 
-            {/* Provider buttons */}
             <SignInButtons providers={providers} callbackUrl={safeCallback} />
 
-            {/* Terms / Privacy disclosure */}
-            <p className="text-center text-text-subtle text-[length:var(--text-xs)] leading-[var(--leading-normal)]">
-              By continuing, you agree to our{" "}
-              <Link href="/terms" className={textLinkClasses}>
-                Terms
-              </Link>{" "}
-              and{" "}
-              <Link href="/privacy" className={textLinkClasses}>
-                Privacy Policy
-              </Link>
-              .
-            </p>
+            <LegalDisclosure />
 
-            {/* Back to home */}
-            <div className="text-center">
-              <Link
-                href="/"
-                className={cn(
-                  "inline-flex items-center gap-[var(--space-1)] rounded-[var(--radius-xs)] text-text-subtle text-[length:var(--text-sm)] no-underline transition-colors",
-                  "[transition-duration:var(--duration-fast)] hover:text-text hover:underline",
-                  focusRing,
-                )}
-              >
-                <ArrowLeft size={14} aria-hidden />
-                Back to home
-              </Link>
-            </div>
+            <BackHomeLink />
           </Stack>
         </Card>
       </div>
     </main>
+  );
+}
+
+function AuthTopBar() {
+  return (
+    <PageShell
+      variant="listing"
+      density="compact"
+      className="flex min-h-[var(--marketing-header-h)] items-center justify-between px-[var(--space-6)] py-0"
+    >
+      <Wordmark />
+      <ThemeToggle />
+    </PageShell>
+  );
+}
+
+function SignInIntro() {
+  return (
+    <Stack gap="2" align="center" className="text-center">
+      <AppWordmark size="large" />
+      <h1 className="font-[family-name:var(--font-display)] font-bold text-[length:var(--text-2xl)] leading-[var(--leading-snug)] text-text">
+        Sign in to ReadWise
+      </h1>
+      <p className="text-text-muted text-[length:var(--text-base)]">
+        Read real news at your level — with instant translation, vocabulary, and
+        narration.
+      </p>
+    </Stack>
+  );
+}
+
+function SignInErrorBanner({ message }: { message: string }) {
+  return (
+    <div
+      role="alert"
+      className="flex items-start gap-[var(--space-2)] text-danger-text text-[length:var(--text-sm)] bg-[color-mix(in_srgb,var(--danger)_10%,transparent)] border border-[color-mix(in_srgb,var(--danger)_28%,transparent)] rounded-[var(--radius-md)] p-[var(--space-3)]"
+    >
+      <AlertTriangle
+        size={16}
+        aria-hidden
+        className="shrink-0 translate-y-[calc(var(--space-1)/4)]"
+      />
+      <span>{message}</span>
+    </div>
+  );
+}
+
+function LegalDisclosure() {
+  return (
+    <p className="text-center text-text-subtle text-[length:var(--text-xs)] leading-[var(--leading-normal)]">
+      By continuing, you agree to our{" "}
+      <Link href="/terms" className={textLinkClasses}>
+        Terms
+      </Link>{" "}
+      and{" "}
+      <Link href="/privacy" className={textLinkClasses}>
+        Privacy Policy
+      </Link>
+      .
+    </p>
+  );
+}
+
+function BackHomeLink() {
+  return (
+    <div className="text-center">
+      <Link href="/" className={backHomeLinkClasses}>
+        <ArrowLeft size={14} aria-hidden />
+        Back to home
+      </Link>
+    </div>
   );
 }
