@@ -10,10 +10,17 @@ import { NextResponse } from "next/server";
 
 export type { AuthResult };
 
+const UNAUTHORIZED_ERROR = "Unauthorized";
+const FORBIDDEN_ERROR = "Forbidden";
+
+function apiError(message: string, status: number): NextResponse {
+  return NextResponse.json({ error: message }, { status });
+}
+
 export async function requireSessionApi(): Promise<AuthResult> {
   const session = await loadSession();
   if (!session) {
-    return { error: NextResponse.json({ error: "Unauthorized" }, { status: 401 }) };
+    return { error: apiError(UNAUTHORIZED_ERROR, 401) };
   }
   return { session };
 }
@@ -33,9 +40,8 @@ export async function requireCapabilityApi(
   if (!sessionHasCapability(result.session, capability)) {
     return {
       session: result.session,
-      error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
+      error: apiError(FORBIDDEN_ERROR, 403),
     };
   }
   return result;
 }
-

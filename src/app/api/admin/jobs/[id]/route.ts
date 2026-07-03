@@ -13,6 +13,28 @@ const AUDIT_ACTION_FOR: Record<JobActionName, string> = {
   archive: AUDIT_ACTIONS.adminJobArchive,
 };
 
+type SuccessfulJobActionResult = Extract<
+  Awaited<ReturnType<typeof runJobAction>>,
+  { ok: true }
+>;
+
+function auditMetadataFor(result: SuccessfulJobActionResult) {
+  return {
+    action: result.action,
+    previousStatus: result.previousStatus,
+    type: result.job.type,
+    status: result.job.status,
+  };
+}
+
+function actionResponseFor(result: SuccessfulJobActionResult) {
+  return {
+    ok: true,
+    action: result.action,
+    job: { id: result.job.id, status: result.job.status, type: result.job.type },
+  };
+}
+
 export const POST = createAdminHandler(
   { params: idParams, body: actionBody },
   async ({ req, params, body, session, requestId }) => {
@@ -25,17 +47,8 @@ export const POST = createAdminHandler(
       action: AUDIT_ACTION_FOR[body.action],
       targetType: "job",
       targetId: params.id,
-      metadata: {
-        action: result.action,
-        previousStatus: result.previousStatus,
-        type: result.job.type,
-        status: result.job.status,
-      },
+      metadata: auditMetadataFor(result),
     });
-    return NextResponse.json({
-      ok: true,
-      action: result.action,
-      job: { id: result.job.id, status: result.job.status, type: result.job.type },
-    });
+    return NextResponse.json(actionResponseFor(result));
   },
 );

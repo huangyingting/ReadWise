@@ -6,6 +6,17 @@ import { updateArticleMastery } from "@/lib/learning/article-mastery";
 import { clampActiveTime } from "@/lib/engagement/reading-speed";
 import { readingTimeBody } from "@/lib/reader/schemas";
 
+function readingTimeJson(timeSpentMs: number | null) {
+  return NextResponse.json({ timeSpentMs });
+}
+
+async function accumulateReadingTime(userId: string, articleId: string, activeMs: number) {
+  return updateArticleMastery(userId, articleId, {
+    timeSpentMs: clampActiveTime(activeMs),
+    accumulateTime: true,
+  });
+}
+
 /**
  * POST /api/reader/[id]/reading-time (#378)
  *
@@ -24,16 +35,7 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     await requireReadableArticle(params.id, session.user);
 
-    // Belt-and-suspenders clamp (schema already enforces max, but be explicit).
-    const deltaMs = clampActiveTime(body.activeMs);
-
-    const mastery = await updateArticleMastery(session.user.id, params.id, {
-      timeSpentMs: deltaMs,
-      accumulateTime: true,
-    });
-
-    return NextResponse.json({
-      timeSpentMs: mastery?.timeSpentMs ?? null,
-    });
+    const mastery = await accumulateReadingTime(session.user.id, params.id, body.activeMs);
+    return readingTimeJson(mastery?.timeSpentMs ?? null);
   },
 );

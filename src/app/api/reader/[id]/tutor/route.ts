@@ -5,11 +5,24 @@ import { getTutorMessages, askTutor, clearTutor } from "@/lib/ai/tutor";
 import { requireReadableArticle, requireReadableArticleForAI } from "@/lib/reader/route-guard";
 import { tutorBody } from "@/lib/reader/schemas";
 
+const ARTICLE_NOT_FOUND = "Article not found";
+
+function tutorMessagesJson(messages: Awaited<ReturnType<typeof getTutorMessages>>) {
+  return NextResponse.json({ messages });
+}
+
+function tutorResultJson(result: Awaited<ReturnType<typeof askTutor>>) {
+  if (!result) {
+    throw new ApiError(404, ARTICLE_NOT_FOUND);
+  }
+  return NextResponse.json(result);
+}
+
 /** GET /api/reader/[id]/tutor — returns the user's conversation for this article. */
 export const GET = createHandler({ params: idParams }, async ({ params, session }) => {
   await requireReadableArticle(params.id, session.user);
   const messages = await getTutorMessages(session.user.id, params.id);
-  return NextResponse.json({ messages });
+  return tutorMessagesJson(messages);
 });
 
 /**
@@ -23,10 +36,7 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     const { context } = await requireReadableArticleForAI(params.id, session.user);
     const result = await askTutor(session.user.id, params.id, body.question, context, body.paragraphContext);
-    if (!result) {
-      throw new ApiError(404, "Article not found");
-    }
-    return NextResponse.json(result);
+    return tutorResultJson(result);
   },
 );
 

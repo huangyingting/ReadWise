@@ -1,14 +1,32 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, optional, string, oneOf } from "@/lib/validation";
-import { createContentReport, REPORT_REASONS } from "@/lib/moderation/reports";
+import {
+  createContentReport,
+  REPORT_REASONS,
+  type CreateContentReportResult,
+} from "@/lib/moderation/reports";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
+
+type ReportReason = (typeof REPORT_REASONS)[number];
 
 const reportBody = object({
   articleId: nonEmptyString(200),
   reason: oneOf(REPORT_REASONS),
   note: optional(string({ max: 500 })),
 });
+
+function throwIfReportFailed(
+  result: CreateContentReportResult,
+): asserts result is Extract<CreateContentReportResult, { ok: true }> {
+  if (!result.ok) {
+    throw new ApiError(result.status, result.error);
+  }
+}
+
+function reportAuditMetadata(reason: ReportReason) {
+  return { reason };
+}
 
 /**
  * POST /api/reports — authenticated user submits a content report.
@@ -23,9 +41,7 @@ export const POST = createHandler({ body: reportBody }, async ({ req, body, sess
     note: body.note ?? null,
   });
 
-  if (!result.ok) {
-    throw new ApiError(result.status, result.error);
-  }
+  throwIfReportFailed(result);
 
   await recordAuditFromRequest({
     req,
@@ -34,7 +50,7 @@ export const POST = createHandler({ body: reportBody }, async ({ req, body, sess
     action: AUDIT_ACTIONS.userContentReport,
     targetType: "article",
     targetId: body.articleId,
-    metadata: { reason: body.reason },
+    metadata: reportAuditMetadata(body.reason),
   });
 
   return NextResponse.json({ ok: true, reportId: result.reportId }, { status: 201 });

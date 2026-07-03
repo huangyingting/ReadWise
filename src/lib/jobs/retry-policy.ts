@@ -4,6 +4,10 @@
 import { JobType } from "@prisma/client";
 import { jitteredExponentialBackoff } from "@/lib/backoff";
 
+const MINUTE_MS = 60 * 1000;
+const FIVE_MINUTES_MS = 5 * MINUTE_MS;
+const TEN_MINUTES_MS = 10 * MINUTE_MS;
+
 export type RetryPolicy = {
   /** Total attempts allowed before dead-lettering (1 = no retries). */
   maxAttempts: number;
@@ -16,16 +20,24 @@ export type RetryPolicy = {
 export const DEFAULT_RETRY_POLICY: RetryPolicy = {
   maxAttempts: 5,
   baseBackoffMs: 1000,
-  maxBackoffMs: 5 * 60 * 1000,
+  maxBackoffMs: FIVE_MINUTES_MS,
 };
+
+function retryPolicy(
+  maxAttempts: number,
+  baseBackoffMs: number,
+  maxBackoffMs: number,
+): RetryPolicy {
+  return { maxAttempts, baseBackoffMs, maxBackoffMs };
+}
 
 /** Per-job-type retry policies. Tunes attempt limits + backoff per workload. */
 export const RETRY_POLICIES: Record<JobType, RetryPolicy> = {
-  [JobType.ARTICLE_INGEST]: { maxAttempts: 5, baseBackoffMs: 2000, maxBackoffMs: 5 * 60 * 1000 },
-  [JobType.ARTICLE_PROCESS]: { maxAttempts: 5, baseBackoffMs: 2000, maxBackoffMs: 5 * 60 * 1000 },
-  [JobType.AI_REBUILD]: { maxAttempts: 4, baseBackoffMs: 5000, maxBackoffMs: 10 * 60 * 1000 },
-  [JobType.TTS_GENERATE]: { maxAttempts: 3, baseBackoffMs: 5000, maxBackoffMs: 10 * 60 * 1000 },
-  [JobType.PUSH_REMINDER]: { maxAttempts: 3, baseBackoffMs: 1000, maxBackoffMs: 60 * 1000 },
+  [JobType.ARTICLE_INGEST]: retryPolicy(5, 2000, FIVE_MINUTES_MS),
+  [JobType.ARTICLE_PROCESS]: retryPolicy(5, 2000, FIVE_MINUTES_MS),
+  [JobType.AI_REBUILD]: retryPolicy(4, 5000, TEN_MINUTES_MS),
+  [JobType.TTS_GENERATE]: retryPolicy(3, 5000, TEN_MINUTES_MS),
+  [JobType.PUSH_REMINDER]: retryPolicy(3, 1000, MINUTE_MS),
 };
 
 export function retryPolicyFor(type: JobType): RetryPolicy {
