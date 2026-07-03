@@ -77,6 +77,37 @@ test("extractArticle parses JSON-LD article into a cleaned record", () => {
   assert.equal(result?.publishedAt?.toISOString(), "2026-01-02T10:00:00.000Z");
 });
 
+test("extractArticle uses JSON-LD breadcrumb section when articleSection is absent", () => {
+  const ld = {
+    "@type": "NewsArticle",
+    headline: "Hidden Heart Signals",
+    mainEntityOfPage: {
+      "@type": "WebPage",
+      breadcrumb: {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          { "@type": "ListItem", position: 1, name: "Heart disease" },
+          { "@type": "ListItem", position: 2, name: "Hidden Heart Signals" },
+        ],
+      },
+    },
+    author: { name: "Sam Reporter" },
+    articleBody: Array.from({ length: 80 }, () => "cardiology").join(" "),
+  };
+  const html =
+    `<html><head><title>Fallback</title>` +
+    `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
+    `</head><body></body></html>`;
+  const result = extractArticle(
+    html,
+    "https://www.scientificamerican.com/article/hidden-heart-signals/",
+  );
+
+  assert.ok(result);
+  assert.equal(result?.source, "Scientific American");
+  assert.equal(result?.category, "health");
+});
+
 test("extractArticle rejects bodies under 50 words", () => {
   const html =
     "<html><head><title>Tiny</title></head><body><article>" +
