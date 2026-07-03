@@ -52,3 +52,16 @@ test("normalizeDatabaseUrl accepts Prisma URLs and normalizes file paths", () =>
     `file:${path.resolve(process.cwd(), "prisma/natgeo-scrape.db")}`,
   );
 });
+
+test("scrape-review takes the Postgres client branch for Postgres URLs", async () => {
+  const { __scrapeReviewTest } = await import("../scripts/scrape-review");
+  assert.throws(
+    () => __scrapeReviewTest.createPrismaClient("postgresql://user:pass@localhost:5432/readwise?schema=review"),
+    /adapter-pg|provider `sqlite`/,
+  );
+});
+
+test("scrape-review main detection returns false for invalid import URLs", async () => {
+  const { __scrapeReviewTest } = await import("../scripts/scrape-review");
+  assert.equal(__scrapeReviewTest.isMain("not a file url"), false);
+});

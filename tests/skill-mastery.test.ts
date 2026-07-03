@@ -89,6 +89,45 @@ test("subsequent evidence blends in via an EMA (moves toward new outcomes)", asy
   assert.equal(rec!.evidenceCount, 2);
 });
 
+test("recent evidence parsing ignores malformed JSON from older rows", async () => {
+  const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
+  skillStore.set(keyOf("u1", "reading"), {
+    userId: "u1",
+    skill: "reading",
+    confidence: 0.5,
+    evidenceCount: 1,
+    recentEvidence: "{not json",
+  });
+
+  await recordSkillEvidence("u1", "reading", 0.7);
+
+  const stored = skillStore.get(keyOf("u1", "reading"))!;
+  assert.equal((stored.recentEvidence as unknown[]).length, 1);
+});
+
+test("recent evidence parsing drops entries without numeric outcomes", async () => {
+  const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
+  skillStore.set(keyOf("u1", "reading"), {
+    userId: "u1",
+    skill: "reading",
+    confidence: 0.5,
+    evidenceCount: 1,
+    recentEvidence: JSON.stringify([
+      { outcome: 0.4, weight: 2, at: "2026-01-01T00:00:00.000Z" },
+      { outcome: "bad", weight: 1 },
+      null,
+    ]),
+  });
+
+  await recordSkillEvidence("u1", "reading", 0.7);
+
+  const stored = skillStore.get(keyOf("u1", "reading"))!;
+  assert.deepEqual(
+    (stored.recentEvidence as Array<{ outcome: number }>).map((item) => item.outcome),
+    [0.7, 0.4],
+  );
+});
+
 test("an unknown skill name is ignored (returns null)", async () => {
   const { recordSkillEvidence } = await import("@/lib/learning/skill-mastery");
   // @ts-expect-error intentionally invalid skill

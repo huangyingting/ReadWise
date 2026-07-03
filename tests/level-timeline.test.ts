@@ -5,7 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { levelRank } from "@/lib/leveling/cefr-primitives";
+import { levelRank, levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
 
 // ---- ENGLISH_LEVELS ordering ────────────────────────────────────────────
 
@@ -29,6 +29,11 @@ test("levelRank: C2 is rank 5", () => {
 
 test("levelRank: unknown level returns -1", () => {
   assert.equal(levelRank("ZZ"), -1);
+});
+
+test("levelsAtOrBelow returns an empty list for unknown levels", () => {
+  // @ts-expect-error exercising defensive runtime guard for invalid input
+  assert.deepEqual(levelsAtOrBelow("ZZ"), []);
 });
 
 // ---- level progression derivation helpers ─────────────────────────────

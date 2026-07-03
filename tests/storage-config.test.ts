@@ -132,6 +132,12 @@ test("storage reports degraded for removed database backend kind", () => {
   assert.equal(cfg.ready, true);
 });
 
+test("mediaStorageKind maps removed database backend to local fallback", async () => {
+  const { mediaStorageKind } = await import("@/lib/runtime-config/storage");
+  process.env.MEDIA_STORAGE = "database";
+  assert.equal(mediaStorageKind(), "local");
+});
+
 test("readiness probe includes storage in providers section", () => {
   const cfg = validateRuntimeConfig();
   assert.ok("storage" in cfg.optional, "optional should include storage check");

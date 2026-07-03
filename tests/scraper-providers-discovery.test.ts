@@ -42,6 +42,19 @@ test("BBC article URL helper rejects live/chrome URLs and category rules map sec
   assert.equal(bbc.categoryFor?.(new URL("https://www.bbc.com/news/articles/c1"), "Technology"), "tech");
 });
 
+test("small news provider filters reject non-article fallback paths", async () => {
+  const huffpost = (await import("@/lib/scraper/providers/huffpost")).default;
+  const nbc = (await import("@/lib/scraper/providers/nbc")).default;
+  const time = (await import("@/lib/scraper/providers/time")).default;
+
+  assert.equal(huffpost.articleUrlFilter?.("https://www.huffpost.com/video/news-clip"), false);
+  assert.equal(huffpost.articleUrlFilter?.("https://www.huffpost.com/entry/world-news-story"), true);
+  assert.equal(nbc.articleUrlFilter?.("https://www.nbcnews.com/video/story-rcna12345"), false);
+  assert.equal(nbc.articleUrlFilter?.("https://www.nbcnews.com/world/story-rcna12345"), true);
+  assert.equal(time.articleUrlFilter?.("https://time.com/collection/time100/"), false);
+  assert.equal(time.articleUrlFilter?.("https://time.com/1234567/story-slug/"), true);
+});
+
 test("ProPublica extractor sorts daily sitemaps, skips bad children, and degrades on root failure", async () => {
   const propublica = (await import("@/lib/scraper/providers/propublica")).default;
   assert.ok(propublica.urlExtractor);

@@ -190,6 +190,108 @@ export const POST = createHandler(
 `,
   );
   addRoute(
+    "static-edges",
+    `
+import { NextResponse } from "next/server";
+import { createHandler } from "@/lib/api-handler";
+import { object, string } from "@/lib/validation";
+
+const ACCEPTED = 202;
+const NO_STATUS_INIT = {
+  headers: {
+    "x-test": "yes",
+  },
+} as const;
+const RESPONSE_PAYLOAD = {
+  beta: "quoted string should not create keys",
+  gamma
+};
+const opaqueSchema = customBody();
+
+function typedResponse /* block comment before type params */ <T extends Record<\`kind-\${string}\`, {
+  // generic line comment
+  ok?: true
+  /* generic block comment */
+}>>
+  // line comment before params
+  (value: T): "ok" | { ok?: true } & Api.Result<"done"> {
+  return NextResponse.json({ typed: true, value });
+}
+
+const arrowBlockResponse = () => {
+  return NextResponse.json({ arrow: true }, { status: ACCEPTED });
+};
+
+function makePayload() {
+  return {
+    made: true,
+    nested: { ignored: true },
+  };
+}
+
+function textParam(params, name) {
+  return params.get(name);
+}
+
+function parseForwarded(params) {
+  return { ok: true, value: { topic: textParam(params, "topic") } };
+}
+
+export const GET = createHandler({
+  // query comment
+  query: parseForwarded,
+}, async () => {
+  return arrowBlockResponse();
+});
+
+export const POST = createHandler({
+  /* body comment */
+  body: object({
+    /* block comment */
+    label: string({ example: "not a key: value" }),
+    count,
+    // line comment
+    status
+  }) /* trailing body comment */,
+}, async () => {
+  const gamma = "g";
+  return NextResponse.json(RESPONSE_PAYLOAD);
+});
+
+export const PUT = createHandler({
+  body: opaqueSchema,
+}, async () => {
+  return NextResponse.json(makePayload(), { ...NO_STATUS_INIT });
+});
+
+export const DELETE = createHandler({}, async () => {
+  return NextResponse.json({
+    // response line comment
+    ok: true,
+    /* response block comment */
+    message: "quoted string, with comma",
+    shorthand
+  } /* payload comment */, /* init comment */ buildInit());
+});
+
+export const HEAD = createHandler({}, async () => {
+  return typedResponse({ kind: "created" });
+});
+
+export const OPTIONS = createHandler({}, async () => {
+  return NextResponse.json(items.map((item) => item));
+});
+
+export const PATCH = createHandler({}, async () => {
+  return noImplementation();
+});
+
+function noImplementation(value): MaybeType?!!*
+
+function brokenGeneric<T extends Record<"missing", { value: string }>(
+`,
+  );
+  addRoute(
     "broken",
     `
 import { createHandler } from "@/lib/api-handler";
@@ -276,6 +378,29 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
     "seedLevel",
   ]);
 
+  const staticEdges = findRoute(catalog, "/api/static-edges");
+  const staticGet = staticEdges?.methods.find((method) => method.method === "GET");
+  assert.equal(staticGet?.successStatus, 202);
+  assert.deepEqual(staticGet?.queryParamNames, ["topic"]);
+  assert.deepEqual(staticGet?.responseKeys, ["arrow"]);
+
+  const staticPost = staticEdges?.methods.find((method) => method.method === "POST");
+  assert.deepEqual(staticPost?.bodyFieldNames, ["count", "label", "status"]);
+  assert.deepEqual(staticPost?.responseKeys, ["beta", "gamma"]);
+
+  const staticPut = staticEdges?.methods.find((method) => method.method === "PUT");
+  assert.equal(staticPut?.successStatus, 200);
+  assert.equal(staticPut?.hasBodySchema, true);
+  assert.equal(staticPut?.bodyFieldNames, null);
+  assert.deepEqual(staticPut?.responseKeys, ["made", "nested"]);
+
+  const staticDelete = staticEdges?.methods.find((method) => method.method === "DELETE");
+  assert.equal(staticDelete?.successStatus, 200);
+  assert.deepEqual(staticDelete?.responseKeys, ["message", "ok", "shorthand"]);
+
+  const staticHead = staticEdges?.methods.find((method) => method.method === "HEAD");
+  assert.deepEqual(staticHead?.responseKeys, ["typed", "value"]);
+
   const markdown = buildCatalogMarkdown({
     ...catalog,
     generatedAt: "2026-07-01T20:00:00.000Z",
@@ -286,4 +411,30 @@ test("api catalog parses synthetic routes and renders markdown summaries", async
   assert.match(markdown, /Contract highlights/);
   assert.match(markdown, /\/api\/demo/);
   assert.match(markdown, /JSON download/);
+
+  const jsonOnlyMarkdown = buildCatalogMarkdown({
+    generatedAt: "2026-07-01T20:00:00.000Z",
+    routeCount: 1,
+    methodCount: 1,
+    routes: [{
+      path: "/api/json-only",
+      file: "src/app/api/json-only/route.ts",
+      runtime: "default",
+      methods: [{
+        method: "GET",
+        authMode: "session",
+        capability: null,
+        hasBodySchema: false,
+        hasParamsSchema: false,
+        hasQuerySchema: false,
+        responseFormat: "json",
+        notes: [],
+        successStatus: 200,
+        responseKeys: null,
+        queryParamNames: null,
+        bodyFieldNames: null,
+      }],
+    }],
+  });
+  assert.match(jsonOnlyMarkdown, /_\(none detected\)_/);
 });
