@@ -305,6 +305,85 @@ test("National Geographic extractor skips unavailable sitemaps without aborting 
   assert.deepEqual(childDown, []);
 });
 
+test("Scientific American extractor reads paginated article sitemaps and maps breadcrumb sections", async () => {
+  const provider = (await import("@/lib/scraper/providers/scientificamerican")).default;
+  assert.ok(provider.urlExtractor);
+
+  const first = "https://www.scientificamerican.com/article/space-story/";
+  const second = "https://www.scientificamerican.com/article/ai-health-story/";
+  const result = await provider.urlExtractor({
+    limit: 3,
+    fetch: async (url) => {
+      if (url === "https://www.scientificamerican.com/platform/syndication/sitemaps/") {
+        return sitemap([
+          "https://www.scientificamerican.com/platform/syndication/sitemaps/articles/",
+          "https://www.scientificamerican.com/platform/syndication/sitemaps/articles/?p=2",
+          "https://www.scientificamerican.com/platform/syndication/sitemaps/authors/",
+        ]);
+      }
+      if (url === "https://www.scientificamerican.com/platform/syndication/sitemaps/articles/") {
+        return sitemap([first, "https://www.scientificamerican.com/author/jane-reporter/"]);
+      }
+      if (url === "https://www.scientificamerican.com/platform/syndication/sitemaps/articles/?p=2") {
+        return sitemap([second, second]);
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+
+  assert.deepEqual(result, [first, second]);
+  assert.equal(provider.articleUrlFilter?.("https://www.scientificamerican.com/sponsored/example/"), false);
+  assert.equal(provider.articleUrlPattern.test("https://www.scientificamerican.com/article/space-story/"), true);
+  assert.equal(
+    provider.categoryFor?.(new URL("https://www.scientificamerican.com/article/ai-health-story/"), "Heart disease"),
+    "health",
+  );
+  assert.ok(
+    provider.seeds.includes("https://www.scientificamerican.com/space-and-physics/"),
+    "expanded seeds should include major science verticals",
+  );
+  assert.ok(
+    provider.seeds.includes("https://www.scientificamerican.com/artificial-intelligence/"),
+    "expanded seeds should include topic pages from the category sitemap",
+  );
+  assert.equal(
+    provider.categoryFor?.(
+      new URL("https://www.scientificamerican.com/article/science-policy-story/"),
+      "Social Justice",
+    ),
+    "politics",
+  );
+  assert.equal(
+    provider.categoryFor?.(
+      new URL("https://www.scientificamerican.com/article/social-sciences-story/"),
+      "Social sciences",
+    ),
+    "culture",
+  );
+});
+
+test("Scientific American extractor falls back to expanded topic seeds", async () => {
+  const provider = (await import("@/lib/scraper/providers/scientificamerican")).default;
+  assert.ok(provider.urlExtractor);
+
+  const first = "https://www.scientificamerican.com/article/topic-fallback-one/";
+  const second = "https://www.scientificamerican.com/article/topic-fallback-two/";
+  const result = await provider.urlExtractor({
+    limit: 1,
+    fetch: async (url) => {
+      if (url === "https://www.scientificamerican.com/platform/syndication/sitemaps/") {
+        throw new Error("sitemap unavailable");
+      }
+      if (url === provider.seeds[0]) {
+        return `<a href="${first}?ref=nav#comments">One</a><a href="/article/topic-fallback-two/">Two</a>`;
+      }
+      throw new Error(`unexpected fetch ${url}`);
+    },
+  });
+
+  assert.deepEqual(result, [first, second]);
+});
+
 test("Smithsonian extractor respects year/category archive filters and pagination failures", async () => {
   const { createSmithsonianUrlExtractor } = await import("@/lib/scraper/providers/smithsonian");
   const extractor = createSmithsonianUrlExtractor({

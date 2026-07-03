@@ -178,6 +178,22 @@ function jsonLdImage(value: unknown): string | null {
   return null;
 }
 
+function jsonLdBreadcrumbSection(value: unknown): string | null {
+  if (!value || typeof value !== "object") return null;
+  const items = (value as JsonLdRecord).itemListElement;
+  if (!Array.isArray(items)) return null;
+
+  const names = items
+    .map((item) => {
+      if (!item || typeof item !== "object") return null;
+      const name = (item as JsonLdRecord).name;
+      return typeof name === "string" ? name.trim() || null : null;
+    })
+    .filter((name): name is string => Boolean(name));
+
+  return names.length > 1 ? names[0] : null;
+}
+
 function titleTagContent(html: string): string | null {
   const match = html.match(/<title[^>]*>([\s\S]*?)<\/title>/i);
   return match?.[1] ? decodeEntities(match[1]).trim() : null;
@@ -553,6 +569,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
 
   const section =
     (ld && jsonLdString(ld.articleSection)) ??
+    (ld && jsonLdBreadcrumbSection((ld.mainEntityOfPage as JsonLdRecord | undefined)?.breadcrumb)) ??
     metaContent(cleanedHtml, "article:section") ??
     metaContent(cleanedHtml, "og:article:section") ??
     metaContent(cleanedHtml, "parsely-section") ??

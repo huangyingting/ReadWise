@@ -33,6 +33,7 @@ import undark from "./undark";
 import theconversation from "./theconversation";
 import propublica from "./propublica";
 import grist from "./grist";
+import scientificamerican from "./scientificamerican";
 
 export const PROVIDERS: readonly Provider[] = [
   nbc,
@@ -47,6 +48,7 @@ export const PROVIDERS: readonly Provider[] = [
   knowable,
   nautilus,
   technologyreview,
+  scientificamerican,
   noema,
   undark,
 ];
