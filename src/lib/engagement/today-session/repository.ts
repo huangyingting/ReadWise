@@ -53,6 +53,28 @@ type TodaySessionRow = {
   updatedAt: Date;
 };
 
+function safeStatus(value: string): TodaySessionView["status"] {
+  return isTodaySessionStatus(value) ? value : "active";
+}
+
+function safeSource(value: string): TodaySessionView["source"] {
+  return isTodaySessionSource(value) ? value : "none";
+}
+
+function safeCompletionTier(value: string): TodaySessionView["completionTier"] {
+  return isTodayCompletionTier(value) ? value : "none";
+}
+
+function safeGenerationReasonCode(
+  value: string,
+): TodaySessionView["generationReasonCode"] {
+  return isTodayGenerationReasonCode(value) ? value : "no_candidate";
+}
+
+function safeSkipReason(value: string | null): TodaySessionView["skipReason"] {
+  return isTodaySkipReason(value) ? value : null;
+}
+
 /**
  * Map a persisted row into the privacy-safe view, narrowing controlled columns
  * to their union types. Unknown controlled values (e.g. from an older row) are
@@ -68,20 +90,16 @@ export function toTodaySessionView(row: TodaySessionRow): TodaySessionView {
     backupArticleIds: toIdArray(row.backupArticleIds),
     targetSavedWordIds: toIdArray(row.targetSavedWordIds),
     reviewTargetCount: row.reviewTargetCount,
-    status: isTodaySessionStatus(row.status) ? row.status : "active",
-    source: isTodaySessionSource(row.source) ? row.source : "none",
-    completionTier: isTodayCompletionTier(row.completionTier)
-      ? row.completionTier
-      : "none",
-    generationReasonCode: isTodayGenerationReasonCode(row.generationReasonCode)
-      ? row.generationReasonCode
-      : "no_candidate",
+    status: safeStatus(row.status),
+    source: safeSource(row.source),
+    completionTier: safeCompletionTier(row.completionTier),
+    generationReasonCode: safeGenerationReasonCode(row.generationReasonCode),
     readingCompletedAt: row.readingCompletedAt,
     comprehensionCompletedAt: row.comprehensionCompletedAt,
     wordReviewCompletedAt: row.wordReviewCompletedAt,
     completedAt: row.completedAt,
     skipped: row.skipped,
-    skipReason: isTodaySkipReason(row.skipReason) ? row.skipReason : null,
+    skipReason: safeSkipReason(row.skipReason),
     skippedAt: row.skippedAt,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -159,16 +177,9 @@ export type TodaySessionUpdate = {
   skippedAt?: Date | null;
 };
 
-/**
- * Update an existing session, scoped to the owning user. Returns the updated
- * view, or null when no row matched (wrong user or missing date). Controlled
- * values are validated before the write so invalid input never persists.
- */
-export async function updateTodaySession(
-  userId: string,
-  localDate: string,
+function buildTodaySessionUpdateData(
   update: TodaySessionUpdate,
-): Promise<TodaySessionView | null> {
+): Prisma.TodaySessionUpdateInput {
   const data: Prisma.TodaySessionUpdateInput = {};
 
   if (update.status !== undefined) {
@@ -221,6 +232,21 @@ export async function updateTodaySession(
       (id): id is string => typeof id === "string",
     );
   }
+
+  return data;
+}
+
+/**
+ * Update an existing session, scoped to the owning user. Returns the updated
+ * view, or null when no row matched (wrong user or missing date). Controlled
+ * values are validated before the write so invalid input never persists.
+ */
+export async function updateTodaySession(
+  userId: string,
+  localDate: string,
+  update: TodaySessionUpdate,
+): Promise<TodaySessionView | null> {
+  const data = buildTodaySessionUpdateData(update);
 
   // updateMany scoped by BOTH userId and localDate guarantees user isolation
   // (a mismatched userId updates nothing) without trusting a request id.

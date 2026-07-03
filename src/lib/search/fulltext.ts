@@ -63,6 +63,22 @@ function accessContext(context?: SearchContext | null): ArticleAccessContext | n
   });
 }
 
+function recentArticleOrder() {
+  return [{ publishedAt: "desc" as const }, { createdAt: "desc" as const }];
+}
+
+function findReadableArticles(where: Prisma.ArticleWhereInput, take: number): Promise<Article[]> {
+  return prisma.article.findMany({
+    where,
+    orderBy: recentArticleOrder(),
+    take,
+  });
+}
+
+function putArticleCandidates(candidates: Map<string, SearchCandidate>, articles: Article[]): void {
+  for (const article of articles) putCandidate(candidates, article, "article");
+}
+
 /**
  * Builds a raw SQL visibility predicate for the PostgreSQL FTS path that mirrors
  * the `readableArticleWhere` logic from `@/lib/article-library/policy`.
@@ -144,48 +160,43 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
       annotations,
     ] = await Promise.all([
       prisma.article.count({ where: readableTextWhere }),
-      prisma.article.findMany({
-        where: readableArticleWhere(access, articleExactWhere(TITLE_ARTICLE_SEARCH_FIELDS, q)),
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: highPriorityTake,
-      }),
-      prisma.article.findMany({
-        where: readableArticleWhere(access, articleFieldsWhere(TITLE_ARTICLE_SEARCH_FIELDS, terms)),
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: highPriorityTake,
-      }),
-      prisma.article.findMany({
-        where: readableArticleWhere(access, articleExactWhere(BYLINE_ARTICLE_SEARCH_FIELDS, q)),
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: highPriorityTake,
-      }),
-      prisma.article.findMany({
-        where: readableArticleWhere(access, articleFieldsWhere(BYLINE_ARTICLE_SEARCH_FIELDS, terms)),
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: highPriorityTake,
-      }),
-      prisma.article.findMany({
-        where: readableArticleWhere(access, articleExactWhere(ARTICLE_SEARCH_FIELDS, q)),
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: highPriorityTake,
-      }),
+      findReadableArticles(
+        readableArticleWhere(access, articleExactWhere(TITLE_ARTICLE_SEARCH_FIELDS, q)),
+        highPriorityTake,
+      ),
+      findReadableArticles(
+        readableArticleWhere(access, articleFieldsWhere(TITLE_ARTICLE_SEARCH_FIELDS, terms)),
+        highPriorityTake,
+      ),
+      findReadableArticles(
+        readableArticleWhere(access, articleExactWhere(BYLINE_ARTICLE_SEARCH_FIELDS, q)),
+        highPriorityTake,
+      ),
+      findReadableArticles(
+        readableArticleWhere(access, articleFieldsWhere(BYLINE_ARTICLE_SEARCH_FIELDS, terms)),
+        highPriorityTake,
+      ),
+      findReadableArticles(
+        readableArticleWhere(access, articleExactWhere(ARTICLE_SEARCH_FIELDS, q)),
+        highPriorityTake,
+      ),
       postgresTextMatches(q, access, broadTake),
-      prisma.article.findMany({
-        where: readableTextWhere,
-        orderBy: [{ publishedAt: "desc" }, { createdAt: "desc" }],
-        take: broadTake,
-      }),
+      findReadableArticles(readableTextWhere, broadTake),
       userAnnotationArticleIds(context?.userId, terms, broadTake),
     ]);
 
     const candidates = new Map<string, SearchCandidate>();
-    for (const article of exactTitleMatches) putCandidate(candidates, article, "article");
-    for (const article of titleMatches) putCandidate(candidates, article, "article");
-    for (const article of exactBylineMatches) putCandidate(candidates, article, "article");
-    for (const article of bylineMatches) putCandidate(candidates, article, "article");
-    for (const article of exactTextMatches) putCandidate(candidates, article, "article");
-    for (const article of postgresMatches) putCandidate(candidates, article, "article");
-    for (const article of textMatches) putCandidate(candidates, article, "article");
+    for (const matches of [
+      exactTitleMatches,
+      titleMatches,
+      exactBylineMatches,
+      bylineMatches,
+      exactTextMatches,
+      postgresMatches,
+      textMatches,
+    ]) {
+      putArticleCandidates(candidates, matches);
+    }
 
     const annotationIds = new Set([...annotations.highlightIds, ...annotations.savedWordIds]);
     const missingAnnotationIds = [...annotationIds].filter((id) => !candidates.has(id));
@@ -194,7 +205,7 @@ export class PrismaArticleSearchProvider implements ArticleSearchProvider {
         where: readableArticleWhere(access, { id: { in: missingAnnotationIds } }),
         take: missingAnnotationIds.length,
       });
-      for (const article of annotationArticles) putCandidate(candidates, article, "article");
+      putArticleCandidates(candidates, annotationArticles);
     }
 
     for (const id of annotations.highlightIds) candidates.get(id)?.sources.add("highlight");

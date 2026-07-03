@@ -236,6 +236,20 @@ function ctx(id = "private-article") {
   return { params: Promise.resolve({ id }) };
 }
 
+function assertSingleVisibilityCheck(id: string): void {
+  assert.deepEqual(viewableCalls, [
+    { id, role: "Reader", userId: "user-1" },
+  ]);
+}
+
+function assertLastVisibilityCheck(id: string): void {
+  assert.deepEqual(viewableCalls.at(-1), {
+    id,
+    role: "Reader",
+    userId: "user-1",
+  });
+}
+
 // ---------------------------------------------------------------------------
 // AI route IDOR protection
 // ---------------------------------------------------------------------------
@@ -294,9 +308,7 @@ describe("AI route IDOR protection — gates on article visibility before AI wor
       const res = await POST(jsonReq(routeCase.body), ctx("foreign-private"));
 
       assert.equal(res.status, 404);
-      assert.deepEqual(viewableCalls, [
-        { id: "foreign-private", role: "Reader", userId: "user-1" },
-      ]);
+      assertSingleVisibilityCheck("foreign-private");
       assert.equal(helperCalls.includes(routeCase.helper), false);
       assert.equal(rateLimitCalls.length, 0, "rate limit should not be consumed after an IDOR denial");
     });
@@ -308,11 +320,7 @@ describe("AI route IDOR protection — gates on article visibility before AI wor
       const res = await POST(jsonReq(routeCase.body), ctx("private-article"));
 
       assert.equal(res.status, 200);
-      assert.deepEqual(viewableCalls.at(-1), {
-        id: "private-article",
-        role: "Reader",
-        userId: "user-1",
-      });
+      assertLastVisibilityCheck("private-article");
       assert.equal(helperCalls.includes(routeCase.helper), true);
       assert.deepEqual(rateLimitCalls.at(-1), { userId: "user-1", scope: "ai" });
     });
@@ -341,9 +349,7 @@ describe("pronunciation attempt IDOR protection", () => {
     );
 
     assert.equal(res.status, 404);
-    assert.deepEqual(viewableCalls, [
-      { id: "foreign-private", role: "Reader", userId: "user-1" },
-    ]);
+    assertSingleVisibilityCheck("foreign-private");
     assert.equal(pronunciationAttempts.length, 0);
     assert.deepEqual(rateLimitCalls, [{ userId: "user-1", scope: "ai" }]);
   });

@@ -48,6 +48,29 @@ const SIZE_STYLES = {
   },
 } as const;
 
+const SEGMENT_SELECTOR = "[role='radio']";
+
+function getSelectedIndex<T extends string>(
+  options: ReadonlyArray<SegmentedControlOption<T>>,
+  value: T,
+): number {
+  return Math.max(
+    0,
+    options.findIndex((option) => option.value === value),
+  );
+}
+
+function getSegmentButtons(container: HTMLDivElement | null) {
+  return container?.querySelectorAll<HTMLButtonElement>(SEGMENT_SELECTOR);
+}
+
+function formatAnnouncement<T extends string>(
+  label: string,
+  option: SegmentedControlOption<T>,
+): string {
+  return `${label}: ${option.label}`;
+}
+
 /**
  * SegmentedControl — a generic, token-styled pill/segmented control.
  *
@@ -95,26 +118,20 @@ export function SegmentedControl<T extends string>({
   const [announcement, setAnnouncement] = React.useState("");
   const groupRef = React.useRef<HTMLDivElement>(null);
   const sizeStyles = SIZE_STYLES[size];
-
-  const selectedIndex = Math.max(
-    0,
-    options.findIndex((option) => option.value === value),
-  );
+  const selectedIndex = getSelectedIndex(options, value);
 
   /** Focus the segment at `index` and emit its value. */
   function selectIndex(index: number) {
     const option = options[index];
     if (!option) return;
-    const buttons = groupRef.current?.querySelectorAll<HTMLButtonElement>(
-      "[role='radio']",
-    );
+    const buttons = getSegmentButtons(groupRef.current);
     buttons?.[index]?.focus();
     if (option.value !== value) {
       onChange(option.value);
     }
     // Reset then set so identical consecutive announcements still re-fire.
     setAnnouncement("");
-    requestAnimationFrame(() => setAnnouncement(`${label}: ${option.label}`));
+    requestAnimationFrame(() => setAnnouncement(formatAnnouncement(label, option)));
   }
 
   function handleKeyDown(event: React.KeyboardEvent<HTMLDivElement>) {

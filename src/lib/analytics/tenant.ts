@@ -116,41 +116,82 @@ export type ClassroomAnalytics = {
 	redacted: boolean;
 };
 
+type CompletionRow = ClassroomProgressData["completions"][number];
+type CompletionIndex = Map<string, CompletionRow[]>;
+
+function addCompletion(index: CompletionIndex, key: string, completion: CompletionRow): void {
+	const list = index.get(key);
+	if (list) list.push(completion);
+	else index.set(key, [completion]);
+}
+
+function collectRosterCompletions(
+	completions: CompletionRow[],
+	studentIds: Set<string>,
+): {
+	byAssignment: CompletionIndex;
+	byStudent: CompletionIndex;
+	allScores: number[];
+} {
+	const byAssignment: CompletionIndex = new Map();
+	const byStudent: CompletionIndex = new Map();
+	const allScores: number[] = [];
+
+	for (const completion of completions) {
+		if (!studentIds.has(completion.studentId)) continue;
+		addCompletion(byAssignment, completion.assignmentId, completion);
+		addCompletion(byStudent, completion.studentId, completion);
+		if (completion.quizScore != null) allScores.push(completion.quizScore);
+	}
+
+	return { byAssignment, byStudent, allScores };
+}
+
+function assignmentCounts(rows: CompletionRow[]): {
+	completed: number;
+	inProgress: number;
+	scores: number[];
+} {
+	let completed = 0;
+	let inProgress = 0;
+	const scores: number[] = [];
+
+	for (const row of rows) {
+		if (row.status === AssignmentStatus.COMPLETED) completed++;
+		else if (row.status === AssignmentStatus.IN_PROGRESS) inProgress++;
+		if (row.quizScore != null) scores.push(row.quizScore);
+	}
+
+	return { completed, inProgress, scores };
+}
+
+function studentCounts(rows: CompletionRow[]): { completed: number; scores: number[] } {
+	let completed = 0;
+	const scores: number[] = [];
+
+	for (const row of rows) {
+		if (row.status === AssignmentStatus.COMPLETED) completed++;
+		if (row.quizScore != null) scores.push(row.quizScore);
+	}
+
+	return { completed, scores };
+}
+
 export function aggregateClassroom(data: ClassroomProgressData): ClassroomAnalytics {
 	const students = data.students;
 	const assignments = data.assignments;
 	const studentIds = new Set(students.map((s) => s.userId));
-
-	const byAssignment = new Map<string, ClassroomProgressData["completions"]>();
-	const byStudent = new Map<string, ClassroomProgressData["completions"]>();
-	const push = (
-		map: Map<string, ClassroomProgressData["completions"]>,
-		key: string,
-		value: ClassroomProgressData["completions"][number],
-	) => {
-		const list = map.get(key);
-		if (list) list.push(value);
-		else map.set(key, [value]);
-	};
-	for (const c of data.completions) {
-		if (!studentIds.has(c.studentId)) continue;
-		push(byAssignment, c.assignmentId, c);
-		push(byStudent, c.studentId, c);
-	}
+	const { byAssignment, byStudent, allScores } = collectRosterCompletions(
+		data.completions,
+		studentIds,
+	);
 
 	const studentCount = students.length;
 	const assignmentCount = assignments.length;
 
 	const perAssignment: AssignmentAggregate[] = assignments.map((a) => {
 		const rows = byAssignment.get(a.id) ?? [];
-		let completed = 0;
-		let inProgress = 0;
-		const scores: number[] = [];
-		for (const r of rows) {
-			if (r.status === AssignmentStatus.COMPLETED) completed++;
-			else if (r.status === AssignmentStatus.IN_PROGRESS) inProgress++;
-			if (r.quizScore != null) scores.push(r.quizScore);
-		}
+		const { completed, inProgress, scores } = assignmentCounts(rows);
 		const notStarted = Math.max(0, studentCount - completed - inProgress);
 		return {
 			assignmentId: a.id,
@@ -166,12 +207,7 @@ export function aggregateClassroom(data: ClassroomProgressData): ClassroomAnalyt
 
 	const perStudent: StudentAggregate[] = students.map((s) => {
 		const rows = byStudent.get(s.userId) ?? [];
-		let completed = 0;
-		const scores: number[] = [];
-		for (const r of rows) {
-			if (r.status === AssignmentStatus.COMPLETED) completed++;
-			if (r.quizScore != null) scores.push(r.quizScore);
-		}
+		const { completed, scores } = studentCounts(rows);
 		return {
 			studentId: s.userId,
 			name: s.name,
@@ -185,9 +221,6 @@ export function aggregateClassroom(data: ClassroomProgressData): ClassroomAnalyt
 
 	const totalExpected = studentCount * assignmentCount;
 	const totalCompleted = perStudent.reduce((acc, s) => acc + s.completed, 0);
-	const allScores: number[] = data.completions
-		.filter((c) => studentIds.has(c.studentId) && c.quizScore != null)
-		.map((c) => c.quizScore as number);
 
 	return {
 		classroomId: data.classroom.id,

@@ -33,6 +33,14 @@ type SubmitResult = {
   remediation: { show: boolean; articleHref: string | null };
 };
 
+const FALLBACK_CHECK: CheckPayload = {
+  available: true,
+  articleId: null,
+  question: null,
+  completed: false,
+  alreadySubmitted: false,
+};
+
 export interface TodayComprehensionCheckProps {
   /** True once the day's reading step is complete (gate for showing the check). */
   readingComplete: boolean;
@@ -46,6 +54,73 @@ export interface TodayComprehensionCheckProps {
   localDate: string;
   /** Learner's IANA timezone snapshot for this Today session. */
   timezone: string;
+}
+
+function buildOfflineSubmitPayload(
+  check: CheckPayload | null,
+  selfRating: SelfRating,
+  selectedIndex: number | null,
+) {
+  const hasMcq = check?.question != null;
+  return {
+    selfRating,
+    ...(hasMcq && check?.question?.id ? { questionId: check.question.id } : {}),
+    ...(hasMcq && selectedIndex != null ? { selectedIndex } : {}),
+  };
+}
+
+function buildOnlineSubmitPayload(
+  check: CheckPayload | null,
+  selfRating: SelfRating,
+  selectedIndex: number | null,
+) {
+  return {
+    selfRating,
+    questionId: check?.question?.id,
+    selectedIndex: check?.question ? selectedIndex ?? undefined : undefined,
+  };
+}
+
+function SubmittedComprehensionCard({ result }: { result: SubmitResult }) {
+  return (
+    <Card>
+      <Stack gap="3">
+        <Inline gap="2" align="center">
+          <Badge variant="success">
+            <CheckCircle2 size={14} aria-hidden /> Comprehension checked
+          </Badge>
+        </Inline>
+        {result.remediation.show ? (
+          <Stack gap="2">
+            <Inline gap="2" align="center">
+              <Lightbulb size={18} aria-hidden className="text-text-muted" />
+              <span className="text-[length:var(--text-base)] font-semibold text-text">
+                Let&apos;s revisit the key idea
+              </span>
+            </Inline>
+            <span className="text-[length:var(--text-sm)] text-text-muted">
+              No worries — give the article another quick read to lock it in.
+            </span>
+            {result.remediation.articleHref ? (
+              <div>
+                <Link
+                  href={result.remediation.articleHref}
+                  className={buttonVariants({ variant: "secondary", size: "sm" })}
+                >
+                  <BookOpen size={16} aria-hidden />
+                  Go back to the article
+                </Link>
+              </div>
+            ) : null}
+          </Stack>
+        ) : (
+          <span className="text-[length:var(--text-sm)] text-text-muted">
+            Nice — thanks for the quick check-in. It helps tune what you read next.
+          </span>
+        )}
+      </Stack>
+    </Card>
+  );
 }
 
 /**
@@ -86,13 +161,7 @@ export default function TodayComprehensionCheck({
         if (!cancelled) setCheck(data);
       })
       .catch(() => {
-        if (!cancelled) setCheck({
-          available: true,
-          articleId: null,
-          question: null,
-          completed: false,
-          alreadySubmitted: false,
-        });
+        if (!cancelled) setCheck(FALLBACK_CHECK);
       });
     return () => {
       cancelled = true;
@@ -106,30 +175,20 @@ export default function TodayComprehensionCheck({
     setOfflineNotice(null);
     try {
       if (isOffline()) {
-        const hasMcq = check?.question != null;
         await submitTodayMutation(
           "today.comprehension",
           { userId, localDate, timezone },
-          {
-            selfRating,
-            ...(hasMcq && check?.question?.id
-              ? { questionId: check.question.id }
-              : {}),
-            ...(hasMcq && selectedIndex != null
-              ? { selectedIndex }
-              : {}),
-          },
+          buildOfflineSubmitPayload(check, selfRating, selectedIndex),
         );
         setOfflineNotice(
           "You're offline — your check-in is saved and will sync when you reconnect.",
         );
         return;
       }
-      const res = await postJson<SubmitResult>("/api/today/comprehension", {
-        selfRating,
-        questionId: check?.question?.id,
-        selectedIndex: check?.question ? selectedIndex ?? undefined : undefined,
-      });
+      const res = await postJson<SubmitResult>(
+        "/api/today/comprehension",
+        buildOnlineSubmitPayload(check, selfRating, selectedIndex),
+      );
       setResult(res);
       // Refresh the server-rendered step tracker (comprehension is now done).
       router.refresh();
@@ -144,45 +203,7 @@ export default function TodayComprehensionCheck({
 
   // Once submitted, show a celebratory note and (on a wrong answer) remediation.
   if (result?.updated) {
-    return (
-      <Card>
-        <Stack gap="3">
-          <Inline gap="2" align="center">
-            <Badge variant="success">
-              <CheckCircle2 size={14} aria-hidden /> Comprehension checked
-            </Badge>
-          </Inline>
-          {result.remediation.show ? (
-            <Stack gap="2">
-              <Inline gap="2" align="center">
-                <Lightbulb size={18} aria-hidden className="text-text-muted" />
-                <span className="text-[length:var(--text-base)] font-semibold text-text">
-                  Let&apos;s revisit the key idea
-                </span>
-              </Inline>
-              <span className="text-[length:var(--text-sm)] text-text-muted">
-                No worries — give the article another quick read to lock it in.
-              </span>
-              {result.remediation.articleHref ? (
-                <div>
-                  <Link
-                    href={result.remediation.articleHref}
-                    className={buttonVariants({ variant: "secondary", size: "sm" })}
-                  >
-                    <BookOpen size={16} aria-hidden />
-                    Go back to the article
-                  </Link>
-                </div>
-              ) : null}
-            </Stack>
-          ) : (
-            <span className="text-[length:var(--text-sm)] text-text-muted">
-              Nice — thanks for the quick check-in. It helps tune what you read next.
-            </span>
-          )}
-        </Stack>
-      </Card>
-    );
+    return <SubmittedComprehensionCard result={result} />;
   }
 
   return (

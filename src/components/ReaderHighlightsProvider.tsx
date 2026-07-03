@@ -25,6 +25,7 @@ import {
   useReducer,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import { highlightsReducer } from "@/components/reader/highlightsReducer";
@@ -64,6 +65,19 @@ export interface CreateHighlightInput {
   suffix?: string;
   note?: string;
   color?: HighlightColor;
+}
+
+function withSetEntry<T>(set: Set<T>, value: T): Set<T> {
+  if (set.has(value)) return set;
+  const next = new Set(set);
+  next.add(value);
+  return next;
+}
+
+function withoutSetEntry<T>(set: Set<T>, value: T): Set<T> {
+  const next = new Set(set);
+  next.delete(value);
+  return next;
 }
 
 interface HighlightsContextValue {
@@ -127,41 +141,45 @@ export function ReaderHighlightsProvider({ articleId, children }: Props) {
   } = useHighlightsApi({ articleId, highlights, dispatch, announce });
 
   const markOrphaned = useCallback((id: string) => {
-    setOrphanedIds((prev) => {
-      if (prev.has(id)) return prev;
-      const next = new Set(prev);
-      next.add(id);
-      return next;
-    });
+    setOrphanedIds((prev) => withSetEntry(prev, id));
   }, []);
 
   // Wrap apiRemove to also clear the orphanedIds entry.
   const remove = useCallback(
     async (id: string) => {
-      setOrphanedIds((s) => {
-        const next = new Set(s);
-        next.delete(id);
-        return next;
-      });
+      setOrphanedIds((prev) => withoutSetEntry(prev, id));
       await apiRemove(id);
     },
     [apiRemove],
   );
 
+  const value = useMemo<HighlightsContextValue>(
+    () => ({
+      highlights,
+      loading,
+      orphanedIds,
+      add,
+      updateColor,
+      updateNote,
+      remove,
+      markOrphaned,
+      liveAnnouncement,
+    }),
+    [
+      highlights,
+      loading,
+      orphanedIds,
+      add,
+      updateColor,
+      updateNote,
+      remove,
+      markOrphaned,
+      liveAnnouncement,
+    ],
+  );
+
   return (
-    <HighlightsContext.Provider
-      value={{
-        highlights,
-        loading,
-        orphanedIds,
-        add,
-        updateColor,
-        updateNote,
-        remove,
-        markOrphaned,
-        liveAnnouncement,
-      }}
-    >
+    <HighlightsContext.Provider value={value}>
       {children}
       {/* Aria-live region for screen-reader announcements */}
       <div

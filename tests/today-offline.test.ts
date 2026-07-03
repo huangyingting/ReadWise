@@ -40,6 +40,10 @@ import {
 const USER = "user-1";
 const LOCAL_DATE = "2026-06-27";
 
+function defaultTodayPayload(): Record<string, unknown> {
+  return { localDate: LOCAL_DATE, timezone: "UTC" };
+}
+
 // ---------------------------------------------------------------------------
 // Registry: the four Today mutation types
 // ---------------------------------------------------------------------------
@@ -221,7 +225,7 @@ test("isAllowedTodayPayload rejects any content/PII-bearing field", () => {
 
 function todayMut(
   type: TodayOfflineMutationType,
-  payload: Record<string, unknown> = { localDate: LOCAL_DATE, timezone: "UTC" },
+  payload: Record<string, unknown> = defaultTodayPayload(),
   partial: Partial<QueuedMutation> = {},
 ): QueuedMutation {
   return {
@@ -237,6 +241,19 @@ function todayMut(
     lastError: partial.lastError ?? null,
     dedupeKey: partial.dedupeKey ?? null,
   };
+}
+
+function assertRemovedWithoutConflict(
+  outcome: string,
+  r: Recorder,
+  mutation?: QueuedMutation,
+): void {
+  assert.equal(outcome, "removed");
+  if (mutation) {
+    assert.deepEqual(r.removed, [mutation.clientMutationId]);
+  }
+  assert.equal(r.updated.length, 0);
+  assert.equal(r.conflicts.length, 0);
 }
 
 interface Recorder {
@@ -273,10 +290,7 @@ test("replay: a 200 removes the mutation from the queue", async () => {
   const m = todayMut("today.read-complete");
   const r = recorder(async () => ({ status: 200 }));
   const outcome = await todayMutationReplayHandler(m, r.deps);
-  assert.equal(outcome, "removed");
-  assert.deepEqual(r.removed, [m.clientMutationId]);
-  assert.equal(r.updated.length, 0);
-  assert.equal(r.conflicts.length, 0);
+  assertRemovedWithoutConflict(outcome, r, m);
 });
 
 test("replay: a 409 marks the mutation conflict and emits content-free analytics", async () => {
@@ -400,14 +414,12 @@ test("scenario 2: read-complete after the primary article was swapped → idempo
   const m = todayMut("today.read-complete");
   const r = recorder(async () => ({ status: 200 }));
   const outcome = await todayMutationReplayHandler(m, r.deps);
-  assert.equal(outcome, "removed", "idempotent no-op drops cleanly from the queue");
-  assert.equal(r.conflicts.length, 0, "no conflict UI for a silent no-op");
+  assertRemovedWithoutConflict(outcome, r, m);
 });
 
 test("scenario 3: concurrent word-review on two devices → monotonic no-op (200)", async () => {
   const m = todayMut("today.word-review-complete");
   const r = recorder(async () => ({ status: 200 }));
   const outcome = await todayMutationReplayHandler(m, r.deps);
-  assert.equal(outcome, "removed");
-  assert.equal(r.conflicts.length, 0, "monotonic second write needs no conflict UI");
+  assertRemovedWithoutConflict(outcome, r, m);
 });

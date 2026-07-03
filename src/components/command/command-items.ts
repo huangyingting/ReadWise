@@ -136,6 +136,8 @@ export type SelectableItem =
 
 // ---- Fuzzy matcher ----------------------------------------------------
 
+type SearchableItem = { label: string; keywords: string };
+
 /**
  * Subsequence fuzzy score. Case-insensitive.
  * Returns 0 for no match; higher = better (contiguous/prefix bonus).
@@ -158,14 +160,25 @@ function fuzzyScore(text: string, query: string): number {
   return score;
 }
 
-export function fuzzyFilter<T extends { label: string; keywords: string }>(
+function searchableText(item: SearchableItem): string {
+  return `${item.label} ${item.keywords}`;
+}
+
+function scoreSearchableItem<T extends SearchableItem>(
+  item: T,
+  query: string,
+): { item: T; score: number } {
+  return { item, score: fuzzyScore(searchableText(item), query) };
+}
+
+export function fuzzyFilter<T extends SearchableItem>(
   items: T[],
   query: string,
 ): T[] {
   if (!query.trim()) return items;
   const q = query.trim();
   return items
-    .map((item) => ({ item, score: fuzzyScore(`${item.label} ${item.keywords}`, q) }))
+    .map((item) => scoreSearchableItem(item, q))
     .filter(({ score }) => score > 0)
     .sort((a, b) => b.score - a.score)
     .map(({ item }) => item);

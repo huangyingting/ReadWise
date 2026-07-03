@@ -27,6 +27,12 @@ export type EnqueueOptions = {
   dedupeKey?: string;
 };
 
+type PendingJobBase = {
+  maxAttempts: number;
+  runAfter: Date;
+  priority: number;
+};
+
 /**
  * Persists a job. DB-backed, so it survives restarts. When `dedupeKey` is set
  * the operation is idempotent (see {@link EnqueueOptions.dedupeKey}).
@@ -46,16 +52,7 @@ export async function enqueueJob(
   }
 
   const job = await prisma.job.create({
-    data: {
-      type,
-      status: JobStatus.PENDING,
-      payload: payload as Prisma.InputJsonValue,
-      errorHistory: [] as unknown as Prisma.InputJsonValue,
-      attempts: 0,
-      maxAttempts,
-      priority,
-      runAfter,
-    },
+    data: pendingJobData(type, payload, { maxAttempts, runAfter, priority }),
   });
   recordJobQueueEvent({ event: "enqueued", type });
   log.info("job enqueued", { jobId: job.id, type, priority });
@@ -66,7 +63,7 @@ async function enqueueDeduped(
   type: JobType,
   payload: JobPayload,
   dedupeKey: string,
-  base: { maxAttempts: number; runAfter: Date; priority: number },
+  base: PendingJobBase,
 ): Promise<Job> {
   const existing = await prisma.job.findUnique({ where: { dedupeKey } });
   if (existing) {
@@ -100,17 +97,7 @@ async function enqueueDeduped(
 
   try {
     const job = await prisma.job.create({
-      data: {
-        type,
-        status: JobStatus.PENDING,
-        payload: payload as Prisma.InputJsonValue,
-        errorHistory: [] as unknown as Prisma.InputJsonValue,
-        attempts: 0,
-        maxAttempts: base.maxAttempts,
-        priority: base.priority,
-        runAfter: base.runAfter,
-        dedupeKey,
-      },
+      data: pendingJobData(type, payload, base, dedupeKey),
     });
     recordJobQueueEvent({ event: "enqueued", type });
     log.info("job enqueued", { jobId: job.id, type, dedupeKey });
@@ -123,6 +110,25 @@ async function enqueueDeduped(
     }
     throw err;
   }
+}
+
+function pendingJobData(
+  type: JobType,
+  payload: JobPayload,
+  base: PendingJobBase,
+  dedupeKey?: string,
+) {
+  return {
+    type,
+    status: JobStatus.PENDING,
+    payload: payload as Prisma.InputJsonValue,
+    errorHistory: [] as unknown as Prisma.InputJsonValue,
+    attempts: 0,
+    maxAttempts: base.maxAttempts,
+    priority: base.priority,
+    runAfter: base.runAfter,
+    ...(dedupeKey ? { dedupeKey } : {}),
+  };
 }
 
 export function enqueueArticleProcess(

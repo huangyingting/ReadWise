@@ -15,7 +15,14 @@
  */
 
 import { useRef, type ReactNode } from "react";
-import { BookOpen, CircleCheck, Keyboard, Mic, Highlighter, Sparkles } from "lucide-react";
+import {
+  BookOpen,
+  CircleCheck,
+  Keyboard,
+  Mic,
+  Highlighter,
+  Sparkles,
+} from "lucide-react";
 import { Button } from "@/components/ui";
 import { useReaderTools, type ToolTabId } from "./ReaderToolsProvider";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
@@ -52,6 +59,7 @@ export default function ReaderTools({
   const { open, activeTab, visited, activate, currentBlock } = useReaderTools();
   const currentBlockText = currentBlock?.text;
   const tabListRef = useRef<HTMLDivElement | null>(null);
+  const isActivePanel = (id: ToolTabId) => open && activeTab === id;
 
   const { handleKeyDown } = useRovingTabindex(tabListRef, {
     selector: "[role='tab']",
@@ -93,99 +101,85 @@ export default function ReaderTools({
       </div>
 
       <div className="article-study-panels">
-        <div
-          id="study-panel-words"
-          role="tabpanel"
-          aria-labelledby="study-tab-words"
-          className="article-study-panel"
-          hidden={activeTab !== "words"}
-        >
+        <ToolPanel id="words" activeTab={activeTab}>
           {visited.has("words") && (
             <ReaderPanelErrorBoundary label="Words">
-              <ArticleVocabulary articleId={articleId} active={open && activeTab === "words"} />
+              <ArticleVocabulary articleId={articleId} active={isActivePanel("words")} />
             </ReaderPanelErrorBoundary>
           )}
-        </div>
+        </ToolPanel>
 
-        <div
-          id="study-panel-quiz"
-          role="tabpanel"
-          aria-labelledby="study-tab-quiz"
-          className="article-study-panel"
-          hidden={activeTab !== "quiz"}
-        >
+        <ToolPanel id="quiz" activeTab={activeTab}>
           {visited.has("quiz") && (
             <ReaderPanelErrorBoundary label="Quiz">
-              <ArticleQuiz articleId={articleId} active={open && activeTab === "quiz"} />
+              <ArticleQuiz articleId={articleId} active={isActivePanel("quiz")} />
             </ReaderPanelErrorBoundary>
           )}
-        </div>
+        </ToolPanel>
 
-        <div
-          id="study-panel-dictate"
-          role="tabpanel"
-          aria-labelledby="study-tab-dictate"
-          className="article-study-panel"
-          hidden={activeTab !== "dictate"}
-        >
+        <ToolPanel id="dictate" activeTab={activeTab}>
           {visited.has("dictate") && (
             <ReaderPanelErrorBoundary label="Dictate">
               <ArticleDictation
                 articleId={articleId}
                 plainText={plainText}
-                active={open && activeTab === "dictate"}
+                active={isActivePanel("dictate")}
               />
             </ReaderPanelErrorBoundary>
           )}
-        </div>
+        </ToolPanel>
 
-        <div
-          id="study-panel-speak"
-          role="tabpanel"
-          aria-labelledby="study-tab-speak"
-          className="article-study-panel"
-          hidden={activeTab !== "speak"}
-        >
+        <ToolPanel id="speak" activeTab={activeTab}>
           {visited.has("speak") && (
             <ReaderPanelErrorBoundary label="Speak">
               <ArticlePronunciation
                 articleId={articleId}
                 plainText={plainText}
-                active={open && activeTab === "speak"}
+                active={isActivePanel("speak")}
                 currentBlockText={currentBlockText}
               />
             </ReaderPanelErrorBoundary>
           )}
-        </div>
+        </ToolPanel>
 
-        <div
-          id="study-panel-notes"
-          role="tabpanel"
-          aria-labelledby="study-tab-notes"
-          className="article-study-panel"
-          hidden={activeTab !== "notes"}
-        >
+        <ToolPanel id="notes" activeTab={activeTab}>
           <ReaderPanelErrorBoundary label="Notes">
             <ReaderNotesPanel />
           </ReaderPanelErrorBoundary>
-        </div>
+        </ToolPanel>
 
-        <div
-          id="study-panel-ask"
-          role="tabpanel"
-          aria-labelledby="study-tab-ask"
-          className="article-study-panel"
-          hidden={activeTab !== "ask"}
-        >
+        <ToolPanel id="ask" activeTab={activeTab}>
           {visited.has("ask") && (
             <ReaderPanelErrorBoundary label="Ask">
               <ReaderTutorProvider articleId={articleId} paragraphContext={currentBlockText}>
-                <ArticleTutor active={open && activeTab === "ask"} />
+                <ArticleTutor active={isActivePanel("ask")} />
               </ReaderTutorProvider>
             </ReaderPanelErrorBoundary>
           )}
-        </div>
+        </ToolPanel>
       </div>
+    </div>
+  );
+}
+
+function ToolPanel({
+  id,
+  activeTab,
+  children,
+}: {
+  id: ToolTabId;
+  activeTab: ToolTabId;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      id={`study-panel-${id}`}
+      role="tabpanel"
+      aria-labelledby={`study-tab-${id}`}
+      className="article-study-panel"
+      hidden={activeTab !== id}
+    >
+      {children}
     </div>
   );
 }

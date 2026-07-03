@@ -56,6 +56,30 @@ export type SearchArticlesOpts = {
   context?: ArticleAccessContext | null;
 };
 
+function normalizeStatusFilter(status?: string | null): ArticleStatus | null {
+  const candidate = status?.trim().toUpperCase();
+  if (!candidate || !(Object.values(ArticleStatus) as string[]).includes(candidate)) {
+    return null;
+  }
+  return candidate as ArticleStatus;
+}
+
+function mapAdminArticleRow(article: Article): AdminArticleRow {
+  return {
+    id: article.id,
+    title: article.title,
+    author: article.author,
+    source: article.source,
+    category: article.category,
+    status: article.status,
+    visibility: article.visibility,
+    sourceType: article.sourceType,
+    difficulty: article.difficulty,
+    readingMinutes: readingMinutesFor(article),
+    createdAt: article.createdAt,
+  };
+}
+
 /**
  * Searches/filters articles for the admin listing. Matches the query (case
  * insensitively via SQLite LIKE) against title, author and source, and
@@ -65,11 +89,7 @@ export async function searchArticles(
   opts: SearchArticlesOpts = {},
 ): Promise<AdminArticleSearch> {
   const query = (opts.query ?? "").trim();
-  const statusCandidate = opts.status?.trim().toUpperCase();
-  const status = statusCandidate &&
-    (Object.values(ArticleStatus) as string[]).includes(statusCandidate)
-    ? (statusCandidate as ArticleStatus)
-    : null;
+  const status = normalizeStatusFilter(opts.status);
   const pageSize = opts.pageSize ?? ADMIN_ARTICLES_PAGE_SIZE;
   const page = Math.max(1, opts.page ?? 1);
   const context = opts.context ?? SYSTEM_ARTICLE_CONTEXT;
@@ -97,22 +117,8 @@ export async function searchArticles(
     }),
   ]);
 
-  const articles: AdminArticleRow[] = rows.map((a) => ({
-    id: a.id,
-    title: a.title,
-    author: a.author,
-    source: a.source,
-    category: a.category,
-    status: a.status,
-    visibility: a.visibility,
-    sourceType: a.sourceType,
-    difficulty: a.difficulty,
-    readingMinutes: readingMinutesFor(a),
-    createdAt: a.createdAt,
-  }));
-
   return {
-    articles,
+    articles: rows.map(mapAdminArticleRow),
     total,
     page,
     pageSize,
@@ -144,6 +150,25 @@ export type AdminArticleDetail = {
   difficultyFeedback: DifficultyFeedbackCounts;
   processingSteps: StepRow[];
 };
+
+function buildDifficultyFeedbackCounts(
+  feedbackRows: Array<{ vote: string }>,
+): DifficultyFeedbackCounts {
+  const counts: DifficultyFeedbackCounts = {
+    tooEasy: 0,
+    justRight: 0,
+    tooHard: 0,
+    total: feedbackRows.length,
+  };
+
+  for (const row of feedbackRows) {
+    if (row.vote === "too_easy") counts.tooEasy++;
+    else if (row.vote === "just_right") counts.justRight++;
+    else if (row.vote === "too_hard") counts.tooHard++;
+  }
+
+  return counts;
+}
 
 /**
  * Loads a single article with the counts of its derived AI content, reader
@@ -183,22 +208,10 @@ export async function getAdminArticleDetail(
     getArticleProcessingSteps(id),
   ]);
 
-  const difficultyFeedback: DifficultyFeedbackCounts = {
-    tooEasy: 0,
-    justRight: 0,
-    tooHard: 0,
-    total: feedbackRows.length,
-  };
-  for (const row of feedbackRows) {
-    if (row.vote === "too_easy") difficultyFeedback.tooEasy++;
-    else if (row.vote === "just_right") difficultyFeedback.justRight++;
-    else if (row.vote === "too_hard") difficultyFeedback.tooHard++;
-  }
-
   return {
     article,
     counts: { translations, vocabulary, quizQuestions, tags, speech, readingProgress },
-    difficultyFeedback,
+    difficultyFeedback: buildDifficultyFeedbackCounts(feedbackRows),
     processingSteps,
   };
 }
@@ -250,6 +263,50 @@ export type RebuildResult = {
   cleared: AdminArticleAiCounts;
 };
 type RebuildAuditFactory = (result: RebuildResult) => AuditRequestInput;
+type RebuildTransaction = Pick<
+  typeof prisma,
+  | "translation"
+  | "vocabularyItem"
+  | "quizQuestion"
+  | "articleTag"
+  | "articleSpeech"
+  | "mediaAsset"
+  | "articleProcessingStep"
+>;
+
+async function clearArticleAiDerivatives(
+  tx: RebuildTransaction,
+  articleId: string,
+): Promise<AdminArticleAiCounts> {
+  const [translations, vocabulary, quizQuestions, tags, speech] = await Promise.all([
+    tx.translation.deleteMany({ where: { articleId } }),
+    tx.vocabularyItem.deleteMany({ where: { articleId } }),
+    tx.quizQuestion.deleteMany({ where: { articleId } }),
+    tx.articleTag.deleteMany({ where: { articleId } }),
+    tx.articleSpeech.deleteMany({ where: { articleId } }),
+  ]);
+
+  // Speech audio is being regenerated, so drop any object-storage MediaAsset
+  // pointers for this article too (RW-049). The underlying storage objects are
+  // content-addressed and overwritten on the next synthesis.
+  await tx.mediaAsset.deleteMany({ where: { articleId, kind: "speech" } });
+
+  // Reset the durable step state for the cleared features (RW-016) so the admin
+  // timeline reflects the post-rebuild reality. Difficulty is NOT cleared by a
+  // rebuild, so its step row is preserved.
+  await tx.articleProcessingStep.deleteMany({
+    where: { articleId, step: { not: "difficulty" } },
+  });
+
+  return {
+    translations: translations.count,
+    vocabulary: vocabulary.count,
+    quizQuestions: quizQuestions.count,
+    tags: tags.count,
+    speech: speech.count,
+    readingProgress: 0,
+  };
+}
 
 /**
  * Triggers a rebuild of an article's AI-derived content by clearing the cached
@@ -272,37 +329,7 @@ export async function rebuildArticleAi(
       return null;
     }
 
-    const [translations, vocabulary, quizQuestions, tags, speech] =
-      await Promise.all([
-        tx.translation.deleteMany({ where: { articleId: id } }),
-        tx.vocabularyItem.deleteMany({ where: { articleId: id } }),
-        tx.quizQuestion.deleteMany({ where: { articleId: id } }),
-        tx.articleTag.deleteMany({ where: { articleId: id } }),
-        tx.articleSpeech.deleteMany({ where: { articleId: id } }),
-      ]);
-
-    // Speech audio is being regenerated, so drop any object-storage MediaAsset
-    // pointers for this article too (RW-049). The underlying storage objects are
-    // content-addressed and overwritten on the next synthesis.
-    await tx.mediaAsset.deleteMany({ where: { articleId: id, kind: "speech" } });
-
-    // Reset the durable step state for the cleared features (RW-016) so the
-    // admin timeline reflects the post-rebuild reality. Difficulty is NOT
-    // cleared by a rebuild, so its step row is preserved.
-    await tx.articleProcessingStep.deleteMany({
-      where: { articleId: id, step: { not: "difficulty" } },
-    });
-
-    const result = {
-      cleared: {
-        translations: translations.count,
-        vocabulary: vocabulary.count,
-        quizQuestions: quizQuestions.count,
-        tags: tags.count,
-        speech: speech.count,
-        readingProgress: 0,
-      },
-    };
+    const result = { cleared: await clearArticleAiDerivatives(tx, id) };
     if (audit) {
       await recordAuditFromRequest(audit(result), tx);
     }

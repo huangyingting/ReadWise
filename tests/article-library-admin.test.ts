@@ -46,17 +46,19 @@ let auditCalls: { action: string }[] = [];
 
 let lastFindManyArgs: Record<string, unknown> | null = null;
 
+const AI_DERIVATIVE_MODELS = [
+  "translation",
+  "vocabularyItem",
+  "quizQuestion",
+  "articleTag",
+  "articleSpeech",
+  "mediaAsset",
+  "articleProcessingStep",
+] as const;
+
 function resetDeleteMany() {
   deleteManyCalls = {};
-  for (const model of [
-    "translation",
-    "vocabularyItem",
-    "quizQuestion",
-    "articleTag",
-    "articleSpeech",
-    "mediaAsset",
-    "articleProcessingStep",
-  ]) {
+  for (const model of AI_DERIVATIVE_MODELS) {
     deleteManyCalls[model] = [];
   }
 }
@@ -171,6 +173,11 @@ beforeEach(() => {
 });
 
 const ADMIN = { role: "Admin" } as const;
+const READER = { role: "Reader", userId: "u1" } as const;
+
+function assertDeleteManyCalledOnce(model: string) {
+  assert.equal(deleteManyCalls[model].length, 1);
+}
 
 // ---------------------------------------------------------------------------
 // searchArticles
@@ -266,7 +273,7 @@ test("searchArticles returns no rows for a non-operator context (DENIED policy)"
   articleRows = [buildArticle({ id: "a1" })];
   articleTotal = 5;
 
-  const result = await searchArticles({ context: { role: "Reader", userId: "u1" } });
+  const result = await searchArticles({ context: READER });
 
   assert.equal(result.total, 0);
   assert.deepEqual(result.articles, []);
@@ -287,7 +294,7 @@ test("getAdminArticleDetail returns null for a non-operator context", async () =
   const { getAdminArticleDetail } = await import("@/lib/article-library/admin");
   detailArticle = buildArticle({ id: "a1" });
   // Non-operator → policy DENIED sentinel → findFirst returns null.
-  const detail = await getAdminArticleDetail("a1", { role: "Reader", userId: "u1" });
+  const detail = await getAdminArticleDetail("a1", READER);
   assert.equal(detail, null);
 });
 
@@ -353,7 +360,7 @@ test("deleteArticle returns false when the article does not exist", async () => 
 test("deleteArticle returns false for a non-operator context", async () => {
   const { deleteArticle } = await import("@/lib/article-library/admin");
   detailArticle = buildArticle({ id: "a1" });
-  const ok = await deleteArticle("a1", { role: "Reader", userId: "u1" });
+  const ok = await deleteArticle("a1", READER);
   assert.equal(ok, false);
   assert.equal(deletedIds.length, 0);
 });
@@ -396,7 +403,7 @@ test("getAdminArticleStatuses returns distinct sorted statuses for an operator",
 test("getAdminArticleStatuses returns an empty list for a non-operator", async () => {
   const { getAdminArticleStatuses } = await import("@/lib/article-library/admin");
   articleRows = [buildArticle({ id: "a1", status: ArticleStatus.PUBLISHED })];
-  const statuses = await getAdminArticleStatuses({ role: "Reader", userId: "u1" });
+  const statuses = await getAdminArticleStatuses(READER);
   assert.deepEqual(statuses, []);
 });
 
@@ -415,7 +422,7 @@ test("rebuildArticleAi returns null when the article does not exist", async () =
 test("rebuildArticleAi returns null for a non-operator context", async () => {
   const { rebuildArticleAi } = await import("@/lib/article-library/admin");
   detailArticle = buildArticle({ id: "a1" });
-  const result = await rebuildArticleAi("a1", { role: "Reader", userId: "u1" });
+  const result = await rebuildArticleAi("a1", READER);
   assert.equal(result, null);
   assert.equal(deleteManyCalls.translation.length, 0);
 });
@@ -443,11 +450,11 @@ test("rebuildArticleAi clears derived AI content and reports cleared counts", as
     readingProgress: 0, // progress is preserved
   });
   // All AI derivatives were targeted for deletion.
-  assert.equal(deleteManyCalls.translation.length, 1);
-  assert.equal(deleteManyCalls.vocabularyItem.length, 1);
-  assert.equal(deleteManyCalls.quizQuestion.length, 1);
-  assert.equal(deleteManyCalls.articleTag.length, 1);
-  assert.equal(deleteManyCalls.articleSpeech.length, 1);
+  assertDeleteManyCalledOnce("translation");
+  assertDeleteManyCalledOnce("vocabularyItem");
+  assertDeleteManyCalledOnce("quizQuestion");
+  assertDeleteManyCalledOnce("articleTag");
+  assertDeleteManyCalledOnce("articleSpeech");
 });
 
 test("rebuildArticleAi drops only speech-kind media assets for the article", async () => {

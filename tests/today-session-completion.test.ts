@@ -29,6 +29,9 @@ let updateData: Row[] = [];
 const NOW = new Date("2026-06-27T12:00:00Z");
 const LOCAL_DATE = "2026-06-27";
 const CREATED_AT = new Date("2026-06-27T00:00:00Z");
+const READING_COMPLETED_AT = new Date("2026-06-27T07:00:00Z");
+const COMPREHENSION_COMPLETED_AT = new Date("2026-06-27T07:30:00Z");
+const REVIEWED_AT = new Date("2026-06-27T08:00:00Z");
 
 function makeRow(overrides: Row = {}): Row {
   return {
@@ -55,6 +58,27 @@ function makeRow(overrides: Row = {}): Row {
     updatedAt: CREATED_AT,
     ...overrides,
   };
+}
+
+function makeReviewReadyRow(overrides: Row = {}): Row {
+  return makeRow({
+    targetSavedWordIds: ["w1"],
+    reviewTargetCount: 1,
+    readingCompletedAt: READING_COMPLETED_AT,
+    comprehensionCompletedAt: COMPREHENSION_COMPLETED_AT,
+    completionTier: "comprehension",
+    ...overrides,
+  });
+}
+
+function makeSavedWord(id: string, lastReviewedAt: Date | null, userId = "u1") {
+  return { id, userId, lastReviewedAt };
+}
+
+function assertNoUpdateField(field: string) {
+  for (const d of updateData) {
+    assert.equal(Object.prototype.hasOwnProperty.call(d, field), false);
+  }
 }
 
 before(() => {
@@ -285,9 +309,7 @@ test("reading: idempotent — repeated completion keeps the first timestamp", as
   assert.ok(view);
   assert.equal((view!.readingCompletedAt as Date).getTime(), first.getTime());
   // No write that overwrites readingCompletedAt.
-  for (const d of updateData) {
-    assert.equal(Object.prototype.hasOwnProperty.call(d, "readingCompletedAt"), false);
-  }
+  assertNoUpdateField("readingCompletedAt");
 });
 
 test("reading: manual fallback completes the current primary and never touches ReadingProgress", async () => {
@@ -328,7 +350,7 @@ test("reading: no-op when no Today session exists", async () => {
 test("comprehension: completes from a quiz/difficulty action on the primary article", async () => {
   const { markTodayComprehensionComplete } = await importCompletion();
   // Reading already done so comprehension advances the tier to comprehension.
-  sessionRow = makeRow({ readingCompletedAt: new Date("2026-06-27T07:00:00Z"), completionTier: "reading" });
+  sessionRow = makeRow({ readingCompletedAt: READING_COMPLETED_AT, completionTier: "reading" });
   const view = await markTodayComprehensionComplete({ userId: "u1", articleId: "a1", now: NOW });
   assert.ok(view);
   assert.equal((view!.comprehensionCompletedAt as Date).getTime(), NOW.getTime());
@@ -353,9 +375,7 @@ test("comprehension: idempotent — keeps the first timestamp", async () => {
   const view = await markTodayComprehensionComplete({ userId: "u1", articleId: "a1", now: NOW });
   assert.ok(view);
   assert.equal((view!.comprehensionCompletedAt as Date).getTime(), first.getTime());
-  for (const d of updateData) {
-    assert.equal(Object.prototype.hasOwnProperty.call(d, "comprehensionCompletedAt"), false);
-  }
+  assertNoUpdateField("comprehensionCompletedAt");
 });
 
 // ===========================================================================
@@ -364,15 +384,12 @@ test("comprehension: idempotent — keeps the first timestamp", async () => {
 
 test("word-review: completes when all targets (≤3) are reviewed in the window → full tier", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ["w1", "w2"],
     reviewTargetCount: 2,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
   savedWords = [
-    { id: "w1", userId: "u1", lastReviewedAt: new Date("2026-06-27T08:00:00Z") },
+    makeSavedWord("w1", REVIEWED_AT),
     { id: "w2", userId: "u1", lastReviewedAt: new Date("2026-06-27T08:05:00Z") },
   ];
   const view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
@@ -384,16 +401,13 @@ test("word-review: completes when all targets (≤3) are reviewed in the window 
 
 test("word-review: not complete until enough targets are reviewed", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ["w1", "w2"],
     reviewTargetCount: 2,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
   savedWords = [
-    { id: "w1", userId: "u1", lastReviewedAt: new Date("2026-06-27T08:00:00Z") },
-    { id: "w2", userId: "u1", lastReviewedAt: null }, // not yet reviewed
+    makeSavedWord("w1", REVIEWED_AT),
+    makeSavedWord("w2", null), // not yet reviewed
   ];
   const view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
   assert.ok(view);
@@ -404,16 +418,13 @@ test("word-review: not complete until enough targets are reviewed", async () => 
 
 test("word-review: reviews BEFORE the session window do not count", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ["w1"],
     reviewTargetCount: 1,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
   savedWords = [
     // Reviewed yesterday, before the session's createdAt window.
-    { id: "w1", userId: "u1", lastReviewedAt: new Date("2026-06-26T10:00:00Z") },
+    makeSavedWord("w1", new Date("2026-06-26T10:00:00Z")),
   ];
   const view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
   assert.ok(view);
@@ -423,12 +434,9 @@ test("word-review: reviews BEFORE the session window do not count", async () => 
 
 test("word-review: deleted targets drop out gracefully (best-available completes)", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ["w1", "w2", "w3"],
     reviewTargetCount: 3,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
   // All three target words were deleted since selection → none resolve.
   savedWords = [];
@@ -443,19 +451,15 @@ test("word-review: deleted targets drop out gracefully (best-available completes
 test("word-review: large set requires at least 5 reviewed targets", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
   const ids = ["w1", "w2", "w3", "w4", "w5", "w6"];
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ids,
     reviewTargetCount: ids.length,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
-  const reviewed = new Date("2026-06-27T08:00:00Z");
   // Only 4 reviewed → below the large-set threshold of 5.
   savedWords = ids.map((id, idx) => ({
     id,
     userId: "u1",
-    lastReviewedAt: idx < 4 ? reviewed : null,
+    lastReviewedAt: idx < 4 ? REVIEWED_AT : null,
   }));
   let view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
   assert.equal(view!.wordReviewCompletedAt, null, "4/6 is not enough");
@@ -464,7 +468,7 @@ test("word-review: large set requires at least 5 reviewed targets", async () => 
   savedWords = ids.map((id, idx) => ({
     id,
     userId: "u1",
-    lastReviewedAt: idx < 5 ? reviewed : null,
+    lastReviewedAt: idx < 5 ? REVIEWED_AT : null,
   }));
   view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
   assert.ok(view!.wordReviewCompletedAt, "5/6 meets the large-set threshold");
@@ -473,17 +477,14 @@ test("word-review: large set requires at least 5 reviewed targets", async () => 
 
 test("word-review: non-target reviewed words do not complete Today review", async () => {
   const { markTodayWordReviewComplete } = await importCompletion();
-  sessionRow = makeRow({
+  sessionRow = makeReviewReadyRow({
     targetSavedWordIds: ["w1"],
     reviewTargetCount: 1,
-    readingCompletedAt: new Date("2026-06-27T07:00:00Z"),
-    comprehensionCompletedAt: new Date("2026-06-27T07:30:00Z"),
-    completionTier: "comprehension",
   });
   // The target w1 is unreviewed; a non-target word w99 was reviewed — must not count.
   savedWords = [
-    { id: "w1", userId: "u1", lastReviewedAt: null },
-    { id: "w99", userId: "u1", lastReviewedAt: new Date("2026-06-27T08:00:00Z") },
+    makeSavedWord("w1", null),
+    makeSavedWord("w99", REVIEWED_AT),
   ];
   const view = await markTodayWordReviewComplete({ userId: "u1", now: NOW });
   assert.equal(view!.wordReviewCompletedAt, null);

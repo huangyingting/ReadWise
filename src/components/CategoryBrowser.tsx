@@ -14,10 +14,25 @@ import ArticleListingGrid from "@/components/ArticleListingGrid";
 import { EmptyState } from "@/components/ui";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
 
+const PAGE_SIZE = 6;
+
 type Tab = { key: string; label: string; href: string };
 
 /** Active view: "all", "picks", or a category slug. */
 export type BrowseView = string;
+
+type CategoryBrowserProps = {
+  activeView: BrowseView;
+  initialArticles: ListingArticle[];
+  initialProgress: Record<string, ProgressSummary>;
+  initialHasMore: boolean;
+  initialOffset: number;
+  heading: string;
+  /** SSR initial set of saved article ids — for the card bookmark overlay. */
+  initialSavedIds?: string[];
+  /** Active CEFR level filter from the URL (e.g. "B1") or null. */
+  initialLevel?: string | null;
+};
 
 type FeedResponse = {
   articles?: ListingArticle[];
@@ -26,29 +41,44 @@ type FeedResponse = {
   offset?: number;
 };
 
-function buildTabs(level: string | null): Tab[] {
-  const levelSuffix = level ? `&level=${level}` : "";
-  return [
-    { key: "all", label: "All", href: `/browse${level ? `?level=${level}` : ""}` },
-    ...CATEGORIES.map((c) => ({
-      key: c.slug,
-      label: c.label,
-      href: `/browse?category=${c.slug}${levelSuffix}`,
-    })),
-    { key: "picks", label: "Picks", href: `/browse?view=picks${levelSuffix}` },
-  ];
-}
-
-function queryFor(view: BrowseView, offset: number, level: string | null): string {
-  const params = new URLSearchParams({ offset: String(offset), limit: "6" });
+function appendViewParam(params: URLSearchParams, view: BrowseView) {
   if (view === "picks") {
     params.set("view", "picks");
   } else if (view !== "all") {
     params.set("category", view);
   }
+}
+
+function appendLevelParam(params: URLSearchParams, level: string | null) {
   if (level) {
     params.set("level", level);
   }
+}
+
+function browseHrefFor(view: BrowseView, level: string | null): string {
+  const params = new URLSearchParams();
+  appendViewParam(params, view);
+  appendLevelParam(params, level);
+  const qs = params.toString();
+  return `/browse${qs ? `?${qs}` : ""}`;
+}
+
+function buildTabs(level: string | null): Tab[] {
+  return [
+    { key: "all", label: "All", href: browseHrefFor("all", level) },
+    ...CATEGORIES.map((c) => ({
+      key: c.slug,
+      label: c.label,
+      href: browseHrefFor(c.slug, level),
+    })),
+    { key: "picks", label: "Picks", href: browseHrefFor("picks", level) },
+  ];
+}
+
+function queryFor(view: BrowseView, offset: number, level: string | null): string {
+  const params = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
+  appendViewParam(params, view);
+  appendLevelParam(params, level);
   return params.toString();
 }
 
@@ -70,18 +100,7 @@ export default function CategoryBrowser({
   heading,
   initialSavedIds,
   initialLevel,
-}: {
-  activeView: BrowseView;
-  initialArticles: ListingArticle[];
-  initialProgress: Record<string, ProgressSummary>;
-  initialHasMore: boolean;
-  initialOffset: number;
-  heading: string;
-  /** SSR initial set of saved article ids — for the card bookmark overlay. */
-  initialSavedIds?: string[];
-  /** Active CEFR level filter from the URL (e.g. "B1") or null. */
-  initialLevel?: string | null;
-}) {
+}: CategoryBrowserProps) {
   const router = useRouter();
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
 
@@ -110,19 +129,25 @@ export default function CategoryBrowser({
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newLevel = e.target.value || null;
-    // Build the new URL preserving the current view/category.
-    const params = new URLSearchParams();
-    if (activeView === "picks") {
-      params.set("view", "picks");
-    } else if (activeView !== "all") {
-      params.set("category", activeView);
-    }
-    if (newLevel) {
-      params.set("level", newLevel);
-    }
-    const qs = params.toString();
-    router.push(`/browse${qs ? `?${qs}` : ""}`);
+    router.push(browseHrefFor(activeView, newLevel));
   }
+
+  const emptyState =
+    activeView === "picks" ? (
+      <EmptyState
+        icon={Sparkles}
+        title="No picks for you yet"
+        description="Read a few articles and we'll tailor recommendations to your level and topics."
+        action={{ label: "Browse all", href: "/browse" }}
+      />
+    ) : (
+      <EmptyState
+        icon={Inbox}
+        title="This category is empty"
+        description="No articles here yet — check another category."
+        action={{ label: "Browse all", href: "/browse" }}
+      />
+    );
 
   return (
     <div>
@@ -199,23 +224,7 @@ export default function CategoryBrowser({
         loading={loading}
         loadError={loadError}
         onLoadMore={() => void loadMore()}
-        empty={
-          activeView === "picks" ? (
-            <EmptyState
-              icon={Sparkles}
-              title="No picks for you yet"
-              description="Read a few articles and we'll tailor recommendations to your level and topics."
-              action={{ label: "Browse all", href: "/browse" }}
-            />
-          ) : (
-            <EmptyState
-              icon={Inbox}
-              title="This category is empty"
-              description="No articles here yet — check another category."
-              action={{ label: "Browse all", href: "/browse" }}
-            />
-          )
-        }
+        empty={emptyState}
       />
     </div>
   );

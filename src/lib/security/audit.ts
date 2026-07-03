@@ -102,10 +102,27 @@ export type ListAuditLogsOptions = {
 
 const logger = createLogger("audit");
 const MAX_METADATA_KEYS = 25;
+const MAX_METADATA_DEPTH = 3;
+const MAX_METADATA_KEY_LENGTH = 80;
 const MAX_ARRAY_ITEMS = 20;
 const MAX_STRING_LENGTH = 200;
 const MAX_USER_AGENT_LENGTH = 512;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 const REDACTED = "[redacted]";
+
+function auditLogWhereFromOptions(opts: ListAuditLogsOptions) {
+  return {
+    ...(opts.action ? { action: opts.action } : {}),
+    ...(opts.actorId ? { actorId: opts.actorId } : {}),
+    ...(opts.targetType ? { targetType: opts.targetType } : {}),
+  };
+}
+
+function retentionDaysFromInput(olderThanDays: number): number {
+  return Number.isFinite(olderThanDays) && olderThanDays > 0
+    ? Math.floor(olderThanDays)
+    : auditLogRetentionDays();
+}
 
 function normalizeOptionalString(value: string | null | undefined, max = MAX_STRING_LENGTH): string | null {
   if (!value) return null;
@@ -117,8 +134,31 @@ function redactSensitiveString(value: string): string {
   return truncateStr(redactSensitiveValue(value), MAX_STRING_LENGTH, "…");
 }
 
+function sanitizeMetadataEntry(
+  key: string,
+  value: unknown,
+  depth: number,
+): [string, AuditMetadataValue] {
+  return [
+    truncateStr(key, MAX_METADATA_KEY_LENGTH, "…"),
+    isSensitiveMetadataKey(key) ? REDACTED : sanitizeValue(value, depth),
+  ];
+}
+
+function sanitizeMetadataEntries(
+  entries: Array<[string, unknown]>,
+  valueDepth: number,
+): AuditMetadata {
+  const out: AuditMetadata = {};
+  for (const [key, value] of entries.slice(0, MAX_METADATA_KEYS)) {
+    const [safeKey, safeValue] = sanitizeMetadataEntry(key, value, valueDepth);
+    out[safeKey] = safeValue;
+  }
+  return out;
+}
+
 function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
-  if (depth > 3) return "[truncated]";
+  if (depth > MAX_METADATA_DEPTH) return "[truncated]";
   if (value === null || value === undefined) return null;
   if (typeof value === "boolean") return value;
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
@@ -127,26 +167,14 @@ function sanitizeValue(value: unknown, depth: number): AuditMetadataValue {
     return value.slice(0, MAX_ARRAY_ITEMS).map((item) => sanitizeValue(item, depth + 1));
   }
   if (typeof value === "object") {
-    const out: Record<string, AuditMetadataValue> = {};
-    for (const [key, nested] of Object.entries(value).slice(0, MAX_METADATA_KEYS)) {
-      out[truncateStr(key, 80, "…")] = isSensitiveMetadataKey(key)
-        ? REDACTED
-        : sanitizeValue(nested, depth + 1);
-    }
-    return out;
+    return sanitizeMetadataEntries(Object.entries(value), depth + 1);
   }
   return String(value);
 }
 
 export function sanitizeAuditMetadata(input: Record<string, unknown> | null | undefined): AuditMetadata {
   if (!input) return {};
-  const out: AuditMetadata = {};
-  for (const [key, value] of Object.entries(input).slice(0, MAX_METADATA_KEYS)) {
-    out[truncateStr(key, 80, "…")] = isSensitiveMetadataKey(key)
-      ? REDACTED
-      : sanitizeValue(value, 0);
-  }
-  return out;
+  return sanitizeMetadataEntries(Object.entries(input), 0);
 }
 
 function firstHeader(req: Request, names: string[]): string | null {
@@ -246,11 +274,7 @@ export async function listAuditLogs(
 ) {
   const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 50));
   const page = Math.max(1, opts.page ?? 1);
-  const where = {
-    ...(opts.action ? { action: opts.action } : {}),
-    ...(opts.actorId ? { actorId: opts.actorId } : {}),
-    ...(opts.targetType ? { targetType: opts.targetType } : {}),
-  };
+  const where = auditLogWhereFromOptions(opts);
 
   const [total, rows] = await Promise.all([
     client.auditLog.count({ where }),
@@ -291,11 +315,8 @@ export async function pruneOldAuditLogs(
   client: AuditClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days =
-    Number.isFinite(olderThanDays) && olderThanDays > 0
-      ? Math.floor(olderThanDays)
-      : auditLogRetentionDays();
-  const cutoff = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
+  const days = retentionDaysFromInput(olderThanDays);
+  const cutoff = new Date(now.getTime() - days * MS_PER_DAY);
   const result = await client.auditLog.deleteMany({
     where: { createdAt: { lt: cutoff } },
   });

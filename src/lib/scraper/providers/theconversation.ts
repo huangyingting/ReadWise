@@ -4,41 +4,74 @@ import { categoryFromRules, excludes, parseSitemapLocs } from "./shared";
 const THE_CONVERSATION_SITEMAP_INDEX = "https://theconversation.com/sitemap.xml";
 const ENGLISH_EDITIONS = new Set(["au", "ca", "global", "nz", "uk", "us"]);
 
-function archiveInfo(url: string): { edition: string; year: number } | null {
+type ArchiveSitemap = { url: string; edition: string; year: number };
+
+const THE_CONVERSATION_CATEGORIES = [
+  "world",
+  "politics",
+  "business",
+  "health",
+  "science",
+  "environment",
+  "tech",
+  "culture",
+  "history",
+  "ideas",
+];
+
+const THE_CONVERSATION_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/climate|environment|emissions|carbon|wildfire|heatwave|flood|biodivers|conservation|ecosystem/, "environment"],
+  [/health|medicine|disease|covid|mental.?health|dementia|hospital|doctor|vaccine/, "health"],
+  [/science|physics|biology|chemistry|space|astronom|archaeolog|research|genetic|geophysic|earthquake/, "science"],
+  [/\bai\b|artificial.?intelligence|technology|digital|data|cyber|robot|computing/, "tech"],
+  [/econom|business|trade|market|finance|inflation|tax|tuition|debt|capitalism/, "business"],
+  [/election|politic|government|supreme.?court|congress|democracy|trump|biden|immigration|policy|devolution/, "politics"],
+  [/history|ancient|medieval|archaeolog|heritage|titanic|robin.?hood|christians/, "history"],
+  [/culture|art|music|film|book|sport|football|world.?cup|education|university|religion|society/, "culture"],
+  [/philosophy|ethic|idea|meaning|happiness|consciousness/, "ideas"],
+  [/world|global|international|venezuela|haiti|ukraine|israel|iran|africa|asia|europe|china|russia|migrant|humanitarian|aid/, "world"],
+];
+
+function candidateCap(limit: number): number {
+  return Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
+}
+
+function archiveInfo(url: string): ArchiveSitemap | null {
   try {
     const parsed = new URL(url);
     if (parsed.hostname !== "theconversation.com") return null;
     const match = parsed.pathname.match(/^\/([^/]+)\/sitemap_archive_(\d{4})\.xml$/i);
     if (!match || !ENGLISH_EDITIONS.has(match[1])) return null;
-    return { edition: match[1], year: Number(match[2]) };
+    return { url, edition: match[1], year: Number(match[2]) };
   } catch {
     return null;
   }
   return null;
 }
 
+async function archiveSitemaps(fetch: UrlExtractorContext["fetch"]): Promise<ArchiveSitemap[]> {
+  return parseSitemapLocs(await fetch(THE_CONVERSATION_SITEMAP_INDEX))
+    .map(archiveInfo)
+    .filter((entry): entry is ArchiveSitemap => entry !== null)
+    .sort((a, b) => b.year - a.year || a.edition.localeCompare(b.edition));
+}
+
 async function theConversationUrlExtractor({
   limit,
   fetch,
 }: UrlExtractorContext): Promise<string[]> {
-  const cap = Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
+  const cap = candidateCap(limit);
   const seen = new Set<string>();
   const urls: string[] = [];
 
-  let archiveSitemaps: Array<{ url: string; edition: string; year: number }>;
+  let sitemaps: ArchiveSitemap[];
   try {
-    archiveSitemaps = parseSitemapLocs(await fetch(THE_CONVERSATION_SITEMAP_INDEX))
-      .map((url) => {
-        const info = archiveInfo(url);
-        return info ? { url, ...info } : null;
-      })
-      .filter((entry): entry is { url: string; edition: string; year: number } => entry !== null)
-      .sort((a, b) => b.year - a.year || a.edition.localeCompare(b.edition));
+    sitemaps = await archiveSitemaps(fetch);
   } catch {
     return [];
   }
 
-  for (const sitemap of archiveSitemaps) {
+  for (const sitemap of sitemaps) {
     if (urls.length >= cap) break;
     let locs: string[];
     try {
@@ -88,30 +121,8 @@ const theconversation: Provider = {
       "/republishing",
     ]),
   defaultCategory: "world",
-  categories: [
-    "world",
-    "politics",
-    "business",
-    "health",
-    "science",
-    "environment",
-    "tech",
-    "culture",
-    "history",
-    "ideas",
-  ],
-  readingCategories: [
-    "world",
-    "politics",
-    "business",
-    "health",
-    "science",
-    "environment",
-    "tech",
-    "culture",
-    "history",
-    "ideas",
-  ],
+  categories: THE_CONVERSATION_CATEGORIES,
+  readingCategories: [...THE_CONVERSATION_CATEGORIES],
   cleanup: {
     dropClassKeywords: [
       "donate",
@@ -133,18 +144,7 @@ const theconversation: Provider = {
     categoryFromRules(
       url,
       section,
-      [
-        [/climate|environment|emissions|carbon|wildfire|heatwave|flood|biodivers|conservation|ecosystem/, "environment"],
-        [/health|medicine|disease|covid|mental.?health|dementia|hospital|doctor|vaccine/, "health"],
-        [/science|physics|biology|chemistry|space|astronom|archaeolog|research|genetic|geophysic|earthquake/, "science"],
-        [/\bai\b|artificial.?intelligence|technology|digital|data|cyber|robot|computing/, "tech"],
-        [/econom|business|trade|market|finance|inflation|tax|tuition|debt|capitalism/, "business"],
-        [/election|politic|government|supreme.?court|congress|democracy|trump|biden|immigration|policy|devolution/, "politics"],
-        [/history|ancient|medieval|archaeolog|heritage|titanic|robin.?hood|christians/, "history"],
-        [/culture|art|music|film|book|sport|football|world.?cup|education|university|religion|society/, "culture"],
-        [/philosophy|ethic|idea|meaning|happiness|consciousness/, "ideas"],
-        [/world|global|international|venezuela|haiti|ukraine|israel|iran|africa|asia|europe|china|russia|migrant|humanitarian|aid/, "world"],
-      ],
+      THE_CONVERSATION_CATEGORY_RULES,
       "world",
     ),
   /**

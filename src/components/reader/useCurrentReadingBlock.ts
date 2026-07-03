@@ -31,6 +31,10 @@ const DEBOUNCE_MS = 300;
 /** Block-level element tag names to observe (uppercased, as tagName returns). */
 const BLOCK_TAGS = new Set(["P", "H2", "H3", "H4", "LI", "BLOCKQUOTE"]);
 
+const BLOCK_SELECTOR = "p, h2, h3, h4, li, blockquote";
+const THRESHOLD_STEPS = 21;
+const THRESHOLD_INCREMENT = 0.05;
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
@@ -56,6 +60,11 @@ export interface ReadingBlock {
   /** IntersectionObserver intersectionRatio at the last callback. */
   ratio: number;
 }
+
+type BlockVisibility = {
+  ratio: number;
+  text: string;
+};
 
 // ---------------------------------------------------------------------------
 // Pure selection algorithm (exported for unit testing)
@@ -89,6 +98,58 @@ export function pickMostVisibleBlock(
   return best;
 }
 
+function isObservedBlockElement(element: Element): boolean {
+  return BLOCK_TAGS.has(element.tagName);
+}
+
+function getBlockText(element: Element): string {
+  return (element.textContent ?? "").trim();
+}
+
+function getObservedBlocks(container: HTMLElement): Element[] {
+  return Array.from(container.querySelectorAll<Element>(BLOCK_SELECTOR)).filter(
+    isObservedBlockElement,
+  );
+}
+
+function createInitialVisibilityMap(elements: Element[]): Map<Element, BlockVisibility> {
+  const visibilityMap = new Map<Element, BlockVisibility>();
+  for (const element of elements) {
+    visibilityMap.set(element, { ratio: 0, text: getBlockText(element) });
+  }
+  return visibilityMap;
+}
+
+function createCandidates(
+  elements: Element[],
+  visibilityMap: Map<Element, BlockVisibility>,
+): BlockCandidate[] {
+  return elements.map((element, index) => {
+    const entry = visibilityMap.get(element);
+    return { index, ratio: entry?.ratio ?? 0, text: entry?.text ?? "" };
+  });
+}
+
+function createThresholds(): number[] {
+  return Array.from(
+    { length: THRESHOLD_STEPS },
+    (_, index) => index * THRESHOLD_INCREMENT,
+  );
+}
+
+function isSameReadingBlock(
+  previous: ReadingBlock | null,
+  next: BlockCandidate,
+  element: Element,
+): boolean {
+  return (
+    previous !== null &&
+    previous.index === next.index &&
+    previous.ratio === next.ratio &&
+    previous.element === element
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Hook
 // ---------------------------------------------------------------------------
@@ -112,9 +173,7 @@ export function useCurrentReadingBlock(
   const [block, setBlock] = useState<ReadingBlock | null>(null);
 
   // Per-element ratio + text cache, updated on every IO callback.
-  const ratioMapRef = useRef<Map<Element, { ratio: number; text: string }>>(
-    new Map(),
-  );
+  const ratioMapRef = useRef<Map<Element, BlockVisibility>>(new Map());
   // Stable snapshot of observed elements in DOM order.
   const blocksRef = useRef<Element[]>([]);
   // Debounce timer handle.
@@ -125,29 +184,18 @@ export function useCurrentReadingBlock(
     if (!container || typeof IntersectionObserver === "undefined") return;
 
     // Snapshot block elements at mount time (static article — no dynamic content).
-    const elements = Array.from(
-      container.querySelectorAll<Element>("p, h2, h3, h4, li, blockquote"),
-    ).filter((el) => BLOCK_TAGS.has(el.tagName));
+    const elements = getObservedBlocks(container);
     blocksRef.current = elements;
 
     // Initialise ratio map — all elements start at ratio 0.
-    const ratioMap = new Map<Element, { ratio: number; text: string }>();
-    for (const el of elements) {
-      ratioMap.set(el, { ratio: 0, text: (el.textContent ?? "").trim() });
-    }
-    ratioMapRef.current = ratioMap;
+    ratioMapRef.current = createInitialVisibilityMap(elements);
 
     function scheduleUpdate() {
       if (debounceRef.current != null) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         debounceRef.current = null;
         const blks = blocksRef.current;
-        const map = ratioMapRef.current;
-
-        const candidates: BlockCandidate[] = blks.map((el, i) => {
-          const entry = map.get(el);
-          return { index: i, ratio: entry?.ratio ?? 0, text: entry?.text ?? "" };
-        });
+        const candidates = createCandidates(blks, ratioMapRef.current);
 
         const best = pickMostVisibleBlock(candidates);
         if (!best) {
@@ -157,12 +205,7 @@ export function useCurrentReadingBlock(
         const el = blks[best.index];
         setBlock((prev) => {
           // Avoid spurious re-renders when nothing changed.
-          if (
-            prev &&
-            prev.index === best.index &&
-            prev.ratio === best.ratio &&
-            prev.element === el
-          ) {
+          if (isSameReadingBlock(prev, best, el)) {
             return prev;
           }
           return { index: best.index, text: best.text, element: el, ratio: best.ratio };
@@ -184,7 +227,7 @@ export function useCurrentReadingBlock(
         scheduleUpdate();
       },
       // Sample 21 thresholds (every 5%) for smooth tracking.
-      { threshold: Array.from({ length: 21 }, (_, i) => i * 0.05) },
+      { threshold: createThresholds() },
     );
 
     for (const el of elements) {

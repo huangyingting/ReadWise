@@ -76,6 +76,26 @@ export type SeedStats = {
 
 export const DEFAULT_SEED_LIMIT = 3;
 
+type ScrapeResult = "saved" | "duplicate" | "failed";
+
+type ProviderRunStats = {
+  scraped: number;
+  duplicates: number;
+  failed: number;
+};
+
+function createSeedStats(): SeedStats {
+  return {
+    discovered: 0,
+    saved: 0,
+    duplicates: 0,
+    enriched: 0,
+    published: 0,
+    failed: 0,
+    articleIds: [],
+  };
+}
+
 /**
  * One-command seeder: scrapes a provider for sample articles and runs the full
  * enrichment pipeline (deterministic difficulty plus AI tags, vocabulary, quiz, translation) plus
@@ -93,35 +113,23 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
   const translateLangs = options.translateLangs ?? [];
 
   const providers = resolveProviders(options.providerKeys);
-
-  const stats: SeedStats = {
-    discovered: 0,
-    saved: 0,
-    duplicates: 0,
-    enriched: 0,
-    published: 0,
-    failed: 0,
-    articleIds: [],
-  };
+  const stats = createSeedStats();
 
   const enrichOpts: ProcessOptions = { tts, translateLangs };
   const seen = new Set<string>();
 
   for (const provider of providers) {
-    logger.info(`Discovering up to ${limit} article(s) from ${provider.name}…`);
-    let urls: string[] = [];
-    let discoverError: string | null = null;
-    try {
-      urls = await deps.discover(provider, limit);
-    } catch (err) {
-      discoverError = errorMessage(err);
-      logger.error(`Discovery failed for ${provider.name}: ${discoverError}`);
-    }
-    logger.info(`Found ${urls.length} article URL(s) from ${provider.name}.`);
-
-    let providerScraped = 0;
-    let providerDuplicates = 0;
-    let providerFailed = 0;
+    const { urls, discoverError } = await discoverProviderArticles(
+      provider,
+      limit,
+      deps,
+      logger,
+    );
+    const providerStats: ProviderRunStats = {
+      scraped: 0,
+      duplicates: 0,
+      failed: 0,
+    };
 
     for (const url of urls) {
       if (seen.has(url)) continue;
@@ -129,9 +137,7 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
       stats.discovered++;
 
       const { articleId, scrapeOutcome } = await scrapeOne(url, deps, stats, logger);
-      if (scrapeOutcome === "saved") providerScraped++;
-      else if (scrapeOutcome === "duplicate") providerDuplicates++;
-      else providerFailed++;
+      countProviderScrape(providerStats, scrapeOutcome);
       if (!articleId) continue;
 
       const enriched = await enrichOne(articleId, enrichOpts, deps, stats, logger);
@@ -139,23 +145,64 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
     }
 
     // Record provider health + ingestion quality for this run (RW-050).
-    try {
-      await deps.recordCrawl(provider.key, {
-        discovered: urls.length,
-        scraped: providerScraped,
-        failed: providerFailed,
-        duplicates: providerDuplicates,
-        rejected: 0,
-        error: discoverError,
-      });
-    } catch (err) {
-      logger.warn(
-        `Could not record crawl health for ${provider.name}: ${errorMessage(err)}`,
-      );
-    }
+    await recordProviderCrawl(provider, deps, logger, {
+      discovered: urls.length,
+      scraped: providerStats.scraped,
+      failed: providerStats.failed,
+      duplicates: providerStats.duplicates,
+      rejected: 0,
+      error: discoverError,
+    });
   }
 
   return stats;
+}
+
+async function discoverProviderArticles(
+  provider: Provider,
+  limit: number,
+  deps: SeedDeps,
+  logger: SeedLogger,
+): Promise<{ urls: string[]; discoverError: string | null }> {
+  logger.info(`Discovering up to ${limit} article(s) from ${provider.name}…`);
+  let urls: string[] = [];
+  let discoverError: string | null = null;
+  try {
+    urls = await deps.discover(provider, limit);
+  } catch (err) {
+    discoverError = errorMessage(err);
+    logger.error(`Discovery failed for ${provider.name}: ${discoverError}`);
+  }
+  logger.info(`Found ${urls.length} article URL(s) from ${provider.name}.`);
+  return { urls, discoverError };
+}
+
+function countProviderScrape(
+  providerStats: ProviderRunStats,
+  outcome: ScrapeResult,
+): void {
+  if (outcome === "saved") {
+    providerStats.scraped++;
+  } else if (outcome === "duplicate") {
+    providerStats.duplicates++;
+  } else {
+    providerStats.failed++;
+  }
+}
+
+async function recordProviderCrawl(
+  provider: Provider,
+  deps: SeedDeps,
+  logger: SeedLogger,
+  outcome: CrawlRunOutcome,
+): Promise<void> {
+  try {
+    await deps.recordCrawl(provider.key, outcome);
+  } catch (err) {
+    logger.warn(
+      `Could not record crawl health for ${provider.name}: ${errorMessage(err)}`,
+    );
+  }
 }
 
 function resolveProviders(keys?: string[]): Provider[] {
@@ -181,7 +228,7 @@ async function scrapeOne(
   deps: SeedDeps,
   stats: SeedStats,
   logger: SeedLogger,
-): Promise<{ articleId: string | null; scrapeOutcome: "saved" | "duplicate" | "failed" }> {
+): Promise<{ articleId: string | null; scrapeOutcome: ScrapeResult }> {
   let outcome: SaveOutcome;
   try {
     outcome = await deps.scrapeAndSave(url);

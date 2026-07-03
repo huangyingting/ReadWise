@@ -44,9 +44,32 @@ export type ResolvedClientIp = {
   source: ClientIpSource;
 };
 
+type HeaderSource = Exclude<ClientIpSource, "none">;
+
 // ---------------------------------------------------------------------------
 // Validation + normalization
 // ---------------------------------------------------------------------------
+
+function stripBracketedIp(value: string): string | null {
+  const bracket = value.match(/^\[([^\]]+)\](?::\d+)?$/);
+  return bracket ? bracket[1].trim() : null;
+}
+
+function stripIpv4Port(value: string): string {
+  if (!value.includes(".") || !value.includes(":") || value.includes("::")) {
+    return value;
+  }
+
+  // "1.2.3.4:5678" — strip the port only when the left side is valid IPv4 so
+  // we never truncate a real IPv6 address (which legitimately contains ":").
+  const left = value.slice(0, value.indexOf(":"));
+  return net.isIPv4(left) ? left : value;
+}
+
+function normalizeMappedIpv4(value: string): string | null {
+  const mapped = value.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i);
+  return mapped && net.isIPv4(mapped[1]) ? mapped[1] : null;
+}
 
 /**
  * Validate + normalize a raw IP candidate. Strips surrounding brackets and any
@@ -58,21 +81,11 @@ export function normalizeIp(raw: string | null | undefined): string | null {
   let value = raw.trim();
   if (!value) return null;
 
-  // Bracketed IPv6, optionally with a port: "[::1]" / "[::1]:443".
-  const bracket = value.match(/^\[([^\]]+)\](?::\d+)?$/);
-  if (bracket) {
-    value = bracket[1].trim();
-  } else if (value.includes(".") && value.includes(":") && !value.includes("::")) {
-    // "1.2.3.4:5678" — strip the port only when the left side is valid IPv4 so
-    // we never truncate a real IPv6 address (which legitimately contains ":").
-    const left = value.slice(0, value.indexOf(":"));
-    if (net.isIPv4(left)) value = left;
-  }
-  value = value.trim();
+  value = (stripBracketedIp(value) ?? stripIpv4Port(value)).trim();
 
   // IPv4-mapped IPv6 → bare IPv4 so a mapped address keys identically.
-  const mapped = value.match(/^::ffff:(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/i);
-  if (mapped && net.isIPv4(mapped[1])) return mapped[1];
+  const mappedIpv4 = normalizeMappedIpv4(value);
+  if (mappedIpv4) return mappedIpv4;
 
   const family = net.isIP(value);
   if (family === 4) return value;
@@ -112,15 +125,20 @@ function ipv4ToBytes(ip: string): number[] | null {
   return bytes;
 }
 
+function ipv4TailToHextets(value: string): string | null {
+  const v4 = ipv4ToBytes(value);
+  if (!v4) return null;
+  return `${((v4[0] << 8) | v4[1]).toString(16)}:${((v4[2] << 8) | v4[3]).toString(16)}`;
+}
+
 function ipv6ToBytes(ip: string): number[] | null {
   let str = ip.toLowerCase();
 
   // Embedded IPv4 tail (e.g. "::ffff:1.2.3.4") → two trailing hextets.
   const tail = str.match(/^(.*:)(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})$/);
   if (tail) {
-    const v4 = ipv4ToBytes(tail[2]);
-    if (!v4) return null;
-    const hex = `${((v4[0] << 8) | v4[1]).toString(16)}:${((v4[2] << 8) | v4[3]).toString(16)}`;
+    const hex = ipv4TailToHextets(tail[2]);
+    if (!hex) return null;
     str = tail[1] + hex;
   }
 
@@ -155,6 +173,18 @@ function ipToBytes(ip: string): number[] | null {
   return null;
 }
 
+function bytesMatchPrefix(ipBytes: number[], netBytes: number[], prefix: number): boolean {
+  let bitsLeft = prefix;
+  for (let i = 0; i < ipBytes.length; i++) {
+    if (bitsLeft <= 0) break;
+    const take = Math.min(8, bitsLeft);
+    const mask = take === 0 ? 0 : (0xff << (8 - take)) & 0xff;
+    if ((ipBytes[i] & mask) !== (netBytes[i] & mask)) return false;
+    bitsLeft -= take;
+  }
+  return true;
+}
+
 /**
  * Whether `ip` is inside `cidr`. `cidr` may be a bare IP (exact match) or
  * `network/prefix`. IPv4 and IPv6 never match across families.
@@ -177,15 +207,7 @@ export function ipInCidr(ip: string, cidr: string): boolean {
   if (!ipBytes || !netBytes || ipBytes.length !== netBytes.length) return false;
   if (prefix > ipBytes.length * 8) return false;
 
-  let bitsLeft = prefix;
-  for (let i = 0; i < ipBytes.length; i++) {
-    if (bitsLeft <= 0) break;
-    const take = Math.min(8, bitsLeft);
-    const mask = take === 0 ? 0 : (0xff << (8 - take)) & 0xff;
-    if ((ipBytes[i] & mask) !== (netBytes[i] & mask)) return false;
-    bitsLeft -= take;
-  }
-  return true;
+  return bytesMatchPrefix(ipBytes, netBytes, prefix);
 }
 
 /** Whether `ip` matches any trusted proxy IP/CIDR in `list`. */
@@ -196,6 +218,34 @@ export function isTrustedProxyIp(ip: string, list: string[]): boolean {
 // ---------------------------------------------------------------------------
 // Resolution
 // ---------------------------------------------------------------------------
+
+function resolved(ip: string, source: HeaderSource): ResolvedClientIp {
+  return { ip, source };
+}
+
+function resolveByTrustedList(xff: string[], list: string[]): ResolvedClientIp {
+  for (let i = xff.length - 1; i >= 0; i--) {
+    if (!isTrustedProxyIp(xff[i], list)) {
+      return resolved(xff[i], "cidr-walk");
+    }
+  }
+
+  // Every hop was a trusted proxy → the leftmost entry is the client.
+  return resolved(xff[0], "cidr-walk");
+}
+
+function resolveByTrustedHops(xff: string[], hops: number): ResolvedClientIp {
+  const index = xff.length - 1 - hops;
+  return resolved(xff[index < 0 ? 0 : index], "hop-count");
+}
+
+function resolveFromPlatformHeaders(req: Request): ResolvedClientIp | null {
+  for (const header of PLATFORM_HEADERS) {
+    const value = normalizeIp(req.headers.get(header));
+    if (value) return resolved(value, "platform-header");
+  }
+  return null;
+}
 
 /**
  * Resolve the client IP from a request using the configured trusted-proxy
@@ -208,33 +258,24 @@ export function resolveClientIp(req: Request): ResolvedClientIp {
   // 1) Explicit trusted platform header (most specific) — trust it directly.
   if (cfg.header) {
     const direct = normalizeIp(req.headers.get(cfg.header));
-    if (direct) return { ip: direct, source: "trusted-header" };
+    if (direct) return resolved(direct, "trusted-header");
   }
 
   // 2) Trusted CIDR list — walk right→left, return the first untrusted hop.
   if (cfg.list.length > 0 && xff.length > 0) {
-    for (let i = xff.length - 1; i >= 0; i--) {
-      if (!isTrustedProxyIp(xff[i], cfg.list)) {
-        return { ip: xff[i], source: "cidr-walk" };
-      }
-    }
-    // Every hop was a trusted proxy → the leftmost entry is the client.
-    return { ip: xff[0], source: "cidr-walk" };
+    return resolveByTrustedList(xff, cfg.list);
   }
 
   // 3) Fixed trusted hop count — entry `len - 1 - hops`, clamped at the left.
   if (cfg.hops !== null && xff.length > 0) {
-    const index = xff.length - 1 - cfg.hops;
-    return { ip: xff[index < 0 ? 0 : index], source: "hop-count" };
+    return resolveByTrustedHops(xff, cfg.hops);
   }
 
   // 4) Unconfigured: SOFT best-effort. Prefer the leftmost XFF entry (current
   //    behavior), then any platform header, else nothing.
-  if (xff.length > 0) return { ip: xff[0], source: "forwarded-leftmost" };
-  for (const header of PLATFORM_HEADERS) {
-    const value = normalizeIp(req.headers.get(header));
-    if (value) return { ip: value, source: "platform-header" };
-  }
+  if (xff.length > 0) return resolved(xff[0], "forwarded-leftmost");
+  const platform = resolveFromPlatformHeaders(req);
+  if (platform) return platform;
   return { ip: null, source: "none" };
 }
 

@@ -44,6 +44,17 @@ function buildBody(words: number): string {
   return "<p>" + Array.from({ length: words }, () => "word").join(" ") + "</p>";
 }
 
+function withScraperReadability<T>(value: string, run: () => T): T {
+  const prev = process.env.SCRAPER_READABILITY;
+  process.env.SCRAPER_READABILITY = value;
+  try {
+    return run();
+  } finally {
+    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
+    else process.env.SCRAPER_READABILITY = prev;
+  }
+}
+
 test("extractArticle parses JSON-LD article into a cleaned record", () => {
   const ld = {
     "@type": "NewsArticle",
@@ -274,9 +285,7 @@ test("extractArticle removes Smithsonian leading publication-date residue withou
 });
 
 test("extractArticle (clean capture): SCRAPER_READABILITY=false still yields a valid article via the legacy + declutter path", () => {
-  const prev = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  withScraperReadability("false", () => {
     const html =
       "<html><head><title>Legacy Path Article</title>" +
       '<meta name="author" content="Jane Doe">' +
@@ -294,10 +303,7 @@ test("extractArticle (clean capture): SCRAPER_READABILITY=false still yields a v
     // Declutter runs in the legacy path too, so the bio is still stripped.
     assert.doesNotMatch(result?.content ?? "", /senior writer at Example Magazine/);
     assert.doesNotMatch(result?.content ?? "", /By Jane Doe/);
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prev;
-  }
+  });
 });
 
 test("extractArticle (clean capture): a long multi-paragraph article loses no body content", () => {
@@ -360,9 +366,7 @@ test("extractArticle (clean capture, e2e): class-less bio + newsletter CTA remov
 });
 
 test("extractArticle (generic provider cleanup): strips chrome while preserving images and video links", () => {
-  const prev = process.env.SCRAPER_READABILITY;
-  process.env.SCRAPER_READABILITY = "false";
-  try {
+  withScraperReadability("false", () => {
     const html =
       `<!doctype html><html><head><title>A Study of Urban Wildlife</title>` +
       `<meta property="og:title" content="A Study of Urban Wildlife"></head><body>` +
@@ -386,8 +390,5 @@ test("extractArticle (generic provider cleanup): strips chrome while preserving 
     assert.doesNotMatch(content, /Noisy related story/, "related chrome removed");
     assert.doesNotMatch(content, /Share on X/, "share chrome removed");
     assert.doesNotMatch(content, /latest stories in your inbox/, "newsletter chrome removed");
-  } finally {
-    if (prev === undefined) delete process.env.SCRAPER_READABILITY;
-    else process.env.SCRAPER_READABILITY = prev;
-  }
+  });
 });

@@ -89,6 +89,25 @@ function backoffMs(attempt: number, base = 1000, max = 10_000): number {
   return Math.min(max, exp + Math.floor(Math.random() * Math.min(base, exp)));
 }
 
+function attemptSignal(timeoutMs: number, externalSignal?: AbortSignal): AbortSignal {
+  const timeoutSignal = AbortSignal.timeout(timeoutMs);
+  return externalSignal
+    ? AbortSignal.any([externalSignal, timeoutSignal])
+    : timeoutSignal;
+}
+
+function contentTerminalOutcome(kind: AiErrorKind): kind is "empty" | "content_filter" {
+  return kind === "empty" || kind === "content_filter";
+}
+
+function sleep(delayMs: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function retryDelayMs(retryAfterMs: number | undefined, attempt: number): number {
+  return retryAfterMs ?? backoffMs(attempt + 1);
+}
+
 // ---------------------------------------------------------------------------
 // Runner
 // ---------------------------------------------------------------------------
@@ -116,11 +135,7 @@ export async function runAiRequest(
   let lastDurationMs = 0;
 
   for (let attempt = 0; attempt <= maxRetries; attempt++) {
-    const timeoutSignal = AbortSignal.timeout(timeoutMs);
-    const signal = externalSignal
-      ? AbortSignal.any([externalSignal, timeoutSignal])
-      : timeoutSignal;
-
+    const signal = attemptSignal(timeoutMs, externalSignal);
     const response = await provider.chat({ messages, maxOutputTokens, signal });
     lastDurationMs = response.durationMs;
 
@@ -140,7 +155,7 @@ export async function runAiRequest(
 
     // 2xx with no usable content (empty body or content-filter refusal).
     // Not retryable — degrade gracefully rather than retrying.
-    if (error.kind === "empty" || error.kind === "content_filter") {
+    if (contentTerminalOutcome(error.kind)) {
       return {
         outcome: error.kind,
         durationMs: response.durationMs,
@@ -159,9 +174,9 @@ export async function runAiRequest(
     // Retryable failure (rate-limit / 5xx / timeout / network) with attempts
     // remaining: notify caller, honor any provider Retry-After hint, then loop.
     if (error.retryable && attempt < maxRetries) {
-      const delayMs = error.retryAfterMs ?? backoffMs(attempt + 1);
+      const delayMs = retryDelayMs(error.retryAfterMs, attempt);
       onRetry?.({ attempt, model: modelName, reason: error.kind, status: error.status, delayMs });
-      await new Promise<void>((resolve) => setTimeout(resolve, delayMs));
+      await sleep(delayMs);
       continue;
     }
 

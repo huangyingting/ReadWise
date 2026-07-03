@@ -63,12 +63,40 @@ export type LedgerClient = Pick<Prisma.TransactionClient, "aiInvocation">;
 const MAX_FEATURE_LEN = 120;
 const MAX_MODEL_LEN = 120;
 const MAX_ERROR_LEN = 1000;
+const UNKNOWN_FEATURE = "unknown";
+const SUCCESS_STATUS: AiInvocationStatus = "success";
+
+type NormalizedTokenUsage = {
+  promptTokens: number | null;
+  completionTokens: number | null;
+  totalTokens: number | null;
+};
 
 /** Coerce to a finite non-negative integer, else null. */
 function normInt(value: number | null | undefined): number | null {
   if (value === null || value === undefined) return null;
   const n = Math.trunc(value);
   return Number.isFinite(n) && n >= 0 ? n : null;
+}
+
+function inferredTotalTokens(
+  promptTokens: number | null,
+  completionTokens: number | null,
+): number | null {
+  if (promptTokens === null && completionTokens === null) return null;
+  return (promptTokens ?? 0) + (completionTokens ?? 0);
+}
+
+function normalizeTokenUsage(input: AiInvocationInput): NormalizedTokenUsage {
+  const promptTokens = normInt(input.promptTokens);
+  const completionTokens = normInt(input.completionTokens);
+  return {
+    promptTokens,
+    completionTokens,
+    totalTokens:
+      normInt(input.totalTokens) ??
+      inferredTotalTokens(promptTokens, completionTokens),
+  };
 }
 
 /** Resolve per-1K-token rates for a model (exact then substring match). */
@@ -97,10 +125,43 @@ export function estimateAiCostUsd(input: {
   const completion = normInt(input.completionTokens);
   if (prompt === null && completion === null) return null;
   const rate = resolveRate(input.model);
-  const cost = ((prompt ?? 0) / 1000) * rate.prompt + ((completion ?? 0) / 1000) * rate.completion;
+  const cost =
+    ((prompt ?? 0) / 1000) * rate.prompt +
+    ((completion ?? 0) / 1000) * rate.completion;
   if (!Number.isFinite(cost) || cost < 0) return null;
   // Round to 6 decimal places (micro-dollar resolution) to avoid float noise.
   return Math.round(cost * 1e6) / 1e6;
+}
+
+function buildLedgerData(input: AiInvocationInput) {
+  const tokens = normalizeTokenUsage(input);
+  const estimatedCostUsd =
+    input.estimatedCostUsd ??
+    estimateAiCostUsd({
+      model: input.model,
+      promptTokens: tokens.promptTokens,
+      completionTokens: tokens.completionTokens,
+    });
+
+  return {
+    feature: truncateStr(input.feature || UNKNOWN_FEATURE, MAX_FEATURE_LEN),
+    model: input.model ? truncateStr(input.model, MAX_MODEL_LEN) : null,
+    promptVersion: input.promptVersion ?? null,
+    userId: input.userId ?? getRequestContext()?.userId ?? null,
+    articleId: input.articleId ?? null,
+    requestId: input.requestId ?? getRequestId() ?? null,
+    status: input.status,
+    fallback: input.fallback ?? input.status !== SUCCESS_STATUS,
+    cacheHit: input.cacheHit ?? false,
+    latencyMs: normInt(input.latencyMs),
+    promptTokens: tokens.promptTokens,
+    completionTokens: tokens.completionTokens,
+    totalTokens: tokens.totalTokens,
+    estimatedCostUsd,
+    errorMessage: input.errorMessage
+      ? truncateStr(redactSensitiveValue(input.errorMessage), MAX_ERROR_LEN)
+      : null,
+  };
 }
 
 /**
@@ -113,35 +174,8 @@ export async function recordAiInvocation(
 ): Promise<void> {
   if (!aiLedgerEnabled()) return;
   try {
-    const promptTokens = normInt(input.promptTokens);
-    const completionTokens = normInt(input.completionTokens);
-    const totalTokens =
-      normInt(input.totalTokens) ??
-      (promptTokens !== null || completionTokens !== null
-        ? (promptTokens ?? 0) + (completionTokens ?? 0)
-        : null);
-    const estimatedCostUsd =
-      input.estimatedCostUsd ??
-      estimateAiCostUsd({ model: input.model, promptTokens, completionTokens });
-
     await client.aiInvocation.create({
-      data: {
-        feature: truncateStr(input.feature || "unknown", MAX_FEATURE_LEN),
-        model: input.model ? truncateStr(input.model, MAX_MODEL_LEN) : null,
-        promptVersion: input.promptVersion ?? null,
-        userId: input.userId ?? getRequestContext()?.userId ?? null,
-        articleId: input.articleId ?? null,
-        requestId: input.requestId ?? getRequestId() ?? null,
-        status: input.status,
-        fallback: input.fallback ?? input.status !== "success",
-        cacheHit: input.cacheHit ?? false,
-        latencyMs: normInt(input.latencyMs),
-        promptTokens,
-        completionTokens,
-        totalTokens,
-        estimatedCostUsd,
-        errorMessage: input.errorMessage ? truncateStr(redactSensitiveValue(input.errorMessage), MAX_ERROR_LEN) : null,
-      },
+      data: buildLedgerData(input),
     });
   } catch (err) {
     // Best-effort: a ledger write must never break an AI feature.
@@ -164,7 +198,7 @@ export async function recordAiCacheHit(
   client: LedgerClient = prisma,
 ): Promise<void> {
   await recordAiInvocation(
-    { ...input, status: input.status ?? "success", cacheHit: true, fallback: false },
+    { ...input, status: input.status ?? SUCCESS_STATUS, cacheHit: true, fallback: false },
     client,
   );
 }

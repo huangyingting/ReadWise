@@ -21,6 +21,8 @@ import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
+const SHIMMER_LINE_WIDTHS = ["92%", "78%", "55%"] as const;
+
 export interface TranslateSentenceResult {
   translation: string | null;
   fallback: boolean;
@@ -47,6 +49,104 @@ interface Props {
   onRetry: () => void;
   /** Ref guard: outside-click should ignore this element. */
   popoverRef: React.RefObject<HTMLDivElement | null>;
+}
+
+function translationParagraphs(result: TranslateSentenceResult | null): string[] {
+  if (!result || result.fallback || !result.translation) {
+    return [];
+  }
+
+  return result.translation
+    .split(/\n{2,}/)
+    .filter((paragraph) => paragraph.trim().length > 0);
+}
+
+function TranslationLoading() {
+  return (
+    <div className="rw-tr-shimmer" role="status" aria-label="Translating…">
+      {SHIMMER_LINE_WIDTHS.map((width) => (
+        <div key={width} className="rw-tr-shimmer-line" style={{ width }} />
+      ))}
+    </div>
+  );
+}
+
+function RetryButton({ onRetry }: Pick<Props, "onRetry">) {
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      className="rw-tr-retry"
+      leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
+      onClick={onRetry}
+    >
+      Retry
+    </Button>
+  );
+}
+
+function TranslationUnavailable({
+  alert,
+  children,
+  onRetry,
+}: Pick<Props, "onRetry"> & {
+  alert?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div>
+      <p className="rw-tr-unavailable" role={alert ? "alert" : undefined}>
+        {children}
+      </p>
+      <RetryButton onRetry={onRetry} />
+    </div>
+  );
+}
+
+function TranslationContent({
+  loading,
+  result,
+  error,
+  lang,
+  onRetry,
+}: Pick<Props, "loading" | "result" | "error" | "lang" | "onRetry">) {
+  if (loading) {
+    return <TranslationLoading />;
+  }
+
+  if (error) {
+    return (
+      <TranslationUnavailable alert onRetry={onRetry}>
+        Couldn&rsquo;t translate that. Try again.
+      </TranslationUnavailable>
+    );
+  }
+
+  if (!result) {
+    return null;
+  }
+
+  if (result.fallback) {
+    return (
+      <TranslationUnavailable onRetry={onRetry}>
+        Translation isn&rsquo;t available right now. Try again in a moment.
+      </TranslationUnavailable>
+    );
+  }
+
+  const paragraphs = translationParagraphs(result);
+
+  return (
+    <>
+      <div className="rw-tr-translation" lang={lang} dir="auto">
+        {paragraphs.map((paragraph, i) => (
+          <p key={i}>{paragraph}</p>
+        ))}
+      </div>
+      <p className="rw-tr-meta">{languageLabel(lang)}</p>
+    </>
+  );
 }
 
 export default function SentenceTranslatePopover({
@@ -77,11 +177,6 @@ export default function SentenceTranslatePopover({
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
-
-  const paragraphs =
-    result && !result.fallback && result.translation
-      ? result.translation.split(/\n{2,}/).filter((p) => p.trim().length > 0)
-      : [];
 
   return (
     <div
@@ -140,56 +235,13 @@ export default function SentenceTranslatePopover({
 
         {/* Translation result region — aria-live so screen readers announce the result */}
         <div aria-live="polite">
-          {loading ? (
-            <div className="rw-tr-shimmer" role="status" aria-label="Translating…">
-              <div className="rw-tr-shimmer-line" style={{ width: "92%" }} />
-              <div className="rw-tr-shimmer-line" style={{ width: "78%" }} />
-              <div className="rw-tr-shimmer-line" style={{ width: "55%" }} />
-            </div>
-          ) : error ? (
-            <div>
-              <p className="rw-tr-unavailable" role="alert">
-                Couldn&rsquo;t translate that. Try again.
-              </p>
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                className="rw-tr-retry"
-                leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
-                onClick={onRetry}
-              >
-                Retry
-              </Button>
-            </div>
-          ) : result ? (
-            result.fallback ? (
-              <div>
-                <p className="rw-tr-unavailable">
-                  Translation isn&rsquo;t available right now. Try again in a moment.
-                </p>
-                <Button
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  className="rw-tr-retry"
-                  leadingIcon={<RotateCcw size={12} aria-hidden="true" />}
-                  onClick={onRetry}
-                >
-                  Retry
-                </Button>
-              </div>
-            ) : (
-              <>
-                <div className="rw-tr-translation" lang={lang} dir="auto">
-                  {paragraphs.map((p, i) => (
-                    <p key={i}>{p}</p>
-                  ))}
-                </div>
-                <p className="rw-tr-meta">{languageLabel(lang)}</p>
-              </>
-            )
-          ) : null}
+          <TranslationContent
+            loading={loading}
+            result={result}
+            error={error}
+            lang={lang}
+            onRetry={onRetry}
+          />
         </div>
       </div>
     </div>

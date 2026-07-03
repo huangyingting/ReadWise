@@ -45,6 +45,14 @@ type PartialPrefInput = {
   timezone?: unknown;
 };
 
+type ReminderPreferenceRow = {
+  enabled: boolean;
+  preferredHour: number | null;
+  quietHoursStart: number | null;
+  quietHoursEnd: number | null;
+  timezone: string | null;
+};
+
 function parseHour(value: unknown): number | null | undefined {
   if (value === null) return null;
   if (value === undefined) return undefined;
@@ -52,6 +60,22 @@ function parseHour(value: unknown): number | null | undefined {
   if (typeof num !== "number" || !Number.isInteger(num)) return undefined;
   if (num < MIN_HOUR || num > MAX_HOUR) return undefined;
   return num;
+}
+
+function parseTimezone(value: unknown): string | null | undefined {
+  if (value === null) return null;
+  if (typeof value !== "string" || value.length > 64) return undefined;
+  return value.trim() || null;
+}
+
+function fromReminderPreferenceRow(row: ReminderPreferenceRow): ReminderPreference {
+  return {
+    enabled: row.enabled,
+    preferredHour: row.preferredHour,
+    quietHoursStart: row.quietHoursStart,
+    quietHoursEnd: row.quietHoursEnd,
+    timezone: row.timezone,
+  };
 }
 
 export type ReminderPreferenceUpdate = {
@@ -116,13 +140,11 @@ export function validateReminderPreference(
   }
 
   if ("timezone" in input && input.timezone !== undefined) {
-    if (input.timezone === null) {
-      value.timezone = null;
-    } else if (typeof input.timezone === "string" && input.timezone.length <= 64) {
-      value.timezone = input.timezone.trim() || null;
-    } else {
+    const timezone = parseTimezone(input.timezone);
+    if (timezone === undefined) {
       return { ok: false, error: "timezone must be a string (<=64 chars) or null" };
     }
+    value.timezone = timezone;
   }
 
   return { ok: true, value };
@@ -199,13 +221,7 @@ export async function getReminderPreference(
 ): Promise<ReminderPreference> {
   const row = await prisma.reminderPreference.findUnique({ where: { userId } });
   if (!row) return { ...DEFAULT_REMINDER_PREFERENCE };
-  return {
-    enabled: row.enabled,
-    preferredHour: row.preferredHour,
-    quietHoursStart: row.quietHoursStart,
-    quietHoursEnd: row.quietHoursEnd,
-    timezone: row.timezone,
-  };
+  return fromReminderPreferenceRow(row);
 }
 
 /** Batch-read preferences for many users, keyed by userId (defaults omitted). */
@@ -218,13 +234,7 @@ export async function getReminderPreferenceMap(
     where: { userId: { in: userIds } },
   });
   for (const row of rows) {
-    map.set(row.userId, {
-      enabled: row.enabled,
-      preferredHour: row.preferredHour,
-      quietHoursStart: row.quietHoursStart,
-      quietHoursEnd: row.quietHoursEnd,
-      timezone: row.timezone,
-    });
+    map.set(row.userId, fromReminderPreferenceRow(row));
   }
   return map;
 }
@@ -239,11 +249,5 @@ export async function upsertReminderPreference(
     create: { userId, ...update },
     update,
   });
-  return {
-    enabled: row.enabled,
-    preferredHour: row.preferredHour,
-    quietHoursStart: row.quietHoursStart,
-    quietHoursEnd: row.quietHoursEnd,
-    timezone: row.timezone,
-  };
+  return fromReminderPreferenceRow(row);
 }

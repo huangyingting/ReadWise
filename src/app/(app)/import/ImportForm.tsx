@@ -11,11 +11,32 @@ import { SegmentedControl } from "@/components/ui/SegmentedControl";
 
 /** Must match the server-side MIN_IMPORT_WORDS constant in the import route. */
 const MIN_IMPORT_WORDS = 50;
+const DUPLICATE_REDIRECT_DELAY_MS = 1500;
+const TEXT_IMPORT_REDIRECT_DELAY_MS = 1200;
 
 type Mode = "url" | "text";
+type ImportResponse = { duplicate?: boolean; id: string };
+
+const MODE_OPTIONS = [
+  { value: "url" as const, label: "Paste URL" },
+  { value: "text" as const, label: "Paste Text" },
+] as const;
 
 function countWords(t: string): number {
   return t.trim() ? t.trim().split(/\s+/).filter(Boolean).length : 0;
+}
+
+function createImportBody(mode: Mode, url: string, title: string, text: string) {
+  return mode === "url"
+    ? { url: url.trim() }
+    : { title: title.trim() || undefined, text };
+}
+
+function getImportErrorMessage(err: unknown): string {
+  if (err instanceof ApiResponseError) {
+    return err.message || "Import failed. Please try again.";
+  }
+  return "Network error. Please try again.";
 }
 
 export default function ImportForm() {
@@ -30,11 +51,13 @@ export default function ImportForm() {
   const feedbackRef = useRef<HTMLDivElement>(null);
 
   const textWordCount = countWords(text);
-  const textBelowMin = mode === "text" && text.trim().length > 0 && textWordCount < MIN_IMPORT_WORDS;
+  const hasText = text.trim().length > 0;
+  const isTextMode = mode === "text";
+  const textBelowMin = isTextMode && hasText && textWordCount < MIN_IMPORT_WORDS;
   const submitDisabled =
     loading ||
     (mode === "url" && !url.trim()) ||
-    (mode === "text" && (text.trim().length === 0 || textWordCount < MIN_IMPORT_WORDS));
+    (isTextMode && (!hasText || textWordCount < MIN_IMPORT_WORDS));
 
   // Scroll feedback into view whenever error or notice changes.
   useEffect(() => {
@@ -50,42 +73,29 @@ export default function ImportForm() {
     setLoading(true);
 
     try {
-      const body =
-        mode === "url"
-          ? { url: url.trim() }
-          : { title: title.trim() || undefined, text };
-
-      const data = await postJson<{ duplicate?: boolean; id: string }>(
+      const data = await postJson<ImportResponse>(
         "/api/articles/import",
-        body,
+        createImportBody(mode, url, title, text),
       );
+      const readerPath = `/reader/${data.id}`;
 
       if (data.duplicate) {
         // Re-import of an existing article — let the user know before opening.
         setNotice("You've already imported this article — opening it now.");
-        setTimeout(() => router.push(`/reader/${data.id}`), 1500);
-      } else if (mode === "text") {
+        setTimeout(() => router.push(readerPath), DUPLICATE_REDIRECT_DELAY_MS);
+      } else if (isTextMode) {
         // Text paste — show a brief confirmation before navigating.
         setNotice("Article imported successfully! Opening reader…");
-        setTimeout(() => router.push(`/reader/${data.id}`), 1200);
+        setTimeout(() => router.push(readerPath), TEXT_IMPORT_REDIRECT_DELAY_MS);
       } else {
-        router.push(`/reader/${data.id}`);
+        router.push(readerPath);
       }
     } catch (err) {
-      if (err instanceof ApiResponseError) {
-        setError(err.message || "Import failed. Please try again.");
-      } else {
-        setError("Network error. Please try again.");
-      }
+      setError(getImportErrorMessage(err));
     } finally {
       setLoading(false);
     }
   }
-
-  const modeOptions = [
-    { value: "url" as const, label: "Paste URL" },
-    { value: "text" as const, label: "Paste Text" },
-  ] as const;
 
   return (
     <Card>
@@ -96,7 +106,7 @@ export default function ImportForm() {
             label="Import mode"
             value={mode}
             onChange={setMode}
-            options={modeOptions}
+            options={MODE_OPTIONS}
           />
         </div>
 
@@ -125,7 +135,7 @@ export default function ImportForm() {
               <div>
                 <label
                   htmlFor="import-title"
-                    className="mb-[var(--space-1)] block text-[length:var(--text-sm)] font-medium text-text"
+                  className="mb-[var(--space-1)] block text-[length:var(--text-sm)] font-medium text-text"
                 >
                   Title{" "}
                   <span className="text-text-muted font-normal">(optional)</span>

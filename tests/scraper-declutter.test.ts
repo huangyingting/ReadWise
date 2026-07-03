@@ -26,6 +26,11 @@ function assertBodyIntact(out: string): void {
   assert.ok(out.includes("Practitioners recommend"), "third body paragraph kept");
 }
 
+function insertAfterFirstBodyParagraph(prose: string): string {
+  const [firstParagraph, ...remainingParagraphs] = BODY.split("\n");
+  return firstParagraph + prose + remainingParagraphs.join("\n");
+}
+
 test("removes a trailing author byline/bio paragraph (pattern path)", () => {
   const html =
     BODY +
@@ -217,9 +222,7 @@ test("class-less bio + newsletter as the last two blocks: both removed (no hint,
 
 test("a class-less newsletter / subscribe paragraph anywhere is removed", () => {
   const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    `<p>Sign up for our newsletter to get the latest updates.</p>` +
-    BODY.split("\n").slice(1).join("\n");
+    insertAfterFirstBodyParagraph(`<p>Sign up for our newsletter to get the latest updates.</p>`);
   const out = declutterArticleHtml(html);
 
   assert.ok(!out.includes("Sign up for our newsletter"), "class-less CTA removed");
@@ -230,10 +233,7 @@ test("keeps legitimate prose about residents signing up for classes", () => {
   const prose =
     `<p>Each semester, hundreds of residents sign up for free classes at the ` +
     `library, where volunteers teach language, computer skills, and gardening.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("residents sign up for free classes"), "ordinary sign-up prose kept");
@@ -244,10 +244,7 @@ test("keeps ordinary prose where students also read primary source accounts", ()
   const prose =
     `<p>The students also read primary source accounts from families who ` +
     `crossed the river during the spring floods and rebuilt nearby farms.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("students also read primary source accounts"), "ordinary also-read prose kept");
@@ -300,10 +297,7 @@ test("keeps ordinary prose where residents sign up for emergency alerts", () => 
   const prose =
     `<p>Residents sign up for emergency alerts at the town hall each spring ` +
     `because flood warnings often arrive before phone service becomes unreliable.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("Residents sign up for emergency alerts"), "ordinary emergency-alert prose kept");
@@ -314,10 +308,7 @@ test("keeps legitimate prose about scientists getting the latest readings", () =
   const prose =
     `<p>Scientists get the latest readings from the coastal sensors before ` +
     `comparing the measurements with decades of tidal records.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("Scientists get the latest readings"), "ordinary get-latest prose kept");
@@ -328,10 +319,7 @@ test("keeps legitimate prose mentioning a weekly neighborhood newsletter", () =>
   const prose =
     `<p>The weekly neighborhood newsletter documented school meetings, market ` +
     `closures, and volunteer repairs long before the city created an archive.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("weekly neighborhood newsletter"), "ordinary newsletter prose kept");
@@ -342,10 +330,7 @@ test("keeps latest-newsletter prose that is not an inbox CTA", () => {
   const prose =
     `<p>The latest newsletter documented school meetings, cafeteria changes, ` +
     `and repairs to the gym before the district posted minutes online.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("The latest newsletter documented"), "ordinary latest-newsletter prose kept");
@@ -356,10 +341,7 @@ test("keeps ordinary prose about an actual delivered newsletter", () => {
   const prose =
     `<p>The newsletter is delivered every Tuesday with city updates, school ` +
     `board notes, and a calendar of public meetings for residents.</p>`;
-  const html =
-    BODY.split("\n").slice(0, 1).join("") +
-    prose +
-    BODY.split("\n").slice(1).join("\n");
+  const html = insertAfterFirstBodyParagraph(prose);
   const out = declutterArticleHtml(html);
 
   assert.ok(out.includes("newsletter is delivered every Tuesday"), "ordinary delivered-newsletter prose kept");

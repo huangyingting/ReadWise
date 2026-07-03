@@ -8,14 +8,17 @@
  * with the current level and guidance.
  */
 
-import { ENGLISH_LEVELS, LEVEL_HINTS, type EnglishLevel } from "@/lib/option-registries";
+import {
+  ENGLISH_LEVELS,
+  LEVEL_HINTS,
+  type EnglishLevel,
+} from "@/lib/option-registries";
 import { CefrBadge } from "@/components/ui/Badge";
 import type { LevelEntry } from "@/lib/progress-helpers";
 import { formatMonthYear } from "@/lib/display-format";
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
+const CEFR_START_LABEL = "A1";
+const CEFR_END_LABEL = "C2";
 
 /** Width percentage for a CEFR level in the timeline scale. */
 function levelPct(level: EnglishLevel): number {
@@ -23,19 +26,53 @@ function levelPct(level: EnglishLevel): number {
   return Math.round(((rank + 1) / ENGLISH_LEVELS.length) * 100);
 }
 
-// ---------------------------------------------------------------------------
-// Empty state
-// ---------------------------------------------------------------------------
+function nextLevelAfter(level: EnglishLevel): EnglishLevel | null {
+  const nextRank = ENGLISH_LEVELS.indexOf(level) + 1;
+  return nextRank < ENGLISH_LEVELS.length ? ENGLISH_LEVELS[nextRank] : null;
+}
+
+function TimelineScale({
+  pct,
+  height,
+  animated = false,
+}: {
+  pct: number;
+  height: number;
+  animated?: boolean;
+}) {
+  return (
+    <div>
+      <div
+        className="relative w-full rounded-full overflow-hidden"
+        style={{ height, backgroundColor: "var(--border)" }}
+        role="presentation"
+        aria-hidden
+      >
+        <div
+          className={`absolute left-0 top-0 h-full rounded-full${
+            animated ? " transition-all" : ""
+          }`}
+          style={{ width: `${pct}%`, backgroundColor: "var(--teal)" }}
+        />
+      </div>
+      <div className="flex justify-between mt-[var(--space-1)]">
+        <span className="text-[length:var(--text-xs)] text-text-subtle">
+          {CEFR_START_LABEL}
+        </span>
+        <span className="text-[length:var(--text-xs)] text-text-subtle">
+          {CEFR_END_LABEL}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 function EmptyTimeline({ currentLevel }: { currentLevel: EnglishLevel }) {
   const pct = levelPct(currentLevel);
-  const nextRank = ENGLISH_LEVELS.indexOf(currentLevel) + 1;
-  const nextLevel =
-    nextRank < ENGLISH_LEVELS.length ? ENGLISH_LEVELS[nextRank] : null;
+  const nextLevel = nextLevelAfter(currentLevel);
 
   return (
     <div className="flex flex-col gap-[var(--space-4)]">
-      {/* Current level pill + description */}
       <div className="flex flex-wrap items-center gap-[var(--space-3)]">
         <CefrBadge level={currentLevel} />
         <span className="text-[length:var(--text-sm)] text-text-subtle">
@@ -43,26 +80,8 @@ function EmptyTimeline({ currentLevel }: { currentLevel: EnglishLevel }) {
         </span>
       </div>
 
-      {/* Progress track */}
-      <div>
-        <div
-          className="relative w-full rounded-full overflow-hidden"
-          style={{ height: 12, backgroundColor: "var(--border)" }}
-          role="presentation"
-          aria-hidden
-        >
-          <div
-            className="absolute left-0 top-0 h-full rounded-full transition-all"
-            style={{ width: `${pct}%`, backgroundColor: "var(--teal)" }}
-          />
-        </div>
-        <div className="flex justify-between mt-[var(--space-1)]">
-          <span className="text-[length:var(--text-xs)] text-text-subtle">A1</span>
-          <span className="text-[length:var(--text-xs)] text-text-subtle">C2</span>
-        </div>
-      </div>
+      <TimelineScale pct={pct} height={12} animated />
 
-      {/* Guidance copy */}
       <p className="text-[length:var(--text-sm)] text-text-subtle">
         {nextLevel ? (
           <>
@@ -88,15 +107,39 @@ function EmptyTimeline({ currentLevel }: { currentLevel: EnglishLevel }) {
   );
 }
 
-// ---------------------------------------------------------------------------
-// Timeline step-chart
-// ---------------------------------------------------------------------------
-
 interface StepNode {
   level: EnglishLevel;
   date: string; // formatted
-  isoStr: string;
   isCurrent: boolean;
+}
+
+function buildTimelineNodes(
+  history: LevelEntry[],
+  currentLevel: EnglishLevel,
+): StepNode[] {
+  const currentDate = formatMonthYear(new Date().toISOString());
+  const nodes: StepNode[] = [
+    ...history.map((entry) => ({
+      level: entry.level,
+      date: formatMonthYear(entry.changedAt),
+      isCurrent: false,
+    })),
+    {
+      level: currentLevel,
+      date: currentDate,
+      isCurrent: true,
+    },
+  ];
+
+  return nodes.reduce<StepNode[]>((acc, node) => {
+    const prev = acc[acc.length - 1];
+    if (prev && !prev.isCurrent && prev.level === node.level && node.isCurrent) {
+      acc[acc.length - 1] = { ...prev, isCurrent: true };
+      return acc;
+    }
+    acc.push(node);
+    return acc;
+  }, []);
 }
 
 function TimelineChart({
@@ -147,14 +190,18 @@ function TimelineChart({
                   backgroundColor: node.isCurrent
                     ? "color-mix(in srgb, var(--teal) 20%, transparent)"
                     : "var(--bg-subtle)",
-                  border: `2px solid ${node.isCurrent ? "var(--teal)" : "var(--border)"}`,
+                  border: `2px solid ${
+                    node.isCurrent ? "var(--teal)" : "var(--border)"
+                  }`,
                 }}
                 aria-hidden
               >
                 <span
                   className="text-[length:var(--text-sm)] font-bold"
                   style={{
-                    color: node.isCurrent ? "var(--teal-text)" : "var(--text-subtle)",
+                    color: node.isCurrent
+                      ? "var(--teal-text)"
+                      : "var(--text-subtle)",
                   }}
                 >
                   {node.level}
@@ -171,34 +218,10 @@ function TimelineChart({
         ))}
       </ol>
 
-      {/* CEFR progress bar */}
-      <div>
-        <div
-          className="relative w-full rounded-full overflow-hidden"
-          style={{ height: 8, backgroundColor: "var(--border)" }}
-          role="presentation"
-          aria-hidden
-        >
-          <div
-            className="absolute left-0 top-0 h-full rounded-full"
-            style={{
-              width: `${levelPct(currentLevel)}%`,
-              backgroundColor: "var(--teal)",
-            }}
-          />
-        </div>
-        <div className="flex justify-between mt-[var(--space-1)]">
-          <span className="text-[length:var(--text-xs)] text-text-subtle">A1</span>
-          <span className="text-[length:var(--text-xs)] text-text-subtle">C2</span>
-        </div>
-      </div>
+      <TimelineScale pct={levelPct(currentLevel)} height={8} />
     </div>
   );
 }
-
-// ---------------------------------------------------------------------------
-// Public component
-// ---------------------------------------------------------------------------
 
 interface LevelTimelineProps {
   history: LevelEntry[];
@@ -219,33 +242,10 @@ export default function LevelTimeline({
     return <EmptyTimeline currentLevel={currentLevel} />;
   }
 
-  // Build step nodes: each history entry + the "current" marker.
-  const nodes: StepNode[] = history.map((entry) => ({
-    level: entry.level,
-    date: formatMonthYear(entry.changedAt),
-    isoStr: entry.changedAt,
-    isCurrent: false,
-  }));
-
-  // Append a "now" current marker.
-  nodes.push({
-    level: currentLevel,
-    date: formatMonthYear(new Date().toISOString()),
-    isoStr: new Date().toISOString(),
-    isCurrent: true,
-  });
-
-  // De-duplicate: if the last history entry is the same level as current,
-  // merge them into a single "current" node.
-  const deduped = nodes.reduce<StepNode[]>((acc, node) => {
-    const prev = acc[acc.length - 1];
-    if (prev && !prev.isCurrent && prev.level === node.level && node.isCurrent) {
-      acc[acc.length - 1] = { ...prev, isCurrent: true };
-      return acc;
-    }
-    acc.push(node);
-    return acc;
-  }, []);
-
-  return <TimelineChart nodes={deduped} currentLevel={currentLevel} />;
+  return (
+    <TimelineChart
+      nodes={buildTimelineNodes(history, currentLevel)}
+      currentLevel={currentLevel}
+    />
+  );
 }

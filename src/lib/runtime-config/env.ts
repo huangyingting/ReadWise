@@ -61,6 +61,9 @@ export type RuntimeConfigReport = {
   warnings: ConfigIssue[];
 };
 
+type EnvValues = Record<string, string | null>;
+type ConfigValidator = (values: Record<string, string>) => ConfigIssue | null;
+
 /** Wraps a `read` function into a {@link FeatureConfig}. */
 export function defineFeatureConfig<T>(read: () => T | null): FeatureConfig<T> {
   return {
@@ -101,23 +104,13 @@ export function httpUrlIssue(
 
 export function evaluateRequired(
   env: string[],
-  validators: Array<(values: Record<string, string>) => ConfigIssue | null>,
+  validators: ConfigValidator[],
 ): ConfigCheckReport {
-  const values = Object.fromEntries(env.map((name) => [name, envValue(name)]));
-  const missing = env.filter((name) => !values[name]);
+  const values = readEnvValues(env);
+  const missing = missingEnv(env, values);
   const issues = missing.length
-    ? [
-        issue(
-          "error",
-          "missing_required_env",
-          `Missing required environment variable${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
-          missing,
-        ),
-      ]
-    : validators.flatMap((validate) => {
-        const result = validate(values as Record<string, string>);
-        return result ? [result] : [];
-      });
+    ? [missingRequiredIssue(missing)]
+    : validationIssues(validators, values);
   const hasErrors = issues.some((item) => item.severity === "error");
   return {
     status: missing.length ? "missing" : hasErrors ? "malformed" : "ok",
@@ -131,11 +124,11 @@ export function evaluateRequired(
 
 export function evaluateOptional(
   env: string[],
-  validators: Array<(values: Record<string, string>) => ConfigIssue | null> = [],
+  validators: ConfigValidator[] = [],
 ): ConfigCheckReport {
-  const values = Object.fromEntries(env.map((name) => [name, envValue(name)]));
+  const values = readEnvValues(env);
   const present = env.filter((name) => values[name]);
-  const missing = env.filter((name) => !values[name]);
+  const missing = missingEnv(env, values);
 
   if (present.length === 0) {
     return {
@@ -150,22 +143,10 @@ export function evaluateOptional(
 
   const issues: ConfigIssue[] = [];
   if (missing.length > 0) {
-    issues.push(
-      issue(
-        "warning",
-        "partial_optional_provider",
-        `Optional provider is partially configured; missing ${missing.join(", ")}.`,
-        missing,
-      ),
-    );
+    issues.push(partialOptionalProviderIssue(missing));
   }
 
-  issues.push(
-    ...validators.flatMap((validate) => {
-      const result = validate(values as Record<string, string>);
-      return result ? [result] : [];
-    }),
-  );
+  issues.push(...validationIssues(validators, values));
 
   const degraded = missing.length > 0 || issues.length > 0;
   return {
@@ -182,4 +163,37 @@ export function evaluateOptional(
 export function positiveIntEnv(name: string, fallback: number): number {
   const v = parseInt(process.env[name] ?? "", 10);
   return Number.isFinite(v) && v > 0 ? v : fallback;
+}
+
+function readEnvValues(env: string[]): EnvValues {
+  return Object.fromEntries(env.map((name) => [name, envValue(name)]));
+}
+
+function missingEnv(env: string[], values: EnvValues): string[] {
+  return env.filter((name) => !values[name]);
+}
+
+function validationIssues(validators: ConfigValidator[], values: EnvValues): ConfigIssue[] {
+  return validators.flatMap((validate) => {
+    const result = validate(values as Record<string, string>);
+    return result ? [result] : [];
+  });
+}
+
+function missingRequiredIssue(missing: string[]): ConfigIssue {
+  return issue(
+    "error",
+    "missing_required_env",
+    `Missing required environment variable${missing.length === 1 ? "" : "s"}: ${missing.join(", ")}.`,
+    missing,
+  );
+}
+
+function partialOptionalProviderIssue(missing: string[]): ConfigIssue {
+  return issue(
+    "warning",
+    "partial_optional_provider",
+    `Optional provider is partially configured; missing ${missing.join(", ")}.`,
+    missing,
+  );
 }

@@ -20,6 +20,7 @@ const passthroughCapabilityHandler = (_capability: unknown, config: unknown, han
   Object.assign(handler, { __config: config });
 const session = { user: { id: "user-1", role: "Admin" } };
 const req = new Request("http://test.local/api");
+const requestId = "req-1";
 const log = {
   error: (_event: string, meta?: Record<string, unknown>) => {
     clientLogMeta = meta ?? null;
@@ -27,6 +28,18 @@ const log = {
   info: () => {},
   warn: () => {},
 };
+
+function requestCtx(overrides: Record<string, unknown> = {}) {
+  return { req, session, requestId, ...overrides } as never;
+}
+
+function sessionCtx(overrides: Record<string, unknown> = {}) {
+  return { session, ...overrides } as never;
+}
+
+async function assertApiError(action: () => Promise<unknown>, status: number): Promise<void> {
+  await assert.rejects(action, { name: "ApiError", status });
+}
 
 let progressResult: { percent: number; completed: boolean };
 let recordedEvents: unknown[];
@@ -496,20 +509,11 @@ test("reader AI routes return payloads and throw 404 ApiError for null results",
   assert.equal((await speechRoute.POST({ params: { id: "a1" }, session } as never)).status, 200);
 
   quizResult = null;
-  await assert.rejects(() => quizRoute.POST({ params: { id: "a1" }, session } as never), {
-    name: "ApiError",
-    status: 404,
-  });
+  await assertApiError(() => quizRoute.POST(sessionCtx({ params: { id: "a1" } })), 404);
   tagsResult = null;
-  await assert.rejects(() => tagsRoute.POST({ params: { id: "a1" }, session } as never), {
-    name: "ApiError",
-    status: 404,
-  });
+  await assertApiError(() => tagsRoute.POST(sessionCtx({ params: { id: "a1" } })), 404);
   speechResult = null;
-  await assert.rejects(() => speechRoute.POST({ params: { id: "a1" }, session } as never), {
-    name: "ApiError",
-    status: 404,
-  });
+  await assertApiError(() => speechRoute.POST(sessionCtx({ params: { id: "a1" } })), 404);
 });
 
 test("reader offline route returns metadata-only and full offline payloads", async () => {
@@ -535,24 +539,21 @@ test("article import route handles URL duplicates, text defaults, validation, an
   const { GET, POST } = await import("@/app/api/articles/import/route");
 
   importUrlResult = { id: "url-import", status: 200 };
-  let res = await POST({ req, body: { url: "https://example.test/a1" }, session, requestId: "req-1" } as never);
+  let res = await POST(requestCtx({ body: { url: "https://example.test/a1" } }));
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { id: "url-import", duplicate: true });
 
   importUrlResult = { id: "url-import-2", status: 201 };
-  res = await POST({ req, body: { url: "https://example.test/a2" }, session, requestId: "req-1" } as never);
+  res = await POST(requestCtx({ body: { url: "https://example.test/a2" } }));
   assert.equal(res.status, 201);
 
-  res = await POST({ req, body: { title: "   ", text: "Pasted text" }, session, requestId: "req-1" } as never);
+  res = await POST(requestCtx({ body: { title: "   ", text: "Pasted text" } }));
   assert.equal(res.status, 201);
   assert.equal((importTextArgs[0] as { title: string }).title, "Untitled import");
 
-  await assert.rejects(
-    () => POST({ req, body: {}, session, requestId: "req-1" } as never),
-    { name: "ApiError", status: 400 },
-  );
+  await assertApiError(() => POST(requestCtx({ body: {} })), 400);
 
-  res = await GET({ query: { offset: 10, limit: 5 }, session } as never);
+  res = await GET(sessionCtx({ query: { offset: 10, limit: 5 } }));
   assert.deepEqual(await res.json(), {
     articles: [{ id: "a1", title: "Mapped" }],
     opts: { offset: 10, hasMore: true },
@@ -599,17 +600,11 @@ test("client error route scrubs text, strips URLs, captures errors, and absorbs 
 test("admin scrape trigger records per-provider discovery and save failures", async () => {
   const { POST } = await import("@/app/api/admin/scrape/trigger/route");
 
-  await assert.rejects(
-    () => POST({ req, body: { provider: "missing" }, session, requestId: "req-1", log } as never),
-    { name: "ApiError", status: 400 },
-  );
-  await assert.rejects(
-    () => POST({ req, body: {}, session, requestId: "req-1", log } as never),
-    { name: "ApiError", status: 400 },
-  );
+  await assertApiError(() => POST(requestCtx({ body: { provider: "missing" }, log })), 400);
+  await assertApiError(() => POST(requestCtx({ body: {}, log })), 400);
 
   discoverThrows = new Error("discovery failed");
-  let res = await POST({ req, body: { provider: "provider-a" }, session, requestId: "req-1", log } as never);
+  let res = await POST(requestCtx({ body: { provider: "provider-a" }, log }));
   let body = await res.json();
   assert.equal(body.results[0].error, "discovery failed");
   assert.equal(securityEvents.length, 1);
@@ -619,7 +614,7 @@ test("admin scrape trigger records per-provider discovery and save failures", as
   scrapeResults = [{ title: "One" }, { title: "Two" }, null];
   saveOutcomes = [{ status: "saved" }, { status: "skipped" }];
   discoveredUrls = ["one", "two", "three"];
-  res = await POST({ req, body: { all: true, limit: 3 }, session, requestId: "req-1", log } as never);
+  res = await POST(requestCtx({ body: { all: true, limit: 3 }, log }));
   body = await res.json();
   assert.equal(body.results[0].discovered, 3);
   assert.equal(body.results[0].saved, 1);
@@ -631,7 +626,7 @@ test("admin scrape trigger records per-provider discovery and save failures", as
   scrapeResults = [{ title: "Broken" }];
   saveOutcomes = [{ status: "throw" }];
   discoveredUrls = ["broken"];
-  res = await POST({ req, body: { provider: "provider-a" }, session, requestId: "req-1", log } as never);
+  res = await POST(requestCtx({ body: { provider: "provider-a" }, log }));
   body = await res.json();
   assert.equal(body.results[0].failed, 1);
   assert.ok(securityEvents.length >= 2);
@@ -644,6 +639,8 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   const todaySetArticleRoute = await import("@/app/api/today/set-article/route");
   const pushSubscribeRoute = await import("@/app/api/push/subscribe/route");
   const speechTokenRoute = await import("@/app/api/speech/token/route");
+  const pushSubscribe = (endpoint: string) =>
+    pushSubscribeRoute.POST(sessionCtx({ body: { endpoint, p256dh: "p", auth: "a" }, log }));
 
   assert.deepEqual((profileRoute.PUT as any).__config.body(null), {
     ok: false,
@@ -674,18 +671,9 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   });
 
   todayFeatureEnabled = false;
-  await assert.rejects(
-    () => todayComprehensionRoute.GET({ query: { timezone: null }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
-  await assert.rejects(
-    () => todayComprehensionRoute.POST({ body: { selfRating: "ok" }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
-  await assert.rejects(
-    () => todaySetArticleRoute.POST({ body: { articleId: "a1" }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
+  await assertApiError(() => todayComprehensionRoute.GET(sessionCtx({ query: { timezone: null } })), 404);
+  await assertApiError(() => todayComprehensionRoute.POST(sessionCtx({ body: { selfRating: "ok" } })), 404);
+  await assertApiError(() => todaySetArticleRoute.POST(sessionCtx({ body: { articleId: "a1" } })), 404);
 
   todayFeatureEnabled = true;
   assert.deepEqual(
@@ -705,15 +693,9 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   assert.deepEqual(await res.json(), { updated: true, completed: true });
 
   setTodayError = new MockSetTodayArticleError("missing", "not_found");
-  await assert.rejects(
-    () => todaySetArticleRoute.POST({ body: { articleId: "missing" }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
+  await assertApiError(() => todaySetArticleRoute.POST(sessionCtx({ body: { articleId: "missing" } })), 404);
   setTodayError = new MockSetTodayArticleError("not ready", "not_ready");
-  await assert.rejects(
-    () => todaySetArticleRoute.POST({ body: { articleId: "draft" }, session } as never),
-    { name: "ApiError", status: 409 },
-  );
+  await assertApiError(() => todaySetArticleRoute.POST(sessionCtx({ body: { articleId: "draft" } })), 409);
   setTodayError = new Error("boom");
   await assert.rejects(
     () => todaySetArticleRoute.POST({ body: { articleId: "a1" }, session } as never),
@@ -724,50 +706,14 @@ test("profile, search, Today, push subscribe, and speech token routes cover vali
   assert.deepEqual(await res.json(), { today: true });
 
   pushConfigured = false;
-  await assert.rejects(
-    () =>
-      pushSubscribeRoute.POST({
-        body: { endpoint: "https://push.test/sub", p256dh: "p", auth: "a" },
-        session,
-        log,
-      } as never),
-    { name: "ApiError", status: 503 },
-  );
+  await assertApiError(() => pushSubscribe("https://push.test/sub"), 503);
   pushConfigured = true;
-  await assert.rejects(
-    () =>
-      pushSubscribeRoute.POST({
-        body: { endpoint: "not a url", p256dh: "p", auth: "a" },
-        session,
-        log,
-      } as never),
-    { name: "ApiError", status: 400 },
-  );
-  await assert.rejects(
-    () =>
-      pushSubscribeRoute.POST({
-        body: { endpoint: "http://push.test/sub", p256dh: "p", auth: "a" },
-        session,
-        log,
-      } as never),
-    { name: "ApiError", status: 400 },
-  );
+  await assertApiError(() => pushSubscribe("not a url"), 400);
+  await assertApiError(() => pushSubscribe("http://push.test/sub"), 400);
   subscribeResult = { ok: false, status: 409, error: "exists" };
-  await assert.rejects(
-    () =>
-      pushSubscribeRoute.POST({
-        body: { endpoint: "https://push.test/sub", p256dh: "p", auth: "a" },
-        session,
-        log,
-      } as never),
-    { name: "ApiError", status: 409 },
-  );
+  await assertApiError(() => pushSubscribe("https://push.test/sub"), 409);
   subscribeResult = { ok: true };
-  res = await pushSubscribeRoute.POST({
-    body: { endpoint: "https://push.test/sub", p256dh: "p", auth: "a" },
-    session,
-    log,
-  } as never);
+  res = await pushSubscribe("https://push.test/sub");
   assert.equal(res.status, 201);
 
   speechConfigured = false;
@@ -799,19 +745,16 @@ test("admin backfill route maps domain errors, rethrows crashes, and records aud
   };
 
   backfillError = new MockBackfillError(422, "bad backfill");
-  await assert.rejects(
-    () => POST({ req, body, session, requestId: "req-1" } as never),
-    { name: "ApiError", status: 422 },
-  );
+  await assertApiError(() => POST(requestCtx({ body })), 422);
 
   backfillError = new Error("backfill crashed");
   await assert.rejects(
-    () => POST({ req, body, session, requestId: "req-1" } as never),
+    () => POST(requestCtx({ body })),
     /backfill crashed/,
   );
 
   backfillError = null;
-  const res = await POST({ req, body, session, requestId: "req-1" } as never);
+  const res = await POST(requestCtx({ body }));
   assert.deepEqual(await res.json(), backfillResult);
   assert.ok(JSON.stringify(auditCalls).includes("admin.job.backfill"));
 });
@@ -823,12 +766,9 @@ test("account, onboarding, takedown, and series routes map domain results", asyn
   const seriesRoute = await import("@/app/api/series/[id]/enroll/route");
 
   deleteOwnAccountResult = { ok: false, status: 409, error: "cannot delete" };
-  await assert.rejects(
-    () => accountRoute.DELETE({ req, session, requestId: "req-1" } as never),
-    { name: "ApiError", status: 409 },
-  );
+  await assertApiError(() => accountRoute.DELETE(requestCtx()), 409);
   deleteOwnAccountResult = { ok: true };
-  let res = await accountRoute.DELETE({ req, session, requestId: "req-1" } as never);
+  let res = await accountRoute.DELETE(requestCtx());
   assert.equal(res.status, 204);
 
   assert.deepEqual((onboardingRoute.POST as any).__config.body(null), {
@@ -852,42 +792,28 @@ test("account, onboarding, takedown, and series routes map domain results", asyn
   });
 
   takedownResult = { ok: false, status: 404, error: "missing" };
-  await assert.rejects(
-    () =>
-      takedownRoute.POST({
-        req,
-        params: { id: "a1" },
-        body: { state: "blocked" },
-        session,
-        requestId: "req-1",
-      } as never),
-    { name: "ApiError", status: 404 },
+  await assertApiError(
+    () => takedownRoute.POST(requestCtx({ params: { id: "a1" }, body: { state: "blocked" } })),
+    404,
   );
   takedownResult = { ok: true, previousState: "active", state: "blocked", status: "DRAFT" };
-  res = await takedownRoute.POST({
-    req,
-    params: { id: "a1" },
-    body: { state: "blocked", note: "rights", rightsNote: "reviewed" },
-    session,
-    requestId: "req-1",
-  } as never);
+  res = await takedownRoute.POST(
+    requestCtx({
+      params: { id: "a1" },
+      body: { state: "blocked", note: "rights", rightsNote: "reviewed" },
+    }),
+  );
   assert.deepEqual(await res.json(), { ok: true, state: "blocked", status: "DRAFT" });
   assert.equal(revalidateArticlesCalls, 1);
 
   enrollResult = { ok: false };
-  await assert.rejects(
-    () => seriesRoute.POST({ params: { id: "series-1" }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
+  await assertApiError(() => seriesRoute.POST(sessionCtx({ params: { id: "series-1" } })), 404);
   enrollResult = { ok: true, status: "enrolled" };
   res = await seriesRoute.POST({ params: { id: "series-1" }, session } as never);
   assert.deepEqual(await res.json(), { ok: true, status: "enrolled" });
 
   unenrollResult = { ok: false };
-  await assert.rejects(
-    () => seriesRoute.DELETE({ params: { id: "series-1" }, session } as never),
-    { name: "ApiError", status: 404 },
-  );
+  await assertApiError(() => seriesRoute.DELETE(sessionCtx({ params: { id: "series-1" } })), 404);
   unenrollResult = { ok: true };
   res = await seriesRoute.DELETE({ params: { id: "series-1" }, session } as never);
   assert.deepEqual(await res.json(), { ok: true });

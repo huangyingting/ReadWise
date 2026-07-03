@@ -39,6 +39,14 @@ import { LISTING_KEYS } from "@/lib/listing-cache";
 
 const log = createLogger("feed");
 
+function categoryLabel(category: string): string {
+  return category.charAt(0).toUpperCase() + category.slice(1);
+}
+
+function defaultReason(userLevel: DifficultyLevel | null): string {
+  return userLevel ? `Right for your ${userLevel} level` : "Recommended for you";
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
@@ -155,9 +163,7 @@ export function scoreArticle(
   const categoryMatch = Boolean(article.category && topicSet.has(article.category));
   if (categoryMatch) {
     score += SCORE_WEIGHTS.CATEGORY_MATCH;
-    const label =
-      article.category!.charAt(0).toUpperCase() + article.category!.slice(1);
-    reasons.push(`Matches your interest in ${label}`);
+    reasons.push(`Matches your interest in ${categoryLabel(article.category!)}`);
   }
 
   const matchingTags = tagSlugsForArticle.filter((slug) => topicSet.has(slug));
@@ -205,9 +211,7 @@ export function scoreArticle(
     score -= SCORE_WEIGHTS.IN_PROGRESS_PENALTY;
   }
 
-  const reason =
-    reasons[0] ??
-    (userLevel ? `Right for your ${userLevel} level` : "Recommended for you");
+  const reason = reasons[0] ?? defaultReason(userLevel);
 
   return { article, score, reason };
 }
@@ -295,6 +299,31 @@ async function fetchPersonalizedFeed(
   return computePersonalizedFeed(userId, offset, limit, maxLevel, now);
 }
 
+function pageNewestFirst(
+  articles: FeedArticle[],
+  offset: number,
+  limit: number,
+): FeedPage {
+  const page = articles.slice(offset, offset + limit);
+  return {
+    articles: page.map(toListingArticle),
+    hasMore: offset + limit < articles.length,
+    reasons: Object.fromEntries(page.map((a) => [a.id, defaultReason(null)])),
+  };
+}
+
+function collectInProgressIds(
+  rows: Array<{ articleId: string; percent: number }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const row of rows) {
+    if (row.percent > 0) {
+      ids.add(row.articleId);
+    }
+  }
+  return ids;
+}
+
 const cachedGetPersonalizedFeed = createTenantCachedListing(
   fetchPersonalizedFeed,
   LISTING_KEYS.personalizedFeed,
@@ -362,12 +391,7 @@ async function computePersonalizedFeed(
 
   // ---- No-profile fallback: newest-first, no personalisation ----
   if (!hasProfile) {
-    const page = allArticles.slice(offset, offset + limit);
-    return {
-      articles: page.map(toListingArticle),
-      hasMore: offset + limit < allArticles.length,
-      reasons: Object.fromEntries(page.map((a) => [a.id, "Recommended for you"])),
-    };
+    return pageNewestFirst(allArticles, offset, limit);
   }
 
   const articleIds = allArticles.map((a) => a.id);
@@ -379,12 +403,7 @@ async function computePersonalizedFeed(
     select: { articleId: true, percent: true },
   });
 
-  const inProgressIds = new Set<string>();
-  for (const row of progressRows) {
-    if (row.percent > 0) {
-      inProgressIds.add(row.articleId);
-    }
-  }
+  const inProgressIds = collectInProgressIds(progressRows);
 
   // 5) Batch-load article tags (one query — no N+1)
   const tagRows = await prisma.articleTag.findMany({

@@ -217,6 +217,40 @@ function shouldAlert(record: Omit<CapturedError, "alert">): boolean {
   return record.occurrences >= errorAlertThreshold();
 }
 
+function toError(error: unknown): Error {
+  return error instanceof Error
+    ? error
+    : new Error(typeof error === "string" ? error : "Non-error thrown");
+}
+
+function recordCaptureMetric(record: CapturedError): void {
+  try {
+    recordErrorCaptured({
+      source: record.source,
+      severity: record.severity,
+      alert: record.alert,
+    });
+  } catch {
+    // metrics must never break capture
+  }
+}
+
+function sendToSink(record: CapturedError): void {
+  try {
+    activeSink(record);
+  } catch {
+    // a broken sink must never mask the original error
+  }
+}
+
+function sendAlert(record: CapturedError): void {
+  try {
+    activeAlertHook(record);
+  } catch {
+    // alerting is best-effort
+  }
+}
+
 // ---- capture -------------------------------------------------------------
 
 /**
@@ -228,10 +262,7 @@ export function captureError(
   error: unknown,
   context: ErrorContext = {},
 ): CapturedError {
-  const err =
-    error instanceof Error
-      ? error
-      : new Error(typeof error === "string" ? error : "Non-error thrown");
+  const err = toError(error);
   const ambient = getRequestContext();
   const print = fingerprint(err);
   const occurrences = (occurrenceCounts.get(print) ?? 0) + 1;
@@ -256,26 +287,10 @@ export function captureError(
   const alert = shouldAlert(base);
   const record: CapturedError = { ...base, alert };
 
-  try {
-    recordErrorCaptured({
-      source: record.source,
-      severity: record.severity,
-      alert,
-    });
-  } catch {
-    // metrics must never break capture
-  }
-  try {
-    activeSink(record);
-  } catch {
-    // a broken sink must never mask the original error
-  }
+  recordCaptureMetric(record);
+  sendToSink(record);
   if (alert) {
-    try {
-      activeAlertHook(record);
-    } catch {
-      // alerting is best-effort
-    }
+    sendAlert(record);
   }
   return record;
 }

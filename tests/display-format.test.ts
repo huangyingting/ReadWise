@@ -21,13 +21,28 @@ import {
   formatUSD,
 } from "@/lib/display-format";
 
+const EMPTY_DATE_LABEL = "—";
+
+function utcDate(iso: string): Date {
+  return new Date(iso);
+}
+
+function assertFormats<T>(
+  formatter: (value: T) => string,
+  cases: Array<[T, string]>,
+): void {
+  for (const [value, expected] of cases) {
+    assert.equal(formatter(value), expected);
+  }
+}
+
 // ---------------------------------------------------------------------------
 // formatShortDate
 // ---------------------------------------------------------------------------
 
 describe("formatShortDate", () => {
   test("formats a Date object", () => {
-    const d = new Date("2026-01-15T12:00:00Z");
+    const d = utcDate("2026-01-15T12:00:00Z");
     assert.equal(formatShortDate(d), "Jan 15, 2026");
   });
 
@@ -36,15 +51,15 @@ describe("formatShortDate", () => {
   });
 
   test("returns '—' for null", () => {
-    assert.equal(formatShortDate(null), "—");
+    assert.equal(formatShortDate(null), EMPTY_DATE_LABEL);
   });
 
   test("returns '—' for undefined", () => {
-    assert.equal(formatShortDate(undefined), "—");
+    assert.equal(formatShortDate(undefined), EMPTY_DATE_LABEL);
   });
 
   test("returns '—' for an invalid date string", () => {
-    assert.equal(formatShortDate("not-a-date"), "—");
+    assert.equal(formatShortDate("not-a-date"), EMPTY_DATE_LABEL);
   });
 });
 
@@ -54,7 +69,7 @@ describe("formatShortDate", () => {
 
 describe("formatMonthYear", () => {
   test("formats a Date object", () => {
-    const d = new Date("2026-03-01T00:00:00Z");
+    const d = utcDate("2026-03-01T00:00:00Z");
     assert.equal(formatMonthYear(d), "Mar 2026");
   });
 
@@ -92,7 +107,7 @@ describe("formatMediumDate", () => {
   });
 
   test("formats a Date as a medium date string", () => {
-    const d = new Date("2026-06-24T00:00:00Z");
+    const d = utcDate("2026-06-24T00:00:00Z");
     const result = formatMediumDate(d);
     assert.ok(result !== null, "expected non-null result");
     // Medium date includes the month, day, and year
@@ -107,12 +122,12 @@ describe("formatMediumDate", () => {
 
 describe("formatShortMonthDay", () => {
   test("formats a Date as short month and day", () => {
-    const d = new Date("2026-06-24T00:00:00Z");
+    const d = utcDate("2026-06-24T00:00:00Z");
     assert.equal(formatShortMonthDay(d), "Jun 24");
   });
 
   test("formats January 1st", () => {
-    const d = new Date("2026-01-01T00:00:00Z");
+    const d = utcDate("2026-01-01T00:00:00Z");
     assert.equal(formatShortMonthDay(d), "Jan 1");
   });
 });
@@ -123,22 +138,22 @@ describe("formatShortMonthDay", () => {
 
 describe("formatDateTime", () => {
   test("returns '—' for null", () => {
-    assert.equal(formatDateTime(null), "—");
+    assert.equal(formatDateTime(null), EMPTY_DATE_LABEL);
   });
 
   test("returns '—' for undefined", () => {
-    assert.equal(formatDateTime(undefined), "—");
+    assert.equal(formatDateTime(undefined), EMPTY_DATE_LABEL);
   });
 
   test("returns '—' for an invalid date string", () => {
-    assert.equal(formatDateTime("invalid"), "—");
+    assert.equal(formatDateTime("invalid"), EMPTY_DATE_LABEL);
   });
 
   test("returns a non-empty string for a valid Date", () => {
-    const d = new Date("2026-06-24T10:00:00Z");
+    const d = utcDate("2026-06-24T10:00:00Z");
     const result = formatDateTime(d);
     assert.ok(result.length > 0, "expected non-empty output");
-    assert.ok(result !== "—", "expected formatted output, not dash");
+    assert.ok(result !== EMPTY_DATE_LABEL, "expected formatted output, not dash");
   });
 
   test("accepts an ISO string", () => {
@@ -154,12 +169,12 @@ describe("formatDateTime", () => {
 describe("formatWeekdayUTC", () => {
   test("returns 'Wednesday' for 2026-06-24 (UTC)", () => {
     // 2026-06-24 is a Wednesday in UTC
-    const d = new Date("2026-06-24T00:00:00Z");
+    const d = utcDate("2026-06-24T00:00:00Z");
     assert.equal(formatWeekdayUTC(d), "Wednesday");
   });
 
   test("returns 'Sunday' for 2026-06-21 (UTC)", () => {
-    const d = new Date("2026-06-21T00:00:00Z");
+    const d = utcDate("2026-06-21T00:00:00Z");
     assert.equal(formatWeekdayUTC(d), "Sunday");
   });
 });
@@ -170,11 +185,11 @@ describe("formatWeekdayUTC", () => {
 
 describe("formatLockAge", () => {
   test("returns '—' for null", () => {
-    assert.equal(formatLockAge(null), "—");
+    assert.equal(formatLockAge(null), EMPTY_DATE_LABEL);
   });
 
   test("returns '—' for undefined", () => {
-    assert.equal(formatLockAge(undefined), "—");
+    assert.equal(formatLockAge(undefined), EMPTY_DATE_LABEL);
   });
 
   test("rounds 30 000 ms to '30s'", () => {
@@ -273,14 +288,18 @@ describe("formatRelativeTime", () => {
 
 describe("formatUSD", () => {
   test("values >= 1 use 2 decimal places", () => {
-    assert.equal(formatUSD(1.5), "$1.50");
-    assert.equal(formatUSD(10), "$10.00");
-    assert.equal(formatUSD(1.234), "$1.23");
+    assertFormats(formatUSD, [
+      [1.5, "$1.50"],
+      [10, "$10.00"],
+      [1.234, "$1.23"],
+    ]);
   });
 
   test("values < 1 use 4 decimal places", () => {
-    assert.equal(formatUSD(0.0012), "$0.0012");
-    assert.equal(formatUSD(0.5), "$0.5000");
+    assertFormats(formatUSD, [
+      [0.0012, "$0.0012"],
+      [0.5, "$0.5000"],
+    ]);
   });
 
   test("exactly 1.0 uses 2 decimal places", () => {

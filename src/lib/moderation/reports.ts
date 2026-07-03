@@ -44,13 +44,20 @@ export const REPORT_STATUS_LABELS: Record<ContentReportStatus, string> = {
   [ContentReportStatus.DISMISSED]: "Dismissed",
 };
 
+const REPORT_STATUSES = Object.values(ContentReportStatus);
+
 export function isReportReason(value: unknown): value is ContentReportReason {
-  return typeof value === "string" && (REPORT_REASONS as readonly string[]).includes(value);
+  return (
+    typeof value === "string" &&
+    (REPORT_REASONS as readonly string[]).includes(value)
+  );
 }
 
 export function isReportStatus(value: unknown): value is ContentReportStatus {
-  const statuses: string[] = Object.values(ContentReportStatus);
-  return typeof value === "string" && statuses.includes(value);
+  return (
+    typeof value === "string" &&
+    REPORT_STATUSES.includes(value as ContentReportStatus)
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -90,31 +97,26 @@ export type CreateContentReportResult =
 const MAX_NOTE_LENGTH = 500;
 const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
 
-/**
- * Creates a user report for a piece of content. Deduplicates within a 1-hour
- * window so a user cannot flood the same reason for the same article.
- */
-export async function createContentReport(
-  input: CreateContentReportInput,
-): Promise<CreateContentReportResult> {
-  const { reporterUserId, articleId, reason, note } = input;
+function createReportError(
+  error: string,
+  status: number,
+): Extract<CreateContentReportResult, { ok: false }> {
+  return { ok: false, error, status };
+}
 
-  if (!reporterUserId) return { ok: false, error: "reporterUserId is required", status: 400 };
-  if (!articleId) return { ok: false, error: "articleId is required", status: 400 };
-  if (!isReportReason(reason)) return { ok: false, error: "Invalid report reason", status: 400 };
-  if (note != null && note.length > MAX_NOTE_LENGTH) {
-    return { ok: false, error: `note must be at most ${MAX_NOTE_LENGTH} characters`, status: 400 };
-  }
-
-  // Verify the article exists.
+async function articleExists(articleId: string): Promise<boolean> {
   const article = await prisma.article.findUnique({
     where: { id: articleId },
     select: { id: true },
   });
-  if (!article) return { ok: false, error: "Article not found", status: 404 };
+  return Boolean(article);
+}
 
-  // Dedup: reject if the same user already reported the same article with the
-  // same reason within the dedup window.
+async function hasRecentDuplicateReport(
+  reporterUserId: string,
+  articleId: string,
+  reason: ContentReportReason,
+): Promise<boolean> {
   const windowStart = new Date(Date.now() - DEDUP_WINDOW_MS);
   const existing = await prisma.contentReport.findFirst({
     where: {
@@ -125,8 +127,32 @@ export async function createContentReport(
     },
     select: { id: true },
   });
-  if (existing) {
-    return { ok: false, error: "You have already reported this article recently", status: 429 };
+  return Boolean(existing);
+}
+
+/**
+ * Creates a user report for a piece of content. Deduplicates within a 1-hour
+ * window so a user cannot flood the same reason for the same article.
+ */
+export async function createContentReport(
+  input: CreateContentReportInput,
+): Promise<CreateContentReportResult> {
+  const { reporterUserId, articleId, reason, note } = input;
+
+  if (!reporterUserId) return createReportError("reporterUserId is required", 400);
+  if (!articleId) return createReportError("articleId is required", 400);
+  if (!isReportReason(reason)) return createReportError("Invalid report reason", 400);
+  if (note != null && note.length > MAX_NOTE_LENGTH) {
+    return createReportError(`note must be at most ${MAX_NOTE_LENGTH} characters`, 400);
+  }
+
+  // Verify the article exists.
+  if (!(await articleExists(articleId))) return createReportError("Article not found", 404);
+
+  // Dedup: reject if the same user already reported the same article with the
+  // same reason within the dedup window.
+  if (await hasRecentDuplicateReport(reporterUserId, articleId, reason)) {
+    return createReportError("You have already reported this article recently", 429);
   }
 
   const report = await prisma.contentReport.create({
@@ -161,14 +187,55 @@ export type ListReportsResult = {
   pageCount: number;
 };
 
+function normalizeListOptions(opts: ListReportsOptions): {
+  status: ContentReportStatus;
+  page: number;
+  pageSize: number;
+  skip: number;
+} {
+  const page = Math.max(1, opts.page ?? 1);
+  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 25));
+  return {
+    status: opts.status ?? ContentReportStatus.OPEN,
+    page,
+    pageSize,
+    skip: (page - 1) * pageSize,
+  };
+}
+
+type ListedReport = {
+  id: string;
+  reporterUserId: string;
+  articleId: string;
+  reason: ContentReportReason;
+  note: string | null;
+  status: ContentReportStatus;
+  createdAt: Date;
+  resolvedAt: Date | null;
+  resolvedBy: string | null;
+  article: { title: string | null };
+};
+
+function toContentReportRow(report: ListedReport): ContentReportRow {
+  return {
+    id: report.id,
+    reporterUserId: report.reporterUserId,
+    articleId: report.articleId,
+    articleTitle: report.article.title,
+    reason: report.reason,
+    note: report.note,
+    status: report.status,
+    createdAt: report.createdAt,
+    resolvedAt: report.resolvedAt,
+    resolvedBy: report.resolvedBy,
+  };
+}
+
 /** Lists reports for the admin moderation queue. Defaults to OPEN reports. */
 export async function listContentReports(
   opts: ListReportsOptions = {},
 ): Promise<ListReportsResult> {
-  const page = Math.max(1, opts.page ?? 1);
-  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? 25));
-  const status = opts.status ?? ContentReportStatus.OPEN;
-  const skip = (page - 1) * pageSize;
+  const { status, page, pageSize, skip } = normalizeListOptions(opts);
 
   const [rows, total] = await Promise.all([
     prisma.contentReport.findMany({
@@ -192,20 +259,17 @@ export async function listContentReports(
     prisma.contentReport.count({ where: { status } }),
   ]);
 
-  const reports: ContentReportRow[] = rows.map((r) => ({
-    id: r.id,
-    reporterUserId: r.reporterUserId,
-    articleId: r.articleId,
-    articleTitle: r.article.title,
-    reason: r.reason,
-    note: r.note,
-    status: r.status,
-    createdAt: r.createdAt,
-    resolvedAt: r.resolvedAt,
-    resolvedBy: r.resolvedBy,
-  }));
+  const reports = rows.map((report) =>
+    toContentReportRow(report as ListedReport),
+  );
 
-  return { reports, total, page, pageSize, pageCount: Math.ceil(total / pageSize) };
+  return {
+    reports,
+    total,
+    page,
+    pageSize,
+    pageCount: Math.ceil(total / pageSize),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -222,6 +286,20 @@ export type UpdateReportStatusResult =
   | { ok: true; reportId: string; status: ContentReportStatus }
   | { ok: false; error: string; status: number };
 
+function updateReportError(
+  error: string,
+  status: number,
+): Extract<UpdateReportStatusResult, { ok: false }> {
+  return { ok: false, error, status };
+}
+
+function isTerminalStatus(status: ContentReportStatus): boolean {
+  return (
+    status === ContentReportStatus.RESOLVED ||
+    status === ContentReportStatus.DISMISSED
+  );
+}
+
 /** Updates the status of a ContentReport (resolve or dismiss). */
 export async function updateReportStatus(
   input: UpdateReportStatusInput,
@@ -229,17 +307,16 @@ export async function updateReportStatus(
   const { reportId, status, resolvedBy } = input;
 
   if (!isReportStatus(status)) {
-    return { ok: false, error: "Invalid report status", status: 400 };
+    return updateReportError("Invalid report status", 400);
   }
 
   const existing = await prisma.contentReport.findUnique({
     where: { id: reportId },
     select: { id: true, status: true },
   });
-  if (!existing) return { ok: false, error: "Report not found", status: 404 };
+  if (!existing) return updateReportError("Report not found", 404);
 
-  const isTerminal =
-    status === ContentReportStatus.RESOLVED || status === ContentReportStatus.DISMISSED;
+  const isTerminal = isTerminalStatus(status);
 
   const updated = await prisma.contentReport.update({
     where: { id: reportId },

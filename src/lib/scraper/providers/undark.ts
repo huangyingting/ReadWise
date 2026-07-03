@@ -1,4 +1,4 @@
-import type { Provider } from "@/lib/scraper/types";
+import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
 import { excludes, lookupSection, rssUrlExtractor } from "./shared";
 
 const UNDARK_WORDPRESS_API =
@@ -10,23 +10,29 @@ type WordPressPostsResponse = {
   posts?: Array<{ URL?: unknown; link?: unknown }>;
 };
 
+function postUrlField(post: { URL?: unknown; link?: unknown }): unknown {
+  return typeof post.URL === "string" ? post.URL : post.link;
+}
+
+function normalizeWordPressPostUrl(url: string): string {
+  try {
+    const parsedUrl = new URL(url);
+    if (parsedUrl.hostname === "undark.org" || parsedUrl.hostname === "race.undark.org") {
+      parsedUrl.protocol = "https:";
+    }
+    return parsedUrl.href;
+  } catch {
+    return url;
+  }
+}
+
 function parseWordPressPostUrls(raw: string): { found: number | null; urls: string[] } {
   const parsed = JSON.parse(raw) as WordPressPostsResponse;
   const posts = Array.isArray(parsed.posts) ? parsed.posts : [];
   const urls = posts
-    .map((post) => (typeof post.URL === "string" ? post.URL : post.link))
+    .map(postUrlField)
     .filter((url): url is string => typeof url === "string" && url.length > 0)
-    .map((url) => {
-      try {
-        const parsedUrl = new URL(url);
-        if (parsedUrl.hostname === "undark.org" || parsedUrl.hostname === "race.undark.org") {
-          parsedUrl.protocol = "https:";
-        }
-        return parsedUrl.href;
-      } catch {
-        return url;
-      }
-    });
+    .map(normalizeWordPressPostUrl);
   return {
     found: typeof parsed.found === "number" && Number.isFinite(parsed.found) ? parsed.found : null,
     urls,
@@ -35,25 +41,35 @@ function parseWordPressPostUrls(raw: string): { found: number | null; urls: stri
 
 const undarkRssFallback = rssUrlExtractor(["https://undark.org/feed/"]);
 
-async function undarkUrlExtractor(ctx: Parameters<NonNullable<Provider["urlExtractor"]>>[0]): Promise<string[]> {
-  const requestedAll = !Number.isFinite(ctx.limit);
+function createUndarkApiUrl(page: number, pageSize: number): string {
+  const apiUrl = new URL(UNDARK_WORDPRESS_API);
+  apiUrl.searchParams.set("number", String(pageSize));
+  apiUrl.searchParams.set("page", String(page));
+  apiUrl.searchParams.set("status", "publish");
+  apiUrl.searchParams.set("type", "post");
+  apiUrl.searchParams.set("fields", "URL");
+  return apiUrl.href;
+}
+
+function undarkDiscoveryLimits(limit: number): { candidateCap: number; pageSize: number } {
+  const requestedAll = !Number.isFinite(limit);
   const pageSize = requestedAll
     ? UNDARK_API_PAGE_SIZE
-    : Math.min(UNDARK_API_PAGE_SIZE, Math.max(10, Math.ceil(ctx.limit) * 2));
-  const candidateCap = requestedAll ? Number.POSITIVE_INFINITY : Math.max(ctx.limit * 2, ctx.limit);
+    : Math.min(UNDARK_API_PAGE_SIZE, Math.max(10, Math.ceil(limit) * 2));
+  const candidateCap = requestedAll ? Number.POSITIVE_INFINITY : Math.max(limit * 2, limit);
+  return { candidateCap, pageSize };
+}
+
+async function undarkUrlExtractor(ctx: UrlExtractorContext): Promise<string[]> {
+  const { candidateCap, pageSize } = undarkDiscoveryLimits(ctx.limit);
   const seen = new Set<string>();
   const urls: string[] = [];
 
   try {
     for (let page = 1; urls.length < candidateCap; page++) {
-      const apiUrl = new URL(UNDARK_WORDPRESS_API);
-      apiUrl.searchParams.set("number", String(pageSize));
-      apiUrl.searchParams.set("page", String(page));
-      apiUrl.searchParams.set("status", "publish");
-      apiUrl.searchParams.set("type", "post");
-      apiUrl.searchParams.set("fields", "URL");
-
-      const { found, urls: pageUrls } = parseWordPressPostUrls(await ctx.fetch(apiUrl.href));
+      const { found, urls: pageUrls } = parseWordPressPostUrls(
+        await ctx.fetch(createUndarkApiUrl(page, pageSize)),
+      );
       if (pageUrls.length === 0) break;
 
       for (const url of pageUrls) {

@@ -49,9 +49,51 @@ type CoverageResult = {
   aligned: number;
 };
 
+type CoverageBucket = "full" | "gte99" | "gte95" | "gte90" | "gte80" | "lt80";
+
+type AlignmentTotals = {
+  boundaryTokens: number;
+  coveredBoundaryTokens: number;
+  uncoveredBoundaryTokens: number;
+  timings: number;
+  alignedTimings: number;
+  unalignedTimings: number;
+};
+
+type AnalyzeAllResult = {
+  totalRows: number;
+  buckets: Record<CoverageBucket, number>;
+  fullAligned: number;
+  notFullAligned: number;
+  overallBoundaryCoverage: number;
+  totals: AlignmentTotals;
+  worst: ArticleAlignmentStats[];
+  deletion?: {
+    mode: "dry-run" | "applied";
+    threshold: number;
+    selectedCount: number;
+    deletedCount: number;
+    localFiles: {
+      storageKind: ReturnType<typeof mediaStorageKind>;
+      selectedCount: number;
+      deletedCount: number;
+      skippedCount: number;
+      keys: string[];
+    };
+    selected: ArticleAlignmentStats[];
+  };
+};
+
 const DEFAULT_BATCH_SIZE = 100;
 const DEFAULT_PROGRESS_ROWS = 250;
 const DEFAULT_WORST_LIMIT = 20;
+const ARTICLE_ALIGNMENT_SELECT = {
+  id: true,
+  status: true,
+  wordCount: true,
+  content: true,
+  speech: { select: { words: true, storageKey: true } },
+} as const;
 
 function parsePositiveInteger(value: string | undefined, fallback: number): number {
   const parsed = Number(value);
@@ -167,7 +209,7 @@ function coverage(tokens: ComparableToken[], words: SpeechTimingLike[]): Coverag
   return { covered: coveredCount, aligned };
 }
 
-function coverageBucket(value: number): "full" | "gte99" | "gte95" | "gte90" | "gte80" | "lt80" {
+function coverageBucket(value: number): CoverageBucket {
   if (value === 1) return "full";
   if (value >= 0.99) return "gte99";
   if (value >= 0.95) return "gte95";
@@ -178,6 +220,17 @@ function coverageBucket(value: number): "full" | "gte99" | "gte95" | "gte90" | "
 
 function elapsedSeconds(startedAt: bigint): string {
   return (Number(process.hrtime.bigint() - startedAt) / 1_000_000_000).toFixed(1);
+}
+
+function emptyCoverageBuckets(): Record<CoverageBucket, number> {
+  return {
+    full: 0,
+    gte99: 0,
+    gte95: 0,
+    gte90: 0,
+    gte80: 0,
+    lt80: 0,
+  };
 }
 
 function buildArticleStats(row: ArticleSpeechAlignmentRow): ArticleAlignmentStats {
@@ -214,13 +267,7 @@ function pushWorst(
 async function analyzeIds(ids: string[]): Promise<ArticleAlignmentStats[]> {
   const rows: ArticleSpeechAlignmentRow[] = await prisma.article.findMany({
     where: { id: { in: ids } },
-    select: {
-      id: true,
-      status: true,
-      wordCount: true,
-      content: true,
-      speech: { select: { words: true, storageKey: true } },
-    },
+    select: ARTICLE_ALIGNMENT_SELECT,
   });
 
   return rows
@@ -228,44 +275,49 @@ async function analyzeIds(ids: string[]): Promise<ArticleAlignmentStats[]> {
     .map(buildArticleStats);
 }
 
-async function analyzeAll(args: Args): Promise<{
-  totalRows: number;
-  buckets: Record<ReturnType<typeof coverageBucket>, number>;
-  fullAligned: number;
-  notFullAligned: number;
-  overallBoundaryCoverage: number;
-  totals: {
-    boundaryTokens: number;
-    coveredBoundaryTokens: number;
-    uncoveredBoundaryTokens: number;
-    timings: number;
-    alignedTimings: number;
-    unalignedTimings: number;
-  };
-  worst: ArticleAlignmentStats[];
-  deletion?: {
-    mode: "dry-run" | "applied";
-    threshold: number;
-    selectedCount: number;
-    deletedCount: number;
-    localFiles: {
-      storageKind: ReturnType<typeof mediaStorageKind>;
-      selectedCount: number;
-      deletedCount: number;
-      skippedCount: number;
-      keys: string[];
-    };
-    selected: ArticleAlignmentStats[];
-  };
+function uniqueStorageKeys(items: ArticleAlignmentStats[]): string[] {
+  return [...new Set(
+    items
+      .map((item) => item.storageKey)
+      .filter((key): key is string => Boolean(key)),
+  )];
+}
+
+async function deleteLocalStorageKeys(
+  storageKeys: string[],
+  apply: boolean,
+): Promise<{
+  storageKind: ReturnType<typeof mediaStorageKind>;
+  deletedCount: number;
 }> {
-  const buckets: Record<ReturnType<typeof coverageBucket>, number> = {
-    full: 0,
-    gte99: 0,
-    gte95: 0,
-    gte90: 0,
-    gte80: 0,
-    lt80: 0,
-  };
+  const storageKind = mediaStorageKind();
+  let deletedCount = 0;
+
+  if (apply && storageKeys.length > 0 && storageKind === "local") {
+    const storage = getMediaStorage();
+    if (storage?.kind === "local") {
+      for (const storageKey of storageKeys) {
+        await storage.delete(storageKey);
+        deletedCount++;
+      }
+    }
+  }
+
+  return { storageKind, deletedCount };
+}
+
+async function deleteSelectedArticleSpeech(
+  candidates: ArticleAlignmentStats[],
+  apply: boolean,
+): Promise<number> {
+  if (candidates.length === 0 || !apply) return 0;
+  return (await prisma.articleSpeech.deleteMany({
+    where: { articleId: { in: candidates.map((item) => item.id) } },
+  })).count;
+}
+
+async function analyzeAll(args: Args): Promise<AnalyzeAllResult> {
+  const buckets = emptyCoverageBuckets();
   const worst: ArticleAlignmentStats[] = [];
   const deletionCandidates: ArticleAlignmentStats[] = [];
   const startedAt = process.hrtime.bigint();
@@ -283,13 +335,7 @@ async function analyzeAll(args: Args): Promise<{
       orderBy: { id: "asc" },
       take: args.batchSize,
       ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
-      select: {
-        id: true,
-        status: true,
-        wordCount: true,
-        content: true,
-        speech: { select: { words: true, storageKey: true } },
-      },
+      select: ARTICLE_ALIGNMENT_SELECT,
     });
 
     if (!rows.length) break;
@@ -319,29 +365,14 @@ async function analyzeAll(args: Args): Promise<{
     cursor = rows.at(-1)?.id ?? null;
   }
 
-  const localStorageKeys = [...new Set(
-    deletionCandidates
-      .map((item) => item.storageKey)
-      .filter((key): key is string => Boolean(key)),
-  )];
-  const storageKind = mediaStorageKind();
-  let deletedLocalFileCount = 0;
-
-  if (args.deleteBelow != null && args.apply && localStorageKeys.length > 0 && storageKind === "local") {
-    const storage = getMediaStorage();
-    if (storage?.kind === "local") {
-      for (const storageKey of localStorageKeys) {
-        await storage.delete(storageKey);
-        deletedLocalFileCount++;
-      }
-    }
-  }
-
-  const deletedCount = args.deleteBelow == null || deletionCandidates.length === 0 || !args.apply
+  const localStorageKeys = uniqueStorageKeys(deletionCandidates);
+  const { storageKind, deletedCount: deletedLocalFileCount } = await deleteLocalStorageKeys(
+    localStorageKeys,
+    args.deleteBelow != null && args.apply,
+  );
+  const deletedCount = args.deleteBelow == null
     ? 0
-    : (await prisma.articleSpeech.deleteMany({
-        where: { articleId: { in: deletionCandidates.map((item) => item.id) } },
-      })).count;
+    : await deleteSelectedArticleSpeech(deletionCandidates, args.apply);
 
   return {
     totalRows,

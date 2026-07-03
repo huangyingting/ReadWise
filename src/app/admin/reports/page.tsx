@@ -22,14 +22,30 @@ import { formatDateTime } from "@/lib/display-format";
 type SearchParams = { status?: string; page?: string };
 
 const PAGE_SIZE = 25;
+const REPORT_STATUSES = Object.values(ContentReportStatus);
 
 function statusVariant(status: ContentReportStatus): BadgeProps["variant"] {
   switch (status) {
-    case ContentReportStatus.OPEN: return "danger";
-    case ContentReportStatus.REVIEWING: return "warning";
-    case ContentReportStatus.RESOLVED: return "success";
-    case ContentReportStatus.DISMISSED: return "neutral";
+    case ContentReportStatus.OPEN:
+      return "danger";
+    case ContentReportStatus.REVIEWING:
+      return "warning";
+    case ContentReportStatus.RESOLVED:
+      return "success";
+    case ContentReportStatus.DISMISSED:
+      return "neutral";
   }
+}
+
+function parsePage(value: string | undefined): number {
+  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
+}
+
+function isActionableStatus(status: ContentReportStatus): boolean {
+  return (
+    status === ContentReportStatus.OPEN ||
+    status === ContentReportStatus.REVIEWING
+  );
 }
 
 function buildHref(params: { status: string; page: number }): string {
@@ -38,6 +54,43 @@ function buildHref(params: { status: string; page: number }): string {
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/reports?${qs}` : "/admin/reports";
+}
+
+function ReportStatusBadge({ status }: { status: ContentReportStatus }) {
+  return (
+    <Badge variant={statusVariant(status)}>
+      {REPORT_STATUS_LABELS[status]}
+    </Badge>
+  );
+}
+
+function ReportActions({ report }: { report: ContentReportRow }) {
+  if (!isActionableStatus(report.status)) {
+    return (
+      <span className="text-[length:var(--text-sm)] text-text-muted">
+        {report.resolvedAt ? formatDateTime(report.resolvedAt) : "—"}
+      </span>
+    );
+  }
+
+  return (
+    <>
+      <form method="POST" action={`/api/admin/reports/${report.id}`}>
+        <input type="hidden" name="_method" value="PATCH" />
+        <input type="hidden" name="status" value={ContentReportStatus.RESOLVED} />
+        <Button type="submit" size="sm" variant="secondary">
+          Resolve
+        </Button>
+      </form>
+      <form method="POST" action={`/api/admin/reports/${report.id}`}>
+        <input type="hidden" name="_method" value="PATCH" />
+        <input type="hidden" name="status" value={ContentReportStatus.DISMISSED} />
+        <Button type="submit" size="sm" variant="outline">
+          Dismiss
+        </Button>
+      </form>
+    </>
+  );
 }
 
 function ReportsTable({ reports }: { reports: ContentReportRow[] }) {
@@ -70,36 +123,12 @@ function ReportsTable({ reports }: { reports: ContentReportRow[] }) {
             <td>{REPORT_REASON_LABELS[r.reason]}</td>
             <td className="max-w-xs truncate text-[length:var(--text-sm)] text-text-muted">{r.note ?? "—"}</td>
             <td>
-              <Badge variant={statusVariant(r.status)}>
-                {REPORT_STATUS_LABELS[r.status]}
-              </Badge>
+              <ReportStatusBadge status={r.status} />
             </td>
             <td className="text-[length:var(--text-sm)] text-text-muted">{formatDateTime(r.createdAt)}</td>
             <td>
               <div className="flex flex-wrap gap-[var(--space-2)]">
-                {r.status === ContentReportStatus.OPEN ||
-                r.status === ContentReportStatus.REVIEWING ? (
-                  <>
-                    <form method="POST" action={`/api/admin/reports/${r.id}`}>
-                      <input type="hidden" name="_method" value="PATCH" />
-                      <input type="hidden" name="status" value={ContentReportStatus.RESOLVED} />
-                      <Button type="submit" size="sm" variant="secondary">
-                        Resolve
-                      </Button>
-                    </form>
-                    <form method="POST" action={`/api/admin/reports/${r.id}`}>
-                      <input type="hidden" name="_method" value="PATCH" />
-                      <input type="hidden" name="status" value={ContentReportStatus.DISMISSED} />
-                      <Button type="submit" size="sm" variant="outline">
-                        Dismiss
-                      </Button>
-                    </form>
-                  </>
-                ) : (
-                  <span className="text-[length:var(--text-sm)] text-text-muted">
-                    {r.resolvedAt ? formatDateTime(r.resolvedAt) : "—"}
-                  </span>
-                )}
+                <ReportActions report={r} />
               </div>
             </td>
           </tr>
@@ -121,15 +150,13 @@ export default async function AdminReportsPage({
   const status = isReportStatus(rawStatus)
     ? (rawStatus as ContentReportStatus)
     : ContentReportStatus.OPEN;
-  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePage(sp.page);
 
   const { reports, total, pageCount } = await listContentReports({
     status,
     page,
     pageSize: PAGE_SIZE,
   });
-
-  const ALL_STATUSES = Object.values(ContentReportStatus);
 
   return (
     <section className="stack">
@@ -143,7 +170,7 @@ export default async function AdminReportsPage({
           className="w-auto"
           aria-label="Filter by status"
         >
-          {ALL_STATUSES.map((s) => (
+          {REPORT_STATUSES.map((s) => (
             <option key={s} value={s}>
               {REPORT_STATUS_LABELS[s]}
             </option>

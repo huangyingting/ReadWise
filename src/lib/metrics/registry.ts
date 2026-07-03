@@ -73,6 +73,12 @@ function seriesKey(name: string, labels: Record<string, string>): string {
   return `${name}|${labelsKey(labels)}`;
 }
 
+function normalizeLabels(labels: Record<string, MetricLabelValue>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(labels).map(([key, value]) => [key, normalizeLabelValue(value)]),
+  );
+}
+
 /** Normalize an outcome string against an allowed list, returning "unknown" for unrecognised values. */
 export function normalizeOutcome(value: string, allowed: readonly string[]): string {
   return allowed.includes(value) ? value : "unknown";
@@ -92,9 +98,7 @@ export function incCounter(
   labels: Record<string, MetricLabelValue> = {},
   amount = 1,
 ): void {
-  const normalized = Object.fromEntries(
-    Object.entries(labels).map(([key, value]) => [key, normalizeLabelValue(value)]),
-  );
+  const normalized = normalizeLabels(labels);
   const key = seriesKey(name, normalized);
   const current = counters.get(key);
   if (current) {
@@ -112,9 +116,7 @@ export function observeHistogram(
   labels: Record<string, MetricLabelValue>,
   value: number,
 ): void {
-  const normalized = Object.fromEntries(
-    Object.entries(labels).map(([key, val]) => [key, normalizeLabelValue(val)]),
-  );
+  const normalized = normalizeLabels(labels);
   const key = seriesKey(name, normalized);
   const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
   let current = histograms.get(key);
@@ -164,14 +166,19 @@ function cacheCounterPoints(): CounterPoint[] {
   return points;
 }
 
+type SortableMetricPoint = {
+  name: string;
+  labels: Record<string, string>;
+};
+
+function sortKey(point: SortableMetricPoint): string {
+  return `${point.name}|${labelsKey(point.labels)}`;
+}
+
 const byNameAndLabels = (
-  a: { name: string; labels: Record<string, string> },
-  b: { name: string; labels: Record<string, string> },
-) =>
-  `${a.name}|${Object.keys(a.labels).sort().map((k) => `${k}=${a.labels[k]}`).join(",")}`
-    .localeCompare(
-      `${b.name}|${Object.keys(b.labels).sort().map((k) => `${k}=${b.labels[k]}`).join(",")}`,
-    );
+  a: SortableMetricPoint,
+  b: SortableMetricPoint,
+) => sortKey(a).localeCompare(sortKey(b));
 
 export function getMetricsSnapshot(): MetricsSnapshot {
   const counterPoints: CounterPoint[] = [];

@@ -136,25 +136,30 @@ function candidateCap(limit: number): number {
   return Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
 }
 
+function addArticleCandidates(
+  urls: string[],
+  seen: Set<string>,
+  candidates: readonly string[],
+  cap: number,
+): number {
+  let added = 0;
+  for (const candidate of candidates) {
+    if (urls.length >= cap) break;
+    const url = normalizeDiscoveredUrl(candidate);
+    if (!url || !isArticleCandidate(url) || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
+    added++;
+  }
+  return added;
+}
+
 async function collectHubmoreUrls(
   urls: string[],
   seen: Set<string>,
   fetch: ExtractorFetch,
   cap: number,
 ): Promise<void> {
-  const add = (candidates: readonly string[]) => {
-    let added = 0;
-    for (const candidate of candidates) {
-      if (urls.length >= cap) break;
-      const url = normalizeDiscoveredUrl(candidate);
-      if (!url || !isArticleCandidate(url) || seen.has(url)) continue;
-      seen.add(url);
-      urls.push(url);
-      added++;
-    }
-    return added;
-  };
-
   for (const seed of NATGEO_SEEDS) {
     if (urls.length >= cap) break;
     let html: string;
@@ -164,7 +169,7 @@ async function collectHubmoreUrls(
       continue;
     }
 
-    add(parseHtmlArticleLinks(html, seed));
+    addArticleCandidates(urls, seen, parseHtmlArticleLinks(html, seed), cap);
 
     for (const hubmoreUrl of parseHubmoreUrls(html, seed)) {
       if (urls.length >= cap) break;
@@ -178,7 +183,7 @@ async function collectHubmoreUrls(
           break;
         }
 
-        const added = add(parseHtmlArticleLinks(pageHtml, pageUrl));
+        const added = addArticleCandidates(urls, seen, parseHtmlArticleLinks(pageHtml, pageUrl), cap);
         if (added === 0) {
           consecutiveEmptyPages++;
           if (consecutiveEmptyPages >= 2) break;
@@ -212,13 +217,7 @@ async function collectSitemapUrls(
       continue;
     }
 
-    for (const raw of locs) {
-      if (urls.length >= cap) break;
-      const url = normalizeDiscoveredUrl(raw);
-      if (!url || !isArticleCandidate(url) || seen.has(url)) continue;
-      seen.add(url);
-      urls.push(url);
-    }
+    addArticleCandidates(urls, seen, locs, cap);
   }
 }
 

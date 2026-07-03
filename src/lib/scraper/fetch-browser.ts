@@ -53,6 +53,14 @@ const MAX_CHALLENGE_WAIT_MS = 15_000;
 
 let browserPromise: Promise<Browser> | null = null;
 
+function browserContextOptions(): BrowserContextOptions {
+  return {
+    userAgent: DESKTOP_CHROME_UA,
+    locale: "en-US",
+    viewport: { width: 1365, height: 900 },
+  };
+}
+
 async function getBrowser(): Promise<Browser> {
   if (!browserPromise) {
     browserPromise = (async () => {
@@ -78,9 +86,13 @@ function looksLikeBrowserChallenge(html: string): boolean {
   return CHALLENGE_MARKERS.some((marker) => lower.includes(marker));
 }
 
+function isHttpProtocol(protocol: string): boolean {
+  return protocol === "http:" || protocol === "https:";
+}
+
 async function assertRouteSafe(rawUrl: string): Promise<void> {
   const parsed = new URL(rawUrl);
-  if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+  if (!isHttpProtocol(parsed.protocol)) {
     throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
   }
   if (net.isIP(parsed.hostname) && isPrivateAddress(parsed.hostname)) {
@@ -89,51 +101,57 @@ async function assertRouteSafe(rawUrl: string): Promise<void> {
   await assertSafeHostname(parsed.hostname);
 }
 
+async function handleRoute(route: Route): Promise<void> {
+  const req = route.request();
+  const reqUrl = req.url();
+  try {
+    const parsed = new URL(reqUrl);
+    if (!isHttpProtocol(parsed.protocol)) {
+      await route.abort();
+      return;
+    }
+    if (BLOCKED_RESOURCE_TYPES.has(req.resourceType())) {
+      await route.abort();
+      return;
+    }
+    await assertRouteSafe(reqUrl);
+    await route.continue();
+  } catch {
+    await route.abort();
+  }
+}
+
+function challengeDeadline(timeoutMs: number): number {
+  const challengeBudgetMs = Math.max(0, Math.min(timeoutMs, MAX_CHALLENGE_WAIT_MS));
+  return Date.now() + challengeBudgetMs;
+}
+
+async function waitThroughBrowserChallenge(page: Page, initialHtml: string, deadline: number): Promise<string> {
+  let html = initialHtml;
+  while (looksLikeBrowserChallenge(html) && Date.now() < deadline) {
+    const waitMs = Math.min(CHALLENGE_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()));
+    await page.waitForTimeout(waitMs);
+    html = await page.content();
+  }
+  return html;
+}
+
 export async function renderViaBrowser(
   url: string,
   timeoutMs: number,
 ): Promise<{ status: number; html: string }> {
   await assertSafeUrl(url);
   const browser = await getBrowser();
-  const context = await browser.newContext({
-    userAgent: DESKTOP_CHROME_UA,
-    locale: "en-US",
-    viewport: { width: 1365, height: 900 },
-  });
+  const context = await browser.newContext(browserContextOptions());
 
   try {
-    await context.route("**/*", async (route) => {
-      const req = route.request();
-      const reqUrl = req.url();
-      try {
-        const parsed = new URL(reqUrl);
-        if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-          await route.abort();
-          return;
-        }
-        if (BLOCKED_RESOURCE_TYPES.has(req.resourceType())) {
-          await route.abort();
-          return;
-        }
-        await assertRouteSafe(reqUrl);
-        await route.continue();
-      } catch {
-        await route.abort();
-      }
-    });
+    await context.route("**/*", handleRoute);
 
     const page = await context.newPage();
     const resp = await page.goto(url, { waitUntil: "domcontentloaded", timeout: timeoutMs });
     const status = resp?.status() ?? 0;
-    const challengeBudgetMs = Math.max(0, Math.min(timeoutMs, MAX_CHALLENGE_WAIT_MS));
-    const deadline = Date.now() + challengeBudgetMs;
-    let html = await page.content();
-
-    while (looksLikeBrowserChallenge(html) && Date.now() < deadline) {
-      const waitMs = Math.min(CHALLENGE_POLL_INTERVAL_MS, Math.max(0, deadline - Date.now()));
-      await page.waitForTimeout(waitMs);
-      html = await page.content();
-    }
+    const deadline = challengeDeadline(timeoutMs);
+    const html = await waitThroughBrowserChallenge(page, await page.content(), deadline);
 
     return { status, html };
   } finally {

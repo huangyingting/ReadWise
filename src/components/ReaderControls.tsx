@@ -35,13 +35,55 @@ import { useReaderPrefs } from "@/components/reader/useReaderPrefs";
 import { ReaderDisplayPanel } from "@/components/reader/ReaderDisplayPanel";
 import { useMediaQuery } from "@/hooks/useMediaQuery";
 
+const DISPLAY_PANEL_LABEL = "Display settings";
+const DESKTOP_DISPLAY_QUERY = "(min-width: 640px)";
+
+interface DisplayPanelSurfaceProps {
+  isDesktop: boolean;
+  open: boolean;
+  anchorRef: React.RefObject<HTMLButtonElement | null>;
+  onClose: () => void;
+  children: React.ReactNode;
+}
+
+function DisplayPanelSurface({
+  isDesktop,
+  open,
+  anchorRef,
+  onClose,
+  children,
+}: DisplayPanelSurfaceProps) {
+  if (isDesktop) {
+    return (
+      <Popover
+        open={open}
+        onClose={onClose}
+        anchorRef={anchorRef}
+        label={DISPLAY_PANEL_LABEL}
+        align="end"
+      >
+        {children}
+      </Popover>
+    );
+  }
+
+  return (
+    <Sheet open={open} onClose={onClose} side="bottom" label={DISPLAY_PANEL_LABEL}>
+      <div className="reader-display-sheet-header">
+        <span className="reader-display-sheet-title">Display</span>
+      </div>
+      {children}
+    </Sheet>
+  );
+}
+
 export default function ReaderControls({ articleId }: { articleId: string }) {
   const { open: toolsOpen, toggle: toggleTools } = useReaderTools();
   const { prefs, announcement, updatePrefs, handleScaleDown, handleScaleUp, atMin, atMax } =
     useReaderPrefs();
   const [displayOpen, setDisplayOpen] = useState(false);
   // Decided at runtime: desktop (>=sm) uses a Popover, mobile (<sm) a Sheet.
-  const isDesktop = useMediaQuery("(min-width: 640px)");
+  const isDesktop = useMediaQuery(DESKTOP_DISPLAY_QUERY);
   const aaButtonRef = useRef<HTMLButtonElement>(null);
 
   function closeDisplay() {
@@ -88,7 +130,7 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
               ref={aaButtonRef}
               aria-haspopup="dialog"
               aria-expanded={displayOpen}
-              aria-label="Display settings"
+              aria-label={DISPLAY_PANEL_LABEL}
               context="reading"
               onClick={() => setDisplayOpen((open) => !open)}
             >
@@ -98,29 +140,14 @@ export default function ReaderControls({ articleId }: { articleId: string }) {
             </IconButton>
           </Tooltip>
 
-          {isDesktop ? (
-            <Popover
-              open={displayOpen}
-              onClose={closeDisplay}
-              anchorRef={aaButtonRef}
-              label="Display settings"
-              align="end"
-            >
-              {displayPanel}
-            </Popover>
-          ) : (
-            <Sheet
-              open={displayOpen}
-              onClose={closeDisplay}
-              side="bottom"
-              label="Display settings"
-            >
-              <div className="reader-display-sheet-header">
-                <span className="reader-display-sheet-title">Display</span>
-              </div>
-              {displayPanel}
-            </Sheet>
-          )}
+          <DisplayPanelSurface
+            isDesktop={isDesktop}
+            open={displayOpen}
+            anchorRef={aaButtonRef}
+            onClose={closeDisplay}
+          >
+            {displayPanel}
+          </DisplayPanelSurface>
         </div>
 
         {/* Tools — opens the responsive practice-tools surface (#153):

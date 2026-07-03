@@ -27,6 +27,23 @@ function zeroAggregate() {
   };
 }
 
+function jsonResponse(body: unknown): Response {
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { "content-type": "application/json" },
+  });
+}
+
+function mockAiFetch(t: { after: (fn: () => void) => void }, response: Response): void {
+  enableAi();
+  const original = globalThis.fetch;
+  t.after(() => {
+    globalThis.fetch = original;
+    disableAi();
+  });
+  globalThis.fetch = (async () => response) as typeof fetch;
+}
+
 before(() => {
   aggregateResult = zeroAggregate();
   mock.module("@/lib/prisma", {
@@ -156,21 +173,14 @@ test("recordAiInvocation never throws on a write failure", async () => {
 // ---- integration via chatCompleteWithMeta / chatComplete --------------------
 
 test("chatCompleteWithMeta records a success invocation with token metadata", async (t) => {
-  enableAi();
-  const original = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = original;
-    disableAi();
-  });
-  globalThis.fetch = (async () =>
-    new Response(
-      JSON.stringify({
-        choices: [{ message: { content: "hola mundo" } }],
-        usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
-        model: "gpt-test-deploy",
-      }),
-      { status: 200, headers: { "content-type": "application/json" } },
-    )) as typeof fetch;
+  mockAiFetch(
+    t,
+    jsonResponse({
+      choices: [{ message: { content: "hola mundo" } }],
+      usage: { prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 },
+      model: "gpt-test-deploy",
+    }),
+  );
 
   const { chatCompleteWithMeta } = await import("@/lib/ai");
   const result = await chatCompleteWithMeta([{ role: "user", content: "secret prompt" }], {
@@ -202,13 +212,7 @@ test("chatComplete records an unconfigured (fallback) invocation", async () => {
 });
 
 test("chatCompleteWithMeta records an error invocation on a 5xx", async (t) => {
-  enableAi();
-  const original = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = original;
-    disableAi();
-  });
-  globalThis.fetch = (async () => new Response("boom", { status: 500 })) as typeof fetch;
+  mockAiFetch(t, new Response("boom", { status: 500 }));
 
   const { chatCompleteWithMeta } = await import("@/lib/ai");
   const result = await chatCompleteWithMeta([{ role: "user", content: "x" }], { feature: "tutor" });
@@ -219,17 +223,7 @@ test("chatCompleteWithMeta records an error invocation on a 5xx", async (t) => {
 });
 
 test("chatCompleteWithMeta records an empty invocation when content is blank", async (t) => {
-  enableAi();
-  const original = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = original;
-    disableAi();
-  });
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ choices: [{ message: { content: "   " } }] }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    })) as typeof fetch;
+  mockAiFetch(t, jsonResponse({ choices: [{ message: { content: "   " } }] }));
 
   const { chatCompleteWithMeta } = await import("@/lib/ai");
   const result = await chatCompleteWithMeta([{ role: "user", content: "x" }], { feature: "quiz" });
@@ -240,17 +234,7 @@ test("chatCompleteWithMeta records an empty invocation when content is blank", a
 
 test("a ledger write failure does not break chatComplete", async (t) => {
   failWrite = true; // every ledger write throws
-  enableAi();
-  const original = globalThis.fetch;
-  t.after(() => {
-    globalThis.fetch = original;
-    disableAi();
-  });
-  globalThis.fetch = (async () =>
-    new Response(JSON.stringify({ choices: [{ message: { content: "still works" } }] }), {
-      status: 200,
-      headers: { "content-type": "application/json" },
-    })) as typeof fetch;
+  mockAiFetch(t, jsonResponse({ choices: [{ message: { content: "still works" } }] }));
 
   const { chatComplete } = await import("@/lib/ai");
   const result = await chatComplete([{ role: "user", content: "hi" }], { feature: "translation" });

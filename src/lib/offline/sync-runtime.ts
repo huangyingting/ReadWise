@@ -48,6 +48,7 @@ export const MUTATION_HEADER = "x-client-mutation-id";
 /** Service-worker Background Sync tag + message type used to trigger a flush. */
 export const SYNC_TAG = "readwise-mutations";
 const SW_FLUSH_MESSAGE = STORAGE_KEYS.SW_FLUSH_QUEUE;
+const BODYLESS_METHODS = new Set(["GET", "DELETE"]);
 
 export interface MutationSpec {
   type: string;
@@ -173,7 +174,7 @@ async function sendRequest(
   payload: unknown,
   clientMutationId: string,
 ): Promise<{ status: number }> {
-  const hasBody = method !== "GET" && method !== "DELETE" && payload != null;
+  const hasBody = payload != null && !BODYLESS_METHODS.has(method);
   const res = await fetch(endpoint, {
     method,
     headers: {
@@ -183,6 +184,21 @@ async function sendRequest(
     body: hasBody ? JSON.stringify(payload) : undefined,
   });
   return { status: res.status };
+}
+
+function sendQueuedMutation(
+  mutation: QueuedMutation,
+): Promise<{ status: number }> {
+  return sendRequest(
+    mutation.endpoint,
+    mutation.method,
+    mutation.payload,
+    mutation.clientMutationId,
+  );
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
 }
 
 /**
@@ -273,17 +289,10 @@ export async function todayMutationReplayHandler(
   deps: TodayReplayDeps,
 ): Promise<TodayReplayOutcome> {
   const maxRetries = deps.maxRetries ?? MAX_MUTATION_RETRIES;
-  const payload = mutation.payload;
-  const rec = (payload ?? {}) as Record<string, unknown>;
 
   // 1. Privacy + shape validation. Never send (or keep retrying) a payload that
   //    is malformed or carries fields outside the allowed Today set.
-  if (
-    !isTodayMutationType(mutation.type) ||
-    !isAllowedTodayPayload(payload) ||
-    !isValidLocalDate(rec.localDate) ||
-    (rec.timezone !== undefined && !isValidTimezoneString(rec.timezone))
-  ) {
+  if (!isValidTodayReplayMutation(mutation)) {
     await deps.update(mutation.clientMutationId, {
       status: "failed",
       lastError: "invalid Today mutation payload",
@@ -296,12 +305,7 @@ export async function todayMutationReplayHandler(
   try {
     ({ status } = await deps.send(mutation));
   } catch (err) {
-    return retryOrFail(
-      mutation,
-      deps,
-      maxRetries,
-      err instanceof Error ? err.message : String(err),
-    );
+    return retryOrFail(mutation, deps, maxRetries, errorMessage(err));
   }
 
   // 3. Success (incl. idempotent no-op) — drop from the queue.
@@ -321,7 +325,7 @@ export async function todayMutationReplayHandler(
   }
 
   // 5. Transient — retry with back-off.
-  if (status === 408 || status === 429 || status >= 500) {
+  if (isTodayRetryableStatus(status)) {
     return retryOrFail(mutation, deps, maxRetries, `HTTP ${status}`);
   }
 
@@ -332,6 +336,21 @@ export async function todayMutationReplayHandler(
     lastError: `HTTP ${status}`,
   });
   return "failed";
+}
+
+function isValidTodayReplayMutation(mutation: QueuedMutation): boolean {
+  const payload = mutation.payload;
+  const rec = (payload ?? {}) as Record<string, unknown>;
+  return (
+    isTodayMutationType(mutation.type) &&
+    isAllowedTodayPayload(payload) &&
+    isValidLocalDate(rec.localDate) &&
+    (rec.timezone === undefined || isValidTimezoneString(rec.timezone))
+  );
+}
+
+function isTodayRetryableStatus(status: number): boolean {
+  return status === 408 || status === 429 || status >= 500;
 }
 
 /** Bump retryCount (back-off), or flag `failed` once retries are exhausted. */
@@ -369,13 +388,7 @@ function flushDeps(): FlushDeps {
     // (not a resolved no-op as `classifyStatus` would otherwise treat it).
     list: async () =>
       (await listQueuedMutations()).filter((m) => !isTodayMutationType(m.type)),
-    send: (mutation: QueuedMutation) =>
-      sendRequest(
-        mutation.endpoint,
-        mutation.method,
-        mutation.payload,
-        mutation.clientMutationId,
-      ),
+    send: sendQueuedMutation,
     remove: (id) => removeQueuedMutation(id),
     update: (id, patch) => updateQueuedMutation(id, patch),
   };
@@ -384,13 +397,7 @@ function flushDeps(): FlushDeps {
 /** Browser-wired deps for the Today replay handler. */
 function todayReplayDeps(): TodayReplayDeps {
   return {
-    send: (mutation: QueuedMutation) =>
-      sendRequest(
-        mutation.endpoint,
-        mutation.method,
-        mutation.payload,
-        mutation.clientMutationId,
-      ),
+    send: sendQueuedMutation,
     remove: (id) => removeQueuedMutation(id),
     update: (id, patch) => updateQueuedMutation(id, patch),
     onConflict: (info) => notifyTodayConflict(info),
@@ -404,9 +411,13 @@ async function replayTodayMutations(): Promise<void> {
   );
   const deps = todayReplayDeps();
   for (const mutation of todayMutations) {
-    if (isConflict(mutation) || isPermanentlyFailed(mutation)) continue;
+    if (isTerminalQueuedMutation(mutation)) continue;
     await todayMutationReplayHandler(mutation, deps);
   }
+}
+
+function isTerminalQueuedMutation(mutation: QueuedMutation): boolean {
+  return isConflict(mutation) || isPermanentlyFailed(mutation);
 }
 
 let flushing: Promise<FlushResult> | null = null;
@@ -426,13 +437,7 @@ export async function flushOfflineQueue(): Promise<FlushResult> {
       emit();
       return { ...result, remaining };
     } catch {
-      const fallback: FlushResult = {
-        attempted: 0,
-        succeeded: 0,
-        retried: 0,
-        failed: 0,
-        remaining: await countQueuedMutations(),
-      };
+      const fallback = emptyFlushResult(await countQueuedMutations());
       state = { ...state, syncing: false };
       emit();
       return fallback;
@@ -441,6 +446,16 @@ export async function flushOfflineQueue(): Promise<FlushResult> {
     }
   })();
   return flushing;
+}
+
+function emptyFlushResult(remaining: number): FlushResult {
+  return {
+    attempted: 0,
+    succeeded: 0,
+    retried: 0,
+    failed: 0,
+    remaining,
+  };
 }
 
 async function requestBackgroundSync(): Promise<void> {

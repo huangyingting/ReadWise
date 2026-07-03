@@ -49,6 +49,19 @@ export interface NavItem {
  * should import this constant rather than hardcoding the string.
  */
 export const READER_ROUTE_PREFIX = "/reader/";
+const ACTIVE_PATH_SEPARATOR = "/";
+
+function isPrimaryNavItem(item: NavItem): boolean {
+  return item.group === "primary" || item.group === "secondary";
+}
+
+function hasGroup(group: NavItem["group"]) {
+  return (item: NavItem) => item.group === group;
+}
+
+function requiresAdminRole(item: NavItem): boolean {
+  return item.requiresRole === "Admin";
+}
 
 /**
  * Master navigation registry — single source of truth for every shell-visible
@@ -76,9 +89,7 @@ export const NAV_ITEMS: NavItem[] = [
 ];
 
 /** Primary navigation items (sidebar + main More-sheet entries). */
-export const PRIMARY_NAV: NavItem[] = NAV_ITEMS.filter(
-  (item) => item.group === "primary" || item.group === "secondary",
-);
+export const PRIMARY_NAV: NavItem[] = NAV_ITEMS.filter(isPrimaryNavItem);
 
 /**
  * Mobile bottom-bar destinations — items with `mobileTab: true` (the four
@@ -90,13 +101,13 @@ export const PRIMARY_TABS: NavItem[] = NAV_ITEMS.filter((item) => item.mobileTab
  * Secondary navigation — Import, Saved articles, Notes, Offline, Tags, etc.,
  * derived from `NAV_ITEMS` by group so they can never drift out of sync.
  */
-export const SECONDARY_NAV: NavItem[] = NAV_ITEMS.filter((item) => item.group === "secondary");
+export const SECONDARY_NAV: NavItem[] = NAV_ITEMS.filter(hasGroup("secondary"));
 
 /**
  * Role-gated utility items (Admin). Renders in the sidebar utility area and
  * the mobile More sheet for users with the required role.
  */
-export const ADMIN_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter((item) => item.requiresRole === "Admin");
+export const ADMIN_NAV_ITEMS: NavItem[] = NAV_ITEMS.filter(requiresAdminRole);
 
 /**
  * Returns the href of every protected nav destination. Useful for tests that
@@ -112,7 +123,7 @@ export function getNavProtectedPrefixes(): string[] {
  * would activate Study.)
  */
 export function isActivePath(pathname: string, href: string): boolean {
-  return pathname === href || pathname.startsWith(`${href}/`);
+  return pathname === href || pathname.startsWith(`${href}${ACTIVE_PATH_SEPARATOR}`);
 }
 
 // ---------------------------------------------------------------------------

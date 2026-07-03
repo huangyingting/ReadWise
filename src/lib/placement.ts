@@ -18,10 +18,19 @@ export interface PlacementQuestion {
   correctIndex: number;
 }
 
+const LOW_SCORE_RATIO = 1 / 3;
+const FALLBACK_QUESTION_LEVEL: EnglishLevel = "B1";
+
 /** Returns the ordinal rank of a CEFR level (A1 = 0 … C2 = 5). Delegates to
  * the shared primitive from `@/lib/leveling/cefr-primitives`. */
 export function placementLevelRank(level: string): number {
   return levelRank(level);
+}
+
+function previousLevel(level: EnglishLevel): EnglishLevel | null {
+  const currentRank = placementLevelRank(level);
+  if (currentRank <= 0) return null;
+  return ENGLISH_LEVELS[currentRank - 1];
 }
 
 /**
@@ -38,10 +47,8 @@ export function suggestLevel(
   selfReportedLevel: EnglishLevel,
 ): EnglishLevel | null {
   if (total === 0) return null;
-  if (score / total > 1 / 3) return null;
-  const currentRank = placementLevelRank(selfReportedLevel);
-  if (currentRank <= 0) return null;
-  return ENGLISH_LEVELS[currentRank - 1];
+  if (score / total > LOW_SCORE_RATIO) return null;
+  return previousLevel(selfReportedLevel);
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +258,14 @@ const BANK: Record<EnglishLevel, PlacementQuestion[]> = {
  * since all levels are covered).
  */
 export function getPlacementQuestions(level: EnglishLevel): PlacementQuestion[] {
-  return BANK[level] ?? BANK.B1;
+  return BANK[level] ?? BANK[FALLBACK_QUESTION_LEVEL];
+}
+
+function isCorrectAnswer(
+  answer: number | null,
+  question: PlacementQuestion | undefined,
+): boolean {
+  return answer !== null && answer === question?.correctIndex;
 }
 
 /**
@@ -267,7 +281,8 @@ export function computePlacementScore(
   questions: PlacementQuestion[],
 ): number {
   return answers.reduce<number>(
-    (acc, a, i) => acc + (a !== null && a === questions[i]?.correctIndex ? 1 : 0),
+    (acc, answer, index) =>
+      acc + (isCorrectAnswer(answer, questions[index]) ? 1 : 0),
     0,
   );
 }

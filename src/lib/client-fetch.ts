@@ -19,6 +19,8 @@
 /** Default request timeout in milliseconds. */
 export const DEFAULT_TIMEOUT_MS = 25_000;
 
+const JSON_CONTENT_TYPE = "application/json";
+
 /**
  * Thrown by {@link postJson}/{@link getJson} on a non-OK HTTP response. Carries
  * the response `status` and the server-provided message (from the `{ error }`
@@ -92,6 +94,28 @@ function messageFor(status: number, body: unknown): string {
   return `Request failed (HTTP ${status})`;
 }
 
+function apiResponseError(status: number, body: unknown): ApiResponseError {
+  return Object.assign(new ApiResponseError(status, messageFor(status, body)), {
+    cause: body,
+  });
+}
+
+function jsonBodyInit(
+  method: string,
+  body: unknown,
+  includeHeaderWithoutBody = false,
+): RequestInit {
+  const hasBody = body !== undefined;
+  return {
+    method,
+    headers:
+      hasBody || includeHeaderWithoutBody
+        ? { "Content-Type": JSON_CONTENT_TYPE }
+        : undefined,
+    body: hasBody ? JSON.stringify(body) : undefined,
+  };
+}
+
 export async function requestJson<T>(
   url: string,
   init: RequestInit,
@@ -102,9 +126,7 @@ export async function requestJson<T>(
     const res = await fetch(url, { ...init, signal, keepalive });
     const body = await safeJson(res);
     if (!res.ok) {
-      throw Object.assign(new ApiResponseError(res.status, messageFor(res.status, body)), {
-        cause: body,
-      });
+      throw apiResponseError(res.status, body);
     }
     return body as T;
   } finally {
@@ -120,18 +142,18 @@ export function postJson<T>(
 ): Promise<T> {
   return requestJson<T>(
     url,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    },
+    jsonBodyInit("POST", body, true),
     opts,
   );
 }
 
 /** GET a JSON response. Throws {@link ApiResponseError} on non-OK. */
 export function getJson<T>(url: string, opts?: ClientFetchOptions): Promise<T> {
-  return requestJson<T>(url, { method: "GET", headers: { Accept: "application/json" } }, opts);
+  return requestJson<T>(
+    url,
+    { method: "GET", headers: { Accept: JSON_CONTENT_TYPE } },
+    opts,
+  );
 }
 
 /** PUT a JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
@@ -140,15 +162,7 @@ export function putJson<T>(
   body?: unknown,
   opts?: ClientFetchOptions,
 ): Promise<T> {
-  return requestJson<T>(
-    url,
-    {
-      method: "PUT",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    },
-    opts,
-  );
+  return requestJson<T>(url, jsonBodyInit("PUT", body), opts);
 }
 
 /** PATCH a JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
@@ -157,15 +171,7 @@ export function patchJson<T>(
   body?: unknown,
   opts?: ClientFetchOptions,
 ): Promise<T> {
-  return requestJson<T>(
-    url,
-    {
-      method: "PATCH",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    },
-    opts,
-  );
+  return requestJson<T>(url, jsonBodyInit("PATCH", body), opts);
 }
 
 /** DELETE an optional JSON body and parse the JSON response. Throws {@link ApiResponseError} on non-OK. */
@@ -174,13 +180,5 @@ export function deleteJson<T>(
   body?: unknown,
   opts?: ClientFetchOptions,
 ): Promise<T> {
-  return requestJson<T>(
-    url,
-    {
-      method: "DELETE",
-      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    },
-    opts,
-  );
+  return requestJson<T>(url, jsonBodyInit("DELETE", body), opts);
 }

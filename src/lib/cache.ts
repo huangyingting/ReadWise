@@ -137,6 +137,10 @@ function tenantCacheTags(
   return [...extra];
 }
 
+function tenantCacheName(baseName: string, scope: "user" | "org", tenantId: string): string {
+  return `${baseName}:${scope}:${tenantId}`;
+}
+
 /**
  * Maximum number of per-tenant `unstable_cache` instances kept in memory.
  * When the limit is reached the oldest tenant entry (by insertion order) is
@@ -144,6 +148,11 @@ function tenantCacheTags(
  * in-process footprint bounded (BE-10).
  */
 export const MAX_TENANT_CACHE_SIZE = 500;
+
+function evictOldestTenantCacheEntry<T>(perTenant: Map<string, T>): void {
+  const oldest = perTenant.keys().next().value as string | undefined;
+  if (oldest !== undefined) perTenant.delete(oldest);
+}
 
 /**
  * Tenant-aware variant of {@link createCachedListing} (RW-062). The wrapped
@@ -166,7 +175,7 @@ export function createTenantCachedListing<Args extends unknown[], T>(
   if (isListingCacheDisabled()) {
     return (tenantId: string, ...args: Args) => {
       const id = normalizeTenantId(tenantId);
-      const cacheName = `${baseName}:${scope}:${id}`;
+      const cacheName = tenantCacheName(baseName, scope, id);
       recordCacheLookup(cacheName);
       recordCacheMiss(cacheName);
       return fn(id, ...args);
@@ -177,14 +186,13 @@ export function createTenantCachedListing<Args extends unknown[], T>(
 
   return (tenantId: string, ...args: Args) => {
     const id = normalizeTenantId(tenantId);
-    const cacheName = `${baseName}:${scope}:${id}`;
+    const cacheName = tenantCacheName(baseName, scope, id);
     recordCacheLookup(cacheName);
     let cached = perTenant.get(id);
     if (!cached) {
       // Evict the oldest tenant entry when the size limit is reached.
       if (perTenant.size >= MAX_TENANT_CACHE_SIZE) {
-        const oldest = perTenant.keys().next().value as string | undefined;
-        if (oldest !== undefined) perTenant.delete(oldest);
+        evictOldestTenantCacheEntry(perTenant);
       }
       cached = unstable_cache(
         async (innerId: string, ...inner: Args) => {

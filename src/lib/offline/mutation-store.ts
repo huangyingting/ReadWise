@@ -15,6 +15,55 @@
 import type { QueuedMutation } from "@/lib/offline-sync";
 import { isIndexedDbAvailable, openDb, STORE_MUTATIONS } from "./idb";
 
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise<T>((res, rej) => {
+    request.onsuccess = () => res(request.result);
+    request.onerror = () => rej(request.error);
+  });
+}
+
+function waitForTransaction(tx: IDBTransaction): Promise<void> {
+  return new Promise<void>((res, rej) => {
+    tx.oncomplete = () => res();
+    tx.onerror = () => rej(tx.error);
+  });
+}
+
+async function deleteExistingDedupeMatches(
+  store: IDBObjectStore,
+  dedupeKey: string,
+): Promise<void> {
+  const idx = store.index("dedupeKey");
+  await new Promise<void>((res, rej) => {
+    const cursorReq = idx.openCursor(IDBKeyRange.only(dedupeKey));
+    cursorReq.onsuccess = (e) => {
+      const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
+      if (cursor) {
+        cursor.delete();
+        cursor.continue();
+      } else {
+        res();
+      }
+    };
+    cursorReq.onerror = () => rej(cursorReq.error);
+  });
+}
+
+function queuedMutationFromInput(input: EnqueueMutationInput): QueuedMutation {
+  return {
+    clientMutationId: input.clientMutationId,
+    type: input.type,
+    endpoint: input.endpoint,
+    method: input.method,
+    payload: input.payload,
+    createdAt: new Date().toISOString(),
+    retryCount: 0,
+    status: "pending",
+    lastError: null,
+    dedupeKey: input.dedupeKey ?? null,
+  };
+}
+
 /** Input to {@link enqueueMutation} — timestamps/counters are filled in here. */
 export interface EnqueueMutationInput {
   clientMutationId: string;
@@ -42,39 +91,11 @@ export async function enqueueMutation(
     const store = tx.objectStore(STORE_MUTATIONS);
 
     if (input.dedupeKey) {
-      const idx = store.index("dedupeKey");
-      await new Promise<void>((res, rej) => {
-        const cursorReq = idx.openCursor(IDBKeyRange.only(input.dedupeKey));
-        cursorReq.onsuccess = (e) => {
-          const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
-          if (cursor) {
-            cursor.delete();
-            cursor.continue();
-          } else {
-            res();
-          }
-        };
-        cursorReq.onerror = () => rej(cursorReq.error);
-      });
+      await deleteExistingDedupeMatches(store, input.dedupeKey);
     }
 
-    const record: QueuedMutation = {
-      clientMutationId: input.clientMutationId,
-      type: input.type,
-      endpoint: input.endpoint,
-      method: input.method,
-      payload: input.payload,
-      createdAt: new Date().toISOString(),
-      retryCount: 0,
-      status: "pending",
-      lastError: null,
-      dedupeKey: input.dedupeKey ?? null,
-    };
-    store.put(record);
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
+    store.put(queuedMutationFromInput(input));
+    await waitForTransaction(tx);
     db.close();
   } catch {
     // Best-effort — losing an offline enqueue must never crash the reader.
@@ -88,12 +109,7 @@ export async function listQueuedMutations(): Promise<QueuedMutation[]> {
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readonly");
     const store = tx.objectStore(STORE_MUTATIONS);
-    const all = await new Promise<QueuedMutation[]>((res, rej) => {
-      const reqAll = store.getAll();
-      reqAll.onsuccess = () =>
-        res((reqAll.result as QueuedMutation[]) ?? []);
-      reqAll.onerror = () => rej(reqAll.error);
-    });
+    const all = ((await requestResult(store.getAll())) as QueuedMutation[]) ?? [];
     db.close();
     return all;
   } catch {
@@ -108,11 +124,7 @@ export async function countQueuedMutations(): Promise<number> {
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readonly");
     const store = tx.objectStore(STORE_MUTATIONS);
-    const count = await new Promise<number>((res, rej) => {
-      const reqCount = store.count();
-      reqCount.onsuccess = () => res(reqCount.result);
-      reqCount.onerror = () => rej(reqCount.error);
-    });
+    const count = await requestResult(store.count());
     db.close();
     return count;
   } catch {
@@ -130,19 +142,14 @@ export async function updateQueuedMutation(
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readwrite");
     const store = tx.objectStore(STORE_MUTATIONS);
-    const existing = await new Promise<QueuedMutation | null>((res, rej) => {
-      const getReq = store.get(clientMutationId);
-      getReq.onsuccess = () =>
-        res((getReq.result as QueuedMutation) ?? null);
-      getReq.onerror = () => rej(getReq.error);
-    });
+    const existing =
+      ((await requestResult(store.get(clientMutationId))) as
+        | QueuedMutation
+        | undefined) ?? null;
     if (existing) {
       store.put({ ...existing, ...patch, clientMutationId });
     }
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
+    await waitForTransaction(tx);
     db.close();
   } catch {
     // Best-effort.
@@ -158,10 +165,7 @@ export async function removeQueuedMutation(
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readwrite");
     tx.objectStore(STORE_MUTATIONS).delete(clientMutationId);
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
+    await waitForTransaction(tx);
     db.close();
   } catch {
     // Best-effort.
@@ -175,10 +179,7 @@ export async function clearQueuedMutations(): Promise<void> {
     const db = await openDb();
     const tx = db.transaction(STORE_MUTATIONS, "readwrite");
     tx.objectStore(STORE_MUTATIONS).clear();
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
+    await waitForTransaction(tx);
     db.close();
   } catch {
     // Best-effort.

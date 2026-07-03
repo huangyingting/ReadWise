@@ -70,6 +70,11 @@ export type SpeechResult = {
   fallback: boolean;
 };
 
+type ArticleSpeechSource = {
+  title?: string | null;
+  content: string;
+};
+
 /** Whether Azure Speech credentials are configured and TTS is enabled. */
 export function isSpeechConfigured(): boolean {
   return isTtsFeatureEnabled() && speechConfig.isConfigured();
@@ -96,12 +101,13 @@ export async function getOrCreateArticleSpeech(
   articleId: string,
   context: ArticleAccessContext | null = SYSTEM_ARTICLE_CONTEXT,
 ): Promise<SpeechResult | null> {
-  const allowedArticle = !isArticleOperator(context)
+  const articleOperator = isArticleOperator(context);
+  const allowedArticle = !articleOperator
     ? await getAiProcessableArticleById(articleId, context, {
         select: { title: true, content: true },
       })
     : null;
-  if (!isArticleOperator(context) && !allowedArticle) {
+  if (!articleOperator && !allowedArticle) {
     return null;
   }
 
@@ -109,47 +115,78 @@ export async function getOrCreateArticleSpeech(
     where: { articleId },
   });
   if (cached) {
-    const words = parseStoredSpeechWords(cached.words);
-    if (!words) {
-      log.error("speech.cache_parse_failure", {
-        articleId,
-        error: "Malformed cached word timings",
-      });
-      // Treat the corrupt row as a cache miss — fall through to regenerate.
-      await prisma.articleSpeech.delete({ where: { articleId } });
-      return getOrCreateArticleSpeech(articleId, context);
-    }
-    const articleForReaderText =
-      allowedArticle ??
-      (await prisma.article.findUnique({
-        where: { id: articleId },
-        select: { content: true },
-      }));
-    const plainText = articleForReaderText?.content
-      ? articleHtmlToReaderText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
-      : cached.plainText;
-    const audio = await resolveStoredAudioUrl(cached);
-    return {
-      audio,
-      mimeType: cached.mimeType,
-      plainText,
-      words,
-      voice: cached.voice,
-      cached: true,
-      fallback: !audio,
-    };
+    return cachedSpeechResult(articleId, context, allowedArticle, cached);
   }
 
-  const article =
-    allowedArticle ??
-    (await prisma.article.findUnique({
-      where: { id: articleId },
-      select: { title: true, content: true },
-    }));
+  const article = allowedArticle ?? (await findArticleForSpeech(articleId));
   if (!article) {
     return null;
   }
 
+  return synthesizeArticleSpeech(articleId, article);
+}
+
+async function cachedSpeechResult(
+  articleId: string,
+  context: ArticleAccessContext | null,
+  allowedArticle: ArticleSpeechSource | null,
+  cached: Awaited<ReturnType<typeof prisma.articleSpeech.findUnique>>,
+): Promise<SpeechResult | null> {
+  if (!cached) {
+    return null;
+  }
+
+  const words = parseStoredSpeechWords(cached.words);
+  if (!words) {
+    log.error("speech.cache_parse_failure", {
+      articleId,
+      error: "Malformed cached word timings",
+    });
+    // Treat the corrupt row as a cache miss — fall through to regenerate.
+    await prisma.articleSpeech.delete({ where: { articleId } });
+    return getOrCreateArticleSpeech(articleId, context);
+  }
+
+  const plainText = await cachedPlainText(articleId, cached.plainText, allowedArticle);
+  const audio = await resolveStoredAudioUrl(cached);
+  return {
+    audio,
+    mimeType: cached.mimeType,
+    plainText,
+    words,
+    voice: cached.voice,
+    cached: true,
+    fallback: !audio,
+  };
+}
+
+async function cachedPlainText(
+  articleId: string,
+  fallbackPlainText: string,
+  allowedArticle: ArticleSpeechSource | null,
+): Promise<string> {
+  const articleForReaderText =
+    allowedArticle ??
+    (await prisma.article.findUnique({
+      where: { id: articleId },
+      select: { content: true },
+    }));
+  return articleForReaderText?.content
+    ? articleHtmlToReaderText(articleForReaderText.content).slice(0, MAX_TTS_CHARS)
+    : fallbackPlainText;
+}
+
+async function findArticleForSpeech(articleId: string): Promise<ArticleSpeechSource | null> {
+  return prisma.article.findUnique({
+    where: { id: articleId },
+    select: { title: true, content: true },
+  });
+}
+
+async function synthesizeArticleSpeech(
+  articleId: string,
+  article: ArticleSpeechSource,
+): Promise<SpeechResult> {
   const config = isTtsFeatureEnabled() ? speechConfig.get() : null;
   if (!config) {
     return fallbackResult(DEFAULT_SPEECH_VOICE);

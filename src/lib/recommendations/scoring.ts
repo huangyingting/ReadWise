@@ -24,7 +24,11 @@ import type {
   ScoredRecommendation,
   RecommendationContext,
 } from "./types";
-import { COMPONENT_WEIGHTS, WEAK_WORD_REEXPOSURE_MAX_POINTS, WEAK_WORD_REEXPOSURE_TARGET } from "./types";
+import {
+  COMPONENT_WEIGHTS,
+  WEAK_WORD_REEXPOSURE_MAX_POINTS,
+  WEAK_WORD_REEXPOSURE_TARGET,
+} from "./types";
 import type { WeakWordReexposure } from "./types";
 import { applyGoalPathAdjustment } from "@/lib/learning/goal-path";
 import { readingSuitabilityRank } from "@/lib/categories";
@@ -41,6 +45,39 @@ import { headlineReason, buildExplanationLines } from "./explanations";
 /** Clamps a CEFR delta into the [-3, 3] band used by the scorers. */
 function clampDelta(delta: number): number {
   return Math.max(-3, Math.min(3, delta));
+}
+
+function clampNormalizedScore(score: number): number {
+  return Math.max(0, Math.min(1, score));
+}
+
+function articleRankForCandidate(
+  candidate: RecommendationCandidate,
+): number | null {
+  return candidate.difficulty && isDifficultyLevel(candidate.difficulty)
+    ? levelRank(candidate.difficulty)
+    : null;
+}
+
+function weightedComponentScore(components: ScoreComponents): number {
+  let weighted = 0;
+  for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
+    weighted += components[key] * COMPONENT_WEIGHTS[key];
+  }
+  return weighted;
+}
+
+function applyReadingSuitabilityAdjustment(
+  score: number,
+  candidate: RecommendationCandidate,
+): number {
+  return clampNormalizedScore(
+    score +
+      readingSuitabilityDeltaForSource(
+        candidate.category ?? null,
+        candidate.source ?? null,
+      ),
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -250,10 +287,7 @@ export function scoreCandidate(
   candidate: RecommendationCandidate,
   ctx: RecommendationContext,
 ): ScoredRecommendation {
-  const articleRank =
-    candidate.difficulty && isDifficultyLevel(candidate.difficulty)
-      ? levelRank(candidate.difficulty)
-      : null;
+  const articleRank = articleRankForCandidate(candidate);
   const tagSlugs = candidate.tagSlugs ?? [];
 
   const components: ScoreComponents = {
@@ -282,10 +316,7 @@ export function scoreCandidate(
     freshness: freshnessScore01(candidate.publishedAt ?? null, ctx.now),
   };
 
-  let weighted = 0;
-  for (const key of Object.keys(components) as Array<keyof ScoreComponents>) {
-    weighted += components[key] * COMPONENT_WEIGHTS[key];
-  }
+  const weighted = weightedComponentScore(components);
 
   // Goal Paths (#809): a soft, capped per-path nudge applied AFTER the core
   // seven-component score, on the normalised 0–1 scale (cap ±0.2). Pure and
@@ -304,10 +335,7 @@ export function scoreCandidate(
   // resolves to no such provider, the global tier applies. Medium/unknown
   // categories are left unchanged (zero delta), so this never disturbs the core
   // seven-component contract.
-  const withSuitability = Math.max(
-    0,
-    Math.min(1, adjusted + readingSuitabilityDeltaForSource(candidate.category ?? null, candidate.source ?? null)),
-  );
+  const withSuitability = applyReadingSuitabilityAdjustment(adjusted, candidate);
   const componentScore = withSuitability * 100; // 0–100
 
   // Soft, capped weak-word re-exposure booster (#808): a deterministic nudge —

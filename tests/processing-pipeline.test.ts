@@ -75,6 +75,17 @@ function processorState(partial: Partial<ProcessorArticle> = {}): ProcessorArtic
   };
 }
 
+function makeDerivedStoreTx(prefix: string) {
+  return {
+    article: { update: async () => transactionCalls.push(`${prefix}.article.update`) },
+    articleTag: { deleteMany: async () => transactionCalls.push(`${prefix}.articleTag.deleteMany`) },
+    vocabularyItem: { deleteMany: async () => transactionCalls.push(`${prefix}.vocabularyItem.deleteMany`) },
+    quizQuestion: { deleteMany: async () => transactionCalls.push(`${prefix}.quizQuestion.deleteMany`) },
+    articleSpeech: { deleteMany: async () => transactionCalls.push(`${prefix}.articleSpeech.deleteMany`) },
+    grammarExplanation: { deleteMany: async () => transactionCalls.push(`${prefix}.grammarExplanation.deleteMany`) },
+  };
+}
+
 before(() => {
   mock.module("@/lib/jobs", {
     namedExports: {
@@ -110,19 +121,10 @@ before(() => {
         },
         $transaction: async (fn: (tx: Record<string, unknown>) => Promise<void>) => {
           const tx = {
-            article: {
-              update: async () => {
-                transactionCalls.push("tx.article.update");
-              },
-            },
+            ...makeDerivedStoreTx("tx"),
             translation: {
               deleteMany: async (args: unknown) => {
                 transactionCalls.push(`tx.translation.deleteMany:${JSON.stringify(args)}`);
-              },
-            },
-            articleSpeech: {
-              deleteMany: async () => {
-                transactionCalls.push("tx.articleSpeech.deleteMany");
               },
             },
             articleProcessingStep: {
@@ -130,10 +132,6 @@ before(() => {
                 transactionCalls.push(`tx.articleProcessingStep.deleteMany:${JSON.stringify(args)}`);
               },
             },
-            articleTag: { deleteMany: async () => transactionCalls.push("tx.articleTag.deleteMany") },
-            vocabularyItem: { deleteMany: async () => transactionCalls.push("tx.vocabularyItem.deleteMany") },
-            quizQuestion: { deleteMany: async () => transactionCalls.push("tx.quizQuestion.deleteMany") },
-            grammarExplanation: { deleteMany: async () => transactionCalls.push("tx.grammarExplanation.deleteMany") },
           };
           await fn(tx);
         },
@@ -291,14 +289,7 @@ test("registry step helpers expand translations and clear all derived feature st
   assert.deepEqual(stepKeysFor("translation", ["es", "fr"]), ["translation:es", "translation:fr"]);
   assert.deepEqual(stepKeysFor("quiz"), ["quiz"]);
 
-  const tx = {
-    article: { update: async () => transactionCalls.push("direct.article.update") },
-    articleTag: { deleteMany: async () => transactionCalls.push("direct.articleTag.deleteMany") },
-    vocabularyItem: { deleteMany: async () => transactionCalls.push("direct.vocabularyItem.deleteMany") },
-    quizQuestion: { deleteMany: async () => transactionCalls.push("direct.quizQuestion.deleteMany") },
-    articleSpeech: { deleteMany: async () => transactionCalls.push("direct.articleSpeech.deleteMany") },
-    grammarExplanation: { deleteMany: async () => transactionCalls.push("direct.grammarExplanation.deleteMany") },
-  };
+  const tx = makeDerivedStoreTx("direct");
   for (const key of ["tags", "vocabulary", "quiz", "grammar"] as const) {
     await FEATURE_REGISTRY.find((feature) => feature.key === key)?.clearFrom?.(tx as never, "article-1");
   }

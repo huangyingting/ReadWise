@@ -31,6 +31,8 @@ type SignalProcess = {
   exit: ExitFn;
 };
 
+type SignalName = "SIGINT" | "SIGTERM";
+
 // ── Entry point guards ─────────────────────────────────────────────────────
 
 /**
@@ -62,15 +64,8 @@ export function runCli(main: () => Promise<number>, deps: CliRuntimeDeps = {}): 
   const exit = deps.exit ?? process.exit;
 
   main()
-    .then(async (code) => {
-      await disconnect();
-      exit(code);
-    })
-    .catch(async (err: unknown) => {
-      error(err);
-      await disconnect();
-      exit(1);
-    });
+    .then((code) => exitAfterDisconnect(code, disconnect, exit))
+    .catch((err: unknown) => exitAfterCliError(err, { disconnect, error, exit }));
 }
 
 /**
@@ -89,17 +84,45 @@ export function runScript(
   const exit = deps.exit ?? process.exit;
 
   main()
-    .then((code) => {
-      exit(typeof code === "number" ? code : 0);
-    })
+    .then((code) => exit(scriptExitCode(code)))
     .catch((err: unknown) => {
-      if (label) {
-        error(`${label}:`, err);
-      } else {
-        error(err);
-      }
+      reportScriptError(err, label, error);
       exit(1);
     });
+}
+
+async function exitAfterDisconnect(
+  code: number,
+  disconnect: NonNullable<CliRuntimeDeps["disconnect"]>,
+  exit: ExitFn,
+): Promise<never> {
+  await disconnect();
+  exit(code);
+}
+
+async function exitAfterCliError(
+  err: unknown,
+  deps: Required<CliRuntimeDeps>,
+): Promise<never> {
+  deps.error(err);
+  await deps.disconnect();
+  deps.exit(1);
+}
+
+function scriptExitCode(code: number | void): number {
+  return typeof code === "number" ? code : 0;
+}
+
+function reportScriptError(
+  err: unknown,
+  label: string | undefined,
+  error: NonNullable<ScriptRuntimeDeps["error"]>,
+): void {
+  if (label) {
+    error(`${label}:`, err);
+  } else {
+    error(err);
+  }
 }
 
 // ── Argument parsing helpers ───────────────────────────────────────────────
@@ -149,9 +172,13 @@ export function parsePositiveInt(
  * @example addUniqueFromCsv(langs, "es,fr,es")  // appends "es", "fr" once
  */
 export function addUniqueFromCsv(list: string[], csv: string): void {
-  for (const item of csv.split(",").map((c) => c.trim()).filter(Boolean)) {
+  for (const item of csvItems(csv)) {
     if (!list.includes(item)) list.push(item);
   }
+}
+
+function csvItems(csv: string): string[] {
+  return csv.split(",").map((c) => c.trim()).filter(Boolean);
 }
 
 /**
@@ -179,7 +206,7 @@ export function registerShutdownSignals(
   runtime: SignalProcess = process,
 ): void {
   let signalled = false;
-  const onSignal = (sig: string) => {
+  const onSignal = (sig: SignalName) => {
     if (signalled) {
       logger.warn(`received ${sig} again — forcing exit`);
       runtime.exit(130);

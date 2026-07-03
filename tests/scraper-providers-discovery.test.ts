@@ -11,6 +11,27 @@ function rss(urls: string[]): string {
   return `<rss><channel>${urls.map((url) => `<item><link>${url}</link></item>`).join("")}</channel></rss>`;
 }
 
+type UrlExtractor = (opts: {
+  limit: number;
+  fetch: (url: string) => Promise<string>;
+}) => Promise<string[]>;
+
+async function assertEmptyWhenFetchFails(
+  extractor: UrlExtractor,
+  limit: number,
+  message = "root down",
+): Promise<void> {
+  assert.deepEqual(
+    await extractor({
+      limit,
+      fetch: async () => {
+        throw new Error(message);
+      },
+    }),
+    [],
+  );
+}
+
 test("BBC article URL helper rejects live/chrome URLs and category rules map sections", async () => {
   const bbc = (await import("@/lib/scraper/providers/bbc")).default;
   const { isBbcNewsArticleUrl } = await import("@/lib/scraper/providers/bbc");
@@ -49,10 +70,7 @@ test("ProPublica extractor sorts daily sitemaps, skips bad children, and degrade
     dailyNew,
     dailyOld,
   ]);
-  assert.deepEqual(
-    await propublica.urlExtractor({ limit: 5, fetch: async () => { throw new Error("down"); } }),
-    [],
-  );
+  await assertEmptyWhenFetchFails(propublica.urlExtractor, 5, "down");
 });
 
 test("Grist extractor falls back to RSS when sitemaps are unavailable or empty", async () => {
@@ -141,10 +159,7 @@ test("The Conversation extractor keeps English archive sitemaps and skips failin
   });
 
   assert.deepEqual(result, [article]);
-  assert.deepEqual(
-    await provider.urlExtractor({ limit: 1, fetch: async () => { throw new Error("root down"); } }),
-    [],
-  );
+  await assertEmptyWhenFetchFails(provider.urlExtractor, 1);
 });
 
 test("Noema extractor combines sitemap, RSS, and topic archives while tolerating failures", async () => {
@@ -327,10 +342,7 @@ test("Smithsonian extractor respects year/category archive filters and paginatio
 test("Smithsonian extractor handles sitemap root failures and loose category archives", async () => {
   const { createSmithsonianUrlExtractor } = await import("@/lib/scraper/providers/smithsonian");
   const noArchiveExtractor = createSmithsonianUrlExtractor();
-  assert.deepEqual(
-    await noArchiveExtractor!({ limit: 5, fetch: async () => { throw new Error("root down"); } }),
-    [],
-  );
+  await assertEmptyWhenFetchFails(noArchiveExtractor!, 5);
 
   const archiveExtractor = createSmithsonianUrlExtractor({ includeCategoryArchives: true });
   const looseCategory = "https://www.smithsonianmag.com/travel/archive-only-180000005/";

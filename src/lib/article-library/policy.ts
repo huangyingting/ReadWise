@@ -54,6 +54,29 @@ export function isArticleOperator(context?: ArticleAccessContext | null): boolea
 
 type ArticleVisibilityShape = Pick<Article, "status" | "visibility" | "ownerId">;
 
+function isOwnedPrivateArticle(
+  article: Pick<Article, "visibility" | "ownerId">,
+  userId?: string | null,
+): boolean {
+  return Boolean(
+    userId &&
+      article.visibility === ArticleVisibility.PRIVATE &&
+      article.ownerId === userId,
+  );
+}
+
+function publicListableAccessWhere(): Prisma.ArticleWhereInput {
+  return {
+    visibility: ArticleVisibility.PUBLIC,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: null,
+  };
+}
+
+function ownedPrivateAccessWhere(userId: string): Prisma.ArticleWhereInput {
+  return { visibility: ArticleVisibility.PRIVATE, ownerId: userId };
+}
+
 export function isPublicListableArticle(article: ArticleVisibilityShape): boolean {
   return (
     article.visibility === ArticleVisibility.PUBLIC &&
@@ -67,11 +90,7 @@ export function canReadArticle(
   context?: ArticleAccessContext | null,
 ): boolean {
   if (isArticleOperator(context)) return true;
-  if (
-    context?.userId &&
-    article.visibility === ArticleVisibility.PRIVATE &&
-    article.ownerId === context.userId
-  ) {
+  if (isOwnedPrivateArticle(article, context?.userId)) {
     return true;
   }
   return isPublicListableArticle(article);
@@ -82,11 +101,7 @@ export function canEditArticle(
   context?: ArticleAccessContext | null,
 ): boolean {
   if (isArticleOperator(context)) return true;
-  return Boolean(
-    context?.userId &&
-      article.visibility === ArticleVisibility.PRIVATE &&
-      article.ownerId === context.userId,
-  );
+  return isOwnedPrivateArticle(article, context?.userId);
 }
 
 export function canAdminViewArticles(context?: ArticleAccessContext | null): boolean {
@@ -114,9 +129,7 @@ export function publicListableArticleWhere(
 ): Prisma.ArticleWhereInput {
   return {
     ...(extra ?? {}),
-    visibility: ArticleVisibility.PUBLIC,
-    status: ArticleStatus.PUBLISHED,
-    ownerId: null,
+    ...publicListableAccessWhere(),
   };
 }
 
@@ -124,7 +137,7 @@ export function ownedArticleWhere(
   userId: string,
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), visibility: ArticleVisibility.PRIVATE, ownerId: userId };
+  return { ...(extra ?? {}), ...ownedPrivateAccessWhere(userId) };
 }
 
 export function publicLibraryArticleWhere(
@@ -141,8 +154,8 @@ export function readableArticleWhere(
   if (context?.userId) {
     const access = {
       OR: [
-        { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
-        { visibility: ArticleVisibility.PRIVATE, ownerId: context.userId },
+        publicListableAccessWhere(),
+        ownedPrivateAccessWhere(context.userId),
       ],
     };
     if (extra?.OR || extra?.AND) {
@@ -198,6 +211,13 @@ async function findFirstArticle<T extends Prisma.ArticleSelect>(
   }) as Promise<Article | ArticleSelectResult<T> | null>;
 }
 
+function findFirstMaybeSelected<T extends Prisma.ArticleSelect>(
+  where: Prisma.ArticleWhereInput,
+  options?: ArticleFindOptions<T>,
+): Promise<Article | ArticleSelectResult<T> | null> {
+  return options ? findFirstArticle(where, options) : findFirstArticle(where);
+}
+
 export function getPublicListableArticleById<T extends Prisma.ArticleSelect>(
   id: string,
   options: ArticleFindOptions<T>,
@@ -207,9 +227,7 @@ export function getPublicListableArticleById<T extends Prisma.ArticleSelect>(
   id: string,
   options?: ArticleFindOptions<T>,
 ): Promise<Article | ArticleSelectResult<T> | null> {
-  return options
-    ? findFirstArticle(publicListableArticleWhere({ id }), options)
-    : findFirstArticle(publicListableArticleWhere({ id }));
+  return findFirstMaybeSelected(publicListableArticleWhere({ id }), options);
 }
 
 export function getReadableArticleById<T extends Prisma.ArticleSelect>(
@@ -227,7 +245,7 @@ export function getReadableArticleById<T extends Prisma.ArticleSelect>(
   options?: ArticleFindOptions<T>,
 ): Promise<Article | ArticleSelectResult<T> | null> {
   const where = readableArticleWhere(context, { id });
-  return options ? findFirstArticle(where, options) : findFirstArticle(where);
+  return findFirstMaybeSelected(where, options);
 }
 
 export function getEditableArticleById<T extends Prisma.ArticleSelect>(
@@ -245,7 +263,7 @@ export function getEditableArticleById<T extends Prisma.ArticleSelect>(
   options?: ArticleFindOptions<T>,
 ): Promise<Article | ArticleSelectResult<T> | null> {
   const where = editableArticleWhere(context, { id });
-  return options ? findFirstArticle(where, options) : findFirstArticle(where);
+  return findFirstMaybeSelected(where, options);
 }
 
 export function getAdminVisibleArticleById<T extends Prisma.ArticleSelect>(
@@ -263,7 +281,7 @@ export function getAdminVisibleArticleById<T extends Prisma.ArticleSelect>(
   options?: ArticleFindOptions<T>,
 ): Promise<Article | ArticleSelectResult<T> | null> {
   const where = adminVisibleArticleWhere(context, { id });
-  return options ? findFirstArticle(where, options) : findFirstArticle(where);
+  return findFirstMaybeSelected(where, options);
 }
 
 export function getAiProcessableArticleById<T extends Prisma.ArticleSelect>(
@@ -281,7 +299,7 @@ export function getAiProcessableArticleById<T extends Prisma.ArticleSelect>(
   options?: ArticleFindOptions<T>,
 ): Promise<Article | ArticleSelectResult<T> | null> {
   const where = aiProcessableArticleWhere(context, { id });
-  return options ? findFirstArticle(where, options) : findFirstArticle(where);
+  return findFirstMaybeSelected(where, options);
 }
 
 export function loadAiProcessableArticleText(

@@ -34,18 +34,25 @@ const MAX_SENTENCE_CHARS = 1000;
 const MAX_PHRASE_CHARS = 200;
 const MAX_CONTEXT_CHARS = 500;
 
+const MAX_ANCHOR_OFFSET = 10_000_000;
+const MAX_ANCHOR_CONTEXT_CHARS = 256;
+const MAX_HIGHLIGHT_COLOR_CHARS = 20;
+const MAX_QUIZ_ANSWERS = 1000;
+const MAX_QUIZ_ANSWER_INDEX = 1000;
+const MAX_CLIENT_MUTATION_ID_CHARS = 100;
+
 // ---------------------------------------------------------------------------
 // POST /api/reader/[id]/highlights
 // ---------------------------------------------------------------------------
 
 export const createHighlightBody = object({
   quote: nonEmptyString(10_000),
-  startOffset: number({ int: true, min: 0, max: 10_000_000 }),
-  endOffset: number({ int: true, min: 1, max: 10_000_000 }),
-  prefix: optional(string({ max: 256 })),
-  suffix: optional(string({ max: 256 })),
+  startOffset: number({ int: true, min: 0, max: MAX_ANCHOR_OFFSET }),
+  endOffset: number({ int: true, min: 1, max: MAX_ANCHOR_OFFSET }),
+  prefix: optional(string({ max: MAX_ANCHOR_CONTEXT_CHARS })),
+  suffix: optional(string({ max: MAX_ANCHOR_CONTEXT_CHARS })),
   note: optional(string({ max: HIGHLIGHT_NOTE_MAX })),
-  color: optional(nonEmptyString(20)),
+  color: optional(nonEmptyString(MAX_HIGHLIGHT_COLOR_CHARS)),
 });
 
 export type CreateHighlightBody = InferSchema<typeof createHighlightBody>;
@@ -65,12 +72,12 @@ export type ProgressBody = InferSchema<typeof progressBody>;
 export const quizAttemptBody = object({
   answers: array(
     object({
-      index: number({ int: true, min: 0, max: 1000 }),
-      selectedIndex: number({ int: true, min: 0, max: 1000 }),
+      index: number({ int: true, min: 0, max: MAX_QUIZ_ANSWER_INDEX }),
+      selectedIndex: number({ int: true, min: 0, max: MAX_QUIZ_ANSWER_INDEX }),
     }),
-    { max: 1000 },
+    { max: MAX_QUIZ_ANSWERS },
   ),
-  clientMutationId: optional(nonEmptyString(100)),
+  clientMutationId: optional(nonEmptyString(MAX_CLIENT_MUTATION_ID_CHARS)),
 });
 
 export type QuizAttemptBody = InferSchema<typeof quizAttemptBody>;

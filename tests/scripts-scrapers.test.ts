@@ -135,6 +135,19 @@ function statePath(name: string): string {
   return path.join(stateRoot, name);
 }
 
+function relativeStatePath(name: string): string {
+  return path.relative(process.cwd(), statePath(name));
+}
+
+function visitedRecord(provider: string) {
+  return { version: 1, provider, updatedAt: "", urls: [] as any[] };
+}
+
+function usePrismaCountQueue(values: number[]): void {
+  const counts = [...values];
+  prismaCountImpl = async () => counts.shift() ?? 0;
+}
+
 function providerForUrl(url: string): ProviderLike | null {
   const hostname = new URL(url).hostname.replace(/^www\./, "");
   return (
@@ -881,7 +894,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
       return { status: "failed", reason: "extract failed", sourceUrl: url };
     return savedOutcome(url, "Undark");
   };
-  const scrapeRecord = { version: 1, provider: "undark", updatedAt: "", urls: [] };
+  const scrapeRecord = visitedRecord("undark");
   const scrapeResult = await scrapeUndark.__scrapeUndarkTest.scrapeFreshUndark(
     providerByKey.get("undark"),
     2,
@@ -907,7 +920,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
     providerByKey.get("undark"),
     1,
     1,
-    { version: 1, provider: "undark", updatedAt: "", urls: [] },
+    visitedRecord("undark"),
     false,
     true,
     false,
@@ -973,8 +986,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
       : [];
   assert.equal((await scrapeUndark.__scrapeUndarkTest.analyzeUndarkFromDb()).length, 0);
 
-  const counts = [5, 4, 1, 0];
-  prismaCountImpl = async () => counts.shift() ?? 0;
+  usePrismaCountQueue([5, 4, 1, 0]);
   prismaFindManyImpl = async (args) =>
     args.select?.sourceUrl
       ? [{ sourceUrl: "https://undark.org/a" }, { sourceUrl: "https://undark.org/a#x" }]
@@ -982,8 +994,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
   const dbCounts = await scrapeUndark.__scrapeUndarkTest.providerDbCounts("Undark");
   assert.equal(dbCounts.duplicateGroups, 1);
 
-  const publishCounts = [6, 6, 0, 0];
-  prismaCountImpl = async () => publishCounts.shift() ?? 0;
+  usePrismaCountQueue([6, 6, 0, 0]);
   prismaUpdateManyImpl = async () => ({ count: 2 });
   assert.equal((await scrapeUndark.__scrapeUndarkTest.publishUndarkArticles()).published, 6);
 
@@ -994,8 +1005,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
     if (args.select?.title) return [];
     return [];
   };
-  let mainCounts = [1, 1, 0, 0, 1, 1, 0, 0, 2, 2, 0, 0];
-  prismaCountImpl = async () => mainCounts.shift() ?? 0;
+  usePrismaCountQueue([1, 1, 0, 0, 1, 1, 0, 0, 2, 2, 0, 0]);
   discoverImpl = async () => ["https://undark.org/2026/01/main"];
   scrapeAndSaveImpl = async (url) => savedOutcome(url, "Undark");
   const mainCode = await scrapeUndark.__scrapeUndarkTest.main([
@@ -1004,23 +1014,23 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
     "--concurrency",
     "1",
     "--visited-file",
-    path.relative(process.cwd(), statePath("undark-main.json")),
+    relativeStatePath("undark-main.json"),
   ]);
   assert.equal(mainCode, 0);
   assert.equal((await readFile(statePath("undark-main.json"), "utf8")).includes("undark"), true);
 
-  mainCounts = [0, 0, 0, 0, 0, 0, 0, 0];
+  usePrismaCountQueue([0, 0, 0, 0, 0, 0, 0, 0]);
   assert.equal(
     await scrapeUndark.__scrapeUndarkTest.main([
       "--analyze-only",
       "--draft",
       "--visited-file",
-      path.relative(process.cwd(), statePath("undark-analyze.json")),
+      relativeStatePath("undark-analyze.json"),
     ]),
     0,
   );
 
-  mainCounts = [1, 1, 0, 0, 1, 1, 0, 0];
+  usePrismaCountQueue([1, 1, 0, 0, 1, 1, 0, 0]);
   discoverImpl = async () => ["https://undark.org/2026/01/all-done"];
   scrapeAndSaveImpl = async (url) => savedOutcome(url, "Undark");
   assert.equal(
@@ -1028,7 +1038,7 @@ test("scrape-undark covers state, discovery, scrape, DB, publish, and main paths
       "--all",
       "--draft",
       "--visited-file",
-      path.relative(process.cwd(), statePath("undark-all.json")),
+      relativeStatePath("undark-all.json"),
     ]),
     0,
   );
@@ -1086,7 +1096,7 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
   const scrapeResult = await scrapeSmithsonian.__scrapeSmithsonianTest.scrapeFreshSmithsonian(
     providerByKey.get("smithsonian"),
     3,
-    { version: 1, provider: "smithsonian", updatedAt: "", urls: [] },
+    visitedRecord("smithsonian"),
     false,
     false,
     true,
@@ -1103,7 +1113,7 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
   const targetSaved = await scrapeSmithsonian.__scrapeSmithsonianTest.scrapeFreshSmithsonian(
     providerByKey.get("smithsonian"),
     1,
-    { version: 1, provider: "smithsonian", updatedAt: "", urls: [] },
+    visitedRecord("smithsonian"),
     false,
     true,
     false,
@@ -1117,7 +1127,7 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
   const noneSelected = await scrapeSmithsonian.__scrapeSmithsonianTest.scrapeFreshSmithsonian(
     providerByKey.get("smithsonian"),
     1,
-    { version: 1, provider: "smithsonian", updatedAt: "", urls: [] },
+    visitedRecord("smithsonian"),
     false,
     false,
     false,
@@ -1175,12 +1185,10 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
   );
   assert.equal(scrapeSmithsonian.__scrapeSmithsonianTest.truncate("a ".repeat(100), 10).endsWith("…"), true);
 
-  const counts = [4, 3, 1, 0];
-  prismaCountImpl = async () => counts.shift() ?? 0;
+  usePrismaCountQueue([4, 3, 1, 0]);
   assert.equal((await scrapeSmithsonian.__scrapeSmithsonianTest.smithsonianDbCounts()).total, 4);
 
-  const publishCounts = [5, 5, 0, 0];
-  prismaCountImpl = async () => publishCounts.shift() ?? 0;
+  usePrismaCountQueue([5, 5, 0, 0]);
   prismaUpdateManyImpl = async () => ({ count: 1 });
   assert.equal((await scrapeSmithsonian.__scrapeSmithsonianTest.publishSmithsonianArticles()).published, 5);
 
@@ -1188,8 +1196,7 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
 
   await resetStateRoot();
   prismaFindManyImpl = async () => [];
-  let mainCounts = [1, 1, 0, 0];
-  prismaCountImpl = async () => mainCounts.shift() ?? 0;
+  usePrismaCountQueue([1, 1, 0, 0]);
   discoverImpl = async () => [
     "https://www.smithsonianmag.com/history/main-180000007/",
   ];
@@ -1198,7 +1205,7 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
     "--limit",
     "1",
     "--visited-file",
-    path.relative(process.cwd(), statePath("smithsonian-main.json")),
+    relativeStatePath("smithsonian-main.json"),
     "--publish",
     "--since-year",
     "2012",

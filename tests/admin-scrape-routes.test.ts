@@ -55,6 +55,29 @@ const adminOverview = {
   users: { total: 5 },
 };
 
+const SCRAPE_TRIGGER_URL = "http://test/api/admin/scrape/trigger";
+const ADMIN_SLO_URL = "http://test/api/admin/slo";
+const ADMIN_STATS_URL = "http://test/api/admin/stats";
+
+function scrapeTriggerRequest(body: Record<string, unknown>) {
+  return jsonPost(SCRAPE_TRIGGER_URL, body);
+}
+
+async function loadScrapeTriggerPost(): Promise<RouteHandler> {
+  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
+  return POST;
+}
+
+async function loadAdminSloGet(): Promise<RouteHandler> {
+  const { GET } = (await import("@/app/api/admin/slo/route")) as { GET: RouteHandler };
+  return GET;
+}
+
+async function loadAdminStatsGet(): Promise<RouteHandler> {
+  const { GET } = (await import("@/app/api/admin/stats/route")) as { GET: RouteHandler };
+  return GET;
+}
+
 // ---------------------------------------------------------------------------
 // Module mocks
 // ---------------------------------------------------------------------------
@@ -176,39 +199,37 @@ beforeEach(() => {
 
 test("POST /api/admin/scrape/trigger returns 401 when not authenticated", async () => {
   authState = "unauth";
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   assert.equal(res.status, 401);
 });
 
 test("POST /api/admin/scrape/trigger returns 403 when authenticated but non-admin", async () => {
   authState = "forbidden";
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   assert.equal(res.status, 403);
 });
 
 test("POST /api/admin/scrape/trigger returns 400 for an unknown provider key", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "nonexistent" }));
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "nonexistent" }));
   assert.equal(res.status, 400);
   const body = await res.json() as { error: string };
   assert.match(body.error, /Unknown provider/i);
 });
 
 test("POST /api/admin/scrape/trigger returns 400 when neither provider nor all is set", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", {}));
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({}));
   assert.equal(res.status, 400);
   const body = await res.json() as { error: string };
   assert.ok(typeof body.error === "string");
 });
 
 test("POST /api/admin/scrape/trigger happy path returns 200 with results summary", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(
-    jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider", limit: 5 }),
-  );
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider", limit: 5 }));
   assert.equal(res.status, 200);
   const body = await res.json() as {
     ok: boolean;
@@ -224,29 +245,29 @@ test("POST /api/admin/scrape/trigger happy path returns 200 with results summary
 });
 
 test("POST /api/admin/scrape/trigger records an audit event", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  const POST = await loadScrapeTriggerPost();
+  await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   const scrapeAudit = auditCalls.find((c) => c.action === "admin.scrape.trigger");
   assert.ok(scrapeAudit, "audit event admin.scrape.trigger should be recorded");
 });
 
 test("POST /api/admin/scrape/trigger rethrows unexpected trigger failures", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
+  const POST = await loadScrapeTriggerPost();
   auditThrows = true;
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   assert.equal(res.status, 500);
 });
 
 test("POST /api/admin/scrape/trigger records a security event on successful admin mutation", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  await POST(jsonPost("http://test/api/admin/scrape/trigger", { provider: "test-provider" }));
+  const POST = await loadScrapeTriggerPost();
+  await POST(scrapeTriggerRequest({ provider: "test-provider" }));
   const mutation = securityEvents.find((e) => e.type === "admin.mutation");
   assert.ok(mutation, "security event admin.mutation should be recorded for successful admin POST");
 });
 
 test("POST /api/admin/scrape/trigger with all:true scrapes all providers", async () => {
-  const { POST } = (await import("@/app/api/admin/scrape/trigger/route")) as { POST: RouteHandler };
-  const res = await POST(jsonPost("http://test/api/admin/scrape/trigger", { all: true }));
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ all: true }));
   assert.equal(res.status, 200);
   const body = await res.json() as { results: unknown[] };
   // One result per provider in the mock PROVIDERS array
@@ -259,21 +280,21 @@ test("POST /api/admin/scrape/trigger with all:true scrapes all providers", async
 
 test("GET /api/admin/slo returns 401 when not authenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/admin/slo/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/slo"));
+  const GET = await loadAdminSloGet();
+  const res = await GET(new Request(ADMIN_SLO_URL));
   assert.equal(res.status, 401);
 });
 
 test("GET /api/admin/slo returns 403 for non-admin", async () => {
   authState = "forbidden";
-  const { GET } = (await import("@/app/api/admin/slo/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/slo"));
+  const GET = await loadAdminSloGet();
+  const res = await GET(new Request(ADMIN_SLO_URL));
   assert.equal(res.status, 403);
 });
 
 test("GET /api/admin/slo returns 200 with SLO catalog and report", async () => {
-  const { GET } = (await import("@/app/api/admin/slo/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/slo"));
+  const GET = await loadAdminSloGet();
+  const res = await GET(new Request(ADMIN_SLO_URL));
   assert.equal(res.status, 200);
   const body = await res.json() as { catalog: unknown; report: unknown };
   assert.ok(body.catalog, "catalog field present");
@@ -288,21 +309,21 @@ test("GET /api/admin/slo returns 200 with SLO catalog and report", async () => {
 
 test("GET /api/admin/stats returns 401 when not authenticated", async () => {
   authState = "unauth";
-  const { GET } = (await import("@/app/api/admin/stats/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/stats"));
+  const GET = await loadAdminStatsGet();
+  const res = await GET(new Request(ADMIN_STATS_URL));
   assert.equal(res.status, 401);
 });
 
 test("GET /api/admin/stats returns 403 for non-admin", async () => {
   authState = "forbidden";
-  const { GET } = (await import("@/app/api/admin/stats/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/stats"));
+  const GET = await loadAdminStatsGet();
+  const res = await GET(new Request(ADMIN_STATS_URL));
   assert.equal(res.status, 403);
 });
 
 test("GET /api/admin/stats returns 200 with admin overview data", async () => {
-  const { GET } = (await import("@/app/api/admin/stats/route")) as { GET: RouteHandler };
-  const res = await GET(new Request("http://test/api/admin/stats"));
+  const GET = await loadAdminStatsGet();
+  const res = await GET(new Request(ADMIN_STATS_URL));
   assert.equal(res.status, 200);
   const body = await res.json() as typeof adminOverview;
   assert.deepEqual(body, adminOverview);

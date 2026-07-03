@@ -31,6 +31,17 @@ import {
   MIN_SKILL_EVIDENCE,
 } from "./types";
 
+function roundToHundredth(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+function hasUsableQuizScore(
+  avgQuizScore: number | null,
+  quizAttemptCount: number,
+): avgQuizScore is number {
+  return avgQuizScore !== null && quizAttemptCount >= MIN_QUIZ_ATTEMPTS;
+}
+
 // ---------------------------------------------------------------------------
 // Quiz-only recommendation
 // ---------------------------------------------------------------------------
@@ -44,10 +55,11 @@ export function recommendLevelChange(
 ): LevelRecommendation {
   const { avgQuizScore, quizAttemptCount, completedAtLevel, currentLevel } =
     signals;
-
   const currentRank = levelRank(currentLevel);
-  const hasSufficientQuizData =
-    avgQuizScore !== null && quizAttemptCount >= MIN_QUIZ_ATTEMPTS;
+  const hasSufficientQuizData = hasUsableQuizScore(
+    avgQuizScore,
+    quizAttemptCount,
+  );
   const hasSufficientCompletionData = completedAtLevel >= MIN_COMPLETIONS;
 
   // Level-UP signals
@@ -60,7 +72,7 @@ export function recommendLevelChange(
         : 0.6;
       return {
         suggestion: "up",
-        confidence: Math.round(confidence * 100) / 100,
+        confidence: roundToHundredth(confidence),
         rationale: `Your average quiz score is ${Math.round(avgQuizScore)}% across ${quizAttemptCount} attempts — consistently above the mastery threshold. You're ready for ${targetLevel}.`,
         targetLevel,
       };
@@ -78,7 +90,7 @@ export function recommendLevelChange(
       );
       return {
         suggestion: "down",
-        confidence: Math.round(confidence * 100) / 100,
+        confidence: roundToHundredth(confidence),
         rationale: `Your average quiz score is ${Math.round(avgQuizScore)}% across ${quizAttemptCount} attempts — consistently below the target. Dropping to ${targetLevel} will help build confidence.`,
         targetLevel,
       };
@@ -108,13 +120,23 @@ export function recommendLevelChange(
  *   (too_easy − too_hard) / total. Returns 0 when there are no votes.
  */
 export function difficultyBiasFromFeedback(counts: FeedbackCounts): number {
-  const total = counts.too_easy + counts.just_right + counts.too_hard;
+  const total = feedbackTotal(counts);
   if (total <= 0) return 0;
   return (counts.too_easy - counts.too_hard) / total;
 }
 
+function feedbackTotal(counts: FeedbackCounts): number {
+  return counts.too_easy + counts.just_right + counts.too_hard;
+}
+
 function pct(n: number): number {
   return Math.round(n * 100);
+}
+
+function adaptiveConfidence(agreement: number, voteCount: number): number {
+  return roundToHundredth(
+    Math.min(1, 0.5 + 0.3 * agreement + 0.05 * voteCount),
+  );
 }
 
 /**
@@ -132,7 +154,7 @@ export function computeAdaptiveLevel(
   const currentRank = levelRank(currentLevel);
   const maxRank = ENGLISH_LEVELS.length - 1;
   const bias = difficultyBiasFromFeedback(feedback);
-  const totalFeedback = feedback.too_easy + feedback.just_right + feedback.too_hard;
+  const totalFeedback = feedbackTotal(feedback);
 
   const base: AdaptiveLevelRecommendation = {
     suggestion: "hold",
@@ -140,7 +162,7 @@ export function computeAdaptiveLevel(
     recommendedLevel: currentLevel,
     targetLevel: null,
     confidence: 0,
-    difficultyBias: Math.round(bias * 100) / 100,
+    difficultyBias: roundToHundredth(bias),
     explanation: [],
     evidence,
   };
@@ -149,8 +171,7 @@ export function computeAdaptiveLevel(
   const downReasons: string[] = [];
 
   // Quiz performance
-  const hasQuiz = avgQuizScore !== null && quizAttemptCount >= MIN_QUIZ_ATTEMPTS;
-  if (hasQuiz && avgQuizScore !== null) {
+  if (hasUsableQuizScore(avgQuizScore, quizAttemptCount)) {
     if (avgQuizScore >= MASTERY_THRESHOLD) {
       upReasons.push(
         `Your recent quiz average is ${Math.round(avgQuizScore)}% across ${quizAttemptCount} attempts — comfortably above mastery.`,
@@ -209,9 +230,7 @@ export function computeAdaptiveLevel(
   // Level UP
   if (upVotes > downVotes && currentRank >= 0 && currentRank < maxRank) {
     const targetLevel = ENGLISH_LEVELS[currentRank + 1];
-    const confidence = Math.round(
-      Math.min(1, 0.5 + 0.3 * agreement + 0.05 * upVotes) * 100,
-    ) / 100;
+    const confidence = adaptiveConfidence(agreement, upVotes);
     return {
       ...base,
       suggestion: "up",
@@ -228,9 +247,7 @@ export function computeAdaptiveLevel(
   // Level DOWN
   if (downVotes > upVotes && currentRank > 0) {
     const targetLevel = ENGLISH_LEVELS[currentRank - 1];
-    const confidence = Math.round(
-      Math.min(1, 0.5 + 0.3 * agreement + 0.05 * downVotes) * 100,
-    ) / 100;
+    const confidence = adaptiveConfidence(agreement, downVotes);
     return {
       ...base,
       suggestion: "down",

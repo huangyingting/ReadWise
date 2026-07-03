@@ -19,6 +19,7 @@ import { parseAuditMetadata } from "@/lib/security/audit";
 
 const RECENT_ACTIVITY_DAYS = 14;
 const RECENT_LIMIT = 10;
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
 
 export type MemberProgressSummary = {
   started: number;
@@ -94,6 +95,74 @@ type DetailClient = Pick<
   | "auditLog"
 >;
 
+type MemberProfileRow = {
+  englishLevel: string;
+  topics: Parameters<typeof parseTopics>[0];
+  ageRange: string | null;
+  gender: string | null;
+  dailyGoal: number;
+  completedAt: Date | null;
+};
+
+type MemberActivityRow = { date: Date; articlesRead: number };
+type MemberImportRow = MemberImport;
+type MemberAuditRow = Omit<MemberAuditEntry, "metadata"> & {
+  metadata: Parameters<typeof parseAuditMetadata>[0];
+};
+
+function mapProfile(profile: MemberProfileRow | null): MemberDetail["profile"] {
+  if (!profile) return null;
+  return {
+    englishLevel: profile.englishLevel,
+    topics: parseTopics(profile.topics),
+    ageRange: profile.ageRange,
+    gender: profile.gender,
+    dailyGoal: profile.dailyGoal,
+    completedAt: profile.completedAt,
+  };
+}
+
+function progressSummary(input: {
+  started: number;
+  completed: number;
+  avgPercent: number | null;
+}): MemberProgressSummary {
+  return {
+    started: input.started,
+    completed: input.completed,
+    inProgress: Math.max(0, input.started - input.completed),
+    avgPercent: Math.round(input.avgPercent ?? 0),
+  };
+}
+
+function mapActivityDay(activity: MemberActivityRow): MemberActivityDay {
+  return {
+    date: activity.date.toISOString().slice(0, 10),
+    articlesRead: activity.articlesRead,
+  };
+}
+
+function mapImport(article: MemberImportRow): MemberImport {
+  return {
+    id: article.id,
+    title: article.title,
+    status: article.status,
+    sourceType: article.sourceType,
+    createdAt: article.createdAt,
+  };
+}
+
+function mapAuditEntry(row: MemberAuditRow): MemberAuditEntry {
+  return {
+    id: row.id,
+    action: row.action,
+    actorId: row.actorId,
+    actorRole: row.actorRole,
+    createdAt: row.createdAt,
+    metadata: parseAuditMetadata(row.metadata),
+  };
+}
+
 /**
  * Assembles the support detail for a single member. Returns `null` when the
  * user does not exist. All counts/aggregates come from durable tables; no raw
@@ -129,54 +198,63 @@ export async function getMemberDetail(
   });
   if (!user) return null;
 
-  const since = new Date(now.getTime() - RECENT_ACTIVITY_DAYS * 24 * 60 * 60 * 1000);
+  const since = new Date(now.getTime() - RECENT_ACTIVITY_DAYS * MS_PER_DAY);
 
-  const [progressAgg, completedCount, startedCount, recentActivity, imports, importCount, sessions, sessionAgg, auditRows] =
-    await Promise.all([
-      client.readingProgress.aggregate({
-        where: { userId: id },
-        _avg: { percent: true },
-      }),
-      client.readingProgress.count({ where: { userId: id, completed: true } }),
-      client.readingProgress.count({ where: { userId: id } }),
-      client.dailyActivity.findMany({
-        where: { userId: id, date: { gte: since } },
-        orderBy: { date: "desc" },
-        take: RECENT_LIMIT,
-        select: { date: true, articlesRead: true },
-      }),
-      client.article.findMany({
-        where: { ownerId: id, sourceType: "IMPORTED" },
-        orderBy: { createdAt: "desc" },
-        take: RECENT_LIMIT,
-        select: {
-          id: true,
-          title: true,
-          status: true,
-          sourceType: true,
-          createdAt: true,
-        },
-      }),
-      client.article.count({ where: { ownerId: id, sourceType: "IMPORTED" } }),
-      client.session.count({ where: { userId: id, expires: { gt: now } } }),
-      client.session.aggregate({
-        where: { userId: id },
-        _max: { expires: true },
-      }),
-      client.auditLog.findMany({
-        where: { targetType: "user", targetId: id },
-        orderBy: { createdAt: "desc" },
-        take: RECENT_LIMIT,
-        select: {
-          id: true,
-          action: true,
-          actorId: true,
-          actorRole: true,
-          createdAt: true,
-          metadata: true,
-        },
-      }),
-    ]);
+  const [
+    progressAgg,
+    completedCount,
+    startedCount,
+    recentActivity,
+    imports,
+    importCount,
+    sessions,
+    sessionAgg,
+    auditRows,
+  ] = await Promise.all([
+    client.readingProgress.aggregate({
+      where: { userId: id },
+      _avg: { percent: true },
+    }),
+    client.readingProgress.count({ where: { userId: id, completed: true } }),
+    client.readingProgress.count({ where: { userId: id } }),
+    client.dailyActivity.findMany({
+      where: { userId: id, date: { gte: since } },
+      orderBy: { date: "desc" },
+      take: RECENT_LIMIT,
+      select: { date: true, articlesRead: true },
+    }),
+    client.article.findMany({
+      where: { ownerId: id, sourceType: "IMPORTED" },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_LIMIT,
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        sourceType: true,
+        createdAt: true,
+      },
+    }),
+    client.article.count({ where: { ownerId: id, sourceType: "IMPORTED" } }),
+    client.session.count({ where: { userId: id, expires: { gt: now } } }),
+    client.session.aggregate({
+      where: { userId: id },
+      _max: { expires: true },
+    }),
+    client.auditLog.findMany({
+      where: { targetType: "user", targetId: id },
+      orderBy: { createdAt: "desc" },
+      take: RECENT_LIMIT,
+      select: {
+        id: true,
+        action: true,
+        actorId: true,
+        actorRole: true,
+        createdAt: true,
+        metadata: true,
+      },
+    }),
+  ]);
 
   return {
     user: {
@@ -188,47 +266,21 @@ export async function getMemberDetail(
       emailVerified: user.emailVerified,
       createdAt: user.createdAt,
     },
-    profile: user.profile
-      ? {
-          englishLevel: user.profile.englishLevel,
-          topics: parseTopics(user.profile.topics),
-          ageRange: user.profile.ageRange,
-          gender: user.profile.gender,
-          dailyGoal: user.profile.dailyGoal,
-          completedAt: user.profile.completedAt,
-        }
-      : null,
-    progress: {
+    profile: mapProfile(user.profile),
+    progress: progressSummary({
       started: startedCount,
       completed: completedCount,
-      inProgress: Math.max(0, startedCount - completedCount),
-      avgPercent: Math.round(progressAgg._avg.percent ?? 0),
-    },
+      avgPercent: progressAgg._avg.percent,
+    }),
     savedWords: user._count.savedWords,
     quizAttempts: user._count.quizAttempts,
     sessions: {
       active: sessions,
       latestExpiry: sessionAgg._max.expires ?? null,
     },
-    recentActivity: recentActivity.map((a) => ({
-      date: a.date.toISOString().slice(0, 10),
-      articlesRead: a.articlesRead,
-    })),
-    imports: imports.map((a) => ({
-      id: a.id,
-      title: a.title,
-      status: a.status,
-      sourceType: a.sourceType,
-      createdAt: a.createdAt,
-    })),
+    recentActivity: recentActivity.map(mapActivityDay),
+    imports: imports.map(mapImport),
     importCount,
-    auditTrail: auditRows.map((row) => ({
-      id: row.id,
-      action: row.action,
-      actorId: row.actorId,
-      actorRole: row.actorRole,
-      createdAt: row.createdAt,
-      metadata: parseAuditMetadata(row.metadata),
-    })),
+    auditTrail: auditRows.map(mapAuditEntry),
   };
 }

@@ -36,62 +36,103 @@ export type ProfileInputResult =
   | { ok: true; value: ProfileInput }
   | { ok: false; error: string };
 
-export function parseProfileInput(body: {
+type ProfileInputBody = {
   ageRange?: unknown;
   gender?: unknown;
   englishLevel?: unknown;
   topics?: unknown;
   dailyGoal?: unknown;
   goalPath?: unknown;
-}): ProfileInputResult {
-  const englishLevel = body.englishLevel;
-  if (
-    typeof englishLevel !== "string" ||
-    !ENGLISH_LEVELS.includes(englishLevel as EnglishLevel)
-  ) {
-    return { ok: false, error: "A valid English level (A1-C2) is required" };
+};
+
+type FieldResult<T> = { ok: true; value: T } | { ok: false; error: string };
+
+function isAllowedValue<T extends string>(
+  value: unknown,
+  allowedValues: readonly T[],
+): value is T {
+  return typeof value === "string" && allowedValues.includes(value as T);
+}
+
+function parseOptionalControlledValue<T extends string>(
+  value: unknown,
+  allowedValues: readonly T[],
+  error: string,
+): FieldResult<T | null> {
+  if (value == null || value === "") {
+    return { ok: true, value: null };
   }
 
-  let ageRange: AgeRange | null = null;
-  if (body.ageRange != null && body.ageRange !== "") {
-    if (
-      typeof body.ageRange !== "string" ||
-      !AGE_RANGES.includes(body.ageRange as AgeRange)
-    ) {
-      return { ok: false, error: "Invalid age range" };
-    }
-    ageRange = body.ageRange as AgeRange;
+  if (!isAllowedValue(value, allowedValues)) {
+    return { ok: false, error };
   }
 
-  let gender: Gender | null = null;
-  if (body.gender != null && body.gender !== "") {
-    if (
-      typeof body.gender !== "string" ||
-      !GENDERS.includes(body.gender as Gender)
-    ) {
-      return { ok: false, error: "Invalid gender" };
-    }
-    gender = body.gender as Gender;
-  }
+  return { ok: true, value };
+}
 
-  const rawTopics = Array.isArray(body.topics) ? body.topics : [];
-  const topics = Array.from(
+function parseTopicSlugs(topics: unknown): string[] {
+  const rawTopics = Array.isArray(topics) ? topics : [];
+  return Array.from(
     new Set(
       rawTopics.filter(
-        (t): t is string => typeof t === "string" && isValidCategorySlug(t),
+        (topic): topic is string =>
+          typeof topic === "string" && isValidCategorySlug(topic),
       ),
     ),
   );
+}
+
+function isValidDailyGoal(value: unknown): value is number {
+  return (
+    typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= DAILY_GOAL_MIN &&
+    value <= DAILY_GOAL_MAX
+  );
+}
+
+function parseGoalPathValue(raw: unknown): FieldResult<GoalPath | null> {
+  if (raw === null || raw === "") {
+    return { ok: true, value: null };
+  }
+
+  if (isGoalPath(raw)) {
+    return { ok: true, value: raw };
+  }
+
+  return { ok: false, error: "Invalid reading goal path" };
+}
+
+export function parseProfileInput(body: ProfileInputBody): ProfileInputResult {
+  const englishLevel = body.englishLevel;
+  if (!isAllowedValue(englishLevel, ENGLISH_LEVELS)) {
+    return { ok: false, error: "A valid English level (A1-C2) is required" };
+  }
+
+  const ageRangeResult = parseOptionalControlledValue(
+    body.ageRange,
+    AGE_RANGES,
+    "Invalid age range",
+  );
+  if (!ageRangeResult.ok) {
+    return ageRangeResult;
+  }
+
+  const genderResult = parseOptionalControlledValue(
+    body.gender,
+    GENDERS,
+    "Invalid gender",
+  );
+  if (!genderResult.ok) {
+    return genderResult;
+  }
+
+  const topics = parseTopicSlugs(body.topics);
 
   let dailyGoal: number | undefined;
   if (body.dailyGoal != null) {
     const raw = body.dailyGoal;
-    if (
-      typeof raw !== "number" ||
-      !Number.isInteger(raw) ||
-      raw < DAILY_GOAL_MIN ||
-      raw > DAILY_GOAL_MAX
-    ) {
+    if (!isValidDailyGoal(raw)) {
       return {
         ok: false,
         error: `Daily goal must be an integer between ${DAILY_GOAL_MIN} and ${DAILY_GOAL_MAX}`,
@@ -104,22 +145,19 @@ export function parseProfileInput(body: {
   // key is present; `null`/`""` clears, any non-controlled value is a 400.
   let goalPath: GoalPath | null | undefined;
   if ("goalPath" in body && body.goalPath !== undefined) {
-    const raw = body.goalPath;
-    if (raw === null || raw === "") {
-      goalPath = null;
-    } else if (isGoalPath(raw)) {
-      goalPath = raw;
-    } else {
-      return { ok: false, error: "Invalid reading goal path" };
+    const goalPathResult = parseGoalPathValue(body.goalPath);
+    if (!goalPathResult.ok) {
+      return goalPathResult;
     }
+    goalPath = goalPathResult.value;
   }
 
   return {
     ok: true,
     value: {
-      ageRange,
-      gender,
-      englishLevel: englishLevel as EnglishLevel,
+      ageRange: ageRangeResult.value,
+      gender: genderResult.value,
+      englishLevel,
       topics,
       ...(dailyGoal !== undefined ? { dailyGoal } : {}),
       ...(goalPath !== undefined ? { goalPath } : {}),

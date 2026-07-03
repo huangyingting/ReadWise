@@ -108,14 +108,16 @@ beforeEach(() => {
   lastUserFindWhere = null;
 });
 
+async function loadSupportCommands() {
+  return import("@/lib/account-lifecycle/support-commands");
+}
+
 // ---------------------------------------------------------------------------
 // revokeMemberSessions (with the module-level prisma client default)
 // ---------------------------------------------------------------------------
 
 test("revokeMemberSessions deletes sessions via an injected client and audits", async () => {
-  const { revokeMemberSessions } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { revokeMemberSessions } = await loadSupportCommands();
   let deletedFor: string | null = null;
   const client = {
     user: { findUnique: async () => ({ id: "u1" }) },
@@ -137,9 +139,7 @@ test("revokeMemberSessions deletes sessions via an injected client and audits", 
 });
 
 test("revokeMemberSessions returns 404 when the member is unknown", async () => {
-  const { revokeMemberSessions } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { revokeMemberSessions } = await loadSupportCommands();
   const client = {
     user: { findUnique: async () => null },
     session: { deleteMany: async () => ({ count: 0 }) },
@@ -150,9 +150,7 @@ test("revokeMemberSessions returns 404 when the member is unknown", async () => 
 });
 
 test("revokeMemberSessions skips the audit when no factory is provided", async () => {
-  const { revokeMemberSessions } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { revokeMemberSessions } = await loadSupportCommands();
   const client = {
     user: { findUnique: async () => ({ id: "u1" }) },
     session: { deleteMany: async () => ({ count: 2 }) },
@@ -167,9 +165,7 @@ test("revokeMemberSessions skips the audit when no factory is provided", async (
 // ---------------------------------------------------------------------------
 
 test("exportMemberData returns 404 when the member does not exist", async () => {
-  const { exportMemberData } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { exportMemberData } = await loadSupportCommands();
   userRow = null;
   const result = await exportMemberData("nope");
   assert.deepEqual(result, { ok: false, error: "Not found", status: 404 });
@@ -177,9 +173,7 @@ test("exportMemberData returns 404 when the member does not exist", async () => 
 });
 
 test("exportMemberData delegates to exportUserData and wraps the payload", async () => {
-  const { exportMemberData } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { exportMemberData } = await loadSupportCommands();
   userRow = { id: "u1" };
   exportResult = { user: { id: "u1" }, savedWords: [] };
 
@@ -194,9 +188,7 @@ test("exportMemberData delegates to exportUserData and wraps the payload", async
 });
 
 test("exportMemberData returns 404 when the export collaborator yields nothing", async () => {
-  const { exportMemberData } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { exportMemberData } = await loadSupportCommands();
   userRow = { id: "u1" };
   exportResult = null;
 
@@ -209,9 +201,7 @@ test("exportMemberData returns 404 when the export collaborator yields nothing",
 // ---------------------------------------------------------------------------
 
 test("triggerMemberRepair returns 404 when the member does not exist", async () => {
-  const { triggerMemberRepair } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { triggerMemberRepair } = await loadSupportCommands();
   userRow = null;
   const result = await triggerMemberRepair("nope", "admin-1");
   assert.deepEqual(result, { ok: false, error: "Not found", status: 404 });
@@ -219,9 +209,7 @@ test("triggerMemberRepair returns 404 when the member does not exist", async () 
 });
 
 test("triggerMemberRepair is a no-op when the member has no imported articles", async () => {
-  const { triggerMemberRepair } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { triggerMemberRepair } = await loadSupportCommands();
   userRow = { id: "u1" };
   ownedArticles = [];
 
@@ -237,9 +225,7 @@ test("triggerMemberRepair is a no-op when the member has no imported articles", 
 });
 
 test("triggerMemberRepair runs a missing-mode backfill over the member's articles", async () => {
-  const { triggerMemberRepair } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { triggerMemberRepair } = await loadSupportCommands();
   userRow = { id: "u1" };
   ownedArticles = [{ id: "art-1" }, { id: "art-2" }];
 
@@ -260,9 +246,7 @@ test("triggerMemberRepair runs a missing-mode backfill over the member's article
 });
 
 test("triggerMemberRepair runs without an audit factory", async () => {
-  const { triggerMemberRepair } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { triggerMemberRepair } = await loadSupportCommands();
   userRow = { id: "u1" };
   ownedArticles = [{ id: "art-1" }];
 
@@ -277,18 +261,14 @@ test("triggerMemberRepair runs without an audit factory", async () => {
 // ---------------------------------------------------------------------------
 
 test("resendSignInHelp returns 404 when the member does not exist", async () => {
-  const { resendSignInHelp } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { resendSignInHelp } = await loadSupportCommands();
   userRow = null;
   const result = await resendSignInHelp("nope");
   assert.deepEqual(result, { ok: false, error: "Not found", status: 404 });
 });
 
 test("resendSignInHelp returns 400 when the member has no email on file", async () => {
-  const { resendSignInHelp } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { resendSignInHelp } = await loadSupportCommands();
   userRow = { id: "u1", email: null };
   const result = await resendSignInHelp("u1");
   assert.equal(result.ok, false);
@@ -300,9 +280,7 @@ test("resendSignInHelp returns 400 when the member has no email on file", async 
 });
 
 test("resendSignInHelp records intent and reports unavailability without leaking secrets", async () => {
-  const { resendSignInHelp } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { resendSignInHelp } = await loadSupportCommands();
   userRow = { id: "u1", email: "ada@example.com" };
 
   const result = await resendSignInHelp("u1", ({ delivered }) => ({
@@ -319,9 +297,7 @@ test("resendSignInHelp records intent and reports unavailability without leaking
 });
 
 test("resendSignInHelp succeeds without an audit factory", async () => {
-  const { resendSignInHelp } = await import(
-    "@/lib/account-lifecycle/support-commands"
-  );
+  const { resendSignInHelp } = await loadSupportCommands();
   userRow = { id: "u1", email: "ada@example.com" };
   const result = await resendSignInHelp("u1");
   assert.equal(result.ok, true);

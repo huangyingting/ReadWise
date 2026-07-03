@@ -38,6 +38,48 @@ export type UrlExtractorContext = {
   fetch: ExtractorFetch;
 };
 
+export type ProviderCleanup = {
+  /**
+   * Plain tag names to drop together with ALL their inner content (e.g.
+   * `"video"`, `"iframe"`, `"aside"`). Selector syntax (e.g. `".ad"`) is
+   * intentionally rejected — only bare tag names are accepted so the
+   * behaviour remains predictable and well-tested.
+   */
+  dropSelectors?: string[];
+  /**
+   * Case-insensitive class/id keyword fragments. Any structural block element
+   * whose `class` or `id` attribute contains any of these strings — together
+   * with its entire inner content — is removed before body extraction.
+   * Examples: `"related"`, `"newsletter"`, `"social-share"`, `"promo"`.
+   */
+  dropClassKeywords?: string[];
+  /**
+   * Case-insensitive text fragments. Any short structural block whose text
+   * contains one of these strings is removed before body extraction. Keep
+   * these provider-specific; generic shared cleanup should stay structural.
+   */
+  dropTextKeywords?: string[];
+  /**
+   * Case-insensitive href keyword fragments. Any `<a>` whose `href` contains
+   * one of these strings — together with its children — is removed before body
+   * extraction. Empty `<p>`/`<figure>` wrappers left behind are also removed.
+   */
+  dropLinkHrefKeywords?: string[];
+  /**
+   * Provider opt-in to remove all `<figcaption>` elements before extraction.
+   * Sibling image/video content in the surrounding `<figure>` is preserved.
+   */
+  dropFigcaptions?: boolean;
+};
+
+export type ProviderQuality = {
+  /**
+   * Case-insensitive title/body prefixes that identify provider digest formats
+   * when combined with list/source-link structure.
+   */
+  digestListicleTitlePrefixes?: string[];
+};
+
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
   /** Short CLI key, e.g. "nbc". */
@@ -102,48 +144,10 @@ export type Provider = {
    * Cleanup is purely additive — `sanitizeArticleHtml` remains the final,
    * authoritative safety pass. Omitting this field leaves behavior unchanged.
    */
-  cleanup?: {
-    /**
-     * Plain tag names to drop together with ALL their inner content (e.g.
-     * `"video"`, `"iframe"`, `"aside"`). Selector syntax (e.g. `".ad"`) is
-     * intentionally rejected — only bare tag names are accepted so the
-     * behaviour remains predictable and well-tested.
-     */
-    dropSelectors?: string[];
-    /**
-     * Case-insensitive class/id keyword fragments. Any structural block element
-     * whose `class` or `id` attribute contains any of these strings — together
-     * with its entire inner content — is removed before body extraction.
-     * Examples: `"related"`, `"newsletter"`, `"social-share"`, `"promo"`.
-     */
-    dropClassKeywords?: string[];
-    /**
-     * Case-insensitive text fragments. Any short structural block whose text
-     * contains one of these strings is removed before body extraction. Keep
-     * these provider-specific; generic shared cleanup should stay structural.
-     */
-    dropTextKeywords?: string[];
-    /**
-     * Case-insensitive href keyword fragments. Any `<a>` whose `href` contains
-     * one of these strings — together with its children — is removed before body
-     * extraction. Empty `<p>`/`<figure>` wrappers left behind are also removed.
-     */
-    dropLinkHrefKeywords?: string[];
-    /**
-     * Provider opt-in to remove all `<figcaption>` elements before extraction.
-     * Sibling image/video content in the surrounding `<figure>` is preserved.
-     */
-    dropFigcaptions?: boolean;
-  };
+  cleanup?: ProviderCleanup;
   /**
    * Provider-specific quality heuristics. Shared quality checks should only keep
    * generic article/digest signals; branded provider phrases live here.
    */
-  quality?: {
-    /**
-     * Case-insensitive title/body prefixes that identify provider digest formats
-     * when combined with list/source-link structure.
-     */
-    digestListicleTitlePrefixes?: string[];
-  };
+  quality?: ProviderQuality;
 };

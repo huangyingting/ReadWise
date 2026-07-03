@@ -106,6 +106,27 @@ beforeEach(() => {
   lastArticleFindManyArgs = null;
 });
 
+function makeScoredArticle(id: string, category: string): ScoredArticle {
+  return {
+    article: buildArticle({ id, category }),
+    score: 50,
+    reason: "test",
+  };
+}
+
+function scoringContext(overrides: Partial<ScoringContext> = {}): ScoringContext {
+  return {
+    userLevel: "B1",
+    userLevelRank: 2,
+    topicSet: new Set(),
+    tagSlugsForArticle: [],
+    completedIds: new Set(),
+    inProgressIds: new Set(),
+    now: new Date("2026-01-01"),
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Pure: levelProximityScore
 // ---------------------------------------------------------------------------
@@ -187,17 +208,12 @@ test("buildTagMap groups tag slugs by articleId", async () => {
 
 test("diversify defers the 4th consecutive same-category article", async () => {
   const { diversify } = await import("@/lib/feed");
-  const makeScored = (id: string, category: string): ScoredArticle => ({
-    article: buildArticle({ id, category }),
-    score: 50,
-    reason: "test",
-  });
   const input = [
-    makeScored("t1", "tech"),
-    makeScored("t2", "tech"),
-    makeScored("t3", "tech"),
-    makeScored("t4", "tech"), // 4th consecutive — deferred
-    makeScored("w1", "world"),
+    makeScoredArticle("t1", "tech"),
+    makeScoredArticle("t2", "tech"),
+    makeScoredArticle("t3", "tech"),
+    makeScoredArticle("t4", "tech"), // 4th consecutive — deferred
+    makeScoredArticle("w1", "world"),
   ];
   const result = diversify(input);
   assert.deepEqual(result.map((s) => s.article.id), ["t1", "t2", "t3", "w1", "t4"]);
@@ -205,15 +221,10 @@ test("diversify defers the 4th consecutive same-category article", async () => {
 
 test("diversify is a no-op when categories are varied", async () => {
   const { diversify } = await import("@/lib/feed");
-  const makeScored = (id: string, category: string): ScoredArticle => ({
-    article: buildArticle({ id, category }),
-    score: 50,
-    reason: "test",
-  });
   const input = [
-    makeScored("a1", "tech"),
-    makeScored("a2", "world"),
-    makeScored("a3", "tech"),
+    makeScoredArticle("a1", "tech"),
+    makeScoredArticle("a2", "world"),
+    makeScoredArticle("a3", "tech"),
   ];
   assert.deepEqual(diversify(input).map((s) => s.article.id), ["a1", "a2", "a3"]);
 });
@@ -225,30 +236,18 @@ test("diversify is a no-op when categories are varied", async () => {
 test("scoreArticle: returns null for completed articles (hard exclude)", async () => {
   const { scoreArticle } = await import("@/lib/feed");
   const article = buildArticle({ id: "a1", category: "tech", difficulty: "B1" });
-  const ctx: ScoringContext = {
-    userLevel: "B1",
-    userLevelRank: 2,
+  const ctx = scoringContext({
     topicSet: new Set(["tech"]),
-    tagSlugsForArticle: [],
     completedIds: new Set(["a1"]),
-    inProgressIds: new Set(),
-    now: new Date("2026-01-01"),
-  };
+  });
   assert.equal(scoreArticle(article, ctx), null);
 });
 
 test("scoreArticle: topic-matched article scores higher than non-matched", async () => {
   const { scoreArticle } = await import("@/lib/feed");
-  const now = new Date("2026-01-01");
-  const base: ScoringContext = {
-    userLevel: "B1",
-    userLevelRank: 2,
+  const base = scoringContext({
     topicSet: new Set(["tech"]),
-    tagSlugsForArticle: [],
-    completedIds: new Set(),
-    inProgressIds: new Set(),
-    now,
-  };
+  });
   const article = buildArticle({ id: "a1", category: "tech", difficulty: "B1" });
   const matched = scoreArticle(article, base);
   const unmatched = scoreArticle(article, { ...base, topicSet: new Set(["world"]) });
@@ -258,16 +257,7 @@ test("scoreArticle: topic-matched article scores higher than non-matched", async
 
 test("scoreArticle: in-progress articles receive a soft penalty", async () => {
   const { scoreArticle, SCORE_WEIGHTS } = await import("@/lib/feed");
-  const now = new Date("2026-01-01");
-  const base: ScoringContext = {
-    userLevel: "B1",
-    userLevelRank: 2,
-    topicSet: new Set(),
-    tagSlugsForArticle: [],
-    completedIds: new Set(),
-    inProgressIds: new Set(),
-    now,
-  };
+  const base = scoringContext();
   const article = buildArticle({ id: "a1", difficulty: "B1" });
   const normal = scoreArticle(article, base);
   const inProgress = scoreArticle(article, { ...base, inProgressIds: new Set(["a1"]) });
@@ -301,7 +291,9 @@ test("getPersonalizedFeed: topic-matched articles rank before unmatched ones", a
 
   const ids = feed.articles.map((a) => a.id);
   const worldIndex = ids.indexOf("world-a");
-  const techIndices = ids.filter((id) => id.startsWith("tech")).map((_, i) => ids.indexOf(ids.filter((id) => id.startsWith("tech"))[i]));
+  const techIndices = ids
+    .map((id, index) => (id.startsWith("tech") ? index : -1))
+    .filter((index) => index >= 0);
   assert.ok(techIndices.every((i) => i < worldIndex), "tech articles precede world article");
 });
 

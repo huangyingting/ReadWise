@@ -42,6 +42,27 @@ const PER_PAGE = 20;
 /** Safety cap on the number of pages fetched per discovery run. */
 const MAX_PAGES = 5;
 
+type NautilusPost = {
+  link?: unknown;
+};
+
+function nautilusApiUrl(page: number): string {
+  return `${NAUTILUS_WP_API_BASE}?per_page=${PER_PAGE}&page=${page}&_embed=false`;
+}
+
+function parseNautilusPosts(body: string): NautilusPost[] | null {
+  const parsed: unknown = JSON.parse(body);
+  return Array.isArray(parsed) ? (parsed as NautilusPost[]) : null;
+}
+
+function appendPostLinks(posts: readonly NautilusPost[], urls: string[]): void {
+  for (const post of posts) {
+    if (typeof post.link === "string" && post.link.startsWith("http")) {
+      urls.push(post.link);
+    }
+  }
+}
+
 /**
  * Fetches article URLs from the Nautilus WordPress REST API. Paginates
  * through results until `limit` candidates are collected, the last page is
@@ -58,13 +79,9 @@ export async function fetchNautilusUrls(
     // Fetch enough candidates; stop early once we've gathered 2× the limit
     if (urls.length >= limit * 2) break;
 
-    const apiUrl =
-      `${NAUTILUS_WP_API_BASE}` +
-      `?per_page=${PER_PAGE}&page=${page}&_embed=false`;
-
     let body: string;
     try {
-      body = await fetchFn(apiUrl);
+      body = await fetchFn(nautilusApiUrl(page));
     } catch (err) {
       log.warn("nautilus.wp_api.fetch_failed", {
         page,
@@ -73,23 +90,18 @@ export async function fetchNautilusUrls(
       break;
     }
 
-    let posts: Array<{ link?: unknown }>;
+    let posts: NautilusPost[] | null;
     try {
-      const parsed: unknown = JSON.parse(body);
-      if (!Array.isArray(parsed)) break;
-      posts = parsed as Array<{ link?: unknown }>;
+      posts = parseNautilusPosts(body);
     } catch {
       log.warn("nautilus.wp_api.parse_failed", { page });
       break;
     }
 
+    if (!posts) break;
     if (posts.length === 0) break;
 
-    for (const post of posts) {
-      if (typeof post.link === "string" && post.link.startsWith("http")) {
-        urls.push(post.link);
-      }
-    }
+    appendPostLinks(posts, urls);
 
     // If the page returned fewer items than requested there are no more pages.
     if (posts.length < PER_PAGE) break;

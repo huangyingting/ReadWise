@@ -21,6 +21,20 @@ const DEFAULT_FETCH_429_BASE_MS = 1_000;
 /** Default max delay in ms for scraper HTTP 429 retry backoff. */
 const DEFAULT_FETCH_429_MAX_MS = 20_000;
 
+type EnvName =
+  | "SCRAPER_MAX_BYTES"
+  | "SCRAPER_TIMEOUT_MS"
+  | "SCRAPER_HTML_NORMALIZE"
+  | "SCRAPER_READABILITY"
+  | "SCRAPER_FETCH_PROFILE_RETRY"
+  | "SCRAPER_FETCH_BROWSER"
+  | "SCRAPER_FETCH_READER"
+  | "SCRAPER_FETCH_WAYBACK"
+  | "SCRAPER_FETCH_429_RETRIES"
+  | "SCRAPER_FETCH_429_BASE_MS"
+  | "SCRAPER_FETCH_429_MAX_MS"
+  | "SCRAPER_QUALITY_CLASSIFIER";
+
 /**
  * Parses `raw` as a positive integer, falling back to `fallback` when it is
  * missing, non-numeric, or below `min`.
@@ -40,14 +54,26 @@ function readNonNegativeInt(raw: string | undefined, fallback: number, min: numb
   return readPositiveInt(raw, fallback, Math.max(0, min));
 }
 
+function readEnvInt(name: EnvName, fallback: number, min: number): number {
+  return readPositiveInt(process.env[name], fallback, min);
+}
+
+function readEnvNonNegativeInt(name: EnvName, fallback: number, min: number): number {
+  return readNonNegativeInt(process.env[name], fallback, min);
+}
+
+function isEnvEnabledByDefault(name: EnvName): boolean {
+  return process.env[name] !== "false";
+}
+
 /** Maximum body bytes the scraper will read before aborting (SCRAPER_MAX_BYTES, default 5MiB). */
 export function scraperMaxBytes(): number {
-  return readPositiveInt(process.env.SCRAPER_MAX_BYTES, DEFAULT_MAX_BYTES, MIN_MAX_BYTES);
+  return readEnvInt("SCRAPER_MAX_BYTES", DEFAULT_MAX_BYTES, MIN_MAX_BYTES);
 }
 
 /** Hard request timeout in ms covering connect + body read (SCRAPER_TIMEOUT_MS, default 15000). */
 export function scraperTimeoutMs(): number {
-  return readPositiveInt(process.env.SCRAPER_TIMEOUT_MS, DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS);
+  return readEnvInt("SCRAPER_TIMEOUT_MS", DEFAULT_TIMEOUT_MS, MIN_TIMEOUT_MS);
 }
 
 /** Whether the optional HTML normalization pass is enabled (SCRAPER_HTML_NORMALIZE=true). */
@@ -65,7 +91,7 @@ export function scraperHtmlNormalize(): boolean {
  * (the declutter pass still runs in that fallback path).
  */
 export function scraperReadability(): boolean {
-  return process.env.SCRAPER_READABILITY !== "false";
+  return isEnvEnabledByDefault("SCRAPER_READABILITY");
 }
 
 /**
@@ -78,7 +104,7 @@ export function scraperReadability(): boolean {
  * origin attempt.
  */
 export function scraperFetchProfileRetry(): boolean {
-  return process.env.SCRAPER_FETCH_PROFILE_RETRY !== "false";
+  return isEnvEnabledByDefault("SCRAPER_FETCH_PROFILE_RETRY");
 }
 
 /**
@@ -91,7 +117,7 @@ export function scraperFetchProfileRetry(): boolean {
  * fails, the strategy gracefully degrades to the reader/Wayback stages.
  */
 export function scraperFetchBrowser(): boolean {
-  return process.env.SCRAPER_FETCH_BROWSER !== "false";
+  return isEnvEnabledByDefault("SCRAPER_FETCH_BROWSER");
 }
 
 /**
@@ -103,7 +129,7 @@ export function scraperFetchBrowser(): boolean {
  * `Bearer` token when `JINA_API_KEY` is set). Set to `false` to skip it.
  */
 export function scraperFetchReader(): boolean {
-  return process.env.SCRAPER_FETCH_READER !== "false";
+  return isEnvEnabledByDefault("SCRAPER_FETCH_READER");
 }
 
 /**
@@ -114,7 +140,7 @@ export function scraperFetchReader(): boolean {
  * via `https://web.archive.org/web/<YYYY>id_/<url>`. Set to `false` to skip it.
  */
 export function scraperFetchWayback(): boolean {
-  return process.env.SCRAPER_FETCH_WAYBACK !== "false";
+  return isEnvEnabledByDefault("SCRAPER_FETCH_WAYBACK");
 }
 
 /**
@@ -124,7 +150,7 @@ export function scraperFetchWayback(): boolean {
  * Set to `0` to disable retrying 429s before the fallback chain advances.
  */
 export function scraperFetch429Retries(): number {
-  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_RETRIES, DEFAULT_FETCH_429_RETRIES, 0);
+  return readEnvNonNegativeInt("SCRAPER_FETCH_429_RETRIES", DEFAULT_FETCH_429_RETRIES, 0);
 }
 
 /**
@@ -134,7 +160,7 @@ export function scraperFetch429Retries(): number {
  * Set to `0` to disable waiting/retrying 429s before the fallback chain advances.
  */
 export function scraperFetch429BaseMs(): number {
-  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_BASE_MS, DEFAULT_FETCH_429_BASE_MS, 0);
+  return readEnvNonNegativeInt("SCRAPER_FETCH_429_BASE_MS", DEFAULT_FETCH_429_BASE_MS, 0);
 }
 
 /**
@@ -144,7 +170,7 @@ export function scraperFetch429BaseMs(): number {
  * Set to `0` to disable waiting/retrying 429s before the fallback chain advances.
  */
 export function scraperFetch429MaxMs(): number {
-  return readNonNegativeInt(process.env.SCRAPER_FETCH_429_MAX_MS, DEFAULT_FETCH_429_MAX_MS, 0);
+  return readEnvNonNegativeInt("SCRAPER_FETCH_429_MAX_MS", DEFAULT_FETCH_429_MAX_MS, 0);
 }
 
 /**
@@ -157,5 +183,5 @@ export function scraperFetch429MaxMs(): number {
  * the classifier entirely (no model is loaded). The heuristics remain primary.
  */
 export function scraperQualityClassifier(): boolean {
-  return process.env.SCRAPER_QUALITY_CLASSIFIER !== "false";
+  return isEnvEnabledByDefault("SCRAPER_QUALITY_CLASSIFIER");
 }

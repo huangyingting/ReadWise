@@ -17,6 +17,16 @@
 import { prisma } from "@/lib/prisma";
 import { clamp01 } from "./primitives";
 
+const QUIZ_COMPLETION_WEIGHT = 0.5;
+const QUIZ_SCORE_WEIGHT = 0.5;
+const READING_ONLY_CAP = 0.6;
+const TOO_HARD_MULTIPLIER = 0.85;
+const TOO_EASY_MULTIPLIER = 1.05;
+const TOO_EASY_BONUS = 0.05;
+const LOOKUP_DENSITY_PENALTY_PER_POINT = 0.02;
+const MAX_LOOKUP_DENSITY_PENALTY = 0.15;
+const LOOKUP_DENSITY_WORDS = 100;
+
 export type ArticleMasteryRecord = {
   articleId: string;
   readingCompletion: number; // 0–1
@@ -39,6 +49,37 @@ export type ComprehensionInput = {
   difficultyFeedback: string | null;
 };
 
+function baseComprehensionScore(input: ComprehensionInput): number {
+  const completion = clamp01(input.readingCompletion);
+  if (input.quizScore != null) {
+    return (
+      QUIZ_COMPLETION_WEIGHT * completion +
+      QUIZ_SCORE_WEIGHT * clamp01(input.quizScore)
+    );
+  }
+  return completion * READING_ONLY_CAP;
+}
+
+function applyDifficultyFeedback(score: number, feedback: string | null): number {
+  if (feedback === "too_hard") return score * TOO_HARD_MULTIPLIER;
+  if (feedback === "too_easy") {
+    return score * TOO_EASY_MULTIPLIER + TOO_EASY_BONUS;
+  }
+  return score;
+}
+
+function applyLookupDensityPenalty(
+  score: number,
+  lookupDensity: number | null,
+): number {
+  if (lookupDensity == null || lookupDensity <= 0) return score;
+  const penalty = Math.min(
+    MAX_LOOKUP_DENSITY_PENALTY,
+    lookupDensity * LOOKUP_DENSITY_PENALTY_PER_POINT,
+  );
+  return score * (1 - penalty);
+}
+
 /**
  * Combines the per-article signals into a 0–1 comprehension score.
  *
@@ -52,25 +93,9 @@ export type ComprehensionInput = {
  *     penalty, capped so it can never dominate the score.
  */
 export function computeComprehensionScore(input: ComprehensionInput): number {
-  const completion = clamp01(input.readingCompletion);
-  let score: number;
-  if (input.quizScore != null) {
-    score = 0.5 * completion + 0.5 * clamp01(input.quizScore);
-  } else {
-    score = completion * 0.6;
-  }
-
-  if (input.difficultyFeedback === "too_hard") {
-    score *= 0.85;
-  } else if (input.difficultyFeedback === "too_easy") {
-    score = score * 1.05 + 0.05;
-  }
-
-  if (input.lookupDensity != null && input.lookupDensity > 0) {
-    const penalty = Math.min(0.15, input.lookupDensity * 0.02);
-    score *= 1 - penalty;
-  }
-
+  let score = baseComprehensionScore(input);
+  score = applyDifficultyFeedback(score, input.difficultyFeedback);
+  score = applyLookupDensityPenalty(score, input.lookupDensity);
   return clamp01(score);
 }
 
@@ -96,6 +121,23 @@ function toRecord(row: ArticleMasteryRow): ArticleMasteryRecord {
     comprehensionScore: row.comprehensionScore,
     lastActivityAt: row.lastActivityAt,
   };
+}
+
+function lookupDensityFor(savedCount: number, wordCount: number | null): number | null {
+  return wordCount && wordCount > 0
+    ? (savedCount * LOOKUP_DENSITY_WORDS) / wordCount
+    : null;
+}
+
+function resolveTimeSpentMs(
+  opts: { timeSpentMs?: number; accumulateTime?: boolean },
+  existing: { timeSpentMs: number | null } | null,
+): number | null {
+  if (opts.timeSpentMs == null) return existing?.timeSpentMs ?? null;
+  if (opts.accumulateTime) {
+    return (existing?.timeSpentMs ?? 0) + opts.timeSpentMs;
+  }
+  return opts.timeSpentMs;
 }
 
 /**
@@ -142,20 +184,9 @@ export async function updateArticleMastery(
   const readingCompletion = clamp01((progress?.percent ?? 0) / 100);
   const bestScore = quizAgg._max.scorePct;
   const quizScore = bestScore != null ? clamp01(bestScore / 100) : null;
-
-  const wordCount = article?.wordCount ?? null;
-  const lookupDensity =
-    wordCount && wordCount > 0 ? (savedCount * 100) / wordCount : null;
-
+  const lookupDensity = lookupDensityFor(savedCount, article?.wordCount ?? null);
   const difficultyFeedback = feedback?.vote ?? null;
-
-  const timeSpentMs =
-    opts.timeSpentMs != null
-      ? opts.accumulateTime
-        ? (existing?.timeSpentMs ?? 0) + opts.timeSpentMs
-        : opts.timeSpentMs
-      : (existing?.timeSpentMs ?? null);
-
+  const timeSpentMs = resolveTimeSpentMs(opts, existing);
   const comprehensionScore = computeComprehensionScore({
     readingCompletion,
     quizScore,

@@ -27,6 +27,44 @@ import { getTabbable } from "@/lib/focus-trap";
 import { useReaderTools } from "./ReaderToolsProvider";
 import ReaderTools from "./ReaderTools";
 
+const READER_TOOLS_SURFACE_ID = "reader-tools-surface";
+const READER_TOOLS_TITLE_ID = "reader-tools-title";
+const ACTIVE_TAB_SELECTOR = '[role="tab"][aria-selected="true"]';
+
+type MainContentState = {
+  element: HTMLElement;
+  previousAriaHidden: string | null;
+  wasInert: boolean;
+} | null;
+
+function focusInitialTool(panel: HTMLElement | null): void {
+  const activeTabEl = panel?.querySelector<HTMLElement>(ACTIVE_TAB_SELECTOR);
+  const firstTabbable = getTabbable(panel)[0];
+  (activeTabEl ?? firstTabbable ?? panel)?.focus();
+}
+
+function hideMainContent(): MainContentState {
+  const main = document.getElementById("main-content");
+  if (!main) return null;
+
+  const previousAriaHidden = main.getAttribute("aria-hidden") ?? null;
+  const wasInert = main.hasAttribute("inert");
+  main.setAttribute("aria-hidden", "true");
+  main.setAttribute("inert", "");
+
+  return { element: main, previousAriaHidden, wasInert };
+}
+
+function restoreMainContent(state: MainContentState): void {
+  if (!state) return;
+
+  if (state.wasInert) state.element.setAttribute("inert", "");
+  else state.element.removeAttribute("inert");
+
+  if (state.previousAriaHidden === null) state.element.removeAttribute("aria-hidden");
+  else state.element.setAttribute("aria-hidden", state.previousAriaHidden);
+}
+
 export default function ReaderToolsSurface({
   articleId,
   plainText,
@@ -55,11 +93,7 @@ export default function ReaderToolsSurface({
     const panel = panelRef.current;
     // Focus the currently-selected tab on open (not the close button), so
     // keyboard users land on the active tool (#210).
-    const activeTabEl = panel?.querySelector<HTMLElement>(
-      '[role="tab"][aria-selected="true"]',
-    );
-    const first = getTabbable(panel)[0];
-    (activeTabEl ?? first ?? panel)?.focus();
+    focusInitialTool(panel);
 
     // Lock background scroll behind the overlay.
     const prevOverflow = document.body.style.overflow;
@@ -68,13 +102,7 @@ export default function ReaderToolsSurface({
     // Make the app background inert + hidden from assistive tech so SR/keyboard
     // can't reach it. The overlay is portaled OUTSIDE `#main-content`, so this
     // never inerts the overlay itself.
-    const main = document.getElementById("main-content");
-    const prevAriaHidden = main?.getAttribute("aria-hidden") ?? null;
-    const prevInert = main?.hasAttribute("inert") ?? false;
-    if (main) {
-      main.setAttribute("aria-hidden", "true");
-      main.setAttribute("inert", "");
-    }
+    const mainContentState = hideMainContent();
 
     function onKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -105,12 +133,7 @@ export default function ReaderToolsSurface({
     return () => {
       document.removeEventListener("keydown", onKeyDown);
       document.body.style.overflow = prevOverflow;
-      if (main) {
-        if (prevInert) main.setAttribute("inert", "");
-        else main.removeAttribute("inert");
-        if (prevAriaHidden === null) main.removeAttribute("aria-hidden");
-        else main.setAttribute("aria-hidden", prevAriaHidden);
-      }
+      restoreMainContent(mainContentState);
       restoreFocusRef.current?.focus();
     };
   }, [open, closeTools]);
@@ -118,17 +141,17 @@ export default function ReaderToolsSurface({
   const surface = (
     <aside
       ref={panelRef}
-      id="reader-tools-surface"
+      id={READER_TOOLS_SURFACE_ID}
       className="reader-tools-surface"
       data-open={open ? "true" : "false"}
       role="dialog"
       aria-modal="true"
-      aria-labelledby="reader-tools-title"
+      aria-labelledby={READER_TOOLS_TITLE_ID}
       aria-hidden={open ? undefined : "true"}
       tabIndex={-1}
     >
       <div className="reader-tools-surface-header">
-        <h2 id="reader-tools-title" className="reader-tools-surface-title">
+        <h2 id={READER_TOOLS_TITLE_ID} className="reader-tools-surface-title">
           Practice tools
         </h2>
         <IconButton

@@ -133,18 +133,24 @@ export const OFFLINE_MUTATION_REGISTRY: readonly MutationRegistration[] = [
   },
 ] as const;
 
+function findMutationRegistration(
+  type: string,
+): MutationRegistration | undefined {
+  return OFFLINE_MUTATION_REGISTRY.find((registration) => registration.type === type);
+}
+
 /** Returns true when `type` is a registered offline mutation type. */
 export function isKnownMutationType(
   type: string,
 ): type is OfflineMutationType {
-  return OFFLINE_MUTATION_REGISTRY.some((r) => r.type === type);
+  return findMutationRegistration(type) !== undefined;
 }
 
 /** Look up the registration record for a mutation type, or undefined if unknown. */
 export function getMutationRegistration(
   type: string,
 ): MutationRegistration | undefined {
-  return OFFLINE_MUTATION_REGISTRY.find((r) => r.type === type);
+  return findMutationRegistration(type);
 }
 
 // ---------------------------------------------------------------------------

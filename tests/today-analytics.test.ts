@@ -69,6 +69,19 @@ const ALLOWED_KEYS = new Set([
 /** Controlled-token shape: enums/ids/dates only — never free text/sentences. */
 const CONTROLLED_TOKEN_RE = /^[A-Za-z0-9:_.-]+$/;
 
+const EXPECTED_TODAY_EVENT_TYPES: Record<string, string> = {
+  todaySessionGenerated: "today_session_generated",
+  todaySessionViewed: "today_session_viewed",
+  todayNoCandidate: "today_no_candidate",
+  todayReadingComplete: "today_reading_complete",
+  todayComprehensionComplete: "today_comprehension_complete",
+  todayComprehensionSubmitted: "today_comprehension_submitted",
+  todayWordReviewComplete: "today_word_review_complete",
+  todaySessionComplete: "today_session_complete",
+  todaySkip: "today_skip",
+  todayArticleSelected: "today_article_selected",
+};
+
 type TodaySessionView =
   import("@/lib/engagement/today-session/types").TodaySessionView;
 
@@ -127,23 +140,22 @@ function assertPrivacySafe(rec: CreatedRecord) {
   }
 }
 
+function firstCreatedEvent(type: string): CreatedRecord {
+  const rec = created[0];
+  assert.ok(rec, `missing analytics event ${type}`);
+  assert.equal(rec.type, type);
+  return rec;
+}
+
+function eventProperties(rec: CreatedRecord): Record<string, unknown> {
+  return rec.properties as Record<string, unknown>;
+}
+
 test("catalog exposes the Today event types with canonical string values", async () => {
   const { ANALYTICS_EVENT_TYPES, ALL_ANALYTICS_EVENT_TYPES } = await import(
     "@/lib/analytics/events"
   );
-  const expected: Record<string, string> = {
-    todaySessionGenerated: "today_session_generated",
-    todaySessionViewed: "today_session_viewed",
-    todayNoCandidate: "today_no_candidate",
-    todayReadingComplete: "today_reading_complete",
-    todayComprehensionComplete: "today_comprehension_complete",
-    todayComprehensionSubmitted: "today_comprehension_submitted",
-    todayWordReviewComplete: "today_word_review_complete",
-    todaySessionComplete: "today_session_complete",
-    todaySkip: "today_skip",
-    todayArticleSelected: "today_article_selected",
-  };
-  for (const [key, value] of Object.entries(expected)) {
+  for (const [key, value] of Object.entries(EXPECTED_TODAY_EVENT_TYPES)) {
     assert.equal(
       (ANALYTICS_EVENT_TYPES as Record<string, string>)[key],
       value,
@@ -162,12 +174,11 @@ test("emitTodaySessionGenerated writes safe metadata + id anchors", async () => 
   );
   await emitTodaySessionGenerated(makeSession());
   assert.equal(created.length, 1);
-  const rec = created[0];
-  assert.equal(rec.type, "today_session_generated");
+  const rec = firstCreatedEvent("today_session_generated");
   assert.equal(rec.userId, "user-1");
   assert.equal(rec.articleId, "article-1");
   assert.equal(rec.sessionId, "today-1");
-  const props = rec.properties as Record<string, unknown>;
+  const props = eventProperties(rec);
   assert.equal(props.source, "picks");
   assert.equal(props.reasonCode, "picks_primary");
   assert.equal(props.hasPrimary, true);
@@ -189,10 +200,9 @@ test("emitTodayNoCandidate records the browse/import branch only", async () => {
       generationReasonCode: "no_candidate",
     }),
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_no_candidate");
+  const rec = firstCreatedEvent("today_no_candidate");
   assert.equal(rec.articleId, null);
-  const props = rec.properties as Record<string, unknown>;
+  const props = eventProperties(rec);
   assert.equal(props.reasonCode, "no_candidate");
   assert.equal(props.source, "none");
   assertPrivacySafe(rec);
@@ -205,9 +215,8 @@ test("emitTodaySessionViewed carries status/source/tier flags", async () => {
   await emitTodaySessionViewed(
     makeSession({ status: "completed", completionTier: "full" }),
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_session_viewed");
-  const props = rec.properties as Record<string, unknown>;
+  const rec = firstCreatedEvent("today_session_viewed");
+  const props = eventProperties(rec);
   assert.equal(props.status, "completed");
   assert.equal(props.tier, "full");
   assert.equal(props.hasPrimary, true);
@@ -223,9 +232,8 @@ test("emitTodayReadingComplete records the completion method", async () => {
     makeSession({ completionTier: "reading" }),
     "manual",
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_reading_complete");
-  const props = rec.properties as Record<string, unknown>;
+  const rec = firstCreatedEvent("today_reading_complete");
+  const props = eventProperties(rec);
   assert.equal(props.method, "manual");
   assert.equal(props.tier, "reading");
   assert.equal(props.hasTargetWords, true);
@@ -239,9 +247,8 @@ test("emitTodayComprehensionComplete carries the tier only", async () => {
   await emitTodayComprehensionComplete(
     makeSession({ completionTier: "comprehension" }),
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_comprehension_complete");
-  assert.equal((rec.properties as Record<string, unknown>).tier, "comprehension");
+  const rec = firstCreatedEvent("today_comprehension_complete");
+  assert.equal(eventProperties(rec).tier, "comprehension");
   assertPrivacySafe(rec);
 });
 
@@ -250,9 +257,8 @@ test("emitTodayWordReviewComplete records a target COUNT, never the words", asyn
     "@/lib/engagement/today-session/analytics"
   );
   await emitTodayWordReviewComplete(makeSession({ completionTier: "full" }), 3);
-  const rec = created[0];
-  assert.equal(rec.type, "today_word_review_complete");
-  const props = rec.properties as Record<string, unknown>;
+  const rec = firstCreatedEvent("today_word_review_complete");
+  const props = eventProperties(rec);
   assert.equal(props.targetCount, 3);
   assert.equal(props.tier, "full");
   assertPrivacySafe(rec);
@@ -266,9 +272,8 @@ test("emitTodaySessionComplete records tier + hadTargetWords", async () => {
     makeSession({ status: "completed", completionTier: "full" }),
     true,
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_session_complete");
-  const props = rec.properties as Record<string, unknown>;
+  const rec = firstCreatedEvent("today_session_complete");
+  const props = eventProperties(rec);
   assert.equal(props.tier, "full");
   assert.equal(props.hadTargetWords, true);
   assertPrivacySafe(rec);
@@ -282,9 +287,8 @@ test("emitTodaySkip records a controlled reason code only", async () => {
     makeSession({ status: "skipped", skipped: true, skipReason: "too_hard" }),
     { limitReached: false, browseFallback: true },
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_skip");
-  const props = rec.properties as Record<string, unknown>;
+  const rec = firstCreatedEvent("today_skip");
+  const props = eventProperties(rec);
   assert.equal(props.reasonCode, "too_hard");
   assert.equal(props.limitReached, false);
   assert.equal(props.browseFallback, true);
@@ -299,11 +303,10 @@ test("emitTodayArticleSelected records the user-selected override (metadata only
     makeSession({ source: "user_selected", primaryArticleId: "article-9" }),
     { replacedGenerated: true },
   );
-  const rec = created[0];
-  assert.equal(rec.type, "today_article_selected");
+  const rec = firstCreatedEvent("today_article_selected");
   assert.equal(rec.userId, "user-1");
   assert.equal(rec.articleId, "article-9");
-  const props = rec.properties as Record<string, unknown>;
+  const props = eventProperties(rec);
   assert.equal(props.source, "user_selected");
   assert.equal(props.replacedGenerated, true);
   assertPrivacySafe(rec);

@@ -276,6 +276,27 @@ function makeNavigator(value: Record<string, unknown>): void {
   defineGlobal("navigator", value);
 }
 
+function makeServiceWorkerNavigator({
+  postedMessages,
+  swListeners,
+  syncRegistrations,
+}: {
+  postedMessages: unknown[];
+  swListeners: Map<string, (event: MessageEvent) => void>;
+  syncRegistrations: string[];
+}): void {
+  makeNavigator({
+    onLine: true,
+    serviceWorker: {
+      ready: Promise.resolve({
+        sync: { register: async (tag: string) => syncRegistrations.push(tag) },
+        active: { postMessage: (msg: unknown) => postedMessages.push(msg) },
+      }),
+      addEventListener: (type: string, cb: (event: MessageEvent) => void) => swListeners.set(type, cb),
+    },
+  });
+}
+
 function makeArticle(id: string, savedAt?: string): Record<string, unknown> {
   return {
     id,
@@ -487,16 +508,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   defineGlobal("window", {
     addEventListener: (type: string, cb: () => void) => windowListeners.set(type, cb),
   });
-  makeNavigator({
-    onLine: true,
-    serviceWorker: {
-      ready: Promise.resolve({
-        sync: { register: async (tag: string) => syncRegistrations.push(tag) },
-        active: { postMessage: (msg: unknown) => postedMessages.push(msg) },
-      }),
-      addEventListener: (type: string, cb: (event: MessageEvent) => void) => swListeners.set(type, cb),
-    },
-  });
+  makeServiceWorkerNavigator({ postedMessages, swListeners, syncRegistrations });
 
   assert.equal(runtime.newClientMutationId(), "uuid-from-crypto");
   defineGlobal("crypto", {});
@@ -631,16 +643,7 @@ test("sync runtime submits mutations, updates subscribers, flushes queues, and p
   releaseFetch();
   await Promise.all([firstFlush, secondFlush]);
 
-  makeNavigator({
-    onLine: true,
-    serviceWorker: {
-      ready: Promise.resolve({
-        sync: { register: async (tag: string) => syncRegistrations.push(tag) },
-        active: { postMessage: (msg: unknown) => postedMessages.push(msg) },
-      }),
-      addEventListener: (type: string, cb: (event: MessageEvent) => void) => swListeners.set(type, cb),
-    },
-  });
+  makeServiceWorkerNavigator({ postedMessages, swListeners, syncRegistrations });
   runtime.registerOfflineSync();
   runtime.registerOfflineSync();
   assert.ok(windowListeners.has("online"));

@@ -24,74 +24,104 @@ import {
   SENSITIVE_KEY_RE,
 } from "@/lib/security/redaction";
 
+type MetadataKeyCase = string | readonly [key: string, message: string];
+
+function keyCaseParts(keyCase: MetadataKeyCase): readonly [string, string] {
+  return typeof keyCase === "string" ? [keyCase, keyCase] : keyCase;
+}
+
+function assertSensitiveMetadataKeys(keys: readonly MetadataKeyCase[]): void {
+  for (const keyCase of keys) {
+    const [key, message] = keyCaseParts(keyCase);
+    assert.equal(isSensitiveMetadataKey(key), true, message);
+  }
+}
+
+function assertSafeMetadataKeys(keys: readonly MetadataKeyCase[]): void {
+  for (const keyCase of keys) {
+    const [key, message] = keyCaseParts(keyCase);
+    assert.equal(isSensitiveMetadataKey(key), false, message);
+  }
+}
+
 // ── isSensitiveMetadataKey ────────────────────────────────────────────────────────────
 
 test("isSensitiveMetadataKey: keys from the audit path (previously missing from errors)", () => {
   // These were in audit.ts SENSITIVE_KEY_RE but NOT in errors.ts SENSITIVE_KEY_PATTERNS
-  assert.equal(isSensitiveMetadataKey("email"), true, "email");
-  assert.equal(isSensitiveMetadataKey("userEmail"), true, "userEmail");
-  assert.equal(isSensitiveMetadataKey("url"), true, "url");
-  assert.equal(isSensitiveMetadataKey("sourceUrl"), true, "sourceUrl");
-  assert.equal(isSensitiveMetadataKey("key"), true, "key");
-  assert.equal(isSensitiveMetadataKey("secretKey"), true, "secretKey");
-  assert.equal(isSensitiveMetadataKey("pass"), true, "pass");
-  assert.equal(isSensitiveMetadataKey("password"), true, "password");
-  assert.equal(isSensitiveMetadataKey("pwd"), true, "pwd");
+  assertSensitiveMetadataKeys([
+    "email",
+    "userEmail",
+    "url",
+    "sourceUrl",
+    "key",
+    "secretKey",
+    "pass",
+    "password",
+    "pwd",
+  ]);
 });
 
 test("isSensitiveMetadataKey: keys from the errors path (previously missing from audit)", () => {
   // These were in errors.ts SENSITIVE_KEY_PATTERNS but NOT in audit.ts SENSITIVE_KEY_RE
-  assert.equal(isSensitiveMetadataKey("content"), true, "content");
-  assert.equal(isSensitiveMetadataKey("articleContent"), true, "articleContent");
-  assert.equal(isSensitiveMetadataKey("text"), true, "text");
-  assert.equal(isSensitiveMetadataKey("selectedText"), true, "selectedText");
-  assert.equal(isSensitiveMetadataKey("prompt"), true, "prompt");
-  assert.equal(isSensitiveMetadataKey("systemPrompt"), true, "systemPrompt");
-  assert.equal(isSensitiveMetadataKey("body"), true, "body");
-  assert.equal(isSensitiveMetadataKey("message_body"), true, "message_body");
-  assert.equal(isSensitiveMetadataKey("completion"), true, "completion");
-  assert.equal(isSensitiveMetadataKey("selected"), true, "selected");
-  assert.equal(isSensitiveMetadataKey("selection"), true, "selection");
+  assertSensitiveMetadataKeys([
+    "content",
+    "articleContent",
+    "text",
+    "selectedText",
+    "prompt",
+    "systemPrompt",
+    "body",
+    "message_body",
+    "completion",
+    "selected",
+    "selection",
+  ]);
 });
 
 test("isSensitiveMetadataKey: analytics-only keys (definition/translation/etc.)", () => {
   // These were only in sanitize.ts SENSITIVE_PROPERTY_KEY_RE
-  assert.equal(isSensitiveMetadataKey("definition"), true, "definition");
-  assert.equal(isSensitiveMetadataKey("wordDefinition"), true, "wordDefinition");
-  assert.equal(isSensitiveMetadataKey("translation"), true, "translation");
-  assert.equal(isSensitiveMetadataKey("articleTranslation"), true, "articleTranslation");
-  assert.equal(isSensitiveMetadataKey("example"), true, "example");
-  assert.equal(isSensitiveMetadataKey("usageExample"), true, "usageExample");
-  assert.equal(isSensitiveMetadataKey("explanation"), true, "explanation");
-  assert.equal(isSensitiveMetadataKey("phrase"), true, "phrase");
-  assert.equal(isSensitiveMetadataKey("response"), true, "response");
-  assert.equal(isSensitiveMetadataKey("sentence"), true, "sentence");
+  assertSensitiveMetadataKeys([
+    "definition",
+    "wordDefinition",
+    "translation",
+    "articleTranslation",
+    "example",
+    "usageExample",
+    "explanation",
+    "phrase",
+    "response",
+    "sentence",
+  ]);
 });
 
 test("isSensitiveMetadataKey: universal secrets/auth keys", () => {
-  assert.equal(isSensitiveMetadataKey("authorization"), true, "authorization");
-  assert.equal(isSensitiveMetadataKey("Authorization"), true, "Authorization (uppercase)");
-  assert.equal(isSensitiveMetadataKey("cookie"), true, "cookie");
-  assert.equal(isSensitiveMetadataKey("credential"), true, "credential");
-  assert.equal(isSensitiveMetadataKey("secret"), true, "secret");
-  assert.equal(isSensitiveMetadataKey("session"), true, "session");
-  assert.equal(isSensitiveMetadataKey("token"), true, "token");
-  assert.equal(isSensitiveMetadataKey("accessToken"), true, "accessToken");
-  assert.equal(isSensitiveMetadataKey("apiKey"), true, "apiKey");
-  assert.equal(isSensitiveMetadataKey("api_key"), true, "api_key");
+  assertSensitiveMetadataKeys([
+    "authorization",
+    ["Authorization", "Authorization (uppercase)"],
+    "cookie",
+    "credential",
+    "secret",
+    "session",
+    "token",
+    "accessToken",
+    "apiKey",
+    "api_key",
+  ]);
 });
 
 test("isSensitiveMetadataKey: safe keys are not redacted", () => {
-  assert.equal(isSensitiveMetadataKey("action"), false, "action");
-  assert.equal(isSensitiveMetadataKey("count"), false, "count");
-  assert.equal(isSensitiveMetadataKey("format"), false, "format");
-  assert.equal(isSensitiveMetadataKey("lang"), false, "lang");
-  assert.equal(isSensitiveMetadataKey("page"), false, "page");
-  assert.equal(isSensitiveMetadataKey("role"), false, "role");
-  assert.equal(isSensitiveMetadataKey("safeField"), false, "safeField");
-  assert.equal(isSensitiveMetadataKey("status"), false, "status");
-  assert.equal(isSensitiveMetadataKey("targetId"), false, "targetId");
-  assert.equal(isSensitiveMetadataKey("targetType"), false, "targetType");
+  assertSafeMetadataKeys([
+    "action",
+    "count",
+    "format",
+    "lang",
+    "page",
+    "role",
+    "safeField",
+    "status",
+    "targetId",
+    "targetType",
+  ]);
 });
 
 // ── redactSensitiveValue ────────────────────────────────────────────────────────────────

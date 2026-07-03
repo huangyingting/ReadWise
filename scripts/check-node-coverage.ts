@@ -72,9 +72,71 @@ type CoverageGateDeps = {
   output?: CoverageOutput;
 };
 
+type ParsedCoverageLine = {
+  nameField: string;
+  rawName: string;
+  columns: string[];
+  depth: number;
+  linePct: number | null;
+};
+
 function parsePercent(value: string): number | null {
   if (!/^\d+(?:\.\d+)?$/.test(value)) return null;
   return Number(value);
+}
+
+function parseCoverageLine(line: string): ParsedCoverageLine | null {
+  const info = /^(?:ℹ|#) ?(.*)$/.exec(line);
+  if (!info) return null;
+
+  const content = info[1];
+  const firstPipe = content.indexOf("|");
+  if (firstPipe === -1) return null;
+
+  const nameField = content.slice(0, firstPipe);
+  const columns = content
+    .slice(firstPipe + 1)
+    .split("|")
+    .map((part) => part.trim());
+  if (columns.length < 4) return null;
+
+  const rawName = nameField.trim();
+  return {
+    nameField,
+    rawName,
+    columns,
+    depth: nameField.match(/^\s*/)?.[0].length ?? 0,
+    linePct: parsePercent(columns[0]),
+  };
+}
+
+function isCoverageMetadataRow(rawName: string): boolean {
+  return (
+    rawName.length === 0 ||
+    rawName === "file" ||
+    rawName === "all files" ||
+    /^-+$/.test(rawName)
+  );
+}
+
+function pushDirectoryRow(
+  dirs: Array<{ depth: number; name: string }>,
+  depth: number,
+  name: string,
+): void {
+  while (dirs.length > 0 && dirs[dirs.length - 1].depth >= depth) dirs.pop();
+  dirs.push({ depth, name });
+}
+
+function filePathForCoverageRow(
+  dirs: Array<{ depth: number; name: string }>,
+  depth: number,
+  rawName: string,
+): string {
+  const parentDirs = dirs
+    .filter((dir) => dir.depth < depth)
+    .map((dir) => dir.name);
+  return [...parentDirs, rawName].join("/");
 }
 
 export function parseNodeCoverageText(text: string): CoverageRow[] {
@@ -82,46 +144,21 @@ export function parseNodeCoverageText(text: string): CoverageRow[] {
   const dirs: Array<{ depth: number; name: string }> = [];
 
   for (const line of text.split(/\r?\n/)) {
-    const info = /^(?:ℹ|#) ?(.*)$/.exec(line);
-    if (!info) continue;
+    const parsed = parseCoverageLine(line);
+    if (!parsed) continue;
 
-    const content = info[1];
-    const firstPipe = content.indexOf("|");
-    if (firstPipe === -1) continue;
+    const { rawName, columns, depth, linePct } = parsed;
+    if (isCoverageMetadataRow(rawName)) continue;
 
-    const nameField = content.slice(0, firstPipe);
-    const columns = content
-      .slice(firstPipe + 1)
-      .split("|")
-      .map((part) => part.trim());
-    if (columns.length < 4) continue;
-
-    const rawName = nameField.trim();
-    if (
-      rawName.length === 0 ||
-      rawName === "file" ||
-      rawName === "all files" ||
-      /^-+$/.test(rawName)
-    ) {
-      continue;
-    }
-
-    const depth = nameField.match(/^\s*/)?.[0].length ?? 0;
-    const linePct = parsePercent(columns[0]);
     if (linePct === null) {
       if (columns.every((part) => part === "")) {
-        while (dirs.length > 0 && dirs[dirs.length - 1].depth >= depth) dirs.pop();
-        dirs.push({ depth, name: rawName });
+        pushDirectoryRow(dirs, depth, rawName);
       }
       continue;
     }
 
-    const parentDirs = dirs
-      .filter((dir) => dir.depth < depth)
-      .map((dir) => dir.name);
-    const file = [...parentDirs, rawName].join("/");
     rows.push({
-      file,
+      file: filePathForCoverageRow(dirs, depth, rawName),
       linePct,
       uncoveredLines: columns[3] ?? "",
     });
@@ -210,6 +247,26 @@ export function parseCliArgs(argv: string[]): CliOptions {
   return opts;
 }
 
+function nativeCoverageNodeArgs(testArgs: string[]): string[] {
+  return [
+    "--env-file-if-exists=.env",
+    "--experimental-strip-types",
+    "--import",
+    "./scripts/register-ts.mjs",
+    "--no-warnings",
+    "--experimental-test-module-mocks",
+    "--experimental-test-coverage",
+    ...(testArgs.length > 0 ? testArgs : DEFAULT_TEST_ARGS),
+  ];
+}
+
+function writeIfPresent(
+  stream: { write: (chunk: string) => unknown },
+  chunk?: string | null,
+): void {
+  if (chunk) stream.write(chunk);
+}
+
 export function readCoverageInput(
   inputFile: string | null,
   inputFromStdin: boolean,
@@ -240,19 +297,9 @@ export function runNativeCoverage(
     NODE_ENV: "test",
   };
   delete env.NODE_TEST_CONTEXT;
-  const nodeArgs = [
-    "--env-file-if-exists=.env",
-    "--experimental-strip-types",
-    "--import",
-    "./scripts/register-ts.mjs",
-    "--no-warnings",
-    "--experimental-test-module-mocks",
-    "--experimental-test-coverage",
-    ...(testArgs.length > 0 ? testArgs : DEFAULT_TEST_ARGS),
-  ];
   const result = (deps.spawnSync ?? (spawnSync as NativeCoverageSpawn))(
     deps.execPath ?? process.execPath,
-    nodeArgs,
+    nativeCoverageNodeArgs(testArgs),
     {
       cwd: deps.cwd ?? process.cwd(),
       env,
@@ -262,8 +309,8 @@ export function runNativeCoverage(
   );
 
   if (showReport) {
-    if (result.stdout) (deps.stdout ?? process.stdout).write(result.stdout);
-    if (result.stderr) (deps.stderr ?? process.stderr).write(result.stderr);
+    writeIfPresent(deps.stdout ?? process.stdout, result.stdout);
+    writeIfPresent(deps.stderr ?? process.stderr, result.stderr);
   }
 
   return {

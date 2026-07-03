@@ -21,6 +21,10 @@ function skills(overrides: Partial<Record<Skill, Partial<SkillSummary>>> = {}): 
   return makeSkillSummaries(overrides);
 }
 
+async function loadStudyPlan() {
+  return import("@/lib/learning/study-plan");
+}
+
 // ---------------------------------------------------------------------------
 // Mutable prisma state (for the integration tests)
 // ---------------------------------------------------------------------------
@@ -45,6 +49,32 @@ let assessedCount = 0;
 let quizAgg = { _avg: { scorePct: null as number | null }, _count: { _all: 0 } };
 let pronAgg = { _avg: { pronScore: null as number | null }, _count: { _all: 0 } };
 let articleRows: Array<Record<string, unknown>> = [];
+
+const LEARNER_ID = "u1";
+
+function resetStudyPlanState(): void {
+  skillRows = [];
+  coachRows = [];
+  profileRow = null;
+  feedbackRows = [];
+  quizFindMany = [];
+  weakWordCount = 0;
+  dueCount = 0;
+  totalSaved = 0;
+  lowCompCount = 0;
+  assessedCount = 0;
+  quizAgg = { _avg: { scorePct: null }, _count: { _all: 0 } };
+  pronAgg = { _avg: { pronScore: null }, _count: { _all: 0 } };
+  articleRows = [];
+}
+
+function useB1Profile(userId = LEARNER_ID): void {
+  profileRow = { userId, englishLevel: "B1", topics: "[]" };
+}
+
+function hasWeakArea(plan: { weakAreas: Array<{ kind: string }> }, kind: string): boolean {
+  return plan.weakAreas.some((area) => area.kind === kind);
+}
 
 before(() => {
   mock.module("@/lib/cache", {
@@ -96,19 +126,7 @@ before(() => {
 });
 
 beforeEach(() => {
-  skillRows = [];
-  coachRows = [];
-  profileRow = null;
-  feedbackRows = [];
-  quizFindMany = [];
-  weakWordCount = 0;
-  dueCount = 0;
-  totalSaved = 0;
-  lowCompCount = 0;
-  assessedCount = 0;
-  quizAgg = { _avg: { scorePct: null }, _count: { _all: 0 } };
-  pronAgg = { _avg: { pronScore: null }, _count: { _all: 0 } };
-  articleRows = [];
+  resetStudyPlanState();
 });
 
 // ---------------------------------------------------------------------------
@@ -116,7 +134,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("diagnoseWeakAreas surfaces weak vocabulary grounded in saved-word numbers", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas } = await loadStudyPlan();
   const areas = diagnoseWeakAreas(
     diag({ vocab: { weakCount: 8, dueCount: 5, totalSaved: 10 } }),
   );
@@ -128,7 +146,7 @@ test("diagnoseWeakAreas surfaces weak vocabulary grounded in saved-word numbers"
 });
 
 test("diagnoseWeakAreas surfaces comprehension from low quiz average", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas } = await loadStudyPlan();
   const areas = diagnoseWeakAreas(
     diag({ quiz: { averageScore: 45, totalAttempts: 6 }, comprehension: { lowCount: 3, assessedCount: 5 } }),
   );
@@ -138,7 +156,7 @@ test("diagnoseWeakAreas surfaces comprehension from low quiz average", async () 
 });
 
 test("diagnoseWeakAreas surfaces pronunciation + listening/grammar from skill confidence", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas } = await loadStudyPlan();
   const areas = diagnoseWeakAreas(
     diag({
       pronunciation: { avgScore: 40, attempts: 4 },
@@ -154,12 +172,12 @@ test("diagnoseWeakAreas surfaces pronunciation + listening/grammar from skill co
 });
 
 test("diagnoseWeakAreas is empty for a learner with no recorded weaknesses", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas } = await loadStudyPlan();
   assert.deepEqual(diagnoseWeakAreas(diag()), []);
 });
 
 test("diagnoseWeakAreas sorts by severity (weakest first)", async () => {
-  const { diagnoseWeakAreas } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas } = await loadStudyPlan();
   const areas = diagnoseWeakAreas(
     diag({
       vocab: { weakCount: 1, dueCount: 1, totalSaved: 10 }, // low severity
@@ -177,7 +195,7 @@ test("diagnoseWeakAreas sorts by severity (weakest first)", async () => {
 // ---------------------------------------------------------------------------
 
 test("buildWeeklyPlan links weak vocabulary to flashcard review when words are due", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await loadStudyPlan();
   const d = diag({ vocab: { weakCount: 4, dueCount: 3, totalSaved: 8 } });
   const items = buildWeeklyPlan(diagnoseWeakAreas(d), d);
   const review = items.find((i) => i.kind === "vocabulary");
@@ -187,7 +205,7 @@ test("buildWeeklyPlan links weak vocabulary to flashcard review when words are d
 });
 
 test("buildWeeklyPlan returns a sensible STARTER plan for a brand-new learner", async () => {
-  const { buildWeeklyPlan } = await import("@/lib/learning/study-plan");
+  const { buildWeeklyPlan } = await loadStudyPlan();
   const items = buildWeeklyPlan([], diag());
   assert.ok(items.length > 0);
   assert.ok(items.some((i) => i.href === "/browse?view=picks"));
@@ -196,7 +214,7 @@ test("buildWeeklyPlan returns a sensible STARTER plan for a brand-new learner", 
 });
 
 test("buildWeeklyPlan appends the top reading recommendation when available", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await loadStudyPlan();
   const d = diag({
     vocab: { weakCount: 4, dueCount: 0, totalSaved: 8 },
     readingRec: { id: "art-9", title: "Coral Reefs", reason: "Right for your B1 level" },
@@ -209,7 +227,7 @@ test("buildWeeklyPlan appends the top reading recommendation when available", as
 });
 
 test("buildWeeklyPlan stays focused (caps the number of items)", async () => {
-  const { diagnoseWeakAreas, buildWeeklyPlan } = await import("@/lib/learning/study-plan");
+  const { diagnoseWeakAreas, buildWeeklyPlan } = await loadStudyPlan();
   const d = diag({
     vocab: { weakCount: 9, dueCount: 9, totalSaved: 10 },
     quiz: { averageScore: 30, totalAttempts: 9 },
@@ -230,7 +248,7 @@ test("buildWeeklyPlan stays focused (caps the number of items)", async () => {
 // ---------------------------------------------------------------------------
 
 test("generateStudyPlan returns a starter plan for a brand-new user", async () => {
-  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
+  const { generateStudyPlan } = await loadStudyPlan();
   const plan = await generateStudyPlan("new-user");
   assert.equal(plan.isStarter, true);
   assert.deepEqual(plan.weakAreas, []);
@@ -239,8 +257,8 @@ test("generateStudyPlan returns a starter plan for a brand-new user", async () =
 });
 
 test("generateStudyPlan reflects synthetic weak areas and updates with new data", async () => {
-  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
-  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  const { generateStudyPlan } = await loadStudyPlan();
+  useB1Profile();
 
   // Round 1: lots of weak words + low quiz average → vocabulary + comprehension.
   weakWordCount = 6;
@@ -249,10 +267,10 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
   quizAgg = { _avg: { scorePct: 42 }, _count: { _all: 6 } };
   lowCompCount = 2;
   assessedCount = 4;
-  const before = await generateStudyPlan("u1");
+  const before = await generateStudyPlan(LEARNER_ID);
   assert.equal(before.isStarter, false);
-  assert.ok(before.weakAreas.some((a) => a.kind === "vocabulary"));
-  assert.ok(before.weakAreas.some((a) => a.kind === "comprehension"));
+  assert.ok(hasWeakArea(before, "vocabulary"));
+  assert.ok(hasWeakArea(before, "comprehension"));
   assert.ok(before.items.some((i) => i.kind === "vocabulary"));
 
   // Round 2: learner improved — words mastered, quiz up → fewer weak areas.
@@ -260,20 +278,20 @@ test("generateStudyPlan reflects synthetic weak areas and updates with new data"
   dueCount = 0;
   quizAgg = { _avg: { scorePct: 88 }, _count: { _all: 8 } };
   lowCompCount = 0;
-  const after = await generateStudyPlan("u1");
+  const after = await generateStudyPlan(LEARNER_ID);
   assert.ok(after.weakAreas.length < before.weakAreas.length);
 });
 
 test("generateStudyPlan surfaces a reading recommendation from the picks engine", async () => {
-  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
-  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  const { generateStudyPlan } = await loadStudyPlan();
+  useB1Profile();
   weakWordCount = 5;
   dueCount = 0;
   totalSaved = 10;
   articleRows = [
     { id: "art-7", title: "Rivers", author: "x", source: "s", category: "science", difficulty: "B1", readingMinutes: 5, wordCount: 600, publishedAt: new Date("2026-06-20T00:00:00Z"), heroImage: null },
   ];
-  const plan = await generateStudyPlan("u1");
+  const plan = await generateStudyPlan(LEARNER_ID);
   assert.ok(plan.items.some((i) => i.kind === "reading-rec" && i.href === "/reader/art-7"));
 });
 
@@ -282,8 +300,8 @@ test("generateStudyPlan surfaces a reading recommendation from the picks engine"
 // ---------------------------------------------------------------------------
 
 test("generateStudyPlan uses LearnerCoachMemory to surface a weak skill", async () => {
-  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
-  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  const { generateStudyPlan } = await loadStudyPlan();
+  useB1Profile();
   // No SkillMastery evidence at all — only coach memory knows grammar is weak.
   skillRows = [];
   coachRows = [
@@ -296,21 +314,21 @@ test("generateStudyPlan uses LearnerCoachMemory to surface a weak skill", async 
       createdAt: new Date(),
     },
   ];
-  const plan = await generateStudyPlan("u1");
+  const plan = await generateStudyPlan(LEARNER_ID);
   assert.ok(
-    plan.weakAreas.some((a) => a.kind === "grammar"),
+    hasWeakArea(plan, "grammar"),
     "grammar weakness should come from coach memory even without SkillMastery",
   );
 });
 
 test("generateStudyPlan falls back to SkillMastery when coach memory is empty", async () => {
-  const { generateStudyPlan } = await import("@/lib/learning/study-plan");
-  profileRow = { userId: "u1", englishLevel: "B1", topics: "[]" };
+  const { generateStudyPlan } = await loadStudyPlan();
+  useB1Profile();
   coachRows = [];
   skillRows = [{ skill: "grammar", confidence: 0.2, evidenceCount: 4 }];
-  const plan = await generateStudyPlan("u1");
+  const plan = await generateStudyPlan(LEARNER_ID);
   assert.ok(
-    plan.weakAreas.some((a) => a.kind === "grammar"),
+    hasWeakArea(plan, "grammar"),
     "grammar weakness should come from SkillMastery when coach memory is empty",
   );
 });

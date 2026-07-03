@@ -35,6 +35,16 @@ type AttemptResponse = {
   best: number;
 };
 
+type SubmittedAnswer = {
+  index: number;
+  selectedIndex: number | undefined;
+};
+
+type AttemptPayload = {
+  answers: SubmittedAnswer[];
+  clientMutationId: string;
+};
+
 export type SavedNote = "idle" | "saving" | "saved" | "failed" | "queued";
 
 export type UseArticleQuizPanelResult = {
@@ -57,6 +67,29 @@ export type UseArticleQuizPanelResult = {
   handleSubmit: () => void;
   handleRetry: () => void;
 };
+
+const QUIZ_LOAD_ERROR = "Could not load quiz";
+const ATTEMPT_SUBMIT_ERROR = "failed";
+
+function countCorrectAnswers(
+  questions: QuizQuestion[],
+  answers: Record<number, number>,
+): number {
+  return questions.reduce(
+    (total, q, i) => (answers[i] === q.correctIndex ? total + 1 : total),
+    0,
+  );
+}
+
+function buildSubmittedAnswers(
+  questions: QuizQuestion[],
+  answers: Record<number, number>,
+): SubmittedAnswer[] {
+  return questions.map((_, i) => ({
+    index: i,
+    selectedIndex: answers[i],
+  }));
+}
 
 /**
  * useArticleQuizPanel
@@ -99,10 +132,7 @@ export function useArticleQuizPanel(
 
   const score = useMemo(() => {
     if (!submitted) return 0;
-    return questions.reduce(
-      (total, q, i) => (answers[i] === q.correctIndex ? total + 1 : total),
-      0,
-    );
+    return countCorrectAnswers(questions, answers);
   }, [submitted, questions, answers]);
 
   const bestAttemptId = useMemo(() => {
@@ -126,14 +156,14 @@ export function useArticleQuizPanel(
         const data = (await res.json().catch(() => null)) as {
           error?: string;
         } | null;
-        throw new Error(data?.error ?? "Could not load quiz");
+        throw new Error(data?.error ?? QUIZ_LOAD_ERROR);
       }
       const data = (await res.json()) as QuizResponse;
       setQuestions(data.questions);
       setFallback(data.fallback);
       setLoaded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load quiz");
+      setError(err instanceof Error ? err.message : QUIZ_LOAD_ERROR);
     } finally {
       setLoading(false);
     }
@@ -168,16 +198,22 @@ export function useArticleQuizPanel(
 
     const priorBest = best;
 
-    // Send selected answer indices — server grades authoritatively
-    const submittedAnswers = questions.map((_, i) => ({
-      index: i,
-      selectedIndex: answers[i],
-    }));
-
     const clientMutationId = newClientMutationId();
     const endpoint = `/api/reader/${articleId}/quiz/attempt`;
-    const payload = { answers: submittedAnswers, clientMutationId };
+    const payload = {
+      answers: buildSubmittedAnswers(questions, answers),
+      clientMutationId,
+    };
 
+    recordAttempt(endpoint, payload, clientMutationId, priorBest);
+  }
+
+  function recordAttempt(
+    endpoint: string,
+    payload: AttemptPayload,
+    clientMutationId: string,
+    priorBest: number | null,
+  ) {
     fetch(endpoint, {
       method: "POST",
       headers: {
@@ -186,7 +222,9 @@ export function useArticleQuizPanel(
       },
       body: JSON.stringify(payload),
     })
-      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("failed"))))
+      .then((r) =>
+        r.ok ? r.json() : Promise.reject(new Error(ATTEMPT_SUBMIT_ERROR)),
+      )
       .then((data: AttemptResponse) => {
         setSavedNote("saved");
         setAttempts((prev) => [data.attempt, ...prev]);

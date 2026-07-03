@@ -17,6 +17,9 @@ import type { UrlImportDeps } from "@/lib/import/url-import";
 import type { TextImportDeps } from "@/lib/import/text-import";
 import { makeTransactionDb } from "./support/prisma-mock";
 
+type ImportArticleFromUrl = typeof import("@/lib/import/url-import").importArticleFromUrl;
+type ImportArticleFromText = typeof import("@/lib/import/text-import").importArticleFromText;
+
 // ---- mutable stubs shared across test groups --------------------------------
 let countResult = 0;
 let createdId = "new-article-id";
@@ -28,6 +31,10 @@ let createCalled = false;
 let createArgs: { data?: { content?: string; metadata?: unknown } } | null = null;
 let updateCalled = false;
 let p2002Throws = false;
+
+const USER_ID = "user-1";
+const REQUEST_ID = "r1";
+const ARTICLE_URL = "https://example.com/article";
 
 const session = { user: { id: "user-1", role: "Reader", name: "T", email: "t@e.com" }, expires: "2099-01-01" } as unknown as Session;
 const mockReq = new Request("http://localhost/api/articles/import", {
@@ -162,25 +169,61 @@ function makeTextDeps(overrides: Partial<TextImportDeps> = {}): TextImportDeps {
   };
 }
 
+function validText() {
+  return "word ".repeat(55).trim();
+}
+
+function urlImportArgs(
+  overrides: Partial<Parameters<ImportArticleFromUrl>[0]> = {},
+): Parameters<ImportArticleFromUrl>[0] {
+  return {
+    rawUrl: ARTICLE_URL,
+    userId: USER_ID,
+    req: mockReq,
+    session,
+    requestId: REQUEST_ID,
+    deps: makeUrlDeps(),
+    ...overrides,
+  };
+}
+
+function textImportArgs(
+  overrides: Partial<Parameters<ImportArticleFromText>[0]> = {},
+): Parameters<ImportArticleFromText>[0] {
+  return {
+    title: "T",
+    text: validText(),
+    userId: USER_ID,
+    req: mockReq,
+    session,
+    requestId: REQUEST_ID,
+    deps: makeTextDeps(),
+    ...overrides,
+  };
+}
+
+async function captureImportError(action: () => Promise<unknown>): Promise<unknown> {
+  try {
+    await action();
+    assert.fail("expected error to be thrown");
+  } catch (e) {
+    return e;
+  }
+}
+
 // ============================================================
 // Quota tests (module-mock path via prisma singleton)
 // ============================================================
 test("quota: assertWithinDailyQuota passes when under limit", async () => {
   const { assertWithinDailyQuota } = await import("@/lib/import/quota");
   countResult = 4;
-  await assert.doesNotReject(() => assertWithinDailyQuota("user-1"));
+  await assert.doesNotReject(() => assertWithinDailyQuota(USER_ID));
 });
 
 test("quota: assertWithinDailyQuota throws 429 when at limit", async () => {
   const { assertWithinDailyQuota } = await import("@/lib/import/quota");
   countResult = 5;
-  let caught: unknown;
-  try {
-    await assertWithinDailyQuota("user-1");
-    assert.fail("expected error to be thrown");
-  } catch (e) {
-    caught = e;
-  }
+  const caught = await captureImportError(() => assertWithinDailyQuota(USER_ID));
   assert.ok(
     (caught as { status?: number }).status === 429 || String(caught).includes("daily import limit"),
     `expected 429/quota error, got: ${caught}`,
@@ -201,22 +244,14 @@ test("quota: utcDayStart returns midnight UTC", async () => {
 // ============================================================
 test("url-import: rejects SSRF URLs and records a security event", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  let caught: unknown;
-  try {
-    await importArticleFromUrl({
+  const caught = await captureImportError(() =>
+    importArticleFromUrl(urlImportArgs({
       rawUrl: "https://192.168.1.1/evil",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
       deps: makeUrlDeps({
         assertSafeUrl: async () => { throw new Error("Unsafe URL: private address"); },
       }),
-    });
-    assert.fail("expected error to be thrown");
-  } catch (e) {
-    caught = e;
-  }
+    })),
+  );
   assert.ok(
     (caught as { status?: number }).status === 422 || String(caught).includes("422") || String(caught).includes("unsafe") || String(caught).includes("Invalid"),
     `expected 422 SSRF error, got: ${caught}`,
@@ -228,12 +263,8 @@ test("url-import: rejects SSRF URLs and records a security event", async () => {
 test("url-import: rejects non-http protocol before scraping (file:)", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
   await assert.rejects(() =>
-    importArticleFromUrl({
+    importArticleFromUrl(urlImportArgs({
       rawUrl: "file:///etc/passwd",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
       deps: makeUrlDeps({
         assertSafeUrl: async (url: string) => {
           const u = new URL(url);
@@ -242,23 +273,18 @@ test("url-import: rejects non-http protocol before scraping (file:)", async () =
           }
         },
       }),
-    }),
+    })),
   );
   assert.equal(createCalled, false);
 });
 
 test("url-import: returns duplicate=true for raw URL already owned by user", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  const result = await importArticleFromUrl({
-    rawUrl: "https://example.com/article",
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
+  const result = await importArticleFromUrl(urlImportArgs({
     deps: makeUrlDeps({
       findOwnedArticleBySourceUrl: async () => ({ id: "existing-id" }),
     }),
-  });
+  }));
   assert.equal(result.status, 200);
   assert.equal((result as { id: string; duplicate: true }).duplicate, true);
   assert.equal(result.id, "existing-id");
@@ -268,43 +294,29 @@ test("url-import: returns duplicate=true for raw URL already owned by user", asy
 test("url-import: raw-URL duplicate bypasses daily quota (does not 429 at limit)", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
   // quota stub throws — but duplicate check fires first
-  const result = await importArticleFromUrl({
-    rawUrl: "https://example.com/article",
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
+  const result = await importArticleFromUrl(urlImportArgs({
     deps: makeUrlDeps({
       findOwnedArticleBySourceUrl: async () => ({ id: "existing-id" }),
       assertWithinDailyQuota: async () => {
         throw new Error("should not be called for raw-url duplicate");
       },
     }),
-  });
+  }));
   assert.equal(result.status, 200);
 });
 
 test("url-import: 429 when no duplicate and quota is full", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
   const { ApiError } = await import("@/lib/api-handler");
-  let caught: unknown;
-  try {
-    await importArticleFromUrl({
-      rawUrl: "https://example.com/article",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
+  const caught = await captureImportError(() =>
+    importArticleFromUrl(urlImportArgs({
       deps: makeUrlDeps({
         assertWithinDailyQuota: async () => {
           throw new ApiError(429, "daily import limit");
         },
       }),
-    });
-    assert.fail("expected error to be thrown");
-  } catch (e) {
-    caught = e;
-  }
+    })),
+  );
   assert.ok(
     (caught as { status?: number }).status === 429 || String(caught).includes("limit"),
     `expected 429, got: ${caught}`,
@@ -315,16 +327,11 @@ test("url-import: 429 when no duplicate and quota is full", async () => {
 test("url-import: 422 when scraper throws", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
   await assert.rejects(() =>
-    importArticleFromUrl({
-      rawUrl: "https://example.com/article",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
+    importArticleFromUrl(urlImportArgs({
       deps: makeUrlDeps({
         scrape: async () => { throw new Error("Network error"); },
       }),
-    }),
+    })),
   );
   assert.equal(createCalled, false);
 });
@@ -332,28 +339,16 @@ test("url-import: 422 when scraper throws", async () => {
 test("url-import: 422 when scraper returns null (extraction failed)", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
   await assert.rejects(() =>
-    importArticleFromUrl({
-      rawUrl: "https://example.com/article",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
+    importArticleFromUrl(urlImportArgs({
       deps: makeUrlDeps({ scrape: async () => null }),
-    }),
+    })),
   );
   assert.equal(createCalled, false);
 });
 
 test("url-import: successful import returns status 201 with id", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  const result = await importArticleFromUrl({
-    rawUrl: "https://example.com/article",
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeUrlDeps(),
-  });
+  const result = await importArticleFromUrl(urlImportArgs());
   assert.equal(result.status, 201);
   assert.equal(result.id, createdId);
   assert.equal(auditCalls, 1);
@@ -361,14 +356,7 @@ test("url-import: successful import returns status 201 with id", async () => {
 
 test("url-import: audit metadata contains importType=url and does NOT contain article content", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  await importArticleFromUrl({
-    rawUrl: "https://example.com/article",
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeUrlDeps(),
-  });
+  await importArticleFromUrl(urlImportArgs());
   assert.equal(auditCalls, 1);
   const meta = auditMeta[0] as Record<string, unknown>;
   assert.equal(meta.importType, "url");
@@ -378,14 +366,7 @@ test("url-import: audit metadata contains importType=url and does NOT contain ar
 
 test("url-import: analytics event is emitted with importType=url and no article body", async () => {
   const { importArticleFromUrl } = await import("@/lib/import/url-import");
-  await importArticleFromUrl({
-    rawUrl: "https://example.com/article",
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeUrlDeps(),
-  });
+  await importArticleFromUrl(urlImportArgs());
   assert.ok(analyticsEvents.length >= 1, "analytics event should be recorded");
   const props = (analyticsEvents[0] as { properties?: Record<string, unknown> }).properties ?? {};
   assert.equal(props.importType, "url");
@@ -399,30 +380,18 @@ test("url-import: analytics event is emitted with importType=url and no article 
 test("text-import: rejects empty text", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
   await assert.rejects(() =>
-    importArticleFromText({
-      title: "T",
+    importArticleFromText(textImportArgs({
       text: "   ",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
-      deps: makeTextDeps(),
-    }),
+    })),
   );
 });
 
 test("text-import: rejects text below minimum word count", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
   await assert.rejects(() =>
-    importArticleFromText({
-      title: "T",
+    importArticleFromText(textImportArgs({
       text: "too short",
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
-      deps: makeTextDeps(),
-    }),
+    })),
   );
   assert.equal(createCalled, false);
 });
@@ -430,25 +399,15 @@ test("text-import: rejects text below minimum word count", async () => {
 test("text-import: 429 when daily quota is full", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
   const { ApiError } = await import("@/lib/api-handler");
-  let caught: unknown;
-  try {
-    await importArticleFromText({
-      title: "T",
-      text: "word ".repeat(55).trim(),
-      userId: "user-1",
-      req: mockReq,
-      session,
-      requestId: "r1",
+  const caught = await captureImportError(() =>
+    importArticleFromText(textImportArgs({
       deps: makeTextDeps({
         assertWithinDailyQuota: async () => {
           throw new ApiError(429, "daily import limit");
         },
       }),
-    });
-    assert.fail("expected error to be thrown");
-  } catch (e) {
-    caught = e;
-  }
+    })),
+  );
   assert.ok(
     (caught as { status?: number }).status === 429 || String(caught).includes("limit"),
     `expected 429, got: ${caught}`,
@@ -458,15 +417,9 @@ test("text-import: 429 when daily quota is full", async () => {
 
 test("text-import: successful import returns status 201 with id", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
-  const result = await importArticleFromText({
+  const result = await importArticleFromText(textImportArgs({
     title: "My Title",
-    text: "word ".repeat(55).trim(),
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeTextDeps(),
-  });
+  }));
   assert.equal(result.status, 201);
   assert.equal(result.id, createdId);
   assert.equal(auditCalls, 1);
@@ -475,15 +428,10 @@ test("text-import: successful import returns status 201 with id", async () => {
 test("text-import: sanitizes HTML before storing (strips script/onerror)", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
   const safeBody = "word ".repeat(50).trim();
-  await importArticleFromText({
+  await importArticleFromText(textImportArgs({
     title: "XSS Attempt",
     text: `${safeBody}\n\n<script>alert('xss')</script> world <img src=x onerror=alert(1)> more text here.`,
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeTextDeps(),
-  });
+  }));
   assert.ok(createCalled, "article create should have been called");
   const stored = createArgs?.data?.content ?? "";
   assert.doesNotMatch(stored, /<script/i);
@@ -492,15 +440,7 @@ test("text-import: sanitizes HTML before storing (strips script/onerror)", async
 
 test("text-import: audit metadata contains importType=text and NOT the article text", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
-  await importArticleFromText({
-    title: "T",
-    text: "word ".repeat(55).trim(),
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeTextDeps(),
-  });
+  await importArticleFromText(textImportArgs());
   assert.equal(auditCalls, 1);
   const meta = auditMeta[0] as Record<string, unknown>;
   assert.equal(meta.importType, "text");
@@ -510,15 +450,7 @@ test("text-import: audit metadata contains importType=text and NOT the article t
 
 test("text-import: analytics event is emitted with importType=text and no article body", async () => {
   const { importArticleFromText } = await import("@/lib/import/text-import");
-  await importArticleFromText({
-    title: "T",
-    text: "word ".repeat(55).trim(),
-    userId: "user-1",
-    req: mockReq,
-    session,
-    requestId: "r1",
-    deps: makeTextDeps(),
-  });
+  await importArticleFromText(textImportArgs());
   assert.ok(analyticsEvents.length >= 1, "analytics event should be recorded");
   const props = (analyticsEvents[0] as { properties?: Record<string, unknown> }).properties ?? {};
   assert.equal(props.importType, "text");

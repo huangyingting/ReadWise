@@ -61,6 +61,14 @@ const SAVED_WORD_SELECT = {
   dueAt: true,
 } as const;
 
+function normalizeSavedWord(word: string): string {
+  return word.trim();
+}
+
+function savedWordLookupKey(word: string): string {
+  return word.toLowerCase();
+}
+
 // ---------------------------------------------------------------------------
 // Repository functions
 // ---------------------------------------------------------------------------
@@ -80,11 +88,12 @@ export async function getSavedWordSet(
     where: { userId },
     select: { word: true },
   });
-  const savedLower = new Set(saved.map((s) => s.word.toLowerCase()));
+  const savedLower = new Set(saved.map((s) => savedWordLookupKey(s.word)));
   const result = new Set<string>();
   for (const w of words) {
-    if (savedLower.has(w.toLowerCase())) {
-      result.add(w.toLowerCase());
+    const key = savedWordLookupKey(w);
+    if (savedLower.has(key)) {
+      result.add(key);
     }
   }
   return result;
@@ -117,7 +126,8 @@ export async function getFilteredSavedWords(
   } = {},
 ): Promise<FilteredWordsResult> {
   const { search, articleId, filter = "all", page = 1 } = opts;
-  const skip = (Math.max(1, page) - 1) * WORDS_PAGE_SIZE;
+  const pageIndex = Math.max(1, page);
+  const skip = (pageIndex - 1) * WORDS_PAGE_SIZE;
 
   const now = new Date();
 
@@ -153,7 +163,7 @@ export async function getFilteredSavedWords(
   return {
     words,
     total,
-    page: Math.max(1, page),
+    page: pageIndex,
     totalPages: Math.max(1, Math.ceil(total / WORDS_PAGE_SIZE)),
   };
 }
@@ -172,7 +182,7 @@ export async function saveWord(
     articleId?: string | null;
   },
 ): Promise<void> {
-  const word = entry.word.trim();
+  const word = normalizeSavedWord(entry.word);
   if (!word) {
     return;
   }
@@ -197,7 +207,7 @@ export async function saveWord(
 
 /** Removes a word from the user's study list. No-op if it isn't saved. */
 export async function unsaveWord(userId: string, word: string): Promise<void> {
-  const trimmed = word.trim();
+  const trimmed = normalizeSavedWord(word);
   if (!trimmed) {
     return;
   }

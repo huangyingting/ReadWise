@@ -29,12 +29,17 @@ export type ClozeResult =
 // Helpers
 // ---------------------------------------------------------------------------
 
+const WORD_EDGE_PUNCTUATION = /^[^\w']+|[^\w']+$/g;
+const LEADING_PUNCTUATION = /^[^\w']+/;
+const TRAILING_PUNCTUATION = /[^\w']+$/;
+const COMMON_SUFFIXES = ["ing", "ed", "es", "er", "est", "ly", "s"];
+
 /**
  * Strips leading/trailing punctuation from a word token for comparison.
  * Handles contractions by only stripping non-apostrophe punctuation.
  */
 function stripPunct(s: string): string {
-  return s.replace(/^[^\w']+|[^\w']+$/g, "");
+  return s.replace(WORD_EDGE_PUNCTUATION, "");
 }
 
 /**
@@ -48,8 +53,7 @@ function stemOf(word: string): string {
   const w = word.toLowerCase();
   if (w.length < 3) return w;
   // Strip common suffixes longest-first.
-  const suffixes = ["ing", "ed", "es", "er", "est", "ly", "s"];
-  for (const sfx of suffixes) {
+  for (const sfx of COMMON_SUFFIXES) {
     if (w.endsWith(sfx) && w.length - sfx.length >= 3) {
       const stem = w.slice(0, w.length - sfx.length);
       // De-duplicate doubled final consonant (e.g. "runn" → "run").
@@ -73,12 +77,53 @@ function stemOf(word: string): string {
 function tokenMatches(token: string, word: string): boolean {
   const t = stripPunct(token).toLowerCase();
   const w = word.toLowerCase();
-  if (t === w) return true;
-  // Stem-based inflection match (e.g. "running" matches "run")
-  if (stemOf(t) === stemOf(w)) return true;
-  // Also allow the word to match as a prefix of the token (for compound words)
-  if (t.startsWith(w) && t.length - w.length <= 3) return true;
-  return false;
+  return (
+    t === w ||
+    // Stem-based inflection match (e.g. "running" matches "run")
+    stemOf(t) === stemOf(w) ||
+    // Also allow the word to match as a prefix of the token (for compound words)
+    (t.startsWith(w) && t.length - w.length <= 3)
+  );
+}
+
+function findMatchingToken(
+  tokens: string[],
+  word: string,
+): { index: number; raw: string } | null {
+  for (let i = 0; i < tokens.length; i++) {
+    const raw = tokens[i];
+    if (raw.trim() === "") continue; // whitespace chunk
+    if (tokenMatches(raw, word)) {
+      return { index: i, raw };
+    }
+  }
+  return null;
+}
+
+function maskMatchedToken(matchedToken: string, word: string): {
+  answer: string;
+  answerLength: number;
+  maskedToken: string;
+} {
+  // Build the mask: underscores equal to the stripped token length.
+  const stripped = stripPunct(matchedToken);
+  const answer = stripped || word;
+  const blank = "_".repeat(Math.max(stripped.length, word.length));
+
+  // Preserve punctuation that surrounded the matched token in the sentence.
+  const leadPunct = matchedToken.slice(
+    0,
+    matchedToken.length - matchedToken.replace(LEADING_PUNCTUATION, "").length,
+  );
+  const trailPunct = matchedToken.slice(
+    matchedToken.replace(TRAILING_PUNCTUATION, "").length,
+  );
+
+  return {
+    answer,
+    answerLength: answer.length,
+    maskedToken: leadPunct + blank + trailPunct,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -106,45 +151,24 @@ export function buildCloze(word: string, example: string): ClozeResult {
   const tokens = example.split(/(\s+)/);
 
   // Find the first token that matches the target word.
-  let matchedIndex = -1;
-  let matchedToken = "";
-  for (let i = 0; i < tokens.length; i++) {
-    const raw = tokens[i];
-    if (raw.trim() === "") continue; // whitespace chunk
-    if (tokenMatches(raw, word)) {
-      matchedIndex = i;
-      matchedToken = raw;
-      break;
-    }
-  }
-
-  if (matchedIndex === -1) {
+  const match = findMatchingToken(tokens, word);
+  if (!match) {
     return { ok: false, reason: "word_not_found" };
   }
 
-  // Build the mask: underscores equal to the stripped token length.
-  const stripped = stripPunct(matchedToken);
-  const blank = "_".repeat(Math.max(stripped.length, word.length));
-
-  // Preserve punctuation that surrounded the matched token in the sentence.
-  const leadPunct = matchedToken.slice(
-    0,
-    matchedToken.length - matchedToken.replace(/^[^\w']+/, "").length,
+  const { answer, answerLength, maskedToken } = maskMatchedToken(
+    match.raw,
+    word,
   );
-  const trailPunct = matchedToken.slice(
-    matchedToken.replace(/[^\w']+$/, "").length,
-  );
-  const maskedToken = leadPunct + blank + trailPunct;
-
-  tokens[matchedIndex] = maskedToken;
+  tokens[match.index] = maskedToken;
   const masked = tokens.join("");
 
   return {
     ok: true,
     card: {
       masked,
-      answer: stripped || word,
-      answerLength: (stripped || word).length,
+      answer,
+      answerLength,
     },
   };
 }

@@ -170,13 +170,17 @@ export function chunkText(text: string, maxTokens: number, overlapTokens = 0): s
       chunks.push(current.join(" "));
       const carry = overlap > 0 ? trailingForOverlap(current, overlap) : [];
       current = [...carry];
-      currentTokens = current.reduce((sum, s) => sum + estimateTokens(s), 0);
+      currentTokens = estimateTokenTotal(current);
     }
     current.push(seg);
     currentTokens += segTokens;
   }
   if (current.length > 0) chunks.push(current.join(" "));
   return chunks;
+}
+
+function estimateTokenTotal(segments: readonly string[]): number {
+  return segments.reduce((sum, segment) => sum + estimateTokens(segment), 0);
 }
 
 /** Splits text into sentence-sized segments, each at most `limit` tokens. */
@@ -203,12 +207,12 @@ function packWords(text: string, limit: number): string[] {
   const out: string[] = [];
   let buf = "";
   for (const word of words) {
-    const token = word.length > maxChars ? hardSplit(word, maxChars) : [word];
-    for (const w of token) {
-      const candidate = buf ? `${buf} ${w}` : w;
+    const pieces = word.length > maxChars ? hardSplit(word, maxChars) : [word];
+    for (const piece of pieces) {
+      const candidate = buf ? `${buf} ${piece}` : piece;
       if (estimateTokens(candidate) > limit && buf) {
         out.push(buf);
-        buf = w;
+        buf = piece;
       } else {
         buf = candidate;
       }

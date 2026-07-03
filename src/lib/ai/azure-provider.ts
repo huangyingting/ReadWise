@@ -10,7 +10,11 @@
  * are owned by `@/lib/ai`).
  */
 
-import { aiConfig, aiMaxContextTokens, aiDefaultMaxOutputTokens } from "@/lib/runtime-config/ai";
+import {
+  aiConfig,
+  aiDefaultMaxOutputTokens,
+  aiMaxContextTokens,
+} from "@/lib/runtime-config/ai";
 import {
   classifyHttpStatus,
   classifyThrownError,
@@ -31,6 +35,8 @@ type AzureChatResponseBody = {
   usage?: { prompt_tokens?: number; completion_tokens?: number; total_tokens?: number };
   model?: string;
 };
+
+type AzureAiConfig = NonNullable<ReturnType<typeof aiConfig.get>>;
 
 export class AzureOpenAiProvider implements AiProvider {
   readonly id = AZURE_PROVIDER_ID;
@@ -68,16 +74,9 @@ export class AzureOpenAiProvider implements AiProvider {
       };
     }
 
-    const url = `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
     const caps = this.capabilities();
-    const body: Record<string, unknown> = {
-      messages: request.messages,
-      [caps.tokenParamName]: request.maxOutputTokens ?? caps.defaultMaxOutputTokens,
-    };
-    // Only forward temperature for models that accept it.
-    if (caps.supportsTemperature && typeof request.temperature === "number") {
-      body.temperature = request.temperature;
-    }
+    const url = azureChatCompletionsUrl(config);
+    const body = azureChatCompletionsBody(request, caps);
 
     try {
       const res = await fetch(url, {
@@ -148,6 +147,24 @@ export class AzureOpenAiProvider implements AiProvider {
       return { ok: false, durationMs, error: { kind, retryable, message } };
     }
   }
+}
+
+function azureChatCompletionsUrl(config: AzureAiConfig): string {
+  return `${config.endpoint}/openai/deployments/${config.deployment}/chat/completions?api-version=${config.apiVersion}`;
+}
+
+function azureChatCompletionsBody(
+  request: AiChatRequest,
+  capabilities: AiProviderCapabilities,
+): Record<string, unknown> {
+  const body: Record<string, unknown> = {
+    messages: request.messages,
+    [capabilities.tokenParamName]: request.maxOutputTokens ?? capabilities.defaultMaxOutputTokens,
+  };
+  if (capabilities.supportsTemperature && typeof request.temperature === "number") {
+    body.temperature = request.temperature;
+  }
+  return body;
 }
 
 function readUsage(usage: AzureChatResponseBody["usage"]): AiUsage | null {

@@ -50,6 +50,11 @@ function makeProgress(partial: Partial<ProgressRow> = {}): ProgressRow {
   };
 }
 
+function seedProgressRows(...rows: Array<Partial<ProgressRow>>) {
+  progressRows = rows.map((row) => makeProgress(row));
+  return progressRows;
+}
+
 before(() => {
   mock.module("@/lib/observability/logger", {
     namedExports: {
@@ -194,22 +199,22 @@ test("progress read models batch rows, summarize them, and render in-progress ar
   assert.equal((await getProgressMap("user-1", [])).size, 0);
   assert.equal(progressFindManyCalls.length, 0, "empty batch should avoid a query");
 
-  progressRows = [
-    makeProgress({
+  seedProgressRows(
+    {
       id: "p1",
       articleId: "a1",
       percent: 20,
       article: { id: "a1", title: "Started article" },
-    }),
-    makeProgress({
+    },
+    {
       id: "p2",
       articleId: "a2",
       percent: 95,
       completed: true,
       completedAt: now,
       article: { id: "a2", title: "Readable article" },
-    }),
-  ];
+    },
+  );
 
   const map = await getProgressMap("user-1", ["a1", "a2"]);
   assert.equal(map.get("a1")?.percent, 20);
@@ -238,8 +243,7 @@ test("saveProgress is resilient to activity failures and records completion expo
 
 test("saveProgress retries vanished rows and eventually reports disappearance", async () => {
   const { saveProgress } = await import("@/lib/engagement/progress");
-  const existing = makeProgress({ id: "vanishing", percent: 10 });
-  progressRows = [existing];
+  const [existing] = seedProgressRows({ id: "vanishing", percent: 10 });
   progressFindUniqueQueue = [
     existing,
     existing,

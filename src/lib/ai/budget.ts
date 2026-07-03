@@ -46,6 +46,8 @@ import {
 import { summarizeAiUsage } from "@/lib/ai/usage-summary";
 
 const log = createLogger("ai-budget");
+const UNKNOWN_FEATURE = "unknown";
+const HOUR_MS = 3_600_000;
 
 export type AiBudgetKind = "interactive" | "background";
 
@@ -157,6 +159,17 @@ async function incrementBudget(key: string, windowMs: number, nowMs: number): Pr
 
 type Dim = { scope: AiBudgetScope; key: string; limit: number };
 
+function pushLimitedDim(
+  dims: Dim[],
+  scope: AiBudgetScope,
+  key: string,
+  limit: number | null,
+): void {
+  if (limit !== null) {
+    dims.push({ scope, key, limit });
+  }
+}
+
 /**
  * The ordered list of quota dimensions to enforce for a call. Ordered by
  * priority (most specific first) so the first tripped dimension stops further
@@ -179,19 +192,11 @@ function buildDims(
     if (userId && cfg.userDaily !== null) {
       dims.push({ scope: "user", key: `user:${userId}`, limit: cfg.userDaily });
     }
-    if (featureLimit !== null) {
-      dims.push({ scope: "feature", key: `feature:${feature}`, limit: featureLimit });
-    }
-    if (cfg.globalDaily !== null) {
-      dims.push({ scope: "global", key: "global:interactive", limit: cfg.globalDaily });
-    }
+    pushLimitedDim(dims, "feature", `feature:${feature}`, featureLimit);
+    pushLimitedDim(dims, "global", "global:interactive", cfg.globalDaily);
   } else {
-    if (featureLimit !== null) {
-      dims.push({ scope: "feature", key: `feature:${feature}`, limit: featureLimit });
-    }
-    if (cfg.backgroundDaily !== null) {
-      dims.push({ scope: "global-background", key: "global:background", limit: cfg.backgroundDaily });
-    }
+    pushLimitedDim(dims, "feature", `feature:${feature}`, featureLimit);
+    pushLimitedDim(dims, "global-background", "global:background", cfg.backgroundDaily);
   }
   return dims;
 }
@@ -202,6 +207,32 @@ function resolveKind(input: AiBudgetCheckInput): AiBudgetKind {
 
 function resolveUserId(input: AiBudgetCheckInput): string | null {
   return input.userId ?? getAiContext()?.userId ?? getRequestContext()?.userId ?? null;
+}
+
+function allowedDecision(
+  feature: string,
+  kind: AiBudgetKind,
+  userId: string | null,
+): AiBudgetDecision {
+  return { allowed: true, feature, kind, userId };
+}
+
+function blockedDecision(
+  feature: string,
+  kind: AiBudgetKind,
+  userId: string | null,
+  dim: Dim,
+  used: number,
+): AiBudgetDecision {
+  return {
+    allowed: false,
+    feature,
+    kind,
+    userId,
+    scope: dim.scope,
+    limit: dim.limit,
+    used,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -224,25 +255,25 @@ export async function checkAiBudget(
   const cfg = aiQuotaConfig();
   const kind = resolveKind(input);
   const userId = resolveUserId(input);
-  const feature = input.feature || "unknown";
+  const feature = input.feature || UNKNOWN_FEATURE;
 
   const dims = buildDims(cfg, feature, userId, kind);
   if (dims.length === 0) {
-    return { allowed: true, feature, kind, userId };
+    return allowedDecision(feature, kind, userId);
   }
 
   for (const dim of dims) {
     const count = await incrementBudget(dim.key, cfg.windowMs, now);
     if (count > dim.limit) {
-      return { allowed: false, feature, kind, userId, scope: dim.scope, limit: dim.limit, used: count };
+      return blockedDecision(feature, kind, userId, dim, count);
     }
   }
-  return { allowed: true, feature, kind, userId };
+  return allowedDecision(feature, kind, userId);
 }
 
 /** Build a user-friendly 429 message for a blocked interactive call. */
 function quotaMessage(decision: AiBudgetDecision, windowMs: number): string {
-  const hours = Math.max(1, Math.round(windowMs / 3_600_000));
+  const hours = Math.max(1, Math.round(windowMs / HOUR_MS));
   const subject =
     decision.scope === "user"
       ? "your"

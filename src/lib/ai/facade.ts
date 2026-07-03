@@ -94,6 +94,66 @@ export function aiProviderCapabilities(): AiProviderCapabilities {
 }
 
 
+type LedgerWriter = (
+  status: AiInvocationStatus,
+  extra?: Partial<AiInvocationInput>,
+) => Promise<void>;
+
+function createLedgerWriter(
+  feature: string,
+  model: string | null,
+  options: ChatOptions,
+): LedgerWriter {
+  return (status, extra = {}) =>
+    recordAiInvocation({
+      feature,
+      model,
+      userId: options.userId ?? null,
+      articleId: options.articleId ?? null,
+      promptVersion: options.promptVersion ?? null,
+      cacheHit: options.cacheHit ?? false,
+      status,
+      fallback: status !== "success",
+      ...extra,
+    });
+}
+
+function usageLedgerFields(usage: AiUsage | null | undefined): Partial<AiInvocationInput> {
+  return {
+    promptTokens: usage?.promptTokens,
+    completionTokens: usage?.completionTokens,
+    totalTokens: usage?.totalTokens,
+  };
+}
+
+async function enforceAiBudget(
+  feature: string,
+  userId: string | null | undefined,
+  kind: AiBudgetKind,
+  logLedger: LedgerWriter,
+): Promise<boolean> {
+  if (kind !== "background") {
+    // Throws ApiError(429) when a per-user/per-feature/global-interactive cap is hit.
+    await assertAiQuota({ feature, userId, kind: "interactive" });
+    return true;
+  }
+
+  const decision = await checkAiBudget({ feature, userId, kind: "background" });
+  if (decision.allowed) {
+    return true;
+  }
+
+  log.warn("ai.quota_skipped", {
+    feature,
+    kind: "background",
+    scope: decision.scope,
+    limit: decision.limit,
+    used: decision.used,
+  });
+  await logLedger("fallback", { errorMessage: `quota_exceeded:${decision.scope}` });
+  return false;
+}
+
 /**
  * Runs a chat completion and returns the full result including usage metadata.
  * Returns null when the provider is not configured or all retries are exhausted.
@@ -110,18 +170,7 @@ export async function chatCompleteWithMeta(
 
   // Best-effort ledger writer shared by every outcome path (RW-019). Never
   // throws; metadata-only. `model` defaults to the active deployment.
-  const logLedger = (status: AiInvocationStatus, extra: Partial<AiInvocationInput> = {}) =>
-    recordAiInvocation({
-      feature,
-      model: modelName,
-      userId: options.userId ?? null,
-      articleId: options.articleId ?? null,
-      promptVersion: options.promptVersion ?? null,
-      cacheHit: options.cacheHit ?? false,
-      status,
-      fallback: status !== "success",
-      ...extra,
-    });
+  const logLedger = createLedgerWriter(feature, modelName, options);
 
   if (!isAiFeatureEnabled() || !provider.isConfigured()) {
     recordAiCall({ feature, outcome: "unconfigured" });
@@ -134,22 +183,14 @@ export async function chatCompleteWithMeta(
   // background paths skip gracefully (return null) so enrichment degrades to the
   // helper's fallback instead of crashing the worker.
   const budgetKind: AiBudgetKind = options.kind ?? getAiContext()?.kind ?? "interactive";
-  if (budgetKind === "background") {
-    const decision = await checkAiBudget({ feature, userId: options.userId, kind: "background" });
-    if (!decision.allowed) {
-      log.warn("ai.quota_skipped", {
-        feature,
-        kind: "background",
-        scope: decision.scope,
-        limit: decision.limit,
-        used: decision.used,
-      });
-      await logLedger("fallback", { errorMessage: `quota_exceeded:${decision.scope}` });
-      return null;
-    }
-  } else {
-    // Throws ApiError(429) when a per-user/per-feature/global-interactive cap is hit.
-    await assertAiQuota({ feature, userId: options.userId, kind: "interactive" });
+  const budgetAllowed = await enforceAiBudget(
+    feature,
+    options.userId,
+    budgetKind,
+    logLedger,
+  );
+  if (!budgetAllowed) {
+    return null;
   }
 
   const maxRetries = aiMaxRetries();
@@ -203,9 +244,7 @@ export async function chatCompleteWithMeta(
         await logLedger("success", {
           model,
           latencyMs: durationMs,
-          promptTokens: usage?.promptTokens,
-          completionTokens: usage?.completionTokens,
-          totalTokens: usage?.totalTokens,
+          ...usageLedgerFields(usage),
         });
         setSpanAttributes(span, {
           "readwise.outcome": "success",
@@ -225,9 +264,7 @@ export async function chatCompleteWithMeta(
         });
         await logLedger("empty", {
           latencyMs: durationMs,
-          promptTokens: usage?.promptTokens,
-          completionTokens: usage?.completionTokens,
-          totalTokens: usage?.totalTokens,
+          ...usageLedgerFields(usage),
         });
         return null;
       }

@@ -7,6 +7,12 @@ import ConfirmAction from "@/components/ConfirmAction";
 import { buttonVariants } from "@/components/ui/Button";
 import { purgeOfflineUserData } from "@/lib/offline/sync-runtime";
 
+const ACCOUNT_DELETION_ERROR = "Deletion failed";
+
+function accountDeletionErrorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : ACCOUNT_DELETION_ERROR;
+}
+
 export default function AccountDangerZone() {
   const [deleteBusy, setDeleteBusy] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
@@ -20,7 +26,7 @@ export default function AccountDangerZone() {
       await purgeOfflineUserData();
       await signOut({ callbackUrl: "/signin" });
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Deletion failed");
+      setDeleteError(accountDeletionErrorMessage(err));
     } finally {
       setDeleteBusy(false);
     }

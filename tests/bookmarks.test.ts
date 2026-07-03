@@ -10,25 +10,48 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
+type StubList = { id: string; name: string; isDefault: boolean };
+type StubItem = { id: string; listId: string; articleId: string };
+type StubArticle = { id: string };
+type CommandResult = { ok: true } | { ok: false; status: number };
+
 // ---------------------------------------------------------------------------
 // Mutable stub state (read by the mock implementations below)
 // ---------------------------------------------------------------------------
 
 // Used by readingList.findFirst: the stub decides which to return based on args.
-let stubDefaultList: null | { id: string; name: string; isDefault: boolean } = null;
-let stubListById: null | { id: string; name: string; isDefault: boolean } = null;
+let stubDefaultList: StubList | null = null;
+let stubListById: StubList | null = null;
 
 // Used by readingListItem.findUnique — controls whether item is "already in list"
-let stubItemExists: null | { id: string; listId: string; articleId: string } = null;
+let stubItemExists: StubItem | null = null;
 
 // Used by article.findUnique — controls article existence
-let stubArticle: null | { id: string } = { id: "a1" };
+let stubArticle: StubArticle | null = { id: "a1" };
 
 // Used by readingList.findMany (getBookmarkedArticleIds)
 let stubUserLists: { id: string }[] = [];
 
 // Used by readingListItem.findMany (getBookmarkedArticleIds)
 let stubBookmarkedItems: { articleId: string }[] = [];
+
+function listFixture(overrides: Partial<StubList> = {}): StubList {
+  return {
+    id: "list-1",
+    name: "My List",
+    isDefault: false,
+    ...overrides,
+  };
+}
+
+function defaultListFixture(id = "list-1"): StubList {
+  return listFixture({ id, name: "Saved", isDefault: true });
+}
+
+function assertCommandFailure(result: CommandResult, status: number): void {
+  assert.equal(result.ok, false);
+  if (!result.ok) assert.equal(result.status, status);
+}
 
 before(() => {
   mock.module("@/lib/prisma", {
@@ -123,7 +146,7 @@ test("getOrCreateDefaultList creates a new list when none exists", async () => {
 });
 
 test("getOrCreateDefaultList returns existing list without creating", async () => {
-  stubDefaultList = { id: "list-existing", name: "Saved", isDefault: true };
+  stubDefaultList = defaultListFixture("list-existing");
   const { getOrCreateDefaultList } = await import("@/lib/article-library/collections/default-list-policy");
   const result = await getOrCreateDefaultList("user-1");
   assert.equal(result.id, "list-existing");
@@ -135,7 +158,7 @@ test("getOrCreateDefaultList returns existing list without creating", async () =
 
 test("toggleBookmark adds article to default list and returns bookmarked:true", async () => {
   stubArticle = { id: "a1" };
-  stubDefaultList = { id: "list-1", name: "Saved", isDefault: true };
+  stubDefaultList = defaultListFixture();
   stubItemExists = null; // not yet in list
 
   const { toggleBookmark } = await import("@/lib/article-library/collections/commands");
@@ -146,7 +169,7 @@ test("toggleBookmark adds article to default list and returns bookmarked:true", 
 
 test("toggleBookmark removes article from default list and returns bookmarked:false", async () => {
   stubArticle = { id: "a1" };
-  stubDefaultList = { id: "list-1", name: "Saved", isDefault: true };
+  stubDefaultList = defaultListFixture();
   stubItemExists = { id: "item-1", listId: "list-1", articleId: "a1" };
 
   const { toggleBookmark } = await import("@/lib/article-library/collections/commands");
@@ -160,8 +183,7 @@ test("toggleBookmark returns 404 when article does not exist", async () => {
 
   const { toggleBookmark } = await import("@/lib/article-library/collections/commands");
   const result = await toggleBookmark("user-1", "missing");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 // ---------------------------------------------------------------------------
@@ -169,7 +191,7 @@ test("toggleBookmark returns 404 when article does not exist", async () => {
 // ---------------------------------------------------------------------------
 
 test("addToList succeeds for an owned list with a valid article", async () => {
-  stubListById = { id: "list-1", name: "My List", isDefault: false };
+  stubListById = listFixture();
   stubArticle = { id: "a1" };
 
   const { addToList } = await import("@/lib/article-library/collections/commands");
@@ -182,18 +204,16 @@ test("addToList returns 404 when list belongs to another user", async () => {
 
   const { addToList } = await import("@/lib/article-library/collections/commands");
   const result = await addToList("other-list", "user-1", "a1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 test("addToList returns 404 when article does not exist", async () => {
-  stubListById = { id: "list-1", name: "My List", isDefault: false };
+  stubListById = listFixture();
   stubArticle = null;
 
   const { addToList } = await import("@/lib/article-library/collections/commands");
   const result = await addToList("list-1", "user-1", "missing");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 // ---------------------------------------------------------------------------
@@ -201,7 +221,7 @@ test("addToList returns 404 when article does not exist", async () => {
 // ---------------------------------------------------------------------------
 
 test("removeFromList succeeds for an owned list", async () => {
-  stubListById = { id: "list-1", name: "My List", isDefault: false };
+  stubListById = listFixture();
 
   const { removeFromList } = await import("@/lib/article-library/collections/commands");
   const result = await removeFromList("list-1", "user-1", "a1");
@@ -213,8 +233,7 @@ test("removeFromList returns 404 when list belongs to another user", async () =>
 
   const { removeFromList } = await import("@/lib/article-library/collections/commands");
   const result = await removeFromList("other-list", "user-1", "a1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 // ---------------------------------------------------------------------------
@@ -222,12 +241,11 @@ test("removeFromList returns 404 when list belongs to another user", async () =>
 // ---------------------------------------------------------------------------
 
 test("deleteList refuses to delete the default list and returns 409", async () => {
-  stubListById = { id: "list-1", name: "Saved", isDefault: true };
+  stubListById = defaultListFixture();
 
   const { deleteList } = await import("@/lib/article-library/collections/commands");
   const result = await deleteList("list-1", "user-1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 409);
+  assertCommandFailure(result, 409);
 });
 
 test("deleteList returns 404 for a missing list", async () => {
@@ -235,12 +253,11 @@ test("deleteList returns 404 for a missing list", async () => {
 
   const { deleteList } = await import("@/lib/article-library/collections/commands");
   const result = await deleteList("list-99", "user-1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 test("deleteList succeeds for a non-default owned list", async () => {
-  stubListById = { id: "list-2", name: "Favorites", isDefault: false };
+  stubListById = listFixture({ id: "list-2", name: "Favorites" });
 
   const { deleteList } = await import("@/lib/article-library/collections/commands");
   const result = await deleteList("list-2", "user-1");
@@ -284,13 +301,12 @@ test("getBookmarkedArticleIds returns only the bookmarked article ids", async ()
 // ---------------------------------------------------------------------------
 
 test("addToList returns 404 when the article is not viewable", async () => {
-  stubListById = { id: "list-1", name: "My List", isDefault: false };
+  stubListById = listFixture();
   stubArticle = null; // getViewableArticleById sees draft/foreign import
 
   const { addToList } = await import("@/lib/article-library/collections/commands");
   const result = await addToList("list-1", "user-1", "draft-1");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 test("toggleBookmark returns 404 when the article is not viewable", async () => {
@@ -298,8 +314,7 @@ test("toggleBookmark returns 404 when the article is not viewable", async () => 
 
   const { toggleBookmark } = await import("@/lib/article-library/collections/commands");
   const result = await toggleBookmark("user-1", "foreign-import");
-  assert.equal(result.ok, false);
-  if (!result.ok) assert.equal(result.status, 404);
+  assertCommandFailure(result, 404);
 });
 
 test("getArticleListMembership returns null when the article is not viewable", async () => {

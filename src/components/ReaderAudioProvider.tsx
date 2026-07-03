@@ -24,6 +24,7 @@ import {
   useRef,
   useState,
   useCallback,
+  useMemo,
   type ReactNode,
 } from "react";
 import {
@@ -98,6 +99,7 @@ export type AudioContextValue = {
 };
 
 const ReaderAudioContext = createContext<AudioContextValue | null>(null);
+const HIDDEN_AUDIO_STYLE = { display: "none" } as const;
 
 export function ReaderAudioProvider({ children }: { children: ReactNode }) {
   const audioRef = useRef<HTMLAudioElement | null>(null);
@@ -172,28 +174,54 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
     [updateActiveWord, loopSegmentRef],
   );
 
+  const handleEnded = useCallback(() => {
+    clearActiveWord();
+    cancelLoop();
+  }, [cancelLoop, clearActiveWord]);
+
+  const contextValue = useMemo<AudioContextValue>(
+    () => ({
+      audioRef,
+      words,
+      plainText: plainTextState,
+      segments,
+      activeIndex,
+      isLoaded,
+      isFallback,
+      voiceMeta,
+      listenActive,
+      setListenActive,
+      loadAudio,
+      markFallback,
+      isWarming,
+      warmError,
+      warmNarration,
+      isLooping,
+      toggleLoop,
+    }),
+    [
+      activeIndex,
+      audioRef,
+      isFallback,
+      isLoaded,
+      isLooping,
+      isWarming,
+      listenActive,
+      loadAudio,
+      markFallback,
+      plainTextState,
+      segments,
+      setListenActive,
+      toggleLoop,
+      voiceMeta,
+      warmError,
+      warmNarration,
+      words,
+    ],
+  );
+
   return (
-    <ReaderAudioContext.Provider
-      value={{
-        audioRef,
-        words,
-        plainText: plainTextState,
-        segments,
-        activeIndex,
-        isLoaded,
-        isFallback,
-        voiceMeta,
-        listenActive,
-        setListenActive,
-        loadAudio,
-        markFallback,
-        isWarming,
-        warmError,
-        warmNarration,
-        isLooping,
-        toggleLoop,
-      }}
-    >
+    <ReaderAudioContext.Provider value={contextValue}>
       {/* Single <audio> element for the whole reader page. */}
       {audioSrc ? (
         <audio
@@ -201,17 +229,14 @@ export function ReaderAudioProvider({ children }: { children: ReactNode }) {
           src={audioSrc}
           preload="metadata"
           className="reader-sr-live"
-          style={{ display: "none" }}
+          style={HIDDEN_AUDIO_STYLE}
           onTimeUpdate={(e) => handleTimeUpdate(e.currentTarget.currentTime)}
           onSeeked={(e) => updateActiveWord(e.currentTarget.currentTime)}
-          onEnded={() => {
-            clearActiveWord();
-            cancelLoop();
-          }}
+          onEnded={handleEnded}
         />
       ) : (
         // Keep ref stable even when no audio yet.
-        <audio ref={audioRef} style={{ display: "none" }} />
+        <audio ref={audioRef} style={HIDDEN_AUDIO_STYLE} />
       )}
       {children}
     </ReaderAudioContext.Provider>

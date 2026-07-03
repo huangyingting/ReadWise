@@ -30,6 +30,22 @@ function assertNoProviderNoise(html: string, patterns: RegExp[]): void {
   }
 }
 
+function requireProviderCleanup(providerKey: string, displayName: string) {
+  const cleanup = getProvider(providerKey)?.cleanup;
+  assert.ok(cleanup, `${displayName} cleanup rules must be present`);
+  return cleanup;
+}
+
+function applyGenericProviderCleanup(html: string, cleanup: Parameters<typeof mergeProviderCleanup>[1]): string {
+  return applyProviderCleanup(html, mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, cleanup));
+}
+
+function extractContent(html: string, url: string, message: string): string {
+  const result = extractArticle(html, url);
+  assert.ok(result, message);
+  return result!.content;
+}
+
 test("unknown-provider extraction preserves legitimate newsletter article and image", () => {
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="Letters from the Mountain Observatory" />
@@ -48,21 +64,23 @@ test("unknown-provider extraction preserves legitimate newsletter article and im
       </main>
     </body></html>`;
 
-  const result = extractArticle(html, "https://independent.example.org/letters/observatory");
-  assert.ok(result, "unknown-provider newsletter article should extract");
-  assert.match(result!.content, /summit1/i, "article prose must survive extraction");
-  assert.match(result!.content, /telescope1/i, "middle article prose must survive extraction");
-  assert.match(result!.content, /observatory-sky\.jpg/i, "article image must survive extraction");
+  const content = extractContent(
+    html,
+    "https://independent.example.org/letters/observatory",
+    "unknown-provider newsletter article should extract",
+  );
+  assert.match(content, /summit1/i, "article prose must survive extraction");
+  assert.match(content, /telescope1/i, "middle article prose must survive extraction");
+  assert.match(content, /observatory-sky\.jpg/i, "article image must survive extraction");
   assert.match(
-    result!.content,
+    content,
     /https:\/\/independent\.example\.org\/images\/observatory-sky\.jpg/i,
     "relative article image must be absolutized",
   );
 });
 
 test("nbc cleaned HTML drops provider chrome but keeps article image and video link", () => {
-  const provider = getProvider("nbc");
-  assert.ok(provider?.cleanup, "NBC cleanup rules must be present");
+  const cleanup = requireProviderCleanup("nbc", "NBC");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="Orcas Return to Northern Waters" />
@@ -80,10 +98,7 @@ test("nbc cleaned HTML drops provider chrome but keeps article image and video l
       <p>${wordBlock(45, "habitat")} as conservation crews track the animals.</p>
     </article></body></html>`;
 
-  const cleaned = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
   assertNoProviderNoise(cleaned, [
     /Another story/i,
     /Share on Facebook/i,
@@ -95,22 +110,24 @@ test("nbc cleaned HTML drops provider chrome but keeps article image and video l
   assert.match(cleaned, /orca-breach\.jpg/i, "article image must survive cleanup");
   assert.match(cleaned, /video\/orca-field-report/i, "article video link must survive cleanup");
 
-  const result = extractArticle(html, "https://www.nbcnews.com/science/orcas-return-rcna123456");
-  assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [
+  const content = extractContent(
+    html,
+    "https://www.nbcnews.com/science/orcas-return-rcna123456",
+    "article should extract",
+  );
+  assertNoProviderNoise(content, [
     /Another story/i,
     /Share on/i,
     /newsletter/i,
     /promotion/i,
     /Accept cookies/i,
   ]);
-  assert.match(result!.content, /orca-breach\.jpg/i, "article image must survive final extraction");
-  assert.match(result!.content, /video\/orca-field-report/i, "article video link must survive final extraction");
+  assert.match(content, /orca-breach\.jpg/i, "article image must survive final extraction");
+  assert.match(content, /video\/orca-field-report/i, "article video link must survive final extraction");
 });
 
 test("knowable cleaned HTML drops editor/donation/deep-dive remnants but keeps docserver media", () => {
-  const provider = getProvider("knowable");
-  assert.ok(provider?.cleanup, "Knowable cleanup rules must be present");
+  const cleanup = requireProviderCleanup("knowable", "Knowable");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="How Synapses Recover" />
@@ -142,7 +159,7 @@ test("knowable cleaned HTML drops editor/donation/deep-dive remnants but keeps d
       </main>
     </body></html>`;
 
-  const cleaned = applyProviderCleanup(html, provider.cleanup);
+  const cleaned = applyProviderCleanup(html, cleanup);
   const body = cleaned.slice(cleaned.indexOf("</head>"));
   assertNoProviderNoise(body, [
     /DONATE/i,
@@ -160,8 +177,7 @@ test("knowable cleaned HTML drops editor/donation/deep-dive remnants but keeps d
 });
 
 test("nautilus cleaned extraction drops trailing CTA/favicon and keeps article image", () => {
-  const provider = getProvider("nautilus");
-  assert.ok(provider?.cleanup, "Nautilus cleanup rules must be present");
+  const cleanup = requireProviderCleanup("nautilus", "Nautilus");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="New Chameleons in the Cloud Forest" />
@@ -177,21 +193,16 @@ test("nautilus cleaned extraction drops trailing CTA/favicon and keeps article i
       </article>
     </body></html>`;
 
-  const cleaned = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
   assertNoProviderNoise(cleaned, [/SubscribeBtn_defaultBtn/i, />Subscribe<\/a>/i]);
 
-  const result = extractArticle(html, "https://nautil.us/new-chameleons-1282292/");
-  assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [/nautilus-favicon-14\.png/i, /Enjoying/i, /free newsletter/i]);
-  assert.match(result!.content, /article-chameleon\.jpg/i, "article image must survive");
+  const content = extractContent(html, "https://nautil.us/new-chameleons-1282292/", "article should extract");
+  assertNoProviderNoise(content, [/nautilus-favicon-14\.png/i, /Enjoying/i, /free newsletter/i]);
+  assert.match(content, /article-chameleon\.jpg/i, "article image must survive");
 });
 
 test("undark declutter drops newsletter compass promo image and keeps article media", () => {
-  const provider = getProvider("undark");
-  assert.ok(provider?.cleanup, "Undark cleanup rules must be present");
+  const cleanup = requireProviderCleanup("undark", "Undark");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="How Animals Care" />
@@ -207,10 +218,7 @@ test("undark declutter drops newsletter compass promo image and keeps article me
       <p>${wordBlock(45, "evidence")} as the essay returns to animal behavior.</p>
     </article></body></html>`;
 
-  const cleaned = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
   assertNoProviderNoise(cleaned, [
     /SIGN UP FOR NEWSLETTER JOURNEYS/i,
     /compass\.png/i,
@@ -219,21 +227,19 @@ test("undark declutter drops newsletter compass promo image and keeps article me
     /support our journalism/i,
   ]);
 
-  const result = extractArticle(html, "https://undark.org/2026/06/26/how-animals-care/");
-  assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [
+  const content = extractContent(html, "https://undark.org/2026/06/26/how-animals-care/", "article should extract");
+  assertNoProviderNoise(content, [
     /compass\.png/i,
     /Newsletter Journeys/i,
     /Dive deeper/i,
     /Support Undark Magazine/i,
     /support our journalism/i,
   ]);
-  assert.match(result!.content, /orca\.jpg/i, "article image must survive");
+  assert.match(content, /orca\.jpg/i, "article image must survive");
 });
 
 test("technologyreview cleanup drops recirc/signup tail and newsletter promo residue", () => {
-  const provider = getProvider("technologyreview");
-  assert.ok(provider?.cleanup, "Technology Review cleanup rules must be present");
+  const cleanup = requireProviderCleanup("technologyreview", "Technology Review");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="The Download: Heat and AI" />
@@ -252,10 +258,7 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
       </article>
     </body></html>`;
 
-  const cleaned = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
   assertNoProviderNoise(cleaned, [
     /weekly biotech newsletter/i,
     /weekly newsletter on AI/i,
@@ -268,9 +271,12 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
   assert.match(cleaned, /<figcaption/i, "Technology Review article captions should survive cleanup");
   assert.match(cleaned, /A visible article caption should remain/i, "Technology Review caption text should survive cleanup");
 
-  const result = extractArticle(html, "https://www.technologyreview.com/2026/06/26/1139780/the-download-heat-ai/");
-  assert.ok(result, "article should extract");
-  assertNoProviderNoise(result!.content, [
+  const content = extractContent(
+    html,
+    "https://www.technologyreview.com/2026/06/26/1139780/the-download-heat-ai/",
+    "article should extract",
+  );
+  assertNoProviderNoise(content, [
     /weekly biotech newsletter/i,
     /weekly newsletter on AI/i,
     /COURTESY OF THE RESEARCHERS/i,
@@ -283,6 +289,6 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
     /Stay connected/i,
     /special offers/i,
   ]);
-  assert.match(result!.content, /article-heat\.jpg/i, "article image must survive");
-  assert.match(result!.content, /A visible article caption should remain/i, "article caption must survive");
+  assert.match(content, /article-heat\.jpg/i, "article image must survive");
+  assert.match(content, /A visible article caption should remain/i, "article caption must survive");
 });

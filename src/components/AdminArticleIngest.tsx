@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ApiResponseError, requestJson } from "@/lib/client-fetch";
@@ -14,38 +14,66 @@ type IngestState =
   | { status: "duplicate"; id: string | null; message: string }
   | { status: "error"; message: string };
 
+type IngestResponse = {
+  status?: string;
+  id?: string | null;
+  message?: string;
+  error?: string;
+};
+
+type DuplicateIngestResponse = {
+  id?: string | null;
+  message?: string;
+};
+
+function getDuplicateResponse(err: ApiResponseError): DuplicateIngestResponse | null {
+  const duplicate = (err as ApiResponseError & { cause?: unknown }).cause;
+  return duplicate && typeof duplicate === "object"
+    ? (duplicate as DuplicateIngestResponse)
+    : null;
+}
+
 export default function AdminArticleIngest() {
   const router = useRouter();
   const [url, setUrl] = useState("");
   const [state, setState] = useState<IngestState>({ status: "idle" });
   const [open, setOpen] = useState(false);
+  const isLoading = state.status === "loading";
+  const canSubmit = !isLoading && Boolean(url.trim());
 
-  async function handleSubmit(e: React.FormEvent) {
+  function openIngestForm() {
+    setState({ status: "idle" });
+    setUrl("");
+    setOpen(true);
+  }
+
+  function handleUrlChange(nextUrl: string) {
+    setUrl(nextUrl);
+    if (state.status !== "idle" && state.status !== "loading") {
+      setState({ status: "idle" });
+    }
+  }
+
+  async function handleSubmit(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const trimmed = url.trim();
     if (!trimmed) return;
     setState({ status: "loading" });
     try {
-      const data = await requestJson<{
-        status?: string;
-        id?: string | null;
-        message?: string;
-        error?: string;
-      }>("/api/admin/articles/ingest", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: trimmed }),
-      });
+      const data = await requestJson<IngestResponse>(
+        "/api/admin/articles/ingest",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: trimmed }),
+        },
+      );
       setState({ status: "saved", id: data.id! });
       setUrl("");
       router.refresh();
     } catch (err) {
       if (err instanceof ApiResponseError && err.status === 409) {
-        const duplicate = (err as ApiResponseError & { cause?: unknown }).cause;
-        const data =
-          duplicate && typeof duplicate === "object"
-            ? (duplicate as { id?: string | null; message?: string })
-            : null;
+        const data = getDuplicateResponse(err);
         setState({
           status: "duplicate",
           id: data?.id ?? null,
@@ -66,11 +94,7 @@ export default function AdminArticleIngest() {
         <Button
           variant="primary"
           size="sm"
-          onClick={() => {
-            setState({ status: "idle" });
-            setUrl("");
-            setOpen(true);
-          }}
+          onClick={openIngestForm}
         >
           + Add article
         </Button>
@@ -90,33 +114,28 @@ export default function AdminArticleIngest() {
           <Input
             type="url"
             value={url}
-            onChange={(e) => {
-              setUrl(e.target.value);
-              if (state.status !== "idle" && state.status !== "loading") {
-                setState({ status: "idle" });
-              }
-            }}
+            onChange={(e) => handleUrlChange(e.target.value)}
             placeholder="https://example.com/article/…"
             inputSize="sm"
             className="flex-[1_1_320px]"
             aria-label="Article URL"
-            disabled={state.status === "loading"}
+            disabled={isLoading}
             autoFocus
           />
           <Button
             type="submit"
             variant="primary"
             size="sm"
-            disabled={state.status === "loading" || !url.trim()}
+            disabled={!canSubmit}
           >
-            {state.status === "loading" ? "Scraping…" : "Ingest"}
+            {isLoading ? "Scraping…" : "Ingest"}
           </Button>
           <Button
             type="button"
             variant="outline"
             size="sm"
             onClick={() => setOpen(false)}
-            disabled={state.status === "loading"}
+            disabled={isLoading}
           >
             Cancel
           </Button>

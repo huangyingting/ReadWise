@@ -47,6 +47,13 @@ export const BACKOFF_MAX_MS = 5 * 60_000;
 
 export type SendOutcome = "success" | "retry" | "permanent";
 
+const HTTP_CONFLICT = 409;
+const RETRYABLE_CLIENT_STATUSES = new Set([408, 429]);
+
+function isSuccessStatus(status: number): boolean {
+  return (status >= 200 && status < 300) || status === HTTP_CONFLICT;
+}
+
 /**
  * Classify an HTTP status code (or 0 for a network error) into a sync outcome:
  *   - success:   2xx, or 409 (the server already resolved the conflict via
@@ -55,9 +62,8 @@ export type SendOutcome = "success" | "retry" | "permanent";
  *   - permanent: other 4xx — a malformed/forbidden request won't fix itself.
  */
 export function classifyStatus(status: number): SendOutcome {
-  if (status >= 200 && status < 300) return "success";
-  if (status === 409) return "success";
-  if (status === 408 || status === 429) return "retry";
+  if (isSuccessStatus(status)) return "success";
+  if (RETRYABLE_CLIENT_STATUSES.has(status)) return "retry";
   if (status >= 400 && status < 500) return "permanent";
   return "retry";
 }
@@ -131,6 +137,49 @@ function emptyResult(): FlushResult {
   return { attempted: 0, succeeded: 0, retried: 0, failed: 0, remaining: 0 };
 }
 
+function shouldSkipMutation(mutation: QueuedMutation, maxRetries: number): boolean {
+  return isPermanentlyFailed(mutation, maxRetries) || isConflict(mutation);
+}
+
+async function sendQueuedMutation(
+  send: FlushDeps["send"],
+  mutation: QueuedMutation,
+): Promise<{ outcome: SendOutcome; errorMessage: string | null }> {
+  try {
+    const { status } = await send(mutation);
+    const outcome = classifyStatus(status);
+    return {
+      outcome,
+      errorMessage: outcome === "success" ? null : `HTTP ${status}`,
+    };
+  } catch (err) {
+    return {
+      outcome: "retry",
+      errorMessage: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
+async function recordFailedDelivery(
+  deps: FlushDeps,
+  mutation: QueuedMutation,
+  outcome: Exclude<SendOutcome, "success">,
+  errorMessage: string | null,
+  maxRetries: number,
+): Promise<"failed" | "retried"> {
+  const nextRetry = mutation.retryCount + 1;
+  const status =
+    outcome === "permanent" || nextRetry >= maxRetries ? "failed" : "pending";
+
+  await deps.update(mutation.clientMutationId, {
+    status,
+    retryCount: nextRetry,
+    lastError: errorMessage,
+  });
+
+  return status === "failed" ? "failed" : "retried";
+}
+
 /**
  * Deliver every queued mutation in FIFO order, applying the retry/backoff
  * policy. Already-permanently-failed mutations are skipped (left for the user
@@ -149,21 +198,15 @@ export async function flushQueue(
   const result = emptyResult();
 
   for (const mutation of queue) {
-    if (isPermanentlyFailed(mutation, maxRetries) || isConflict(mutation)) {
+    if (shouldSkipMutation(mutation, maxRetries)) {
       continue;
     }
 
     result.attempted++;
-    let outcome: SendOutcome;
-    let errorMessage: string | null = null;
-    try {
-      const { status } = await deps.send(mutation);
-      outcome = classifyStatus(status);
-      if (outcome !== "success") errorMessage = `HTTP ${status}`;
-    } catch (err) {
-      outcome = "retry";
-      errorMessage = err instanceof Error ? err.message : String(err);
-    }
+    const { outcome, errorMessage } = await sendQueuedMutation(
+      deps.send,
+      mutation,
+    );
 
     if (outcome === "success") {
       await deps.remove(mutation.clientMutationId);
@@ -171,20 +214,16 @@ export async function flushQueue(
       continue;
     }
 
-    const nextRetry = mutation.retryCount + 1;
-    if (outcome === "permanent" || nextRetry >= maxRetries) {
-      await deps.update(mutation.clientMutationId, {
-        status: "failed",
-        retryCount: nextRetry,
-        lastError: errorMessage,
-      });
+    const deliveryState = await recordFailedDelivery(
+      deps,
+      mutation,
+      outcome,
+      errorMessage,
+      maxRetries,
+    );
+    if (deliveryState === "failed") {
       result.failed++;
     } else {
-      await deps.update(mutation.clientMutationId, {
-        status: "pending",
-        retryCount: nextRetry,
-        lastError: errorMessage,
-      });
       result.retried++;
     }
   }

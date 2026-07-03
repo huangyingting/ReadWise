@@ -194,6 +194,72 @@ function toErrorSeverity(severity: SecuritySeverity, spike: boolean): "fatal" | 
   return "error";
 }
 
+function isHighSeverity(severity: SecuritySeverity): boolean {
+  return SEVERITY_RANK[severity] >= SEVERITY_RANK.high;
+}
+
+function emitSecurityEventLog(record: SecurityEventRecord, highSeverity: boolean): void {
+  const line = {
+    securityType: record.type,
+    severity: record.severity,
+    route: record.route,
+    status: record.status,
+    actorId: record.actorId,
+    ip: record.ip,
+    count: record.count,
+    alert: record.alert,
+    ...record.meta,
+  };
+  if (highSeverity) log.error("security.event", line);
+  else log.warn("security.event", line);
+}
+
+function recordMetric(record: SecurityEventRecord): void {
+  try {
+    recordSecurityEventMetric({
+      type: record.type,
+      severity: record.severity,
+      status: record.status,
+      alert: record.alert,
+    });
+  } catch {
+    // metrics must never break monitoring
+  }
+}
+
+function pushRecentSecurityEvent(record: SecurityEventRecord): void {
+  try {
+    pushRing(record);
+  } catch {
+    // best-effort
+  }
+}
+
+function escalateSecurityEvent(
+  record: SecurityEventRecord,
+  spike: boolean,
+  escalation: Error,
+): void {
+  try {
+    escalation.name = "SecurityEvent";
+    captureError(escalation, {
+      source: "server",
+      severity: toErrorSeverity(record.severity, spike),
+      route: record.route,
+      requestId: record.requestId,
+      userId: record.actorId,
+      extra: {
+        securityType: record.type,
+        status: record.status,
+        ip: record.ip,
+        count: record.count,
+      },
+    });
+  } catch {
+    // alerting is best-effort
+  }
+}
+
 // ---- main entry ----------------------------------------------------------
 
 /**
@@ -214,7 +280,7 @@ export function recordSecurityEvent(input: SecurityEventInput): SecurityEventRec
   const spikeKey = `${input.type}|${actorId ?? ip ?? "anon"}`;
   const count = bumpSpike(spikeKey, nowMs, securityEventWindowMs());
   const isSpike = count >= securityEventAlertThreshold();
-  const isHigh = SEVERITY_RANK[input.severity] >= SEVERITY_RANK.high;
+  const isHigh = isHighSeverity(input.severity);
   const alert = isHigh || isSpike;
 
   const record: SecurityEventRecord = {
@@ -232,63 +298,21 @@ export function recordSecurityEvent(input: SecurityEventInput): SecurityEventRec
   };
 
   // 1) Structured log (level scales with severity).
-  const line = {
-    securityType: record.type,
-    severity: record.severity,
-    route: record.route,
-    status: record.status,
-    actorId: record.actorId,
-    ip: record.ip,
-    count: record.count,
-    alert: record.alert,
-    ...record.meta,
-  };
-  if (isHigh) log.error("security.event", line);
-  else log.warn("security.event", line);
+  emitSecurityEventLog(record, isHigh);
 
   // 2) Metric.
-  try {
-    recordSecurityEventMetric({
-      type: record.type,
-      severity: record.severity,
-      status: record.status,
-      alert: record.alert,
-    });
-  } catch {
-    // metrics must never break monitoring
-  }
+  recordMetric(record);
 
   // 3) Ring buffer.
-  try {
-    pushRing(record);
-  } catch {
-    // best-effort
-  }
+  pushRecentSecurityEvent(record);
 
   // 4) Escalate HIGH/CRITICAL severity or a detected spike through the existing
   //    error-aggregation alert seam (reuses captureError fingerprinting/alerts).
   if (alert) {
-    try {
-      const escalation = new Error(
-        `security ${record.type} (${record.severity}) x${record.count}`,
-      );
-      escalation.name = "SecurityEvent";
-      captureError(escalation, {
-        source: "server",
-        severity: toErrorSeverity(record.severity, isSpike),
-        route: record.route,
-        requestId: record.requestId,
-        userId: record.actorId,
-        extra: {
-          securityType: record.type,
-          status: record.status,
-          ip: record.ip,
-          count: record.count,
-        },
-      });
-    } catch {
-      // alerting is best-effort
-    }
+    const escalation = new Error(
+      `security ${record.type} (${record.severity}) x${record.count}`,
+    );
+    escalateSecurityEvent(record, isSpike, escalation);
   }
 
   return record;

@@ -47,7 +47,16 @@ export default async function TodayPage() {
 
   const primaryHref = vm.primaryArticle ? `/reader/${vm.primaryArticle.id}` : null;
   const readingComplete = vm.steps.reading.state === "complete";
+  const comprehensionComplete = vm.steps.comprehension.state === "complete";
   const isActive = vm.status === "active";
+  const isSkipped = vm.status === "skipped";
+  const isCompleted = vm.completedAt != null;
+  const showsCompletionCard = Boolean(vm.completedAt);
+  const hasBackups = vm.backups.length > 0;
+  const primaryArticleTitle =
+    vm.source === "resume"
+      ? "Pick up where you left off"
+      : "Your article for today";
 
   return (
     <PageShell variant="listing">
@@ -69,7 +78,7 @@ export default async function TodayPage() {
           description="Browse the library or import an article to start today's reading."
           action={{ label: "Browse articles", href: "/browse" }}
         />
-      ) : vm.status === "skipped" ? (
+      ) : isSkipped ? (
         <Stack gap="5">
           <Card>
             <Stack gap="3">
@@ -80,7 +89,7 @@ export default async function TodayPage() {
               </p>
             </Stack>
           </Card>
-          {vm.backups.length > 0 ? (
+          {hasBackups ? (
             <Section title="Other articles for you">
               <div className="grid grid-cols-1 gap-[var(--space-4)] sm:grid-cols-2 lg:grid-cols-3">
                 {vm.backups.map((article) => (
@@ -103,7 +112,7 @@ export default async function TodayPage() {
         </Stack>
       ) : (
         <Stack gap="6">
-          {vm.completedAt ? (
+          {showsCompletionCard ? (
             <Card>
               <Stack gap="2">
                 <Inline gap="2" align="center">
@@ -117,9 +126,7 @@ export default async function TodayPage() {
           ) : null}
 
           {vm.primaryArticle ? (
-            <Section
-              title={vm.source === "resume" ? "Pick up where you left off" : "Your article for today"}
-            >
+            <Section title={primaryArticleTitle}>
               <div className="grid grid-cols-1 gap-[var(--space-4)] sm:max-w-[var(--container-narrow)]">
                 <ArticleCardView article={vm.primaryArticle} />
               </div>
@@ -137,7 +144,7 @@ export default async function TodayPage() {
 
           <TodayComprehensionCheck
             readingComplete={readingComplete}
-            comprehensionComplete={vm.steps.comprehension.state === "complete"}
+            comprehensionComplete={comprehensionComplete}
             active={isActive}
             userId={session.user.id}
             localDate={vm.localDate}
@@ -149,7 +156,7 @@ export default async function TodayPage() {
             active={isActive}
             readingComplete={readingComplete}
             primaryHref={primaryHref}
-            completed={vm.completedAt != null}
+            completed={isCompleted}
             userId={session.user.id}
             localDate={vm.localDate}
             timezone={vm.timezone}

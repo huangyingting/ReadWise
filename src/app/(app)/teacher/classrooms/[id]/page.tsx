@@ -20,8 +20,191 @@ import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
 
+type ClassroomAnalytics = NonNullable<
+  Awaited<ReturnType<typeof getClassroomAnalytics>>
+>;
+type ClassroomMember = Awaited<ReturnType<typeof listClassroomMembers>>[number];
+
 function pct(value: number): string {
   return `${Math.round(value)}%`;
+}
+
+function memberLabel(member: Pick<ClassroomMember, "name" | "email" | "userId">) {
+  return member.name ?? member.email ?? member.userId;
+}
+
+function assignmentSummary(assignment: ClassroomAnalytics["perAssignment"][number]) {
+  const quizSummary =
+    assignment.averageQuizScore == null
+      ? ""
+      : ` · quiz ${pct(assignment.averageQuizScore)}`;
+
+  return `${assignment.completed}/${assignment.assigned} done · ${pct(
+    assignment.completionRate,
+  )}${quizSummary}`;
+}
+
+function studentSummary(student: ClassroomAnalytics["perStudent"][number]) {
+  const quizSummary =
+    student.averageQuizScore == null
+      ? ""
+      : ` · quiz ${pct(student.averageQuizScore)}`;
+
+  return `${student.completed}/${student.total} · ${pct(
+    student.completionRate,
+  )}${quizSummary}`;
+}
+
+function AnalyticsSummary({ analytics }: { analytics: ClassroomAnalytics }) {
+  return (
+    <section className="mb-[var(--space-6)] grid grid-cols-2 gap-[var(--space-3)] md:grid-cols-4">
+      <StatCard label="Students" value={analytics.studentCount} />
+      <StatCard label="Assignments" value={analytics.assignmentCount} />
+      <StatCard label="Completion" value={pct(analytics.completionRate)} />
+      <StatCard
+        label="Avg. quiz"
+        value={
+          analytics.averageQuizScore == null
+            ? "—"
+            : pct(analytics.averageQuizScore)
+        }
+      />
+    </section>
+  );
+}
+
+function AssignmentsCard({
+  analytics,
+}: {
+  analytics: ClassroomAnalytics | null;
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Assignments</CardTitle>
+      </CardHeader>
+      <CardBody>
+        {!analytics || analytics.perAssignment.length === 0 ? (
+          <p className="text-[length:var(--text-sm)] text-text-muted">
+            No assignments yet.
+          </p>
+        ) : (
+          <ul className="flex flex-col gap-[var(--space-3)]">
+            {analytics.perAssignment.map((assignment) => (
+              <li
+                key={assignment.assignmentId}
+                className="flex items-center justify-between gap-[var(--space-3)] border-b border-border pb-[var(--space-2)] last:border-0"
+              >
+                <span className="font-medium text-text">
+                  {assignment.articleTitle}
+                </span>
+                <span className="text-[length:var(--text-sm)] text-text-muted">
+                  {assignmentSummary(assignment)}
+                </span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function StudentProgressCard({
+  analytics,
+}: {
+  analytics: ClassroomAnalytics | null;
+}) {
+  if (analytics && !analytics.redacted) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Student progress</CardTitle>
+        </CardHeader>
+        <CardBody>
+          {analytics.perStudent.length === 0 ? (
+            <p className="text-[length:var(--text-sm)] text-text-muted">
+              No students enrolled yet.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-[var(--space-2)]">
+              {analytics.perStudent.map((student) => (
+                <li
+                  key={student.studentId}
+                  className="flex items-center justify-between gap-[var(--space-3)]"
+                >
+                  <span className="text-text">
+                    {student.name ?? student.email ?? student.studentId}
+                  </span>
+                  <span className="text-[length:var(--text-sm)] text-text-muted">
+                    {studentSummary(student)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardBody>
+        <p className="text-[length:var(--text-sm)] text-text-muted">
+          Individual student data is hidden in the aggregate view to protect
+          learner privacy.
+        </p>
+      </CardBody>
+    </Card>
+  );
+}
+
+function TeacherSidebar({
+  classroomId,
+  canManage,
+  students,
+}: {
+  classroomId: string;
+  canManage: boolean;
+  students: ClassroomMember[];
+}) {
+  return (
+    <aside className="flex flex-col gap-[var(--space-6)]">
+      {canManage ? (
+        <>
+          <Card>
+            <CardHeader>
+              <CardTitle>Assign a reading</CardTitle>
+            </CardHeader>
+            <CardBody>
+              <AssignArticleForm classroomId={classroomId} />
+            </CardBody>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Roster ({students.length})</CardTitle>
+            </CardHeader>
+            <CardBody className="flex flex-col gap-[var(--space-4)]">
+              <AddStudentForm classroomId={classroomId} />
+              {students.length > 0 ? (
+                <ul className="flex flex-col gap-[var(--space-1)]">
+                  {students.map((student) => (
+                    <li
+                      key={student.userId}
+                      className="text-[length:var(--text-sm)] text-text-muted"
+                    >
+                      {memberLabel(student)}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </CardBody>
+          </Card>
+        </>
+      ) : null}
+    </aside>
+  );
 }
 
 /**
@@ -73,122 +256,15 @@ export default async function ClassroomDetailPage({
         }
       />
 
-      {analytics ? (
-        <section className="mb-[var(--space-6)] grid grid-cols-2 gap-[var(--space-3)] md:grid-cols-4">
-          <StatCard label="Students" value={analytics.studentCount} />
-          <StatCard label="Assignments" value={analytics.assignmentCount} />
-          <StatCard label="Completion" value={pct(analytics.completionRate)} />
-          <StatCard
-            label="Avg. quiz"
-            value={analytics.averageQuizScore == null ? "—" : pct(analytics.averageQuizScore)}
-          />
-        </section>
-      ) : null}
+      {analytics ? <AnalyticsSummary analytics={analytics} /> : null}
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-[var(--space-6)]">
-          <Card>
-            <CardHeader>
-              <CardTitle>Assignments</CardTitle>
-            </CardHeader>
-            <CardBody>
-              {!analytics || analytics.perAssignment.length === 0 ? (
-                <p className="text-[length:var(--text-sm)] text-text-muted">
-                  No assignments yet.
-                </p>
-              ) : (
-                <ul className="flex flex-col gap-[var(--space-3)]">
-                  {analytics.perAssignment.map((a) => (
-                    <li
-                      key={a.assignmentId}
-                      className="flex items-center justify-between gap-[var(--space-3)] border-b border-border pb-[var(--space-2)] last:border-0"
-                    >
-                      <span className="font-medium text-text">{a.articleTitle}</span>
-                      <span className="text-[length:var(--text-sm)] text-text-muted">
-                        {a.completed}/{a.assigned} done · {pct(a.completionRate)}
-                        {a.averageQuizScore == null ? "" : ` · quiz ${pct(a.averageQuizScore)}`}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardBody>
-          </Card>
-
-          {analytics && !analytics.redacted ? (
-            <Card>
-              <CardHeader>
-                <CardTitle>Student progress</CardTitle>
-              </CardHeader>
-              <CardBody>
-                {analytics.perStudent.length === 0 ? (
-                  <p className="text-[length:var(--text-sm)] text-text-muted">
-                    No students enrolled yet.
-                  </p>
-                ) : (
-                  <ul className="flex flex-col gap-[var(--space-2)]">
-                    {analytics.perStudent.map((s) => (
-                      <li
-                        key={s.studentId}
-                        className="flex items-center justify-between gap-[var(--space-3)]"
-                      >
-                        <span className="text-text">{s.name ?? s.email ?? s.studentId}</span>
-                        <span className="text-[length:var(--text-sm)] text-text-muted">
-                          {s.completed}/{s.total} · {pct(s.completionRate)}
-                          {s.averageQuizScore == null ? "" : ` · quiz ${pct(s.averageQuizScore)}`}
-                        </span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </CardBody>
-            </Card>
-          ) : (
-            <Card>
-              <CardBody>
-                <p className="text-[length:var(--text-sm)] text-text-muted">
-                  Individual student data is hidden in the aggregate view to protect
-                  learner privacy.
-                </p>
-              </CardBody>
-            </Card>
-          )}
+          <AssignmentsCard analytics={analytics} />
+          <StudentProgressCard analytics={analytics} />
         </div>
 
-        <aside className="flex flex-col gap-[var(--space-6)]">
-          {canManage ? (
-            <>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Assign a reading</CardTitle>
-                </CardHeader>
-                <CardBody>
-                  <AssignArticleForm classroomId={id} />
-                </CardBody>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle>Roster ({students.length})</CardTitle>
-                </CardHeader>
-                <CardBody className="flex flex-col gap-[var(--space-4)]">
-                  <AddStudentForm classroomId={id} />
-                  {students.length > 0 ? (
-                    <ul className="flex flex-col gap-[var(--space-1)]">
-                      {students.map((s) => (
-                        <li
-                          key={s.userId}
-                          className="text-[length:var(--text-sm)] text-text-muted"
-                        >
-                          {s.name ?? s.email ?? s.userId}
-                        </li>
-                      ))}
-                    </ul>
-                  ) : null}
-                </CardBody>
-              </Card>
-            </>
-          ) : null}
-        </aside>
+        <TeacherSidebar classroomId={id} canManage={canManage} students={students} />
       </div>
     </PageShell>
   );

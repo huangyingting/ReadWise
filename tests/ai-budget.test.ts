@@ -33,6 +33,18 @@ function zeroAggregate() {
   };
 }
 
+function resetGroupByResults(): void {
+  groupByResults.feature = [];
+  groupByResults.model = [];
+  groupByResults.status = [];
+}
+
+function clearAiQuotaEnv(): void {
+  for (const key of Object.keys(process.env)) {
+    if (key.startsWith("AI_QUOTA_")) delete process.env[key];
+  }
+}
+
 before(() => {
   aggregateResult = zeroAggregate();
   mock.module("@/lib/api-auth", {
@@ -63,15 +75,11 @@ before(() => {
 beforeEach(async () => {
   countResult = 0;
   aggregateResult = zeroAggregate();
-  groupByResults.feature = [];
-  groupByResults.model = [];
-  groupByResults.status = [];
+  resetGroupByResults();
   adminAuth = async () => ({ session: { user: { id: "admin-1", role: "Admin" } } });
   disableAi();
   // Clear all AI_QUOTA_* knobs so each test starts with quotas disabled.
-  for (const key of Object.keys(process.env)) {
-    if (key.startsWith("AI_QUOTA_")) delete process.env[key];
-  }
+  clearAiQuotaEnv();
   const { resetAiBudget } = await import("@/lib/ai/budget");
   resetAiBudget();
 });

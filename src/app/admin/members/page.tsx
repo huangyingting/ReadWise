@@ -23,6 +23,14 @@ type SearchParams = {
   page?: string;
 };
 
+type Member = Awaited<ReturnType<typeof listMembers>>["members"][number];
+
+const ROLE_OPTIONS = ["Admin", "Reader"] as const;
+
+function parsePage(value: string | undefined): number {
+  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
+}
+
 function buildHref(params: { q: string; role: string; page: number }): string {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
@@ -30,6 +38,128 @@ function buildHref(params: { q: string; role: string; page: number }): string {
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/members?${qs}` : "/admin/members";
+}
+
+function MemberIdentity({
+  member,
+  isSelf,
+}: {
+  member: Member;
+  isSelf: boolean;
+}) {
+  return (
+    <div className="admin-member-cell">
+      <Avatar
+        src={member.image}
+        name={member.name ?? member.email}
+        size={32}
+        className="admin-member-avatar"
+      />
+      <span className="admin-member-name">
+        <span>
+          <Link href={`/admin/members/${member.id}`}>
+            {member.name ?? "—"}
+          </Link>
+          {isSelf && (
+            <Badge
+              variant="neutral"
+              className="ml-[var(--space-1)]"
+            >
+              You
+            </Badge>
+          )}
+        </span>
+        <span className="muted">{member.email ?? "no email"}</span>
+      </span>
+    </div>
+  );
+}
+
+function MemberRoleBadge({ role }: { role: Member["role"] }) {
+  return (
+    <Badge variant={role === "Admin" ? "primary" : "neutral"}>
+      {role}
+    </Badge>
+  );
+}
+
+function MemberActivity({ member }: { member: Member }) {
+  return (
+    <>
+      {member.articlesStarted} started · {member.articlesCompleted} done ·{" "}
+      {member.savedWords} words
+    </>
+  );
+}
+
+function MemberManagementActions({
+  member,
+  isSelf,
+}: {
+  member: Member;
+  isSelf: boolean;
+}) {
+  return (
+    <div className="flex flex-col gap-[var(--space-1)] items-start">
+      <Link
+        className="text-[length:var(--text-sm)]"
+        href={`/admin/members/${member.id}`}
+      >
+        View &amp; support →
+      </Link>
+      <AdminMemberActions
+        memberId={member.id}
+        role={member.role}
+        isSelf={isSelf}
+      />
+    </div>
+  );
+}
+
+function MembersTable({
+  members,
+  currentUserId,
+}: {
+  members: Member[];
+  currentUserId: string;
+}) {
+  if (members.length === 0) return null;
+
+  return (
+    <AdminTableWrap ariaLabel="Members table (scrollable)">
+      <thead>
+        <tr>
+          <th>Member</th>
+          <th>Role</th>
+          <th>Joined</th>
+          <th>Activity</th>
+          <th>Manage</th>
+        </tr>
+      </thead>
+      <tbody>
+        {members.map((member) => {
+          const isSelf = member.id === currentUserId;
+          return (
+            <tr key={member.id}>
+              <td>
+                <MemberIdentity member={member} isSelf={isSelf} />
+              </td>
+              <td>
+                <MemberRoleBadge role={member.role} />
+              </td>
+              <td className="muted">{formatShortDate(member.createdAt)}</td>
+              <td className="muted">
+                <MemberActivity member={member} />
+              </td>
+              <td>
+                <MemberManagementActions member={member} isSelf={isSelf} />
+              </td>
+            </tr>
+          );
+        })}
+      </tbody>
+    </AdminTableWrap>
+  );
 }
 
 export default async function AdminMembersPage({
@@ -42,7 +172,7 @@ export default async function AdminMembersPage({
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
   const role = (sp.role ?? "").trim();
-  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePage(sp.page);
 
   const result = await listMembers({ query, role, page });
 
@@ -69,8 +199,11 @@ export default async function AdminMembersPage({
             aria-label="Filter by role"
           >
             <option value="">All roles</option>
-            <option value="Admin">Admin</option>
-            <option value="Reader">Reader</option>
+            {ROLE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </Select>
         </div>
         <Button type="submit" variant="primary" size="md" className="w-auto">
@@ -85,81 +218,7 @@ export default async function AdminMembersPage({
         noun="members"
       />
 
-      {result.members.length > 0 && (
-        <AdminTableWrap ariaLabel="Members table (scrollable)">
-          <thead>
-            <tr>
-              <th>Member</th>
-              <th>Role</th>
-              <th>Joined</th>
-              <th>Activity</th>
-              <th>Manage</th>
-            </tr>
-          </thead>
-          <tbody>
-            {result.members.map((m) => {
-              const isSelf = m.id === session.user.id;
-              return (
-                <tr key={m.id}>
-                  <td>
-                    <div className="admin-member-cell">
-                      <Avatar
-                        src={m.image}
-                        name={m.name ?? m.email}
-                        size={32}
-                        className="admin-member-avatar"
-                      />
-                      <span className="admin-member-name">
-                        <span>
-                          <Link href={`/admin/members/${m.id}`}>
-                            {m.name ?? "—"}
-                          </Link>
-                          {isSelf && (
-                            <Badge
-                              variant="neutral"
-                              className="ml-[var(--space-1)]"
-                            >
-                              You
-                            </Badge>
-                          )}
-                        </span>
-                        <span className="muted">{m.email ?? "no email"}</span>
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <Badge
-                      variant={m.role === "Admin" ? "primary" : "neutral"}
-                    >
-                      {m.role}
-                    </Badge>
-                  </td>
-                  <td className="muted">{formatShortDate(m.createdAt)}</td>
-                  <td className="muted">
-                    {m.articlesStarted} started · {m.articlesCompleted} done ·{" "}
-                    {m.savedWords} words
-                  </td>
-                  <td>
-                    <div className="flex flex-col gap-[var(--space-1)] items-start">
-                      <Link
-                        className="text-[length:var(--text-sm)]"
-                        href={`/admin/members/${m.id}`}
-                      >
-                        View &amp; support →
-                      </Link>
-                      <AdminMemberActions
-                        memberId={m.id}
-                        role={m.role}
-                        isSelf={isSelf}
-                      />
-                    </div>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </AdminTableWrap>
-      )}
+      <MembersTable members={result.members} currentUserId={session.user.id} />
 
       <AdminPagination
         page={result.page}

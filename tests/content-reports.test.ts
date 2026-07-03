@@ -30,6 +30,21 @@ let mockArticle: MockArticle = null;
 let mockReports: MockReport[] = [];
 let mockFindFirst: MockReport | null = null;
 
+function makeReport(overrides: Partial<MockReport> = {}): MockReport {
+  return {
+    id: "r1",
+    reporterUserId: "u1",
+    articleId: "article-1",
+    reason: ContentReportReason.UNSAFE_CONTENT,
+    note: null,
+    status: ContentReportStatus.OPEN,
+    createdAt: new Date(),
+    resolvedAt: null,
+    resolvedBy: null,
+    ...overrides,
+  };
+}
+
 before(() => {
   const article = {
     findUnique: async (args: { where: { id: string }; select?: Record<string, boolean> }) => {
@@ -171,17 +186,10 @@ test("createContentReport — returns 404 when article not found", async () => {
 
 test("createContentReport — deduplicates within 1-hour window (returns 429)", async () => {
   const { createContentReport } = await import("@/lib/moderation/reports");
-  mockFindFirst = {
+  mockFindFirst = makeReport({
     id: "existing-report",
     reporterUserId: "user-1",
-    articleId: "article-1",
-    reason: ContentReportReason.UNSAFE_CONTENT,
-    note: null,
-    status: ContentReportStatus.OPEN,
-    createdAt: new Date(),
-    resolvedAt: null,
-    resolvedBy: null,
-  };
+  });
   const result = await createContentReport({
     reporterUserId: "user-1",
     articleId: "article-1",
@@ -209,28 +217,15 @@ test("createContentReport — rejects invalid reason", async () => {
 test("listContentReports — returns open reports by default", async () => {
   const { listContentReports } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
-      id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
-      reason: ContentReportReason.UNSAFE_CONTENT,
-      note: null,
-      status: ContentReportStatus.OPEN,
-      createdAt: new Date(),
-      resolvedAt: null,
-      resolvedBy: null,
-    },
-    {
+    makeReport({ id: "r1" }),
+    makeReport({
       id: "r2",
       reporterUserId: "u2",
-      articleId: "article-1",
       reason: ContentReportReason.WRONG_LEVEL,
-      note: null,
       status: ContentReportStatus.RESOLVED,
-      createdAt: new Date(),
       resolvedAt: new Date(),
       resolvedBy: "admin-1",
-    },
+    }),
   ];
   const result = await listContentReports();
   assert.equal(result.reports.length, 1);
@@ -241,17 +236,12 @@ test("listContentReports — returns open reports by default", async () => {
 test("listContentReports — filters by status", async () => {
   const { listContentReports } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
+    makeReport({
       id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
-      reason: ContentReportReason.UNSAFE_CONTENT,
-      note: null,
       status: ContentReportStatus.RESOLVED,
-      createdAt: new Date(),
       resolvedAt: new Date(),
       resolvedBy: "admin-1",
-    },
+    }),
   ];
   const result = await listContentReports({ status: ContentReportStatus.RESOLVED });
   assert.equal(result.reports.length, 1);
@@ -261,17 +251,10 @@ test("listContentReports — filters by status", async () => {
 test("listContentReports — returns articleTitle from joined article", async () => {
   const { listContentReports } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
+    makeReport({
       id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
       reason: ContentReportReason.OTHER,
-      note: null,
-      status: ContentReportStatus.OPEN,
-      createdAt: new Date(),
-      resolvedAt: null,
-      resolvedBy: null,
-    },
+    }),
   ];
   const result = await listContentReports();
   assert.equal(result.reports[0].articleTitle, "Test Article");
@@ -284,17 +267,7 @@ test("listContentReports — returns articleTitle from joined article", async ()
 test("updateReportStatus — resolves an open report", async () => {
   const { updateReportStatus } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
-      id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
-      reason: ContentReportReason.UNSAFE_CONTENT,
-      note: null,
-      status: ContentReportStatus.OPEN,
-      createdAt: new Date(),
-      resolvedAt: null,
-      resolvedBy: null,
-    },
+    makeReport({ id: "r1" }),
   ];
   const result = await updateReportStatus({
     reportId: "r1",
@@ -308,17 +281,10 @@ test("updateReportStatus — resolves an open report", async () => {
 test("updateReportStatus — dismisses a report", async () => {
   const { updateReportStatus } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
+    makeReport({
       id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
       reason: ContentReportReason.INACCURATE_AI,
-      note: null,
-      status: ContentReportStatus.OPEN,
-      createdAt: new Date(),
-      resolvedAt: null,
-      resolvedBy: null,
-    },
+    }),
   ];
   const result = await updateReportStatus({
     reportId: "r1",
@@ -343,17 +309,10 @@ test("updateReportStatus — returns 404 for unknown report", async () => {
 test("updateReportStatus — rejects invalid status", async () => {
   const { updateReportStatus } = await import("@/lib/moderation/reports");
   mockReports = [
-    {
+    makeReport({
       id: "r1",
-      reporterUserId: "u1",
-      articleId: "article-1",
       reason: ContentReportReason.OTHER,
-      note: null,
-      status: ContentReportStatus.OPEN,
-      createdAt: new Date(),
-      resolvedAt: null,
-      resolvedBy: null,
-    },
+    }),
   ];
   const result = await updateReportStatus({
     reportId: "r1",

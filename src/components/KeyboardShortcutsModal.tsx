@@ -7,6 +7,12 @@ import { cn } from "@/lib/cn";
 import { SHORTCUT_GROUPS, type ShortcutGroup } from "@/lib/keyboard-shortcuts";
 import { useFocusTrap } from "@/lib/focus-trap";
 
+const SHORTCUTS_TITLE_ID = "ks-title";
+const backdropStyle = {
+  backgroundColor: "var(--overlay)",
+  backdropFilter: "blur(2px)",
+};
+
 // ---------------------------------------------------------------------------
 // Internal sub-components
 // ---------------------------------------------------------------------------
@@ -14,9 +20,9 @@ import { useFocusTrap } from "@/lib/focus-trap";
 function KbdList({ keys }: { keys: string[] }) {
   return (
     <span className="inline-flex items-center gap-[var(--space-1)] shrink-0">
-      {keys.map((k, i) => (
-        <kbd key={i} className="kbd">
-          {k}
+      {keys.map((key, index) => (
+        <kbd key={`${key}-${index}`} className="kbd">
+          {key}
         </kbd>
       ))}
     </span>
@@ -39,10 +45,12 @@ function ShortcutRow({
 }
 
 function ShortcutSection({ group }: { group: ShortcutGroup }) {
+  const titleId = `ks-${group.label}`;
+
   return (
-    <section aria-labelledby={`ks-${group.label}`}>
+    <section aria-labelledby={titleId}>
       <h3
-        id={`ks-${group.label}`}
+        id={titleId}
         className="text-[length:var(--text-xs)] font-semibold uppercase tracking-widest text-text-subtle mb-[var(--space-2)]"
       >
         {group.label}
@@ -93,7 +101,7 @@ export default function KeyboardShortcutsModal({
     /* Backdrop */
     <div
       className="fixed inset-0 z-[var(--z-top)] flex items-center justify-center p-[var(--space-4)]"
-      style={{ backgroundColor: "var(--overlay)", backdropFilter: "blur(2px)" }}
+      style={backdropStyle}
       onMouseDown={(e) => {
         // Close on backdrop click (but not on dialog click)
         if (e.target === e.currentTarget) onClose();
@@ -104,7 +112,7 @@ export default function KeyboardShortcutsModal({
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
-        aria-labelledby="ks-title"
+        aria-labelledby={SHORTCUTS_TITLE_ID}
         className={cn(
           "relative w-full max-w-lg max-h-[90dvh] overflow-y-auto",
           "rounded-[var(--radius-lg)] border border-border bg-surface-raised",
@@ -118,7 +126,7 @@ export default function KeyboardShortcutsModal({
           <div className="flex items-center gap-[var(--space-3)]">
             <Keyboard size={20} className="text-text-subtle" aria-hidden />
             <h2
-              id="ks-title"
+              id={SHORTCUTS_TITLE_ID}
               className="font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-xl)] text-text"
             >
               Keyboard shortcuts

@@ -7,7 +7,13 @@ import { cn, focusRing } from "@/lib/cn";
 import { setReaderReferrer } from "@/lib/reader-referrer";
 import { EmptyState, IconButton, Input, Spinner } from "@/components/ui";
 import type { ShellUser } from "@/components/shell/types";
-import type { SelectableItem } from "./command-items";
+import type {
+  ActionSelectable,
+  ArticleSelectable,
+  MoreSelectable,
+  PageSelectable,
+  SelectableItem,
+} from "./command-items";
 import { useCommandPaletteSearch } from "./useCommandPaletteSearch";
 import { useCommandNavigation } from "./useCommandNavigation";
 import { useCommandPaletteDialog } from "./useCommandPaletteDialog";
@@ -24,6 +30,25 @@ export interface CommandPaletteProps {
   user: ShellUser | null;
   onClose: () => void;
   openerRef: React.RefObject<HTMLElement | null>;
+}
+
+function getResultAnnouncement({
+  articlesCount,
+  pagesCount,
+  total,
+}: {
+  articlesCount: number;
+  pagesCount: number;
+  total: number;
+}): string {
+  if (total === 0) return "No results";
+
+  const parts: string[] = [];
+  if (articlesCount)
+    parts.push(`${articlesCount} article${articlesCount !== 1 ? "s" : ""}`);
+  if (pagesCount)
+    parts.push(`${pagesCount} page${pagesCount !== 1 ? "s" : ""}`);
+  return parts.join(", ");
 }
 
 // ---- Main component ------------------------------------------------------
@@ -120,21 +145,130 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
     const timer = setTimeout(() => {
       const total =
         filteredPages.length + filteredActions.length + articles.length;
-      if (total === 0) {
-        setAnnouncement("No results");
-      } else {
-        const parts: string[] = [];
-        if (articles.length)
-          parts.push(`${articles.length} article${articles.length !== 1 ? "s" : ""}`);
-        if (filteredPages.length)
-          parts.push(`${filteredPages.length} page${filteredPages.length !== 1 ? "s" : ""}`);
-        setAnnouncement(parts.join(", "));
-      }
+      setAnnouncement(
+        getResultAnnouncement({
+          articlesCount: articles.length,
+          pagesCount: filteredPages.length,
+          total,
+        }),
+      );
     }, 350);
     return () => clearTimeout(timer);
   }, [status, trimmedQuery, filteredPages.length, filteredActions.length, articles.length]);
 
   const activeItem = selectableItems[activeIndex] ?? null;
+  const rowStateFor = (ariaId: string) => {
+    const idx = ariaIdToIndex.get(ariaId) ?? -1;
+    return { idx, isActive: idx === activeIndex };
+  };
+  const moveActiveTo = (idx: number) => {
+    if (idx !== -1) setActiveIndex(idx);
+  };
+
+  const renderPageOrActionRow = (
+    item: PageSelectable | ActionSelectable,
+    showArrow = false,
+  ) => {
+    const { idx, isActive } = rowStateFor(item.ariaId);
+    const Icon = item.icon;
+    return (
+      <OptionRow
+        key={item.ariaId}
+        item={item}
+        isActive={isActive}
+        onActivate={() => activateItem(item)}
+        onHover={() => moveActiveTo(idx)}
+      >
+        <Icon
+          size={20}
+          aria-hidden
+          className={cn(
+            "shrink-0 text-text-subtle",
+            isActive && "text-primary-text",
+          )}
+        />
+        <span
+          className={cn(
+            "flex-1 truncate text-[length:var(--text-sm)] text-text",
+            isActive && "text-primary-text",
+          )}
+        >
+          {item.label}
+        </span>
+        {showArrow && (
+          <span
+            className={cn(
+              "shrink-0 text-[length:var(--text-xs)] text-text-subtle",
+              isActive && "text-primary-text",
+            )}
+            aria-hidden
+          >
+            →
+          </span>
+        )}
+      </OptionRow>
+    );
+  };
+
+  const renderArticleRow = (item: ArticleSelectable) => {
+    const { idx, isActive } = rowStateFor(item.ariaId);
+    return (
+      <OptionRow
+        key={item.ariaId}
+        item={item}
+        isActive={isActive}
+        onActivate={() => activateItem(item)}
+        onHover={() => moveActiveTo(idx)}
+      >
+        <FileText
+          size={20}
+          aria-hidden
+          className={cn(
+            "shrink-0 text-text-subtle",
+            isActive && "text-primary-text",
+          )}
+        />
+        <span
+          className={cn(
+            "flex-1 truncate text-[length:var(--text-sm)] text-text",
+            isActive && "text-primary-text",
+          )}
+        >
+          {item.article.title}
+        </span>
+        <ArticleMeta article={item.article} />
+      </OptionRow>
+    );
+  };
+
+  const renderMoreRow = (item: MoreSelectable) => {
+    const { idx, isActive } = rowStateFor(item.ariaId);
+    return (
+      <OptionRow
+        item={item}
+        isActive={isActive}
+        onActivate={() => activateItem(item)}
+        onHover={() => moveActiveTo(idx)}
+      >
+        <Search
+          size={20}
+          aria-hidden
+          className={cn(
+            "shrink-0 text-text-subtle",
+            isActive && "text-primary-text",
+          )}
+        />
+        <span
+          className={cn(
+            "flex-1 text-[length:var(--text-sm)] text-text-muted",
+            isActive && "text-primary-text",
+          )}
+        >
+          Show more results
+        </span>
+      </OptionRow>
+    );
+  };
 
   // ---- Render ----------------------------------------------------------
   return (
@@ -243,45 +377,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
             {/* Pages group */}
             {filteredPages.length > 0 && (
               <CommandGroup id="cmdk-grp-pages" label="Pages" hasBorderTop={false}>
-                {filteredPages.map((item) => {
-                    const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
-                    const isActive = idx === activeIndex;
-                    return (
-                      <OptionRow
-                        key={item.ariaId}
-                        item={item}
-                        isActive={isActive}
-                        onActivate={() => activateItem(item)}
-                        onHover={() => { if (idx !== -1) setActiveIndex(idx); }}
-                      >
-                        <item.icon
-                          size={20}
-                          aria-hidden
-                          className={cn(
-                            "shrink-0 text-text-subtle",
-                            isActive && "text-primary-text",
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "flex-1 truncate text-[length:var(--text-sm)] text-text",
-                            isActive && "text-primary-text",
-                          )}
-                        >
-                          {item.label}
-                        </span>
-                        <span
-                          className={cn(
-                            "shrink-0 text-[length:var(--text-xs)] text-text-subtle",
-                            isActive && "text-primary-text",
-                          )}
-                          aria-hidden
-                        >
-                          →
-                        </span>
-                      </OptionRow>
-                    );
-                  })}
+                {filteredPages.map((item) => renderPageOrActionRow(item, true))}
               </CommandGroup>
             )}
 
@@ -292,36 +388,7 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                 label="Actions"
                 hasBorderTop={filteredPages.length > 0}
               >
-                {filteredActions.map((item) => {
-                    const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
-                    const isActive = idx === activeIndex;
-                    return (
-                      <OptionRow
-                        key={item.ariaId}
-                        item={item}
-                        isActive={isActive}
-                        onActivate={() => activateItem(item)}
-                        onHover={() => { if (idx !== -1) setActiveIndex(idx); }}
-                      >
-                        <item.icon
-                          size={20}
-                          aria-hidden
-                          className={cn(
-                            "shrink-0 text-text-subtle",
-                            isActive && "text-primary-text",
-                          )}
-                        />
-                        <span
-                          className={cn(
-                            "flex-1 truncate text-[length:var(--text-sm)] text-text",
-                            isActive && "text-primary-text",
-                          )}
-                        >
-                          {item.label}
-                        </span>
-                      </OptionRow>
-                    );
-                  })}
+                {filteredActions.map((item) => renderPageOrActionRow(item))}
               </CommandGroup>
             )}
 
@@ -366,70 +433,10 @@ export default function CommandPalette({ user, onClose, openerRef }: CommandPale
                   )}
 
                   {/* Article rows (fresh or stale during refinement) */}
-                  {!isFirstLoad &&
-                    articleSelectables.map((item) => {
-                      const idx = ariaIdToIndex.get(item.ariaId) ?? -1;
-                      const isActive = idx === activeIndex;
-                      return (
-                        <OptionRow
-                          key={item.ariaId}
-                          item={item}
-                          isActive={isActive}
-                          onActivate={() => activateItem(item)}
-                          onHover={() => { if (idx !== -1) setActiveIndex(idx); }}
-                        >
-                          <FileText
-                            size={20}
-                            aria-hidden
-                            className={cn(
-                              "shrink-0 text-text-subtle",
-                              isActive && "text-primary-text",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "flex-1 truncate text-[length:var(--text-sm)] text-text",
-                              isActive && "text-primary-text",
-                            )}
-                          >
-                            {item.article.title}
-                          </span>
-                          <ArticleMeta article={item.article} />
-                        </OptionRow>
-                      );
-                    })}
+                  {!isFirstLoad && articleSelectables.map(renderArticleRow)}
 
                   {/* "Show more results" row */}
-                  {moreSelectable &&
-                    (() => {
-                      const idx = ariaIdToIndex.get(moreSelectable.ariaId) ?? -1;
-                      const isActive = idx === activeIndex;
-                      return (
-                        <OptionRow
-                          item={moreSelectable}
-                          isActive={isActive}
-                          onActivate={() => activateItem(moreSelectable)}
-                          onHover={() => { if (idx !== -1) setActiveIndex(idx); }}
-                        >
-                          <Search
-                            size={20}
-                            aria-hidden
-                            className={cn(
-                              "shrink-0 text-text-subtle",
-                              isActive && "text-primary-text",
-                            )}
-                          />
-                          <span
-                            className={cn(
-                              "flex-1 text-[length:var(--text-sm)] text-text-muted",
-                              isActive && "text-primary-text",
-                            )}
-                          >
-                            Show more results
-                          </span>
-                        </OptionRow>
-                      );
-                    })()}
+                  {moreSelectable && renderMoreRow(moreSelectable)}
               </CommandGroup>
             )}
           </ul>

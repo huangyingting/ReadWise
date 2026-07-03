@@ -347,6 +347,19 @@ class LastAdminError extends Error {
   }
 }
 
+async function purgeOwnedAssetKeys(
+  ownedAssetKeys: Array<{ storageKey: string }>,
+): Promise<void> {
+  if (ownedAssetKeys.length === 0) return;
+
+  const storage = getMediaStorage();
+  if (!storage) return;
+
+  await Promise.allSettled(
+    ownedAssetKeys.map(({ storageKey }) => storage.delete(storageKey)),
+  );
+}
+
 export async function deleteOwnAccount(
   userId: string,
   audit?: AuditRequestInput,
@@ -406,14 +419,7 @@ export async function deleteOwnAccount(
 
   // Best-effort object-storage purge — do not fail the deletion if the storage
   // backend is down or unconfigured (DB-only mode returns null).
-  if (ownedAssetKeys.length > 0) {
-    const storage = getMediaStorage();
-    if (storage) {
-      await Promise.allSettled(
-        ownedAssetKeys.map(({ storageKey }) => storage.delete(storageKey)),
-      );
-    }
-  }
+  await purgeOwnedAssetKeys(ownedAssetKeys);
 
   return { ok: true };
 }

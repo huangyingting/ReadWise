@@ -32,6 +32,31 @@ export type WorkerLoopDeps = {
   sleep?: typeof sleep;
 };
 
+function initialStats(): JobWorkerStats {
+  return {
+    polls: 0,
+    claimed: 0,
+    completed: 0,
+    failed: 0,
+    retried: 0,
+    deadLettered: 0,
+    stoppedBySignal: false,
+  };
+}
+
+function recordFailureStats(stats: JobWorkerStats, deadLettered: boolean): void {
+  stats.failed++;
+  if (deadLettered) {
+    stats.deadLettered++;
+  } else {
+    stats.retried++;
+  }
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 /**
  * Core runtime loop: claims, starts, dispatches, completes, and fails jobs
  * until the queue is drained or the signal fires. The loop knows nothing about
@@ -52,15 +77,7 @@ export async function runWorkerLoop(
   const failFn = deps.failJob ?? failJob;
   const sleepFn = deps.sleep ?? sleep;
 
-  const stats: JobWorkerStats = {
-    polls: 0,
-    claimed: 0,
-    completed: 0,
-    failed: 0,
-    retried: 0,
-    deadLettered: 0,
-    stoppedBySignal: false,
-  };
+  const stats = initialStats();
 
   try {
     for (;;) {
@@ -111,13 +128,8 @@ export async function runWorkerLoop(
           break;
         }
         const updated = await failFn(job.id, err);
-        stats.failed++;
         const deadLettered = updated?.status === JobStatus.DEAD_LETTER;
-        if (deadLettered) {
-          stats.deadLettered++;
-        } else {
-          stats.retried++;
-        }
+        recordFailureStats(stats, deadLettered);
         recordWorkerJob({ outcome: "failed", attempts, durationMs: Date.now() - startedAt });
         captureError(err, {
           source: "worker",
@@ -128,7 +140,7 @@ export async function runWorkerLoop(
           jobId: job.id,
           type: job.type,
           deadLettered,
-          error: err instanceof Error ? err.message : String(err),
+          error: errorMessage(err),
         });
       }
     }
@@ -137,7 +149,7 @@ export async function runWorkerLoop(
       stats.stoppedBySignal = true;
     } else {
       logger.error("job worker loop crashed", {
-        error: err instanceof Error ? err.message : String(err),
+        error: errorMessage(err),
       });
       throw err;
     }

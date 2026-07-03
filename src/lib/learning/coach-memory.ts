@@ -157,6 +157,28 @@ function computeTrend(prev: number | null, next: number): CoachMemoryTrend {
   return "stable";
 }
 
+function nextCoachMemoryData(
+  existing: { confidence: number; evidenceCount: number } | null,
+  observed: number,
+  observedAt: Date,
+) {
+  const prevConfidence = existing ? existing.confidence : null;
+  const confidence = existing
+    ? clamp01(existing.confidence * (1 - BLEND_ALPHA) + observed * BLEND_ALPHA)
+    : observed;
+  const evidenceCount = Math.min(
+    EVIDENCE_COUNT_CAP,
+    (existing?.evidenceCount ?? 0) + 1,
+  );
+
+  return {
+    confidence,
+    evidenceCount,
+    trend: computeTrend(prevConfidence, confidence),
+    lastObservedAt: observedAt,
+  };
+}
+
 /** True when an entry has not been refreshed within {@link STALE_AFTER_DAYS}. */
 export function isStale(lastObservedAt: Date, now: Date = new Date()): boolean {
   return now.getTime() - lastObservedAt.getTime() > STALE_AFTER_DAYS * MS_PER_DAY;
@@ -180,6 +202,29 @@ export function effectiveConfidence(
 /** Rough token estimate (~4 chars/token) for bounding the summary string. */
 function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4);
+}
+
+type RankedCoachMemory = {
+  r: CoachMemoryRecord;
+  weakness: number;
+};
+
+function rankCoachMemoryRows(
+  rows: CoachMemoryRecord[],
+  now: Date,
+): RankedCoachMemory[] {
+  return rows
+    .map((r) => ({
+      r,
+      // Higher weakness = weaker = ranked first. Stale entries weigh less.
+      weakness: 1 - effectiveConfidence(r.confidence, r.lastObservedAt, now),
+    }))
+    .sort((a, b) => b.weakness - a.weakness)
+    .slice(0, MAX_TUTOR_CONTEXT_LINES);
+}
+
+function tutorContextLine(r: CoachMemoryRecord): string {
+  return `- ${r.skill}: confidence ${r.confidence.toFixed(2)} (${r.trend}, ${r.evidenceCount} observations)`;
 }
 
 // ---------------------------------------------------------------------------
@@ -215,17 +260,7 @@ export async function upsertCoachMemory(
     select: { confidence: true, evidenceCount: true },
   });
 
-  const prevConfidence = existing ? existing.confidence : null;
-  const confidence = existing
-    ? clamp01(existing.confidence * (1 - BLEND_ALPHA) + observed * BLEND_ALPHA)
-    : observed;
-  const evidenceCount = Math.min(
-    EVIDENCE_COUNT_CAP,
-    (existing?.evidenceCount ?? 0) + 1,
-  );
-  const trend = computeTrend(prevConfidence, confidence);
-
-  const data = { confidence, evidenceCount, trend, lastObservedAt: observedAt };
+  const data = nextCoachMemoryData(existing, observed, observedAt);
 
   const row = await prisma.learnerCoachMemory.upsert({
     where: { userId_skill: { userId, skill } },
@@ -311,19 +346,12 @@ export async function buildTutorContext(
   const rows = await listCoachMemory(userId);
   if (rows.length === 0) return "";
 
-  const ranked = rows
-    .map((r) => ({
-      r,
-      // Higher weakness = weaker = ranked first. Stale entries weigh less.
-      weakness: 1 - effectiveConfidence(r.confidence, r.lastObservedAt, now),
-    }))
-    .sort((a, b) => b.weakness - a.weakness)
-    .slice(0, MAX_TUTOR_CONTEXT_LINES);
+  const ranked = rankCoachMemoryRows(rows, now);
 
   const lines: string[] = [];
   let used = estimateTokens(TUTOR_CONTEXT_HEADER);
   for (const { r } of ranked) {
-    const line = `- ${r.skill}: confidence ${r.confidence.toFixed(2)} (${r.trend}, ${r.evidenceCount} observations)`;
+    const line = tutorContextLine(r);
     const cost = estimateTokens(line) + 1;
     if (used + cost > MAX_TUTOR_CONTEXT_TOKENS) break;
     used += cost;

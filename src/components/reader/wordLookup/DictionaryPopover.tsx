@@ -10,13 +10,16 @@
  */
 
 import { useEffect, useRef } from "react";
+import type { RefObject } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import { Badge, Button, IconButton, Inline } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const POPOVER_WIDTH = 340;
 const POPOVER_HEIGHT = 400;
+const POPOVER_GAP = 12;
 
 interface SaveWordState {
   wordSaved: boolean;
@@ -34,7 +37,17 @@ interface DictionaryPopoverProps {
   saveWord: SaveWordState;
   onClose: () => void;
   onPlay: (src: string) => void;
-  popoverRef: React.RefObject<HTMLDivElement | null>;
+  popoverRef: RefObject<HTMLDivElement | null>;
+}
+
+function hasDifferentBaseForm(result: DictionaryResult, word: string): boolean {
+  if (!result.lookedUp) return false;
+  return result.lookedUp.toLowerCase() !== word.toLowerCase();
+}
+
+function getSaveButtonLabel(saveWord: SaveWordState): string {
+  if (saveWord.savePending) return "…";
+  return saveWord.wordSaved ? "✓ Saved" : "Save word";
 }
 
 export default function DictionaryPopover({
@@ -54,7 +67,7 @@ export default function DictionaryPopover({
     placement: "below",
     estimatedHeight: POPOVER_HEIGHT,
     estimatedWidth: POPOVER_WIDTH,
-    gap: 12,
+    gap: POPOVER_GAP,
     setMaxHeight: true,
     deps: [anchor, loading, result, dictError, word],
   });
@@ -63,6 +76,11 @@ export default function DictionaryPopover({
   useEffect(() => {
     closeRef.current?.focus();
   }, []);
+
+  const frequencyTier = result?.frequencyTier ?? null;
+  const saveButtonAriaLabel = saveWord.wordSaved
+    ? `Remove "${word}" from study list`
+    : `Save "${word}" to study list`;
 
   return (
     <div
@@ -77,18 +95,14 @@ export default function DictionaryPopover({
       <div className="word-lookup-header">
         <Inline gap="2">
           <strong className="word-lookup-word">{word}</strong>
-          {(() => {
-            const tier = result?.frequencyTier ?? null;
-            if (!tier) return null;
-            return (
-              <Badge
-                variant={TIER_VARIANTS[tier]}
-                aria-label={`Word frequency: ${TIER_LABELS[tier]}`}
-              >
-                {TIER_LABELS[tier]}
-              </Badge>
-            );
-          })()}
+          {frequencyTier ? (
+            <Badge
+              variant={TIER_VARIANTS[frequencyTier]}
+              aria-label={`Word frequency: ${TIER_LABELS[frequencyTier]}`}
+            >
+              {TIER_LABELS[frequencyTier]}
+            </Badge>
+          ) : null}
         </Inline>
         <IconButton
           ref={closeRef}
@@ -121,7 +135,7 @@ export default function DictionaryPopover({
         {!loading && !dictError && result ? (
           result.found ? (
             <div className="word-lookup-body">
-              {result.lookedUp && result.lookedUp.toLowerCase() !== word.toLowerCase() ? (
+              {hasDifferentBaseForm(result, word) ? (
                 <p className="muted word-lookup-base">
                   base form: <em>{result.lookedUp}</em>
                 </p>
@@ -186,17 +200,16 @@ export default function DictionaryPopover({
           type="button"
           variant={saveWord.wordSaved ? "outline" : "primary"}
           size="sm"
-          className={`word-lookup-save-btn${saveWord.wordSaved ? " word-lookup-save-btn--saved" : ""}`}
+          className={cn(
+            "word-lookup-save-btn",
+            saveWord.wordSaved && "word-lookup-save-btn--saved",
+          )}
           onClick={() => void saveWord.handleToggleSave()}
           disabled={saveWord.savePending || loading}
           aria-pressed={saveWord.wordSaved}
-          aria-label={
-            saveWord.wordSaved
-              ? `Remove "${word}" from study list`
-              : `Save "${word}" to study list`
-          }
+          aria-label={saveButtonAriaLabel}
         >
-          {saveWord.savePending ? "…" : saveWord.wordSaved ? "✓ Saved" : "Save word"}
+          {getSaveButtonLabel(saveWord)}
         </Button>
       </div>
     </div>

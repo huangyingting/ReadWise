@@ -75,6 +75,14 @@ type FreshUrlSelection = {
   skippedSeen: number;
 };
 
+type SaveOutcomeCounts = {
+  saved: number;
+  skipped: number;
+  duplicates: number;
+  failed: number;
+  rejected: number;
+};
+
 type NoisePattern = {
   key: string;
   label: string;
@@ -375,6 +383,30 @@ function summarizeProgress(index: number, total: number, outcome: SaveOutcome): 
   }
 }
 
+function countSaveOutcomes(outcomes: SaveOutcome[]): SaveOutcomeCounts {
+  const counts: SaveOutcomeCounts = {
+    saved: 0,
+    skipped: 0,
+    duplicates: 0,
+    failed: 0,
+    rejected: 0,
+  };
+
+  for (const outcome of outcomes) {
+    if (outcome.status === "saved") {
+      counts.saved += 1;
+    } else if (outcome.status === "skipped") {
+      counts.skipped += 1;
+      if (/duplicate/i.test(outcome.reason)) counts.duplicates += 1;
+    } else if (outcome.status === "failed") {
+      counts.failed += 1;
+      if (/extract|quality/i.test(outcome.reason)) counts.rejected += 1;
+    }
+  }
+
+  return counts;
+}
+
 function providerOrThrow(): Provider {
   const provider = getProvider(PROVIDER_KEY);
   if (!provider) throw new Error("Undark provider is not registered.");
@@ -436,16 +468,15 @@ async function scrapeSequential(
   limit: number,
 ): Promise<SaveOutcome[]> {
   const outcomes: SaveOutcome[] = [];
+  let saved = 0;
   for (let i = 0; i < freshUrls.length; i++) {
     const url = freshUrls[i]!;
     console.log(`Scraping ${i + 1}/${freshUrls.length}: ${url}`);
     const outcome = await scrapeOne(url, record, publish);
     outcomes.push(outcome);
     summarizeProgress(i + 1, freshUrls.length, outcome);
-    if (
-      targetSaved &&
-      outcomes.filter((o) => o.status === "saved").length >= limit
-    ) {
+    if (outcome.status === "saved") saved += 1;
+    if (targetSaved && saved >= limit) {
       break;
     }
   }
@@ -535,19 +566,13 @@ async function scrapeFreshUndark(
         ? await scrapeSequential(freshUrls, record, publish, targetSaved, limit)
         : await scrapeConcurrent(freshUrls, record, publish, concurrency);
 
-  const failed = outcomes.filter((o) => o.status === "failed").length;
-  const duplicates = outcomes.filter(
-    (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
-  ).length;
-  const rejected = outcomes.filter(
-    (o) => o.status === "failed" && /extract|quality/i.test(o.reason),
-  ).length;
+  const counts = countSaveOutcomes(outcomes);
   await recordCrawlRun(provider.key, {
     discovered: discoveredUrls.length,
-    scraped: outcomes.filter((o) => o.status === "saved").length,
-    failed,
-    duplicates,
-    rejected,
+    scraped: counts.saved,
+    failed: counts.failed,
+    duplicates: counts.duplicates,
+    rejected: counts.rejected,
   });
 
   const finalSeen = accountedUndarkUrlSet(record.urls);
@@ -790,15 +815,10 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
   const undarkCounts = await providerDbCounts(PROVIDER_NAME);
   const smithsonianCounts = await providerDbCounts("Smithsonian Magazine");
 
-  const saved = outcomes.filter((o) => o.status === "saved").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
-  const duplicates = outcomes.filter(
-    (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
-  ).length;
-  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const counts = countSaveOutcomes(outcomes);
   if (!args.analyzeOnly) {
     console.log(
-      `\nDone. discovered=${discovered} saved=${saved} skipped=${skipped} duplicates=${duplicates} failed=${failed} ` +
+      `\nDone. discovered=${discovered} saved=${counts.saved} skipped=${counts.skipped} duplicates=${counts.duplicates} failed=${counts.failed} ` +
         `discoveryExhausted=${discoveryExhausted ? "yes" : "no"} ` +
         `accountedSkipped=${skippedSeen} remainingFresh=${remainingFresh} ` +
         `visitedRecord=${path.relative(repoRoot(), visitedFile)} visitedTotal=${record.urls.length}`,
@@ -820,7 +840,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
       `drafts=${smithsonianCounts.drafts} missingPublishedAt=${smithsonianCounts.missingPublishedAt}.`,
   );
 
-  return failed > 0 && saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
+  return counts.failed > 0 && counts.saved === 0 ? 1 : findings.length > 0 ? 0 : 0;
 }
 
 export const __scrapeUndarkTest = {
@@ -834,6 +854,7 @@ export const __scrapeUndarkTest = {
   visitedSet,
   markVisited,
   summarizeProgress,
+  countSaveOutcomes,
   providerOrThrow,
   undarkLibraryWhere,
   existingUndarkUrlSet,

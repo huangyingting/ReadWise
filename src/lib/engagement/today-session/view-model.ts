@@ -146,6 +146,26 @@ export type TodayArticleDisplays = {
 const READER_PATH = "/reader";
 const BROWSE_PATH = "/browse";
 
+function buildCompletionStep(completedAt: Date | null): TodaySteps["reading"] {
+  return {
+    state: completedAt != null ? "complete" : "available",
+    completedAt: toIso(completedAt),
+  };
+}
+
+function buildWordReviewStep(session: TodaySessionView): TodaySteps["wordReview"] {
+  const targetCount = session.targetSavedWordIds.length;
+  const hasTargets = targetCount > 0;
+  const completed = session.wordReviewCompletedAt != null;
+
+  return {
+    state: !hasTargets ? "unavailable" : completed ? "complete" : "available",
+    available: hasTargets,
+    targetCount,
+    completedAt: toIso(session.wordReviewCompletedAt),
+  };
+}
+
 /**
  * Derive the workflow steps from a session's completion timestamps.
  *
@@ -154,32 +174,10 @@ const BROWSE_PATH = "/browse";
  * `complete`/`available` from their own timestamps.
  */
 function buildSteps(session: TodaySessionView): TodaySteps {
-  const targetCount = session.targetSavedWordIds.length;
-  const hasTargets = targetCount > 0;
-
-  const readingComplete = session.readingCompletedAt != null;
-  const comprehensionComplete = session.comprehensionCompletedAt != null;
-  const wordReviewComplete = session.wordReviewCompletedAt != null;
-
   return {
-    reading: {
-      state: readingComplete ? "complete" : "available",
-      completedAt: toIso(session.readingCompletedAt),
-    },
-    comprehension: {
-      state: comprehensionComplete ? "complete" : "available",
-      completedAt: toIso(session.comprehensionCompletedAt),
-    },
-    wordReview: {
-      state: !hasTargets
-        ? "unavailable"
-        : wordReviewComplete
-          ? "complete"
-          : "available",
-      available: hasTargets,
-      targetCount,
-      completedAt: toIso(session.wordReviewCompletedAt),
-    },
+    reading: buildCompletionStep(session.readingCompletedAt),
+    comprehension: buildCompletionStep(session.comprehensionCompletedAt),
+    wordReview: buildWordReviewStep(session),
   };
 }
 

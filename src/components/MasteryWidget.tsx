@@ -27,26 +27,43 @@ interface MasteryWidgetProps {
 const RING_R = 28;
 const RING_C = 2 * Math.PI * RING_R; // ≈ 175.93
 
+function formatCount(count: number, noun: string): string {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}
+
+function getTrendDirectionSuffix(values: number[]): string {
+  if (values.length < 2) return "";
+
+  const first = values[0];
+  const last = values[values.length - 1];
+
+  if (last > first) return " Trending up.";
+  if (last < first) return " Trending down.";
+  return " Steady.";
+}
+
+function formatSparkLabel(values: number[]): string {
+  const trendSuffix = getTrendDirectionSuffix(values);
+  return `Recent quiz scores, oldest to newest: ${values.join(", ")} percent.${trendSuffix}`;
+}
+
+function getRingOffset(averageScore: number): number {
+  return RING_C * (1 - averageScore / 100);
+}
+
 export default function MasteryWidget({ mastery, className }: MasteryWidgetProps) {
   const { totalAttempts, articlesQuizzed, averageScore, recentTrend } = mastery;
   const isEmpty = totalAttempts === 0;
 
   // Sparkline values + accessible label
   const sparkValues = recentTrend.map((p) => p.scorePct);
-  const trendDir =
-    sparkValues.length >= 2
-      ? sparkValues[sparkValues.length - 1] > sparkValues[0]
-        ? " Trending up."
-        : sparkValues[sparkValues.length - 1] < sparkValues[0]
-          ? " Trending down."
-          : " Steady."
-      : "";
-  const sparkLabel = `Recent quiz scores, oldest to newest: ${sparkValues.join(", ")} percent.${trendDir}`;
+  const sparkLabel = formatSparkLabel(sparkValues);
 
   // Ring progress
   const avg = averageScore ?? 0;
-  const progress = avg / 100;
-  const ringOffset = RING_C * (1 - progress);
+  const ringOffset = getRingOffset(avg);
+  const articlesQuizzedLabel = formatCount(articlesQuizzed, "article");
+  const totalAttemptsLabel = formatCount(totalAttempts, "attempt");
 
   return (
     <Card className={cn(className)}>
@@ -151,9 +168,9 @@ export default function MasteryWidget({ mastery, className }: MasteryWidgetProps
               className="text-text-subtle shrink-0"
               aria-hidden
             />
-            {articlesQuizzed} article{articlesQuizzed === 1 ? "" : "s"} quizzed
+            {articlesQuizzedLabel} quizzed
             {" · "}
-            {totalAttempts} attempt{totalAttempts === 1 ? "" : "s"}
+            {totalAttemptsLabel}
           </p>
         </div>
       )}

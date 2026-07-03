@@ -29,6 +29,7 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import {
   useHighlights,
+  type HighlightColor,
 } from "@/components/ReaderHighlightsProvider";
 import { useReaderAudio } from "@/components/ReaderAudioProvider";
 import SelectionToolbar from "./SelectionToolbar";
@@ -53,6 +54,35 @@ import { useHighlightActions } from "./useHighlightActions";
 import { useSurfaceController } from "./useSurfaceController";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
 
+const LOOKUP_BOUNDARY_RE = /^[^A-Za-z'']+|[^A-Za-z'']+$/g;
+const LOOKUP_HAS_LETTER_RE = /[A-Za-z]/;
+const SINGLE_WORD_SELECTION_RE = /^\s*[A-Za-z''-]+\s*$/;
+const HIGHLIGHT_COLORS: readonly HighlightColor[] = ["yellow", "green", "blue", "pink"];
+
+function normalizeLookupCandidate(candidate: string): string {
+  const trimmed = candidate.replace(LOOKUP_BOUNDARY_RE, "");
+  return LOOKUP_HAS_LETTER_RE.test(trimmed) ? trimmed : "";
+}
+
+function getSelectionToolbarDetails(quote: string) {
+  const words = quote.trim().split(/\s+/);
+  const wordCount = words.length;
+  return {
+    isSingleWord: SINGLE_WORD_SELECTION_RE.test(quote),
+    isShortPhrase: wordCount >= 2 && wordCount <= 5,
+    selectionWord: words[0] ?? "",
+  };
+}
+
+function isHighlightColor(value: string | null): value is HighlightColor {
+  return HIGHLIGHT_COLORS.includes(value as HighlightColor);
+}
+
+function getStoredToolbarColor(): HighlightColor | undefined {
+  if (typeof window === "undefined") return undefined;
+  const stored = localStorage.getItem(STORAGE_KEYS.LAST_HL_COLOR);
+  return isHighlightColor(stored) ? stored : undefined;
+}
 
 export default function WordLookup({
   html,
@@ -199,37 +229,27 @@ export default function WordLookup({
         if (!anchor) return;
         const rect = sel.getRangeAt(0).getBoundingClientRect();
         if (rect.width === 0 && rect.height === 0) return;
-        const wordCount = anchor.quote.trim().split(/\s+/).length;
-        const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
-        const isShortPhrase = wordCount >= 2 && wordCount <= 5;
-        savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
-        const stored = typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEYS.LAST_HL_COLOR) : null;
-        const color = (stored && ["yellow", "green", "blue", "pink"].includes(stored))
-          ? (stored as Parameters<typeof surface.openToolbar>[3])
-          : undefined;
-        surface.openToolbar(rect, isSingleWord, isShortPhrase, color);
+        const { isSingleWord, isShortPhrase, selectionWord } =
+          getSelectionToolbarDetails(anchor.quote);
+        savedAnchorRef.current = { ...anchor, selectionWord };
+        surface.openToolbar(rect, isSingleWord, isShortPhrase, getStoredToolbarColor());
         return;
       }
 
       const target = e.target as Element;
       const markEl = target.closest<HTMLElement>("mark.rw-hl");
       if (markEl?.dataset.hlId) {
-        surface.closeAll();
-        resetDictionary();
-        saveWord.resetSaveError();
-        resetTranslation();
-        resetGrammar();
+        closeAll();
         surface.openEditPopover(markEl.dataset.hlId, markEl);
         return;
       }
 
-      let candidate = wordAtPoint(e.clientX, e.clientY) ?? "";
-      candidate = candidate.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "");
-      if (!candidate || !/[A-Za-z]/.test(candidate)) return;
+      const candidate = normalizeLookupCandidate(wordAtPoint(e.clientX, e.clientY) ?? "");
+      if (!candidate) return;
       closeAll();
       openDictionary(candidate, e.clientX, e.clientY);
     },
-    [surface, savedAnchorRef, closeAll, openDictionary, resetDictionary, saveWord, resetTranslation, resetGrammar],
+    [surface, savedAnchorRef, closeAll, openDictionary],
   );
 
   // Cmd/Ctrl+E keyboard summon
@@ -244,10 +264,9 @@ export default function WordLookup({
       const anchor = computeAnchor(prose, sel);
       if (!anchor) return;
       const rect = sel.getRangeAt(0).getBoundingClientRect();
-      const wordCount = anchor.quote.trim().split(/\s+/).length;
-      const isSingleWord = /^\s*[A-Za-z''-]+\s*$/.test(anchor.quote);
-      const isShortPhrase = wordCount >= 2 && wordCount <= 5;
-      savedAnchorRef.current = { ...anchor, selectionWord: anchor.quote.trim().split(/\s+/)[0] ?? "" };
+      const { isSingleWord, isShortPhrase, selectionWord } =
+        getSelectionToolbarDetails(anchor.quote);
+      savedAnchorRef.current = { ...anchor, selectionWord };
       surface.openToolbar(rect, isSingleWord, isShortPhrase);
     };
     document.addEventListener("keydown", onKey);
@@ -324,8 +343,8 @@ export default function WordLookup({
   const handleDefine = useCallback(() => {
     const saved = savedAnchorRef.current;
     if (!saved) return;
-    let candidate = saved.selectionWord.replace(/^[^A-Za-z'']+|[^A-Za-z'']+$/g, "").trim();
-    if (!candidate || !/[A-Za-z]/.test(candidate)) return;
+    const candidate = normalizeLookupCandidate(saved.selectionWord).trim();
+    if (!candidate) return;
     closeAll();
     window.getSelection()?.removeAllRanges();
     openDictionary(candidate, window.innerWidth / 2, window.innerHeight / 2);

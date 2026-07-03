@@ -44,6 +44,9 @@ type AdminScrapeTriggerSession = {
   };
 };
 
+type AdminScrapeCounters = Pick<AdminScrapeProviderResult, "saved" | "skipped" | "failed">;
+type ScrapeOutcomeStatus = keyof AdminScrapeCounters;
+
 export type AdminScrapeTriggerContext = {
   req: Request;
   session: AdminScrapeTriggerSession;
@@ -82,49 +85,8 @@ export async function runAdminScrapeTrigger(
   });
 
   const results: AdminScrapeProviderResult[] = [];
-
   for (const provider of providers) {
-    let urls: string[] = [];
-    try {
-      urls = await discoverProviderUrls(provider, limit);
-    } catch (err) {
-      const message = errorMessage(err);
-      context.log.warn("scrape.trigger.discover_failed", { provider: provider.key, error: message });
-      recordImportFailure(context, provider.key, "discover", message);
-      results.push({ provider: provider.key, discovered: 0, saved: 0, skipped: 0, failed: 0, error: message });
-      continue;
-    }
-
-    let saved = 0;
-    let skipped = 0;
-    let failed = 0;
-
-    for (const url of urls) {
-      try {
-        const article = await scrapeUrl(url);
-        const outcome = article
-          ? await saveDraftArticle(article, (created) => articleIngestAudit(context, provider.key, created))
-          : { status: "failed" as const, reason: "could not extract article content", sourceUrl: url };
-
-        if (outcome.status === "saved") saved++;
-        else if (outcome.status === "skipped") skipped++;
-        else failed++;
-      } catch (err) {
-        const message = errorMessage(err);
-        context.log.warn("scrape.trigger.save_failed", { provider: provider.key, url, error: message });
-        recordImportFailure(context, provider.key, "save", message);
-        failed++;
-      }
-    }
-
-    context.log.info("scrape.trigger.provider_done", {
-      provider: provider.key,
-      discovered: urls.length,
-      saved,
-      skipped,
-      failed,
-    });
-    results.push({ provider: provider.key, discovered: urls.length, saved, skipped, failed });
+    results.push(await scrapeProvider(provider, limit, context));
   }
 
   const totalSaved = results.reduce((sum, result) => sum + result.saved, 0);
@@ -133,6 +95,75 @@ export async function runAdminScrapeTrigger(
   }
 
   return { results, totalSaved };
+}
+
+async function scrapeProvider(
+  provider: Provider,
+  limit: number,
+  context: AdminScrapeTriggerContext,
+): Promise<AdminScrapeProviderResult> {
+  let urls: string[];
+  try {
+    urls = await discoverProviderUrls(provider, limit);
+  } catch (err) {
+    const message = errorMessage(err);
+    context.log.warn("scrape.trigger.discover_failed", { provider: provider.key, error: message });
+    recordImportFailure(context, provider.key, "discover", message);
+    return { provider: provider.key, discovered: 0, saved: 0, skipped: 0, failed: 0, error: message };
+  }
+
+  const counters = await scrapeDiscoveredUrls(provider, urls, context);
+  context.log.info("scrape.trigger.provider_done", {
+    provider: provider.key,
+    discovered: urls.length,
+    ...counters,
+  });
+
+  return { provider: provider.key, discovered: urls.length, ...counters };
+}
+
+async function scrapeDiscoveredUrls(
+  provider: Provider,
+  urls: string[],
+  context: AdminScrapeTriggerContext,
+): Promise<AdminScrapeCounters> {
+  const counters: AdminScrapeCounters = { saved: 0, skipped: 0, failed: 0 };
+
+  for (const url of urls) {
+    try {
+      incrementCounter(counters, await scrapeAndSaveUrl(provider, url, context));
+    } catch (err) {
+      const message = errorMessage(err);
+      context.log.warn("scrape.trigger.save_failed", { provider: provider.key, url, error: message });
+      recordImportFailure(context, provider.key, "save", message);
+      counters.failed++;
+    }
+  }
+
+  return counters;
+}
+
+async function scrapeAndSaveUrl(
+  provider: Provider,
+  url: string,
+  context: AdminScrapeTriggerContext,
+): Promise<ScrapeOutcomeStatus> {
+  const article = await scrapeUrl(url);
+  if (!article) {
+    return "failed";
+  }
+
+  const outcome = await saveDraftArticle(
+    article,
+    (created) => articleIngestAudit(context, provider.key, created),
+  );
+  return outcome.status;
+}
+
+function incrementCounter(counters: AdminScrapeCounters, status: ScrapeOutcomeStatus): void {
+  if (status === "saved") counters.saved++;
+  else if (status === "skipped") counters.skipped++;
+  else counters.failed++;
 }
 
 function selectProviders(input: AdminScrapeTriggerInput): Provider[] {

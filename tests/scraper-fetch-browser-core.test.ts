@@ -63,6 +63,29 @@ function response({
   };
 }
 
+function queueFetchResponses(...responses: unknown[]): void {
+  fetchResponseQueue = responses;
+}
+
+function routeActions(): string[][] {
+  return routeRecords.map((record) => [record.resourceType, record.action]);
+}
+
+function streamBody(chunks: Buffer[], onCancel: () => void): unknown {
+  let index = 0;
+  return {
+    getReader: () => ({
+      read: async () =>
+        index < chunks.length
+          ? { done: false, value: chunks[index++] }
+          : { done: true, value: undefined },
+      cancel: async () => {
+        onCancel();
+      },
+    }),
+  };
+}
+
 before(() => {
   mock.module("@/lib/scraper/ssrf", {
     namedExports: {
@@ -187,7 +210,7 @@ test("renderViaBrowser aborts unsafe/noisy routes, waits out challenges, and clo
   assert.deepEqual(rendered, { status: 202, html: "<article>Ready</article>" });
   assert.ok(waitCalls.length >= 1);
   assert.equal(contextClosed, 1);
-  assert.deepEqual(routeRecords.map((record) => [record.resourceType, record.action]), [
+  assert.deepEqual(routeActions(), [
     ["document", "abort"],
     ["image", "abort"],
     ["document", "abort"],
@@ -216,18 +239,18 @@ test("closeBrowser tolerates a pending launch failure", async () => {
 test("fetchCore parses retry-after dates and unparseable values on HTTP 429", async () => {
   const { FetchHttpError, fetchCore } = await import("@/lib/scraper/fetch");
 
-  fetchResponseQueue = [
+  queueFetchResponses(
     response({
       status: 429,
       headers: { "retry-after": "Wed, 01 Jan 2020 00:00:00 GMT" },
     }),
-  ];
+  );
   await assert.rejects(
     () => fetchCore("https://retry.example/article", {}, 1000),
     (err: unknown) => err instanceof FetchHttpError && err.retryAfterMs === 0,
   );
 
-  fetchResponseQueue = [response({ status: 429, headers: { "retry-after": "later" } })];
+  queueFetchResponses(response({ status: 429, headers: { "retry-after": "later" } }));
   await assert.rejects(
     () => fetchCore("https://retry.example/article", {}, 1000),
     (err: unknown) => err instanceof FetchHttpError && err.retryAfterMs === undefined,
@@ -240,20 +263,20 @@ test("fetchCore enforces declared and fallback body byte limits", async () => {
   const { fetchCore } = await import("@/lib/scraper/fetch");
   maxBytes = 5;
 
-  fetchResponseQueue = [
+  queueFetchResponses(
     response({
       status: 200,
       headers: { "content-length": "6" },
       text: "unused",
       body: null,
     }),
-  ];
+  );
   await assert.rejects(
     () => fetchCore("https://large.example/article", {}, 1000),
     /Response too large: 6 bytes exceeds limit of 5 bytes/,
   );
 
-  fetchResponseQueue = [response({ status: 200, text: "123456", body: null })];
+  queueFetchResponses(response({ status: 200, text: "123456", body: null }));
   await assert.rejects(
     () => fetchCore("https://large.example/article", {}, 1000),
     /Response too large: exceeds limit of 5 bytes/,
@@ -263,29 +286,20 @@ test("fetchCore enforces declared and fallback body byte limits", async () => {
 test("fetchCore streams successful bodies and closes dispatchers on transport errors", async () => {
   const { fetchCore } = await import("@/lib/scraper/fetch");
   const chunks = [Buffer.from("hello "), Buffer.from("world")];
-  let index = 0;
   let cancelled = false;
-  fetchResponseQueue = [
+  queueFetchResponses(
     response({
       status: 200,
-      body: {
-        getReader: () => ({
-          read: async () =>
-            index < chunks.length
-              ? { done: false, value: chunks[index++] }
-              : { done: true, value: undefined },
-          cancel: async () => {
-            cancelled = true;
-          },
-        }),
-      },
+      body: streamBody(chunks, () => {
+        cancelled = true;
+      }),
     }),
-  ];
+  );
 
   assert.equal(await fetchCore("https://stream.example/article", {}, 1000), "hello world");
   assert.equal(cancelled, true);
 
-  fetchResponseQueue = [new Error("socket reset")];
+  queueFetchResponses(new Error("socket reset"));
   await assert.rejects(() => fetchCore("https://stream.example/error", {}, 1000), /socket reset/);
 });
 
@@ -296,7 +310,7 @@ test("fetchCore preserves invalid URL failures after safe span labeling", async 
 
 test("fetchText forwards POST method, headers, and body to fetchCore", async () => {
   const { fetchText } = await import("@/lib/scraper/fetch");
-  fetchResponseQueue = [response({ status: 200, text: "OK", body: null })];
+  queueFetchResponses(response({ status: 200, text: "OK", body: null }));
 
   assert.equal(
     await fetchText(

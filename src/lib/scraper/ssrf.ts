@@ -8,6 +8,8 @@
  */
 import dns from "dns";
 
+type DnsAddress = { address: string; family: number };
+
 // ---------------------------------------------------------------------------
 // Private / reserved CIDR ranges to block
 // ---------------------------------------------------------------------------
@@ -33,9 +35,13 @@ export function isPrivateIPv4(ip: string): boolean {
   );
 }
 
+function normalizeIpLiteral(ip: string): string {
+  return ip.toLowerCase().replace(/^\[|\]$/g, "");
+}
+
 /** Checks whether an IPv6 address is loopback or in a private range. */
 export function isPrivateIPv6(ip: string): boolean {
-  const lower = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  const lower = normalizeIpLiteral(ip);
   return (
     lower === "::1" || // loopback
     lower.startsWith("fc") || // fc00::/7 — unique-local
@@ -46,7 +52,7 @@ export function isPrivateIPv6(ip: string): boolean {
 }
 
 export function isPrivateAddress(address: string): boolean {
-  const lower = address.toLowerCase().replace(/^\[|\]$/g, "");
+  const lower = normalizeIpLiteral(address);
   // IPv4-mapped / IPv4-compatible IPv6 (e.g. ::ffff:127.0.0.1) — validate the
   // embedded IPv4 against the IPv4 rules so a mapped private/metadata address
   // can't slip through the IPv6 prefix checks.
@@ -54,6 +60,19 @@ export function isPrivateAddress(address: string): boolean {
   if (mapped) return isPrivateIPv4(mapped[1]);
   if (lower.includes(":")) return isPrivateIPv6(lower);
   return isPrivateIPv4(lower);
+}
+
+function parseHttpUrl(rawUrl: string): URL {
+  let parsed: URL;
+  try {
+    parsed = new URL(rawUrl);
+  } catch {
+    throw new Error(`Invalid URL: ${rawUrl}`);
+  }
+  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
+  }
+  return parsed;
 }
 
 // ---------------------------------------------------------------------------
@@ -86,15 +105,7 @@ export async function assertSafeHostname(hostname: string): Promise<void> {
  * Throws an Error (not ApiError) on any violation so callers can wrap it.
  */
 export async function assertSafeUrl(rawUrl: string): Promise<void> {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error(`Invalid URL: ${rawUrl}`);
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
-  }
+  const parsed = parseHttpUrl(rawUrl);
   await assertSafeHostname(parsed.hostname);
 }
 
@@ -119,17 +130,9 @@ export interface PinnedAddress {
  * Throws an Error (not ApiError) on any violation so callers can wrap it.
  */
 export async function resolveAndPin(rawUrl: string): Promise<PinnedAddress> {
-  let parsed: URL;
-  try {
-    parsed = new URL(rawUrl);
-  } catch {
-    throw new Error(`Invalid URL: ${rawUrl}`);
-  }
-  if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-    throw new Error(`Only http(s) URLs are allowed (got ${parsed.protocol})`);
-  }
+  const parsed = parseHttpUrl(rawUrl);
 
-  let results: { address: string; family: number }[];
+  let results: DnsAddress[];
   try {
     results = await dns.promises.lookup(parsed.hostname, { all: true });
   } catch {

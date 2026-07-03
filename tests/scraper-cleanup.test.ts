@@ -18,6 +18,19 @@ import {
 import { getProvider } from "@/lib/scraper/providers";
 import { sanitizeArticleHtml } from "@/lib/sanitize";
 
+function providerCleanup(providerId: string, label: string) {
+  const cleanup = getProvider(providerId)?.cleanup;
+  assert.ok(cleanup, `${label} cleanup rules must be present`);
+  return cleanup;
+}
+
+function applyMergedProviderCleanup(providerId: string, label: string, html: string) {
+  return applyProviderCleanup(
+    html,
+    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, providerCleanup(providerId, label)),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // dropSelectors: tag-based removal
 // ---------------------------------------------------------------------------
@@ -226,8 +239,7 @@ test("cleanup: removes anchors matched by href keyword and empty wrappers", () =
 });
 
 test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () => {
-  const provider = getProvider("smithsonian");
-  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const cleanup = providerCleanup("smithsonian", "Smithsonian");
   const html =
     "<article>" +
     "<p>Smithsonian article text.</p>" +
@@ -236,7 +248,7 @@ test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () =
     '<img src="https://cdn.smithsonianmag.com/julaug2026_web_cover_1_720.jpg" alt="Cover image of the Smithsonian Magazine Summer 2026 issue"/>' +
     "</a></p>" +
     "</article>";
-  const result = applyProviderCleanup(html, provider.cleanup);
+  const result = applyProviderCleanup(html, cleanup);
   assert.doesNotMatch(result, /julaug2026_web_cover_1_720\.jpg/);
   assert.doesNotMatch(result, /subscribe\.smithsonianmag\.com/);
   assert.doesNotMatch(result, /promo_name/);
@@ -246,15 +258,14 @@ test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () =
 });
 
 test("cleanup: smithsonian drops affiliate-link note while preserving article prose", () => {
-  const provider = getProvider("smithsonian");
-  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const cleanup = providerCleanup("smithsonian", "Smithsonian");
   const html =
     "<article>" +
     "<p>Real Smithsonian article prose about conservation and field research.</p>" +
     "<p>A Note to our Readers Smithsonian magazine participates in affiliate link advertising programs. If you purchase an item through these links, we receive a commission.</p>" +
     "<p>The final paragraph continues the reported article without promotional copy.</p>" +
     "</article>";
-  const result = applyProviderCleanup(html, provider.cleanup);
+  const result = applyProviderCleanup(html, cleanup);
   assert.doesNotMatch(result, /affiliate link advertising programs/i);
   assert.doesNotMatch(result, /receive a commission/i);
   assert.match(result, /Real Smithsonian article prose/);
@@ -262,8 +273,6 @@ test("cleanup: smithsonian drops affiliate-link note while preserving article pr
 });
 
 test("cleanup: nautilus removes figcaptions while preserving image src values", () => {
-  const provider = getProvider("nautilus");
-  assert.ok(provider?.cleanup, "Nautilus cleanup rules must be present");
   const html =
     "<article>" +
     "<p>Nautilus article text.</p>" +
@@ -272,10 +281,7 @@ test("cleanup: nautilus removes figcaptions while preserving image src values", 
     '<figure><img src="https://lede-admin.nautil.us/wp-content/uploads/sites/70/real-article-photo.jpg" alt="Research team at work">' +
     "<figcaption>A research team prepares the experiment before dawn. Shutterstock</figcaption></figure>" +
     "</article>";
-  const result = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const result = applyMergedProviderCleanup("nautilus", "Nautilus", html);
   assert.match(result, /6600_136c2f0599b3a0175c544b72e4861b9f\.jpg/);
   assert.doesNotMatch(result, /stock-photo-women-s-lips/i);
   assert.doesNotMatch(result, /<figcaption/i);
@@ -289,8 +295,6 @@ test("cleanup: nautilus removes figcaptions while preserving image src values", 
 });
 
 test("cleanup: knowable removes credit figcaptions while preserving image src values", () => {
-  const provider = getProvider("knowable");
-  assert.ok(provider?.cleanup, "Knowable cleanup rules must be present");
   const html =
     "<article>" +
     "<p>Knowable article text.</p>" +
@@ -299,10 +303,7 @@ test("cleanup: knowable removes credit figcaptions while preserving image src va
     '<figure><img src="https://knowablemagazine.org/docserver/fulltext/wild-photo.jpg" alt="Wildlife closeup">' +
     "<figcaption>CREDIT: © ALEXANDER WILD; CREDIT: WOLFGANG THALER</figcaption></figure>" +
     "</article>";
-  const result = applyProviderCleanup(
-    html,
-    mergeProviderCleanup(GENERIC_PROVIDER_CLEANUP, provider.cleanup),
-  );
+  const result = applyMergedProviderCleanup("knowable", "Knowable", html);
   assert.match(result, /ant-behavior\.jpg/);
   assert.match(result, /wild-photo\.jpg/);
   assert.doesNotMatch(result, /<figcaption/i);
@@ -325,15 +326,14 @@ test("cleanup: figcaptions remain unless a provider opts in to dropping them", (
 });
 
 test("cleanup: smithsonian drops repeated Hakai attribution while preserving prose", () => {
-  const provider = getProvider("smithsonian");
-  assert.ok(provider?.cleanup, "Smithsonian cleanup rules must be present");
+  const cleanup = providerCleanup("smithsonian", "Smithsonian");
   const html =
     "<article>" +
     "<p>Reported coastal science article prose continues here.</p>" +
     "<p>This article is from Hakai Magazine, an online publication about science and society in coastal ecosystems.</p>" +
     "<p>Another substantive paragraph remains available for readers.</p>" +
     "</article>";
-  const result = applyProviderCleanup(html, provider.cleanup);
+  const result = applyProviderCleanup(html, cleanup);
   assert.doesNotMatch(result, /Hakai Magazine/i);
   assert.match(result, /Reported coastal science article prose/);
   assert.match(result, /substantive paragraph remains/);

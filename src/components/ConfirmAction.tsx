@@ -72,6 +72,9 @@ export default function ConfirmAction({
   const [internalOpen, setInternalOpen] = useState(false);
   const isControlled = controlledOpen !== undefined;
   const isOpen = isControlled ? controlledOpen : internalOpen;
+  const dialogLabel = `Confirm ${(triggerAriaLabel ?? triggerLabel).toLowerCase()}`;
+  const triggerTitle = disabled && disabledTitle ? disabledTitle : undefined;
+  const triggerContent = triggerLabel || triggerIcon;
 
   const [typedValue, setTypedValue] = useState("");
   const keywordInputId = useId();
@@ -88,6 +91,15 @@ export default function ConfirmAction({
     }
   }
 
+  function focusTriggerAfterClose() {
+    setTimeout(() => triggerRef.current?.focus(), 0);
+  }
+
+  function resetConfirmationState() {
+    setTypedValue("");
+    focusTriggerAfterClose();
+  }
+
   // Focus the Cancel button when the panel opens (safer default for destructive actions).
   useEffect(() => {
     if (isOpen) {
@@ -97,9 +109,7 @@ export default function ConfirmAction({
 
   function handleClose() {
     setIsOpen(false);
-    setTypedValue("");
-    // Return focus to the trigger after the panel unmounts.
-    setTimeout(() => triggerRef.current?.focus(), 0);
+    resetConfirmationState();
   }
 
   function handleKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
@@ -114,8 +124,7 @@ export default function ConfirmAction({
       await onConfirm();
     } finally {
       setIsOpen(false);
-      setTypedValue("");
-      setTimeout(() => triggerRef.current?.focus(), 0);
+      resetConfirmationState();
     }
   }
 
@@ -126,19 +135,19 @@ export default function ConfirmAction({
         variant={triggerVariant}
         size={size}
         disabled={disabled || loading}
-        title={disabled && disabledTitle ? disabledTitle : undefined}
+        title={triggerTitle}
         aria-label={triggerAriaLabel}
         aria-expanded={isOpen}
         onClick={() => setIsOpen(!isOpen)}
       >
-        {triggerLabel || triggerIcon}
+        {triggerContent}
       </Button>
 
       {isOpen && (
         <div
           className="admin-confirm"
           role="alertdialog"
-          aria-label={`Confirm ${(triggerAriaLabel ?? triggerLabel).toLowerCase()}`}
+          aria-label={dialogLabel}
           aria-describedby={msgId}
           onKeyDown={handleKeyDown}
         >

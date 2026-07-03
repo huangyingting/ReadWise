@@ -16,6 +16,29 @@
 import { test, describe, beforeEach, before, mock } from "node:test";
 import assert from "node:assert/strict";
 
+const STORED_READER_PREFS_KEY = "readwise:reader-prefs";
+
+type ReaderPrefsFixture = {
+  mode: "light" | "dark" | "sepia";
+  fontScale: number;
+  fontFamily: "serif" | "sans" | "dyslexic";
+  lineSpacing: "normal" | "comfortable" | "spacious";
+};
+
+function readerPrefs(overrides: Partial<ReaderPrefsFixture> = {}): ReaderPrefsFixture {
+  return {
+    mode: "light",
+    fontScale: 1.0,
+    fontFamily: "serif",
+    lineSpacing: "normal",
+    ...overrides,
+  };
+}
+
+function storeReaderPrefs(prefs: Record<string, unknown>): void {
+  ls.setItem(STORED_READER_PREFS_KEY, JSON.stringify(prefs));
+}
+
 // ---------------------------------------------------------------------------
 // Minimal localStorage stub
 // ---------------------------------------------------------------------------
@@ -151,40 +174,42 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("returns null for invalid JSON", async () => {
-    ls.setItem("readwise:reader-prefs", "not-json{{{");
+    ls.setItem(STORED_READER_PREFS_KEY, "not-json{{{");
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     assert.equal(getStoredReaderPrefs(), null);
   });
 
   test("returns null when mode is invalid", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ mode: "purple", fontScale: 1.0 }));
+    storeReaderPrefs({ mode: "purple", fontScale: 1.0 });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     assert.equal(getStoredReaderPrefs(), null);
   });
 
   test("returns null when fontScale is not a valid step", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ mode: "light", fontScale: 2.5 }));
+    storeReaderPrefs({ mode: "light", fontScale: 2.5 });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     assert.equal(getStoredReaderPrefs(), null);
   });
 
   test("returns null when mode is missing", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ fontScale: 1.0 }));
+    storeReaderPrefs({ fontScale: 1.0 });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     assert.equal(getStoredReaderPrefs(), null);
   });
 
   test("returns null when fontScale is missing", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ mode: "dark" }));
+    storeReaderPrefs({ mode: "dark" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     assert.equal(getStoredReaderPrefs(), null);
   });
 
   test("returns valid prefs with all fields set", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "sepia", fontScale: 1.15, fontFamily: "sans", lineSpacing: "comfortable" }),
-    );
+    storeReaderPrefs(readerPrefs({
+      mode: "sepia",
+      fontScale: 1.15,
+      fontFamily: "sans",
+      lineSpacing: "comfortable",
+    }));
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -195,7 +220,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("returns prefs with fontFamily default 'serif' when absent", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ mode: "dark", fontScale: 1.3 }));
+    storeReaderPrefs({ mode: "dark", fontScale: 1.3 });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -203,10 +228,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("returns prefs with fontFamily default 'serif' when value is invalid", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "light", fontScale: 1.0, fontFamily: "comic-sans" }),
-    );
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, fontFamily: "comic-sans" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -214,7 +236,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("returns prefs with lineSpacing default 'normal' when absent", async () => {
-    ls.setItem("readwise:reader-prefs", JSON.stringify({ mode: "light", fontScale: 1.0 }));
+    storeReaderPrefs({ mode: "light", fontScale: 1.0 });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -222,10 +244,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("returns prefs with lineSpacing default 'normal' when value is invalid", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "light", fontScale: 1.0, lineSpacing: "wide" }),
-    );
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, lineSpacing: "wide" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -233,10 +252,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("accepts 'dyslexic' as a valid fontFamily", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "light", fontScale: 1.0, fontFamily: "dyslexic" }),
-    );
+    storeReaderPrefs({ mode: "light", fontScale: 1.0, fontFamily: "dyslexic" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -244,10 +260,7 @@ describe("getStoredReaderPrefs", () => {
   });
 
   test("accepts 'spacious' as a valid lineSpacing", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "dark", fontScale: 1.45, lineSpacing: "spacious" }),
-    );
+    storeReaderPrefs({ mode: "dark", fontScale: 1.45, lineSpacing: "spacious" });
     const { getStoredReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getStoredReaderPrefs();
     assert.ok(prefs);
@@ -261,10 +274,12 @@ describe("getStoredReaderPrefs", () => {
 
 describe("getReaderPrefs", () => {
   test("returns stored prefs when available", async () => {
-    ls.setItem(
-      "readwise:reader-prefs",
-      JSON.stringify({ mode: "sepia", fontScale: 1.3, fontFamily: "sans", lineSpacing: "spacious" }),
-    );
+    storeReaderPrefs(readerPrefs({
+      mode: "sepia",
+      fontScale: 1.3,
+      fontFamily: "sans",
+      lineSpacing: "spacious",
+    }));
     const { getReaderPrefs } = await import("@/lib/reader-prefs");
     const prefs = getReaderPrefs();
     assert.equal(prefs.mode, "sepia");
@@ -309,28 +324,33 @@ describe("applyReaderPrefs", () => {
   test("sets data-reading-mode on the provided element", async () => {
     const { applyReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    applyReaderPrefs({ mode: "sepia", fontScale: 1.15, fontFamily: "sans", lineSpacing: "comfortable" }, el);
+    applyReaderPrefs(readerPrefs({
+      mode: "sepia",
+      fontScale: 1.15,
+      fontFamily: "sans",
+      lineSpacing: "comfortable",
+    }), el);
     assert.equal((el as unknown as { dataset: Record<string, string> }).dataset.readingMode, "sepia");
   });
 
   test("sets data-reading-font on the provided element", async () => {
     const { applyReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    applyReaderPrefs({ mode: "light", fontScale: 1.0, fontFamily: "dyslexic", lineSpacing: "normal" }, el);
+    applyReaderPrefs(readerPrefs({ fontFamily: "dyslexic" }), el);
     assert.equal((el as unknown as { dataset: Record<string, string> }).dataset.readingFont, "dyslexic");
   });
 
   test("sets data-reading-spacing on the provided element", async () => {
     const { applyReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    applyReaderPrefs({ mode: "dark", fontScale: 1.3, fontFamily: "serif", lineSpacing: "spacious" }, el);
+    applyReaderPrefs(readerPrefs({ mode: "dark", fontScale: 1.3, lineSpacing: "spacious" }), el);
     assert.equal((el as unknown as { dataset: Record<string, string> }).dataset.readingSpacing, "spacious");
   });
 
   test("sets --reading-font-scale CSS custom property", async () => {
     const { applyReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    applyReaderPrefs({ mode: "light", fontScale: 1.45, fontFamily: "serif", lineSpacing: "normal" }, el);
+    applyReaderPrefs(readerPrefs({ fontScale: 1.45 }), el);
     assert.equal((el as unknown as { style: { _map: Map<string, string> } }).style._map.get("--reading-font-scale"), "1.45");
   });
 
@@ -339,7 +359,7 @@ describe("applyReaderPrefs", () => {
     const { applyReaderPrefs } = await import("@/lib/reader-prefs");
     // Should not throw
     assert.doesNotThrow(() =>
-      applyReaderPrefs({ mode: "dark", fontScale: 1.0, fontFamily: "serif", lineSpacing: "normal" }),
+      applyReaderPrefs(readerPrefs({ mode: "dark" })),
     );
   });
 });
@@ -359,9 +379,9 @@ describe("setReaderPrefs", () => {
   test("persists prefs to localStorage as JSON", async () => {
     const { setReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    const prefs = { mode: "dark" as const, fontScale: 1.3, fontFamily: "sans" as const, lineSpacing: "comfortable" as const };
+    const prefs = readerPrefs({ mode: "dark", fontScale: 1.3, fontFamily: "sans", lineSpacing: "comfortable" });
     setReaderPrefs(prefs, el);
-    const stored = ls.getItem("readwise:reader-prefs");
+    const stored = ls.getItem(STORED_READER_PREFS_KEY);
     assert.ok(stored);
     const parsed = JSON.parse(stored) as Record<string, unknown>;
     assert.equal(parsed.mode, "dark");
@@ -371,7 +391,7 @@ describe("setReaderPrefs", () => {
   test("applies prefs to the provided element", async () => {
     const { setReaderPrefs } = await import("@/lib/reader-prefs");
     const el = makeElement();
-    setReaderPrefs({ mode: "sepia", fontScale: 1.15, fontFamily: "serif", lineSpacing: "normal" }, el);
+    setReaderPrefs(readerPrefs({ mode: "sepia", fontScale: 1.15 }), el);
     assert.equal((el as unknown as { dataset: Record<string, string> }).dataset.readingMode, "sepia");
   });
 });

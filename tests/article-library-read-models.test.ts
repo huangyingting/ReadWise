@@ -78,6 +78,13 @@ function publicTag(id: string, name: string, slug = name.toLowerCase()) {
   };
 }
 
+function defaultReadingLists(): AnyArgs[] {
+  return [
+    { id: "default-list", userId: "user-1", name: "Saved", isDefault: true, createdAt: new Date("2026-01-01") },
+    { id: "later-list", userId: "user-1", name: "Later", isDefault: false, createdAt: new Date("2026-01-02") },
+  ];
+}
+
 function matchesTagWhere(tag: AnyArgs, where: AnyArgs = {}) {
   if (where.id && tag.id !== where.id) return false;
   if (where.slug && tag.slug !== where.slug) return false;
@@ -344,10 +351,7 @@ beforeEach(() => {
   articleFindFirstResult = article("readable");
   articleFindUniqueResult = article("a1");
   ensuredDifficultyRows = null;
-  readingListRows = [
-    { id: "default-list", userId: "user-1", name: "Saved", isDefault: true, createdAt: new Date("2026-01-01") },
-    { id: "later-list", userId: "user-1", name: "Later", isDefault: false, createdAt: new Date("2026-01-02") },
-  ];
+  readingListRows = defaultReadingLists();
   readingListFindFirstResult = readingListRows[1];
   readingListCreates = [];
   readingListUpdates = [];
@@ -457,10 +461,7 @@ test("collection schemas, read models, membership, and commands enforce ownershi
   readingListRows = [{ id: "default-list", userId: "user-1", name: "Saved", isDefault: true }];
   assert.deepEqual([...(await readModels.getBookmarkedArticleIds("user-1", ["a1"]))], ["a1"]);
 
-  readingListRows = [
-    { id: "default-list", userId: "user-1", name: "Saved", isDefault: true, createdAt: new Date("2026-01-01") },
-    { id: "later-list", userId: "user-1", name: "Later", isDefault: false, createdAt: new Date("2026-01-02") },
-  ];
+  readingListRows = defaultReadingLists();
   assert.deepEqual(await membership.getArticleListMembership("user-1", "a1"), [
     { id: "default-list", name: "Saved", isDefault: true, hasArticle: true },
     { id: "later-list", name: "Later", isDefault: false, hasArticle: false },

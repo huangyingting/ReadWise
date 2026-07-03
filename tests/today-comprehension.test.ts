@@ -20,6 +20,13 @@ import { type RouteHandler, jsonPost, getReq } from "./support/route";
 import { type AuthState, sessionAuthExports } from "./support/auth-mock";
 
 type Row = Record<string, unknown>;
+type QuizQuestion = {
+  id: string;
+  articleId: string;
+  question: string;
+  options: string[];
+  correctIndex: number;
+};
 
 const USER_ID = "user-1";
 // Anchored to the current UTC day so the pre-seeded Today session matches the
@@ -33,13 +40,7 @@ const CREATED_AT = new Date("2026-06-27T00:00:00Z");
 
 let authState: AuthState = "ok";
 let sessionRow: Row | null = null;
-let quizQuestions: Array<{
-  id: string;
-  articleId: string;
-  question: string;
-  options: string[];
-  correctIndex: number;
-}> = [];
+let quizQuestions: QuizQuestion[] = [];
 let feedbackRows: Row[] = [];
 let skillEvidence: Array<{ skill: string; outcome: number; weight: number }> = [];
 let articleMasteryCalls: Array<{ userId: string; articleId: string }> = [];
@@ -71,6 +72,21 @@ function makeRow(overrides: Row = {}): Row {
     updatedAt: CREATED_AT,
     ...overrides,
   };
+}
+
+function makeQuizQuestion(overrides: Partial<QuizQuestion> = {}): QuizQuestion {
+  return {
+    id: "q1",
+    articleId: "a1",
+    question: "Q?",
+    options: ["a", "b"],
+    correctIndex: 0,
+    ...overrides,
+  };
+}
+
+function assertComprehensionCompleted(): void {
+  assert.ok(sessionRow!.comprehensionCompletedAt instanceof Date);
 }
 
 before(() => {
@@ -270,7 +286,7 @@ test("self-rating alone completes comprehension (no MCQ, no quiz)", async () => 
   assert.equal(res.mcqCorrect, null);
   assert.equal(res.remediation.show, false);
   // Comprehension step advanced on self-rating alone.
-  assert.ok(sessionRow!.comprehensionCompletedAt instanceof Date);
+  assertComprehensionCompleted();
   // One feedback row persisted, self-rating only.
   assert.equal(feedbackRows.length, 1);
   assert.equal(feedbackRows[0].selfRating, "confident");
@@ -307,8 +323,8 @@ test("returns null when there is no Today session / primary article", async () =
 test("selects the most recently added question (no correctIndex leaked)", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q1", articleId: "a1", question: "Old?", options: ["a", "b"], correctIndex: 0 },
-    { id: "q2", articleId: "a1", question: "New?", options: ["x", "y"], correctIndex: 1 },
+    makeQuizQuestion({ id: "q1", question: "Old?", options: ["a", "b"], correctIndex: 0 }),
+    makeQuizQuestion({ id: "q2", question: "New?", options: ["x", "y"], correctIndex: 1 }),
   ];
   const { selectTodayComprehensionQuestion } = await importLib();
   const q = await selectTodayComprehensionQuestion("a1");
@@ -321,7 +337,7 @@ test("selects the most recently added question (no correctIndex leaked)", async 
 test("correct MCQ answer grades server-side and records a strong signal", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q1", articleId: "a1", question: "Q?", options: ["a", "b", "c"], correctIndex: 2 },
+    makeQuizQuestion({ id: "q1", options: ["a", "b", "c"], correctIndex: 2 }),
   ];
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
@@ -345,7 +361,7 @@ test("correct MCQ answer grades server-side and records a strong signal", async 
 test("vocabulary_in_context wrong answer triggers remediation + vocabulary signal", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q9", articleId: "a1", question: "Word?", options: ["a", "b"], correctIndex: 0 },
+    makeQuizQuestion({ id: "q9", question: "Word?" }),
   ];
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
@@ -369,7 +385,7 @@ test("vocabulary_in_context wrong answer triggers remediation + vocabulary signa
 test("a question id from another article is ignored (mcqCorrect stays null)", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "qx", articleId: "other", question: "Q?", options: ["a"], correctIndex: 0 },
+    makeQuizQuestion({ id: "qx", articleId: "other", options: ["a"] }),
   ];
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
@@ -405,7 +421,7 @@ test("degrades to self-rating only when the article has no quiz questions", asyn
   });
   assert.ok(res);
   assert.equal(res.updated, true);
-  assert.ok(sessionRow!.comprehensionCompletedAt instanceof Date);
+  assertComprehensionCompleted();
 });
 
 test("a mastery failure never breaks comprehension completion", async () => {
@@ -419,7 +435,7 @@ test("a mastery failure never breaks comprehension completion", async () => {
   });
   assert.ok(res);
   assert.equal(res.updated, true);
-  assert.ok(sessionRow!.comprehensionCompletedAt instanceof Date);
+  assertComprehensionCompleted();
 });
 
 // ===========================================================================
@@ -450,7 +466,7 @@ test("route: POST completes comprehension and returns safe state", async () => {
 test("route: GET returns the optional question without correctIndex", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q1", articleId: "a1", question: "Q?", options: ["a", "b"], correctIndex: 1 },
+    makeQuizQuestion({ correctIndex: 1 }),
   ];
   const res = await GET();
   assert.equal(res.status, 200);
@@ -490,7 +506,7 @@ const ALLOWED_SKILL_TAGS = new Set([
 test("privacy: persisted feedback row contains only ids/enums/booleans", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q1", articleId: "a1", question: "Secret question?", options: ["opt a", "opt b"], correctIndex: 0 },
+    makeQuizQuestion({ question: "Secret question?", options: ["opt a", "opt b"] }),
   ];
   const { submitTodayComprehension } = await importLib();
   await submitTodayComprehension({
@@ -521,7 +537,7 @@ test("privacy: persisted feedback row contains only ids/enums/booleans", async (
 test("privacy: today_comprehension_submitted analytics payload is enums/booleans only", async () => {
   sessionRow = makeRow();
   quizQuestions = [
-    { id: "q1", articleId: "a1", question: "Hidden?", options: ["x", "y"], correctIndex: 0 },
+    makeQuizQuestion({ question: "Hidden?", options: ["x", "y"] }),
   ];
   const { submitTodayComprehension } = await importLib();
   await submitTodayComprehension({

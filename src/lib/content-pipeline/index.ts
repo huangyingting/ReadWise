@@ -145,6 +145,38 @@ function pushNormalizedBlock(blocks: string[], value: string): void {
   if (normalized) blocks.push(normalized);
 }
 
+function flushInlineParts(blocks: string[], inlineParts: string[]): void {
+  if (inlineParts.length === 0) return;
+  pushNormalizedBlock(blocks, inlineParts.join(""));
+  inlineParts.length = 0;
+}
+
+function walkReaderChildren(parent: Node, blocks: string[], inlineParts: string[]): void {
+  for (const child of Array.from(parent.childNodes)) {
+    if (isTextNode(child)) {
+      inlineParts.push(child.nodeValue ?? "");
+      continue;
+    }
+    if (!isElementNode(child)) continue;
+
+    const tag = tagName(child);
+    if (READER_BREAK_TAGS.has(tag)) {
+      inlineParts.push(" ");
+      continue;
+    }
+    if (READER_BLOCK_TAGS.has(tag)) {
+      flushInlineParts(blocks, inlineParts);
+      pushNormalizedBlock(blocks, readerTextFromNode(child));
+      continue;
+    }
+    if (READER_CONTAINER_TAGS.has(tag)) {
+      walkReaderChildren(child, blocks, inlineParts);
+      continue;
+    }
+    inlineParts.push(` ${readerTextFromNode(child)} `);
+  }
+}
+
 /**
  * Converts stored article HTML into canonical reader text blocks.
  *
@@ -166,40 +198,8 @@ export function articleHtmlToReaderBlocks(html: string): ArticleReaderText {
   const blocks: string[] = [];
   const inlineParts: string[] = [];
 
-  const flushInline = () => {
-    if (inlineParts.length === 0) return;
-    pushNormalizedBlock(blocks, inlineParts.join(""));
-    inlineParts.length = 0;
-  };
-
-  const walkChildren = (parent: Node) => {
-    for (const child of Array.from(parent.childNodes)) {
-      if (isTextNode(child)) {
-        inlineParts.push(child.nodeValue ?? "");
-        continue;
-      }
-      if (!isElementNode(child)) continue;
-
-      const tag = tagName(child);
-      if (READER_BREAK_TAGS.has(tag)) {
-        inlineParts.push(" ");
-        continue;
-      }
-      if (READER_BLOCK_TAGS.has(tag)) {
-        flushInline();
-        pushNormalizedBlock(blocks, readerTextFromNode(child));
-        continue;
-      }
-      if (READER_CONTAINER_TAGS.has(tag)) {
-        walkChildren(child);
-        continue;
-      }
-      inlineParts.push(` ${readerTextFromNode(child)} `);
-    }
-  };
-
-  walkChildren(root);
-  flushInline();
+  walkReaderChildren(root, blocks, inlineParts);
+  flushInlineParts(blocks, inlineParts);
 
   const plainText = normalizeReaderText(blocks.join(" "));
   return { plainText, blocks };

@@ -69,6 +69,20 @@ function urls(): { host: string; origin: string; reader: string; wayback: string
   };
 }
 
+function disableProfileRetry(): void {
+  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+}
+
+function enableImmediate429Retry(retries: string): void {
+  process.env.SCRAPER_FETCH_429_RETRIES = retries;
+  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
+  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+}
+
+function fetchCount(url: string): number {
+  return fetchCalls.filter((call) => call === url).length;
+}
+
 before(() => {
   mock.module("@/lib/scraper/ssrf", {
     namedExports: {
@@ -190,7 +204,7 @@ test("all profiles 403 → reader (r.jina.ai) is called with X-Return-Format htm
 });
 
 test("browser strategy returns 200 before reader without fetching reader", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
   routes = {
@@ -207,7 +221,7 @@ test("browser strategy returns 200 before reader without fetching reader", async
 });
 
 test("browser unavailable advances to reader", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
   routes = {
@@ -224,7 +238,7 @@ test("browser unavailable advances to reader", async () => {
 });
 
 test("browser challenge body advances through reader to wayback", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
   routes = {
@@ -243,7 +257,7 @@ test("browser challenge body advances through reader to wayback", async () => {
 });
 
 test("browser strategy is positioned before reader", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
   routes = {
@@ -259,7 +273,7 @@ test("browser strategy is positioned before reader", async () => {
 });
 
 test("SCRAPER_FETCH_BROWSER=false skips browser and preserves reader fallback", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   process.env.SCRAPER_FETCH_BROWSER = "false";
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
@@ -277,10 +291,8 @@ test("SCRAPER_FETCH_BROWSER=false skips browser and preserves reader fallback", 
 });
 
 test("reader 429 is retried on the same reader strategy and can recover", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
-  process.env.SCRAPER_FETCH_429_RETRIES = "1";
-  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
-  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  disableProfileRetry();
+  enableImmediate429Retry("1");
   const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
   const u = urls();
   routes = {
@@ -290,16 +302,14 @@ test("reader 429 is retried on the same reader strategy and can recover", async 
   const html = await fetchHtmlWithStrategies(u.origin, undefined, { sleep: async () => {} });
   assert.equal(html, "READER-OK");
   assert.equal(
-    fetchCalls.filter((call) => call === u.reader).length,
+    fetchCount(u.reader),
     2,
     "reader URL should be fetched twice",
   );
 });
 
 test("origin 429 is retried on origin and can recover without advancing", async () => {
-  process.env.SCRAPER_FETCH_429_RETRIES = "1";
-  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
-  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  enableImmediate429Retry("1");
   const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
   const u = urls();
   routes = {
@@ -311,9 +321,7 @@ test("origin 429 is retried on origin and can recover without advancing", async 
 });
 
 test("Retry-After seconds are honored for 429 same-strategy retry", async () => {
-  process.env.SCRAPER_FETCH_429_RETRIES = "1";
-  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
-  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  enableImmediate429Retry("1");
   const sleeps: number[] = [];
   const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
   const u = urls();
@@ -331,10 +339,8 @@ test("Retry-After seconds are honored for 429 same-strategy retry", async () => 
 });
 
 test("persistent reader 429 advances to Wayback after configured retries", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
-  process.env.SCRAPER_FETCH_429_RETRIES = "2";
-  process.env.SCRAPER_FETCH_429_BASE_MS = "1";
-  process.env.SCRAPER_FETCH_429_MAX_MS = "1";
+  disableProfileRetry();
+  enableImmediate429Retry("2");
   const { fetchHtmlWithStrategies } = await import("@/lib/scraper/fetch-strategies");
   const u = urls();
   routes = {
@@ -345,7 +351,7 @@ test("persistent reader 429 advances to Wayback after configured retries", async
   const html = await fetchHtmlWithStrategies(u.origin, undefined, { sleep: async () => {} });
   assert.equal(html, "WAYBACK-OK");
   assert.equal(
-    fetchCalls.filter((call) => call === u.reader).length,
+    fetchCount(u.reader),
     3,
     "reader should be attempted initial + configured retries",
   );
@@ -397,7 +403,7 @@ test("SSRF: an internal/private URL is rejected BEFORE any fetch (no reader/wayb
 });
 
 test("SCRAPER_FETCH_PROFILE_RETRY=false does only the single origin attempt", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   process.env.SCRAPER_FETCH_READER = "false";
   process.env.SCRAPER_FETCH_WAYBACK = "false";
   const { fetchHtml } = await import("@/lib/scraper/fetch");
@@ -408,7 +414,7 @@ test("SCRAPER_FETCH_PROFILE_RETRY=false does only the single origin attempt", as
 });
 
 test("SCRAPER_FETCH_READER=false skips reader (falls straight to wayback)", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   process.env.SCRAPER_FETCH_READER = "false";
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();
@@ -423,7 +429,7 @@ test("SCRAPER_FETCH_READER=false skips reader (falls straight to wayback)", asyn
 });
 
 test("SCRAPER_FETCH_WAYBACK=false skips wayback", async () => {
-  process.env.SCRAPER_FETCH_PROFILE_RETRY = "false";
+  disableProfileRetry();
   process.env.SCRAPER_FETCH_WAYBACK = "false";
   const { fetchHtml } = await import("@/lib/scraper/fetch");
   const u = urls();

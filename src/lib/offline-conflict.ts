@@ -90,6 +90,33 @@ function escapeRegExp(text: string): string {
   return text.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function movedAnchor(start: number, length: number): AnchorRevalidation {
+  return {
+    status: "moved",
+    stale: true,
+    suggestedStartOffset: start,
+    suggestedEndOffset: start + length,
+  };
+}
+
+function findQuoteWithContext(anchor: HighlightAnchor, plainText: string): number {
+  if (!anchor.prefix && !anchor.suffix) return -1;
+
+  const quote = anchor.quote ?? "";
+  const prefix = anchor.prefix ?? "";
+  const withContext = `${prefix}${quote}${anchor.suffix ?? ""}`;
+  const ctxIndex = plainText.indexOf(withContext);
+  return ctxIndex >= 0 ? ctxIndex + prefix.length : -1;
+}
+
+function findWhitespaceTolerantQuote(quote: string, plainText: string): RegExpExecArray | null {
+  const tokens = normalizeWhitespace(quote).split(" ").filter(Boolean);
+  if (tokens.length === 0) return null;
+
+  const flexible = new RegExp(tokens.map(escapeRegExp).join("\\s+"));
+  return flexible.exec(plainText);
+}
+
 /**
  * Revalidate a highlight anchor against the article's current plain text:
  *   - "valid":   the quote still sits exactly at [startOffset, endOffset).
@@ -116,44 +143,22 @@ export function revalidateAnchor(
 
   // The quote drifted — try to find it elsewhere, preferring a match adjacent
   // to the stored prefix/suffix to avoid latching onto an unrelated repeat.
-  const withContext = `${anchor.prefix ?? ""}${quote}${anchor.suffix ?? ""}`;
-  const ctxIndex =
-    anchor.prefix || anchor.suffix ? plainText.indexOf(withContext) : -1;
-  if (ctxIndex >= 0) {
-    const start = ctxIndex + (anchor.prefix ?? "").length;
-    return {
-      status: "moved",
-      stale: true,
-      suggestedStartOffset: start,
-      suggestedEndOffset: start + quote.length,
-    };
+  const contextualIndex = findQuoteWithContext(anchor, plainText);
+  if (contextualIndex >= 0) {
+    return movedAnchor(contextualIndex, quote.length);
   }
 
   const index = plainText.indexOf(quote);
   if (index >= 0) {
-    return {
-      status: "moved",
-      stale: true,
-      suggestedStartOffset: index,
-      suggestedEndOffset: index + quote.length,
-    };
+    return movedAnchor(index, quote.length);
   }
 
   // Whitespace-tolerant fallback: match the quote's tokens separated by any run
   // of whitespace, so a reflow (single → multiple spaces, wrapped newlines)
   // re-anchors instead of being reported as missing.
-  const tokens = normalizeWhitespace(quote).split(" ").filter(Boolean);
-  if (tokens.length > 0) {
-    const flexible = new RegExp(tokens.map(escapeRegExp).join("\\s+"));
-    const match = flexible.exec(plainText);
-    if (match) {
-      return {
-        status: "moved",
-        stale: true,
-        suggestedStartOffset: match.index,
-        suggestedEndOffset: match.index + match[0].length,
-      };
-    }
+  const match = findWhitespaceTolerantQuote(quote, plainText);
+  if (match) {
+    return movedAnchor(match.index, match[0].length);
   }
 
   return { status: "missing", stale: true };
@@ -172,6 +177,14 @@ export interface NoteMergeResult {
   text: string | null;
   /** True when both sides diverged from the base and both were preserved. */
   conflict: boolean;
+}
+
+function normalizeNote(note: string | null | undefined): string {
+  return (note ?? "").trim();
+}
+
+function noteResult(text: string): NoteMergeResult {
+  return { text: text.length ? text : null, conflict: false };
 }
 
 /**
@@ -193,27 +206,27 @@ export function mergeNoteConflict(
   clientNote: string | null | undefined,
   baseNote?: string | null,
 ): NoteMergeResult {
-  const server = (serverNote ?? "").trim();
-  const client = (clientNote ?? "").trim();
+  const server = normalizeNote(serverNote);
+  const client = normalizeNote(clientNote);
   const base = baseNote == null ? null : baseNote.trim();
 
   if (server === client) {
-    return { text: client.length ? client : null, conflict: false };
+    return noteResult(client);
   }
   // Server never changed from what the client started with → client wins.
   if (base !== null && server === base) {
-    return { text: client.length ? client : null, conflict: false };
+    return noteResult(client);
   }
   // Client never actually changed it → keep the server's newer value.
   if (base !== null && client === base) {
-    return { text: server.length ? server : null, conflict: false };
+    return noteResult(server);
   }
   // Both sides diverged (or base is unknown) → preserve both.
   if (server.length === 0) {
-    return { text: client.length ? client : null, conflict: false };
+    return noteResult(client);
   }
   if (client.length === 0) {
-    return { text: server.length ? server : null, conflict: false };
+    return noteResult(server);
   }
   return {
     text: `${client}${NOTE_CONFLICT_SEPARATOR}${server}`,

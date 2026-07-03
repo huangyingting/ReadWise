@@ -12,6 +12,10 @@ import { Field } from "@/components/ui/Field";
 import { CATEGORIES } from "@/lib/categories";
 
 const LEVELS = ["A1", "A2", "B1", "B2", "C1", "C2"] as const;
+const STATUS_OPTIONS = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "PUBLISHED", label: "Published" },
+] as const;
 
 export type ReviewStateOption = { value: string; label: string };
 
@@ -31,8 +35,21 @@ export type AdminArticleReviewProps = {
   };
 };
 
+type PublicationStatus = AdminArticleReviewProps["initial"]["status"];
+
 function humanizeFlag(flag: string): string {
   return flag.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function toggleSelection(items: string[], item: string): string[] {
+  return items.includes(item) ? items.filter((value) => value !== item) : [...items, item];
+}
+
+function parseTagList(tags: string): string[] {
+  return tags
+    .split(",")
+    .map((tag) => tag.trim())
+    .filter(Boolean);
 }
 
 /**
@@ -52,7 +69,7 @@ export default function AdminArticleReview({
   const [excerpt, setExcerpt] = useState(initial.excerpt);
   const [category, setCategory] = useState(initial.category);
   const [difficulty, setDifficulty] = useState(initial.difficulty);
-  const [status, setStatus] = useState<"DRAFT" | "PUBLISHED">(initial.status);
+  const [status, setStatus] = useState<PublicationStatus>(initial.status);
   const [reviewState, setReviewState] = useState(initial.reviewState);
   const [flags, setFlags] = useState<string[]>(initial.qualityFlags);
   const [tags, setTags] = useState(initial.tags);
@@ -62,17 +79,11 @@ export default function AdminArticleReview({
   const [savedAt, setSavedAt] = useState<number | null>(null);
 
   function toggleFlag(flag: string) {
-    setFlags((prev) =>
-      prev.includes(flag) ? prev.filter((f) => f !== flag) : [...prev, flag],
-    );
+    setFlags((prev) => toggleSelection(prev, flag));
   }
 
   async function save() {
     await run(async () => {
-      const tagList = tags
-        .split(",")
-        .map((t) => t.trim())
-        .filter(Boolean);
       await postJson(`/api/admin/articles/${articleId}/review`, {
         title,
         excerpt,
@@ -81,7 +92,7 @@ export default function AdminArticleReview({
         status,
         reviewState,
         qualityFlags: flags,
-        tags: tagList,
+        tags: parseTagList(tags),
         note: note.trim() || undefined,
       });
       setNote("");
@@ -109,11 +120,14 @@ export default function AdminArticleReview({
         <Field label="Publication status">
           <Select
             value={status}
-            onChange={(e) => setStatus(e.target.value as "DRAFT" | "PUBLISHED")}
+            onChange={(e) => setStatus(e.target.value as PublicationStatus)}
             selectSize="md"
           >
-            <option value="DRAFT">Draft</option>
-            <option value="PUBLISHED">Published</option>
+            {STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
           </Select>
         </Field>
       </div>

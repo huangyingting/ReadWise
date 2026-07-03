@@ -14,6 +14,20 @@ const nautilusRssExtractor = rssUrlExtractor([
   ...Array.from({ length: 9 }, (_, i) => `https://nautil.us/feed/?paged=${i + 2}`),
 ]);
 
+function addUniqueUrlsUpToCap(
+  target: string[],
+  seen: Set<string>,
+  candidates: string[],
+  candidateCap: number,
+): void {
+  for (const url of candidates) {
+    if (target.length >= candidateCap) break;
+    if (seen.has(url)) continue;
+    seen.add(url);
+    target.push(url);
+  }
+}
+
 async function collectNautilusUrls(
   limit: number,
   fetch: ExtractorFetch,
@@ -21,14 +35,8 @@ async function collectNautilusUrls(
   const candidateCap = Math.max(limit * 2, limit);
   const seen = new Set<string>();
   const urls: string[] = [];
-  const add = (candidates: string[]) => {
-    for (const url of candidates) {
-      if (urls.length >= candidateCap) break;
-      if (seen.has(url)) continue;
-      seen.add(url);
-      urls.push(url);
-    }
-  };
+  const add = (candidates: string[]) =>
+    addUniqueUrlsUpToCap(urls, seen, candidates, candidateCap);
 
   add(await fetchNautilusUrls(limit, fetch));
   if (urls.length < candidateCap) {

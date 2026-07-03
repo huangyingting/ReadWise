@@ -56,6 +56,11 @@ function countWords(text: string): number {
   return matches ? matches.length : 0;
 }
 
+/** Collapses Readability text output into the same plain-text shape callers expect. */
+function normalizeTextContent(text: string | null | undefined): string {
+  return (text ?? "").replace(/\s+/g, " ").trim();
+}
+
 /**
  * Injects a `<base href>` into the document head so Readability resolves
  * relative links/images against the source URL. No-op when a `<base>` already
@@ -90,6 +95,32 @@ function nullableString(value: string | null | undefined): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+type ParsedReadableArticle = NonNullable<ReturnType<Readability["parse"]>>;
+
+function toReadableArticle(article: ParsedReadableArticle): ReadableArticle | null {
+  const title = nullableString(article.title);
+  if (!title) return null;
+
+  const textContent = normalizeTextContent(article.textContent);
+  const wordCount = countWords(textContent);
+  if (wordCount < MIN_WORD_COUNT) return null;
+
+  const rawContent = typeof article.content === "string" ? article.content : "";
+  const contentHtml = unwrapReadabilityPage(rawContent);
+  if (!contentHtml) return null;
+
+  return {
+    title,
+    byline: nullableString(article.byline),
+    contentHtml,
+    textContent,
+    excerpt: nullableString(article.excerpt),
+    lang: nullableString(article.lang),
+    siteName: nullableString(article.siteName),
+    wordCount,
+  };
+}
+
 /**
  * Extracts the main article from already-fetched page HTML.
  *
@@ -111,27 +142,7 @@ export function extractReadable(html: string, url: string): ReadableArticle | nu
     const article = new Readability(document as unknown as Document).parse();
     if (!article) return null;
 
-    const title = nullableString(article.title);
-    if (!title) return null;
-
-    const textContent = (article.textContent ?? "").replace(/\s+/g, " ").trim();
-    const wordCount = countWords(textContent);
-    if (wordCount < MIN_WORD_COUNT) return null;
-
-    const rawContent = typeof article.content === "string" ? article.content : "";
-    const contentHtml = unwrapReadabilityPage(rawContent);
-    if (!contentHtml) return null;
-
-    return {
-      title,
-      byline: nullableString(article.byline),
-      contentHtml,
-      textContent,
-      excerpt: nullableString(article.excerpt),
-      lang: nullableString(article.lang),
-      siteName: nullableString(article.siteName),
-      wordCount,
-    };
+    return toReadableArticle(article);
   } catch {
     return null;
   }

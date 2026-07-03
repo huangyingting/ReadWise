@@ -16,6 +16,46 @@ import type { SpeechWord } from "./timing";
 
 const log = createLogger("speech");
 
+const DEFAULT_OUTPUT_FORMAT = {
+  enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
+  mimeType: "audio/mpeg",
+} as const;
+
+const OUTPUT_FORMATS: Record<
+  string,
+  { enum: sdk.SpeechSynthesisOutputFormat; mimeType: string }
+> = {
+  "audio-16khz-32kbitrate-mono-mp3": {
+    enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
+    mimeType: "audio/mpeg",
+  },
+  "audio-16khz-128kbitrate-mono-mp3": {
+    enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3,
+    mimeType: "audio/mpeg",
+  },
+  "audio-24khz-48kbitrate-mono-mp3": {
+    enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
+    mimeType: "audio/mpeg",
+  },
+  "audio-24khz-96kbitrate-mono-mp3": {
+    enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
+    mimeType: "audio/mpeg",
+  },
+  "audio-48khz-96kbitrate-mono-mp3": {
+    enum: sdk.SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
+    mimeType: "audio/mpeg",
+  },
+};
+
+type AzureWordBoundaryEvent = {
+  boundaryType: sdk.SpeechSynthesisBoundaryType;
+  text?: unknown;
+  textOffset: number;
+  wordLength: number;
+  audioOffset: number;
+  duration: number;
+};
+
 export type SynthesisOutput = {
   audio: Buffer;
   provider: "azure";
@@ -32,37 +72,7 @@ function resolveOutputFormat(format: string): {
   enum: sdk.SpeechSynthesisOutputFormat;
   mimeType: string;
 } {
-  const map: Record<
-    string,
-    { enum: sdk.SpeechSynthesisOutputFormat; mimeType: string }
-  > = {
-    "audio-16khz-32kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz32KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-16khz-128kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio16Khz128KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-24khz-48kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz48KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-24khz-96kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-    "audio-48khz-96kbitrate-mono-mp3": {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio48Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    },
-  };
-  return (
-    map[format] ?? {
-      enum: sdk.SpeechSynthesisOutputFormat.Audio24Khz96KBitRateMonoMp3,
-      mimeType: "audio/mpeg",
-    }
-  );
+  return OUTPUT_FORMATS[format] ?? DEFAULT_OUTPUT_FORMAT;
 }
 
 /**
@@ -71,6 +81,45 @@ function resolveOutputFormat(format: string): {
  */
 export function resolveMimeType(format: string): string {
   return resolveOutputFormat(format).mimeType;
+}
+
+function resolveBoundaryWord(text: string, event: AzureWordBoundaryEvent): string {
+  return typeof event.text === "string" && event.text.trim()
+    ? event.text
+    : text.slice(event.textOffset, event.textOffset + event.wordLength);
+}
+
+function hasValidTextSpan(event: AzureWordBoundaryEvent): boolean {
+  return (
+    Number.isFinite(event.textOffset) &&
+    Number.isFinite(event.wordLength) &&
+    event.textOffset >= 0 &&
+    event.wordLength > 0
+  );
+}
+
+function wordTimingFromBoundary(text: string, event: AzureWordBoundaryEvent): SpeechWord | null {
+  if (event.boundaryType !== sdk.SpeechSynthesisBoundaryType.Word) {
+    return null;
+  }
+
+  const word = resolveBoundaryWord(text, event);
+  if (!word.trim()) return null;
+
+  const startMs = ticksToMilliseconds(event.audioOffset);
+  const durationMs = ticksToMilliseconds(event.duration);
+  const timing: SpeechWord = {
+    word,
+    startMs,
+    endMs: startMs + durationMs,
+  };
+
+  if (hasValidTextSpan(event)) {
+    timing.textStart = event.textOffset;
+    timing.textEnd = event.textOffset + event.wordLength;
+  }
+
+  return timing;
 }
 
 /**
@@ -103,32 +152,8 @@ export function synthesize(
 
       const words: SpeechWord[] = [];
       synthesizer.wordBoundary = (_s, e) => {
-        if (e.boundaryType !== sdk.SpeechSynthesisBoundaryType.Word) {
-          return;
-        }
-        const eventText = (e as { text?: unknown }).text;
-        const word =
-          typeof eventText === "string" && eventText.trim()
-            ? eventText
-            : text.slice(e.textOffset, e.textOffset + e.wordLength);
-        if (!word.trim()) return;
-        const startMs = ticksToMilliseconds(e.audioOffset);
-        const durationMs = ticksToMilliseconds(e.duration);
-        const timing: SpeechWord = {
-          word,
-          startMs,
-          endMs: startMs + durationMs,
-        };
-        if (
-          Number.isFinite(e.textOffset) &&
-          Number.isFinite(e.wordLength) &&
-          e.textOffset >= 0 &&
-          e.wordLength > 0
-        ) {
-          timing.textStart = e.textOffset;
-          timing.textEnd = e.textOffset + e.wordLength;
-        }
-        words.push(timing);
+        const timing = wordTimingFromBoundary(text, e as AzureWordBoundaryEvent);
+        if (timing) words.push(timing);
       };
 
       synthesizer.speakTextAsync(

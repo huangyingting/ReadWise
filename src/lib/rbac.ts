@@ -179,9 +179,8 @@ const BASE_READER_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.progressTrack,
 ];
 
-/** Capabilities a full system administrator holds today. */
-const ADMIN_CAPABILITIES: readonly Capability[] = [
-  ...BASE_READER_CAPABILITIES,
+/** Back-office privileges granted to a full system administrator today. */
+const ADMIN_BACK_OFFICE_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.adminAccess,
   CAPABILITIES.articlesManage,
   CAPABILITIES.tagsManage,
@@ -192,6 +191,28 @@ const ADMIN_CAPABILITIES: readonly Capability[] = [
   CAPABILITIES.contentModerate,
   CAPABILITIES.sourcesManage,
   CAPABILITIES.supportAssist,
+];
+
+/** Capabilities granted to tenant organization administrators. */
+const ORG_ADMIN_CAPABILITIES: readonly Capability[] = [
+  CAPABILITIES.orgManage,
+  CAPABILITIES.orgMembersManage,
+  CAPABILITIES.classroomManage,
+  CAPABILITIES.classroomAssignmentsManage,
+  CAPABILITIES.classroomStudentsManage,
+];
+
+/** Capabilities granted to tenant classroom teachers. */
+const TEACHER_CAPABILITIES: readonly Capability[] = [
+  CAPABILITIES.classroomManage,
+  CAPABILITIES.classroomAssignmentsManage,
+  CAPABILITIES.classroomStudentsManage,
+];
+
+/** Capabilities a full system administrator holds today. */
+const ADMIN_CAPABILITIES: readonly Capability[] = [
+  ...BASE_READER_CAPABILITIES,
+  ...ADMIN_BACK_OFFICE_CAPABILITIES,
 ];
 
 /**
@@ -228,17 +249,11 @@ export const ROLE_CAPABILITIES: Record<RoleName, readonly Capability[]> = {
   // Planned tenant roles (not assignable yet) ------------------------------
   OrgAdmin: [
     ...BASE_READER_CAPABILITIES,
-    CAPABILITIES.orgManage,
-    CAPABILITIES.orgMembersManage,
-    CAPABILITIES.classroomManage,
-    CAPABILITIES.classroomAssignmentsManage,
-    CAPABILITIES.classroomStudentsManage,
+    ...ORG_ADMIN_CAPABILITIES,
   ],
   Teacher: [
     ...BASE_READER_CAPABILITIES,
-    CAPABILITIES.classroomManage,
-    CAPABILITIES.classroomAssignmentsManage,
-    CAPABILITIES.classroomStudentsManage,
+    ...TEACHER_CAPABILITIES,
   ],
   ClassroomInstructor: [
     ...BASE_READER_CAPABILITIES,

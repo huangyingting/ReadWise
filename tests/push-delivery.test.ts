@@ -30,6 +30,8 @@ let deletedSubIds: string[][] = [];
 let deletedManyEndpoints: string[][] = [];
 let updatedManyCalls: { ids?: string[]; data: Record<string, unknown> }[] = [];
 
+type MockSubscription = typeof mockSubs[number];
+
 // ---------------------------------------------------------------------------
 // Mocks registered once in before()
 // ---------------------------------------------------------------------------
@@ -143,6 +145,17 @@ function enablePush() {
   process.env.VAPID_SUBJECT = "mailto:test@example.com";
 }
 
+function pushSub(overrides: Partial<MockSubscription>): MockSubscription {
+  return {
+    id: "s1",
+    userId: "u1",
+    endpoint: "https://push.example.com/1",
+    p256dh: "k",
+    auth: "a",
+    ...overrides,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // isPushConfigured
 // ---------------------------------------------------------------------------
@@ -214,8 +227,8 @@ describe("sendPushToUser", () => {
   test("sends to all subscriptions of a user", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/1", p256dh: "k1", auth: "a1" },
-      { id: "s2", userId: "u1", endpoint: "https://push.example.com/2", p256dh: "k2", auth: "a2" },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/1", p256dh: "k1", auth: "a1" }),
+      pushSub({ id: "s2", endpoint: "https://push.example.com/2", p256dh: "k2", auth: "a2" }),
     ];
     const { sendPushToUser } = await import("@/lib/push/delivery");
     const sent = await sendPushToUser("u1", { title: "Review", body: "3 words due" });
@@ -229,8 +242,8 @@ describe("sendPushToUser", () => {
   test("prunes dead 410 subscriptions", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/dead", p256dh: "k1", auth: "a1" },
-      { id: "s2", userId: "u1", endpoint: "https://push.example.com/alive", p256dh: "k2", auth: "a2" },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/dead", p256dh: "k1", auth: "a1" }),
+      pushSub({ id: "s2", endpoint: "https://push.example.com/alive", p256dh: "k2", auth: "a2" }),
     ];
     sendShouldFail = 410;
     const { sendPushToUser } = await import("@/lib/push/delivery");
@@ -245,7 +258,7 @@ describe("sendPushToUser", () => {
   test("does not prune 500-error subscriptions", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/err", p256dh: "k1", auth: "a1" },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/err", p256dh: "k1", auth: "a1" }),
     ];
     sendShouldFail = 500;
     const { sendPushToUser } = await import("@/lib/push/delivery");
@@ -263,7 +276,7 @@ describe("delivery tracking and resilient pruning (RW-045)", () => {
   test("successful send resets failureCount and stamps lastSuccessAt", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/ok", p256dh: "k", auth: "a", failureCount: 3 },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/ok", failureCount: 3 }),
     ];
     const { sendPushToUser } = await import("@/lib/push/delivery");
     await sendPushToUser("u1", { title: "T", body: "B" });
@@ -279,7 +292,7 @@ describe("delivery tracking and resilient pruning (RW-045)", () => {
   test("transient failure increments failureCount without pruning (below threshold)", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/err", p256dh: "k", auth: "a", failureCount: 0 },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/err", failureCount: 0 }),
     ];
     sendShouldFail = 500;
     const { sendPushToUser } = await import("@/lib/push/delivery");
@@ -294,7 +307,7 @@ describe("delivery tracking and resilient pruning (RW-045)", () => {
   test("transient failure at the threshold prunes the unhealthy endpoint", async () => {
     enablePush();
     mockSubs = [
-      { id: "s1", userId: "u1", endpoint: "https://push.example.com/dying", p256dh: "k", auth: "a", failureCount: 7 },
+      pushSub({ id: "s1", endpoint: "https://push.example.com/dying", failureCount: 7 }),
     ];
     sendShouldFail = 500;
     const { sendPushToUser } = await import("@/lib/push/delivery");

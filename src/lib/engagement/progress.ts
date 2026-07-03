@@ -20,12 +20,26 @@ const log = createLogger("progress");
 /** Scroll percent at/above which an article is considered finished. */
 export const COMPLETION_THRESHOLD = 95;
 
+/** Serializable progress summary safe to send to the client. */
+export type ProgressSummary = {
+  percent: number;
+  completed: boolean;
+};
+
 export function clampPercent(value: number): number {
   if (!Number.isFinite(value)) {
     // Positive infinity clamps to full; NaN / negative infinity clamp to zero.
     return value > 0 ? 100 : 0;
   }
   return Math.min(100, Math.max(0, Math.round(value)));
+}
+
+function isCompletePercent(percent: number): boolean {
+  return percent >= COMPLETION_THRESHOLD;
+}
+
+function toProgressSummary(row: ReadingProgress): ProgressSummary {
+  return { percent: row.percent, completed: row.completed };
 }
 
 export function getProgress(
@@ -58,12 +72,6 @@ export async function getProgressMap(
   return map;
 }
 
-/** Serializable progress summary safe to send to the client. */
-export type ProgressSummary = {
-  percent: number;
-  completed: boolean;
-};
-
 /**
  * Batch fetch progress for a set of articles as plain, serializable summaries
  * keyed by articleId. Backs the listing batch endpoint so a single query
@@ -76,7 +84,7 @@ export async function getProgressSummaries(
   const map = await getProgressMap(userId, articleIds);
   const summaries: Record<string, ProgressSummary> = {};
   for (const [articleId, row] of map) {
-    summaries[articleId] = { percent: row.percent, completed: row.completed };
+    summaries[articleId] = toProgressSummary(row);
   }
   return summaries;
 }
@@ -108,7 +116,7 @@ export async function listInProgressArticles(
   });
   return rows.map((row) => ({
     article: toListingArticle(row.article),
-    progress: { percent: row.percent, completed: row.completed },
+    progress: toProgressSummary(row),
   }));
 }
 
@@ -139,7 +147,7 @@ async function writeProgressForwardOnly(
     const existing = await getProgress(userId, articleId);
 
     if (!existing) {
-      const completed = incoming >= COMPLETION_THRESHOLD;
+      const completed = isCompletePercent(incoming);
       try {
         return await prisma.readingProgress.create({
           data: {
@@ -158,7 +166,7 @@ async function writeProgressForwardOnly(
     }
 
     const percent = Math.max(existing.percent, incoming);
-    const completed = existing.completed || percent >= COMPLETION_THRESHOLD;
+    const completed = existing.completed || isCompletePercent(percent);
     const completedAt = existing.completedAt ?? (completed ? new Date() : null);
 
     // Forward-only guard: only apply when it would not lower the stored percent,

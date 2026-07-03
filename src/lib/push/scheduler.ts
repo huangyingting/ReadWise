@@ -44,7 +44,7 @@ export interface ReminderResult {
 export async function sendDueReminders(): Promise<ReminderResult> {
   if (!isPushConfigured()) {
     log.info("sendDueReminders: VAPID unconfigured — no-op");
-    return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
+    return emptyReminderResult();
   }
 
   const now = new Date();
@@ -59,7 +59,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   });
 
   if (dueGroups.length === 0) {
-    return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
+    return emptyReminderResult();
   }
 
   const dueUserIds = dueGroups.map((g) => g.userId);
@@ -78,13 +78,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
     },
   });
 
-  // Group subscriptions by userId.
-  const subsByUser = new Map<string, SubRow[]>();
-  for (const sub of allSubs) {
-    const list = subsByUser.get(sub.userId) ?? [];
-    list.push(sub);
-    subsByUser.set(sub.userId, list);
-  }
+  const subsByUser = groupSubscriptionsByUser(allSubs);
 
   const subscribedUserIds = [...subsByUser.keys()];
 
@@ -110,10 +104,7 @@ export async function sendDueReminders(): Promise<ReminderResult> {
   // Prefer the Today Session deep link + copy when that feature is enabled;
   // otherwise keep the existing due-word reminder target unchanged. The copy
   // stays generic (only a due-word count) — no article, word, or note content.
-  const todaySession = isTodaySessionFeatureEnabled();
-  const reminderTitle = todaySession ? reminderCopy.todayTitle : reminderCopy.title;
-  const reminderUrl = todaySession ? reminderCopy.todayUrl : reminderCopy.url;
-  const reminderBody = todaySession ? reminderCopy.todayBody : reminderCopy.body;
+  const reminderContent = getReminderContent(isTodaySessionFeatureEnabled());
 
   for (const userId of subscribedUserIds) {
     const pref: ReminderPreference = prefMap.get(userId) ?? {
@@ -133,16 +124,50 @@ export async function sendDueReminders(): Promise<ReminderResult> {
     }
 
     const count = dueCountMap.get(userId) ?? 0;
-    const payload: PushPayload = {
-      title: reminderTitle,
-      body: reminderBody(count),
-      url: reminderUrl,
-      icon: reminderCopy.icon,
-    };
+    const payload = buildReminderPayload(reminderContent, count);
     const delivered = await sendToSubs(subsByUser.get(userId) ?? [], JSON.stringify(payload));
     if (delivered > 0) result.sent++;
   }
 
   log.info("sendDueReminders complete", result as unknown as Record<string, unknown>);
   return result;
+}
+
+function emptyReminderResult(): ReminderResult {
+  return { usersWithDue: 0, sent: 0, skipped: 0, suppressed: 0 };
+}
+
+type UserSubscription = SubRow & { userId: string };
+
+function groupSubscriptionsByUser(subscriptions: UserSubscription[]): Map<string, SubRow[]> {
+  const subsByUser = new Map<string, SubRow[]>();
+  for (const sub of subscriptions) {
+    const list = subsByUser.get(sub.userId) ?? [];
+    list.push(sub);
+    subsByUser.set(sub.userId, list);
+  }
+  return subsByUser;
+}
+
+type ReminderContent = {
+  title: string;
+  body: (count: number) => string;
+  url: string;
+};
+
+function getReminderContent(todaySession: boolean): ReminderContent {
+  return {
+    title: todaySession ? reminderCopy.todayTitle : reminderCopy.title,
+    body: todaySession ? reminderCopy.todayBody : reminderCopy.body,
+    url: todaySession ? reminderCopy.todayUrl : reminderCopy.url,
+  };
+}
+
+function buildReminderPayload(content: ReminderContent, count: number): PushPayload {
+  return {
+    title: content.title,
+    body: content.body(count),
+    url: content.url,
+    icon: reminderCopy.icon,
+  };
 }

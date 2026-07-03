@@ -40,28 +40,24 @@ function sitemapNumber(url: string): number {
   return match?.[1] ? Number(match[1]) : 0;
 }
 
-function isContentSitemap(url: string): boolean {
+function isTechnologyReviewSitemapPath(url: string, pathPattern: RegExp): boolean {
   try {
     const parsed = new URL(url);
     return (
       parsed.hostname.replace(/^www\./, "") === "technologyreview.com" &&
-      /^\/(?:sitemap-\d+|news-sitemap)\.xml$/i.test(parsed.pathname)
+      pathPattern.test(parsed.pathname)
     );
   } catch {
     return false;
   }
 }
 
+function isContentSitemap(url: string): boolean {
+  return isTechnologyReviewSitemapPath(url, /^\/(?:sitemap-\d+|news-sitemap)\.xml$/i);
+}
+
 function isSitemapIndex(url: string): boolean {
-  try {
-    const parsed = new URL(url);
-    return (
-      parsed.hostname.replace(/^www\./, "") === "technologyreview.com" &&
-      /^\/sitemap-index-\d+\.xml$/i.test(parsed.pathname)
-    );
-  } catch {
-    return false;
-  }
+  return isTechnologyReviewSitemapPath(url, /^\/sitemap-index-\d+\.xml$/i);
 }
 
 function sortSitemapsNewestFirst(urls: string[]): string[] {
@@ -118,6 +114,25 @@ function wpPostsApiUrl(page: number): string {
   return `${TECHNOLOGY_REVIEW_WP_POSTS_API}?per_page=${TECHNOLOGY_REVIEW_WP_POSTS_PAGE_SIZE}&page=${page}&_fields=link`;
 }
 
+function addArticleCandidates(
+  urls: string[],
+  seen: Set<string>,
+  candidates: readonly string[],
+  cap: number,
+  baseUrl?: string,
+): number {
+  let added = 0;
+  for (const url of candidates) {
+    if (urls.length >= cap) break;
+    const normalized = normalizeCandidateUrl(url, baseUrl);
+    if (!normalized || !isArticleCandidate(normalized) || seen.has(normalized)) continue;
+    seen.add(normalized);
+    urls.push(normalized);
+    added++;
+  }
+  return added;
+}
+
 async function technologyReviewUrlExtractor({
   limit,
   fetch,
@@ -125,18 +140,8 @@ async function technologyReviewUrlExtractor({
   const cap = candidateCap(limit);
   const seen = new Set<string>();
   const urls: string[] = [];
-  const add = (candidates: readonly string[], baseUrl?: string) => {
-    let added = 0;
-    for (const url of candidates) {
-      if (urls.length >= cap) break;
-      const normalized = normalizeCandidateUrl(url, baseUrl);
-      if (!normalized || !isArticleCandidate(normalized) || seen.has(normalized)) continue;
-      seen.add(normalized);
-      urls.push(normalized);
-      added++;
-    }
-    return added;
-  };
+  const add = (candidates: readonly string[], baseUrl?: string) =>
+    addArticleCandidates(urls, seen, candidates, cap, baseUrl);
   const reachedCap = () => urls.length >= cap;
 
   const visitedSitemaps = new Set<string>();

@@ -18,6 +18,9 @@ import { prisma } from "@/lib/prisma";
 import { enabled, PREFIX } from "./db-config";
 
 const ROOT = process.cwd();
+const POSTGRES_MIGRATIONS_DIR = "prisma/postgresql/migrations";
+const MIGRATION_LOCK_FILE = "migration_lock.toml";
+const DOLLAR_QUOTE_PATTERN = /^\$[A-Za-z_][A-Za-z_0-9]*\$|^\$\$/;
 
 /** Returns a prefixed, UUID-based ID for integration-test rows. */
 export function id(label: string): string {
@@ -114,7 +117,7 @@ export function splitSqlStatements(sql: string): string[] {
       continue;
     }
     if (char === "$") {
-      const match = sql.slice(i).match(/^\$[A-Za-z_][A-Za-z_0-9]*\$|^\$\$/);
+      const match = sql.slice(i).match(DOLLAR_QUOTE_PATTERN);
       if (match) {
         dollarQuote = match[0];
         i += dollarQuote.length - 1;
@@ -122,15 +125,18 @@ export function splitSqlStatements(sql: string): string[] {
       continue;
     }
     if (char === ";") {
-      const statement = sql.slice(start, i).trim();
-      if (statement.length > 0) statements.push(statement);
+      addSqlStatement(statements, sql.slice(start, i));
       start = i + 1;
     }
   }
 
-  const trailing = sql.slice(start).trim();
-  if (trailing.length > 0) statements.push(trailing);
+  addSqlStatement(statements, sql.slice(start));
   return statements;
+}
+
+function addSqlStatement(statements: string[], sql: string): void {
+  const statement = sql.trim();
+  if (statement.length > 0) statements.push(statement);
 }
 
 /** Executes each statement in a SQL string against the given transaction client. */
@@ -142,9 +148,9 @@ export async function applySql(db: Prisma.TransactionClient, sql: string): Promi
 
 /** Reads and sorts all PostgreSQL migration files from prisma/postgresql/migrations. */
 export async function readPostgresMigrations(): Promise<Array<{ name: string; sql: string }>> {
-  const migrationsRoot = join(ROOT, "prisma/postgresql/migrations");
+  const migrationsRoot = join(ROOT, POSTGRES_MIGRATIONS_DIR);
   const migrationNames = (await readdir(migrationsRoot))
-    .filter((name) => name !== "migration_lock.toml")
+    .filter((name) => name !== MIGRATION_LOCK_FILE)
     .sort();
 
   return Promise.all(

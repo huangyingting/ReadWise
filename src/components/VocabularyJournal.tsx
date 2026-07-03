@@ -38,11 +38,54 @@ export type JournalData = {
   pageSize: number;
 };
 
+type ReviewFilter = "all" | "due" | "new";
+
+type FetchWordsOptions = {
+  q?: string;
+  articleId?: string;
+  filter?: ReviewFilter;
+  page?: number;
+};
+
 interface Props {
   initial: JournalData;
   initialQuery: string;
   initialArticleId: string;
-  initialFilter: "all" | "due" | "new";
+  initialFilter: ReviewFilter;
+}
+
+const REVIEW_FILTERS = ["all", "due", "new"] as const;
+
+const FILTER_LABELS: Record<ReviewFilter, string> = {
+  all: "All",
+  due: "Due for review",
+  new: "Never reviewed",
+};
+
+function buildWordsQueryString(currentParams: string, opts: FetchWordsOptions): string {
+  const params = new URLSearchParams(currentParams);
+
+  if (opts.q !== undefined) {
+    params.set("q", opts.q);
+    params.delete("page");
+  }
+  if (opts.articleId !== undefined) {
+    if (opts.articleId) {
+      params.set("articleId", opts.articleId);
+    } else {
+      params.delete("articleId");
+    }
+    params.delete("page");
+  }
+  if (opts.filter !== undefined) {
+    params.set("filter", opts.filter);
+    params.delete("page");
+  }
+  if (opts.page !== undefined) {
+    params.set("page", String(opts.page));
+  }
+
+  return params.toString();
 }
 
 export default function VocabularyJournal({
@@ -58,7 +101,7 @@ export default function VocabularyJournal({
   const [data, setData] = useState<JournalData>(initial);
   const [query, setQuery] = useState(initialQuery);
   const [articleId, setArticleId] = useState(initialArticleId);
-  const [filter, setFilter] = useState<"all" | "due" | "new">(initialFilter);
+  const [filter, setFilter] = useState<ReviewFilter>(initialFilter);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkPending, setBulkPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -68,21 +111,10 @@ export default function VocabularyJournal({
 
   const fetchWords = useCallback(
     (
-      opts: {
-        q?: string;
-        articleId?: string;
-        filter?: "all" | "due" | "new";
-        page?: number;
-      },
+      opts: FetchWordsOptions,
       debounce = false,
     ) => {
-      const params = new URLSearchParams(searchParams.toString());
-      if (opts.q !== undefined) { params.set("q", opts.q); params.delete("page"); }
-      if (opts.articleId !== undefined) { opts.articleId ? params.set("articleId", opts.articleId) : params.delete("articleId"); params.delete("page"); }
-      if (opts.filter !== undefined) { params.set("filter", opts.filter); params.delete("page"); }
-      if (opts.page !== undefined) { params.set("page", String(opts.page)); }
-
-      const queryString = params.toString();
+      const queryString = buildWordsQueryString(searchParams.toString(), opts);
 
       run({
         immediate: !debounce,
@@ -112,7 +144,7 @@ export default function VocabularyJournal({
   );
 
   const handleFilterChange = useCallback(
-    (value: "all" | "due" | "new") => {
+    (value: ReviewFilter) => {
       setFilter(value);
       void fetchWords({ filter: value });
     },
@@ -135,24 +167,24 @@ export default function VocabularyJournal({
     [fetchWords],
   );
 
-  const toggleSelect = (word: string) => {
+  const toggleSelect = useCallback((word: string) => {
     setSelected((prev) => {
       const next = new Set(prev);
       if (next.has(word)) next.delete(word);
       else next.add(word);
       return next;
     });
-  };
+  }, []);
 
-  const toggleSelectAll = () => {
+  const toggleSelectAll = useCallback(() => {
     if (selected.size === data.words.length) {
       setSelected(new Set());
     } else {
       setSelected(new Set(data.words.map((w) => w.word)));
     }
-  };
+  }, [data.words, selected.size]);
 
-  const handleBulkRemove = async () => {
+  const handleBulkRemove = useCallback(async () => {
     if (selected.size === 0) return;
     setBulkPending(true);
     setError(null);
@@ -165,16 +197,13 @@ export default function VocabularyJournal({
     } finally {
       setBulkPending(false);
     }
-  };
+  }, [fetchWords, selected]);
 
   // Build list of articles that have saved words (for filter dropdown)
   const articleOptions = Object.entries(data.articles);
-
-  const filterLabels: Record<"all" | "due" | "new", string> = {
-    all: "All",
-    due: "Due for review",
-    new: "Never reviewed",
-  };
+  const hasWords = data.words.length > 0;
+  const allVisibleSelected = hasWords && selected.size === data.words.length;
+  const hasNoSavedWords = data.total === 0 && !query && !articleId;
 
   return (
     <div className="flex flex-col gap-[var(--space-5)]">
@@ -198,11 +227,11 @@ export default function VocabularyJournal({
             <Select
               id="srs-filter"
               value={filter}
-              onChange={(e) => handleFilterChange(e.target.value as "all" | "due" | "new")}
+              onChange={(e) => handleFilterChange(e.target.value as ReviewFilter)}
               aria-label="Filter by review status"
             >
-              {(["all", "due", "new"] as const).map((f) => (
-                <option key={f} value={f}>{filterLabels[f]}</option>
+              {REVIEW_FILTERS.map((f) => (
+                <option key={f} value={f}>{FILTER_LABELS[f]}</option>
               ))}
             </Select>
           </Field>
@@ -233,16 +262,16 @@ export default function VocabularyJournal({
           {isPending ? "Loading…" : `${data.total} ${data.total === 1 ? "word" : "words"}`}
         </p>
 
-        {data.words.length > 0 && (
+        {hasWords && (
           <>
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={toggleSelectAll}
-              aria-pressed={selected.size === data.words.length && data.words.length > 0}
+              aria-pressed={allVisibleSelected}
             >
-              {selected.size === data.words.length && data.words.length > 0
+              {allVisibleSelected
                 ? "Deselect all"
                 : `Select all (${data.words.length})`}
             </Button>
@@ -265,16 +294,16 @@ export default function VocabularyJournal({
       {error ? <PanelError message={error} /> : null}
 
       {/* Words table */}
-      {data.words.length === 0 ? (
+      {!hasWords ? (
         <EmptyState
           icon={BookOpen}
           title={
-            data.total === 0 && !query && !articleId
+            hasNoSavedWords
               ? "No saved words yet"
               : "No words match your search"
           }
           description={
-            data.total === 0 && !query && !articleId
+            hasNoSavedWords
               ? "Start reading and save vocabulary to build your list."
               : "Try a different word or definition — or clear your filters."
           }

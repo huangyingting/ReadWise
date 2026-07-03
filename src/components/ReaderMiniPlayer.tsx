@@ -28,12 +28,18 @@ import { IconButton, Select } from "@/components/ui";
 import { useReaderAudio } from "./ReaderAudioProvider";
 
 const SPEEDS = [0.5, 0.75, 1, 1.25, 1.5] as const;
+const SKIP_SECONDS = 10;
+const CONTROL_ICON_SIZE = 16;
 
 function formatTime(secs: number): string {
   if (!isFinite(secs)) return "0:00";
   const m = Math.floor(secs / 60);
   const s = Math.floor(secs % 60);
   return `${m}:${s.toString().padStart(2, "0")}`;
+}
+
+function clampPlaybackTime(time: number, duration: number): number {
+  return Math.max(0, Math.min(time, duration || 0));
 }
 
 export default function ReaderMiniPlayer() {
@@ -52,21 +58,21 @@ export default function ReaderMiniPlayer() {
     const audio = audioRef.current;
     if (!audio) return;
 
-    function onPlay() {
+    const onPlay = () => {
       setIsPlaying(true);
-    }
-    function onPause() {
+    };
+    const onPause = () => {
       setIsPlaying(false);
-    }
-    function onTimeUpdate() {
-      setCurrentTime(audio!.currentTime);
-    }
-    function onDurationChange() {
-      setDuration(audio!.duration);
-    }
-    function onEnded() {
+    };
+    const onTimeUpdate = () => {
+      setCurrentTime(audio.currentTime);
+    };
+    const onDurationChange = () => {
+      setDuration(audio.duration);
+    };
+    const onEnded = () => {
       setIsPlaying(false);
-    }
+    };
 
     audio.addEventListener("play", onPlay);
     audio.addEventListener("pause", onPause);
@@ -97,22 +103,19 @@ export default function ReaderMiniPlayer() {
   function skip(seconds: number) {
     const audio = audioRef.current;
     if (!audio) return;
-    audio.currentTime = Math.max(
-      0,
-      Math.min(audio.currentTime + seconds, audio.duration || 0),
-    );
+    audio.currentTime = clampPlaybackTime(audio.currentTime + seconds, audio.duration);
   }
 
   function handleSeek(e: React.ChangeEvent<HTMLInputElement>) {
     const audio = audioRef.current;
     if (!audio) return;
-    const t = (parseFloat(e.target.value) / 100) * (audio.duration || 0);
+    const t = (Number.parseFloat(e.target.value) / 100) * (audio.duration || 0);
     audio.currentTime = t;
     setCurrentTime(t);
   }
 
   function handleSpeed(e: React.ChangeEvent<HTMLSelectElement>) {
-    const v = parseFloat(e.target.value) as (typeof SPEEDS)[number];
+    const v = Number.parseFloat(e.target.value) as (typeof SPEEDS)[number];
     setSpeed(v);
     if (audioRef.current) audioRef.current.playbackRate = v;
   }
@@ -131,9 +134,9 @@ export default function ReaderMiniPlayer() {
         <IconButton
           aria-label="Skip back 10 seconds"
           context="reading"
-          onClick={() => skip(-10)}
+          onClick={() => skip(-SKIP_SECONDS)}
         >
-          <Rewind size={16} />
+          <Rewind size={CONTROL_ICON_SIZE} />
         </IconButton>
 
         <IconButton
@@ -141,15 +144,19 @@ export default function ReaderMiniPlayer() {
           onClick={togglePlay}
           className="h-9 w-9 rounded-[var(--radius-full)] bg-primary text-on-primary hover:bg-primary-hover active:scale-95"
         >
-          {isPlaying ? <Pause size={16} /> : <Play size={16} />}
+          {isPlaying ? (
+            <Pause size={CONTROL_ICON_SIZE} />
+          ) : (
+            <Play size={CONTROL_ICON_SIZE} />
+          )}
         </IconButton>
 
         <IconButton
           aria-label="Skip forward 10 seconds"
           context="reading"
-          onClick={() => skip(10)}
+          onClick={() => skip(SKIP_SECONDS)}
         >
-          <FastForward size={16} />
+          <FastForward size={CONTROL_ICON_SIZE} />
         </IconButton>
       </div>
 
@@ -198,7 +205,7 @@ export default function ReaderMiniPlayer() {
           className={cn(isLooping && "text-primary")}
           title={isLooping ? "Stop looping sentence" : "Loop current sentence"}
         >
-          <Repeat1 size={16} />
+          <Repeat1 size={CONTROL_ICON_SIZE} />
         </IconButton>
 
         <IconButton
@@ -209,7 +216,7 @@ export default function ReaderMiniPlayer() {
             setDismissed(true);
           }}
         >
-          <X size={16} />
+          <X size={CONTROL_ICON_SIZE} />
         </IconButton>
       </div>
     </div>

@@ -68,6 +68,56 @@ export type ImportResult =
   | { status: 201; id: string }
   | { status: 200; id: string; duplicate: true };
 
+function resolveUrlImportDeps(
+  overrides?: Partial<UrlImportDeps>,
+): UrlImportDeps {
+  return {
+    assertSafeUrl: overrides?.assertSafeUrl ?? assertSafeUrl,
+    findOwnedArticleBySourceUrl:
+      overrides?.findOwnedArticleBySourceUrl ?? findOwnedArticleBySourceUrl,
+    scrape: overrides?.scrape ?? scrapeUrl,
+    assertWithinDailyQuota:
+      overrides?.assertWithinDailyQuota ?? assertWithinDailyQuota,
+    // Cast needed: PrismaClient.$transaction has multiple overloads; we use
+    // only the function-callback form. The cast is safe because the real
+    // PrismaClient implements this overload.
+    db: (overrides?.db ?? prisma) as ImportDb,
+    recordAuditFromRequest:
+      overrides?.recordAuditFromRequest ?? recordAuditFromRequest,
+    recordSecurityEvent: overrides?.recordSecurityEvent ?? recordSecurityEvent,
+    recordEvent: overrides?.recordEvent ?? recordEvent,
+  };
+}
+
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function duplicateImportResult(article: { id: string }): ImportResult {
+  return { status: 200, id: article.id, duplicate: true };
+}
+
+async function scrapeOrThrow(
+  rawUrl: string,
+  scrape: UrlImportDeps["scrape"],
+): Promise<ScrapedArticle> {
+  let scraped;
+  try {
+    scraped = await scrape(rawUrl);
+  } catch (err) {
+    throw new ApiError(422, `Scrape failed: ${errorMessage(err)}`);
+  }
+
+  if (!scraped) {
+    throw new ApiError(
+      422,
+      "Could not extract article content from that URL. The page may be behind a paywall or use an unsupported format.",
+    );
+  }
+
+  return scraped;
+}
+
 /**
  * Imports an article from a URL for the given user.
  *
@@ -88,26 +138,14 @@ export async function importArticleFromUrl(
   input: UrlImportInput,
 ): Promise<ImportResult> {
   const { rawUrl, userId, req, session, requestId } = input;
-
-  // Resolve deps — production callers omit `input.deps`; defaults are real impls.
-  const assertSafe   = input.deps?.assertSafeUrl              ?? assertSafeUrl;
-  const findOwned    = input.deps?.findOwnedArticleBySourceUrl ?? findOwnedArticleBySourceUrl;
-  const scrape       = input.deps?.scrape                      ?? scrapeUrl;
-  const checkQuota   = input.deps?.assertWithinDailyQuota      ?? assertWithinDailyQuota;
-  // Cast needed: PrismaClient.$transaction has multiple overloads; we use
-  // only the function-callback form. The cast is safe because the real
-  // PrismaClient implements this overload.
-  const db: ImportDb    = (input.deps?.db                          ?? prisma) as ImportDb;
-  const recordAudit  = input.deps?.recordAuditFromRequest      ?? recordAuditFromRequest;
-  const recordSec    = input.deps?.recordSecurityEvent         ?? recordSecurityEvent;
-  const recordEvt    = input.deps?.recordEvent                 ?? recordEvent;
+  const deps = resolveUrlImportDeps(input.deps);
 
   // SSRF guard — must not be bypassed.
   try {
-    await assertSafe(rawUrl);
+    await deps.assertSafeUrl(rawUrl);
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    recordSec({
+    const message = errorMessage(err);
+    deps.recordSecurityEvent({
       type: SECURITY_EVENT_TYPES.importBlocked,
       severity: "high",
       route: "/api/articles/import",
@@ -119,42 +157,30 @@ export async function importArticleFromUrl(
   }
 
   // De-dupe BEFORE scraping/creating so re-importing never consumes quota.
-  const existingByRawUrl = await findOwned(rawUrl, userId);
+  const existingByRawUrl = await deps.findOwnedArticleBySourceUrl(rawUrl, userId);
   if (existingByRawUrl) {
-    return { status: 200, id: existingByRawUrl.id, duplicate: true };
+    return duplicateImportResult(existingByRawUrl);
   }
 
-  let scraped;
-  try {
-    scraped = await scrape(rawUrl);
-  } catch (err) {
-    throw new ApiError(
-      422,
-      `Scrape failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-  }
-
-  if (!scraped) {
-    throw new ApiError(
-      422,
-      "Could not extract article content from that URL. The page may be behind a paywall or use an unsupported format.",
-    );
-  }
+  const scraped = await scrapeOrThrow(rawUrl, deps.scrape);
 
   // De-dupe on canonical sourceUrl (redirects / canonicalisation may differ).
   if (scraped.sourceUrl && scraped.sourceUrl !== rawUrl) {
-    const existingByCanonical = await findOwned(scraped.sourceUrl, userId);
+    const existingByCanonical = await deps.findOwnedArticleBySourceUrl(
+      scraped.sourceUrl,
+      userId,
+    );
     if (existingByCanonical) {
-      return { status: 200, id: existingByCanonical.id, duplicate: true };
+      return duplicateImportResult(existingByCanonical);
     }
   }
 
   // Not a duplicate — now enforce the daily quota.
-  await checkQuota(userId);
+  await deps.assertWithinDailyQuota(userId);
 
   let article;
   try {
-    article = await db.$transaction(async (tx) => {
+    article = await deps.db.$transaction(async (tx) => {
       const created = await tx.article.create({
         data: {
           title: scraped.title,
@@ -174,7 +200,7 @@ export async function importArticleFromUrl(
         select: { id: true },
       });
       await applyDeterministicDifficulty(created.id, scraped.content, tx);
-      await recordAudit(
+      await deps.recordAuditFromRequest(
         {
           req,
           session,
@@ -192,15 +218,20 @@ export async function importArticleFromUrl(
     // A concurrent import of the same URL won the race between the dedupe
     // pre-check and this insert. The @@unique([sourceUrl, ownerId]) constraint
     // surfaces a P2002; resolve the winner's row and return it as a duplicate.
-    const existing = await resolveDuplicateOnConflict(err, scraped.sourceUrl, userId, findOwned);
+    const existing = await resolveDuplicateOnConflict(
+      err,
+      scraped.sourceUrl,
+      userId,
+      deps.findOwnedArticleBySourceUrl,
+    );
     if (existing) {
-      return { status: 200, id: existing.id, duplicate: true };
+      return duplicateImportResult(existing);
     }
     throw err;
   }
 
   // Product analytics: metadata only — never record article text.
-  await recordEvt({
+  await deps.recordEvent({
     type: ANALYTICS_EVENT_TYPES.import,
     userId,
     articleId: article.id,

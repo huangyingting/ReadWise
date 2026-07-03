@@ -59,6 +59,15 @@ function finiteNumber(value: unknown): value is number {
   return typeof value === "number" && Number.isFinite(value);
 }
 
+function hasCompleteTextSpan(word: Pick<SpeechWord, "textStart" | "textEnd">): boolean {
+  return (
+    finiteNumber(word.textStart) &&
+    finiteNumber(word.textEnd) &&
+    word.textStart >= 0 &&
+    word.textEnd > word.textStart
+  );
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return value != null && typeof value === "object" && !Array.isArray(value);
 }
@@ -121,6 +130,62 @@ function parseNumberArray(value: unknown): number[] | null {
     : null;
 }
 
+type ParsedTextSpanColumns = {
+  textStart?: number[];
+  textEnd?: number[];
+};
+
+function parseTextSpanColumns(
+  record: Record<string, unknown>,
+  expectedLength: number,
+): ParsedTextSpanColumns | null {
+  const textStart = record.textStart === undefined ? undefined : parseNumberArray(record.textStart);
+  const textEnd = record.textEnd === undefined ? undefined : parseNumberArray(record.textEnd);
+  const hasTextSpans = textStart !== undefined || textEnd !== undefined;
+
+  if (
+    (record.textStart !== undefined && !textStart) ||
+    (record.textEnd !== undefined && !textEnd) ||
+    (hasTextSpans && (!textStart || !textEnd)) ||
+    (textStart && textStart.length !== expectedLength) ||
+    (textEnd && textEnd.length !== expectedLength)
+  ) {
+    return null;
+  }
+
+  return { textStart, textEnd };
+}
+
+function speechWordFromColumns(params: {
+  words: string[];
+  startMs: number[];
+  endMs: number[];
+  textStart?: number[];
+  textEnd?: number[];
+  index: number;
+}): SpeechWord | null {
+  const { words, startMs, endMs, textStart, textEnd, index } = params;
+  const start = startMs[index];
+  const end = endMs[index];
+  if (start == null || end == null || end < start) return null;
+
+  const word: SpeechWord = {
+    word: words[index] ?? "",
+    startMs: start,
+    endMs: end,
+  };
+
+  if (textStart && textEnd) {
+    const startText = textStart[index];
+    const endText = textEnd[index];
+    if (startText == null || endText == null || endText <= startText) return null;
+    word.textStart = startText;
+    word.textEnd = endText;
+  }
+
+  return word;
+}
+
 function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayload | null {
   const words = parseStringArray(record.words);
   const startMs = parseNumberArray(record.startMs);
@@ -140,36 +205,19 @@ function parseV2Payload(record: Record<string, unknown>): ParsedSpeechTimingPayl
     return null;
   }
 
-  const textStart = record.textStart === undefined ? undefined : parseNumberArray(record.textStart);
-  const textEnd = record.textEnd === undefined ? undefined : parseNumberArray(record.textEnd);
-  const hasTextSpans = textStart !== undefined || textEnd !== undefined;
-  if (
-    (record.textStart !== undefined && !textStart) ||
-    (record.textEnd !== undefined && !textEnd) ||
-    (hasTextSpans && (!textStart || !textEnd)) ||
-    (textStart && textStart.length !== words.length) ||
-    (textEnd && textEnd.length !== words.length)
-  ) {
-    return null;
-  }
+  const textSpans = parseTextSpanColumns(record, words.length);
+  if (!textSpans) return null;
 
   const normalized: SpeechWord[] = [];
   for (let index = 0; index < words.length; index++) {
-    const start = startMs[index];
-    const end = endMs[index];
-    if (start == null || end == null || end < start) return null;
-    const word: SpeechWord = {
-      word: words[index] ?? "",
-      startMs: start,
-      endMs: end,
-    };
-    if (textStart && textEnd) {
-      const startText = textStart[index];
-      const endText = textEnd[index];
-      if (startText == null || endText == null || endText <= startText) return null;
-      word.textStart = startText;
-      word.textEnd = endText;
-    }
+    const word = speechWordFromColumns({
+      words,
+      startMs,
+      endMs,
+      ...textSpans,
+      index,
+    });
+    if (!word) return null;
     normalized.push(word);
   }
 
@@ -218,13 +266,7 @@ export function createSpeechTimingPayloadV2(
   provider: SpeechTimingProvider | string,
   words: SpeechWord[],
 ): SpeechTimingPayloadV2 {
-  const includeTextSpans = words.length > 0 && words.every(
-    (word) =>
-      finiteNumber(word.textStart) &&
-      finiteNumber(word.textEnd) &&
-      word.textStart >= 0 &&
-      word.textEnd > word.textStart,
-  );
+  const includeTextSpans = words.length > 0 && words.every(hasCompleteTextSpan);
 
   const payload: SpeechTimingPayloadV2 = {
     version: 2,

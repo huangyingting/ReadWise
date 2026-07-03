@@ -36,8 +36,16 @@ const MAX_PRIOR_MESSAGES = 20;
 /** Max characters allowed in a single user question. */
 export const MAX_QUESTION_LENGTH = 1000;
 
+/** Max current-paragraph characters sent as a localized tutor hint. */
+const MAX_PARA_CONTEXT = 500;
+
 /** Default CEFR level used when the user has no profile. */
 const DEFAULT_LEVEL = "B1";
+
+type TutorChatMessage = {
+  role: "system" | "user" | "assistant";
+  content: string;
+};
 
 export type TutorMessageDto = {
   id: string;
@@ -63,6 +71,56 @@ export async function getTutorMessages(
     orderBy: { createdAt: "asc" },
     take: 200,
   });
+}
+
+async function fallbackResult(
+  userId: string,
+  articleId: string,
+  answer: string,
+): Promise<AskTutorResult> {
+  return {
+    answer,
+    fallback: true,
+    messages: await getTutorMessages(userId, articleId),
+  };
+}
+
+function buildArticleText(content: string): string {
+  const plainText = articleHtmlToReaderText(content);
+  if (plainText.length <= MAX_ARTICLE_CHARS) return plainText;
+
+  return (
+    plainText.slice(0, MAX_ARTICLE_CHARS) +
+    "\n\n[Excerpt — the article continues beyond this point.]"
+  );
+}
+
+function buildContextualQuestion(
+  question: string,
+  paragraphContext?: string,
+): string {
+  const trimmedContext = paragraphContext?.trim();
+  if (!trimmedContext) return question;
+
+  return `${question}\n\n[Current paragraph the user is reading: "${trimmedContext.slice(
+    0,
+    MAX_PARA_CONTEXT,
+  )}"]`;
+}
+
+function buildChatMessages(
+  systemMessage: TutorChatMessage,
+  priorMessages: Array<{ role: string; content: string }>,
+  userMessage: TutorChatMessage,
+): TutorChatMessage[] {
+  return [
+    systemMessage,
+    ...priorMessages.map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+    userMessage,
+  ];
 }
 
 /**
@@ -105,11 +163,7 @@ export async function askTutor(
   // Safety: refuse obviously-unsafe questions up front (RW-024). Cheap heuristic
   // check; benign learning questions are unaffected. Persist nothing.
   if (moderateText(question).flagged) {
-    return {
-      answer: MODERATION_FALLBACK_MESSAGE,
-      fallback: true,
-      messages: await getTutorMessages(userId, articleId),
-    };
+    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE);
   }
 
   // Fetch recent prior turns (most recent first, then reverse to chronological).
@@ -125,31 +179,18 @@ export async function askTutor(
 
   // Graceful fallback when AI is not configured.
   if (!isAiConfigured()) {
-    return {
-      answer: t("ai.tutor.unavailable"),
-      fallback: true,
-      messages: await getTutorMessages(userId, articleId),
-    };
+    return fallbackResult(userId, articleId, t("ai.tutor.unavailable"));
   }
 
   // Build grounding context from article plain text, capped for token safety.
-  const plainText = articleHtmlToReaderText(article.content);
-  const truncated = plainText.length > MAX_ARTICLE_CHARS;
-  const articleText = truncated
-    ? plainText.slice(0, MAX_ARTICLE_CHARS) +
-      "\n\n[Excerpt — the article continues beyond this point.]"
-    : plainText;
+  const articleText = buildArticleText(article.content);
 
   // The active prompt template renders the article-grounded system message and
   // the final user question; prior conversation turns are spliced between them.
   // #377: when a paragraph context is available, append it as a soft hint so
   // the tutor can give a more localised answer.  Only the current paragraph of
   // the article the user is reading is included — no other personal data.
-  const MAX_PARA_CONTEXT = 500;
-  const contextualQuestion =
-    paragraphContext && paragraphContext.trim().length > 0
-      ? `${question}\n\n[Current paragraph the user is reading: "${paragraphContext.trim().slice(0, MAX_PARA_CONTEXT)}"]`
-      : question;
+  const contextualQuestion = buildContextualQuestion(question, paragraphContext);
 
   const [systemMessage, userMessage] = renderPrompt("tutor", {
     level: englishLevel,
@@ -170,14 +211,11 @@ export async function askTutor(
     ? { ...systemMessage, content: `${systemMessage.content}\n\n${coachContext}` }
     : systemMessage;
 
-  const chatMessages: { role: "system" | "user" | "assistant"; content: string }[] = [
+  const chatMessages = buildChatMessages(
     groundedSystemMessage,
-    ...priorMessages.map((m) => ({
-      role: m.role as "user" | "assistant",
-      content: m.content,
-    })),
+    priorMessages,
     userMessage,
-  ];
+  );
 
   const completion = await chatComplete(chatMessages, {
     maxOutputTokens: promptModelParams("tutor").maxOutputTokens,
@@ -188,21 +226,13 @@ export async function askTutor(
 
   if (!completion) {
     // AI configured but request failed — graceful fallback, persist nothing.
-    return {
-      answer: t("ai.tutor.unavailable"),
-      fallback: true,
-      messages: await getTutorMessages(userId, articleId),
-    };
+    return fallbackResult(userId, articleId, t("ai.tutor.unavailable"));
   }
 
   // Safety: never show/persist an unsafe model answer (RW-024). Degrade to a
   // safe fallback and persist nothing.
   if (moderateText(completion).flagged) {
-    return {
-      answer: MODERATION_FALLBACK_MESSAGE,
-      fallback: true,
-      messages: await getTutorMessages(userId, articleId),
-    };
+    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE);
   }
 
   // Persist user question then assistant answer atomically.

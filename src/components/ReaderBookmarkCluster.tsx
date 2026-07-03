@@ -26,9 +26,41 @@ import { Button, IconButton } from "@/components/ui";
 import ListPickerPopover from "@/components/ListPickerPopover";
 import { markBookmarkChanged } from "@/lib/bookmarkChanges";
 
+const STATUS_MESSAGE_TIMEOUT_MS = 4000;
+
+const SEGMENT_BASE_CLASSES = cn(
+  "inline-flex items-center justify-center gap-[var(--space-2)] select-none whitespace-nowrap",
+  "h-9 font-semibold text-[length:var(--text-sm)]",
+  "border transition-[background-color,border-color,color,transform]",
+  "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
+  "active:translate-y-px motion-reduce:transform-none",
+  focusRing,
+);
+
+const SAVED_SEGMENT_CLASSES = [
+  "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
+  "text-primary-text",
+  "border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
+  "hover:bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]",
+];
+
+const UNSAVED_SEGMENT_CLASSES = [
+  "bg-transparent text-text",
+  "border-border-strong",
+  "hover:bg-bg-subtle",
+];
+
 interface ReaderBookmarkClusterProps {
   articleId: string;
   initialSaved: boolean;
+}
+
+function segmentClasses(saved: boolean, shapeClasses: string) {
+  return cn(
+    SEGMENT_BASE_CLASSES,
+    shapeClasses,
+    saved ? SAVED_SEGMENT_CLASSES : UNSAVED_SEGMENT_CLASSES,
+  );
 }
 
 export default function ReaderBookmarkCluster({
@@ -58,7 +90,7 @@ export default function ReaderBookmarkCluster({
     } catch {
       setSaved(prev); // revert
       setStatusMsg("Couldn't save — try again");
-      setTimeout(() => setStatusMsg(null), 4000);
+      setTimeout(() => setStatusMsg(null), STATUS_MESSAGE_TIMEOUT_MS);
     }
   }, [saved, articleId]);
 
@@ -78,16 +110,6 @@ export default function ReaderBookmarkCluster({
       setSegBHasNamedList(lists.some((l) => !l.isDefault && l.hasArticle));
     },
     [],
-  );
-
-  // Segment A shared base classes
-  const segBase = cn(
-    "inline-flex items-center justify-center gap-[var(--space-2)] select-none whitespace-nowrap",
-    "h-9 font-semibold text-[length:var(--text-sm)]",
-    "border transition-[background-color,border-color,color,transform]",
-    "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-standard)]",
-    "active:translate-y-px motion-reduce:transform-none",
-    focusRing,
   );
 
   return (
@@ -111,21 +133,9 @@ export default function ReaderBookmarkCluster({
             )}
           />
         }
-        className={cn(
-          segBase,
+        className={segmentClasses(
+          saved,
           "px-[var(--space-3)] rounded-l-[var(--radius-md)] rounded-r-none",
-          saved
-            ? [
-                "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
-                "text-primary-text",
-                "border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
-                "hover:bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]",
-              ]
-            : [
-                "bg-transparent text-text",
-                "border-border-strong",
-                "hover:bg-bg-subtle",
-              ],
         )}
       >
         {saved ? "Saved" : "Save"}
@@ -139,21 +149,9 @@ export default function ReaderBookmarkCluster({
         aria-expanded={popoverOpen}
         aria-controls={popoverId}
         onClick={handleSegBClick}
-        className={cn(
-          segBase,
+        className={segmentClasses(
+          saved,
           "relative w-9 rounded-r-[var(--radius-md)] rounded-l-none border-l-0",
-          saved
-            ? [
-                "bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]",
-                "text-primary-text",
-                "border-[color-mix(in_srgb,var(--primary)_38%,transparent)]",
-                "hover:bg-[color-mix(in_srgb,var(--primary)_16%,transparent)]",
-              ]
-            : [
-                "bg-transparent text-text",
-                "border-border-strong",
-                "hover:bg-bg-subtle",
-              ],
         )}
       >
         <ListPlus size={16} aria-hidden />

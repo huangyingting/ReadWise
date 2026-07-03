@@ -27,6 +27,13 @@ type Args = {
   help: boolean;
 };
 
+type CrawlRunStats = {
+  scraped: number;
+  failed: number;
+  duplicates: number;
+  rejected: number;
+};
+
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     urls: [],
@@ -112,6 +119,10 @@ function summarize(outcome: SaveOutcome): void {
   }
 }
 
+function previewArticle<T extends { content: string }>(article: T): T {
+  return { ...article, content: `${article.content.slice(0, 200)}…` };
+}
+
 async function runFile(args: Args): Promise<SaveOutcome[]> {
   if (!args.file) return [];
   const html = await readFile(args.file, "utf8");
@@ -121,10 +132,28 @@ async function runFile(args: Args): Promise<SaveOutcome[]> {
     return [{ status: "failed", reason: "could not extract article content", sourceUrl }];
   }
   if (args.dryRun) {
-    console.log(JSON.stringify({ ...article, content: `${article.content.slice(0, 200)}…` }, null, 2));
+    console.log(JSON.stringify(previewArticle(article), null, 2));
     return [{ status: "skipped", reason: "dry-run", sourceUrl }];
   }
   return [await saveDraftArticle(article)];
+}
+
+async function dryRunUrl(url: string): Promise<SaveOutcome> {
+  try {
+    const { scrapeUrl } = await import("@/lib/scraper");
+    const article = await scrapeUrl(url);
+    if (article) {
+      console.log(JSON.stringify(previewArticle(article), null, 2));
+      return { status: "skipped", reason: "dry-run", sourceUrl: url };
+    }
+    return { status: "failed", reason: "extract failed", sourceUrl: url };
+  } catch (err) {
+    return {
+      status: "failed",
+      reason: err instanceof Error ? err.message : String(err),
+      sourceUrl: url,
+    };
+  }
 }
 
 async function runUrls(urls: string[], dryRun: boolean): Promise<SaveOutcome[]> {
@@ -132,31 +161,23 @@ async function runUrls(urls: string[], dryRun: boolean): Promise<SaveOutcome[]> 
   for (const url of urls) {
     const provider = providerForUrl(url);
     console.log(`Scraping ${url}${provider ? ` (${provider.name})` : ""}`);
-    if (dryRun) {
-      try {
-        const { scrapeUrl } = await import("@/lib/scraper");
-        const article = await scrapeUrl(url);
-        if (article) {
-          console.log(
-            JSON.stringify({ ...article, content: `${article.content.slice(0, 200)}…` }, null, 2),
-          );
-          outcomes.push({ status: "skipped", reason: "dry-run", sourceUrl: url });
-        } else {
-          outcomes.push({ status: "failed", reason: "extract failed", sourceUrl: url });
-        }
-      } catch (err) {
-        outcomes.push({
-          status: "failed",
-          reason: err instanceof Error ? err.message : String(err),
-          sourceUrl: url,
-        });
-      }
-    } else {
-      outcomes.push(await scrapeAndSave(url));
-    }
+    outcomes.push(dryRun ? await dryRunUrl(url) : await scrapeAndSave(url));
     summarize(outcomes[outcomes.length - 1]);
   }
   return outcomes;
+}
+
+function crawlRunStats(outcomes: SaveOutcome[]): CrawlRunStats {
+  return {
+    scraped: outcomes.filter((outcome) => outcome.status === "saved").length,
+    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
+    duplicates: outcomes.filter(
+      (outcome) => outcome.status === "skipped" && /duplicate/i.test(outcome.reason),
+    ).length,
+    rejected: outcomes.filter(
+      (outcome) => outcome.status === "failed" && /extract/i.test(outcome.reason),
+    ).length,
+  };
 }
 
 async function runProvider(provider: Provider, limit: number, dryRun: boolean): Promise<SaveOutcome[]> {
@@ -193,21 +214,14 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
   // Record provider health + ingestion quality from this run (RW-050). Dry runs
   // are excluded — they don't represent real ingestion.
   if (!dryRun) {
-    const scraped = outcomes.filter((o) => o.status === "saved").length;
-    const failed = outcomes.filter((o) => o.status === "failed").length;
-    const duplicates = outcomes.filter(
-      (o) => o.status === "skipped" && /duplicate/i.test(o.reason),
-    ).length;
-    const rejected = outcomes.filter(
-      (o) => o.status === "failed" && /extract/i.test(o.reason),
-    ).length;
+    const stats = crawlRunStats(outcomes);
     try {
       await recordCrawlRun(provider.key, {
         discovered: discoveredCount,
-        scraped,
-        failed,
-        duplicates,
-        rejected,
+        scraped: stats.scraped,
+        failed: stats.failed,
+        duplicates: stats.duplicates,
+        rejected: stats.rejected,
         error: discoverError,
       });
     } catch (err) {
@@ -220,6 +234,24 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
   return outcomes;
 }
 
+function printProviderList(): void {
+  for (const p of PROVIDERS) {
+    console.log(`${p.key.padEnd(10)} ${p.name} (${p.hostnames[0]})`);
+  }
+}
+
+function summarizeOutcomes(outcomes: SaveOutcome[]): {
+  saved: number;
+  skipped: number;
+  failed: number;
+} {
+  return {
+    saved: outcomes.filter((outcome) => outcome.status === "saved").length,
+    skipped: outcomes.filter((outcome) => outcome.status === "skipped").length,
+    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
+  };
+}
+
 async function main(argv = process.argv.slice(2)): Promise<number> {
   const args = parseArgs(argv);
 
@@ -228,9 +260,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
   if (args.listProviders) {
-    for (const p of PROVIDERS) {
-      console.log(`${p.key.padEnd(10)} ${p.name} (${p.hostnames[0]})`);
-    }
+    printProviderList();
     return 0;
   }
 
@@ -262,9 +292,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     return 0;
   }
 
-  const saved = outcomes.filter((o) => o.status === "saved").length;
-  const skipped = outcomes.filter((o) => o.status === "skipped").length;
-  const failed = outcomes.filter((o) => o.status === "failed").length;
+  const { saved, skipped, failed } = summarizeOutcomes(outcomes);
   console.log(`\nDone. saved=${saved} skipped=${skipped} failed=${failed}`);
 
   return failed > 0 && saved === 0 ? 1 : 0;

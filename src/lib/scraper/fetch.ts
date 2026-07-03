@@ -59,6 +59,35 @@ function parseRetryAfterMs(header: string | null): number | null {
   return null;
 }
 
+function spanHostFor(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    // keep "unknown" — never put a raw/invalid URL on a span attribute
+    return "unknown";
+  }
+}
+
+function requestHeaders(init: FetchCoreInit): Record<string, string> {
+  return {
+    "user-agent": USER_AGENT,
+    accept: init.method && init.method !== "GET" ? "application/json, */*" : "text/html",
+    ...(init.headers ?? {}),
+  };
+}
+
+function isRedirect(status: number, location: string | null): location is string {
+  return status >= 300 && status < 400 && Boolean(location);
+}
+
+function httpErrorFor(res: FetchResponse, url: string): FetchHttpError {
+  if (res.status === 429) {
+    const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after")) ?? undefined;
+    return new FetchHttpError(res.status, url, retryAfterMs);
+  }
+  return new FetchHttpError(res.status, url);
+}
+
 /**
  * Builds a one-shot undici dispatcher that PINS the connection to the exact
  * pre-validated IP. The `lookup` short-circuits DNS so undici never re-resolves
@@ -147,12 +176,7 @@ async function readBodyWithLimit(res: FetchResponse, maxBytes: number): Promise<
  * {@link FetchHttpError} (carrying the status) on a non-2xx final response.
  */
 export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: number): Promise<string> {
-  let host = "unknown";
-  try {
-    host = new URL(url).hostname;
-  } catch {
-    // keep "unknown" — never put a raw/invalid URL on a span attribute
-  }
+  const host = spanHostFor(url);
   return withSpan("scraper.fetch", { "readwise.provider": "scraper", "readwise.host": host }, async () => {
     const maxBytes = scraperMaxBytes();
     const controller = new AbortController();
@@ -167,11 +191,7 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
         try {
           res = await undiciFetch(currentUrl, {
             method: init.method ?? "GET",
-            headers: {
-              "user-agent": USER_AGENT,
-              accept: init.method && init.method !== "GET" ? "application/json, */*" : "text/html",
-              ...(init.headers ?? {}),
-            },
+            headers: requestHeaders(init),
             body: init.body,
             signal: controller.signal,
             redirect: "manual",
@@ -183,7 +203,7 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
         }
 
         const location = res.headers.get("location");
-        if (res.status >= 300 && res.status < 400 && location) {
+        if (isRedirect(res.status, location)) {
           await res.body?.cancel().catch(() => {});
           void dispatcher.close();
           if (hop >= MAX_REDIRECTS) {
@@ -195,11 +215,7 @@ export async function fetchCore(url: string, init: FetchCoreInit, timeoutMs: num
 
         try {
           if (!res.ok) {
-            if (res.status === 429) {
-              const retryAfterMs = parseRetryAfterMs(res.headers.get("retry-after")) ?? undefined;
-              throw new FetchHttpError(res.status, currentUrl, retryAfterMs);
-            }
-            throw new FetchHttpError(res.status, currentUrl);
+            throw httpErrorFor(res, currentUrl);
           }
           return await readBodyWithLimit(res, maxBytes);
         } finally {

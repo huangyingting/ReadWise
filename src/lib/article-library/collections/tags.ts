@@ -36,6 +36,8 @@ export type ArticleTagsResult = {
   fallback: boolean;
 };
 
+type ScopedTag = ReturnType<typeof tagScopeForArticle>;
+
 function toView(tag: { id: string; name: string; slug: string; scope: TagScope }): TagView {
   return { id: tag.id, name: tag.name, slug: tag.slug, scope: tag.scope };
 }
@@ -76,6 +78,74 @@ async function upsertTag(
   });
 }
 
+async function upsertScopedTagIds(
+  names: string[],
+  scope: ScopedTag,
+): Promise<Set<string>> {
+  const tagIds = new Set<string>();
+  for (const name of names) {
+    const tag = await upsertTag(name, scope.scope, scope.ownerId, scope.namespace);
+    tagIds.add(tag.id);
+  }
+  return tagIds;
+}
+
+function dedupeTagNames(tagNames: string[]): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const raw of tagNames) {
+    const slug = slugifyTag(raw ?? "");
+    if (!slug || seen.has(slug)) continue;
+    seen.add(slug);
+    names.push(raw.trim());
+  }
+  return names;
+}
+
+async function reconcileArticleTagLinks(
+  articleId: string,
+  desiredTagIds: Set<string>,
+): Promise<void> {
+  const existingLinks = await prisma.articleTag.findMany({
+    where: { articleId },
+    select: { tagId: true },
+  });
+  const existingIds = new Set(existingLinks.map((link) => link.tagId));
+
+  const toAdd = [...desiredTagIds].filter((id) => !existingIds.has(id));
+  const toRemove = [...existingIds].filter((id) => !desiredTagIds.has(id));
+
+  if (toRemove.length) {
+    await prisma.articleTag.deleteMany({
+      where: { articleId, tagId: { in: toRemove } },
+    });
+  }
+  for (const tagId of toAdd) {
+    await prisma.articleTag.create({ data: { articleId, tagId } });
+  }
+}
+
+async function persistGeneratedTags(
+  articleId: string,
+  names: string[],
+): Promise<TagView[]> {
+  const article = await prisma.article.findUnique({
+    where: { id: articleId },
+    select: { visibility: true, ownerId: true },
+  });
+  if (!article) return [];
+  const scope = tagScopeForArticle(article);
+  const tagIds = await upsertScopedTagIds(names, scope);
+  for (const tagId of tagIds) {
+    await prisma.articleTag.upsert({
+      where: { articleId_tagId: { articleId, tagId } },
+      update: {},
+      create: { articleId, tagId },
+    });
+  }
+  return getArticleTags(articleId);
+}
+
 /**
  * Returns the article's tags, auto-extracting them via the AI provider on a
  * cache miss (an article with no tags yet). When AI is unconfigured or the
@@ -106,23 +176,7 @@ export async function getOrCreateArticleTags(
       },
       parse: (completion) => validateTags(completion, slugifyTag).items.slice(0, TARGET_TAGS),
       isEmpty: (names) => names.length === 0,
-      persist: async (id, names) => {
-        const article = await prisma.article.findUnique({
-          where: { id },
-          select: { visibility: true, ownerId: true },
-        });
-        if (!article) return [];
-        const tagScope = tagScopeForArticle(article);
-        for (const name of names) {
-          const tag = await upsertTag(name, tagScope.scope, tagScope.ownerId, tagScope.namespace);
-          await prisma.articleTag.upsert({
-            where: { articleId_tagId: { articleId: id, tagId: tag.id } },
-            update: {},
-            create: { articleId: id, tagId: tag.id },
-          });
-        }
-        return getArticleTags(id);
-      },
+      persist: persistGeneratedTags,
       toResult: (tags) => ({ articleId, tags, fallback: false }),
       fallback: () => ({ articleId, tags: [], fallback: true }),
     },
@@ -148,39 +202,8 @@ export async function setArticleTags(
   if (!article) return null;
 
   const scope = tagScopeForArticle(article);
-
-  const seen = new Set<string>();
-  const names: string[] = [];
-  for (const raw of tagNames) {
-    const slug = slugifyTag(raw ?? "");
-    if (!slug || seen.has(slug)) continue;
-    seen.add(slug);
-    names.push(raw.trim());
-  }
-
-  const desiredTagIds = new Set<string>();
-  for (const name of names) {
-    const tag = await upsertTag(name, scope.scope, scope.ownerId, scope.namespace);
-    desiredTagIds.add(tag.id);
-  }
-
-  const existingLinks = await prisma.articleTag.findMany({
-    where: { articleId },
-    select: { tagId: true },
-  });
-  const existingIds = new Set(existingLinks.map((link) => link.tagId));
-
-  const toAdd = [...desiredTagIds].filter((id) => !existingIds.has(id));
-  const toRemove = [...existingIds].filter((id) => !desiredTagIds.has(id));
-
-  if (toRemove.length) {
-    await prisma.articleTag.deleteMany({
-      where: { articleId, tagId: { in: toRemove } },
-    });
-  }
-  for (const tagId of toAdd) {
-    await prisma.articleTag.create({ data: { articleId, tagId } });
-  }
+  const desiredTagIds = await upsertScopedTagIds(dedupeTagNames(tagNames), scope);
+  await reconcileArticleTagLinks(articleId, desiredTagIds);
 
   return getArticleTags(articleId);
 }

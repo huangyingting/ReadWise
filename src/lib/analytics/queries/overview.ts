@@ -91,11 +91,58 @@ function usersByType(stats: EventUserStat[]): Map<string, Set<string>> {
   return map;
 }
 
-function intersectionSize(a: Set<string>, b: Set<string> | undefined): Set<string> {
+function intersectUsers(a: Set<string>, b: Set<string> | undefined): Set<string> {
   const out = new Set<string>();
   if (!b) return out;
   for (const id of a) if (b.has(id)) out.add(id);
   return out;
+}
+
+function ratioMetric(numerator: Set<string>, denominator: Set<string>): RatioMetric {
+  return {
+    numerator: numerator.size,
+    denominator: denominator.size,
+    ratePct: pct(numerator.size, denominator.size),
+  };
+}
+
+function eventsByType(stats: EventUserStat[]): Map<string, number> {
+  const events = new Map<string, number>();
+  for (const s of stats) {
+    events.set(s.type, (events.get(s.type) ?? 0) + s.count);
+  }
+  return events;
+}
+
+function distinctUsersTotal(byType: Map<string, Set<string>>): number {
+  const allUsers = new Set<string>();
+  for (const set of byType.values()) for (const id of set) allUsers.add(id);
+  return allUsers.size;
+}
+
+function buildFunnel(byType: Map<string, Set<string>>): FunnelStage[] {
+  const funnel: FunnelStage[] = [];
+  let cumulative: Set<string> | null = null;
+  let firstCount = 0;
+
+  for (let i = 0; i < FUNNEL_STAGES.length; i++) {
+    const stage = FUNNEL_STAGES[i];
+    const stageUsers = byType.get(stage.key) ?? new Set<string>();
+    cumulative =
+      cumulative === null ? new Set(stageUsers) : intersectUsers(cumulative, stageUsers);
+    const users = cumulative.size;
+    if (i === 0) firstCount = users;
+    const prev = funnel[i - 1]?.users ?? users;
+    funnel.push({
+      key: stage.key,
+      label: stage.label,
+      users,
+      conversionFromPrevPct: i === 0 ? 100 : pct(users, prev),
+      conversionFromStartPct: pct(users, firstCount || users || 1),
+    });
+  }
+
+  return funnel;
 }
 
 /**
@@ -110,61 +157,25 @@ export function computeOverview(stats: EventUserStat[]): AnalyticsOverview {
   const byType = usersByType(stats);
 
   // --- Funnel: cumulative intersection across the ordered stages ----------
-  const funnel: FunnelStage[] = [];
-  let cumulative: Set<string> | null = null;
-  let firstCount = 0;
-  for (let i = 0; i < FUNNEL_STAGES.length; i++) {
-    const stage = FUNNEL_STAGES[i];
-    const stageUsers = byType.get(stage.key) ?? new Set<string>();
-    cumulative =
-      cumulative === null ? new Set(stageUsers) : intersectionSize(cumulative, stageUsers);
-    const users = cumulative.size;
-    if (i === 0) firstCount = users;
-    const prev = funnel[i - 1]?.users ?? users;
-    funnel.push({
-      key: stage.key,
-      label: stage.label,
-      users,
-      conversionFromPrevPct: i === 0 ? 100 : pct(users, prev),
-      conversionFromStartPct: pct(users, firstCount || users || 1),
-    });
-  }
+  const funnel = buildFunnel(byType);
 
   // --- Activation: onboarded users who read an article --------------------
   const onboarded = byType.get(T.onboardingComplete) ?? new Set<string>();
   const readers = byType.get(T.articleView) ?? new Set<string>();
-  const activatedUsers = intersectionSize(onboarded, readers);
-  const activation: RatioMetric = {
-    numerator: activatedUsers.size,
-    denominator: onboarded.size,
-    ratePct: pct(activatedUsers.size, onboarded.size),
-  };
+  const activation = ratioMetric(intersectUsers(onboarded, readers), onboarded);
 
   // --- Reading completion: readers who reached completion -----------------
   const completers = byType.get(T.progressComplete) ?? new Set<string>();
-  const completedReaders = intersectionSize(readers, completers);
-  const readingCompletion: RatioMetric = {
-    numerator: completedReaders.size,
-    denominator: readers.size,
-    ratePct: pct(completedReaders.size, readers.size),
-  };
+  const readingCompletion = ratioMetric(intersectUsers(readers, completers), readers);
 
   // --- Study conversion: savers who returned to review --------------------
   const savers = byType.get(T.saveWord) ?? new Set<string>();
   const reviewers = byType.get(T.studyReview) ?? new Set<string>();
-  const convertedSavers = intersectionSize(savers, reviewers);
-  const studyConversion: RatioMetric = {
-    numerator: convertedSavers.size,
-    denominator: savers.size,
-    ratePct: pct(convertedSavers.size, savers.size),
-  };
+  const studyConversion = ratioMetric(intersectUsers(savers, reviewers), savers);
 
   // --- Feature usage: distinct users + total events per type --------------
-  const eventsByType = new Map<string, number>();
-  for (const s of stats) {
-    eventsByType.set(s.type, (eventsByType.get(s.type) ?? 0) + s.count);
-  }
-  const featureUsage: FeatureUsage[] = [...eventsByType.entries()]
+  const eventTotals = eventsByType(stats);
+  const featureUsage: FeatureUsage[] = [...eventTotals.entries()]
     .map(([type, events]) => ({
       type,
       label: FEATURE_LABELS[type] ?? type,
@@ -173,9 +184,7 @@ export function computeOverview(stats: EventUserStat[]): AnalyticsOverview {
     }))
     .sort((a, b) => b.events - a.events);
 
-  const allUsers = new Set<string>();
-  for (const set of byType.values()) for (const id of set) allUsers.add(id);
-  const totalEvents = [...eventsByType.values()].reduce((sum, n) => sum + n, 0);
+  const totalEvents = [...eventTotals.values()].reduce((sum, n) => sum + n, 0);
 
   return {
     funnel,
@@ -183,6 +192,6 @@ export function computeOverview(stats: EventUserStat[]): AnalyticsOverview {
     readingCompletion,
     studyConversion,
     featureUsage,
-    totals: { events: totalEvents, users: allUsers.size },
+    totals: { events: totalEvents, users: distinctUsersTotal(byType) },
   };
 }

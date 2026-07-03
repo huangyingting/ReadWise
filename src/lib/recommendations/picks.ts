@@ -130,6 +130,49 @@ export type ScoredPicksPage = {
   scored: Record<string, ScoredRecommendation>;
 };
 
+function normalizeOffset(offset?: number): number {
+  return Math.max(0, offset ?? 0);
+}
+
+async function withExtraCandidateRows(
+  base: PicksCandidateRow[],
+  extraCandidateIds?: string[],
+): Promise<PicksCandidateRow[]> {
+  if (!extraCandidateIds || extraCandidateIds.length === 0) return base;
+
+  const existing = new Set(base.map((candidate) => candidate.id));
+  const extra = await loadExtraCandidateRows(extraCandidateIds, existing);
+  return extra.length > 0 ? [...extra, ...base] : base;
+}
+
+function buildScoredPicksPage(
+  candidates: PicksCandidateRow[],
+  ranked: ScoredRecommendation[],
+  offset: number,
+  limit: number,
+): ScoredPicksPage {
+  const byId = new Map(candidates.map((candidate) => [candidate.id, candidate]));
+  const pageScored = ranked.slice(offset, offset + limit);
+
+  const articles: ListingArticle[] = [];
+  const reasons: Record<string, string> = {};
+  const scored: Record<string, ScoredRecommendation> = {};
+  for (const item of pageScored) {
+    const row = byId.get(item.id);
+    if (!row) continue;
+    articles.push(toListingArticle({ ...row, readingMinutes: readingMinutesFor(row) }));
+    reasons[item.id] = item.reason;
+    scored[item.id] = item;
+  }
+
+  return {
+    articles,
+    hasMore: offset + limit < ranked.length,
+    reasons,
+    scored,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Public API
 // ---------------------------------------------------------------------------
@@ -191,38 +234,14 @@ export async function listScoredPicksPage(
   } = {},
 ): Promise<ScoredPicksPage> {
   const limit = opts.limit ?? SCORED_PICKS_PAGE_SIZE;
-  const offset = Math.max(0, opts.offset ?? 0);
+  const offset = normalizeOffset(opts.offset);
   const cap = opts.maxLevel ?? null;
 
   const base = await loadPicksCandidates(cap);
-  let candidates = base;
-  if (opts.extraCandidateIds && opts.extraCandidateIds.length > 0) {
-    const existing = new Set(base.map((c) => c.id));
-    const extra = await loadExtraCandidateRows(opts.extraCandidateIds, existing);
-    if (extra.length > 0) candidates = [...extra, ...base];
-  }
+  const candidates = await withExtraCandidateRows(base, opts.extraCandidateIds);
   const ranked = await scoreAndRankArticles(userId, candidates, new Date(), {
     placementLevel: opts.placementLevel ?? null,
   });
 
-  const byId = new Map(candidates.map((c) => [c.id, c]));
-  const pageScored = ranked.slice(offset, offset + limit);
-
-  const articles: ListingArticle[] = [];
-  const reasons: Record<string, string> = {};
-  const scored: Record<string, ScoredRecommendation> = {};
-  for (const item of pageScored) {
-    const row = byId.get(item.id);
-    if (!row) continue;
-    articles.push(toListingArticle({ ...row, readingMinutes: readingMinutesFor(row) }));
-    reasons[item.id] = item.reason;
-    scored[item.id] = item;
-  }
-
-  return {
-    articles,
-    hasMore: offset + limit < ranked.length,
-    reasons,
-    scored,
-  };
+  return buildScoredPicksPage(candidates, ranked, offset, limit);
 }

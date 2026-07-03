@@ -29,6 +29,14 @@ import type { TodaySessionView } from "@/lib/engagement/today-session/types";
 import type { TodayArticleDisplays } from "@/lib/engagement/today-session/view-model";
 import type { ListingArticle } from "@/lib/article-library";
 
+const TEST_USER_ID = "user-1";
+const TEST_ARTICLE_ID = "art-1";
+
+async function loadScoreCandidate() {
+  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  return scoreCandidate;
+}
+
 // ---------------------------------------------------------------------------
 // Local Today fixtures (no DB) — anchors/ids only.
 // ---------------------------------------------------------------------------
@@ -149,7 +157,7 @@ beforeEach(() => {
 // ---------------------------------------------------------------------------
 
 test("scoring: weak-word overlap article outranks an otherwise-identical plain one", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const scoreCandidate = await loadScoreCandidate();
 
   const ctx = baseContext({
     weakWordArticleIds: new Map([["a-overlap", 3]]),
@@ -165,7 +173,7 @@ test("scoring: weak-word overlap article outranks an otherwise-identical plain o
 });
 
 test("scoring: booster is CAPPED so it cannot overwhelm word load / starve content", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const scoreCandidate = await loadScoreCandidate();
   const { WEAK_WORD_REEXPOSURE_MAX_POINTS } = await import(
     "@/lib/recommendations/types"
   );
@@ -202,7 +210,7 @@ test("scoring: booster is CAPPED so it cannot overwhelm word load / starve conte
 });
 
 test("scoring: no weak words → graceful no-op (zeroed booster, 7 explanation lines)", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const scoreCandidate = await loadScoreCandidate();
 
   const ctx = baseContext(); // empty weakWordArticleIds from the fixture
   const r = scoreCandidate(candidate({ id: "a1" }), ctx);
@@ -243,17 +251,17 @@ test("reading exposure: saved words appearing in the article gain a mastery expo
   articleContent =
     "The benevolent mentor kept running every morning before class.";
 
-  const recorded = await recordReadingWordExposures("user-1", "art-1");
+  const recorded = await recordReadingWordExposures(TEST_USER_ID, TEST_ARTICLE_ID);
   assert.equal(recorded, 2, "two saved words were present in the text");
 
   const { estimateFamiliarity } = await import("@/lib/learning/word-mastery");
   assert.ok(
-    (await estimateFamiliarity("user-1", "benevolent")) > 0,
+    (await estimateFamiliarity(TEST_USER_ID, "benevolent")) > 0,
     "familiarity improved from real reading",
   );
-  assert.ok((await estimateFamiliarity("user-1", "running")) > 0);
+  assert.ok((await estimateFamiliarity(TEST_USER_ID, "running")) > 0);
   assert.equal(
-    await estimateFamiliarity("user-1", "absent-word"),
+    await estimateFamiliarity(TEST_USER_ID, "absent-word"),
     0,
     "absent saved word is not exposed",
   );
@@ -265,7 +273,7 @@ test("reading exposure: no saved words → no-op (returns 0)", async () => {
   );
   savedWords = [];
   articleContent = "Plenty of text here.";
-  assert.equal(await recordReadingWordExposures("user-1", "art-1"), 0);
+  assert.equal(await recordReadingWordExposures(TEST_USER_ID, TEST_ARTICLE_ID), 0);
 });
 
 test("reading exposure: defensive — missing content and DB errors never throw", async () => {
@@ -275,12 +283,12 @@ test("reading exposure: defensive — missing content and DB errors never throw"
 
   savedWords = [{ word: "benevolent" }];
   articleContent = null; // article not found / no body
-  assert.equal(await recordReadingWordExposures("user-1", "art-1"), 0);
+  assert.equal(await recordReadingWordExposures(TEST_USER_ID, TEST_ARTICLE_ID), 0);
 
   savedWordThrows = true; // simulate a DB failure
   articleContent = "benevolent text";
   assert.equal(
-    await recordReadingWordExposures("user-1", "art-1"),
+    await recordReadingWordExposures(TEST_USER_ID, TEST_ARTICLE_ID),
     0,
     "swallows errors instead of throwing into the reading flow",
   );
@@ -291,7 +299,7 @@ test("reading exposure: defensive — missing content and DB errors never throw"
 // ---------------------------------------------------------------------------
 
 test("privacy: recommendation explanation exposes counts only, never word text", async () => {
-  const { scoreCandidate } = await import("@/lib/recommendations/scoring");
+  const scoreCandidate = await loadScoreCandidate();
 
   const ctx = baseContext({ weakWordArticleIds: new Map([["a-overlap", 2]]) });
   const r = scoreCandidate(candidate({ id: "a-overlap" }), ctx);

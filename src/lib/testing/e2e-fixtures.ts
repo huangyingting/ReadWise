@@ -30,6 +30,10 @@ export const ARTICLE_BODY = `
   NextAuth session cookie seeded directly into SQLite.</p>
 `;
 
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+const E2E_PROFILE_TOPICS = ["tech", "world"] as const;
+const E2E_TECH_TAG = { id: "e2e-tag-tech", name: "Technology", slug: "tech" } as const;
+
 /** Deterministic article fixtures used by the E2E smoke suite. */
 export const E2E_ARTICLES = [
   {
@@ -54,6 +58,39 @@ export const E2E_ARTICLES = [
     difficultyScore: 45,
   },
 ] as const;
+
+type E2eArticleFixture = (typeof E2E_ARTICLES)[number];
+
+function nameForRole(role: Role): string {
+  return role === "Admin" ? "E2E Admin" : "E2E Reader";
+}
+
+function onboardedProfileCreateData() {
+  return {
+    profile: {
+      create: {
+        englishLevel: "B1",
+        topics: [...E2E_PROFILE_TOPICS],
+        completedAt: new Date(),
+      },
+    },
+  };
+}
+
+function articleCreateData(article: E2eArticleFixture, publishedAt: Date) {
+  return {
+    ...article,
+    author: "ReadWise QA",
+    source: "E2E News",
+    sourceUrl: `https://example.com/${article.id}`,
+    excerpt: "A reliable local article fixture for Playwright smoke tests.",
+    content: ARTICLE_BODY,
+    wordCount: 92,
+    readingMinutes: 1,
+    status: ArticleStatus.PUBLISHED,
+    publishedAt,
+  };
+}
 
 /**
  * Resets the E2E database, deleting all rows in foreign-key dependency order.
@@ -109,12 +146,12 @@ export async function createUserWithSession({
 } = {}): Promise<{ userId: string; sessionToken: string; expires: Date }> {
   const userId = `e2e-user-${randomUUID()}`;
   const sessionToken = `e2e-session-${randomUUID()}`;
-  const expires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+  const expires = new Date(Date.now() + SESSION_TTL_MS);
 
   await prisma.user.create({
     data: {
       id: userId,
-      name: role === "Admin" ? "E2E Admin" : "E2E Reader",
+      name: nameForRole(role),
       email: `${userId}@example.com`,
       role,
       sessions: {
@@ -123,17 +160,7 @@ export async function createUserWithSession({
           expires,
         },
       },
-      ...(onboarded
-        ? {
-            profile: {
-              create: {
-                englishLevel: "B1",
-                topics: ["tech", "world"],
-                completedAt: new Date(),
-              },
-            },
-          }
-        : {}),
+      ...(onboarded ? onboardedProfileCreateData() : {}),
     },
   });
 
@@ -152,23 +179,12 @@ export async function seedE2eArticles(): Promise<void> {
 
   for (const article of E2E_ARTICLES) {
     await prisma.article.create({
-      data: {
-        ...article,
-        author: "ReadWise QA",
-        source: "E2E News",
-        sourceUrl: `https://example.com/${article.id}`,
-        excerpt: "A reliable local article fixture for Playwright smoke tests.",
-        content: ARTICLE_BODY,
-        wordCount: 92,
-        readingMinutes: 1,
-        status: ArticleStatus.PUBLISHED,
-        publishedAt: now,
-      },
+      data: articleCreateData(article, now),
     });
   }
 
   const tag = await prisma.tag.create({
-    data: { id: "e2e-tag-tech", name: "Technology", slug: "tech" },
+    data: E2E_TECH_TAG,
   });
   await prisma.articleTag.create({
     data: { articleId: TEST_ARTICLE_ID, tagId: tag.id },

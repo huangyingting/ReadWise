@@ -16,10 +16,72 @@ export const metadata = notes;
 // Map colour label → CSS custom-highlight colour token (graceful fallback)
 const COLOR_DOT: Record<string, string> = {
   yellow: "var(--hl-dot-yellow)",
-  green:  "var(--hl-dot-green)",
-  blue:   "var(--hl-dot-blue)",
-  pink:   "var(--hl-dot-pink)",
+  green: "var(--hl-dot-green)",
+  blue: "var(--hl-dot-blue)",
+  pink: "var(--hl-dot-pink)",
 };
+
+type Highlight = Awaited<ReturnType<typeof listAllUserHighlights>>[number];
+
+type HighlightGroup = {
+  title: string;
+  items: Highlight[];
+};
+
+function normalizeColorFilter(color: string | undefined): string | null {
+  return color && (HIGHLIGHT_COLORS as readonly string[]).includes(color)
+    ? color
+    : null;
+}
+
+function highlightMatchesFilter(
+  highlight: Highlight,
+  colorFilter: string | null,
+  query: string,
+) {
+  if (colorFilter && highlight.color !== colorFilter) {
+    return false;
+  }
+
+  if (!query) {
+    return true;
+  }
+
+  const haystack = `${highlight.quote} ${highlight.note ?? ""}`.toLowerCase();
+  return haystack.includes(query);
+}
+
+function groupHighlightsByArticle(highlights: Highlight[]) {
+  const groups = new Map<string, HighlightGroup>();
+
+  for (const highlight of highlights) {
+    const key = highlight.article.id;
+    const existing = groups.get(key);
+
+    if (existing) {
+      existing.items.push(highlight);
+    } else {
+      groups.set(key, {
+        title: highlight.article.title,
+        items: [highlight],
+      });
+    }
+  }
+
+  return groups;
+}
+
+function colorFilterHref(color: string, query: string) {
+  return `/notes?color=${color}${query ? `&q=${encodeURIComponent(query)}` : ""}`;
+}
+
+function colorDot(color: string | null | undefined) {
+  return color ? COLOR_DOT[color] ?? "var(--border)" : "var(--border)";
+}
+
+function colorLabelColor(color: string) {
+  return COLOR_DOT[color] ?? undefined;
+}
 
 export default async function NotesPage({
   searchParams,
@@ -31,26 +93,12 @@ export default async function NotesPage({
 
   const all = await listAllUserHighlights(session.user.id);
 
-  // Filter
-  const colorFilter = color && (HIGHLIGHT_COLORS as readonly string[]).includes(color) ? color : null;
+  const colorFilter = normalizeColorFilter(color);
   const query = q?.trim().toLowerCase() ?? "";
-
-  const filtered = all.filter((h) => {
-    if (colorFilter && h.color !== colorFilter) return false;
-    if (query) {
-      const haystack = `${h.quote} ${h.note ?? ""}`.toLowerCase();
-      if (!haystack.includes(query)) return false;
-    }
-    return true;
-  });
-
-  // Group by article (preserving title-asc order from the query)
-  const groups = new Map<string, { title: string; items: typeof filtered }>();
-  for (const h of filtered) {
-    const key = h.article.id;
-    if (!groups.has(key)) groups.set(key, { title: h.article.title, items: [] });
-    groups.get(key)!.items.push(h);
-  }
+  const filtered = all.filter((highlight) =>
+    highlightMatchesFilter(highlight, colorFilter, query),
+  );
+  const groups = groupHighlightsByArticle(filtered);
 
   const totalCount = all.length;
   const withNotes = all.filter((h) => h.note).length;
@@ -93,7 +141,7 @@ export default async function NotesPage({
           {HIGHLIGHT_COLORS.map((c) => (
             <Link
               key={c}
-              href={`/notes?color=${c}${query ? `&q=${encodeURIComponent(query)}` : ""}`}
+              href={colorFilterHref(c, query)}
               aria-label={`Filter by ${c}`}
               className={cn(
                 "w-6 h-6 rounded-full border-2 transition-all",
@@ -152,7 +200,7 @@ export default async function NotesPage({
                         style={{
                           width: 4,
                           minHeight: 40,
-                          backgroundColor: h.color ? COLOR_DOT[h.color] ?? "var(--border)" : "var(--border)",
+                          backgroundColor: colorDot(h.color),
                         }}
                       />
 
@@ -174,7 +222,7 @@ export default async function NotesPage({
                           {h.color && (
                             <span
                               className="ml-[var(--space-2)] capitalize"
-                              style={{ color: COLOR_DOT[h.color] ?? undefined }}
+                               style={{ color: colorLabelColor(h.color) }}
                             >
                               {h.color}
                             </span>

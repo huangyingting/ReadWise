@@ -18,6 +18,12 @@ export const MAX_OFFLINE_ARTICLES = 50;
 /** Article expiry in milliseconds (30 days). */
 const EXPIRY_MS = 30 * 24 * 60 * 60 * 1000;
 
+type ArticleStoreHandle = {
+  db: IDBDatabase;
+  tx: IDBTransaction;
+  store: IDBObjectStore;
+};
+
 export interface OfflineArticle {
   /** Primary key — article ID. */
   id: string;
@@ -42,50 +48,67 @@ export interface OfflineArticle {
   savedAt: string;
 }
 
+function requestResult<T>(request: IDBRequest<T>): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+function transactionComplete(tx: IDBTransaction): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    tx.oncomplete = () => resolve();
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function openArticleStore(mode: IDBTransactionMode): Promise<ArticleStoreHandle> {
+  const db = await openDb();
+  const tx = db.transaction(STORE_ARTICLES, mode);
+  return { db, tx, store: tx.objectStore(STORE_ARTICLES) };
+}
+
+function offlineArticleRecord(
+  article: Omit<OfflineArticle, "savedAt">,
+): OfflineArticle {
+  return {
+    ...article,
+    savedAt: new Date().toISOString(),
+  };
+}
+
+function isExpired(savedAt: string, now = Date.now()): boolean {
+  return now - new Date(savedAt).getTime() > EXPIRY_MS;
+}
+
+function sortNewestFirst(a: OfflineArticle, b: OfflineArticle): number {
+  return new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime();
+}
+
+async function evictOldestIfAtCap(store: IDBObjectStore): Promise<void> {
+  const count = await requestResult(store.count());
+  if (count < MAX_OFFLINE_ARTICLES) return;
+
+  const cursor = await requestResult(store.index("savedAt").openCursor());
+  if (cursor) cursor.delete();
+}
+
 /** Stores an article for offline reading. Evicts the oldest if cap is reached. */
 export async function saveOfflineArticle(
   article: Omit<OfflineArticle, "savedAt">,
 ): Promise<void> {
   if (!isIndexedDbAvailable()) return;
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ARTICLES, "readwrite");
-    const store = tx.objectStore(STORE_ARTICLES);
-
-    // Evict oldest if at cap.
-    const countReq = store.count();
-    await new Promise<void>((res, rej) => {
-      countReq.onsuccess = async () => {
-        const count = countReq.result;
-        if (count >= MAX_OFFLINE_ARTICLES) {
-          // Remove by oldest savedAt via index cursor.
-          const idx = store.index("savedAt");
-          const cursorReq = idx.openCursor();
-          cursorReq.onsuccess = (e) => {
-            const cursor = (e.target as IDBRequest<IDBCursorWithValue>).result;
-            if (cursor) cursor.delete();
-            res();
-          };
-          cursorReq.onerror = () => rej(cursorReq.error);
-        } else {
-          res();
-        }
-      };
-      countReq.onerror = () => rej(countReq.error);
-    });
-
-    const record: OfflineArticle = {
-      ...article,
-      savedAt: new Date().toISOString(),
-    };
-    store.put(record);
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-    db.close();
+    const handle = await openArticleStore("readwrite");
+    db = handle.db;
+    await evictOldestIfAtCap(handle.store);
+    handle.store.put(offlineArticleRecord(article));
+    await transactionComplete(handle.tx);
   } catch {
     // Silently fail — offline storage is best-effort.
+  } finally {
+    db?.close();
   }
 }
 
@@ -94,69 +117,62 @@ export async function getOfflineArticle(
   id: string,
 ): Promise<OfflineArticle | null> {
   if (!isIndexedDbAvailable()) return null;
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ARTICLES, "readonly");
-    const store = tx.objectStore(STORE_ARTICLES);
-    const result = await new Promise<OfflineArticle | null>((res, rej) => {
-      const req = store.get(id);
-      req.onsuccess = () => res((req.result as OfflineArticle) ?? null);
-      req.onerror = () => rej(req.error);
-    });
-    db.close();
+    const handle = await openArticleStore("readonly");
+    db = handle.db;
+    const result = ((await requestResult(handle.store.get(id))) as
+      | OfflineArticle
+      | undefined) ?? null;
     if (!result) return null;
     // Expire articles older than EXPIRY_MS.
-    const age = Date.now() - new Date(result.savedAt).getTime();
-    if (age > EXPIRY_MS) {
+    if (isExpired(result.savedAt)) {
       void removeOfflineArticle(id);
       return null;
     }
     return result;
   } catch {
     return null;
+  } finally {
+    db?.close();
   }
 }
 
 /** Returns all offline articles sorted newest-first. */
 export async function getAllOfflineArticles(): Promise<OfflineArticle[]> {
   if (!isIndexedDbAvailable()) return [];
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ARTICLES, "readonly");
-    const store = tx.objectStore(STORE_ARTICLES);
-    const all = await new Promise<OfflineArticle[]>((res, rej) => {
-      const req = store.getAll();
-      req.onsuccess = () => res((req.result as OfflineArticle[]) ?? []);
-      req.onerror = () => rej(req.error);
-    });
-    db.close();
+    const handle = await openArticleStore("readonly");
+    db = handle.db;
+    const all = ((await requestResult(handle.store.getAll())) as
+      | OfflineArticle[]
+      | undefined) ?? [];
     // Filter expired, sort newest-first.
     const now = Date.now();
     return all
-      .filter((a) => now - new Date(a.savedAt).getTime() <= EXPIRY_MS)
-      .sort(
-        (a, b) =>
-          new Date(b.savedAt).getTime() - new Date(a.savedAt).getTime(),
-      );
+      .filter((article) => !isExpired(article.savedAt, now))
+      .sort(sortNewestFirst);
   } catch {
     return [];
+  } finally {
+    db?.close();
   }
 }
 
 /** Removes a single article from offline storage. */
 export async function removeOfflineArticle(id: string): Promise<void> {
   if (!isIndexedDbAvailable()) return;
+  let db: IDBDatabase | null = null;
   try {
-    const db = await openDb();
-    const tx = db.transaction(STORE_ARTICLES, "readwrite");
-    tx.objectStore(STORE_ARTICLES).delete(id);
-    await new Promise<void>((res, rej) => {
-      tx.oncomplete = () => res();
-      tx.onerror = () => rej(tx.error);
-    });
-    db.close();
+    const handle = await openArticleStore("readwrite");
+    db = handle.db;
+    handle.store.delete(id);
+    await transactionComplete(handle.tx);
   } catch {
     // Silently fail.
+  } finally {
+    db?.close();
   }
 }
 

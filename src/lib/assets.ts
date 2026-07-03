@@ -60,6 +60,13 @@ export const OFFLINE_PAGE = "/offline.html" as const;
 /** Offline reader page — renders IndexedDB-cached articles when the network is unavailable. */
 export const OFFLINE_READER_PAGE = "/offline-reader.html" as const;
 
+const APP_LAYOUT_REF = "src/app/layout.tsx";
+const APP_MANIFEST_REF = "src/app/manifest.ts";
+const PUSH_COPY_REF = "src/lib/copy/push.ts";
+const TOKENS_CSS_REF = "src/app/tokens.css";
+const SERVICE_WORKER_REF = "public/sw.js";
+const SERVICE_WORKER_REGISTER_REF = "src/components/ServiceWorkerRegister.tsx";
+
 // ---------------------------------------------------------------------------
 // Asset manifest — inventory of every governed file under public/
 // ---------------------------------------------------------------------------
@@ -87,49 +94,49 @@ export const ASSET_MANIFEST: readonly AssetEntry[] = [
   {
     path: ICON_SVG,
     purpose: "SVG app icon for HTML metadata and PWA manifest (any size)",
-    references: ["src/app/layout.tsx", "src/app/manifest.ts"],
+    references: [APP_LAYOUT_REF, APP_MANIFEST_REF],
   },
   {
     path: ICON_192,
     purpose: "192×192 PNG icon for PWA manifest and Web Push notifications",
-    references: ["src/app/manifest.ts", "src/lib/copy/push.ts"],
+    references: [APP_MANIFEST_REF, PUSH_COPY_REF],
   },
   {
     path: ICON_512,
     purpose: "512×512 PNG icon for PWA manifest (standard + maskable purpose)",
-    references: ["src/app/manifest.ts"],
+    references: [APP_MANIFEST_REF],
   },
   {
     path: APPLE_TOUCH_ICON,
     purpose: "Apple touch icon (180×180) for iOS home-screen shortcut",
-    references: ["src/app/layout.tsx"],
+    references: [APP_LAYOUT_REF],
   },
   {
     path: FONT_OPENDYSLEXIC_REGULAR,
     purpose:
       "OpenDyslexic Regular — dyslexic reading font, loaded on demand via @font-face in tokens.css",
-    references: ["src/app/tokens.css"],
+    references: [TOKENS_CSS_REF],
   },
   {
     path: FONT_OPENDYSLEXIC_BOLD,
     purpose:
       "OpenDyslexic Bold — dyslexic reading font, loaded on demand via @font-face in tokens.css",
-    references: ["src/app/tokens.css"],
+    references: [TOKENS_CSS_REF],
   },
   {
     path: OFFLINE_PAGE,
     purpose: "General offline fallback page pre-cached by the service worker",
-    references: ["public/sw.js"],
+    references: [SERVICE_WORKER_REF],
   },
   {
     path: OFFLINE_READER_PAGE,
     purpose: "Offline reader page pre-cached by the service worker; renders IndexedDB articles",
-    references: ["public/sw.js"],
+    references: [SERVICE_WORKER_REF],
   },
   {
     path: "/sw.js",
     purpose:
       "Service worker script — cache strategy, background sync, offline fallbacks (RW-044)",
-    references: ["src/components/ServiceWorkerRegister.tsx"],
+    references: [SERVICE_WORKER_REGISTER_REF],
   },
 ] as const;

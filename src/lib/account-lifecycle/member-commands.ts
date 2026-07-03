@@ -23,6 +23,9 @@ type UpdateMemberRoleSuccess = DomainOk<{ role: Role; previousRole: Role; change
 export type DeleteMemberResult = DomainResult<{ role: Role; ownedArticleCount: number }>;
 type DeleteMemberSuccess = DomainOk<{ role: Role; ownedArticleCount: number }>;
 
+const LAST_ADMIN_DEMOTE_MESSAGE = "Cannot demote the last remaining admin";
+const LAST_ADMIN_DELETE_MESSAGE = "Cannot remove the last remaining admin";
+
 // Sentinel thrown inside a transaction to signal a guard condition.
 class AdminGuardError extends Error {
   readonly guardError: string;
@@ -32,6 +35,28 @@ class AdminGuardError extends Error {
     this.guardError = error;
     this.guardStatus = status;
   }
+}
+
+function updateRoleSuccess(
+  role: Role,
+  previousRole: Role,
+  changed: boolean,
+): UpdateMemberRoleSuccess {
+  return ok({ role, previousRole, changed });
+}
+
+function deleteMemberSuccess(
+  role: Role,
+  ownedArticleCount: number,
+): DeleteMemberSuccess {
+  return ok({ role, ownedArticleCount });
+}
+
+function adminGuardConflict(error: unknown) {
+  if (error instanceof AdminGuardError) {
+    return conflict(error.guardError);
+  }
+  return null;
 }
 
 /**
@@ -54,7 +79,7 @@ export async function updateMemberRole(
 
   // No role change — skip the DB write entirely.
   if (user.role === role) {
-    const result = ok({ role, previousRole: user.role, changed: false });
+    const result = updateRoleSuccess(role, user.role, false);
     if (audit) {
       await recordAuditFromRequest(audit(result));
     }
@@ -68,24 +93,23 @@ export async function updateMemberRole(
       if (user.role === "Admin" && role !== "Admin") {
         const admins = await tx.user.count({ where: { role: "Admin" } });
         if (admins <= 1) {
-          throw new AdminGuardError("Cannot demote the last remaining admin", 409);
+          throw new AdminGuardError(LAST_ADMIN_DEMOTE_MESSAGE, 409);
         }
       }
       await tx.user.update({ where: { id }, data: { role } });
       if (audit) {
         await recordAuditFromRequest(
-          audit(ok({ role, previousRole: user.role, changed: true })),
+          audit(updateRoleSuccess(role, user.role, true)),
           tx,
         );
       }
     });
   } catch (e) {
-    if (e instanceof AdminGuardError) {
-      return conflict(e.guardError);
-    }
+    const guardConflict = adminGuardConflict(e);
+    if (guardConflict) return guardConflict;
     throw e;
   }
-  return ok({ role, previousRole: user.role, changed: true });
+  return updateRoleSuccess(role, user.role, true);
 }
 
 /**
@@ -130,22 +154,21 @@ export async function deleteMember(
       if (user.role === "Admin") {
         const admins = await tx.user.count({ where: { role: "Admin" } });
         if (admins <= 1) {
-          throw new AdminGuardError("Cannot remove the last remaining admin", 409);
+          throw new AdminGuardError(LAST_ADMIN_DELETE_MESSAGE, 409);
         }
       }
       ownedArticleCount = await tx.article.count({ where: { ownerId: id } });
       await tx.user.delete({ where: { id } });
       if (audit) {
         await recordAuditFromRequest(
-          audit(ok({ role: user.role, ownedArticleCount })),
+          audit(deleteMemberSuccess(user.role, ownedArticleCount)),
           tx,
         );
       }
     });
   } catch (e) {
-    if (e instanceof AdminGuardError) {
-      return conflict(e.guardError);
-    }
+    const guardConflict = adminGuardConflict(e);
+    if (guardConflict) return guardConflict;
     throw e;
   }
 
@@ -160,5 +183,5 @@ export async function deleteMember(
     }
   }
 
-  return ok({ role: user.role, ownedArticleCount });
+  return deleteMemberSuccess(user.role, ownedArticleCount);
 }

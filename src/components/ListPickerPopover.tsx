@@ -40,6 +40,12 @@ type MembershipResponse = {
   lists?: ListMembershipEntry[];
 };
 
+type CreatedList = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+};
+
 interface ListPickerPopoverProps {
   id: string;
   articleId: string;
@@ -71,10 +77,34 @@ export default function ListPickerPopover({
   const createRowRef = useRef<HTMLButtonElement>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const statusId = useId();
+  const encodedArticleId = encodeURIComponent(articleId);
+  const membershipEndpoint = `/api/bookmarks/membership?articleId=${encodedArticleId}`;
 
   // Use ref so the callback never causes re-runs of the data-fetch effect
   const onMembershipLoadedRef = useRef(onMembershipLoaded);
   onMembershipLoadedRef.current = onMembershipLoaded;
+
+  function listItemUrl(listId: string) {
+    return `/api/lists/${encodeURIComponent(listId)}/items`;
+  }
+
+  function listArticleUrl(listId: string) {
+    return `${listItemUrl(listId)}/${encodedArticleId}`;
+  }
+
+  function setListMembership(listId: string, hasArticle: boolean) {
+    setLists((prev) =>
+      prev.map((list) =>
+        list.id === listId ? { ...list, hasArticle } : list,
+      ),
+    );
+  }
+
+  function setTransientError(message: string) {
+    setError(message);
+    if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
+    errorTimerRef.current = setTimeout(() => setError(null), 3000);
+  }
 
   // Load membership on mount
   useEffect(() => {
@@ -83,7 +113,7 @@ export default function ListPickerPopover({
     void (async () => {
       try {
         const data = await getJson<MembershipResponse>(
-          `/api/bookmarks/membership?articleId=${encodeURIComponent(articleId)}`,
+          membershipEndpoint,
         );
         if (!cancelled) {
           const loadedLists = data.lists ?? [];
@@ -100,7 +130,7 @@ export default function ListPickerPopover({
     return () => {
       cancelled = true;
     };
-  }, [articleId]);
+  }, [membershipEndpoint]);
 
   // Clear the pending error-clear timer on unmount
   useEffect(() => {
@@ -146,18 +176,13 @@ export default function ListPickerPopover({
 
   async function handleCheckbox(list: ListMembershipEntry) {
     const wasChecked = list.hasArticle;
-    // Optimistic update
-    setLists((prev) =>
-      prev.map((l) => (l.id === list.id ? { ...l, hasArticle: !l.hasArticle } : l)),
-    );
+    setListMembership(list.id, !wasChecked);
 
     try {
       if (wasChecked) {
-        await deleteJson(
-          `/api/lists/${encodeURIComponent(list.id)}/items/${encodeURIComponent(articleId)}`,
-        );
+        await deleteJson(listArticleUrl(list.id));
       } else {
-        await postJson(`/api/lists/${encodeURIComponent(list.id)}/items`, { articleId });
+        await postJson(listItemUrl(list.id), { articleId });
       }
       // Sync segment A if this was the default list
       if (list.isDefault) {
@@ -165,13 +190,8 @@ export default function ListPickerPopover({
       }
       markBookmarkChanged(articleId);
     } catch {
-      // Revert
-      setLists((prev) =>
-        prev.map((l) => (l.id === list.id ? { ...l, hasArticle: wasChecked } : l)),
-      );
-      setError("Couldn't update list — try again");
-      if (errorTimerRef.current) clearTimeout(errorTimerRef.current);
-      errorTimerRef.current = setTimeout(() => setError(null), 3000);
+      setListMembership(list.id, wasChecked);
+      setTransientError("Couldn't update list — try again");
     }
   }
 
@@ -184,9 +204,9 @@ export default function ListPickerPopover({
     createRowRef.current?.focus();
   }
 
-  async function handleCreateSuccess(newList: { id: string; name: string; isDefault: boolean }) {
+  async function handleCreateSuccess(newList: CreatedList) {
     // Add article to the newly created list
-    await postJson(`/api/lists/${encodeURIComponent(newList.id)}/items`, { articleId });
+    await postJson(listItemUrl(newList.id), { articleId });
     // Append to list with hasArticle=true
     setLists((prev) => [
       ...prev,

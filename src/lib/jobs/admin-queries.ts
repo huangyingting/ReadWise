@@ -119,6 +119,20 @@ export type AdminJobsResult = {
   stuck: boolean;
 };
 
+type NormalizedListAdminJobsOpts = {
+  now: Date;
+  staleBefore: Date;
+  pageSize: number;
+  page: number;
+  status: JobStatus | null;
+  type: JobType | null;
+  articleId: string | null;
+  failureReason: string | null;
+  stuck: boolean;
+  createdAfter?: Date | null;
+  createdBefore?: Date | null;
+};
+
 function normalizeStatus(value: string | null | undefined): JobStatus | null {
   const candidate = value?.trim().toUpperCase();
   return candidate && (Object.values(JobStatus) as string[]).includes(candidate)
@@ -133,6 +147,45 @@ function normalizeType(value: string | null | undefined): JobType | null {
     : null;
 }
 
+function normalizeListAdminJobsOpts(opts: ListAdminJobsOpts): NormalizedListAdminJobsOpts {
+  const now = opts.now ?? new Date();
+  const staleBefore = new Date(now.getTime() - (opts.lockTtlMs ?? DEFAULT_LOCK_TTL_MS));
+
+  return {
+    now,
+    staleBefore,
+    pageSize: Math.min(100, Math.max(1, opts.pageSize ?? ADMIN_JOBS_PAGE_SIZE)),
+    page: Math.max(1, opts.page ?? 1),
+    status: normalizeStatus(opts.status),
+    type: normalizeType(opts.type),
+    articleId: opts.articleId?.trim() || null,
+    failureReason: opts.failureReason?.trim() || null,
+    stuck: Boolean(opts.stuck),
+    createdAfter: opts.createdAfter,
+    createdBefore: opts.createdBefore,
+  };
+}
+
+function adminJobsWhere(filters: NormalizedListAdminJobsOpts): Prisma.JobWhereInput {
+  const where: Prisma.JobWhereInput = {};
+  if (filters.stuck) {
+    where.status = filters.status ? filters.status : { in: IN_FLIGHT_STATUSES };
+    where.lockedAt = { lt: filters.staleBefore };
+  } else if (filters.status) {
+    where.status = filters.status;
+  }
+  if (filters.type) where.type = filters.type;
+  if (filters.articleId) where.dedupeKey = { contains: filters.articleId };
+  if (filters.failureReason) where.lastError = { contains: filters.failureReason };
+  if (filters.createdAfter || filters.createdBefore) {
+    where.createdAt = {
+      ...(filters.createdAfter ? { gte: filters.createdAfter } : {}),
+      ...(filters.createdBefore ? { lte: filters.createdBefore } : {}),
+    };
+  }
+  return where;
+}
+
 /**
  * Paginated, filterable job listing for the admin dashboard. Filters by status,
  * type, the encoded articleId (via dedupeKey), failure reason (substring of
@@ -142,55 +195,30 @@ function normalizeType(value: string | null | undefined): JobType | null {
 export async function listAdminJobs(
   opts: ListAdminJobsOpts = {},
 ): Promise<AdminJobsResult> {
-  const now = opts.now ?? new Date();
-  const staleBefore = new Date(now.getTime() - (opts.lockTtlMs ?? DEFAULT_LOCK_TTL_MS));
-  const pageSize = Math.min(100, Math.max(1, opts.pageSize ?? ADMIN_JOBS_PAGE_SIZE));
-  const page = Math.max(1, opts.page ?? 1);
-
-  const status = normalizeStatus(opts.status);
-  const type = normalizeType(opts.type);
-  const articleId = opts.articleId?.trim() || null;
-  const failureReason = opts.failureReason?.trim() || null;
-  const stuck = Boolean(opts.stuck);
-
-  const where: Prisma.JobWhereInput = {};
-  if (stuck) {
-    where.status = status ? status : { in: IN_FLIGHT_STATUSES };
-    where.lockedAt = { lt: staleBefore };
-  } else if (status) {
-    where.status = status;
-  }
-  if (type) where.type = type;
-  if (articleId) where.dedupeKey = { contains: articleId };
-  if (failureReason) where.lastError = { contains: failureReason };
-  if (opts.createdAfter || opts.createdBefore) {
-    where.createdAt = {
-      ...(opts.createdAfter ? { gte: opts.createdAfter } : {}),
-      ...(opts.createdBefore ? { lte: opts.createdBefore } : {}),
-    };
-  }
+  const filters = normalizeListAdminJobsOpts(opts);
+  const where = adminJobsWhere(filters);
 
   const [total, rows] = await Promise.all([
     prisma.job.count({ where }),
     prisma.job.findMany({
       where,
       orderBy: [{ createdAt: "desc" }],
-      skip: (page - 1) * pageSize,
-      take: pageSize,
+      skip: (filters.page - 1) * filters.pageSize,
+      take: filters.pageSize,
     }),
   ]);
 
   return {
-    jobs: rows.map((job) => toRow(job, now)),
+    jobs: rows.map((job) => toRow(job, filters.now)),
     total,
-    page,
-    pageSize,
-    totalPages: Math.max(1, Math.ceil(total / pageSize)),
-    status,
-    type,
-    articleId,
-    failureReason,
-    stuck,
+    page: filters.page,
+    pageSize: filters.pageSize,
+    totalPages: Math.max(1, Math.ceil(total / filters.pageSize)),
+    status: filters.status,
+    type: filters.type,
+    articleId: filters.articleId,
+    failureReason: filters.failureReason,
+    stuck: filters.stuck,
   };
 }
 

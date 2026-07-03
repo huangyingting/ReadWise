@@ -29,6 +29,36 @@ function pick(row: Row, select?: Record<string, boolean>): Row {
   return out;
 }
 
+function makeCoachMemory(overrides: Row = {}): Row {
+  return {
+    userId: "u1",
+    skill: "reading",
+    confidence: 0.5,
+    evidenceCount: 4,
+    lastObservedAt: new Date(),
+    trend: "stable",
+    ...overrides,
+  };
+}
+
+function seedCoachMemory(overrides: Row = {}): Row {
+  const row = makeCoachMemory(overrides);
+  coachStore.set(keyOf(row.userId as string, row.skill as string), row);
+  return row;
+}
+
+function seedSkillMastery(overrides: Row = {}): Row {
+  const row = {
+    userId: "u1",
+    skill: "reading",
+    confidence: 0.7,
+    evidenceCount: 9,
+    ...overrides,
+  };
+  skillStore.set(keyOf(row.userId as string, row.skill as string), row);
+  return row;
+}
+
 before(() => {
   mock.module("@/lib/prisma", {
     namedExports: {
@@ -171,9 +201,7 @@ test("upsertCoachMemory caps evidenceCount at 100", async () => {
   const { upsertCoachMemory, EVIDENCE_COUNT_CAP } = await import(
     "@/lib/learning/coach-memory"
   );
-  coachStore.set(keyOf("u1", "reading"), {
-    userId: "u1",
-    skill: "reading",
+  seedCoachMemory({
     confidence: 0.5,
     evidenceCount: 100,
     lastObservedAt: new Date(),
@@ -247,16 +275,14 @@ test("buildTutorContext emits only controlled aggregates, never raw content", as
     "@/lib/learning/coach-memory"
   );
   const now = new Date();
-  coachStore.set(keyOf("u1", "comprehension"), {
-    userId: "u1",
+  seedCoachMemory({
     skill: "comprehension",
     confidence: 0.42,
     evidenceCount: 8,
     lastObservedAt: now,
     trend: "declining",
   });
-  coachStore.set(keyOf("u1", "vocabulary"), {
-    userId: "u1",
+  seedCoachMemory({
     skill: "vocabulary",
     confidence: 0.51,
     evidenceCount: 15,
@@ -283,16 +309,14 @@ test("buildTutorContext down-weights stale entries in the ranking", async () => 
   const now = new Date();
   // Fresh entry: weakness 0.50. Stale entry: raw weakness 0.70 but, weighted at
   // 50%, effective weakness 0.35 — so the fresh one should rank first.
-  coachStore.set(keyOf("u1", "vocabulary"), {
-    userId: "u1",
+  seedCoachMemory({
     skill: "vocabulary",
     confidence: 0.5,
     evidenceCount: 4,
     lastObservedAt: now,
     trend: "stable",
   });
-  coachStore.set(keyOf("u1", "grammar"), {
-    userId: "u1",
+  seedCoachMemory({
     skill: "grammar",
     confidence: 0.3,
     evidenceCount: 4,
@@ -317,8 +341,7 @@ test("coachMemorySkillConfidences returns an empty map when there is no memory",
 test("coachMemorySkillConfidences applies stale weighting", async () => {
   const { coachMemorySkillConfidences } = await import("@/lib/learning/coach-memory");
   const now = new Date();
-  coachStore.set(keyOf("u1", "grammar"), {
-    userId: "u1",
+  seedCoachMemory({
     skill: "grammar",
     confidence: 0.3,
     evidenceCount: 4,
@@ -336,28 +359,20 @@ test("coachMemorySkillConfidences applies stale weighting", async () => {
 
 test("deleteCoachMemory removes the user's rows but never SkillMastery", async () => {
   const { deleteCoachMemory } = await import("@/lib/learning/coach-memory");
-  coachStore.set(keyOf("u1", "reading"), {
-    userId: "u1",
-    skill: "reading",
+  seedCoachMemory({
     confidence: 0.5,
     evidenceCount: 3,
     lastObservedAt: new Date(),
     trend: "stable",
   });
-  coachStore.set(keyOf("u2", "reading"), {
+  seedCoachMemory({
     userId: "u2",
-    skill: "reading",
     confidence: 0.6,
     evidenceCount: 2,
     lastObservedAt: new Date(),
     trend: "stable",
   });
-  skillStore.set(keyOf("u1", "reading"), {
-    userId: "u1",
-    skill: "reading",
-    confidence: 0.7,
-    evidenceCount: 9,
-  });
+  seedSkillMastery();
 
   const removed = await deleteCoachMemory("u1");
   assert.equal(removed, 1);

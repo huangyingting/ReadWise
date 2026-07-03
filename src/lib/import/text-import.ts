@@ -75,32 +75,15 @@ export async function importArticleFromText(
   input: TextImportInput,
 ): Promise<TextImportResult> {
   const { title, text, userId, req, session, requestId } = input;
-
-  // Resolve deps — production callers omit `input.deps`; defaults are real impls.
-  const checkQuota  = input.deps?.assertWithinDailyQuota ?? assertWithinDailyQuota;
-  // Cast needed: PrismaClient.$transaction has multiple overloads; we use
-  // only the function-callback form. The cast is safe because the real
-  // PrismaClient implements this overload.
-  const db: ImportDb    = (input.deps?.db                     ?? prisma) as ImportDb;
-  const recordAudit = input.deps?.recordAuditFromRequest ?? recordAuditFromRequest;
-  const recordEvt   = input.deps?.recordEvent            ?? recordEvent;
+  const deps = resolveTextImportDeps(input.deps);
 
   if (!text.trim()) {
     throw new ApiError(400, "text must not be empty.");
   }
 
-  await checkQuota(userId);
+  await deps.assertWithinDailyQuota(userId);
 
-  // Wrap each paragraph block in a <p> tag, then sanitize.
-  // sanitizeArticleHtml is a pure function — no injection needed.
-  const rawHtml = text
-    .split(/\n{2,}|\r\n{2,}/)
-    .map((para) => para.trim())
-    .filter(Boolean)
-    .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
-    .join("\n");
-
-  const content = sanitizeArticleHtml(rawHtml);
+  const content = buildSanitizedTextContent(text);
   const wordCount = countWords(content);
   const readingMinutes = Math.max(1, Math.round(wordCount / 200));
 
@@ -108,7 +91,7 @@ export async function importArticleFromText(
     throw new ApiError(400, `Article text is too short (minimum ${MIN_IMPORT_WORDS} words).`);
   }
 
-  const article = await db.$transaction(async (tx) => {
+  const article = await deps.db.$transaction(async (tx) => {
     const created = await tx.article.create({
       data: {
         title,
@@ -123,7 +106,7 @@ export async function importArticleFromText(
       select: { id: true },
     });
     await applyDeterministicDifficulty(created.id, content, tx);
-    await recordAudit(
+    await deps.recordAuditFromRequest(
       {
         req,
         session,
@@ -139,7 +122,7 @@ export async function importArticleFromText(
   });
 
   // Product analytics: metadata only — never record article text or body.
-  await recordEvt({
+  await deps.recordEvent({
     type: ANALYTICS_EVENT_TYPES.import,
     userId,
     articleId: article.id,
@@ -147,6 +130,29 @@ export async function importArticleFromText(
   });
 
   return { status: 201, id: article.id };
+}
+
+function resolveTextImportDeps(deps?: Partial<TextImportDeps>): TextImportDeps {
+  return {
+    assertWithinDailyQuota: deps?.assertWithinDailyQuota ?? assertWithinDailyQuota,
+    // Cast needed: PrismaClient.$transaction has multiple overloads; we use
+    // only the function-callback form. The cast is safe because the real
+    // PrismaClient implements this overload.
+    db: (deps?.db ?? prisma) as ImportDb,
+    recordAuditFromRequest: deps?.recordAuditFromRequest ?? recordAuditFromRequest,
+    recordEvent: deps?.recordEvent ?? recordEvent,
+  };
+}
+
+function buildSanitizedTextContent(text: string): string {
+  const rawHtml = text
+    .split(/\n{2,}|\r\n{2,}/)
+    .map((para) => para.trim())
+    .filter(Boolean)
+    .map((para) => `<p>${para.replace(/\n/g, "<br>")}</p>`)
+    .join("\n");
+
+  return sanitizeArticleHtml(rawHtml);
 }
 
 /** Runs deterministic difficulty and persists it. Non-fatal. */

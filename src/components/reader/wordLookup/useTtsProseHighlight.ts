@@ -4,14 +4,16 @@ import { useEffect, useRef } from "react";
 import type { RefObject } from "react";
 import type { AudioContextValue } from "@/components/ReaderAudioProvider";
 import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProvider";
-import {
-  buildTokenAlignment,
-} from "@/lib/speech/timing-alignment";
+import { buildTokenAlignment } from "@/lib/speech/timing-alignment";
 import {
   createComparableKey,
   createSpeechBoundaryRegex,
 } from "@/lib/speech/timing";
 import { collectTextNodes, type TextNodeEntry } from "@/components/reader/wordLookup/highlightMarks";
+
+const ACTIVE_TTS_HIGHLIGHT_NAME = "tts-active";
+const SCROLL_VIEWPORT_TOP_RATIO = 0.2;
+const SCROLL_VIEWPORT_BOTTOM_RATIO = 0.75;
 
 type ProseWord = {
   startNode: Text;
@@ -41,6 +43,39 @@ type LinearTextChar = {
 };
 
 type CssHighlightRegistry = { set(k: string, v: Highlight): void; delete(k: string): void };
+
+function getCssHighlightRegistry(): CssHighlightRegistry | null {
+  return typeof CSS !== "undefined" && "highlights" in CSS
+    ? (CSS.highlights as unknown as CssHighlightRegistry)
+    : null;
+}
+
+function clearActiveTtsHighlight(cssh: CssHighlightRegistry): void {
+  cssh.delete(ACTIVE_TTS_HIGHLIGHT_NAME);
+}
+
+function createRangeForProseWord(active: ProseWord): Range | null {
+  try {
+    const range = new Range();
+    range.setStart(active.startNode, active.start);
+    range.setEnd(active.endNode, Math.min(active.end, active.endNode.length));
+    return range;
+  } catch {
+    return null;
+  }
+}
+
+function scrollRangeIntoViewIfNeeded(range: Range, active: ProseWord): void {
+  const rects = range.getClientRects();
+  if (rects.length === 0) return;
+
+  const rect = rects[0];
+  const viewTop = window.innerHeight * SCROLL_VIEWPORT_TOP_RATIO;
+  const viewBottom = window.innerHeight * SCROLL_VIEWPORT_BOTTOM_RATIO;
+  if (rect.top < viewTop || rect.bottom > viewBottom) {
+    active.scrollElement?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+}
 
 function shouldSkipTtsTextNode(node: Text): boolean {
   return Boolean(node.parentElement?.closest(".sr-only"));
@@ -235,50 +270,35 @@ export function useTtsProseHighlight(
   }, [proseRef, readerAudio.words, readerAudio.plainText, highlights]);
 
   useEffect(() => {
-    const cssh =
-      typeof CSS !== "undefined" && "highlights" in CSS
-        ? (CSS.highlights as unknown as CssHighlightRegistry)
-        : null;
+    const cssh = getCssHighlightRegistry();
     if (!cssh) return;
 
     const idx = readerAudio.activeIndex;
     const map = ttsWordMapRef.current;
     if (idx < 0 || idx >= map.length) {
-      cssh.delete("tts-active");
+      clearActiveTtsHighlight(cssh);
       return;
     }
 
     const active = map[idx];
     if (!active) {
-      cssh.delete("tts-active");
+      clearActiveTtsHighlight(cssh);
       return;
     }
 
-    let range: Range;
-    try {
-      range = new Range();
-      range.setStart(active.startNode, active.start);
-      range.setEnd(active.endNode, Math.min(active.end, active.endNode.length));
-    } catch {
-      cssh.delete("tts-active");
+    const range = createRangeForProseWord(active);
+    if (!range) {
+      clearActiveTtsHighlight(cssh);
       return;
     }
-    cssh.set("tts-active", new Highlight(range));
+    cssh.set(ACTIVE_TTS_HIGHLIGHT_NAME, new Highlight(range));
 
     if (readerAudio.listenActive) {
-      const rects = range.getClientRects();
-      if (rects.length > 0) {
-        const rect = rects[0];
-        const viewTop = window.innerHeight * 0.2;
-        const viewBottom = window.innerHeight * 0.75;
-        if (rect.top < viewTop || rect.bottom > viewBottom) {
-          active.scrollElement?.scrollIntoView({ behavior: "smooth", block: "center" });
-        }
-      }
+      scrollRangeIntoViewIfNeeded(range, active);
     }
 
     return () => {
-      cssh.delete("tts-active");
+      clearActiveTtsHighlight(cssh);
     };
   }, [readerAudio.activeIndex, readerAudio.listenActive, readerAudio.words, highlights]);
 }

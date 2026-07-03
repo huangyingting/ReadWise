@@ -31,6 +31,24 @@ export default function AdminTagActions({
   const [loadingTags, setLoadingTags] = useState(false);
   const [mergeTargetId, setMergeTargetId] = useState("");
 
+  async function runTagAction(
+    action: () => Promise<unknown>,
+    fallbackMessage: string,
+    onSuccess?: () => void,
+  ) {
+    setBusy(true);
+    setError(null);
+    try {
+      await action();
+      onSuccess?.();
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : fallbackMessage);
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function openRename() {
     setNewName(tagName);
     setError(null);
@@ -60,45 +78,27 @@ export default function AdminTagActions({
   }
 
   async function runRename() {
-    setBusy(true);
-    setError(null);
-    try {
-      await patchJson(`/api/admin/tags/${tagId}`, { name: newName });
-      setOpenPanel(null);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Rename failed");
-    } finally {
-      setBusy(false);
-    }
+    await runTagAction(
+      () => patchJson(`/api/admin/tags/${tagId}`, { name: newName }),
+      "Rename failed",
+      () => setOpenPanel(null),
+    );
   }
 
   async function runMerge() {
     if (!mergeTargetId) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await postJson(`/api/admin/tags/${tagId}/merge`, { targetId: mergeTargetId });
-      setOpenPanel(null);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Merge failed");
-    } finally {
-      setBusy(false);
-    }
+    await runTagAction(
+      () => postJson(`/api/admin/tags/${tagId}/merge`, { targetId: mergeTargetId }),
+      "Merge failed",
+      () => setOpenPanel(null),
+    );
   }
 
   async function runDelete() {
-    setBusy(true);
-    setError(null);
-    try {
-      await deleteJson(`/api/admin/tags/${tagId}`);
-      router.refresh();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Delete failed");
-    } finally {
-      setBusy(false);
-    }
+    await runTagAction(
+      () => deleteJson(`/api/admin/tags/${tagId}`),
+      "Delete failed",
+    );
   }
 
   const mergeTarget = tagOptions?.find((t) => t.id === mergeTargetId);
@@ -146,7 +146,7 @@ export default function AdminTagActions({
 
       {openPanel === "rename" && (
         <div className="admin-confirm">
-          <p style={{ margin: 0 }}>New name for &quot;{tagName}&quot;:</p>
+          <p className="m-0">New name for &quot;{tagName}&quot;:</p>
           <Input
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
@@ -158,7 +158,7 @@ export default function AdminTagActions({
             }}
             autoFocus
           />
-          <div style={{ display: "flex", gap: "var(--space-2)" }}>
+          <div className="flex gap-[var(--space-2)]">
             <Button
               size="sm"
               variant="primary"
@@ -181,11 +181,11 @@ export default function AdminTagActions({
 
       {openPanel === "merge" && (
         <div className="admin-confirm">
-          <p style={{ margin: 0 }}>
+          <p className="m-0">
             Merge &quot;{tagName}&quot; into another tag:
           </p>
           {loadingTags ? (
-            <p className="muted" style={{ margin: 0 }}>
+            <p className="m-0 muted">
               Loading tags…
             </p>
           ) : tagOptions && tagOptions.length > 0 ? (
@@ -207,7 +207,7 @@ export default function AdminTagActions({
                 {mergeTarget?.name ?? "…"}&quot;. The original tag will be
                 deleted.
               </p>
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+              <div className="flex gap-[var(--space-2)]">
                 <Button
                   size="sm"
                   variant="danger"
@@ -227,7 +227,7 @@ export default function AdminTagActions({
               </div>
             </>
           ) : (
-            <p className="muted" style={{ margin: 0 }}>
+            <p className="m-0 muted">
               No other tags to merge into.
             </p>
           )}
@@ -236,8 +236,7 @@ export default function AdminTagActions({
 
       {error && (
         <p
-          className="text-danger-text text-[length:var(--text-sm)]"
-          style={{ margin: 0 }}
+          className="m-0 text-danger-text text-[length:var(--text-sm)]"
         >
           {error}
         </p>

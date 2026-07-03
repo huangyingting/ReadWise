@@ -14,15 +14,16 @@
  *  - Horizontal: centered on selection, clamped with 12px gutters
  */
 
-import { useRef } from "react";
+import { useCallback, useRef } from "react";
 import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
 import { IconButton } from "@/components/ui/IconButton";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
 
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
+const ACTION_BUTTON_CLASS =
+  "w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]";
 
 const SWATCH_COLORS: { color: HighlightColor; label: string; cssVar: string }[] = [
   { color: "yellow", label: "Yellow", cssVar: "var(--hl-yellow)" },
@@ -67,6 +68,13 @@ export default function SelectionToolbar({
   toolbarRef,
 }: SelectionToolbarProps) {
   const innerRef = useRef<HTMLDivElement>(null);
+  const setToolbarElement = useCallback(
+    (el: HTMLDivElement | null) => {
+      (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+      (toolbarRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
+    },
+    [toolbarRef],
+  );
 
   usePopoverPosition(innerRef, selectionRect, {
     placement: "above",
@@ -83,28 +91,24 @@ export default function SelectionToolbar({
     onEscape: onClose,
   });
 
+  function handleToolbarKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
+    // Single container-level Escape handler. Skip if a child already handled it.
+    if (e.key === "Escape" && !e.defaultPrevented) {
+      e.preventDefault();
+      onClose();
+    }
+  }
+
   return (
     <div
-      ref={(el) => {
-        // Merge: store both the inner ref and the outer toolbarRef
-        (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-        (toolbarRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      }}
+      ref={setToolbarElement}
       role="toolbar"
       aria-label="Text actions"
       className="rw-sel-toolbar"
       style={{ left: 0, top: 0 }} // overridden by usePopoverPosition
       onMouseUp={(e) => e.stopPropagation()}
       onPointerDown={(e) => e.stopPropagation()}
-      onKeyDown={(e) => {
-        // Single container-level Escape handler. Skip if a child already
-        // handled it (e.g. the roving-tabindex swatch group calls onEscape and
-        // then e.preventDefault() before the event bubbles here).
-        if (e.key === "Escape" && !e.defaultPrevented) {
-          e.preventDefault();
-          onClose();
-        }
-      }}
+      onKeyDown={handleToolbarKeyDown}
     >
       {/* Swatch group */}
       <div
@@ -138,7 +142,7 @@ export default function SelectionToolbar({
 
       {/* Highlight action */}
       <IconButton
-        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+        className={ACTION_BUTTON_CLASS}
         onClick={onHighlight}
       >
         <Highlighter size={14} aria-hidden="true" />
@@ -147,7 +151,7 @@ export default function SelectionToolbar({
 
       {/* Translate — always shown when the toolbar is open */}
       <IconButton
-        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+        className={ACTION_BUTTON_CLASS}
         onClick={onTranslate}
       >
         <Languages size={14} aria-hidden="true" />
@@ -156,7 +160,7 @@ export default function SelectionToolbar({
 
       {/* Add note */}
       <IconButton
-        className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+        className={ACTION_BUTTON_CLASS}
         onClick={onAddNote}
       >
         <StickyNote size={14} aria-hidden="true" />
@@ -166,7 +170,7 @@ export default function SelectionToolbar({
       {/* Define — single word only */}
       {showDefine ? (
         <IconButton
-          className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+          className={ACTION_BUTTON_CLASS}
           onClick={onDefine}
         >
           <BookText size={14} aria-hidden="true" />
@@ -177,7 +181,7 @@ export default function SelectionToolbar({
       {/* Grammar — 2–5 word phrases */}
       {showGrammar ? (
         <IconButton
-          className="w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]"
+          className={ACTION_BUTTON_CLASS}
           onClick={onGrammar}
         >
           <BookMarked size={14} aria-hidden="true" />

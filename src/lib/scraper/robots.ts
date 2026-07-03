@@ -51,6 +51,10 @@ export type RobotsRules = {
 
 const EMPTY_RULES: RobotsRules = { disallow: [], allow: [] };
 
+function createRules(): RobotsRules {
+  return { disallow: [], allow: [] };
+}
+
 /**
  * Parses robots.txt and returns the rule set applying to `userAgent`. An exact
  * (case-insensitive) product-token group wins over the `*` wildcard group;
@@ -66,7 +70,7 @@ export function parseRobots(text: string, userAgent: string = ROBOTS_USER_AGENT)
   const ensure = (agent: string): RobotsRules => {
     let rules = groups.get(agent);
     if (!rules) {
-      rules = { disallow: [], allow: [] };
+      rules = createRules();
       groups.set(agent, rules);
     }
     return rules;
@@ -142,6 +146,14 @@ const robotsCache = createTtlCache<string, RobotsCacheEntry>({
   maxSize: MAX_ROBOTS_CACHE_SIZE,
 });
 
+function robotsCacheKey(origin: string, userAgent: string): string {
+  return `${origin}\n${userAgent.toLowerCase()}`;
+}
+
+function robotsTxtUrl(origin: string): string {
+  return `${origin}/robots.txt`;
+}
+
 /** Clears the in-process robots.txt cache (used by tests). */
 export function clearRobotsCache(): void {
   robotsCache.clear();
@@ -160,13 +172,13 @@ async function loadRules(
   fetchText: (url: string) => Promise<string>,
   now: () => number,
 ): Promise<RobotsRules> {
-  const cacheKey = `${origin}\n${userAgent.toLowerCase()}`;
+  const cacheKey = robotsCacheKey(origin, userAgent);
   const cached = robotsCache.get(cacheKey, now());
   if (cached !== undefined) return cached;
 
   let rules = EMPTY_RULES;
   try {
-    const text = await fetchText(`${origin}/robots.txt`);
+    const text = await fetchText(robotsTxtUrl(origin));
     rules = parseRobots(text, userAgent);
   } catch (err) {
     // Fail open: no robots.txt (or fetch error) means crawling is allowed.

@@ -27,6 +27,36 @@ function isOptimisticId(id: string): boolean {
   return id.startsWith("optimistic-");
 }
 
+function readerHighlightsEndpoint(articleId: string): string {
+  return `/api/reader/${articleId}/highlights`;
+}
+
+function highlightEndpoint(id: string): string {
+  return `/api/highlights/${id}`;
+}
+
+function findHighlight(highlights: Highlight[], id: string): Highlight | undefined {
+  return highlights.find((highlight) => highlight.id === id);
+}
+
+function createOptimisticHighlight(
+  input: CreateHighlightInput,
+  tempId: string,
+): Highlight {
+  return {
+    id: tempId,
+    quote: input.quote,
+    startOffset: input.startOffset,
+    endOffset: input.endOffset,
+    prefix: input.prefix ?? "",
+    suffix: input.suffix ?? "",
+    note: input.note ?? null,
+    color: input.color ?? "yellow",
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export interface UseHighlightsApiOptions {
   articleId: string;
   /** Current highlights — needed for existence checks and conflict detection. */
@@ -57,7 +87,7 @@ export function useHighlightsApi({
     let cancelled = false;
     const controller = new AbortController();
     setLoading(true);
-    fetch(`/api/reader/${articleId}/highlights`, { signal: controller.signal })
+    fetch(readerHighlightsEndpoint(articleId), { signal: controller.signal })
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((data: { highlights: Highlight[] }) => {
         if (!cancelled) {
@@ -80,21 +110,10 @@ export function useHighlightsApi({
   const add = useCallback(
     async (input: CreateHighlightInput): Promise<Highlight | null> => {
       const tempId = `optimistic-${Date.now()}`;
-      const optimistic: Highlight = {
-        id: tempId,
-        quote: input.quote,
-        startOffset: input.startOffset,
-        endOffset: input.endOffset,
-        prefix: input.prefix ?? "",
-        suffix: input.suffix ?? "",
-        note: input.note ?? null,
-        color: input.color ?? "yellow",
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      };
+      const optimistic = createOptimisticHighlight(input, tempId);
       dispatch({ type: "ADD_OPTIMISTIC", optimistic });
       try {
-        const res = await fetch(`/api/reader/${articleId}/highlights`, {
+        const res = await fetch(readerHighlightsEndpoint(articleId), {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(input),
@@ -113,7 +132,7 @@ export function useHighlightsApi({
         // anchor offsets) and KEEP the optimistic mark (RW-042).
         void submitMutation({
           type: "highlight.create",
-          endpoint: `/api/reader/${articleId}/highlights`,
+          endpoint: readerHighlightsEndpoint(articleId),
           method: "POST",
           body: input,
         });
@@ -127,13 +146,13 @@ export function useHighlightsApi({
   // ---- updateColor ----
   const updateColor = useCallback(
     async (id: string, color: HighlightColor | null): Promise<void> => {
-      if (!highlights.find((h) => h.id === id)) return;
+      if (!findHighlight(highlights, id)) return;
       dispatch({ type: "UPDATE", id, patch: { color } });
       // An unsaved (optimistic) highlight has no server id yet — its queued
       // create already carries the colour.
       if (isOptimisticId(id)) return;
       try {
-        const res = await fetch(`/api/highlights/${id}`, {
+        const res = await fetch(highlightEndpoint(id), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ color }),
@@ -145,7 +164,7 @@ export function useHighlightsApi({
         // Offline — queue and keep the optimistic colour (RW-042).
         void submitMutation({
           type: "highlight.color",
-          endpoint: `/api/highlights/${id}`,
+          endpoint: highlightEndpoint(id),
           method: "PATCH",
           body: { color },
           dedupeKey: `hl-color:${id}`,
@@ -158,7 +177,7 @@ export function useHighlightsApi({
   // ---- updateNote ----
   const updateNote = useCallback(
     async (id: string, note: string | null): Promise<void> => {
-      const prev = highlights.find((h) => h.id === id);
+      const prev = findHighlight(highlights, id);
       if (!prev) return;
       dispatch({ type: "UPDATE", id, patch: { note } });
       if (isOptimisticId(id)) return;
@@ -166,7 +185,7 @@ export function useHighlightsApi({
       // detect a concurrent change and MERGE (never silently drop note text).
       const body = { note, baseUpdatedAt: prev.updatedAt };
       try {
-        const res = await fetch(`/api/highlights/${id}`, {
+        const res = await fetch(highlightEndpoint(id), {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -186,7 +205,7 @@ export function useHighlightsApi({
         // Offline — queue and keep the optimistic note (RW-042/RW-043).
         void submitMutation({
           type: "highlight.note",
-          endpoint: `/api/highlights/${id}`,
+          endpoint: highlightEndpoint(id),
           method: "PATCH",
           body,
           dedupeKey: `hl-note:${id}`,
@@ -200,7 +219,7 @@ export function useHighlightsApi({
   // ---- remove ----
   const remove = useCallback(
     async (id: string): Promise<void> => {
-      if (!highlights.find((h) => h.id === id)) return;
+      if (!findHighlight(highlights, id)) return;
       dispatch({ type: "REMOVE", id });
       // An optimistic highlight only ever existed locally.
       if (isOptimisticId(id)) {
@@ -208,14 +227,14 @@ export function useHighlightsApi({
         return;
       }
       try {
-        const res = await fetch(`/api/highlights/${id}`, { method: "DELETE" });
+        const res = await fetch(highlightEndpoint(id), { method: "DELETE" });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         announce("Highlight deleted");
       } catch {
         // Offline — queue the delete (idempotent) and keep it removed locally.
         void submitMutation({
           type: "highlight.delete",
-          endpoint: `/api/highlights/${id}`,
+          endpoint: highlightEndpoint(id),
           method: "DELETE",
           dedupeKey: `hl-delete:${id}`,
         });

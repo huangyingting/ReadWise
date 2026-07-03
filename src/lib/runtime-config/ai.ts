@@ -38,30 +38,35 @@ const DEFAULT_AI_MAX_RETRIES = 2;
 const DEFAULT_AI_MAX_CONTEXT_TOKENS = 128_000;
 const DEFAULT_AI_MAX_OUTPUT_TOKENS = 4096;
 
+function intEnv(name: string, fallback: number, isValid: (value: number) => boolean): number {
+  const value = parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && isValid(value) ? value : fallback;
+}
+
 /** Per-request AI timeout in ms (AI_REQUEST_TIMEOUT_MS, default 30000). */
 export function aiTimeoutMs(): number {
-  const v = parseInt(process.env.AI_REQUEST_TIMEOUT_MS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_TIMEOUT_MS;
+  return intEnv("AI_REQUEST_TIMEOUT_MS", DEFAULT_AI_TIMEOUT_MS, (value) => value > 0);
 }
 
 /** Max AI retry attempts (AI_MAX_RETRIES, default 2). */
 export function aiMaxRetries(): number {
-  const v = parseInt(process.env.AI_MAX_RETRIES ?? "", 10);
-  return Number.isFinite(v) && v >= 0 ? v : DEFAULT_AI_MAX_RETRIES;
+  return intEnv("AI_MAX_RETRIES", DEFAULT_AI_MAX_RETRIES, (value) => value >= 0);
 }
 
 /**
  * Model context window in tokens (AZURE_OPENAI_MAX_CONTEXT_TOKENS, default 128000).
  */
 export function aiMaxContextTokens(): number {
-  const v = parseInt(process.env.AZURE_OPENAI_MAX_CONTEXT_TOKENS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_MAX_CONTEXT_TOKENS;
+  return intEnv(
+    "AZURE_OPENAI_MAX_CONTEXT_TOKENS",
+    DEFAULT_AI_MAX_CONTEXT_TOKENS,
+    (value) => value > 0,
+  );
 }
 
 /** Default completion-token budget when a caller omits one (default 4096). */
 export function aiDefaultMaxOutputTokens(): number {
-  const v = parseInt(process.env.AI_MAX_OUTPUT_TOKENS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_AI_MAX_OUTPUT_TOKENS;
+  return intEnv("AI_MAX_OUTPUT_TOKENS", DEFAULT_AI_MAX_OUTPUT_TOKENS, (value) => value > 0);
 }
 
 // ---------------------------------------------------------------------------
@@ -74,9 +79,13 @@ export type AiCostConfig = { default: AiCostRate; byModel: Record<string, AiCost
 const DEFAULT_AI_COST_PROMPT_PER_1K = 0.00015;
 const DEFAULT_AI_COST_COMPLETION_PER_1K = 0.0006;
 
+function nonNegativeFloat(value: unknown): number | null {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= 0 ? numeric : null;
+}
+
 function nonNegativeFloatEnv(name: string, fallback: number): number {
-  const v = Number(process.env[name]);
-  return Number.isFinite(v) && v >= 0 ? v : fallback;
+  return nonNegativeFloat(process.env[name]) ?? fallback;
 }
 
 function parseCostRateMap(raw: string | undefined): Record<string, AiCostRate> {
@@ -87,9 +96,9 @@ function parseCostRateMap(raw: string | undefined): Record<string, AiCostRate> {
     for (const [model, value] of Object.entries(parsed)) {
       if (value && typeof value === "object") {
         const rate = value as { prompt?: unknown; completion?: unknown };
-        const prompt = Number(rate.prompt);
-        const completion = Number(rate.completion);
-        if (Number.isFinite(prompt) && prompt >= 0 && Number.isFinite(completion) && completion >= 0) {
+        const prompt = nonNegativeFloat(rate.prompt);
+        const completion = nonNegativeFloat(rate.completion);
+        if (prompt !== null && completion !== null) {
           out[model.toLowerCase()] = { prompt, completion };
         }
       }
@@ -148,8 +157,8 @@ const DEFAULT_AI_QUOTA_WINDOW_MS = 86_400_000; // 24h
 function optionalPositiveIntEnv(name: string): number | null {
   const raw = process.env[name];
   if (raw === undefined || raw.trim() === "") return null;
-  const v = parseInt(raw, 10);
-  return Number.isFinite(v) && v > 0 ? v : null;
+  const value = parseInt(raw, 10);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }
 
 /** Normalize a feature label to the env-var token used for its override. */

@@ -15,6 +15,9 @@ import {
 } from "@/lib/aggregation";
 import { isPostgresDatabase } from "@/lib/db-utils";
 
+const ANALYTICS_WINDOW_WEEKS = 12;
+const MS_PER_DAY = 86_400_000;
+
 export type LevelBucket = {
 	level: string;
 	count: number;
@@ -76,7 +79,7 @@ async function getCEFRDistribution(
 }
 
 export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalytics> {
-	const twelveWeeksAgo = new Date(Date.now() - 12 * 7 * 86_400_000);
+	const twelveWeeksAgo = new Date(Date.now() - ANALYTICS_WINDOW_WEEKS * 7 * MS_PER_DAY);
 
 	const [
 		progressStats,
@@ -124,12 +127,10 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 		getStreakSummary(userId),
 	]);
 
-	const totalCompleted = progressStats.find((g) => g.completed)
-		?._count.id ?? 0;
-	const totalInProgress = progressStats.find((g) => !g.completed)
-		?._count.id ?? 0;
+	const totalCompleted = countProgressRows(progressStats, true);
+	const totalInProgress = countProgressRows(progressStats, false);
 
-	const weekBuckets = lastNWeeks(12);
+	const weekBuckets = lastNWeeks(ANALYTICS_WINDOW_WEEKS);
 	const completionsByWeek = fillWeekBuckets(
 		weekBuckets,
 		completedRows
@@ -138,7 +139,7 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 	);
 
 	const wordsByWeek = fillWeekBuckets(
-		lastNWeeks(12),
+		lastNWeeks(ANALYTICS_WINDOW_WEEKS),
 		recentWords.map((r) => ({ date: r.createdAt, count: 1 })),
 	);
 
@@ -168,4 +169,11 @@ export async function getLearnerAnalytics(userId: string): Promise<LearnerAnalyt
 		currentStreak,
 		longestStreak,
 	};
+}
+
+function countProgressRows(
+	rows: Array<{ completed: boolean; _count: { id: number } }>,
+	completed: boolean,
+): number {
+	return rows.find((row) => row.completed === completed)?._count.id ?? 0;
 }

@@ -11,6 +11,36 @@ import Sparkline from "@/components/Sparkline";
 import StudyPageShell from "@/components/StudyPageShell";
 import StudyPlanSection from "@/components/StudyPlanSection";
 
+const QUIZ_RING_RADIUS = 37;
+const QUIZ_RING_CIRCUMFERENCE = 2 * Math.PI * QUIZ_RING_RADIUS;
+
+type SavedWord = Awaited<ReturnType<typeof getSavedWords>>[number];
+
+function toStudyWord(word: SavedWord) {
+  return {
+    id: word.id,
+    word: word.word,
+    explanation: word.explanation,
+    example: word.example,
+    articleId: word.articleId,
+  };
+}
+
+function getTrendDirection(values: number[]): string {
+  if (values.length < 2) return "";
+
+  const first = values[0];
+  const last = values[values.length - 1];
+  if (last > first) return " Trending up.";
+  if (last < first) return " Trending down.";
+  return " Steady.";
+}
+
+function getSparkLabel(values: number[]): string {
+  const trendDir = getTrendDirection(values);
+  return `Recent quiz scores, oldest to newest: ${values.join(", ")} percent.${trendDir}`;
+}
+
 export default async function StudyPage() {
   const session = await requireSession("/study");
   const [words, reviewSummary, reviewAssets, mastery, studyPlan] = await Promise.all([
@@ -26,21 +56,11 @@ export default async function StudyPage() {
 
   // Sparkline data
   const sparkValues = recentTrend.map((p) => p.scorePct);
-  const trendDir =
-    sparkValues.length >= 2
-      ? sparkValues[sparkValues.length - 1] > sparkValues[0]
-        ? " Trending up."
-        : sparkValues[sparkValues.length - 1] < sparkValues[0]
-          ? " Trending down."
-          : " Steady."
-      : "";
-  const sparkLabel = `Recent quiz scores, oldest to newest: ${sparkValues.join(", ")} percent.${trendDir}`;
+  const sparkLabel = getSparkLabel(sparkValues);
 
   // Ring geometry — 96×96 variant (larger for study page)
-  const RING_R = 37;
-  const RING_C = 2 * Math.PI * RING_R;
   const avg = averageScore ?? 0;
-  const ringOffset = RING_C * (1 - avg / 100);
+  const ringOffset = QUIZ_RING_CIRCUMFERENCE * (1 - avg / 100);
 
   return (
     <PageShell variant="listing">
@@ -48,13 +68,7 @@ export default async function StudyPage() {
 
       {/* Actionable sections first (#212): flashcard review (N due) + saved words. */}
       <StudyPageShell
-        words={words.map((w) => ({
-          id: w.id,
-          word: w.word,
-          explanation: w.explanation,
-          example: w.example,
-          articleId: w.articleId,
-        }))}
+        words={words.map(toStudyWord)}
         initialDueCount={reviewSummary.dueCount}
       />
 
@@ -123,11 +137,11 @@ export default async function StudyPage() {
                   className="relative h-24 w-24 shrink-0"
                 >
                   <svg viewBox="0 0 96 96" className="w-full h-full -rotate-90" aria-hidden>
-                    <circle cx="48" cy="48" r={RING_R} fill="none" stroke="var(--border)" strokeWidth="10" strokeLinecap="round" />
+                    <circle cx="48" cy="48" r={QUIZ_RING_RADIUS} fill="none" stroke="var(--border)" strokeWidth="10" strokeLinecap="round" />
                     <circle
-                      cx="48" cy="48" r={RING_R} fill="none"
+                      cx="48" cy="48" r={QUIZ_RING_RADIUS} fill="none"
                       stroke="var(--teal)" strokeWidth="10" strokeLinecap="round"
-                      strokeDasharray={RING_C} strokeDashoffset={ringOffset}
+                      strokeDasharray={QUIZ_RING_CIRCUMFERENCE} strokeDashoffset={ringOffset}
                     />
                   </svg>
                   <div className="absolute inset-0 flex items-center justify-center" aria-hidden>
@@ -178,4 +192,3 @@ export default async function StudyPage() {
     </PageShell>
   );
 }
-
