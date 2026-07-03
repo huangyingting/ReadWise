@@ -93,9 +93,14 @@ export function PageHeader({
       {...props}
     >
       {eyebrow ? (
-        <p className="mb-[var(--space-2)] text-[length:var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-primary-text">
+        <div
+          className={cn(
+            "mb-[var(--space-2)] text-[length:var(--text-sm)] font-semibold uppercase tracking-[0.08em] text-primary-text",
+            align === "center" && "mx-auto w-fit",
+          )}
+        >
           {eyebrow}
-        </p>
+        </div>
       ) : null}
       <div
         className={cn(
