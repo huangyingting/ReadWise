@@ -16,6 +16,9 @@ export const SEARCH_MAX_LIMIT = 50;
 /** Hard cap for low-priority SQLite-safe Prisma candidate buckets; PostgreSQL FTS replaces this after #259. */
 export const SEARCH_CANDIDATE_LIMIT = 500;
 
+const SEARCH_TERM_LIMIT = 8;
+const CANDIDATE_PREFETCH_BUFFER = 50;
+
 export type SearchOptions = {
   offset?: number;
   limit?: number;
@@ -34,6 +37,15 @@ export const BYLINE_ARTICLE_SEARCH_FIELDS = ["author", "source"] as const;
 export const HIGHLIGHT_SEARCH_FIELDS = ["quote", "note"] as const;
 export const SAVED_WORD_SEARCH_FIELDS = ["word", "explanation", "example", "contextSentence"] as const;
 
+type ArticleSearchField = (typeof ARTICLE_SEARCH_FIELDS)[number];
+type HighlightSearchField = (typeof HIGHLIGHT_SEARCH_FIELDS)[number];
+type SavedWordSearchField = (typeof SAVED_WORD_SEARCH_FIELDS)[number];
+
+type TextWhereInput =
+  | Prisma.ArticleWhereInput
+  | Prisma.HighlightWhereInput
+  | Prisma.SavedWordWhereInput;
+
 /**
  * Tokenizes a user query for portable Prisma `contains` searches. This avoids
  * SQLite FTS5 syntax entirely today while keeping the call site behind
@@ -49,7 +61,7 @@ export function buildSearchTerms(raw: string): string[] {
         .split(/[^\p{L}\p{N}]+/u)
         .map((term) => term.trim())
         .filter((term) => term.length > 0)
-        .slice(0, 8),
+        .slice(0, SEARCH_TERM_LIMIT),
     ),
   );
 }
@@ -59,21 +71,31 @@ export function containsFilter(value: string): StringContainsFilter {
 }
 
 export function candidateTake(offset: number, limit: number): number {
-  return Math.min(SEARCH_CANDIDATE_LIMIT, Math.max(limit + 1, offset + limit + 1 + 50));
+  return Math.min(
+    SEARCH_CANDIDATE_LIMIT,
+    Math.max(limit + 1, offset + limit + 1 + CANDIDATE_PREFETCH_BUFFER),
+  );
 }
 
 export function priorityTake(offset: number, limit: number): number {
   return Math.min(SEARCH_CANDIDATE_LIMIT, offset + limit + 1);
 }
 
-export function articleFieldsWhere(
-  fields: readonly (typeof ARTICLE_SEARCH_FIELDS)[number][],
+function textFieldsWhere<TWhere extends TextWhereInput>(
+  fields: readonly string[],
   terms: string[],
-): Prisma.ArticleWhereInput {
+): TWhere {
   const perTerm = terms.map((term) => ({
     OR: fields.map((field) => ({ [field]: containsFilter(term) })),
-  })) as Prisma.ArticleWhereInput[];
-  return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
+  })) as TWhere[];
+  return perTerm.length === 1 ? perTerm[0] : ({ AND: perTerm } as TWhere);
+}
+
+export function articleFieldsWhere(
+  fields: readonly ArticleSearchField[],
+  terms: string[],
+): Prisma.ArticleWhereInput {
+  return textFieldsWhere<Prisma.ArticleWhereInput>(fields, terms);
 }
 
 export function articleTextWhere(terms: string[]): Prisma.ArticleWhereInput {
@@ -81,22 +103,22 @@ export function articleTextWhere(terms: string[]): Prisma.ArticleWhereInput {
 }
 
 export function articleExactWhere(
-  fields: readonly (typeof ARTICLE_SEARCH_FIELDS)[number][],
+  fields: readonly ArticleSearchField[],
   query: string,
 ): Prisma.ArticleWhereInput {
   return { OR: fields.map((field) => ({ [field]: containsFilter(query) })) };
 }
 
 export function highlightTextWhere(terms: string[]): Prisma.HighlightWhereInput {
-  const perTerm = terms.map((term) => ({
-    OR: HIGHLIGHT_SEARCH_FIELDS.map((field) => ({ [field]: containsFilter(term) })),
-  })) as Prisma.HighlightWhereInput[];
-  return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
+  return textFieldsWhere<Prisma.HighlightWhereInput>(
+    HIGHLIGHT_SEARCH_FIELDS satisfies readonly HighlightSearchField[],
+    terms,
+  );
 }
 
 export function savedWordTextWhere(terms: string[]): Prisma.SavedWordWhereInput {
-  const perTerm = terms.map((term) => ({
-    OR: SAVED_WORD_SEARCH_FIELDS.map((field) => ({ [field]: containsFilter(term) })),
-  })) as Prisma.SavedWordWhereInput[];
-  return perTerm.length === 1 ? perTerm[0] : { AND: perTerm };
+  return textFieldsWhere<Prisma.SavedWordWhereInput>(
+    SAVED_WORD_SEARCH_FIELDS satisfies readonly SavedWordSearchField[],
+    terms,
+  );
 }

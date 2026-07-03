@@ -44,6 +44,67 @@ export interface ArticleListingGridProps {
   endCap?: ReactNode;
 }
 
+const LISTING_GRID_CLASS =
+  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-5)] rw-fade-up";
+
+type ArticleGridProps = Pick<
+  ArticleListingGridProps,
+  "articles" | "progress" | "savedIds" | "reasons"
+>;
+
+function ArticleGrid({
+  articles,
+  progress,
+  savedIds,
+  reasons,
+}: ArticleGridProps) {
+  return (
+    <div className={LISTING_GRID_CLASS}>
+      {articles.map((article) => (
+        <ArticleCardView
+          key={article.id}
+          article={article}
+          progress={progress[article.id]}
+          saved={savedIds.has(article.id)}
+          reason={reasons?.[article.id]}
+        />
+      ))}
+    </div>
+  );
+}
+
+type LoadMoreControlProps = Pick<
+  ArticleListingGridProps,
+  "loading" | "loadError" | "onLoadMore"
+>;
+
+function LoadMoreControl({
+  loading,
+  loadError,
+  onLoadMore,
+}: LoadMoreControlProps) {
+  return (
+    <div className="mt-[var(--space-7)] flex flex-col items-center gap-[var(--space-3)]">
+      {loadError ? (
+        <p
+          role="alert"
+          className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
+        >
+          {loadError}
+        </p>
+      ) : null}
+      <Button
+        variant="secondary"
+        size="md"
+        loading={loading}
+        onClick={onLoadMore}
+      >
+        {loadError ? "Retry" : "Load more"}
+      </Button>
+    </div>
+  );
+}
+
 export default function ArticleListingGrid({
   articles,
   progress,
@@ -73,38 +134,20 @@ export default function ArticleListingGrid({
       {beforeGrid}
 
       {/* Card grid — identical markup to M4 listings */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-5)] rw-fade-up">
-        {articles.map((article) => (
-          <ArticleCardView
-            key={article.id}
-            article={article}
-            progress={progress[article.id]}
-            saved={savedIds.has(article.id)}
-            reason={reasons?.[article.id]}
-          />
-        ))}
-      </div>
+      <ArticleGrid
+        articles={articles}
+        progress={progress}
+        savedIds={savedIds}
+        reasons={reasons}
+      />
 
       {/* Load more / end-cap */}
       {hasMore ? (
-        <div className="mt-[var(--space-7)] flex flex-col items-center gap-[var(--space-3)]">
-          {loadError ? (
-            <p
-              role="alert"
-              className="text-[length:var(--text-sm)] text-danger-text m-0 text-center"
-            >
-              {loadError}
-            </p>
-          ) : null}
-          <Button
-            variant="secondary"
-            size="md"
-            loading={loading}
-            onClick={onLoadMore}
-          >
-            {loadError ? "Retry" : "Load more"}
-          </Button>
-        </div>
+        <LoadMoreControl
+          loading={loading}
+          loadError={loadError}
+          onLoadMore={onLoadMore}
+        />
       ) : (
         endCap ?? null
       )}

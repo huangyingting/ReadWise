@@ -28,6 +28,33 @@ function hashText(text: string): string {
   return createHash("sha256").update(text, "utf8").digest("hex");
 }
 
+function isValidTranslationRequest(text: string, lang: string): boolean {
+  return Boolean(text) && text.length <= MAX_SENTENCE_CHARS && isSupportedLanguage(lang);
+}
+
+async function findArticleForTranslation(
+  articleId: string,
+  context: ArticleAccessContext | null,
+) {
+  const operator = isArticleOperator(context);
+  const allowedArticle = operator
+    ? null
+    : await getAiProcessableArticleById(articleId, context, { select: { id: true } });
+
+  if (!operator && !allowedArticle) {
+    return null;
+  }
+
+  // Verify the article exists (gives caller a proper 404 on miss).
+  return (
+    allowedArticle ??
+    (await prisma.article.findUnique({
+      where: { id: articleId },
+      select: { id: true },
+    }))
+  );
+}
+
 /**
  * Translates a sentence or phrase from an article into the given target language.
  *
@@ -47,26 +74,13 @@ export async function translateSentence(
   const normalized = normalizeText(text);
 
   // Inputs are pre-validated by the route, but the lib is still defensive.
-  if (!normalized || normalized.length > MAX_SENTENCE_CHARS || !isSupportedLanguage(lang)) {
+  if (!isValidTranslationRequest(normalized, lang)) {
     return { translation: null, fallback: true };
   }
 
   const sourceHash = hashText(normalized);
 
-  const allowedArticle = !isArticleOperator(context)
-    ? await getAiProcessableArticleById(articleId, context, { select: { id: true } })
-    : null;
-  if (!isArticleOperator(context) && !allowedArticle) {
-    return null;
-  }
-
-  // Verify the article exists (gives caller a proper 404 on miss).
-  const article =
-    allowedArticle ??
-    (await prisma.article.findUnique({
-      where: { id: articleId },
-      select: { id: true },
-    }));
+  const article = await findArticleForTranslation(articleId, context);
   if (!article) return null;
 
   const label = languageLabel(lang);

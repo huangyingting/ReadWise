@@ -18,12 +18,24 @@ type SearchParams = {
   page?: string;
 };
 
+const ADMIN_TAGS_PATH = "/admin/tags";
+const TAG_LINK_CLASS =
+  "text-text-subtle hover:text-text text-[length:var(--text-sm)]";
+
+function parsePage(page: string | undefined): number {
+  return Math.max(1, Number.parseInt(page ?? "1", 10) || 1);
+}
+
+function pluralizeArticle(count: number): string {
+  return count === 1 ? "article" : "articles";
+}
+
 function buildHref(params: { q: string; page: number }): string {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
-  return qs ? `/admin/tags?${qs}` : "/admin/tags";
+  return qs ? `${ADMIN_TAGS_PATH}?${qs}` : ADMIN_TAGS_PATH;
 }
 
 export default async function AdminTagsPage({
@@ -35,7 +47,7 @@ export default async function AdminTagsPage({
 
   const sp = await searchParams;
   const query = (sp.q ?? "").trim();
-  const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const page = parsePage(sp.page);
 
   const result = await listAdminTags({ query, page });
 
@@ -86,13 +98,13 @@ export default async function AdminTagsPage({
                 <td>
                   <Link
                     href={`/tags/${t.slug}`}
-                    className="text-text-subtle hover:text-text text-[length:var(--text-sm)]"
+                    className={TAG_LINK_CLASS}
                   >
                     {t.slug}
                   </Link>
                 </td>
                 <td className="muted">
-                  {t.articleCount} article{t.articleCount === 1 ? "" : "s"} ·{" "}
+                  {t.articleCount} {pluralizeArticle(t.articleCount)} ·{" "}
                   {t.publishedCount} published
                 </td>
                 <td>

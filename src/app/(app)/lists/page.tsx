@@ -8,6 +8,45 @@ import ListingSync from "@/components/ListingSync";
 import { EmptyState, PageHeader, PageShell } from "@/components/ui";
 import ListSwitcher from "@/components/ListSwitcher";
 
+const LIST_ARTICLE_GRID_CLASS =
+  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-5)] rw-fade-up";
+
+type UserList = Awaited<ReturnType<typeof getUserLists>>[number];
+type ListArticle = NonNullable<
+  Awaited<ReturnType<typeof getListWithArticles>>
+>["articles"][number];
+
+function getActiveList(
+  lists: UserList[],
+  requestedListId: string | undefined,
+): UserList | null {
+  const defaultList = lists.find((list) => list.isDefault);
+  const requestedList = requestedListId
+    ? lists.find((list) => list.id === requestedListId)
+    : null;
+
+  return requestedList ?? defaultList ?? lists[0] ?? null;
+}
+
+function toListSwitcherItems(lists: UserList[]) {
+  return lists.map((list) => ({
+    id: list.id,
+    name: list.name,
+    isDefault: list.isDefault,
+    count: list.count,
+  }));
+}
+
+function getArticleProgress(
+  article: ListArticle,
+  progressMap: Awaited<ReturnType<typeof getProgressMap>>,
+) {
+  const progress = progressMap.get(article.id);
+  return progress
+    ? { percent: progress.percent, completed: progress.completed }
+    : undefined;
+}
+
 export default async function ListsPage({
   searchParams,
 }: {
@@ -19,9 +58,7 @@ export default async function ListsPage({
   const lists = await getUserLists(session.user.id);
 
   // Determine the active list
-  const defaultList = lists.find((l) => l.isDefault);
-  const requestedList = listParam ? lists.find((l) => l.id === listParam) : null;
-  const activeList = requestedList ?? defaultList ?? lists[0] ?? null;
+  const activeList = getActiveList(lists, listParam);
 
   // Fetch articles for the active list
   const listData = activeList
@@ -45,12 +82,7 @@ export default async function ListsPage({
       <div className="lists-layout">
         {/* List switcher: desktop sidebar / mobile pill bar */}
         <ListSwitcher
-          lists={lists.map((l) => ({
-            id: l.id,
-            name: l.name,
-            isDefault: l.isDefault,
-            count: l.count,
-          }))}
+          lists={toListSwitcherItems(lists)}
           activeListId={activeList?.id ?? null}
         />
 
@@ -83,25 +115,18 @@ export default async function ListsPage({
             />
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-5)] rw-fade-up">
-                {listData.articles.map((article) => {
-                  const progress = progressMap.get(article.id);
-                  return (
-                    <ArticleCardView
-                      key={article.id}
-                      article={article}
-                      progress={
-                        progress
-                          ? { percent: progress.percent, completed: progress.completed }
-                          : undefined
-                      }
-                      saved={bookmarkedIds.has(article.id)}
-                      // On the Saved page every card shows bookmark as "remove from list"
-                      removeListId={activeList?.id}
-                      removeListName={activeList?.name}
-                    />
-                  );
-                })}
+              <div className={LIST_ARTICLE_GRID_CLASS}>
+                {listData.articles.map((article) => (
+                  <ArticleCardView
+                    key={article.id}
+                    article={article}
+                    progress={getArticleProgress(article, progressMap)}
+                    saved={bookmarkedIds.has(article.id)}
+                    // On the Saved page every card shows bookmark as "remove from list"
+                    removeListId={activeList?.id}
+                    removeListName={activeList?.name}
+                  />
+                ))}
               </div>
 
               <ListingSync articleIds={articleIds} />

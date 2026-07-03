@@ -15,6 +15,23 @@
 import { ICON_192 } from "@/lib/assets";
 import { t } from "@/lib/i18n";
 
+type CountCopy = (count: number) => string;
+
+type ReminderCopy = {
+  title: string;
+  body: CountCopy;
+  url: string;
+  todayTitle: string;
+  todayBody: CountCopy;
+  todayUrl: string;
+  icon: string;
+};
+
+const countCopy =
+  (key: "push.reminder.body" | "push.reminder.todayBody"): CountCopy =>
+  (count) =>
+    t(key, { count });
+
 // ---------------------------------------------------------------------------
 // Push notification payload (server-side — src/lib/push.ts)
 // ---------------------------------------------------------------------------
@@ -27,7 +44,7 @@ export const reminder = {
    * Notification body text.
    * Returns singular or plural copy depending on the count of due words.
    */
-  body: (count: number): string => t("push.reminder.body", { count }),
+  body: countCopy("push.reminder.body"),
 
   /** Deep-link URL opened when the user taps the notification. */
   url: "/study",
@@ -42,22 +59,14 @@ export const reminder = {
    * Today Session variant — body used when the Today Session feature is
    * enabled. Stays generic and content-safe (only a due-word count).
    */
-  todayBody: (count: number): string => t("push.reminder.todayBody", { count }),
+  todayBody: countCopy("push.reminder.todayBody"),
 
   /** Deep-link URL opened when Today Session is enabled. */
   todayUrl: "/today",
 
   /** Icon shown in the notification (PWA icon path). */
   icon: ICON_192,
-} satisfies {
-  title: string;
-  body: (count: number) => string;
-  url: string;
-  todayTitle: string;
-  todayBody: (count: number) => string;
-  todayUrl: string;
-  icon: string;
-};
+} satisfies ReminderCopy;
 
 // ---------------------------------------------------------------------------
 // Settings / toggle UI copy (PushReminderToggle + ReminderPreferencesForm)

@@ -11,13 +11,20 @@ import { envValue } from "@/lib/runtime-config/env";
 
 export type LogLevel = "debug" | "info" | "warn" | "error";
 
+const DEFAULT_LOG_LEVEL: LogLevel = "info";
+const LOG_LEVELS = new Set<LogLevel>(["debug", "info", "warn", "error"]);
+const TRUTHY_ENV_VALUES = new Set(["1", "true", "yes", "on"]);
+const DEFAULT_APP_VERSION = "0.0.0";
+const DEFAULT_SERVICE_NAME = "readwise";
+const DEFAULT_ERROR_ALERT_THRESHOLD = 10;
+
 /** The configured log level (LOG_LEVEL, default "info"). */
 export function logLevel(): LogLevel {
   const raw = (process.env.LOG_LEVEL ?? "").toLowerCase();
-  if (raw === "debug" || raw === "info" || raw === "warn" || raw === "error") {
-    return raw;
+  if (LOG_LEVELS.has(raw as LogLevel)) {
+    return raw as LogLevel;
   }
-  return "info";
+  return DEFAULT_LOG_LEVEL;
 }
 
 // ---------------------------------------------------------------------------
@@ -35,7 +42,7 @@ export type TracingConfig = {
 
 function truthyEnv(name: string): boolean {
   const raw = (process.env[name] ?? "").trim().toLowerCase();
-  return raw === "1" || raw === "true" || raw === "yes" || raw === "on";
+  return TRUTHY_ENV_VALUES.has(raw);
 }
 
 /** The release/version string used for traces and error reports. */
@@ -43,7 +50,14 @@ export function appVersion(): string {
   return (
     envValue("APP_VERSION") ??
     envValue("npm_package_version") ??
-    "0.0.0"
+    DEFAULT_APP_VERSION
+  );
+}
+
+function tracingEndpoint(): string | null {
+  return (
+    envValue("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") ??
+    envValue("OTEL_EXPORTER_OTLP_ENDPOINT")
   );
 }
 
@@ -52,15 +66,13 @@ export function appVersion(): string {
  * Tracing is OFF (returns `null`) unless explicitly enabled.
  */
 export function tracingConfig(): TracingConfig | null {
-  const endpoint =
-    envValue("OTEL_EXPORTER_OTLP_TRACES_ENDPOINT") ??
-    envValue("OTEL_EXPORTER_OTLP_ENDPOINT");
+  const endpoint = tracingEndpoint();
   const flagEnabled = truthyEnv("TRACING_ENABLED");
   if (!endpoint && !flagEnabled) return null;
   return {
     exporter: endpoint ? "otlp" : "console",
     endpoint,
-    serviceName: envValue("OTEL_SERVICE_NAME") ?? "readwise",
+    serviceName: envValue("OTEL_SERVICE_NAME") ?? DEFAULT_SERVICE_NAME,
     environment: process.env.NODE_ENV ?? "development",
     serviceVersion: appVersion(),
   };
@@ -88,5 +100,5 @@ export function errorReportingProvider(): string {
  */
 export function errorAlertThreshold(): number {
   const v = parseInt(process.env.ERROR_ALERT_THRESHOLD ?? "", 10);
-  return Number.isInteger(v) && v > 0 ? v : 10;
+  return Number.isInteger(v) && v > 0 ? v : DEFAULT_ERROR_ALERT_THRESHOLD;
 }

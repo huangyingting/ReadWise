@@ -68,23 +68,31 @@ const PATTERNS: Record<ModerationCategory, RegExp[]> = {
   ],
 };
 
+const patternEntries = Object.entries(PATTERNS) as [ModerationCategory, RegExp[]][];
+
+function unflaggedResult(): ModerationResult {
+  return { flagged: false, categories: [] };
+}
+
+function matchedCategories(text: string): ModerationCategory[] {
+  const categories: ModerationCategory[] = [];
+  for (const [category, patterns] of patternEntries) {
+    if (patterns.some((re) => re.test(text))) {
+      categories.push(category);
+    }
+  }
+  return categories;
+}
+
 /**
  * Screens free text against the denylist. Cheap (regex only) and synchronous so
  * it never blocks a request meaningfully. Returns the matched categories.
  */
 export function moderateText(text: string): ModerationResult {
   if (typeof text !== "string" || !text.trim()) {
-    return { flagged: false, categories: [] };
+    return unflaggedResult();
   }
-  const categories: ModerationCategory[] = [];
-  for (const [category, patterns] of Object.entries(PATTERNS) as [
-    ModerationCategory,
-    RegExp[],
-  ][]) {
-    if (patterns.some((re) => re.test(text))) {
-      categories.push(category);
-    }
-  }
+  const categories = matchedCategories(text);
   return { flagged: categories.length > 0, categories };
 }
 

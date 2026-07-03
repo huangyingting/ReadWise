@@ -4,6 +4,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -53,10 +54,14 @@ export default function CommandPaletteProvider({
   /** The element that was focused before the palette opened, to restore on close. */
   const openerRef = useRef<HTMLElement | null>(null);
 
-  const open = useCallback(() => {
+  const captureOpener = useCallback(() => {
     openerRef.current = document.activeElement as HTMLElement | null;
-    setIsOpen(true);
   }, []);
+
+  const open = useCallback(() => {
+    captureOpener();
+    setIsOpen(true);
+  }, [captureOpener]);
 
   const close = useCallback(() => {
     setIsOpen(false);
@@ -67,41 +72,48 @@ export default function CommandPaletteProvider({
     // We read from the DOM to avoid stale-closure; setIsOpen updater also works.
     setIsOpen((prev) => {
       if (prev) return false;
-      openerRef.current = document.activeElement as HTMLElement | null;
+      captureOpener();
       return true;
     });
-  }, []);
+  }, [captureOpener]);
+
+  const handleMetaK = useCallback(
+    (e: KeyboardEvent) => {
+      e.preventDefault();
+      toggle();
+    },
+    [toggle],
+  );
+
+  const handleSlash = useCallback(
+    (e: KeyboardEvent) => {
+      if (!isOpen) {
+        e.preventDefault();
+        open();
+      }
+    },
+    [isOpen, open],
+  );
 
   // ---- Global keyboard listeners ----------------------------------------
   // ⌘K (macOS) / Ctrl+K (win/linux) — toggle
   useKeyboardShortcut(
     "k",
-    useCallback(
-      (e) => {
-        e.preventDefault();
-        toggle();
-      },
-      [toggle],
-    ),
+    handleMetaK,
     { requireMeta: true },
   );
 
   // "/" — open only when focus is not in an editable field
   useKeyboardShortcut(
     "/",
-    useCallback(
-      (e) => {
-        if (!isOpen) {
-          e.preventDefault();
-          open();
-        }
-      },
-      [isOpen, open],
-    ),
+    handleSlash,
     { suppressInInput: true },
   );
 
-  const ctx: CommandPaletteCtx = { isOpen, open, close, toggle };
+  const ctx = useMemo<CommandPaletteCtx>(
+    () => ({ isOpen, open, close, toggle }),
+    [isOpen, open, close, toggle],
+  );
 
   return (
     <CommandPaletteContext.Provider value={ctx}>

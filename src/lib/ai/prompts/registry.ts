@@ -20,6 +20,8 @@ import sentenceTranslationTemplate from "./sentence-translation";
 
 export type { PromptTemplate, PromptMessage };
 
+const hasOwn = Object.prototype.hasOwnProperty;
+
 /**
  * The active prompt template per feature. This is the registry — every AI
  * feature renders its messages from here instead of inline strings.
@@ -41,7 +43,11 @@ export const PROMPT_FEATURES = Object.keys(PROMPT_TEMPLATES) as PromptFeature[];
 
 /** Type guard: whether a feature string has a registered prompt template. */
 export function isPromptFeature(feature: string): feature is PromptFeature {
-  return Object.prototype.hasOwnProperty.call(PROMPT_TEMPLATES, feature);
+  return hasOwn.call(PROMPT_TEMPLATES, feature);
+}
+
+function promptTemplate(feature: string) {
+  return isPromptFeature(feature) ? PROMPT_TEMPLATES[feature] : null;
 }
 
 /**
@@ -50,12 +56,12 @@ export function isPromptFeature(feature: string): feature is PromptFeature {
  * keep a stable, monotonic default.
  */
 export function activePromptVersion(feature: string): string {
-  return isPromptFeature(feature) ? PROMPT_TEMPLATES[feature].version : `${feature}/v1`;
+  return promptTemplate(feature)?.version ?? `${feature}/v1`;
 }
 
 /** Returns the model-call parameters for a feature's active prompt (or {}). */
 export function promptModelParams(feature: string): PromptModelParams {
-  return isPromptFeature(feature) ? PROMPT_TEMPLATES[feature].modelParams : {};
+  return promptTemplate(feature)?.modelParams ?? {};
 }
 
 /**
@@ -88,7 +94,8 @@ export function featuresWithStalePrompts(
   const stale: PromptFeature[] = [];
   for (const feature of PROMPT_FEATURES) {
     const produced = producedVersions[feature];
-    if (produced != null && produced !== activePromptVersion(feature)) {
+    const activeVersion = PROMPT_TEMPLATES[feature].version;
+    if (produced != null && produced !== activeVersion) {
       stale.push(feature);
     }
   }
