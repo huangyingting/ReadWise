@@ -10,6 +10,14 @@ import { prisma } from "@/lib/prisma";
 /** A membership joined with its organization (for "my orgs" listings). */
 export type MembershipWithOrg = Membership & { org: Organization };
 
+const NEWEST_MEMBERSHIP_FIRST = { createdAt: "desc" as const };
+const ORG_MEMBER_ORDER = [{ role: "asc" as const }, { createdAt: "asc" as const }];
+const MEMBER_USER_SELECT = { id: true, name: true, email: true, image: true } as const;
+
+function membershipKey(userId: string, orgId: string) {
+  return { userId_orgId: { userId, orgId } };
+}
+
 export function getOrganization(orgId: string): Promise<Organization | null> {
   return prisma.organization.findUnique({ where: { id: orgId } });
 }
@@ -24,7 +32,7 @@ export function getMembership(
   orgId: string,
 ): Promise<Membership | null> {
   return prisma.membership.findUnique({
-    where: { userId_orgId: { userId, orgId } },
+    where: membershipKey(userId, orgId),
   });
 }
 
@@ -35,7 +43,7 @@ export function listUserOrganizations(
   return prisma.membership.findMany({
     where: { userId },
     include: { org: true },
-    orderBy: { createdAt: "desc" },
+    orderBy: NEWEST_MEMBERSHIP_FIRST,
   });
 }
 
@@ -43,7 +51,7 @@ export function listUserOrganizations(
 export function listOrgMembers(orgId: string) {
   return prisma.membership.findMany({
     where: { orgId },
-    include: { user: { select: { id: true, name: true, email: true, image: true } } },
-    orderBy: [{ role: "asc" }, { createdAt: "asc" }],
+    include: { user: { select: MEMBER_USER_SELECT } },
+    orderBy: ORG_MEMBER_ORDER,
   });
 }

@@ -11,7 +11,7 @@
  */
 
 import { useEffect, useState } from "react";
-import { RefreshCw, CloudOff } from "lucide-react";
+import { CloudOff } from "lucide-react";
 import { Button, Spinner } from "@/components/ui";
 import {
   registerOfflineSync,
@@ -20,12 +20,24 @@ import {
   type SyncState,
 } from "@/lib/offline/sync-runtime";
 
+const INITIAL_SYNC_STATE: SyncState = {
+  pending: 0,
+  syncing: false,
+  lastResult: null,
+};
+
+function shouldShowSyncIndicator(sync: SyncState): boolean {
+  return sync.pending > 0 || sync.syncing;
+}
+
+function getSyncLabel(sync: SyncState): string {
+  if (sync.syncing) return "Syncing changes…";
+  if (sync.pending === 1) return "1 change waiting to sync";
+  return `${sync.pending} changes waiting to sync`;
+}
+
 export default function OfflineSyncIndicator() {
-  const [sync, setSync] = useState<SyncState>({
-    pending: 0,
-    syncing: false,
-    lastResult: null,
-  });
+  const [sync, setSync] = useState<SyncState>(INITIAL_SYNC_STATE);
 
   useEffect(() => {
     registerOfflineSync();
@@ -34,13 +46,9 @@ export default function OfflineSyncIndicator() {
   }, []);
 
   // Nothing pending and not syncing → render nothing.
-  if (sync.pending === 0 && !sync.syncing) return null;
+  if (!shouldShowSyncIndicator(sync)) return null;
 
-  const label = sync.syncing
-    ? "Syncing changes…"
-    : sync.pending === 1
-      ? "1 change waiting to sync"
-      : `${sync.pending} changes waiting to sync`;
+  const label = getSyncLabel(sync);
 
   return (
     <div
@@ -60,17 +68,21 @@ export default function OfflineSyncIndicator() {
         <CloudOff size={13} aria-hidden />
       )}
       <span>{label}</span>
-      {!sync.syncing && sync.pending > 0 ? (
-        <Button
-          type="button"
-          variant="ghost"
-          size="sm"
-          onClick={() => void flushOfflineQueue()}
-          className="h-auto px-0 py-0 font-semibold text-primary underline-offset-2 hover:underline"
-        >
-          Sync now
-        </Button>
-      ) : null}
+      {!sync.syncing && sync.pending > 0 ? <SyncNowButton /> : null}
     </div>
+  );
+}
+
+function SyncNowButton() {
+  return (
+    <Button
+      type="button"
+      variant="ghost"
+      size="sm"
+      onClick={() => void flushOfflineQueue()}
+      className="h-auto px-0 py-0 font-semibold text-primary underline-offset-2 hover:underline"
+    >
+      Sync now
+    </Button>
   );
 }

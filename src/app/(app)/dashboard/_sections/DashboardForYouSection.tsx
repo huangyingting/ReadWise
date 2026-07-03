@@ -21,6 +21,11 @@ interface DashboardForYouSectionProps {
   feedIds: string[];
 }
 
+function getInitialSavedIds(bookmarkedIds: Set<string>, feedIds: string[]): string[] {
+  const visibleFeedIds = new Set(feedIds);
+  return [...bookmarkedIds].filter((id) => visibleFeedIds.has(id));
+}
+
 export function DashboardForYouSection({
   hasTopics,
   maxLevel,
@@ -31,6 +36,8 @@ export function DashboardForYouSection({
   bookmarkedIds,
   feedIds,
 }: DashboardForYouSectionProps) {
+  const initialSavedIds = getInitialSavedIds(bookmarkedIds, feedIds);
+
   return (
     <section aria-labelledby="foryou-h" className="mt-[var(--space-7)]">
       <div className="flex flex-wrap items-center justify-between gap-[var(--space-3)] mb-[var(--space-2)]">
@@ -68,7 +75,7 @@ export function DashboardForYouSection({
           initialProgress={feedProgress}
           initialHasMore={filteredHasMore}
           initialOffset={filteredArticles.length}
-          initialSavedIds={[...bookmarkedIds].filter((id) => feedIds.includes(id))}
+          initialSavedIds={initialSavedIds}
           initialReasons={feedPage.reasons}
         />
       )}

@@ -3,6 +3,33 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
 import { checkRateLimit } from "@/lib/security/rate-limit/index";
 
+type LevelRecommendation = NonNullable<
+  Awaited<ReturnType<typeof getAdaptiveLevelRecommendation>>
+>;
+
+async function getRecommendationOrThrow(userId: string): Promise<LevelRecommendation> {
+  await checkRateLimit(userId, "lookup");
+
+  const recommendation = await getAdaptiveLevelRecommendation(userId);
+  if (!recommendation) {
+    throw new ApiError(404, "Profile not found");
+  }
+
+  return recommendation;
+}
+
+function toLevelRecommendationPayload(recommendation: LevelRecommendation) {
+  return {
+    suggestion: recommendation.suggestion,
+    confidence: recommendation.confidence,
+    rationale: recommendation.explanation.join(" "),
+    explanation: recommendation.explanation,
+    targetLevel: recommendation.targetLevel,
+    recommendedLevel: recommendation.recommendedLevel,
+    currentLevel: recommendation.currentLevel,
+  };
+}
+
 /**
  * GET /api/level-recommendation
  *
@@ -26,22 +53,6 @@ import { checkRateLimit } from "@/lib/security/rate-limit/index";
  * Errors: 401 unauthenticated, 404 profile not found.
  */
 export const GET = createHandler({}, async ({ session }) => {
-  const userId = session.user.id;
-
-  await checkRateLimit(userId, "lookup");
-
-  const recommendation = await getAdaptiveLevelRecommendation(userId);
-  if (!recommendation) {
-    throw new ApiError(404, "Profile not found");
-  }
-
-  return NextResponse.json({
-    suggestion: recommendation.suggestion,
-    confidence: recommendation.confidence,
-    rationale: recommendation.explanation.join(" "),
-    explanation: recommendation.explanation,
-    targetLevel: recommendation.targetLevel,
-    recommendedLevel: recommendation.recommendedLevel,
-    currentLevel: recommendation.currentLevel,
-  });
+  const recommendation = await getRecommendationOrThrow(session.user.id);
+  return NextResponse.json(toLevelRecommendationPayload(recommendation));
 });

@@ -3,13 +3,22 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
+type TooltipSide = "top" | "bottom" | "left" | "right";
+
+const tooltipSideClasses: Record<TooltipSide, string> = {
+  top: "bottom-full left-1/2 -translate-x-1/2 mb-1",
+  bottom: "top-full left-1/2 -translate-x-1/2 mt-1",
+  left: "right-full top-1/2 -translate-y-1/2 mr-1",
+  right: "left-full top-1/2 -translate-y-1/2 ml-1",
+};
+
 export interface TooltipProps {
   /** The tooltip text shown on hover/focus. */
   content: React.ReactNode;
   /** The trigger element — must be able to receive focus. */
   children: React.ReactElement<React.HTMLAttributes<HTMLElement>>;
   /** Preferred placement relative to the trigger. */
-  side?: "top" | "bottom" | "left" | "right";
+  side?: TooltipSide;
 }
 
 /**
@@ -59,10 +68,7 @@ export function Tooltip({ content, children, side = "top" }: TooltipProps) {
             "text-[length:var(--text-xs)] text-text-inverted whitespace-nowrap",
             "bg-[color:var(--text)] shadow-[var(--shadow-md)]",
             "pointer-events-none motion-reduce:transition-none",
-            side === "top" && "bottom-full left-1/2 -translate-x-1/2 mb-1",
-            side === "bottom" && "top-full left-1/2 -translate-x-1/2 mt-1",
-            side === "left" && "right-full top-1/2 -translate-y-1/2 mr-1",
-            side === "right" && "left-full top-1/2 -translate-y-1/2 ml-1",
+            tooltipSideClasses[side],
           )}
         >
           {content}

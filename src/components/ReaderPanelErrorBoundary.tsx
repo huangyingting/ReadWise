@@ -29,6 +29,14 @@ interface State {
   hasError: boolean;
 }
 
+const READER_PANEL_FALLBACK =
+  "This tool hit an error and couldn't be shown.";
+
+function readerPanelStack(error: Error, info: ErrorInfo): string | undefined {
+  const stack = [error.stack, info.componentStack].filter(Boolean).join("\n");
+  return stack || undefined;
+}
+
 export default class ReaderPanelErrorBoundary extends Component<Props, State> {
   state: State = { hasError: false };
 
@@ -37,13 +45,10 @@ export default class ReaderPanelErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, info: ErrorInfo): void {
-    const stack = [error.stack, info.componentStack]
-      .filter(Boolean)
-      .join("\n");
     reportClientError({
       message: error.message || "Reader panel render error",
       source: `reader-panel:${this.props.label}`,
-      stack: stack || undefined,
+      stack: readerPanelStack(error, info),
     });
   }
 
@@ -56,7 +61,7 @@ export default class ReaderPanelErrorBoundary extends Component<Props, State> {
       return (
         <div role="alert" className="reader-panel-error">
           <p className="reader-panel-error-text">
-            This tool hit an error and couldn&apos;t be shown.
+            {READER_PANEL_FALLBACK}
           </p>
           <Button
             variant="outline"

@@ -4,6 +4,14 @@ import { getFilteredSavedWords, getArticleTitlesForWords, WORDS_PAGE_SIZE } from
 import { articleAccessContext } from "@/lib/article-library";
 import { parseWordsQuery } from "@/lib/study/schemas";
 
+type FilteredSavedWords = Awaited<ReturnType<typeof getFilteredSavedWords>>;
+
+function articleIdsForWords(words: FilteredSavedWords["words"]) {
+  return [
+    ...new Set(words.map((word) => word.articleId).filter(Boolean) as string[]),
+  ];
+}
+
 /**
  * GET /api/study/words
  *
@@ -37,9 +45,7 @@ export const GET = createHandler({ query: parseWordsQuery }, async ({ session, q
   });
 
   // Resolve article titles for words that have an articleId.
-  const articleIds = [
-    ...new Set(result.words.map((w) => w.articleId).filter(Boolean) as string[]),
-  ];
+  const articleIds = articleIdsForWords(result.words);
   const articles = await getArticleTitlesForWords(articleIds, context);
 
   return NextResponse.json({

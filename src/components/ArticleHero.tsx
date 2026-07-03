@@ -5,6 +5,8 @@ import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { Skeleton } from "@/components/ui/Skeleton";
 
+type ArticleHeroVariant = "reader" | "thumb";
+
 export interface ArticleHeroProps {
   /** Remote (or local) hero image URL. Renders nothing when absent. */
   src?: string | null;
@@ -14,9 +16,20 @@ export interface ArticleHeroProps {
    * `reader` (default) is the full-width hero shown above the article body.
    * `thumb` is the compact 16:9 thumbnail used at the top of a listing card.
    */
-  variant?: "reader" | "thumb";
+  variant?: ArticleHeroVariant;
   className?: string;
 }
+
+const IMAGE_SIZES: Record<ArticleHeroVariant, string> = {
+  reader: "(max-width: 760px) 100vw, 760px",
+  thumb: "(max-width: 640px) 100vw, 400px",
+};
+
+const VARIANT_CLASSES: Record<ArticleHeroVariant, string> = {
+  reader:
+    "mx-auto max-w-[min(100%,760px)] max-h-[420px] rounded-[var(--radius-lg)] border border-border shadow-[var(--shadow-sm)] my-[var(--space-4)]",
+  thumb: "rounded-[var(--radius-md)] border border-border",
+};
 
 /**
  * Renders an article image inside an intrinsic 16:9 container using `next/image`
@@ -45,9 +58,7 @@ export default function ArticleHero({
     <div
       className={cn(
         "relative w-full overflow-hidden aspect-[16/9]",
-        variant === "reader"
-          ? "mx-auto max-w-[min(100%,760px)] max-h-[420px] rounded-[var(--radius-lg)] border border-border shadow-[var(--shadow-sm)] my-[var(--space-4)]"
-          : "rounded-[var(--radius-md)] border border-border",
+        VARIANT_CLASSES[variant],
         className,
       )}
     >
@@ -64,11 +75,7 @@ export default function ArticleHero({
         alt={alt}
         fill
         unoptimized
-        sizes={
-          variant === "reader"
-            ? "(max-width: 760px) 100vw, 760px"
-            : "(max-width: 640px) 100vw, 400px"
-        }
+        sizes={IMAGE_SIZES[variant]}
         className="object-cover"
         onLoad={() => setLoaded(true)}
         onError={() => setErrored(true)}

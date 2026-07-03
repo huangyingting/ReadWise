@@ -5,6 +5,20 @@ import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { categoryGradient } from "@/lib/categories";
 
+interface CardThumbnailProps {
+  src?: string | null;
+  alt: string;
+  category?: string | null;
+}
+
+function thumbnailInitial(category: string | null | undefined, alt: string) {
+  return (category?.[0] ?? alt[0] ?? "?").toUpperCase();
+}
+
+function thumbnailBackground(gradient: { from: string; to: string }) {
+  return `linear-gradient(135deg, ${gradient.from}2e 0%, ${gradient.to}1a 100%)`;
+}
+
 /**
  * Unified 16:9 card thumbnail.
  *
@@ -18,23 +32,19 @@ export default function CardThumbnail({
   src,
   alt,
   category,
-}: {
-  src?: string | null;
-  alt: string;
-  category?: string | null;
-}) {
+}: CardThumbnailProps) {
   const [errored, setErrored] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   const grad = categoryGradient(category);
-  const initial = (category?.[0] ?? alt[0] ?? "?").toUpperCase();
+  const initial = thumbnailInitial(category, alt);
   const showPlaceholder = !src || errored;
 
   return (
     <div
       className="relative w-full overflow-hidden aspect-[16/9] rounded-[var(--radius-md)] border border-border"
       style={{
-        background: `linear-gradient(135deg, ${grad.from}2e 0%, ${grad.to}1a 100%)`,
+        background: thumbnailBackground(grad),
       }}
     >
       {/* Category-initial letter — visible only when no real image */}

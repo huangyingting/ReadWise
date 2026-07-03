@@ -24,6 +24,16 @@ export interface UseMutationState {
   ) => Promise<T | undefined>;
 }
 
+function mutationErrorMessage(
+  err: unknown,
+  fallbackMessage: string,
+): string {
+  if (err instanceof ApiResponseError || err instanceof Error) {
+    return err.message;
+  }
+  return fallbackMessage;
+}
+
 /**
  * Unified mutation leaf: manages busy + error state for a single async
  * operation. Maps ApiResponseError (and generic Error) to the error string the
@@ -63,11 +73,12 @@ export function useMutation(
         }
         return result;
       } catch (err) {
-        if (err instanceof ApiResponseError || err instanceof Error) {
-          setError(err.message);
-        } else {
-          setError(options?.fallbackMessage ?? fallbackMessage);
-        }
+        setError(
+          mutationErrorMessage(
+            err,
+            options?.fallbackMessage ?? fallbackMessage,
+          ),
+        );
         return undefined;
       } finally {
         setBusy(false);

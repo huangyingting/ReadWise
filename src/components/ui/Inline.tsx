@@ -2,31 +2,37 @@ import * as React from "react";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/cn";
 
+const gapVariants = {
+  "0": "gap-0",
+  "1": "gap-[var(--space-1)]",
+  "2": "gap-[var(--space-2)]",
+  "3": "gap-[var(--space-3)]",
+  "4": "gap-[var(--space-4)]",
+  "5": "gap-[var(--space-5)]",
+  "6": "gap-[var(--space-6)]",
+  "7": "gap-[var(--space-7)]",
+  "8": "gap-[var(--space-8)]",
+};
+
+const alignVariants = {
+  start: "items-start",
+  center: "items-center",
+  end: "items-end",
+  stretch: "items-stretch",
+};
+
+const justifyVariants = {
+  start: "justify-start",
+  center: "justify-center",
+  end: "justify-end",
+  between: "justify-between",
+};
+
 const inlineVariants = cva("flex", {
   variants: {
-    gap: {
-      "0": "gap-0",
-      "1": "gap-[var(--space-1)]",
-      "2": "gap-[var(--space-2)]",
-      "3": "gap-[var(--space-3)]",
-      "4": "gap-[var(--space-4)]",
-      "5": "gap-[var(--space-5)]",
-      "6": "gap-[var(--space-6)]",
-      "7": "gap-[var(--space-7)]",
-      "8": "gap-[var(--space-8)]",
-    },
-    align: {
-      start: "items-start",
-      center: "items-center",
-      end: "items-end",
-      stretch: "items-stretch",
-    },
-    justify: {
-      start: "justify-start",
-      center: "justify-center",
-      end: "justify-end",
-      between: "justify-between",
-    },
+    gap: gapVariants,
+    align: alignVariants,
+    justify: justifyVariants,
     wrap: {
       true: "flex-wrap",
       false: "flex-nowrap",

@@ -15,6 +15,22 @@ export type ListMembership = {
   hasArticle: boolean;
 };
 
+type ReadingListWithArticleMarker = {
+  id: string;
+  name: string;
+  isDefault: boolean;
+  items: Array<{ id: string }>;
+};
+
+function toListMembership(list: ReadingListWithArticleMarker): ListMembership {
+  return {
+    id: list.id,
+    name: list.name,
+    isDefault: list.isDefault,
+    hasArticle: list.items.length > 0,
+  };
+}
+
 /**
  * Returns all of the user's lists annotated with whether a given article is in
  * each list. Returns null when the article does not exist or is not viewable.
@@ -38,10 +54,5 @@ export async function getArticleListMembership(
     },
   });
 
-  return lists.map((l) => ({
-    id: l.id,
-    name: l.name,
-    isDefault: l.isDefault,
-    hasArticle: l.items.length > 0,
-  }));
+  return lists.map(toListMembership);
 }

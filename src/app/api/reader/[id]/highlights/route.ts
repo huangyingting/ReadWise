@@ -9,7 +9,21 @@ import {
 import type { HighlightColor } from "@/lib/annotations";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
 import { articleHtmlToReaderText } from "@/lib/content-pipeline";
-import { createHighlightBody } from "@/lib/reader/schemas";
+import { createHighlightBody, type CreateHighlightBody } from "@/lib/reader/schemas";
+
+function highlightInputFromBody(
+  body: CreateHighlightBody,
+): Parameters<typeof createHighlight>[2] {
+  return {
+    quote: body.quote,
+    startOffset: body.startOffset,
+    endOffset: body.endOffset,
+    prefix: body.prefix,
+    suffix: body.suffix,
+    note: body.note,
+    color: body.color as HighlightColor | undefined,
+  };
+}
 
 export const GET = createHandler(
   { params: idParams },
@@ -29,15 +43,11 @@ export const POST = createHandler(
   async ({ params, body, session }) => {
     await requireReadableArticle(params.id, session.user);
 
-    const result = await createHighlight(session.user.id, params.id, {
-      quote: body.quote,
-      startOffset: body.startOffset,
-      endOffset: body.endOffset,
-      prefix: body.prefix,
-      suffix: body.suffix,
-      note: body.note,
-      color: body.color as HighlightColor | undefined,
-    });
+    const result = await createHighlight(
+      session.user.id,
+      params.id,
+      highlightInputFromBody(body),
+    );
 
     if (!result.ok) {
       throw new ApiError(result.status, result.error);

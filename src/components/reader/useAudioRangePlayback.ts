@@ -19,6 +19,14 @@ type StopRangeOptions = {
   pause?: boolean;
 };
 
+function reachedRangeEnd(
+  audio: HTMLAudioElement,
+  range: AudioRange,
+  endGraceSeconds: number,
+): boolean {
+  return audio.currentTime >= range.endTime + endGraceSeconds;
+}
+
 /**
  * Plays a bounded slice of the shared Reader audio element.
  *
@@ -54,7 +62,7 @@ export function useAudioRangePlayback(
       let cancelled = false;
       function onTimeUpdate() {
         if (cancelled) return;
-        if (element.currentTime >= range.endTime + endGraceSeconds) {
+        if (reachedRangeEnd(element, range, endGraceSeconds)) {
           cancelled = true;
           element.pause();
           element.removeEventListener("timeupdate", onTimeUpdate);

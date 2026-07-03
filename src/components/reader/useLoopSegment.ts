@@ -34,6 +34,23 @@ export interface LoopSegmentHook {
   cancelLoop: () => void;
 }
 
+function findSegmentAtTime(
+  segments: DictationSegment[],
+  time: number,
+): DictationSegment | null {
+  let segment: DictationSegment | null = null;
+
+  for (const candidate of segments) {
+    if (candidate.startTime <= time) {
+      segment = candidate;
+    } else {
+      break;
+    }
+  }
+
+  return segment ?? segments[0] ?? null;
+}
+
 export function useLoopSegment(
   segments: DictationSegment[],
   audioRef: React.RefObject<HTMLAudioElement | null>,
@@ -58,17 +75,8 @@ export function useLoopSegment(
     if (segments.length === 0) return;
 
     const time = audio.currentTime;
-    // Find the last segment whose startTime <= currentTime.
-    let seg: DictationSegment | null = null;
-    for (const s of segments) {
-      if (s.startTime <= time) {
-        seg = s;
-      } else {
-        break;
-      }
-    }
-    // If before all segments, use the first one.
-    if (!seg) seg = segments[0];
+    const seg = findSegmentAtTime(segments, time);
+    if (!seg) return;
 
     loopSegmentRef.current = seg;
     setIsLooping(true);

@@ -14,19 +14,26 @@
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 
+const BOTTOM_THRESHOLD_PX = 48;
+const REDUCED_MOTION_QUERY = "(prefers-reduced-motion: reduce)";
+
 function isAtBottom(el: HTMLElement): boolean {
-  return el.scrollHeight - el.scrollTop - el.clientHeight < 48;
+  return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD_PX;
 }
 
 function scrollToBottomInstant(el: HTMLElement): void {
   el.scrollTop = el.scrollHeight;
 }
 
-function scrollToBottomSmooth(el: HTMLElement): void {
-  if (
+function prefersReducedMotion(): boolean {
+  return (
     typeof window !== "undefined" &&
-    window.matchMedia("(prefers-reduced-motion: reduce)").matches
-  ) {
+    window.matchMedia(REDUCED_MOTION_QUERY).matches
+  );
+}
+
+function scrollToBottomSmooth(el: HTMLElement): void {
+  if (prefersReducedMotion()) {
     el.scrollTop = el.scrollHeight;
   } else {
     el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
@@ -40,11 +47,13 @@ export interface AutoScrollLogResult {
   scrollToBottom: () => void;
 }
 
+interface AutoScrollLogOptions {
+  asking: boolean;
+}
+
 export function useAutoScrollLog({
   asking,
-}: {
-  asking: boolean;
-}): AutoScrollLogResult {
+}: AutoScrollLogOptions): AutoScrollLogResult {
   const listRef = useRef<HTMLDivElement | null>(null);
   const [jumpVisible, setJumpVisible] = useState(false);
   const prevAskingRef = useRef(false);
@@ -61,7 +70,10 @@ export function useAutoScrollLog({
       // Just started asking → scroll to bottom instantly so user sees question.
       scrollToBottomInstant(list);
       setJumpVisible(false);
-    } else if (wasAsking && !asking) {
+      return;
+    }
+
+    if (wasAsking && !asking) {
       // Answer arrived → smart scroll.
       if (isAtBottom(list)) {
         scrollToBottomSmooth(list);

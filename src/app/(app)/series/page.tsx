@@ -23,9 +23,46 @@ export const metadata: Metadata = {
   description: "Curated, leveled reading paths you can follow over multiple sessions.",
 };
 
+type PublicSeries = Awaited<ReturnType<typeof listPublicSeriesForUser>>[number];
+
 function levelRange(min: string | null, max: string | null): string | null {
   if (min && max) return min === max ? min : `${min}–${max}`;
   return min ?? max ?? null;
+}
+
+function articleCountLabel(count: number): string {
+  return `${count} article${count !== 1 ? "s" : ""}`;
+}
+
+function SeriesBrowserCard({ series }: { series: PublicSeries }) {
+  const range = levelRange(series.targetLevelMin, series.targetLevelMax);
+  const enrolled =
+    series.enrollment !== null && series.enrollment.status !== "completed";
+  const completed = series.enrollment?.status === "completed";
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{series.title}</CardTitle>
+        <CardMeta>{articleCountLabel(series.articleCount)}</CardMeta>
+      </CardHeader>
+      {series.description && <CardBody>{series.description}</CardBody>}
+      <CardFooter className="justify-between">
+        <Inline>
+          {range && (
+            <Badge variant="primary" uppercase>
+              {range}
+            </Badge>
+          )}
+          {series.topic && <Badge variant="neutral">{series.topic}</Badge>}
+          {completed && (
+            <Badge variant="success">{t("series.status.completed")}</Badge>
+          )}
+        </Inline>
+        <SeriesEnrollButton seriesId={series.id} enrolled={enrolled} />
+      </CardFooter>
+    </Card>
+  );
 }
 
 export default async function SeriesPage() {
@@ -44,33 +81,9 @@ export default async function SeriesPage() {
         />
       ) : (
         <div className="grid grid-cols-1 gap-[var(--space-4)] md:grid-cols-2">
-          {series.map((s) => {
-            const range = levelRange(s.targetLevelMin, s.targetLevelMax);
-            const enrolled =
-              s.enrollment !== null && s.enrollment.status !== "completed";
-            const completed = s.enrollment?.status === "completed";
-            return (
-              <Card key={s.id}>
-                <CardHeader>
-                  <CardTitle>{s.title}</CardTitle>
-                  <CardMeta>
-                    {s.articleCount} article{s.articleCount !== 1 ? "s" : ""}
-                  </CardMeta>
-                </CardHeader>
-                {s.description && <CardBody>{s.description}</CardBody>}
-                <CardFooter className="justify-between">
-                  <Inline>
-                    {range && <Badge variant="primary" uppercase>{range}</Badge>}
-                    {s.topic && <Badge variant="neutral">{s.topic}</Badge>}
-                    {completed && (
-                      <Badge variant="success">{t("series.status.completed")}</Badge>
-                    )}
-                  </Inline>
-                  <SeriesEnrollButton seriesId={s.id} enrolled={enrolled} />
-                </CardFooter>
-              </Card>
-            );
-          })}
+          {series.map((item) => (
+            <SeriesBrowserCard key={item.id} series={item} />
+          ))}
         </div>
       )}
     </PageShell>

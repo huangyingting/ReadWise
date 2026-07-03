@@ -11,6 +11,12 @@ const patchBody = object({
   status: oneOf(TERMINAL_STATUSES),
 });
 
+function auditActionForStatus(status: ContentReportStatus) {
+  return status === ContentReportStatus.DISMISSED
+    ? AUDIT_ACTIONS.adminReportDismiss
+    : AUDIT_ACTIONS.adminReportResolve;
+}
+
 /**
  * PATCH /api/admin/reports/[id] — update report status (resolve or dismiss).
  * Gated on `content.moderate`. Audited.
@@ -29,16 +35,11 @@ export const PATCH = createCapabilityHandler(
       throw new ApiError(result.status, result.error);
     }
 
-    const action =
-      body.status === ContentReportStatus.DISMISSED
-        ? AUDIT_ACTIONS.adminReportDismiss
-        : AUDIT_ACTIONS.adminReportResolve;
-
     await recordAuditFromRequest({
       req,
       session,
       requestId,
-      action,
+      action: auditActionForStatus(body.status),
       targetType: "content_report",
       targetId: params.id,
       metadata: { status: body.status },

@@ -15,6 +15,20 @@ export type LevelEntry = {
   changedAt: string; // ISO string — safe to serialize
 };
 
+const LEVEL_HISTORY_LIMIT = 100;
+
+type LevelHistoryRow = {
+  level: string;
+  changedAt: Date;
+};
+
+function toLevelEntry(row: LevelHistoryRow): LevelEntry {
+  return {
+    level: row.level as EnglishLevel,
+    changedAt: row.changedAt.toISOString(),
+  };
+}
+
 /**
  * Returns the user's CEFR level history, oldest first.
  * Bounded to the most recent 100 rows (more than enough for any user).
@@ -24,12 +38,9 @@ export async function getLevelHistory(userId: string): Promise<LevelEntry[]> {
     where: { userId },
     orderBy: { changedAt: "asc" },
     select: { level: true, changedAt: true },
-    take: 100,
+    take: LEVEL_HISTORY_LIMIT,
   });
-  return rows.map((r) => ({
-    level: r.level as EnglishLevel,
-    changedAt: r.changedAt.toISOString(),
-  }));
+  return rows.map(toLevelEntry);
 }
 
 /**

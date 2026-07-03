@@ -12,6 +12,12 @@
 /** The product name used across metadata, notifications, and manifest. */
 export const SITE_NAME = "ReadWise";
 
+const SITE_TITLE_SUFFIX = "AI-Assisted English Learning Reader";
+const SITE_DESCRIPTION_FEATURES =
+  "on-demand AI translation, vocabulary, quizzes, narration, and CEFR leveling";
+const OG_DESCRIPTION_FEATURES = "on-demand AI translation, vocabulary, quizzes, and narration";
+const MANIFEST_FEATURES = "CEFR leveling, translation, vocabulary, and narration";
+
 /**
  * Next.js title template for `<title>` generation.
  * Pages set their own `title` string; this template wraps it.
@@ -19,11 +25,11 @@ export const SITE_NAME = "ReadWise";
 export const TITLE_TEMPLATE = `%s | ${SITE_NAME}`;
 
 /** Default `<title>` when no page-level title is set (root layout fallback). */
-export const SITE_DEFAULT_TITLE = `${SITE_NAME} — AI-Assisted English Learning Reader`;
+export const SITE_DEFAULT_TITLE = `${SITE_NAME} — ${SITE_TITLE_SUFFIX}`;
 
 /** Primary meta description for the site (HTML `<meta name="description">`). */
 export const SITE_DESCRIPTION =
-  "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, narration, and CEFR leveling. Learn English from real news.";
+  `Read cleaned news articles with ${SITE_DESCRIPTION_FEATURES}. Learn English from real news.`;
 
 /** OpenGraph / Twitter shared title (same wording as the default title). */
 export const OG_TITLE = SITE_DEFAULT_TITLE;
@@ -33,11 +39,10 @@ export const OG_TITLE = SITE_DEFAULT_TITLE;
  * Slightly shorter than SITE_DESCRIPTION; both OG and Twitter use this copy.
  */
 export const OG_DESCRIPTION =
-  "Read cleaned news articles with on-demand AI translation, vocabulary, quizzes, and narration. Improve your English with real news.";
+  `Read cleaned news articles with ${OG_DESCRIPTION_FEATURES}. Improve your English with real news.`;
 
 /**
  * PWA manifest description shown in app-install prompts.
  * Distinct from SITE_DESCRIPTION to fit manifest copy conventions.
  */
-export const MANIFEST_DESCRIPTION =
-  "AI-assisted English learning reader with real news articles, CEFR leveling, translation, vocabulary, and narration.";
+export const MANIFEST_DESCRIPTION = `AI-assisted English learning reader with real news articles, ${MANIFEST_FEATURES}.`;

@@ -9,7 +9,7 @@
  */
 import Link from "next/link";
 import { ArrowRight, CalendarCheck } from "lucide-react";
-import { Badge, Card, Inline, Stack } from "@/components/ui";
+import { Badge, Card, Inline, Stack, type BadgeProps } from "@/components/ui";
 import { buttonVariants } from "@/components/ui/Button";
 import type { TodayViewModel } from "@/lib/engagement/today-session";
 
@@ -17,11 +17,23 @@ interface DashboardTodayCardProps {
   today: TodayViewModel;
 }
 
+type TodayBadge = {
+  label: string;
+  variant: BadgeProps["variant"];
+};
+
+function getTodayBadge(today: TodayViewModel): TodayBadge {
+  if (today.status === "completed") return { label: "Complete", variant: "success" };
+  if (today.status === "skipped") return { label: "Skipped", variant: "neutral" };
+  if (today.completionTier !== "none") {
+    return { label: "In progress", variant: "primary" };
+  }
+  return { label: "Ready", variant: "primary" };
+}
+
 function statusBadge(today: TodayViewModel) {
-  if (today.status === "completed") return <Badge variant="success">Complete</Badge>;
-  if (today.status === "skipped") return <Badge variant="neutral">Skipped</Badge>;
-  if (today.completionTier !== "none") return <Badge variant="primary">In progress</Badge>;
-  return <Badge variant="primary">Ready</Badge>;
+  const badge = getTodayBadge(today);
+  return <Badge variant={badge.variant}>{badge.label}</Badge>;
 }
 
 /** One-line "what's next" summary derived from the step tracker. */
@@ -38,6 +50,9 @@ function nextStepLabel(today: TodayViewModel): string {
 }
 
 export function DashboardTodayCard({ today }: DashboardTodayCardProps) {
+  const primaryTitle =
+    today.primaryReadable && today.primaryArticle ? today.primaryArticle.title : null;
+
   return (
     <section aria-label="Today" className="mt-[var(--space-5)]">
       <Card>
@@ -52,9 +67,9 @@ export function DashboardTodayCard({ today }: DashboardTodayCardProps) {
             {statusBadge(today)}
           </Inline>
 
-          {today.primaryReadable && today.primaryArticle ? (
+          {primaryTitle !== null ? (
             <p className="m-0 text-[length:var(--text-base)] text-text">
-              {today.primaryArticle.title}
+              {primaryTitle}
             </p>
           ) : null}
 

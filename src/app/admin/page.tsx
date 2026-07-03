@@ -5,6 +5,15 @@ import { Badge, Card, CardTitle, Stack } from "@/components/ui";
 import { AdminPageHeader } from "@/components/admin";
 import { StatCard } from "@/components/analytics/StatCard";
 
+const OVERVIEW_STATS = [
+  ["Total members", "users"],
+  ["Admins", "admins"],
+  ["Articles", "articles"],
+  ["Published", "published"],
+  ["Tags", "tags"],
+  ["Reads tracked", "readingProgress"],
+] as const;
+
 export default async function AdminPage() {
   const session = await requireCapability(CAPABILITIES.adminAccess, "/admin");
   const overview = await getAdminOverview();
@@ -19,12 +28,9 @@ export default async function AdminPage() {
 
       <CardTitle level="h2">Overview</CardTitle>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-[var(--space-4)]">
-        <StatCard label="Total members" value={overview.users} />
-        <StatCard label="Admins" value={overview.admins} />
-        <StatCard label="Articles" value={overview.articles} />
-        <StatCard label="Published" value={overview.published} />
-        <StatCard label="Tags" value={overview.tags} />
-        <StatCard label="Reads tracked" value={overview.readingProgress} />
+        {OVERVIEW_STATS.map(([label, key]) => (
+          <StatCard key={key} label={label} value={overview[key]} />
+        ))}
       </div>
 
       <CardTitle level="h2">Processing status</CardTitle>

@@ -8,13 +8,19 @@
  * Splits sanitized article HTML into block-level paragraph chunks by inserting
  * a sentinel character after each block-level closing tag and splitting there.
  */
-export function splitHtmlParagraphs(html: string): string[] {
-  const BLOCK_CLOSE_RE = /(<\/(?:p|h[1-6]|blockquote|li|div|figure|section)>)\s*/gi;
-  const sentineled = html.replace(BLOCK_CLOSE_RE, "$1\x00");
-  return sentineled
-    .split("\x00")
+const PARAGRAPH_SENTINEL = "\x00";
+const BLOCK_CLOSE_TAG_RE = /(<\/(?:p|h[1-6]|blockquote|li|div|figure|section)>)\s*/gi;
+
+function splitAndTrimNonEmpty(text: string, separator: string | RegExp): string[] {
+  return text
+    .split(separator)
     .map((s) => s.trim())
     .filter((s) => s.length > 0);
+}
+
+export function splitHtmlParagraphs(html: string): string[] {
+  const sentineled = html.replace(BLOCK_CLOSE_TAG_RE, `$1${PARAGRAPH_SENTINEL}`);
+  return splitAndTrimNonEmpty(sentineled, PARAGRAPH_SENTINEL);
 }
 
 /**
@@ -22,10 +28,7 @@ export function splitHtmlParagraphs(html: string): string[] {
  * an array of paragraph strings.
  */
 export function splitTranslationParagraphs(text: string): string[] {
-  return text
-    .split(/\n{2,}/)
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0);
+  return splitAndTrimNonEmpty(text, /\n{2,}/);
 }
 
 /**

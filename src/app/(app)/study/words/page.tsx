@@ -7,11 +7,29 @@ import VocabularyExportButtons from "@/components/VocabularyExportButtons";
 import VocabularyJournal from "@/components/VocabularyJournal";
 import { ChevronLeft } from "lucide-react";
 
+type SavedWordsFilter = "all" | "due" | "new";
+
 interface SearchParams {
   q?: string;
   articleId?: string;
   filter?: string;
   page?: string;
+}
+
+function parseSavedWordsFilter(filter?: string): SavedWordsFilter {
+  return filter === "due" || filter === "new" ? filter : "all";
+}
+
+function parsePageParam(page?: string): number {
+  return Math.max(1, parseInt(page ?? "1", 10) || 1);
+}
+
+function uniqueArticleIds(
+  words: Array<{ articleId?: string | null }>,
+): string[] {
+  return Array.from(
+    new Set(words.flatMap(({ articleId }) => (articleId ? [articleId] : []))),
+  );
 }
 
 export default async function StudyWordsPage({
@@ -25,10 +43,8 @@ export default async function StudyWordsPage({
 
   const query = params.q ?? "";
   const articleId = params.articleId ?? "";
-  const rawFilter = params.filter ?? "all";
-  const filter: "all" | "due" | "new" =
-    rawFilter === "due" || rawFilter === "new" ? rawFilter : "all";
-  const page = Math.max(1, parseInt(params.page ?? "1", 10) || 1);
+  const filter = parseSavedWordsFilter(params.filter);
+  const page = parsePageParam(params.page);
 
   const result = await getFilteredSavedWords(session.user.id, {
     search: query || undefined,
@@ -37,11 +53,7 @@ export default async function StudyWordsPage({
     page,
   });
 
-  // Resolve article titles for all words that have an articleId
-  const articleIds = [
-    ...new Set(result.words.map((w) => w.articleId).filter(Boolean) as string[]),
-  ];
-
+  const articleIds = uniqueArticleIds(result.words);
   const articles = await getArticleTitlesForWords(articleIds, context);
 
   const initial = {
@@ -56,13 +68,16 @@ export default async function StudyWordsPage({
     totalPages: result.totalPages,
     pageSize: WORDS_PAGE_SIZE,
   };
+  const backLinkClassName = [
+    buttonVariants({ variant: "ghost", size: "sm" }),
+    "mb-[var(--space-4)] inline-flex items-center gap-[var(--space-1)]",
+  ].join(" ");
 
   return (
     <PageShell variant="listing">
-      {/* Back link */}
       <Link
         href="/study"
-        className={buttonVariants({ variant: "ghost", size: "sm" }) + " mb-[var(--space-4)] inline-flex items-center gap-[var(--space-1)]"}
+        className={backLinkClassName}
       >
         <ChevronLeft size={16} aria-hidden />
         Back to Study hub

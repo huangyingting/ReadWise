@@ -35,9 +35,14 @@ export function frequencyTier(raw: string): FrequencyTier | null {
   if (!raw || !raw.trim()) return null;
   const candidates = normalizeCandidates(raw);
   // normalizeCandidates already returns lower-case forms
-  for (const c of candidates) {
-    const tier = WORD_FREQUENCY[c] as FrequencyTier | undefined;
+  for (const candidate of candidates) {
+    const tier = frequencyTierForCandidate(candidate);
     if (tier) return tier;
   }
   return null;
+}
+
+function frequencyTierForCandidate(candidate: string): FrequencyTier | null {
+  const tier = WORD_FREQUENCY[candidate] as FrequencyTier | undefined;
+  return tier || null;
 }

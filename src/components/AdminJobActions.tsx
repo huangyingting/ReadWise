@@ -5,6 +5,19 @@ import ConfirmAction from "@/components/ConfirmAction";
 import { Button } from "@/components/ui/Button";
 import { useAdminAction } from "@/hooks/useAdminAction";
 
+type JobAction = "retry" | "cancel" | "archive";
+
+interface AdminJobActionsProps {
+  jobId: string;
+  canRetry: boolean;
+  canCancel: boolean;
+  canArchive: boolean;
+}
+
+function postJobAction(jobId: string, action: JobAction): Promise<void> {
+  return postJson<void>(`/api/admin/jobs/${jobId}`, { action });
+}
+
 /**
  * Inline admin actions for a single job row. Retry is a direct (safe) action;
  * cancel and archive use the shared inline-confirm pattern. Each action POSTs to
@@ -15,14 +28,13 @@ export default function AdminJobActions({
   canRetry,
   canCancel,
   canArchive,
-}: {
-  jobId: string;
-  canRetry: boolean;
-  canCancel: boolean;
-  canArchive: boolean;
-}) {
+}: AdminJobActionsProps) {
   const { busy, error, openPanel, setOpenPanel, run } =
-    useAdminAction<"retry" | "cancel" | "archive">();
+    useAdminAction<JobAction>();
+
+  const busyAction = busy !== null;
+  const runJobAction = (action: JobAction) =>
+    run(action, () => postJobAction(jobId, action));
 
   return (
     <div className="admin-actions">
@@ -32,8 +44,8 @@ export default function AdminJobActions({
             variant="secondary"
             size="sm"
             loading={busy === "retry"}
-            disabled={busy !== null}
-            onClick={() => run("retry", () => postJson(`/api/admin/jobs/${jobId}`, { action: "retry" }))}
+            disabled={busyAction}
+            onClick={() => runJobAction("retry")}
           >
             Retry
           </Button>
@@ -45,9 +57,9 @@ export default function AdminJobActions({
             confirmVariant="danger"
             confirmLabel="Confirm cancel"
             confirmMessage="Cancel this job? It will be moved to the dead-letter queue and stop being retried."
-            onConfirm={() => run("cancel", () => postJson(`/api/admin/jobs/${jobId}`, { action: "cancel" }))}
+            onConfirm={() => runJobAction("cancel")}
             loading={busy === "cancel"}
-            disabled={busy !== null}
+            disabled={busyAction}
             open={openPanel === "cancel"}
             onOpenChange={(v) => setOpenPanel(v ? "cancel" : null)}
           />
@@ -59,9 +71,9 @@ export default function AdminJobActions({
             confirmVariant="danger"
             confirmLabel="Confirm archive"
             confirmMessage="Permanently delete this finished job record? This cannot be undone."
-            onConfirm={() => run("archive", () => postJson(`/api/admin/jobs/${jobId}`, { action: "archive" }))}
+            onConfirm={() => runJobAction("archive")}
             loading={busy === "archive"}
-            disabled={busy !== null}
+            disabled={busyAction}
             open={openPanel === "archive"}
             onOpenChange={(v) => setOpenPanel(v ? "archive" : null)}
           />

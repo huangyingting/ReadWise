@@ -12,6 +12,15 @@ export type AnnotationArticleIds = {
   savedWordIds: string[];
 };
 
+const emptyAnnotationArticleIds = (): AnnotationArticleIds => ({
+  highlightIds: [],
+  savedWordIds: [],
+});
+
+const unique = <T>(values: T[]): T[] => [...new Set(values)];
+
+const isPresent = <T>(value: T | null | undefined): value is T => value != null;
+
 /**
  * Returns article IDs matched by the user's highlights and saved vocabulary.
  * Returns empty arrays when no userId is provided (anonymous sessions).
@@ -21,7 +30,7 @@ export async function userAnnotationArticleIds(
   terms: string[],
   take: number,
 ): Promise<AnnotationArticleIds> {
-  if (!userId) return { highlightIds: [], savedWordIds: [] };
+  if (!userId) return emptyAnnotationArticleIds();
   const [highlightMatches, vocabMatches] = await Promise.all([
     prisma.highlight.findMany({
       where: { userId, ...highlightTextWhere(terms) },
@@ -36,9 +45,7 @@ export async function userAnnotationArticleIds(
     }),
   ]);
   return {
-    highlightIds: [...new Set(highlightMatches.map((row) => row.articleId))],
-    savedWordIds: [
-      ...new Set(vocabMatches.flatMap((row) => (row.articleId ? [row.articleId] : []))),
-    ],
+    highlightIds: unique(highlightMatches.map(({ articleId }) => articleId)),
+    savedWordIds: unique(vocabMatches.map(({ articleId }) => articleId).filter(isPresent)),
   };
 }
