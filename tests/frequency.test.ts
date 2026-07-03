@@ -74,3 +74,8 @@ test("wordFrequencyBand exposes granular deterministic difficulty bands", async 
   assert.notEqual(wordFrequencyBand("frequency"), "rare");
   assert.equal(wordFrequencyBand("epistemological"), "rare");
 });
+
+test("wordFrequencyBand falls back to legacy tier data when rank data misses", async () => {
+  const { wordFrequencyBand } = await import("@/lib/frequency-ranks");
+  assert.equal(wordFrequencyBand("govern"), "top1k");
+});

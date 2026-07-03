@@ -883,6 +883,7 @@ export const __scrapeReviewTest = {
   positiveInt,
   parseOrder,
   errorMessage,
+  createPrismaClient,
   startReviewServer,
   loadDbReviewItems,
   fetchArticlesByIds,
@@ -910,6 +911,7 @@ export const __scrapeReviewTest = {
   renderPage,
   jsonForScript,
   main,
+  isMain,
 };
 
 if (isMain(import.meta.url)) {

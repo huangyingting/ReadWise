@@ -153,6 +153,17 @@ test("fatal severity always alerts regardless of frequency", () => {
   assert.equal(alerts.length, 1);
 });
 
+test("captureError tolerates throwing sinks and alert hooks", () => {
+  restores.push(setErrorSink(() => {
+    throw new Error("sink unavailable");
+  }));
+  restores.push(setAlertHook(() => {
+    throw new Error("alert unavailable");
+  }));
+
+  assert.doesNotThrow(() => captureError(new Error("best effort hooks"), { source: "worker", severity: "fatal" }));
+});
+
 test("default sink does not throw without a provider configured", () => {
   // No setErrorSink override here — exercise the real default (structured log).
   assert.doesNotThrow(() => captureError(new Error("default path"), { source: "client" }));

@@ -213,6 +213,22 @@ type RunLoopDeps = {
   logger?: LoopLogger;
 };
 
+type ExecFileAsync = (
+  file: string,
+  args?: readonly string[] | null,
+) => Promise<{ stdout: string | Buffer; stderr: string | Buffer }>;
+
+type PersistJobResultsDeps = {
+  tempRoot?: string;
+  downloadResultZip?: typeof downloadResultZip;
+  execFileAsync?: ExecFileAsync;
+  listFiles?: typeof listFiles;
+  parseBatchResult?: typeof parseBatchResult;
+  saveSpeechResult?: typeof saveSpeechResult;
+  cleanup?: typeof rm;
+  logger?: Pick<typeof console, "log" | "warn">;
+};
+
 type IntegerArgOptions = {
   fallback: number | null;
   min?: number;
@@ -824,21 +840,34 @@ async function parseBatchResult(files: string[], index: number): Promise<ParsedB
   return { audio: await readFile(audioPath), words };
 }
 
-async function persistJobResults(job: BatchJob, resultUrl: string, key: string, args: Args): Promise<number> {
-  const tempDir = await mkdtemp(path.join(tmpdir(), "readwise-batch-tts-"));
+async function persistJobResults(
+  job: BatchJob,
+  resultUrl: string,
+  key: string,
+  args: Args,
+  deps: PersistJobResultsDeps = {},
+): Promise<number> {
+  const tempDir = await mkdtemp(path.join(deps.tempRoot ?? tmpdir(), "readwise-batch-tts-"));
+  const download = deps.downloadResultZip ?? downloadResultZip;
+  const unzip = deps.execFileAsync ?? execFileAsync;
+  const readFiles = deps.listFiles ?? listFiles;
+  const parseResult = deps.parseBatchResult ?? parseBatchResult;
+  const saveResult = deps.saveSpeechResult ?? saveSpeechResult;
+  const cleanup = deps.cleanup ?? rm;
+  const logger = deps.logger ?? console;
   try {
     const zipPath = path.join(tempDir, "results.zip");
     const outDir = path.join(tempDir, "out");
-    await downloadResultZip(resultUrl, key, zipPath);
-    await execFileAsync("unzip", ["-q", zipPath, "-d", outDir]);
-    const files = await listFiles(outDir);
+    await download(resultUrl, key, zipPath);
+    await unzip("unzip", ["-q", zipPath, "-d", outDir]);
+    const files = await readFiles(outDir);
     const mimeType = mimeTypeForFormat(args.format);
     let saved = 0;
     for (let i = 0; i < job.inputs.length; i++) {
       const input = job.inputs[i]!;
-      const parsed = await parseBatchResult(files, i);
+      const parsed = await parseResult(files, i);
       const words = enrichBatchWordsWithTextSpans(parsed.words, input.plainText);
-      const savedResult = await saveSpeechResult({
+      const savedResult = await saveResult({
         articleId: input.article.id,
         audio: parsed.audio,
         mimeType,
@@ -849,19 +878,19 @@ async function persistJobResults(job: BatchJob, resultUrl: string, key: string, 
         words,
       });
       if (!savedResult) {
-        console.warn(
+        logger.warn(
           `skipped ArticleSpeech article=${input.article.id} reason=media-storage-unavailable`,
         );
         continue;
       }
-      console.log(
+      logger.log(
         `saved ArticleSpeech article=${input.article.id} words=${words.length} bytes=${parsed.audio.length}`,
       );
       saved++;
     }
     return saved;
   } finally {
-    await rm(tempDir, { recursive: true, force: true });
+    await cleanup(tempDir, { recursive: true, force: true });
   }
 }
 
@@ -1017,7 +1046,45 @@ async function main(): Promise<number> {
   });
 }
 
-export { parseArgs, buildSsml, mimeTypeForFormat, runOnce, runLoop, abortableSleep };
+const __batchSynthesisTest = {
+  printHelp,
+  printHdVoices,
+  validateArgs,
+  articleWhere,
+  speechEndpoint,
+  xmlEscape,
+  attr,
+  capParagraphs,
+  withSentenceBreaks,
+  wrapProsody,
+  wrapExpressAs,
+  selectedVoices,
+  effectiveVoiceMode,
+  randomVoice,
+  selectArticleVoice,
+  batchRequestBody,
+  bodySizeBytes,
+  buildJobs,
+  jobId,
+  selectArticles,
+  requestJson,
+  createBatchJob,
+  getBatchJob,
+  waitForBatchJob,
+  downloadResultZip,
+  listFiles,
+  prefixForIndex,
+  findBatchFile,
+  batchWordFromBoundary,
+  parseBatchWords,
+  enrichBatchWordsWithTextSpans,
+  parseBatchResult,
+  persistJobResults,
+  errorMessage,
+  main,
+};
+
+export { parseArgs, buildSsml, mimeTypeForFormat, runOnce, runLoop, abortableSleep, __batchSynthesisTest };
 
 if (isMain(import.meta.url)) {
   runCli(main);

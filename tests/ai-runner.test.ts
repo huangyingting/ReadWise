@@ -247,6 +247,19 @@ test("runner: maxRetries=0 never retries; first failure is terminal", async () =
   assert.equal(retryCalls.length, 0);
 });
 
+test("runner: negative maxRetries returns the defensive exhausted-retries error", async () => {
+  const result = await runAiRequest(
+    fake,
+    [{ role: "user", content: "hi" }],
+    { ...BASE_OPTS, maxRetries: -1 },
+  );
+  assert.equal(result.outcome, "error");
+  if (result.outcome !== "error") throw new Error("narrowing");
+  assert.equal(result.errorKind, "unknown");
+  assert.equal(result.errorMessage, "exhausted retries");
+  assert.equal(result.attemptsMade, 0);
+});
+
 // ---------------------------------------------------------------------------
 // Unconfigured provider (facade responsibility — runner called after check)
 // ---------------------------------------------------------------------------

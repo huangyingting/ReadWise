@@ -26,6 +26,8 @@ function escapeJsonChar(char: string): string {
   }
 }
 
+export const __safeJsonTest = { escapeJsonChar };
+
 export function safeJsonStringify(value: unknown): string {
   return JSON.stringify(value).replace(UNSAFE_JSON_CHARS, escapeJsonChar);
 }

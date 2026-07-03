@@ -10,7 +10,7 @@
 import { test, describe } from "node:test";
 import assert from "node:assert/strict";
 
-import { safeJsonStringify } from "@/lib/safe-json";
+import { __safeJsonTest, safeJsonStringify } from "@/lib/safe-json";
 
 function assertEscapesUnsafeChar(value: string, rawChar: string, escapedChar: string) {
   const result = safeJsonStringify({ x: value });
@@ -66,5 +66,9 @@ describe("safeJsonStringify — XSS escaping", () => {
     assert.ok(!result.includes("<"), "raw '<' found in array result");
     const parsed = JSON.parse(result);
     assert.deepStrictEqual(parsed, [1, "<b>", 3]);
+  });
+
+  test("leaves non-mapped replacement characters unchanged", () => {
+    assert.strictEqual(__safeJsonTest.escapeJsonChar("x"), "x");
   });
 });
