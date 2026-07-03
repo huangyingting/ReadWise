@@ -10,6 +10,23 @@ interface DailyGoalProps {
   streak: StreakSummary;
 }
 
+const RING_RADIUS = 28;
+const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
+
+function getGoalProgress(todayProgress: number, target: number): number {
+  return Math.min(todayProgress / Math.max(target, 1), 1);
+}
+
+function getMetCopy(todayProgress: number, target: number): string {
+  return todayProgress > target
+    ? `Goal met — ${todayProgress} read today!`
+    : "Goal met — nice work!";
+}
+
+function getArticleNoun(count: number): string {
+  return count === 1 ? "article" : "articles";
+}
+
 /**
  * Dashboard "Daily goal" card — server component.
  * Circular SVG progress ring (teal fill = reading-state).
@@ -18,13 +35,9 @@ interface DailyGoalProps {
 export default function DailyGoal({ streak }: DailyGoalProps) {
   const { todayProgress, dailyGoal } = streak;
   const target = dailyGoal;
-  const progress = Math.min(todayProgress / Math.max(target, 1), 1);
+  const progress = getGoalProgress(todayProgress, target);
   const met = todayProgress >= target;
-
-  // Desktop ring: r=28, cx=cy=36, viewBox 72×72
-  const r = 28;
-  const C = 2 * Math.PI * r; // ≈ 175.93
-  const offset = C * (1 - progress);
+  const offset = RING_CIRCUMFERENCE * (1 - progress);
 
   return (
     <Card>
@@ -59,7 +72,7 @@ export default function DailyGoal({ streak }: DailyGoalProps) {
             <circle
               cx="36"
               cy="36"
-              r={r}
+              r={RING_RADIUS}
               fill="none"
               stroke="var(--border)"
               strokeWidth="8"
@@ -69,12 +82,12 @@ export default function DailyGoal({ streak }: DailyGoalProps) {
             <circle
               cx="36"
               cy="36"
-              r={r}
+              r={RING_RADIUS}
               fill="none"
               stroke={met ? "var(--success)" : "var(--teal)"}
               strokeWidth="8"
               strokeLinecap="round"
-              strokeDasharray={C}
+              strokeDasharray={RING_CIRCUMFERENCE}
               strokeDashoffset={met ? 0 : offset}
               style={{
                 transition:
@@ -109,14 +122,11 @@ export default function DailyGoal({ streak }: DailyGoalProps) {
                 "text-[length:var(--text-base)] font-semibold text-[color:var(--success-text)] m-0",
               )}
             >
-              {todayProgress > target
-                ? `Goal met — ${todayProgress} read today!`
-                : "Goal met — nice work!"}
+              {getMetCopy(todayProgress, target)}
             </p>
           ) : (
             <p className="text-[length:var(--text-base)] text-text m-0">
-              {todayProgress} of {target} article
-              {target === 1 ? "" : "s"} today
+              {todayProgress} of {target} {getArticleNoun(target)} today
             </p>
           )}
 

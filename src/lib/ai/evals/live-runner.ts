@@ -31,6 +31,22 @@ function emptyProperty(name: string, detail: string): EvalPropertyResult {
   return { name, passed: false, detail };
 }
 
+function score(propertiesChecked: number, propertiesPassed: number): number {
+  return propertiesChecked === 0 ? 1 : propertiesPassed / propertiesChecked;
+}
+
+function sumBy<T>(items: T[], value: (item: T) => number): number {
+  return items.reduce((sum, item) => sum + value(item), 0);
+}
+
+function promptVersionsFor(features: EvalFeatureReport[]): Record<string, string> {
+  const promptVersions: Record<string, string> = {};
+  for (const { feature } of features) {
+    promptVersions[feature] = activePromptVersion(feature);
+  }
+  return promptVersions;
+}
+
 /** Evaluates one dataset, returning a per-feature report. */
 export async function evaluateDataset(
   dataset: EvalDataset,
@@ -64,7 +80,7 @@ export async function evaluateDataset(
           ]
         : evaluator.check(output, input, expect);
 
-    const propertiesPassed = properties.filter((p) => p.passed).length;
+    const propertiesPassed = properties.filter((property) => property.passed).length;
     caseResults.push({
       feature: dataset.feature,
       caseName: testCase.name,
@@ -75,17 +91,17 @@ export async function evaluateDataset(
     });
   }
 
-  const propertiesChecked = caseResults.reduce((s, c) => s + c.propertiesChecked, 0);
-  const propertiesPassed = caseResults.reduce((s, c) => s + c.propertiesPassed, 0);
+  const propertiesChecked = sumBy(caseResults, (testCase) => testCase.propertiesChecked);
+  const propertiesPassed = sumBy(caseResults, (testCase) => testCase.propertiesPassed);
   return {
     feature: dataset.feature,
     description: dataset.description,
     cases: caseResults,
     caseCount: caseResults.length,
-    casesPassed: caseResults.filter((c) => c.passed).length,
+    casesPassed: caseResults.filter((testCase) => testCase.passed).length,
     propertiesChecked,
     propertiesPassed,
-    score: propertiesChecked === 0 ? 1 : propertiesPassed / propertiesChecked,
+    score: score(propertiesChecked, propertiesPassed),
   };
 }
 
@@ -99,27 +115,22 @@ export async function runEvaluation(
     features.push(await evaluateDataset(dataset, opts));
   }
 
-  const caseCount = features.reduce((s, f) => s + f.caseCount, 0);
-  const casesPassed = features.reduce((s, f) => s + f.casesPassed, 0);
-  const propertiesChecked = features.reduce((s, f) => s + f.propertiesChecked, 0);
-  const propertiesPassed = features.reduce((s, f) => s + f.propertiesPassed, 0);
-
-  const promptVersions: Record<string, string> = {};
-  for (const f of features) {
-    promptVersions[f.feature] = activePromptVersion(f.feature);
-  }
+  const caseCount = sumBy(features, (feature) => feature.caseCount);
+  const casesPassed = sumBy(features, (feature) => feature.casesPassed);
+  const propertiesChecked = sumBy(features, (feature) => feature.propertiesChecked);
+  const propertiesPassed = sumBy(features, (feature) => feature.propertiesPassed);
 
   return {
     mode: opts.live ? "live" : "offline",
     generatedAt: new Date().toISOString(),
-    promptVersions,
+    promptVersions: promptVersionsFor(features),
     features,
     totals: {
       caseCount,
       casesPassed,
       propertiesChecked,
       propertiesPassed,
-      score: propertiesChecked === 0 ? 1 : propertiesPassed / propertiesChecked,
+      score: score(propertiesChecked, propertiesPassed),
     },
   };
 }

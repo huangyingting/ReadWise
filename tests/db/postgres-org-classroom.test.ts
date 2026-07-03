@@ -21,30 +21,49 @@ import { id, registerIntegrationCleanup } from "./support/db-helpers";
 
 registerIntegrationCleanup();
 
+const POSTGRES_REQUIRED = "test:db requires a PostgreSQL DATABASE_URL";
+const DUPLICATE_KEY_ERROR = /Unique constraint failed|Unique constraint|duplicate key value/;
+
+function requirePostgres(): void {
+  assert.equal(isPostgres, true, POSTGRES_REQUIRED);
+}
+
+async function createReader(userId: string, name: string): Promise<void> {
+  await prisma.user.create({ data: { id: userId, name, role: "Reader" } });
+}
+
+async function createOrganization(orgId: string, name: string): Promise<void> {
+  await prisma.organization.create({ data: { id: orgId, name, slug: orgId } });
+}
+
+async function createArticle(articleId: string, title: string, content: string): Promise<void> {
+  await prisma.article.create({ data: { id: articleId, title, content } });
+}
+
 test("Membership unique constraint rejects duplicate (userId, orgId) pair", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const userId = id("mc_user");
   const orgId = id("mc_org");
 
-  await prisma.user.create({ data: { id: userId, name: "MC User", role: "Reader" } });
-  await prisma.organization.create({ data: { id: orgId, name: "MC Org", slug: orgId } });
+  await createReader(userId, "MC User");
+  await createOrganization(orgId, "MC Org");
   await prisma.membership.create({ data: { userId, orgId } });
 
   await assert.rejects(
     prisma.membership.create({ data: { userId, orgId } }),
-    /Unique constraint failed|Unique constraint|duplicate key value/,
+    DUPLICATE_KEY_ERROR,
   );
 });
 
 test("Organization delete cascades to Membership rows", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const userId = id("orgcasc_user");
   const orgId = id("orgcasc_org");
 
-  await prisma.user.create({ data: { id: userId, name: "Org Cascade User", role: "Reader" } });
-  await prisma.organization.create({ data: { id: orgId, name: "Cascade Org", slug: orgId } });
+  await createReader(userId, "Org Cascade User");
+  await createOrganization(orgId, "Cascade Org");
   await prisma.membership.create({ data: { userId, orgId } });
 
   assert.equal(await prisma.membership.count({ where: { orgId } }), 1);
@@ -55,7 +74,7 @@ test("Organization delete cascades to Membership rows", { skip: !enabled }, asyn
 });
 
 test("AssignmentCompletion upsert is idempotent — second call updates, does not duplicate", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const teacherId = id("upsert_teacher");
   const studentId = id("upsert_student");
@@ -69,28 +88,32 @@ test("AssignmentCompletion upsert is idempotent — second call updates, does no
       { id: studentId, name: "Upsert Student", role: "Reader" },
     ],
   });
-  await prisma.organization.create({ data: { id: orgId, name: "Upsert Org", slug: orgId } });
-  await prisma.article.create({
-    data: { id: articleId, title: "Upsert Article", content: "Body for upsert test" },
-  });
+  await createOrganization(orgId, "Upsert Org");
+  await createArticle(articleId, "Upsert Article", "Body for upsert test");
   await prisma.classroom.create({
     data: { id: classroomId, orgId, name: "Upsert Classroom", teacherId },
   });
   const assignment = await prisma.assignment.create({
     data: { classroomId, articleId },
   });
+  const completionKey = { assignmentId_studentId: { assignmentId: assignment.id, studentId } };
+  const assignedCompletion = {
+    assignmentId: assignment.id,
+    studentId,
+    status: AssignmentStatus.ASSIGNED,
+  };
 
-  // First upsert — creates the row
+  // First upsert — creates the row.
   await prisma.assignmentCompletion.upsert({
-    where: { assignmentId_studentId: { assignmentId: assignment.id, studentId } },
-    create: { assignmentId: assignment.id, studentId, status: AssignmentStatus.ASSIGNED },
+    where: completionKey,
+    create: assignedCompletion,
     update: { status: AssignmentStatus.IN_PROGRESS },
   });
 
-  // Second upsert — updates the existing row
+  // Second upsert — updates the existing row.
   const updated = await prisma.assignmentCompletion.upsert({
-    where: { assignmentId_studentId: { assignmentId: assignment.id, studentId } },
-    create: { assignmentId: assignment.id, studentId, status: AssignmentStatus.ASSIGNED },
+    where: completionKey,
+    create: assignedCompletion,
     update: { status: AssignmentStatus.COMPLETED },
   });
 
@@ -103,7 +126,7 @@ test("AssignmentCompletion upsert is idempotent — second call updates, does no
 });
 
 test("Classroom delete cascades to Assignment and AssignmentCompletion", { skip: !enabled }, async () => {
-  assert.equal(isPostgres, true, "test:db requires a PostgreSQL DATABASE_URL");
+  requirePostgres();
 
   const teacherId = id("clcasc_teacher");
   const studentId = id("clcasc_student");
@@ -117,10 +140,8 @@ test("Classroom delete cascades to Assignment and AssignmentCompletion", { skip:
       { id: studentId, name: "CL Cascade Student", role: "Reader" },
     ],
   });
-  await prisma.organization.create({ data: { id: orgId, name: "CL Cascade Org", slug: orgId } });
-  await prisma.article.create({
-    data: { id: articleId, title: "CL Cascade Article", content: "Body for cascade test" },
-  });
+  await createOrganization(orgId, "CL Cascade Org");
+  await createArticle(articleId, "CL Cascade Article", "Body for cascade test");
   await prisma.classroom.create({
     data: { id: classroomId, orgId, name: "CL Cascade Classroom", teacherId },
   });

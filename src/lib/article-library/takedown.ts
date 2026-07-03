@@ -61,6 +61,47 @@ export type ApplyTakedownResult =
     }
   | { ok: false; error: string; status: number };
 
+type ExistingArticleForTakedown = {
+  id: string;
+  takedownState: string | null;
+  status: ArticleStatus;
+  rightsNote: string | null;
+};
+
+function invalidTakedownState(): ApplyTakedownResult {
+  return { ok: false, error: "Invalid takedown state", status: 400 };
+}
+
+function articleNotFound(): ApplyTakedownResult {
+  return { ok: false, error: "Article not found", status: 404 };
+}
+
+function resolveNextStatus(
+  state: TakedownState,
+  currentStatus: ArticleStatus,
+): ArticleStatus {
+  return takedownForcesDraft(state) && currentStatus === ArticleStatus.PUBLISHED
+    ? ArticleStatus.DRAFT
+    : currentStatus;
+}
+
+function rightsNoteData(rightsNote: string | null | undefined) {
+  return rightsNote !== undefined ? { rightsNote } : {};
+}
+
+function reviewChanges(
+  previousState: TakedownState,
+  state: TakedownState,
+  existingStatus: ArticleStatus,
+  nextStatus: ArticleStatus,
+) {
+  const statusChanged = takedownForcesDraft(state) && existingStatus !== nextStatus;
+  return {
+    takedownState: { from: previousState, to: state },
+    ...(statusChanged ? { status: { from: existingStatus, to: nextStatus } } : {}),
+  };
+}
+
 /**
  * Applies a takedown/rights transition to an article, records a ContentReview
  * history row, and (for any non-active state applied to a PUBLISHED article)
@@ -74,31 +115,27 @@ export async function applyTakedown(
   input: ApplyTakedownInput,
 ): Promise<ApplyTakedownResult> {
   if (!isTakedownState(input.state)) {
-    return { ok: false, error: "Invalid takedown state", status: 400 };
+    return invalidTakedownState();
   }
 
   return prisma.$transaction(async (tx) => {
     const existing = await tx.article.findUnique({
       where: { id: input.articleId },
       select: { id: true, takedownState: true, status: true, rightsNote: true },
-    });
+    }) as ExistingArticleForTakedown | null;
     if (!existing) {
-      return { ok: false as const, error: "Article not found", status: 404 };
+      return articleNotFound();
     }
 
     const previousState = (existing.takedownState as TakedownState) ?? "active";
-    const forcesDraft = takedownForcesDraft(input.state);
-    const nextStatus =
-      forcesDraft && existing.status === ArticleStatus.PUBLISHED
-        ? ArticleStatus.DRAFT
-        : existing.status;
+    const nextStatus = resolveNextStatus(input.state, existing.status);
 
     await tx.article.update({
       where: { id: input.articleId },
       data: {
         takedownState: input.state,
         status: nextStatus,
-        ...(input.rightsNote !== undefined ? { rightsNote: input.rightsNote } : {}),
+        ...rightsNoteData(input.rightsNote),
       },
     });
 
@@ -108,12 +145,7 @@ export async function applyTakedown(
         reviewerId: input.reviewerId ?? null,
         action: `takedown.${input.state}`,
         note: input.note ?? null,
-        changes: {
-          takedownState: { from: previousState, to: input.state },
-          ...(forcesDraft && existing.status !== nextStatus
-            ? { status: { from: existing.status, to: nextStatus } }
-            : {}),
-        },
+        changes: reviewChanges(previousState, input.state, existing.status, nextStatus),
       },
     });
 

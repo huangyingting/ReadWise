@@ -15,6 +15,21 @@ import { Prisma } from "@prisma/client";
 
 export type JobRow = Record<string, unknown> & { id: string };
 
+type Where = Record<string, unknown>;
+type SortDirection = "asc" | "desc";
+type OrderBy = Record<string, SortDirection>[];
+type JobDelegate = ReturnType<typeof makeJobDelegate>;
+type JobTransaction = { job: JobDelegate };
+
+const DEFAULT_JOB_POLICY = {
+  type: "ARTICLE_PROCESS",
+  status: "PENDING",
+  payload: {},
+  attempts: 0,
+  maxAttempts: 5,
+  priority: 0,
+} as const;
+
 function nowDate(): Date {
   return new Date();
 }
@@ -22,12 +37,7 @@ function nowDate(): Date {
 function makeDefaults(): JobRow {
   return {
     id: "",
-    type: "ARTICLE_PROCESS",
-    status: "PENDING",
-    payload: {},
-    attempts: 0,
-    maxAttempts: 5,
-    priority: 0,
+    ...DEFAULT_JOB_POLICY,
     runAfter: nowDate(),
     lockedBy: null,
     lockedAt: null,
@@ -53,43 +63,46 @@ function cmp(a: unknown, b: unknown): number {
   return a < b ? -1 : a > b ? 1 : 0;
 }
 
+function matchComparison(
+  value: unknown,
+  c: Where,
+  key: "lte" | "lt" | "gte" | "gt",
+  matches: (result: number) => boolean,
+): boolean | undefined {
+  if (!(key in c)) return undefined;
+  const result = cmp(value, c[key]);
+  return Number.isNaN(result) ? false : matches(result);
+}
+
 function matchField(value: unknown, cond: unknown): boolean {
   if (cond && typeof cond === "object" && !(cond instanceof Date)) {
-    const c = cond as Record<string, unknown>;
+    const c = cond as Where;
     if ("in" in c) return (c.in as unknown[]).includes(value);
     if ("notIn" in c) return !(c.notIn as unknown[]).includes(value);
-    if ("lte" in c) {
-      const r = cmp(value, c.lte);
-      return Number.isNaN(r) ? false : r <= 0;
-    }
-    if ("lt" in c) {
-      const r = cmp(value, c.lt);
-      return Number.isNaN(r) ? false : r < 0;
-    }
-    if ("gte" in c) {
-      const r = cmp(value, c.gte);
-      return Number.isNaN(r) ? false : r >= 0;
-    }
-    if ("gt" in c) {
-      const r = cmp(value, c.gt);
-      return Number.isNaN(r) ? false : r > 0;
-    }
+
+    const rangeMatch =
+      matchComparison(value, c, "lte", (result) => result <= 0) ??
+      matchComparison(value, c, "lt", (result) => result < 0) ??
+      matchComparison(value, c, "gte", (result) => result >= 0) ??
+      matchComparison(value, c, "gt", (result) => result > 0);
+    if (rangeMatch !== undefined) return rangeMatch;
+
     if ("not" in c) return value !== c.not;
     return value === cond;
   }
   return value === cond;
 }
 
-function matchWhere(row: JobRow, where: Record<string, unknown> | undefined): boolean {
+function matchWhere(row: JobRow, where: Where | undefined): boolean {
   if (!where) return true;
   for (const [key, cond] of Object.entries(where)) {
     if (cond === undefined) continue;
     if (key === "OR") {
-      if (!(cond as Record<string, unknown>[]).some((w) => matchWhere(row, w))) return false;
+      if (!(cond as Where[]).some((w) => matchWhere(row, w))) return false;
       continue;
     }
     if (key === "AND") {
-      if (!(cond as Record<string, unknown>[]).every((w) => matchWhere(row, w))) return false;
+      if (!(cond as Where[]).every((w) => matchWhere(row, w))) return false;
       continue;
     }
     if (!matchField(row[key], cond)) return false;
@@ -97,13 +110,13 @@ function matchWhere(row: JobRow, where: Record<string, unknown> | undefined): bo
   return true;
 }
 
-function applyOrder(rows: JobRow[], orderBy?: Record<string, "asc" | "desc">[]): JobRow[] {
+function applyOrder(rows: JobRow[], orderBy?: OrderBy): JobRow[] {
   if (!orderBy || orderBy.length === 0) return rows;
   return [...rows].sort((a, b) => {
     for (const clause of orderBy) {
       const [field, dir] = Object.entries(clause)[0];
-      const r = cmp(a[field], b[field]);
-      if (!Number.isNaN(r) && r !== 0) return dir === "desc" ? -r : r;
+      const result = cmp(a[field], b[field]);
+      if (!Number.isNaN(result) && result !== 0) return dir === "desc" ? -result : result;
     }
     return 0;
   });
@@ -116,10 +129,37 @@ function uniqueViolation(): Prisma.PrismaClientKnownRequestError {
   });
 }
 
+function findByDedupeKey(store: Map<string, JobRow>, dedupeKey: unknown): JobRow | undefined {
+  for (const row of store.values()) {
+    if (row.dedupeKey === dedupeKey) return row;
+  }
+  return undefined;
+}
+
+function assertUniqueDedupeKey(store: Map<string, JobRow>, dedupeKey: unknown): void {
+  if (dedupeKey != null && findByDedupeKey(store, dedupeKey)) {
+    throw uniqueViolation();
+  }
+}
+
+function touch(row: JobRow, data: Where): void {
+  Object.assign(row, data);
+  row.updatedAt = (data.updatedAt as Date) ?? nowDate();
+}
+
+function makeJobRow(data: Partial<JobRow>, id: string, forceFreshTimestamps = false): JobRow {
+  const row: JobRow = { ...makeDefaults(), ...data, id };
+  if (forceFreshTimestamps) {
+    row.createdAt = nowDate();
+    row.updatedAt = nowDate();
+  }
+  return row;
+}
+
 export type JobFake = {
   prisma: {
-    job: ReturnType<typeof makeJobDelegate>;
-    $transaction: (fn: (tx: { job: ReturnType<typeof makeJobDelegate> }) => unknown) => unknown;
+    job: JobDelegate;
+    $transaction: (fn: (tx: JobTransaction) => unknown) => unknown;
   };
   /** Seeds a job row directly into the store (bypasses enqueue) with sane defaults. */
   seed: (overrides?: Partial<JobRow>) => JobRow;
@@ -129,35 +169,27 @@ export type JobFake = {
 
 function makeJobDelegate(store: Map<string, JobRow>, counter: { value: number }) {
   return {
-    create: async ({ data }: { data: Record<string, unknown> }) => {
-      if (data.dedupeKey != null) {
-        for (const existing of store.values()) {
-          if (existing.dedupeKey === data.dedupeKey) throw uniqueViolation();
-        }
-      }
+    create: async ({ data }: { data: Where }) => {
+      assertUniqueDedupeKey(store, data.dedupeKey);
       const id = (data.id as string) ?? `job-${++counter.value}`;
-      const row: JobRow = { ...makeDefaults(), ...data, id, createdAt: nowDate(), updatedAt: nowDate() };
+      const row = makeJobRow(data, id, true);
       store.set(id, row);
       return clone(row);
     },
-    findUnique: async ({ where }: { where: Record<string, unknown> }) => {
+    findUnique: async ({ where }: { where: Where }) => {
       if (where.id != null) return clone(store.get(where.id as string) ?? null);
-      if (where.dedupeKey != null) {
-        for (const row of store.values()) {
-          if (row.dedupeKey === where.dedupeKey) return clone(row);
-        }
-      }
+      if (where.dedupeKey != null) return clone(findByDedupeKey(store, where.dedupeKey) ?? null);
       return null;
     },
     findFirst: async ({
       where,
       orderBy,
     }: {
-      where?: Record<string, unknown>;
-      orderBy?: Record<string, "asc" | "desc">[];
+      where?: Where;
+      orderBy?: OrderBy;
     }) => {
       const rows = applyOrder(
-        [...store.values()].filter((r) => matchWhere(r, where)),
+        [...store.values()].filter((row) => matchWhere(row, where)),
         orderBy,
       );
       return clone(rows[0] ?? null);
@@ -168,46 +200,45 @@ function makeJobDelegate(store: Map<string, JobRow>, counter: { value: number })
       take,
       skip,
     }: {
-      where?: Record<string, unknown>;
-      orderBy?: Record<string, "asc" | "desc">[];
+      where?: Where;
+      orderBy?: OrderBy;
       take?: number;
       skip?: number;
     }) => {
-      let rows = applyOrder([...store.values()].filter((r) => matchWhere(r, where)), orderBy);
+      let rows = applyOrder(
+        [...store.values()].filter((row) => matchWhere(row, where)),
+        orderBy,
+      );
       if (skip) rows = rows.slice(skip);
       if (take != null) rows = rows.slice(0, take);
-      return rows.map((r) => clone(r));
+      return rows.map((row) => clone(row));
     },
-    update: async ({ where, data }: { where: { id: string }; data: Record<string, unknown> }) => {
+    update: async ({ where, data }: { where: { id: string }; data: Where }) => {
       const row = store.get(where.id);
       if (!row) throw new Error(`job ${where.id} not found`);
-      Object.assign(row, data);
-      row.updatedAt = (data.updatedAt as Date) ?? nowDate();
+      touch(row, data);
       return clone(row);
     },
     updateMany: async ({
       where,
       data,
     }: {
-      where?: Record<string, unknown>;
-      data: Record<string, unknown>;
+      where?: Where;
+      data: Where;
     }) => {
-      const rows = [...store.values()].filter((r) => matchWhere(r, where));
-      for (const row of rows) {
-        Object.assign(row, data);
-        row.updatedAt = (data.updatedAt as Date) ?? nowDate();
-      }
+      const rows = [...store.values()].filter((row) => matchWhere(row, where));
+      for (const row of rows) touch(row, data);
       return { count: rows.length };
     },
     groupBy: async ({ by }: { by: string[] }) => {
       const counts = new Map<string, number>();
       for (const row of store.values()) {
-        const key = by.map((b) => row[b]).join("|");
+        const key = by.map((field) => row[field]).join("|");
         counts.set(key, (counts.get(key) ?? 0) + 1);
       }
       return [...counts.entries()].map(([key, count]) => {
-        const obj: Record<string, unknown> = { _count: { _all: count } };
-        by.forEach((b, i) => (obj[b] = key.split("|")[i]));
+        const obj: Where = { _count: { _all: count } };
+        by.forEach((field, index) => (obj[field] = key.split("|")[index]));
         return obj;
       });
     },
@@ -231,13 +262,12 @@ export function makeJobFake(): JobFake {
 
   const prisma = {
     job: jobDelegate,
-    $transaction: async (fn: (tx: { job: typeof jobDelegate }) => unknown) =>
-      fn({ job: jobDelegate }),
+    $transaction: async (fn: (tx: JobTransaction) => unknown) => fn({ job: jobDelegate }),
   };
 
   function seed(overrides: Partial<JobRow> = {}): JobRow {
     const id = (overrides.id as string) ?? `seed-${++counter.value}`;
-    const row: JobRow = { ...makeDefaults(), ...overrides, id };
+    const row = makeJobRow(overrides, id);
     store.set(id, row);
     return row;
   }

@@ -39,6 +39,22 @@ export type SubRow = {
   failureCount?: number;
 };
 
+function pushSubscriptionFor(sub: SubRow) {
+  return { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } };
+}
+
+function statusCodeFrom(err: unknown): number | undefined {
+  return (err as { statusCode?: number }).statusCode;
+}
+
+function isExpiredStatus(status: number | undefined): boolean {
+  return status === 404 || status === 410;
+}
+
+function nextFailureCount(sub: SubRow): number {
+  return (sub.failureCount ?? 0) + 1;
+}
+
 /**
  * Sends a push notification to a pre-loaded list of subscriptions.
  * Delivery is tracked per subscription (RW-045): successes reset the failure
@@ -62,23 +78,21 @@ export async function sendToSubs(subs: SubRow[], payloadStr: string): Promise<nu
   await Promise.all(
     subs.map(async (sub) => {
       try {
-        await sendWebPushNotification(
-          { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-          payloadStr,
-        );
+        await sendWebPushNotification(pushSubscriptionFor(sub), payloadStr);
         sent++;
         successIds.push(sub.id);
       } catch (err: unknown) {
-        const status = (err as { statusCode?: number }).statusCode;
-        if (status === 404 || status === 410) {
+        const status = statusCodeFrom(err);
+        const failures = nextFailureCount(sub);
+        if (isExpiredStatus(status)) {
           deadIds.push(sub.id);
           log.info("push subscription expired — pruning", { subId: sub.id, status });
-        } else if ((sub.failureCount ?? 0) + 1 >= MAX_CONSECUTIVE_FAILURES) {
+        } else if (failures >= MAX_CONSECUTIVE_FAILURES) {
           deadIds.push(sub.id);
           log.warn("push subscription exceeded failure threshold — pruning", {
             subId: sub.id,
             status: status ?? null,
-            failures: (sub.failureCount ?? 0) + 1,
+            failures,
           });
         } else {
           failIds.push(sub.id);

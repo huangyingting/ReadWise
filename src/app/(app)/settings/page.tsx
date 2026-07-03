@@ -27,6 +27,107 @@ import { seedLevelForProfile } from "@/lib/learning/placement";
 
 export const metadata = settings;
 
+type Profile = Awaited<ReturnType<typeof getProfile>>;
+type SettingsUser = Awaited<ReturnType<typeof requireOnboardedSession>>["user"];
+
+function getProfileDefaults(profile: Profile) {
+  return {
+    ageRange: profile?.ageRange ?? "",
+    gender: profile?.gender ?? "",
+    englishLevel: profile?.englishLevel ?? "",
+    topics: parseTopics(profile?.topics),
+    dailyGoal: profile?.dailyGoal ?? DAILY_GOAL_DEFAULT,
+    goalPath: profile?.goalPath ?? "",
+  };
+}
+
+function AppearanceCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle level="h2">Appearance</CardTitle>
+        <CardMeta>Choose your preferred app theme.</CardMeta>
+      </CardHeader>
+      <CardBody>
+        <SettingsThemeRow />
+      </CardBody>
+    </Card>
+  );
+}
+
+function AccountCard({ user }: { user: SettingsUser }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle level="h2">Account</CardTitle>
+        <CardMeta>Your identity and role on ReadWise.</CardMeta>
+      </CardHeader>
+      <CardBody>
+        <div className="flex items-center gap-[var(--space-4)]">
+          <Avatar
+            src={user.image}
+            name={user.name}
+            size={56}
+            className="shrink-0"
+          />
+          <div className="flex flex-col gap-[var(--space-1)]">
+            <div className="font-semibold text-text">
+              {user.name ?? "Unnamed reader"}
+            </div>
+            <div className="text-text-muted text-[length:var(--text-sm)]">
+              {user.email}
+            </div>
+            <div>
+              <Badge variant={user.role === "Admin" ? "primary" : "neutral"}>
+                {user.role}
+              </Badge>
+            </div>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
+function NotificationsCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle level="h2">Notifications</CardTitle>
+        <CardMeta>
+          Get reminders when words in your study list are ready to review.
+        </CardMeta>
+      </CardHeader>
+      <CardBody>
+        <PushReminderToggle />
+        <ReminderPreferencesForm />
+      </CardBody>
+    </Card>
+  );
+}
+
+function PrivacyAccountCard() {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle level="h2">Privacy &amp; account</CardTitle>
+        <CardMeta>
+          Manage your learning memory, export your data, or permanently delete
+          your account.
+        </CardMeta>
+      </CardHeader>
+      <CardBody>
+        <div className="flex flex-col gap-[var(--space-4)]">
+          <ClearLearningMemory />
+          <div className="border-t border-border pt-[var(--space-4)]">
+            <AccountDangerZone />
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+}
+
 export default async function SettingsPage() {
   const session = await requireOnboardedSession("/settings");
   const user = session.user;
@@ -38,94 +139,22 @@ export default async function SettingsPage() {
 
       <Stack gap="6">
         {/* ProfileSettingsForm renders Profile + Reading preferences cards */}
-        <ProfileSettingsForm
-          defaults={{
-            ageRange: profile?.ageRange ?? "",
-            gender: profile?.gender ?? "",
-            englishLevel: profile?.englishLevel ?? "",
-            topics: parseTopics(profile?.topics),
-            dailyGoal: profile?.dailyGoal ?? DAILY_GOAL_DEFAULT,
-            goalPath: profile?.goalPath ?? "",
-          }}
-        />
+        <ProfileSettingsForm defaults={getProfileDefaults(profile)} />
 
         {/* Reading placement (#806) — retake affordance posts attempt="retake" */}
         <RetakePlacement seedLevel={seedLevelForProfile(profile?.englishLevel)} />
 
         {/* App theme card — outside the profile form, no submit needed */}
-        <Card>
-          <CardHeader>
-            <CardTitle level="h2">Appearance</CardTitle>
-            <CardMeta>Choose your preferred app theme.</CardMeta>
-          </CardHeader>
-          <CardBody>
-            <SettingsThemeRow />
-          </CardBody>
-        </Card>
+        <AppearanceCard />
 
         {/* Account card — read-only, outside the form */}
-        <Card>
-          <CardHeader>
-            <CardTitle level="h2">Account</CardTitle>
-            <CardMeta>Your identity and role on ReadWise.</CardMeta>
-          </CardHeader>
-          <CardBody>
-            <div className="flex items-center gap-[var(--space-4)]">
-              <Avatar
-                src={user.image}
-                name={user.name}
-                size={56}
-                className="shrink-0"
-              />
-              <div className="flex flex-col gap-[var(--space-1)]">
-                <div className="font-semibold text-text">
-                  {user.name ?? "Unnamed reader"}
-                </div>
-                <div className="text-text-muted text-[length:var(--text-sm)]">
-                  {user.email}
-                </div>
-                <div>
-                  <Badge variant={user.role === "Admin" ? "primary" : "neutral"}>
-                    {user.role}
-                  </Badge>
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+        <AccountCard user={user} />
 
         {/* Notifications card — hidden server-side when VAPID is not configured */}
-        {pushConfig.isConfigured() ? (
-          <Card>
-            <CardHeader>
-              <CardTitle level="h2">Notifications</CardTitle>
-              <CardMeta>Get reminders when words in your study list are ready to review.</CardMeta>
-            </CardHeader>
-            <CardBody>
-              <PushReminderToggle />
-              <ReminderPreferencesForm />
-            </CardBody>
-          </Card>
-        ) : null}
+        {pushConfig.isConfigured() ? <NotificationsCard /> : null}
 
         {/* Privacy & account management */}
-        <Card>
-          <CardHeader>
-            <CardTitle level="h2">Privacy &amp; account</CardTitle>
-            <CardMeta>
-              Manage your learning memory, export your data, or permanently
-              delete your account.
-            </CardMeta>
-          </CardHeader>
-          <CardBody>
-            <div className="flex flex-col gap-[var(--space-4)]">
-              <ClearLearningMemory />
-              <div className="border-t border-border pt-[var(--space-4)]">
-                <AccountDangerZone />
-              </div>
-            </div>
-          </CardBody>
-        </Card>
+        <PrivacyAccountCard />
       </Stack>
     </PageShell>
   );

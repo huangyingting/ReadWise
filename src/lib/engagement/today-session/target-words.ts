@@ -36,6 +36,14 @@ type WordRow = {
   lastReviewedAt: Date | null;
 };
 
+function compareIds(a: string, b: string): number {
+  return a < b ? -1 : a > b ? 1 : 0;
+}
+
+function dueTimestamp(word: WordRow): number {
+  return word.dueAt ? word.dueAt.getTime() : -Infinity;
+}
+
 /** A word is "due" when it has never been reviewed or its dueAt has passed. */
 function isDue(w: WordRow, now: Date): boolean {
   return w.dueAt === null || w.dueAt.getTime() <= now.getTime();
@@ -43,13 +51,13 @@ function isDue(w: WordRow, now: Date): boolean {
 
 /** Stable comparator: oldest due first (nulls first), then oldest saved, then id. */
 function byDueThenAge(a: WordRow, b: WordRow): number {
-  const ad = a.dueAt ? a.dueAt.getTime() : -Infinity;
-  const bd = b.dueAt ? b.dueAt.getTime() : -Infinity;
+  const ad = dueTimestamp(a);
+  const bd = dueTimestamp(b);
   if (ad !== bd) return ad - bd;
   const ac = a.createdAt.getTime();
   const bc = b.createdAt.getTime();
   if (ac !== bc) return ac - bc;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  return compareIds(a.id, b.id);
 }
 
 /** Stable comparator: weakest (lowest ease) first, then newest saved, then id. */
@@ -58,7 +66,27 @@ function byWeakThenRecent(a: WordRow, b: WordRow): number {
   const ac = a.createdAt.getTime();
   const bc = b.createdAt.getTime();
   if (ac !== bc) return bc - ac;
-  return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  return compareIds(a.id, b.id);
+}
+
+function appendUniqueSelection(
+  selected: string[],
+  seen: Set<string>,
+  word: WordRow,
+  maxCount: number,
+): void {
+  if (seen.has(word.id) || selected.length >= maxCount) return;
+  seen.add(word.id);
+  selected.push(word.id);
+}
+
+function appendRankedWords(
+  selected: string[],
+  seen: Set<string>,
+  words: WordRow[],
+  maxCount: number,
+): void {
+  words.forEach((word) => appendUniqueSelection(selected, seen, word, maxCount));
 }
 
 /** Result of target-word selection: ids only + the count to review. */
@@ -100,28 +128,29 @@ export async function selectTargetWordIds(args: {
 
   const selected: string[] = [];
   const seen = new Set<string>();
-  const push = (w: WordRow) => {
-    if (seen.has(w.id) || selected.length >= maxCount) return;
-    seen.add(w.id);
-    selected.push(w.id);
-  };
 
   // 1. Due/never-reviewed words linked to the primary article.
   if (primaryArticleId) {
-    words
-      .filter((w) => w.articleId === primaryArticleId && isDue(w, now))
-      .sort(byDueThenAge)
-      .forEach(push);
+    appendRankedWords(
+      selected,
+      seen,
+      words
+        .filter((w) => w.articleId === primaryArticleId && isDue(w, now))
+        .sort(byDueThenAge),
+      maxCount,
+    );
   }
 
   // 2. Oldest-due words across the whole vocabulary.
-  words
-    .filter((w) => isDue(w, now))
-    .sort(byDueThenAge)
-    .forEach(push);
+  appendRankedWords(
+    selected,
+    seen,
+    words.filter((w) => isDue(w, now)).sort(byDueThenAge),
+    maxCount,
+  );
 
   // 3. Top up with weak/recent words when not enough due words exist.
-  words.sort(byWeakThenRecent).forEach(push);
+  appendRankedWords(selected, seen, words.sort(byWeakThenRecent), maxCount);
 
   return {
     targetSavedWordIds: selected,

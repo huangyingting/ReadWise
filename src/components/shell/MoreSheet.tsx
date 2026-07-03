@@ -12,6 +12,27 @@ import ThemeToggle from "./ThemeToggle";
 import KeyboardShortcutsModal from "@/components/KeyboardShortcutsModal";
 import type { ShellUser } from "./types";
 
+interface MoreSheetProps {
+  user: ShellUser;
+  open: boolean;
+  onClose: () => void;
+}
+
+const ACTION_ROW_CLASS =
+  "h-auto w-full justify-start rounded-none border-l-[3px] border-transparent px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)] font-medium text-text-muted hover:bg-bg-subtle hover:text-text";
+
+function getLinkRowClass(active: boolean): string {
+  return cn(
+    "flex items-center gap-[var(--space-3)] w-full",
+    "px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)]",
+    "transition-colors [transition-duration:var(--duration-fast)]",
+    active
+      ? "font-semibold text-primary-text bg-bg-subtle border-l-[3px] border-[var(--teal)]"
+      : "font-medium text-text-muted hover:text-text hover:bg-bg-subtle border-l-[3px] border-transparent",
+    focusRing,
+  );
+}
+
 /**
  * Mobile "More" sheet — the overflow of the BottomTabBar. A bottom-anchored
  * `Sheet` (focus-trapped, Esc/scrim close, returns focus) listing the
@@ -23,27 +44,15 @@ export default function MoreSheet({
   user,
   open,
   onClose,
-}: {
-  user: ShellUser;
-  open: boolean;
-  onClose: () => void;
-}) {
+}: MoreSheetProps) {
   const pathname = usePathname();
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const isAdmin = user.role === "Admin";
 
-  const linkRow = (active: boolean) =>
-    cn(
-      "flex items-center gap-[var(--space-3)] w-full",
-      "px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)]",
-      "transition-colors [transition-duration:var(--duration-fast)]",
-      active
-        ? "font-semibold text-primary-text bg-bg-subtle border-l-[3px] border-[var(--teal)]"
-        : "font-medium text-text-muted hover:text-text hover:bg-bg-subtle border-l-[3px] border-transparent",
-      focusRing,
-    );
-  const actionRow =
-    "h-auto w-full justify-start rounded-none border-l-[3px] border-transparent px-[var(--space-6)] py-[var(--space-3)] text-[length:var(--text-base)] font-medium text-text-muted hover:bg-bg-subtle hover:text-text";
+  function handleSignOut() {
+    onClose();
+    void signOut({ callbackUrl: "/" });
+  }
 
   return (
     <>
@@ -63,7 +72,7 @@ export default function MoreSheet({
                 href={href}
                 aria-current={active ? "page" : undefined}
                 onClick={onClose}
-                className={linkRow(active)}
+                className={getLinkRowClass(active)}
               >
                 <Icon size={20} aria-hidden />
                 {label}
@@ -76,7 +85,7 @@ export default function MoreSheet({
           <Link
             href="/settings"
             onClick={onClose}
-            className={linkRow(isActivePath(pathname, "/settings"))}
+            className={getLinkRowClass(isActivePath(pathname, "/settings"))}
           >
             <Settings size={20} aria-hidden />
             Settings
@@ -85,7 +94,7 @@ export default function MoreSheet({
             <Link
               href="/admin"
               onClick={onClose}
-              className={linkRow(isActivePath(pathname, "/admin"))}
+              className={getLinkRowClass(isActivePath(pathname, "/admin"))}
             >
               <Shield size={20} aria-hidden />
               Admin Panel
@@ -96,7 +105,7 @@ export default function MoreSheet({
             size="lg"
             onClick={() => setShortcutsOpen(true)}
             leadingIcon={<Keyboard size={20} aria-hidden />}
-            className={actionRow}
+            className={ACTION_ROW_CLASS}
           >
             Keyboard shortcuts
           </Button>
@@ -113,12 +122,9 @@ export default function MoreSheet({
           <Button
             variant="ghost"
             size="lg"
-            onClick={() => {
-              onClose();
-              void signOut({ callbackUrl: "/" });
-            }}
+            onClick={handleSignOut}
             leadingIcon={<LogOut size={20} aria-hidden />}
-            className={cn(actionRow, "text-danger-text hover:text-danger-text")}
+            className={cn(ACTION_ROW_CLASS, "text-danger-text hover:text-danger-text")}
           >
             Sign out
           </Button>

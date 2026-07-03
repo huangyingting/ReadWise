@@ -34,6 +34,12 @@ type CrawlRunStats = {
   rejected: number;
 };
 
+type OutcomeStatusCounts = {
+  saved: number;
+  skipped: number;
+  failed: number;
+};
+
 function parseArgs(argv: string[]): Args {
   const args: Args = {
     urls: [],
@@ -123,6 +129,22 @@ function previewArticle<T extends { content: string }>(article: T): T {
   return { ...article, content: `${article.content.slice(0, 200)}…` };
 }
 
+function isDuplicateSkip(outcome: SaveOutcome): boolean {
+  return outcome.status === "skipped" && /duplicate/i.test(outcome.reason);
+}
+
+function isExtractFailure(outcome: SaveOutcome): boolean {
+  return outcome.status === "failed" && /extract/i.test(outcome.reason);
+}
+
+function outcomeStatusCounts(outcomes: SaveOutcome[]): OutcomeStatusCounts {
+  return {
+    saved: outcomes.filter((outcome) => outcome.status === "saved").length,
+    skipped: outcomes.filter((outcome) => outcome.status === "skipped").length,
+    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
+  };
+}
+
 async function runFile(args: Args): Promise<SaveOutcome[]> {
   if (!args.file) return [];
   const html = await readFile(args.file, "utf8");
@@ -168,15 +190,12 @@ async function runUrls(urls: string[], dryRun: boolean): Promise<SaveOutcome[]> 
 }
 
 function crawlRunStats(outcomes: SaveOutcome[]): CrawlRunStats {
+  const counts = outcomeStatusCounts(outcomes);
   return {
-    scraped: outcomes.filter((outcome) => outcome.status === "saved").length,
-    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
-    duplicates: outcomes.filter(
-      (outcome) => outcome.status === "skipped" && /duplicate/i.test(outcome.reason),
-    ).length,
-    rejected: outcomes.filter(
-      (outcome) => outcome.status === "failed" && /extract/i.test(outcome.reason),
-    ).length,
+    scraped: counts.saved,
+    failed: counts.failed,
+    duplicates: outcomes.filter(isDuplicateSkip).length,
+    rejected: outcomes.filter(isExtractFailure).length,
   };
 }
 
@@ -245,11 +264,7 @@ function summarizeOutcomes(outcomes: SaveOutcome[]): {
   skipped: number;
   failed: number;
 } {
-  return {
-    saved: outcomes.filter((outcome) => outcome.status === "saved").length,
-    skipped: outcomes.filter((outcome) => outcome.status === "skipped").length,
-    failed: outcomes.filter((outcome) => outcome.status === "failed").length,
-  };
+  return outcomeStatusCounts(outcomes);
 }
 
 async function main(argv = process.argv.slice(2)): Promise<number> {

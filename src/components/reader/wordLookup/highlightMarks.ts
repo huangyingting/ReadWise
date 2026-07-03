@@ -2,6 +2,32 @@ import type { Highlight as RwHighlight } from "@/components/ReaderHighlightsProv
 
 export type TextNodeEntry = { node: Text; start: number; end: number };
 
+const ANCHOR_CONTEXT_CHARS = 32;
+
+type AnchorResult = {
+  quote: string;
+  startOffset: number;
+  endOffset: number;
+  prefix: string;
+  suffix: string;
+};
+
+type ResolvedHighlight = { hl: RwHighlight; start: number; end: number };
+type HighlightSegment = {
+  tnIdx: number;
+  from: number;
+  to: number;
+  hl: RwHighlight;
+  isFirst: boolean;
+};
+
+function scoreContext(actual: string, expected: string): number {
+  if (!expected) return 0;
+  if (actual === expected) return 2;
+  if (actual.includes(expected) || expected.includes(actual)) return 1;
+  return 0;
+}
+
 export function findBestAnchor(
   fullText: string,
   quote: string,
@@ -17,11 +43,7 @@ export function findBestAnchor(
     if (idx === -1) break;
     const ap = fullText.slice(Math.max(0, idx - prefix.length), idx);
     const as_ = fullText.slice(idx + quote.length, idx + quote.length + suffix.length);
-    let score = 0;
-    if (prefix && ap === prefix) score += 2;
-    else if (prefix && (ap.includes(prefix) || prefix.includes(ap))) score += 1;
-    if (suffix && as_ === suffix) score += 2;
-    else if (suffix && (as_.includes(suffix) || suffix.includes(as_))) score += 1;
+    const score = scoreContext(ap, prefix) + scoreContext(as_, suffix);
     if (score > bestScore) { bestScore = score; bestIdx = idx; }
     searchFrom = idx + 1;
   }
@@ -31,7 +53,7 @@ export function findBestAnchor(
 export function computeAnchor(
   proseEl: HTMLElement,
   sel: Selection,
-): { quote: string; startOffset: number; endOffset: number; prefix: string; suffix: string } | null {
+): AnchorResult | null {
   if (sel.isCollapsed || sel.rangeCount === 0) return null;
   const range = sel.getRangeAt(0);
   const quote = sel.toString().trim();
@@ -42,8 +64,11 @@ export function computeAnchor(
   const startOffset = preRange.toString().length;
   const endOffset = startOffset + quote.length;
   const fullText = proseEl.textContent ?? "";
-  const prefix = fullText.slice(Math.max(0, startOffset - 32), startOffset);
-  const suffix = fullText.slice(endOffset, Math.min(fullText.length, endOffset + 32));
+  const prefix = fullText.slice(Math.max(0, startOffset - ANCHOR_CONTEXT_CHARS), startOffset);
+  const suffix = fullText.slice(
+    endOffset,
+    Math.min(fullText.length, endOffset + ANCHOR_CONTEXT_CHARS),
+  );
   return { quote, startOffset, endOffset, prefix, suffix };
 }
 
@@ -77,39 +102,50 @@ function createMarkElement(hl: RwHighlight, isFirstSegment: boolean): HTMLElemen
   return mark;
 }
 
-export function applyHighlightMarks(
-  container: HTMLElement,
-  highlights: RwHighlight[],
-  onOrphaned: (id: string) => void,
-): void {
+function unwrapExistingMarks(container: HTMLElement): void {
   for (const mark of Array.from(container.querySelectorAll<HTMLElement>("mark.rw-hl"))) {
     mark.replaceWith(...Array.from(mark.childNodes));
   }
   container.normalize();
+}
 
-  if (highlights.length === 0) return;
-
-  const fullText = container.textContent ?? "";
-  type Resolved = { hl: RwHighlight; start: number; end: number };
-  const resolved: Resolved[] = [];
-  for (const hl of highlights) {
-    let start = hl.startOffset;
-    let end = hl.endOffset;
-    if (fullText.slice(start, end) !== hl.quote) {
-      const found = findBestAnchor(fullText, hl.quote, hl.prefix, hl.suffix);
-      if (found === -1) { onOrphaned(hl.id); continue; }
-      start = found;
-      end = found + hl.quote.length;
+function resolveHighlight(
+  fullText: string,
+  hl: RwHighlight,
+  onOrphaned: (id: string) => void,
+): ResolvedHighlight | null {
+  let start = hl.startOffset;
+  let end = hl.endOffset;
+  if (fullText.slice(start, end) !== hl.quote) {
+    const found = findBestAnchor(fullText, hl.quote, hl.prefix, hl.suffix);
+    if (found === -1) {
+      onOrphaned(hl.id);
+      return null;
     }
-    resolved.push({ hl, start, end });
+    start = found;
+    end = found + hl.quote.length;
   }
-  if (resolved.length === 0) return;
-  resolved.sort((a, b) => a.start - b.start);
+  return { hl, start, end };
+}
 
-  const textNodes = collectTextNodes(container);
-  interface Segment { tnIdx: number; from: number; to: number; hl: RwHighlight; isFirst: boolean }
-  const segments: Segment[] = [];
+function resolveHighlights(
+  fullText: string,
+  highlights: RwHighlight[],
+  onOrphaned: (id: string) => void,
+): ResolvedHighlight[] {
+  return highlights
+    .map((hl) => resolveHighlight(fullText, hl, onOrphaned))
+    .filter((hl): hl is ResolvedHighlight => hl !== null)
+    .sort((a, b) => a.start - b.start);
+}
+
+function buildHighlightSegments(
+  textNodes: TextNodeEntry[],
+  resolved: ResolvedHighlight[],
+): HighlightSegment[] {
+  const segments: HighlightSegment[] = [];
   const seenHlIds = new Set<string>();
+
   for (let ti = 0; ti < textNodes.length; ti++) {
     const tn = textNodes[ti];
     for (const r of resolved) {
@@ -126,18 +162,39 @@ export function applyHighlightMarks(
     }
   }
 
-  segments.sort((a, b) => b.tnIdx - a.tnIdx || b.from - a.from);
-  for (const seg of segments) {
-    const tn = textNodes[seg.tnIdx].node;
-    if (!tn.parentNode) continue;
-    if (seg.from < 0 || seg.from >= seg.to) continue;
-    if (seg.from > tn.length) continue;
-    const mark = createMarkElement(seg.hl, seg.isFirst);
-    const target = tn.splitText(seg.from);
-    const clampedLen = Math.min(seg.to - seg.from, target.length);
-    if (clampedLen < target.length) target.splitText(clampedLen);
-    target.parentNode!.insertBefore(mark, target);
-    mark.appendChild(target);
+  return segments.sort((a, b) => b.tnIdx - a.tnIdx || b.from - a.from);
+}
+
+function wrapHighlightSegment(textNodes: TextNodeEntry[], seg: HighlightSegment): void {
+  const tn = textNodes[seg.tnIdx].node;
+  if (!tn.parentNode) return;
+  if (seg.from < 0 || seg.from >= seg.to) return;
+  if (seg.from > tn.length) return;
+
+  const mark = createMarkElement(seg.hl, seg.isFirst);
+  const target = tn.splitText(seg.from);
+  const clampedLen = Math.min(seg.to - seg.from, target.length);
+  if (clampedLen < target.length) target.splitText(clampedLen);
+  target.parentNode!.insertBefore(mark, target);
+  mark.appendChild(target);
+}
+
+export function applyHighlightMarks(
+  container: HTMLElement,
+  highlights: RwHighlight[],
+  onOrphaned: (id: string) => void,
+): void {
+  unwrapExistingMarks(container);
+
+  if (highlights.length === 0) return;
+
+  const fullText = container.textContent ?? "";
+  const resolved = resolveHighlights(fullText, highlights, onOrphaned);
+  if (resolved.length === 0) return;
+
+  const textNodes = collectTextNodes(container);
+  for (const seg of buildHighlightSegments(textNodes, resolved)) {
+    wrapHighlightSegment(textNodes, seg);
   }
 }
 

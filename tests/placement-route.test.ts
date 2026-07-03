@@ -91,19 +91,31 @@ const validBody = {
   seedLevel: "B1",
 };
 
+async function loadRoute(): Promise<typeof import("@/app/api/placement/route")> {
+  return import("@/app/api/placement/route");
+}
+
 async function POST(body: unknown) {
-  const { POST: handler } = (await import("@/app/api/placement/route")) as {
+  const { POST: handler } = (await loadRoute()) as {
     POST: RouteHandler;
   };
   return handler(jsonPost("http://localhost/api/placement", body));
 }
 
 async function GET(seedLevel?: string) {
-  const { GET: handler } = (await import("@/app/api/placement/route")) as {
+  const { GET: handler } = (await loadRoute()) as {
     GET: RouteHandler;
   };
   const qs = seedLevel === undefined ? "" : `?seedLevel=${encodeURIComponent(seedLevel)}`;
   return handler(getReq(`http://localhost/api/placement${qs}`));
+}
+
+async function jsonBody<T>(res: Response): Promise<T> {
+  return (await res.json()) as T;
+}
+
+function assertNoUpserts(): void {
+  assert.equal(upsertCalls.length, 0);
 }
 
 // ---- POST: auth / validation / 404 ----------------------------------------
@@ -112,32 +124,31 @@ test("POST 401 when unauthenticated", async () => {
   authState = "unauth";
   const res = await POST(validBody);
   assert.equal(res.status, 401);
-  assert.equal(upsertCalls.length, 0);
+  assertNoUpserts();
 });
 
-test("POST 400 on invalid seedLevel", async () => {
-  const res = await POST({ ...validBody, seedLevel: "C2" });
-  assert.equal(res.status, 400);
-  assert.equal(upsertCalls.length, 0);
-});
-
-test("POST 400 on missing required field", async () => {
-  const { seedLevel: _omit, ...rest } = validBody;
-  const res = await POST(rest);
-  assert.equal(res.status, 400);
-});
-
-test("POST 400 when correctCount exceeds totalCount", async () => {
-  const res = await POST({ ...validBody, correctCount: 9, totalCount: 5 });
-  assert.equal(res.status, 400);
-  assert.equal(upsertCalls.length, 0);
-});
+const { seedLevel: _omittedSeedLevel, ...missingSeedLevelBody } = validBody;
+for (const { name, body, expectNoUpsert } of [
+  { name: "invalid seedLevel", body: { ...validBody, seedLevel: "C2" }, expectNoUpsert: true },
+  { name: "missing required field", body: missingSeedLevelBody, expectNoUpsert: false },
+  {
+    name: "correctCount exceeds totalCount",
+    body: { ...validBody, correctCount: 9, totalCount: 5 },
+    expectNoUpsert: true,
+  },
+]) {
+  test(`POST 400 on ${name}`, async () => {
+    const res = await POST(body);
+    assert.equal(res.status, 400);
+    if (expectNoUpsert) assertNoUpserts();
+  });
+}
 
 test("POST 404 when article is not in the public library", async () => {
   articleExists = false;
   const res = await POST(validBody);
   assert.equal(res.status, 404);
-  assert.equal(upsertCalls.length, 0);
+  assertNoUpserts();
 });
 
 // ---- POST: scoring + upsert ------------------------------------------------
@@ -145,7 +156,7 @@ test("POST 404 when article is not in the public library", async () => {
 test("POST scores and upserts a recommended level", async () => {
   const res = await POST(validBody); // 4/5 = 0.8, lookups 3/200 = 0.015 → up
   assert.equal(res.status, 200);
-  const json = (await res.json()) as { ok: boolean; recommendedLevel: string };
+  const json = await jsonBody<{ ok: boolean; recommendedLevel: string }>(res);
   assert.equal(json.ok, true);
   assert.equal(json.recommendedLevel, "B2");
   assert.equal(upsertCalls.length, 1);
@@ -169,7 +180,7 @@ test("POST is idempotent: second submit upserts, never creates a duplicate", asy
 test("POST skip stores skipped=true and coerces recommendedLevel to seed", async () => {
   const res = await POST({ ...validBody, skipped: true });
   assert.equal(res.status, 200);
-  const json = (await res.json()) as { skipped: boolean; recommendedLevel: string };
+  const json = await jsonBody<{ skipped: boolean; recommendedLevel: string }>(res);
   assert.equal(json.skipped, true);
   assert.equal(json.recommendedLevel, "B1"); // seed level
   const create = upsertCalls[0].create as Record<string, unknown>;
@@ -193,6 +204,20 @@ const ALLOWED_ROW_KEYS = new Set([
   "completedAt",
 ]);
 
+const BANNED_ROW_KEYS = [
+  "passageText",
+  "questionText",
+  "question",
+  "answers",
+  "answerText",
+  "options",
+  "lookupWords",
+  "words",
+  "definitions",
+  "content",
+  "note",
+];
+
 test("PRIVACY: persisted row holds only structured counts/levels — no text/PII", async () => {
   await POST(validBody);
   const create = upsertCalls[0].create as Record<string, unknown>;
@@ -200,19 +225,7 @@ test("PRIVACY: persisted row holds only structured counts/levels — no text/PII
     assert.ok(ALLOWED_ROW_KEYS.has(key), `unexpected stored field: ${key}`);
   }
   // No free-text/answer fields ever stored.
-  for (const banned of [
-    "passageText",
-    "questionText",
-    "question",
-    "answers",
-    "answerText",
-    "options",
-    "lookupWords",
-    "words",
-    "definitions",
-    "content",
-    "note",
-  ]) {
+  for (const banned of BANNED_ROW_KEYS) {
     assert.ok(!(banned in create), `banned field present: ${banned}`);
   }
 });
@@ -249,7 +262,7 @@ test("GET returns available:false when no passage exists", async () => {
   passageResult = null;
   const res = await GET("B1");
   assert.equal(res.status, 200);
-  const json = (await res.json()) as { available: boolean };
+  const json = await jsonBody<{ available: boolean }>(res);
   assert.equal(json.available, false);
 });
 
@@ -268,7 +281,7 @@ test("GET returns a passage when one is available", async () => {
   };
   const res = await GET("B1");
   assert.equal(res.status, 200);
-  const json = (await res.json()) as { available: boolean; passage: { articleId: string } };
+  const json = await jsonBody<{ available: boolean; passage: { articleId: string } }>(res);
   assert.equal(json.available, true);
   assert.equal(json.passage.articleId, "a1");
 });

@@ -35,7 +35,13 @@
  */
 import { prisma } from "@/lib/prisma";
 import { JobType, enqueueJob, ACTIVE_STATUSES } from "@/lib/jobs";
-import { FEATURE_KEYS, FEATURE_REGISTRY, isFeatureKey, stepKeysFor, type FeatureKey } from "./registry";
+import {
+  FEATURE_KEYS,
+  FEATURE_REGISTRY,
+  isFeatureKey,
+  stepKeysFor,
+  type FeatureKey,
+} from "./registry";
 
 /** Canonical set of features supported for backfill/rebuild. Derived from the registry. */
 export const BACKFILL_FEATURES = FEATURE_KEYS;
@@ -51,6 +57,18 @@ export const MAX_BACKFILL_BATCH_CAP = 500;
 export const MAX_BACKFILL_SCAN = 1000;
 
 const TRANSLATION_STEP_PREFIX = "translation:";
+
+type ResolvedBackfillOptions = {
+  features: BackfillFeature[];
+  mode: BackfillMode;
+  reason: string;
+  operatorId: string | null;
+  dryRun: boolean;
+  cap: number;
+  filter: BackfillFilter;
+  langs: string[];
+  deps: BackfillDeps;
+};
 
 export type BackfillFilter = {
   status?: string;
@@ -188,8 +206,8 @@ async function defaultClearFeatures(
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
     for (const key of stepKeys) {
-      if (key.startsWith("translation:")) {
-        const lang = key.slice("translation:".length);
+      if (isTranslationStep(key)) {
+        const lang = langFromTranslationStep(key);
         await tx.translation.deleteMany({ where: { articleId, targetLang: lang } });
       } else {
         const feature = FEATURE_REGISTRY.find((f) => f.key === key);
@@ -242,6 +260,10 @@ function langFromTranslationStep(stepKey: string): string {
   return stepKey.slice(TRANSLATION_STEP_PREFIX.length);
 }
 
+function isTranslationStep(stepKey: string): boolean {
+  return stepKey.startsWith(TRANSLATION_STEP_PREFIX);
+}
+
 /** Step keys an article is MISSING among the requested features. */
 function missingStepKeys(
   article: CandidateArticle,
@@ -291,7 +313,7 @@ function payloadFor(
   };
   if (stepKey === "speech") {
     payload.tts = true;
-  } else if (stepKey.startsWith(TRANSLATION_STEP_PREFIX)) {
+  } else if (isTranslationStep(stepKey)) {
     payload.translateLangs = [langFromTranslationStep(stepKey)];
   }
   return payload;
@@ -343,81 +365,136 @@ export class BackfillError extends Error {
   }
 }
 
+function validateFeatures(features: BackfillFeature[]): void {
+  if (features.length === 0) {
+    throw new BackfillError("At least one feature is required");
+  }
+  for (const feature of features) {
+    if (!isFeatureKey(feature)) {
+      throw new BackfillError(`Unknown feature: ${feature}`);
+    }
+  }
+}
+
+function normalizeReason(raw: string | undefined): string {
+  const reason = (raw ?? "").trim();
+  if (!reason) {
+    throw new BackfillError("A rebuild reason is required");
+  }
+  return reason;
+}
+
+function normalizeBatchCap(batchCap: number | undefined): number {
+  return Math.min(
+    MAX_BACKFILL_BATCH_CAP,
+    Math.max(1, batchCap ?? DEFAULT_BACKFILL_BATCH_CAP),
+  );
+}
+
+function resolveOptions(opts: BackfillOptions): ResolvedBackfillOptions {
+  const features = unique(opts.features ?? []);
+  validateFeatures(features);
+  return {
+    features,
+    mode: opts.mode ?? "missing",
+    reason: normalizeReason(opts.reason),
+    operatorId: opts.operatorId ?? null,
+    dryRun: Boolean(opts.dryRun),
+    cap: normalizeBatchCap(opts.batchCap),
+    filter: opts.filter ?? {},
+    langs: unique((opts.translateLangs ?? []).filter(Boolean)),
+    deps: resolveDeps(opts.deps),
+  };
+}
+
+function baseResult(args: {
+  opts: ResolvedBackfillOptions;
+  scanned: number;
+  matched: number;
+  plan: BackfillPlanItem[];
+}): BackfillResult {
+  return {
+    dryRun: args.opts.dryRun,
+    mode: args.opts.mode,
+    features: args.opts.features,
+    reason: args.opts.reason,
+    scanned: args.scanned,
+    matched: args.matched,
+    cap: args.opts.cap,
+    enqueued: 0,
+    skippedExisting: 0,
+    cleared: 0,
+    jobIds: [],
+    plan: args.plan,
+  };
+}
+
 /**
  * Plans and (unless `dryRun`) enqueues a controlled backfill/rebuild. Returns a
  * detailed report so the operator can see what was scanned, matched, capped,
  * skipped (already active), and enqueued.
  */
 export async function runBackfill(opts: BackfillOptions): Promise<BackfillResult> {
-  const features = unique(opts.features ?? []);
-  if (features.length === 0) {
-    throw new BackfillError("At least one feature is required");
-  }
-  for (const f of features) {
-    if (!isFeatureKey(f)) {
-      throw new BackfillError(`Unknown feature: ${f}`);
-    }
-  }
-  const reason = (opts.reason ?? "").trim();
-  if (!reason) {
-    throw new BackfillError("A rebuild reason is required");
-  }
-  const mode: BackfillMode = opts.mode ?? "missing";
-  const operatorId = opts.operatorId ?? null;
-  const langs = unique((opts.translateLangs ?? []).filter(Boolean));
-  const cap = Math.min(
-    MAX_BACKFILL_BATCH_CAP,
-    Math.max(1, opts.batchCap ?? DEFAULT_BACKFILL_BATCH_CAP),
-  );
-  const deps = resolveDeps(opts.deps);
+  const resolved = resolveOptions(opts);
 
-  const candidates = await deps.loadCandidates(opts.filter ?? {}, MAX_BACKFILL_SCAN);
+  const candidates = await resolved.deps.loadCandidates(
+    resolved.filter,
+    MAX_BACKFILL_SCAN,
+  );
 
   // Build the full plan (article × feature), then cap it.
-  const fullPlan = buildBackfillPlan(candidates, features, langs, mode);
+  const fullPlan = buildBackfillPlan(
+    candidates,
+    resolved.features,
+    resolved.langs,
+    resolved.mode,
+  );
 
   const matched = fullPlan.length;
-  const plan = fullPlan.slice(0, cap);
-
-  const base: BackfillResult = {
-    dryRun: Boolean(opts.dryRun),
-    mode,
-    features,
-    reason,
+  const plan = fullPlan.slice(0, resolved.cap);
+  const base = baseResult({
+    opts: resolved,
     scanned: candidates.length,
     matched,
-    cap,
-    enqueued: 0,
-    skippedExisting: 0,
-    cleared: 0,
-    jobIds: [],
     plan,
-  };
+  });
 
-  if (opts.dryRun) {
+  if (resolved.dryRun) {
     return base;
   }
 
   // Skip plan items already covered by an active job (explicit idempotency +
   // fewer writes; the dedupeKey unique constraint is the ultimate guard).
-  const activeKeys = await deps.findActiveDedupeKeys(plan.map((p) => p.dedupeKey));
+  const activeKeys = await resolved.deps.findActiveDedupeKeys(
+    plan.map((p) => p.dedupeKey),
+  );
   const toEnqueue = plan.filter((p) => !activeKeys.has(p.dedupeKey));
   base.skippedExisting = plan.length - toEnqueue.length;
 
   // Rebuild mode: clear the derived caches now (grouped per article), capped to
   // the planned set. Never touches user-owned study data.
-  if (mode === "rebuild") {
+  if (resolved.mode === "rebuild") {
     const byArticle = groupPlanByArticle(toEnqueue);
     for (const [articleId, stepKeys] of byArticle) {
-      await deps.clearFeatures(articleId, stepKeys);
+      await resolved.deps.clearFeatures(articleId, stepKeys);
     }
     base.cleared = byArticle.size;
   }
 
   const jobIds: string[] = [];
   for (const item of toEnqueue) {
-    const payload = payloadFor(item.articleId, item.feature, mode, reason, operatorId);
-    const job = await deps.enqueue(jobTypeFor(mode), payload, item.dedupeKey);
+    const payload = payloadFor(
+      item.articleId,
+      item.feature,
+      resolved.mode,
+      resolved.reason,
+      resolved.operatorId,
+    );
+    const job = await resolved.deps.enqueue(
+      jobTypeFor(resolved.mode),
+      payload,
+      item.dedupeKey,
+    );
     jobIds.push(job.id);
   }
   base.enqueued = jobIds.length;

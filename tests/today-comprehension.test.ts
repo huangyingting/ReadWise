@@ -85,8 +85,23 @@ function makeQuizQuestion(overrides: Partial<QuizQuestion> = {}): QuizQuestion {
   };
 }
 
+function seedQuizQuestions(...questions: Array<Partial<QuizQuestion>>): void {
+  quizQuestions = questions.map((question) => makeQuizQuestion(question));
+}
+
 function assertComprehensionCompleted(): void {
   assert.ok(sessionRow!.comprehensionCompletedAt instanceof Date);
+}
+
+function resetMockState(): void {
+  authState = "ok";
+  sessionRow = null;
+  quizQuestions = [];
+  feedbackRows = [];
+  skillEvidence = [];
+  articleMasteryCalls = [];
+  capturedEvents = [];
+  masteryShouldThrow = false;
 }
 
 before(() => {
@@ -221,16 +236,7 @@ before(() => {
   });
 });
 
-beforeEach(() => {
-  authState = "ok";
-  sessionRow = null;
-  quizQuestions = [];
-  feedbackRows = [];
-  skillEvidence = [];
-  articleMasteryCalls = [];
-  capturedEvents = [];
-  masteryShouldThrow = false;
-});
+beforeEach(resetMockState);
 
 const importLib = () => import("@/lib/engagement/today-session/comprehension");
 
@@ -254,19 +260,31 @@ async function GET(url = "http://localhost/api/today/comprehension") {
 
 test("comprehensionSkillForTag maps tags to tracked skills", async () => {
   const { comprehensionSkillForTag } = await importLib();
-  assert.equal(comprehensionSkillForTag("main_idea"), "comprehension");
-  assert.equal(comprehensionSkillForTag("detail"), "comprehension");
-  assert.equal(comprehensionSkillForTag("inference"), "comprehension");
-  assert.equal(comprehensionSkillForTag("vocabulary_in_context"), "vocabulary");
-  assert.equal(comprehensionSkillForTag(null), "comprehension");
+  for (const [tag, skill] of [
+    ["main_idea", "comprehension"],
+    ["detail", "comprehension"],
+    ["inference", "comprehension"],
+    ["vocabulary_in_context", "vocabulary"],
+    [null, "comprehension"],
+  ] as const) {
+    assert.equal(comprehensionSkillForTag(tag), skill);
+  }
 });
 
 test("controlled-value validators reject free text", async () => {
   const { isComprehensionSelfRating, isComprehensionSkillTag } = await importLib();
-  assert.equal(isComprehensionSelfRating("confident"), true);
-  assert.equal(isComprehensionSelfRating("totally lost"), false);
-  assert.equal(isComprehensionSkillTag("inference"), true);
-  assert.equal(isComprehensionSkillTag("article body text"), false);
+  for (const [rating, expected] of [
+    ["confident", true],
+    ["totally lost", false],
+  ] as const) {
+    assert.equal(isComprehensionSelfRating(rating), expected);
+  }
+  for (const [tag, expected] of [
+    ["inference", true],
+    ["article body text", false],
+  ] as const) {
+    assert.equal(isComprehensionSkillTag(tag), expected);
+  }
 });
 
 // ===========================================================================
@@ -322,10 +340,10 @@ test("returns null when there is no Today session / primary article", async () =
 
 test("selects the most recently added question (no correctIndex leaked)", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ id: "q1", question: "Old?", options: ["a", "b"], correctIndex: 0 }),
-    makeQuizQuestion({ id: "q2", question: "New?", options: ["x", "y"], correctIndex: 1 }),
-  ];
+  seedQuizQuestions(
+    { id: "q1", question: "Old?", options: ["a", "b"], correctIndex: 0 },
+    { id: "q2", question: "New?", options: ["x", "y"], correctIndex: 1 },
+  );
   const { selectTodayComprehensionQuestion } = await importLib();
   const q = await selectTodayComprehensionQuestion("a1");
   assert.ok(q);
@@ -336,9 +354,7 @@ test("selects the most recently added question (no correctIndex leaked)", async 
 
 test("correct MCQ answer grades server-side and records a strong signal", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ id: "q1", options: ["a", "b", "c"], correctIndex: 2 }),
-  ];
+  seedQuizQuestions({ id: "q1", options: ["a", "b", "c"], correctIndex: 2 });
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
     userId: USER_ID,
@@ -360,9 +376,7 @@ test("correct MCQ answer grades server-side and records a strong signal", async 
 
 test("vocabulary_in_context wrong answer triggers remediation + vocabulary signal", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ id: "q9", question: "Word?" }),
-  ];
+  seedQuizQuestions({ id: "q9", question: "Word?" });
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
     userId: USER_ID,
@@ -384,9 +398,7 @@ test("vocabulary_in_context wrong answer triggers remediation + vocabulary signa
 
 test("a question id from another article is ignored (mcqCorrect stays null)", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ id: "qx", articleId: "other", options: ["a"] }),
-  ];
+  seedQuizQuestions({ id: "qx", articleId: "other", options: ["a"] });
   const { submitTodayComprehension } = await importLib();
   const res = await submitTodayComprehension({
     userId: USER_ID,
@@ -465,9 +477,7 @@ test("route: POST completes comprehension and returns safe state", async () => {
 
 test("route: GET returns the optional question without correctIndex", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ correctIndex: 1 }),
-  ];
+  seedQuizQuestions({ correctIndex: 1 });
   const res = await GET();
   assert.equal(res.status, 200);
   const body = (await res.json()) as {
@@ -505,9 +515,7 @@ const ALLOWED_SKILL_TAGS = new Set([
 
 test("privacy: persisted feedback row contains only ids/enums/booleans", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ question: "Secret question?", options: ["opt a", "opt b"] }),
-  ];
+  seedQuizQuestions({ question: "Secret question?", options: ["opt a", "opt b"] });
   const { submitTodayComprehension } = await importLib();
   await submitTodayComprehension({
     userId: USER_ID,
@@ -536,9 +544,7 @@ test("privacy: persisted feedback row contains only ids/enums/booleans", async (
 
 test("privacy: today_comprehension_submitted analytics payload is enums/booleans only", async () => {
   sessionRow = makeRow();
-  quizQuestions = [
-    makeQuizQuestion({ question: "Hidden?", options: ["x", "y"] }),
-  ];
+  seedQuizQuestions({ question: "Hidden?", options: ["x", "y"] });
   const { submitTodayComprehension } = await importLib();
   await submitTodayComprehension({
     userId: USER_ID,

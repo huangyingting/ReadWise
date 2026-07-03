@@ -38,6 +38,14 @@ export type Block =
 
 const INLINE_RE = /\*\*([^*]*)\*\*|`([^`]*)`/g;
 
+function pushTextToken(tokens: InlineToken[], value: string): void {
+  tokens.push({ type: "text", value });
+}
+
+function tokenizeListItems(lines: string[], marker: RegExp): InlineToken[][] {
+  return lines.map((line) => tokenizeInline(line.replace(marker, "")));
+}
+
 /**
  * Tokenize a single line of text into inline tokens.
  * The result never contains any HTML — only text/bold/code tokens.
@@ -51,7 +59,7 @@ export function tokenizeInline(text: string): InlineToken[] {
     const idx = match.index!;
 
     if (idx > lastIndex) {
-      tokens.push({ type: "text", value: text.slice(lastIndex, idx) });
+      pushTextToken(tokens, text.slice(lastIndex, idx));
     }
 
     if (boldText !== undefined) {
@@ -64,7 +72,7 @@ export function tokenizeInline(text: string): InlineToken[] {
   }
 
   if (lastIndex < text.length) {
-    tokens.push({ type: "text", value: text.slice(lastIndex) });
+    pushTextToken(tokens, text.slice(lastIndex));
   }
 
   // If nothing matched at all, return a single text token
@@ -98,12 +106,12 @@ export function tokenizeBlocks(answer: string): Block[] {
     if (allUl) {
       blocks.push({
         type: "ul",
-        items: lines.map((l) => tokenizeInline(l.replace(UL_RE, ""))),
+        items: tokenizeListItems(lines, UL_RE),
       });
     } else if (allOl) {
       blocks.push({
         type: "ol",
-        items: lines.map((l) => tokenizeInline(l.replace(OL_RE, ""))),
+        items: tokenizeListItems(lines, OL_RE),
       });
     } else {
       blocks.push({

@@ -12,6 +12,12 @@
 import { prisma } from "@/lib/prisma";
 import { dateKey } from "./time";
 
+const DEFAULT_DAILY_GOAL = 2;
+const DEFAULT_TIMEZONE = "UTC";
+const ACTIVITY_HISTORY_DAYS = 1095;
+const ONE_DAY_MS = 86_400_000;
+const LAST_7_DAYS = 7;
+
 /** Consecutive active days required to earn a streak shield. */
 export const SHIELD_EARN_STREAK = 7;
 
@@ -33,6 +39,87 @@ export type StreakSummary = {
   streakShields: number;
 };
 
+type ActivityRow = {
+  date: Date;
+  articlesRead: number;
+};
+
+function activityDateKey(activity: ActivityRow): string {
+  return activity.date.toISOString().slice(0, 10);
+}
+
+function activeDateKeys(activities: ActivityRow[]): Set<string> {
+  const activeDates = new Set<string>();
+  for (const activity of activities) {
+    if (activity.articlesRead > 0) activeDates.add(activityDateKey(activity));
+  }
+  return activeDates;
+}
+
+function findTodayProgress(activities: ActivityRow[], today: string): number {
+  return (
+    activities.find((activity) => activityDateKey(activity) === today)
+      ?.articlesRead ?? 0
+  );
+}
+
+function resolveStreakAnchor(
+  activeDates: Set<string>,
+  today: string,
+  yesterday: string,
+): string | null {
+  if (activeDates.has(today)) return today;
+  if (activeDates.has(yesterday)) return yesterday;
+  return null;
+}
+
+function countConsecutiveActiveDays(
+  activeDates: Set<string>,
+  anchor: string | null,
+): number {
+  if (!anchor) return 0;
+
+  let count = 0;
+  let cursor = new Date(anchor + "T00:00:00Z");
+  while (activeDates.has(cursor.toISOString().slice(0, 10))) {
+    count++;
+    cursor = new Date(cursor.getTime() - ONE_DAY_MS);
+  }
+  return count;
+}
+
+function computeLongestStreak(activeDates: Set<string>): number {
+  let longestStreak = 0;
+  let run = 0;
+  let prevMs: number | null = null;
+
+  for (const key of [...activeDates].sort()) {
+    const ms = new Date(key + "T00:00:00Z").getTime();
+    if (prevMs !== null && ms - prevMs === ONE_DAY_MS) {
+      run++;
+    } else {
+      run = 1;
+    }
+    longestStreak = Math.max(longestStreak, run);
+    prevMs = ms;
+  }
+
+  return longestStreak;
+}
+
+function buildLast7Days(
+  now: Date,
+  timezone: string,
+  activeDates: Set<string>,
+): DayActivity[] {
+  const days: DayActivity[] = [];
+  for (let i = LAST_7_DAYS - 1; i >= 0; i--) {
+    const key = dateKey(new Date(now.getTime() - i * ONE_DAY_MS), timezone);
+    days.push({ date: key, active: activeDates.has(key) });
+  }
+  return days;
+}
+
 /**
  * Returns streak statistics, the last-7-days dot-row, and the shield count
  * for the dashboard gamification widgets.
@@ -49,7 +136,7 @@ export async function getStreakSummary(userId: string, now?: Date): Promise<Stre
       where: { userId },
       orderBy: { date: "desc" },
       select: { date: true, articlesRead: true },
-      take: 1095, // 3 years of daily rows
+      take: ACTIVITY_HISTORY_DAYS, // 3 years of daily rows
     }),
     prisma.profile.findUnique({
       where: { userId },
@@ -57,63 +144,20 @@ export async function getStreakSummary(userId: string, now?: Date): Promise<Stre
     }),
   ]);
 
-  const dailyGoal = profile?.dailyGoal ?? 2;
-  const tz = profile?.timezone ?? "UTC";
+  const dailyGoal = profile?.dailyGoal ?? DEFAULT_DAILY_GOAL;
+  const tz = profile?.timezone ?? DEFAULT_TIMEZONE;
   const streakShields = profile?.streakShields ?? 0;
-
-  const activeDates = new Set<string>();
-  for (const a of activities) {
-    if (a.articlesRead > 0) activeDates.add(a.date.toISOString().slice(0, 10));
-  }
 
   now = now ?? new Date();
   const todayStr = dateKey(now, tz);
-  const yesterdayStr = dateKey(new Date(now.getTime() - 86_400_000), tz);
+  const yesterdayStr = dateKey(new Date(now.getTime() - ONE_DAY_MS), tz);
+  const activeDates = activeDateKeys(activities);
 
-  const todayRow = activities.find(
-    (a) => a.date.toISOString().slice(0, 10) === todayStr,
-  );
-  const todayProgress = todayRow?.articlesRead ?? 0;
-
-  // Streak anchor: today if active, yesterday otherwise
-  let currentStreak = 0;
-  let anchorStr: string | null = null;
-  if (activeDates.has(todayStr)) {
-    anchorStr = todayStr;
-  } else if (activeDates.has(yesterdayStr)) {
-    anchorStr = yesterdayStr;
-  }
-
-  if (anchorStr) {
-    let cursor = new Date(anchorStr + "T00:00:00Z");
-    while (activeDates.has(cursor.toISOString().slice(0, 10))) {
-      currentStreak++;
-      cursor = new Date(cursor.getTime() - 86_400_000);
-    }
-  }
-
-  // Longest streak: scan sorted active dates
-  let longestStreak = 0;
-  let run = 0;
-  let prevMs: number | null = null;
-  for (const key of [...activeDates].sort()) {
-    const ms = new Date(key + "T00:00:00Z").getTime();
-    if (prevMs !== null && ms - prevMs === 86_400_000) {
-      run++;
-    } else {
-      run = 1;
-    }
-    longestStreak = Math.max(longestStreak, run);
-    prevMs = ms;
-  }
-
-  // Last 7 days (oldest → newest) using the user's local timezone
-  const last7Days: DayActivity[] = [];
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(now.getTime() - i * 86_400_000);
-    const key = dateKey(d, tz);
-    last7Days.push({ date: key, active: activeDates.has(key) });
-  }
+  const todayProgress = findTodayProgress(activities, todayStr);
+  const anchorStr = resolveStreakAnchor(activeDates, todayStr, yesterdayStr);
+  const currentStreak = countConsecutiveActiveDays(activeDates, anchorStr);
+  const longestStreak = computeLongestStreak(activeDates);
+  const last7Days = buildLast7Days(now, tz, activeDates);
 
   return {
     currentStreak,

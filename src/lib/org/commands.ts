@@ -70,6 +70,10 @@ function countOrgAdmins(orgId: string): Promise<number> {
   return prisma.membership.count({ where: { orgId, role: "OrgAdmin" } });
 }
 
+async function isLastOrgAdmin(membership: Membership, orgId: string): Promise<boolean> {
+  return membership.role === "OrgAdmin" && (await countOrgAdmins(orgId)) <= 1;
+}
+
 /**
  * Updates a member's role, refusing to demote the LAST OrgAdmin (a tenant must
  * always retain at least one administrator).
@@ -81,11 +85,8 @@ export async function updateMemberRole(
 ): Promise<DomainResult<{ role: MembershipRole }>> {
   const membership = await getMembership(userId, orgId);
   if (!membership) return notFound("Membership not found");
-  if (membership.role === "OrgAdmin" && role !== "OrgAdmin") {
-    const admins = await countOrgAdmins(orgId);
-    if (admins <= 1) {
-      return conflict("Cannot demote the last organization admin");
-    }
+  if (role !== "OrgAdmin" && (await isLastOrgAdmin(membership, orgId))) {
+    return conflict("Cannot demote the last organization admin");
   }
   await prisma.membership.update({
     where: { userId_orgId: { userId, orgId } },
@@ -101,11 +102,8 @@ export async function removeMember(
 ): Promise<DomainResult> {
   const membership = await getMembership(userId, orgId);
   if (!membership) return notFound("Membership not found");
-  if (membership.role === "OrgAdmin") {
-    const admins = await countOrgAdmins(orgId);
-    if (admins <= 1) {
-      return conflict("Cannot remove the last organization admin");
-    }
+  if (await isLastOrgAdmin(membership, orgId)) {
+    return conflict("Cannot remove the last organization admin");
   }
   await prisma.membership.delete({ where: { userId_orgId: { userId, orgId } } });
   return ok();

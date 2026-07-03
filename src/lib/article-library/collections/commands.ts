@@ -17,6 +17,10 @@ import { type DomainResult, ok, notFound, conflict } from "@/lib/result";
 import { getReadableArticleById } from "../policy";
 import { getOrCreateDefaultList } from "./default-list-policy";
 
+function findOwnedList(listId: string, userId: string) {
+  return prisma.readingList.findFirst({ where: { id: listId, userId } });
+}
+
 /** Creates a new (non-default) named list for the user. */
 export async function createList(
   userId: string,
@@ -33,7 +37,7 @@ export async function renameList(
   userId: string,
   name: string,
 ): Promise<DomainResult<{ list: { id: string; name: string } }>> {
-  const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
+  const existing = await findOwnedList(listId, userId);
   if (!existing) return notFound("List not found");
   const updated = await prisma.readingList.update({ where: { id: listId }, data: { name } });
   return ok({ list: { id: updated.id, name: updated.name } });
@@ -46,7 +50,7 @@ export async function deleteList(
   listId: string,
   userId: string,
 ): Promise<DomainResult> {
-  const existing = await prisma.readingList.findFirst({ where: { id: listId, userId } });
+  const existing = await findOwnedList(listId, userId);
   if (!existing) return notFound("List not found");
   if (existing.isDefault) {
     return conflict("Cannot delete the default list");
@@ -66,7 +70,7 @@ export async function addToList(
   articleId: string,
   role?: string | null,
 ): Promise<DomainResult> {
-  const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
+  const list = await findOwnedList(listId, userId);
   if (!list) return notFound("List not found");
   const article = await getReadableArticleById(articleId, { role, userId });
   if (!article) return notFound("Article not found");
@@ -86,7 +90,7 @@ export async function removeFromList(
   userId: string,
   articleId: string,
 ): Promise<DomainResult> {
-  const list = await prisma.readingList.findFirst({ where: { id: listId, userId } });
+  const list = await findOwnedList(listId, userId);
   if (!list) return notFound("List not found");
   await prisma.readingListItem.deleteMany({ where: { listId, articleId } });
   return ok();
@@ -113,8 +117,7 @@ export async function toggleBookmark(
   if (existing) {
     await prisma.readingListItem.delete({ where: { id: existing.id } });
     return ok({ bookmarked: false });
-  } else {
-    await prisma.readingListItem.create({ data: { listId: defaultList.id, articleId } });
-    return ok({ bookmarked: true });
   }
+  await prisma.readingListItem.create({ data: { listId: defaultList.id, articleId } });
+  return ok({ bookmarked: true });
 }

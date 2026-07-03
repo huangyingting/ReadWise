@@ -6,6 +6,8 @@ import { AssignmentStatus, JobStatus, JobType, Prisma } from "@prisma/client";
 
 type AnyArgs = Record<string, any>;
 
+const JOB_FIXTURE_DATE = "2026-01-01T12:00:00.000Z";
+
 const logger = {
   debug: () => {},
   error: () => {},
@@ -40,7 +42,7 @@ let currentSession: { user: { id: string; role?: string | null } };
 let classroomProgressData: Record<string, any> | null;
 
 function makeJob(overrides: Record<string, unknown> = {}) {
-  const now = new Date("2026-01-01T12:00:00.000Z");
+  const now = new Date(JOB_FIXTURE_DATE);
   return {
     id: "job-1",
     type: JobType.ARTICLE_PROCESS,
@@ -71,6 +73,37 @@ function organization(id: string, slug: string): Record<string, unknown> {
 
 function membershipKey(userId: string, orgId: string): string {
   return `${userId}:${orgId}`;
+}
+
+function resetMockState(): void {
+  jobFindManyArgs = [];
+  jobFindManyRows = [makeJob()];
+  jobFindUniqueArgs = [];
+  jobById = makeJob();
+  jobCountArgs = [];
+  jobCountResult = 1;
+  jobCreateArgs = [];
+  jobCreateError = null;
+  dedupeWinner = null;
+  jobGroupRowsByStatus = [
+    { status: JobStatus.PENDING, _count: { _all: 2 } },
+    { status: JobStatus.FAILED, _count: { _all: 1 } },
+  ];
+  jobGroupRowsByType = [{ type: JobType.ARTICLE_PROCESS, _count: { _all: 3 } }];
+  jobUpdates = [];
+  jobUpdateError = null;
+  jobDeletes = [];
+  queryRawRows = [];
+  queryRawCalls = [];
+  metricCalls = [];
+  organizationsById = new Map([["org-1", organization("org-1", "readers")]]);
+  organizationsBySlug = new Map([["readers", organization("org-1", "readers")]]);
+  membershipsByKey = new Map();
+  membershipFindManyRows = [];
+  membershipUpserts = [];
+  profileById = new Map();
+  currentSession = { user: { id: "user-1", role: "Reader" } };
+  classroomProgressData = null;
 }
 
 before(() => {
@@ -192,36 +225,7 @@ before(() => {
   });
 });
 
-beforeEach(() => {
-  jobFindManyArgs = [];
-  jobFindManyRows = [makeJob()];
-  jobFindUniqueArgs = [];
-  jobById = makeJob();
-  jobCountArgs = [];
-  jobCountResult = 1;
-  jobCreateArgs = [];
-  jobCreateError = null;
-  dedupeWinner = null;
-  jobGroupRowsByStatus = [
-    { status: JobStatus.PENDING, _count: { _all: 2 } },
-    { status: JobStatus.FAILED, _count: { _all: 1 } },
-  ];
-  jobGroupRowsByType = [{ type: JobType.ARTICLE_PROCESS, _count: { _all: 3 } }];
-  jobUpdates = [];
-  jobUpdateError = null;
-  jobDeletes = [];
-  queryRawRows = [];
-  queryRawCalls = [];
-  metricCalls = [];
-  organizationsById = new Map([["org-1", organization("org-1", "readers")]]);
-  organizationsBySlug = new Map([["readers", organization("org-1", "readers")]]);
-  membershipsByKey = new Map();
-  membershipFindManyRows = [];
-  membershipUpserts = [];
-  profileById = new Map();
-  currentSession = { user: { id: "user-1", role: "Reader" } };
-  classroomProgressData = null;
-});
+beforeEach(resetMockState);
 
 test("job query helpers build Prisma filters and aggregate counts", async () => {
   const {

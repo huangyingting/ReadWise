@@ -54,6 +54,61 @@ function getScoreVariant(accuracy: number): ScoreVariant {
   return "bad";
 }
 
+function renderDiffToken(tok: DiffToken, index: number) {
+  if (tok.status === "correct") {
+    return (
+      <span
+        key={index}
+        className="rw-dictate-word rw-dictate-word--correct"
+        title="Correct"
+      >
+        {tok.word}
+      </span>
+    );
+  }
+
+  if (tok.status === "wrong") {
+    return (
+      <span
+        key={index}
+        className="rw-dictate-word rw-dictate-word--wrong"
+        title={`You typed: "${tok.typed}"`}
+        aria-label={`"${tok.typed}" should be "${tok.word}"`}
+      >
+        {tok.typed}
+        <span className="rw-dictate-correction" aria-hidden>
+          {" "}
+          → {tok.word}
+        </span>
+      </span>
+    );
+  }
+
+  if (tok.status === "missing") {
+    return (
+      <span
+        key={index}
+        className="rw-dictate-word rw-dictate-word--missing"
+        title="Missed word"
+        aria-label={`Missed word: "${tok.word}"`}
+      >
+        {tok.word}
+      </span>
+    );
+  }
+
+  return (
+    <span
+      key={index}
+      className="rw-dictate-word rw-dictate-word--extra"
+      title="Extra word not in original"
+      aria-label={`Extra word: "${tok.word}"`}
+    >
+      {tok.word}
+    </span>
+  );
+}
+
 export default function ArticleDictation({
   articleId,
   plainText,
@@ -294,58 +349,7 @@ function DiffDisplay({
         Reference: <em>{reference}</em>
       </p>
       <p className="rw-dictate-diff-tokens" aria-live="polite">
-        {tokens.map((tok, i) => {
-          if (tok.status === "correct") {
-            return (
-              <span
-                key={i}
-                className="rw-dictate-word rw-dictate-word--correct"
-                title="Correct"
-              >
-                {tok.word}
-              </span>
-            );
-          }
-          if (tok.status === "wrong") {
-            return (
-              <span
-                key={i}
-                className="rw-dictate-word rw-dictate-word--wrong"
-                title={`You typed: "${tok.typed}"`}
-                aria-label={`"${tok.typed}" should be "${tok.word}"`}
-              >
-                {tok.typed}
-                <span className="rw-dictate-correction" aria-hidden>
-                  {" "}
-                  → {tok.word}
-                </span>
-              </span>
-            );
-          }
-          if (tok.status === "missing") {
-            return (
-              <span
-                key={i}
-                className="rw-dictate-word rw-dictate-word--missing"
-                title="Missed word"
-                aria-label={`Missed word: "${tok.word}"`}
-              >
-                {tok.word}
-              </span>
-            );
-          }
-          // extra
-          return (
-            <span
-              key={i}
-              className="rw-dictate-word rw-dictate-word--extra"
-              title="Extra word not in original"
-              aria-label={`Extra word: "${tok.word}"`}
-            >
-              {tok.word}
-            </span>
-          );
-        })}
+        {tokens.map(renderDiffToken)}
       </p>
     </div>
   );

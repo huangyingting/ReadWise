@@ -35,6 +35,19 @@ function hasTokenType(tokens: InlineToken[], type: string): boolean {
   return tokens.some((t) => t.type === type);
 }
 
+function paragraphTokens(input: string): InlineToken[] {
+  const blocks = tokenizeBlocks(input);
+  assert.equal(blocks.length, 1);
+  assert.equal(blocks[0].type, "paragraph");
+  const para = blocks[0] as Extract<Block, { type: "paragraph" }>;
+  return para.lines[0];
+}
+
+function assertToken(token: InlineToken, type: InlineToken["type"], value: string): void {
+  assert.equal(token.type, type);
+  assert.equal(token.value, value);
+}
+
 // ---------------------------------------------------------------------------
 // XSS safety — the critical contract
 // ---------------------------------------------------------------------------
@@ -42,33 +55,25 @@ function hasTokenType(tokens: InlineToken[], type: string): boolean {
 describe("XSS safety — HTML/script input renders as literal text", () => {
   test("script tag becomes a plain text token, never a 'script' element type", () => {
     const input = '<script>alert("xss")</script>';
-    const blocks = tokenizeBlocks(input);
-    assert.equal(blocks.length, 1);
-    assert.equal(blocks[0].type, "paragraph");
-    const para = blocks[0] as Extract<Block, { type: "paragraph" }>;
+    const tokens = paragraphTokens(input);
     // Must be a single text token with the literal string
-    const tokens = para.lines[0];
     assert.equal(tokens.length, 1);
-    assert.equal(tokens[0].type, "text");
-    assert.equal(tokens[0].value, input);
+    assertToken(tokens[0], "text", input);
   });
 
   test("img onerror payload stays as plain text", () => {
     const input = '<img src=x onerror="alert(1)">';
-    const blocks = tokenizeBlocks(input);
-    const para = blocks[0] as Extract<Block, { type: "paragraph" }>;
-    const text = joinTokenText(para.lines[0]);
+    const tokens = paragraphTokens(input);
+    const text = joinTokenText(tokens);
     assert.equal(text, input, "img tag is literal text");
     // No bold or code token produced
-    assert.ok(!hasTokenType(para.lines[0], "bold"));
-    assert.ok(!hasTokenType(para.lines[0], "code"));
+    assert.ok(!hasTokenType(tokens, "bold"));
+    assert.ok(!hasTokenType(tokens, "code"));
   });
 
   test("HTML entity-like text is not interpreted", () => {
     const input = "&lt;script&gt;alert(1)&lt;/script&gt;";
-    const blocks = tokenizeBlocks(input);
-    const para = blocks[0] as Extract<Block, { type: "paragraph" }>;
-    assert.equal(joinTokenText(para.lines[0]), input);
+    assert.equal(joinTokenText(paragraphTokens(input)), input);
   });
 
   test("nested HTML inside **bold** markers stays as bold value text only", () => {
@@ -77,8 +82,7 @@ describe("XSS safety — HTML/script input renders as literal text", () => {
     const input = "**<em>bold and evil</em>**";
     const tokens = tokenizeInline(input);
     assert.equal(tokens.length, 1);
-    assert.equal(tokens[0].type, "bold");
-    assert.equal(tokens[0].value, "<em>bold and evil</em>");
+    assertToken(tokens[0], "bold", "<em>bold and evil</em>");
   });
 
   test("javascript: URL in text is treated as literal text", () => {
@@ -86,7 +90,7 @@ describe("XSS safety — HTML/script input renders as literal text", () => {
     const tokens = tokenizeInline(input);
     // The whole string is one text token (no markdown matches)
     assert.equal(tokens.length, 1);
-    assert.equal(tokens[0].type, "text");
+    assertToken(tokens[0], "text", input);
     assert.ok(tokens[0].value.includes("javascript:"));
   });
 });
@@ -99,19 +103,15 @@ describe("tokenizeInline — inline markdown parsing", () => {
   test("plain text returns a single text token", () => {
     const tokens = tokenizeInline("Hello, world!");
     assert.equal(tokens.length, 1);
-    assert.equal(tokens[0].type, "text");
-    assert.equal(tokens[0].value, "Hello, world!");
+    assertToken(tokens[0], "text", "Hello, world!");
   });
 
   test("**bold** produces a bold token", () => {
     const tokens = tokenizeInline("This is **bold** text.");
     assert.equal(tokens.length, 3);
-    assert.equal(tokens[0].type, "text");
-    assert.equal(tokens[0].value, "This is ");
-    assert.equal(tokens[1].type, "bold");
-    assert.equal(tokens[1].value, "bold");
-    assert.equal(tokens[2].type, "text");
-    assert.equal(tokens[2].value, " text.");
+    assertToken(tokens[0], "text", "This is ");
+    assertToken(tokens[1], "bold", "bold");
+    assertToken(tokens[2], "text", " text.");
   });
 
   test("`code` produces a code token", () => {
@@ -124,18 +124,15 @@ describe("tokenizeInline — inline markdown parsing", () => {
   test("bold and code can coexist in the same line", () => {
     const tokens = tokenizeInline("**important** and `code`");
     assert.equal(tokens.length, 3);
-    assert.equal(tokens[0].type, "bold");
-    assert.equal(tokens[0].value, "important");
+    assertToken(tokens[0], "bold", "important");
     assert.equal(tokens[1].type, "text");
-    assert.equal(tokens[2].type, "code");
-    assert.equal(tokens[2].value, "code");
+    assertToken(tokens[2], "code", "code");
   });
 
   test("empty string returns single empty text token", () => {
     const tokens = tokenizeInline("");
     assert.equal(tokens.length, 1);
-    assert.equal(tokens[0].type, "text");
-    assert.equal(tokens[0].value, "");
+    assertToken(tokens[0], "text", "");
   });
 
   test("unmatched ** is treated as plain text", () => {
@@ -219,10 +216,8 @@ describe("tokenizeBlocks — block structure parsing", () => {
     const blocks = tokenizeBlocks("- **Key** point\n- Another point");
     const ul = blocks[0] as Extract<Block, { type: "ul" }>;
     const firstItem = ul.items[0];
-    assert.equal(firstItem[0].type, "bold");
-    assert.equal(firstItem[0].value, "Key");
-    assert.equal(firstItem[1].type, "text");
-    assert.equal(firstItem[1].value, " point");
+    assertToken(firstItem[0], "bold", "Key");
+    assertToken(firstItem[1], "text", " point");
   });
 
   test("code inside a paragraph is tokenized correctly", () => {

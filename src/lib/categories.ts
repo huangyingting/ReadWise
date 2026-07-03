@@ -33,6 +33,14 @@ export const CATEGORIES: readonly Category[] = [
 
 export const CATEGORY_SLUGS: readonly string[] = CATEGORIES.map((c) => c.slug);
 
+function findCategory(slug: string): Category | undefined {
+  return CATEGORIES.find((c) => c.slug === slug);
+}
+
+function titleCaseWord(word: string): string {
+  return word.length > 0 ? word[0].toUpperCase() + word.slice(1) : word;
+}
+
 /** Deterministic gradient tints for each category — used by card placeholders. */
 export const CATEGORY_COLORS: Record<string, { from: string; to: string }> = {
   world:         { from: "#3b82f6", to: "#1d4ed8" },
@@ -66,11 +74,11 @@ export function isValidCategorySlug(slug: string): boolean {
  * each word Title-Cased) — never returns a raw lowercase slug.
  */
 export function humanizeCategorySlug(slug: string): string {
-  const registered = CATEGORIES.find((c) => c.slug === slug);
+  const registered = findCategory(slug);
   if (registered) return registered.label;
   return slug
     .split(/[-_]+/)
-    .map((w) => (w.length > 0 ? w[0].toUpperCase() + w.slice(1) : w))
+    .map(titleCaseWord)
     .join(" ");
 }
 
@@ -87,7 +95,7 @@ const READING_SUITABILITY_RANKS: Record<ReadingSuitability, number> = {
  */
 export function readingSuitabilityOf(slug: string | null): ReadingSuitability {
   if (slug == null) return "medium";
-  return CATEGORIES.find((c) => c.slug === slug)?.readingSuitability ?? "medium";
+  return findCategory(slug)?.readingSuitability ?? "medium";
 }
 
 /**

@@ -64,6 +64,21 @@ type HearItButtonProps = {
   ariaDisabled?: boolean;
 };
 
+type ErrorPhase = "mic-denied" | "no-device" | "error";
+
+function isErrorPhase(phase: string): phase is ErrorPhase {
+  return phase === "mic-denied" || phase === "no-device" || phase === "error";
+}
+
+function showsPrivacyNotice(phase: string) {
+  return (
+    phase === "idle" ||
+    phase === "mic-denied" ||
+    phase === "no-device" ||
+    phase === "error"
+  );
+}
+
 function HearItButton({
   label,
   size,
@@ -159,6 +174,11 @@ export default function ArticlePronunciation({
   // Render
   // ─────────────────────────────────────────────────────────────────────────
 
+  const phase = session.phase;
+  const isIdle = phase === "idle";
+  const isRecording = phase === "recording";
+  const isResult = phase === "result";
+
   if (session.sentenceCount === 0) {
     return (
       <EmptyState
@@ -169,7 +189,7 @@ export default function ArticlePronunciation({
     );
   }
 
-  if (session.phase === "init") {
+  if (phase === "init") {
     return (
       <p className="muted" aria-live="polite">
         <Spinner size="sm" className="text-text-subtle" label="Loading pronunciation tools…" />
@@ -177,7 +197,7 @@ export default function ArticlePronunciation({
     );
   }
 
-  if (session.phase === "unavailable") {
+  if (phase === "unavailable") {
     return (
       <div className="rw-speak-panel">
         <EmptyState
@@ -216,19 +236,15 @@ export default function ArticlePronunciation({
 
       {/* ── Reference sentence (with word-band highlight in result phase) */}
       <SentenceCard
-        sentence={session.currentSentence}
-        wordResults={
-          session.phase === "result" && session.result
-            ? session.result.words
-            : null
-        }
+       sentence={session.currentSentence}
+       wordResults={isResult && session.result ? session.result.words : null}
       />
 
       {/* ── Result block ─────────────────────────────────────────────── */}
-      {session.phase === "result" && session.result ? (
-        <PronunciationResult
-          result={session.result}
-          sentenceHistory={session.sentenceHistory}
+      {isResult && session.result ? (
+       <PronunciationResult
+         result={session.result}
+         sentenceHistory={session.sentenceHistory}
           savedNote={session.savedNote}
           isNewBest={session.isNewBest}
           onRecordAgain={session.handleRecordAgain}
@@ -236,7 +252,7 @@ export default function ArticlePronunciation({
       ) : null}
 
       {/* ── Recording state ───────────────────────────────────────────── */}
-      {session.phase === "recording" ? (
+      {isRecording ? (
         <RecordingPanel
           meterLevel={session.meterLevel}
           secondsRemaining={session.secondsRemaining}
@@ -244,23 +260,21 @@ export default function ArticlePronunciation({
       ) : null}
 
       {/* ── Processing state ──────────────────────────────────────────── */}
-      {session.phase === "processing" ? (
+      {phase === "processing" ? (
         <p className="muted" aria-live="polite">
           Analysing your pronunciation…
         </p>
       ) : null}
 
       {/* ── Error states (mic-denied / no-device / network error) ─────── */}
-      {(session.phase === "mic-denied" ||
-        session.phase === "no-device" ||
-        session.phase === "error") ? (
+      {isErrorPhase(phase) ? (
         <ErrorNotice
-          type={session.phase}
+          type={phase}
           errorMsg={session.errorMsg}
           onRetry={
-            session.phase === "error"
+            phase === "error"
               ? () => void session.handleRetry()
-              : session.phase === "mic-denied"
+              : phase === "mic-denied"
                 ? session.handleMicDeniedRetry
                 : session.handleNoDeviceRetry
           }
@@ -268,9 +282,9 @@ export default function ArticlePronunciation({
       ) : null}
 
       {/* ── Controls (Record + Hear it) ───────────────────────────────── */}
-      {(session.phase === "idle" || session.phase === "recording") && (
+      {(isIdle || isRecording) && (
         <div className="rw-speak-controls">
-          {session.phase === "idle" ? (
+          {isIdle ? (
             <Button
               variant="primary"
               size="md"
@@ -309,7 +323,7 @@ export default function ArticlePronunciation({
       )}
 
       {/* ── Record-again controls ─────────────────────────────────────── */}
-      {session.phase === "result" && (
+      {isResult && (
         <div className="rw-speak-controls">
           <HearItButton
             label="Hear it"
@@ -323,10 +337,7 @@ export default function ArticlePronunciation({
       )}
 
       {/* ── Privacy notice ────────────────────────────────────────────── */}
-      {(session.phase === "idle" ||
-        session.phase === "mic-denied" ||
-        session.phase === "no-device" ||
-        session.phase === "error") && (
+      {showsPrivacyNotice(phase) && (
         <p className="rw-speak-privacy">
           Your recording is streamed securely to Azure for scoring and is never
           stored by ReadWise — only the numeric scores are saved.
@@ -334,7 +345,7 @@ export default function ArticlePronunciation({
       )}
 
       {/* ── Per-sentence history (idle) ───────────────────────────────── */}
-      {session.phase === "idle" && session.sentenceHistory.best !== null && (
+      {isIdle && session.sentenceHistory.best !== null && (
         <div className="rw-speak-history-line">
           <span className="rw-speak-best-badge">
             <Star size={12} aria-hidden />

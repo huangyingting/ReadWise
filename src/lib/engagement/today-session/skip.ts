@@ -48,6 +48,38 @@ export type SkipResult = {
   promotedBackupIds: string[];
 };
 
+function skipLimitReachedResult(session: TodaySessionView): SkipResult {
+  return {
+    session,
+    skipped: false,
+    limitReached: true,
+    browseFallback: session.status === "skipped",
+    promotedBackupIds: session.backupArticleIds,
+  };
+}
+
+function backupIdsWithDismissedPrimary(session: TodaySessionView): string[] {
+  const dismissedId = session.primaryArticleId;
+  if (!dismissedId || session.backupArticleIds.includes(dismissedId)) {
+    return session.backupArticleIds;
+  }
+  return [...session.backupArticleIds, dismissedId];
+}
+
+function skippedResult(
+  session: TodaySessionView,
+  fallbackBackupIds: string[],
+  skipped: boolean,
+): SkipResult {
+  return {
+    session,
+    skipped,
+    limitReached: false,
+    browseFallback: true,
+    promotedBackupIds: fallbackBackupIds,
+  };
+}
+
 /**
  * Skip the learner's Today session for their local day.
  *
@@ -87,22 +119,12 @@ export async function skipTodaySession(args: {
   // Skip limit reached: a day already skipped or already completed cannot be
   // skipped again. Report gracefully with the browse fallback.
   if (session.status === "skipped" || session.status === "completed") {
-    return {
-      session,
-      skipped: false,
-      limitReached: true,
-      browseFallback: session.status === "skipped",
-      promotedBackupIds: session.backupArticleIds,
-    };
+    return skipLimitReachedResult(session);
   }
 
   // Retain the dismissed primary id as a known anchor (ids only) without
   // duplicating an id already present in the stable backup list.
-  const dismissedId = session.primaryArticleId;
-  const nextBackupIds =
-    dismissedId && !session.backupArticleIds.includes(dismissedId)
-      ? [...session.backupArticleIds, dismissedId]
-      : session.backupArticleIds;
+  const nextBackupIds = backupIdsWithDismissedPrimary(session);
 
   const updated = await updateTodaySession(args.userId, localDate, {
     status: "skipped",
@@ -123,11 +145,5 @@ export async function skipTodaySession(args: {
     await emitTodaySkip(result, { limitReached: false, browseFallback: true });
   }
 
-  return {
-    session: result,
-    skipped: updated != null,
-    limitReached: false,
-    browseFallback: true,
-    promotedBackupIds: session.backupArticleIds,
-  };
+  return skippedResult(result, session.backupArticleIds, updated != null);
 }

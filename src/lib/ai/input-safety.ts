@@ -33,6 +33,8 @@
 /** Default hard cap for a single untrusted field, unless overridden. */
 export const DEFAULT_MAX_UNTRUSTED_CHARS = 20_000;
 
+const REDACTION_MARKER = "[…]";
+
 /**
  * Standard instruction-isolation prefix appended to system prompts that embed
  * untrusted article content. Tells the model to treat the content as data, not
@@ -55,19 +57,34 @@ export const CONTENT_ISOLATION_NOTICE =
  */
 const INJECTION_PATTERNS: Array<[RegExp, string]> = [
   // OpenAI ChatML / Llama special-token delimiters — never legitimate in prose.
-  [/<\|im_(?:start|end)\|>/gi, "[…]"],
+  [/<\|im_(?:start|end)\|>/gi, REDACTION_MARKER],
   // Anthropic / Llama2 role-tag injection: <<SYS>>, [INST], [/INST], etc.
-  [/(?:<<?\/?(?:SYS|INST)>>?|\[\/?\s*(?:SYS|INST)\s*\])/gi, "[…]"],
+  [
+    /(?:<<?\/?(?:SYS|INST)>>?|\[\/?\s*(?:SYS|INST)\s*\])/gi,
+    REDACTION_MARKER,
+  ],
   // Role-spoofing at start of a line: "system:", "user:", "assistant:".
   [/^[ \t]*(system|user|assistant)\s*:\s*/gim, ""],
   // Classic direct injection: "ignore [all] previous instructions".
   [
     /\bignore\s+(?:all\s+)?(?:previous|prior|above)\s+(?:instructions?|prompts?|rules?|constraints?)\b/gi,
-    "[…]",
+    REDACTION_MARKER,
   ],
   // XML/HTML-like tags targeting our delimiter or system-prompt structures.
-  [/<\/?\s*(?:system|instruction|prompt)\s*>/gi, "[…]"],
+  [/<\/?\s*(?:system|instruction|prompt)\s*>/gi, REDACTION_MARKER],
 ];
+
+function capText(text: string, maxLength: number): string {
+  return text.length > maxLength ? text.slice(0, maxLength) : text;
+}
+
+function neutralizeInjectionMarkers(text: string): string {
+  let sanitized = text;
+  for (const [pattern, replacement] of INJECTION_PATTERNS) {
+    sanitized = sanitized.replace(pattern, replacement);
+  }
+  return sanitized;
+}
 
 /**
  * Sanitizes short user-controlled text before embedding it in an AI prompt.
@@ -90,11 +107,7 @@ export function sanitizeUntrustedText(
 ): string {
   if (!text) return text;
   const max = opts?.maxLength ?? DEFAULT_MAX_UNTRUSTED_CHARS;
-  let out = text.length > max ? text.slice(0, max) : text;
-  for (const [pattern, replacement] of INJECTION_PATTERNS) {
-    out = out.replace(pattern, replacement);
-  }
-  return out;
+  return neutralizeInjectionMarkers(capText(text, max));
 }
 
 /**
@@ -114,6 +127,6 @@ export function wrapUntrustedContent(
   maxLength = DEFAULT_MAX_UNTRUSTED_CHARS,
 ): string {
   if (!text) return text;
-  const capped = text.length > maxLength ? text.slice(0, maxLength) : text;
+  const capped = capText(text, maxLength);
   return `<${label}>\n${capped}\n</${label}>`;
 }

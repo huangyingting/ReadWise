@@ -92,6 +92,16 @@ type DifficultyPersistenceFields = {
   difficultyVersion: string;
 };
 
+const SCORE_LEVEL_THRESHOLDS: Array<{ max: number; level: DifficultyLevel }> = [
+  { max: 15, level: "A1" },
+  { max: 30, level: "A2" },
+  { max: 48, level: "B1" },
+  { max: 65, level: "B2" },
+  { max: 82, level: "C1" },
+];
+
+const SCORE_BOUNDARIES = SCORE_LEVEL_THRESHOLDS.map(({ max }) => max);
+
 /** Rough syllable count for a single word using vowel-group heuristics. */
 function countSyllables(word: string): number {
   const w = word.toLowerCase().replace(/[^a-z]/g, "");
@@ -131,6 +141,10 @@ function clamp(value: number, min: number, max: number): number {
 function round(value: number, places = 0): number {
   const factor = 10 ** places;
   return Math.round(value * factor) / factor;
+}
+
+function average(values: number[]): number {
+  return values.reduce((sum, value) => sum + value, 0) / values.length;
 }
 
 function scoreFromRange(value: number, easy: number, hard: number): number {
@@ -188,12 +202,7 @@ function lixScore(words: string[], sentenceCount: number): number | null {
 }
 
 function scoreToLevel(score: number): DifficultyLevel {
-  if (score <= 15) return "A1";
-  if (score <= 30) return "A2";
-  if (score <= 48) return "B1";
-  if (score <= 65) return "B2";
-  if (score <= 82) return "C1";
-  return "C2";
+  return SCORE_LEVEL_THRESHOLDS.find(({ max }) => score <= max)?.level ?? "C2";
 }
 
 /**
@@ -257,6 +266,16 @@ function difficultyPersistenceFields(
     lexileApprox: assessed.lexileApprox,
     difficultyVersion: assessed.version,
   };
+}
+
+function applyDifficultyFields(
+  article: StoredDifficultyArticle,
+  fields: DifficultyPersistenceFields,
+): void {
+  article.difficulty = fields.difficulty;
+  article.difficultyScore = fields.difficultyScore;
+  article.lexileApprox = fields.lexileApprox;
+  article.difficultyVersion = fields.difficultyVersion;
 }
 
 const BAND_PENALTY: Record<WordFrequencyBand, number> = {
@@ -336,9 +355,9 @@ function vocabularyScore(sentences: SentenceWords[]): number {
   }
 
   if (tokenPenalties.length === 0) return 50;
-  const tokenScore = tokenPenalties.reduce((sum, value) => sum + value, 0) / tokenPenalties.length;
+  const tokenScore = average(tokenPenalties);
   const uniqueValues = [...unique.values()];
-  const uniqueScore = uniqueValues.reduce((sum, value) => sum + value, 0) / Math.max(1, uniqueValues.length);
+  const uniqueScore = uniqueValues.length > 0 ? average(uniqueValues) : 0;
   return round(0.7 * tokenScore + 0.3 * uniqueScore, 1);
 }
 
@@ -365,7 +384,7 @@ function readabilityScore(text: string, words: string[], sentenceCount: number):
   }
 
   if (scores.length === 0) return 35;
-  return round(scores.reduce((sum, value) => sum + value, 0) / scores.length, 1);
+  return round(average(scores), 1);
 }
 
 function syntaxScore(text: string, sentences: SentenceWords[], words: string[]): number {
@@ -417,7 +436,9 @@ function lengthScore(wordCount: number): number {
 
 function confidenceFor(wordCount: number, sentenceCount: number, score: number): DifficultyConfidence {
   if (wordCount < 120 || sentenceCount < 4) return "low";
-  const nearestBoundaryDistance = Math.min(...[15, 30, 48, 65, 82].map((boundary) => Math.abs(score - boundary)));
+  const nearestBoundaryDistance = Math.min(
+    ...SCORE_BOUNDARIES.map((boundary) => Math.abs(score - boundary)),
+  );
   if (wordCount >= 500 && sentenceCount >= 12 && nearestBoundaryDistance >= 4) return "high";
   return "medium";
 }
@@ -557,10 +578,7 @@ export async function ensureArticleDifficulties(
     }
     const assessed = deterministicDifficulty(article.content);
     const fields = difficultyPersistenceFields(assessed);
-    article.difficulty = fields.difficulty;
-    article.difficultyScore = fields.difficultyScore;
-    article.lexileApprox = fields.lexileApprox;
-    article.difficultyVersion = fields.difficultyVersion;
+    applyDifficultyFields(article, fields);
     map.set(article.id, deterministicDifficultyResult(article.id, assessed));
     writes.push(
       prisma.article.update({

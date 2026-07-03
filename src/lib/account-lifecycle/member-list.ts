@@ -7,7 +7,7 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import type { Role } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 
 /** Page size for the admin member listing. */
 export const ADMIN_MEMBERS_PAGE_SIZE = 20;
@@ -45,6 +45,38 @@ function asRole(value: string | null | undefined): Role | null {
   return value === "Admin" || value === "Reader" ? value : null;
 }
 
+function normalizePage(page: number | undefined): number {
+  return Math.max(1, page ?? 1);
+}
+
+function buildMemberWhere(query: string, role: Role | null): Prisma.UserWhereInput {
+  return {
+    ...(role ? { role } : {}),
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query } },
+            { email: { contains: query } },
+          ],
+        }
+      : {}),
+  };
+}
+
+async function countCompletedArticlesByUser(
+  userIds: string[],
+): Promise<Map<string, number>> {
+  if (userIds.length === 0) return new Map();
+
+  const completedGroups = await prisma.readingProgress.groupBy({
+    by: ["userId"],
+    where: { userId: { in: userIds }, completed: true },
+    _count: { _all: true },
+  });
+
+  return new Map(completedGroups.map((g) => [g.userId, g._count._all]));
+}
+
 /**
  * Lists members for the admin area. Matches the query (case insensitively via
  * SQLite LIKE) against name and email, optionally restricts to a single role,
@@ -57,19 +89,9 @@ export async function listMembers(
   const query = (opts.query ?? "").trim();
   const role = asRole(opts.role ?? null);
   const pageSize = opts.pageSize ?? ADMIN_MEMBERS_PAGE_SIZE;
-  const page = Math.max(1, opts.page ?? 1);
+  const page = normalizePage(opts.page);
 
-  const where = {
-    ...(role ? { role } : {}),
-    ...(query
-      ? {
-          OR: [
-            { name: { contains: query } },
-            { email: { contains: query } },
-          ],
-        }
-      : {}),
-  };
+  const where = buildMemberWhere(query, role);
 
   const [total, rows] = await Promise.all([
     prisma.user.count({ where }),
@@ -90,16 +112,8 @@ export async function listMembers(
     }),
   ]);
 
-  const ids = rows.map((r) => r.id);
-  const completedGroups = ids.length
-    ? await prisma.readingProgress.groupBy({
-        by: ["userId"],
-        where: { userId: { in: ids }, completed: true },
-        _count: { _all: true },
-      })
-    : [];
-  const completedByUser = new Map(
-    completedGroups.map((g) => [g.userId, g._count._all]),
+  const completedByUser = await countCompletedArticlesByUser(
+    rows.map((row) => row.id),
   );
 
   const members: AdminMemberRow[] = rows.map((u) => ({

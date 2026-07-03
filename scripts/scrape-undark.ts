@@ -226,6 +226,23 @@ function errorMessage(err: unknown): string {
   return err instanceof Error ? err.message : String(err);
 }
 
+function relativeRepoPath(filePath: string): string {
+  return path.relative(repoRoot(), filePath);
+}
+
+function isVisitedOutcome(value: unknown): value is VisitedOutcome {
+  return value === "saved" || value === "duplicate" || value === "failed";
+}
+
+function emptyVisitedRecord(): VisitedRecord {
+  return {
+    version: VISITED_RECORD_VERSION,
+    provider: PROVIDER_KEY,
+    updatedAt: new Date(0).toISOString(),
+    urls: [],
+  };
+}
+
 function isVisitedRecord(value: unknown): value is VisitedRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as Partial<VisitedRecord>;
@@ -239,9 +256,7 @@ function isVisitedRecord(value: unknown): value is VisitedRecord {
         typeof entry.url === "string" &&
         typeof entry.firstVisitedAt === "string" &&
         typeof entry.lastVisitedAt === "string" &&
-        (entry.lastOutcome === "saved" ||
-          entry.lastOutcome === "duplicate" ||
-          entry.lastOutcome === "failed"),
+        isVisitedOutcome(entry.lastOutcome),
     )
   );
 }
@@ -252,23 +267,16 @@ async function readVisited(filePath: string): Promise<VisitedRecord> {
     const parsed: unknown = JSON.parse(raw);
     if (isVisitedRecord(parsed)) return parsed;
     console.warn(
-      `Visited record ${path.relative(repoRoot(), filePath)} is invalid; ignoring it.`,
+      `Visited record ${relativeRepoPath(filePath)} is invalid; ignoring it.`,
     );
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
       console.warn(
-        `Could not read visited record ${path.relative(repoRoot(), filePath)}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `Could not read visited record ${relativeRepoPath(filePath)}: ${errorMessage(err)}`,
       );
     }
   }
-  return {
-    version: VISITED_RECORD_VERSION,
-    provider: PROVIDER_KEY,
-    updatedAt: new Date(0).toISOString(),
-    urls: [],
-  };
+  return emptyVisitedRecord();
 }
 
 async function writeVisited(
@@ -383,6 +391,18 @@ function summarizeProgress(index: number, total: number, outcome: SaveOutcome): 
   }
 }
 
+function isSavedOutcome(outcome: SaveOutcome): boolean {
+  return outcome.status === "saved";
+}
+
+function isDuplicateSkipped(outcome: SaveOutcome): boolean {
+  return outcome.status === "skipped" && /duplicate/i.test(outcome.reason);
+}
+
+function isExtractionOrQualityFailure(outcome: SaveOutcome): boolean {
+  return outcome.status === "failed" && /extract|quality/i.test(outcome.reason);
+}
+
 function countSaveOutcomes(outcomes: SaveOutcome[]): SaveOutcomeCounts {
   const counts: SaveOutcomeCounts = {
     saved: 0,
@@ -393,14 +413,14 @@ function countSaveOutcomes(outcomes: SaveOutcome[]): SaveOutcomeCounts {
   };
 
   for (const outcome of outcomes) {
-    if (outcome.status === "saved") {
+    if (isSavedOutcome(outcome)) {
       counts.saved += 1;
     } else if (outcome.status === "skipped") {
       counts.skipped += 1;
-      if (/duplicate/i.test(outcome.reason)) counts.duplicates += 1;
+      if (isDuplicateSkipped(outcome)) counts.duplicates += 1;
     } else if (outcome.status === "failed") {
       counts.failed += 1;
-      if (/extract|quality/i.test(outcome.reason)) counts.rejected += 1;
+      if (isExtractionOrQualityFailure(outcome)) counts.rejected += 1;
     }
   }
 
@@ -449,10 +469,7 @@ async function scrapeOne(
   if (outcome.status === "saved") {
     if (publish) await publishArticle(outcome.id, outcome.article.publishedAt);
     markVisited(record, outcome.article.sourceUrl, "saved");
-  } else if (
-    outcome.status === "skipped" &&
-    /duplicate/i.test(outcome.reason)
-  ) {
+  } else if (isDuplicateSkipped(outcome)) {
     markVisited(record, outcome.sourceUrl, "duplicate");
   } else if (outcome.status === "failed") {
     markVisited(record, outcome.sourceUrl, "failed");
@@ -821,7 +838,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
       `\nDone. discovered=${discovered} saved=${counts.saved} skipped=${counts.skipped} duplicates=${counts.duplicates} failed=${counts.failed} ` +
         `discoveryExhausted=${discoveryExhausted ? "yes" : "no"} ` +
         `accountedSkipped=${skippedSeen} remainingFresh=${remainingFresh} ` +
-        `visitedRecord=${path.relative(repoRoot(), visitedFile)} visitedTotal=${record.urls.length}`,
+        `visitedRecord=${relativeRepoPath(visitedFile)} visitedTotal=${record.urls.length}`,
     );
     if (remainingFresh > 0 || !discoveryExhausted) {
       console.log(`Continue command: ${continueCommand(args)}`);

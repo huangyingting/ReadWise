@@ -42,6 +42,8 @@ const ALLOWED_TAGS = [
   "td",
 ];
 
+const NON_TEXT_TAGS = ["style", "script", "textarea", "noscript", "iframe"];
+
 // Structural wrappers we keep only long enough to inspect/strip ad blocks in
 // the first pass; they are removed (text preserved) by the strict second pass.
 const STRUCTURAL_TAGS = [
@@ -66,6 +68,17 @@ function isBoilerplate(attribs: Record<string, string> | undefined): boolean {
   return BOILERPLATE_PATTERN.test(haystack);
 }
 
+function externalizeLink(tagName: string, attribs: Record<string, string>) {
+  return {
+    tagName,
+    attribs: {
+      ...attribs,
+      rel: "noopener noreferrer nofollow",
+      target: "_blank",
+    },
+  };
+}
+
 const DROP_BLOCKS_OPTIONS: sanitizeHtml.IOptions = {
   allowedTags: [...ALLOWED_TAGS, ...STRUCTURAL_TAGS],
   allowedAttributes: {
@@ -74,7 +87,7 @@ const DROP_BLOCKS_OPTIONS: sanitizeHtml.IOptions = {
     img: ["src", "alt", "title"],
   },
   // Remove these tags AND their contents (scripts, styles, embedded ads).
-  nonTextTags: ["style", "script", "textarea", "noscript", "iframe"],
+  nonTextTags: NON_TEXT_TAGS,
   // Drop ad/boilerplate containers together with their inner content.
   exclusiveFilter: (frame) => isBoilerplate(frame.attribs),
 };
@@ -92,16 +105,9 @@ const STRICT_OPTIONS: sanitizeHtml.IOptions = {
   },
   allowedSchemes: ["http", "https", "mailto"],
   allowedSchemesByTag: { img: ["http", "https"] },
-  nonTextTags: ["style", "script", "textarea", "noscript", "iframe"],
+  nonTextTags: NON_TEXT_TAGS,
   transformTags: {
-    a: (tagName, attribs) => ({
-      tagName,
-      attribs: {
-        ...attribs,
-        rel: "noopener noreferrer nofollow",
-        target: "_blank",
-      },
-    }),
+    a: externalizeLink,
   },
 };
 

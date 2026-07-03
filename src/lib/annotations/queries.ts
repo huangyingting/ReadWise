@@ -32,6 +32,27 @@ export const highlightSelect = {
  */
 export const HIGHLIGHTS_ALL_HARD_CAP = 1_000;
 
+async function fetchAllUserHighlightRows(
+  userId: string,
+): Promise<HighlightWithArticle[]> {
+  return prisma.highlight.findMany({
+    where: { userId },
+    select: {
+      ...highlightSelect,
+      article: { select: { id: true, title: true } },
+    },
+    orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
+    // Fetch one extra to detect whether more rows exist beyond the hard cap.
+    take: HIGHLIGHTS_ALL_HARD_CAP + 1,
+  });
+}
+
+function trimHighlightRows(rows: HighlightWithArticle[]): HighlightWithArticle[] {
+  return rows.length > HIGHLIGHTS_ALL_HARD_CAP
+    ? rows.slice(0, HIGHLIGHTS_ALL_HARD_CAP)
+    : rows;
+}
+
 /**
  * List all highlights for a given user + article, ordered by startOffset.
  * Returns an empty array when the article exists but has no highlights.
@@ -65,21 +86,10 @@ export type HighlightPage = {
 export async function listAllUserHighlights(
   userId: string,
 ): Promise<HighlightWithArticle[]> {
-  const rows = await prisma.highlight.findMany({
-    where: { userId },
-    select: {
-      ...highlightSelect,
-      article: { select: { id: true, title: true } },
-    },
-    orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
-    // Fetch one extra to detect whether more rows exist beyond the hard cap.
-    take: HIGHLIGHTS_ALL_HARD_CAP + 1,
-  });
+  const rows = await fetchAllUserHighlightRows(userId);
   // Trim to the cap; callers can check `length === HIGHLIGHTS_ALL_HARD_CAP` or
   // use the HighlightPage overload below when they need the `hasMore` signal.
-  return rows.length > HIGHLIGHTS_ALL_HARD_CAP
-    ? rows.slice(0, HIGHLIGHTS_ALL_HARD_CAP)
-    : rows;
+  return trimHighlightRows(rows);
 }
 
 /**
@@ -89,18 +99,10 @@ export async function listAllUserHighlights(
 export async function listAllUserHighlightsPage(
   userId: string,
 ): Promise<HighlightPage> {
-  const rows = await prisma.highlight.findMany({
-    where: { userId },
-    select: {
-      ...highlightSelect,
-      article: { select: { id: true, title: true } },
-    },
-    orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
-    take: HIGHLIGHTS_ALL_HARD_CAP + 1,
-  });
+  const rows = await fetchAllUserHighlightRows(userId);
   const hasMore = rows.length > HIGHLIGHTS_ALL_HARD_CAP;
   return {
-    highlights: hasMore ? rows.slice(0, HIGHLIGHTS_ALL_HARD_CAP) : rows,
+    highlights: trimHighlightRows(rows),
     hasMore,
   };
 }

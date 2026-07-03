@@ -261,6 +261,27 @@ function normalizeUrl(raw: string): string | null {
   }
 }
 
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
+function relativeRepoPath(filePath: string): string {
+  return path.relative(repoRoot(), filePath);
+}
+
+function isVisitedOutcome(value: unknown): value is VisitedOutcome {
+  return value === "saved" || value === "duplicate" || value === "failed";
+}
+
+function emptyVisitedRecord(): VisitedRecord {
+  return {
+    version: VISITED_RECORD_VERSION,
+    provider: PROVIDER_KEY,
+    updatedAt: new Date(0).toISOString(),
+    urls: [],
+  };
+}
+
 function isVisitedRecord(value: unknown): value is VisitedRecord {
   if (!value || typeof value !== "object") return false;
   const record = value as Partial<VisitedRecord>;
@@ -274,9 +295,7 @@ function isVisitedRecord(value: unknown): value is VisitedRecord {
         typeof entry.url === "string" &&
         typeof entry.firstVisitedAt === "string" &&
         typeof entry.lastVisitedAt === "string" &&
-        (entry.lastOutcome === "saved" ||
-          entry.lastOutcome === "duplicate" ||
-          entry.lastOutcome === "failed"),
+        isVisitedOutcome(entry.lastOutcome),
     )
   );
 }
@@ -287,23 +306,16 @@ async function readVisited(filePath: string): Promise<VisitedRecord> {
     const parsed: unknown = JSON.parse(raw);
     if (isVisitedRecord(parsed)) return parsed;
     console.warn(
-      `Visited record ${path.relative(repoRoot(), filePath)} is invalid; ignoring it.`,
+      `Visited record ${relativeRepoPath(filePath)} is invalid; ignoring it.`,
     );
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
       console.warn(
-        `Could not read visited record ${path.relative(repoRoot(), filePath)}: ${
-          err instanceof Error ? err.message : String(err)
-        }`,
+        `Could not read visited record ${relativeRepoPath(filePath)}: ${errorMessage(err)}`,
       );
     }
   }
-  return {
-    version: VISITED_RECORD_VERSION,
-    provider: PROVIDER_KEY,
-    updatedAt: new Date(0).toISOString(),
-    urls: [],
-  };
+  return emptyVisitedRecord();
 }
 
 async function writeVisited(
@@ -492,6 +504,7 @@ async function scrapeFreshSmithsonian(
     };
 
   const outcomes: SaveOutcome[] = [];
+  let savedCount = 0;
   for (let i = 0; i < selectedUrls.length; i++) {
     const url = selectedUrls[i]!;
     console.log(`Scraping ${i + 1}/${selectedUrls.length}: ${url}`);
@@ -499,11 +512,12 @@ async function scrapeFreshSmithsonian(
     outcomes.push(outcome);
     summarize(outcome);
     if (outcome.status === "saved") {
+      savedCount += 1;
       markVisited(record, outcome.article.sourceUrl, "saved");
       if (
         targetSaved &&
         !untilExhausted &&
-        outcomes.filter((o) => o.status === "saved").length >= limit
+        savedCount >= limit
       ) {
         break;
       }
@@ -784,7 +798,7 @@ async function main(argv = process.argv.slice(2)): Promise<number> {
     console.log(
       `\nDone. discovered=${discovered} saved=${counts.saved} skipped=${counts.skipped} duplicates=${counts.duplicates} failed=${counts.failed} ` +
         `discoveryExhausted=${discoveryExhausted ? "yes" : "no"} ` +
-        `visitedSkipped=${skippedVisited} visitedRecord=${path.relative(repoRoot(), visitedFile)} ` +
+        `visitedSkipped=${skippedVisited} visitedRecord=${relativeRepoPath(visitedFile)} ` +
         `visitedTotal=${record.urls.length}`,
     );
   }
