@@ -26,6 +26,37 @@ type SparklineProps = {
   accentVar?: string;
 };
 
+const PADDING = 4;
+const SVG_BLOCK_STYLE = { display: "block" } as const;
+
+type SparklinePoint = [x: number, y: number];
+
+function clampValue(value: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, value));
+}
+
+function getSparklinePoints({
+  values,
+  coordWidth,
+  height,
+  min,
+  max,
+}: Required<
+  Pick<SparklineProps, "values" | "coordWidth" | "height" | "min" | "max">
+>): SparklinePoint[] {
+  const innerWidth = coordWidth - PADDING * 2;
+  const innerHeight = height - PADDING * 2;
+  const range = max - min || 1;
+  const toX = (index: number) =>
+    values.length === 1
+      ? PADDING + innerWidth / 2
+      : PADDING + (index / (values.length - 1)) * innerWidth;
+  const toY = (value: number) =>
+    PADDING + (1 - (clampValue(value, min, max) - min) / range) * innerHeight;
+
+  return values.map((value, index) => [toX(index), toY(value)]);
+}
+
 export default function Sparkline({
   values,
   label,
@@ -37,23 +68,17 @@ export default function Sparkline({
 }: SparklineProps) {
   if (values.length === 0) return null;
 
-  const PAD = 4;
-  const innerW = coordWidth - PAD * 2;
-  const innerH = height - PAD * 2;
-  const range = max - min || 1;
-
-  const clamp = (v: number) => Math.min(max, Math.max(min, v));
-  const toX = (i: number) =>
-    values.length === 1
-      ? PAD + innerW / 2
-      : PAD + (i / (values.length - 1)) * innerW;
-  const toY = (v: number) =>
-    PAD + (1 - (clamp(v) - min) / range) * innerH;
+  const pointPairs = getSparklinePoints({
+    values,
+    coordWidth,
+    height,
+    min,
+    max,
+  });
 
   // Single-point degenerate: just a centred dot
   if (values.length === 1) {
-    const cx = toX(0);
-    const cy = toY(values[0]);
+    const [cx, cy] = pointPairs[0];
     return (
       <figure className="rw-spark m-0 p-0">
         <span className="sr-only">{label}</span>
@@ -63,7 +88,7 @@ export default function Sparkline({
           viewBox={`0 0 ${coordWidth} ${height}`}
           preserveAspectRatio="none"
           aria-hidden="true"
-          style={{ display: "block" }}
+          style={SVG_BLOCK_STYLE}
         >
           <circle cx={cx} cy={cy} r={3} fill={accentVar} />
         </svg>
@@ -71,13 +96,12 @@ export default function Sparkline({
     );
   }
 
-  const pointPairs = values.map((v, i) => [toX(i), toY(v)] as [number, number]);
   const pointsStr = pointPairs.map(([x, y]) => `${x},${y}`).join(" ");
 
   // Area polygon closes the line down to the baseline
   const lastX = pointPairs[pointPairs.length - 1][0];
   const firstX = pointPairs[0][0];
-  const bottomY = height - PAD;
+  const bottomY = height - PADDING;
   const areaPoints = `${pointsStr} ${lastX},${bottomY} ${firstX},${bottomY}`;
 
   const [lastCx, lastCy] = pointPairs[pointPairs.length - 1];
@@ -91,7 +115,7 @@ export default function Sparkline({
         viewBox={`0 0 ${coordWidth} ${height}`}
         preserveAspectRatio="none"
         aria-hidden="true"
-        style={{ display: "block" }}
+        style={SVG_BLOCK_STYLE}
       >
         {/* Subtle area fill */}
         <polygon

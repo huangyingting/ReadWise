@@ -51,6 +51,18 @@ export interface PageHeaderProps
   level?: "h1" | "h2" | "h3";
 }
 
+type HeadingTag = NonNullable<PageHeaderProps["level"]>;
+
+function getHeaderBodyClass(align: PageHeaderProps["align"]): string {
+  return align === "center"
+    ? "items-center justify-center"
+    : "items-start justify-between";
+}
+
+function getCenteredClass(align: PageHeaderProps["align"]): string | false {
+  return align === "center" && "mx-auto";
+}
+
 /**
  * Standard page heading block with title, optional description, and actions.
  *
@@ -67,12 +79,14 @@ export function PageHeader({
   description,
   eyebrow,
   actions,
-  level: Heading = "h1",
+  level = "h1",
   density,
   align = "start",
   className,
   ...props
 }: PageHeaderProps): React.ReactElement {
+  const Heading = level as HeadingTag;
+
   return (
     <header
       className={cn(pageHeaderVariants({ density, align }), className)}
@@ -86,18 +100,16 @@ export function PageHeader({
       <div
         className={cn(
           "flex flex-col gap-[var(--space-4)] sm:flex-row",
-          align === "center"
-            ? "items-center justify-center"
-            : "items-start justify-between",
+          getHeaderBodyClass(align),
         )}
       >
-        <div className={cn("min-w-0", align === "center" && "mx-auto")}>
+        <div className={cn("min-w-0", getCenteredClass(align))}>
           <Heading className={titleVariants({ density })}>{title}</Heading>
           {description ? (
             <p
               className={cn(
                 "mt-[var(--space-2)] max-w-[70ch] text-[length:var(--text-base)] leading-[var(--leading-normal)] text-text-muted",
-                align === "center" && "mx-auto",
+                getCenteredClass(align),
               )}
             >
               {description}

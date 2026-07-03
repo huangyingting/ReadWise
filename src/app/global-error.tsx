@@ -5,6 +5,64 @@ import { reportClientError } from "@/lib/client-error-reporter";
 import { Button, buttonVariants } from "@/components/ui";
 import "./globals.css";
 
+type GlobalErrorProps = {
+  error: Error & { digest?: string };
+  reset: () => void;
+};
+
+const GLOBAL_ERROR_SOURCE = "global-error";
+
+function reportGlobalError(error: GlobalErrorProps["error"]) {
+  reportClientError({
+    message: error.message || "React render error",
+    source: GLOBAL_ERROR_SOURCE,
+    digest: error.digest,
+    stack: error.stack,
+  });
+}
+
+function BrandWordmark() {
+  return (
+    <span className="inline-flex items-center gap-[var(--space-2)]">
+      <svg
+        width="20"
+        height="20"
+        viewBox="0 0 16 16"
+        fill="none"
+        stroke="var(--primary)"
+        strokeWidth="1.6"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M8 1.5 14.5 8 8 14.5 1.5 8 8 1.5Z" />
+        <path d="M8 4.5v7" />
+      </svg>
+      <span className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-bold text-text">
+        ReadWise
+      </span>
+    </span>
+  );
+}
+
+function RecoveryActions({ reset }: Pick<GlobalErrorProps, "reset">) {
+  return (
+    <div className="flex flex-wrap justify-center gap-[var(--space-3)]">
+      <Button
+        type="button"
+        onClick={() => reset()}
+      >
+        Reload
+      </Button>
+      <a
+        href="/dashboard"
+        className={buttonVariants({ variant: "secondary", size: "md" })}
+      >
+        ← Back to dashboard
+      </a>
+    </div>
+  );
+}
+
 /**
  * Root error boundary (US-029). Catches React render/runtime errors that escape
  * page-level boundaries, reports them to the structured server logs via the
@@ -16,17 +74,9 @@ import "./globals.css";
 export default function GlobalError({
   error,
   reset,
-}: {
-  error: Error & { digest?: string };
-  reset: () => void;
-}) {
+}: GlobalErrorProps) {
   useEffect(() => {
-    reportClientError({
-      message: error.message || "React render error",
-      source: "global-error",
-      digest: error.digest,
-      stack: error.stack,
-    });
+    reportGlobalError(error);
   }, [error]);
 
   return (
@@ -36,28 +86,7 @@ export default function GlobalError({
           className="flex min-h-[100dvh] flex-col items-center justify-center gap-[var(--space-5)] bg-bg p-[var(--space-6)] text-center text-text"
         >
           {/* Self-contained brand wordmark (no Link/component deps). */}
-          <span
-            className="inline-flex items-center gap-[var(--space-2)]"
-          >
-            <svg
-              width="20"
-              height="20"
-              viewBox="0 0 16 16"
-              fill="none"
-              stroke="var(--primary)"
-              strokeWidth="1.6"
-              strokeLinejoin="round"
-              aria-hidden="true"
-            >
-              <path d="M8 1.5 14.5 8 8 14.5 1.5 8 8 1.5Z" />
-              <path d="M8 4.5v7" />
-            </svg>
-            <span
-              className="font-[family-name:var(--font-display)] text-[length:var(--text-xl)] font-bold text-text"
-            >
-              ReadWise
-            </span>
-          </span>
+          <BrandWordmark />
 
           <div
             className="flex max-w-[40ch] flex-col gap-[var(--space-2)]"
@@ -75,22 +104,7 @@ export default function GlobalError({
             </p>
           </div>
 
-          <div
-            className="flex flex-wrap justify-center gap-[var(--space-3)]"
-          >
-            <Button
-              type="button"
-              onClick={() => reset()}
-            >
-              Reload
-            </Button>
-            <a
-              href="/dashboard"
-              className={buttonVariants({ variant: "secondary", size: "md" })}
-            >
-              ← Back to dashboard
-            </a>
-          </div>
+          <RecoveryActions reset={reset} />
         </main>
       </body>
     </html>

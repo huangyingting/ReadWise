@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { postJson } from "@/lib/client-fetch";
 
 export type VocabularyItem = {
@@ -17,6 +17,9 @@ type VocabularyResponse = {
   fallback: boolean;
 };
 
+const VOCABULARY_LOAD_ERROR = "Could not load vocabulary";
+const VOCABULARY_UPDATE_ERROR = "Could not update study list";
+
 export type UseArticleVocabularyPanelResult = {
   loading: boolean;
   loaded: boolean;
@@ -27,6 +30,14 @@ export type UseArticleVocabularyPanelResult = {
   toggleSaved: (item: VocabularyItem) => void;
   retry: () => void;
 };
+
+function getErrorMessage(err: unknown, fallback: string): string {
+  return err instanceof Error ? err.message : fallback;
+}
+
+function getSavedMutationEndpoint(saved: boolean): string {
+  return saved ? "/api/vocabulary/unsave" : "/api/vocabulary/save";
+}
 
 /**
  * useArticleVocabularyPanel
@@ -47,14 +58,7 @@ export function useArticleVocabularyPanel(
   const [pending, setPending] = useState<string | null>(null);
   const hasFetched = useRef(false);
 
-  useEffect(() => {
-    if (hasFetched.current) return;
-    hasFetched.current = true;
-    void load();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -66,41 +70,45 @@ export function useArticleVocabularyPanel(
       setFallback(data.fallback);
       setLoaded(true);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Could not load vocabulary");
+      setError(getErrorMessage(err, VOCABULARY_LOAD_ERROR));
     } finally {
       setLoading(false);
     }
-  }
+  }, [articleId]);
 
-  function toggleSaved(item: VocabularyItem) {
-    if (pending) return;
-    setPending(item.word);
-    setError(null);
-    const endpoint = item.saved
-      ? "/api/vocabulary/unsave"
-      : "/api/vocabulary/save";
-    void postJson(endpoint, {
-      word: item.word,
-      explanation: item.explanation,
-      example: item.example,
-      articleId,
-    })
-      .then(() => {
-        setItems((prev) =>
-          prev.map((it) =>
-            it.word === item.word ? { ...it, saved: !it.saved } : it,
-          ),
-        );
+  useEffect(() => {
+    if (hasFetched.current) return;
+    hasFetched.current = true;
+    void load();
+  }, [load]);
+
+  const toggleSaved = useCallback(
+    (item: VocabularyItem) => {
+      if (pending) return;
+      setPending(item.word);
+      setError(null);
+      void postJson(getSavedMutationEndpoint(item.saved), {
+        word: item.word,
+        explanation: item.explanation,
+        example: item.example,
+        articleId,
       })
-      .catch((err: unknown) => {
-        setError(
-          err instanceof Error ? err.message : "Could not update study list",
-        );
-      })
-      .finally(() => {
-        setPending(null);
-      });
-  }
+        .then(() => {
+          setItems((prev) =>
+            prev.map((it) =>
+              it.word === item.word ? { ...it, saved: !it.saved } : it,
+            ),
+          );
+        })
+        .catch((err: unknown) => {
+          setError(getErrorMessage(err, VOCABULARY_UPDATE_ERROR));
+        })
+        .finally(() => {
+          setPending(null);
+        });
+    },
+    [articleId, pending],
+  );
 
   return {
     loading,

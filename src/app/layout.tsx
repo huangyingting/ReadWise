@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import type { ReactNode } from "react";
 import { Inter, Space_Grotesk, Literata } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
@@ -41,6 +42,7 @@ const siteUrl =
   process.env.NEXT_PUBLIC_SITE_URL ??
   process.env.NEXTAUTH_URL ??
   "http://localhost:3000";
+const rootFontClassName = [sans.variable, display.variable, reading.variable].join(" ");
 
 export const viewport: Viewport = {
   viewportFit: "cover",
@@ -73,17 +75,29 @@ export const metadata: Metadata = {
 // Blocking, pre-paint theme resolution to avoid a light/dark flash (FOUC) and
 // to guarantee an explicit data-theme attribute exists before hydration.
 // Key literal MUST match STORAGE_KEYS.THEME in src/lib/storage-keys.ts.
-const themeScript = `(function(){try{var t=localStorage.getItem("readwise:theme");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}document.documentElement.dataset.theme=t;}catch(e){}})();`;
+const themeStorageKey = "readwise:theme";
+const themeScript = `(function(){try{var t=localStorage.getItem("${themeStorageKey}");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}document.documentElement.dataset.theme=t;}catch(e){}})();`;
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+type RootLayoutProps = {
+  children: ReactNode;
+};
+
+function AppRuntime({ children }: RootLayoutProps) {
+  return (
+    <>
+      <ClientErrorReporter />
+      <ServiceWorkerRegister />
+      <OfflineSyncIndicator />
+      <Providers>{children}</Providers>
+    </>
+  );
+}
+
+export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
       lang="en"
-      className={`${sans.variable} ${display.variable} ${reading.variable}`}
+      className={rootFontClassName}
       suppressHydrationWarning
     >
       <head>
@@ -91,10 +105,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body>
-        <ClientErrorReporter />
-        <ServiceWorkerRegister />
-        <OfflineSyncIndicator />
-        <Providers>{children}</Providers>
+        <AppRuntime>{children}</AppRuntime>
       </body>
     </html>
   );

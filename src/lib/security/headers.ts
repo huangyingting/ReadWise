@@ -15,6 +15,8 @@
 
 export type SecurityHeader = { key: string; value: string };
 
+const isProductionEnvironment = (): boolean => process.env.NODE_ENV === "production";
+
 /**
  * Baseline CSP directives.  Kept as a string array so callers can inspect
  * individual directives in tests without parsing the joined value.
@@ -42,6 +44,8 @@ export const CSP_DIRECTIVES: readonly string[] = [
   "form-action 'self'",
 ];
 
+const CONTENT_SECURITY_POLICY = CSP_DIRECTIVES.join("; ");
+
 /** Baseline headers present in all environments. */
 const BASE_HEADERS: readonly SecurityHeader[] = [
   { key: "X-Content-Type-Options", value: "nosniff" },
@@ -53,7 +57,7 @@ const BASE_HEADERS: readonly SecurityHeader[] = [
   },
   {
     key: "Content-Security-Policy",
-    value: CSP_DIRECTIVES.join("; "),
+    value: CONTENT_SECURITY_POLICY,
   },
 ];
 
@@ -63,6 +67,9 @@ const HSTS_HEADER: SecurityHeader = {
   value: "max-age=31536000; includeSubDomains",
 };
 
+const productionOnlyHeaders = (production: boolean): readonly SecurityHeader[] =>
+  production ? [HSTS_HEADER] : [];
+
 /**
  * Build the full security header set for a given environment.
  *
@@ -70,8 +77,8 @@ const HSTS_HEADER: SecurityHeader = {
  *   Pass explicitly to test both code paths without mutating the environment.
  */
 export function buildSecurityHeaders(opts: { production?: boolean } = {}): SecurityHeader[] {
-  const production = opts.production ?? process.env.NODE_ENV === "production";
-  return [...BASE_HEADERS, ...(production ? [HSTS_HEADER] : [])];
+  const production = opts.production ?? isProductionEnvironment();
+  return [...BASE_HEADERS, ...productionOnlyHeaders(production)];
 }
 
 /**

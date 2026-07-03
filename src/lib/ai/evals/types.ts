@@ -4,14 +4,18 @@
 
 import type { PromptMessage } from "@/lib/ai/prompts";
 
+export type EvalMode = "offline" | "live";
+export type EvalInput = Record<string, unknown>;
+export type EvalExpectations = Record<string, unknown>;
+
 /** A single dataset case: input + a representative output + expected invariants. */
 export type EvalCase = {
   name: string;
-  input: Record<string, unknown>;
+  input: EvalInput;
   /** Representative model output used in OFFLINE mode. */
   modelOutput?: string;
   /** Feature-specific expectations the properties are checked against. */
-  expect?: Record<string, unknown>;
+  expect?: EvalExpectations;
 };
 
 /** A curated dataset for one feature. */
@@ -51,19 +55,21 @@ export type EvalFeatureReport = {
   score: number;
 };
 
+export type EvalTotals = {
+  caseCount: number;
+  casesPassed: number;
+  propertiesChecked: number;
+  propertiesPassed: number;
+  score: number;
+};
+
 /** The full evaluation report across all features. */
 export type EvalReport = {
-  mode: "offline" | "live";
+  mode: EvalMode;
   generatedAt: string;
   promptVersions: Record<string, string>;
   features: EvalFeatureReport[];
-  totals: {
-    caseCount: number;
-    casesPassed: number;
-    propertiesChecked: number;
-    propertiesPassed: number;
-    score: number;
-  };
+  totals: EvalTotals;
 };
 
 /**
@@ -73,12 +79,12 @@ export type EvalReport = {
 export type FeatureEvaluator = {
   feature: string;
   /** Builds the chat messages for a LIVE provider run from a case input. */
-  buildMessages: (input: Record<string, unknown>) => PromptMessage[];
+  buildMessages: (input: EvalInput) => PromptMessage[];
   /** Checks the output's semantic invariants; returns one result per property. */
   check: (
     output: string,
-    input: Record<string, unknown>,
-    expect: Record<string, unknown>,
+    input: EvalInput,
+    expect: EvalExpectations,
   ) => EvalPropertyResult[];
 };
 

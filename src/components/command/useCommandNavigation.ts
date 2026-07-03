@@ -17,6 +17,45 @@ export interface UseCommandNavigationResult {
   setActiveIndex: React.Dispatch<React.SetStateAction<number>>;
 }
 
+const FOCUSABLE_SELECTOR =
+  'input, button:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function isNavKey(key: string): key is NavKey {
+  return (
+    key === "ArrowDown" ||
+    key === "ArrowUp" ||
+    key === "Home" ||
+    key === "End"
+  );
+}
+
+function getFocusableElements(panel: HTMLDivElement): HTMLElement[] {
+  return Array.from(panel.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR));
+}
+
+function trapTabFocus(
+  event: KeyboardEvent,
+  panel: HTMLDivElement | null,
+): void {
+  if (!panel) return;
+
+  const focusable = getFocusableElements(panel);
+  if (focusable.length <= 1) {
+    event.preventDefault();
+    return;
+  }
+
+  const first = focusable[0];
+  const last = focusable[focusable.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
+}
+
 /**
  * Manages keyboard navigation for the command palette:
  * - ArrowDown / ArrowUp / Home / End: move active index (with wraparound).
@@ -56,23 +95,20 @@ export function useCommandNavigation({
 
   useEffect(() => {
     function onKeyDown(e: KeyboardEvent) {
+      if (isNavKey(e.key)) {
+        e.preventDefault();
+        const len = itemsRef.current.length;
+        const next = nextNavIndex(activeIndexRef.current, len, e.key);
+        setActiveIndex(next);
+        scrollActiveIntoView(next);
+        return;
+      }
+
       switch (e.key) {
         case "Escape":
           e.preventDefault();
           onClose();
           break;
-
-        case "ArrowDown":
-        case "ArrowUp":
-        case "Home":
-        case "End": {
-          e.preventDefault();
-          const len = itemsRef.current.length;
-          const next = nextNavIndex(activeIndexRef.current, len, e.key as NavKey);
-          setActiveIndex(next);
-          scrollActiveIntoView(next);
-          break;
-        }
 
         case "Enter": {
           e.preventDefault();
@@ -83,25 +119,7 @@ export function useCommandNavigation({
 
         case "Tab": {
           // Focus trap: cycle between the input and the mobile close button.
-          if (!panelRef.current) break;
-          const focusable = Array.from(
-            panelRef.current.querySelectorAll<HTMLElement>(
-              'input, button:not([disabled]), [tabindex]:not([tabindex="-1"])',
-            ),
-          );
-          if (focusable.length <= 1) {
-            e.preventDefault();
-            break;
-          }
-          const first = focusable[0];
-          const last = focusable[focusable.length - 1];
-          if (e.shiftKey && document.activeElement === first) {
-            e.preventDefault();
-            last.focus();
-          } else if (!e.shiftKey && document.activeElement === last) {
-            e.preventDefault();
-            first.focus();
-          }
+          trapTabFocus(e, panelRef.current);
           break;
         }
       }

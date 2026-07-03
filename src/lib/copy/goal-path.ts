@@ -12,6 +12,8 @@
 import type { GoalPath } from "@/lib/learning/goal-path";
 import { GOAL_PATH_TUNING } from "@/lib/learning/goal-path";
 
+const DEFAULT_COMPREHENSION_PROMPT = "Comprehension check";
+
 /** Human-readable Settings labels for each goal path (selector options). */
 export const GOAL_PATH_LABELS: Record<GoalPath, string> = {
   daily_news: "Daily News Reader",
@@ -80,7 +82,7 @@ export const COMPREHENSION_PROMPT_COPY: Record<string, string> = {
   main_idea: "Main idea",
   argument_structure: "Argument structure",
   key_takeaway: "Key takeaway",
-  comprehension_check: "Comprehension check",
+  comprehension_check: DEFAULT_COMPREHENSION_PROMPT,
   enjoyment: "How did you enjoy this?",
 };
 
@@ -91,7 +93,7 @@ export function todayCopyForGoalPath(goalPath: GoalPath | null): GoalPathTodayCo
 
 /** Resolve the comprehension-prompt label for a (possibly null) goal path. */
 export function comprehensionPromptForGoalPath(goalPath: GoalPath | null): string {
-  if (!goalPath) return "Comprehension check";
+  if (!goalPath) return DEFAULT_COMPREHENSION_PROMPT;
   const key = GOAL_PATH_TUNING[goalPath].comprehensionCopyKey;
-  return COMPREHENSION_PROMPT_COPY[key] ?? "Comprehension check";
+  return COMPREHENSION_PROMPT_COPY[key] ?? DEFAULT_COMPREHENSION_PROMPT;
 }

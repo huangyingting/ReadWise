@@ -8,6 +8,7 @@ import {
   clampedInt,
   boolean,
   queryString,
+  type Schema,
 } from "@/lib/validation";
 import {
   COMPREHENSION_SELF_RATINGS,
@@ -16,6 +17,16 @@ import {
   submitTodayComprehension,
 } from "@/lib/engagement/today-session/comprehension";
 import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+
+function assertTodayComprehensionEnabled() {
+  if (!isTodaySessionFeatureEnabled()) {
+    throw new ApiError(404, "Not found");
+  }
+}
+
+function parseTimezone(params: URLSearchParams): string | null {
+  return queryString(params, "timezone").trim() || null;
+}
 
 /**
  * Today comprehension self-check & remediation (#807).
@@ -45,13 +56,11 @@ export const GET = createHandler(
   {
     query: (params) => ({
       ok: true as const,
-      value: { timezone: queryString(params, "timezone").trim() || null },
+      value: { timezone: parseTimezone(params) },
     }),
   },
   async ({ query, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    assertTodayComprehensionEnabled();
     const check = await loadTodayComprehensionCheck({
       userId: session.user.id,
       requestTimezone: query.timezone,
@@ -69,22 +78,26 @@ const comprehensionBody = object({
   timezone: optional(string({ max: 100 })),
 });
 
+type ComprehensionBody = typeof comprehensionBody extends Schema<infer T> ? T : never;
+
+function toSubmissionInput(body: ComprehensionBody, userId: string) {
+  return {
+    userId,
+    requestTimezone: body.timezone ?? null,
+    selfRating: body.selfRating,
+    questionId: body.questionId ?? null,
+    selectedIndex: body.selectedIndex ?? null,
+    skillTag: body.skillTag ?? null,
+    remediationViewed: body.remediationViewed ?? false,
+  };
+}
+
 export const POST = createHandler(
   { body: comprehensionBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    assertTodayComprehensionEnabled();
 
-    const result = await submitTodayComprehension({
-      userId: session.user.id,
-      requestTimezone: body.timezone ?? null,
-      selfRating: body.selfRating,
-      questionId: body.questionId ?? null,
-      selectedIndex: body.selectedIndex ?? null,
-      skillTag: body.skillTag ?? null,
-      remediationViewed: body.remediationViewed ?? false,
-    });
+    const result = await submitTodayComprehension(toSubmissionInput(body, session.user.id));
 
     if (!result) {
       // No active Today session, or a no-candidate day with no primary article.
