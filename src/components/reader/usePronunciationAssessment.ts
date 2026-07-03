@@ -8,8 +8,35 @@ import {
   type WordResult,
 } from "@/components/reader/pronunciationTypes";
 
+type ClosableRecognizer = { close: () => void };
+type RecognitionWordDetail = {
+  Word: string;
+  PronunciationAssessment?: { AccuracyScore: number; ErrorType: string };
+};
+
+function closeRecognizerQuietly(recognizer: ClosableRecognizer): void {
+  try {
+    recognizer.close();
+  } catch {
+    /* ignore close errors */
+  }
+}
+
+function toWordResult(word: unknown): WordResult {
+  const wordDetail = word as RecognitionWordDetail;
+  const score = wordDetail.PronunciationAssessment?.AccuracyScore ?? 100;
+  const errorType = wordDetail.PronunciationAssessment?.ErrorType ?? "None";
+
+  return {
+    word: wordDetail.Word,
+    score: Math.round(score),
+    errorType,
+    band: getWordBand(score, errorType),
+  };
+}
+
 export function usePronunciationAssessment() {
-  const recognizerRef = useRef<{ close: () => void } | null>(null);
+  const recognizerRef = useRef<ClosableRecognizer | null>(null);
 
   const closeRecognizer = useCallback(() => {
     recognizerRef.current?.close();
@@ -44,11 +71,7 @@ export function usePronunciationAssessment() {
         recognizer.recognizeOnceAsync(
           (speechResult: SpeechRecognitionResult) => {
             recognizerRef.current = null;
-            try {
-              recognizer.close();
-            } catch {
-              /* ignore close errors */
-            }
+            closeRecognizerQuietly(recognizer);
 
             const assessment = sdk.PronunciationAssessmentResult.fromResult(speechResult);
             if (!assessment) {
@@ -57,20 +80,7 @@ export function usePronunciationAssessment() {
             }
 
             const detailWords = assessment.detailResult?.Words ?? [];
-            const wordResults: WordResult[] = detailWords.map((w: unknown) => {
-              const wd = w as {
-                Word: string;
-                PronunciationAssessment?: { AccuracyScore: number; ErrorType: string };
-              };
-              const score = wd.PronunciationAssessment?.AccuracyScore ?? 100;
-              const errorType = wd.PronunciationAssessment?.ErrorType ?? "None";
-              return {
-                word: wd.Word,
-                score: Math.round(score),
-                errorType,
-                band: getWordBand(score, errorType),
-              };
-            });
+            const wordResults: WordResult[] = detailWords.map(toWordResult);
 
             resolve({
               accuracyScore: Math.round(assessment.accuracyScore),
@@ -82,11 +92,7 @@ export function usePronunciationAssessment() {
           },
           (err: string | Error) => {
             recognizerRef.current = null;
-            try {
-              recognizer.close();
-            } catch {
-              /* ignore */
-            }
+            closeRecognizerQuietly(recognizer);
             const msg = typeof err === "string" ? err : (err?.message ?? "Recognition failed");
             reject(new Error(msg));
           },

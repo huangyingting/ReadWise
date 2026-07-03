@@ -7,6 +7,32 @@ export interface BarChartBucket {
   count: number;
 }
 
+interface BarChartRowProps {
+  label: string;
+  /** The numeric value that determines bar fill (0–valuemax). */
+  valuenow: number;
+  /** The scale maximum. Defaults to 100. */
+  valuemax?: number;
+  /** Custom value string shown in the value cell. Defaults to `valuenow`. */
+  renderValue?: React.ReactNode;
+}
+
+interface BarChartProps {
+  title: string;
+  buckets: BarChartBucket[];
+}
+
+function getBucketMax(buckets: BarChartBucket[]): number {
+  return Math.max(1, ...buckets.map((bucket) => bucket.count));
+}
+
+function toTableRows(buckets: BarChartBucket[]) {
+  return buckets.map((bucket) => ({
+    label: bucket.label,
+    count: bucket.count,
+  }));
+}
+
 /**
  * A single bar row for use inside a ratio/percentage chart card.
  * Renders a label, a meter track, and an optional custom value string.
@@ -18,15 +44,7 @@ export function BarChartRow({
   valuenow,
   valuemax = 100,
   renderValue,
-}: {
-  label: string;
-  /** The numeric value that determines bar fill (0–valuemax). */
-  valuenow: number;
-  /** The scale maximum. Defaults to 100. */
-  valuemax?: number;
-  /** Custom value string shown in the value cell. Defaults to `valuenow`. */
-  renderValue?: React.ReactNode;
-}) {
+}: BarChartRowProps) {
   const pct = valuemax > 0 ? (valuenow / valuemax) * 100 : 0;
   return (
     <div className="admin-bar-row">
@@ -62,14 +80,11 @@ export function BarChartRow({
 export function BarChart({
   title,
   buckets,
-}: {
-  title: string;
-  buckets: BarChartBucket[];
-}) {
+}: BarChartProps) {
   if (buckets.length === 0) {
     return <p className="muted">No data yet.</p>;
   }
-  const max = Math.max(1, ...buckets.map((b) => b.count));
+  const max = getBucketMax(buckets);
 
   return (
     <figure aria-label={title} className="m-0">
@@ -92,7 +107,7 @@ export function BarChart({
           { key: "label", label: "Category" },
           { key: "count", label: "Count" },
         ]}
-        rows={buckets.map((b) => ({ label: b.label, count: b.count }))}
+        rows={toTableRows(buckets)}
       />
     </figure>
   );

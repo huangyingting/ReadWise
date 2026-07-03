@@ -26,6 +26,19 @@ function parseQuery(params: URLSearchParams) {
   return { ok: true as const, value };
 }
 
+async function feedResponse(userId: string, query: FeedQuery) {
+  const { offset, limit, level } = query;
+  const feed = await getPersonalizedFeed(userId, { offset, limit, maxLevel: level });
+
+  return NextResponse.json(
+    await buildArticleListResponse(userId, feed.articles, {
+      offset,
+      hasMore: feed.hasMore,
+      reasons: feed.reasons,
+    }),
+  );
+}
+
 /**
  * Personalized "For You" feed endpoint — M15.
  *
@@ -48,16 +61,5 @@ function parseQuery(params: URLSearchParams) {
  * change with reading history. Do not wrap with {@link createCachedListing}.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
-  const { offset, limit, level } = query;
-  const userId = session.user.id;
-
-  const feed = await getPersonalizedFeed(userId, { offset, limit, maxLevel: level });
-
-  return NextResponse.json(
-    await buildArticleListResponse(userId, feed.articles, {
-      offset,
-      hasMore: feed.hasMore,
-      reasons: feed.reasons,
-    })
-  );
+  return feedResponse(session.user.id, query);
 });

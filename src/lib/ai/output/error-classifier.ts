@@ -34,16 +34,25 @@ export type AiErrorKind =
   | "empty" // 2xx but no usable content — not retryable
   | "unknown";
 
-/** Maps an HTTP status to a normalized, retryable-aware error kind. */
-export function classifyHttpStatus(status: number): {
+type ClassifiedError = {
   kind: AiErrorKind;
   retryable: boolean;
-} {
-  if (status === 429) return { kind: "rate_limit", retryable: true };
-  if (status === 401 || status === 403) return { kind: "auth", retryable: false };
-  if (status >= 500) return { kind: "server", retryable: true };
-  if (status >= 400) return { kind: "bad_request", retryable: false };
-  return { kind: "unknown", retryable: false };
+};
+
+const RETRY_AFTER_MAX_MS = 60_000;
+const RETRY_AFTER_MS = 1000;
+
+function classification(kind: AiErrorKind, retryable: boolean): ClassifiedError {
+  return { kind, retryable };
+}
+
+/** Maps an HTTP status to a normalized, retryable-aware error kind. */
+export function classifyHttpStatus(status: number): ClassifiedError {
+  if (status === 429) return classification("rate_limit", true);
+  if (status === 401 || status === 403) return classification("auth", false);
+  if (status >= 500) return classification("server", true);
+  if (status >= 400) return classification("bad_request", false);
+  return classification("unknown", false);
 }
 
 /**
@@ -70,7 +79,7 @@ export function classifyThrownError(err: unknown): {
 /** Parses a `Retry-After` header (seconds) into a clamped delay in ms. */
 export function parseRetryAfterMs(header: string | null): number | undefined {
   if (!header) return undefined;
-  const seconds = parseInt(header, 10);
+  const seconds = Number.parseInt(header, 10);
   if (!Number.isFinite(seconds)) return undefined;
-  return Math.min(Math.max(0, seconds) * 1000, 60_000);
+  return Math.min(Math.max(0, seconds) * RETRY_AFTER_MS, RETRY_AFTER_MAX_MS);
 }

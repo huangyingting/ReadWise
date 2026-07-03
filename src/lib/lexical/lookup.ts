@@ -17,6 +17,14 @@ import {
 
 const log = createLogger("lexical.lookup");
 
+function lookupDuration(start: number): number {
+  return Date.now() - start;
+}
+
+function notFoundResult(word: string): DictionaryResult {
+  return { word, found: false, meanings: [] };
+}
+
 /**
  * Looks up a word, trying each normalized base-form candidate until one
  * resolves. Returns a `found: false` result (never throws) when nothing
@@ -39,9 +47,9 @@ export async function lookupWord(
     log.info("lexical.lookup_outcome", {
       found: false,
       reason: "no_candidates",
-      durationMs: Date.now() - start,
+      durationMs: lookupDuration(start),
     });
-    return { word: display, found: false, meanings: [] };
+    return notFoundResult(display);
   }
 
   for (const candidate of candidates) {
@@ -50,7 +58,7 @@ export async function lookupWord(
       log.info("lexical.lookup_outcome", {
         found: true,
         candidatesTried: candidates.indexOf(candidate) + 1,
-        durationMs: Date.now() - start,
+        durationMs: lookupDuration(start),
       });
       return {
         word: display,
@@ -66,7 +74,7 @@ export async function lookupWord(
   log.info("lexical.lookup_outcome", {
     found: false,
     candidatesTried: candidates.length,
-    durationMs: Date.now() - start,
+    durationMs: lookupDuration(start),
   });
-  return { word: display, found: false, meanings: [] };
+  return notFoundResult(display);
 }

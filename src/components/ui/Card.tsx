@@ -1,6 +1,19 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 
+const CARD_BASE_CLASS =
+  "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]";
+const CARD_PADDING_CLASS = "p-[var(--space-5)] sm:p-[var(--space-6)]";
+const CARD_INTERACTIVE_CLASS = cn(
+  "transition-[box-shadow,border-color,transform] cursor-pointer",
+  "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
+  "hover:shadow-[var(--shadow-md)] hover:border-border-strong hover:-translate-y-0.5",
+);
+const CARD_TITLE_CLASS = cn(
+  "font-[family-name:var(--font-display)] font-semibold text-text",
+  "text-[length:var(--text-xl)] leading-[var(--leading-snug)]",
+);
+
 export interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
   /** Hover elevation + lift; use for link/clickable cards. */
   interactive?: boolean;
@@ -10,14 +23,9 @@ export function Card({ interactive, className, ...props }: CardProps) {
   return (
     <div
       className={cn(
-        "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
-        "p-[var(--space-5)] sm:p-[var(--space-6)]",
-        interactive &&
-          cn(
-            "transition-[box-shadow,border-color,transform] cursor-pointer",
-            "[transition-duration:var(--duration-base)] [transition-timing-function:var(--ease-standard)]",
-            "hover:shadow-[var(--shadow-md)] hover:border-border-strong hover:-translate-y-0.5",
-          ),
+        CARD_BASE_CLASS,
+        CARD_PADDING_CLASS,
+        interactive && CARD_INTERACTIVE_CLASS,
         className,
       )}
       {...props}
@@ -47,8 +55,7 @@ export function CardTitle({ level, className, ...props }: CardTitleProps) {
   return (
     <Tag
       className={cn(
-        "font-[family-name:var(--font-display)] font-semibold text-text",
-        "text-[length:var(--text-xl)] leading-[var(--leading-snug)]",
+        CARD_TITLE_CLASS,
         className,
       )}
       {...props}

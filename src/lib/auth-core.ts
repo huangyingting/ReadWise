@@ -42,6 +42,10 @@ export type AuthResult =
   | { session: Session; error?: undefined }
   | { session?: Session; error: NextResponse };
 
+function hasSessionUser(session: Session | null): session is Session {
+  return Boolean(session?.user);
+}
+
 /**
  * Loads the current server session. Returns `null` if there is no authenticated
  * user. Has **no** redirect or `NextResponse` side effects — callers decide the
@@ -49,7 +53,7 @@ export type AuthResult =
  */
 export async function loadSession(): Promise<Session | null> {
   const session = await getServerSession(authOptions);
-  return session?.user ? session : null;
+  return hasSessionUser(session) ? session : null;
 }
 
 /**

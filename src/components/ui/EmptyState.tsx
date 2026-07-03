@@ -21,6 +21,18 @@ export interface EmptyStateProps
   titleAs?: "h1" | "h2" | "h3" | "p";
 }
 
+const EMPTY_STATE_CLASS = [
+  "col-span-full flex flex-col items-center text-center",
+  "gap-[var(--space-3)] px-[var(--space-6)] py-[var(--space-7)]",
+  "rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-subtle",
+];
+const ICON_CHIP_CLASS =
+  "inline-flex h-[var(--space-8)] w-[var(--space-8)] items-center justify-center rounded-[var(--radius-full)] border border-border bg-surface text-text-subtle";
+const TITLE_CLASS =
+  "m-0 font-[family-name:var(--font-display)] text-[length:var(--text-lg)] font-semibold text-text";
+const DESCRIPTION_CLASS =
+  "m-0 max-w-[40ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted";
+
 function isLinkAction(action: EmptyStateProps["action"]): action is EmptyStateLinkAction {
   return (
     typeof action === "object" &&
@@ -29,6 +41,25 @@ function isLinkAction(action: EmptyStateProps["action"]): action is EmptyStateLi
     "href" in action &&
     "label" in action
   );
+}
+
+function renderAction(action: EmptyStateProps["action"]): React.ReactNode {
+  if (!action) {
+    return null;
+  }
+
+  if (isLinkAction(action)) {
+    return (
+      <Link
+        href={action.href}
+        className={buttonVariants({ variant: "primary", size: "sm" })}
+      >
+        {action.label}
+      </Link>
+    );
+  }
+
+  return <div>{action}</div>;
 }
 
 /**
@@ -54,45 +85,22 @@ export function EmptyState({
 }: EmptyStateProps): React.ReactElement {
   return (
     <div
-      className={cn(
-        "col-span-full flex flex-col items-center text-center",
-        "gap-[var(--space-3)] px-[var(--space-6)] py-[var(--space-7)]",
-        "rounded-[var(--radius-lg)] border border-dashed border-border bg-bg-subtle",
-        className,
-      )}
+      className={cn(...EMPTY_STATE_CLASS, className)}
       {...props}
     >
       {Icon ? (
-        <div
-          className="inline-flex h-[var(--space-8)] w-[var(--space-8)] items-center justify-center rounded-[var(--radius-full)] border border-border bg-surface text-text-subtle"
-          aria-hidden
-        >
+        <div className={ICON_CHIP_CLASS} aria-hidden>
           <Icon size={20} />
         </div>
       ) : null}
 
-      <TitleTag className="m-0 font-[family-name:var(--font-display)] text-[length:var(--text-lg)] font-semibold text-text">
-        {title}
-      </TitleTag>
+      <TitleTag className={TITLE_CLASS}>{title}</TitleTag>
 
       {description ? (
-        <p className="m-0 max-w-[40ch] text-[length:var(--text-sm)] leading-[var(--leading-normal)] text-text-muted">
-          {description}
-        </p>
+        <p className={DESCRIPTION_CLASS}>{description}</p>
       ) : null}
 
-      {action ? (
-        isLinkAction(action) ? (
-          <Link
-            href={action.href}
-            className={buttonVariants({ variant: "primary", size: "sm" })}
-          >
-            {action.label}
-          </Link>
-        ) : (
-          <div>{action}</div>
-        )
-      ) : null}
+      {renderAction(action)}
     </div>
   );
 }

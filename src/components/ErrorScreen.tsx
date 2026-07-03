@@ -41,6 +41,19 @@ export interface ErrorScreenProps {
   titleClassName?: string;
 }
 
+const DEFAULT_WRAPPER_CLASS =
+  "container flex flex-col items-center text-center gap-[var(--space-5)] py-[var(--space-12)]";
+const DEFAULT_TITLE_CLASS =
+  "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0";
+const ICON_CHIP_CLASS =
+  "inline-flex items-center justify-center h-14 w-14 rounded-[var(--radius-full)] bg-surface border border-border text-warning";
+const COPY_STACK_CLASS = "flex flex-col gap-[var(--space-2)]";
+const DESCRIPTION_CLASS =
+  "text-text-muted text-[length:var(--text-base)] max-w-[40ch] m-0";
+const DIGEST_CLASS =
+  "text-text-subtle text-[length:var(--text-xs)] font-mono m-0 mt-[var(--space-1)]";
+const ACTIONS_CLASS = "flex gap-[var(--space-3)] flex-wrap justify-center";
+
 export default function ErrorScreen({
   icon: Icon,
   title,
@@ -49,36 +62,27 @@ export default function ErrorScreen({
   reset,
   resetLabel = "Try again",
   secondaryAction,
-  className = "container flex flex-col items-center text-center gap-[var(--space-5)] py-[var(--space-12)]",
+  className = DEFAULT_WRAPPER_CLASS,
   style,
   headingAs: Heading = "h1",
-  titleClassName = "font-[family-name:var(--font-display)] font-semibold text-[length:var(--text-2xl)] text-text m-0",
+  titleClassName = DEFAULT_TITLE_CLASS,
 }: ErrorScreenProps) {
   return (
     <div className={className} style={style}>
-      <div
-        className="inline-flex items-center justify-center h-14 w-14 rounded-[var(--radius-full)] bg-surface border border-border text-warning"
-        aria-hidden
-      >
+      <div className={ICON_CHIP_CLASS} aria-hidden>
         <Icon size={28} />
       </div>
 
-      <div className="flex flex-col gap-[var(--space-2)]">
-        <Heading className={titleClassName}>
-          {title}
-        </Heading>
-        <p className="text-text-muted text-[length:var(--text-base)] max-w-[40ch] m-0">
-          {description}
-        </p>
+      <div className={COPY_STACK_CLASS}>
+        <Heading className={titleClassName}>{title}</Heading>
+        <p className={DESCRIPTION_CLASS}>{description}</p>
         {digest ? (
-          <p className="text-text-subtle text-[length:var(--text-xs)] font-mono m-0 mt-[var(--space-1)]">
-            Error ref: {digest}
-          </p>
+          <p className={DIGEST_CLASS}>Error ref: {digest}</p>
         ) : null}
       </div>
 
       {(reset || secondaryAction) && (
-        <div className="flex gap-[var(--space-3)] flex-wrap justify-center">
+        <div className={ACTIONS_CLASS}>
           {reset && (
             <Button type="button" onClick={() => reset()}>
               {resetLabel}

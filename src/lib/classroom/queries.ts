@@ -15,6 +15,18 @@ export type ClassroomMemberRow = {
   image: string | null;
 };
 
+const NEWEST_FIRST = { createdAt: "desc" } as const;
+const USER_PROFILE_SELECT = {
+  id: true,
+  name: true,
+  email: true,
+  image: true,
+} as const;
+
+function classroomMembership(userId: string, role?: ClassroomRole) {
+  return role ? { members: { some: { userId, role } } } : { members: { some: { userId } } };
+}
+
 export function getClassroom(classroomId: string): Promise<Classroom | null> {
   return prisma.classroom.findUnique({ where: { id: classroomId } });
 }
@@ -23,7 +35,7 @@ export function getClassroom(classroomId: string): Promise<Classroom | null> {
 export function listClassroomsForOrg(orgId: string): Promise<Classroom[]> {
   return prisma.classroom.findMany({
     where: { orgId },
-    orderBy: { createdAt: "desc" },
+    orderBy: NEWEST_FIRST,
   });
 }
 
@@ -38,18 +50,18 @@ export async function listClassroomsForTeacher(
     where: {
       OR: [
         { teacherId },
-        { members: { some: { userId: teacherId, role: "Teacher" } } },
+        classroomMembership(teacherId, "Teacher"),
       ],
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: NEWEST_FIRST,
   });
 }
 
 /** A student's classrooms (any role membership). */
 export function listClassroomsForStudent(userId: string): Promise<Classroom[]> {
   return prisma.classroom.findMany({
-    where: { members: { some: { userId } } },
-    orderBy: { createdAt: "desc" },
+    where: classroomMembership(userId),
+    orderBy: NEWEST_FIRST,
   });
 }
 
@@ -59,7 +71,7 @@ export async function listClassroomMembers(
 ): Promise<ClassroomMemberRow[]> {
   const rows = await prisma.classroomMembership.findMany({
     where: { classroomId },
-    include: { user: { select: { id: true, name: true, email: true, image: true } } },
+    include: { user: { select: USER_PROFILE_SELECT } },
     orderBy: [{ role: "asc" }, { createdAt: "asc" }],
   });
   return rows.map((r) => ({

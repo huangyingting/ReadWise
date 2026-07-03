@@ -17,6 +17,14 @@ export type AssignArticleInput = {
   instructions?: string | null;
 };
 
+function trimOrNull(value: string | null | undefined): string | null {
+  return value?.trim() || null;
+}
+
+function teacherMembership(classroomId: string, teacherId: string) {
+  return { classroomId, userId: teacherId, role: "Teacher" as const };
+}
+
 /**
  * Creates a classroom and seats its primary teacher as a Teacher member, in one
  * transaction.
@@ -29,7 +37,7 @@ export async function createClassroom(
       data: { orgId: input.orgId, name: input.name.trim(), teacherId: input.teacherId },
     });
     await tx.classroomMembership.create({
-      data: { classroomId: classroom.id, userId: input.teacherId, role: "Teacher" },
+      data: teacherMembership(classroom.id, input.teacherId),
     });
     return classroom;
   });
@@ -63,7 +71,7 @@ export function assignArticle(input: AssignArticleInput): Promise<Assignment> {
       classroomId: input.classroomId,
       articleId: input.articleId,
       dueDate: input.dueDate ?? null,
-      instructions: input.instructions?.trim() || null,
+      instructions: trimOrNull(input.instructions),
     },
   });
 }

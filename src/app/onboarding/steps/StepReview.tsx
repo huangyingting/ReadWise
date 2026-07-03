@@ -1,9 +1,52 @@
 "use client";
 
+import type { RefObject, ReactNode } from "react";
 import { CATEGORIES } from "@/lib/categories";
 import { LEVEL_HINTS } from "@/lib/option-registries";
 import { Button } from "@/components/ui/Button";
 import { STEP_TITLES } from "./StepLevel";
+
+type StepReviewProps = {
+  headingRef: RefObject<HTMLHeadingElement | null>;
+  englishLevel: string;
+  topics: string[];
+  ageRange: string;
+  gender: string;
+  onJump: (step: number) => void;
+  error: string | null;
+};
+
+type SummaryRowProps = {
+  label: string;
+  children: ReactNode;
+  editStep: number;
+  onJump: (step: number) => void;
+};
+
+function getTopicLabels(topics: string[]) {
+  return topics
+    .map((slug) => CATEGORIES.find((c) => c.slug === slug)?.label)
+    .filter(Boolean)
+    .join(", ");
+}
+
+function SummaryRow({ label, children, editStep, onJump }: SummaryRowProps) {
+  return (
+    <div className="flex items-center justify-between py-[var(--space-3)]">
+      <div>
+        <div className="text-text-subtle text-[length:var(--text-xs)]">
+          {label}
+        </div>
+        <div className="text-text font-medium text-[length:var(--text-sm)] mt-0.5">
+          {children}
+        </div>
+      </div>
+      <Button variant="ghost" size="sm" onClick={() => onJump(editStep)}>
+        Edit
+      </Button>
+    </div>
+  );
+}
 
 export function StepReview({
   headingRef,
@@ -13,20 +56,8 @@ export function StepReview({
   gender,
   onJump,
   error,
-}: {
-  headingRef: React.RefObject<HTMLHeadingElement | null>;
-  englishLevel: string;
-  topics: string[];
-  ageRange: string;
-  gender: string;
-  onJump: (step: number) => void;
-  error: string | null;
-}) {
-  const topicLabels = topics
-    .map((slug) => CATEGORIES.find((c) => c.slug === slug)?.label)
-    .filter(Boolean)
-    .join(", ");
-
+}: StepReviewProps) {
+  const topicLabels = getTopicLabels(topics);
   const aboutParts = [ageRange, gender].filter(Boolean);
 
   return (
@@ -43,49 +74,20 @@ export function StepReview({
       </p>
 
       <div className="flex flex-col divide-y divide-border">
-        {/* Level row */}
-        <div className="flex items-center justify-between py-[var(--space-3)]">
-          <div>
-            <div className="text-text-subtle text-[length:var(--text-xs)]">Level</div>
-            <div className="text-text font-medium text-[length:var(--text-sm)] mt-0.5">
-              {LEVEL_HINTS[englishLevel] ?? englishLevel}
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => onJump(1)}>
-            Edit
-          </Button>
-        </div>
+        <SummaryRow label="Level" editStep={1} onJump={onJump}>
+          {LEVEL_HINTS[englishLevel] ?? englishLevel}
+        </SummaryRow>
 
-        {/* Topics row */}
-        <div className="flex items-center justify-between py-[var(--space-3)]">
-          <div>
-            <div className="text-text-subtle text-[length:var(--text-xs)]">Topics</div>
-            <div className="text-text font-medium text-[length:var(--text-sm)] mt-0.5">
-              {topicLabels || (
-                <span className="text-text-muted italic">
-                  No topics selected
-                </span>
-              )}
-            </div>
-          </div>
-          <Button variant="ghost" size="sm" onClick={() => onJump(3)}>
-            Edit
-          </Button>
-        </div>
+        <SummaryRow label="Topics" editStep={3} onJump={onJump}>
+          {topicLabels || (
+            <span className="text-text-muted italic">No topics selected</span>
+          )}
+        </SummaryRow>
 
-        {/* About row (only if set) */}
         {aboutParts.length > 0 && (
-          <div className="flex items-center justify-between py-[var(--space-3)]">
-            <div>
-              <div className="text-text-subtle text-[length:var(--text-xs)]">About you</div>
-              <div className="text-text font-medium text-[length:var(--text-sm)] mt-0.5">
-                {aboutParts.join(" · ")}
-              </div>
-            </div>
-            <Button variant="ghost" size="sm" onClick={() => onJump(4)}>
-              Edit
-            </Button>
-          </div>
+          <SummaryRow label="About you" editStep={4} onJump={onJump}>
+            {aboutParts.join(" · ")}
+          </SummaryRow>
         )}
       </div>
 

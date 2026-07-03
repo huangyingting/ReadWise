@@ -1,7 +1,16 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import type { WordBand, WordResult } from "@/components/reader/pronunciationTypes";
+
+const SR_ONLY_STYLE: CSSProperties = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  overflow: "hidden",
+  clip: "rect(0,0,0,0)",
+  whiteSpace: "nowrap",
+};
 
 /** Human-readable band name for sr-only labels. */
 function bandSrLabel(band: WordBand): string {
@@ -17,6 +26,34 @@ type Props = {
   sentence: string;
   wordResults: WordResult[];
 };
+
+function renderWordToken(wr: WordResult, rawWord: string, key: string) {
+  if (wr.band === "good") {
+    return (
+      <span
+        key={key}
+        className="rw-speak-word rw-speak-word--good"
+      >
+        {rawWord}
+      </span>
+    );
+  }
+
+  const tooltip = `${rawWord} — ${wr.score}, ${bandSrLabel(wr.band)}`;
+  return (
+    <span
+      key={key}
+      className={`rw-speak-word rw-speak-word--${wr.band}`}
+      data-tooltip={tooltip}
+    >
+      {rawWord}
+      {/* sr-only label for screen readers */}
+      <span className="rw-sr-live" style={SR_ONLY_STYLE}>
+        {` (${bandSrLabel(wr.band)})`}
+      </span>
+    </span>
+  );
+}
 
 /**
  * Renders the reference sentence with word-level pronunciation band styling.
@@ -52,41 +89,7 @@ export function WordDisplay({ sentence, wordResults }: Props) {
     }
     const rawWord = remaining.slice(pos, pos + wr.word.length);
 
-    if (wr.band === "good") {
-      tokens.push(
-        <span
-          key={`w${keyIdx++}`}
-          className="rw-speak-word rw-speak-word--good"
-        >
-          {rawWord}
-        </span>,
-      );
-    } else {
-      const tooltip = `${rawWord} — ${wr.score}, ${bandSrLabel(wr.band)}`;
-      tokens.push(
-        <span
-          key={`w${keyIdx++}`}
-          className={`rw-speak-word rw-speak-word--${wr.band}`}
-          data-tooltip={tooltip}
-        >
-          {rawWord}
-          {/* sr-only label for screen readers */}
-          <span
-            className="rw-sr-live"
-            style={{
-              position: "absolute",
-              width: 1,
-              height: 1,
-              overflow: "hidden",
-              clip: "rect(0,0,0,0)",
-              whiteSpace: "nowrap",
-            }}
-          >
-            {` (${bandSrLabel(wr.band)})`}
-          </span>
-        </span>,
-      );
-    }
+    tokens.push(renderWordToken(wr, rawWord, `w${keyIdx++}`));
     remaining = remaining.slice(pos + wr.word.length);
   }
 

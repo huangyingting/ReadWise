@@ -14,6 +14,8 @@ import { isPushFeatureEnabled } from "@/lib/runtime-config/feature-flags";
 
 const log = createLogger("push");
 
+const VAPID_CONFIG_KEY_SEPARATOR = "\n";
+
 let pushInitialised = false;
 let pushInitKey: string | null = null;
 
@@ -24,7 +26,17 @@ function readVapidConfig(): VapidCfg | null {
 }
 
 function configKey(cfg: VapidCfg): string {
-  return `${cfg.subject}\n${cfg.publicKey}\n${cfg.privateKey}`;
+  return `${cfg.subject}${VAPID_CONFIG_KEY_SEPARATOR}${cfg.publicKey}${VAPID_CONFIG_KEY_SEPARATOR}${cfg.privateKey}`;
+}
+
+function rememberPushInit(key: string): void {
+  pushInitialised = true;
+  pushInitKey = key;
+}
+
+function resetPushInit(): void {
+  pushInitialised = false;
+  pushInitKey = null;
 }
 
 /**
@@ -39,11 +51,9 @@ export function ensurePushInit(): boolean {
 
   try {
     webpush.setVapidDetails(cfg.subject, cfg.publicKey, cfg.privateKey);
-    pushInitialised = true;
-    pushInitKey = key;
+    rememberPushInit(key);
   } catch (err) {
-    pushInitialised = false;
-    pushInitKey = null;
+    resetPushInit();
     log.warn("invalid VAPID configuration — push disabled", { error: String(err) });
     return false;
   }

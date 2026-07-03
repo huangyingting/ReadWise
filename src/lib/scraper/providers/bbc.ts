@@ -1,6 +1,36 @@
 import type { Provider } from "@/lib/scraper/types";
 import { categoryFromRules, excludes, rssUrlExtractor } from "./shared";
 
+const BBC_ARTICLE_PATH_PATTERNS = [
+  /\/news\/articles\/[a-z0-9]+/,
+  /\/news\/[a-z0-9_-]+-\d{6,}/,
+] as const;
+
+const BBC_EXCLUDED_PATHS = ["/live/", "/in_pictures", "/av/", "/topics/", "/correspondents/"] as const;
+
+const BBC_CATEGORIES = [
+  "world",
+  "politics",
+  "business",
+  "health",
+  "science",
+  "tech",
+  "entertainment",
+  "sports",
+  "culture",
+] as const;
+
+const BBC_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, string]> = [
+  [/world|global|international|us[-_]and[-_]canada/, "world"],
+  [/politic|election|government/, "politics"],
+  [/business|econom|market|money/, "business"],
+  [/technology|innovation|tech|\bai\b/, "tech"],
+  [/science|environment|climate/, "science"],
+  [/health|medical/, "health"],
+  [/entertainment|arts|culture/, "entertainment"],
+  [/sport/, "sports"],
+];
+
 /**
  * BBC News RSS feeds keyed by ReadWise category slug. Where BBC doesn't have
  * a dedicated feed, the nearest thematic feed is used as a fallback.
@@ -22,12 +52,8 @@ export const BBC_RSS_FEEDS: Record<string, string> = {
 
 export function isBbcNewsArticleUrl(url: string): boolean {
   const lower = url.toLowerCase();
-  const hasArticlePath =
-    /\/news\/articles\/[a-z0-9]+/.test(lower) || /\/news\/[a-z0-9_-]+-\d{6,}/.test(lower);
-  return (
-    hasArticlePath &&
-    excludes(lower, ["/live/", "/in_pictures", "/av/", "/topics/", "/correspondents/"])
-  );
+  const hasArticlePath = BBC_ARTICLE_PATH_PATTERNS.some((pattern) => pattern.test(lower));
+  return hasArticlePath && excludes(lower, BBC_EXCLUDED_PATHS);
 }
 
 const bbc: Provider = {
@@ -46,21 +72,12 @@ const bbc: Provider = {
     /^https:\/\/(?:www\.)?bbc\.(?:com|co\.uk)\/news\/(?:articles\/[a-z0-9]+|[a-z0-9_-]+-\d{6,})(?:[/?#].*)?$/i,
   articleUrlFilter: isBbcNewsArticleUrl,
   defaultCategory: "world",
-  categories: ["world", "politics", "business", "health", "science", "tech", "entertainment", "sports", "culture"],
+  categories: [...BBC_CATEGORIES],
   categoryFor: (url, section) =>
     categoryFromRules(
       url,
       section,
-      [
-        [/world|global|international|us[-_]and[-_]canada/, "world"],
-        [/politic|election|government/, "politics"],
-        [/business|econom|market|money/, "business"],
-        [/technology|innovation|tech|\bai\b/, "tech"],
-        [/science|environment|climate/, "science"],
-        [/health|medical/, "health"],
-        [/entertainment|arts|culture/, "entertainment"],
-        [/sport/, "sports"],
-      ],
+      BBC_CATEGORY_RULES,
       "world",
     ),
   /**

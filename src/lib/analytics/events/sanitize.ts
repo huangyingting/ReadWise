@@ -18,6 +18,13 @@ import { truncateStr } from "@/lib/primitives/pure";
 const MAX_PROPERTY_KEYS = 25;
 const MAX_PROPERTY_STRING_LEN = 200;
 const MAX_PROPERTY_ARRAY_ITEMS = 20;
+const MAX_PROPERTY_KEY_LEN = 60;
+
+function sanitizeArrayItem(item: unknown): unknown {
+  if (typeof item === "string") return truncateStr(item, MAX_PROPERTY_STRING_LEN);
+  if (typeof item === "number" || typeof item === "boolean") return item;
+  return null;
+}
 
 /** Coerce a single property value to a small, safe, serializable primitive. */
 function sanitizePropertyValue(value: unknown): unknown {
@@ -26,19 +33,15 @@ function sanitizePropertyValue(value: unknown): unknown {
   if (typeof value === "number") return Number.isFinite(value) ? value : null;
   if (typeof value === "string") return truncateStr(value, MAX_PROPERTY_STRING_LEN);
   if (Array.isArray(value)) {
-    return value
-      .slice(0, MAX_PROPERTY_ARRAY_ITEMS)
-      .map((item) =>
-        typeof item === "string"
-          ? truncateStr(item, MAX_PROPERTY_STRING_LEN)
-          : typeof item === "number" || typeof item === "boolean"
-            ? item
-            : null,
-      );
+    return value.slice(0, MAX_PROPERTY_ARRAY_ITEMS).map(sanitizeArrayItem);
   }
   // Objects/functions are not persisted as nested structures — analytics props
   // are intentionally flat. Drop anything we can't represent safely.
   return null;
+}
+
+function shouldSkipPropertyKey(rawKey: string): boolean {
+  return rawKey === "_v" || isSensitiveMetadataKey(rawKey);
 }
 
 /**
@@ -54,9 +57,8 @@ export function sanitizeEventProperties(
   let count = 0;
   for (const [rawKey, value] of Object.entries(input)) {
     if (count >= MAX_PROPERTY_KEYS) break;
-    if (rawKey === "_v") continue;
-    if (isSensitiveMetadataKey(rawKey)) continue;
-    const key = truncateStr(rawKey, 60);
+    if (shouldSkipPropertyKey(rawKey)) continue;
+    const key = truncateStr(rawKey, MAX_PROPERTY_KEY_LEN);
     out[key] = sanitizePropertyValue(value);
     count++;
   }

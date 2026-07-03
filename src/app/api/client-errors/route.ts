@@ -18,6 +18,22 @@ const bodySchema = object({
   url: optional(string({ max: 2000 })),
 });
 
+type ClientErrorBody = {
+  message: string;
+  source?: string;
+  stack?: string;
+  url?: string;
+};
+
+type ScrubbedClientErrorReport = {
+  message: string;
+  source: string;
+  stack?: string;
+  url?: string;
+};
+
+const CLIENT_SOURCE_FALLBACK = "window";
+
 /** Mask email addresses and long token-like strings to prevent PII in logs. */
 function scrubClientText(text: string): string {
   return text
@@ -36,6 +52,19 @@ function stripUrlSensitive(url: string): string {
   }
 }
 
+function scrubClientReport(body: ClientErrorBody): ScrubbedClientErrorReport {
+  return {
+    message: scrubClientText(body.message),
+    source: body.source ?? CLIENT_SOURCE_FALLBACK,
+    stack: body.stack ? scrubClientText(body.stack) : undefined,
+    url: body.url ? stripUrlSensitive(body.url) : undefined,
+  };
+}
+
+function noContent(): NextResponse {
+  return new NextResponse(null, { status: 204 });
+}
+
 export const POST = createPublicHandler(
   { body: bodySchema },
   async ({ body, log, req }) => {
@@ -44,27 +73,28 @@ export const POST = createPublicHandler(
     try {
       await checkRateLimitByKey(clientIpKey(req), "public");
     } catch {
-      return new NextResponse(null, { status: 204 });
+      return noContent();
     }
+    const report = scrubClientReport(body);
     log.error("client.error", {
-      clientMessage: scrubClientText(body.message),
-      clientSource: body.source ?? "window",
-      clientStack: body.stack ? scrubClientText(body.stack) : undefined,
-      clientUrl: body.url ? stripUrlSensitive(body.url) : undefined,
+      clientMessage: report.message,
+      clientSource: report.source,
+      clientStack: report.stack,
+      clientUrl: report.url,
     });
     // Also funnel into the backend-agnostic aggregator so client exceptions are
     // grouped/fingerprinted + alertable alongside server errors. Build a
     // synthetic Error from the (already scrubbed) client report — captureError
     // re-scrubs, fingerprints, and increments the error metric.
-    const clientError = new Error(scrubClientText(body.message));
+    const clientError = new Error(report.message);
     clientError.name = "ClientError";
-    if (body.stack) clientError.stack = scrubClientText(body.stack);
+    if (report.stack) clientError.stack = report.stack;
     captureError(clientError, {
       source: "client",
       severity: "error",
-      route: body.url ? stripUrlSensitive(body.url) : undefined,
-      extra: { clientSource: body.source ?? "window" },
+      route: report.url,
+      extra: { clientSource: report.source },
     });
-    return new NextResponse(null, { status: 204 });
+    return noContent();
   },
 );

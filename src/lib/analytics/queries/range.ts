@@ -21,6 +21,21 @@ export const TIME_RANGE_PRESETS: readonly { days: number; label: string }[] = [
 
 const DEFAULT_RANGE_DAYS = 30;
 const MAX_RANGE_DAYS = 365;
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function clampRangeDays(days: number): number {
+  return Math.min(MAX_RANGE_DAYS, days);
+}
+
+function parsePositiveDays(raw: number): number | null {
+  return Number.isFinite(raw) && raw >= 1 ? clampRangeDays(raw) : null;
+}
+
+function resolveLookbackDays(days: number | null | undefined): number {
+  return typeof days === "number" && Number.isFinite(days) && days > 0
+    ? clampRangeDays(Math.floor(days))
+    : DEFAULT_RANGE_DAYS;
+}
 
 /**
  * Resolves a `days` look-back into a concrete `{ since, until }` window ending
@@ -30,12 +45,9 @@ export function resolveTimeRange(
   days: number | null | undefined,
   now: Date = new Date(),
 ): { since: Date; until: Date; days: number } {
-  const clamped =
-    Number.isFinite(days) && (days ?? 0) > 0
-      ? Math.min(MAX_RANGE_DAYS, Math.floor(days as number))
-      : DEFAULT_RANGE_DAYS;
+  const clamped = resolveLookbackDays(days);
   const until = now;
-  const since = new Date(now.getTime() - clamped * 24 * 60 * 60 * 1000);
+  const since = new Date(now.getTime() - clamped * DAY_MS);
   return { since, until, days: clamped };
 }
 
@@ -63,10 +75,7 @@ export function parseAnalyticsQuery(params: {
   topic?: string | null;
 }): ParsedAnalyticsQuery {
   const rawDays = Number.parseInt(params.days ?? "", 10);
-  const days =
-    Number.isFinite(rawDays) && rawDays >= 1
-      ? Math.min(MAX_RANGE_DAYS, rawDays)
-      : DEFAULT_RANGE_DAYS;
+  const days = parsePositiveDays(rawDays) ?? DEFAULT_RANGE_DAYS;
   const level = (params.level ?? "").trim();
   const topic = (params.topic ?? "").trim();
   const segment: AnalyticsSegment | undefined =

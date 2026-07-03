@@ -37,6 +37,24 @@ export function isOffline(): boolean {
   return typeof navigator !== "undefined" && navigator.onLine === false;
 }
 
+function todayPayload(
+  ctx: TodayMutationContext,
+  extra: Record<string, unknown>,
+): Record<string, unknown> {
+  return {
+    localDate: ctx.localDate,
+    timezone: ctx.timezone,
+    ...extra,
+  };
+}
+
+function todayClientMutationId(
+  type: TodayOfflineMutationType,
+  ctx: TodayMutationContext,
+): string {
+  return buildTodayIdempotencyKey(type, ctx.userId, ctx.localDate);
+}
+
 /**
  * Enqueue (or, if online, immediately send) a Today mutation. The payload is
  * `{ localDate, timezone, ...extra }` and is asserted to contain only allowed
@@ -49,21 +67,13 @@ export async function submitTodayMutation(
   ctx: TodayMutationContext,
   extra: Record<string, unknown> = {},
 ): Promise<SubmitResult> {
-  const body: Record<string, unknown> = {
-    localDate: ctx.localDate,
-    timezone: ctx.timezone,
-    ...extra,
-  };
+  const body = todayPayload(ctx, extra);
   // Privacy backstop: refuse to queue anything outside the allowed field set.
   if (!isAllowedTodayPayload(body)) {
     throw new Error(`Disallowed field in Today offline payload for '${type}'`);
   }
   const reg = getMutationRegistration(type);
-  const clientMutationId = buildTodayIdempotencyKey(
-    type,
-    ctx.userId,
-    ctx.localDate,
-  );
+  const clientMutationId = todayClientMutationId(type, ctx);
   return submitMutation({
     type,
     endpoint: TODAY_ENDPOINT_BY_TYPE[type],

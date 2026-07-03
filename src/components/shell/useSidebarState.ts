@@ -10,6 +10,10 @@ import {
   getEffectiveCollapsed,
 } from "./nav-items";
 
+const SIDEBAR_WIDTH_PROPERTY = "--app-sidebar-w";
+const SIDEBAR_WIDTH_EXPANDED = "var(--sidebar-w)";
+const SIDEBAR_WIDTH_COLLAPSED = "var(--sidebar-w-collapsed)";
+
 /** Value returned by `useSidebarState`. */
 export interface SidebarState {
   /** Effective collapsed flag — accounts for reader-route override. */
@@ -28,6 +32,27 @@ export interface SidebarState {
   toggle: () => void;
 }
 
+function isReaderPath(pathname: string | null): boolean {
+  return (pathname ?? "").startsWith(READER_ROUTE_PREFIX);
+}
+
+function resolveStoredCollapsed(): boolean {
+  const raw = lsGet(STORAGE_KEYS.SIDEBAR_COLLAPSED);
+  const stored = parseSidebarStored(raw);
+  return stored ?? getResponsiveDefault();
+}
+
+function setSidebarWidth(collapsed: boolean): void {
+  document.documentElement.style.setProperty(
+    SIDEBAR_WIDTH_PROPERTY,
+    collapsed ? SIDEBAR_WIDTH_COLLAPSED : SIDEBAR_WIDTH_EXPANDED,
+  );
+}
+
+function clearSidebarWidth(): void {
+  document.documentElement.style.removeProperty(SIDEBAR_WIDTH_PROPERTY);
+}
+
 /**
  * Manages sidebar collapsed state for the app shell (REF-054).
  *
@@ -43,7 +68,7 @@ export interface SidebarState {
  */
 export function useSidebarState(): SidebarState {
   const pathname = usePathname();
-  const isReaderRoute = (pathname ?? "").startsWith(READER_ROUTE_PREFIX);
+  const isReaderRoute = isReaderPath(pathname);
 
   // Global stored preference. SSR/first-paint default: false (expanded) to
   // avoid a hydration mismatch; resolved client-side in the first effect.
@@ -54,9 +79,7 @@ export function useSidebarState(): SidebarState {
 
   // Resolve the stored preference (or responsive default) on the client.
   useEffect(() => {
-    const raw = lsGet(STORAGE_KEYS.SIDEBAR_COLLAPSED);
-    const stored = parseSidebarStored(raw);
-    setStoredCollapsed(stored ?? getResponsiveDefault());
+    setStoredCollapsed(resolveStoredCollapsed());
     setMounted(true);
   }, []);
 
@@ -66,18 +89,16 @@ export function useSidebarState(): SidebarState {
     setReaderOverride(null);
   }, [isReaderRoute]);
 
-  const collapsed = getEffectiveCollapsed(storedCollapsed, readerOverride, isReaderRoute);
+  const collapsed = getEffectiveCollapsed(
+    storedCollapsed,
+    readerOverride,
+    isReaderRoute,
+  );
 
   // Publish sidebar width as a CSS custom property so fixed overlays can inset.
   useEffect(() => {
-    const root = document.documentElement;
-    root.style.setProperty(
-      "--app-sidebar-w",
-      collapsed ? "var(--sidebar-w-collapsed)" : "var(--sidebar-w)",
-    );
-    return () => {
-      root.style.removeProperty("--app-sidebar-w");
-    };
+    setSidebarWidth(collapsed);
+    return clearSidebarWidth;
   }, [collapsed]);
 
   function toggle() {

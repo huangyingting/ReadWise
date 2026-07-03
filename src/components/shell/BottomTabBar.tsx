@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { MoreHorizontal } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
-import { PRIMARY_TABS, isActivePath } from "./nav-items";
+import { PRIMARY_TABS, READER_ROUTE_PREFIX, isActivePath } from "./nav-items";
 import MoreSheet from "./MoreSheet";
 import type { ShellUser } from "./types";
 
@@ -14,6 +14,21 @@ import type { ShellUser } from "./types";
 const TAB_LABELS: Record<string, string> = {
   "/dashboard": "Home",
 };
+
+function getTabLabel(href: string, fallback: string): string {
+  return TAB_LABELS[href] ?? fallback;
+}
+
+function itemClass(active: boolean): string {
+  return cn(
+    "flex flex-1 flex-col items-center justify-center gap-[2px]",
+    "min-h-[44px] px-[var(--space-1)] py-[var(--space-1)]",
+    "text-[length:var(--text-xs)] font-medium",
+    "transition-colors [transition-duration:var(--duration-fast)]",
+    active ? "text-[var(--teal)]" : "text-text-muted hover:text-text",
+    focusRing,
+  );
+}
 
 /**
  * Mobile primary navigation — a fixed bottom tab bar visible only below `md`.
@@ -34,19 +49,9 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
   // #153: hide the bottom tab bar inside the reader (focused reading) so it
   // never collides with the fixed ReaderMiniPlayer / reading toolbar. The reader
   // owns its own bottom chrome (mini-player + Tools sheet) on mobile.
-  if (pathname?.startsWith("/reader/")) {
+  if (pathname?.startsWith(READER_ROUTE_PREFIX)) {
     return null;
   }
-
-  const itemClass = (active: boolean) =>
-    cn(
-      "flex flex-1 flex-col items-center justify-center gap-[2px]",
-      "min-h-[44px] px-[var(--space-1)] py-[var(--space-1)]",
-      "text-[length:var(--text-xs)] font-medium",
-      "transition-colors [transition-duration:var(--duration-fast)]",
-      active ? "text-[var(--teal)]" : "text-text-muted hover:text-text",
-      focusRing,
-    );
 
   return (
     <>
@@ -69,7 +74,7 @@ export default function BottomTabBar({ user }: { user: ShellUser }) {
               className={itemClass(active)}
             >
               <Icon size={22} aria-hidden />
-              <span>{TAB_LABELS[href] ?? label}</span>
+             <span>{getTabLabel(href, label)}</span>
             </Link>
           );
         })}

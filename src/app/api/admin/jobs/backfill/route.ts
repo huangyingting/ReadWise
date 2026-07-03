@@ -21,31 +21,66 @@ const backfillBody = object({
   articleIds: optional(array(nonEmptyString(200), { max: 500 })),
 });
 
+type BackfillRequestBody = {
+  features: BackfillFeature[];
+  mode?: "missing" | "rebuild";
+  reason: string;
+  dryRun?: boolean;
+  batchCap?: number;
+  status?: string;
+  category?: string;
+  translateLangs?: string[];
+  articleIds?: string[];
+};
+
+type BackfillResult = Awaited<ReturnType<typeof runBackfill>>;
+
+async function runBackfillOrApiError(
+  body: BackfillRequestBody,
+  operatorId: string,
+): Promise<BackfillResult> {
+  try {
+    return await runBackfill({
+      features: body.features,
+      mode: body.mode,
+      reason: body.reason,
+      operatorId,
+      dryRun: body.dryRun,
+      batchCap: body.batchCap,
+      translateLangs: body.translateLangs,
+      filter: {
+        status: body.status,
+        category: body.category,
+        articleIds: body.articleIds,
+      },
+    });
+  } catch (err) {
+    if (err instanceof BackfillError) {
+      throw new ApiError(err.status, err.message);
+    }
+    throw err;
+  }
+}
+
+function backfillAuditMetadata(result: BackfillResult) {
+  return {
+    mode: result.mode,
+    features: result.features,
+    reason: result.reason,
+    dryRun: result.dryRun,
+    scanned: result.scanned,
+    matched: result.matched,
+    cap: result.cap,
+    enqueued: result.enqueued,
+    skippedExisting: result.skippedExisting,
+    cleared: result.cleared,
+  };
+}
+
 export const POST = createAdminHandler(
   { body: backfillBody },
   async ({ req, body, session, requestId }) => {
-    let result;
-    try {
-      result = await runBackfill({
-        features: body.features,
-        mode: body.mode,
-        reason: body.reason,
-        operatorId: session.user.id,
-        dryRun: body.dryRun,
-        batchCap: body.batchCap,
-        translateLangs: body.translateLangs,
-        filter: {
-          status: body.status,
-          category: body.category,
-          articleIds: body.articleIds,
-        },
-      });
-    } catch (err) {
-      if (err instanceof BackfillError) {
-        throw new ApiError(err.status, err.message);
-      }
-      throw err;
-    }
+    const result = await runBackfillOrApiError(body, session.user.id);
 
     await recordAuditFromRequest({
       req,
@@ -54,18 +89,7 @@ export const POST = createAdminHandler(
       action: AUDIT_ACTIONS.adminJobBackfill,
       targetType: "job_backfill",
       targetId: null,
-      metadata: {
-        mode: result.mode,
-        features: result.features,
-        reason: result.reason,
-        dryRun: result.dryRun,
-        scanned: result.scanned,
-        matched: result.matched,
-        cap: result.cap,
-        enqueued: result.enqueued,
-        skippedExisting: result.skippedExisting,
-        cleared: result.cleared,
-      },
+      metadata: backfillAuditMetadata(result),
     });
 
     return NextResponse.json(result);

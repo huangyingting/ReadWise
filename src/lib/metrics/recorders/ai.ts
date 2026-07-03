@@ -15,23 +15,50 @@ import {
   AI_DURATION_BUCKETS_MS,
 } from "@/lib/metrics/registry";
 
-export function recordAiCall(input: {
+type AiCallOutcome = "success" | "error" | "empty" | "unconfigured" | "aborted";
+
+type AiCallInput = {
   feature: string;
-  outcome: "success" | "error" | "empty" | "unconfigured" | "aborted";
+  outcome: AiCallOutcome;
   status?: number | string;
   durationMs?: number;
   promptTokens?: number;
   completionTokens?: number;
   totalTokens?: number;
-}): void {
+};
+
+const AI_CALL_OUTCOMES: readonly AiCallOutcome[] = [
+  "success",
+  "error",
+  "empty",
+  "unconfigured",
+  "aborted",
+];
+
+const AI_TOKEN_FIELDS = [
+  ["prompt", "promptTokens"],
+  ["completion", "completionTokens"],
+  ["total", "totalTokens"],
+] as const;
+
+function aiStatusClass(input: { outcome: string; status?: number | string }): string {
+  if (input.status !== undefined) return statusClass(input.status);
+  return input.outcome === "unconfigured" ? "unconfigured" : "network";
+}
+
+function recordAiTokenCounters(input: AiCallInput, feature: string): void {
+  for (const [type, key] of AI_TOKEN_FIELDS) {
+    const value = input[key];
+    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
+      incCounter("readwise_ai_tokens_total", "AI token usage totals.", { feature, type }, value);
+    }
+  }
+}
+
+export function recordAiCall(input: AiCallInput): void {
   const feature = normalizeLabelValue(input.feature);
-  const outcome = normalizeOutcome(input.outcome, ["success", "error", "empty", "unconfigured", "aborted"]);
-  const status_class =
-    input.status === undefined
-      ? outcome === "unconfigured"
-        ? "unconfigured"
-        : "network"
-      : statusClass(input.status);
+  const outcome = normalizeOutcome(input.outcome, AI_CALL_OUTCOMES);
+  const status_class = aiStatusClass({ ...input, outcome });
   incCounter("readwise_ai_calls_total", "AI provider calls by feature and outcome.", {
     feature,
     outcome,
@@ -46,16 +73,7 @@ export function recordAiCall(input: {
       input.durationMs,
     );
   }
-  const tokenEntries = [
-    ["prompt", input.promptTokens],
-    ["completion", input.completionTokens],
-    ["total", input.totalTokens],
-  ] as const;
-  for (const [type, value] of tokenEntries) {
-    if (typeof value === "number" && Number.isFinite(value) && value > 0) {
-      incCounter("readwise_ai_tokens_total", "AI token usage totals.", { feature, type }, value);
-    }
-  }
+  recordAiTokenCounters(input, feature);
 }
 
 export function recordAiRetry(input: { feature: string; reason: string }): void {

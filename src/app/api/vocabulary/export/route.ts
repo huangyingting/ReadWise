@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getSavedWords } from "@/lib/lexical/saved-words";
-import { parseExportQuery } from "@/lib/vocabulary/schemas";
+import { parseExportQuery, type ExportFormat } from "@/lib/vocabulary/schemas";
 import { csvField } from "@/lib/csv";
 
-function toCSV(words: Awaited<ReturnType<typeof getSavedWords>>): string {
-  const header = "word,explanation,example,articleId,savedAt\n";
+type SavedWords = Awaited<ReturnType<typeof getSavedWords>>;
+
+const CSV_HEADER = "word,explanation,example,articleId,savedAt\n";
+const EXPORT_CONTENT_TYPE: Record<ExportFormat, string> = {
+  anki: "text/plain; charset=utf-8",
+  csv: "text/csv; charset=utf-8",
+};
+
+function toCSV(words: SavedWords): string {
   const rows = words.map((w) =>
     [
       csvField(w.word),
@@ -15,10 +22,10 @@ function toCSV(words: Awaited<ReturnType<typeof getSavedWords>>): string {
       csvField(w.createdAt.toISOString()),
     ].join(","),
   );
-  return header + rows.join("\n");
+  return CSV_HEADER + rows.join("\n");
 }
 
-function toAnki(words: Awaited<ReturnType<typeof getSavedWords>>): string {
+function toAnki(words: SavedWords): string {
   // Tab-separated: front = word, back = explanation + (example) if present.
   // Anki's "Text files" importer accepts plain TSV with no header.
   return words
@@ -31,6 +38,21 @@ function toAnki(words: Awaited<ReturnType<typeof getSavedWords>>): string {
     .join("\n");
 }
 
+function vocabularyExportResponse(
+  content: string,
+  format: ExportFormat,
+  date: string,
+): NextResponse {
+  const extension = format === "anki" ? "txt" : "csv";
+  return new NextResponse(content, {
+    status: 200,
+    headers: {
+      "Content-Type": EXPORT_CONTENT_TYPE[format],
+      "Content-Disposition": `attachment; filename="readwise-vocabulary-${date}.${extension}"`,
+    },
+  });
+}
+
 export const GET = createHandler(
   {
     query: parseExportQuery,
@@ -40,24 +62,10 @@ export const GET = createHandler(
     const date = new Date().toISOString().slice(0, 10);
 
     if (query.format === "anki") {
-      const content = toAnki(words);
-      return new NextResponse(content, {
-        status: 200,
-        headers: {
-          "Content-Type": "text/plain; charset=utf-8",
-          "Content-Disposition": `attachment; filename="readwise-vocabulary-${date}.txt"`,
-        },
-      });
+      return vocabularyExportResponse(toAnki(words), "anki", date);
     }
 
     // Default: CSV
-    const content = toCSV(words);
-    return new NextResponse(content, {
-      status: 200,
-      headers: {
-        "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": `attachment; filename="readwise-vocabulary-${date}.csv"`,
-      },
-    });
+    return vocabularyExportResponse(toCSV(words), "csv", date);
   },
 );

@@ -6,6 +6,12 @@ export interface LabelProps
   required?: boolean;
 }
 
+function joinDescribedBy(
+  ...ids: Array<string | null | undefined | false>
+): string | undefined {
+  return ids.filter(Boolean).join(" ") || undefined;
+}
+
 export function Label({ required, className, children, ...props }: LabelProps) {
   return (
     <label
@@ -36,6 +42,27 @@ export interface FieldProps extends React.HTMLAttributes<HTMLDivElement> {
   children: React.ReactNode;
 }
 
+function cloneFieldControl(
+  children: React.ReactNode,
+  controlId: string,
+  describedBy: string | undefined,
+  invalid: boolean | undefined,
+): React.ReactNode {
+  if (!React.isValidElement(children)) {
+    return children;
+  }
+
+  const child = children as React.ReactElement<Record<string, unknown>>;
+  return React.cloneElement(child, {
+    id: child.props.id ?? controlId,
+    "aria-describedby": joinDescribedBy(
+      child.props["aria-describedby"] as string | undefined,
+      describedBy,
+    ),
+    invalid: child.props.invalid ?? invalid,
+  });
+}
+
 /**
  * Label + control + hint/error wrapper. Wires `htmlFor`/`id` and
  * `aria-describedby`, and reserves the error row height to avoid layout shift.
@@ -53,20 +80,13 @@ export function Field({
   const controlId = `field-${reactId}`;
   const hintId = hint ? `${controlId}-hint` : undefined;
   const errorId = error ? `${controlId}-error` : undefined;
-  const describedBy = [hintId, errorId].filter(Boolean).join(" ") || undefined;
-
-  let control = children;
-  if (React.isValidElement(children)) {
-    const child = children as React.ReactElement<Record<string, unknown>>;
-    control = React.cloneElement(child, {
-      id: child.props.id ?? controlId,
-      "aria-describedby":
-        [child.props["aria-describedby"], describedBy]
-          .filter(Boolean)
-          .join(" ") || undefined,
-      invalid: child.props.invalid ?? (error ? true : undefined),
-    });
-  }
+  const describedBy = joinDescribedBy(hintId, errorId);
+  const control = cloneFieldControl(
+    children,
+    controlId,
+    describedBy,
+    error ? true : undefined,
+  );
 
   return (
     <div

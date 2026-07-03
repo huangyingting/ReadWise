@@ -14,6 +14,14 @@ export type RecordCompletionInput = {
   quizScore?: number | null;
 };
 
+function normalizeQuizScore(score: number | null | undefined): number | undefined {
+  return score == null ? undefined : Math.min(100, Math.max(0, Math.round(score)));
+}
+
+function completionTimestamp(status: AssignmentStatus): Date | null {
+  return status === AssignmentStatus.COMPLETED ? new Date() : null;
+}
+
 /**
  * Resolves an assignment ONLY if `studentId` is enrolled in its classroom.
  * Returns null when the assignment doesn't exist OR the user isn't a member —
@@ -46,11 +54,8 @@ export async function recordAssignmentCompletion(
   input: RecordCompletionInput = {},
 ) {
   const status = input.status ?? AssignmentStatus.COMPLETED;
-  const quizScore =
-    input.quizScore == null
-      ? undefined
-      : Math.min(100, Math.max(0, Math.round(input.quizScore)));
-  const completedAt = status === AssignmentStatus.COMPLETED ? new Date() : null;
+  const quizScore = normalizeQuizScore(input.quizScore);
+  const completedAt = completionTimestamp(status);
   return prisma.assignmentCompletion.upsert({
     where: { assignmentId_studentId: { assignmentId, studentId } },
     update: {

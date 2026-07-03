@@ -8,6 +8,34 @@ import { providerFetch } from "@/lib/http/provider-client";
 // Azure Speech SDK has Node-only native bindings.
 export const runtime = "nodejs";
 
+const SPEECH_SERVICE_UNAVAILABLE = {
+  configured: true,
+  error: "Speech service unavailable",
+} as const;
+
+function unconfiguredResponse() {
+  return NextResponse.json({ configured: false });
+}
+
+function speechServiceUnavailableResponse() {
+  return NextResponse.json(SPEECH_SERVICE_UNAVAILABLE, { status: 502 });
+}
+
+function speechTokenUrl(region: string): string {
+  return `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
+}
+
+async function issueSpeechToken(key: string, region: string): Promise<Response> {
+  return providerFetch(
+    speechTokenUrl(region),
+    {
+      method: "POST",
+      headers: { "Ocp-Apim-Subscription-Key": key },
+    },
+    { provider: "speech-token" },
+  );
+}
+
 /**
  * GET /api/speech/token
  *
@@ -23,38 +51,24 @@ export const runtime = "nodejs";
 export const GET = createHandler({}, async ({ session }) => {
   await checkRateLimit(session.user.id, "lookup");
   if (!isSpeechConfigured()) {
-    return NextResponse.json({ configured: false });
+    return unconfiguredResponse();
   }
 
   const cfg = speechConfig.get();
   if (!cfg) {
-    return NextResponse.json({ configured: false });
+    return unconfiguredResponse();
   }
   const { key, region } = cfg;
-  const tokenUrl = `https://${region}.api.cognitive.microsoft.com/sts/v1.0/issueToken`;
 
   let tokenRes: Response;
   try {
-    tokenRes = await providerFetch(
-      tokenUrl,
-      {
-        method: "POST",
-        headers: { "Ocp-Apim-Subscription-Key": key },
-      },
-      { provider: "speech-token" },
-    );
+    tokenRes = await issueSpeechToken(key, region);
   } catch {
-    return NextResponse.json(
-      { configured: true, error: "Speech service unavailable" },
-      { status: 502 },
-    );
+    return speechServiceUnavailableResponse();
   }
 
   if (!tokenRes.ok) {
-    return NextResponse.json(
-      { configured: true, error: "Speech service unavailable" },
-      { status: 502 },
-    );
+    return speechServiceUnavailableResponse();
   }
 
   const token = await tokenRes.text();
