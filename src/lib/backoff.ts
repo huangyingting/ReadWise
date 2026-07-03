@@ -25,7 +25,15 @@ export function jitteredExponentialBackoff({
   random = Math.random,
 }: JitteredBackoffOptions): number {
   if (baseMs <= 0 || maxMs <= 0) return 0;
-  const exp = Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt - 1));
-  const jitter = Math.floor(random() * Math.min(baseMs, exp));
-  return Math.min(maxMs, exp + jitter);
+  const exponentialDelay = cappedExponentialDelay(attempt, baseMs, maxMs);
+  const jitter = boundedJitter(random, baseMs, exponentialDelay);
+  return Math.min(maxMs, exponentialDelay + jitter);
+}
+
+function cappedExponentialDelay(attempt: number, baseMs: number, maxMs: number): number {
+  return Math.min(maxMs, baseMs * 2 ** Math.max(0, attempt - 1));
+}
+
+function boundedJitter(random: () => number, baseMs: number, exponentialDelay: number): number {
+  return Math.floor(random() * Math.min(baseMs, exponentialDelay));
 }

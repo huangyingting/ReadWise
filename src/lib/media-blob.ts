@@ -15,12 +15,21 @@
  * leaks.
  */
 export function base64ToBlobUrl(base64OrDataUri: string, mimeType: string): string {
-  const base64 = base64OrDataUri.includes(",")
-    ? base64OrDataUri.split(",")[1]
-    : base64OrDataUri;
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const bytes = decodeBase64(stripDataUriHeader(base64OrDataUri));
   const blob = new Blob([bytes], { type: mimeType });
   return URL.createObjectURL(blob);
+}
+
+function stripDataUriHeader(base64OrDataUri: string): string {
+  if (!base64OrDataUri.includes(",")) {
+    return base64OrDataUri;
+  }
+
+  return base64OrDataUri.split(",")[1];
+}
+
+function decodeBase64(base64: string): Uint8Array {
+  return Uint8Array.from(atob(base64), (char) => char.charCodeAt(0));
 }
 
 /**

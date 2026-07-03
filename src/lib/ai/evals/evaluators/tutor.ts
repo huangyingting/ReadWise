@@ -3,6 +3,15 @@ import { moderateText } from "@/lib/ai/output/moderation";
 import { str, pass, containsHtml } from "@/lib/ai/evals/assertions";
 import type { FeatureEvaluator, EvalPropertyResult } from "@/lib/ai/evals/types";
 
+function expectedTerms(expect: Record<string, unknown>): string[] {
+  if (!Array.isArray(expect.mustInclude)) return [];
+  return expect.mustInclude.map((term) => String(term).toLowerCase());
+}
+
+function groundedInArticleCheck(missing: string[]): EvalPropertyResult {
+  return pass("grounded-in-article", missing.length === 0, `missing terms: ${missing.join(", ")}`);
+}
+
 export const tutorEvaluator: FeatureEvaluator = {
   feature: "tutor",
   buildMessages: (input) =>
@@ -19,15 +28,11 @@ export const tutorEvaluator: FeatureEvaluator = {
       pass("no-html", !containsHtml(trimmed), "answer contained HTML"),
       pass("not-flagged", !moderateText(trimmed).flagged, "answer tripped moderation"),
     ];
-    const mustInclude = Array.isArray(expect.mustInclude)
-      ? (expect.mustInclude as unknown[]).map((t) => String(t).toLowerCase())
-      : [];
+    const mustInclude = expectedTerms(expect);
     if (mustInclude.length > 0) {
       const lower = trimmed.toLowerCase();
       const missing = mustInclude.filter((t) => !lower.includes(t));
-      results.push(
-        pass("grounded-in-article", missing.length === 0, `missing terms: ${missing.join(", ")}`),
-      );
+      results.push(groundedInArticleCheck(missing));
     }
     return results;
   },

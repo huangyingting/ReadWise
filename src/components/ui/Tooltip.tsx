@@ -34,24 +34,25 @@ export interface TooltipProps {
 export function Tooltip({ content, children, side = "top" }: TooltipProps) {
   const [open, setOpen] = React.useState(false);
   const id = React.useId();
+  const childProps = children.props;
 
   const trigger = React.cloneElement(children, {
     "aria-describedby": open ? id : undefined,
-    onMouseEnter(e: React.MouseEvent) {
+    onMouseEnter(event: React.MouseEvent<HTMLElement>) {
       setOpen(true);
-      (children.props as React.HTMLAttributes<HTMLElement>).onMouseEnter?.(e as React.MouseEvent<HTMLElement>);
+      childProps.onMouseEnter?.(event);
     },
-    onMouseLeave(e: React.MouseEvent) {
+    onMouseLeave(event: React.MouseEvent<HTMLElement>) {
       setOpen(false);
-      (children.props as React.HTMLAttributes<HTMLElement>).onMouseLeave?.(e as React.MouseEvent<HTMLElement>);
+      childProps.onMouseLeave?.(event);
     },
-    onFocus(e: React.FocusEvent) {
+    onFocus(event: React.FocusEvent<HTMLElement>) {
       setOpen(true);
-      (children.props as React.HTMLAttributes<HTMLElement>).onFocus?.(e as React.FocusEvent<HTMLElement>);
+      childProps.onFocus?.(event);
     },
-    onBlur(e: React.FocusEvent) {
+    onBlur(event: React.FocusEvent<HTMLElement>) {
       setOpen(false);
-      (children.props as React.HTMLAttributes<HTMLElement>).onBlur?.(e as React.FocusEvent<HTMLElement>);
+      childProps.onBlur?.(event);
     },
   });
 

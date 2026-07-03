@@ -5,6 +5,14 @@ import { ownedArticleWhere } from "@/lib/article-library/policy";
 /** Max personal imports per user per calendar day. */
 export const DAILY_IMPORT_LIMIT = 5;
 
+function dailyImportLimitMessage(): string {
+  return `You have reached the daily import limit (${DAILY_IMPORT_LIMIT} articles per day). Try again tomorrow.`;
+}
+
+function isAtOrOverDailyImportLimit(count: number): boolean {
+  return count >= DAILY_IMPORT_LIMIT;
+}
+
 /** Returns the start of the current UTC day. */
 export function utcDayStart(): Date {
   const now = new Date();
@@ -24,10 +32,7 @@ export async function assertWithinDailyQuota(userId: string): Promise<void> {
   const todayCount = await prisma.article.count({
     where: ownedArticleWhere(userId, { createdAt: { gte: dayStart } }),
   });
-  if (todayCount >= DAILY_IMPORT_LIMIT) {
-    throw new ApiError(
-      429,
-      `You have reached the daily import limit (${DAILY_IMPORT_LIMIT} articles per day). Try again tomorrow.`,
-    );
+  if (isAtOrOverDailyImportLimit(todayCount)) {
+    throw new ApiError(429, dailyImportLimitMessage());
   }
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type FormEvent } from "react";
 import { postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
@@ -8,29 +8,53 @@ import { Field } from "@/components/ui/Field";
 import { useMutation } from "@/hooks/useMutation";
 import { TeacherFormShell } from "./TeacherFormShell";
 
+const ARTICLE_ID_MAX_LENGTH = 200;
+const INSTRUCTIONS_MAX_LENGTH = 2000;
+
+interface AssignArticleFormProps {
+  classroomId: string;
+}
+
+function buildAssignmentPayload(
+  articleId: string,
+  dueDate: string,
+  instructions: string,
+) {
+  return {
+    articleId,
+    dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
+    instructions: instructions.trim() || undefined,
+  };
+}
+
 /**
  * Assigns an article to a classroom (RW-061): an article id, an optional due
  * date, and optional instructions. Posts to `/api/classrooms/[id]/assignments`.
  */
-export default function AssignArticleForm({ classroomId }: { classroomId: string }) {
+export default function AssignArticleForm({ classroomId }: AssignArticleFormProps) {
   const [articleId, setArticleId] = useState("");
   const [dueDate, setDueDate] = useState("");
   const [instructions, setInstructions] = useState("");
   const { busy, error, run } = useMutation("Failed to assign article");
 
-  async function submit(e: React.FormEvent) {
+  const trimmedArticleId = articleId.trim();
+
+  function resetForm() {
+    setArticleId("");
+    setDueDate("");
+    setInstructions("");
+  }
+
+  async function submit(e: FormEvent) {
     e.preventDefault();
-    const trimmedArticleId = articleId.trim();
     if (!trimmedArticleId) return;
+
     await run(async () => {
-      await postJson(`/api/classrooms/${classroomId}/assignments`, {
-        articleId: trimmedArticleId,
-        dueDate: dueDate ? new Date(dueDate).toISOString() : undefined,
-        instructions: instructions.trim() || undefined,
-      });
-      setArticleId("");
-      setDueDate("");
-      setInstructions("");
+      await postJson(
+        `/api/classrooms/${classroomId}/assignments`,
+        buildAssignmentPayload(trimmedArticleId, dueDate, instructions),
+      );
+      resetForm();
     }, { refreshOnSuccess: true });
   }
 
@@ -38,7 +62,7 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
     <TeacherFormShell
       onSubmit={submit}
       busy={busy}
-      canSubmit={!!articleId.trim()}
+      canSubmit={!!trimmedArticleId}
       submitLabel="Assign article"
       busyLabel="Assigning…"
       buttonSize="md"
@@ -48,7 +72,7 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
           value={articleId}
           onChange={(e) => setArticleId(e.target.value)}
           placeholder="Article id to assign"
-          maxLength={200}
+          maxLength={ARTICLE_ID_MAX_LENGTH}
           required
         />
       </Field>
@@ -61,7 +85,7 @@ export default function AssignArticleForm({ classroomId }: { classroomId: string
           onChange={(e) => setInstructions(e.target.value)}
           placeholder="What should students focus on?"
           rows={3}
-          maxLength={2000}
+          maxLength={INSTRUCTIONS_MAX_LENGTH}
         />
       </Field>
     </TeacherFormShell>

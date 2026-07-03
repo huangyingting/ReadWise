@@ -7,16 +7,35 @@ import { useAdminAction } from "@/hooks/useAdminAction";
 
 type Role = "Admin" | "Reader";
 
+interface AdminMemberActionsProps {
+  memberId: string;
+  role: Role;
+  isSelf: boolean;
+}
+
+const ROLE_OPTIONS: Role[] = ["Reader", "Admin"];
+const selfRemovalTitle = "You cannot remove your own account";
+
 export default function AdminMemberActions({
   memberId,
   role,
   isSelf,
-}: {
-  memberId: string;
-  role: Role;
-  isSelf: boolean;
-}) {
+}: AdminMemberActionsProps) {
   const { busy, error, run } = useAdminAction<"role" | "delete">();
+  const actionsDisabled = busy !== null || isSelf;
+  const removeDisabledTitle = isSelf ? selfRemovalTitle : undefined;
+
+  function updateRole(nextRole: string) {
+    return run("role", () =>
+      patchJson(`/api/admin/members/${memberId}`, {
+        role: nextRole,
+      }),
+    );
+  }
+
+  function removeMember() {
+    return run("delete", () => deleteJson(`/api/admin/members/${memberId}`));
+  }
 
   return (
     <div className="admin-actions">
@@ -27,17 +46,14 @@ export default function AdminMemberActions({
             className="w-auto"
             aria-label="Member role"
             value={role}
-            disabled={busy !== null || isSelf}
-            onChange={(e) =>
-              run("role", () =>
-                patchJson(`/api/admin/members/${memberId}`, {
-                  role: e.target.value,
-                }),
-              )
-            }
+            disabled={actionsDisabled}
+            onChange={(e) => updateRole(e.target.value)}
           >
-            <option value="Reader">Reader</option>
-            <option value="Admin">Admin</option>
+            {ROLE_OPTIONS.map((option) => (
+              <option key={option} value={option}>
+                {option}
+              </option>
+            ))}
           </Select>
         </div>
         <ConfirmAction
@@ -46,12 +62,10 @@ export default function AdminMemberActions({
           confirmVariant="danger"
           confirmLabel="Confirm remove"
           confirmMessage="Permanently remove this member and all of their progress, saved words and sessions? This cannot be undone."
-          onConfirm={() => run("delete", () => deleteJson(`/api/admin/members/${memberId}`))}
+          onConfirm={removeMember}
           loading={busy === "delete"}
           disabled={isSelf || busy === "role"}
-          disabledTitle={
-            isSelf ? "You cannot remove your own account" : undefined
-          }
+          disabledTitle={removeDisabledTitle}
         />
       </div>
 

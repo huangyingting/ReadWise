@@ -5,6 +5,8 @@ import Image from "next/image";
 import { cn } from "@/lib/cn";
 import { categoryGradient } from "@/lib/categories";
 
+const THUMBNAIL_IMAGE_SIZES = "(max-width: 640px) 100vw, 400px";
+
 interface CardThumbnailProps {
   src?: string | null;
   alt: string;
@@ -17,6 +19,31 @@ function thumbnailInitial(category: string | null | undefined, alt: string) {
 
 function thumbnailBackground(gradient: { from: string; to: string }) {
   return `linear-gradient(135deg, ${gradient.from}2e 0%, ${gradient.to}1a 100%)`;
+}
+
+function thumbnailInitialColor(gradient: { from: string }) {
+  return `${gradient.from}70`;
+}
+
+function ThumbnailInitial({
+  initial,
+  color,
+}: {
+  initial: string;
+  color: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "absolute inset-0 flex items-center justify-center",
+        "font-[family-name:var(--font-display)] text-[length:var(--text-4xl)] font-bold select-none tracking-[-0.02em]",
+      )}
+      style={{ color }}
+      aria-hidden
+    >
+      {initial}
+    </span>
+  );
 }
 
 /**
@@ -39,6 +66,8 @@ export default function CardThumbnail({
   const grad = categoryGradient(category);
   const initial = thumbnailInitial(category, alt);
   const showPlaceholder = !src || errored;
+  const handleImageLoad = () => setLoaded(true);
+  const handleImageError = () => setErrored(true);
 
   return (
     <div
@@ -49,16 +78,10 @@ export default function CardThumbnail({
     >
       {/* Category-initial letter — visible only when no real image */}
       {showPlaceholder && (
-        <span
-          className={cn(
-            "absolute inset-0 flex items-center justify-center",
-            "font-[family-name:var(--font-display)] text-[length:var(--text-4xl)] font-bold select-none tracking-[-0.02em]",
-          )}
-          style={{ color: `${grad.from}70` }}
-          aria-hidden
-        >
-          {initial}
-        </span>
+        <ThumbnailInitial
+          initial={initial}
+          color={thumbnailInitialColor(grad)}
+        />
       )}
 
       {/* Real image — overlays the placeholder; fades in after load */}
@@ -68,13 +91,13 @@ export default function CardThumbnail({
           alt={alt}
           fill
           unoptimized
-          sizes="(max-width: 640px) 100vw, 400px"
+          sizes={THUMBNAIL_IMAGE_SIZES}
           className={cn(
             "object-cover transition-opacity [transition-duration:var(--duration-base)]",
             loaded ? "opacity-100" : "opacity-0",
           )}
-          onLoad={() => setLoaded(true)}
-          onError={() => setErrored(true)}
+          onLoad={handleImageLoad}
+          onError={handleImageError}
         />
       )}
     </div>

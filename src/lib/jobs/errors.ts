@@ -4,6 +4,16 @@
 
 export type JobErrorKind = "provider" | "validation" | "missing" | "permission" | "unknown";
 
+const PERMANENT_JOB_ERROR_KINDS = new Set<JobErrorKind>([
+  "validation",
+  "missing",
+  "permission",
+]);
+
+function isPermanentJobErrorKind(kind: JobErrorKind): boolean {
+  return PERMANENT_JOB_ERROR_KINDS.has(kind);
+}
+
 /**
  * Error carrying retry intent. `permanent` permanent failures skip retries and
  * go straight to DEAD_LETTER. By default validation / missing / permission
@@ -16,9 +26,7 @@ export class JobError extends Error {
     super(message);
     this.name = "JobError";
     this.kind = opts.kind ?? "unknown";
-    this.permanent =
-      opts.permanent ??
-      (this.kind === "validation" || this.kind === "missing" || this.kind === "permission");
+    this.permanent = opts.permanent ?? isPermanentJobErrorKind(this.kind);
   }
 }
 

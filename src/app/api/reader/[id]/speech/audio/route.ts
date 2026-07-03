@@ -5,6 +5,17 @@ import { getArticleSpeechAudio } from "@/lib/speech/repository";
 
 export const runtime = "nodejs";
 
+const AUDIO_CACHE_CONTROL = "private, max-age=3600";
+
+function audioHeaders(speechAudio: { mimeType: string; bytes: { byteLength: number } }) {
+  return {
+    "Content-Type": speechAudio.mimeType,
+    "Content-Length": String(speechAudio.bytes.byteLength),
+    // Private: must not be served from a shared cache.
+    "Cache-Control": AUDIO_CACHE_CONTROL,
+  };
+}
+
 /**
  * GET /api/reader/[id]/speech/audio
  *
@@ -23,11 +34,6 @@ export const GET = createHandler({ params: idParams }, async ({ params, session 
 
   return new Response(new Uint8Array(speechAudio.bytes), {
     status: 200,
-    headers: {
-      "Content-Type": speechAudio.mimeType,
-      "Content-Length": String(speechAudio.bytes.byteLength),
-      // Private: must not be served from a shared cache.
-      "Cache-Control": "private, max-age=3600",
-    },
+    headers: audioHeaders(speechAudio),
   });
 });

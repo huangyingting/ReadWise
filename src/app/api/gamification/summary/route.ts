@@ -3,6 +3,14 @@ import { createHandler } from "@/lib/api-handler";
 import { getStreakSummary } from "@/lib/engagement/streak";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 
+async function getGamificationSummary(userId: string) {
+  const [streak, { dueCount }] = await Promise.all([
+    getStreakSummary(userId),
+    getReviewSummary(userId),
+  ]);
+  return { ...streak, dueCount };
+}
+
 /**
  * GET /api/gamification/summary
  *
@@ -23,10 +31,5 @@ import { getReviewSummary } from "@/lib/learning/flashcards";
  * Errors: 401 if unauthenticated.
  */
 export const GET = createHandler({}, async ({ session }) => {
-  const userId = session.user.id;
-  const [streak, { dueCount }] = await Promise.all([
-    getStreakSummary(userId),
-    getReviewSummary(userId),
-  ]);
-  return NextResponse.json({ ...streak, dueCount });
+  return NextResponse.json(await getGamificationSummary(session.user.id));
 });

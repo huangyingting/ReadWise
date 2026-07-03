@@ -32,9 +32,31 @@ interface State {
 const READER_PANEL_FALLBACK =
   "This tool hit an error and couldn't be shown.";
 
+interface ReaderPanelFallbackProps {
+  onRetry: () => void;
+}
+
 function readerPanelStack(error: Error, info: ErrorInfo): string | undefined {
   const stack = [error.stack, info.componentStack].filter(Boolean).join("\n");
   return stack || undefined;
+}
+
+function ReaderPanelFallback({
+  onRetry,
+}: ReaderPanelFallbackProps): ReactNode {
+  return (
+    <div role="alert" className="reader-panel-error">
+      <p className="reader-panel-error-text">{READER_PANEL_FALLBACK}</p>
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onRetry}
+        className="reader-panel-error-retry"
+      >
+        Try again
+      </Button>
+    </div>
+  );
 }
 
 export default class ReaderPanelErrorBoundary extends Component<Props, State> {
@@ -58,21 +80,7 @@ export default class ReaderPanelErrorBoundary extends Component<Props, State> {
 
   render(): ReactNode {
     if (this.state.hasError) {
-      return (
-        <div role="alert" className="reader-panel-error">
-          <p className="reader-panel-error-text">
-            {READER_PANEL_FALLBACK}
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={this.reset}
-            className="reader-panel-error-retry"
-          >
-            Try again
-          </Button>
-        </div>
-      );
+      return <ReaderPanelFallback onRetry={this.reset} />;
     }
     return this.props.children;
   }

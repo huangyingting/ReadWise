@@ -1,6 +1,27 @@
 import { Skeleton, SkeletonText } from "@/components/ui/Skeleton";
 import { cn } from "@/lib/cn";
 
+const CARD_CLASS_NAMES = [
+  "flex flex-col gap-[var(--space-3)]",
+  "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
+  "overflow-hidden",
+  "h-full",
+];
+
+const CARD_BODY_CLASS_NAME =
+  "flex flex-col gap-[var(--space-3)] p-[var(--space-5)] sm:p-[var(--space-6)] pt-[var(--space-3)]";
+
+const GRID_CLASS_NAME =
+  "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]";
+
+interface SkeletonCardProps {
+  className?: string;
+}
+
+interface SkeletonCardGridProps {
+  count?: number;
+}
+
 /**
  * Skeleton placeholder that mirrors the M4 ArticleCardView footprint so the
  * listing grid doesn't reflow when real cards land. Built from M1 Skeleton
@@ -9,21 +30,11 @@ import { cn } from "@/lib/cn";
  * Includes a 16:9 image-slot placeholder matching ArticleCardView's thumbnail
  * so there's no layout shift when real cards load.
  */
-export function SkeletonCard({
-  className,
-}: {
-  className?: string;
-}) {
+export function SkeletonCard({ className }: SkeletonCardProps) {
   return (
     <div
       aria-hidden
-      className={cn(
-        "flex flex-col gap-[var(--space-3)]",
-        "bg-surface border border-border rounded-[var(--radius-lg)] shadow-[var(--shadow-sm)]",
-        "overflow-hidden",
-        "h-full",
-        className,
-      )}
+      className={cn(...CARD_CLASS_NAMES, className)}
     >
       {/* 16:9 thumbnail placeholder — matches ArticleCardView's ArticleHero thumb */}
       <Skeleton
@@ -32,7 +43,7 @@ export function SkeletonCard({
       />
 
       {/* Card body */}
-      <div className="flex flex-col gap-[var(--space-3)] p-[var(--space-5)] sm:p-[var(--space-6)] pt-[var(--space-3)]">
+      <div className={CARD_BODY_CLASS_NAME}>
         {/* Top row: badge chip + meta chip */}
         <div className="flex items-center gap-[var(--space-2)]">
           <Skeleton shape="block" className="h-5 w-12 rounded-full" />
@@ -59,9 +70,9 @@ export function SkeletonCard({
  * Convenience wrapper: renders `count` SkeletonCards inside the §2.1 grid.
  * Drop in place of a card grid while loading.
  */
-export function SkeletonCardGrid({ count = 6 }: { count?: number }) {
+export function SkeletonCardGrid({ count = 6 }: SkeletonCardGridProps) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-[var(--space-4)] sm:gap-[var(--space-5)] lg:gap-[var(--space-6)]">
+    <div className={GRID_CLASS_NAME}>
       {Array.from({ length: count }).map((_, i) => (
         <SkeletonCard key={i} />
       ))}

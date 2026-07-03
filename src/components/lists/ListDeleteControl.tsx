@@ -12,6 +12,10 @@ import { cn } from "@/lib/cn";
 import { useReadingListMutations } from "@/hooks/useReadingListMutations";
 import ConfirmAction from "@/components/ConfirmAction";
 
+const DEFAULT_TRIGGER_LABEL = "Delete";
+const DEFAULT_TRIGGER_VARIANT = "outline";
+const DEFAULT_SIZE = "sm";
+
 interface ListDeleteControlProps {
   listId: string;
   listName: string;
@@ -27,13 +31,17 @@ interface ListDeleteControlProps {
   className?: string;
 }
 
+function getConfirmMessage(listName: string) {
+  return `Delete "${listName}"? Saved articles stay in your library; only this list is removed.`;
+}
+
 export function ListDeleteControl({
   listId,
   listName,
   onSuccess,
-  triggerLabel = "Delete",
-  triggerVariant = "outline",
-  size = "sm",
+  triggerLabel = DEFAULT_TRIGGER_LABEL,
+  triggerVariant = DEFAULT_TRIGGER_VARIANT,
+  size = DEFAULT_SIZE,
   confirmClassName,
   className,
 }: ListDeleteControlProps) {
@@ -50,7 +58,7 @@ export function ListDeleteControl({
         triggerLabel={triggerLabel}
         triggerVariant={triggerVariant}
         size={size}
-        confirmMessage={`Delete "${listName}"? Saved articles stay in your library; only this list is removed.`}
+        confirmMessage={getConfirmMessage(listName)}
         confirmLabel="Delete"
         cancelLabel="Keep"
         confirmVariant="danger"

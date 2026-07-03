@@ -4,6 +4,19 @@ import { checkRateLimit } from "@/lib/security/rate-limit/index";
 import { unsubscribeBody } from "@/lib/push/schemas";
 import { unsubscribePush } from "@/lib/push/commands";
 
+const PUSH_NOT_CONFIGURED_MESSAGE = "Push notifications are not configured on this server.";
+const RATE_LIMIT_ACTION = "lookup";
+
+function assertPushConfigured(log: { info: (message: string) => void }): void {
+  if (isPushConfigured()) return;
+  log.info("push/unsubscribe: push not configured — returning 503");
+  throw new ApiError(503, PUSH_NOT_CONFIGURED_MESSAGE);
+}
+
+function unsubscribeLogMetadata(userId: string, endpoint: string) {
+  return { userId, endpointLen: endpoint.length };
+}
+
 /**
  * POST /api/push/unsubscribe
  *
@@ -13,22 +26,19 @@ import { unsubscribePush } from "@/lib/push/commands";
 export const POST = createHandler(
   { body: unsubscribeBody },
   async ({ session, body, log }) => {
-    if (!isPushConfigured()) {
-      log.info("push/unsubscribe: push not configured — returning 503");
-      throw new ApiError(503, "Push notifications are not configured on this server.");
-    }
+    assertPushConfigured(log);
 
     const userId = session.user.id;
     const { endpoint } = body;
 
-    await checkRateLimit(userId, "lookup");
+    await checkRateLimit(userId, RATE_LIMIT_ACTION);
 
     const result = await unsubscribePush(userId, endpoint);
     if (!result.ok) {
       throw new ApiError(result.status, result.error);
     }
 
-    log.info("push subscription removed", { userId, endpointLen: endpoint.length });
+    log.info("push subscription removed", unsubscribeLogMetadata(userId, endpoint));
     return Response.json({ ok: true });
   },
 );

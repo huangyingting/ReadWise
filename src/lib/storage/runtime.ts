@@ -6,20 +6,31 @@ import { registerProvider, resolveProvider } from "@/lib/storage/registry";
 import type { MediaStorage } from "@/lib/storage/types";
 
 const log = createLogger("storage");
+const AZURE_UNCONFIGURED_HINT =
+  "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — speech audio will not be persisted until storage is configured";
+
+function createFilesystemStorage(): MediaStorage {
+  return new FilesystemMediaStorage(mediaStorageDir());
+}
+
+function warnAzureUnconfigured(): void {
+  log.warn("storage.azure_unconfigured", {
+    kind: "azure",
+    hint: AZURE_UNCONFIGURED_HINT,
+  });
+}
+
+function createAzureStorage(): MediaStorage | null {
+  const cfg = azureStorageConfig();
+  if (cfg) return new AzureBlobMediaStorage(cfg);
+  warnAzureUnconfigured();
+  return null;
+}
 
 // Register built-in providers. Each provider module owns its own config
 // validation.
-registerProvider("local", () => new FilesystemMediaStorage(mediaStorageDir()));
-
-registerProvider("azure", () => {
-  const cfg = azureStorageConfig();
-  if (cfg) return new AzureBlobMediaStorage(cfg);
-  log.warn("storage.azure_unconfigured", {
-    kind: "azure",
-    hint: "AZURE_STORAGE_CONNECTION_STRING or AZURE_STORAGE_ACCOUNT+AZURE_STORAGE_KEY not set — speech audio will not be persisted until storage is configured",
-  });
-  return null;
-});
+registerProvider("local", createFilesystemStorage);
+registerProvider("azure", createAzureStorage);
 
 /**
  * Resolves the active {@link MediaStorage}, or `null` when the selected backend

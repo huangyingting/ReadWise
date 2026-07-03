@@ -6,6 +6,10 @@
  *  - callbackUrl sanitization (allow-list: relative paths only).
  */
 
+const DEFAULT_CALLBACK_URL = "/dashboard";
+const GENERIC_SIGNIN_ERROR_MESSAGE =
+  "Something went wrong signing you in. Please try again.";
+
 /** Maps NextAuth error codes to user-facing messages. */
 export const SIGNIN_ERROR_MESSAGES: Record<string, string> = {
   OAuthAccountNotLinked:
@@ -19,10 +23,11 @@ export const SIGNIN_ERROR_MESSAGES: Record<string, string> = {
  */
 export function friendlySignInError(code: string | undefined): string | null {
   if (!code) return null;
-  return (
-    SIGNIN_ERROR_MESSAGES[code] ??
-    "Something went wrong signing you in. Please try again."
-  );
+  return SIGNIN_ERROR_MESSAGES[code] ?? GENERIC_SIGNIN_ERROR_MESSAGE;
+}
+
+function hasRelativePathPrefix(url: string | undefined): url is string {
+  return Boolean(url && url.startsWith("/"));
 }
 
 /**
@@ -31,5 +36,5 @@ export function friendlySignInError(code: string | undefined): string | null {
  * missing values to prevent open-redirect vulnerabilities.
  */
 export function sanitizeCallbackUrl(url: string | undefined): string {
-  return url && url.startsWith("/") ? url : "/dashboard";
+  return hasRelativePathPrefix(url) ? url : DEFAULT_CALLBACK_URL;
 }

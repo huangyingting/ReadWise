@@ -15,6 +15,25 @@ type PersistInput = {
   onSaved: (attempt: PronunciationAttemptSummary) => void;
 };
 
+function buildAttemptPayload({
+  articleId,
+  assessment,
+  referenceText,
+}: Pick<PersistInput, "articleId" | "assessment" | "referenceText">) {
+  return {
+    referenceText,
+    accuracyScore: assessment.accuracyScore,
+    fluencyScore: assessment.fluencyScore,
+    completenessScore: assessment.completenessScore,
+    pronScore: assessment.pronScore,
+    articleId,
+  };
+}
+
+function isNewBestScore(score: number, priorBest: number | null) {
+  return priorBest === null || score > priorBest;
+}
+
 export function usePronunciationPersistence() {
   const recordedRef = useRef(false);
   const [savedNote, setSavedNote] = useState<SavedNote>("idle");
@@ -41,14 +60,11 @@ export function usePronunciationPersistence() {
       const res = await fetch("/api/pronunciation/attempt", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          referenceText,
-          accuracyScore: assessment.accuracyScore,
-          fluencyScore: assessment.fluencyScore,
-          completenessScore: assessment.completenessScore,
-          pronScore: assessment.pronScore,
+        body: JSON.stringify(buildAttemptPayload({
           articleId,
-        }),
+          assessment,
+          referenceText,
+        })),
       });
       if (!res.ok) throw new Error("save failed");
 
@@ -56,7 +72,7 @@ export function usePronunciationPersistence() {
       setSavedNote("saved");
       onSaved(data.attempt);
 
-      if (priorBest === null || assessment.pronScore > priorBest) {
+      if (isNewBestScore(assessment.pronScore, priorBest)) {
         setIsNewBest(true);
       }
     } catch {
