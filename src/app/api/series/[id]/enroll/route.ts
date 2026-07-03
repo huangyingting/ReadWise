@@ -3,6 +3,14 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { enrollInSeries, unenrollFromSeries } from "@/lib/engagement/series";
 
+const SERIES_NOT_FOUND = "Not found";
+
+function throwIfSeriesUnavailable<T extends { ok: boolean }>(
+  result: T,
+): asserts result is T & { ok: true } {
+  if (!result.ok) throw new ApiError(404, SERIES_NOT_FOUND);
+}
+
 /**
  * POST /api/series/[id]/enroll
  *
@@ -17,7 +25,7 @@ export const POST = createHandler(
   { params: idParams },
   async ({ params, session }) => {
     const result = await enrollInSeries(session.user.id, params.id);
-    if (!result.ok) throw new ApiError(404, "Not found");
+    throwIfSeriesUnavailable(result);
     return NextResponse.json({ ok: true, status: result.status });
   },
 );
@@ -33,7 +41,7 @@ export const DELETE = createHandler(
   { params: idParams },
   async ({ params, session }) => {
     const result = await unenrollFromSeries(session.user.id, params.id);
-    if (!result.ok) throw new ApiError(404, "Not found");
+    throwIfSeriesUnavailable(result);
     return NextResponse.json({ ok: true });
   },
 );

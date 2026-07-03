@@ -11,17 +11,35 @@ const patchBody = object({
   baseUpdatedAt: optional(string({ max: 40 })),
 });
 
+type HighlightCommandError = { ok: false; status: number; error: string };
+
+function requireHighlightCommandOk<T extends { ok: true }>(
+  result: T | HighlightCommandError,
+): T {
+  if (!result.ok) {
+    throw new ApiError(result.status, result.error);
+  }
+  return result;
+}
+
+function highlightUpdateInput(body: {
+  note?: string;
+  color?: string;
+  baseUpdatedAt?: string;
+}): Parameters<typeof updateHighlight>[2] {
+  return {
+    note: body.note,
+    color: body.color,
+    baseUpdatedAt: body.baseUpdatedAt,
+  };
+}
+
 export const PATCH = createHandler(
   { params: idParams, body: patchBody },
   async ({ params, body, session }) => {
-    const result = await updateHighlight(params.id, session.user.id, {
-      note: body.note,
-      color: body.color,
-      baseUpdatedAt: body.baseUpdatedAt,
-    });
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
+    const result = requireHighlightCommandOk(
+      await updateHighlight(params.id, session.user.id, highlightUpdateInput(body)),
+    );
     return NextResponse.json({ highlight: result.highlight, conflict: result.conflict });
   },
 );
@@ -29,10 +47,7 @@ export const PATCH = createHandler(
 export const DELETE = createHandler(
   { params: idParams },
   async ({ params, session }) => {
-    const result = await deleteHighlight(params.id, session.user.id);
-    if (!result.ok) {
-      throw new ApiError(result.status, result.error);
-    }
+    requireHighlightCommandOk(await deleteHighlight(params.id, session.user.id));
     return NextResponse.json({ ok: true });
   },
 );

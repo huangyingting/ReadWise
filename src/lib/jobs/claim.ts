@@ -18,6 +18,28 @@ export type ClaimOptions = {
   now?: Date;
 };
 
+function claimWindow(opts: ClaimOptions): { now: Date; staleBefore: Date } {
+  const now = opts.now ?? new Date();
+  const lockTtlMs = opts.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
+  return { now, staleBefore: new Date(now.getTime() - lockTtlMs) };
+}
+
+async function claimWithActiveAdapter(
+  workerId: string,
+  now: Date,
+  staleBefore: Date,
+  types?: JobType[],
+): Promise<Job | null> {
+  return isPostgresDatabase()
+    ? claimNextJobPostgres(workerId, now, staleBefore, types)
+    : claimNextJobGeneric(workerId, now, staleBefore, types);
+}
+
+function recordClaim(job: Job): Job {
+  recordJobQueueEvent({ event: "claimed", type: job.type });
+  return job;
+}
+
 /**
  * Atomically claims one runnable job for `workerId`, marking it CLAIMED with a
  * fresh lock. Returns null when nothing is runnable. Safe under concurrency:
@@ -25,15 +47,9 @@ export type ClaimOptions = {
  * transaction with a guarded conditional update.
  */
 export async function claimNextJob(workerId: string, opts: ClaimOptions = {}): Promise<Job | null> {
-  const now = opts.now ?? new Date();
-  const lockTtlMs = opts.lockTtlMs ?? DEFAULT_LOCK_TTL_MS;
-  const staleBefore = new Date(now.getTime() - lockTtlMs);
-
-  const job = isPostgresDatabase()
-    ? await claimNextJobPostgres(workerId, now, staleBefore, opts.types)
-    : await claimNextJobGeneric(workerId, now, staleBefore, opts.types);
+  const { now, staleBefore } = claimWindow(opts);
+  const job = await claimWithActiveAdapter(workerId, now, staleBefore, opts.types);
 
   if (!job) return null;
-  recordJobQueueEvent({ event: "claimed", type: job.type });
-  return job;
+  return recordClaim(job);
 }

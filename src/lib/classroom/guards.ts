@@ -14,12 +14,23 @@ export type ClassroomViewer = { id?: string | null; role?: string | null } | nul
 type ClassroomOwnership = { teacherId: string; orgId: string } | null | undefined;
 type OrgMembership = { role: MembershipRole } | null | undefined;
 
+function hasSystemAdminAccess(viewer: ClassroomViewer): boolean {
+  return isSystemAdmin(viewer?.role);
+}
+
+function isClassroomTeacher(
+  viewer: ClassroomViewer,
+  classroom: ClassroomOwnership,
+): boolean {
+  return Boolean(viewer?.id && classroom && classroom.teacherId === viewer.id);
+}
+
 /** True if the viewer may create classrooms in an org (OrgAdmin or Teacher). */
 export function canCreateClassroom(
   viewer: ClassroomViewer,
   membership: OrgMembership,
 ): boolean {
-  if (isSystemAdmin(viewer?.role)) return true;
+  if (hasSystemAdminAccess(viewer)) return true;
   return hasOrgCapability(membership, CAPABILITIES.classroomManage);
 }
 
@@ -33,7 +44,7 @@ export function canManageClassroom(
   membership: OrgMembership,
 ): boolean {
   if (!classroom) return false;
-  if (isSystemAdmin(viewer?.role)) return true;
-  if (viewer?.id && classroom.teacherId === viewer.id) return true;
+  if (hasSystemAdminAccess(viewer)) return true;
+  if (isClassroomTeacher(viewer, classroom)) return true;
   return hasOrgCapability(membership, CAPABILITIES.orgManage);
 }

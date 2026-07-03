@@ -17,12 +17,20 @@ export const DEFAULT_SPEECH_VOICE = "en-US-AndrewMultilingualNeural";
 const DEFAULT_SPEECH_OUTPUT_FORMAT = "audio-24khz-96kbitrate-mono-mp3";
 const DEFAULT_SPEECH_TIMEOUT_MS = 30_000;
 
+function positiveIntegerEnv(name: string, fallback: number): number {
+  const value = parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
+
+function speechSetting(name: string, fallback: string): string {
+  return envValue(name) || fallback;
+}
+
 /**
  * Per-synthesis Azure Speech timeout in ms (SPEECH_TIMEOUT_MS, default 30000).
  */
 export function speechTimeoutMs(): number {
-  const v = parseInt(process.env.SPEECH_TIMEOUT_MS ?? "", 10);
-  return Number.isFinite(v) && v > 0 ? v : DEFAULT_SPEECH_TIMEOUT_MS;
+  return positiveIntegerEnv("SPEECH_TIMEOUT_MS", DEFAULT_SPEECH_TIMEOUT_MS);
 }
 
 /** Azure Speech config; voice/format fall back to project defaults. */
@@ -35,7 +43,7 @@ export const speechConfig: FeatureConfig<SpeechConfig> = defineFeatureConfig(() 
   return {
     key,
     region,
-    voice: envValue("AZURE_SPEECH_VOICE") || DEFAULT_SPEECH_VOICE,
-    format: envValue("AZURE_SPEECH_OUTPUT_FORMAT") || DEFAULT_SPEECH_OUTPUT_FORMAT,
+    voice: speechSetting("AZURE_SPEECH_VOICE", DEFAULT_SPEECH_VOICE),
+    format: speechSetting("AZURE_SPEECH_OUTPUT_FORMAT", DEFAULT_SPEECH_OUTPUT_FORMAT),
   };
 });
