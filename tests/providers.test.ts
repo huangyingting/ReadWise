@@ -93,7 +93,7 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 14 active providers (aeon + voa removed)", () => {
+test("registry holds exactly the 15 active providers (aeon + voa removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "bbc",
@@ -105,13 +105,14 @@ test("registry holds exactly the 14 active providers (aeon + voa removed)", () =
     "nbc",
     "noema",
     "propublica",
+    "scientificamerican",
     "smithsonian",
     "technologyreview",
     "theconversation",
     "time",
     "undark",
   ]);
-  assert.equal(PROVIDERS.length, 14);
+  assert.equal(PROVIDERS.length, 15);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
