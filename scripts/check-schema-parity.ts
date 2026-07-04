@@ -1,8 +1,9 @@
 /**
  * Schema Parity Check (REF-069)
  *
- * Verifies that prisma/schema.prisma and prisma/postgresql/schema.prisma are
- * byte-identical except for the datasource provider line:
+ * Verifies that generated Prisma schemas still match prisma/base.prisma, the
+ * single source of truth. The generated schemas must be byte-identical except
+ * for the datasource provider line:
  *
  *   SQLite:     provider = "sqlite"
  *   PostgreSQL: provider = "postgresql"
@@ -24,14 +25,15 @@
 import { readFile, readdir } from "node:fs/promises";
 import { runScript, isMain } from "./lib/cli";
 
+const BASE_SCHEMA = "prisma/base.prisma";
 const SQLITE_SCHEMA = "prisma/schema.prisma";
 const POSTGRES_SCHEMA = "prisma/postgresql/schema.prisma";
 const SQLITE_MIGRATIONS = "prisma/migrations";
 const POSTGRES_MIGRATIONS = "prisma/postgresql/migrations";
+const PLACEHOLDER = '{{PROVIDER}}';
 
-/** Substitutes the SQLite provider so the schema can be compared to the PostgreSQL one. */
-function normalizeToPostgres(sqliteSchema: string): string {
-  return sqliteSchema.replace('provider = "sqlite"', 'provider = "postgresql"');
+function renderSchema(base: string, provider: "sqlite" | "postgresql"): string {
+  return base.replace(PLACEHOLDER, provider);
 }
 
 /** Lists timestamped migration directory names from a migrations directory. */
@@ -51,36 +53,50 @@ function reportFirstSchemaDifference(expected: string, actual: string): void {
   for (let i = 0; i < maxLen; i++) {
     if (expectedLines[i] !== actualLines[i]) {
       console.error(`  First difference at line ${i + 1}:`);
-      console.error(
-        `    Expected (normalized sqlite): ${JSON.stringify(expectedLines[i])}`,
-      );
-      console.error(
-        `    Actual   (postgres):          ${JSON.stringify(actualLines[i])}`,
-      );
+      console.error(`    Expected generated: ${JSON.stringify(expectedLines[i])}`);
+      console.error(`    Actual committed:   ${JSON.stringify(actualLines[i])}`);
       break;
     }
   }
 }
 
+function reportGeneratedSchemaDifference(path: string, expected: string, actual: string): void {
+  console.error(`  ${path} is not generated from ${BASE_SCHEMA}.`);
+  console.error("  Run `npm run schema:generate` and commit the regenerated schema.");
+  reportFirstSchemaDifference(expected, actual);
+}
+
 async function checkSchemaParity(): Promise<boolean> {
-  const [sqliteSchema, postgresSchema] = await Promise.all([
+  const [baseSchema, sqliteSchema, postgresSchema] = await Promise.all([
+    readFile(BASE_SCHEMA, "utf8"),
     readFile(SQLITE_SCHEMA, "utf8"),
     readFile(POSTGRES_SCHEMA, "utf8"),
   ]);
 
-  const normalized = normalizeToPostgres(sqliteSchema);
-  if (normalized === postgresSchema) {
+  if (!baseSchema.includes(PLACEHOLDER)) {
+    console.error("❌ Schema parity check FAILED");
+    console.error(
+      `  ${BASE_SCHEMA} must contain the placeholder '${PLACEHOLDER}' in the datasource provider field.`,
+    );
+    return false;
+  }
+
+  const expectedSqlite = renderSchema(baseSchema, "sqlite");
+  const expectedPostgres = renderSchema(baseSchema, "postgresql");
+  const generatedSchemasMatch =
+    sqliteSchema === expectedSqlite && postgresSchema === expectedPostgres;
+  if (generatedSchemasMatch) {
     console.log("✔ Schema parity: OK");
     return true;
   }
 
   console.error("❌ Schema parity check FAILED");
-  console.error(
-    `  ${POSTGRES_SCHEMA} is not identical to ${SQLITE_SCHEMA} after substituting provider.`,
-  );
-
-  // Show the first differing line for quick triage.
-  reportFirstSchemaDifference(normalized, postgresSchema);
+  if (sqliteSchema !== expectedSqlite) {
+    reportGeneratedSchemaDifference(SQLITE_SCHEMA, expectedSqlite, sqliteSchema);
+  }
+  if (postgresSchema !== expectedPostgres) {
+    reportGeneratedSchemaDifference(POSTGRES_SCHEMA, expectedPostgres, postgresSchema);
+  }
   return false;
 }
 

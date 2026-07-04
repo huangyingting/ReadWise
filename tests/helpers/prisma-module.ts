@@ -4,8 +4,10 @@ import { pathToFileURL } from "node:url";
 const prismaModuleUrl = pathToFileURL(`${process.cwd()}/src/lib/prisma.ts`).href;
 const ORIGINAL_DATABASE_URL = process.env.DATABASE_URL;
 const ORIGINAL_NODE_ENV = process.env.NODE_ENV;
+const ORIGINAL_PRISMA_SCHEMA_PATH = process.env.PRISMA_SCHEMA_PATH;
+let importCounter = 0;
 
-type MutableEnvKey = "DATABASE_URL" | "NODE_ENV";
+type MutableEnvKey = "DATABASE_URL" | "NODE_ENV" | "PRISMA_SCHEMA_PATH";
 type MutableProcessEnv = Omit<NodeJS.ProcessEnv, MutableEnvKey> & {
   [Key in MutableEnvKey]?: string;
 };
@@ -15,6 +17,7 @@ type PrismaImportOptions = {
   nodeEnv: string;
   postgres: boolean;
   existingPrisma?: unknown;
+  prismaSchemaPath?: string;
 };
 
 const mutableProcessEnv = process.env as MutableProcessEnv;
@@ -30,6 +33,7 @@ function setMutableEnv(name: MutableEnvKey, value: string | undefined): void {
 export function restorePrismaEnvironment(): void {
   setMutableEnv("DATABASE_URL", ORIGINAL_DATABASE_URL);
   setMutableEnv("NODE_ENV", ORIGINAL_NODE_ENV);
+  setMutableEnv("PRISMA_SCHEMA_PATH", ORIGINAL_PRISMA_SCHEMA_PATH);
   delete (globalThis as { prisma?: unknown }).prisma;
 }
 
@@ -59,6 +63,7 @@ export async function importPrismaModule(options: PrismaImportOptions) {
   restorePrismaEnvironment();
   setMutableEnv("DATABASE_URL", options.databaseUrl);
   setMutableEnv("NODE_ENV", options.nodeEnv);
+  setMutableEnv("PRISMA_SCHEMA_PATH", options.prismaSchemaPath);
   if (options.existingPrisma !== undefined) {
     (globalThis as { prisma?: unknown }).prisma = options.existingPrisma;
   }
@@ -76,7 +81,8 @@ export async function importPrismaModule(options: PrismaImportOptions) {
     namedExports: { isPostgresDatabase: () => options.postgres },
   });
 
-  const prismaModule = await import(prismaModuleUrl);
+  importCounter += 1;
+  const prismaModule = await import(`${prismaModuleUrl}?testImport=${importCounter}`);
   return {
     prisma: prismaModule.prisma,
     sqliteAdapters,

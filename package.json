@@ -37,6 +37,7 @@
     "speech:keep": "npm run node-ts -- scripts/batch-synthesis.ts --all --loop",
     "schema:generate": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/generate-schemas.ts",
     "schema:check-parity": "node --import ./scripts/register-ts.mjs --experimental-strip-types --no-warnings scripts/check-schema-parity.ts",
+    "schema:validate": "DATABASE_URL=file:./dev.db prisma validate --schema prisma/schema.prisma && DATABASE_URL=postgresql://localhost:5432/readwise?schema=public prisma validate --schema prisma/postgresql/schema.prisma",
     "api-catalog": "node --experimental-strip-types --import ./scripts/register-ts.mjs --no-warnings scripts/generate-api-catalog.ts",
     "dict:prune": "npm run node-ts -- scripts/prune-local-dictionary.ts",
     "wordfreq:generate": "npm run node-ts -- scripts/generate-wordfreq-ranks.ts"
