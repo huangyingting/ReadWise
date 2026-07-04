@@ -4,6 +4,7 @@ import { clientIp } from "@/lib/security/client-ip";
 import { recordSecurityEvent, SECURITY_EVENT_TYPES } from "@/lib/security/events";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { PROVIDERS, getProvider } from "@/lib/scraper/providers";
+import { recordCrawlRun, type CrawlRunOutcome } from "@/lib/scraper/sources";
 import { saveDraftArticle, scrapeUrl } from "@/lib/scraper";
 import type { Provider } from "@/lib/scraper/types";
 
@@ -68,6 +69,7 @@ export async function runAdminScrapeTrigger(
   const limit = input.limit ?? ADMIN_SCRAPE_TRIGGER_DEFAULT_LIMIT;
   const scrapeAll = input.all === true;
   const providers = selectProviders(input);
+  const mode = scrapeAll ? "all" : "provider";
 
   await recordAuditFromRequest({
     req: context.req,
@@ -86,7 +88,7 @@ export async function runAdminScrapeTrigger(
 
   const results: AdminScrapeProviderResult[] = [];
   for (const provider of providers) {
-    results.push(await scrapeProvider(provider, limit, context));
+    results.push(await scrapeProvider(provider, limit, mode, context));
   }
 
   const totalSaved = results.reduce((sum, result) => sum + result.saved, 0);
@@ -100,8 +102,10 @@ export async function runAdminScrapeTrigger(
 async function scrapeProvider(
   provider: Provider,
   limit: number,
+  mode: "all" | "provider",
   context: AdminScrapeTriggerContext,
 ): Promise<AdminScrapeProviderResult> {
+  const startedAt = Date.now();
   let urls: string[];
   try {
     urls = await discoverProviderUrls(provider, limit);
@@ -109,10 +113,25 @@ async function scrapeProvider(
     const message = errorMessage(err);
     context.log.warn("scrape.trigger.discover_failed", { provider: provider.key, error: message });
     recordImportFailure(context, provider.key, "discover", message);
+    await recordAdminCrawlRun(provider.key, mode, startedAt, context, {
+      discovered: 0,
+      scraped: 0,
+      failed: 0,
+      duplicates: 0,
+      rejected: 0,
+      error: message,
+    });
     return { provider: provider.key, discovered: 0, saved: 0, skipped: 0, failed: 0, error: message };
   }
 
   const counters = await scrapeDiscoveredUrls(provider, urls, context);
+  await recordAdminCrawlRun(provider.key, mode, startedAt, context, {
+    discovered: urls.length,
+    scraped: counters.saved,
+    failed: counters.failed,
+    duplicates: counters.skipped,
+    rejected: 0,
+  });
   context.log.info("scrape.trigger.provider_done", {
     provider: provider.key,
     discovered: urls.length,
@@ -120,6 +139,28 @@ async function scrapeProvider(
   });
 
   return { provider: provider.key, discovered: urls.length, ...counters };
+}
+
+async function recordAdminCrawlRun(
+  providerKey: string,
+  mode: "all" | "provider",
+  startedAt: number,
+  context: AdminScrapeTriggerContext,
+  outcome: Omit<CrawlRunOutcome, "source" | "mode" | "durationMs">,
+): Promise<void> {
+  try {
+    await recordCrawlRun(providerKey, {
+      ...outcome,
+      source: "admin-trigger",
+      mode,
+      durationMs: Date.now() - startedAt,
+    });
+  } catch (err) {
+    context.log.warn("scrape.trigger.health_record_failed", {
+      provider: providerKey,
+      error: errorMessage(err),
+    });
+  }
 }
 
 async function scrapeDiscoveredUrls(
@@ -134,7 +175,7 @@ async function scrapeDiscoveredUrls(
       incrementCounter(counters, await scrapeAndSaveUrl(provider, url, context));
     } catch (err) {
       const message = errorMessage(err);
-      context.log.warn("scrape.trigger.save_failed", { provider: provider.key, url, error: message });
+      context.log.warn("scrape.trigger.save_failed", { provider: provider.key, error: message });
       recordImportFailure(context, provider.key, "save", message);
       counters.failed++;
     }

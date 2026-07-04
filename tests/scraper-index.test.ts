@@ -146,6 +146,8 @@ before(() => {
   mock.module("@/lib/scraper/sources", {
     namedExports: {
       HEALTH_THRESHOLDS: { degraded: 0.8, failing: 0.5 },
+      CRAWL_RUN_HISTORY_LIMIT: 25,
+      CRAWL_RUN_HISTORY_API_MAX_LIMIT: 50,
       computeHealthStatus: () => "healthy",
       applyCrawlOutcome: () => {},
       summarizeSourceHealth: () => ({}),
@@ -155,6 +157,7 @@ before(() => {
       isProviderEnabled: async () => true,
       setContentSourceEnabled: async () => {},
       recordCrawlRun: async () => {},
+      listRecentCrawlRuns: async () => [],
     },
   });
 });

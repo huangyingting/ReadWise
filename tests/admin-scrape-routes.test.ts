@@ -38,12 +38,14 @@ let securityEvents: { type: string; severity?: string }[] = [];
 
 // Scraper stubs
 let discoverUrls: string[] = ["https://test.example.com/article-1"];
+let discoverError: Error | null = null;
 let scrapeResult: Record<string, unknown> | null = {
   title: "Test Article",
   url: "https://test.example.com/article-1",
   text: "Article body text",
 };
 let saveOutcome: { status: "saved" | "skipped" | "failed" } = { status: "saved" };
+let crawlRunCalls: Array<{ providerKey: string; outcome: Record<string, unknown> }> = [];
 
 // SLO stub
 const sloReport = { slis: [], ok: true };
@@ -98,7 +100,18 @@ before(() => {
 
   mock.module("@/lib/scraper/discovery", {
     namedExports: {
-      discoverProviderUrls: async () => discoverUrls,
+      discoverProviderUrls: async () => {
+        if (discoverError) throw discoverError;
+        return discoverUrls;
+      },
+    },
+  });
+
+  mock.module("@/lib/scraper/sources", {
+    namedExports: {
+      recordCrawlRun: async (providerKey: string, outcome: Record<string, unknown>) => {
+        crawlRunCalls.push({ providerKey, outcome });
+      },
     },
   });
 
@@ -189,8 +202,10 @@ beforeEach(() => {
   auditThrows = false;
   securityEvents = [];
   discoverUrls = ["https://test.example.com/article-1"];
+  discoverError = null;
   scrapeResult = { title: "Test Article", url: "https://test.example.com/article-1", text: "body" };
   saveOutcome = { status: "saved" };
+  crawlRunCalls = [];
 });
 
 // ===========================================================================
@@ -242,6 +257,45 @@ test("POST /api/admin/scrape/trigger happy path returns 200 with results summary
   assert.equal(body.results[0].discovered, 1);
   assert.equal(body.results[0].saved, 1);
   assert.equal(body.totalSaved, 1);
+});
+
+test("POST /api/admin/scrape/trigger records provider health for a successful run", async () => {
+  const POST = await loadScrapeTriggerPost();
+  await POST(scrapeTriggerRequest({ provider: "test-provider", limit: 5 }));
+
+  assert.equal(crawlRunCalls.length, 1);
+  assert.equal(crawlRunCalls[0].providerKey, "test-provider");
+  assert.equal(crawlRunCalls[0].outcome.discovered, 1);
+  assert.equal(crawlRunCalls[0].outcome.scraped, 1);
+  assert.equal(crawlRunCalls[0].outcome.failed, 0);
+  assert.equal(crawlRunCalls[0].outcome.source, "admin-trigger");
+  assert.equal(crawlRunCalls[0].outcome.mode, "provider");
+  assert.equal(typeof crawlRunCalls[0].outcome.durationMs, "number");
+  assert.equal(JSON.stringify(crawlRunCalls[0]).includes("https://test.example.com/article-1"), false);
+  assert.equal(JSON.stringify(crawlRunCalls[0]).includes("body"), false);
+});
+
+test("POST /api/admin/scrape/trigger records zero-result provider health", async () => {
+  discoverUrls = [];
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
+  assert.equal(res.status, 200);
+
+  assert.equal(crawlRunCalls.length, 1);
+  assert.equal(crawlRunCalls[0].outcome.discovered, 0);
+  assert.equal(crawlRunCalls[0].outcome.scraped, 0);
+  assert.equal(crawlRunCalls[0].outcome.failed, 0);
+});
+
+test("POST /api/admin/scrape/trigger records failed discovery provider health", async () => {
+  discoverError = new Error("discovery failed");
+  const POST = await loadScrapeTriggerPost();
+  const res = await POST(scrapeTriggerRequest({ provider: "test-provider" }));
+  assert.equal(res.status, 200);
+
+  assert.equal(crawlRunCalls.length, 1);
+  assert.equal(crawlRunCalls[0].outcome.discovered, 0);
+  assert.equal(crawlRunCalls[0].outcome.error, "discovery failed");
 });
 
 test("POST /api/admin/scrape/trigger records an audit event", async () => {
