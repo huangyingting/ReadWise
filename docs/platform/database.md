@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents SQLite/PostgreSQL database setup, schema generation, migration workflows, and local parity stack. Captures current Prisma schemas, DATABASE_URL/PRISMA_SCHEMA_PATH usage, migration tests, and data migration notes."
 ---
 
@@ -46,16 +46,11 @@ npx prisma migrate status --schema prisma/postgresql/schema.prisma
 The normal `npm test` suite remains mocked and DB-free; `npm run test:db` is the
 real-engine coverage for migrations and representative constraints.
 
-Current PostgreSQL integration coverage applies the single PostgreSQL baseline
-from scratch in CI against an isolated schema and verifies ownership/privacy
+Current PostgreSQL integration coverage applies the PostgreSQL baseline from
+scratch in CI against an isolated schema and verifies ownership/privacy
 constraints, scoped uniqueness/null behavior, cascades, audit-log retention,
-JSONB columns, article search indexes/FTS, and the current article-state worker
-selection.
-
-Job-locking assertions are intentionally scoped out until ADR-0005 is
-implemented: there is no persistent job table or `locked_by`/`locked_until`
-state in the schema yet, so the real database semantics available today are the
-processor's deterministic `Article.status`/missing-enrichment selection.
+JSONB columns, article search indexes/FTS, persistent `Job` table enums, and
+PostgreSQL `FOR UPDATE SKIP LOCKED` claim/reclaim/dead-letter behavior.
 
 ## Docker image with PostgreSQL schema
 

@@ -25,8 +25,26 @@ type SourceRow = {
   updatedAt: Date;
 };
 
+type CrawlRunRow = {
+  id: string;
+  providerKey: string;
+  source: string;
+  mode: string;
+  outcome: string;
+  durationMs: number | null;
+  discovered: number;
+  scraped: number;
+  failed: number;
+  duplicates: number;
+  rejected: number;
+  error: string | null;
+  createdAt: Date;
+};
+
 let sources: Map<string, SourceRow>;
+let crawlRuns: CrawlRunRow[];
 let seq = 0;
+let crawlSeq = 0;
 
 function blankRow(providerKey: string, data: Partial<SourceRow> = {}): SourceRow {
   const now = new Date("2026-06-23T00:00:00Z");
@@ -121,6 +139,36 @@ before(() => {
             return row;
           },
         },
+        crawlRun: {
+          create: async (a: { data: Omit<CrawlRunRow, "id"> }) => {
+            const row = { id: `run-${++crawlSeq}`, ...a.data };
+            crawlRuns.push(row);
+            return row;
+          },
+          findMany: async (a: {
+            where: { providerKey: string };
+            orderBy?: { createdAt: "desc" | "asc" };
+            skip?: number;
+            take?: number;
+            select?: { id?: boolean };
+          }) => {
+            let rows = crawlRuns.filter((row) => row.providerKey === a.where.providerKey);
+            rows = rows.sort((left, right) =>
+              a.orderBy?.createdAt === "asc"
+                ? left.createdAt.getTime() - right.createdAt.getTime()
+                : right.createdAt.getTime() - left.createdAt.getTime(),
+            );
+            rows = rows.slice(a.skip ?? 0, a.take == null ? undefined : (a.skip ?? 0) + a.take);
+            if (a.select?.id) return rows.map((row) => ({ id: row.id }));
+            return rows;
+          },
+          deleteMany: async (a: { where: { id: { in: string[] } } }) => {
+            const ids = new Set(a.where.id.in);
+            const before = crawlRuns.length;
+            crawlRuns = crawlRuns.filter((row) => !ids.has(row.id));
+            return { count: before - crawlRuns.length };
+          },
+        },
       },
     },
   });
@@ -128,7 +176,9 @@ before(() => {
 
 beforeEach(() => {
   sources = new Map();
+  crawlRuns = [];
   seq = 0;
+  crawlSeq = 0;
 });
 
 test("computeHealthStatus buckets by consecutive failures and zero-discovery", async () => {
@@ -275,4 +325,37 @@ test("recordCrawlRun upserts a row and computes failing health after repeated fa
   assert.equal(row.healthStatus, "failing");
   assert.equal(row.lastError, "boom");
   assert.ok(row.lastCrawledAt instanceof Date);
+});
+
+test("recordCrawlRun stores bounded privacy-safe history and lists recent runs", async () => {
+  const { CRAWL_RUN_HISTORY_LIMIT, listRecentCrawlRuns, recordCrawlRun } = await import(
+    "@/lib/scraper/sources"
+  );
+
+  for (let i = 0; i < CRAWL_RUN_HISTORY_LIMIT + 2; i++) {
+    await recordCrawlRun(
+      "nbc",
+      {
+        discovered: 1,
+        scraped: 1,
+        failed: 0,
+        duplicates: 0,
+        rejected: 0,
+        source: "admin trigger",
+        mode: "single provider",
+        durationMs: 12.7,
+        error: "failed fetching https://private.example/article body omitted",
+      },
+      new Date(`2026-01-01T00:00:${String(i).padStart(2, "0")}Z`),
+    );
+  }
+
+  assert.equal(crawlRuns.length, CRAWL_RUN_HISTORY_LIMIT);
+  const recent = await listRecentCrawlRuns("nbc", 3);
+  assert.equal(recent.length, 3);
+  assert.equal(recent[0].source, "admin-trigger");
+  assert.equal(recent[0].mode, "single-provider");
+  assert.equal(recent[0].durationMs, 13);
+  assert.equal(recent[0].error?.includes("https://private.example"), false);
+  assert.match(recent[0].error ?? "", /\[url\]/);
 });

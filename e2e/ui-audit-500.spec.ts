@@ -6,13 +6,12 @@
  * while normal Playwright `--grep` / `--shard` can run practical partitions.
  *
  * Useful slices:
- *   npx playwright test --config=playwright.config.ts e2e/ui-audit-500.spec.ts --list
- *   npx playwright test --config=playwright.config.ts e2e/ui-audit-500.spec.ts --grep "@high-risk"
- *   npx playwright test --config=playwright.config.ts e2e/ui-audit-500.spec.ts --shard=1/10
+ *   npm run test:e2e:ui-audit:full -- --list
+ *   npm run test:e2e:ui-audit:high-risk
+ *   npm run test:e2e:ui-audit:full -- --shard=1/4
  */
 import { expect, test, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
 import path from "node:path";
 
 import {
@@ -82,8 +81,9 @@ type AuditLogs = {
   serverResponses: string[];
 };
 
-const ARTIFACT_DIR =
-  process.env.UI_AUDIT_ARTIFACT_DIR ?? path.join(tmpdir(), "readwise-ui-audit-500");
+const ARTIFACT_DIR = path.resolve(
+  process.env.UI_AUDIT_ARTIFACT_DIR ?? path.join("test-results", "ui-audit"),
+);
 const CATALOG_PATH = path.join(ARTIFACT_DIR, "catalog.json");
 const RUN_ID =
   process.env.UI_AUDIT_RUN_ID ?? new Date().toISOString().replace(/[:.]/g, "-");

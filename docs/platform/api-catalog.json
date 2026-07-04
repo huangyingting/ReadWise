@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T21:16:49.212Z",
-  "routeCount": 104,
-  "methodCount": 118,
+  "generatedAt": "2026-07-04T21:33:12.592Z",
+  "routeCount": 105,
+  "methodCount": 119,
   "routes": [
     {
       "path": "/api/account",
@@ -659,6 +659,35 @@
           "bodyFieldNames": [
             "enabled"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/admin/sources/{key}/crawl-runs",
+      "file": "src/app/api/admin/sources/[key]/crawl-runs/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "capability",
+          "capability": "sourcesManage",
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
+          "successStatus": 200,
+          "responseKeys": [
+            "ok",
+            "providerKey",
+            "runs"
+          ],
+          "queryParamNames": [
+            "limit"
+          ],
+          "bodyFieldNames": null
         }
       ]
     },

@@ -119,6 +119,7 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
   const seen = new Set<string>();
 
   for (const provider of providers) {
+    const startedAt = Date.now();
     const { urls, discoverError } = await discoverProviderArticles(
       provider,
       limit,
@@ -151,6 +152,9 @@ export async function runSeed(options: SeedOptions = {}): Promise<SeedStats> {
       failed: providerStats.failed,
       duplicates: providerStats.duplicates,
       rejected: 0,
+      source: "seed",
+      mode: "provider",
+      durationMs: Date.now() - startedAt,
       error: discoverError,
     });
   }

@@ -1,7 +1,7 @@
 /**
  * Core in-process metrics registry.
  *
- * Owns the shared counter/histogram/cache-stat maps, label normalization, and
+ * Owns the shared counter/gauge/histogram/cache-stat maps, label normalization, and
  * snapshot generation. Domain recorders call the primitives exported here;
  * nothing else should touch the maps directly.
  *
@@ -27,8 +27,16 @@ export type HistogramPoint = {
   sum: number;
 };
 
+export type GaugePoint = {
+  name: string;
+  help: string;
+  labels: Record<string, string>;
+  value: number;
+};
+
 export type MetricsSnapshot = {
   counters: CounterPoint[];
+  gauges: GaugePoint[];
   histograms: HistogramPoint[];
 };
 
@@ -37,6 +45,7 @@ export const AI_DURATION_BUCKETS_MS = [100, 250, 500, 1000, 2500, 5000, 10000, 3
 export const JOB_DURATION_BUCKETS_MS = [50, 100, 250, 500, 1000, 2500, 5000, 15000, 30000, 120000];
 
 type CounterDef = { help: string; labels: Record<string, string>; value: number };
+type GaugeDef = { help: string; labels: Record<string, string>; value: number };
 type HistogramDef = {
   help: string;
   labels: Record<string, string>;
@@ -47,6 +56,7 @@ type HistogramDef = {
 };
 
 const counters = new Map<string, CounterDef>();
+const gauges = new Map<string, GaugeDef>();
 const histograms = new Map<string, HistogramDef>();
 const cacheStats = new Map<string, { lookups: number; misses: number }>();
 
@@ -106,6 +116,19 @@ export function incCounter(
     return;
   }
   counters.set(key, { help, labels: normalized, value: amount });
+}
+
+/** Set a gauge to the current value for a label set, creating the series on first use. */
+export function setGauge(
+  name: string,
+  help: string,
+  labels: Record<string, MetricLabelValue> = {},
+  value: number,
+): void {
+  const normalized = normalizeLabels(labels);
+  const key = seriesKey(name, normalized);
+  const safeValue = Number.isFinite(value) && value >= 0 ? value : 0;
+  gauges.set(key, { help, labels: normalized, value: safeValue });
 }
 
 /** Record a single observation against a histogram, creating the series on first use. */
@@ -188,6 +211,12 @@ export function getMetricsSnapshot(): MetricsSnapshot {
   }
   counterPoints.push(...cacheCounterPoints());
 
+  const gaugePoints: GaugePoint[] = [];
+  for (const [key, value] of gauges) {
+    const [name] = key.split("|");
+    gaugePoints.push({ name, help: value.help, labels: { ...value.labels }, value: value.value });
+  }
+
   const histogramPoints: HistogramPoint[] = [];
   for (const [key, value] of histograms) {
     const [name] = key.split("|");
@@ -203,12 +232,14 @@ export function getMetricsSnapshot(): MetricsSnapshot {
 
   return {
     counters: counterPoints.sort(byNameAndLabels),
+    gauges: gaugePoints.sort(byNameAndLabels),
     histograms: histogramPoints.sort(byNameAndLabels),
   };
 }
 
 export function resetMetrics(): void {
   counters.clear();
+  gauges.clear();
   histograms.clear();
   cacheStats.clear();
 }

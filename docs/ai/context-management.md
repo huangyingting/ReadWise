@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents AI provider abstraction, context construction, chunking, cache keys, and fallback boundaries. Captures current long-context handling, cache/version behavior, prompt/privacy limits, and graceful degradation rules."
 ---
 
@@ -87,7 +87,7 @@ How each cache currently handles versioning:
 - **Per-article caches** (translation, vocabulary, quiz, tags, difficulty,
   speech) are keyed by `articleId` in the database. The **prompt version** is
   recorded on every provider call via the AI invocation ledger (the
-  `promptVersion` option threaded through `src/lib/ai-cache.ts`), so generations
+  `promptVersion` option threaded through `src/lib/ai/cache.ts`), so generations
   from different prompt revisions are distinguishable for analytics and audits.
   When an article's content changes, the admin **rebuild** action
   (`rebuildArticleAi`) clears the derived AI rows so they regenerate from the new
