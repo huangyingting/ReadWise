@@ -13,6 +13,7 @@ before(() => {
         throw new Error("difficulty must not call AI");
       },
       isAiConfigured: () => true,
+      aiModelName: () => "gpt-test",
     },
   });
 });

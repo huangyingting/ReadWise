@@ -52,6 +52,11 @@ before(() => {
       createLogger: () => ({ warn: () => {}, info: () => {}, error: () => {} }),
     },
   });
+  mock.module("@/lib/ai/ledger", {
+    namedExports: {
+      recordAiFallback: async () => {},
+    },
+  });
   mock.module("@/lib/runtime-config/dictionary", {
     namedExports: {
       dictionaryProviderMode: () => process.env.DICTIONARY_PROVIDER ?? "local",
@@ -91,6 +96,7 @@ before(() => {
   mock.module("@/lib/ai", {
     namedExports: {
       isAiConfigured: () => aiConfigured,
+      aiModelName: () => (aiConfigured ? "gpt-test" : null),
       chatComplete: async () => completion,
     },
   });

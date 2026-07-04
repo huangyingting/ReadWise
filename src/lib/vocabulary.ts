@@ -6,6 +6,7 @@ import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateVocabulary } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-library";
 import { getSavedWordSet } from "@/lib/lexical/saved-words";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 
 export type VocabularyEntry = {
   word: string;
@@ -21,6 +22,7 @@ export type ArticleVocabularyResult = {
   articleId: string;
   items: VocabularyItemResult[];
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
 };
 
 /**
@@ -83,6 +85,7 @@ async function toArticleVocabularyResult(
   userId: string,
   entries: VocabularyEntry[],
   fallback: boolean,
+  fallbackReason?: AiFallbackReason,
 ): Promise<ArticleVocabularyResult> {
   const savedSet = await getSavedWordSet(
     userId,
@@ -95,6 +98,7 @@ async function toArticleVocabularyResult(
       saved: savedSet.has(entry.word.toLowerCase()),
     })),
     fallback,
+    ...(fallbackReason !== undefined ? { fallbackReason } : {}),
   };
 }
 
@@ -124,7 +128,8 @@ export async function getOrCreateArticleVocabulary(
       isEmpty: (entries) => entries.length === 0,
       persist: persistVocabularyItems,
       toResult: (entries) => toArticleVocabularyResult(articleId, userId, entries, false),
-      fallback: () => toArticleVocabularyResult(articleId, userId, [], true),
+      fallback: (_article, ctx) =>
+        toArticleVocabularyResult(articleId, userId, [], true, ctx?.reason),
     },
     context,
   );

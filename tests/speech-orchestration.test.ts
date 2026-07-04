@@ -34,6 +34,7 @@ let speechFindUniqueCalls = 0;
 
 let synthesizeCalls: Array<{ text: string; articleId: string }> = [];
 let synthesizeResult: { audio: Buffer; provider: "azure"; words: SpeechWord[] } | null = null;
+let storagePutFails = false;
 
 function resetState(): void {
   cachedSpeechRow = null;
@@ -42,6 +43,7 @@ function resetState(): void {
   speechFindUniqueCalls = 0;
   synthesizeCalls = [];
   synthesizeResult = null;
+  storagePutFails = false;
 }
 
 function enableTts(): void {
@@ -77,7 +79,10 @@ before(() => {
       getMediaStorage: () => ({
         kind: "local" as const,
         get: async () => Buffer.from("ABC"),
-        put: async () => ({ storageKey: "speech/generated.mp3", sizeBytes: 5, checksum: "deadbeef" }),
+        put: async () => {
+          if (storagePutFails) throw new Error("storage unavailable");
+          return { storageKey: "speech/generated.mp3", sizeBytes: 5, checksum: "deadbeef" };
+        },
         delete: async () => {},
       }),
     },
@@ -251,6 +256,22 @@ test("getOrCreateArticleSpeech synthesizes and persists fresh audio on a cache m
   assert.deepEqual(result!.words, VALID_WORDS);
 });
 
+test("getOrCreateArticleSpeech reports storage persistence failure as recoverable fallback", async () => {
+  cachedSpeechRow = null;
+  articleRow = readableArticle("<p>The quick brown fox.</p>");
+  synthesizeSuccess("RECOVERABLE");
+  storagePutFails = true;
+
+  const result = await getOrCreateSpeech();
+
+  assert.equal(synthesizeCalls.length, 1);
+  assert.ok(result);
+  assert.equal(result!.cached, false);
+  assert.equal(result!.fallback, true);
+  assert.equal(result!.fallbackReason, "storage_unavailable");
+  assert.equal(result!.audio, audioDataUrl("RECOVERABLE"));
+});
+
 // ---------------------------------------------------------------------------
 // getOrCreateArticleSpeech — fallback / null paths
 // ---------------------------------------------------------------------------
@@ -264,6 +285,7 @@ test("getOrCreateArticleSpeech returns a graceful fallback when the TTS feature 
 
   assert.ok(result);
   assert.equal(result!.fallback, true);
+  assert.equal(result!.fallbackReason, "tts_unconfigured");
   assert.equal(result!.audio, null);
   assert.equal(result!.voice, DEFAULT_SPEECH_VOICE);
   assert.equal(synthesizeCalls.length, 0, "synthesis must not run when TTS is disabled");
@@ -278,6 +300,7 @@ test("getOrCreateArticleSpeech returns a fallback when Azure Speech credentials 
 
   assert.ok(result);
   assert.equal(result!.fallback, true);
+  assert.equal(result!.fallbackReason, "tts_unconfigured");
   assert.equal(result!.voice, DEFAULT_SPEECH_VOICE);
   assert.equal(synthesizeCalls.length, 0);
 });

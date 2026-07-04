@@ -151,6 +151,7 @@ test("askTutor returns fallback:true and persists nothing when AI is unconfigure
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   assert.equal(result.fallback, true);
+  assert.equal(result.fallbackReason, "provider_unconfigured");
   assert.match(result.answer, /unavailable/i);
   assert.equal(createCalls.length, 0, "no messages should be persisted on fallback");
 });
@@ -164,6 +165,7 @@ test("askTutor returns fallback:true and persists nothing when chatComplete fail
   const result = await askTutor("user-1", "article-1", "What is this about?");
   assert.ok(result !== null);
   assert.equal(result.fallback, true);
+  assert.equal(result.fallbackReason, "provider_error");
   assert.equal(createCalls.length, 0, "no messages should be persisted on AI failure");
 });
 

@@ -9,6 +9,7 @@ import {
   type ArticleAccessContext,
 } from "@/lib/article-library";
 import { getOrCreateSelectionAi } from "@/lib/ai/cache";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 
 /** Maximum source text length accepted for sentence translation. */
 export const MAX_SENTENCE_CHARS = 1000;
@@ -16,6 +17,7 @@ export const MAX_SENTENCE_CHARS = 1000;
 export type SentenceTranslationResult = {
   translation: string | null;
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
 };
 
 /** Normalizes whitespace so different representations of the same text share a cache entry. */
@@ -106,6 +108,6 @@ export async function translateSentence(
       });
       return { translation: completion, fallback: false };
     },
-    fallback: () => ({ translation: null, fallback: true }),
+    fallback: ({ reason }) => ({ translation: null, fallback: true, fallbackReason: reason }),
   });
 }
