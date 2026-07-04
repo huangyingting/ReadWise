@@ -106,14 +106,13 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `SavedWord` (word, explanation, example, contextSentence, SRS schedule fields) | Vocabulary / Learning | **personal** | ✅ (word, explanation, example, articleId, SRS fields, timestamps; `contextSentence` excluded — contains selected text) | Cascade via `SavedWord.userId` | Not affected | Deleted with user | No — `contextSentence` is user-selected text; `explanation`/`example` are AI-derived; the export deliberately excludes `contextSentence` |
+| `SavedWord` (word, explanation, example, contextSentence, SRS schedule fields) | Vocabulary / Learning | **personal** | ✅ (word, explanation, example, articleId, SRS fields, timestamps; `contextSentence` excluded — contains selected text) | Cascade via `SavedWord.userId`; selective context erasure via `clearSavedWordContextSentence` / `POST /api/vocabulary/erase-context` | Not affected | Deleted with user; `contextSentence` can be nulled independently | No — `contextSentence` is user-selected text; `explanation`/`example` are AI-derived; the export deliberately excludes `contextSentence` |
 
-> **Gap #711-B:** `SavedWord.contextSentence` stores the sentence surrounding a
-> saved word (user-selected passage). It is correctly excluded from the export
-> (selected text must not be re-exported), but an explicit erasure/nulling
-> helper does not exist beyond user deletion cascade. Confirm this is
-> sufficient for GDPR Article 17 requests where only selected data is to be
-> erased.
+> **Selective erasure (#897):** `SavedWord.contextSentence` stores the sentence
+> surrounding a saved word (user-selected passage). It is excluded from exports
+> and can now be nulled with `clearSavedWordContextSentence` or
+> `POST /api/vocabulary/erase-context`, preserving the word row, article id, and
+> SRS schedule fields.
 
 ---
 
@@ -281,7 +280,7 @@ behavior is invented. Gaps are called out as follow-up items.
 | # | Gap | Severity | Status |
 |---|---|---|---|
 | 711-A | `ReminderPreference` not in export bundle | Low | ✅ Resolved (#711) — added to export |
-| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium | Follow-up — cascade on user deletion is sufficient for full-account deletion; selective erasure for GDPR Art. 17 partial requests is a dedicated task |
+| 711-B | `SavedWord.contextSentence` has no selective erasure path | Medium | ✅ Resolved (#897) — `clearSavedWordContextSentence` and `POST /api/vocabulary/erase-context` null selected context while preserving word/SRS data |
 | 711-C | `LevelHistory`, `WordMastery`, `ArticleMastery`, `SkillMastery`, `ArticleDifficultyFeedback` not in export | Medium | ✅ Resolved (#711) — all added to export |
 | 711-D | Object-storage bytes not purged on `MediaAsset` DB cascade | Medium | ✅ Resolved (#711) — best-effort purge in `deleteOwnAccount` and `deleteMember` |
 | 711-E | Membership, classroom, assignment completion not in export | Low | ✅ Resolved (#711) — added to export |

@@ -8,6 +8,7 @@ let vocabRows: { word: string; explanation: string; example: string }[] = [];
 let savedRows: { word: string }[] = [];
 let vocabUpserts = 0;
 let lastSaveUpsert: unknown = null;
+let lastContextErase: unknown = null;
 
 before(() => {
   mock.module("@/lib/ai", {
@@ -38,6 +39,10 @@ before(() => {
             lastSaveUpsert = a;
             return {};
           },
+          updateMany: async (a: unknown) => {
+            lastContextErase = a;
+            return { count: 1 };
+          },
         },
       },
     },
@@ -52,6 +57,7 @@ beforeEach(() => {
   savedRows = [];
   vocabUpserts = 0;
   lastSaveUpsert = null;
+  lastContextErase = null;
   articles.set("a1", { title: "Title", content: "<p>Hard vocabulary words</p>" });
 });
 
@@ -124,4 +130,25 @@ test("saveWord is a no-op for a blank word", async () => {
   const { saveWord } = await importSavedWords();
   await saveWord("user-1", { word: "   " });
   assert.equal(lastSaveUpsert, null);
+});
+
+test("clearSavedWordContextSentence nulls only context for a trimmed saved word", async () => {
+  const { clearSavedWordContextSentence } = await importSavedWords();
+  const count = await clearSavedWordContextSentence("user-1", "  curious  ");
+  const args = lastContextErase as {
+    where: { userId: string; word: string };
+    data: { contextSentence: string | null };
+  };
+
+  assert.equal(count, 1);
+  assert.deepEqual(args.where, { userId: "user-1", word: "curious" });
+  assert.deepEqual(args.data, { contextSentence: null });
+});
+
+test("clearSavedWordContextSentence is a no-op for a blank word", async () => {
+  const { clearSavedWordContextSentence } = await importSavedWords();
+  const count = await clearSavedWordContextSentence("user-1", "   ");
+
+  assert.equal(count, 0);
+  assert.equal(lastContextErase, null);
 });

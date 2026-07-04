@@ -56,6 +56,14 @@ export const unsaveBatchBody = object({
 export type UnsaveBatchBody = InferSchema<typeof unsaveBatchBody>;
 
 // ---------------------------------------------------------------------------
+// POST /api/vocabulary/erase-context
+// ---------------------------------------------------------------------------
+
+export const eraseSavedWordContextBody = object({ word: nonEmptyString(WORD_MAX_LENGTH) });
+
+export type EraseSavedWordContextBody = InferSchema<typeof eraseSavedWordContextBody>;
+
+// ---------------------------------------------------------------------------
 // GET /api/vocabulary/export
 // ---------------------------------------------------------------------------
 

@@ -39,6 +39,10 @@ Non-negotiable boundaries:
   account ids are intentionally omitted.
 - Article text is not duplicated into the export through progress/list rows;
   rows identify associated article ids and user-created metadata.
+- Saved-word context sentences are not exported. For partial erasure requests,
+  `clearSavedWordContextSentence(userId, word)` and
+  `POST /api/vocabulary/erase-context` null the selected context while preserving
+  the saved word and SRS schedule.
 - When an audit context is supplied, the export and audit record run in the same
   transaction so the operator-visible action and exported snapshot correlate.
 

@@ -59,7 +59,7 @@ export function buildArticle(partial: Partial<Article> = {}): Article {
     createdAt: now,
     updatedAt: now,
     ownerId: null,
+    organizationId: null,
   };
   return { ...base, ...partial } as unknown as Article;
 }
-

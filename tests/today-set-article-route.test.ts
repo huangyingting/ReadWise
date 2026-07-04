@@ -39,6 +39,7 @@ function articleFixture(overrides: Row): Row {
     visibility: ArticleVisibility.PRIVATE,
     status: ArticleStatus.PUBLISHED,
     ownerId: USER_ID,
+    organizationId: null,
     ...overrides,
   };
 }

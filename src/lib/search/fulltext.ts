@@ -17,8 +17,8 @@
  *
  * Policy mapping:
  *   - Operator (Admin/System) → `TRUE` (all articles)
- *   - Authenticated user      → public-listable OR owned private
- *   - Anonymous               → public-listable only
+ *   - Authenticated user      → public-listable OR owned private (+ org if scoped)
+ *   - Anonymous               → public-listable only (+ org if scoped)
  *
  * IMPORTANT: If `readableArticleWhere` in `policy.ts` gains new predicates
  * (e.g. tenant/org scoping), this function must be updated in the same commit.
@@ -56,11 +56,11 @@ import { userAnnotationArticleIds } from "@/lib/search/annotations";
 import type { ArticleSearchProvider } from "./providers";
 
 function accessContext(context?: SearchContext | null): ArticleAccessContext | null {
-  if (!context?.userId && !context?.role) return null;
+  if (!context?.userId && !context?.role && !context?.orgId) return null;
   return articleAccessContext({
     id: context.userId ?? null,
     role: context.role ?? null,
-  });
+  }, context.orgId);
 }
 
 function recentArticleOrder() {
@@ -89,15 +89,23 @@ function putArticleCandidates(candidates: Map<string, SearchCandidate>, articles
  *
  * Policy cases (must stay in sync with `readableArticleWhere`):
  *   Admin/System → `TRUE` (unrestricted)
- *   Authenticated user → public-listable OR user's own private article
- *   Anonymous → public-listable only (status=published, visibility=PUBLIC, ownerId=null)
+ *   Authenticated user → public-listable OR user's own private article (+ org if scoped)
+ *   Anonymous → public-listable only (+ org if scoped)
  */
 export function buildReadableArticleSqlPredicate(access: ArticleAccessContext | null): Prisma.Sql {
   if (isArticleOperator(access)) return Prisma.sql`TRUE`;
-  if (access?.userId) {
-    return Prisma.sql`((a.status = 'published' AND a.visibility = 'PUBLIC') OR (a.visibility = 'PRIVATE' AND a."ownerId" = ${access.userId}))`;
+  const publicListable = Prisma.sql`(a.status = 'published' AND a.visibility = 'PUBLIC' AND a."ownerId" IS NULL AND a."organizationId" IS NULL)`;
+  const orgId = access?.orgId ?? access?.tenantId ?? null;
+  if (access?.userId && orgId) {
+    return Prisma.sql`(${publicListable} OR (a.visibility = 'PRIVATE' AND a."ownerId" = ${access.userId}) OR (a.status = 'published' AND a.visibility = 'ORG' AND a."organizationId" = ${orgId}))`;
   }
-  return Prisma.sql`(a.status = 'published' AND a.visibility = 'PUBLIC')`;
+  if (access?.userId) {
+    return Prisma.sql`(${publicListable} OR (a.visibility = 'PRIVATE' AND a."ownerId" = ${access.userId}))`;
+  }
+  if (orgId) {
+    return Prisma.sql`(${publicListable} OR (a.status = 'published' AND a.visibility = 'ORG' AND a."organizationId" = ${orgId}))`;
+  }
+  return publicListable;
 }
 
 async function postgresTextMatches(
