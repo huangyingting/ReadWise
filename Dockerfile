@@ -5,8 +5,8 @@
 # Required runtime environment variables (set via docker run -e or compose):
 #   DATABASE_URL        - Prisma datasource URL. Use PostgreSQL for production
 #                         parity, e.g. postgresql://<user>:<password>@<host>:5432/<database>?schema=public
-#   PRISMA_SCHEMA_PATH  - Optional schema path; set to
-#                         prisma/postgresql/schema.prisma for PostgreSQL images.
+#   PRISMA_SCHEMA_PATH  - Optional schema path; defaults to
+#                         prisma/postgresql/schema.prisma for production images.
 #   NEXTAUTH_SECRET     - Random secret for NextAuth session signing (required)
 #   NEXTAUTH_URL        - Public URL of the app, e.g. https://readwise.example.com
 #
@@ -33,7 +33,7 @@ RUN npm ci
 # ---- Stage 2: build the Next.js application -----------------------------
 FROM node:22-alpine AS build
 WORKDIR /app
-ARG PRISMA_SCHEMA_PATH=prisma/schema.prisma
+ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
 
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -51,7 +51,7 @@ WORKDIR /app
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
-ARG PRISMA_SCHEMA_PATH=prisma/schema.prisma
+ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
 ENV PRISMA_SCHEMA_PATH=$PRISMA_SCHEMA_PATH
 
 # Non-root user for security
@@ -79,6 +79,7 @@ COPY --from=build --chown=nextjs:nodejs /app/prisma                      ./prism
 COPY --from=build --chown=nextjs:nodejs /app/prisma.config.ts             ./prisma.config.ts
 
 # Startup script: runs `prisma migrate deploy` then `node server.js`
+COPY --chown=nextjs:nodejs scripts/validate-database-schema-config.mjs ./scripts/validate-database-schema-config.mjs
 COPY --chown=nextjs:nodejs docker-entrypoint.sh ./
 RUN chmod +x ./docker-entrypoint.sh
 

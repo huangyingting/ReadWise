@@ -4,12 +4,13 @@ import { test } from "node:test";
 
 const SQLITE_SCHEMA = "prisma/schema.prisma";
 const POSTGRES_SCHEMA = "prisma/postgresql/schema.prisma";
+const BASE_SCHEMA = "prisma/base.prisma";
 const SQLITE_MIGRATIONS = "prisma/migrations";
 const POSTGRES_MIGRATIONS = "prisma/postgresql/migrations";
+const PROVIDER_PLACEHOLDER = "{{PROVIDER}}";
 
-/** Substitutes the SQLite provider so the schema can be compared to the PostgreSQL one. */
-function normalizeToPostgres(sqliteSchema: string): string {
-  return sqliteSchema.replace('provider = "sqlite"', 'provider = "postgresql"');
+function renderSchema(baseSchema: string, provider: "sqlite" | "postgresql"): string {
+  return baseSchema.replace(PROVIDER_PLACEHOLDER, provider);
 }
 
 /** Lists timestamped migration directory names from a migrations directory. */
@@ -18,36 +19,45 @@ async function listMigrationNames(dir: string): Promise<string[]> {
   return entries.filter((e) => /^\d{14}_/.test(e)).sort();
 }
 
-test("PostgreSQL Prisma schema stays in parity with the default schema", async () => {
-  const [sqliteSchema, postgresSchema] = await Promise.all([
+test("generated Prisma schemas stay in parity with the base schema", async () => {
+  const [baseSchema, sqliteSchema, postgresSchema] = await Promise.all([
+    readFile(BASE_SCHEMA, "utf8"),
     readFile(SQLITE_SCHEMA, "utf8"),
     readFile(POSTGRES_SCHEMA, "utf8"),
   ]);
 
-  const normalized = normalizeToPostgres(sqliteSchema);
+  assert.ok(
+    baseSchema.includes(PROVIDER_PLACEHOLDER),
+    `${BASE_SCHEMA} must contain ${PROVIDER_PLACEHOLDER} in the datasource provider field.`,
+  );
+
+  const expectedSqlite = renderSchema(baseSchema, "sqlite");
+  const expectedPostgres = renderSchema(baseSchema, "postgresql");
 
   // Find the first differing line for a helpful failure message.
-  if (normalized !== postgresSchema) {
-    const sqliteLines = normalized.split("\n");
-    const pgLines = postgresSchema.split("\n");
-    const maxLen = Math.max(sqliteLines.length, pgLines.length);
+  for (const { path, expected, actual } of [
+    { path: SQLITE_SCHEMA, expected: expectedSqlite, actual: sqliteSchema },
+    { path: POSTGRES_SCHEMA, expected: expectedPostgres, actual: postgresSchema },
+  ]) {
+    if (expected === actual) continue;
+
+    const expectedLines = expected.split("\n");
+    const actualLines = actual.split("\n");
+    const maxLen = Math.max(expectedLines.length, actualLines.length);
     for (let i = 0; i < maxLen; i++) {
-      if (sqliteLines[i] !== pgLines[i]) {
-        assert.fail(
-          `Schema drift at line ${i + 1}.\n` +
-            `  Expected (normalized sqlite): ${JSON.stringify(sqliteLines[i])}\n` +
-            `  Actual   (postgres):          ${JSON.stringify(pgLines[i])}\n` +
-            "Run `npm run schema:check-parity` for details. See docs/platform/database.md §Schema governance for the schema-change workflow.",
-        );
-      }
+      if (expectedLines[i] === actualLines[i]) continue;
+
+      assert.fail(
+        `${path} drifted from ${BASE_SCHEMA} at line ${i + 1}.\n` +
+          `  Expected generated: ${JSON.stringify(expectedLines[i])}\n` +
+          `  Actual committed:   ${JSON.stringify(actualLines[i])}\n` +
+          "Run `npm run schema:generate` and `npm run schema:check-parity`. See docs/platform/database.md §Schema governance for the schema-change workflow.",
+      );
     }
   }
 
-  assert.equal(
-    postgresSchema,
-    normalized,
-    `${POSTGRES_SCHEMA} must be byte-identical to ${SQLITE_SCHEMA} after substituting provider = "sqlite" → "postgresql".`,
-  );
+  assert.equal(sqliteSchema, expectedSqlite);
+  assert.equal(postgresSchema, expectedPostgres);
 });
 
 test("SQLite schema contains exactly one provider = sqlite line (datasource block only)", async () => {

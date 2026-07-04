@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers. Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -71,11 +71,13 @@ authentication config validation happens in `src/lib/runtime-config/runtime.ts`.
 `src/lib/db-utils.ts` reads `DATABASE_URL` solely to derive whether the active
 database is PostgreSQL (for Prisma raw-query dialect selection). This is a
 thin infrastructure check, not a business config read; the authoritative
-validation of `DATABASE_URL` lives in `src/lib/runtime-config/runtime.ts`.
+validation of `DATABASE_URL` and its `PRISMA_SCHEMA_PATH` provider match lives
+in `src/lib/runtime-config/runtime.ts`.
 
 | File | Purpose |
 | --- | --- |
 | `src/lib/db-utils.ts` | `isPostgresDatabase()` — dialect selection for raw SQL queries. |
+| `src/lib/runtime-config/database.ts` | `prismaSchemaMismatchIssue()` and production startup assertion for database/schema provider safety. |
 
 ### 6. Testing and CI guards (`src/lib/testing/`)
 
@@ -208,14 +210,14 @@ variable or changes a default.
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
-| `src/lib/runtime-config/database.ts` | `database` | `PRISMA_SCHEMA_PATH` |
+| `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |
 | `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
 | `src/lib/runtime-config/oauth.ts` | `oauth` | `GOOGLE_CLIENT_*`, `AZURE_AD_*` |
 | `src/lib/runtime-config/observability.ts` | `observability` | `LOG_LEVEL`, `TRACING_ENABLED`, `OTEL_*`, `OTEL_SERVICE_NAME`, `APP_VERSION`, `ERROR_REPORTING_PROVIDER`, `ERROR_ALERT_THRESHOLD` |
 | `src/lib/runtime-config/push.ts` | `push` | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` |
 | `src/lib/runtime-config/rate-limit.ts` | `rateLimit` | `RATE_LIMIT_*`, `RATE_LIMIT_WINDOW_MS`, `RATE_LIMIT_STORE` |
-| `src/lib/runtime-config/runtime.ts` | — (readiness only) | Composes all sections for `/api/ready`. Validates `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. |
+| `src/lib/runtime-config/runtime.ts` | — (readiness only) | Composes all sections for `/api/ready`. Validates `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL`. |
 | `src/lib/runtime-config/scraper.ts` | `scraper` | `SCRAPER_MAX_BYTES`, `SCRAPER_TIMEOUT_MS`, `SCRAPER_HTML_NORMALIZE`, `SCRAPER_READABILITY`, fetch fallback toggles, 429 retry knobs, quality classifier |
 | `src/lib/runtime-config/security.ts` | `security` | `TRUSTED_PROXY_*`, `CSRF_*`, `SECURITY_EVENT_*`, `AUDIT_LOG_RETENTION_DAYS` |
 | `src/lib/runtime-config/speech.ts` | `speech` | `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION`, `AZURE_SPEECH_OUTPUT_FORMAT`, `AZURE_SPEECH_VOICE`, `SPEECH_TIMEOUT_MS` |
