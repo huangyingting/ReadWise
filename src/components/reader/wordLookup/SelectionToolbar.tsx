@@ -17,9 +17,15 @@
  */
 
 import { useCallback, useRef } from "react";
-import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
+import {
+  Highlighter,
+  StickyNote,
+  BookText,
+  Languages,
+  BookMarked,
+} from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
-import { useRovingTabindex } from "@/lib/use-roving-tabindex";
+import { HighlightColorSwatchGroup } from "@/components/ui";
 import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
@@ -27,13 +33,6 @@ import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
 const ACTION_BUTTON_CLASS =
   "w-auto px-[var(--space-2)] gap-1 text-[length:var(--text-sm)] font-semibold whitespace-nowrap active:translate-y-px text-primary-text hover:bg-[color-mix(in_srgb,var(--primary)_12%,transparent)]";
-
-const SWATCH_COLORS: { color: HighlightColor; label: string; cssVar: string }[] = [
-  { color: "yellow", label: "Yellow", cssVar: "var(--hl-yellow)" },
-  { color: "green",  label: "Green",  cssVar: "var(--hl-green)" },
-  { color: "blue",   label: "Blue",   cssVar: "var(--hl-blue)" },
-  { color: "pink",   label: "Pink",   cssVar: "var(--hl-pink)" },
-];
 
 interface SelectionToolbarProps {
   /** Bounding rect of the selection (from range.getBoundingClientRect()). */
@@ -90,15 +89,6 @@ export default function SelectionToolbar({
     stopEscapePropagation: true,
   });
 
-  // Roving tabindex for color swatches
-  const swatchGroupRef = useRef<HTMLDivElement>(null);
-
-  const { handleKeyDown: handleSwatchKey } = useRovingTabindex(swatchGroupRef, {
-    selector: "button",
-    onNavigate: (i) => onColorChange(SWATCH_COLORS[i].color),
-    onEscape: onClose,
-  });
-
   function handleToolbarKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     // Single container-level Escape handler. Skip if a child already handled it.
     if (e.key === "Escape" && !e.defaultPrevented) {
@@ -118,34 +108,14 @@ export default function SelectionToolbar({
       onPointerDown={(e) => e.stopPropagation()}
       onKeyDown={handleToolbarKeyDown}
     >
-      {/* Swatch group */}
-      <div
-        ref={swatchGroupRef}
-        role="radiogroup"
-        aria-label="Highlight color"
+      <HighlightColorSwatchGroup
+        value={color}
+        onChange={onColorChange}
+        onEscape={onClose}
+        size="sm"
+        activeSwatchRef={selectedSwatchRef}
         className="rw-sel-swatch-group"
-      >
-        {SWATCH_COLORS.map(({ color: c, label, cssVar }, i) => (
-          <IconButton
-            key={c}
-            ref={color === c ? selectedSwatchRef : undefined}
-            size="sm"
-            context="reading"
-            role="radio"
-            aria-checked={color === c}
-            aria-label={label}
-            tabIndex={color === c ? 0 : -1}
-            className="rw-sel-swatch"
-            style={{ backgroundColor: cssVar }}
-            onClick={() => onColorChange(c)}
-            onKeyDown={(e) => handleSwatchKey(e, i)}
-          >
-            {color === c ? (
-              <Check size={12} aria-hidden="true" style={{ color: "var(--reading-text)" }} />
-            ) : null}
-          </IconButton>
-        ))}
-      </div>
+      />
 
       <div className="rw-sel-toolbar-divider" aria-hidden="true" />
 
@@ -200,5 +170,3 @@ export default function SelectionToolbar({
     </div>
   );
 }
-
-export { SWATCH_COLORS };

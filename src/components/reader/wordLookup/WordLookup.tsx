@@ -53,11 +53,11 @@ import { useSaveWord } from "./useSaveWord";
 import { useHighlightActions } from "./useHighlightActions";
 import { useSurfaceController } from "./useSurfaceController";
 import { STORAGE_KEYS } from "@/lib/storage-keys";
+import { isHighlightColor } from "@/components/ui";
 
 const LOOKUP_BOUNDARY_RE = /^[^A-Za-z'']+|[^A-Za-z'']+$/g;
 const LOOKUP_HAS_LETTER_RE = /[A-Za-z]/;
 const SINGLE_WORD_SELECTION_RE = /^\s*[A-Za-z''-]+\s*$/;
-const HIGHLIGHT_COLORS: readonly HighlightColor[] = ["yellow", "green", "blue", "pink"];
 
 function normalizeLookupCandidate(candidate: string): string {
   const trimmed = candidate.replace(LOOKUP_BOUNDARY_RE, "");
@@ -72,10 +72,6 @@ function getSelectionToolbarDetails(quote: string) {
     isShortPhrase: wordCount >= 2 && wordCount <= 5,
     selectionWord: words[0] ?? "",
   };
-}
-
-function isHighlightColor(value: string | null): value is HighlightColor {
-  return HIGHLIGHT_COLORS.includes(value as HighlightColor);
 }
 
 function getStoredToolbarColor(): HighlightColor | undefined {

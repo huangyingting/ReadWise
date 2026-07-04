@@ -13,15 +13,19 @@
  */
 
 import { useCallback, useRef, useEffect, useState } from "react";
-import { X, Check } from "lucide-react";
+import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { Button, IconButton, Textarea } from "@/components/ui";
-import { useRovingTabindex } from "@/lib/use-roving-tabindex";
+import {
+  Button,
+  HighlightColorSwatchGroup,
+  IconButton,
+  Textarea,
+  isHighlightColor,
+} from "@/components/ui";
 import { useFocusTrap } from "@/lib/focus-trap";
 import ConfirmAction from "@/components/ConfirmAction";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { Highlight, HighlightColor } from "@/components/ReaderHighlightsProvider";
-import { SWATCH_COLORS } from "./SelectionToolbar";
 
 const POPOVER_HEIGHT = 260; // approximate
 const NOTE_MAX = 2000;
@@ -54,7 +58,7 @@ export default function HighlightEditPopover({
   popoverRef,
 }: HighlightEditPopoverProps) {
   const innerRef = useRef<HTMLDivElement>(null);
-  const firstFocusRef = useRef<HTMLButtonElement>(null);
+  const selectedSwatchRef = useRef<HTMLButtonElement>(null);
 
   const [noteText, setNoteText] = useState(highlight.note ?? "");
   const [noteOpen, setNoteOpen] = useState(!!highlight.note);
@@ -74,7 +78,7 @@ export default function HighlightEditPopover({
   }, [highlight.note]);
 
   useFocusTrap(innerRef, true, onClose, {
-    initialFocusRef: firstFocusRef,
+    initialFocusRef: selectedSwatchRef,
     stopEscapePropagation: true,
   });
 
@@ -83,14 +87,6 @@ export default function HighlightEditPopover({
     placement: "above",
     estimatedHeight: POPOVER_HEIGHT,
     deps: [anchorEl],
-  });
-
-  // Swatch arrow-key navigation
-  const swatchGroupRef = useRef<HTMLDivElement>(null);
-  const { handleKeyDown: handleSwatchKey } = useRovingTabindex(swatchGroupRef, {
-    selector: "button",
-    onNavigate: (i) => onColorChange(SWATCH_COLORS[i].color),
-    onEscape: onClose,
   });
 
   function handleNoteSave() {
@@ -114,7 +110,7 @@ export default function HighlightEditPopover({
     }
   }, [onClose, onDelete]);
 
-  const currentColor = (highlight.color as HighlightColor | null) ?? "yellow";
+  const currentColor = isHighlightColor(highlight.color) ? highlight.color : "yellow";
   const noteLen = noteText.length;
   const nearLimit = noteLen > NOTE_MAX * 0.85;
   const atLimit = noteLen >= NOTE_MAX;
@@ -139,33 +135,13 @@ export default function HighlightEditPopover({
     >
       {/* Header: swatches + close */}
       <div className="rw-hl-popover-header">
-        <div
-          ref={swatchGroupRef}
-          role="radiogroup"
-          aria-label="Highlight color"
+        <HighlightColorSwatchGroup
+          value={currentColor}
+          onChange={onColorChange}
+          onEscape={onClose}
+          activeSwatchRef={selectedSwatchRef}
           className="rw-hl-popover-swatch-row"
-        >
-          {SWATCH_COLORS.map(({ color: c, label, cssVar }, i) => (
-            <IconButton
-              key={c}
-              ref={i === 0 ? firstFocusRef : undefined}
-              size="sm"
-              context="reading"
-              role="radio"
-              aria-checked={currentColor === c}
-              aria-label={label}
-              tabIndex={currentColor === c ? 0 : -1}
-              className="rw-hl-popover-swatch"
-              style={{ backgroundColor: cssVar }}
-              onClick={() => onColorChange(c)}
-              onKeyDown={(e) => handleSwatchKey(e, i)}
-            >
-              {currentColor === c ? (
-                <Check size={12} aria-hidden="true" style={{ color: "var(--reading-text)" }} />
-              ) : null}
-            </IconButton>
-          ))}
-        </div>
+        />
         <IconButton
           size="sm"
           context="reading"

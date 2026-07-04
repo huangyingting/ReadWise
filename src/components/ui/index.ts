@@ -41,6 +41,21 @@ export {
   type SegmentedControlOption,
 } from "./SegmentedControl";
 export {
+  HighlightColorSwatch,
+  HighlightColorSwatchGroup,
+  type HighlightColorSwatchProps,
+  type HighlightColorSwatchGroupProps,
+} from "./HighlightColorSwatch";
+export {
+  HIGHLIGHT_COLORS,
+  HIGHLIGHT_COLOR_OPTIONS,
+  getHighlightColorCssVar,
+  getHighlightColorLabel,
+  isHighlightColor,
+  type HighlightColor,
+  type HighlightColorTone,
+} from "./highlight-colors";
+export {
   IconButton,
   iconButtonVariants,
   type IconButtonProps,
