@@ -281,16 +281,29 @@ describe("GET /api/pronunciation/history", () => {
         articleId: null,
         createdAt: new Date("2026-01-01"),
       },
+      {
+        id: "pa-3",
+        referenceText: "Hi there",
+        accuracyScore: 60,
+        fluencyScore: 60,
+        completenessScore: 70,
+        pronScore: 60,
+        articleId: null,
+        createdAt: new Date("2026-01-02"),
+      },
     ];
-    aggResult = { _count: { id: 1 }, _avg: { pronScore: 70 }, _max: { pronScore: 70 } };
+    aggResult = { _count: { id: 2 }, _avg: { pronScore: 65 }, _max: { pronScore: 70 } };
     const res = await getHistory();
     assert.equal(res.status, 200);
     const body = await res.json();
-    assert.equal(body.attemptCount, 1);
+    assert.equal(body.attemptCount, 2);
     assert.equal(body.bestPronScore, 70);
-    assert.equal(body.averageScore, 70);
-    assert.equal(body.attempts.length, 1);
+    assert.equal(body.averageScore, 65);
+    assert.equal(body.attempts.length, 2);
     assert.equal(body.attempts[0].id, "pa-2");
+    assert.equal(body.trends[0].attempts, 2);
+    assert.equal(body.trends[0].latestScore, 60);
+    assert.equal(body.weakSentences[0].referenceText, "Hi there");
   });
 
   test("returns 401 when unauthenticated", async () => {

@@ -76,6 +76,16 @@ export function PronunciationResult({
           {sentenceHistory.last !== null && (
             <span>· Last {sentenceHistory.last}</span>
           )}
+          {sentenceHistory.average !== null && sentenceHistory.attempts > 1 && (
+            <span>· Avg {sentenceHistory.average}</span>
+          )}
+          {sentenceHistory.trendDelta !== null && sentenceHistory.attempts > 1 && (
+            <span>
+              · {sentenceHistory.trendDelta === 0
+                ? "Steady"
+                : `${sentenceHistory.trendDelta > 0 ? "+" : ""}${sentenceHistory.trendDelta} trend`}
+            </span>
+          )}
           {isNewBest && (
             <Badge variant="success">New best! 🎉</Badge>
           )}

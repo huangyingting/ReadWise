@@ -18,6 +18,7 @@ import { useSpeechToken } from "@/components/reader/useSpeechToken";
 import type {
   AssessResult,
   SavedNote,
+  SentenceTrend,
   SentenceHistory,
   SpeechTokenResult,
 } from "@/components/reader/pronunciationTypes";
@@ -55,6 +56,7 @@ export type PronunciationSessionState = {
   currentSentence: string;
   sentenceCount: number;
   sentenceHistory: SentenceHistory;
+  weakSentences: Array<SentenceTrend & { index: number }>;
   savedNote: SavedNote;
   isNewBest: boolean;
   goPrev: () => void;
@@ -62,6 +64,7 @@ export type PronunciationSessionState = {
   handleRecord: () => Promise<void>;
   handleStop: () => Promise<void>;
   handleRecordAgain: () => void;
+  practiceWeakSentence: (index: number) => void;
   handleRetry: () => Promise<void>;
   handleMicDeniedRetry: () => void;
   handleNoDeviceRetry: () => void;
@@ -158,8 +161,8 @@ export function usePronunciationSession({
       maxRecordMs: MAX_RECORD_MS,
       countdownStartSeconds: COUNTDOWN_START_S,
     });
-  const { sentenceHistory, loadHistory, addAttempt } =
-    usePronunciationHistory(currentSentence);
+  const { sentenceHistory, weakSentences, loadHistory, addAttempt } =
+    usePronunciationHistory(currentSentence, articleId, sentences);
   const { savedNote, isNewBest, resetPersistence, persistAttempt } =
     usePronunciationPersistence();
 
@@ -357,6 +360,14 @@ export function usePronunciationSession({
     resetPersistence();
   }
 
+  function practiceWeakSentence(index: number) {
+    if (index < 0 || index >= sentenceCount) return;
+    setCurrentIndex(index);
+    setResult(null);
+    setPhase("idle");
+    resetPersistence();
+  }
+
   function handleMicDeniedRetry() {
     resetErrorToIdle();
   }
@@ -388,6 +399,7 @@ export function usePronunciationSession({
     currentSentence,
     sentenceCount,
     sentenceHistory,
+    weakSentences,
     savedNote,
     isNewBest,
     goPrev,
@@ -395,6 +407,7 @@ export function usePronunciationSession({
     handleRecord,
     handleStop: async () => stopRecording(true),
     handleRecordAgain,
+    practiceWeakSentence,
     handleRetry,
     handleMicDeniedRetry,
     handleNoDeviceRetry,
