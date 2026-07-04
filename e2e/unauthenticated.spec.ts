@@ -5,19 +5,7 @@
  * redirects an unauthenticated visitor to the sign-in page.
  * No user session is set up — cookies are cleared before each test.
  */
-import { expect, test } from "@playwright/test";
-import { disconnectDb, seedSmokeData } from "./support/seed";
-
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
+import { test, expect } from "./support/fixtures";
 
 const PROTECTED_ROUTES = [
   ["/dashboard", "/dashboard"],

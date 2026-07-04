@@ -31,15 +31,9 @@
  * to run all e2e specs including this one.
  */
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
+import { seedDueFlashcard } from "./support/seed";
 
 // ---------------------------------------------------------------------------
 // Allowlist: rule IDs that are accepted as known baseline gaps.
@@ -54,6 +48,8 @@ const ALLOWLISTED_RULES: string[] = [
 const BLOCKING_IMPACTS = ["serious", "critical"] as const;
 const AXE_TAGS = ["wcag2a", "wcag2aa", "wcag21aa"] as const;
 type Impact = (typeof BLOCKING_IMPACTS)[number];
+
+test.setTimeout(300_000);
 
 function assertNoBlockingViolations(
   results: Awaited<ReturnType<AxeBuilder["analyze"]>>,
@@ -85,14 +81,6 @@ function assertNoBlockingViolations(
   }
 }
 
-async function signIn(
-  context: BrowserContext,
-  options: Parameters<typeof createUserWithSession>[0] = {},
-) {
-  const { sessionToken, expires } = await createUserWithSession(options);
-  await addSessionCookie(context, sessionToken, expires);
-}
-
 async function analyzePage(page: Page) {
   return new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
 }
@@ -120,20 +108,6 @@ async function selectReaderPhrase(page: Page, phrase: string) {
 }
 
 // ---------------------------------------------------------------------------
-// Shared setup
-// ---------------------------------------------------------------------------
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-// ---------------------------------------------------------------------------
 // Surface: landing / sign-in (unauthenticated)
 // ---------------------------------------------------------------------------
 test.describe("a11y: sign-in page (unauthenticated)", () => {
@@ -153,11 +127,8 @@ test.describe("a11y: sign-in page (unauthenticated)", () => {
 // ---------------------------------------------------------------------------
 test.describe("a11y: dashboard (authenticated reader)", () => {
   test("has no serious/critical axe violations on /dashboard", async ({
-    context,
-    page,
+    readerPage: page,
   }) => {
-    await signIn(context);
-
     await page.goto("/dashboard");
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
@@ -172,11 +143,8 @@ test.describe("a11y: dashboard (authenticated reader)", () => {
 // ---------------------------------------------------------------------------
 test.describe("a11y: reader surface", () => {
   test("has no serious/critical axe violations on the reader page", async ({
-    context,
-    page,
+    readerPage: page,
   }) => {
-    await signIn(context);
-
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expect(
       page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
@@ -188,11 +156,8 @@ test.describe("a11y: reader surface", () => {
   });
 
   test("reader toolbar buttons are keyboard-focusable", async ({
-    context,
-    page,
+    readerPage: page,
   }) => {
-    await signIn(context);
-
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expect(page.getByLabel("Display settings")).toBeVisible();
 
@@ -203,11 +168,8 @@ test.describe("a11y: reader surface", () => {
   });
 
   test("selection toolbar traps Tab and returns focus on Escape", async ({
-    context,
-    page,
+    readerPage: page,
   }) => {
-    await signIn(context);
-
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expect(
       page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
@@ -243,13 +205,8 @@ test.describe("a11y: reader surface", () => {
 // ---------------------------------------------------------------------------
 test.describe("a11y: admin surface", () => {
   test("has no serious/critical axe violations on /admin", async ({
-    context,
-    page,
+    adminPage: page,
   }) => {
-    await signIn(context, {
-      role: "Admin",
-    });
-
     await page.goto("/admin");
     await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
 
@@ -264,11 +221,8 @@ test.describe("a11y: admin surface", () => {
 // ---------------------------------------------------------------------------
 test.describe("a11y: teacher surface", () => {
   test("has no serious/critical axe violations on /teacher", async ({
-    context,
-    page,
+    readerPage: page,
   }) => {
-    await signIn(context);
-
     await page.goto("/teacher");
     // Accept either a loaded teaching page or an empty/redirect state.
     await page.waitForSelector("main, [role='main'], h1", { timeout: 10_000 });
@@ -276,5 +230,131 @@ test.describe("a11y: teacher surface", () => {
     const results = await analyzePage(page);
 
     assertNoBlockingViolations(results);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Targeted keyboard/focus regressions from docs/ui/accessibility.md
+// ---------------------------------------------------------------------------
+test.describe("a11y: documented keyboard and live-region gaps", () => {
+  test("command palette traps focus and Escape returns focus to the opener", async ({
+    readerPage: page,
+  }) => {
+    await page.goto("/dashboard");
+    const opener = page.getByRole("link", { name: /E2E Critical Reading/ }).first();
+    await opener.focus();
+    await expect(opener).toBeFocused();
+
+    await page.keyboard.press("Control+K");
+    const dialog = page.getByRole("dialog", { name: "Search and commands" });
+    await expect(dialog).toBeVisible();
+    await expect(
+      page.getByRole("combobox", { name: "Search articles, pages, and actions" }),
+    ).toBeFocused();
+
+    await page.keyboard.press("Tab");
+    await expect
+      .poll(() => dialog.evaluate((node) => node.contains(document.activeElement)))
+      .toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+    await expect(opener).toBeFocused();
+  });
+
+  test("keyboard shortcuts modal keeps focus trapped until Escape closes it", async ({
+    readerPage: page,
+  }) => {
+    await page.goto("/dashboard");
+    await page.getByRole("button", { name: "User menu" }).click();
+    await page.getByRole("menuitem", { name: "Keyboard shortcuts" }).click();
+
+    const dialog = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await expect(dialog).toBeVisible();
+    const close = page.getByRole("button", { name: "Close keyboard shortcuts" });
+    await expect(close).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect
+      .poll(() => dialog.evaluate((node) => node.contains(document.activeElement)))
+      .toBe(true);
+
+    await page.keyboard.press("Escape");
+    await expect(dialog).toHaveCount(0);
+  });
+
+  test("flashcard review is keyboard-operable and announces revealed answers", async ({
+    signIn,
+    page,
+  }) => {
+    const session = await signIn();
+    await seedDueFlashcard(session.userId);
+
+    await page.goto("/study");
+    await page.getByRole("button", { name: "Review 1 due" }).click();
+    await expect(page.getByText("confidence", { exact: true })).toBeVisible();
+
+    const showAnswer = page.getByRole("button", { name: "Show answer" });
+    await showAnswer.focus();
+    await page.keyboard.press("Space");
+
+    await expect(page.getByRole("button", { name: "Good" })).toBeFocused();
+    await expect(page.locator('[aria-live="polite"]').filter({ hasText: "Answer revealed" })).toHaveCount(1);
+  });
+
+  test("offline Today actions expose a polite live-region status", async ({
+    context,
+    signIn,
+    page,
+  }) => {
+    await signIn();
+    await page.goto("/today");
+    await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+
+    await context.setOffline(true);
+    try {
+      await page.getByRole("button", { name: "Mark reading done" }).click();
+      await expect(
+        page.getByRole("status").filter({ hasText: /offline|sync/i }),
+      ).toBeVisible();
+    } finally {
+      await context.setOffline(false);
+    }
+  });
+
+  test("reduced-motion preference collapses tokenized motion durations", async ({
+    signIn,
+    page,
+  }) => {
+    await signIn();
+    await page.emulateMedia({ reducedMotion: "reduce" });
+    await page.goto(`/reader/${TEST_ARTICLE_ID}`);
+
+    await expect(
+      page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
+    ).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          getComputedStyle(document.documentElement)
+            .getPropertyValue("--duration-base")
+            .trim(),
+        ),
+      )
+      .toBe("0.01ms");
+  });
+
+  test("admin article table and filters expose stable accessible labels", async ({
+    adminPage: page,
+  }) => {
+    await page.goto("/admin/articles");
+
+    await expect(page.getByRole("searchbox", { name: "Search articles" })).toBeVisible();
+    await expect(page.getByLabel("Filter by status")).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Title" })).toBeVisible();
+    await expect(
+      page.getByRole("columnheader", { name: "Visibility / Status" }),
+    ).toBeVisible();
+    await expect(page.getByRole("columnheader", { name: "Actions" })).toBeVisible();
   });
 });

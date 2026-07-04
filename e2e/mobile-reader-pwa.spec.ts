@@ -12,35 +12,11 @@
  *
  * No live AI, Speech, OAuth, or Push providers are required.
  */
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
 // Mobile viewport matching iPhone 14 form-factor.
-const MOBILE_VIEWPORT = { width: 390, height: 844 };
 const ARTICLE_HEADING = "E2E Critical Reading Smoke Article";
-
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context, page }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-  await page.setViewportSize(MOBILE_VIEWPORT);
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInReader(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
 
 async function gotoSeededArticle(page: Page) {
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
@@ -52,10 +28,10 @@ async function gotoSeededArticle(page: Page) {
 // ---------------------------------------------------------------------------
 
 test("reader renders article heading on mobile viewport", async ({
-  context,
-  page,
+  signIn,
+  mobilePage: page,
 }) => {
-  await signInReader(context);
+  await signIn();
   await gotoSeededArticle(page);
 });
 
@@ -64,10 +40,10 @@ test("reader renders article heading on mobile viewport", async ({
 // ---------------------------------------------------------------------------
 
 test("reader toolbar back button is visible on mobile viewport", async ({
-  context,
-  page,
+  signIn,
+  mobilePage: page,
 }) => {
-  await signInReader(context);
+  await signIn();
   await gotoSeededArticle(page);
 
   // The Back button is always present in ReaderControls regardless of viewport.
@@ -75,10 +51,10 @@ test("reader toolbar back button is visible on mobile viewport", async ({
 });
 
 test("reader mini-player clearance keeps final content unobscured on mobile", async ({
-  context,
-  page,
+  signIn,
+  mobilePage: page,
 }) => {
-  await signInReader(context);
+  await signIn();
   await gotoSeededArticle(page);
 
   await page.evaluate(() => {
@@ -122,10 +98,10 @@ test("reader mini-player clearance keeps final content unobscured on mobile", as
 // ---------------------------------------------------------------------------
 
 test("offline library shows correct heading on mobile viewport", async ({
-  context,
-  page,
+  signIn,
+  mobilePage: page,
 }) => {
-  await signInReader(context);
+  await signIn();
 
   await page.goto("/offline");
   await expect(page).toHaveURL(/\/offline$/);

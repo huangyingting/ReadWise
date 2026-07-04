@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents design-system ownership, token/primitive governance, import rules, density variants, and visual regression boundaries. Captures current token usage, shared UI primitives, ESLint drift checks, density rules, focus states, and CI screenshot plan."
 ---
 
@@ -393,8 +393,9 @@ most primitives and are stable enough to maintain a baseline.
 e2e/visual-regression.spec.ts
 ```
 
-This file does not yet exist.  Create it following the pattern of
-`e2e/accessibility.spec.ts`.
+The baseline suite exists and is intentionally limited to stable desktop
+surfaces: sign-in, dashboard, reader, admin, and teacher. It is opt-in so the
+first baseline can be reviewed before becoming a required CI gate.
 
 ### 6.5 Test anatomy
 
@@ -449,8 +450,8 @@ for (const vp of VIEWPORTS) {
 
 | Action | Command |
 |--------|---------|
-| Generate / regenerate baseline | `npx playwright test e2e/visual-regression.spec.ts --update-snapshots` |
-| Run against existing baseline | `npx playwright test e2e/visual-regression.spec.ts` |
+| Generate / regenerate baseline | `PLAYWRIGHT_VISUAL_REGRESSION=1 npx playwright test --config=playwright.config.ts e2e/visual-regression.spec.ts --update-snapshots` |
+| Run against existing baseline | `npm run test:e2e:visual` |
 | Inspect diffs | `npx playwright show-report` (HTML report with side-by-side diff) |
 
 Baseline PNG files are committed to the repository under
@@ -468,7 +469,8 @@ via a PR that includes the diff image as a PR comment or artifact.
 
 ### 6.7 CI integration
 
-Add a `visual-regression` job to the existing Playwright CI workflow:
+The visual suite is not part of the default smoke command. To trial it in CI,
+add a non-blocking `visual-regression` job:
 
 ```yaml
 # .github/workflows/e2e.yml (addition — do not add until baseline is stable)
@@ -482,9 +484,9 @@ Add a `visual-regression` job to the existing Playwright CI workflow:
     path: playwright-report/
 ```
 
-> **Phased rollout:** Enable this job in CI only after the initial baseline has
-> been reviewed and merged.  Run it as a non-blocking check (`continue-on-error:
-> true`) for the first two weeks to gather noise data before enforcing.
+> **Phased rollout:** Run the committed baseline as a non-blocking check
+> (`continue-on-error: true`) for the first two weeks to gather noise data
+> before enforcing it as a required check.
 
 ### 6.8 Scope limits
 

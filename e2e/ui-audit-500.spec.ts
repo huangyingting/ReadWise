@@ -10,19 +10,17 @@
  *   npm run test:e2e:ui-audit:high-risk
  *   npm run test:e2e:ui-audit:full -- --shard=1/4
  */
-import { expect, test, type BrowserContext, type Page, type TestInfo } from "@playwright/test";
+import { type BrowserContext, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
 
 type SessionState = "anonymous" | "reader" | "admin" | "new-reader";
+type SignIn = (options?: {
+  role?: "Admin" | "Reader";
+  onboarded?: boolean;
+}) => Promise<unknown>;
 type Subsystem =
   | "admin"
   | "auth"
@@ -578,14 +576,13 @@ function expectedPathname(profile: RouteProfile): string {
   return new URL(profile.path, "http://readwise.local").pathname;
 }
 
-async function signInForProfile(context: BrowserContext, session: SessionState): Promise<void> {
+async function signInForProfile(signIn: SignIn, session: SessionState): Promise<void> {
   if (session === "anonymous") return;
 
-  const { sessionToken, expires } = await createUserWithSession({
+  await signIn({
     role: session === "admin" ? "Admin" : "Reader",
     onboarded: session !== "new-reader",
   });
-  await addSessionCookie(context, sessionToken, expires);
 }
 
 async function applyPresentation(
@@ -941,23 +938,14 @@ test.beforeAll(async () => {
   await writeFile(RESULTS_PATH, "");
 });
 
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
 for (const scenario of SCENARIOS) {
-  test(scenarioTitle(scenario), async ({ context, page }, testInfo) => {
+  test(scenarioTitle(scenario), async ({ context, page, signIn }, testInfo) => {
     const logs = installAuditCapture(page);
     let caughtError: unknown = null;
 
     try {
       await applyPresentation(context, page, scenario.presentation);
-      await signInForProfile(context, scenario.route.session);
+      await signInForProfile(signIn, scenario.route.session);
       await runScenario(page, scenario);
 
       const fatal = fatalMessages(logs);
