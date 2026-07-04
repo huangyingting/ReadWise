@@ -148,6 +148,26 @@ test("GET /api/ready uses the migration directory next to PRISMA_SCHEMA_PATH", a
   assert.ok(lastReaddirPath.endsWith("prisma/postgresql/migrations"));
 });
 
+test("GET /api/ready returns an actionable database/schema mismatch error", async () => {
+  process.env.DATABASE_URL = "postgresql://db.example/readwise";
+  process.env.PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
+
+  const { res, body } = await getReadyJson();
+
+  assert.equal(res.status, 503);
+  assert.equal(body.status, "unavailable");
+  assert.equal(body.checks.config, "error");
+  assert.ok(
+    body.config.errors.some(
+      (err: { code: string; message: string; env: string[] }) =>
+        err.code === "database_prisma_schema_mismatch" &&
+        err.message.includes("PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma") &&
+        err.env.includes("DATABASE_URL") &&
+        err.env.includes("PRISMA_SCHEMA_PATH"),
+    ),
+  );
+});
+
 test("GET /api/ready returns unavailable when DB connectivity fails", async () => {
   dbFails = true;
 

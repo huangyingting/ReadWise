@@ -5,6 +5,7 @@ import { validateRuntimeConfig } from "@/lib/runtime-config/runtime";
 
 const ENV_KEYS = [
   "DATABASE_URL",
+  "PRISMA_SCHEMA_PATH",
   "NEXTAUTH_SECRET",
   "NEXTAUTH_URL",
   "GOOGLE_CLIENT_ID",
@@ -94,6 +95,7 @@ test("validateRuntimeConfig accepts PostgreSQL DATABASE_URL protocols", () => {
   for (const databaseUrl of ["postgresql://db.example/readwise", "postgres://db.example/readwise"]) {
     setRequiredEnv();
     process.env.DATABASE_URL = databaseUrl;
+    process.env.PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";
 
     const report = validateRuntimeConfig();
 
@@ -101,6 +103,29 @@ test("validateRuntimeConfig accepts PostgreSQL DATABASE_URL protocols", () => {
     assert.equal(report.required.database.status, "ok");
     assert.equal(reportHasCode(report.errors, "invalid_database_url"), false);
   }
+});
+
+test("validateRuntimeConfig blocks database/schema mismatches", () => {
+  setRequiredEnv();
+  process.env.DATABASE_URL = "postgresql://db.example/readwise";
+  process.env.PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
+
+  const report = validateRuntimeConfig();
+
+  assert.equal(report.ready, false);
+  assert.equal(report.required.database.status, "malformed");
+  assert.ok(reportHasCode(report.errors, "database_prisma_schema_mismatch"));
+});
+
+test("validateRuntimeConfig blocks unknown Prisma schema paths", () => {
+  setRequiredEnv();
+  process.env.PRISMA_SCHEMA_PATH = "prisma/custom/schema.prisma";
+
+  const report = validateRuntimeConfig();
+
+  assert.equal(report.ready, false);
+  assert.equal(report.required.database.status, "malformed");
+  assert.ok(reportHasCode(report.errors, "unknown_prisma_schema_path"));
 });
 
 test("partial optional providers degrade without blocking readiness", () => {

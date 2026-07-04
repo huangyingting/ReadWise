@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation. Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
 ---
 
@@ -76,7 +76,7 @@ The probe is unavailable when any of these fail:
 | --- | --- |
 | `db` | `prisma.$queryRaw\`SELECT 1\`` throws. |
 | `migrations` | `_prisma_migrations` cannot be read, any non-rolled-back migration has no `finished_at`, or any migration directory under the configured schema path has not been applied. |
-| `config` | Required runtime config is missing or malformed. |
+| `config` | Required runtime config is missing or malformed, including a `DATABASE_URL` / `PRISMA_SCHEMA_PATH` provider mismatch. |
 
 ### Migration directory selection
 
@@ -87,7 +87,8 @@ The probe is unavailable when any of these fail:
   `prisma/postgresql/migrations`.
 
 Keep `DATABASE_URL` and `PRISMA_SCHEMA_PATH` in sync. A PostgreSQL URL with the
-SQLite schema path (or vice versa) gives misleading readiness/migration results.
+SQLite schema path (or vice versa) makes readiness return 503 with a
+`database_prisma_schema_mismatch` error that names the expected schema path.
 
 ## Runtime config validation
 
@@ -95,7 +96,7 @@ SQLite schema path (or vice versa) gives misleading readiness/migration results.
 
 | Section | Env | Notes |
 | --- | --- | --- |
-| Database | `DATABASE_URL` | Must be a SQLite `file:` URL or PostgreSQL URL. |
+| Database | `DATABASE_URL`, `PRISMA_SCHEMA_PATH` | URL must be a SQLite `file:` URL or PostgreSQL URL; schema path defaults to SQLite locally and must match the URL provider. |
 | Auth | `NEXTAUTH_SECRET`, `NEXTAUTH_URL` | Secret must be non-placeholder and at least 32 chars; URL must be HTTP(S). |
 
 Optional providers are evaluated independently:
@@ -152,8 +153,9 @@ No storage secrets are emitted in readiness JSON.
   your deployment explicitly requires that feature.
 - For local development, use `npm run db:migrate` after pulling schema changes
   and `npm run db:reset` when you intentionally want a clean SQLite database.
-- For Docker production, set both `DATABASE_URL` and `PRISMA_SCHEMA_PATH` through
-  the platform secret/config mechanism.
+- For Docker production, use the PostgreSQL schema path
+  (`PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma`) with a PostgreSQL
+  `DATABASE_URL`. Startup validates this before running migrations.
 
 ## Troubleshooting
 
@@ -161,6 +163,7 @@ No storage secrets are emitted in readiness JSON.
 | --- | --- | --- |
 | `status: unavailable`, `checks.config = error` | Missing/placeholder `NEXTAUTH_SECRET`, bad `NEXTAUTH_URL`, or bad `DATABASE_URL`. | Compare `.env` with `.env.example`; generate a real secret. |
 | `checks.db = error` | Database unreachable or wrong URL. | Check `DATABASE_URL`, local compose status, or managed DB networking. |
+| `database_prisma_schema_mismatch` in `config.errors` | `DATABASE_URL` and `PRISMA_SCHEMA_PATH` point to different providers. | Set `PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma` for PostgreSQL or `prisma/schema.prisma` for SQLite. |
 | `checks.migrations = error`, `unapplied > 0` | Repo has migration directories not present in `_prisma_migrations`. | Run the correct migration command for the configured schema. |
 | `checks.providers.ai = degraded` | Some but not all Azure OpenAI env vars are set. | Fill all four vars or clear unused placeholders. |
 | `checks.providers.storage = degraded` | `MEDIA_STORAGE=azure` without credentials, or an unsupported storage value. | Configure Azure Storage or set `MEDIA_STORAGE=local`. |
