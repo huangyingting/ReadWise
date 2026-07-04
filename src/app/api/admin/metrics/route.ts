@@ -1,5 +1,6 @@
 import { exportMetricsPrometheus } from "@/lib/metrics";
 import { createAdminHandler } from "@/lib/api-handler";
+import { refreshJobQueueDepthMetrics } from "@/lib/jobs/metrics";
 
 const PROMETHEUS_HEADERS = {
   "content-type": "text/plain; version=0.0.4; charset=utf-8",
@@ -13,6 +14,7 @@ function prometheusResponse(body: string): Response {
   });
 }
 
-export const GET = createAdminHandler({}, () => {
+export const GET = createAdminHandler({}, async () => {
+  await refreshJobQueueDepthMetrics();
   return prometheusResponse(exportMetricsPrometheus());
 });

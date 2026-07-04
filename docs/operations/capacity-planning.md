@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers. Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
 ---
 
@@ -151,7 +151,8 @@ GET /api/admin/jobs/stats          # pending / claimed / running / failed / dead
 GET /api/admin/metrics             # worker_job_total{outcome} counter;
                                    # worker_job_duration_ms histogram;
                                    # job_queue_event_total{event,type} counter;
-                                   # job_lock_age_ms histogram (stale-lock detection)
+                                   # job_lock_age_ms histogram (stale-lock detection);
+                                   # job_queue_depth{type,status} gauge
 GET /api/admin/slo                 # worker_processing_latency SLI
 ```
 
@@ -160,7 +161,7 @@ Alert conditions:
 - Dead-letter count > 0 → investigate failed job payloads.
 - `job_lock_age_ms` > 10 min → worker crashed with a lock held; will auto-recover
   after TTL.
-- Pending queue depth > 500 → consider adding worker processes.
+- `job_queue_depth{status="pending"}` > 500 → consider adding worker processes.
 - `worker_processing_latency` SLI breaching → jobs taking longer than expected.
 
 ### Scaling levers

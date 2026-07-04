@@ -8,6 +8,7 @@
 import {
   incCounter,
   observeHistogram,
+  setGauge,
   normalizeLabelValue,
   normalizeOutcome,
   JOB_DURATION_BUCKETS_MS,
@@ -34,6 +35,11 @@ const JOB_STALE_LOCK_AGE_METRIC = {
   help: "Age of recovered stale job locks in milliseconds.",
 } as const;
 
+const JOB_QUEUE_DEPTH_METRIC = {
+  name: "readwise_job_queue_depth",
+  help: "Current background job queue depth by job type and status.",
+} as const;
+
 function normalizedJobLabels(type: string) {
   return { type: normalizeLabelValue(type) };
 }
@@ -58,5 +64,18 @@ export function recordJobLockAge(type: string, ageMs: number): void {
     JOB_DURATION_BUCKETS_MS,
     normalizedJobLabels(type),
     ageMs,
+  );
+}
+
+/** Sets the current queue depth for low-cardinality job type/status series. */
+export function recordJobQueueDepth(input: { type: string; status: string; depth: number }): void {
+  setGauge(
+    JOB_QUEUE_DEPTH_METRIC.name,
+    JOB_QUEUE_DEPTH_METRIC.help,
+    {
+      ...normalizedJobLabels(input.type),
+      status: normalizeLabelValue(input.status),
+    },
+    input.depth,
   );
 }
