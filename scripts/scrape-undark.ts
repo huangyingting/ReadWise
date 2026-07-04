@@ -542,6 +542,7 @@ async function scrapeFreshUndark(
   discoveryExhausted: boolean;
   remainingFresh: number;
 }> {
+  const startedAt = Date.now();
   for (const url of await existingUndarkUrlSet()) {
     markVisited(record, url, "saved");
   }
@@ -590,6 +591,9 @@ async function scrapeFreshUndark(
     failed: counts.failed,
     duplicates: counts.duplicates,
     rejected: counts.rejected,
+    source: "cli",
+    mode: "undark",
+    durationMs: Date.now() - startedAt,
   });
 
   const finalSeen = accountedUndarkUrlSet(record.urls);

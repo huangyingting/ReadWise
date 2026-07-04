@@ -200,6 +200,7 @@ function crawlRunStats(outcomes: SaveOutcome[]): CrawlRunStats {
 }
 
 async function runProvider(provider: Provider, limit: number, dryRun: boolean): Promise<SaveOutcome[]> {
+  const startedAt = Date.now();
   if (!(await isProviderEnabled(provider.key))) {
     console.log(`Skipping ${provider.name} — content source is disabled.`);
     return [];
@@ -241,6 +242,9 @@ async function runProvider(provider: Provider, limit: number, dryRun: boolean): 
         failed: stats.failed,
         duplicates: stats.duplicates,
         rejected: stats.rejected,
+        source: "cli",
+        mode: "provider",
+        durationMs: Date.now() - startedAt,
         error: discoverError,
       });
     } catch (err) {

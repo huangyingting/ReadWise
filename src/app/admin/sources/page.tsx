@@ -1,8 +1,10 @@
 import { requireCapability } from "@/lib/session";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
+  listRecentCrawlRuns,
   listContentSources,
   summarizeSourceHealth,
+  type CrawlRunHistoryRow,
   type SourceHealthStatus,
 } from "@/lib/scraper/sources";
 import AdminSourceActions from "@/components/AdminSourceActions";
@@ -13,7 +15,7 @@ import { formatDateTime } from "@/lib/display-format";
 
 type ContentSource = Awaited<ReturnType<typeof listContentSources>>[number];
 type SourceHealth = ReturnType<typeof summarizeSourceHealth>;
-type SourceRow = { source: ContentSource; health: SourceHealth };
+type SourceRow = { source: ContentSource; health: SourceHealth; runs: CrawlRunHistoryRow[] };
 
 function healthBadgeVariant(
   status: SourceHealthStatus,
@@ -24,10 +26,14 @@ function healthBadgeVariant(
   return "neutral";
 }
 
-function sourceRows(sources: ContentSource[]): SourceRow[] {
-  return sources.map((source) => ({
+async function sourceRows(sources: ContentSource[]): Promise<SourceRow[]> {
+  const runLists = await Promise.all(
+    sources.map((source) => listRecentCrawlRuns(source.providerKey, 3)),
+  );
+  return sources.map((source, index) => ({
     source,
     health: summarizeSourceHealth(source),
+    runs: runLists[index] ?? [],
   }));
 }
 
@@ -35,7 +41,7 @@ export default async function AdminSourcesPage() {
   await requireCapability(CAPABILITIES.sourcesManage, "/admin/sources");
 
   const sources = await listContentSources();
-  const rows = sourceRows(sources);
+  const rows = await sourceRows(sources);
 
   return (
     <section className="stack">
@@ -81,11 +87,12 @@ function SourcesTable({ rows }: { rows: SourceRow[] }) {
           <th>Last crawl</th>
           <th>Discovered / Scraped</th>
           <th>Failed / Dupes / Rejected</th>
+          <th>Recent runs</th>
           <th>State</th>
         </tr>
       </thead>
       <tbody>
-        {rows.map(({ source, health }) => (
+        {rows.map(({ source, health, runs }) => (
           <tr key={source.id}>
             <td className="font-medium">
               {source.displayName}
@@ -112,6 +119,9 @@ function SourcesTable({ rows }: { rows: SourceRow[] }) {
               {source.totalRejected}
             </td>
             <td>
+              <RecentRuns runs={runs} />
+            </td>
+            <td>
               <AdminSourceActions
                 providerKey={source.providerKey}
                 enabled={source.enabled}
@@ -121,6 +131,39 @@ function SourcesTable({ rows }: { rows: SourceRow[] }) {
         ))}
       </tbody>
     </AdminTableWrap>
+  );
+}
+
+function formatDuration(durationMs: number | null): string {
+  if (durationMs == null) return "duration unknown";
+  if (durationMs < 1000) return `${durationMs}ms`;
+  return `${(durationMs / 1000).toFixed(1)}s`;
+}
+
+function RecentRuns({ runs }: { runs: CrawlRunHistoryRow[] }) {
+  if (runs.length === 0) {
+    return <span className="text-text-muted text-[length:var(--text-sm)]">No recorded runs</span>;
+  }
+
+  return (
+    <ul className="m-0 list-none p-0 text-[length:var(--text-sm)]">
+      {runs.map((run) => (
+        <li key={run.id} className="mb-[var(--space-2)] last:mb-0">
+          <div className="font-medium">
+            {run.outcome} · {formatDateTime(run.createdAt)}
+          </div>
+          <div className="text-text-muted">
+            {run.source}/{run.mode} · {formatDuration(run.durationMs)}
+          </div>
+          <div className="text-text-muted">
+            {run.discovered} discovered, {run.scraped} scraped, {run.failed} failed
+          </div>
+          {run.error ? (
+            <div className="text-danger-text">error: {run.error}</div>
+          ) : null}
+        </li>
+      ))}
+    </ul>
   );
 }
 

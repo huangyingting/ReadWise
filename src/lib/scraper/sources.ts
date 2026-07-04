@@ -53,6 +53,9 @@ export type CrawlRunOutcome = {
   failed: number;
   duplicates: number;
   rejected: number;
+  source?: string | null;
+  mode?: string | null;
+  durationMs?: number | null;
   error?: string | null;
 };
 
@@ -77,6 +80,25 @@ export type ContentSourceRow = {
   createdAt: Date;
   updatedAt: Date;
 };
+
+export type CrawlRunHistoryRow = {
+  id: string;
+  providerKey: string;
+  source: string;
+  mode: string;
+  outcome: string;
+  durationMs: number | null;
+  discovered: number;
+  scraped: number;
+  failed: number;
+  duplicates: number;
+  rejected: number;
+  error: string | null;
+  createdAt: Date;
+};
+
+export const CRAWL_RUN_HISTORY_LIMIT = 25;
+export const CRAWL_RUN_HISTORY_API_MAX_LIMIT = 50;
 
 const ZERO_COUNTERS: CrawlCounters = {
   lastError: null,
@@ -285,6 +307,65 @@ function coarseOutcome(outcome: CrawlRunOutcome): "success" | "empty" | "failed"
   return "success";
 }
 
+const URL_RE = /\b(?:https?:\/\/|www\.)\S+/gi;
+const MAX_ERROR_CHARS = 240;
+const SAFE_LABEL_RE = /[^a-zA-Z0-9._:-]+/g;
+
+export function sanitizeCrawlRunError(error?: string | null): string | null {
+  if (!error) return null;
+  const scrubbed = error.replace(URL_RE, "[url]").replace(/\s+/g, " ").trim();
+  if (!scrubbed) return null;
+  return scrubbed.length <= MAX_ERROR_CHARS
+    ? scrubbed
+    : `${scrubbed.slice(0, MAX_ERROR_CHARS - 1).trimEnd()}…`;
+}
+
+function safeLabel(value: string | null | undefined, fallback: string): string {
+  const label = (value ?? fallback).replace(SAFE_LABEL_RE, "-").slice(0, 64);
+  return label || fallback;
+}
+
+function boundedDurationMs(durationMs: number | null | undefined): number | null {
+  if (durationMs == null || !Number.isFinite(durationMs)) return null;
+  return Math.max(0, Math.min(Math.round(durationMs), 24 * 60 * 60 * 1000));
+}
+
+async function persistCrawlRunHistory(
+  providerKey: string,
+  outcome: CrawlRunOutcome,
+  healthOutcome: ReturnType<typeof coarseOutcome>,
+  at: Date,
+): Promise<void> {
+  await prisma.crawlRun.create({
+    data: {
+      providerKey,
+      source: safeLabel(outcome.source, "cli"),
+      mode: safeLabel(outcome.mode, "provider"),
+      outcome: healthOutcome,
+      durationMs: boundedDurationMs(outcome.durationMs),
+      discovered: outcome.discovered,
+      scraped: outcome.scraped,
+      failed: outcome.failed,
+      duplicates: outcome.duplicates,
+      rejected: outcome.rejected,
+      error: sanitizeCrawlRunError(outcome.error),
+      createdAt: at,
+    },
+  });
+
+  const stale = await prisma.crawlRun.findMany({
+    where: { providerKey },
+    orderBy: { createdAt: "desc" },
+    skip: CRAWL_RUN_HISTORY_LIMIT,
+    select: { id: true },
+  });
+  if (stale.length > 0) {
+    await prisma.crawlRun.deleteMany({
+      where: { id: { in: stale.map((run) => run.id) } },
+    });
+  }
+}
+
 function countersFromSource(source: ContentSourceRow | null): CrawlCounters {
   if (!source) return { ...ZERO_COUNTERS };
 
@@ -311,12 +392,15 @@ export async function recordCrawlRun(
   outcome: CrawlRunOutcome,
   at: Date = new Date(),
 ): Promise<ContentSourceRow> {
+  const safeError = sanitizeCrawlRunError(outcome.error);
+  const safeOutcome = { ...outcome, error: safeError };
   const existing = await prisma.contentSource.findUnique({
     where: { providerKey },
   });
 
-  const folded = applyCrawlOutcome(countersFromSource(existing), outcome);
+  const folded = applyCrawlOutcome(countersFromSource(existing), safeOutcome);
   const { healthStatus, ...counters } = folded;
+  const outcomeBucket = coarseOutcome(safeOutcome);
 
   const row = await prisma.contentSource.upsert({
     where: { providerKey },
@@ -336,9 +420,23 @@ export async function recordCrawlRun(
 
   recordIngestionRun({
     provider: providerKey,
-    outcome: coarseOutcome(outcome),
+    outcome: outcomeBucket,
     health: healthStatus,
   });
 
+  await persistCrawlRunHistory(providerKey, safeOutcome, outcomeBucket, at);
+
   return row;
+}
+
+export async function listRecentCrawlRuns(
+  providerKey: string,
+  limit = CRAWL_RUN_HISTORY_LIMIT,
+): Promise<CrawlRunHistoryRow[]> {
+  const take = Math.max(1, Math.min(Math.floor(limit), CRAWL_RUN_HISTORY_API_MAX_LIMIT));
+  return prisma.crawlRun.findMany({
+    where: { providerKey },
+    orderBy: { createdAt: "desc" },
+    take,
+  });
 }

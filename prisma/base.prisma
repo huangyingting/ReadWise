@@ -965,6 +965,28 @@ model ContentSource {
   @@index([healthStatus])
 }
 
+// Privacy-safe crawl-run summaries for provider drift triage. These rows store
+// only operational counters and coarse labels — never URLs, article text,
+// prompts, selected text, definitions, translations, or user-private content.
+model CrawlRun {
+  id          String   @id @default(cuid())
+  providerKey String
+  source      String
+  mode        String
+  outcome     String
+  durationMs  Int?
+  discovered  Int      @default(0)
+  scraped     Int      @default(0)
+  failed      Int      @default(0)
+  duplicates  Int      @default(0)
+  rejected    Int      @default(0)
+  error       String?
+  createdAt   DateTime @default(now())
+
+  @@index([providerKey, createdAt])
+  @@index([outcome, createdAt])
+}
+
 // Content quality review & moderation history (Epic RW-E009 — RW-048). An
 // append-only trail of moderation actions on an article (review-state changes,
 // field corrections, takedown/unpublish/archive). `reviewerId` is a plain

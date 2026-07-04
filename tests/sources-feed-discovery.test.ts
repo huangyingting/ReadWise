@@ -9,6 +9,7 @@ let contentSourceFindManyArgs: unknown[] = [];
 let contentSourceCreates: unknown[] = [];
 let contentSourceUpdates: unknown[] = [];
 let contentSourceUpserts: unknown[] = [];
+let crawlRuns: Array<Record<string, unknown>> = [];
 let ingestionMetrics: unknown[] = [];
 
 let feedArticles: ReturnType<typeof buildArticle>[] = [];
@@ -23,6 +24,7 @@ function resetContentSourceFixtures() {
   contentSourceCreates = [];
   contentSourceUpdates = [];
   contentSourceUpserts = [];
+  crawlRuns = [];
   ingestionMetrics = [];
 }
 
@@ -123,6 +125,23 @@ before(() => {
               : { id: `${where.providerKey}-id`, enabled: true, ...create };
             contentSources.set(where.providerKey, row);
             return row;
+          },
+        },
+        crawlRun: {
+          create: async ({ data }: { data: Record<string, unknown> }) => {
+            const row = { id: `run-${crawlRuns.length + 1}`, ...data };
+            crawlRuns.push(row);
+            return row;
+          },
+          findMany: async ({ where, skip = 0, take }: { where: { providerKey: string }; skip?: number; take?: number }) => {
+            const rows = crawlRuns.filter((row) => row.providerKey === where.providerKey);
+            return rows.slice(skip, take == null ? undefined : skip + take);
+          },
+          deleteMany: async ({ where }: { where: { id: { in: string[] } } }) => {
+            const ids = new Set(where.id.in);
+            const before = crawlRuns.length;
+            crawlRuns = crawlRuns.filter((row) => !ids.has(String(row.id)));
+            return { count: before - crawlRuns.length };
           },
         },
         article: {
