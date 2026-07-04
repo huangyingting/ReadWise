@@ -25,6 +25,8 @@ let auditCalls: { action: string }[] = [];
 
 let toggleResult: unknown = null;
 let toggleCalls: { key: string; enabled: boolean }[] = [];
+let sourceLookupResult: unknown = null;
+let recentRuns: unknown[] = [];
 let syncCalls = 0;
 let reviewResult: unknown = null;
 let reviewCalls: unknown[] = [];
@@ -64,9 +66,13 @@ before(() => {
   });
   mock.module("@/lib/scraper/sources", {
     namedExports: {
+      CRAWL_RUN_HISTORY_LIMIT: 25,
+      CRAWL_RUN_HISTORY_API_MAX_LIMIT: 50,
       listContentSources: async () => [
         { id: "cs1", providerKey: "nbc", displayName: "NBC", enabled: true, healthStatus: "healthy" },
       ],
+      getContentSource: async () => sourceLookupResult,
+      listRecentCrawlRuns: async (_key: string, limit: number) => recentRuns.slice(0, limit),
       summarizeSourceHealth: () => ({ status: "healthy", flagged: false, reasons: [] }),
       setContentSourceEnabled: async (key: string, enabled: boolean) => {
         toggleCalls.push({ key, enabled });
@@ -99,6 +105,24 @@ beforeEach(() => {
   authState = "ok";
   auditCalls = [];
   toggleCalls = [];
+  sourceLookupResult = { id: "cs1", providerKey: "nbc", displayName: "NBC", enabled: true };
+  recentRuns = [
+    {
+      id: "run-1",
+      providerKey: "nbc",
+      source: "admin-trigger",
+      mode: "provider",
+      outcome: "success",
+      durationMs: 42,
+      discovered: 1,
+      scraped: 1,
+      failed: 0,
+      duplicates: 0,
+      rejected: 0,
+      error: null,
+      createdAt: new Date("2026-07-04T00:00:00Z"),
+    },
+  ];
   syncCalls = 0;
   reviewCalls = [];
   takedownCalls = [];
@@ -153,6 +177,34 @@ test("PATCH /api/admin/sources/[key] returns 404 for an unknown provider", async
   const res = await PATCH(
     jsonPatch("http://test/api/admin/sources/x", { enabled: true }),
     withParams({ key: "x" }),
+  );
+  assert.equal(res.status, 404);
+});
+
+test("GET /api/admin/sources/[key]/crawl-runs returns recent privacy-safe run summaries", async () => {
+  const { GET } = (await import("@/app/api/admin/sources/[key]/crawl-runs/route")) as {
+    GET: RouteHandler;
+  };
+  const res = await GET(
+    getReq("http://test/api/admin/sources/nbc/crawl-runs?limit=1"),
+    withParams({ key: "nbc" }),
+  );
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("cache-control") ?? "", /no-store/);
+  const data = await readJson<{ runs: Array<Record<string, unknown>> }>(res);
+  assert.equal(data.runs.length, 1);
+  assert.equal(data.runs[0].source, "admin-trigger");
+  assert.equal("url" in data.runs[0], false);
+});
+
+test("GET /api/admin/sources/[key]/crawl-runs returns 404 for an unknown source", async () => {
+  sourceLookupResult = null;
+  const { GET } = (await import("@/app/api/admin/sources/[key]/crawl-runs/route")) as {
+    GET: RouteHandler;
+  };
+  const res = await GET(
+    getReq("http://test/api/admin/sources/missing/crawl-runs"),
+    withParams({ key: "missing" }),
   );
   assert.equal(res.status, 404);
 });

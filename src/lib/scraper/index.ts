@@ -140,12 +140,15 @@ export type {
   SourceHealthStatus,
   CrawlCounters,
   CrawlRunOutcome,
+  CrawlRunHistoryRow,
   ContentSourceRow,
   SyncContentSourcesResult,
   SourceHealthSummary,
 } from "./sources";
 export {
   HEALTH_THRESHOLDS,
+  CRAWL_RUN_HISTORY_LIMIT,
+  CRAWL_RUN_HISTORY_API_MAX_LIMIT,
   computeHealthStatus,
   applyCrawlOutcome,
   summarizeSourceHealth,
@@ -155,4 +158,5 @@ export {
   isProviderEnabled,
   setContentSourceEnabled,
   recordCrawlRun,
+  listRecentCrawlRuns,
 } from "./sources";

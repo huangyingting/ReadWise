@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents data classification, retention, export, cascade, and privacy treatment across Prisma models and client stores. Captures current model-by-model classification, deletion behavior, retention windows, export handling, and follow-up gaps."
 ---
 
@@ -79,6 +79,7 @@ behavior is invented. Gaps are called out as follow-up items.
 | `SentenceTranslation` (on-demand sentence translation cache) | AI / Reader | **derived** (keyed by hash; no user FK) | ⛔ | Not FK-linked to User; survives user deletion | Cascade via article | Deleted with article | `sourceText` + `translation` are user-selected text + AI output; must not appear in logs |
 | `GrammarExplanation` (AI-generated, per article+phrase) | Content / AI | **public** (article-scoped) | ⛔ | Cascade via article | Cascade via article | Deleted with article | `phrase`, `explanation` contain AI content; do not log |
 | `ContentSource` (scraper provider operational state) | Operations | **operational** | ⛔ | Not user-linked | Not applicable | Indefinite | Safe (health counters only) |
+| `CrawlRun` (bounded provider crawl-run summaries) | Operations | **operational** | ⛔ | Not user-linked | Not applicable | Last 25 per provider retained by writer | Safe only after sanitization; never store URLs, article text, prompts, selected text, definitions, translations, or private content |
 | `ContentReview` (moderation audit trail per article) | Content moderation | **operational** | ⛔ | `reviewerId` is a plain string (non-FK); row survives reviewer account deletion | Cascade via article | Deleted with article | `note`, `changes` may contain admin notes; apply redaction before logging |
 | `ContentReport` (reporterUserId, articleId, reason, note, status, resolvedBy) | Content moderation | **personal + operational** | ✅ report id/article id/reason/status/timestamps; avoid exporting raw note unless explicitly required by support policy | `reporterUserId` and `resolvedBy` are plain strings (non-FK); rows survive reporter/resolver account deletion | Cascade via article | Deleted with article; otherwise retained for moderation history until product retention policy changes | `reason`/`status` safe; `note` is user-authored free text and must be redacted before logging or metadata reuse |
 
