@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents search/indexing strategy, query boundaries, and article visibility constraints. Captures current search route behavior, indexing assumptions, filtering/pagination, privacy, and fallback semantics."
 ---
 
@@ -20,6 +20,8 @@ All Prisma search queries consume `readableArticleWhere` from `@/lib/article-lib
 | Anonymous | `{ status: PUBLISHED, visibility: PUBLIC, ownerId: null }` | `(status='published' AND visibility='PUBLIC')` |
 
 `buildReadableArticleSqlPredicate` is part of the same access-boundary contract as `readableArticleWhere`: when the Prisma predicate changes, the raw SQL mirror and `tests/search-sql-predicate.test.ts` must change with it.
+
+Browse has an in-context `q` parameter on `/browse` and `/api/articles`. It uses the same portable article text predicates (`buildSearchTerms` + `articleTextWhere`) but stays within the Browse context: category tabs preserve the query, CEFR filters combine with it, and the Picks view filters candidates before personalized scoring. Browse search remains public-listable only.
 
 ## Search candidate contract
 

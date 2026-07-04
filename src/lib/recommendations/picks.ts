@@ -10,6 +10,8 @@
 import type { Prisma } from "@prisma/client";
 import type { DifficultyLevel } from "@/lib/difficulty";
 import { levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
+import { normalizeBrowseQuery } from "@/lib/browse-query";
+import { articleTextWhere, buildSearchTerms } from "@/lib/search/query";
 import {
   toListingArticle,
   readingMinutesFor,
@@ -64,6 +66,23 @@ async function loadPicksCandidatesImpl(
     cap ? { difficulty: { in: levelsAtOrBelow(cap) } } : undefined,
   );
   return loadCandidateRows(where);
+}
+
+async function loadSearchedPicksCandidates(
+  cap: DifficultyLevel | null,
+  query: string,
+): Promise<PicksCandidateRow[]> {
+  const terms = buildSearchTerms(query);
+  if (terms.length === 0) return [];
+  const filters: Prisma.ArticleWhereInput[] = [articleTextWhere(terms)];
+  if (cap) {
+    filters.push({ difficulty: { in: levelsAtOrBelow(cap) } });
+  }
+  return loadCandidateRows(
+    publicListableArticleWhere(
+      filters.length === 1 ? filters[0] : { AND: filters },
+    ),
+  );
 }
 
 /**
@@ -231,13 +250,18 @@ export async function listScoredPicksPage(
      * is never a hard override.
      */
     extraCandidateIds?: string[];
+    /** Optional in-context Browse query; filters candidates before scoring. */
+    query?: string | null;
   } = {},
 ): Promise<ScoredPicksPage> {
   const limit = opts.limit ?? SCORED_PICKS_PAGE_SIZE;
   const offset = normalizeOffset(opts.offset);
   const cap = opts.maxLevel ?? null;
+  const query = normalizeBrowseQuery(opts.query);
 
-  const base = await loadPicksCandidates(cap);
+  const base = query
+    ? await loadSearchedPicksCandidates(cap, query)
+    : await loadPicksCandidates(cap);
   const candidates = await withExtraCandidateRows(base, opts.extraCandidateIds);
   const ranked = await scoreAndRankArticles(userId, candidates, new Date(), {
     placementLevel: opts.placementLevel ?? null,

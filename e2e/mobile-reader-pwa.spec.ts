@@ -74,6 +74,49 @@ test("reader toolbar back button is visible on mobile viewport", async ({
   await expect(page.getByRole("link", { name: /back/i })).toBeVisible();
 });
 
+test("reader mini-player clearance keeps final content unobscured on mobile", async ({
+  context,
+  page,
+}) => {
+  await signInReader(context);
+  await gotoSeededArticle(page);
+
+  await page.evaluate(() => {
+    const root = document.getElementById("reader-root");
+    if (!root || document.querySelector("[data-e2e-mini-player]")) return;
+    const player = document.createElement("div");
+    player.className = "reader-mini-player";
+    player.setAttribute("data-e2e-mini-player", "true");
+    player.setAttribute("aria-label", "Audio player");
+    player.textContent = "Audio player";
+    root.appendChild(player);
+  });
+
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+
+  const clearance = await page.evaluate(() => {
+    const player = document.querySelector<HTMLElement>("[data-e2e-mini-player]");
+    const column = document.querySelector<HTMLElement>(".reader-column");
+    const finalBlock = document.querySelector<HTMLElement>(".reader-column > :last-child");
+    if (!player || !column || !finalBlock) {
+      throw new Error("Reader mini-player clearance test could not find required elements");
+    }
+
+    const playerRect = player.getBoundingClientRect();
+    const finalRect = finalBlock.getBoundingClientRect();
+    const columnStyle = getComputedStyle(column);
+    return {
+      finalBottom: finalRect.bottom,
+      playerTop: playerRect.top,
+      playerHeight: playerRect.height,
+      paddingBottom: Number.parseFloat(columnStyle.paddingBottom),
+    };
+  });
+
+  expect(clearance.paddingBottom).toBeGreaterThanOrEqual(clearance.playerHeight);
+  expect(clearance.finalBottom).toBeLessThanOrEqual(clearance.playerTop);
+});
+
 // ---------------------------------------------------------------------------
 // 3. Offline library page loads on mobile
 // ---------------------------------------------------------------------------

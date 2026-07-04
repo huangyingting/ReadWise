@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { cn } from "@/lib/cn";
+import { useFocusTrap } from "@/lib/focus-trap";
 
 const ROVING_ITEM_SELECTOR = '[role="menuitem"], [role="option"]';
 
@@ -44,6 +45,7 @@ export interface PopoverProps {
  * Renders a `role="dialog"` panel absolutely positioned under the `anchorRef`
  * trigger. Closes on outside pointerdown (outside both anchor and panel) and on
  * Esc, returning focus to the anchor. Supports optional ArrowUp/ArrowDown roving
+ * traps Tab focus while open, and supports optional ArrowUp/ArrowDown roving
  * over child items with `role="menuitem"` or `role="option"` (wraps at ends).
  * Renders nothing when `open` is false.
  *
@@ -64,6 +66,10 @@ export function Popover({
   children,
 }: PopoverProps) {
   const panelRef = React.useRef<HTMLDivElement>(null);
+  useFocusTrap(panelRef, open, onClose, {
+    restoreFocus: true,
+    stopEscapePropagation: true,
+  });
 
   React.useEffect(() => {
     if (!open) return;
@@ -80,12 +86,6 @@ export function Popover({
     }
 
     function onKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-        anchorRef.current?.focus();
-        return;
-      }
       if (event.key === "ArrowDown" || event.key === "ArrowUp") {
         const items =
           panelRef.current?.querySelectorAll<HTMLElement>(ROVING_ITEM_SELECTOR);
@@ -113,6 +113,7 @@ export function Popover({
       ref={panelRef}
       role="dialog"
       aria-label={label}
+      tabIndex={-1}
       className={cn(
         "absolute top-[calc(100%+var(--space-2))] z-[var(--z-popover)] min-w-[200px]",
         "rounded-[var(--radius-md)] border border-border bg-surface py-[var(--space-1)]",

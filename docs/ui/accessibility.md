@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents UI accessibility baseline, automated checks, manual verification gaps, and component responsibilities. Captures current axe/Playwright checks, keyboard/focus expectations, semantic patterns, and outstanding manual checks."
 ---
 
@@ -107,6 +107,7 @@ cannot fully verify.  Manual testing is required on each release.
 |---------|-----------|--------------|
 | Reader toolbar | Focus ring visible on all buttons; correct `aria-label` | Tab through toolbar; verify ring + VoiceOver/NVDA reads labels |
 | Word lookup popover | Focus trapped inside popover when open | Open lookup; Tab must not leave the popover |
+| Reader selection toolbar | Focus enters the active swatch; Tab wraps inside text actions; Escape returns to reader prose | Select text, press Ctrl/Cmd+E, verify focus and Escape return |
 | Highlights / notes panel | Focus moves to panel on open; returns on close | Open panel; close; confirm focus returns to trigger |
 | Audio mini-player | Play/pause/skip controls keyboard-operable | Tab to each control; press Space/Enter |
 | Flashcards / cloze | Card flip / reveal keyboard-operable; screen-reader announces state | Tab to card; press Space; verify ARIA state change |
@@ -137,7 +138,8 @@ accessibility review.
 
 - All interactive elements are reachable by Tab / Shift-Tab.
 - Toolbars and tab lists use roving `tabindex` (Arrow keys move focus; Tab
-  leaves the group).
+  leaves the group), except floating reader text-action toolbars, which trap
+  Tab while open like popovers.
 - Dialogs and popovers trap focus while open; Escape closes them and returns
   focus to the trigger element.
 - The command palette (`/`) opens on keyboard shortcut; Escape closes it.
@@ -184,7 +186,6 @@ flashcard flip, and the audio mini-player under reduced-motion settings.
 
 The following areas are not yet covered by automated accessibility checks:
 
-- Word lookup popover focus-trap assertion.
 - Flashcard keyboard-operability and ARIA state announcement.
 - Command palette focus-trap and Escape-return assertion.
 - Admin table column sort ARIA label verification.
