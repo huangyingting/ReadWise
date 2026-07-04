@@ -190,6 +190,7 @@ semantics; pure aliases are drift.
 | **Popover** | `Popover.tsx` | `trigger`, `content`, `side` | Anchored floating content (dropdowns, word-lookup panel) |
 | **Sheet** | `Sheet.tsx` | `open`, `onClose`, `side` | Side-panel / drawer overlays |
 | **SegmentedControl** | `SegmentedControl.tsx` | `options`, `value`, `onChange` | Mutually exclusive view-mode tabs |
+| **HighlightColorSwatch** / **HighlightColorSwatchGroup** | `HighlightColorSwatch.tsx`, `highlight-colors.ts` | `color`, `tone`: fill · dot, `size`: xs · sm · md · bar; group `value`, `onChange`, `onEscape` | Highlight colour indicators and accessible colour radiogroups for Reader and Notes UI |
 | **Avatar** | `Avatar.tsx` | `src`, `name`, `size` | User identity — initials fallback |
 | **PageShell** | `PageShell.tsx` | `variant`: listing · narrow · reading · marketing · full; `density`: default · compact · reader · marketing | Standard centred page container |
 | **PageHeader** | `PageHeader.tsx` | `density`, `align`, `title`, `description`, `actions`, `level` | Page title/description/action rows |
