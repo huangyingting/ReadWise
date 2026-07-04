@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents domain-owned reporting read models and their separation from the product analytics event stream. Captures current aggregation boundaries, visibility rules, privacy limits, and report ownership."
 ---
 
@@ -110,7 +110,7 @@ immediately.
 
 ## AI usage ledger
 
-**Module:** `src/lib/ai-usage-summary.ts`  
+**Module:** `src/lib/ai/usage-summary.ts`
 **Owned by:** AI  
 **Data source:** `AiInvocation` table
 
