@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T22:34:10.235Z",
-  "routeCount": 106,
-  "methodCount": 120,
+  "generatedAt": "2026-07-04T23:18:00.362Z",
+  "routeCount": 108,
+  "methodCount": 122,
   "routes": [
     {
       "path": "/api/account",
@@ -1096,6 +1096,31 @@
       ]
     },
     {
+      "path": "/api/classrooms/{id}/article-options",
+      "file": "src/app/api/classrooms/[id]/article-options/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "articles"
+          ],
+          "queryParamNames": [
+            "q"
+          ],
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
       "path": "/api/classrooms/{id}/assignments",
       "file": "src/app/api/classrooms/[id]/assignments/route.ts",
       "runtime": "default",
@@ -1146,6 +1171,31 @@
             "role",
             "userId"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/student-candidates",
+      "file": "src/app/api/classrooms/[id]/student-candidates/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "candidates"
+          ],
+          "queryParamNames": [
+            "q"
+          ],
+          "bodyFieldNames": null
         }
       ]
     },

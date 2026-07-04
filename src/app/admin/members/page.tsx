@@ -14,6 +14,7 @@ import {
   AdminResultCount,
   AdminTableWrap,
   AdminPagination,
+  AdminSortHeader,
 } from "@/components/admin";
 import { formatShortDate } from "@/lib/display-format";
 
@@ -21,6 +22,8 @@ type SearchParams = {
   q?: string;
   role?: string;
   page?: string;
+  sort?: string;
+  order?: string;
 };
 
 type Member = Awaited<ReturnType<typeof listMembers>>["members"][number];
@@ -31,10 +34,18 @@ function parsePage(value: string | undefined): number {
   return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
 }
 
-function buildHref(params: { q: string; role: string; page: number }): string {
+function buildHref(params: {
+  q: string;
+  role: string;
+  page: number;
+  sort: string;
+  order: "asc" | "desc";
+}): string {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   if (params.role) sp.set("role", params.role);
+  sp.set("sort", params.sort);
+  sp.set("order", params.order);
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/members?${qs}` : "/admin/members";
@@ -119,9 +130,15 @@ function MemberManagementActions({
 function MembersTable({
   members,
   currentUserId,
+  sort,
+  order,
+  buildSortHref,
 }: {
   members: Member[];
   currentUserId: string;
+  sort: string;
+  order: "asc" | "desc";
+  buildSortHref: (sort: string, order: "asc" | "desc") => string;
 }) {
   if (members.length === 0) return null;
 
@@ -129,11 +146,35 @@ function MembersTable({
     <AdminTableWrap ariaLabel="Members table (scrollable)">
       <thead>
         <tr>
-          <th>Member</th>
-          <th>Role</th>
-          <th>Joined</th>
-          <th>Activity</th>
-          <th>Manage</th>
+          <AdminSortHeader
+            label="Member"
+            sortKey="name"
+            currentSort={sort}
+            currentOrder={order}
+            buildHref={buildSortHref}
+          />
+          <AdminSortHeader
+            label="Role"
+            sortKey="role"
+            currentSort={sort}
+            currentOrder={order}
+            buildHref={buildSortHref}
+          />
+          <AdminSortHeader
+            label="Joined"
+            sortKey="createdAt"
+            currentSort={sort}
+            currentOrder={order}
+            buildHref={buildSortHref}
+          />
+          <AdminSortHeader
+            label="Activity"
+            sortKey="activity"
+            currentSort={sort}
+            currentOrder={order}
+            buildHref={buildSortHref}
+          />
+          <th scope="col">Manage</th>
         </tr>
       </thead>
       <tbody>
@@ -173,8 +214,16 @@ export default async function AdminMembersPage({
   const query = (sp.q ?? "").trim();
   const role = (sp.role ?? "").trim();
   const page = parsePage(sp.page);
+  const requestedSort = (sp.sort ?? "").trim();
+  const requestedOrder = sp.order === "asc" ? "asc" : "desc";
 
-  const result = await listMembers({ query, role, page });
+  const result = await listMembers({
+    query,
+    role,
+    page,
+    sort: requestedSort,
+    order: requestedOrder,
+  });
 
   return (
     <section className="stack">
@@ -190,6 +239,8 @@ export default async function AdminMembersPage({
           className="flex-[1_1_240px]"
           aria-label="Search members"
         />
+        <input type="hidden" name="sort" value={result.sort} />
+        <input type="hidden" name="order" value={result.order} />
         <div className="w-auto">
           <Select
             name="role"
@@ -218,12 +269,22 @@ export default async function AdminMembersPage({
         noun="members"
       />
 
-      <MembersTable members={result.members} currentUserId={session.user.id} />
+      <MembersTable
+        members={result.members}
+        currentUserId={session.user.id}
+        sort={result.sort}
+        order={result.order}
+        buildSortHref={(nextSort, nextOrder) =>
+          buildHref({ q: query, role, page: 1, sort: nextSort, order: nextOrder })
+        }
+      />
 
       <AdminPagination
         page={result.page}
         totalPages={result.totalPages}
-        buildHref={(p) => buildHref({ q: query, role, page: p })}
+        buildHref={(p) =>
+          buildHref({ q: query, role, page: p, sort: result.sort, order: result.order })
+        }
       />
     </section>
   );

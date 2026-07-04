@@ -1,9 +1,10 @@
 import Link from "next/link";
 import { FileText, StickyNote } from "lucide-react";
 import { requireOnboardedSession } from "@/lib/session";
-import { listAllUserHighlights, HIGHLIGHT_COLORS } from "@/lib/annotations";
+import { listAllUserHighlightsPage, HIGHLIGHT_COLORS } from "@/lib/annotations";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
+import { Button, buttonVariants } from "@/components/ui/Button";
 import {
   EmptyState,
   HighlightColorSwatch,
@@ -20,7 +21,7 @@ import { formatShortDate } from "@/lib/display-format";
 
 export const metadata = notes;
 
-type Highlight = Awaited<ReturnType<typeof listAllUserHighlights>>[number];
+type Highlight = Awaited<ReturnType<typeof listAllUserHighlightsPage>>["highlights"][number];
 
 type HighlightGroup = {
   title: string;
@@ -31,23 +32,6 @@ function normalizeColorFilter(color: string | undefined): string | null {
   return color && (HIGHLIGHT_COLORS as readonly string[]).includes(color)
     ? color
     : null;
-}
-
-function highlightMatchesFilter(
-  highlight: Highlight,
-  colorFilter: string | null,
-  query: string,
-) {
-  if (colorFilter && highlight.color !== colorFilter) {
-    return false;
-  }
-
-  if (!query) {
-    return true;
-  }
-
-  const haystack = `${highlight.quote} ${highlight.note ?? ""}`.toLowerCase();
-  return haystack.includes(query);
 }
 
 function groupHighlightsByArticle(highlights: Highlight[]) {
@@ -70,8 +54,25 @@ function groupHighlightsByArticle(highlights: Highlight[]) {
   return groups;
 }
 
+function parsePage(value: string | undefined): number {
+  return Math.max(1, Number.parseInt(value ?? "1", 10) || 1);
+}
+
+function buildNotesHref(params: {
+  color?: string | null;
+  q?: string;
+  page?: number;
+}) {
+  const sp = new URLSearchParams();
+  if (params.color) sp.set("color", params.color);
+  if (params.q) sp.set("q", params.q);
+  if (params.page && params.page > 1) sp.set("page", String(params.page));
+  const qs = sp.toString();
+  return qs ? `/notes?${qs}` : "/notes";
+}
+
 function colorFilterHref(color: string, query: string) {
-  return `/notes?color=${color}${query ? `&q=${encodeURIComponent(query)}` : ""}`;
+  return buildNotesHref({ color, q: query });
 }
 
 function colorLabelColor(color: string) {
@@ -81,28 +82,27 @@ function colorLabelColor(color: string) {
 export default async function NotesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ q?: string; color?: string }>;
+  searchParams: Promise<{ q?: string; color?: string; page?: string }>;
 }) {
   const session = await requireOnboardedSession("/notes");
-  const { q, color } = await searchParams;
-
-  const all = await listAllUserHighlights(session.user.id);
+  const { q, color, page: pageParam } = await searchParams;
 
   const colorFilter = normalizeColorFilter(color);
-  const query = q?.trim().toLowerCase() ?? "";
-  const filtered = all.filter((highlight) =>
-    highlightMatchesFilter(highlight, colorFilter, query),
-  );
-  const groups = groupHighlightsByArticle(filtered);
-
-  const totalCount = all.length;
-  const withNotes = all.filter((h) => h.note).length;
+  const query = q?.trim() ?? "";
+  const result = await listAllUserHighlightsPage(session.user.id, {
+    color: colorFilter,
+    query,
+    page: parsePage(pageParam),
+  });
+  const groups = groupHighlightsByArticle(result.highlights);
+  const filteredCount = result.total;
+  const hasActiveFilter = Boolean(query || colorFilter);
 
   return (
     <PageShell variant="listing">
       <PageHeader
         title="Notes & Highlights"
-        description={`${totalCount} highlight${totalCount !== 1 ? "s" : ""} · ${withNotes} with notes`}
+        description={`${filteredCount} ${hasActiveFilter ? "matching " : ""}highlight${filteredCount !== 1 ? "s" : ""}`}
       />
 
       {/* ── Filters ── */}
@@ -156,16 +156,26 @@ export default async function NotesPage({
         </div>
       </form>
 
+      {filteredCount > 0 ? (
+        <div className="mb-[var(--space-4)] flex flex-wrap items-center justify-between gap-[var(--space-3)] text-[length:var(--text-sm)] text-text-muted">
+          <p>
+            Showing {(result.page - 1) * result.pageSize + 1}–
+            {Math.min(result.page * result.pageSize, filteredCount)} of {filteredCount}
+          </p>
+          <p>Search and colour filters apply across all highlights.</p>
+        </div>
+      ) : null}
+
       {groups.size === 0 ? (
         <EmptyState
           icon={StickyNote}
           title="No highlights yet"
           description={
-            totalCount > 0
+            hasActiveFilter
               ? "No highlights match your current filter."
               : "Select text in any article to create a highlight."
           }
-          action={totalCount === 0 ? { label: "Browse articles", href: "/browse" } : undefined}
+          action={filteredCount === 0 && !hasActiveFilter ? { label: "Browse articles", href: "/browse" } : undefined}
         />
       ) : (
         <div className="flex flex-col gap-[var(--space-6)]">
@@ -222,7 +232,7 @@ export default async function NotesPage({
                           {h.color && (
                             <span
                               className="ml-[var(--space-2)] capitalize"
-                               style={{ color: colorLabelColor(h.color) }}
+                              style={{ color: colorLabelColor(h.color) }}
                             >
                               {h.color}
                             </span>
@@ -237,6 +247,41 @@ export default async function NotesPage({
           ))}
         </div>
       )}
+
+      {result.totalPages > 1 ? (
+        <nav
+          aria-label="Notes and highlights pages"
+          className="mt-[var(--space-6)] flex flex-wrap items-center justify-center gap-[var(--space-3)]"
+        >
+          {result.page > 1 ? (
+            <Link
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              href={buildNotesHref({ q: query, color: colorFilter, page: result.page - 1 })}
+            >
+              ← Previous
+            </Link>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              ← Previous
+            </Button>
+          )}
+          <span className="text-[length:var(--text-sm)] text-text-muted">
+            Page {result.page} of {result.totalPages}
+          </span>
+          {result.hasMore ? (
+            <Link
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+              href={buildNotesHref({ q: query, color: colorFilter, page: result.page + 1 })}
+            >
+              Next →
+            </Link>
+          ) : (
+            <Button variant="outline" size="sm" disabled>
+              Next →
+            </Button>
+          )}
+        </nav>
+      ) : null}
     </PageShell>
   );
 }

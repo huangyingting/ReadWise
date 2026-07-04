@@ -6,6 +6,7 @@
  * (enforced by the reader route-guard before these functions are called).
  */
 import { prisma } from "@/lib/prisma";
+import type { Prisma } from "@prisma/client";
 import type { HighlightRow, HighlightWithArticle } from "./anchor";
 
 // Shared Prisma projection — matches HighlightRow exactly.
@@ -23,14 +24,19 @@ export const highlightSelect = {
 } as const;
 
 /**
- * Hard cap for the cross-article highlight list. One extra row is fetched to
- * detect overflow; callers receive `hasMore: true` when the cap is reached so
- * they can surface a "load more" affordance rather than silently truncating.
- *
- * 1 000 highlights is well above the P99 per-user count; a future issue (#622)
- * will add cursor-based pagination when usage data justifies it.
+ * Legacy cap for callers that still need a bounded all-highlights array.
+ * Paginated UIs should use {@link listAllUserHighlightsPage} so search and
+ * colour filters run against the full result set.
  */
 export const HIGHLIGHTS_ALL_HARD_CAP = 1_000;
+export const HIGHLIGHTS_PAGE_SIZE = 50;
+
+export type ListAllUserHighlightsPageOpts = {
+  query?: string;
+  color?: string | null;
+  page?: number;
+  pageSize?: number;
+};
 
 async function fetchAllUserHighlightRows(
   userId: string,
@@ -71,9 +77,42 @@ export async function listHighlights(
 
 export type HighlightPage = {
   highlights: HighlightWithArticle[];
-  /** True when the result was capped at {@link HIGHLIGHTS_ALL_HARD_CAP}. */
+  total: number;
+  page: number;
+  pageSize: number;
+  totalPages: number;
+  query: string;
+  color: string | null;
+  /** True when another page of results exists. */
   hasMore: boolean;
 };
+
+function normalizePage(page: number | undefined): number {
+  return Math.max(1, page ?? 1);
+}
+
+function normalizePageSize(pageSize: number | undefined): number {
+  return Math.min(HIGHLIGHTS_ALL_HARD_CAP, Math.max(1, pageSize ?? HIGHLIGHTS_PAGE_SIZE));
+}
+
+function buildAllHighlightsWhere(
+  userId: string,
+  query: string,
+  color: string | null,
+): Prisma.HighlightWhereInput {
+  return {
+    userId,
+    ...(color ? { color } : {}),
+    ...(query
+      ? {
+          OR: [
+            { quote: { contains: query } },
+            { note: { contains: query } },
+          ],
+        }
+      : {}),
+  };
+}
 
 /**
  * Returns up to {@link HIGHLIGHTS_ALL_HARD_CAP} highlights across ALL articles
@@ -93,17 +132,42 @@ export async function listAllUserHighlights(
 }
 
 /**
- * Like {@link listAllUserHighlights} but surfaces the `hasMore` flag so UIs
- * can render a "showing first 1 000 highlights" notice when the cap is hit.
+ * Paginated cross-article highlights for Notes. Search and colour filters are
+ * applied in the database before pagination so heavy users are not silently
+ * limited to the legacy all-highlights cap.
  */
 export async function listAllUserHighlightsPage(
   userId: string,
+  opts: ListAllUserHighlightsPageOpts = {},
 ): Promise<HighlightPage> {
-  const rows = await fetchAllUserHighlightRows(userId);
-  const hasMore = rows.length > HIGHLIGHTS_ALL_HARD_CAP;
+  const query = (opts.query ?? "").trim();
+  const color = opts.color ?? null;
+  const requestedPage = normalizePage(opts.page);
+  const pageSize = normalizePageSize(opts.pageSize);
+  const where = buildAllHighlightsWhere(userId, query, color);
+
+  const total = await prisma.highlight.count({ where });
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const rows = await prisma.highlight.findMany({
+    where,
+    select: {
+      ...highlightSelect,
+      article: { select: { id: true, title: true } },
+    },
+    orderBy: [{ article: { title: "asc" } }, { createdAt: "desc" }],
+    skip: (page - 1) * pageSize,
+    take: pageSize,
+  });
   return {
-    highlights: trimHighlightRows(rows),
-    hasMore,
+    highlights: rows,
+    total,
+    page,
+    pageSize,
+    totalPages,
+    query,
+    color,
+    hasMore: page < totalPages,
   };
 }
 
