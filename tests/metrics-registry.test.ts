@@ -10,6 +10,7 @@ import {
   statusClass,
   normalizeOutcome,
   incCounter,
+  setGauge,
   observeHistogram,
   getMetricsSnapshot,
   resetMetrics,
@@ -141,4 +142,14 @@ test("incCounter treats distinct label sets as separate series", () => {
 
   const snap = getMetricsSnapshot();
   assert.equal(snap.counters.filter((p) => p.name === "test_counter").length, 2);
+});
+
+test("setGauge stores current values for each series", () => {
+  setGauge("test_gauge", "help", { a: "x" }, 5);
+  setGauge("test_gauge", "help", { a: "x" }, 2);
+  setGauge("test_gauge", "help", { a: "y" }, -1);
+
+  const snap = getMetricsSnapshot();
+  assert.equal(snap.gauges.find((p) => p.labels.a === "x")?.value, 2);
+  assert.equal(snap.gauges.find((p) => p.labels.a === "y")?.value, 0);
 });
