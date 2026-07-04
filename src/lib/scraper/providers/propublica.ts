@@ -111,6 +111,7 @@ const propublica: Provider = {
       "series-nav",
       "share",
       "promo",
+      "republish",
     ],
     dropTextKeywords: [
       "republish this story",

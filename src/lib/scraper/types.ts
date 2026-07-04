@@ -60,11 +60,25 @@ export type ProviderCleanup = {
    */
   dropTextKeywords?: string[];
   /**
+   * Case-insensitive exact text fragments. Any short structural block whose
+   * normalized text exactly matches one of these strings is removed before body
+   * extraction. Use this for standalone separators such as `"--"` where a broad
+   * substring match would be too aggressive.
+   */
+  dropTextExactKeywords?: string[];
+  /**
    * Case-insensitive href keyword fragments. Any `<a>` whose `href` contains
    * one of these strings — together with its children — is removed before body
    * extraction. Empty `<p>`/`<figure>` wrappers left behind are also removed.
    */
   dropLinkHrefKeywords?: string[];
+  /**
+   * Case-insensitive href keyword fragments. Any short block containing a
+   * matching `<a href>` is removed before body extraction. This is for inline
+   * promo CTAs embedded as normal prose (for example a subscription paragraph)
+   * where removing only the anchor would leave boilerplate text behind.
+   */
+  dropLinkHrefBlockKeywords?: string[];
   /**
    * Provider opt-in to remove all `<figcaption>` elements before extraction.
    * Sibling image/video content in the surrounding `<figure>` is preserved.

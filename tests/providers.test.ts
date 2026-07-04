@@ -18,6 +18,7 @@ type ProviderUrlCase = readonly [providerKey: string, url: string];
 
 const SOURCE_DERIVED_PROVIDER_KEYS = [
   "bbc",
+  "bbcfeatures",
   "theconversation",
   "propublica",
   "grist",
@@ -40,6 +41,7 @@ const LONG_FORM_PROVIDER_KEYS = [
   "theconversation",
   "propublica",
   "grist",
+  "bbcfeatures",
 ] as const;
 
 const NEWS_LEARNING_PROVIDER_KEYS = ["nbc", "time", "huffpost", "bbc"] as const;
@@ -93,10 +95,11 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 15 active providers (aeon + voa removed)", () => {
+test("registry holds exactly the 16 active providers (aeon + voa removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "bbc",
+    "bbcfeatures",
     "grist",
     "huffpost",
     "knowable",
@@ -112,7 +115,7 @@ test("registry holds exactly the 15 active providers (aeon + voa removed)", () =
     "time",
     "undark",
   ]);
-  assert.equal(PROVIDERS.length, 15);
+  assert.equal(PROVIDERS.length, 16);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
@@ -179,14 +182,87 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
     "ProPublica cleanup should drop nonprofit/newsletter chrome",
   );
   assert.ok(
+    getProviderOrFail("propublica").cleanup?.dropClassKeywords?.some((kw) =>
+      /republish/i.test(kw),
+    ),
+    "ProPublica cleanup should drop republish license modal chrome",
+  );
+  assert.ok(
     getProviderOrFail("grist").cleanup?.dropClassKeywords?.some((kw) => /donate|newsletter/i.test(kw)),
     "Grist cleanup should drop donation/newsletter chrome",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropClassKeywords?.some((kw) =>
+      /navigationpanel|bbc-footer/i.test(kw),
+    ),
+    "BBC Features cleanup should drop navigation drawer and footer chrome",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.some((kw) =>
+      /site search/i.test(kw),
+    ),
+    "BBC Features cleanup should drop standalone hidden site-search labels",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.includes('{"image":{"pid":""}}'),
+    "BBC Features cleanup should drop empty image pid placeholder text blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.some((kw) =>
+      /weekly bbc\.com features/i.test(kw),
+    ),
+    "BBC Features cleanup should drop trailing newsletter CTA blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.some((kw) =>
+      /is a bbc travel series/i.test(kw),
+    ),
+    "BBC Features cleanup should drop Travel series promo blocks by text",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropLinkHrefBlockKeywords?.some((kw) =>
+      /\/travel\/columns\//i.test(kw),
+    ),
+    "BBC Features cleanup should drop short Travel columns promo link blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropLinkHrefBlockKeywords?.some((kw) =>
+      /\/travel\/worlds-table/i.test(kw),
+    ),
+    "BBC Features cleanup should drop World's Table promo link blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.some((kw) =>
+      /previous version of this article/i.test(kw),
+    ),
+    "BBC Features cleanup should drop correction-note footer blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextKeywords?.some((kw) =>
+      /bear country/i.test(kw),
+    ),
+    "BBC Features cleanup should drop standardized safety note blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropLinkHrefBlockKeywords?.some((kw) =>
+      /pages\.emails\.bbc\.com\/subscribe/i.test(kw),
+    ),
+    "BBC Features cleanup should drop short email-subscription link blocks",
+  );
+  assert.ok(
+    getProviderOrFail("bbcfeatures").cleanup?.dropTextExactKeywords?.includes("--") &&
+      getProviderOrFail("bbcfeatures").cleanup?.dropTextExactKeywords?.includes("---"),
+    "BBC Features cleanup should drop standalone trailing dash separators",
   );
 });
 
 test("source-derived provider URL patterns match article URLs", () => {
   assertProviderUrlPatterns([
     ["bbc", "https://www.bbc.com/news/articles/c1234567890"],
+    ["bbcfeatures", "https://www.bbc.com/future/article/20260630-how-america-reinvented-english"],
+    ["bbcfeatures", "https://www.bbc.com/travel/article/20260701-the-view-that-inspired-america-the-beautiful"],
+    ["bbcfeatures", "https://www.bbc.com/culture/article/20260702-the-back-to-the-future-parody-thats-a-global-hit"],
+    ["bbcfeatures", "https://www.bbc.com/worklife/article/20260520-how-social-media-ceased-to-be-social"],
     ["smithsonian", "https://www.smithsonianmag.com/science-nature/example-story-180987800/"],
     ["knowable", "https://knowablemagazine.org/content/article/technology/2026/example-story"],
     ["nautilus", "https://nautil.us/example-story-123456/"],
@@ -212,6 +288,14 @@ test("source-derived provider URL patterns match article URLs", () => {
 test("source-derived URL filters reject non-article pages", () => {
   const bbc = getProviderOrFail("bbc");
   assert.equal(bbc.articleUrlFilter?.("https://www.bbc.com/news/live/c1234567890"), false);
+
+  const bbcFeatures = getProviderOrFail("bbcfeatures");
+  assert.equal(bbcFeatures.articleUrlFilter?.("https://www.bbc.com/news/articles/c1234567890"), false);
+  assert.equal(bbcFeatures.articleUrlFilter?.("https://www.bbc.com/future"), false);
+  assert.equal(
+    bbcFeatures.articleUrlFilter?.("https://www.bbc.com/future/article/20260630-how-america-reinvented-english"),
+    true,
+  );
 
   const smithsonian = getProviderOrFail("smithsonian");
   assert.equal(smithsonian.articleUrlFilter?.("https://www.smithsonianmag.com/category/science-nature/"), false);
@@ -628,6 +712,7 @@ test("getProviderByName resolves by Article.source name, case-insensitively", ()
   assert.equal(getProviderByName("Noema Magazine")?.key, "noema");
   assert.equal(getProviderByName("  noema magazine  ")?.key, "noema");
   assert.equal(getProviderByName("NBC News")?.key, "nbc");
+  assert.equal(getProviderByName("BBC Features")?.key, "bbcfeatures");
   assert.equal(getProviderByName("The Conversation")?.key, "theconversation");
   assert.equal(getProviderByName("ProPublica")?.key, "propublica");
   assert.equal(getProviderByName("Unknown Source"), null);

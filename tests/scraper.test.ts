@@ -108,6 +108,38 @@ test("extractArticle uses JSON-LD breadcrumb section when articleSection is abse
   assert.equal(result?.category, "health");
 });
 
+test("extractArticle removes Scientific American support journalism subscription block", () => {
+  const body = wordBlock(70, "climate");
+  const html =
+    "<html><head><title>Heat Waves and History</title>" +
+    '<meta name="author" content="Andrea Thompson">' +
+    "</head><body><article>" +
+    `<p>The article explains a climate signal in context. ${body}</p>` +
+    "<hr>" +
+    "<h2>On supporting science journalism</h2>" +
+    '<p>If you\'re enjoying this article, consider supporting our award-winning journalism by ' +
+    '<a href="https://www.scientificamerican.com/getsciam/">subscribing</a>. ' +
+    "By purchasing a subscription you are helping to ensure the future of impactful stories about " +
+    "the discoveries and ideas shaping our world today.</p>" +
+    "<hr>" +
+    `<p>The reported findings continue after the support block. ${wordBlock(35, "weather")}</p>` +
+    "</article></body></html>";
+
+  const result = extractArticle(
+    html,
+    "https://www.scientificamerican.com/article/july-4-heat-wave-wouldve-been-virtually-impossible-in-1776/",
+  );
+
+  assert.ok(result);
+  const content = result?.content ?? "";
+  assert.equal(result?.source, "Scientific American");
+  assert.match(content, /climate\d+/, "article body before support block should remain");
+  assert.match(content, /weather\d+/, "article body after support block should remain");
+  assert.doesNotMatch(content, /supporting science journalism/i);
+  assert.doesNotMatch(content, /supporting our award-winning journalism/i);
+  assert.doesNotMatch(content, /By purchasing a subscription/i);
+});
+
 test("extractArticle rejects bodies under 50 words", () => {
   const html =
     "<html><head><title>Tiny</title></head><body><article>" +

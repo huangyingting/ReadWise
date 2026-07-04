@@ -24,6 +24,7 @@ import natgeo from "./natgeo";
 import time from "./time";
 import huffpost from "./huffpost";
 import bbc from "./bbc";
+import bbcFeatures from "./bbcfeatures";
 import smithsonian from "./smithsonian";
 import knowable from "./knowable";
 import nautilus from "./nautilus";
@@ -41,6 +42,7 @@ export const PROVIDERS: readonly Provider[] = [
   time,
   huffpost,
   bbc,
+  bbcFeatures,
   theconversation,
   propublica,
   grist,

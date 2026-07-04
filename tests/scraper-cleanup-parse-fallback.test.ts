@@ -18,6 +18,7 @@ test("provider cleanup preserves HTML when link href parsing fails", async () =>
   const html = '<p><a href="https://example.com/promo">Cover</a></p>';
 
   assert.equal(applyProviderCleanup(html, { dropLinkHrefKeywords: ["promo"] }), html);
+  assert.equal(applyProviderCleanup(html, { dropLinkHrefBlockKeywords: ["promo"] }), html);
 });
 
 test("provider cleanup preserves HTML when text keyword parsing fails", async () => {
