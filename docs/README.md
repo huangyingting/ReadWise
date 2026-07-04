@@ -119,7 +119,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | --- | --- |
 | [`platform/api-catalog.md`](./platform/api-catalog.md) | Generated API catalog. |
 | [`platform/api-catalog.json`](./platform/api-catalog.json) | Machine-readable generated API catalog. |
-| [`platform/authentication.md`](./platform/authentication.md) | NextAuth provider registry, database sessions, first-user admin bootstrap, cookie posture, and auth guard layering. |
+| [`platform/authentication.md`](./platform/authentication.md) | NextAuth provider registry, database sessions, local sign-in/test-session onboarding, first-user admin bootstrap, cookie posture, and auth guard layering. |
 | [`platform/ci.md`](./platform/ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
 | [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
 | [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |

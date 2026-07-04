@@ -123,8 +123,9 @@ npm run dev
 ```
 
 Open <http://localhost:3000>. The content seeder scrapes and enriches sample
-articles; it does not create local login sessions, so configure an OAuth
-provider for browser sign-in or create test sessions through your local tooling.
+articles; it does not create local login sessions. For safe local sign-in,
+OAuth setup, first-user admin bootstrap, and the Playwright-only test-session
+path, see [`docs/platform/authentication.md`](./docs/platform/authentication.md#local-sign-in-and-test-sessions).
 
 > AI, Speech, Push, storage, and tracing are optional. The app remains usable
 > without those credentials: AI panels show friendly fallbacks, article
