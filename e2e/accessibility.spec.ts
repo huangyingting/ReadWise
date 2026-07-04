@@ -97,6 +97,28 @@ async function analyzePage(page: Page) {
   return new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
 }
 
+async function selectReaderPhrase(page: Page, phrase: string) {
+  await page.locator(".word-lookup-prose").evaluate((prose, targetPhrase) => {
+    const walker = document.createTreeWalker(prose, NodeFilter.SHOW_TEXT);
+    let node = walker.nextNode();
+    while (node) {
+      const text = node.textContent ?? "";
+      const start = text.indexOf(targetPhrase);
+      if (start >= 0) {
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, start + targetPhrase.length);
+        const selection = window.getSelection();
+        selection?.removeAllRanges();
+        selection?.addRange(range);
+        return;
+      }
+      node = walker.nextNode();
+    }
+    throw new Error(`Could not find reader phrase: ${targetPhrase}`);
+  }, phrase);
+}
+
 // ---------------------------------------------------------------------------
 // Shared setup
 // ---------------------------------------------------------------------------
@@ -178,6 +200,41 @@ test.describe("a11y: reader surface", () => {
     const displayBtn = page.getByLabel("Display settings");
     await displayBtn.focus();
     await expect(displayBtn).toBeFocused();
+  });
+
+  test("selection toolbar traps Tab and returns focus on Escape", async ({
+    context,
+    page,
+  }) => {
+    await signIn(context);
+
+    await page.goto(`/reader/${TEST_ARTICLE_ID}`);
+    await expect(
+      page.getByRole("heading", { name: "E2E Critical Reading Smoke Article" }),
+    ).toBeVisible();
+
+    await selectReaderPhrase(page, "ReadWise");
+    await page.evaluate(() => {
+      document.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          key: "e",
+          ctrlKey: true,
+          bubbles: true,
+          cancelable: true,
+        }),
+      );
+    });
+
+    const toolbar = page.getByRole("toolbar", { name: "Text actions" });
+    await expect(toolbar).toBeVisible();
+    await expect(page.getByRole("radio", { name: "Yellow" })).toBeFocused();
+
+    await page.keyboard.press("Shift+Tab");
+    await expect(page.getByRole("button", { name: "Define" })).toBeFocused();
+
+    await page.keyboard.press("Escape");
+    await expect(toolbar).toBeHidden();
+    await expect(page.locator(".word-lookup-prose")).toBeFocused();
   });
 });
 

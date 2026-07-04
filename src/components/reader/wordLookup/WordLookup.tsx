@@ -222,6 +222,11 @@ export default function WordLookup({
     resetGrammar();
   }, [surface, resetDictionary, saveWord, resetTranslation, resetGrammar]);
 
+  const closeAllAndFocusProse = useCallback(() => {
+    closeAll();
+    requestAnimationFrame(() => proseRef.current?.focus());
+  }, [closeAll]);
+
   // Mark rendering
   useEffect(() => {
     if (!proseRef.current) return;
@@ -322,7 +327,10 @@ export default function WordLookup({
       clearTimeout(timer);
       timer = setTimeout(() => {
         const s = window.getSelection();
-        if (!s || s.isCollapsed) surface.dismissToolbar();
+        const active = document.activeElement;
+        const focusInsideToolbar =
+          active instanceof Node && toolbarRef.current?.contains(active);
+        if ((!s || s.isCollapsed) && !focusInsideToolbar) surface.dismissToolbar();
       }, 120);
     };
     document.addEventListener("selectionchange", onSelChange);
@@ -348,7 +356,10 @@ export default function WordLookup({
       closeAll();
     };
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") { e.preventDefault(); closeAll(); proseRef.current?.focus(); }
+      if (e.key === "Escape") {
+        e.preventDefault();
+        closeAllAndFocusProse();
+      }
     };
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -356,7 +367,7 @@ export default function WordLookup({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [openSurface, closeAll]);
+  }, [openSurface, closeAllAndFocusProse, closeAll]);
 
   // Toolbar: create highlight — delegates overlap merge to useHighlightActions
   const handleHighlightAction = useCallback(async () => {
@@ -475,7 +486,7 @@ export default function WordLookup({
           dictError={dictError}
           anchor={dictAnchor}
           saveWord={saveWord}
-          onClose={closeAll}
+          onClose={closeAllAndFocusProse}
           onPlay={playAudio}
           popoverRef={popoverRef}
         />
@@ -494,7 +505,7 @@ export default function WordLookup({
           onTranslate={handleTranslate}
           onDefine={handleDefine}
           onGrammar={handleGrammar}
-          onClose={closeAll}
+          onClose={closeAllAndFocusProse}
           toolbarRef={toolbarRef}
         />
       ) : null}
@@ -504,7 +515,7 @@ export default function WordLookup({
         <HighlightEditPopover
           highlight={editHighlight}
           anchorEl={editMarkEl}
-          onClose={closeAll}
+          onClose={closeAllAndFocusProse}
           onColorChange={handleEditColorChange}
           onNoteSave={handleEditNoteSave}
           onDelete={handleEditDelete}
@@ -523,7 +534,7 @@ export default function WordLookup({
           error={translateError}
           languages={languages}
           onLangChange={changeTranslateLang}
-          onClose={closeAll}
+          onClose={closeAllAndFocusProse}
           onRetry={retryTranslation}
           popoverRef={translatePopoverRef}
         />
@@ -537,7 +548,7 @@ export default function WordLookup({
           loading={grammarLoading}
           result={grammarResult}
           error={grammarError}
-          onClose={closeAll}
+          onClose={closeAllAndFocusProse}
           onRetry={retryGrammar}
           popoverRef={grammarPopoverRef}
         />

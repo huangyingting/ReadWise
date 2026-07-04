@@ -14,9 +14,10 @@
 
 import { useCallback, useRef, useEffect, useState } from "react";
 import { X, Check } from "lucide-react";
-import { cn, focusRing } from "@/lib/cn";
+import { cn } from "@/lib/cn";
 import { Button, IconButton, Textarea } from "@/components/ui";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
+import { useFocusTrap } from "@/lib/focus-trap";
 import ConfirmAction from "@/components/ConfirmAction";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { Highlight, HighlightColor } from "@/components/ReaderHighlightsProvider";
@@ -72,10 +73,10 @@ export default function HighlightEditPopover({
     setNoteText(highlight.note ?? "");
   }, [highlight.note]);
 
-  // Focus first swatch on open
-  useEffect(() => {
-    requestAnimationFrame(() => firstFocusRef.current?.focus());
-  }, []);
+  useFocusTrap(innerRef, true, onClose, {
+    initialFocusRef: firstFocusRef,
+    stopEscapePropagation: true,
+  });
 
   // Position the popover — anchor is the bounding rect of the <mark> element
   usePopoverPosition(innerRef, anchorEl.getBoundingClientRect(), {

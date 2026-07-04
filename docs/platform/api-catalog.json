@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-04T21:16:26.057Z",
+  "generatedAt": "2026-07-04T21:33:12.592Z",
   "routeCount": 105,
   "methodCount": 119,
   "routes": [
@@ -846,6 +846,7 @@
             "level",
             "limit",
             "offset",
+            "q",
             "view"
           ],
           "bodyFieldNames": null

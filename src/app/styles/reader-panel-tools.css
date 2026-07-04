@@ -341,7 +341,7 @@
   bottom: 0;
   left: 0;
   right: 0;
-  height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
+  height: var(--reader-mini-player-height);
   padding-bottom: env(safe-area-inset-bottom, 0px);
   z-index: var(--z-panel);
   display: flex;
