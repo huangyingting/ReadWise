@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-07-04T21:33:12.592Z",
+  "generatedAt": "2026-07-04T22:06:26.127Z",
   "routeCount": 105,
   "methodCount": 119,
   "routes": [
@@ -52,13 +52,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "analyticsView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.analyticsView"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "budget",
@@ -79,13 +81,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "analyticsView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.analyticsView"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -133,13 +137,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "articlesManage",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -154,13 +160,15 @@
       "methods": [
         {
           "method": "DELETE",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "articlesManage",
           "hasBodySchema": false,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok"
@@ -177,13 +185,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "articlesManage",
           "hasBodySchema": false,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok"
@@ -254,13 +264,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "articlesManage",
           "hasBodySchema": true,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.articlesManage"
+          ],
           "successStatus": 201,
           "responseKeys": [
             "id",
@@ -278,13 +290,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "securityView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.securityView"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": [
@@ -305,13 +319,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "jobsManage",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.jobsManage"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": [
@@ -333,13 +349,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "jobsManage",
           "hasBodySchema": true,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.jobsManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "action",
@@ -360,13 +378,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "jobsManage",
           "hasBodySchema": true,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.jobsManage"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -391,13 +411,15 @@
       "methods": [
         {
           "method": "DELETE",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "membersManage",
           "hasBodySchema": false,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok"
@@ -407,13 +429,15 @@
         },
         {
           "method": "PATCH",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "membersManage",
           "hasBodySchema": true,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.membersManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok",
@@ -461,13 +485,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "securityView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "text/plain",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.securityView"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -534,13 +560,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "sourcesManage",
           "hasBodySchema": true,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.sourcesManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "note",
@@ -564,13 +592,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "securityView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": true,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.securityView"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "count",
@@ -592,13 +622,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "securityView",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.securityView"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "catalog",
@@ -723,13 +755,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "adminAccess",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.adminAccess"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -744,13 +778,15 @@
       "methods": [
         {
           "method": "GET",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "tagsManage",
           "hasBodySchema": false,
           "hasParamsSchema": false,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.tagsManage"
+          ],
           "successStatus": 200,
           "responseKeys": null,
           "queryParamNames": null,
@@ -765,13 +801,15 @@
       "methods": [
         {
           "method": "DELETE",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "tagsManage",
           "hasBodySchema": false,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.tagsManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok"
@@ -781,13 +819,15 @@
         },
         {
           "method": "PATCH",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "tagsManage",
           "hasBodySchema": true,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.tagsManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "ok"
@@ -806,13 +846,15 @@
       "methods": [
         {
           "method": "POST",
-          "authMode": "admin",
-          "capability": null,
+          "authMode": "capability",
+          "capability": "tagsManage",
           "hasBodySchema": true,
           "hasParamsSchema": true,
           "hasQuerySchema": false,
           "responseFormat": "json",
-          "notes": [],
+          "notes": [
+            "capability: CAPABILITIES.tagsManage"
+          ],
           "successStatus": 200,
           "responseKeys": [
             "moved",

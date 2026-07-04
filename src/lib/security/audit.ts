@@ -37,6 +37,7 @@ export const AUDIT_ACTIONS = {
   adminReportResolve: "admin.report.resolve",
   adminReportDismiss: "admin.report.dismiss",
   adminReportReview: "admin.report.review",
+  adminLedgerErasure: "admin.ledger_erasure",
 } as const;
 
 export type AuditAction = (typeof AUDIT_ACTIONS)[keyof typeof AUDIT_ACTIONS];
@@ -122,6 +123,11 @@ function retentionDaysFromInput(olderThanDays: number): number {
   return Number.isFinite(olderThanDays) && olderThanDays > 0
     ? Math.floor(olderThanDays)
     : auditLogRetentionDays();
+}
+
+function oldAuditLogsWhere(olderThanDays: number, now: Date) {
+  const days = retentionDaysFromInput(olderThanDays);
+  return { createdAt: { lt: new Date(now.getTime() - days * MS_PER_DAY) } };
 }
 
 function normalizeOptionalString(value: string | null | undefined, max = MAX_STRING_LENGTH): string | null {
@@ -322,10 +328,19 @@ export async function pruneOldAuditLogs(
   client: AuditClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days = retentionDaysFromInput(olderThanDays);
-  const cutoff = new Date(now.getTime() - days * MS_PER_DAY);
   const result = await client.auditLog.deleteMany({
-    where: { createdAt: { lt: cutoff } },
+    where: oldAuditLogsWhere(olderThanDays, now),
   });
   return result.count;
+}
+
+/** Counts audit log entries older than the retention window without deleting them. */
+export async function countOldAuditLogs(
+  olderThanDays: number = auditLogRetentionDays(),
+  client: AuditClient = prisma,
+  now: Date = new Date(),
+): Promise<number> {
+  return client.auditLog.count({
+    where: oldAuditLogsWhere(olderThanDays, now),
+  });
 }

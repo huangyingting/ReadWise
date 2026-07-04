@@ -42,6 +42,30 @@ function retentionCutoff(now: Date, days: number): Date {
   return new Date(now.getTime() - days * DAY_MS);
 }
 
+function terminalJobsWhere(
+  olderThanDays: number,
+  statuses: JobStatus[],
+  now: Date,
+) {
+  return {
+    status: { in: statuses },
+    updatedAt: { lt: retentionCutoff(now, retentionDaysOrDefault(olderThanDays)) },
+  };
+}
+
+/** Counts terminal job rows older than the retention window without deleting them. */
+export async function countTerminalJobs(
+  olderThanDays: number = jobTerminalRetentionDays(),
+  statuses: JobStatus[] = JOB_TERMINAL_STATUSES,
+  client: PruneJobsClient = prisma,
+  now: Date = new Date(),
+): Promise<number> {
+  if (statuses.length === 0) return 0;
+  return client.job.count({
+    where: terminalJobsWhere(olderThanDays, statuses, now),
+  });
+}
+
 /**
  * Deletes job rows in terminal states that have not been updated since the
  * cutoff (#712-C). `olderThanDays` defaults to {@link jobTerminalRetentionDays}
@@ -57,12 +81,8 @@ export async function pruneTerminalJobs(
   now: Date = new Date(),
 ): Promise<number> {
   if (statuses.length === 0) return 0;
-  const cutoff = retentionCutoff(now, retentionDaysOrDefault(olderThanDays));
   const result = await client.job.deleteMany({
-    where: {
-      status: { in: statuses },
-      updatedAt: { lt: cutoff },
-    },
+    where: terminalJobsWhere(olderThanDays, statuses, now),
   });
   return result.count;
 }

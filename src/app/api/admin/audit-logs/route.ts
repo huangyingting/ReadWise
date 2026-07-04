@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { AUDIT_ACTIONS, listAuditLogs, tryRecordAuditFromRequest } from "@/lib/security/audit";
 import { queryInt, queryString } from "@/lib/validation";
 
@@ -41,7 +42,8 @@ function auditReadMetadata(query: AuditLogQuery) {
   };
 }
 
-export const GET = createAdminHandler(
+export const GET = createCapabilityHandler(
+  CAPABILITIES.securityView,
   { query: auditLogQuery },
   async ({ req, query, session, requestId }) => {
     await tryRecordAuditFromRequest({

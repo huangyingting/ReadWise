@@ -37,8 +37,8 @@ their logic.
 | Members | `/admin/members`, `/admin/members/[id]`, `/api/admin/members/**` | `members.manage`, `support.assist` for support actions | Manage roles, support tooling, session revocation, export/repair helpers. |
 | Jobs | `/admin/jobs`, `/api/admin/jobs/**` | `jobs.manage` | Queue dashboard, retry/cancel/archive, enqueue backfills. |
 | Analytics | `/admin/analytics`, `/admin/analytics/ai`, `/api/admin/analytics/**`, `/api/admin/ai/usage` | `analytics.view` | Product analytics, AI ledger, processing health, exports. |
-| Security | `/admin/security`, `/api/admin/security/events`, `/api/admin/audit-logs` | `security.view` / admin handler | Security events and durable audit log reads. |
-| Metrics/SLO | `/api/admin/metrics`, `/api/admin/slo` | admin/capability-gated | Prometheus-style metrics and SLO evaluation. |
+| Security | `/admin/security`, `/api/admin/security/events`, `/api/admin/audit-logs` | `security.view` | Security events and durable audit log reads. |
+| Metrics/SLO | `/api/admin/metrics`, `/api/admin/slo` | `security.view` | Prometheus-style metrics and SLO evaluation. |
 
 Admin pages are rendered inside `src/app/admin/layout.tsx`, which requires admin
 access and shows `AdminNav`. Section pages and APIs still perform their own
@@ -255,6 +255,46 @@ npm run worker -- --interval 10000
 The worker script (`scripts/worker.ts`) is a CLI adapter: it parses arguments
 and calls `runJobWorker`. All policy lives in `src/lib/worker/` and
 `src/lib/jobs/`.
+
+### Scheduled retention maintenance
+
+Run all metadata retention helpers from cron/scheduler with:
+
+```bash
+# Safe count-only preview (default)
+npm run maintenance:retention
+
+# Delete rows after reviewing counts
+npm run maintenance:retention -- --execute
+
+# One-off override example
+npm run maintenance:retention -- --execute --analytics-days 400 --ai-days 365 --audit-days 730 --jobs-days 90
+```
+
+The script dispatches `pruneOldEvents`, `pruneOldAiInvocations`,
+`pruneOldAuditLogs`, and `pruneTerminalJobs`. It defaults to dry-run/count mode
+and emits metadata-only JSON: area, retention window, matched count, and deleted
+count. It never reads or logs prompts, article text, selected text, definitions,
+translations, tokens, cookies, or credentials.
+
+### Per-user analytics/AI ledger erasure
+
+Account deletion cascades user-owned FK rows, but `AnalyticsEvent` and
+`AiInvocation` use plain string ids and require an explicit operator step when
+policy requires ledger erasure:
+
+```bash
+# Preview only
+npm run privacy:erase-ledgers -- --user-id <user-id>
+
+# Delete analytics + AI ledger rows and write an audit record atomically
+npm run privacy:erase-ledgers -- --user-id <user-id> --operator-id <operator-id> --execute
+```
+
+The erasure command counts both ledgers before deleting. `--execute` runs the
+deletes and `admin.ledger_erasure` audit write in one transaction; audit metadata
+contains only target id and row counts. Without `--execute`, no rows are changed
+and no audit row is written.
 
 ## Article-processing step state
 
@@ -542,6 +582,7 @@ never erases the investigation trail.
   `admin.scrape.trigger`.
 - Jobs: `admin.job.retry`, `admin.job.cancel`, `admin.job.archive`,
   `admin.job.backfill`.
+- Privacy/retention: `admin.ledger_erasure`.
 - Account/self-service: `article.import`, `account.export`, `account.delete`.
 - Security: `security.admin_access_denied`, `admin.audit_logs.read`.
 
