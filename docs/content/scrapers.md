@@ -1,8 +1,8 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
-description: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, and source health boundaries. Captures current provider registry, fetch fallbacks, extraction quality checks, drift triage, and operator guidance."
+last_updated: "2026-07-04"
+description: "Documents scraper providers, discovery/extraction pipeline, SSRF/robots controls, source health boundaries, scrape-review feedback retention, and operator guidance."
 ---
 
 # Scraper Provider Guide
@@ -213,6 +213,13 @@ any existing provider module are required.
 # /admin/articles → Content Sources
 ```
 
+Also inspect the provider's recent crawl-run summaries in the admin content
+sources UI or `GET /api/admin/sources/<providerKey>/crawl-runs`. The history is
+bounded per provider and stores only operational metadata: source, mode,
+duration, coarse outcome, counts, and a sanitized error message. It must never
+contain URLs, article text, prompts, selected text, definitions, translations, or
+user-private content.
+
 **Step 2 – Check robots.txt:**
 ```sh
 curl https://<hostname>/robots.txt | grep -A5 "User-agent: ReadWiseBot"
@@ -281,6 +288,48 @@ npm run scrape:undark -- --all
 # Continue Smithsonian from DB + visited state:
 npm run scrape:smithsonian -- --all
 ```
+
+### Scrape review
+
+```sh
+# Review persisted Article rows from a SQLite/PostgreSQL database:
+npm run scrape-review -- --db prisma/natgeo-scrape.db --provider natgeo --sample 200
+
+# Preview extracted URLs without writing articles to a database:
+npm run scrape-review -- --no-db --urls urls.txt --limit 50
+
+# Discover provider URLs for preview mode:
+npm run scrape-review -- --no-db --provider natgeo --discover --limit 20
+
+# Disable feedback writes entirely:
+npm run scrape-review -- --feedback-none
+```
+
+By default, `scrape-review` runs a localhost review server and appends operator
+feedback to `.scraper-state/scrape-review-feedback.jsonl`. Override the path with
+`--feedback-file <path>`; pass `--feedback-file none` or `--feedback-none` when a
+review should not persist feedback.
+
+Each JSONL line is versioned and contains:
+
+| Field | Meaning |
+| --- | --- |
+| `version` | Feedback record schema version (`1`). |
+| `reviewedAt` | ISO timestamp when feedback was submitted. |
+| `mode` | `db` for persisted articles or `preview` for no-DB extraction. |
+| `itemId` | Review-session item identifier. |
+| `articleId` | Article id for DB mode, otherwise `null`. |
+| `url` | Source URL for the reviewed item. |
+| `source` | Article/source label when available. |
+| `provider` | Provider key when recognised. |
+| `feedback` | Operator-entered note, trimmed to 4,000 characters. |
+
+Treat the feedback file as operational review data. It can include source URLs
+and human-entered notes about scraped content, so keep it local, do not commit it,
+and do not copy it into metrics, audit metadata, crawl-run history, prompts, or
+analytics payloads. Delete stale review files from `.scraper-state/` after the
+triage window closes or once follow-up fixes have been filed; use normal secure
+host backup/retention rules if the file must be preserved for an incident review.
 
 ### Process (AI enrichment + publish)
 

@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents Operations-owned admin surfaces, persistent job queue, worker lifecycle, processing state, scripts, and audit-log relationships. Captures current job statuses, retries, locking, backfill/rebuild/repair workflows, dashboards, metrics, source operations, and operator checklists."
 ---
 
@@ -592,7 +592,12 @@ Health derives from counters:
 | `failing` | `consecutiveFailures >= 3` or `consecutiveZeroDiscovery >= 3`. |
 | `unknown` | Pre-first-crawl default. |
 
-Each recorded crawl also emits ingestion metrics.
+Each recorded crawl also emits ingestion metrics and stores a bounded recent
+`CrawlRun` summary for provider-drift triage. `/admin/sources` shows the latest
+runs per provider; `GET /api/admin/sources/<providerKey>/crawl-runs?limit=N`
+returns the same privacy-safe summaries for tooling. Summaries include source,
+mode, duration, outcome, counts, and a sanitized error only — never URLs, article
+text, prompts, selected text, definitions, translations, or private content.
 
 ## Article moderation and takedown
 

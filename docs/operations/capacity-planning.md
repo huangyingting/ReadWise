@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents subsystem capacity assumptions, limits, observable signals, and scaling levers. Captures current throughput constraints, provider bottlenecks, cache/queue/storage limits, Redis adoption gate, and follow-up gaps."
 ---
 
@@ -151,7 +151,8 @@ GET /api/admin/jobs/stats          # pending / claimed / running / failed / dead
 GET /api/admin/metrics             # worker_job_total{outcome} counter;
                                    # worker_job_duration_ms histogram;
                                    # job_queue_event_total{event,type} counter;
-                                   # job_lock_age_ms histogram (stale-lock detection)
+                                   # job_lock_age_ms histogram (stale-lock detection);
+                                   # job_queue_depth{type,status} gauge
 GET /api/admin/slo                 # worker_processing_latency SLI
 ```
 
@@ -160,7 +161,7 @@ Alert conditions:
 - Dead-letter count > 0 → investigate failed job payloads.
 - `job_lock_age_ms` > 10 min → worker crashed with a lock held; will auto-recover
   after TTL.
-- Pending queue depth > 500 → consider adding worker processes.
+- `job_queue_depth{status="pending"}` > 500 → consider adding worker processes.
 - `worker_processing_latency` SLI breaching → jobs taking longer than expected.
 
 ### Scaling levers
@@ -418,7 +419,7 @@ Alert conditions:
 | Connection pool exhaustion | Set `connection_limit` in `DATABASE_URL`; add PgBouncer |
 | Slow FTS queries | Verify `Article_search_vector_idx` is present and used (`EXPLAIN ANALYZE`) |
 | High write latency (SQLite) | Migrate to PostgreSQL |
-| Large `AiInvocation` table | Add retention policy; delete rows older than rolling window |
+| Large `AiInvocation` table | Run `pruneOldAiInvocations` on a schedule; tune `AI_LEDGER_RETENTION_DAYS` (default 365) |
 
 ### Baseline assumptions
 
@@ -653,7 +654,7 @@ beyond a single-tenant pilot.
 | F-4 | Push | No cap on subscriptions per user | Add DB-level check or soft limit in subscribe route |
 | F-5 | Scraper | No per-provider latency histogram | Add `scraper_fetch_duration_ms{provider}` histogram |
 | F-6 | Database | No pool exhaustion signal | Configure Prisma `log: ["warn"]` and alert on `query_wait_timeout` |
-| F-7 | Database | `AiInvocation` table has no retention policy | Add a nightly cleanup job or cron to delete rows older than N days |
+| F-7 | Database | AI/job retention helpers are opt-in and not scheduled by the app | Run `pruneOldAiInvocations` and `pruneTerminalJobs` from an approved maintenance job or cron |
 | F-8 | AI | Token-per-feature averages not measured over time | Export `ai_prompt_tokens_total` and `ai_completion_tokens_total` counters per feature |
 | F-9 | Jobs | No queue-depth metric (pending job count) | Add `job_queue_depth{type,status}` gauge to the worker poll cycle |
 | F-10 | Offline | No server-side limit on articles downloadable per user | Consider a per-user cap enforced at `GET /api/reader/[id]/offline` |

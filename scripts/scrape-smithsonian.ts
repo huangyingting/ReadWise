@@ -457,6 +457,7 @@ async function scrapeFreshSmithsonian(
   skippedVisited: number;
   discoveryExhausted: boolean;
 }> {
+  const startedAt = Date.now();
   const seen = visitedSet(record);
   const discoverLimit = smithsonianDiscoveryLimit(
     limit,
@@ -535,6 +536,9 @@ async function scrapeFreshSmithsonian(
     failed: counts.failed,
     duplicates: counts.duplicates,
     rejected: counts.rejected,
+    source: "cli",
+    mode: "smithsonian",
+    durationMs: Date.now() - startedAt,
   });
 
   return {

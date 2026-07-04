@@ -1,7 +1,7 @@
 ---
 type: "runbook"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents database operational runbooks for backup, restore, migration, rollback, and disaster recovery. Captures current SQLite/PostgreSQL procedures, validation checks, rollback safety, and operator actions."
 ---
 
@@ -97,14 +97,11 @@ curl --fail 'https://<app-host>/api/ready'
 
 ## PostgreSQL target: backup
 
-These PostgreSQL steps are target-state runbooks for after the Prisma datasource
-provider has been migrated from `sqlite` to `postgresql` in
-`prisma/schema.prisma`, or when an equivalent PostgreSQL schema file is supplied
-with `--schema`. With the current SQLite Prisma schema, Prisma commands that use
-a PostgreSQL `DATABASE_URL` are expected to fail; use the SQLite sections above
-until the PostgreSQL migration lands. Native PostgreSQL tools (`pg_dump`,
-`pg_restore`, `psql`) are still appropriate for databases that already exist on
-PostgreSQL.
+These PostgreSQL steps use the dedicated PostgreSQL Prisma schema at
+`prisma/postgresql/schema.prisma`. Keep `DATABASE_URL` pointed at PostgreSQL and
+pass `--schema prisma/postgresql/schema.prisma` for Prisma commands in this
+section. The default `prisma/schema.prisma` path remains SQLite-only; use it only
+for the SQLite sections above.
 
 Prefer managed point-in-time recovery snapshots for production. Also take a
 logical dump before Prisma migrations so a rollback artifact is tied to the
@@ -143,7 +140,7 @@ pg_restore \
   './backups/readwise-YYYYMMDD-HHMMSS.dump'
 
 export DATABASE_URL='postgresql://<staging-user>:<password>@<host>:5432/readwise_restore_drill_YYYYMMDD?schema=public'
-npx prisma migrate status --schema prisma/schema.prisma
+npx prisma migrate status --schema prisma/postgresql/schema.prisma
 psql "$DATABASE_URL" <<'SQL'
 SELECT COUNT(*) AS users FROM "User";
 SELECT COUNT(*) AS articles FROM "Article";
@@ -195,16 +192,14 @@ reaches production.
      curl --fail 'https://<staging-host>/api/ready'
      npm run worker -- --once
      ```
-   - **PostgreSQL target staging:** use this only after the deployed Prisma
-     schema provider is `postgresql`, or when an equivalent PostgreSQL schema is
-     supplied with `--schema`.
+   - **PostgreSQL target staging:** use this when staging runs PostgreSQL.
      ```bash
      pg_dump "$STAGING_DATABASE_URL" \
        --format=custom \
        --no-owner \
        --no-acl \
        --file './backups/staging-pre-migration-YYYYMMDD.dump'
-     DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma
+     DATABASE_URL="$STAGING_DATABASE_URL" npx prisma migrate deploy --schema prisma/postgresql/schema.prisma
      psql "$STAGING_DATABASE_URL" -c 'SELECT COUNT(*) AS users FROM "User";'
      curl --fail 'https://<staging-host>/api/ready'
      npm run worker -- --once
@@ -213,15 +208,14 @@ reaches production.
    - Announce maintenance risk and pause scheduled workers if the migration may
      rewrite data or hold locks.
    - Take a pre-migration backup.
-   - Deploy code and run `DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate deploy --schema prisma/schema.prisma`
-     only after the deployed Prisma schema provider is `postgresql`.
+   - Deploy code and run `DATABASE_URL="$PRODUCTION_DATABASE_URL" npx prisma migrate deploy --schema prisma/postgresql/schema.prisma`.
    - Start the web app, then workers.
    - Verify `/api/ready`, logs, admin overview, article listings, reader pages,
      sign-in, and worker completion.
 
-After the PostgreSQL Prisma migration, ADR-0005's planned persistent job table
-and PostgreSQL row locking make migration order important: deploy schema first,
-then code that writes new job states, then enable multiple workers.
+The persistent `Job` table and PostgreSQL row locking make migration order
+important: deploy schema first, then code that writes new job states, then
+enable multiple workers.
 
 ## Rollback strategies
 
@@ -236,8 +230,8 @@ down migrations automatically.
   database, run verification, and only then retire the failed database.
 - **Worker-related data issue:** stop workers first. Because current processing is
   idempotent and cache-first, retry with `npm run worker -- --once` after the
-  schema/data fix. Preserve failed rows for investigation when ADR-0005 job
-  tables are introduced.
+  schema/data fix. Preserve failed or dead-lettered `Job` rows for investigation
+  until retention or manual archive is intentional.
 
 Rollback verification mirrors restore verification: migration status clean,
 readiness green, login works, critical pages load, counts are plausible, and

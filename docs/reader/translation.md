@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents article and sentence translation caches, AI prompt versions, chunking, access checks, and privacy boundaries. Captures current cache keys, full-article/sentence translation flows, fallbacks, route behavior, and metadata constraints."
 ---
 
@@ -18,7 +18,7 @@ gracefully when AI is unavailable.
 | Full-article translation | `src/lib/translation.ts` | Article-level cache, chunked generation, language labels. |
 | Sentence translation | `src/lib/sentence-translation.ts` | Selection-level cache by normalized text hash. |
 | Supported languages | `src/lib/supported-languages.ts` | Language codes and display labels. |
-| AI lifecycle | `src/lib/ai-cache.ts` | Cache-first generation and no-cache fallback contract. |
+| AI lifecycle | `src/lib/ai/cache.ts` | Cache-first generation and no-cache fallback contract. |
 | Prompts | `src/lib/ai/prompts/translation.ts`, `src/lib/ai/prompts/sentence-translation.ts` | Prompt templates and versions. |
 | Routes | `src/app/api/reader/[id]/translate/route.ts`, `src/app/api/reader/[id]/translate-sentence/route.ts` | Auth, validation, request context, responses. |
 

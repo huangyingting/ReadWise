@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents source governance, rights metadata, review, takedown, and provider-health boundaries. Captures current policy workflow, source controls, moderation actions, and privacy-safe metadata handling."
 ---
 
@@ -64,8 +64,12 @@ persisted counters and recomputes `healthStatus`:
 
 A run counts as a failure when it records an explicit error, or when it
 discovered URLs but saved zero articles. A zero-discovery run increments only the
-zero-discovery streak. Every recorded crawl also emits ingestion metrics. See
-[`admin-operations.md`](../operations/admin-operations.md) for the operator view.
+zero-discovery streak. Every recorded crawl also emits ingestion metrics and a
+bounded `CrawlRun` history row with source/mode/duration/count/error summaries.
+`CrawlRun` metadata is privacy-safe operational data only: it must not include
+URLs, article text, prompts, selected text, definitions, translations, or
+user-private content. See [`admin-operations.md`](../operations/admin-operations.md)
+for the operator view.
 
 ### robots.txt & crawl restrictions
 

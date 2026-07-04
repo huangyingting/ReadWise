@@ -208,7 +208,14 @@ crash startup.
 | Security events | `SECURITY_EVENT_ALERT_THRESHOLD`, `SECURITY_EVENT_WINDOW_MS`, `SECURITY_EVENT_BUFFER_SIZE` |
 | Product analytics | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
 
+Generate Web Push keys with `npx web-push generate-vapid-keys`; there is no
+package script wrapper for this command.
+
 ## Scripts
+
+The tables below list the supported npm scripts. Other files under `scripts/`
+are advanced/internal entry points; run them through `npm run node-ts --` only
+when a runbook or maintainer explicitly calls for them.
 
 ### Development and quality
 
@@ -282,9 +289,9 @@ src/
 │   ├── auth.ts session.ts      # NextAuth config and server page guards
 │   ├── prisma.ts               # Prisma singleton
 │   ├── articles.ts tags.ts     # Article/tag queries and cached listings
-│   ├── ai.ts ai-ledger.ts      # Azure OpenAI wrapper and AI usage ledger
-│   ├── processor.ts worker.ts  # Enrichment pipeline and workers
-│   ├── jobs.ts                 # Durable DB job queue
+│   ├── ai/                     # Azure OpenAI facade, budgets, cache, ledger, usage summaries
+│   ├── processing/ worker/     # Enrichment pipeline, processing state, and worker loop
+│   ├── jobs/                   # Durable DB job queue
 │   ├── scraper/                # Provider registry, extraction, RSS/WP/GraphQL helpers
 │   ├── translation.ts vocabulary.ts quiz.ts difficulty.ts grammar.ts tutor.ts speech.ts
 │   ├── bookmarks.ts highlights.ts offline-* srs.ts mastery.ts

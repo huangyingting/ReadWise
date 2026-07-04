@@ -64,3 +64,19 @@ export async function countJobsByType(): Promise<Record<string, number>> {
   const groups = await prisma.job.groupBy({ by: ["type"], _count: { _all: true } });
   return groupCounts(groups, "type");
 }
+
+export type JobQueueDepthCount = {
+  type: JobType;
+  status: JobStatus;
+  count: number;
+};
+
+/** Returns current job counts grouped by low-cardinality type/status labels. */
+export async function countJobsByTypeAndStatus(): Promise<JobQueueDepthCount[]> {
+  const groups = await prisma.job.groupBy({ by: ["type", "status"], _count: { _all: true } });
+  return groups.map((group) => ({
+    type: group.type,
+    status: group.status,
+    count: group._count._all,
+  }));
+}

@@ -4,7 +4,7 @@
  * Re-exports everything that callers and tests expect from this package.
  * Internal modules are split by concern:
  *
- *   registry      — types, state, counter/histogram/cache primitives, snapshot
+ *   registry      — types, state, counter/gauge/histogram/cache primitives, snapshot
  *   route-groups  — low-cardinality API path normalisation
  *   exporter      — Prometheus text-format serialisation
  *   recorders/    — per-domain record helpers (api, worker, ai, cache,
@@ -14,7 +14,7 @@
  * directly when they depend on a single domain.
  */
 
-export type { MetricLabelValue, CounterPoint, HistogramPoint, MetricsSnapshot } from "@/lib/metrics/registry";
+export type { MetricLabelValue, CounterPoint, GaugePoint, HistogramPoint, MetricsSnapshot } from "@/lib/metrics/registry";
 export { getMetricsSnapshot, resetMetrics } from "@/lib/metrics/registry";
 
 export { routeGroupFromPath } from "@/lib/metrics/route-groups";
@@ -32,4 +32,4 @@ export {
 } from "@/lib/metrics/recorders/content";
 export { recordErrorCaptured, recordSecurityEventMetric } from "@/lib/metrics/recorders/security";
 export type { JobQueueEvent } from "@/lib/metrics/recorders/jobs";
-export { recordJobQueueEvent, recordJobLockAge } from "@/lib/metrics/recorders/jobs";
+export { recordJobQueueEvent, recordJobLockAge, recordJobQueueDepth } from "@/lib/metrics/recorders/jobs";

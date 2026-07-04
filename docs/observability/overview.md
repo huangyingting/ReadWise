@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents tracing, logging, error aggregation, metrics, SLOs, and investigation workflow boundaries. Captures current instrumentation, request IDs, provider fallbacks, alerting seams, dashboards, and triage guidance."
 ---
 
@@ -94,8 +94,8 @@ Spans are created around the major flows:
 
 - **API requests** — `src/lib/api-handler.ts` wraps every handler in a
   `"<METHOD> <routeGroup>"` span and records unhandled errors on it.
-- **AI provider calls** — `src/lib/ai.ts` adds a child `ai.chat_completion`
-  span around the Azure OpenAI request.
+- **AI provider calls** — `src/lib/ai/facade.ts` adds a child
+  `ai.chat_completion` span around the Azure OpenAI request.
 - **Worker jobs** — `src/lib/worker/` wraps article processing
   (`worker.process_article`) and queue jobs (`worker.job`).
 - **Scraper fetches** — `src/lib/scraper/extract.ts` wraps the provider fetch

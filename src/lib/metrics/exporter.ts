@@ -3,8 +3,9 @@
  *
  * Serializes the current in-process metrics snapshot into the Prometheus
  * exposition format (text/plain; version=0.0.4). The output is byte-for-byte
- * stable for a given snapshot: counters before histograms, both sorted by name
- * then label key-value string, HELP/TYPE headers emitted once per metric name.
+ * stable for a given snapshot: counters, gauges, then histograms, each sorted
+ * by name then label key-value string, HELP/TYPE headers emitted once per metric
+ * name.
  */
 
 import { getMetricsSnapshot } from "@/lib/metrics/registry";
@@ -14,7 +15,7 @@ export function escapePrometheusLabelValue(value: string): string {
   return value.replace(/\\/g, "\\\\").replace(/\n/g, "\\n").replace(/"/g, '\\"');
 }
 
-type MetricType = "counter" | "histogram";
+type MetricType = "counter" | "gauge" | "histogram";
 
 function renderLabels(labels: Record<string, string>): string {
   const keys = Object.keys(labels).sort();
@@ -53,6 +54,11 @@ export function exportMetricsPrometheus(): string {
   for (const counter of snapshot.counters) {
     emitMetricHeaderOnce(lines, emitted, counter.name, counter.help, "counter");
     lines.push(`${counter.name}${renderLabels(counter.labels)} ${counter.value}`);
+  }
+
+  for (const gauge of snapshot.gauges) {
+    emitMetricHeaderOnce(lines, emitted, gauge.name, gauge.help, "gauge");
+    lines.push(`${gauge.name}${renderLabels(gauge.labels)} ${gauge.value}`);
   }
 
   for (const histogram of snapshot.histograms) {

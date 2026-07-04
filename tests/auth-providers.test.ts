@@ -22,6 +22,12 @@ const GOOGLE_CREDENTIALS = {
   GOOGLE_CLIENT_SECRET: "test-google-client-secret",
 } as const;
 
+const AZURE_AD_CREDENTIALS = {
+  AZURE_AD_CLIENT_ID: "test-azure-client-id",
+  AZURE_AD_CLIENT_SECRET: "test-azure-client-secret",
+  AZURE_AD_TENANT_ID: "test-azure-tenant-id",
+} as const;
+
 function clearProviderEnv(): void {
   delete process.env.GOOGLE_CLIENT_ID;
   delete process.env.GOOGLE_CLIENT_SECRET;
@@ -31,13 +37,22 @@ function clearProviderEnv(): void {
 }
 
 async function withGoogleOnly<T>(callback: () => Promise<T>): Promise<T> {
+  clearProviderEnv();
   Object.assign(process.env, GOOGLE_CREDENTIALS);
-  delete process.env.AZURE_AD_CLIENT_ID;
   try {
     return await callback();
   } finally {
-    delete process.env.GOOGLE_CLIENT_ID;
-    delete process.env.GOOGLE_CLIENT_SECRET;
+    clearProviderEnv();
+  }
+}
+
+async function withAzureAdOnly<T>(callback: () => Promise<T>): Promise<T> {
+  clearProviderEnv();
+  Object.assign(process.env, AZURE_AD_CREDENTIALS);
+  try {
+    return await callback();
+  } finally {
+    clearProviderEnv();
   }
 }
 
@@ -69,6 +84,17 @@ test("buildProviders returns non-empty array when Google credentials are set", a
       providers.length >= 1,
       `Expected at least 1 provider but got ${providers.length} — GoogleProvider was likely not called as a function`,
     );
+  });
+});
+
+test("buildProviders includes Azure AD when Azure credentials are set", async () => {
+  await withAzureAdOnly(async () => {
+    const { buildProviders } = await import("@/lib/auth-providers");
+    const providers = buildProviders();
+
+    assert.ok(Array.isArray(providers), "providers must be an array");
+    assert.equal(providers.length, 1);
+    assert.equal(providers[0].id, "azure-ad");
   });
 });
 
