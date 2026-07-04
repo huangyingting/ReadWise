@@ -268,6 +268,13 @@ export async function recordAuditFromRequest(
   await recordAuditLog(auditInputFromRequest(input), client);
 }
 
+export async function tryRecordAuditFromRequest(
+  input: AuditRequestInput,
+  client: AuditClient = prisma,
+): Promise<void> {
+  await tryRecordAuditLog(auditInputFromRequest(input), client);
+}
+
 export async function listAuditLogs(
   opts: ListAuditLogsOptions = {},
   client: AuditClient = prisma,

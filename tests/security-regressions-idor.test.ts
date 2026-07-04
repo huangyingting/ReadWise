@@ -332,7 +332,7 @@ describe("AI route IDOR protection — gates on article visibility before AI wor
 // ---------------------------------------------------------------------------
 
 describe("pronunciation attempt IDOR protection", () => {
-  test("pronunciation attempts reject non-viewable article ids before persisting user-owned history", async () => {
+  test("pronunciation attempts reject non-viewable article ids before quota or history writes", async () => {
     viewableArticle = null;
     const { POST } = (await import("@/app/api/pronunciation/attempt/route")) as { POST: RouteHandler };
 
@@ -351,6 +351,6 @@ describe("pronunciation attempt IDOR protection", () => {
     assert.equal(res.status, 404);
     assertSingleVisibilityCheck("foreign-private");
     assert.equal(pronunciationAttempts.length, 0);
-    assert.deepEqual(rateLimitCalls, [{ userId: "user-1", scope: "ai" }]);
+    assert.deepEqual(rateLimitCalls, []);
   });
 });

@@ -11,6 +11,7 @@
  *   claim-generic  — Serialized-transaction adapter (SQLite/test).
  *   lifecycle      — start, heartbeat, complete, fail, retry, cancel, archive.
  *   queries        — list/get/count helpers for dashboards and admin views.
+ *   metrics        — durable queue-depth metric refresh helpers.
  */
 
 export {
@@ -65,8 +66,11 @@ export {
   getJob,
   countJobsByStatus,
   countJobsByType,
+  countJobsByTypeAndStatus,
 } from "./queries";
-export type { ListJobsFilter } from "./queries";
+export type { ListJobsFilter, JobQueueDepthCount } from "./queries";
+
+export { refreshJobQueueDepthMetrics } from "./metrics";
 
 export {
   pruneTerminalJobs,
