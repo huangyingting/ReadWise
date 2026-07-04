@@ -2,17 +2,18 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Inbox, Sparkles } from "lucide-react";
-import { useCallback, useState } from "react";
+import { Inbox, Search, Sparkles, X } from "lucide-react";
+import { useCallback, useState, useTransition } from "react";
 import type { ListingArticle } from "@/lib/article-library";
 import type { ProgressSummary } from "@/lib/engagement";
 import { CATEGORIES } from "@/lib/categories";
 import { ENGLISH_LEVELS } from "@/lib/option-registries";
-import { Select } from "@/components/ui/Select";
+import { Button, Field, Input, Select } from "@/components/ui";
 import { cn, focusRing } from "@/lib/cn";
 import ArticleListingGrid from "@/components/ArticleListingGrid";
 import { EmptyState } from "@/components/ui";
 import { useLoadMoreList } from "@/hooks/useLoadMoreList";
+import { normalizeBrowseQuery } from "@/lib/browse-query";
 
 const PAGE_SIZE = 6;
 
@@ -32,6 +33,8 @@ type CategoryBrowserProps = {
   initialSavedIds?: string[];
   /** Active CEFR level filter from the URL (e.g. "B1") or null. */
   initialLevel?: string | null;
+  /** Active in-context search query from the URL. */
+  initialQuery?: string | null;
 };
 
 type FeedResponse = {
@@ -55,30 +58,48 @@ function appendLevelParam(params: URLSearchParams, level: string | null) {
   }
 }
 
-function browseHrefFor(view: BrowseView, level: string | null): string {
+function appendSearchParam(params: URLSearchParams, query: string | null) {
+  const normalized = normalizeBrowseQuery(query);
+  if (normalized) {
+    params.set("q", normalized);
+  }
+}
+
+function browseHrefFor(
+  view: BrowseView,
+  level: string | null,
+  query: string | null,
+): string {
   const params = new URLSearchParams();
   appendViewParam(params, view);
   appendLevelParam(params, level);
+  appendSearchParam(params, query);
   const qs = params.toString();
   return `/browse${qs ? `?${qs}` : ""}`;
 }
 
-function buildTabs(level: string | null): Tab[] {
+function buildTabs(level: string | null, query: string | null): Tab[] {
   return [
-    { key: "all", label: "All", href: browseHrefFor("all", level) },
+    { key: "all", label: "All", href: browseHrefFor("all", level, query) },
     ...CATEGORIES.map((c) => ({
       key: c.slug,
       label: c.label,
-      href: browseHrefFor(c.slug, level),
+      href: browseHrefFor(c.slug, level, query),
     })),
-    { key: "picks", label: "Picks", href: browseHrefFor("picks", level) },
+    { key: "picks", label: "Picks", href: browseHrefFor("picks", level, query) },
   ];
 }
 
-function queryFor(view: BrowseView, offset: number, level: string | null): string {
+function queryFor(
+  view: BrowseView,
+  offset: number,
+  level: string | null,
+  query: string | null,
+): string {
   const params = new URLSearchParams({ offset: String(offset), limit: String(PAGE_SIZE) });
   appendViewParam(params, view);
   appendLevelParam(params, level);
+  appendSearchParam(params, query);
   return params.toString();
 }
 
@@ -100,22 +121,26 @@ export default function CategoryBrowser({
   heading,
   initialSavedIds,
   initialLevel,
+  initialQuery,
 }: CategoryBrowserProps) {
   const router = useRouter();
   const [savedIds] = useState<Set<string>>(() => new Set(initialSavedIds ?? []));
+  const [searchDraft, setSearchDraft] = useState(initialQuery ?? "");
+  const [isPending, startTransition] = useTransition();
 
   const level = initialLevel ?? null;
-  const tabs = buildTabs(level);
+  const query = initialQuery ?? null;
+  const tabs = buildTabs(level, query);
 
   const fetchPage = useCallback(
     async (nextOffset: number): Promise<FeedResponse> => {
       const res = await fetch(
-        `/api/articles?${queryFor(activeView, nextOffset, level)}`,
+        `/api/articles?${queryFor(activeView, nextOffset, level, query)}`,
       );
       if (!res.ok) throw new Error("fetch failed");
       return (await res.json()) as FeedResponse;
     },
-    [activeView, level],
+    [activeView, level, query],
   );
 
   const { articles, progress, hasMore, loading, loadError, loadMore } =
@@ -129,10 +154,35 @@ export default function CategoryBrowser({
 
   function handleLevelChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const newLevel = e.target.value || null;
-    router.push(browseHrefFor(activeView, newLevel));
+    startTransition(() => {
+      router.push(browseHrefFor(activeView, newLevel, query));
+    });
+  }
+
+  function handleSearchSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const nextQuery = normalizeBrowseQuery(searchDraft);
+    startTransition(() => {
+      router.push(browseHrefFor(activeView, level, nextQuery));
+    });
+  }
+
+  function handleSearchClear() {
+    setSearchDraft("");
+    startTransition(() => {
+      router.push(browseHrefFor(activeView, level, null));
+    });
   }
 
   const emptyState =
+    query ? (
+      <EmptyState
+        icon={Search}
+        title="No matching articles"
+        description={`No articles match “${query}” in this Browse context.`}
+        action={{ label: "Clear search", href: browseHrefFor(activeView, level, null) }}
+      />
+    ) :
     activeView === "picks" ? (
       <EmptyState
         icon={Sparkles}
@@ -179,33 +229,74 @@ export default function CategoryBrowser({
               {tab.label}
             </Link>
           ))}
-          {/* Search slot reserved for M9 */}
         </nav>
       </div>
 
-      {/* Level filter row */}
-      <div className="flex items-center gap-[var(--space-2)] mb-[var(--space-5)]">
-        <label
-          htmlFor="browse-level-filter"
-          className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
+      {/* Search + level filter row */}
+      <div className="flex flex-col gap-[var(--space-3)] mb-[var(--space-5)] md:flex-row md:items-end">
+        <form
+          className="flex-1"
+          role="search"
+          aria-label="Search within Browse"
+          onSubmit={handleSearchSubmit}
         >
-          Level
-        </label>
-        <div className="w-36">
-          <Select
-            id="browse-level-filter"
-            value={level ?? ""}
-            onChange={handleLevelChange}
-            selectSize="sm"
-            aria-label="Filter articles by CEFR level"
+          <div className="flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-end">
+            <Field label="Search Browse" className="flex-1 gap-[var(--space-1)]">
+              <Input
+                value={searchDraft}
+                inputSize="sm"
+                type="search"
+                placeholder="Search articles in this context…"
+                onChange={(e) => setSearchDraft(e.target.value)}
+              />
+            </Field>
+            <div className="flex gap-[var(--space-2)]">
+              <Button
+                type="submit"
+                size="sm"
+                loading={isPending}
+                leadingIcon={<Search size={14} aria-hidden="true" />}
+              >
+                Search
+              </Button>
+              {query ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleSearchClear}
+                  leadingIcon={<X size={14} aria-hidden="true" />}
+                >
+                  Clear
+                </Button>
+              ) : null}
+            </div>
+          </div>
+        </form>
+
+        <div className="flex items-center gap-[var(--space-2)]">
+          <label
+            htmlFor="browse-level-filter"
+            className="text-text-muted text-[length:var(--text-sm)] whitespace-nowrap"
           >
-            <option value="">All levels</option>
-            {ENGLISH_LEVELS.map((lvl) => (
-              <option key={lvl} value={lvl}>
-                {lvl} and below
-              </option>
-            ))}
-          </Select>
+            Level
+          </label>
+          <div className="w-36">
+            <Select
+              id="browse-level-filter"
+              value={level ?? ""}
+              onChange={handleLevelChange}
+              selectSize="sm"
+              aria-label="Filter articles by CEFR level"
+            >
+              <option value="">All levels</option>
+              {ENGLISH_LEVELS.map((lvl) => (
+                <option key={lvl} value={lvl}>
+                  {lvl} and below
+                </option>
+              ))}
+            </Select>
+          </div>
         </div>
       </div>
 

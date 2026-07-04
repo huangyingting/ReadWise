@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents mobile Reader/PWA UX baseline across service worker, manifest, offline library, and touch interactions. Captures current mobile layout, safe-area/offline/install behavior, touch/focus expectations, known gaps, and e2e coverage."
 ---
 
@@ -26,7 +26,7 @@ The offline fallback pages (`/offline.html`, `/offline-reader.html`) use `min-he
 
 ### Safe-area insets
 
-The offline-reader fallback page uses standard CSS; the Next.js app itself does not currently add explicit `env(safe-area-inset-*)` declarations. Touch target layout naturally avoids the notch region on most modern phones, but this is a known gap — see §7.
+The Reader app defines `--reader-mini-player-height` with `env(safe-area-inset-bottom, 0px)` and reserves `--reader-bottom-clearance` on `.reader-column`, so fixed bottom audio controls and the iOS/Android home-indicator area do not obscure final content. Offline fallback pages use standalone CSS with their own bottom padding.
 
 ---
 
@@ -120,7 +120,7 @@ An `aria-live="polite"` region persists in the DOM for font-size announcements r
 
 ### Mini-player non-overlap
 
-`ReaderMiniPlayer` is fixed to the bottom of the viewport. On mobile it occupies the full width. The reader body should include bottom padding equal to the mini-player height (approximately 80 px) when the player is visible, so body text is not obscured. This is a **known gap** if the padding is not applied consistently — see §7.
+`ReaderMiniPlayer` is fixed to the bottom of the viewport. On mobile it occupies the full width. The reader column reserves bottom padding equal to the mini-player height plus the safe-area inset and an additional tokenized gap, so body text, study actions, and keep-reading cards remain scrollable above the player.
 
 ---
 
@@ -128,8 +128,6 @@ An `aria-live="polite"` region persists in the DOM for font-size announcements r
 
 | Gap | Notes |
 |-----|-------|
-| `env(safe-area-inset-*)` not set in app CSS | Toolbar and mini-player may overlap the home-indicator bar on iPhone X+ models. The offline fallback pages are standalone HTML and do not inject safe-area declarations either. |
-| Mini-player bottom clearance | Reader body bottom padding is not guaranteed to match the mini-player height on all device sizes; content near the bottom of a short article may be obscured. |
 | iOS Safari private browsing | IndexedDB is available in private browsing on iOS 16.4+ but older Safari may return an error; the Offline Library shows a graceful message (`role="status"`). |
 | Push / Background-sync | `BackgroundSync` is not supported in WebKit/Safari; the mutation-queue flush falls back to a `message`-based mechanism initiated on reconnect by `ReaderTimeTracker`. |
 | Reduced motion | `prefers-reduced-motion` is not explicitly applied to the Sheet/Popover animation. CSS `transition` durations should be conditionally disabled; this is a gap relative to the accessibility baseline. |
@@ -143,6 +141,7 @@ Smoke tests for the mobile viewport are in `e2e/mobile-reader-pwa.spec.ts`. They
 
 - Reader loads and renders the article heading on a mobile viewport.
 - Reader toolbar is visible on mobile.
+- Reader mini-player clearance keeps final content and page actions above the fixed player.
 - Offline library page loads on mobile with the correct heading.
 - `/manifest.webmanifest` is reachable and contains the expected `name` and `display` fields.
 

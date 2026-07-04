@@ -15,11 +15,13 @@ import { isDifficultyLevel } from "@/lib/leveling/cefr-primitives";
 import { getBookmarkedArticleIds } from "@/lib/article-library";
 import CategoryBrowser from "@/components/CategoryBrowser";
 import { PageHeader, PageShell } from "@/components/ui";
+import { normalizeBrowseQuery } from "@/lib/browse-query";
 
 type BrowseSearchParams = {
   view?: string;
   category?: string;
   level?: string;
+  q?: string;
 };
 type EnglishLevel = (typeof ENGLISH_LEVELS)[number];
 type BrowseArticlePage = {
@@ -45,11 +47,13 @@ async function loadBrowseArticles({
   activeCategory,
   isPicks,
   urlLevel,
+  query,
   userId,
 }: {
   activeCategory: string | null;
   isPicks: boolean;
   urlLevel: EnglishLevel | null;
+  query: string | null;
   userId: string;
 }): Promise<BrowseArticlePage> {
   if (isPicks) {
@@ -63,6 +67,7 @@ async function loadBrowseArticles({
     const picks = await listScoredPicksPage(userId, {
       maxLevel,
       topics,
+      query,
       limit: BROWSE_PAGE_SIZE,
     });
     return {
@@ -74,6 +79,7 @@ async function loadBrowseArticles({
   const page = await listCategoryPage(activeCategory, {
     limit: BROWSE_PAGE_SIZE,
     maxLevel: urlLevel,
+    query,
   });
   return {
     listingArticles: page.articles.map(toListingArticle),
@@ -99,7 +105,7 @@ export default async function BrowsePage({
   searchParams: Promise<BrowseSearchParams>;
 }) {
   const session = await requireSession("/browse");
-  const { view, category, level: levelParam } = await searchParams;
+  const { view, category, level: levelParam, q } = await searchParams;
 
   const isPicks = view === "picks";
   const activeCategory = getActiveCategory(isPicks, category);
@@ -107,11 +113,13 @@ export default async function BrowsePage({
 
   // URL-level filter — validated against ENGLISH_LEVELS (same set as CEFR levels)
   const urlLevel = getUrlLevel(levelParam);
+  const query = normalizeBrowseQuery(q);
 
   const { listingArticles, hasMore } = await loadBrowseArticles({
     activeCategory,
     isPicks,
     urlLevel,
+    query,
     userId: session.user.id,
   });
 
@@ -135,7 +143,7 @@ export default async function BrowsePage({
       />
 
       <CategoryBrowser
-        key={`${activeView}:${urlLevel ?? ""}`}
+        key={`${activeView}:${urlLevel ?? ""}:${query ?? ""}`}
         activeView={activeView}
         initialArticles={listingArticles}
         initialProgress={progress}
@@ -144,6 +152,7 @@ export default async function BrowsePage({
         heading={heading}
         initialSavedIds={[...bookmarkedIds]}
         initialLevel={urlLevel}
+        initialQuery={query}
       />
     </PageShell>
   );

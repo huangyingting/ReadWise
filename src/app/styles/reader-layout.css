@@ -61,6 +61,8 @@
   background: var(--reading-bg, var(--bg));
   color: var(--reading-text, var(--text));
   min-height: 100vh;
+  --reader-mini-player-height: calc(var(--header-height) + env(safe-area-inset-bottom, 0px));
+  --reader-bottom-clearance: calc(var(--reader-mini-player-height) + var(--space-8));
 }
 
 /* ---- Reader two-column grid layout ---- */
@@ -114,8 +116,8 @@
 /* ---- Reading column ---- */
 .reader-column {
   min-width: 0;
-  /* Extra bottom padding so the fixed mini-player never overlaps last paragraph */
-  padding-bottom: var(--space-10);
+  /* Keep final paragraphs and page actions above the fixed mini-player + safe area. */
+  padding-bottom: var(--reader-bottom-clearance);
 }
 
 /* #169 — one shared measure column + one left edge. The sticky toolbar, the

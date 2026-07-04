@@ -13,6 +13,7 @@ import { getProfile } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
 import { isValidCategorySlug } from "@/lib/categories";
 import { isDifficultyLevel, type EnglishLevel } from "@/lib/leveling/cefr-primitives";
+import { normalizeBrowseQuery } from "@/lib/browse-query";
 
 const MAX_LIMIT = 24;
 
@@ -20,6 +21,7 @@ type ArticlesQuery = {
   view: string;
   category: string;
   level: string;
+  q: string;
   offset: number;
   limit: number;
 };
@@ -29,6 +31,7 @@ function parseQuery(params: URLSearchParams) {
     view: queryString(params, "view"),
     category: queryString(params, "category"),
     level: queryString(params, "level"),
+    q: queryString(params, "q"),
     offset: queryInt(params, "offset", { fallback: 0, min: 0 }),
     limit: queryInt(params, "limit", {
       fallback: BROWSE_PAGE_SIZE,
@@ -59,6 +62,7 @@ function parseCategoryParam(categoryParam: string): string | null {
 async function listPicksArticles(
   userId: string,
   urlLevel: EnglishLevel | null,
+  query: string | null,
   page: PageRequest,
 ): Promise<ArticleListPage> {
   const profile = await getProfile(userId);
@@ -66,6 +70,7 @@ async function listPicksArticles(
   const picks = await listScoredPicksPage(userId, {
     maxLevel: urlLevel ?? profileLevel,
     topics: parseTopics(profile?.topics),
+    query,
     offset: page.offset,
     limit: page.limit,
   });
@@ -75,6 +80,7 @@ async function listPicksArticles(
 async function listBrowseArticles(
   categoryParam: string,
   urlLevel: EnglishLevel | null,
+  query: string | null,
   pageRequest: PageRequest,
 ): Promise<ArticleListPage> {
   const category = parseCategoryParam(categoryParam);
@@ -82,6 +88,7 @@ async function listBrowseArticles(
     offset: pageRequest.offset,
     limit: pageRequest.limit,
     maxLevel: urlLevel,
+    query,
   });
   return { articles: page.articles.map(toListingArticle), hasMore: page.hasMore };
 }
@@ -91,18 +98,20 @@ async function listBrowseArticles(
  *   - `view`     : "picks" for the personalized view (overrides `category`).
  *   - `category` : a category slug; omitted/`all` lists across all categories.
  *   - `level`    : CEFR level cap (e.g. "B1") — filters articles to at/below.
+ *   - `q`        : optional in-context search query.
  *   - `offset`   : number of items to skip (incremental loading).
  *   - `limit`    : page size (default {@link BROWSE_PAGE_SIZE}).
  * Returns `{ articles, progress, hasMore, offset }`.
  */
 export const GET = createHandler({ query: parseQuery }, async ({ query, session }) => {
-  const { view, category: categoryParam, level: levelParam, offset, limit } = query;
+  const { view, category: categoryParam, level: levelParam, q, offset, limit } = query;
 
   const urlLevel = parseLevelParam(levelParam);
+  const browseQuery = normalizeBrowseQuery(q);
   const page =
     view === "picks"
-      ? await listPicksArticles(session.user.id, urlLevel, { offset, limit })
-      : await listBrowseArticles(categoryParam, urlLevel, { offset, limit });
+      ? await listPicksArticles(session.user.id, urlLevel, browseQuery, { offset, limit })
+      : await listBrowseArticles(categoryParam, urlLevel, browseQuery, { offset, limit });
 
   return NextResponse.json(
     await buildArticleListResponse(session.user.id, page.articles, {

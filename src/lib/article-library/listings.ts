@@ -9,6 +9,8 @@
 import { prisma } from "@/lib/prisma";
 import { type Article, type Prisma } from "@prisma/client";
 import { levelRank, levelsAtOrBelow } from "@/lib/leveling/cefr-primitives";
+import { normalizeBrowseQuery } from "@/lib/browse-query";
+import { articleTextWhere, buildSearchTerms } from "@/lib/search/query";
 import {
   ensureArticleDifficulties,
   type DifficultyLevel,
@@ -118,12 +120,65 @@ function normalizeOffset(offset?: number): number {
  */
 export async function listCategoryPage(
   category: string | null,
-  opts: { offset?: number; limit?: number; maxLevel?: DifficultyLevel | null } = {},
+  opts: {
+    offset?: number;
+    limit?: number;
+    maxLevel?: DifficultyLevel | null;
+    query?: string | null;
+  } = {},
 ): Promise<ArticlePage> {
   const limit = opts.limit ?? BROWSE_PAGE_SIZE;
   const offset = normalizeOffset(opts.offset);
   const maxLevel = opts.maxLevel ?? null;
+  const query = normalizeBrowseQuery(opts.query);
+  if (query) {
+    return listCategorySearchPageImpl(category, maxLevel, query, offset, limit);
+  }
   return cachedListCategoryPage(category, maxLevel, offset, limit);
+}
+
+function categorySearchWhere(
+  category: string | null,
+  maxLevel: DifficultyLevel | null,
+  terms: string[],
+): Prisma.ArticleWhereInput {
+  const filters: Prisma.ArticleWhereInput[] = [articleTextWhere(terms)];
+  if (category) {
+    filters.push({ category });
+  }
+  if (maxLevel) {
+    filters.push({ difficulty: { in: levelsAtOrBelow(maxLevel) } });
+  }
+  return publicListableArticleWhere(
+    filters.length === 1 ? filters[0] : { AND: filters },
+  );
+}
+
+async function listCategorySearchPageImpl(
+  category: string | null,
+  maxLevel: DifficultyLevel | null,
+  query: string,
+  offset: number,
+  limit: number,
+): Promise<ArticlePage> {
+  const terms = buildSearchTerms(query);
+  if (terms.length === 0) {
+    return { articles: [], hasMore: false };
+  }
+  const rows = await prisma.article.findMany({
+    where: categorySearchWhere(category, maxLevel, terms),
+    orderBy:
+      maxLevel != null
+        ? [
+            { difficultyScore: "asc" },
+            { publishedAt: "desc" },
+            { createdAt: "desc" },
+          ]
+        : [{ publishedAt: "desc" }, { createdAt: "desc" }],
+    skip: offset,
+    take: limit + 1,
+  });
+  return pageFromRows(rows, limit);
 }
 
 async function listCategoryPageImpl(
