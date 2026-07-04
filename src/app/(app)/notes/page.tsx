@@ -4,22 +4,21 @@ import { requireOnboardedSession } from "@/lib/session";
 import { listAllUserHighlights, HIGHLIGHT_COLORS } from "@/lib/annotations";
 import { Card } from "@/components/ui/Card";
 import { Input } from "@/components/ui/Input";
-import { EmptyState, PageHeader, PageShell } from "@/components/ui";
+import {
+  EmptyState,
+  HighlightColorSwatch,
+  PageHeader,
+  PageShell,
+  getHighlightColorCssVar,
+  isHighlightColor,
+} from "@/components/ui";
 import InlineNoteEditor from "@/components/InlineNoteEditor";
 import ReferrerLink from "@/components/ReferrerLink";
-import { cn } from "@/lib/cn";
+import { cn, focusRing } from "@/lib/cn";
 import { notes } from "@/lib/copy/pages";
 import { formatShortDate } from "@/lib/display-format";
 
 export const metadata = notes;
-
-// Map colour label → CSS custom-highlight colour token (graceful fallback)
-const COLOR_DOT: Record<string, string> = {
-  yellow: "var(--hl-dot-yellow)",
-  green: "var(--hl-dot-green)",
-  blue: "var(--hl-dot-blue)",
-  pink: "var(--hl-dot-pink)",
-};
 
 type Highlight = Awaited<ReturnType<typeof listAllUserHighlights>>[number];
 
@@ -75,12 +74,8 @@ function colorFilterHref(color: string, query: string) {
   return `/notes?color=${color}${query ? `&q=${encodeURIComponent(query)}` : ""}`;
 }
 
-function colorDot(color: string | null | undefined) {
-  return color ? COLOR_DOT[color] ?? "var(--border)" : "var(--border)";
-}
-
 function colorLabelColor(color: string) {
-  return COLOR_DOT[color] ?? undefined;
+  return isHighlightColor(color) ? getHighlightColorCssVar(color, "dot") : undefined;
 }
 
 export default async function NotesPage({
@@ -142,13 +137,21 @@ export default async function NotesPage({
             <Link
               key={c}
               href={colorFilterHref(c, query)}
+              aria-current={colorFilter === c ? "true" : undefined}
               aria-label={`Filter by ${c}`}
               className={cn(
-                "w-6 h-6 rounded-full border-2 transition-all",
-                colorFilter === c ? "border-[var(--text)] scale-110" : "border-border hover:border-border-strong",
+                "inline-flex rounded-[var(--radius-full)] transition-transform",
+                colorFilter === c ? "scale-110" : "hover:scale-105",
+                focusRing,
               )}
-              style={{ backgroundColor: COLOR_DOT[c] }}
-            />
+            >
+              <HighlightColorSwatch
+                color={c}
+                tone="dot"
+                selected={colorFilter === c}
+                decorative
+              />
+            </Link>
           ))}
         </div>
       </form>
@@ -193,15 +196,12 @@ export default async function NotesPage({
                 {items.map((h) => (
                   <Card key={h.id} className="p-[var(--space-4)]">
                     <div className="flex items-start gap-[var(--space-3)]">
-                      {/* Colour swatch */}
-                      <span
-                        aria-label={h.color ?? "no colour"}
-                        className="mt-1 shrink-0 rounded-sm"
-                        style={{
-                          width: 4,
-                          minHeight: 40,
-                          backgroundColor: colorDot(h.color),
-                        }}
+                      <HighlightColorSwatch
+                        color={h.color}
+                        tone="dot"
+                        size="bar"
+                        label={h.color ?? "no colour"}
+                        className="mt-1"
                       />
 
                       <div className="flex-1 min-w-0">
