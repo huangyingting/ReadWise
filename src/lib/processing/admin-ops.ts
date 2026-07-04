@@ -56,6 +56,7 @@ export type AiCostOverview = {
   topUsers: AiEntityUsage[];
   topArticles: AiEntityUsage[];
   highFallbackFeatures: AiEntityUsage[];
+  fallbackReasons: { reason: string; count: number }[];
 };
 
 function pct(numerator: number, denominator: number): number {
@@ -145,7 +146,15 @@ export async function getAiCostOverview(
   const since = new Date(now.getTime() - windowHours * 60 * 60 * 1000);
   const where = { createdAt: { gte: since, lt: now } } as const;
 
-  const [summary, latencyAgg, byFeatureFallback, byUser, byUserFallback, byArticle] =
+  const [
+    summary,
+    latencyAgg,
+    byFeatureFallback,
+    byFallbackReason,
+    byUser,
+    byUserFallback,
+    byArticle,
+  ] =
     await Promise.all([
       summarizeAiUsage({ since, until: now }, client),
       client.aiInvocation.aggregate({
@@ -156,6 +165,11 @@ export async function getAiCostOverview(
       client.aiInvocation.groupBy({
         by: ["feature"],
         where: { ...where, fallback: true },
+        _count: { _all: true },
+      }),
+      client.aiInvocation.groupBy({
+        by: ["fallbackReason"],
+        where: { ...where, fallback: true, fallbackReason: { not: null } },
         _count: { _all: true },
       }),
       client.aiInvocation.groupBy({
@@ -211,6 +225,13 @@ export async function getAiCostOverview(
     topUsers: mapUsageRows(byUser, "userId", fallbackByUser),
     topArticles: mapUsageRows(byArticle, "articleId").filter((g) => g.key !== "—"),
     highFallbackFeatures,
+    fallbackReasons: byFallbackReason
+      .map((row) => ({
+        reason: (row.fallbackReason as string | null) ?? "unknown_error",
+        count: row._count._all,
+      }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, TOP_LIMIT),
   };
 }
 
@@ -229,7 +250,12 @@ export type ProblemArticle = {
   status: string;
   failed: number;
   fallback: number;
-  steps: { step: string; status: string; lastError: string | null }[];
+  steps: {
+    step: string;
+    status: string;
+    fallbackReason: string | null;
+    lastError: string | null;
+  }[];
 };
 
 export type ContentOpsOverview = {
@@ -290,6 +316,7 @@ function groupProblemArticles(
     step: string;
     status: string;
     lastError: string | null;
+    fallbackReason: string | null;
     article: { title: string | null; status: string } | null;
   }>,
 ): ProblemArticle[] {
@@ -313,6 +340,7 @@ function groupProblemArticles(
       step: row.step,
       status: row.status,
       lastError: row.lastError ?? null,
+      fallbackReason: row.fallbackReason ?? null,
     });
   }
   return [...articleMap.values()]
@@ -342,6 +370,7 @@ export async function getContentOpsOverview(
         step: true,
         status: true,
         lastError: true,
+        fallbackReason: true,
         updatedAt: true,
         article: { select: { title: true, status: true } },
       },

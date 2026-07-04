@@ -50,6 +50,12 @@ test("getAiCostOverview ranks features by cost and flags high fallback", async (
           // 3 of translation's 6 calls fell back → 50%.
           return [{ feature: "translation", _count: { _all: 3 } }];
         }
+        if (field === "fallbackReason") {
+          return [
+            { fallbackReason: "provider_unconfigured", _count: { _all: 2 } },
+            { fallbackReason: "validation_failed", _count: { _all: 1 } },
+          ];
+        }
         if (field === "userId" && !fallback) {
           return [
             { userId: "u1", _count: { _all: 5 }, _sum: { promptTokens: 50, completionTokens: 25, totalTokens: 75, estimatedCostUsd: 0.8 } },
@@ -79,6 +85,10 @@ test("getAiCostOverview ranks features by cost and flags high fallback", async (
 
   // High-fallback feature surfaced.
   assert.equal(overview.highFallbackFeatures[0].key, "translation");
+  assert.deepEqual(overview.fallbackReasons[0], {
+    reason: "provider_unconfigured",
+    count: 2,
+  });
 
   // Latency rounded.
   assert.equal(overview.latency.avgMs, 211);
@@ -114,6 +124,7 @@ test("getContentOpsOverview rolls up step status counts + problem articles", asy
           step: "quiz",
           status: "fallback",
           lastError: null,
+          fallbackReason: "validation_failed",
           updatedAt: new Date("2026-06-19T00:00:00Z"),
           article: { title: "Article One", status: "published" },
         },
@@ -149,6 +160,7 @@ test("getContentOpsOverview rolls up step status counts + problem articles", asy
   assert.equal(ops.problemArticles[0].articleId, "a1");
   assert.equal(ops.problemArticles[0].failed, 1);
   assert.equal(ops.problemArticles[0].fallback, 1);
+  assert.equal(ops.problemArticles[0].steps[1].fallbackReason, "validation_failed");
   assert.equal(ops.problemArticles[0].title, "Article One");
 
   assert.equal(ops.jobs.total, 4);

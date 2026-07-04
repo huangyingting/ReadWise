@@ -55,6 +55,7 @@ export type StepResult = {
   step: StepName;
   status: StepStatus;
   detail?: string;
+  fallbackReason?: string;
 };
 
 export type ArticleProcessResult = {
@@ -84,7 +85,7 @@ type ArticleState = {
   hasSpeech: boolean;
 };
 
-type StepRunnerResult = { fallback: boolean; detail?: string };
+type StepRunnerResult = { fallback: boolean; detail?: string; fallbackReason?: string };
 type StepRunner = () => Promise<StepRunnerResult>;
 
 async function loadArticleState(articleId: string): Promise<ArticleState | null> {
@@ -145,10 +146,13 @@ async function runStep(
   }
   await beginStep(articleId, persistAs);
   try {
-    const { fallback, detail } = await fn();
+    const { fallback, detail, fallbackReason } = await fn();
     const status: StepStatus = fallback ? "fallback" : "generated";
-    await finishStep(articleId, persistAs, status, { modelName: aiModelName() });
-    return { step, status, detail };
+    await finishStep(articleId, persistAs, status, {
+      modelName: aiModelName(),
+      fallbackReason,
+    });
+    return { step, status, detail, fallbackReason };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     await finishStep(articleId, persistAs, "failed", { lastError: message });
@@ -189,6 +193,7 @@ function buildStepRunners(
       const res = await getOrCreateArticleTags(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
+        fallbackReason: res?.fallbackReason,
         detail: res ? `${res.tags.length} tag(s)` : undefined,
       };
     },
@@ -200,6 +205,7 @@ function buildStepRunners(
       );
       return {
         fallback: res?.fallback ?? true,
+        fallbackReason: res?.fallbackReason,
         detail: res ? `${res.items.length} word(s)` : undefined,
       };
     },
@@ -207,6 +213,7 @@ function buildStepRunners(
       const res = await getOrCreateArticleQuiz(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
+        fallbackReason: res?.fallbackReason,
         detail: res ? `${res.questions.length} question(s)` : undefined,
       };
     },
@@ -214,6 +221,7 @@ function buildStepRunners(
       const res = await getOrCreateArticleSpeech(articleId, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
+        fallbackReason: res?.fallbackReason,
         detail: res ? `${res.words.length} word timing(s)` : undefined,
       };
     },
@@ -233,6 +241,7 @@ async function runTranslationStep(
       const res = await getOrCreateTranslation(articleId, lang, SYSTEM_ARTICLE_CONTEXT);
       return {
         fallback: res?.fallback ?? true,
+        fallbackReason: res?.fallbackReason,
         detail: res ? res.languageLabel : lang,
       };
     },

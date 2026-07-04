@@ -111,6 +111,7 @@ test("falls back (no cache write) when AI is unconfigured", async () => {
   const { getOrCreateTranslation } = await import("@/lib/translation");
   const result = await getOrCreateTranslation("a1", "es");
   assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "provider_unconfigured");
   assert.equal(upsertCalls, 0);
   assert.equal(translations.has("a1|es"), false);
 });
@@ -133,6 +134,7 @@ test("falls back when AI is configured but the request fails", async () => {
   const { getOrCreateTranslation } = await import("@/lib/translation");
   const result = await getOrCreateTranslation("a1", "es");
   assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "provider_error");
   assert.equal(upsertCalls, 0);
 });
 

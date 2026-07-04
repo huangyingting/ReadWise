@@ -33,6 +33,7 @@ import { getAiProvider } from "@/lib/ai/registry";
 import { runAiRequest } from "@/lib/ai/runner";
 import type { AiErrorKind } from "@/lib/ai/output/error-classifier";
 import type { AiChatMessage, AiProviderCapabilities } from "@/lib/ai/provider";
+import { aiFallbackReasonForErrorKind } from "@/lib/ai/fallback-reasons";
 
 const log = createLogger("ai");
 
@@ -150,7 +151,10 @@ async function enforceAiBudget(
     limit: decision.limit,
     used: decision.used,
   });
-  await logLedger("fallback", { errorMessage: `quota_exceeded:${decision.scope}` });
+  await logLedger("fallback", {
+    fallbackReason: "quota_exceeded",
+    errorMessage: `quota_exceeded:${decision.scope}`,
+  });
   return false;
 }
 
@@ -174,7 +178,7 @@ export async function chatCompleteWithMeta(
 
   if (!isAiFeatureEnabled() || !provider.isConfigured()) {
     recordAiCall({ feature, outcome: "unconfigured" });
-    await logLedger("unconfigured");
+    await logLedger("unconfigured", { fallbackReason: "provider_unconfigured" });
     return null;
   }
 
@@ -263,6 +267,7 @@ export async function chatCompleteWithMeta(
           finishReason,
         });
         await logLedger("empty", {
+          fallbackReason: result.outcome === "content_filter" ? "content_filter" : "empty_response",
           latencyMs: durationMs,
           ...usageLedgerFields(usage),
         });
@@ -273,7 +278,7 @@ export async function chatCompleteWithMeta(
         const { durationMs } = result;
         recordAiCall({ feature, outcome: "aborted", durationMs });
         log.warn("ai.aborted", { feature, model: modelName, durationMs });
-        await logLedger("aborted", { latencyMs: durationMs });
+        await logLedger("aborted", { latencyMs: durationMs, fallbackReason: "aborted" });
         return null;
       }
 
@@ -294,6 +299,7 @@ export async function chatCompleteWithMeta(
       });
       await logLedger("error", {
         latencyMs: durationMs,
+        fallbackReason: aiFallbackReasonForErrorKind(errorKind),
         errorMessage,
       });
       setSpanAttributes(span, {

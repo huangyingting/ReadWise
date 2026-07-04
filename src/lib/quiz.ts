@@ -6,6 +6,7 @@ import { renderPrompt, promptModelParams } from "@/lib/ai/prompts";
 import { validateQuiz } from "@/lib/ai/output/validators";
 import type { ArticleAccessContext } from "@/lib/article-library";
 import type { Prisma } from "@prisma/client";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 
 export type QuizQuestion = {
   question: string;
@@ -17,6 +18,7 @@ export type ArticleQuizResult = {
   articleId: string;
   questions: QuizQuestion[];
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
 };
 
 type QuizArticle = { title: string; content: string };
@@ -103,7 +105,12 @@ export async function getOrCreateArticleQuiz(
       isEmpty: (questions) => questions.length === 0,
       persist: persistQuizQuestions,
       toResult: (questions) => ({ articleId, questions, fallback: false }),
-      fallback: () => ({ articleId, questions: [], fallback: true }),
+      fallback: (_article, ctx) => ({
+        articleId,
+        questions: [],
+        fallback: true,
+        ...(ctx?.reason ? { fallbackReason: ctx.reason } : {}),
+      }),
     },
     context,
   );

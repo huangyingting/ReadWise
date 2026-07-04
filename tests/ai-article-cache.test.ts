@@ -10,6 +10,8 @@ let defaultArticle: { title: string; content: string } | null = {
 };
 let chatCalls: Array<{ messages: unknown[]; options: Record<string, unknown> }> = [];
 let chatResult: string | null = "model-output";
+let cacheHitRecords: Record<string, unknown>[] = [];
+let fallbackRecords: Record<string, unknown>[] = [];
 
 async function loadAiCache() {
   return import("@/lib/ai/cache");
@@ -19,6 +21,7 @@ before(() => {
   mock.module("@/lib/ai", {
     namedExports: {
       isAiConfigured: () => configured,
+      aiModelName: () => (configured ? "gpt-test" : null),
       chatComplete: async (messages: unknown[], options: Record<string, unknown>) => {
         chatCalls.push({ messages, options });
         return chatResult;
@@ -28,6 +31,16 @@ before(() => {
   mock.module("@/lib/ai/chunking", {
     namedExports: {
       promptVersionFor: (feature: string) => `${feature}-prompt`,
+    },
+  });
+  mock.module("@/lib/ai/ledger", {
+    namedExports: {
+      recordAiCacheHit: async (input: Record<string, unknown>) => {
+        cacheHitRecords.push(input);
+      },
+      recordAiFallback: async (input: Record<string, unknown>) => {
+        fallbackRecords.push(input);
+      },
     },
   });
   mock.module("@/lib/article-library", {
@@ -44,6 +57,8 @@ beforeEach(() => {
   defaultArticle = { title: "Article", content: "Body" };
   chatCalls = [];
   chatResult = "model-output";
+  cacheHitRecords = [];
+  fallbackRecords = [];
 });
 
 function makeArticleSpec(overrides: Record<string, unknown> = {}) {
@@ -85,6 +100,12 @@ test("getOrCreateArticleAi returns cached rows before article loading or model c
 
   assert.equal(await getOrCreateArticleAi("article-1", spec as never), "cached:cached-row");
   assert.equal(chatCalls.length, 0);
+  assert.deepEqual(cacheHitRecords[0], {
+    feature: "summary",
+    model: "gpt-test",
+    articleId: "article-1",
+    promptVersion: "summary-prompt",
+  });
 });
 
 test("getOrCreateArticleAi falls back without caching when AI is unconfigured", async () => {
@@ -94,6 +115,7 @@ test("getOrCreateArticleAi falls back without caching when AI is unconfigured", 
 
   assert.equal(await getOrCreateArticleAi("article-1", spec as never), "fallback:Article");
   assert.deepEqual(persisted, []);
+  assert.equal(fallbackRecords[0].reason, "provider_unconfigured");
 });
 
 test("getOrCreateArticleAi builds messages, parses, persists, and forwards token metadata", async () => {
@@ -125,6 +147,7 @@ test("getOrCreateArticleAi supports custom generation and graceful empty/misconf
 
   const empty = makeArticleSpec({ parse: () => "" });
   assert.equal(await getOrCreateArticleAi("article-1", empty.spec as never), "fallback:Article");
+  assert.equal(fallbackRecords.at(-1)?.reason, "validation_failed");
 
   const misconfigured = makeArticleSpec({ buildMessages: undefined, parse: undefined });
   assert.equal(await getOrCreateArticleAi("article-1", misconfigured.spec as never), "fallback:Article");
@@ -132,6 +155,7 @@ test("getOrCreateArticleAi supports custom generation and graceful empty/misconf
 
 test("getOrCreateSelectionAi forwards article and max-token options", async () => {
   const { getOrCreateSelectionAi } = await loadAiCache();
+  cacheHitRecords = [];
   const result = await getOrCreateSelectionAi({
     feature: "selection",
     articleId: "article-9",
@@ -145,4 +169,25 @@ test("getOrCreateSelectionAi forwards article and max-token options", async () =
   assert.equal(result, "stored:model-output");
   assert.equal(chatCalls.at(-1)?.options.articleId, "article-9");
   assert.equal(chatCalls.at(-1)?.options.maxOutputTokens, 44);
+});
+
+test("getOrCreateSelectionAi records metadata-only cache hits", async () => {
+  const { getOrCreateSelectionAi } = await loadAiCache();
+  const result = await getOrCreateSelectionAi({
+    feature: "selection",
+    articleId: "article-9",
+    readCache: async () => "cached-selection",
+    fallback: () => "fallback",
+    generate: async () => "unused",
+    persist: async (text) => text,
+  });
+
+  assert.equal(result, "cached-selection");
+  assert.equal(chatCalls.length, 0);
+  assert.deepEqual(cacheHitRecords[0], {
+    feature: "selection",
+    model: "gpt-test",
+    articleId: "article-9",
+    promptVersion: "selection-prompt",
+  });
 });

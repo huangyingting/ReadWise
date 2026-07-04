@@ -23,6 +23,10 @@ import { createLogger, getRequestContext, getRequestId } from "@/lib/observabili
 import { aiCostConfig, aiLedgerEnabled, type AiCostRate } from "@/lib/runtime-config/ai";
 import { truncateStr } from "@/lib/primitives/pure";
 import { redactSensitiveValue } from "@/lib/security/redaction";
+import {
+  normalizeAiFallbackReason,
+  type AiFallbackReason,
+} from "@/lib/ai/fallback-reasons";
 
 const logger = createLogger("ai-ledger");
 
@@ -46,6 +50,8 @@ export type AiInvocationInput = {
   status: AiInvocationStatus | string;
   /** Whether the feature degraded to a non-AI fallback. Defaults to status !== "success". */
   fallback?: boolean;
+  /** Low-cardinality, content-free reason when fallback=true. */
+  fallbackReason?: AiFallbackReason | string | null;
   /** Whether the result was served from a cache instead of a provider call. */
   cacheHit?: boolean;
   latencyMs?: number | null;
@@ -152,6 +158,7 @@ function buildLedgerData(input: AiInvocationInput) {
     requestId: input.requestId ?? getRequestId() ?? null,
     status: input.status,
     fallback: input.fallback ?? input.status !== SUCCESS_STATUS,
+    fallbackReason: normalizeAiFallbackReason(input.fallbackReason),
     cacheHit: input.cacheHit ?? false,
     latencyMs: normInt(input.latencyMs),
     promptTokens: tokens.promptTokens,
@@ -199,6 +206,30 @@ export async function recordAiCacheHit(
 ): Promise<void> {
   await recordAiInvocation(
     { ...input, status: input.status ?? SUCCESS_STATUS, cacheHit: true, fallback: false },
+    client,
+  );
+}
+
+/**
+ * Convenience wrapper for recording a metadata-only fallback decision that did
+ * not necessarily make a provider call (for example cache lifecycle validation).
+ */
+export async function recordAiFallback(
+  input: Omit<AiInvocationInput, "status" | "fallback" | "cacheHit"> & {
+    reason: AiFallbackReason;
+    status?: AiInvocationStatus | string;
+  },
+  client: LedgerClient = prisma,
+): Promise<void> {
+  const { reason, status, ...rest } = input;
+  await recordAiInvocation(
+    {
+      ...rest,
+      status: status ?? "fallback",
+      fallback: true,
+      fallbackReason: reason,
+      cacheHit: false,
+    },
     client,
   );
 }
