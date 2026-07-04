@@ -26,6 +26,7 @@ import {
   type Article,
   type Prisma,
 } from "@prisma/client";
+import { orgScopedArticleWhere } from "./tenant-integrity";
 
 export type ArticleAccessContext = {
   userId?: string | null;
@@ -44,15 +45,25 @@ const PUBLIC_LIBRARY_SOURCE_URL_CHUNK_SIZE = 500;
 
 export const SYSTEM_ARTICLE_CONTEXT: ArticleAccessContext = { role: "System" };
 
-export function articleAccessContext(user?: ArticleAccessUser | null): ArticleAccessContext {
-  return { userId: user?.id ?? null, role: user?.role ?? null };
+export function articleAccessContext(
+  user?: ArticleAccessUser | null,
+  orgId?: string | null,
+): ArticleAccessContext {
+  return {
+    userId: user?.id ?? null,
+    role: user?.role ?? null,
+    ...(orgId ? { orgId } : {}),
+  };
 }
 
 export function isArticleOperator(context?: ArticleAccessContext | null): boolean {
   return hasCapability(context, CAPABILITIES.adminAccess);
 }
 
-type ArticleVisibilityShape = Pick<Article, "status" | "visibility" | "ownerId">;
+type ArticleVisibilityShape = Pick<
+  Article,
+  "status" | "visibility" | "ownerId" | "organizationId"
+>;
 
 function isOwnedPrivateArticle(
   article: Pick<Article, "visibility" | "ownerId">,
@@ -70,6 +81,7 @@ function publicListableAccessWhere(): Prisma.ArticleWhereInput {
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
     ownerId: null,
+    organizationId: null,
   };
 }
 
@@ -81,7 +93,20 @@ export function isPublicListableArticle(article: ArticleVisibilityShape): boolea
   return (
     article.visibility === ArticleVisibility.PUBLIC &&
     article.status === ArticleStatus.PUBLISHED &&
-    article.ownerId === null
+    article.ownerId === null &&
+    article.organizationId === null
+  );
+}
+
+function canReadOrgArticle(
+  article: ArticleVisibilityShape,
+  orgId?: string | null,
+): boolean {
+  return Boolean(
+    orgId &&
+      article.visibility === ArticleVisibility.ORG &&
+      article.status === ArticleStatus.PUBLISHED &&
+      article.organizationId === orgId,
   );
 }
 
@@ -91,6 +116,9 @@ export function canReadArticle(
 ): boolean {
   if (isArticleOperator(context)) return true;
   if (isOwnedPrivateArticle(article, context?.userId)) {
+    return true;
+  }
+  if (canReadOrgArticle(article, context?.orgId ?? context?.tenantId)) {
     return true;
   }
   return isPublicListableArticle(article);
@@ -143,7 +171,12 @@ export function ownedArticleWhere(
 export function publicLibraryArticleWhere(
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
-  return { ...(extra ?? {}), visibility: ArticleVisibility.PUBLIC, ownerId: null };
+  return {
+    ...(extra ?? {}),
+    visibility: ArticleVisibility.PUBLIC,
+    ownerId: null,
+    organizationId: null,
+  };
 }
 
 export function readableArticleWhere(
@@ -151,12 +184,17 @@ export function readableArticleWhere(
   extra?: Prisma.ArticleWhereInput,
 ): Prisma.ArticleWhereInput {
   if (isArticleOperator(context)) return andWhere({}, extra);
-  if (context?.userId) {
+  const orgId = context?.orgId ?? context?.tenantId ?? null;
+  if (context?.userId || orgId) {
+    const accessOr: Prisma.ArticleWhereInput[] = [publicListableAccessWhere()];
+    if (context?.userId) {
+      accessOr.push(ownedPrivateAccessWhere(context.userId));
+    }
+    if (orgId) {
+      accessOr.push(orgScopedArticleWhere(orgId));
+    }
     const access = {
-      OR: [
-        publicListableAccessWhere(),
-        ownedPrivateAccessWhere(context.userId),
-      ],
+      OR: accessOr,
     };
     if (extra?.OR || extra?.AND) {
       return andWhere(access, extra);

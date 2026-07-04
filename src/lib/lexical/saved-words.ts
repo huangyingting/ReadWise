@@ -215,6 +215,25 @@ export async function unsaveWord(userId: string, word: string): Promise<void> {
 }
 
 /**
+ * Selectively erases the user-selected context sentence for one saved word while
+ * preserving the vocabulary row and its SRS schedule.
+ */
+export async function clearSavedWordContextSentence(
+  userId: string,
+  word: string,
+): Promise<number> {
+  const trimmed = normalizeSavedWord(word);
+  if (!trimmed) {
+    return 0;
+  }
+  const result = await prisma.savedWord.updateMany({
+    where: { userId, word: trimmed },
+    data: { contextSentence: null },
+  });
+  return result.count;
+}
+
+/**
  * Returns a map of article id → title for all accessible articles in
  * `articleIds`, filtered by `context`. Articles the caller cannot read (due to
  * visibility or status) are silently omitted. Returns an empty object when

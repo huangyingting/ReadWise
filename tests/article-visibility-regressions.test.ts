@@ -14,8 +14,14 @@ type ArticleWhere = {
   status?: string;
   visibility?: string;
   ownerId?: string | null;
+  organizationId?: string | null;
   sourceUrl?: string | { in?: string[] };
-  OR?: Array<{ status?: string; visibility?: string; ownerId?: string | null }>;
+  OR?: Array<{
+    status?: string;
+    visibility?: string;
+    ownerId?: string | null;
+    organizationId?: string | null;
+  }>;
 };
 
 let articles: Article[] = [];
@@ -28,6 +34,7 @@ function matchesWhere(article: Article, where: ArticleWhere): boolean {
   if (where.status !== undefined && article.status !== where.status) return false;
   if (where.visibility !== undefined && article.visibility !== where.visibility) return false;
   if (where.ownerId !== undefined && article.ownerId !== where.ownerId) return false;
+  if (where.organizationId !== undefined && article.organizationId !== where.organizationId) return false;
   if (where.sourceUrl !== undefined) {
     if (typeof where.sourceUrl === "object") {
       if (!(where.sourceUrl.in ?? []).includes(article.sourceUrl ?? "")) return false;
@@ -114,7 +121,7 @@ test("getViewableArticleById scopes readers to public published or self-owned ar
   assert.deepEqual(findFirstWhere, {
     id: "owner-private",
     OR: [
-      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
+      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null, organizationId: null },
       { visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" },
     ],
   });
@@ -132,6 +139,7 @@ test("getViewableArticleById hides private and draft articles from anonymous use
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
     ownerId: null,
+    organizationId: null,
   });
 
   assert.equal(await getReadableArticleById("public-draft"), null);
@@ -144,7 +152,7 @@ test("getViewableArticleById excludes owner-linked public articles from public l
   assert.deepEqual(findFirstWhere, {
     id: "owned-public",
     OR: [
-      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null },
+      { visibility: ArticleVisibility.PUBLIC, status: ArticleStatus.PUBLISHED, ownerId: null, organizationId: null },
       { visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" },
     ],
   });
@@ -187,6 +195,7 @@ test("findExistingPublicLibrarySourceUrls returns only existing public-library U
     },
     visibility: ArticleVisibility.PUBLIC,
     ownerId: null,
+    organizationId: null,
   });
 });
 
@@ -228,6 +237,7 @@ test("findExistingPublicLibrarySourceUrls ignores owned or non-public rows with 
     },
     visibility: ArticleVisibility.PUBLIC,
     ownerId: null,
+    organizationId: null,
   });
 });
 
