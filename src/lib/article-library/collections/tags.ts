@@ -16,6 +16,7 @@ import { createCachedListing } from "@/lib/cache";
 import { LISTING_KEYS, LISTING_TAGS } from "@/lib/listing-cache";
 import { publicListableArticleWhere, type ArticleAccessContext } from "../policy";
 import { slugifyTag, tagScopeForArticle } from "@/lib/taxonomy/scope";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 
 export { slugifyTag } from "@/lib/taxonomy/scope";
 
@@ -34,6 +35,7 @@ export type ArticleTagsResult = {
   articleId: string;
   tags: TagView[];
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
 };
 
 type ScopedTag = ReturnType<typeof tagScopeForArticle>;
@@ -178,7 +180,12 @@ export async function getOrCreateArticleTags(
       isEmpty: (names) => names.length === 0,
       persist: persistGeneratedTags,
       toResult: (tags) => ({ articleId, tags, fallback: false }),
-      fallback: () => ({ articleId, tags: [], fallback: true }),
+      fallback: (_article, ctx) => ({
+        articleId,
+        tags: [],
+        fallback: true,
+        ...(ctx?.reason ? { fallbackReason: ctx.reason } : {}),
+      }),
     },
     context,
   );

@@ -31,7 +31,7 @@ and should be read with [`context-management.md`](./context-management.md),
 
 `AiInvocation` rows are operational metadata only:
 
-- `feature`, `model`, `promptVersion`, `status`, `fallback`, `cacheHit`
+- `feature`, `model`, `promptVersion`, `status`, `fallback`, `fallbackReason`, `cacheHit`
 - optional `userId`, `articleId`, and `requestId`
 - latency, token counts, and estimated USD cost
 - short normalized error message
@@ -39,6 +39,10 @@ and should be read with [`context-management.md`](./context-management.md),
 The ledger never accepts full prompts, model responses, article text, selected
 text, definitions, credentials, or cookies. `recordAiInvocation` never throws;
 if the write fails, the AI feature still follows its normal fallback path.
+`fallbackReason` is a safe, low-cardinality enum such as
+`provider_unconfigured`, `quota_exceeded`, `validation_failed`,
+`content_filter`, `timeout`, `rate_limited`, or `server_error`; it never stores
+prompt, article, selected-text, definition, translation, or model-output text.
 
 In `NODE_ENV=test`, ledger persistence is disabled unless tests explicitly opt
 in with `AI_LEDGER_ENABLED=1` and provide a mocked Prisma surface.
@@ -88,10 +92,15 @@ Feature helpers use the shared cache-first lifecycle in `src/lib/ai/cache.ts`:
 
 Fallbacks are never cached. This prevents placeholder output from blocking a
 future successful generation after configuration or provider health recovers.
+The shared article/selection cache lifecycle records two metadata-only ledger
+rows that are not provider calls: cache hits (`cacheHit=true`) and lifecycle
+fallbacks caused before/after provider calls (for example unconfigured provider
+or validation rejection). Provider error/timeout/rate-limit reasons are recorded
+by the chat-completion facade itself.
 
-The ledger schema supports cache-hit rows for explicit call sites. Do not assume
-that every cache read is represented as a ledger row unless that call site writes
-one deliberately.
+Admin cache-hit counts therefore mean "served from a shared AI-derived cache and
+recorded by a participating cache-first helper"; they do not include unrelated
+HTTP/browser/storage cache hits.
 
 ## Privacy and retention
 
@@ -116,8 +125,9 @@ one deliberately.
 - Configure quotas only where enforcement is desired; unset quota env vars mean
   unlimited for that scope.
 - Treat optional provider unconfiguration as normal local/test behavior.
-- Investigate high fallback rates by feature first, then correlate request ids
-  with logs/traces from [`../observability/overview.md`](../observability/overview.md).
+- Investigate high fallback rates by feature and fallback reason first, then
+  correlate request ids with logs/traces from
+  [`../observability/overview.md`](../observability/overview.md).
 
 ## Tests
 

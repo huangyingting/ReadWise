@@ -88,6 +88,18 @@ test("falls back without caching when AI is unconfigured", async () => {
   const { getOrCreateArticleVocabulary } = await importVocabulary();
   const result = await getOrCreateArticleVocabulary("a1", "u");
   assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "provider_unconfigured");
+  assert.equal(result?.items.length, 0);
+  assert.equal(vocabUpserts, 0);
+});
+
+test("returns validation fallback reason for unusable AI vocabulary output", async () => {
+  aiConfigured = true;
+  aiReply = "not json at all";
+  const { getOrCreateArticleVocabulary } = await importVocabulary();
+  const result = await getOrCreateArticleVocabulary("a1", "u");
+  assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "validation_failed");
   assert.equal(result?.items.length, 0);
   assert.equal(vocabUpserts, 0);
 });

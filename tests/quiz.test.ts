@@ -100,6 +100,17 @@ test("getOrCreateArticleQuiz falls back without caching when AI unconfigured", a
   const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
   const result = await getOrCreateArticleQuiz("a1");
   assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "provider_unconfigured");
+  assert.equal(quizUpserts, 0);
+});
+
+test("getOrCreateArticleQuiz records validation fallback reason for unusable AI output", async () => {
+  aiConfigured = true;
+  aiReply = "not json at all";
+  const { getOrCreateArticleQuiz } = await import("@/lib/quiz");
+  const result = await getOrCreateArticleQuiz("a1");
+  assert.equal(result?.fallback, true);
+  assert.equal(result?.fallbackReason, "validation_failed");
   assert.equal(quizUpserts, 0);
 });
 

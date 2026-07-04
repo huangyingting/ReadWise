@@ -68,6 +68,7 @@ test("beginStep marks the step running and increments attempts", async () => {
   assert.equal(args.update.status, "running");
   assert.deepEqual(args.update.attempts, { increment: 1 });
   assert.equal(args.update.completedAt, null);
+  assert.equal(args.update.fallbackReason, null);
   assert.equal(args.update.lastError, null);
 });
 
@@ -80,6 +81,16 @@ test("finishStep records a generated step with the model name and no error", asy
   assert.equal(args.update.modelName, "gpt-test");
   assert.equal(args.update.lastError, null);
   assert.notEqual(args.update.completedAt, null);
+  assert.equal(args.update.fallbackReason, null);
+});
+
+test("finishStep fallback persists a safe fallback reason", async () => {
+  const { finishStep } = await import("@/lib/processing/state");
+  await finishStep("article-1", "quiz", "fallback", { fallbackReason: "validation_failed" });
+
+  const args = lastUpsertArgs();
+  assert.equal(args.update.status, "fallback");
+  assert.equal(args.update.fallbackReason, "validation_failed");
 });
 
 test("finishStep skipped creates a row with zero attempts", async () => {

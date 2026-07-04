@@ -141,15 +141,63 @@ test("recordAiInvocation writes a success record (metadata only)", async () => {
 
 test("recordAiInvocation marks non-success outcomes as fallback", async () => {
   const { recordAiInvocation } = await import("@/lib/ai/ledger");
-  await recordAiInvocation({ feature: "quiz", status: "unconfigured" });
-  await recordAiInvocation({ feature: "quiz", status: "error", errorMessage: "HTTP 500" });
-  await recordAiInvocation({ feature: "quiz", status: "empty" });
+  await recordAiInvocation({
+    feature: "quiz",
+    status: "unconfigured",
+    fallbackReason: "provider_unconfigured",
+  });
+  await recordAiInvocation({
+    feature: "quiz",
+    status: "error",
+    fallbackReason: "server_error",
+    errorMessage: "HTTP 500",
+  });
+  await recordAiInvocation({
+    feature: "quiz",
+    status: "empty",
+    fallbackReason: "empty_response",
+  });
   assert.equal(created.length, 3);
   for (const rec of created) {
     assert.equal(rec.fallback, true, `status ${String(rec.status)} should set fallback=true`);
     assertMetadataOnly(rec);
   }
   assert.equal(created[1].errorMessage, "HTTP 500");
+  assert.equal(created[0].fallbackReason, "provider_unconfigured");
+  assert.equal(created[1].fallbackReason, "server_error");
+  assert.equal(created[2].fallbackReason, "empty_response");
+});
+
+test("recordAiInvocation drops unknown fallback reasons instead of persisting free text", async () => {
+  const { recordAiInvocation } = await import("@/lib/ai/ledger");
+  await recordAiInvocation({
+    feature: "quiz",
+    status: "fallback",
+    fallbackReason: "article text or prompt" as never,
+  });
+  assert.equal(created[0].fallbackReason, null);
+});
+
+test("AI fallback reason taxonomy maps provider errors to safe enums", async () => {
+  const {
+    aiFallbackReasonForErrorKind,
+    isAiFallbackReason,
+    normalizeAiFallbackReason,
+  } = await import("@/lib/ai/fallback-reasons");
+
+  assert.equal(aiFallbackReasonForErrorKind("unconfigured"), "provider_unconfigured");
+  assert.equal(aiFallbackReasonForErrorKind("rate_limit"), "rate_limited");
+  assert.equal(aiFallbackReasonForErrorKind("timeout"), "timeout");
+  assert.equal(aiFallbackReasonForErrorKind("server"), "server_error");
+  assert.equal(aiFallbackReasonForErrorKind("auth"), "auth_error");
+  assert.equal(aiFallbackReasonForErrorKind("content_filter"), "content_filter");
+  assert.equal(aiFallbackReasonForErrorKind("bad_request"), "bad_request");
+  assert.equal(aiFallbackReasonForErrorKind("network"), "network_error");
+  assert.equal(aiFallbackReasonForErrorKind("aborted"), "aborted");
+  assert.equal(aiFallbackReasonForErrorKind("empty"), "empty_response");
+  assert.equal(aiFallbackReasonForErrorKind("unknown"), "unknown_error");
+  assert.equal(isAiFallbackReason("validation_failed"), true);
+  assert.equal(normalizeAiFallbackReason("prompt text"), null);
 });
 
 test("recordAiInvocation is a no-op when the ledger is disabled", async () => {
@@ -209,6 +257,7 @@ test("chatComplete records an unconfigured (fallback) invocation", async () => {
   assert.equal(created.length, 1);
   assert.equal(created[0].status, "unconfigured");
   assert.equal(created[0].fallback, true);
+  assert.equal(created[0].fallbackReason, "provider_unconfigured");
 });
 
 test("chatCompleteWithMeta records an error invocation on a 5xx", async (t) => {
@@ -220,6 +269,7 @@ test("chatCompleteWithMeta records an error invocation on a 5xx", async (t) => {
   assert.equal(created.length, 1);
   assert.equal(created[0].status, "error");
   assert.equal(created[0].fallback, true);
+  assert.equal(created[0].fallbackReason, "server_error");
 });
 
 test("chatCompleteWithMeta records an empty invocation when content is blank", async (t) => {
@@ -230,6 +280,7 @@ test("chatCompleteWithMeta records an empty invocation when content is blank", a
   assert.equal(result, null);
   assert.equal(created.length, 1);
   assert.equal(created[0].status, "empty");
+  assert.equal(created[0].fallbackReason, "empty_response");
 });
 
 test("a ledger write failure does not break chatComplete", async (t) => {

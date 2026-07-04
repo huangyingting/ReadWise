@@ -114,6 +114,30 @@ export default async function AdminAiOpsPage({
         </Card>
       )}
 
+      {ai.fallbackReasons.length > 0 && (
+        <>
+          <h3 className={SUBSECTION_TITLE_CLASS}>Fallback reasons</h3>
+          <Card>
+            <AdminTableWrap ariaLabel="AI fallback reasons (scrollable)">
+              <thead>
+                <tr>
+                  <th>Reason</th>
+                  <th>Count</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ai.fallbackReasons.map((r) => (
+                  <tr key={r.reason}>
+                    <td>{r.reason}</td>
+                    <td>{r.count}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </AdminTableWrap>
+          </Card>
+        </>
+      )}
+
       <h3 className={SUBSECTION_TITLE_CLASS}>By feature</h3>
       <Card>
         <AdminTableWrap ariaLabel="AI usage by feature (scrollable)">
@@ -296,7 +320,13 @@ export default async function AdminAiOpsPage({
                     <td className={a.failed > 0 ? "text-danger-text" : "muted"}>{a.failed}</td>
                     <td className="muted">{a.fallback}</td>
                     <td className="muted">
-                      {a.steps.map((st) => `${st.step}:${st.status}`).join(", ")}
+                      {a.steps
+                        .map((st) =>
+                          st.fallbackReason
+                            ? `${st.step}:${st.status}(${st.fallbackReason})`
+                            : `${st.step}:${st.status}`,
+                        )
+                        .join(", ")}
                     </td>
                   </tr>
                 ))}

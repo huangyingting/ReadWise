@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents TTS provider seam, request building, voice/format fallback, word-boundary collection, and ArticleSpeech generation. Captures current Azure Speech synthesis flow, cache/storage behavior, timing migration, readiness, and graceful fallback rules."
 ---
 
@@ -236,9 +236,15 @@ If the timeout fires, `synthesize` resolves `null` and the caller falls back.
 6. **Synthesis** — calls `provider-azure.ts:synthesize`. Provider failure resolves
    null → fallback result.
 7. **Persist** — calls `saveSpeechResult(...)` in `repository.ts`.
+8. **Fallback: storage unavailable** — when synthesis succeeds but media storage
+   cannot persist the audio, returns the generated data URL with
+   `fallback: true` and `fallbackReason: "storage_unavailable"`. No
+   `ArticleSpeech` cache row is written.
 
 Fallback results (`fallback: true`) are **not** cached. The next call will retry
-synthesis once Azure credentials are configured.
+synthesis once Azure credentials or media storage recover. Background processing
+records the speech step as a recoverable fallback so operators can backfill by
+rerunning TTS jobs after fixing storage.
 
 ## Repository: saveSpeechResult
 
@@ -251,7 +257,9 @@ synthesis once Azure credentials are configured.
    `format`, `plainText`, `words`.
 
 If media storage is unavailable or the write fails, `saveSpeechResult` returns
-`false`, skips cache persistence, and does not store audio in the database.
+`false`, skips cache persistence, and does not store audio in the database. The
+caller may still return the just-generated audio to the current request, but it
+must not report the result as durably cached.
 
 ## Repository: resolveStoredAudioUrl
 

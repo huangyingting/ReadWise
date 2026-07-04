@@ -19,6 +19,8 @@ import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/p
 import { getProfile } from "@/lib/profile";
 import { buildTutorContext } from "@/lib/learning/coach-memory";
 import { bestEffortMastery } from "@/lib/learning/primitives";
+import { recordAiFallback } from "@/lib/ai/ledger";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 import {
   getAiProcessableArticleById,
   isArticleOperator,
@@ -57,6 +59,7 @@ export type TutorMessageDto = {
 export type AskTutorResult = {
   answer: string;
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
   messages: TutorMessageDto[];
 };
 
@@ -77,10 +80,12 @@ async function fallbackResult(
   userId: string,
   articleId: string,
   answer: string,
+  fallbackReason: AiFallbackReason,
 ): Promise<AskTutorResult> {
   return {
     answer,
     fallback: true,
+    fallbackReason,
     messages: await getTutorMessages(userId, articleId),
   };
 }
@@ -163,7 +168,13 @@ export async function askTutor(
   // Safety: refuse obviously-unsafe questions up front (RW-024). Cheap heuristic
   // check; benign learning questions are unaffected. Persist nothing.
   if (moderateText(question).flagged) {
-    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE);
+    await recordAiFallback({
+      feature: "tutor",
+      articleId,
+      promptVersion: activePromptVersion("tutor"),
+      reason: "content_filter",
+    });
+    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE, "content_filter");
   }
 
   // Fetch recent prior turns (most recent first, then reverse to chronological).
@@ -179,7 +190,19 @@ export async function askTutor(
 
   // Graceful fallback when AI is not configured.
   if (!isAiConfigured()) {
-    return fallbackResult(userId, articleId, t("ai.tutor.unavailable"));
+    await recordAiFallback({
+      feature: "tutor",
+      articleId,
+      promptVersion: activePromptVersion("tutor"),
+      reason: "provider_unconfigured",
+      status: "unconfigured",
+    });
+    return fallbackResult(
+      userId,
+      articleId,
+      t("ai.tutor.unavailable"),
+      "provider_unconfigured",
+    );
   }
 
   // Build grounding context from article plain text, capped for token safety.
@@ -226,13 +249,19 @@ export async function askTutor(
 
   if (!completion) {
     // AI configured but request failed — graceful fallback, persist nothing.
-    return fallbackResult(userId, articleId, t("ai.tutor.unavailable"));
+    return fallbackResult(userId, articleId, t("ai.tutor.unavailable"), "provider_error");
   }
 
   // Safety: never show/persist an unsafe model answer (RW-024). Degrade to a
   // safe fallback and persist nothing.
   if (moderateText(completion).flagged) {
-    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE);
+    await recordAiFallback({
+      feature: "tutor",
+      articleId,
+      promptVersion: activePromptVersion("tutor"),
+      reason: "content_filter",
+    });
+    return fallbackResult(userId, articleId, MODERATION_FALLBACK_MESSAGE, "content_filter");
   }
 
   // Persist user question then assistant answer atomically.
