@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents tenant/classroom reporting visibility boundaries and aggregate-vs-learner data ownership. Captures current teacher/admin visibility, retention/export expectations, and privacy rules for classroom analytics."
 ---
 
@@ -50,7 +50,7 @@ Analytics (the product event stream) does not own or intermediate these facts.
 | Assignment completion, quiz scores, per-student progress | Access & Tenancy | `src/lib/analytics/tenant.ts` |
 | Learner reading progress, vocabulary, streaks | Learning | `src/lib/analytics/learner.ts` |
 | Platform-wide article library and member activity counts | Article Library / Admin | `src/lib/analytics/admin.ts` |
-| AI feature cost, volume, latency, and fallback data | AI | `src/lib/ai-usage-summary.ts` |
+| AI feature cost, volume, latency, and fallback data | AI | `src/lib/ai/usage-summary.ts` |
 | Content-processing job health (step timelines, failure rates) | Operations | `src/lib/processing/state.ts` |
 | Product analytics funnel / activation / retention events | Analytics | `src/lib/analytics/queries/` |
 
