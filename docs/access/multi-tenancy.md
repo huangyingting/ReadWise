@@ -66,6 +66,18 @@ that would disrupt the FTS5 triggers on `Article`. The PostgreSQL schema keeps i
 as a plain indexed `TEXT` column too, so the two databases stay in lockstep.
 Referential integrity for org ownership is enforced in application code.
 
+`src/lib/article-library/tenant-integrity.ts` is the central integrity seam for
+this soft reference. It provides:
+
+- `orgScopedArticleWhere(orgId)` for ORG article read predicates.
+- `validateArticleOrganizationIntegrity(article, operation, { expectedOrgId })`
+  for create/update/read/delete code paths that accept or mutate org-scoped
+  articles.
+- `getOrganizationAssignableArticle(articleId, orgId)` for classroom assignment
+  writes, returning 404 for cross-org articles and 409 for orphaned/malformed
+  org references.
+- `findArticleOrganizationIntegrityIssues()` for orphan detection.
+
 > **Why null = public:** existing rows have `organizationId = NULL`, so every
 > public listing and cache key behaves identically after the migration. Tenancy
 > is purely opt-in.
@@ -168,11 +180,28 @@ core:
 `listPublishedArticles` / `listCategoryPage` / `listPicksPage` and the tag feeds
 continue to use `createCachedListing` with their existing global keys. They only
 ever read PUBLIC content (`publicListableArticleWhere` enforces `visibility =
-PUBLIC`, `status = PUBLISHED`, `ownerId = null`), so an article with
+PUBLIC`, `status = PUBLISHED`, `ownerId = null`, `organizationId = null`), so an article with
 `organizationId` set or non-public visibility is naturally excluded — there is no
 shared key through which org/private content could leak. **New** org or
 user-personalized feeds MUST use `createTenantCachedListing` (or include the
 orgId/userId in their key parts) so the tenant dimension is part of the key.
+
+### Orphan detection runbook
+
+Because `Article.organizationId` is intentionally not a database FK, operators
+should run the centralized scan after organization deletion tooling changes,
+tenant article imports, or incident response for assignment/library access:
+
+1. Call `findArticleOrganizationIntegrityIssues()` from an admin maintenance
+   script or console task. The scan returns ids and reason codes only; it does
+   not read or log article text.
+2. Treat `org_reference_orphaned` as a data-integrity incident: archive or
+   reassign the affected articles through a reviewed admin command before they
+   can be used in classroom/library flows.
+3. Treat `org_visibility_without_org` and
+   `org_reference_without_org_visibility` as malformed writes. Fix the writer to
+   call `validateArticleOrganizationIntegrity` for create/update/delete paths,
+   then repair the rows with a scoped migration or admin command.
 
 ---
 

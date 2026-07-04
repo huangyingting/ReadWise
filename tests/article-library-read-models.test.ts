@@ -621,6 +621,7 @@ test("article policy helpers centralize readable, editable, and import predicate
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
     ownerId: null,
+    organizationId: null,
   });
   assert.deepEqual(policy.ownedArticleWhere("user-1", { id: "a1" }), {
     id: "a1",
@@ -631,6 +632,7 @@ test("article policy helpers centralize readable, editable, and import predicate
     id: "a1",
     visibility: ArticleVisibility.PUBLIC,
     ownerId: null,
+    organizationId: null,
   });
   assert.ok("AND" in policy.readableArticleWhere(readerContext, { OR: [{ id: "a1" }] }));
   assert.deepEqual(policy.editableArticleWhere(null), { id: "__readwise_article_access_denied__" });

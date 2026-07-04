@@ -32,6 +32,7 @@ type ArticleFixture = {
   visibility: ArticleVisibility;
   status: ArticleStatus;
   ownerId: string | null;
+  organizationId: string | null;
 };
 
 // Fixture universe. Equality on visibility/status/ownerId matches the enum
@@ -41,6 +42,7 @@ function articleFixture(overrides: Partial<ArticleFixture> & { id: string }): Ar
     visibility: ArticleVisibility.PRIVATE,
     status: ArticleStatus.PUBLISHED,
     ownerId: USER_ID,
+    organizationId: null,
     ...overrides,
   };
 }

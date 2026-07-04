@@ -15,6 +15,7 @@ import {
 import { buildArticle } from "./helpers";
 
 let articleRows: Article[] = [];
+let orgRows: Array<{ id: string }> = [];
 
 type FindArgs = {
   where?: Prisma.ArticleWhereInput;
@@ -38,6 +39,10 @@ function matchesWhere(article: Article, where: Prisma.ArticleWhereInput = {}): b
     if (expected && typeof expected === "object" && "in" in expected) {
       const values = (expected as { in?: unknown[] }).in ?? [];
       if (!values.includes(actual)) return false;
+      continue;
+    }
+    if (expected && typeof expected === "object" && "not" in expected) {
+      if (actual === (expected as { not?: unknown }).not) return false;
       continue;
     }
     if (actual !== expected) return false;
@@ -69,6 +74,10 @@ before(() => {
     namedExports: {
       prisma: {
         article: {
+          findMany: async (args: FindArgs) =>
+            articleRows
+              .filter((article) => matchesWhere(article, args.where))
+              .map((article) => project(article, args.select) as Article),
           findFirst: async (args: FindArgs) => {
             const found = articleRows.find((article) => matchesWhere(article, args.where));
             return found ? project(found, args.select) : null;
@@ -77,6 +86,12 @@ before(() => {
             const found = articleRows.find((article) => article.id === args.where.id);
             return found ? project(found, args.select) : null;
           },
+        },
+        organization: {
+          findUnique: async (args: { where: { id: string } }) =>
+            orgRows.find((org) => org.id === args.where.id) ?? null,
+          findMany: async (args: { where: { id: { in: string[] } } }) =>
+            orgRows.filter((org) => args.where.id.in.includes(org.id)),
         },
       },
     },
@@ -91,7 +106,10 @@ beforeEach(() => {
     buildArticle({ id: "owner-u1", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
     buildArticle({ id: "draft-u1", status: ArticleStatus.DRAFT, visibility: ArticleVisibility.PRIVATE, ownerId: "user-1" }),
     buildArticle({ id: "owner-u2", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.PRIVATE, ownerId: "user-2" }),
+    buildArticle({ id: "org-1-article", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.ORG, organizationId: "org-1" }),
+    buildArticle({ id: "org-2-article", status: ArticleStatus.PUBLISHED, visibility: ArticleVisibility.ORG, organizationId: "org-2" }),
   ];
+  orgRows = [{ id: "org-1" }, { id: "org-2" }];
 });
 
 test("pure readability checks cover anonymous, owner, non-owner, and admin", async () => {
@@ -134,6 +152,7 @@ test("public-listable predicates require ownerless library articles", async () =
     visibility: ArticleVisibility.PUBLIC,
     status: ArticleStatus.PUBLISHED,
     ownerId: null,
+    organizationId: null,
   });
   assert.equal(isPublicListableArticle(ownedPublic), false);
   assert.equal(canReadArticle(ownedPublic), false);
@@ -156,6 +175,84 @@ test("getReadableArticleById enforces anonymous, reader, owner, non-owner, and a
   assert.equal((await getReadableArticleById("owner-u1", { userId: "user-1", role: "Reader" }))?.id, "owner-u1");
   assert.equal(await getReadableArticleById("owner-u1", { userId: "user-2", role: "Reader" }), null);
   assert.equal((await getReadableArticleById("draft-public", { role: "Admin" }))?.id, "draft-public");
+});
+
+test("org-scoped articles are readable only in the matching tenant context", async () => {
+  const {
+    canReadArticle,
+    getOrganizationAssignableArticle,
+    getReadableArticleById,
+    isOrganizationScopedArticle,
+    readableArticleWhere,
+    orgScopedArticleWhere,
+  } = await articleLibrary();
+  const orgArticle = articleById("org-1-article");
+  const publicWithOrg = buildArticle({
+    id: "public-with-org",
+    visibility: ArticleVisibility.PUBLIC,
+    status: ArticleStatus.PUBLISHED,
+    ownerId: null,
+    organizationId: "org-1",
+  });
+
+  assert.equal(isOrganizationScopedArticle(articleById("public")), false);
+  assert.equal(isOrganizationScopedArticle(orgArticle), true);
+  assert.equal(canReadArticle(orgArticle, { userId: "user-1", role: "Reader", orgId: "org-1" }), true);
+  assert.equal(canReadArticle(orgArticle, { userId: "user-1", role: "Reader", orgId: "org-2" }), false);
+  assert.equal(canReadArticle(publicWithOrg), false);
+  assert.deepEqual(orgScopedArticleWhere("org-1"), {
+    visibility: ArticleVisibility.ORG,
+    status: ArticleStatus.PUBLISHED,
+    organizationId: "org-1",
+  });
+  assert.equal((await getReadableArticleById("org-1-article", { userId: "user-1", role: "Reader", orgId: "org-1" }))?.id, "org-1-article");
+  assert.equal(await getReadableArticleById("org-1-article", { userId: "user-1", role: "Reader", orgId: "org-2" }), null);
+  assert.deepEqual(await getOrganizationAssignableArticle("org-2-article", "org-1"), {
+    ok: false,
+    status: 404,
+    reason: "org_reference_mismatch",
+  });
+  assert.ok("OR" in readableArticleWhere({ userId: "user-1", role: "Reader", orgId: "org-1" }));
+});
+
+test("article organization integrity validates create, update, read, and delete scopes", async () => {
+  const {
+    articleOrganizationIntegrityIssues,
+    validateArticleOrganizationIntegrity,
+    findArticleOrganizationIntegrityIssues,
+  } = await articleLibrary();
+  const valid = buildArticle({
+    id: "valid-org",
+    visibility: ArticleVisibility.ORG,
+    organizationId: "org-1",
+  });
+  const missingOrgId = buildArticle({
+    id: "missing-org-id",
+    visibility: ArticleVisibility.ORG,
+    organizationId: null,
+  });
+  const mismatched = buildArticle({
+    id: "mismatched-org",
+    visibility: ArticleVisibility.ORG,
+    organizationId: "org-2",
+  });
+  const publicWithOrg = buildArticle({
+    id: "public-with-org",
+    visibility: ArticleVisibility.PUBLIC,
+    organizationId: "org-1",
+  });
+
+  assert.deepEqual(articleOrganizationIntegrityIssues(valid, "create", "org-1"), []);
+  assert.equal(articleOrganizationIntegrityIssues(missingOrgId, "update")[0].reason, "org_visibility_without_org");
+  assert.equal(articleOrganizationIntegrityIssues(publicWithOrg, "delete")[0].reason, "org_reference_without_org_visibility");
+  assert.equal(articleOrganizationIntegrityIssues(mismatched, "read", "org-1")[0].reason, "org_reference_mismatch");
+  assert.deepEqual(await validateArticleOrganizationIntegrity(valid, "read", { expectedOrgId: "org-1" }), []);
+
+  articleRows.push(
+    buildArticle({ id: "orphan", visibility: ArticleVisibility.ORG, organizationId: "missing-org" }),
+  );
+  const findings = await findArticleOrganizationIntegrityIssues();
+  assert.ok(findings.some((finding) => finding.articleId === "orphan" && finding.reason === "org_reference_orphaned"));
 });
 
 test("editable access allows owners and admins but blocks anonymous and non-owners", async () => {

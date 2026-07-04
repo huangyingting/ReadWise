@@ -24,7 +24,8 @@ test("anonymous context → public-listable-only predicate (no user branch)", ()
   const text = sql.sql;
   assert.ok(text.includes("published"), "must require published status");
   assert.ok(text.includes("PUBLIC"), "must require PUBLIC visibility");
-  assert.ok(!text.includes("ownerId"), "must not include ownerId branch for anonymous");
+  assert.ok(text.includes('"ownerId" IS NULL'), "must exclude owned articles from anonymous public branch");
+  assert.ok(!text.includes("PRIVATE"), "must not include private branch for anonymous");
   assert.deepEqual(sql.values, [], "no bound values for anonymous");
 });
 
@@ -61,7 +62,8 @@ test("user context with no userId falls back to anonymous predicate", () => {
   const text = sql.sql;
 
   // No userId → treated as anonymous, same as readableArticleWhere with no userId.
-  assert.ok(!text.includes("ownerId"), "no userId → no ownerId branch");
+  assert.ok(text.includes('"ownerId" IS NULL'), "no userId → public branch still excludes owned articles");
+  assert.ok(!text.includes("PRIVATE"), "no userId → no private owner branch");
   assert.deepEqual(sql.values, []);
 });
 
@@ -77,6 +79,7 @@ test("predicate mirrors readableArticleWhere for the three policy cases", async 
   // Anonymous: Prisma where uses publicListableArticleWhere; SQL is public-only
   assert.ok(!("OR" in anonWhere), "anon Prisma where has no OR");
   assert.ok(!anonSql.sql.includes("OR"), "anon SQL has no OR");
+  assert.ok(anonSql.sql.includes('"organizationId" IS NULL'), "anon SQL excludes org-owned articles from public branch");
 
   const userCtx: ArticleAccessContext = { userId: "u-1", role: "Reader" };
   const userWhere = readableArticleWhere(userCtx);
@@ -85,6 +88,13 @@ test("predicate mirrors readableArticleWhere for the three policy cases", async 
   // User: both should have OR (public-listable OR owned-private)
   assert.ok("OR" in userWhere, "user Prisma where has OR");
   assert.ok(userSql.sql.includes("OR"), "user SQL has OR");
+
+  const orgCtx: ArticleAccessContext = { userId: "u-1", role: "Reader", orgId: "org-1" };
+  const orgWhere = readableArticleWhere(orgCtx);
+  const orgSql = buildReadableArticleSqlPredicate(orgCtx);
+
+  assert.ok("OR" in orgWhere, "org Prisma where has OR");
+  assert.ok(orgSql.sql.includes("visibility = 'ORG'"), "org SQL has tenant branch");
 
   const adminCtx: ArticleAccessContext = { role: "Admin" };
   // Admin: Prisma where is empty (no filter), SQL is TRUE
