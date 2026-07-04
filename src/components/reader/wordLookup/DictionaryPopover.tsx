@@ -9,12 +9,13 @@
  * WordLookup's openSurface effect.
  */
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import type { RefObject } from "react";
 import type { DictionaryResult } from "@/lib/lexical/provider";
 import { TIER_LABELS, TIER_VARIANTS } from "@/lib/option-registries";
 import { Badge, Button, IconButton, Inline } from "@/components/ui";
 import { cn } from "@/lib/cn";
+import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const POPOVER_WIDTH = 340;
@@ -72,10 +73,10 @@ export default function DictionaryPopover({
     deps: [anchor, loading, result, dictError, word],
   });
 
-  // Move focus to the close button on open (matches sibling popovers).
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
+  useFocusTrap(popoverRef, true, onClose, {
+    initialFocusRef: closeRef,
+    stopEscapePropagation: true,
+  });
 
   const frequencyTier = result?.frequencyTier ?? null;
   const saveButtonAriaLabel = saveWord.wordSaved

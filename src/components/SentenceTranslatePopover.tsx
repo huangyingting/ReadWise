@@ -14,11 +14,12 @@
  * above/below the selection rect, dodge the mini-player band.
  */
 
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { Button, IconButton, Select } from "@/components/ui";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
+import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const SHIMMER_LINE_WIDTHS = ["92%", "78%", "55%"] as const;
@@ -173,10 +174,10 @@ export default function SentenceTranslatePopover({
     deps: [selectionRect, loading, result, error],
   });
 
-  // Move focus to the close button on open (light management — not a trap).
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
+  useFocusTrap(popoverRef, true, onClose, {
+    initialFocusRef: closeRef,
+    stopEscapePropagation: true,
+  });
 
   return (
     <div

@@ -11,9 +11,10 @@
  * above/below the selection rect, dodge the mini-player band.
  */
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useRef, type RefObject } from "react";
 import { BookMarked, RotateCcw, X } from "lucide-react";
 import { Button, IconButton } from "@/components/ui";
+import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 
 export interface GrammarResult {
@@ -59,21 +60,10 @@ export default function GrammarPopover({
     deps: [selectionRect, loading, result, error],
   });
 
-  // Focus the close button when the popover first opens
-  useEffect(() => {
-    closeRef.current?.focus();
-  }, []);
-
-  // Keyboard: Escape closes
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      onClose();
-    };
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  useFocusTrap(popoverRef, true, onClose, {
+    initialFocusRef: closeRef,
+    stopEscapePropagation: true,
+  });
 
   const lines = getExplanationLines(result?.explanation);
 

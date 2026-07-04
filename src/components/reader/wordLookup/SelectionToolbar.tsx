@@ -12,12 +12,15 @@
  *  - Flip below if top would go off-screen or behind ReaderProgress bar
  *  - Mini-player guard: never overlap the z-40 transport band
  *  - Horizontal: centered on selection, clamped with 12px gutters
+ *  - Keyboard: focus enters the active swatch, Tab wraps inside the toolbar,
+ *    and Escape closes back to the reader selection context.
  */
 
 import { useCallback, useRef } from "react";
 import { Highlighter, StickyNote, BookText, Check, Languages, BookMarked } from "lucide-react";
 import { IconButton } from "@/components/ui/IconButton";
 import { useRovingTabindex } from "@/lib/use-roving-tabindex";
+import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
 
@@ -68,6 +71,7 @@ export default function SelectionToolbar({
   toolbarRef,
 }: SelectionToolbarProps) {
   const innerRef = useRef<HTMLDivElement>(null);
+  const selectedSwatchRef = useRef<HTMLButtonElement>(null);
   const setToolbarElement = useCallback(
     (el: HTMLDivElement | null) => {
       (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
@@ -80,6 +84,10 @@ export default function SelectionToolbar({
     placement: "above",
     estimatedHeight: TOOLBAR_HEIGHT,
     deps: [selectionRect],
+  });
+  useFocusTrap(innerRef, true, onClose, {
+    initialFocusRef: selectedSwatchRef,
+    stopEscapePropagation: true,
   });
 
   // Roving tabindex for color swatches
@@ -120,6 +128,7 @@ export default function SelectionToolbar({
         {SWATCH_COLORS.map(({ color: c, label, cssVar }, i) => (
           <IconButton
             key={c}
+            ref={color === c ? selectedSwatchRef : undefined}
             size="sm"
             context="reading"
             role="radio"

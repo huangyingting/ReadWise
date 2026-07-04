@@ -217,6 +217,60 @@ test("search returns empty for blank query without touching Prisma", async () =>
   assert.equal(savedWordFindCalls.length, 0);
 });
 
+test("browse category search combines query, category, and level filters", async () => {
+  const { listCategoryPage } = await import("@/lib/article-library/listings");
+  articleRows = [
+    buildArticle({
+      id: "science-match",
+      title: "Climate discovery",
+      category: "science",
+      difficulty: "A2",
+      difficultyScore: 10,
+    }),
+    buildArticle({
+      id: "science-too-hard",
+      title: "Climate advanced",
+      category: "science",
+      difficulty: "C1",
+      difficultyScore: 90,
+    }),
+    buildArticle({
+      id: "world-match",
+      title: "Climate diplomacy",
+      category: "world",
+      difficulty: "A2",
+      difficultyScore: 20,
+    }),
+    buildArticle({
+      id: "science-miss",
+      title: "Ocean discovery",
+      category: "science",
+      difficulty: "A2",
+      difficultyScore: 30,
+    }),
+  ];
+
+  const result = await listCategoryPage("science", {
+    query: "climate",
+    maxLevel: "B1",
+    limit: 10,
+  });
+
+  assert.deepEqual(articleIds(result), ["science-match"]);
+  assert.equal(result.hasMore, false);
+});
+
+test("browse search treats punctuation-only queries as empty result sets", async () => {
+  const { listCategoryPage } = await import("@/lib/article-library/listings");
+  articleRows = [
+    buildArticle({ id: "article", title: "Anything", category: "science" }),
+  ];
+
+  const result = await listCategoryPage(null, { query: "!!!", limit: 10 });
+
+  assert.deepEqual(result, { articles: [], hasMore: false });
+});
+
 test("anonymous/public search never leaks owned or draft articles", async () => {
   const searchReadableArticles = await loadSearchReadableArticles();
   articleRows = [
