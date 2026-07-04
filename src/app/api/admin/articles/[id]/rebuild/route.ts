@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { idParams } from "@/lib/validation";
 import {
   articleAccessContext,
@@ -37,7 +38,8 @@ function articleRebuildAudit(context: AdminArticleAuditContext) {
   });
 }
 
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.articlesManage,
   { params: idParams },
   async ({ req, params, session, requestId }) => {
     const articleId = params.id;

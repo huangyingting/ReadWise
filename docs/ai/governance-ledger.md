@@ -101,6 +101,14 @@ one deliberately.
 - `userId` and `articleId` are plain strings, not foreign keys, so ledger history
   can survive entity deletion for operations reporting. Apply explicit retention
   or erasure policy when required.
+- Schedule `npm run maintenance:retention` for safe count output across AI,
+  analytics, audit, and job retention helpers; add `--execute` only after counts
+  are reviewed.
+- For user-specific privacy requests, run
+  `npm run privacy:erase-ledgers -- --user-id <id>` to count AI + analytics rows,
+  then rerun with `--execute --operator-id <operator-id>` to delete them and
+  write an `admin.ledger_erasure` audit row. The workflow stores only ids and
+  counts, never prompt/response text or article content.
 
 ## Operational checklist
 

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents account ownership, support/admin action boundaries, export/delete cascades, and access-related data lifecycle contracts. Captures current account APIs, admin support workflows, guardrails, privacy constraints, and deletion/export behavior."
 ---
 
@@ -65,10 +65,12 @@ Important invariants:
   after the DB transaction commits. This is best-effort (`Promise.allSettled`);
   a storage-backend failure does not abort the account deletion.
 - **Ledgers are intentionally non-cascading.** Audit logs, product analytics,
-  AI invocation rows, and jobs store plain ids for investigation/reporting. Use
-  the explicit retention/erasure helpers documented in
-  [`../analytics/product-analytics.md`](../analytics/product-analytics.md) when a data-erasure
-  workflow must remove analytics rows too.
+  AI invocation rows, and jobs store plain ids for investigation/reporting. When
+  a privacy workflow must remove non-FK analytics and AI ledger rows, run
+  `npm run privacy:erase-ledgers -- --user-id <id>` to preview counts and rerun
+  with `--execute` (plus `--operator-id`) to delete and audit the erasure. The
+  workflow is documented in [`../operations/admin-operations.md`](../operations/admin-operations.md)
+  and the ledger-specific docs.
 
 Deletion returns structured domain results (`ok`, `error`, `status`) so route
 handlers can return precise 404/409 responses without throwing for expected
@@ -108,8 +110,8 @@ must source the acting operator from the session.
   target id, actor id/role, and sanitized metadata.
 - Confirm the last-admin guard by testing both self-delete and admin member
   delete/demote paths.
-- For privacy requests, pair account deletion with product-analytics erasure if
-  policy requires removing non-FK analytics rows.
+- For privacy requests, pair account deletion with `privacy:erase-ledgers` if
+  policy requires removing non-FK product analytics and AI ledger rows.
 - Keep export shape additions aligned with new user-owned Prisma relations.
 
 ## Tests

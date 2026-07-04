@@ -1,8 +1,11 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { getAdminOverview } from "@/lib/admin/overview";
 
-export const GET = createAdminHandler({}, async () => {
+export const GET = createCapabilityHandler(
+  CAPABILITIES.adminAccess,
+  {}, async () => {
   return adminOverviewResponse();
 });
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { evaluateSlos, SLI_CATALOG } from "@/lib/observability/slo";
 
 const NO_STORE_JSON = { status: 200, headers: { "cache-control": "no-store" } };
@@ -17,6 +18,8 @@ function sloStatusResponse() {
  * in-process metrics, ready for a dashboard or breach review. No-store: the
  * snapshot is point-in-time.
  */
-export const GET = createAdminHandler({}, () => {
+export const GET = createCapabilityHandler(
+  CAPABILITIES.securityView,
+  {}, () => {
   return sloStatusResponse();
 });

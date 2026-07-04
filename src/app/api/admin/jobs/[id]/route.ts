@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { runJobAction, JOB_ACTIONS, type JobActionName } from "@/lib/admin/jobs";
 import { AUDIT_ACTIONS, recordAuditFromRequest } from "@/lib/security/audit";
@@ -35,7 +36,8 @@ function actionResponseFor(result: SuccessfulJobActionResult) {
   };
 }
 
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.jobsManage,
   { params: idParams, body: actionBody },
   async ({ req, params, body, session, requestId }) => {
     const result = await runJobAction(params.id, body.action);

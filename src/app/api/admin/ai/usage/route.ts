@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { queryInt } from "@/lib/validation";
 import { summarizeAiUsage } from "@/lib/ai/usage-summary";
 import { getAiBudgetStatus } from "@/lib/ai";
@@ -31,7 +32,8 @@ function lookbackStart(hours: number) {
  * usage + limits) plus a ledger usage summary over an optional `?hours=` lookback
  * (default 24h, max 1 week) for richer context.
  */
-export const GET = createAdminHandler(
+export const GET = createCapabilityHandler(
+  CAPABILITIES.analyticsView,
   {
     query: usageQuery,
   },

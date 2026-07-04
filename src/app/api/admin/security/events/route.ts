@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { queryInt, queryString } from "@/lib/validation";
 import {
   getRecentSecurityEvents,
@@ -54,7 +55,8 @@ function filterSecurityEvents(
  * durable history forward the structured `security.event` logs / metrics to a
  * SIEM. No-store: the snapshot is point-in-time.
  */
-export const GET = createAdminHandler(
+export const GET = createCapabilityHandler(
+  CAPABILITIES.securityView,
   { query: parseQuery },
   async ({ query }) => {
     const events = filterSecurityEvents(getRecentSecurityEvents(query.limit), query);

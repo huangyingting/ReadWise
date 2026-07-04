@@ -196,11 +196,14 @@ content, definitions, notes, prompts, or PII.
   metadata-only contract).
 - **Retention window.** Events older than `ANALYTICS_RETENTION_DAYS` (default
   **400 days**, see `analyticsRetentionDays()` in
-  `src/lib/runtime-config/analytics.ts`) are
-  prunable via `pruneOldEvents(olderThanDays?)`. Run it from a scheduled job/CLI.
+  `src/lib/runtime-config/analytics.ts`) are prunable via
+  `pruneOldEvents(olderThanDays?)`. Schedule `npm run maintenance:retention`
+  for safe count output and run with `--execute` to delete matched rows.
 - **Per-user erasure.** Because events do not cascade with the user, call
   `deleteEventsForUser(userId)` when erasing a user's data (GDPR / account
-  deletion) to remove their analytics events explicitly.
+  deletion) to remove their analytics events explicitly. Operators should use
+  `npm run privacy:erase-ledgers -- --user-id <id>` for a dry-run and rerun with
+  `--execute` to delete analytics + AI ledger rows with an audit record.
 - **Enablement.** Ingestion is gated by `analyticsEnabled()` — on by default in
   dev/prod, **off under `NODE_ENV=test`** unless `ANALYTICS_ENABLED=1`, so unit
   tests don't write rows unless they opt in.
