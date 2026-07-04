@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T22:06:26.127Z",
-  "routeCount": 105,
-  "methodCount": 119,
+  "generatedAt": "2026-07-04T22:34:10.235Z",
+  "routeCount": 106,
+  "methodCount": 120,
   "routes": [
     {
       "path": "/api/account",
@@ -2770,6 +2770,29 @@
             "localDate",
             "timezone"
           ]
+        }
+      ]
+    },
+    {
+      "path": "/api/vocabulary/erase-context",
+      "file": "src/app/api/vocabulary/erase-context/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "POST",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": true,
+          "hasParamsSchema": false,
+          "hasQuerySchema": false,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "erased"
+          ],
+          "queryParamNames": null,
+          "bodyFieldNames": null
         }
       ]
     },

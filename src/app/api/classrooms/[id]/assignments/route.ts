@@ -1,23 +1,15 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams, object, optional, string, nonEmptyString } from "@/lib/validation";
-import { prisma } from "@/lib/prisma";
 import { assignArticle } from "@/lib/classroom";
 import { requireClassroomManageApi } from "@/lib/tenant-api";
+import { getOrganizationAssignableArticle } from "@/lib/article-library";
 
 const assignBody = object({
   articleId: nonEmptyString(200),
   dueDate: optional(string({ min: 1, max: 40 })),
   instructions: optional(string({ max: 2000 })),
 });
-
-async function ensureArticleExists(articleId: string) {
-  const article = await prisma.article.findUnique({
-    where: { id: articleId },
-    select: { id: true },
-  });
-  if (!article) throw new ApiError(404, "Article not found");
-}
 
 function parseOptionalDueDate(dueDate: string | undefined): Date | null {
   if (!dueDate) return null;
@@ -35,9 +27,17 @@ function parseOptionalDueDate(dueDate: string | undefined): Date | null {
 export const POST = createHandler(
   { params: idParams, body: assignBody },
   async ({ params, body, session }) => {
-    await requireClassroomManageApi(session, params.id);
+    const { classroom } = await requireClassroomManageApi(session, params.id);
 
-    await ensureArticleExists(body.articleId);
+    const article = await getOrganizationAssignableArticle(body.articleId, classroom.orgId);
+    if (!article.ok) {
+      throw new ApiError(
+        article.status,
+        article.reason === "article_not_found" || article.status === 404
+          ? "Article not found"
+          : "Article organization scope is invalid",
+      );
+    }
     const dueDate = parseOptionalDueDate(body.dueDate);
 
     const assignment = await assignArticle({

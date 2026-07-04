@@ -27,6 +27,7 @@ export type SearchOptions = {
 export type SearchContext = {
   userId?: string | null;
   role?: string | null;
+  orgId?: string | null;
 };
 
 export type StringContainsFilter = { contains: string; mode?: "insensitive" };

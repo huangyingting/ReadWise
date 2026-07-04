@@ -14,10 +14,12 @@
  *   listing-response — shared article-list response builder (BE-9)
  *   admin            — admin search, detail view, delete, AI rebuild commands
  *   admin-tags       — admin tag listing/rename/merge/delete commands (#686)
+ *   tenant-integrity — soft Article.organizationId integrity checks and scans
  *   moderation       — content review workflow and takedown/rights policy
  *   collections      — taxonomy/tags and reading-list/bookmark management
  */
 export * from "./policy";
+export * from "./tenant-integrity";
 export * from "./mapper";
 export * from "./listings";
 export * from "./listing-response";

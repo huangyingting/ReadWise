@@ -23,6 +23,7 @@ let searchArticlesResult: unknown = { articles: [], total: 0, page: 1 };
 let deleteArticleResult = true;
 let revalidateCalls = 0;
 let lastSavedWord: unknown = null;
+let lastErasedContextWord: string | null = null;
 let auditCalls: unknown[] = [];
 
 const AUDIT_ACTIONS = {
@@ -39,6 +40,7 @@ function resetRouteState(): void {
   supportedLang = true;
   revalidateCalls = 0;
   lastSavedWord = null;
+  lastErasedContextWord = null;
   deleteArticleResult = true;
   auditCalls = [];
   resetMetrics();
@@ -85,6 +87,10 @@ before(() => {
     namedExports: {
       saveWord: async (_userId: string, entry: unknown) => {
         lastSavedWord = entry;
+      },
+      clearSavedWordContextSentence: async (_userId: string, word: string) => {
+        lastErasedContextWord = word;
+        return 1;
       },
     },
   });
@@ -265,6 +271,15 @@ test("POST vocabulary/save persists the word for the user", async () => {
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { word: "serendipity", saved: true });
   assert.equal((lastSavedWord as { word: string }).word, "serendipity");
+});
+
+test("POST vocabulary/erase-context clears selected context only", async () => {
+  const { POST } = (await import("@/app/api/vocabulary/erase-context/route")) as { POST: RouteHandler };
+  const res = await POST(jsonReq({ word: "serendipity" }), undefined);
+
+  assert.equal(res.status, 200);
+  assert.deepEqual(await res.json(), { erased: true });
+  assert.equal(lastErasedContextWord, "serendipity");
 });
 
 // ---- progress batch -----------------------------------------------------
