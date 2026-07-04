@@ -1,7 +1,8 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { object, optional, nonEmptyString, number, boolean } from "@/lib/validation";
 import {
   ADMIN_SCRAPE_TRIGGER_MAX_LIMIT,
@@ -49,7 +50,8 @@ async function runTrigger(
  *
  * Graceful: network failures per provider are caught individually.
  */
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.sourcesManage,
   { body: triggerBody },
   async ({ req, body, session, requestId, log }) => {
     const triggerResult = await runTrigger(body, { req, session, requestId, log });

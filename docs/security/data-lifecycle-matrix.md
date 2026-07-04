@@ -149,12 +149,13 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `AnalyticsEvent` (type, userId?, anonymousId?, articleId?, sessionId?, properties Json) | Analytics | **operational** (metadata only — never content) | ⛔ | **Not cascading** — `userId` is a plain string (non-FK). Call `deleteEventsForUser(userId)` (`src/lib/analytics/events/retention.ts`) explicitly for GDPR/privacy erasure | Not applicable | **400 days** default (`ANALYTICS_RETENTION_DAYS` env var); pruned via `pruneOldEvents()` | `properties` is sanitized by `sanitizeEventProperties` before write, dropping any sensitive key (content, text, token, email, url, …). Safe if sanitizer ran correctly |
+| `AnalyticsEvent` (type, userId?, anonymousId?, articleId?, sessionId?, properties Json) | Analytics | **operational** (metadata only — never content) | ⛔ | **Not cascading** — `userId` is a plain string (non-FK). Call `deleteEventsForUser(userId)` or run `npm run privacy:erase-ledgers -- --user-id <id> --execute` explicitly for GDPR/privacy erasure | Not applicable | **400 days** default (`ANALYTICS_RETENTION_DAYS` env var); pruned via `pruneOldEvents()` / `npm run maintenance:retention -- --execute` | `properties` is sanitized by `sanitizeEventProperties` before write, dropping any sensitive key (content, text, token, email, url, …). Safe if sanitizer ran correctly |
 
 > The `deleteEventsForUser` call is **not** part of `deleteOwnAccount`
 > or `deleteMember` by default. If policy requires removing analytics rows on
-> account deletion, callers must invoke it explicitly alongside the account
-> deletion. See [`../analytics/product-analytics.md`](../analytics/product-analytics.md) §Privacy & retention.
+> account deletion, callers must invoke the explicit `privacy:erase-ledgers`
+> workflow alongside the account deletion. See
+> [`../operations/admin-operations.md`](../operations/admin-operations.md) §Per-user analytics/AI ledger erasure.
 
 ---
 
@@ -162,7 +163,7 @@ behavior is invented. Gaps are called out as follow-up items.
 
 | Model | Owning subsystem | Classification | Exported | User deletion | Tenant deletion | Retention | Log/metadata safe |
 |---|---|---|---|---|---|---|---|
-| `AiInvocation` (feature, model, promptVersion, status, latencyMs, token counts, estimatedCostUsd, errorMessage, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. Call `deleteAiInvocationsForUser` explicitly when erasing a user's data | Not applicable | Configurable via `AI_LEDGER_RETENTION_DAYS` (default 365 days). Prune with `pruneOldAiInvocations` (`src/lib/ai/retention.ts`) | `errorMessage` is scrubbed via `redactSensitiveValue` before persistence; safe. Other fields (feature, status, counts) are safe |
+| `AiInvocation` (feature, model, promptVersion, status, latencyMs, token counts, estimatedCostUsd, errorMessage, userId?, articleId?) | AI | **operational** (metadata only — prompts/responses never stored) | ⛔ | **Not cascading** — `userId`/`articleId` are plain string refs. Call `deleteAiInvocationsForUser` or run `privacy:erase-ledgers` explicitly when erasing a user's data | Not applicable | Configurable via `AI_LEDGER_RETENTION_DAYS` (default 365 days). Prune with `pruneOldAiInvocations` or `npm run maintenance:retention -- --execute` | `errorMessage` is scrubbed via `redactSensitiveValue` before persistence; safe. Other fields (feature, status, counts) are safe |
 
 > **#712-A resolved:** `pruneOldAiInvocations` (time-based retention, env:
 > `AI_LEDGER_RETENTION_DAYS`, default 365 days) and `deleteAiInvocationsForUser`

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
 import { deleteTag, renameTag } from "@/lib/admin/tags";
 import { revalidateTagsCache } from "@/lib/cache";
@@ -43,7 +44,8 @@ function okAfterTagMutation() {
   return NextResponse.json(OK_RESPONSE);
 }
 
-export const PATCH = createAdminHandler(
+export const PATCH = createCapabilityHandler(
+  CAPABILITIES.tagsManage,
   { params: idParams, body: renameBody },
   async ({ req, params, body, session, requestId }) => {
     const result = await renameTag(params.id, body.name, (auditResult) => ({
@@ -56,12 +58,16 @@ export const PATCH = createAdminHandler(
   },
 );
 
-export const DELETE = createAdminHandler({ params: idParams }, async ({ req, params, session, requestId }) => {
-  const result = await deleteTag(params.id, (auditResult) => ({
-    ...tagAuditBase({ req, session, requestId, tagId: params.id }),
-    action: AUDIT_ACTIONS.adminTagDelete,
-    metadata: { articleCount: auditResult.articleCount },
-  }));
-  assertTagResult(result);
-  return okAfterTagMutation();
-});
+export const DELETE = createCapabilityHandler(
+  CAPABILITIES.tagsManage,
+  { params: idParams },
+  async ({ req, params, session, requestId }) => {
+    const result = await deleteTag(params.id, (auditResult) => ({
+      ...tagAuditBase({ req, session, requestId, tagId: params.id }),
+      action: AUDIT_ACTIONS.adminTagDelete,
+      metadata: { articleCount: auditResult.articleCount },
+    }));
+    assertTagResult(result);
+    return okAfterTagMutation();
+  },
+);

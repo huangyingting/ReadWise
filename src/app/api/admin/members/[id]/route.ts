@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, oneOf } from "@/lib/validation";
 import { updateMemberRole, deleteMember } from "@/lib/account-lifecycle";
 import type { Role } from "@prisma/client";
@@ -60,7 +61,8 @@ function memberDeleteAudit(context: AdminMemberAuditContext) {
   });
 }
 
-export const PATCH = createAdminHandler(
+export const PATCH = createCapabilityHandler(
+  CAPABILITIES.membersManage,
   { params: idParams, body: roleBody },
   async ({ req, params, body, session, requestId }) => {
     assertNotSelfRoleRemoval(params.id, session.user.id, body.role);
@@ -74,7 +76,8 @@ export const PATCH = createAdminHandler(
   },
 );
 
-export const DELETE = createAdminHandler(
+export const DELETE = createCapabilityHandler(
+  CAPABILITIES.membersManage,
   { params: idParams },
   async ({ req, params, session, requestId }) => {
     assertNotSelfDelete(params.id, session.user.id);

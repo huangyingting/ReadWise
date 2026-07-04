@@ -1,5 +1,6 @@
 import { exportMetricsPrometheus } from "@/lib/metrics";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { refreshJobQueueDepthMetrics } from "@/lib/jobs/metrics";
 
 const PROMETHEUS_HEADERS = {
@@ -14,7 +15,9 @@ function prometheusResponse(body: string): Response {
   });
 }
 
-export const GET = createAdminHandler({}, async () => {
+export const GET = createCapabilityHandler(
+  CAPABILITIES.securityView,
+  {}, async () => {
   await refreshJobQueueDepthMetrics();
   return prometheusResponse(exportMetricsPrometheus());
 });

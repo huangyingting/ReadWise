@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { idParams, object, nonEmptyString } from "@/lib/validation";
 import { mergeTags } from "@/lib/admin/tags";
 import { revalidateTagsCache } from "@/lib/cache";
@@ -31,7 +32,8 @@ function buildMergeAuditInput(
   });
 }
 
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.tagsManage,
   { params: idParams, body: mergeBody },
   async ({ req, params, body, session, requestId }) => {
     const result = await mergeTags(

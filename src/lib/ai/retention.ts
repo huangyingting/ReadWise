@@ -26,6 +26,22 @@ function normalizeRetentionDays(olderThanDays: number): number {
     : aiLedgerRetentionDays();
 }
 
+function oldAiInvocationsWhere(olderThanDays: number, now: Date) {
+  const days = normalizeRetentionDays(olderThanDays);
+  return { createdAt: { lt: new Date(now.getTime() - days * MS_PER_DAY) } };
+}
+
+/** Counts AI invocation records older than the retention window without deleting them. */
+export async function countOldAiInvocations(
+  olderThanDays: number = aiLedgerRetentionDays(),
+  client: AiInvocationRetentionClient = prisma,
+  now: Date = new Date(),
+): Promise<number> {
+  return client.aiInvocation.count({
+    where: oldAiInvocationsWhere(olderThanDays, now),
+  });
+}
+
 /**
  * Deletes AI invocation records older than the retention window (#712-A).
  * `olderThanDays` defaults to {@link aiLedgerRetentionDays} (env:
@@ -37,12 +53,19 @@ export async function pruneOldAiInvocations(
   client: AiInvocationRetentionClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const days = normalizeRetentionDays(olderThanDays);
-  const cutoff = new Date(now.getTime() - days * MS_PER_DAY);
   const result = await client.aiInvocation.deleteMany({
-    where: { createdAt: { lt: cutoff } },
+    where: oldAiInvocationsWhere(olderThanDays, now),
   });
   return result.count;
+}
+
+/** Counts AI invocation records for a user without deleting them. */
+export async function countAiInvocationsForUser(
+  userId: string,
+  client: AiInvocationRetentionClient = prisma,
+): Promise<number> {
+  if (!userId) return 0;
+  return client.aiInvocation.count({ where: { userId } });
 }
 
 /**

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { object, array, oneOf, string, nonEmptyString, optional, boolean, number } from "@/lib/validation";
 import {
   runBackfill,
@@ -77,7 +78,8 @@ function backfillAuditMetadata(result: BackfillResult) {
   };
 }
 
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.jobsManage,
   { body: backfillBody },
   async ({ req, body, session, requestId }) => {
     const result = await runBackfillOrApiError(body, session.user.id);
