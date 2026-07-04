@@ -34,9 +34,14 @@
  * the current user can access it.
  */
 
-import { chatComplete, isAiConfigured } from "@/lib/ai";
+import { aiModelName, chatComplete, isAiConfigured } from "@/lib/ai";
 import { promptVersionFor } from "@/lib/ai/chunking";
 import type { AiChatMessage } from "@/lib/ai/provider";
+import {
+  recordAiCacheHit,
+  recordAiFallback,
+} from "@/lib/ai/ledger";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 import {
   loadAiProcessableArticleText,
   isArticleOperator,
@@ -110,7 +115,10 @@ export type ArticleAiSpec<TArticle extends ArticleText, TParsed, TCache, TResult
       ctx: { cached: boolean },
     ) => TResult | Promise<TResult>;
     /** Builds the graceful fallback result (never cached). */
-    fallback: (article: TArticle) => TResult | Promise<TResult>;
+    fallback: (
+      article: TArticle,
+      ctx?: { reason: AiFallbackReason },
+    ) => TResult | Promise<TResult>;
     /** Optional cap on output tokens for the provider call. */
     maxOutputTokens?: number;
   };
@@ -147,12 +155,41 @@ function createCallModel(config: CallModelConfig): CallModel {
     if (config.articleId != null) {
       options.articleId = config.articleId;
     }
+
     const maxOutputTokens = override?.maxOutputTokens ?? config.maxOutputTokens;
     if (maxOutputTokens != null) {
       options.maxOutputTokens = maxOutputTokens;
     }
     return chatComplete(messages, options);
   };
+}
+
+function recordSharedCacheHit(input: {
+  feature: string;
+  articleId?: string;
+  promptVersion: string;
+}): Promise<void> {
+  return recordAiCacheHit({
+    feature: input.feature,
+    model: aiModelName(),
+    ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
+    promptVersion: input.promptVersion,
+  });
+}
+
+function recordSharedFallback(input: {
+  feature: string;
+  articleId?: string;
+  promptVersion: string;
+  reason: AiFallbackReason;
+}): Promise<void> {
+  return recordAiFallback({
+    feature: input.feature,
+    model: aiModelName(),
+    ...(input.articleId !== undefined ? { articleId: input.articleId } : {}),
+    promptVersion: input.promptVersion,
+    reason: input.reason,
+  });
 }
 
 /**
@@ -182,6 +219,11 @@ export async function getOrCreateArticleAi<
 
   const cached = await spec.readCache(articleId);
   if (cached !== null) {
+    await recordSharedCacheHit({
+      feature: spec.feature,
+      articleId,
+      promptVersion: spec.promptVersion ?? promptVersionFor(spec.feature),
+    });
     return spec.toResult(cached, { cached: true });
   }
 
@@ -197,7 +239,14 @@ export async function getOrCreateArticleAi<
   }
 
   if (!isAiConfigured()) {
-    return spec.fallback(article);
+    const reason = "provider_unconfigured";
+    await recordSharedFallback({
+      feature: spec.feature,
+      articleId,
+      promptVersion: spec.promptVersion ?? promptVersionFor(spec.feature),
+      reason,
+    });
+    return spec.fallback(article, { reason });
   }
 
   const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
@@ -205,22 +254,42 @@ export async function getOrCreateArticleAi<
     feature: spec.feature,
     articleId,
     promptVersion,
-    maxOutputTokens: spec.maxOutputTokens,
+    ...(spec.maxOutputTokens !== undefined ? { maxOutputTokens: spec.maxOutputTokens } : {}),
   });
 
   let parsed: TParsed | null;
+  let fallbackReason: AiFallbackReason = "provider_error";
   if (spec.generate) {
     parsed = await spec.generate(article, { articleId, callModel });
   } else if (spec.buildMessages && spec.parse) {
     const completion = await callModel(spec.buildMessages(article));
-    parsed = completion ? spec.parse(completion) : null;
+    if (completion) {
+      try {
+        parsed = spec.parse(completion);
+        fallbackReason = "validation_failed";
+      } catch {
+        parsed = null;
+        fallbackReason = "validation_failed";
+      }
+    } else {
+      parsed = null;
+    }
   } else {
     // Misconfigured spec (neither generate nor buildMessages+parse).
     parsed = null;
+    fallbackReason = "validation_failed";
   }
   if (parsed === null || spec.isEmpty(parsed)) {
     // AI configured but request failed or yielded nothing — graceful fallback.
-    return spec.fallback(article);
+    if (fallbackReason === "validation_failed") {
+      await recordSharedFallback({
+        feature: spec.feature,
+        articleId,
+        promptVersion,
+        reason: fallbackReason,
+      });
+    }
+    return spec.fallback(article, { reason: fallbackReason });
   }
 
   const stored = await spec.persist(articleId, parsed, article);
@@ -260,7 +329,7 @@ export type SelectionAiSpec<TResult> = {
   /** Persists the validated text and returns the feature result. */
   persist: (text: string) => Promise<TResult>;
   /** Builds the graceful fallback result (never cached). */
-  fallback: () => TResult;
+  fallback: (ctx: { reason: AiFallbackReason }) => TResult;
 };
 
 /**
@@ -277,28 +346,47 @@ export async function getOrCreateSelectionAi<TResult>(
 ): Promise<TResult> {
   const cached = await spec.readCache();
   if (cached !== null) {
+    await recordSharedCacheHit({
+      feature: spec.feature,
+      ...(spec.articleId !== undefined ? { articleId: spec.articleId } : {}),
+      promptVersion: spec.promptVersion ?? promptVersionFor(spec.feature),
+    });
     return cached;
   }
 
   if (!isAiConfigured()) {
-    return spec.fallback();
+    const reason = "provider_unconfigured";
+    await recordSharedFallback({
+      feature: spec.feature,
+      ...(spec.articleId !== undefined ? { articleId: spec.articleId } : {}),
+      promptVersion: spec.promptVersion ?? promptVersionFor(spec.feature),
+      reason,
+    });
+    return spec.fallback({ reason });
   }
 
   const promptVersion = spec.promptVersion ?? promptVersionFor(spec.feature);
   const callModel = createCallModel({
     feature: spec.feature,
-    articleId: spec.articleId,
+    ...(spec.articleId !== undefined ? { articleId: spec.articleId } : {}),
     promptVersion,
-    maxOutputTokens: spec.maxOutputTokens,
+    ...(spec.maxOutputTokens !== undefined ? { maxOutputTokens: spec.maxOutputTokens } : {}),
   });
 
   const text = await spec.generate(callModel);
   if (!text) {
-    return spec.fallback();
+    return spec.fallback({ reason: "provider_error" });
   }
 
   if (spec.validate && !spec.validate(text)) {
-    return spec.fallback();
+    const reason = "validation_failed";
+    await recordSharedFallback({
+      feature: spec.feature,
+      ...(spec.articleId !== undefined ? { articleId: spec.articleId } : {}),
+      promptVersion,
+      reason,
+    });
+    return spec.fallback({ reason });
   }
 
   return spec.persist(text);

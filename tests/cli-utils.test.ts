@@ -21,7 +21,7 @@ before(() => {
       listUnprocessedArticleIds: async () => [],
     },
   });
-  mock.module("@/lib/ai", { namedExports: { isAiConfigured: () => false } });
+  mock.module("@/lib/ai", { namedExports: { isAiConfigured: () => false, aiModelName: () => null } });
   mock.module("@/lib/speech", { namedExports: { isSpeechConfigured: () => false } });
   mock.module("@/lib/translation", {
     namedExports: { isSupportedLanguage: () => true },

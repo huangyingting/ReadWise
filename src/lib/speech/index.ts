@@ -68,6 +68,12 @@ export type SpeechResult = {
   voice: string;
   cached: boolean;
   fallback: boolean;
+  fallbackReason?:
+    | "tts_unconfigured"
+    | "empty_text"
+    | "synthesis_failed"
+    | "storage_unavailable"
+    | "cache_audio_missing";
 };
 
 type ArticleSpeechSource = {
@@ -80,7 +86,10 @@ export function isSpeechConfigured(): boolean {
   return isTtsFeatureEnabled() && speechConfig.isConfigured();
 }
 
-function fallbackResult(voice: string): SpeechResult {
+function fallbackResult(
+  voice: string,
+  fallbackReason: NonNullable<SpeechResult["fallbackReason"]>,
+): SpeechResult {
   return {
     audio: null,
     mimeType: null,
@@ -89,6 +98,7 @@ function fallbackResult(voice: string): SpeechResult {
     voice,
     cached: false,
     fallback: true,
+    fallbackReason,
   };
 }
 
@@ -157,6 +167,7 @@ async function cachedSpeechResult(
     voice: cached.voice,
     cached: true,
     fallback: !audio,
+    ...(!audio ? { fallbackReason: "cache_audio_missing" as const } : {}),
   };
 }
 
@@ -189,23 +200,23 @@ async function synthesizeArticleSpeech(
 ): Promise<SpeechResult> {
   const config = isTtsFeatureEnabled() ? speechConfig.get() : null;
   if (!config) {
-    return fallbackResult(DEFAULT_SPEECH_VOICE);
+    return fallbackResult(DEFAULT_SPEECH_VOICE, "tts_unconfigured");
   }
 
   const plainText = articleHtmlToReaderText(article.content).slice(0, MAX_TTS_CHARS);
 
   if (!plainText) {
-    return fallbackResult(config.voice);
+    return fallbackResult(config.voice, "empty_text");
   }
 
   const output = await synthesize(plainText, config, articleId);
   if (!output) {
-    return fallbackResult(config.voice);
+    return fallbackResult(config.voice, "synthesis_failed");
   }
 
   const mimeType = resolveMimeType(config.format);
 
-  await saveSpeechResult({
+  const persisted = await saveSpeechResult({
     articleId,
     audio: output.audio,
     mimeType,
@@ -223,6 +234,7 @@ async function synthesizeArticleSpeech(
     words: output.words,
     voice: config.voice,
     cached: false,
-    fallback: false,
+    fallback: !persisted,
+    ...(!persisted ? { fallbackReason: "storage_unavailable" as const } : {}),
   };
 }

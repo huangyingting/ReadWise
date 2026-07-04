@@ -13,10 +13,12 @@ import { prisma } from "@/lib/prisma";
 import { moderateText } from "@/lib/ai/output/moderation";
 import { renderPrompt, promptModelParams, activePromptVersion } from "@/lib/ai/prompts";
 import { getOrCreateSelectionAi } from "@/lib/ai/cache";
+import type { AiFallbackReason } from "@/lib/ai/fallback-reasons";
 
 export type GrammarResult = {
   explanation: string | null;
   fallback: boolean;
+  fallbackReason?: AiFallbackReason;
 };
 
 export const MAX_PHRASE_CHARS = 200;
@@ -28,8 +30,8 @@ function normalizePhrase(phrase: string): string {
   return phrase.trim().replace(/\s+/g, " ").toLowerCase();
 }
 
-function fallbackResult(): GrammarResult {
-  return { explanation: null, fallback: true };
+function fallbackResult(reason: AiFallbackReason = "provider_error"): GrammarResult {
+  return { explanation: null, fallback: true, fallbackReason: reason };
 }
 
 function contextSnippet(contextSentence: string): string {
@@ -53,7 +55,7 @@ export async function explainGrammar(
 ): Promise<GrammarResult> {
   const normalized = normalizePhrase(phrase);
   if (!normalized || normalized.length > MAX_PHRASE_CHARS) {
-    return fallbackResult();
+    return fallbackResult("validation_failed");
   }
 
   const ctx = contextSnippet(contextSentence);
@@ -82,6 +84,6 @@ export async function explainGrammar(
       });
       return { explanation: text, fallback: false };
     },
-    fallback: fallbackResult,
+    fallback: ({ reason }) => fallbackResult(reason),
   });
 }

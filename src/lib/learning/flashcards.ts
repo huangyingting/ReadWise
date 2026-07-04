@@ -51,6 +51,11 @@ const FLASHCARD_SELECT = {
   articleId: true,
 } as const;
 
+type FlashcardQueueRow = FlashcardView & {
+  dueAt: Date | null;
+  createdAt: Date;
+};
+
 function dueSavedWordWhere(userId: string, now: Date) {
   return {
     userId,
@@ -69,25 +74,69 @@ function toFlashcardView(card: FlashcardView): FlashcardView {
   };
 }
 
+function interleaveDueAndNew(
+  overdue: FlashcardQueueRow[],
+  fresh: FlashcardQueueRow[],
+  limit: number,
+): FlashcardQueueRow[] {
+  const result: FlashcardQueueRow[] = [];
+  let overdueIndex = 0;
+  let freshIndex = 0;
+
+  while (result.length < limit && (overdueIndex < overdue.length || freshIndex < fresh.length)) {
+    for (let i = 0; i < 2 && result.length < limit && overdueIndex < overdue.length; i++) {
+      result.push(overdue[overdueIndex++]);
+    }
+    if (result.length < limit && freshIndex < fresh.length) {
+      result.push(fresh[freshIndex++]);
+    }
+    if (overdueIndex >= overdue.length) {
+      while (result.length < limit && freshIndex < fresh.length) {
+        result.push(fresh[freshIndex++]);
+      }
+    }
+    if (freshIndex >= fresh.length) {
+      while (result.length < limit && overdueIndex < overdue.length) {
+        result.push(overdue[overdueIndex++]);
+      }
+    }
+  }
+
+  return result;
+}
+
 /**
  * Returns up to `limit` flashcards that are due for review.
- * Cards with dueAt = null (never reviewed) are treated as immediately due and
- * come first; remaining slots are filled by oldest-due first.
+ * Past-due reviews and new cards (`dueAt = null`) are both due, but the queue
+ * uses a deterministic 2 overdue : 1 new mix (then fills from the remaining
+ * side) so large import batches cannot starve reviews and review backlogs still
+ * introduce new cards.
  */
 export async function getDueFlashcards(
   userId: string,
   limit = 20,
 ): Promise<FlashcardView[]> {
   const now = new Date();
-  const cards = await prisma.savedWord.findMany({
-    where: dueSavedWordWhere(userId, now),
-    // SQLite sorts NULLs before non-NULLs in ASC order → new cards appear first
-    orderBy: { dueAt: "asc" },
-    take: limit,
-    select: FLASHCARD_SELECT,
-  });
+  const take = Math.max(0, Math.trunc(limit));
+  if (take === 0) return [];
 
-  return cards.map(toFlashcardView);
+  const select = { ...FLASHCARD_SELECT, dueAt: true, createdAt: true } as const;
+  const [overdue, fresh] = await Promise.all([
+    prisma.savedWord.findMany({
+      where: { userId, dueAt: { lte: now } },
+      orderBy: [{ dueAt: "asc" }, { createdAt: "asc" }, { id: "asc" }],
+      take,
+      select,
+    }),
+    prisma.savedWord.findMany({
+      where: { userId, dueAt: null },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+      take,
+      select,
+    }),
+  ]);
+
+  return interleaveDueAndNew(overdue, fresh, take).map(toFlashcardView);
 }
 
 /**

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents the Learning-owned study diagnostics engine, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. The study plan is computed on demand from current learner data, not persisted; Study mode combines plan items, due flashcards, saved-word filters, and cloze fallback behavior."
 ---
 
@@ -78,9 +78,12 @@ users who cleared coach memory.
 
 ## Flashcard review
 
-`GET /api/study/flashcards` returns due cards and the total due count. Cards with
-`dueAt = null` appear before past-due cards so newly saved words are reviewed at
-least once.
+`GET /api/study/flashcards` returns due cards and the total due count. Both
+never-reviewed cards (`dueAt = null`) and past-due cards count as due. The queue
+uses a deterministic 2-overdue:1-new mix, then fills remaining slots from the
+side that still has cards. This keeps large new imports from starving overdue
+reviews while still introducing new cards during a review backlog. Due-count
+semantics are unchanged.
 
 `POST /api/study/flashcards/grade` accepts:
 

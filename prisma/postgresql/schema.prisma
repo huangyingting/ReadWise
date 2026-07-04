@@ -718,6 +718,7 @@ model ArticleProcessingStep {
   modelName     String?
   promptVersion String?
   lastError     String?
+  fallbackReason String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
@@ -726,6 +727,7 @@ model ArticleProcessingStep {
   @@unique([articleId, step])
   @@index([articleId])
   @@index([status])
+  @@index([fallbackReason])
 }
 
 // AI invocation ledger (RW-019). First-class operational record of every AI
@@ -747,6 +749,7 @@ model AiInvocation {
   requestId        String?
   status           String
   fallback         Boolean  @default(false)
+  fallbackReason   String?
   cacheHit         Boolean  @default(false)
   latencyMs        Int?
   promptTokens     Int?
@@ -759,6 +762,7 @@ model AiInvocation {
   @@index([feature, createdAt])
   @@index([model])
   @@index([status])
+  @@index([fallbackReason])
   @@index([userId])
 }
 

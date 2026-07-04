@@ -13,8 +13,8 @@
  *     failure must never break the actual enrichment. They log a warning and
  *     move on (mirrors the audit/AI-ledger pattern).
  *   - METADATA ONLY. We persist the step name, status, attempts, timestamps,
- *     model name, an optional prompt version, and a SHORT error message. Prompt
- *     content is never stored.
+ *     model name, an optional prompt version, a safe fallback reason enum, and a
+ *     SHORT error message. Prompt content is never stored.
  *   - One row per (articleId, step). For translations, the step is scoped to the
  *     target language ("translation:es") so each language has its own timeline.
  */
@@ -48,6 +48,7 @@ export type ProcessingStepStatus = (typeof PROCESSING_STEP_STATUSES)[number];
 
 /** Truncates an error message so the column never stores prompt-sized blobs. */
 const MAX_ERROR_LENGTH = 500;
+const MAX_FALLBACK_REASON_LENGTH = 80;
 function clampError(message: string | null | undefined): string | null {
   if (!message) return null;
   const trimmed = message.trim();
@@ -55,6 +56,15 @@ function clampError(message: string | null | undefined): string | null {
   return trimmed.length <= MAX_ERROR_LENGTH
     ? trimmed
     : `${trimmed.slice(0, MAX_ERROR_LENGTH - 1)}…`;
+}
+
+function clampFallbackReason(reason: string | null | undefined): string | null {
+  if (!reason) return null;
+  const trimmed = reason.trim();
+  if (!trimmed || !/^[a-z0-9_:-]+$/.test(trimmed)) return null;
+  return trimmed.length <= MAX_FALLBACK_REASON_LENGTH
+    ? trimmed
+    : trimmed.slice(0, MAX_FALLBACK_REASON_LENGTH);
 }
 
 /** Builds the language-scoped step key for a translation step. */
@@ -72,6 +82,7 @@ export type StepRow = {
   completedAt: Date | null;
   modelName: string | null;
   promptVersion: string | null;
+  fallbackReason: string | null;
   lastError: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -92,12 +103,14 @@ export async function beginStep(articleId: string, step: string): Promise<void> 
         status: "running",
         attempts: 1,
         startedAt: now,
+        fallbackReason: null,
       },
       update: {
         status: "running",
         attempts: { increment: 1 },
         startedAt: now,
         completedAt: null,
+        fallbackReason: null,
         lastError: null,
       },
     });
@@ -113,6 +126,7 @@ export async function beginStep(articleId: string, step: string): Promise<void> 
 export type FinishStepOptions = {
   modelName?: string | null;
   promptVersion?: string | null;
+  fallbackReason?: string | null;
   lastError?: string | null;
 };
 
@@ -140,6 +154,8 @@ export async function finishStep(
 ): Promise<void> {
   const now = new Date();
   const lastError = status === "failed" ? clampError(opts.lastError) : null;
+  const fallbackReason =
+    status === "fallback" ? clampFallbackReason(opts.fallbackReason) : null;
   const completedAt = completionTimeForStatus(status, now);
   try {
     await prisma.articleProcessingStep.upsert({
@@ -152,6 +168,7 @@ export async function finishStep(
         completedAt,
         modelName: opts.modelName ?? null,
         promptVersion: opts.promptVersion ?? null,
+        fallbackReason,
         lastError,
       },
       update: {
@@ -159,6 +176,7 @@ export async function finishStep(
         completedAt,
         modelName: opts.modelName ?? null,
         promptVersion: opts.promptVersion ?? null,
+        fallbackReason,
         lastError,
       },
     });
