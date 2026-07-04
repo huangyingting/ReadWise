@@ -43,11 +43,18 @@ export type StudyPlanItem = {
 
 export type StudyPlan = {
   generatedAt: string; // ISO
+  weekStart?: string; // ISO week boundary for persisted snapshots
+  weekEnd?: string; // ISO exclusive end boundary
   summary: string;
   weakAreas: WeakArea[];
   items: StudyPlanItem[];
   /** True when evidence is too thin to diagnose — a starter plan is returned. */
   isStarter: boolean;
+};
+
+export type StudyPlanHistoryEntry = StudyPlan & {
+  id: string;
+  sourceVersion: string;
 };
 
 /** A single top reading recommendation surfaced into the plan (from RW-039). */

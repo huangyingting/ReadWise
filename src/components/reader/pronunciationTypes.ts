@@ -18,14 +18,33 @@ export type AssessResult = {
 export type SentenceHistory = {
   best: number | null;
   last: number | null;
+  average: number | null;
+  trendDelta: number | null;
+  attempts: number;
 };
 
 export type SavedNote = "idle" | "saving" | "saved" | "failed";
 
 export type PronunciationAttemptSummary = {
+  id?: string;
   referenceText: string;
+  articleId?: string | null;
   pronScore: number;
   createdAt: string;
+};
+
+export type SentenceTrend = {
+  key: string;
+  articleId: string | null;
+  referenceText: string;
+  attempts: number;
+  firstScore: number;
+  latestScore: number;
+  bestScore: number;
+  averageScore: number;
+  trendDelta: number;
+  lastPracticedAt: string;
+  scores: number[];
 };
 
 export type SpeechTokenResult =

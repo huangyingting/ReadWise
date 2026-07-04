@@ -95,6 +95,7 @@ model User {
   placementResult            PlacementResult?
   todayComprehensionFeedback TodayComprehensionFeedback[]
   learnerCoachMemories       LearnerCoachMemory[]
+  studyPlanSnapshots         StudyPlanSnapshot[]
   seriesEnrollments          SeriesEnrollment[]
 
   @@index([role, createdAt], map: "User_role_created_idx")
@@ -1309,6 +1310,29 @@ model LearnerCoachMemory {
 
   @@unique([userId, skill])
   @@index([userId])
+}
+
+// #903 — Weekly study-plan snapshots for stable learner goals/history.
+// Stores derived plan structure and aggregate evidence only — no article text,
+// selected text, definitions, translations, prompts, or generated AI content.
+model StudyPlanSnapshot {
+  id          String   @id @default(cuid())
+  userId      String
+  weekStart   DateTime
+  weekEnd     DateTime
+  generatedAt DateTime @default(now())
+  summary     String
+  isStarter   Boolean  @default(false)
+  weakAreas   Json     @default("[]")
+  items       Json     @default("[]")
+  sourceVersion String  @default("study-plan-v1")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, weekStart])
+  @@index([userId, generatedAt])
 }
 
 // #813 — Curated reading series definition.
