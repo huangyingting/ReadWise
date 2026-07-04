@@ -186,6 +186,16 @@ async function getClassroomAnalytics(id = "c1") {
   return GET(new Request(`http://test/api/classrooms/${id}/analytics`), withParams({ id }));
 }
 
+async function getClassroomAnalyticsExport(id = "c1", query = "?format=json") {
+  const { GET } = (await import("@/app/api/classrooms/[id]/analytics/export/route")) as {
+    GET: RouteHandler;
+  };
+  return GET(
+    new Request(`http://test/api/classrooms/${id}/analytics/export${query}`),
+    withParams({ id }),
+  );
+}
+
 async function postClassroomMember(id: string, body: Record<string, unknown>) {
   const { POST } = (await import("@/app/api/classrooms/[id]/members/route")) as {
     POST: RouteHandler;
@@ -290,6 +300,100 @@ test("GET /api/classrooms/[id]/analytics returns aggregate data for an org admin
   assert.ok(body.analytics, "analytics payload present");
   // Individual member rows are absent in the aggregate view
   assert.deepEqual((body.analytics as { members: unknown[] }).members, []);
+});
+
+test("GET /api/classrooms/[id]/analytics/export returns teacher-scoped JSON", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  analyticsViewerRoleStub = "teacher";
+  analyticsDataStub = {
+    classroomId: "c1",
+    classroomName: "Class 1",
+    studentCount: 1,
+    assignmentCount: 1,
+    totalExpected: 1,
+    totalCompleted: 1,
+    completionRate: 100,
+    averageQuizScore: 90,
+    perAssignment: [{ assignmentId: "a1", articleTitle: "Article 1", assigned: 1, completed: 1, inProgress: 0, notStarted: 0, completionRate: 100, averageQuizScore: 90 }],
+    perStudent: [{ studentId: "s1", name: "Sam", email: "s@example.com", completed: 1, total: 1, completionRate: 100, averageQuizScore: 90 }],
+    drilldown: { filters: { assignmentId: "a1" }, rows: [{ assignmentId: "a1", articleTitle: "Article 1", studentId: "s1", name: "Sam", email: "s@example.com", status: "COMPLETED", quizScore: 90, dueDate: null, completedAt: null }] },
+    redacted: false,
+  };
+
+  const res = await getClassroomAnalyticsExport("c1", "?format=json&assignmentId=a1");
+  assert.equal(res.status, 200);
+  const body = await res.json() as { role: string; analytics: { drilldown: { rows: unknown[] } } };
+  assert.equal(body.role, "teacher");
+  assert.equal(body.analytics.drilldown.rows.length, 1);
+});
+
+test("GET /api/classrooms/[id]/analytics/export preserves org-admin redaction in CSV", async () => {
+  currentSession = { user: { id: "orgadmin-1", role: "Reader", name: "A", email: "a@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "other-teacher" };
+  isOrgAdminStub = true;
+  analyticsViewerRoleStub = "orgAdmin";
+  analyticsDataStub = {
+    classroomId: "c1",
+    classroomName: "Class 1",
+    studentCount: 1,
+    assignmentCount: 1,
+    totalExpected: 1,
+    totalCompleted: 1,
+    completionRate: 100,
+    averageQuizScore: 90,
+    perAssignment: [{ assignmentId: "a1", articleTitle: "Article 1", assigned: 1, completed: 1, inProgress: 0, notStarted: 0, completionRate: 100, averageQuizScore: 90 }],
+    perStudent: [],
+    drilldown: null,
+    redacted: true,
+  };
+
+  const res = await getClassroomAnalyticsExport("c1", "?format=csv&assignmentId=a1");
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get("content-type") ?? "", /text\/csv/);
+  const text = await res.text();
+  assert.match(text, /assignment/);
+  assert.doesNotMatch(text, /Sam|s@example/);
+});
+
+test("GET /api/classrooms/[id]/analytics/export includes teacher drilldown CSV rows", async () => {
+  currentSession = { user: { id: "teacher-1", role: "Reader", name: "T", email: "t@e.com" } };
+  classroomStub = { id: "c1", orgId: "org-1", teacherId: "teacher-1" };
+  analyticsViewerRoleStub = "teacher";
+  analyticsDataStub = {
+    classroomId: "c1",
+    classroomName: "Class 1",
+    studentCount: 1,
+    assignmentCount: 1,
+    totalExpected: 1,
+    totalCompleted: 1,
+    completionRate: 100,
+    averageQuizScore: 90,
+    perAssignment: [{ assignmentId: "a1", articleTitle: "Article 1", assigned: 1, completed: 1, inProgress: 0, notStarted: 0, completionRate: 100, averageQuizScore: 90 }],
+    perStudent: [{ studentId: "s1", name: "Sam", email: "s@example.com", completed: 1, total: 1, completionRate: 100, averageQuizScore: 90 }],
+    drilldown: {
+      filters: { assignmentId: "a1", studentId: "s1" },
+      rows: [{
+        assignmentId: "a1",
+        articleTitle: "Article 1",
+        studentId: "s1",
+        name: "Sam",
+        email: "s@example.com",
+        status: "COMPLETED",
+        quizScore: 90,
+        dueDate: new Date("2026-07-10T00:00:00Z"),
+        completedAt: new Date("2026-07-09T00:00:00Z"),
+      }],
+    },
+    redacted: false,
+  };
+
+  const res = await getClassroomAnalyticsExport("c1", "?format=csv&assignmentId=a1&studentId=s1");
+  assert.equal(res.status, 200);
+  const text = await res.text();
+  assert.match(text, /student/);
+  assert.match(text, /drilldown/);
+  assert.match(text, /2026-07-10T00:00:00.000Z/);
 });
 
 // ===========================================================================

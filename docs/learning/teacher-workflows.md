@@ -55,6 +55,8 @@ instructions. Current lifecycle:
 2. Students in the classroom see the assignment in `/assignments`.
 3. Student reading/progress/quiz activity can update `AssignmentCompletion`.
 4. Teacher analytics read aggregate and per-student status for that classroom.
+5. Teachers can filter classroom analytics by assignment/student, inspect
+   drilldown rows, and export the privacy-scoped view as CSV or JSON.
 
 `AssignmentStatus` values are controlled by the Prisma enum:
 
@@ -85,6 +87,12 @@ teachers. They must not leak:
 
 Aggregate teacher/admin visibility rules are documented in
 `analytics/tenant-reporting-privacy.md`.
+
+`GET /api/classrooms/[id]/analytics` accepts optional `assignmentId` and
+`studentId` filters. `GET /api/classrooms/[id]/analytics/export` accepts the
+same filters plus `format=csv|json`. Classroom teachers and system admins receive
+the same per-student/drilldown fields visible in the UI; org admins continue to
+receive aggregate-only exports with individual rows redacted.
 
 ## Deletion and retention
 

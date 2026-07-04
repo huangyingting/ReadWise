@@ -151,6 +151,24 @@ test("aggregateClassroom ignores completions from non-enrolled students", () => 
   assert.ok(!out.perStudent.some((s) => s.studentId === "ghost"));
 });
 
+test("aggregateClassroom filters and builds teacher drilldown rows", () => {
+  const out = ta.aggregateClassroom(sampleData(), {
+    assignmentId: "a2",
+    studentId: "s1",
+  });
+  assert.equal(out.studentCount, 1);
+  assert.equal(out.assignmentCount, 1);
+  assert.equal(out.perAssignment.length, 1);
+  assert.equal(out.perStudent.length, 1);
+  assert.equal(out.perStudent[0].studentId, "s1");
+  assert.equal(out.perStudent[0].completionRate, 0);
+  assert.ok(out.drilldown);
+  assert.equal(out.drilldown!.rows.length, 1);
+  assert.equal(out.drilldown!.rows[0].assignmentId, "a2");
+  assert.equal(out.drilldown!.rows[0].studentId, "s1");
+  assert.equal(out.drilldown!.rows[0].status, AssignmentStatus.IN_PROGRESS);
+});
+
 test("aggregateClassroom is pure (same input ⇒ identical output)", () => {
   const a = ta.aggregateClassroom(sampleData());
   const b = ta.aggregateClassroom(sampleData());
@@ -171,6 +189,7 @@ test("applyAnalyticsAccess redacts individual rows for aggregate-only roles", ()
   const orgView = ta.applyAnalyticsAccess(full, ta.analyticsAccessFor("orgAdmin"));
   assert.equal(orgView.redacted, true);
   assert.equal(orgView.perStudent.length, 0);
+  assert.equal(orgView.drilldown, null);
   // Class- and assignment-level aggregates survive redaction.
   assert.equal(orgView.completionRate, 50);
   assert.equal(orgView.perAssignment.length, 2);

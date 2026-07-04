@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Target, ArrowRight, Sparkles } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui";
-import type { StudyPlan } from "@/lib/learning/study-plan";
+import type { StudyPlan, StudyPlanHistoryEntry } from "@/lib/learning/study-plan";
 
 type StudyPlanItem = StudyPlan["items"][number];
 
@@ -64,13 +64,58 @@ function StudyPlanCard({ item }: { item: StudyPlanItem }) {
   );
 }
 
+function formatWeekRange(entry: Pick<StudyPlanHistoryEntry, "weekStart" | "weekEnd">): string {
+  if (!entry.weekStart || !entry.weekEnd) return "Saved plan";
+  const start = new Date(entry.weekStart);
+  const end = new Date(entry.weekEnd);
+  end.setUTCDate(end.getUTCDate() - 1);
+  return `${start.toLocaleDateString(undefined, { month: "short", day: "numeric" })}–${end.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+}
+
+function StudyPlanHistory({ history }: { history: StudyPlanHistoryEntry[] }) {
+  if (history.length === 0) return null;
+
+  return (
+    <div className="mt-[var(--space-5)]">
+      <h3 className="font-[family-name:var(--font-display)] text-[length:var(--text-lg)] font-semibold text-text m-0 mb-[var(--space-2)]">
+        Plan history
+      </h3>
+      <ul className="list-none p-0 m-0 flex flex-col gap-[var(--space-2)]">
+        {history.map((entry) => (
+          <li key={entry.id}>
+            <Card className="p-[var(--space-3)]">
+              <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
+                <span className="text-[length:var(--text-sm)] font-medium text-text">
+                  {formatWeekRange(entry)}
+                </span>
+                <span className="text-[length:var(--text-sm)] text-text-muted">
+                  {entry.isStarter ? "Starter plan" : `${entry.weakAreas.length} focus area${entry.weakAreas.length === 1 ? "" : "s"}`}
+                </span>
+              </div>
+              <p className="text-[length:var(--text-sm)] text-text-muted m-0 mt-[var(--space-1)]">
+                {entry.summary}
+              </p>
+            </Card>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 /**
  * Renders the learner's weakness diagnostics + weekly study plan (RW-041).
  * Presentational server component — the {@link StudyPlan} is computed by the
  * page via `generateStudyPlan` and passed in. Grounds every item in recorded
  * activity and links to the concrete next action.
  */
-export default function StudyPlanSection({ plan }: { plan: StudyPlan }) {
+export default function StudyPlanSection({
+  plan,
+  history = [],
+}: {
+  plan: StudyPlan;
+  history?: StudyPlanHistoryEntry[];
+}) {
   return (
     <section aria-labelledby="study-plan-h" className="mt-[var(--space-7)]">
       <StudyPlanHeader summary={plan.summary} />
@@ -85,6 +130,7 @@ export default function StudyPlanSection({ plan }: { plan: StudyPlan }) {
           </li>
         ))}
       </ul>
+      <StudyPlanHistory history={history} />
     </section>
   );
 }

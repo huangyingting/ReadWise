@@ -25,6 +25,7 @@ import {
   type WeakArea,
   type StudyPlanItem,
   type StudyPlan,
+  type StudyPlanHistoryEntry,
   type StudyReadingRec,
   type StudyDiagnostics,
 } from "./study-plan-types";
@@ -43,6 +44,9 @@ const WEAK_QUIZ_AVERAGE = 70;
 const WEAK_PRON_SCORE = 70;
 /** Maximum plan items returned (keeps the weekly plan focused). */
 const MAX_PLAN_ITEMS = 6;
+const STUDY_PLAN_SOURCE_VERSION = "study-plan-v1";
+const DEFAULT_HISTORY_LIMIT = 8;
+const MAX_HISTORY_LIMIT = 52;
 
 // ---------------------------------------------------------------------------
 // Pure helpers
@@ -363,13 +367,56 @@ function summarize(weakAreas: WeakArea[], isStarter: boolean): string {
   return `This week, focus on ${top[0]} and ${top[1]}.`;
 }
 
-/**
- * Computes the learner's weak areas and weekly study plan ON THE FLY from
- * current activity (no persistence). Recomputed each call, so the plan updates
- * as the learner practises. Always returns a usable plan — a STARTER plan for
- * new users with thin data.
- */
-export async function generateStudyPlan(userId: string): Promise<StudyPlan> {
+function startOfUtcWeek(date: Date): Date {
+  const out = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const day = out.getUTCDay();
+  const daysSinceMonday = (day + 6) % 7;
+  out.setUTCDate(out.getUTCDate() - daysSinceMonday);
+  return out;
+}
+
+function endOfUtcWeek(weekStart: Date): Date {
+  const out = new Date(weekStart);
+  out.setUTCDate(out.getUTCDate() + 7);
+  return out;
+}
+
+function weeklyBounds(now: Date): { weekStart: Date; weekEnd: Date } {
+  const weekStart = startOfUtcWeek(now);
+  return { weekStart, weekEnd: endOfUtcWeek(weekStart) };
+}
+
+function jsonArray<T>(value: unknown): T[] {
+  return Array.isArray(value) ? (value as T[]) : [];
+}
+
+type StudyPlanSnapshotRow = {
+  id: string;
+  weekStart: Date;
+  weekEnd: Date;
+  generatedAt: Date;
+  summary: string;
+  isStarter: boolean;
+  weakAreas: unknown;
+  items: unknown;
+  sourceVersion: string;
+};
+
+function snapshotToStudyPlan(row: StudyPlanSnapshotRow): StudyPlanHistoryEntry {
+  return {
+    id: row.id,
+    generatedAt: row.generatedAt.toISOString(),
+    weekStart: row.weekStart.toISOString(),
+    weekEnd: row.weekEnd.toISOString(),
+    summary: row.summary,
+    weakAreas: jsonArray<WeakArea>(row.weakAreas),
+    items: jsonArray<StudyPlanItem>(row.items),
+    isStarter: row.isStarter,
+    sourceVersion: row.sourceVersion,
+  };
+}
+
+async function computeStudyPlan(userId: string, now: Date): Promise<StudyPlan> {
   // Dynamic import avoids a static learning ↔ recommendations cycle while still
   // wiring the article-recommendation step as the default implementation.
   const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
@@ -381,11 +428,90 @@ export async function generateStudyPlan(userId: string): Promise<StudyPlan> {
   const weakAreas = diagnoseWeakAreas(diag);
   const items = buildWeeklyPlan(weakAreas, diag);
   const isStarter = weakAreas.length === 0;
+  const { weekStart, weekEnd } = weeklyBounds(now);
   return {
-    generatedAt: new Date().toISOString(),
+    generatedAt: now.toISOString(),
+    weekStart: weekStart.toISOString(),
+    weekEnd: weekEnd.toISOString(),
     summary: summarize(weakAreas, isStarter),
     weakAreas,
     items,
     isStarter,
   };
+}
+
+async function persistStudyPlanSnapshot(
+  userId: string,
+  plan: StudyPlan,
+): Promise<StudyPlanHistoryEntry> {
+  const now = new Date(plan.generatedAt);
+  const { weekStart, weekEnd } = weeklyBounds(now);
+  const row = await prisma.studyPlanSnapshot.upsert({
+    where: { userId_weekStart: { userId, weekStart } },
+    create: {
+      userId,
+      weekStart,
+      weekEnd,
+      generatedAt: now,
+      summary: plan.summary,
+      weakAreas: plan.weakAreas,
+      items: plan.items,
+      isStarter: plan.isStarter,
+      sourceVersion: STUDY_PLAN_SOURCE_VERSION,
+    },
+    update: {
+      weekEnd,
+      generatedAt: now,
+      summary: plan.summary,
+      weakAreas: plan.weakAreas,
+      items: plan.items,
+      isStarter: plan.isStarter,
+      sourceVersion: STUDY_PLAN_SOURCE_VERSION,
+    },
+  });
+  return snapshotToStudyPlan(row);
+}
+
+export type GenerateStudyPlanOptions = {
+  now?: Date;
+  refresh?: boolean;
+  persist?: boolean;
+};
+
+/**
+ * Returns the learner's weekly study plan. By default this is stable for the
+ * current UTC week: the first call computes and persists a snapshot, and later
+ * calls return the saved row. Pass `{ refresh: true }` for administrative/test
+ * recomputation of the current week.
+ */
+export async function generateStudyPlan(
+  userId: string,
+  opts: GenerateStudyPlanOptions = {},
+): Promise<StudyPlan> {
+  const now = opts.now ?? new Date();
+  const { weekStart } = weeklyBounds(now);
+
+  if (opts.persist !== false && !opts.refresh) {
+    const existing = await prisma.studyPlanSnapshot.findUnique({
+      where: { userId_weekStart: { userId, weekStart } },
+    });
+    if (existing) return snapshotToStudyPlan(existing);
+  }
+
+  const plan = await computeStudyPlan(userId, now);
+  if (opts.persist === false) return plan;
+  return persistStudyPlanSnapshot(userId, plan);
+}
+
+export async function getStudyPlanHistory(
+  userId: string,
+  opts: { limit?: number } = {},
+): Promise<StudyPlanHistoryEntry[]> {
+  const limit = Math.max(1, Math.min(opts.limit ?? DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT));
+  const rows = await prisma.studyPlanSnapshot.findMany({
+    where: { userId },
+    orderBy: { weekStart: "desc" },
+    take: limit,
+  });
+  return rows.map(snapshotToStudyPlan);
 }

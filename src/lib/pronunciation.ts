@@ -50,6 +50,22 @@ export type PronunciationHistorySummary = {
   attemptCount: number;
   bestPronScore: number | null;
   averageScore: number | null;
+  trends: PronunciationSentenceTrend[];
+  weakSentences: PronunciationSentenceTrend[];
+};
+
+export type PronunciationSentenceTrend = {
+  key: string;
+  articleId: string | null;
+  referenceText: string;
+  attempts: number;
+  firstScore: number;
+  latestScore: number;
+  bestScore: number;
+  averageScore: number;
+  trendDelta: number;
+  lastPracticedAt: Date;
+  scores: number[];
 };
 
 /**
@@ -139,15 +155,64 @@ export async function getPronunciationHistory(
     }),
   ]);
 
+  const trends = buildSentenceTrends(attempts);
+
   return {
     attempts,
     attemptCount: agg._count.id,
     bestPronScore: agg._max.pronScore ?? null,
     averageScore:
       agg._avg.pronScore !== null ? Math.round(agg._avg.pronScore) : null,
+    trends,
+    weakSentences: trends
+      .filter((trend) => trend.latestScore < 70 || trend.averageScore < 70)
+      .sort((a, b) => a.latestScore - b.latestScore || b.attempts - a.attempts)
+      .slice(0, 10),
   };
 }
 
 function normalizeHistoryLimit(limit: number | undefined): number {
   return Math.max(1, Math.min(limit ?? DEFAULT_HISTORY_LIMIT, MAX_HISTORY_LIMIT));
+}
+
+function trendKey(attempt: AttemptRecord): string {
+  return `${attempt.articleId ?? "freeform"}:${attempt.referenceText}`;
+}
+
+function averageScore(scores: number[]): number {
+  return Math.round(scores.reduce((sum, score) => sum + score, 0) / scores.length);
+}
+
+function buildSentenceTrends(attempts: AttemptRecord[]): PronunciationSentenceTrend[] {
+  const groups = new Map<string, AttemptRecord[]>();
+  for (const attempt of attempts) {
+    const key = trendKey(attempt);
+    const group = groups.get(key);
+    if (group) group.push(attempt);
+    else groups.set(key, [attempt]);
+  }
+
+  return [...groups.entries()]
+    .map(([key, rows]) => {
+      const ordered = rows
+        .slice()
+        .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime());
+      const scores = ordered.map((row) => row.pronScore);
+      const first = ordered[0];
+      const latest = ordered[ordered.length - 1];
+      return {
+        key,
+        articleId: latest.articleId,
+        referenceText: latest.referenceText,
+        attempts: ordered.length,
+        firstScore: first.pronScore,
+        latestScore: latest.pronScore,
+        bestScore: Math.max(...scores),
+        averageScore: averageScore(scores),
+        trendDelta: latest.pronScore - first.pronScore,
+        lastPracticedAt: latest.createdAt,
+        scores,
+      };
+    })
+    .sort((a, b) => b.lastPracticedAt.getTime() - a.lastPracticedAt.getTime());
 }
