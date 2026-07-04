@@ -19,18 +19,29 @@ import {
   AdminResultCount,
   AdminTableWrap,
   AdminPagination,
+  AdminSortHeader,
 } from "@/components/admin";
 
 type SearchParams = {
   q?: string;
   status?: string;
   page?: string;
+  sort?: string;
+  order?: string;
 };
 
-function buildHref(params: { q: string; status: string; page: number }): string {
+function buildHref(params: {
+  q: string;
+  status: string;
+  page: number;
+  sort: string;
+  order: "asc" | "desc";
+}): string {
   const sp = new URLSearchParams();
   if (params.q) sp.set("q", params.q);
   if (params.status) sp.set("status", params.status);
+  sp.set("sort", params.sort);
+  sp.set("order", params.order);
   if (params.page > 1) sp.set("page", String(params.page));
   const qs = sp.toString();
   return qs ? `/admin/articles?${qs}` : "/admin/articles";
@@ -72,9 +83,18 @@ export default async function AdminArticlesPage({
   const query = (sp.q ?? "").trim();
   const status = (sp.status ?? "").trim().toUpperCase();
   const page = Math.max(1, Number.parseInt(sp.page ?? "1", 10) || 1);
+  const requestedSort = (sp.sort ?? "").trim();
+  const requestedOrder = sp.order === "asc" ? "asc" : "desc";
 
   const [result, statuses] = await Promise.all([
-    searchArticles({ query, status, page, context }),
+    searchArticles({
+      query,
+      status,
+      page,
+      context,
+      sort: requestedSort,
+      order: requestedOrder,
+    }),
     getAdminArticleStatuses(context),
   ]);
 
@@ -94,6 +114,8 @@ export default async function AdminArticlesPage({
           className="flex-[1_1_240px]"
           aria-label="Search articles"
         />
+        <input type="hidden" name="sort" value={result.sort} />
+        <input type="hidden" name="order" value={result.order} />
         <div className="w-auto">
           <Select
             name="status"
@@ -126,11 +148,43 @@ export default async function AdminArticlesPage({
         <AdminTableWrap ariaLabel="Articles table (scrollable)">
           <thead>
             <tr>
-              <th>Title</th>
-              <th>Author / Source</th>
-              <th>Visibility / Status</th>
-              <th>Level</th>
-              <th>Actions</th>
+              <AdminSortHeader
+                label="Title"
+                sortKey="title"
+                currentSort={result.sort}
+                currentOrder={result.order}
+                buildHref={(sort, order) =>
+                  buildHref({ q: query, status, page: 1, sort, order })
+                }
+              />
+              <AdminSortHeader
+                label="Author / Source"
+                sortKey="author"
+                currentSort={result.sort}
+                currentOrder={result.order}
+                buildHref={(sort, order) =>
+                  buildHref({ q: query, status, page: 1, sort, order })
+                }
+              />
+              <AdminSortHeader
+                label="Visibility / Status"
+                sortKey="status"
+                currentSort={result.sort}
+                currentOrder={result.order}
+                buildHref={(sort, order) =>
+                  buildHref({ q: query, status, page: 1, sort, order })
+                }
+              />
+              <AdminSortHeader
+                label="Level"
+                sortKey="difficulty"
+                currentSort={result.sort}
+                currentOrder={result.order}
+                buildHref={(sort, order) =>
+                  buildHref({ q: query, status, page: 1, sort, order })
+                }
+              />
+              <th scope="col">Actions</th>
             </tr>
           </thead>
           <tbody>
@@ -169,7 +223,9 @@ export default async function AdminArticlesPage({
       <AdminPagination
         page={result.page}
         totalPages={result.totalPages}
-        buildHref={(p) => buildHref({ q: query, status, page: p })}
+        buildHref={(p) =>
+          buildHref({ q: query, status, page: p, sort: result.sort, order: result.order })
+        }
       />
     </section>
   );

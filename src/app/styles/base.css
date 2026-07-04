@@ -508,6 +508,25 @@ body {
   background: var(--bg-subtle);
 }
 
+.admin-sort-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: inherit;
+  text-decoration: none;
+  border-radius: var(--radius-sm);
+}
+
+.admin-sort-link:hover {
+  color: var(--text);
+  text-decoration: underline;
+}
+
+.admin-sort-link:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px var(--ring-offset), 0 0 0 4px var(--focus-ring);
+}
+
 .admin-table tr:hover td {
   background: color-mix(in srgb, var(--primary) 4%, transparent);
 }

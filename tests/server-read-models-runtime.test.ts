@@ -215,11 +215,13 @@ before(() => {
           },
         },
         highlight: {
-          findMany: async (args: { select?: unknown }) => {
+          findMany: async (args: { select?: unknown; skip?: number; take?: number }) => {
             if (args.select && "articleId" in (args.select as Record<string, unknown>)) {
               return annotationHighlightRows;
             }
-            return highlightFindManyRows;
+            const start = args.skip ?? 0;
+            const end = args.take ? start + args.take : undefined;
+            return highlightFindManyRows.slice(start, end);
           },
           groupBy: async () => highlightGroupRows,
           count: async () => highlightCountQueue.shift() ?? 0,
@@ -421,9 +423,24 @@ test("annotation queries trim capped pages and build per-article count maps", as
     (_, index) => ({ id: `h${index}`, article: { id: "a", title: "A" } }),
   );
   assert.equal((await listAllUserHighlights("u1")).length, HIGHLIGHTS_ALL_HARD_CAP);
-  const page = await listAllUserHighlightsPage("u1");
+  highlightCountQueue = [HIGHLIGHTS_ALL_HARD_CAP + 1];
+  const page = await listAllUserHighlightsPage("u1", {
+    pageSize: HIGHLIGHTS_ALL_HARD_CAP,
+  });
   assert.equal(page.hasMore, true);
   assert.equal(page.highlights.length, HIGHLIGHTS_ALL_HARD_CAP);
+
+  highlightCountQueue = [1];
+  highlightFindManyRows = [
+    { id: "filtered", article: { id: "a", title: "A" } },
+  ];
+  const filteredPage = await listAllUserHighlightsPage("u1", {
+    query: "quote",
+    color: "yellow",
+  });
+  assert.equal(filteredPage.query, "quote");
+  assert.equal(filteredPage.color, "yellow");
+  assert.equal(filteredPage.highlights.length, 1);
 
   assert.deepEqual(await getHighlightCounts("u1", []), {});
   highlightGroupRows = [

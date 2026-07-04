@@ -252,6 +252,25 @@ test("searchArticles computes skip/take for a later page", async () => {
   assert.equal(lastFindManyArgs?.take, 10);
 });
 
+test("searchArticles applies allowlisted sort and order options", async () => {
+  const { searchArticles } = await import("@/lib/article-library/admin");
+  articleRows = [buildArticle({ id: "a1" })];
+  articleTotal = 1;
+
+  const result = await searchArticles({
+    sort: "title",
+    order: "asc",
+    context: ADMIN,
+  });
+
+  assert.equal(result.sort, "title");
+  assert.equal(result.order, "asc");
+  assert.deepEqual(lastFindManyArgs?.orderBy, [
+    { title: "asc" },
+    { createdAt: "desc" },
+  ]);
+});
+
 test("searchArticles clamps a non-positive page to 1", async () => {
   const { searchArticles } = await import("@/lib/article-library/admin");
   const result = await searchArticles({ page: 0, context: ADMIN });

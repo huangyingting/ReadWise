@@ -4,8 +4,12 @@
  * All functions here are read-only. Mutation commands live in
  * {@link ./commands}.
  */
-import type { Classroom, ClassroomRole } from "@prisma/client";
+import type { Classroom, ClassroomRole, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  readableArticleWhere,
+  type ArticleAccessContext,
+} from "@/lib/article-library/policy";
 
 export type ClassroomMemberRow = {
   userId: string;
@@ -15,6 +19,21 @@ export type ClassroomMemberRow = {
   image: string | null;
 };
 
+export type ClassroomStudentCandidateRow = {
+  id: string;
+  name: string | null;
+  email: string | null;
+  image: string | null;
+};
+
+export type AssignableArticleOptionRow = {
+  id: string;
+  title: string;
+  author: string | null;
+  source: string | null;
+  difficulty: string | null;
+};
+
 const NEWEST_FIRST = { createdAt: "desc" } as const;
 const USER_PROFILE_SELECT = {
   id: true,
@@ -22,6 +41,8 @@ const USER_PROFILE_SELECT = {
   email: true,
   image: true,
 } as const;
+const STUDENT_PICKER_LIMIT = 25;
+const ARTICLE_PICKER_LIMIT = 25;
 
 function classroomMembership(userId: string, role?: ClassroomRole) {
   return role ? { members: { some: { userId, role } } } : { members: { some: { userId } } };
@@ -81,4 +102,65 @@ export async function listClassroomMembers(
     email: r.user.email,
     image: r.user.image,
   }));
+}
+
+function buildStudentCandidateWhere(
+  classroomId: string,
+  query: string,
+): Prisma.UserWhereInput {
+  return {
+    classroomMemberships: { none: { classroomId } },
+    ...(query
+      ? {
+          OR: [
+            { name: { contains: query } },
+            { email: { contains: query } },
+          ],
+        }
+      : {}),
+  };
+}
+
+export function searchClassroomStudentCandidates(
+  classroomId: string,
+  query = "",
+  limit = STUDENT_PICKER_LIMIT,
+): Promise<ClassroomStudentCandidateRow[]> {
+  const trimmedQuery = query.trim();
+  return prisma.user.findMany({
+    where: buildStudentCandidateWhere(classroomId, trimmedQuery),
+    select: USER_PROFILE_SELECT,
+    orderBy: [{ name: "asc" }, { email: "asc" }],
+    take: Math.max(1, Math.min(limit, STUDENT_PICKER_LIMIT)),
+  });
+}
+
+export function searchAssignableArticleOptions(
+  context: ArticleAccessContext,
+  query = "",
+  limit = ARTICLE_PICKER_LIMIT,
+): Promise<AssignableArticleOptionRow[]> {
+  const trimmedQuery = query.trim();
+  return prisma.article.findMany({
+    where: readableArticleWhere(context, {
+      ...(trimmedQuery
+        ? {
+            OR: [
+              { title: { contains: trimmedQuery } },
+              { author: { contains: trimmedQuery } },
+              { source: { contains: trimmedQuery } },
+            ],
+          }
+        : {}),
+    }),
+    select: {
+      id: true,
+      title: true,
+      author: true,
+      source: true,
+      difficulty: true,
+    },
+    orderBy: [{ title: "asc" }],
+    take: Math.max(1, Math.min(limit, ARTICLE_PICKER_LIMIT)),
+  });
 }

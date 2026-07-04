@@ -26,11 +26,15 @@ export {
 } from "./guards";
 export {
   type ClassroomMemberRow,
+  type ClassroomStudentCandidateRow,
+  type AssignableArticleOptionRow,
   getClassroom,
   listClassroomsForOrg,
   listClassroomsForTeacher,
   listClassroomsForStudent,
   listClassroomMembers,
+  searchClassroomStudentCandidates,
+  searchAssignableArticleOptions,
 } from "./queries";
 export {
   type CreateClassroomInput,
