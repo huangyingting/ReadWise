@@ -79,6 +79,7 @@ function buildSnapshot(): MetricsSnapshot {
         value: 10,
       },
     ],
+    gauges: [],
     histograms: [
       // /api/feed latency: only 1 of 10 under 1000ms → 0.1 < 0.95 → breaching.
       {
@@ -128,7 +129,7 @@ test("evaluateSlos computes status from a metrics snapshot", () => {
 });
 
 test("evaluateSlos reports all no_data for an empty snapshot", () => {
-  const report = evaluateSlos({ counters: [], histograms: [] });
+  const report = evaluateSlos({ counters: [], gauges: [], histograms: [] });
   assert.equal(report.noData, SLI_CATALOG.length);
   assert.equal(report.ok, 0);
   assert.equal(report.breaching, 0);
@@ -137,6 +138,7 @@ test("evaluateSlos reports all no_data for an empty snapshot", () => {
 test("reader latency SLI matches the /api/reader/* route prefix", () => {
   const snapshot: MetricsSnapshot = {
     counters: [],
+    gauges: [],
     histograms: [
       {
         name: "readwise_api_request_duration_ms",

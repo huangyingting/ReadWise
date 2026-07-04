@@ -1,14 +1,14 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-01"
-description: "Documents in-process metrics registry, recorder helpers, route normalization, and Prometheus export boundary. Captures current counter/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
+last_updated: "2026-07-04"
+description: "Documents in-process metrics registry, recorder helpers, route normalization, and Prometheus export boundary. Captures current counter/gauge/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
 ---
 
 # Metrics subsystem
 
 `src/lib/metrics/` is the in-process metrics layer of the Observability
-subsystem. It owns the shared counter/histogram/cache-stat registry, a
+subsystem. It owns the shared counter/gauge/histogram/cache-stat registry, a
 Prometheus text-format exporter, per-domain recorder helpers, and route-path
 normalisation. The SLO catalog in `src/lib/observability/slo.ts` reads the
 snapshot produced here to evaluate product-critical service levels.
@@ -27,8 +27,8 @@ domain recorders ──→ registry (in-process maps) ──→ exporter (Promet
 
 ### registry (`src/lib/metrics/registry.ts`)
 
-The single source of mutable state: two `Map` structures (counters and
-histograms) and a cache-stats accumulator. Nothing outside this file touches the
+The single source of mutable state: `Map` structures for counters, gauges, and
+histograms plus a cache-stats accumulator. Nothing outside this file touches the
 maps directly.
 
 Key exports:
@@ -36,6 +36,7 @@ Key exports:
 | Export | Purpose |
 | --- | --- |
 | `incCounter(name, help, labels, amount?)` | Increment a counter series by `amount` (default 1). |
+| `setGauge(name, help, labels, value)` | Set a current-value gauge series. |
 | `observeHistogram(name, help, buckets, labels, value)` | Record one observation against a histogram series. |
 | `incCacheLookup(name)` / `incCacheMiss(name)` | Track raw lookup and miss counts; hit/miss ratio derived at snapshot time. |
 | `getMetricsSnapshot()` | Return an immutable snapshot of all series, sorted by name + labels. |
@@ -78,8 +79,9 @@ tokens.
 
 `exportMetricsPrometheus()` serialises the current snapshot into the Prometheus
 text exposition format (text/plain version 0.0.4). Output is stable for a given
-snapshot: counters before histograms, both sorted by name then label string.
-Served at `GET /api/admin/metrics` (admin-gated).
+snapshot: counters, then gauges, then histograms, each sorted by name then label
+string. Served at `GET /api/admin/metrics` (admin-gated). The admin metrics
+route refreshes durable Job queue-depth gauges before exporting.
 
 ---
 
@@ -96,7 +98,7 @@ its own label contract and hides the raw counter/histogram names.
 | Cache | `recorders/cache.ts` | `recordCacheLookup`, `recordCacheMiss`, `recordCacheAccess` — hit/miss counts per named cache. |
 | Content processing | `recorders/content.ts` | `recordContentProcessingRun`, `recordContentProcessingStep`, `recordIngestionRun` — article pipeline outcomes and step counts. |
 | Errors / security | `recorders/security.ts` | `recordErrorCaptured`, `recordSecurityEventMetric` — low-cardinality error and security-event counts. |
-| Job queue | `recorders/jobs.ts` | `recordJobQueueEvent`, `recordJobLockAge` — lifecycle events and stale-lock age. |
+| Job queue | `recorders/jobs.ts` | `recordJobQueueEvent`, `recordJobLockAge`, `recordJobQueueDepth` — lifecycle events, stale-lock age, and current queue depth. |
 
 **Ownership note**: domain recorders exist in the metrics package because they
 encode the _signal_ (how to count an event), not the _meaning_ (what the count
@@ -131,6 +133,7 @@ design.
 | `readwise_security_events_total` | counter | type, severity, status_class, alert | security |
 | `readwise_job_queue_events_total` | counter | event, type | jobs |
 | `readwise_job_lock_age_ms` | histogram | type | jobs |
+| `readwise_job_queue_depth` | gauge | type, status | jobs |
 
 ---
 

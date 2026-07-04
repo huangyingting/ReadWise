@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createAdminHandler } from "@/lib/api-handler";
-import { AUDIT_ACTIONS, listAuditLogs, recordAuditFromRequest } from "@/lib/security/audit";
+import { AUDIT_ACTIONS, listAuditLogs, tryRecordAuditFromRequest } from "@/lib/security/audit";
 import { queryInt, queryString } from "@/lib/validation";
 
 const QUERY_VALUE_MAX_LENGTH = 120;
@@ -44,7 +44,7 @@ function auditReadMetadata(query: AuditLogQuery) {
 export const GET = createAdminHandler(
   { query: auditLogQuery },
   async ({ req, query, session, requestId }) => {
-    await recordAuditFromRequest({
+    await tryRecordAuditFromRequest({
       req,
       session,
       requestId,

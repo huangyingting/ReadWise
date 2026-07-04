@@ -26,6 +26,7 @@ let jobCreateError: Error | null;
 let dedupeWinner: Record<string, unknown> | null;
 let jobGroupRowsByStatus: Array<{ status: string; _count: { _all: number } }>;
 let jobGroupRowsByType: Array<{ type: string; _count: { _all: number } }>;
+let jobGroupRowsByTypeStatus: Array<{ type: string; status: string; _count: { _all: number } }>;
 let jobUpdates: AnyArgs[];
 let jobUpdateError: Error | null;
 let jobDeletes: AnyArgs[];
@@ -90,6 +91,10 @@ function resetMockState(): void {
     { status: JobStatus.FAILED, _count: { _all: 1 } },
   ];
   jobGroupRowsByType = [{ type: JobType.ARTICLE_PROCESS, _count: { _all: 3 } }];
+  jobGroupRowsByTypeStatus = [
+    { type: JobType.ARTICLE_PROCESS, status: JobStatus.PENDING, _count: { _all: 2 } },
+    { type: JobType.TTS_GENERATE, status: JobStatus.FAILED, _count: { _all: 1 } },
+  ];
   jobUpdates = [];
   jobUpdateError = null;
   jobDeletes = [];
@@ -135,8 +140,12 @@ before(() => {
         if (args.where.dedupeKey) return dedupeWinner;
         return args.where.id ? jobById : null;
       },
-      groupBy: async (args: { by: string[] }) =>
-        args.by.includes("status") ? jobGroupRowsByStatus : jobGroupRowsByType,
+      groupBy: async (args: { by: string[] }) => {
+        if (args.by.includes("type") && args.by.includes("status")) {
+          return jobGroupRowsByTypeStatus;
+        }
+        return args.by.includes("status") ? jobGroupRowsByStatus : jobGroupRowsByType;
+      },
       update: async (args: AnyArgs) => {
         jobUpdates.push(args);
         if (jobUpdateError) throw jobUpdateError;
@@ -182,6 +191,7 @@ before(() => {
   mock.module("@/lib/metrics", {
     namedExports: {
       recordApiRequest: () => {},
+      recordJobQueueDepth: (input: unknown) => metricCalls.push(["queue-depth", input]),
       recordJobLockAge: (...args: unknown[]) => metricCalls.push(["lock-age", ...args]),
       recordJobQueueEvent: (input: unknown) => metricCalls.push(["queue-event", input]),
       routeGroupFromPath: (path: string) => path,
@@ -231,6 +241,7 @@ test("job query helpers build Prisma filters and aggregate counts", async () => 
   const {
     countJobsByStatus,
     countJobsByType,
+    countJobsByTypeAndStatus,
     getJob,
     listDeadLetterJobs,
     listJobs,
@@ -263,6 +274,46 @@ test("job query helpers build Prisma filters and aggregate counts", async () => 
   assert.deepEqual(jobFindUniqueArgs.at(-1), { where: { id: "job-1" } });
   assert.deepEqual(await countJobsByStatus(), { PENDING: 2, FAILED: 1 });
   assert.deepEqual(await countJobsByType(), { ARTICLE_PROCESS: 3 });
+  assert.deepEqual(await countJobsByTypeAndStatus(), [
+    { type: JobType.ARTICLE_PROCESS, status: JobStatus.PENDING, count: 2 },
+    { type: JobType.TTS_GENERATE, status: JobStatus.FAILED, count: 1 },
+  ]);
+});
+
+test("job queue depth metrics emit all low-cardinality type/status series", async () => {
+  const { refreshJobQueueDepthMetrics } = await import("@/lib/jobs/metrics");
+
+  await refreshJobQueueDepthMetrics();
+
+  assert.ok(
+    metricCalls.some(
+      (call) =>
+        Array.isArray(call) &&
+        call[0] === "queue-depth" &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).type === JobType.ARTICLE_PROCESS &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).status === JobStatus.PENDING &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).depth === 2,
+    ),
+  );
+  assert.ok(
+    metricCalls.some(
+      (call) =>
+        Array.isArray(call) &&
+        call[0] === "queue-depth" &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).type === JobType.TTS_GENERATE &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).status === JobStatus.FAILED &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).depth === 1,
+    ),
+  );
+  assert.ok(
+    metricCalls.some(
+      (call) =>
+        Array.isArray(call) &&
+        call[0] === "queue-depth" &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).status === JobStatus.COMPLETED &&
+        (call[1] as { type: JobType; status: JobStatus; depth: number }).depth === 0,
+    ),
+  );
 });
 
 test("PostgreSQL job claiming handles empty queues and stale lock metrics", async () => {

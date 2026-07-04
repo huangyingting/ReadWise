@@ -55,6 +55,11 @@ before(() => {
           findUnique: async () => (articleExists ? { id: "a1" } : null),
           findFirst: async () => (articleExists ? { id: "a1" } : null),
         },
+        job: {
+          groupBy: async () => [
+            { type: "TTS_GENERATE", status: "PENDING", _count: { _all: 3 } },
+          ],
+        },
       },
     },
   });
@@ -312,5 +317,7 @@ test("GET admin/metrics exports Prometheus text for admins", async () => {
   const res = await GET(new Request("http://test/api/admin/metrics"), undefined);
   assert.equal(res.status, 200);
   assert.match(res.headers.get("content-type") ?? "", /text\/plain/);
-  assert.match(await res.text(), /readwise_cache_access_total/);
+  const text = await res.text();
+  assert.match(text, /readwise_cache_access_total/);
+  assert.match(text, /readwise_job_queue_depth\{status="pending",type="tts_generate"\} 3/);
 });

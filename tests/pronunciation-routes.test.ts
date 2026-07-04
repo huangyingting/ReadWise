@@ -20,6 +20,8 @@ let authState: AuthState = "ok";
 let createdAttempt: Record<string, unknown> | null = null;
 let maxPronScore: number | null = null;
 let findManyRows: Record<string, unknown>[] = [];
+let articleReadable = true;
+let rateLimitCalls: Array<{ userId: string; scope: string }> = [];
 let aggResult: {
   _count: { id: number };
   _avg: { pronScore: number | null };
@@ -80,6 +82,14 @@ before(() => {
     namedExports: fullAuthExports(() => authState),
   });
 
+  mock.module("@/lib/security/rate-limit/index", {
+    namedExports: {
+      checkRateLimit: async (userId: string, scope: string) => {
+        rateLimitCalls.push({ userId, scope });
+      },
+    },
+  });
+
   mock.module("@/lib/prisma", {
     namedExports: {
       prisma: {
@@ -112,13 +122,13 @@ before(() => {
         },
         article: {
           findUnique: async (args: { where: { id: string; status?: string } }) => {
-            if (args.where.id) {
+            if (args.where.id && articleReadable) {
               return { id: args.where.id, status: "published", ownerId: null };
             }
             return null;
           },
           findFirst: async (args: { where: { id: string } }) => {
-            if (args.where.id) {
+            if (args.where.id && articleReadable) {
               return { id: args.where.id, status: "published", ownerId: null };
             }
             return null;
@@ -134,6 +144,8 @@ beforeEach(() => {
   createdAttempt = null;
   maxPronScore = null;
   findManyRows = [];
+  articleReadable = true;
+  rateLimitCalls = [];
   aggResult = { _count: { id: 0 }, _avg: { pronScore: null }, _max: { pronScore: null } };
   process.env.AZURE_SPEECH_KEY = "test-key";
   process.env.AZURE_SPEECH_REGION = "eastus";
@@ -177,6 +189,16 @@ describe("POST /api/pronunciation/attempt", () => {
     assert.equal(res.status, 200);
     const body = await res.json();
     assert.equal(body.attempt.articleId, "article-1");
+  });
+
+  test("checks article access before consuming pronunciation quota", async () => {
+    articleReadable = false;
+
+    const res = await postAttempt(attemptBody({ articleId: "denied-article" }));
+
+    assert.equal(res.status, 404);
+    assert.equal(createdAttempt, null);
+    assert.deepEqual(rateLimitCalls, []);
   });
 
   test("clamps an out-of-range score to 0–100", async () => {
