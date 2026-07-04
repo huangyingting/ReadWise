@@ -25,9 +25,11 @@ The current local fixture is intentionally small: 10 articles with flat
 `.media/speech/<file>.mp3` audio files.
 
 Prisma 7 reads connection URLs from `prisma.config.ts` instead of the schema
-files. Keep `DATABASE_URL` and `PRISMA_SCHEMA_PATH` in sync: the default SQLite
-path uses `file:./dev.db` plus `prisma/schema.prisma`; PostgreSQL workflows use
-the PostgreSQL URL plus `prisma/postgresql/schema.prisma`.
+files. Keep `DATABASE_URL` and `PRISMA_SCHEMA_PATH` in sync: the default local
+SQLite path uses `file:./dev.db` plus `prisma/schema.prisma`; PostgreSQL
+workflows use the PostgreSQL URL plus `prisma/postgresql/schema.prisma`.
+Production startup and `/api/ready` fail closed when the URL and schema point to
+different providers.
 
 ## Migration and integration checks
 
@@ -54,8 +56,10 @@ PostgreSQL `FOR UPDATE SKIP LOCKED` claim/reclaim/dead-letter behavior.
 
 ## Docker image with PostgreSQL schema
 
-Build images for PostgreSQL with the schema build arg so the generated Prisma
-client and runtime migration command agree:
+Docker images are PostgreSQL-first by default. The build arg and runtime
+environment both default to `prisma/postgresql/schema.prisma`; keep the explicit
+values below in deployment manifests so the generated Prisma client, startup
+validation, and runtime migration command agree:
 
 ```bash
 docker build --build-arg PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma -t readwise:postgres .
@@ -65,6 +69,18 @@ docker run \
   -e NEXTAUTH_SECRET="<32-byte-random-secret>" \
   -e NEXTAUTH_URL="https://<app-host>" \
   readwise:postgres
+```
+
+For a local SQLite container, explicitly override both values:
+
+```bash
+docker build --build-arg PRISMA_SCHEMA_PATH=prisma/schema.prisma -t readwise:sqlite .
+docker run \
+  -e PRISMA_SCHEMA_PATH=prisma/schema.prisma \
+  -e DATABASE_URL="file:./dev.db" \
+  -e NEXTAUTH_SECRET="<32-byte-random-secret>" \
+  -e NEXTAUTH_URL="http://localhost:3000" \
+  readwise:sqlite
 ```
 
 ## Migrating existing SQLite data
@@ -109,10 +125,15 @@ workflow, and the checklist to follow for every model change.
 
 ### Parity contract
 
-`prisma/schema.prisma` (SQLite) and `prisma/postgresql/schema.prisma` must be
-**byte-identical** except for a single line in the `datasource db` block. The
-connection URL is intentionally not present in either schema; `prisma.config.ts`
-supplies `DATABASE_URL` to Prisma CLI commands.
+`prisma/base.prisma` is the single source of truth. `npm run schema:generate`
+renders the committed generated schemas:
+
+- `prisma/schema.prisma` (SQLite)
+- `prisma/postgresql/schema.prisma` (PostgreSQL)
+
+The generated schemas must be **byte-identical** except for a single line in the
+`datasource db` block. The connection URL is intentionally not present in any
+schema; `prisma.config.ts` supplies `DATABASE_URL` to Prisma CLI commands.
 
 | File | datasource provider line |
 |------|--------------------------|
@@ -120,8 +141,9 @@ supplies `DATABASE_URL` to Prisma CLI commands.
 | `prisma/postgresql/schema.prisma` | `provider = "postgresql"` |
 
 Every other byte — models, enums, relations, indexes, comments, whitespace —
-must match exactly. Drift is caught by `npm test` (via `tests/db-schema.test.ts`)
-and by the standalone parity script (see below).
+must match exactly and must be generated from `prisma/base.prisma`. Drift is
+caught by `npm test` (via `tests/db-schema.test.ts`) and by the standalone
+parity script (see below).
 
 ### Allowed differences
 
@@ -145,25 +167,29 @@ account for it.
 
 ### Parity check script
 
-Run the parity check manually or in CI:
+Run the parity and schema validation checks manually or in CI:
 
 ```bash
 npm run schema:check-parity
+npm run schema:validate
 ```
 
 The script (`scripts/check-schema-parity.ts`) is deterministic and requires no
-database connection. It exits 0 when both schemas and both migration directory
-listings are in parity, and exits 1 with a diff when drift is detected.
+database connection. It exits 0 when both generated schemas match
+`prisma/base.prisma` and both migration directory listings are in parity, and
+exits 1 with a diff when drift is detected. `schema:validate` runs
+`prisma validate` against both generated schemas with provider-appropriate
+placeholder URLs.
 
 ### Schema-change workflow
 
 Follow this sequence every time you add, remove, or rename a model field,
 relation, index, enum value, or unique constraint:
 
-1. **Edit `prisma/schema.prisma`** — make the intended change.
-2. **Mirror the edit to `prisma/postgresql/schema.prisma`** — apply the
-   identical change (only the provider line should differ).
-3. **Run the parity check** — `npm run schema:check-parity` must exit 0.
+1. **Edit `prisma/base.prisma`** — make the intended change once.
+2. **Regenerate the provider schemas** — run `npm run schema:generate`.
+3. **Run the parity and schema checks** — `npm run schema:check-parity` and
+   `npm run schema:validate` must exit 0.
 4. **Generate the SQLite migration**:
    ```bash
    npx prisma migrate dev --name <slug>
@@ -176,9 +202,10 @@ relation, index, enum value, or unique constraint:
    The migration *directory name* (timestamp + slug) generated in step 4 and
    step 5 must match. If the timestamps differ, rename one directory so both
    trees share the same name.
-6. **Commit all four artefacts together** — both schema files and both
-   migration directories must land in the same commit:
+6. **Commit all schema artefacts together** — the base schema, both generated
+   schema files, and both migration directories must land in the same commit:
    ```
+   prisma/base.prisma
    prisma/schema.prisma
    prisma/postgresql/schema.prisma
    prisma/migrations/<timestamp>_<slug>/migration.sql
@@ -194,7 +221,8 @@ For the full privacy, retention, and export guidance see
 [`docs/platform/schema-change-checklist.md`](./schema-change-checklist.md)
 and the [data-lifecycle matrix](../security/data-lifecycle-matrix.md).
 
-- [ ] **Parity** — `npm run schema:check-parity` exits 0.
+- [ ] **Parity** — `npm run schema:generate`, `npm run schema:check-parity`,
+  and `npm run schema:validate` exit 0.
 - [ ] **Migration committed** — new migration directories are present in both
   `prisma/migrations/` and `prisma/postgresql/migrations/` with matching names.
 - [ ] **Cascades** — foreign-key `onDelete`/`onUpdate` behaviour is intentional.

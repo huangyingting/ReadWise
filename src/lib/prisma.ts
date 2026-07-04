@@ -9,6 +9,7 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import { isPostgresDatabase } from "@/lib/db-utils";
+import { assertProductionPrismaSchemaMatchesDatabase } from "@/lib/runtime-config/database";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
@@ -40,6 +41,8 @@ function createSqlitePrismaClient(databaseUrl: string): PrismaClient {
 }
 
 function createPrismaClient(): PrismaClient {
+  assertProductionPrismaSchemaMatchesDatabase();
+
   if (isPostgresDatabase()) {
     return createPostgresPrismaClient(databaseUrl);
   }

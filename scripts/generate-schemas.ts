@@ -12,11 +12,10 @@
  *   node --experimental-strip-types --no-warnings scripts/generate-schemas.ts
  *   npm run schema:generate   (after adding the script to package.json)
  *
- * Replacing `schema:check-parity`:
- *   `npm run schema:check-parity` reads the two generated schemas and verifies
- *   they are identical except for the provider line — identical to what this
- *   generator would produce. Running the generator and then `git diff` serves
- *   the same purpose in CI.
+ * Related check:
+ *   `npm run schema:check-parity` verifies both committed schemas still match
+ *   this generator's output and that SQLite/PostgreSQL migration directory
+ *   names remain aligned.
  */
 import { readFile, writeFile } from "node:fs/promises";
 import { runScript, isMain } from "./lib/cli";

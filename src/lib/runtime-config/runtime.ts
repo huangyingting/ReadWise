@@ -14,6 +14,7 @@ import {
   type RuntimeConfigReport,
 } from "@/lib/runtime-config/env";
 import { isValidVapidSubject } from "@/lib/runtime-config/push";
+import { prismaSchemaMismatchIssue } from "@/lib/runtime-config/database";
 import { azureStorageConfig } from "@/lib/runtime-config/storage";
 
 const SUPPORTED_SPEECH_OUTPUT_FORMATS = new Set([
@@ -201,7 +202,9 @@ function validateRuntimeSections() {
         : issue("error", "invalid_database_url", "DATABASE_URL must be a SQLite file: URL or PostgreSQL URL.", [
             "DATABASE_URL",
           ]),
+    () => prismaSchemaMismatchIssue(),
   ]);
+  database.env.push("PRISMA_SCHEMA_PATH");
 
   const auth = evaluateRequired(["NEXTAUTH_SECRET", "NEXTAUTH_URL"], [
     (values) =>
