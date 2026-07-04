@@ -11,6 +11,10 @@ import type { Prisma, Role } from "@prisma/client";
 
 /** Page size for the admin member listing. */
 export const ADMIN_MEMBERS_PAGE_SIZE = 20;
+export const ADMIN_MEMBER_SORT_KEYS = ["createdAt", "name", "role", "activity"] as const;
+export const SORT_ORDERS = ["asc", "desc"] as const;
+export type AdminMemberSortKey = (typeof ADMIN_MEMBER_SORT_KEYS)[number];
+export type SortOrder = (typeof SORT_ORDERS)[number];
 
 export type AdminMemberRow = {
   id: string;
@@ -32,6 +36,8 @@ export type AdminMemberSearch = {
   totalPages: number;
   query: string;
   role: Role | null;
+  sort: AdminMemberSortKey;
+  order: SortOrder;
 };
 
 export type ListMembersOpts = {
@@ -39,6 +45,8 @@ export type ListMembersOpts = {
   role?: string | null;
   page?: number;
   pageSize?: number;
+  sort?: string | null;
+  order?: string | null;
 };
 
 function asRole(value: string | null | undefined): Role | null {
@@ -47,6 +55,37 @@ function asRole(value: string | null | undefined): Role | null {
 
 function normalizePage(page: number | undefined): number {
   return Math.max(1, page ?? 1);
+}
+
+function normalizeSort(value: string | null | undefined): AdminMemberSortKey {
+  return (ADMIN_MEMBER_SORT_KEYS as readonly string[]).includes(value ?? "")
+    ? (value as AdminMemberSortKey)
+    : "createdAt";
+}
+
+function normalizeOrder(value: string | null | undefined): SortOrder {
+  return value === "asc" ? "asc" : "desc";
+}
+
+function memberOrderBy(
+  sort: AdminMemberSortKey,
+  order: SortOrder,
+): Prisma.UserOrderByWithRelationInput[] {
+  switch (sort) {
+    case "name":
+      return [{ name: order }, { email: order }, { createdAt: "desc" }];
+    case "role":
+      return [{ role: order }, { createdAt: "desc" }];
+    case "activity":
+      return [
+        { readingProgress: { _count: order } },
+        { savedWords: { _count: order } },
+        { createdAt: "desc" },
+      ];
+    case "createdAt":
+    default:
+      return [{ createdAt: order }];
+  }
 }
 
 function buildMemberWhere(query: string, role: Role | null): Prisma.UserWhereInput {
@@ -90,6 +129,8 @@ export async function listMembers(
   const role = asRole(opts.role ?? null);
   const pageSize = opts.pageSize ?? ADMIN_MEMBERS_PAGE_SIZE;
   const page = normalizePage(opts.page);
+  const sort = normalizeSort(opts.sort);
+  const order = normalizeOrder(opts.order);
 
   const where = buildMemberWhere(query, role);
 
@@ -97,7 +138,7 @@ export async function listMembers(
     prisma.user.count({ where }),
     prisma.user.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: memberOrderBy(sort, order),
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
@@ -136,5 +177,7 @@ export async function listMembers(
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     query,
     role,
+    sort,
+    order,
   };
 }

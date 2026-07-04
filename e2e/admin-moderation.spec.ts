@@ -77,6 +77,30 @@ test("admin can view the Members page", async ({ context, page }) => {
   await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
 });
 
+test("admin article sort headers expose aria-sort and keyboard links", async ({
+  context,
+  page,
+}) => {
+  await signInAs(context, "Admin");
+
+  await page.goto("/admin/articles?sort=title&order=asc");
+
+  const titleHeader = page.locator("th[aria-sort='ascending']").filter({
+    has: page.getByRole("link", { name: /Title: sorted ascending/i }),
+  });
+  await expect(titleHeader).toBeVisible();
+
+  const titleSort = page.getByRole("link", {
+    name: /Title: sorted ascending\. Activate to sort descending/i,
+  });
+  await titleSort.focus();
+  await expect(titleSort).toBeFocused();
+  await expect(titleSort).toHaveAttribute("href", /order=desc/);
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/sort=title/);
+  await expect(page).toHaveURL(/order=desc/);
+});
+
 test("non-admin reader is redirected away from /admin", async ({ context, page }) => {
   await signInAs(context, "Reader");
 
