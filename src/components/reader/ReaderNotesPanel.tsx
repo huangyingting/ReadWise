@@ -24,24 +24,16 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Spinner } from "@/components/ui/Spinner";
 import { Textarea } from "@/components/ui/Textarea";
-import { EmptyState } from "@/components/ui";
+import { EmptyState, HighlightColorSwatch, isHighlightColor } from "@/components/ui";
 import ConfirmAction from "@/components/ConfirmAction";
 import {
   useHighlights,
   type Highlight,
-  type HighlightColor,
   HIGHLIGHT_COLORS,
 } from "@/components/ReaderHighlightsProvider";
 
 const NOTE_MAX = 2000;
 const NOTE_NEAR_LIMIT_RATIO = 0.85;
-
-const COLOR_SWATCH_BG: Record<HighlightColor, string> = {
-  yellow: "var(--hl-yellow)",
-  green:  "var(--hl-green)",
-  blue:   "var(--hl-blue)",
-  pink:   "var(--hl-pink)",
-};
 
 function getCounterClass(nearLimit: boolean, atLimit: boolean) {
   if (atLimit) return "at-limit";
@@ -158,8 +150,7 @@ function NoteRow({
   const [editingNote, setEditingNote] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  const hlColor = (highlight.color as HighlightColor | null) ?? "yellow";
-  const swatchBg = COLOR_SWATCH_BG[hlColor] ?? COLOR_SWATCH_BG.yellow;
+  const hlColor = isHighlightColor(highlight.color) ? highlight.color : "yellow";
 
   const handleScrollTo = useCallback(() => {
     if (!isOrphaned) flashAndScroll(highlight.id);
@@ -167,11 +158,11 @@ function NoteRow({
 
   return (
     <div className="rw-note-row">
-      {/* Color swatch — static indicator */}
-      <div
+      <HighlightColorSwatch
+        color={hlColor}
+        size="xs"
+        decorative
         className="rw-note-row-swatch"
-        style={{ backgroundColor: swatchBg }}
-        aria-hidden="true"
       />
 
       <div className="rw-note-row-body">
