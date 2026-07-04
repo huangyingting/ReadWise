@@ -134,6 +134,29 @@ test("recordAuditLog throws when durable persistence fails", async () => {
   }
 });
 
+test("tryRecordAuditFromRequest swallows self-audit persistence failures", async () => {
+  const { tryRecordAuditFromRequest } = await import("@/lib/security/audit");
+  createThrows = true;
+
+  const originalError = console.error;
+  console.error = () => {};
+  try {
+    await assert.doesNotReject(() =>
+      tryRecordAuditFromRequest({
+        req: new Request("http://test", {
+          headers: { "user-agent": "ReadWiseTest/1.0" },
+        }),
+        session: { user: { id: "admin-1", role: "Admin" } } as never,
+        action: "admin.audit_logs.read",
+        targetType: "audit_log",
+        targetId: null,
+      }),
+    );
+  } finally {
+    console.error = originalError;
+  }
+});
+
 test("recordAuditLog can write through a transaction client", async () => {
   const { recordAuditLog } = await import("@/lib/security/audit");
   const tx = {

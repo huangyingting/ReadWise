@@ -10,6 +10,7 @@ import {
   recordCacheMiss,
   recordContentProcessingRun,
   recordContentProcessingStep,
+  recordJobQueueDepth,
   recordWorkerJob,
   resetMetrics,
   routeGroupFromPath,
@@ -73,6 +74,7 @@ test("records worker, AI, cache, and content processing counters", () => {
   recordCacheAccess("articles:published", "hit");
   recordContentProcessingStep({ step: "tags", status: "generated" });
   recordContentProcessingRun({ outcome: "success", published: true });
+  recordJobQueueDepth({ type: "TTS_GENERATE", status: "PENDING", depth: 4 });
 
   assert.equal(counterValue("readwise_worker_jobs_total", { outcome: "success", published: "true" }), 1);
   assert.equal(counterValue("readwise_worker_job_attempts_total", { outcome: "success" }), 2);
@@ -85,6 +87,15 @@ test("records worker, AI, cache, and content processing counters", () => {
     counterValue("readwise_content_processing_runs_total", { outcome: "success", published: "true" }),
     1,
   );
+  assert.equal(
+    getMetricsSnapshot().gauges.find(
+      (point) =>
+        point.name === "readwise_job_queue_depth" &&
+        point.labels.type === "tts_generate" &&
+        point.labels.status === "pending",
+    )?.value,
+    4,
+  );
 });
 
 test("resetMetrics clears all exported state", () => {
@@ -93,6 +104,7 @@ test("resetMetrics clears all exported state", () => {
   resetMetrics();
   const snapshot = getMetricsSnapshot();
   assert.equal(snapshot.counters.length, 0);
+  assert.equal(snapshot.gauges.length, 0);
   assert.equal(snapshot.histograms.length, 0);
   assert.equal(exportMetricsPrometheus(), "\n");
 });

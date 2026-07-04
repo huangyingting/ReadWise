@@ -11,6 +11,7 @@ let listCalls = 0;
 let deleteArticleResult = true;
 let deleteArticleThrows = false;
 let revalidateCalls = 0;
+let auditWriteThrows = false;
 
 const AUDIT_ACTIONS = {
   adminArticleDelete: "admin.article.delete",
@@ -31,7 +32,11 @@ before(() => {
         userAgent: req.headers.get("user-agent"),
       }),
       recordAuditFromRequest: async (input: unknown) => {
+        if (auditWriteThrows) throw new Error("audit unavailable");
         auditCalls.push(input);
+      },
+      tryRecordAuditFromRequest: async (input: unknown) => {
+        if (!auditWriteThrows) auditCalls.push(input);
       },
       tryRecordAuditLog: async (input: unknown) => {
         auditCalls.push(input);
@@ -77,6 +82,7 @@ beforeEach(() => {
   deleteArticleResult = true;
   deleteArticleThrows = false;
   revalidateCalls = 0;
+  auditWriteThrows = false;
 });
 
 test("admin audit log API requires admin", async () => {
@@ -102,6 +108,18 @@ test("admin audit log API returns audit entries for admins", async () => {
   assert.equal((await readJson<{ total: number }>(res)).total, 1);
   assert.equal(listCalls, 1);
   assert.equal((auditCalls[0] as { action: string }).action, "admin.audit_logs.read");
+});
+
+test("admin audit log API returns entries when self-audit write fails", async () => {
+  auditWriteThrows = true;
+  const { GET } = (await import("@/app/api/admin/audit-logs/route")) as { GET: RouteHandler };
+
+  const res = await GET(getReq("http://test/api/admin/audit-logs?pageSize=10"), undefined);
+
+  assert.equal(res.status, 200);
+  assert.equal((await readJson<{ total: number }>(res)).total, 1);
+  assert.equal(listCalls, 1);
+  assert.deepEqual(auditCalls, []);
 });
 
 test("admin article deletion writes an audit record with request context", async () => {

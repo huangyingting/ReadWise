@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -99,7 +99,7 @@ is visible without breaking CI.
 
 ## Dependency review (new dependencies on PRs)
 
-The `dependency-review` job runs `actions/dependency-review-action@v4` on every
+The `dependency-review` job runs `actions/dependency-review-action@v5` on every
 pull request.  It **only** scans packages that are **added or changed** by the
 PR diff — it does not rescan the entire existing graph.
 
