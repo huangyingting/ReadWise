@@ -5,11 +5,17 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
-  # Nightly full run (fast checks + unit + build + db + E2E) for release-readiness.
+  # Nightly full run (fast checks + unit/coverage + build + db + E2E + UI audit) for release-readiness.
   schedule:
     - cron: "0 6 * * *"
-  # Allow on-demand runs (e.g. to trigger the tiered E2E job from the UI).
+  # Allow on-demand runs (e.g. to trigger the tiered E2E/full UI audit jobs from the UI).
   workflow_dispatch:
+    inputs:
+      full_ui_audit:
+        description: "Run the sharded 500-case Playwright UI audit"
+        required: false
+        default: false
+        type: boolean
 
 # Cancel superseded PR runs to save minutes; never cancel main/schedule runs so
 # post-merge and nightly signal is always recorded.
@@ -19,15 +25,17 @@ concurrency:
 
 # Tiers (see docs/platform/ci.md):
 #   fast-checks       — typecheck + lint          (every PR, fails fast)
-#   unit-tests        — npm test                  (every PR)
+#   unit-tests        — npm test + coverage gate  (every PR)
 #   build             — npm run build             (every PR)
 #   db-integration    — PostgreSQL migrate/test   (every PR)
 #   supply-chain      — lockfile + npm audit      (every PR; audit is advisory)
 #   dependency-review — new-dep vulnerability scan (PRs only, blocks on HIGH)
 #   e2e-smoke         — Playwright smoke          (push to main + nightly + manual; NOT on PRs)
+#   e2e-ui-audit      — 500-case Playwright audit (nightly + manual full_ui_audit; sharded)
 #   ci-summary        — writes a pass/fail digest to the run summary
 #
-# Required per-PR gates: fast-checks, unit-tests, build, db-integration, supply-chain.
+# Required per-PR gates: fast-checks, unit-tests (including coverage), build,
+# db-integration, supply-chain, and dependency-review.
 # dependency-review is PR-only but does NOT feed ci-summary (it runs in parallel).
 # E2E is intentionally tiered off PRs so a slower/flakier browser run can never
 # block a merge — it still runs post-merge, nightly, and on demand.
@@ -95,11 +103,11 @@ jobs:
           echo "✅  API catalog is up to date — no drift detected."
 
   # ---------------------------------------------------------------------------
-  # Tier 2 — Unit tests: the Node built-in test runner. These are DB-free (they
+  # Tier 2 — Unit tests + native Node coverage gate. These are DB-free (they
   # mock @/lib/prisma) so no migration step is needed; only the generated client.
   # ---------------------------------------------------------------------------
   unit-tests:
-    name: Unit tests
+    name: Unit tests + native coverage
     runs-on: ubuntu-latest
 
     env:
@@ -125,6 +133,9 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+      - name: Native Node coverage gate (98% line coverage)
+        run: npm run coverage:node -- --summary-only --threshold 98
 
   # ---------------------------------------------------------------------------
   # Tier 3 — Build: the production Next.js build. Runs the SQLite migrations so
@@ -337,7 +348,9 @@ jobs:
   # Tier 6 — E2E smoke (Playwright). Slower/flakier, so it is TIERED: it runs on
   # pushes to main, the nightly schedule, and manual dispatch — never on pull
   # requests. That keeps PR feedback fast and means a browser run can never block
-  # a merge, while still giving post-merge and nightly confidence.
+  # a merge, while still giving post-merge and nightly confidence. The npm script
+  # is intentionally scoped to e2e/smoke.spec.ts; the 500-case audit has its own
+  # sharded lane below.
   # ---------------------------------------------------------------------------
   e2e-smoke:
     name: E2E smoke (Playwright)
@@ -368,7 +381,7 @@ jobs:
 
       - name: Resolve Playwright version
         id: playwright
-        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
 
       # Cache the downloaded browser binaries keyed on the Playwright version so
       # we only re-download Chromium when the dependency changes.
@@ -398,6 +411,84 @@ jobs:
             playwright-report/
             test-results/
           retention-days: 7
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------------------
+  # Tier 7 — Full UI audit (Playwright). The 500-case audit is intentionally not
+  # part of the smoke lane. It runs nightly and when manually enabled, split across
+  # shards so each job produces independent JSONL/catalog artifacts.
+  # ---------------------------------------------------------------------------
+  e2e-ui-audit:
+    name: E2E full UI audit (shard ${{ matrix.shard }}/${{ matrix.total }})
+    runs-on: ubuntu-latest
+    if: ${{ github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.full_ui_audit) }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: 1
+            total: 4
+          - shard: 2
+            total: 4
+          - shard: 3
+            total: 4
+          - shard: 4
+            total: 4
+
+    env:
+      DATABASE_URL: file:./e2e.db
+      NEXTAUTH_SECRET: readwise-playwright-smoke-secret
+      NEXTAUTH_URL: http://127.0.0.1:3100
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3100
+      UI_AUDIT_ARTIFACT_DIR: test-results/ui-audit
+      UI_AUDIT_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}-shard-${{ matrix.shard }}-of-${{ matrix.total }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v6
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
+
+      - name: Resolve Playwright version
+        id: playwright
+        run: echo "version=$(node -p 'require("@playwright/test/package.json").version')" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: ${{ runner.os }}-playwright-${{ steps.playwright.outputs.version }}
+          restore-keys: |
+            ${{ runner.os }}-playwright-
+
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run full UI audit shard
+        run: npm run test:e2e:ui-audit:full -- --shard=${{ matrix.shard }}/${{ matrix.total }}
+
+      - name: Upload UI audit artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ui-audit-shard-${{ matrix.shard }}-of-${{ matrix.total }}
+          path: |
+            test-results/ui-audit/
+            test-results/
+            playwright-report/
+          retention-days: 14
           if-no-files-found: ignore
 
   # ---------------------------------------------------------------------------
@@ -437,7 +528,7 @@ jobs:
             echo "| Gate | Result |"
             echo "| --- | --- |"
             echo "| Fast checks (typecheck + lint) | $(icon "$FAST_CHECKS") $FAST_CHECKS |"
-            echo "| Unit tests | $(icon "$UNIT_TESTS") $UNIT_TESTS |"
+            echo "| Unit tests + native coverage | $(icon "$UNIT_TESTS") $UNIT_TESTS |"
             echo "| Build | $(icon "$BUILD") $BUILD |"
             echo "| PostgreSQL migrate / integration | $(icon "$DB_INTEGRATION") $DB_INTEGRATION |"
             echo "| Supply-chain hygiene (lockfile + audit) | $(icon "$SUPPLY_CHAIN") $SUPPLY_CHAIN |"
@@ -449,6 +540,7 @@ jobs:
             fi
             echo ""
             echo "_E2E smoke is tiered (push to main + nightly + manual) and does not run on PRs._"
+            echo "_Full UI audit runs nightly or via manual dispatch with full_ui_audit=true, sharded 4 ways._"
             echo "_Dependency review runs on PRs only and is not included in this summary._"
             echo "_npm audit in supply-chain is advisory until pre-existing HIGH advisories are resolved._"
           } >> "$GITHUB_STEP_SUMMARY"
