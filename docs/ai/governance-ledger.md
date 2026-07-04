@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents AI invocation ledger, cost estimates, budgets, retention, and admin usage reporting. Captures current metadata-only ledger writes, quota enforcement, cost configuration, privacy boundaries, and reporting flows."
 ---
 
@@ -20,10 +20,10 @@ and should be read with [`context-management.md`](./context-management.md),
 
 | Area | Code | Purpose |
 | --- | --- | --- |
-| Provider orchestration | `src/lib/ai.ts` | Single chat-completion entry point; applies quotas, retries, metrics, tracing, and ledger writes. |
-| Ledger writer | `src/lib/ai-ledger.ts` | Metadata-only `AiInvocation` persistence, best-effort and test-gated. |
-| Quotas/budgets | `src/lib/ai-budget.ts` | Fixed-window per-user, per-feature, and global budget counters. |
-| Usage read model | `src/lib/ai-usage-summary.ts` | Aggregates ledger rows for admin analytics and budget status. |
+| Provider orchestration | `src/lib/ai/facade.ts` | Single chat-completion entry point; applies quotas, retries, metrics, tracing, and ledger writes. |
+| Ledger writer | `src/lib/ai/ledger.ts` | Metadata-only `AiInvocation` persistence, best-effort and test-gated. |
+| Quotas/budgets | `src/lib/ai/budget.ts` | Fixed-window per-user, per-feature, and global budget counters. |
+| Usage read model | `src/lib/ai/usage-summary.ts` | Aggregates ledger rows for admin analytics and budget status. |
 | Config | `src/lib/runtime-config/ai.ts` | Provider, retry/timeout, cost-rate, ledger, and quota environment parsing. |
 | Admin surface | `src/app/admin/analytics/ai/page.tsx`, `src/app/api/admin/ai/usage/route.ts` | Cost, volume, latency, fallback, and feature usage views. |
 
@@ -78,7 +78,7 @@ the source of truth for blocking decisions.
 
 ## Cache and fallback interaction
 
-Feature helpers use the shared cache-first lifecycle in `src/lib/ai-cache.ts`:
+Feature helpers use the shared cache-first lifecycle in `src/lib/ai/cache.ts`:
 
 1. Return cached derived content when present.
 2. Load an access-checked article or selected text context.

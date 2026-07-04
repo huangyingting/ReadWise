@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents the append-only product analytics event stream, retention helpers, and privacy boundaries. Captures current event schemas, sanitizer behavior, dashboard/export rules, and metadata-only constraints."
 ---
 
@@ -40,7 +40,7 @@ ownership and privacy rules.
 | Learner activity analytics (progress, vocab, quizzes, streaks) | Learning | `src/lib/analytics/learner.ts` |
 | Classroom / tenant analytics and access-control rules | Access & Tenancy | `src/lib/analytics/tenant.ts` |
 | Admin library statistics (article counts, member activity, top tags) | Article Library / Admin | `src/lib/analytics/admin.ts` |
-| AI usage ledger (cost / volume / latency / fallback) | AI | `src/lib/ai-usage-summary.ts` |
+| AI usage ledger (cost / volume / latency / fallback) | AI | `src/lib/ai/usage-summary.ts` |
 | Job / content-processing health | Operations | `src/lib/processing/state.ts` |
 
 ## Why a separate event stream?
@@ -218,4 +218,4 @@ content, definitions, notes, prompts, or PII.
 - `/admin/analytics/ai` (gated `analytics.view`) renders AI cost / volume /
   latency / fallback dashboards (from the `AiInvocation` ledger) and content-ops
   health (from `ArticleProcessingStep` + the job queue) — see
-  `src/lib/ai-usage-summary.ts` and `src/lib/processing/state.ts`.
+  `src/lib/ai/usage-summary.ts` and `src/lib/processing/state.ts`.

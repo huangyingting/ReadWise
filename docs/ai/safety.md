@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents AI safety boundaries across structured validation, moderation, provider errors, and fallbacks. Captures current validator usage, safe output handling, moderation posture, provider-error normalization, and privacy constraints."
 ---
 
@@ -27,14 +27,15 @@ gets a safe result and nothing bad is cached or persisted.
 
 | Concern | Module | Used by |
 | --- | --- | --- |
-| Provider abstraction & error normalization | `src/lib/ai/provider.ts`, `src/lib/ai/azure-provider.ts`, `src/lib/ai/registry.ts` | `src/lib/ai.ts` |
+| Provider abstraction & error normalization | `src/lib/ai/provider.ts`, `src/lib/ai/azure-provider.ts`, `src/lib/ai/registry.ts` | `src/lib/ai/facade.ts` |
 | Structured-output validation | `src/lib/ai/output/validators.ts` | vocabulary, quiz, tags |
 | Free-text moderation | `src/lib/ai/output/moderation.ts` | tutor, grammar |
 | **Input-side prompt-injection safety** | **`src/lib/ai/input-safety.ts`** | **all feature prompt templates** |
-| Cache-first lifecycle (don't cache fallbacks) | `src/lib/ai-cache.ts` | all per-article AI helpers |
+| Cache-first lifecycle (don't cache fallbacks) | `src/lib/ai/cache.ts` | all per-article AI helpers |
 
-The public AI surface (`chatComplete` / `chatCompleteWithMeta` in `src/lib/ai.ts`)
-is **unchanged** — all of this lives behind it.
+The public AI surface (`chatComplete` / `chatCompleteWithMeta` exported from
+`@/lib/ai`, implemented in `src/lib/ai/facade.ts`) is **unchanged** — all of
+this lives behind it.
 
 ---
 
@@ -158,7 +159,7 @@ Design rules:
 - **Reject, don't coerce.** Invalid items are *dropped* and counted
   (`ValidationReport.rejected`) rather than patched. A batch that ends up empty
   is treated by the caller as a generation failure.
-- **Never cache a fallback.** The shared lifecycle in `src/lib/ai-cache.ts`
+- **Never cache a fallback.** The shared lifecycle in `src/lib/ai/cache.ts`
   returns the helper's `fallback()` result (with `fallback: true`) and writes
   **nothing** to the cache whenever `isEmpty(parsed)` is true — so a malformed or
   empty response can be replaced by a real one on a later request.
@@ -210,7 +211,7 @@ not attempt sentiment, PII, or nuanced policy classification.
 ## 5. Provider error normalization (RW-023)
 
 `src/lib/ai/provider.ts` normalizes every vendor/transport failure into a typed
-`AiErrorKind` so the orchestration in `src/lib/ai.ts` can make uniform retry /
+`AiErrorKind` so the orchestration in `src/lib/ai/facade.ts` can make uniform retry /
 fallback decisions without provider knowledge:
 
 | Kind | Source | Retryable | Effect |
@@ -265,13 +266,14 @@ gets a safe result and nothing bad is cached or persisted.
 
 | Concern | Module | Used by |
 | --- | --- | --- |
-| Provider abstraction & error normalization | `src/lib/ai/provider.ts`, `src/lib/ai/azure-provider.ts`, `src/lib/ai/registry.ts` | `src/lib/ai.ts` |
+| Provider abstraction & error normalization | `src/lib/ai/provider.ts`, `src/lib/ai/azure-provider.ts`, `src/lib/ai/registry.ts` | `src/lib/ai/facade.ts` |
 | Structured-output validation | `src/lib/ai/output/validators.ts` | vocabulary, quiz, tags |
 | Free-text moderation | `src/lib/ai/output/moderation.ts` | tutor, grammar |
-| Cache-first lifecycle (don't cache fallbacks) | `src/lib/ai-cache.ts` | all per-article AI helpers |
+| Cache-first lifecycle (don't cache fallbacks) | `src/lib/ai/cache.ts` | all per-article AI helpers |
 
-The public AI surface (`chatComplete` / `chatCompleteWithMeta` in `src/lib/ai.ts`)
-is **unchanged** — all of this lives behind it.
+The public AI surface (`chatComplete` / `chatCompleteWithMeta` exported from
+`@/lib/ai`, implemented in `src/lib/ai/facade.ts`) is **unchanged** — all of
+this lives behind it.
 
 ---
 
@@ -294,7 +296,7 @@ Design rules:
 - **Reject, don't coerce.** Invalid items are *dropped* and counted
   (`ValidationReport.rejected`) rather than patched. A batch that ends up empty
   is treated by the caller as a generation failure.
-- **Never cache a fallback.** The shared lifecycle in `src/lib/ai-cache.ts`
+- **Never cache a fallback.** The shared lifecycle in `src/lib/ai/cache.ts`
   returns the helper's `fallback()` result (with `fallback: true`) and writes
   **nothing** to the cache whenever `isEmpty(parsed)` is true — so a malformed or
   empty response can be replaced by a real one on a later request.
@@ -346,7 +348,7 @@ not attempt sentiment, PII, or nuanced policy classification.
 ## 4. Provider error normalization (RW-023)
 
 `src/lib/ai/provider.ts` normalizes every vendor/transport failure into a typed
-`AiErrorKind` so the orchestration in `src/lib/ai.ts` can make uniform retry /
+`AiErrorKind` so the orchestration in `src/lib/ai/facade.ts` can make uniform retry /
 fallback decisions without provider knowledge:
 
 | Kind | Source | Retryable | Effect |

@@ -1,7 +1,7 @@
 ---
 type: "design"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents prompt registry, prompt-version ownership, and rebuild/backfill implications. Captures current prompt labels, versioned cache behavior, prompt privacy rules, and regeneration workflow."
 ---
 
@@ -9,7 +9,7 @@ description: "Documents prompt registry, prompt-version ownership, and rebuild/b
 
 This document describes the prompt template / version registry added in Epic
 **RW-E004 / RW-020**. It builds on the provider abstraction (RW-023), the AI
-ledger (`src/lib/ai-ledger.ts`, which already carries a `promptVersion` column),
+ledger (`src/lib/ai/ledger.ts`, which already carries a `promptVersion` column),
 and the backfill/rebuild orchestration (`src/lib/processing/backfill.ts`). For output
 validation/moderation see [`safety.md`](./safety.md); for context/chunking
 see [`context-management.md`](./context-management.md); for the evaluation harness see
