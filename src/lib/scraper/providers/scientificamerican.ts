@@ -371,9 +371,13 @@ const scientificamerican: Provider = {
     ],
     dropTextKeywords: [
       "Support science journalism",
+      "supporting science journalism",
+      "supporting our award-winning journalism",
+      "By purchasing a subscription you are helping to ensure the future",
       "Subscribe to Scientific American",
       "Scientific American maintains a strict policy of editorial independence",
     ],
+    dropLinkHrefBlockKeywords: ["/getsciam/"],
   },
   categoryFor: (url, section) =>
     categoryFromRules(

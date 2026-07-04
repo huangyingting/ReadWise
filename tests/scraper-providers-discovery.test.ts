@@ -42,6 +42,37 @@ test("BBC article URL helper rejects live/chrome URLs and category rules map sec
   assert.equal(bbc.categoryFor?.(new URL("https://www.bbc.com/news/articles/c1"), "Technology"), "tech");
 });
 
+test("BBC Features provider discovers non-news longread feeds and maps vertical categories", async () => {
+  const bbcFeatures = (await import("@/lib/scraper/providers/bbcfeatures")).default;
+  const { BBC_FEATURES_RSS_FEEDS, isBbcFeaturesArticleUrl } = await import("@/lib/scraper/providers/bbcfeatures");
+  assert.ok(bbcFeatures.urlExtractor);
+
+  const futureArticle = "https://www.bbc.com/future/article/20260630-how-america-reinvented-english";
+  const travelArticle = "https://www.bbc.com/travel/article/20260701-the-view-that-inspired-america-the-beautiful";
+  const cultureArticle = "https://www.bbc.com/culture/article/20260702-the-back-to-the-future-parody-thats-a-global-hit";
+  const worklifeArticle = "https://www.bbc.com/worklife/article/20260520-how-social-media-ceased-to-be-social";
+  const articleByFeed = [futureArticle, travelArticle, cultureArticle, worklifeArticle];
+  const feeds = Object.fromEntries(
+    BBC_FEATURES_RSS_FEEDS.map((feed, index) => [
+      feed,
+      rss([articleByFeed[index]!]),
+    ]),
+  );
+
+  const urls = await bbcFeatures.urlExtractor({
+    limit: 20,
+    fetch: async (url) => feeds[url] ?? "<rss><channel></channel></rss>",
+  });
+
+  assert.deepEqual(urls, [futureArticle, travelArticle, cultureArticle, worklifeArticle]);
+  assert.equal(isBbcFeaturesArticleUrl("https://www.bbc.com/news/articles/c1234567890"), false);
+  assert.equal(isBbcFeaturesArticleUrl(futureArticle), true);
+  assert.equal(bbcFeatures.categoryFor?.(new URL(futureArticle), null), "ideas");
+  assert.equal(bbcFeatures.categoryFor?.(new URL(travelArticle), null), "travel");
+  assert.equal(bbcFeatures.categoryFor?.(new URL(cultureArticle), null), "culture");
+  assert.equal(bbcFeatures.categoryFor?.(new URL(worklifeArticle), null), "business");
+});
+
 test("small news provider filters reject non-article fallback paths", async () => {
   const huffpost = (await import("@/lib/scraper/providers/huffpost")).default;
   const nbc = (await import("@/lib/scraper/providers/nbc")).default;

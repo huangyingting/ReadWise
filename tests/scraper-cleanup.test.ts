@@ -188,14 +188,18 @@ test("cleanup: mergeProviderCleanup combines generic and provider rules once", (
     dropSelectors: ["iframe"],
     dropClassKeywords: ["newsletter", "site-specific"],
     dropTextKeywords: ["site-specific text"],
+    dropTextExactKeywords: ["--"],
     dropLinkHrefKeywords: ["promo_name="],
+    dropLinkHrefBlockKeywords: ["/getsciam/"],
     dropFigcaptions: true,
   });
   assert.ok(merged.dropSelectors?.includes("iframe"));
   assert.ok(merged.dropClassKeywords?.includes("newsletter"));
   assert.ok(merged.dropClassKeywords?.includes("site-specific"));
   assert.ok(merged.dropTextKeywords?.includes("site-specific text"));
+  assert.ok(merged.dropTextExactKeywords?.includes("--"));
   assert.ok(merged.dropLinkHrefKeywords?.includes("promo_name="));
+  assert.ok(merged.dropLinkHrefBlockKeywords?.includes("/getsciam/"));
   assert.equal(merged.dropFigcaptions, true);
   assert.equal(
     merged.dropClassKeywords?.filter((keyword) => keyword === "newsletter").length,
@@ -214,6 +218,22 @@ test("cleanup: removes short blocks matched by provider text keyword", () => {
   assert.doesNotMatch(result, /Provider Branded Signup/i);
   assert.match(result, /Article opening text/);
   assert.match(result, /Article ending text/);
+});
+
+test("cleanup: removes exact text blocks without matching prose substrings", () => {
+  const html =
+    "<article>" +
+    "<p>Article opening text.</p>" +
+    "<p>--</p>" +
+    "<p>A real sentence can use -- as punctuation and must stay.</p>" +
+    "<p>Article ending text.</p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, { dropTextExactKeywords: ["--"] });
+
+  assert.match(result, /Article opening text/);
+  assert.match(result, /A real sentence can use -- as punctuation/);
+  assert.match(result, /Article ending text/);
+  assert.doesNotMatch(result, /<p>\s*--\s*<\/p>/);
 });
 
 test("cleanup: text keyword matching is conservative for long prose blocks", () => {
@@ -236,6 +256,162 @@ test("cleanup: removes anchors matched by href keyword and empty wrappers", () =
   assert.doesNotMatch(result, /<p>\s*<\/p>/);
   assert.match(result, /real\.jpg/);
   assert.match(result, /Real caption/);
+});
+
+test("cleanup: removes short blocks matched by href keyword and adjacent promo chrome", () => {
+  const html =
+    "<article>" +
+    "<p>Article opening text.</p>" +
+    "<hr>" +
+    "<h2>Keep independent reporting alive</h2>" +
+    '<p>Become a supporter by <a href="/getsciam/">joining</a> today. Your subscription helps our newsroom.</p>' +
+    "<hr>" +
+    "<p>Article ending text.</p>" +
+    "</article>";
+  const result = applyProviderCleanup(html, { dropLinkHrefBlockKeywords: ["/getsciam/"] });
+
+  assert.match(result, /Article opening text/);
+  assert.match(result, /Article ending text/);
+  assert.doesNotMatch(result, /independent reporting/i);
+  assert.doesNotMatch(result, /Your subscription helps/i);
+  assert.doesNotMatch(result, /getsciam/i);
+});
+
+test("cleanup: href block matching is conservative for long prose blocks", () => {
+  const longText = Array.from({ length: 260 }, () => "article").join(" ");
+  const html = `<p>${longText} <a href="/getsciam/">subscription history</a> ${longText}</p>`;
+  const result = applyProviderCleanup(html, { dropLinkHrefBlockKeywords: ["/getsciam/"] });
+
+  assert.match(result, /subscription history/);
+  assert.match(result, /getsciam/);
+});
+
+test("cleanup: propublica removes republish license modal while preserving article prose", () => {
+  const html =
+    "<article>" +
+    "<p>Reported article prose should stay in the extracted body.</p>" +
+    '<div class="wp-block-propublica-republish-link">' +
+    "<button>Republish This Story</button>" +
+    '<div class="wp-block-propublica-republish-link__modal">' +
+    "<h2>Republish This Story for Free</h2>" +
+    "<p>Creative Commons License (CC BY-NC-ND 3.0)</p>" +
+    "<p>Thank you for your interest in republishing this story. You are free to republish it so long as you do the following.</p>" +
+    "</div>" +
+    "</div>" +
+    "<p>More reported article prose should stay.</p>" +
+    "</article>";
+  const result = applyMergedProviderCleanup("propublica", "ProPublica", html);
+
+  assert.match(result, /Reported article prose/);
+  assert.match(result, /More reported article prose/);
+  assert.doesNotMatch(result, /Republish This Story/i);
+  assert.doesNotMatch(result, /Creative Commons License/i);
+  assert.doesNotMatch(result, /republishing this story/i);
+});
+
+test("cleanup: bbcfeatures removes navigation drawer search and footer chrome", () => {
+  const html =
+    "<article>" +
+    "<p>BBC Features article prose should remain readable.</p>" +
+    "</article>" +
+    '<div class="Drawer-styles__DrawerBackgroundStyled-sc-211ba7ec-0" data-testid="drawer-background">' +
+    '<div class="NavigationPanel-styles__DrawerContentStyled-sc-f752c3ab-0">' +
+    '<div class="SearchInput-styles__SearchInputWrapperStyled-sc-50f6a0bc-0" data-testid="search-input-wrapper">' +
+    "<label><span>Site search</span></label>" +
+    "</div>" +
+    '<a href="https://www.bbc.com/newsletters"><button>Newsletters</button></a>' +
+    "</div>" +
+    "</div>" +
+    '<footer id="bbc-footer" data-testid="main-footer">' +
+    "<p>BBC is not responsible for the content of external sites.</p>" +
+    "</footer>";
+  const result = applyMergedProviderCleanup("bbcfeatures", "BBC Features", html);
+
+  assert.match(result, /BBC Features article prose/);
+  assert.doesNotMatch(result, /Site search/i);
+  assert.doesNotMatch(result, /Newsletters/i);
+  assert.doesNotMatch(result, /BBC is not responsible/i);
+  assert.doesNotMatch(result, /bbc-footer/i);
+});
+
+test("cleanup: bbcfeatures removes empty image pid placeholder text blocks", () => {
+  const html =
+    "<article>" +
+    "<p>BBC Features article prose should stay.</p>" +
+    '<p><i id="{&quot;image&quot;:{&quot;pid&quot;:&quot;&quot;}}">{"image":{"pid":""}}</i></p>' +
+    "<p>Final BBC Features article prose should also stay.</p>" +
+    "</article>";
+  const result = applyMergedProviderCleanup("bbcfeatures", "BBC Features", html);
+
+  assert.match(result, /BBC Features article prose should stay/);
+  assert.match(result, /Final BBC Features article prose/);
+  assert.doesNotMatch(result, /\{"image":\{"pid":""\}\}/);
+});
+
+test("cleanup: bbcfeatures removes trailing dash separators and newsletter CTA blocks", () => {
+  const html =
+    "<article>" +
+    "<p>BBC Features article prose should stay.</p>" +
+    "<p>--</p>" +
+    "<p>---</p>" +
+    '<p>And if you liked this story, <a href="http://pages.emails.bbc.com/subscribe/"></a>, called "If You Only Read 6 Things This Week". A handpicked selection of stories from BBC Future, Earth, Culture, Capital, Travel and Autos, delivered to your inbox every Friday.</p>' +
+    "<p>Join one million Future fans by liking us on Facebook.</p>" +
+    "</article>";
+  const result = applyMergedProviderCleanup("bbcfeatures", "BBC Features", html);
+
+  assert.match(result, /BBC Features article prose should stay/);
+  assert.doesNotMatch(result, /<p>\s*--\s*<\/p>/);
+  assert.doesNotMatch(result, /<p>\s*---\s*<\/p>/);
+  assert.doesNotMatch(result, /delivered to your inbox every Friday/i);
+  assert.doesNotMatch(result, /If You Only Read 6 Things/i);
+  assert.doesNotMatch(result, /Join one million Future fans/i);
+});
+
+test("cleanup: bbcfeatures removes raw text-block social, series, and safety note residue", () => {
+  const html =
+    "<article>" +
+    '<div data-component="text-block"><p>BBC Features article prose should stay.</p></div>' +
+    '<div data-component="text-block"><p><i>BBC.com&#x27;s </i><a href="https://www.bbc.com/travel/worlds-table">World&#x27;s Table</a><i> "smashes the kitchen ceiling" by changing the way the world thinks about food, through the past, present and future.</i></p></div>' +
+    '<div data-component="text-block"><p><a href="http://www.bbc.com/travel/columns/why-we-are-what-we-are">Why We Are What We Are</a> <i>is a BBC Travel series examining the characteristics of a country and investigating whether they are true.</i></p></div>' +
+    '<div data-component="text-block"><p><a href="http://www.bbc.com/travel/columns/the-ritual-of-eating">The Ritual of Eating</a> <i>is a BBC Travel series that explores interesting culinary rituals and food etiquette around the world.</i></p></div>' +
+    '<div data-component="text-block"><p><i>Love film and TV? Join </i><a href="https://www.facebook.com/groups/440074069852291/">BBC Culture Film and TV Club</a><i> on Facebook, a community for cinephiles all over the world.</i></p></div>' +
+    '<div data-component="text-block"><p><a href="https://www.facebook.com/pages/BBC-Culture/237388053065908">Facebook</a><i> page or message us on </i><a href="https://twitter.com/bbc_culture">Twitter</a><i>.</i></p></div>' +
+    '<div data-component="text-block"><p><a href="http://www.bbc.com/travel/columns/culinary-roots">Culinary Roots</a><i> is a series from BBC Travel connecting to the rare and local foods woven into a place’s heritage.</i></p></div>' +
+    '<div data-component="text-block"><p><i>This article is for information only. When venturing into "bear country", always check with local authorities for the most locally relevant information.</i></p></div>' +
+    '<div data-component="text-block"><p><i><b>CORRECTION:</b></i><i> A previous version of this article incorrectly stated that tourists introduced avian flu to Antarctica. This has now been corrected.</i></p></div>' +
+    '<div data-component="text-block"><p><i>Join more than three million BBC Travel fans by liking us on </i><a href="https://www.facebook.com/BBCTravel/">Facebook</a><i>, or follow us on </i><a href="https://twitter.com/BBC_Travel">Twitter</a><i> and Instagram.</i></p></div>' +
+    '<div data-component="text-block"><p>Final BBC Features article prose should also stay.</p></div>' +
+    "</article>";
+  const result = applyMergedProviderCleanup("bbcfeatures", "BBC Features", html);
+
+  assert.match(result, /BBC Features article prose should stay/);
+  assert.match(result, /Final BBC Features article prose should also stay/);
+  assert.doesNotMatch(result, /World&#x27;s Table|World's Table/i);
+  assert.doesNotMatch(result, /smashes the kitchen ceiling/i);
+  assert.doesNotMatch(result, /Why We Are What We Are/i);
+  assert.doesNotMatch(result, /The Ritual of Eating/i);
+  assert.doesNotMatch(result, /is a BBC Travel series/i);
+  assert.doesNotMatch(result, /BBC Culture Film and TV Club/i);
+  assert.doesNotMatch(result, /message us on/i);
+  assert.doesNotMatch(result, /Culinary Roots/i);
+  assert.doesNotMatch(result, /bear country/i);
+  assert.doesNotMatch(result, /CORRECTION:/i);
+  assert.doesNotMatch(result, /previous version of this article/i);
+  assert.doesNotMatch(result, /three million BBC Travel fans/i);
+});
+
+test("cleanup: bbcfeatures raw cleanup keeps ordinary prose with social platforms and dashes", () => {
+  const html =
+    "<article>" +
+    "<p>BBC editors reported how Facebook groups became gathering places for film fans during lockdown.</p>" +
+    "<p>A real sentence can use --- as punctuation and must stay.</p>" +
+    "<p>A real sentence can use -- as punctuation and must stay.</p>" +
+    "</article>";
+  const result = applyMergedProviderCleanup("bbcfeatures", "BBC Features", html);
+
+  assert.match(result, /Facebook groups became gathering places/);
+  assert.match(result, /use --- as punctuation/);
+  assert.match(result, /use -- as punctuation/);
 });
 
 test("cleanup: smithsonian drops promo cover anchor but keeps real figure", () => {
