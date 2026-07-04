@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { listAdminTagMergeTargets } from "@/lib/article-library/admin-tags";
 
 /** Returns tags as a lightweight list for the merge target dropdown (capped at 500). */
-export const GET = createAdminHandler({}, async () => {
+export const GET = createCapabilityHandler(
+  CAPABILITIES.tagsManage,
+  {}, async () => {
   return mergeTargetTagsResponse();
 });
 

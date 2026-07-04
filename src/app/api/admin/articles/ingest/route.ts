@@ -1,7 +1,8 @@
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
-import { createAdminHandler, ApiError } from "@/lib/api-handler";
+import { createCapabilityHandler, ApiError } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { scrapeUrl, saveDraftArticle } from "@/lib/scraper";
 import { revalidateArticlesCache } from "@/lib/cache";
 import { findPublicLibraryArticleBySourceUrl } from "@/lib/article-library";
@@ -47,7 +48,8 @@ async function duplicateArticleResponse(sourceUrl: string): Promise<NextResponse
  * Scrapes a single URL and saves it as a draft article. Returns the new
  * article id on success, or throws an ApiError on scrape failure / duplicate.
  */
-export const POST = createAdminHandler(
+export const POST = createCapabilityHandler(
+  CAPABILITIES.articlesManage,
   { body: ingestBody },
   async ({ req, body, session, requestId }) => {
     const scraped = await scrapeArticleOrApiError(body.url);

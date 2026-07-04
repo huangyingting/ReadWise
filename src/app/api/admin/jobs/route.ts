@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { createAdminHandler } from "@/lib/api-handler";
+import { createCapabilityHandler } from "@/lib/api-handler";
+import { CAPABILITIES } from "@/lib/rbac";
 import { queryInt, queryString } from "@/lib/validation";
 import { listAdminJobs, getJobDashboard } from "@/lib/admin/jobs";
 
@@ -44,7 +45,8 @@ async function getAdminJobsPayload(query: JobsAdminQuery) {
   return { ...result, dashboard };
 }
 
-export const GET = createAdminHandler(
+export const GET = createCapabilityHandler(
+  CAPABILITIES.jobsManage,
   { query: jobsAdminQuery },
   async ({ query }) => {
     return NextResponse.json(await getAdminJobsPayload(query));

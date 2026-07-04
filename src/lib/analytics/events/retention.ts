@@ -26,6 +26,22 @@ function cutoffDate(now: Date, days: number): Date {
   return new Date(now.getTime() - days * MS_PER_DAY);
 }
 
+function oldEventsWhere(olderThanDays: number, now: Date) {
+  const cutoff = cutoffDate(now, retentionDays(olderThanDays));
+  return { occurredAt: { lt: cutoff } };
+}
+
+/** Counts analytics events older than the retention window without deleting them. */
+export async function countOldEvents(
+  olderThanDays: number = analyticsRetentionDays(),
+  client: RetentionClient = prisma,
+  now: Date = new Date(),
+): Promise<number> {
+  return client.analyticsEvent.count({
+    where: oldEventsWhere(olderThanDays, now),
+  });
+}
+
 /**
  * Deletes analytics events older than the retention window (privacy/retention,
  * RW-051). `olderThanDays` defaults to {@link analyticsRetentionDays}. Returns
@@ -36,11 +52,19 @@ export async function pruneOldEvents(
   client: RetentionClient = prisma,
   now: Date = new Date(),
 ): Promise<number> {
-  const cutoff = cutoffDate(now, retentionDays(olderThanDays));
   const result = await client.analyticsEvent.deleteMany({
-    where: { occurredAt: { lt: cutoff } },
+    where: oldEventsWhere(olderThanDays, now),
   });
   return result.count;
+}
+
+/** Counts analytics events for a user without deleting them. */
+export async function countEventsForUser(
+  userId: string,
+  client: RetentionClient = prisma,
+): Promise<number> {
+  if (!userId) return 0;
+  return client.analyticsEvent.count({ where: { userId } });
 }
 
 /**
