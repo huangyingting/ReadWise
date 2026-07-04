@@ -484,6 +484,33 @@ test("listScoredPicksPage paginates scored candidates and carries reasons + expl
   }
 });
 
+test("listScoredPicksPage supports searched candidates before scoring", async () => {
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+  articleRows = [
+    articleRow({ id: "climate-a", title: "Climate adaptation", difficulty: "A2" }),
+    articleRow({ id: "climate-b", title: "Climate policy", difficulty: "B1" }),
+  ];
+  const page = await listScoredPicksPage("u1", {
+    query: "climate",
+    maxLevel: "B1",
+    limit: 1,
+  });
+
+  assert.equal(page.articles.length, 1);
+  assert.equal(page.hasMore, true);
+});
+
+test("listScoredPicksPage returns no searched candidates for punctuation-only queries", async () => {
+  const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
+  articleRows = [
+    articleRow({ id: "a1", title: "A1" }),
+  ];
+  const page = await listScoredPicksPage("u1", { query: "!!!", limit: 6 });
+
+  assert.deepEqual(page.articles, []);
+  assert.equal(page.hasMore, false);
+});
+
 test("listScoredPicksPage returns an empty page when there are no candidates", async () => {
   const { listScoredPicksPage } = await import("@/lib/recommendations/picks");
   articleRows = [];
