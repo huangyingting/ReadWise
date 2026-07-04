@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import Link from "next/link";
 import { requireSession } from "@/lib/session";
 import {
   getClassroom,
@@ -15,13 +16,16 @@ import {
 import { articleAccessContext } from "@/lib/article-library";
 import {
   Badge,
+  Button,
   Card,
   CardBody,
   CardHeader,
   CardTitle,
   PageHeader,
   PageShell,
+  Select,
 } from "@/components/ui";
+import { buttonVariants } from "@/components/ui/Button";
 import { StatCard } from "@/components/analytics/StatCard";
 import AddStudentForm from "@/components/teacher/AddStudentForm";
 import AssignArticleForm from "@/components/teacher/AssignArticleForm";
@@ -32,6 +36,10 @@ type ClassroomAnalytics = NonNullable<
 type ClassroomMember = Awaited<ReturnType<typeof listClassroomMembers>>[number];
 type StudentCandidate = Awaited<ReturnType<typeof searchClassroomStudentCandidates>>[number];
 type AssignableArticle = Awaited<ReturnType<typeof searchAssignableArticleOptions>>[number];
+type SearchParams = {
+  assignmentId?: string;
+  studentId?: string;
+};
 
 function pct(value: number): string {
   return `${Math.round(value)}%`;
@@ -168,6 +176,120 @@ function StudentProgressCard({
   );
 }
 
+  function buildExportHref(
+    classroomId: string,
+    format: "csv" | "json",
+    filters: SearchParams,
+  ): string {
+    const params = new URLSearchParams({ format });
+    if (filters.assignmentId) params.set("assignmentId", filters.assignmentId);
+    if (filters.studentId) params.set("studentId", filters.studentId);
+    return `/api/classrooms/${classroomId}/analytics/export?${params.toString()}`;
+  }
+
+  function AnalyticsFilters({
+    classroomId,
+    analytics,
+    students,
+    filters,
+  }: {
+    classroomId: string;
+    analytics: ClassroomAnalytics | null;
+    students: ClassroomMember[];
+    filters: SearchParams;
+  }) {
+    const canFilterStudents = analytics ? !analytics.redacted : false;
+    return (
+      <Card className="mb-[var(--space-6)]">
+        <CardBody>
+          <form method="get" className="flex flex-wrap items-end gap-[var(--space-3)]">
+            <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+              <span className="text-text-muted">Assignment</span>
+              <Select name="assignmentId" defaultValue={filters.assignmentId ?? ""} selectSize="md" className="w-auto">
+                <option value="">All assignments</option>
+                {(analytics?.perAssignment ?? []).map((assignment) => (
+                  <option key={assignment.assignmentId} value={assignment.assignmentId}>
+                    {assignment.articleTitle}
+                  </option>
+                ))}
+              </Select>
+            </label>
+            {canFilterStudents ? (
+              <label className="flex flex-col gap-[var(--space-1)] text-[length:var(--text-sm)]">
+                <span className="text-text-muted">Student</span>
+                <Select name="studentId" defaultValue={filters.studentId ?? ""} selectSize="md" className="w-auto">
+                  <option value="">All students</option>
+                  {students.map((student) => (
+                    <option key={student.userId} value={student.userId}>
+                      {memberLabel(student)}
+                    </option>
+                  ))}
+                </Select>
+              </label>
+            ) : null}
+            <Button type="submit" variant="primary" size="md" className="w-auto">
+              Apply
+            </Button>
+            <Link
+              href={buildExportHref(classroomId, "csv", filters)}
+              className={buttonVariants({ variant: "outline", size: "md" })}
+              prefetch={false}
+            >
+              Export CSV
+            </Link>
+            <Link
+              href={buildExportHref(classroomId, "json", filters)}
+              className={buttonVariants({ variant: "outline", size: "md" })}
+              prefetch={false}
+            >
+              Export JSON
+            </Link>
+          </form>
+        </CardBody>
+      </Card>
+    );
+  }
+
+  function DrilldownCard({ analytics }: { analytics: ClassroomAnalytics | null }) {
+    if (!analytics?.drilldown || analytics.redacted) return null;
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Analytics drilldown</CardTitle>
+        </CardHeader>
+        <CardBody>
+          {analytics.drilldown.rows.length === 0 ? (
+            <p className="text-[length:var(--text-sm)] text-text-muted">
+              No matching assignment progress.
+            </p>
+          ) : (
+            <ul className="flex flex-col gap-[var(--space-2)]">
+              {analytics.drilldown.rows.map((row) => (
+                <li
+                  key={`${row.assignmentId}:${row.studentId}`}
+                  className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+                >
+                  <div className="flex flex-col gap-[var(--space-1)] sm:flex-row sm:items-center sm:justify-between">
+                    <span className="font-medium text-text">
+                      {row.name ?? row.email ?? row.studentId}
+                    </span>
+                    <Badge variant={row.status === "COMPLETED" ? "success" : "neutral"}>
+                      {row.status.toLowerCase().replace("_", " ")}
+                    </Badge>
+                  </div>
+                  <p className="text-[length:var(--text-sm)] text-text-muted m-0 mt-[var(--space-1)]">
+                    {row.articleTitle}
+                    {row.quizScore == null ? "" : ` · quiz ${pct(row.quizScore)}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardBody>
+      </Card>
+    );
+  }
+
 function TeacherSidebar({
   classroomId,
   canManage,
@@ -233,10 +355,13 @@ function TeacherSidebar({
  */
 export default async function ClassroomDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<SearchParams>;
 }) {
   const { id } = await params;
+  const filters = await searchParams;
   const session = await requireSession(`/teacher/classrooms/${id}`);
 
   const classroom = await getClassroom(id);
@@ -254,9 +379,13 @@ export default async function ClassroomDetailPage({
     isOrgAdmin,
   });
 
-  const [members, analytics] = await Promise.all([
+  const [members, filterAnalytics, analytics] = await Promise.all([
     listClassroomMembers(id),
     getClassroomAnalytics(id, role),
+    getClassroomAnalytics(id, role, {
+      assignmentId: filters.assignmentId || undefined,
+      studentId: filters.studentId || undefined,
+    }),
   ]);
 
   const canManage = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
@@ -281,10 +410,17 @@ export default async function ClassroomDetailPage({
       />
 
       {analytics ? <AnalyticsSummary analytics={analytics} /> : null}
+      <AnalyticsFilters
+        classroomId={id}
+        analytics={filterAnalytics}
+        students={students}
+        filters={filters}
+      />
 
       <div className="grid gap-[var(--space-6)] md:grid-cols-[2fr_1fr]">
         <div className="flex flex-col gap-[var(--space-6)]">
           <AssignmentsCard analytics={analytics} />
+          <DrilldownCard analytics={analytics} />
           <StudentProgressCard analytics={analytics} />
         </div>
 

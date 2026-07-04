@@ -93,6 +93,8 @@ Enforcement path:
    `false`. This strips the `perStudent` array and sets `redacted: true`.
 4. The `perAssignment` aggregate (counts and rates per article, no names) is
    always returned to authorized viewers regardless of role.
+5. Classroom analytics exports (`/api/classrooms/[id]/analytics/export`) reuse
+   the same role resolution and redaction path before serializing CSV/JSON.
 
 ### 3.3 Fields present at each access level
 
@@ -103,6 +105,7 @@ Enforcement path:
 | `totalExpected`, `totalCompleted`, `completionRate` | ✓ | ✓ |
 | `averageQuizScore` (classroom-level) | ✓ | ✓ |
 | `perAssignment[]` (counts + rates per article) | ✓ | ✓ |
+| `drilldown.rows[]` for selected assignment/student filters | ✓ | **Redacted** |
 | `perStudent[].name`, `.email`, `.completionRate`, `.averageQuizScore` | ✓ | **Redacted** |
 | `redacted` flag | `false` | `true` |
 

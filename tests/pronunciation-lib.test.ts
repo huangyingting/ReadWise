@@ -183,15 +183,31 @@ describe("getPronunciationHistory", () => {
         articleId: null,
         createdAt: new Date("2026-01-01"),
       },
+      {
+        id: "pa-2",
+        referenceText: "Hello world",
+        accuracyScore: 65,
+        fluencyScore: 65,
+        completenessScore: 80,
+        pronScore: 60,
+        articleId: null,
+        createdAt: new Date("2026-01-02"),
+      },
     ];
-    aggResult = { _count: { id: 1 }, _avg: { pronScore: 80 }, _max: { pronScore: 80 } };
+    aggResult = { _count: { id: 2 }, _avg: { pronScore: 70 }, _max: { pronScore: 80 } };
     const { getPronunciationHistory } = await import("@/lib/pronunciation");
     const history = await getPronunciationHistory("user-1");
-    assert.equal(history.attemptCount, 1);
+    assert.equal(history.attemptCount, 2);
     assert.equal(history.bestPronScore, 80);
-    assert.equal(history.averageScore, 80);
-    assert.equal(history.attempts.length, 1);
+    assert.equal(history.averageScore, 70);
+    assert.equal(history.attempts.length, 2);
     assert.equal(history.attempts[0].id, "pa-1");
+    assert.equal(history.trends.length, 1);
+    assert.equal(history.trends[0].attempts, 2);
+    assert.equal(history.trends[0].firstScore, 80);
+    assert.equal(history.trends[0].latestScore, 60);
+    assert.equal(history.trends[0].trendDelta, -20);
+    assert.equal(history.weakSentences[0].referenceText, "Hello world");
   });
 
   test("returns nulls for best/average when no attempts", async () => {

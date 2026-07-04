@@ -1,7 +1,7 @@
 {
-  "generatedAt": "2026-07-04T23:18:00.362Z",
-  "routeCount": 108,
-  "methodCount": 122,
+  "generatedAt": "2026-07-04T23:37:41.612Z",
+  "routeCount": 110,
+  "methodCount": 124,
   "routes": [
     {
       "path": "/api/account",
@@ -1082,7 +1082,7 @@
           "capability": null,
           "hasBodySchema": false,
           "hasParamsSchema": true,
-          "hasQuerySchema": false,
+          "hasQuerySchema": true,
           "responseFormat": "json",
           "notes": [],
           "successStatus": 200,
@@ -1091,6 +1091,33 @@
             "role"
           ],
           "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/classrooms/{id}/analytics/export",
+      "file": "src/app/api/classrooms/[id]/analytics/export/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": true,
+          "hasQuerySchema": true,
+          "responseFormat": "mixed",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "analytics",
+            "filters",
+            "role"
+          ],
+          "queryParamNames": [
+            "format"
+          ],
           "bodyFieldNames": null
         }
       ]
@@ -2589,6 +2616,31 @@
             "dueCount"
           ],
           "queryParamNames": null,
+          "bodyFieldNames": null
+        }
+      ]
+    },
+    {
+      "path": "/api/study/plan/history",
+      "file": "src/app/api/study/plan/history/route.ts",
+      "runtime": "default",
+      "methods": [
+        {
+          "method": "GET",
+          "authMode": "session",
+          "capability": null,
+          "hasBodySchema": false,
+          "hasParamsSchema": false,
+          "hasQuerySchema": true,
+          "responseFormat": "json",
+          "notes": [],
+          "successStatus": 200,
+          "responseKeys": [
+            "history"
+          ],
+          "queryParamNames": [
+            "limit"
+          ],
           "bodyFieldNames": null
         }
       ]

@@ -2,7 +2,7 @@
 type: "design"
 status: "current"
 last_updated: "2026-07-04"
-description: "Documents the Learning-owned study diagnostics engine, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. The study plan is computed on demand from current learner data, not persisted; Study mode combines plan items, due flashcards, saved-word filters, and cloze fallback behavior."
+description: "Documents the Learning-owned study diagnostics engine, persisted weekly study-plan snapshots, SRS/cloze study routes, and Reader practice signals that feed weekly recommendations. Study mode combines stable weekly plan items, history, due flashcards, saved-word filters, and cloze fallback behavior."
 ---
 
 # Study plan and study mode
@@ -17,7 +17,8 @@ usable starter plan when evidence is sparse.
 | --- | --- | --- |
 | Study page | `src/app/(app)/study/page.tsx`, `src/app/(app)/study/words/page.tsx` | Learner UI for weekly plan, flashcards, cloze, and saved-word browsing. |
 | Plan UI | `src/components/StudyPlanSection.tsx` | Renders diagnosed weak areas and plan items. |
-| Plan engine | `src/lib/learning/study-plan-engine.ts`, `study-plan-types.ts` | Diagnostics gathering, weak-area ranking, weekly plan synthesis. |
+| Plan engine | `src/lib/learning/study-plan-engine.ts`, `study-plan-types.ts` | Diagnostics gathering, weak-area ranking, weekly plan synthesis, and snapshot history. |
+| Plan history API | `GET /api/study/plan/history` | Returns the authenticated learner's weekly plan snapshots newest first. |
 | SRS | `src/lib/learning/flashcards.ts`, `src/lib/learning/srs.ts` | Due-card ordering and SM-2 schedule updates. |
 | Cloze | `src/lib/learning/cloze.ts`, `src/app/api/study/cloze/route.ts` | Fill-in-the-blank cards built from due saved-word examples. |
 | Saved words | `src/app/api/study/words/route.ts`, `src/lib/lexical/saved-words.ts` | Paginated/searchable saved-word read model with article-title linkback. |
@@ -26,10 +27,11 @@ usable starter plan when evidence is sparse.
 
 ## Current architecture
 
-`generateStudyPlan(userId)` computes the plan at request time. There is no
-persisted weekly-plan table and no scheduled generation job. This keeps the plan
-fresh after every quiz, flashcard grade, pronunciation attempt, reading progress
-write, or coach-memory update.
+`generateStudyPlan(userId)` returns a stable plan for the current UTC week. The
+first call in a week computes diagnostics and persists a `StudyPlanSnapshot`;
+later calls return that saved row so goals do not shift while the learner is
+working through them. A caller may pass `refresh: true` to recompute the current
+week deliberately.
 
 The engine has three layers:
 
@@ -64,6 +66,18 @@ not invent generic weaknesses for cold-start learners.
 | Article comprehension | below `LOW_COMPREHENSION` from `study-plan-types.ts`. |
 
 The result is sorted by severity and capped to a focused set of plan items.
+
+## Weekly snapshots and history
+
+`StudyPlanSnapshot` stores one row per `(userId, weekStart)` with:
+
+- `weekStart`, `weekEnd`, and `generatedAt`;
+- derived `summary`, `weakAreas`, `items`, and `isStarter`;
+- `sourceVersion` for future recompute audits.
+
+The Study page shows the current plan plus recent snapshot history. The history
+API is ownership-scoped to `session.user.id` and returns only derived plan
+structure, not source content.
 
 ## Starter plan
 
@@ -122,11 +136,13 @@ the user, preventing saved-word rows from becoming an article-title oracle.
 
 ## Privacy and deletion
 
-Study Plan reads user-owned learning rows and aggregate weakness memory. It does
-not persist generated plan text. Product analytics records only metadata such as
-study grade, never reviewed words, definitions, examples, notes, or article
-text. User deletion cascades `SavedWord`, mastery rows, quiz/pronunciation
-attempts, coach memory, and related user-owned study state.
+Study Plan reads user-owned learning rows and aggregate weakness memory. Weekly
+snapshots persist derived plan metadata only: controlled weak-area summaries,
+plan item labels/links, timestamps, and aggregate evidence. They must not store
+raw article text, selected text, definitions, translations, prompts, generated
+AI text, reviewed words, examples, notes, tokens, or credentials. User deletion
+cascades `SavedWord`, mastery rows, quiz/pronunciation attempts, coach memory,
+`StudyPlanSnapshot`, and related user-owned study state.
 
 ## Tests
 

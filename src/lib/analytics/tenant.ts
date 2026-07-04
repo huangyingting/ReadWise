@@ -102,6 +102,23 @@ export type StudentAggregate = {
 	averageQuizScore: number | null;
 };
 
+export type ClassroomAnalyticsFilters = {
+	assignmentId?: string;
+	studentId?: string;
+};
+
+export type CompletionDrilldownRow = {
+	assignmentId: string;
+	articleTitle: string;
+	studentId: string;
+	name: string | null;
+	email: string | null;
+	status: AssignmentStatus;
+	quizScore: number | null;
+	dueDate: Date | null;
+	completedAt: Date | null;
+};
+
 export type ClassroomAnalytics = {
 	classroomId: string;
 	classroomName: string;
@@ -113,6 +130,10 @@ export type ClassroomAnalytics = {
 	averageQuizScore: number | null;
 	perAssignment: AssignmentAggregate[];
 	perStudent: StudentAggregate[];
+	drilldown: {
+		filters: ClassroomAnalyticsFilters;
+		rows: CompletionDrilldownRow[];
+	} | null;
 	redacted: boolean;
 };
 
@@ -177,12 +198,25 @@ function studentCounts(rows: CompletionRow[]): { completed: number; scores: numb
 	return { completed, scores };
 }
 
-export function aggregateClassroom(data: ClassroomProgressData): ClassroomAnalytics {
-	const students = data.students;
-	const assignments = data.assignments;
+export function aggregateClassroom(
+	data: ClassroomProgressData,
+	filters: ClassroomAnalyticsFilters = {},
+): ClassroomAnalytics {
+	const students = filters.studentId
+		? data.students.filter((s) => s.userId === filters.studentId)
+		: data.students;
+	const assignments = filters.assignmentId
+		? data.assignments.filter((a) => a.id === filters.assignmentId)
+		: data.assignments;
 	const studentIds = new Set(students.map((s) => s.userId));
+	const assignmentIds = new Set(assignments.map((a) => a.id));
+	const scopedCompletions = data.completions.filter(
+		(completion) =>
+			studentIds.has(completion.studentId) &&
+			assignmentIds.has(completion.assignmentId),
+	);
 	const { byAssignment, byStudent, allScores } = collectRosterCompletions(
-		data.completions,
+		scopedCompletions,
 		studentIds,
 	);
 
@@ -233,15 +267,54 @@ export function aggregateClassroom(data: ClassroomProgressData): ClassroomAnalyt
 		averageQuizScore: average(allScores),
 		perAssignment,
 		perStudent,
+		drilldown: buildDrilldownRows({ students, assignments, completions: scopedCompletions, filters }),
 		redacted: false,
 	};
+}
+
+function buildDrilldownRows({
+	students,
+	assignments,
+	completions,
+	filters,
+}: {
+	students: ClassroomProgressData["students"];
+	assignments: ClassroomProgressData["assignments"];
+	completions: CompletionRow[];
+	filters: ClassroomAnalyticsFilters;
+}): ClassroomAnalytics["drilldown"] {
+	if (!filters.assignmentId && !filters.studentId) return null;
+
+	const completionByPair = new Map<string, CompletionRow>();
+	for (const completion of completions) {
+		completionByPair.set(`${completion.assignmentId}:${completion.studentId}`, completion);
+	}
+
+	const rows: CompletionDrilldownRow[] = [];
+	for (const assignment of assignments) {
+		for (const student of students) {
+			const completion = completionByPair.get(`${assignment.id}:${student.userId}`);
+			rows.push({
+				assignmentId: assignment.id,
+				articleTitle: assignment.articleTitle,
+				studentId: student.userId,
+				name: student.name,
+				email: student.email,
+				status: completion?.status ?? AssignmentStatus.ASSIGNED,
+				quizScore: completion?.quizScore ?? null,
+				dueDate: assignment.dueDate,
+				completedAt: completion?.completedAt ?? null,
+			});
+		}
+	}
+	return { filters, rows };
 }
 
 export function redactIndividualData(
 	analytics: ClassroomAnalytics,
 ): ClassroomAnalytics {
 	if (analytics.perStudent.length === 0 && analytics.redacted) return analytics;
-	return { ...analytics, perStudent: [], redacted: true };
+	return { ...analytics, perStudent: [], drilldown: null, redacted: true };
 }
 
 export function applyAnalyticsAccess(
@@ -267,9 +340,10 @@ export function viewerRoleForClassroom(input: {
 export async function getClassroomAnalytics(
 	classroomId: string,
 	role: AnalyticsViewerRole,
+	filters: ClassroomAnalyticsFilters = {},
 ): Promise<ClassroomAnalytics | null> {
 	const data = await getClassroomProgressData(classroomId);
 	if (!data) return null;
-	const analytics = aggregateClassroom(data);
+	const analytics = aggregateClassroom(data, filters);
 	return applyAnalyticsAccess(analytics, analyticsAccessFor(role));
 }

@@ -268,6 +268,15 @@ before(() => {
               ? pronunciationAgg
               : { _max: { pronScore: pronunciationMax } },
         },
+        studyPlanSnapshot: {
+          findUnique: async () => null,
+          upsert: async (args: { create: Record<string, unknown> }) => ({
+            id: "study-plan-snapshot-1",
+            sourceVersion: "study-plan-v1",
+            ...args.create,
+          }),
+          findMany: async () => [],
+        },
         wordMastery: {
           count: async () => weakWordCount,
         },

@@ -20,7 +20,7 @@ server persistence intentionally narrow.
 | Assessment hook | `src/components/reader/usePronunciationAssessment.ts` | Browser-side Azure Speech SDK integration. |
 | Speech token | `src/app/api/speech/token/route.ts` | Exchanges server-held Speech key for a short-lived client token. |
 | Persistence | `src/app/api/pronunciation/attempt/route.ts`, `src/lib/pronunciation.ts` | Validates and stores bounded attempt scores. |
-| History | `src/app/api/pronunciation/history/route.ts` | Newest-first attempt history and aggregate stats. |
+| History/trends | `src/app/api/pronunciation/history/route.ts` | Newest-first attempt history, aggregate stats, per-sentence trends, and weak-sentence candidates. |
 | Learning side effects | `src/lib/learning/skill-mastery.ts`, `src/lib/learning/primitives.ts` | Best-effort pronunciation/listening skill evidence. |
 | Speech config | `src/lib/runtime-config/speech.ts` | Azure Speech key/region/voice/format/timeout. |
 
@@ -76,10 +76,18 @@ attempts, newest first, capped to `1..100` rows. It also returns:
 - `attemptCount`;
 - `bestPronScore`;
 - rounded `averageScore`.
+- `trends`: grouped by article/reference sentence with first/latest/best/average
+  scores and score deltas;
+- `weakSentences`: low-scoring trend groups for practice-again resurfacing.
 
 History rows include the reference text because it is user-facing practice
 history. Do not copy that text into logs, analytics properties, audit metadata,
 or AI ledger metadata.
+
+The Reader Speak tab uses the history response to show current-sentence score
+trend context and to resurface weak sentences from the current article. The
+practice-again action only changes the selected sentence; it does not store
+audio, SDK payloads, prompts, or provider diagnostics.
 
 ## Learning integration
 
@@ -97,7 +105,8 @@ the pronunciation attempt still succeeds.
 - Azure Speech credentials stay server-side; the client receives only a short
   token.
 - Persisted attempts contain user id, optional article id, reference text, four
-  bounded scores, and timestamps.
+  bounded scores, and timestamps. Trend/weak-sentence data is derived from those
+  same rows.
 - Do not log reference text, Speech tokens, SDK payloads, or provider errors that
   could contain sensitive request details.
 - User deletion cascades pronunciation attempts.

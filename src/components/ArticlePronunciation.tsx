@@ -26,7 +26,7 @@
  */
 
 import { useEffect, useMemo } from "react";
-import { Mic, MicOff, Square, Star, Volume2 } from "lucide-react";
+import { Mic, MicOff, RotateCcw, Square, Star, Volume2 } from "lucide-react";
 import { EmptyState } from "@/components/ui";
 import AiBadge from "@/components/AiBadge";
 import { Button } from "@/components/ui/Button";
@@ -102,6 +102,59 @@ function HearItButton({
     >
       {label}
     </Button>
+  );
+}
+
+function WeakSentenceResurface({
+  weakSentences,
+  currentIndex,
+  onPractice,
+}: {
+  weakSentences: Array<{
+    index: number;
+    referenceText: string;
+    latestScore: number;
+    trendDelta: number;
+    attempts: number;
+  }>;
+  currentIndex: number;
+  onPractice: (index: number) => void;
+}) {
+  const candidates = weakSentences.filter((item) => item.index !== currentIndex);
+  if (candidates.length === 0) return null;
+
+  return (
+    <section aria-label="Sentences to practise again" className="flex flex-col gap-[var(--space-2)]">
+      <p className="text-[length:var(--text-sm)] font-medium text-text m-0">
+        Practise these again
+      </p>
+      <ul className="list-none p-0 m-0 flex flex-col gap-[var(--space-2)]">
+        {candidates.slice(0, 3).map((item) => (
+          <li
+            key={`${item.index}:${item.referenceText}`}
+            className="rounded-[var(--radius-md)] border border-border p-[var(--space-3)]"
+          >
+            <div className="flex flex-col gap-[var(--space-2)] sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-[length:var(--text-sm)] text-text-muted m-0 line-clamp-2">
+                {item.referenceText}
+              </p>
+              <Button
+                variant="outline"
+                size="sm"
+                leadingIcon={<RotateCcw size={14} aria-hidden />}
+                onClick={() => onPractice(item.index)}
+              >
+                Practise
+              </Button>
+            </div>
+            <p className="text-[length:var(--text-xs)] text-text-muted m-0 mt-[var(--space-1)]">
+              Latest {item.latestScore}% · {item.attempts} attempt{item.attempts === 1 ? "" : "s"}
+              {item.trendDelta === 0 ? " · steady" : ` · ${item.trendDelta > 0 ? "+" : ""}${item.trendDelta} trend`}
+            </p>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
 
@@ -250,6 +303,12 @@ export default function ArticlePronunciation({
           onRecordAgain={session.handleRecordAgain}
         />
       ) : null}
+
+      <WeakSentenceResurface
+        weakSentences={session.weakSentences}
+        currentIndex={session.currentIndex}
+        onPractice={session.practiceWeakSentence}
+      />
 
       {/* ── Recording state ───────────────────────────────────────────── */}
       {isRecording ? (

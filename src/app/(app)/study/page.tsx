@@ -3,7 +3,7 @@ import { getSavedWords } from "@/lib/lexical/saved-words";
 import { getReviewSummary } from "@/lib/learning/flashcards";
 import { getReviewAssetSummary } from "@/lib/learning/review-assets";
 import { getQuizMastery } from "@/lib/learning/quiz-mastery";
-import { generateStudyPlan } from "@/lib/learning/study-plan";
+import { generateStudyPlan, getStudyPlanHistory } from "@/lib/learning/study-plan";
 import { GraduationCap, Highlighter } from "lucide-react";
 import Link from "next/link";
 import { Card, PageHeader, PageShell, Section, Stack } from "@/components/ui";
@@ -50,6 +50,7 @@ export default async function StudyPage() {
     getQuizMastery(session.user.id),
     generateStudyPlan(session.user.id),
   ]);
+  const studyPlanHistory = await getStudyPlanHistory(session.user.id, { limit: 6 });
 
   const { totalAttempts, articlesQuizzed, averageScore, recentTrend } = mastery;
   const hasAttempts = totalAttempts > 0;
@@ -73,7 +74,7 @@ export default async function StudyPage() {
       />
 
       {/* ── Weekly study plan (RW-041) — grounded weakness diagnostics ── */}
-      <StudyPlanSection plan={studyPlan} />
+      <StudyPlanSection plan={studyPlan} history={studyPlanHistory} />
 
       {/* ── Highlights & notes (#812) — aggregate, content-free counts only. ── */}
       {reviewAssets.totalHighlights > 0 && (
