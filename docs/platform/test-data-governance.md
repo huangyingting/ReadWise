@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-04"
 description: "Documents ownership and privacy boundaries for unit fixtures, seeds, e2e data, scraper corpora, and AI eval datasets. Captures current fixture rules, generated/test data lifecycle, privacy constraints, and maintenance workflow."
 ---
 
@@ -16,6 +16,7 @@ when adding or changing fixtures.
 **See also:**
 - [CI tiers and local commands](./ci.md)
 - [Database setup and integration tests](./database.md)
+- [Authentication and safe local test sessions](./authentication.md#local-sign-in-and-test-sessions)
 - [AI evaluation datasets](../ai/evaluations.md)
 - [Data classification and retention matrix](../security/data-lifecycle-matrix.md)
 
@@ -132,16 +133,21 @@ exported from `src/lib/testing/e2e-fixtures.ts`:
 |---|---|
 | `resetE2eDatabase()` | Full ordered teardown of the test database (guarded by `assertSafeE2eDatabaseUrl`) |
 | `seedE2eArticles()` | Inserts the deterministic `E2E_ARTICLES` set |
-| `createUserWithSession(role, opts?)` | Creates a user + NextAuth `Session` row; returns `{ userId, sessionToken, expires }` |
+| `createUserWithSession({ role, onboarded })` | Creates a user + NextAuth `Session` row; returns `{ userId, sessionToken, expires }` |
 | `TEST_ARTICLE_ID` | Stable article ID `"e2e-critical-reader"` referenced by smoke checks |
 
 `e2e/support/seed.ts` re-exports `TEST_ARTICLE_ID` and `createUserWithSession`
-and exposes two entry-point helpers used in Playwright global setup:
+and exposes helpers used by Playwright specs:
 
 ```ts
 await seedSmokeData();            // resetE2eDatabase() + seedE2eArticles()
 await addSessionCookie(context, sessionToken, expires);
 ```
+
+This is the only documented local test-session path. It is intended for
+Playwright browser contexts, not for manual development sign-in or production
+bootstrap. For OAuth setup and first-user admin behavior, see
+[authentication](./authentication.md#local-sign-in-and-test-sessions).
 
 **E2E fixture rules:**
 
