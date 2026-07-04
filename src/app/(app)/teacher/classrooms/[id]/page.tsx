@@ -1,12 +1,18 @@
 import { notFound, redirect } from "next/navigation";
 import { requireSession } from "@/lib/session";
-import { getClassroom, listClassroomMembers } from "@/lib/classroom";
+import {
+  getClassroom,
+  listClassroomMembers,
+  searchAssignableArticleOptions,
+  searchClassroomStudentCandidates,
+} from "@/lib/classroom";
 import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
   getClassroomAnalytics,
   viewerRoleForClassroom,
 } from "@/lib/analytics/tenant";
+import { articleAccessContext } from "@/lib/article-library";
 import {
   Badge,
   Card,
@@ -24,6 +30,8 @@ type ClassroomAnalytics = NonNullable<
   Awaited<ReturnType<typeof getClassroomAnalytics>>
 >;
 type ClassroomMember = Awaited<ReturnType<typeof listClassroomMembers>>[number];
+type StudentCandidate = Awaited<ReturnType<typeof searchClassroomStudentCandidates>>[number];
+type AssignableArticle = Awaited<ReturnType<typeof searchAssignableArticleOptions>>[number];
 
 function pct(value: number): string {
   return `${Math.round(value)}%`;
@@ -164,10 +172,14 @@ function TeacherSidebar({
   classroomId,
   canManage,
   students,
+  studentCandidates,
+  articleOptions,
 }: {
   classroomId: string;
   canManage: boolean;
   students: ClassroomMember[];
+  studentCandidates: StudentCandidate[];
+  articleOptions: AssignableArticle[];
 }) {
   return (
     <aside className="flex flex-col gap-[var(--space-6)]">
@@ -178,7 +190,10 @@ function TeacherSidebar({
               <CardTitle>Assign a reading</CardTitle>
             </CardHeader>
             <CardBody>
-              <AssignArticleForm classroomId={classroomId} />
+              <AssignArticleForm
+                classroomId={classroomId}
+                initialArticles={articleOptions}
+              />
             </CardBody>
           </Card>
           <Card>
@@ -186,7 +201,10 @@ function TeacherSidebar({
               <CardTitle>Roster ({students.length})</CardTitle>
             </CardHeader>
             <CardBody className="flex flex-col gap-[var(--space-4)]">
-              <AddStudentForm classroomId={classroomId} />
+              <AddStudentForm
+                classroomId={classroomId}
+                initialCandidates={studentCandidates}
+              />
               {students.length > 0 ? (
                 <ul className="flex flex-col gap-[var(--space-1)]">
                   {students.map((student) => (
@@ -243,6 +261,12 @@ export default async function ClassroomDetailPage({
 
   const canManage = isTeacher || isOrgAdmin || isSystemAdmin(session.user.role);
   const students = members.filter((m) => m.role === "Student");
+  const [studentCandidates, articleOptions] = canManage
+    ? await Promise.all([
+        searchClassroomStudentCandidates(id),
+        searchAssignableArticleOptions(articleAccessContext(session.user)),
+      ])
+    : [[], []];
 
   return (
     <PageShell>
@@ -264,7 +288,13 @@ export default async function ClassroomDetailPage({
           <StudentProgressCard analytics={analytics} />
         </div>
 
-        <TeacherSidebar classroomId={id} canManage={canManage} students={students} />
+        <TeacherSidebar
+          classroomId={id}
+          canManage={canManage}
+          students={students}
+          studentCandidates={studentCandidates}
+          articleOptions={articleOptions}
+        />
       </div>
     </PageShell>
   );

@@ -7,7 +7,7 @@
  * invalidate derived state as side effects.
  */
 import { prisma } from "@/lib/prisma";
-import { ArticleStatus, type Article } from "@prisma/client";
+import { ArticleStatus, type Article, type Prisma } from "@prisma/client";
 import { readingMinutesFor } from "./mapper";
 import { recordAuditFromRequest, type AuditRequestInput } from "@/lib/security/audit";
 import {
@@ -23,6 +23,16 @@ import {
 
 /** Page size for the admin article listing. */
 export const ADMIN_ARTICLES_PAGE_SIZE = 20;
+export const ADMIN_ARTICLE_SORT_KEYS = [
+  "createdAt",
+  "title",
+  "author",
+  "status",
+  "difficulty",
+] as const;
+export const SORT_ORDERS = ["asc", "desc"] as const;
+export type AdminArticleSortKey = (typeof ADMIN_ARTICLE_SORT_KEYS)[number];
+export type SortOrder = (typeof SORT_ORDERS)[number];
 
 export type AdminArticleRow = {
   id: string;
@@ -46,6 +56,8 @@ export type AdminArticleSearch = {
   totalPages: number;
   query: string;
   status: string | null;
+  sort: AdminArticleSortKey;
+  order: SortOrder;
 };
 
 export type SearchArticlesOpts = {
@@ -54,6 +66,8 @@ export type SearchArticlesOpts = {
   page?: number;
   pageSize?: number;
   context?: ArticleAccessContext | null;
+  sort?: string | null;
+  order?: string | null;
 };
 
 function normalizeStatusFilter(status?: string | null): ArticleStatus | null {
@@ -62,6 +76,35 @@ function normalizeStatusFilter(status?: string | null): ArticleStatus | null {
     return null;
   }
   return candidate as ArticleStatus;
+}
+
+function normalizeSort(value: string | null | undefined): AdminArticleSortKey {
+  return (ADMIN_ARTICLE_SORT_KEYS as readonly string[]).includes(value ?? "")
+    ? (value as AdminArticleSortKey)
+    : "createdAt";
+}
+
+function normalizeOrder(value: string | null | undefined): SortOrder {
+  return value === "asc" ? "asc" : "desc";
+}
+
+function articleOrderBy(
+  sort: AdminArticleSortKey,
+  order: SortOrder,
+): Prisma.ArticleOrderByWithRelationInput[] {
+  switch (sort) {
+    case "title":
+      return [{ title: order }, { createdAt: "desc" }];
+    case "author":
+      return [{ author: order }, { source: order }, { createdAt: "desc" }];
+    case "status":
+      return [{ status: order }, { visibility: order }, { createdAt: "desc" }];
+    case "difficulty":
+      return [{ difficulty: order }, { createdAt: "desc" }];
+    case "createdAt":
+    default:
+      return [{ createdAt: order }];
+  }
 }
 
 function mapAdminArticleRow(article: Article): AdminArticleRow {
@@ -93,6 +136,8 @@ export async function searchArticles(
   const pageSize = opts.pageSize ?? ADMIN_ARTICLES_PAGE_SIZE;
   const page = Math.max(1, opts.page ?? 1);
   const context = opts.context ?? SYSTEM_ARTICLE_CONTEXT;
+  const sort = normalizeSort(opts.sort);
+  const order = normalizeOrder(opts.order);
 
   const where = adminVisibleArticleWhere(context, {
     ...(status ? { status } : {}),
@@ -111,7 +156,7 @@ export async function searchArticles(
     prisma.article.count({ where }),
     prisma.article.findMany({
       where,
-      orderBy: [{ createdAt: "desc" }],
+      orderBy: articleOrderBy(sort, order),
       skip: (page - 1) * pageSize,
       take: pageSize,
     }),
@@ -125,6 +170,8 @@ export async function searchArticles(
     totalPages: Math.max(1, Math.ceil(total / pageSize)),
     query,
     status,
+    sort,
+    order,
   };
 }
 
