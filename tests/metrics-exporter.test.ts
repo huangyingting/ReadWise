@@ -7,7 +7,7 @@
 
 import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
-import { incCounter, observeHistogram, resetMetrics, API_DURATION_BUCKETS_MS } from "@/lib/metrics/registry";
+import { incCounter, observeHistogram, resetMetrics, setGauge, API_DURATION_BUCKETS_MS } from "@/lib/metrics/registry";
 import { exportMetricsPrometheus, escapePrometheusLabelValue } from "@/lib/metrics/exporter";
 
 beforeEach(() => {
@@ -24,6 +24,14 @@ test("counter is rendered with HELP, TYPE, and value line", () => {
   assert.match(text, /^# HELP my_counter A test counter\./m);
   assert.match(text, /^# TYPE my_counter counter$/m);
   assert.match(text, /^my_counter\{label="val"\} 1$/m);
+});
+
+test("gauge is rendered with HELP, TYPE, and current value line", () => {
+  setGauge("my_gauge", "A test gauge.", { label: "val" }, 7);
+  const text = exportMetricsPrometheus();
+  assert.match(text, /^# HELP my_gauge A test gauge\./m);
+  assert.match(text, /^# TYPE my_gauge gauge$/m);
+  assert.match(text, /^my_gauge\{label="val"\} 7$/m);
 });
 
 test("HELP and TYPE headers are emitted once per metric name across multiple series", () => {

@@ -53,9 +53,8 @@ async function recordPronunciationMastery(userId: string, body: PronunciationAtt
  * Returns the saved attempt and the user's all-time best pronScore.
  */
 export const POST = createHandler({ body: bodySchema }, async ({ session, body }) => {
-  await checkRateLimit(session.user.id, "ai");
-
   await assertReadableArticle(body.articleId, session.user);
+  await checkRateLimit(session.user.id, "ai");
 
   const result = await recordPronunciationAttempt(session.user.id, body);
   // Best-effort mastery: pronunciation score feeds the pronunciation skill;

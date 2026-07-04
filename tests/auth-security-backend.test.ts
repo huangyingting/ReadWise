@@ -149,7 +149,7 @@ beforeEach(() => {
   bufferThrows = false;
   ambientContext = { userId: "ambient-user", requestId: "req-ambient", path: "/ambient" };
   trustedProxy = { header: null, list: [], hops: null };
-  metricsSnapshot = { counters: [], histograms: [] };
+  metricsSnapshot = { counters: [], gauges: [], histograms: [] };
 });
 
 test("auth options enrich sessions and bootstrap first users", async () => {
@@ -368,6 +368,7 @@ test("SLO catalog evaluates API, worker, and AI availability and latency", async
       { name: "readwise_ai_calls_total", labels: { outcome: "success" }, value: 19 },
       { name: "readwise_ai_calls_total", labels: { outcome: "error" }, value: 1 },
     ],
+    gauges: [],
     histograms: [
       {
         name: "readwise_api_request_duration_ms",
