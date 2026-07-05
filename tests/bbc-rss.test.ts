@@ -1,6 +1,5 @@
 /**
- * Tests for the BBC News RSS URL extractor (#361).
- * No real network — fixture XML is injected via the fetch parameter.
+ * Tests for the lightweight RSS URL parser.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -88,14 +87,6 @@ const FEED_WITH_NON_PERMALINK_GUID = `<?xml version="1.0" encoding="UTF-8"?>
 
 const articleUrl = (id: string) => `https://www.bbc.com/news/articles/${id}`;
 
-async function getBbcProvider() {
-  const { getProvider } = await import("@/lib/scraper/providers");
-  const bbc = getProvider("bbc");
-  assert.ok(bbc, "BBC provider must be registered");
-  assert.ok(bbc.urlExtractor, "BBC provider must have a urlExtractor");
-  return bbc;
-}
-
 function assertIncludesUrl(urls: string[], url: string, message: string) {
   assert.ok(urls.includes(url), message);
 }
@@ -139,65 +130,9 @@ test("parseRssUrls: handles empty / malformed feed gracefully", () => {
 });
 
 test("parseRssUrls: multiple feeds merged and deduplicated across feeds", () => {
-  // Simulate merging two feeds (as the BBC extractor does)
   const fromWorld = parseRssUrls(WORLD_FEED);
   const fromTech = parseRssUrls(TECH_FEED);
   const combined = [...new Set([...fromWorld, ...fromTech])];
   assertIncludesUrl(combined, articleUrl("c1111111111"), "world feed story included");
   assertIncludesUrl(combined, articleUrl("c3333333333"), "tech feed story included");
-});
-
-// ---------------------------------------------------------------------------
-// BBC provider urlExtractor integration
-// ---------------------------------------------------------------------------
-
-test("BBC urlExtractor: returns article URLs from RSS feeds via injected fetch", async () => {
-  const bbc = await getBbcProvider();
-
-  const feedMap: Record<string, string> = {
-    "https://feeds.bbci.co.uk/news/world/rss.xml": WORLD_FEED,
-    "https://feeds.bbci.co.uk/news/technology/rss.xml": TECH_FEED,
-  };
-
-  const mockFetch = async (url: string) => feedMap[url] ?? "<rss><channel></channel></rss>";
-
-  const urls = await bbc!.urlExtractor!({ limit: 20, fetch: mockFetch });
-
-  assertIncludesUrl(urls, articleUrl("c1111111111"), "world story included");
-  assertIncludesUrl(urls, articleUrl("c3333333333"), "tech story included");
-});
-
-test("BBC urlExtractor: degrades gracefully when a feed fetch throws", async () => {
-  const bbc = await getBbcProvider();
-
-  // All feeds throw — extractor should return empty array, not throw
-  const result = await bbc.urlExtractor!({
-    limit: 10,
-    fetch: async () => {
-      throw new Error("network error");
-    },
-  });
-
-  assert.deepEqual(result, []);
-});
-
-test("BBC urlExtractor: stops fetching feeds once 2× limit candidates collected", async () => {
-  const bbc = await getBbcProvider();
-
-  let fetchCount = 0;
-  // Each fake feed returns 10 article URLs
-  const mockFetch = async (_url: string) => {
-    fetchCount++;
-    const items = Array.from(
-      { length: 10 },
-      (_, i) =>
-        `<item><link>https://www.bbc.com/news/articles/c${fetchCount}${String(i).padStart(9, "0")}</link></item>`,
-    ).join("\n");
-    return `<rss><channel>${items}</channel></rss>`;
-  };
-
-  await bbc.urlExtractor!({ limit: 5, fetch: mockFetch });
-
-  // limit=5 → stop after 2×5=10 candidates → only 1 feed needed (returns 10 per feed)
-  assert.ok(fetchCount <= 2, `too many feeds fetched: ${fetchCount}`);
 });

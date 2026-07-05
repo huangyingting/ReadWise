@@ -15,6 +15,7 @@ import { scraperMaxBytes, scraperTimeoutMs } from "@/lib/scraper/limits";
 import { withSpan } from "@/lib/observability/tracing";
 import { Agent, fetch as undiciFetch } from "undici";
 import { fetchHtmlWithStrategies } from "@/lib/scraper/fetch-strategies";
+import { gunzipSync } from "node:zlib";
 
 const USER_AGENT =
   "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) " +
@@ -74,6 +75,17 @@ function requestHeaders(init: FetchCoreInit): Record<string, string> {
     accept: init.method && init.method !== "GET" ? "application/json, */*" : "text/html",
     ...(init.headers ?? {}),
   };
+}
+
+function decodeBodyBuffer(buffer: Buffer, maxBytes: number): string {
+  if (buffer.length >= 2 && buffer[0] === 0x1f && buffer[1] === 0x8b) {
+    const decoded = gunzipSync(buffer);
+    if (decoded.byteLength > maxBytes) {
+      throw new Error(`Response too large: decompressed body exceeds limit of ${maxBytes} bytes`);
+    }
+    return decoded.toString("utf8");
+  }
+  return buffer.toString("utf8");
 }
 
 function isRedirect(status: number, location: string | null): location is string {
@@ -165,7 +177,7 @@ async function readBodyWithLimit(res: FetchResponse, maxBytes: number): Promise<
     // Cancel releases the lock and tells undici to abort any unread body.
     await reader.cancel().catch(() => {});
   }
-  return Buffer.concat(chunks).toString("utf8");
+  return decodeBodyBuffer(Buffer.concat(chunks), maxBytes);
 }
 
 /**

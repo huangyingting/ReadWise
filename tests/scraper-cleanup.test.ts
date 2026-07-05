@@ -192,6 +192,7 @@ test("cleanup: mergeProviderCleanup combines generic and provider rules once", (
     dropLinkHrefKeywords: ["promo_name="],
     dropLinkHrefBlockKeywords: ["/getsciam/"],
     dropFigcaptions: true,
+    dropEmptyImageOnlyFigures: true,
   });
   assert.ok(merged.dropSelectors?.includes("iframe"));
   assert.ok(merged.dropClassKeywords?.includes("newsletter"));
@@ -201,10 +202,31 @@ test("cleanup: mergeProviderCleanup combines generic and provider rules once", (
   assert.ok(merged.dropLinkHrefKeywords?.includes("promo_name="));
   assert.ok(merged.dropLinkHrefBlockKeywords?.includes("/getsciam/"));
   assert.equal(merged.dropFigcaptions, true);
+  assert.equal(merged.dropEmptyImageOnlyFigures, true);
   assert.equal(
     merged.dropClassKeywords?.filter((keyword) => keyword === "newsletter").length,
     1,
   );
+});
+
+test("cleanup: removes empty image-only figures when provider opts in", () => {
+  const html =
+    "<article>" +
+    "<p>Article opening text.</p>" +
+    '<figure><img src="logo.png" alt="" /></figure>' +
+    '<figure><img src="diagram.png" alt="Meaningful diagram" /></figure>' +
+    '<figure><img src="photo.png" alt="" /><figcaption>Meaningful caption.</figcaption></figure>' +
+    "<p>Article ending text.</p>" +
+    "</article>";
+
+  const result = applyProviderCleanup(html, { dropEmptyImageOnlyFigures: true });
+
+  assert.match(result, /Article opening text/);
+  assert.match(result, /Article ending text/);
+  assert.doesNotMatch(result, /logo\.png/);
+  assert.match(result, /diagram\.png/);
+  assert.match(result, /photo\.png/);
+  assert.match(result, /Meaningful caption/);
 });
 
 test("cleanup: removes short blocks matched by provider text keyword", () => {
@@ -307,6 +329,100 @@ test("cleanup: propublica removes republish license modal while preserving artic
   assert.doesNotMatch(result, /Republish This Story/i);
   assert.doesNotMatch(result, /Creative Commons License/i);
   assert.doesNotMatch(result, /republishing this story/i);
+});
+
+test("cleanup: Atlas Obscura removes short internal newsletter CTA link blocks", () => {
+  const html =
+    "<article>" +
+    "<p>Reported Atlas Obscura prose should stay in the extracted body.</p>" +
+    '<p><em>Sign up for a site newsletter with <a href="/newsletters/gastro-obscura">this link</a>.</em></p>' +
+    "<p>More Atlas Obscura prose should stay.</p>" +
+    "</article>";
+
+  const result = applyMergedProviderCleanup("atlasobscura", "Atlas Obscura", html);
+
+  assert.match(result, /Reported Atlas Obscura prose/);
+  assert.match(result, /More Atlas Obscura prose/);
+  assert.doesNotMatch(result, /site newsletter/i);
+  assert.doesNotMatch(result, /\/newsletters\/gastro-obscura/i);
+});
+
+test("cleanup: Atlas Obscura preserves long prose that references newsletter links", () => {
+  const longText = Array.from({ length: 260 }, () => "reported").join(" ");
+  const html =
+    "<article>" +
+    `<p>${longText} <a href="/newsletters/gastro-obscura">newsletter archives</a> ${longText}</p>` +
+    "</article>";
+
+  const result = applyMergedProviderCleanup("atlasobscura", "Atlas Obscura", html);
+
+  assert.match(result, /newsletter archives/);
+  assert.match(result, /\/newsletters\/gastro-obscura/);
+});
+
+test("cleanup: Atlas Obscura removes article header, breadcrumbs, and book interrupt cards", () => {
+  const html =
+    "<article>" +
+    '<div class="stories-breadcrumb-wrapper"><a href="/articles">Stories</a> Watch a Man Walk His Pet Tortoise Around the Streets of Tokyo</div>' +
+    '<header class="ArticleHeader js-item-header ArticleHeader--">' +
+    "<h1>Watch a Man Walk His Pet Tortoise Around the Streets of Tokyo</h1>" +
+    "<h2>They’re not the fastest pair there ever was.</h2>" +
+    "<p>by David Doochin July 15, 2016</p>" +
+    "</header>" +
+    '<div id="articleBody__interrupt-card" class="hidden-print">' +
+    '<strong class="article-gastro-heading">ATLAS OBSCURA BOOKS</strong>' +
+    '<div class="article-gastro-subheading">A Visual Odyssey Through the Marvels of Life</div>' +
+    '<p>Venture into Nature&apos;s Unseen Realms with Our New Book <em>Atlas Obscura: Wild Life</em> <a href="https://wildlife.atlasobscura.com/?utm_medium=article_interrupt">Order Now</a></p>' +
+    '<img alt="Gastro Obscura Book" src="book.jpg">' +
+    "</div>" +
+    "<p>Real Atlas story prose should remain.</p>" +
+    "</article>";
+
+  const result = applyMergedProviderCleanup("atlasobscura", "Atlas Obscura", html);
+
+  assert.match(result, /Real Atlas story prose/);
+  assert.doesNotMatch(result, /Stories/i);
+  assert.doesNotMatch(result, /They’re not the fastest/i);
+  assert.doesNotMatch(result, /David Doochin/i);
+  assert.doesNotMatch(result, /ATLAS OBSCURA BOOKS/i);
+  assert.doesNotMatch(result, /Visual Odyssey/i);
+  assert.doesNotMatch(result, /book\.jpg/i);
+});
+
+test("cleanup: Atlas Obscura removes recurring series, signup, correction, and attribution boilerplate", () => {
+  const html =
+    "<article>" +
+    "<p>Real Atlas story prose should remain.</p>" +
+    "<p><em>Every day we track down a Video Wonder: an audiovisual offering that delights, inspires, and entertains. Have you encountered a video we should feature?</em></p>" +
+    "<p><em>Naturecultures is a weekly column that explores the changing relationships between humanity and wilder things. Have something you want covered?</em></p>" +
+    "<p><em>Map Monday highlights interesting and unusual cartographic pursuits from around the world and through time. <a href=\"/categories/map-monday\">Read more Map Monday posts.</a></em></p>" +
+    '<p><strong><a href="http://atlasobscura.us1.list-manage.com/subscribe?u=1">Sign up here to explore Illinois and Chicago’s most curious locations with Atlas Obscura.</a></strong></p>' +
+    "<p><em>Illinois Week on Atlas Obscura was created in partnership with Enjoy Illinois as part of the launch of the new Illinois Obscura Society. Sign up to find out more.</em></p>" +
+    '<p><em><a href="http://www.enjoyillinois.com/tripideas/offbeat?utm_source=Atlas%20Obscura%20%20&amp;utm_medium=click%20thru"><img src="enjoy-illinois-logo.jpg" alt=""></a></em></p>' +
+    "<p><em>Update, 12/4: An early version of this article misstated an affiliation. We regret the error.</em></p>" +
+    "<p><em>*Update 1/23: This post has been updated with more information about a source.</em></p>" +
+    "<p><em>* Update 9/20/20: This story was updated to reflect recent historical research.</em></p>" +
+    '<p><em>A version of this post originally appeared on <a href="http://tedium.co/">Tedium</a>, a twice-weekly newsletter that hunts for the end of the long tail.</em></p>' +
+    '<figure><img src="tedium-logo.png" alt="" /></figure>' +
+    "<p>More real Atlas story prose should remain.</p>" +
+    "</article>";
+
+  const result = applyMergedProviderCleanup("atlasobscura", "Atlas Obscura", html);
+
+  assert.match(result, /Real Atlas story prose/);
+  assert.match(result, /More real Atlas story prose/);
+  assert.doesNotMatch(result, /Video Wonder/i);
+  assert.doesNotMatch(result, /Naturecultures/i);
+  assert.doesNotMatch(result, /Map Monday highlights/i);
+  assert.doesNotMatch(result, /list-manage/i);
+  assert.doesNotMatch(result, /Illinois Week/i);
+  assert.doesNotMatch(result, /enjoyillinois/i);
+  assert.doesNotMatch(result, /enjoy-illinois-logo\.jpg/i);
+  assert.doesNotMatch(result, /regret the error/i);
+  assert.doesNotMatch(result, /updated with more information/i);
+  assert.doesNotMatch(result, /updated to reflect/i);
+  assert.doesNotMatch(result, /Tedium/i);
+  assert.doesNotMatch(result, /tedium-logo\.png/i);
 });
 
 test("cleanup: bbcfeatures removes navigation drawer search and footer chrome", () => {

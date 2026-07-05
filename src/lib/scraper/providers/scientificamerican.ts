@@ -1,5 +1,5 @@
-import type { Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, sitemapUrlExtractor } from "./shared";
+import type { Provider, UrlExtractorResult } from "@/lib/scraper/types";
+import { categoryFromRules, excludes, extractorResultUrl, sitemapUrlExtractor } from "./shared";
 
 const SCIENTIFIC_AMERICAN_SITEMAP_INDEX =
   "https://www.scientificamerican.com/platform/syndication/sitemaps/";
@@ -288,14 +288,15 @@ function parseHtmlArticleLinks(html: string, baseUrl: string): string[] {
 function addArticleCandidates(
   urls: string[],
   seen: Set<string>,
-  candidates: readonly string[],
+  candidates: readonly UrlExtractorResult[],
   cap: number,
 ): void {
   for (const candidate of candidates) {
     if (urls.length >= cap) break;
-    if (!isScientificAmericanArticleUrl(candidate) || seen.has(candidate)) continue;
-    seen.add(candidate);
-    urls.push(candidate);
+    const url = extractorResultUrl(candidate);
+    if (!isScientificAmericanArticleUrl(url) || seen.has(url)) continue;
+    seen.add(url);
+    urls.push(url);
   }
 }
 

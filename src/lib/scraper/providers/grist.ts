@@ -1,5 +1,5 @@
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, parseSitemapLocs, rssUrlExtractor } from "./shared";
+import { categoryFromRules, excludes, extractorResultUrl, parseSitemapLocs, rssUrlExtractor } from "./shared";
 
 const GRIST_SITEMAP_INDEX = "https://grist.org/sitemap_index.xml";
 const GRIST_HOSTNAME = "grist.org";
@@ -84,10 +84,14 @@ async function gristUrlExtractor({ limit, fetch }: UrlExtractorContext): Promise
       }
     }
   } catch {
-    return gristRssFallback({ limit, fetch });
+    return rssFallbackUrls(limit, fetch);
   }
 
-  return urls.length > 0 ? urls : gristRssFallback({ limit, fetch });
+  return urls.length > 0 ? urls : rssFallbackUrls(limit, fetch);
+}
+
+async function rssFallbackUrls(limit: number, fetch: UrlExtractorContext["fetch"]): Promise<string[]> {
+  return (await gristRssFallback({ limit, fetch })).map(extractorResultUrl);
 }
 
 const grist: Provider = {

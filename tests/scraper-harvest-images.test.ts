@@ -2,8 +2,8 @@
  * Tests for the image-aware legacy harvest (Part A of the image-loss fix).
  *
  * The legacy body harvest used to collect `<p>` inner text only, so on the
- * providers where Readability under-performs and the harvest wins (BBC, NBC,
- * Knowable, …) every `<img>` was dropped. The harvest is now DOM-based
+ * providers where Readability under-performs and the harvest wins (BBC Features,
+ * Knowable, etc.) every `<img>` was dropped. The harvest is now DOM-based
  * (linkedom): it walks content-bearing elements in document order, keeps
  * `<figure>`/`<img>`, resolves each `src` to an absolute URL, and drops only
  * site chrome (logos, sprites, tracking pixels, lazy-load placeholders).

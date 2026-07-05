@@ -1,5 +1,5 @@
-import type { ExtractorFetch, Provider } from "@/lib/scraper/types";
-import { categoryFromRules, excludes, rssUrlExtractor, sitemapUrlExtractor } from "./shared";
+import type { ExtractorFetch, Provider, UrlExtractorResult } from "@/lib/scraper/types";
+import { categoryFromRules, excludes, extractorResultUrl, rssUrlExtractor, sitemapUrlExtractor } from "./shared";
 import { fetchNautilusUrls } from "@/lib/scraper/wp-api";
 
 const nautilusContentSitemapExtractor = sitemapUrlExtractor(
@@ -17,11 +17,12 @@ const nautilusRssExtractor = rssUrlExtractor([
 function addUniqueUrlsUpToCap(
   target: string[],
   seen: Set<string>,
-  candidates: string[],
+  candidates: readonly UrlExtractorResult[],
   candidateCap: number,
 ): void {
-  for (const url of candidates) {
+  for (const candidate of candidates) {
     if (target.length >= candidateCap) break;
+    const url = extractorResultUrl(candidate);
     if (seen.has(url)) continue;
     seen.add(url);
     target.push(url);
@@ -35,7 +36,7 @@ async function collectNautilusUrls(
   const candidateCap = Math.max(limit * 2, limit);
   const seen = new Set<string>();
   const urls: string[] = [];
-  const add = (candidates: string[]) =>
+  const add = (candidates: readonly UrlExtractorResult[]) =>
     addUniqueUrlsUpToCap(urls, seen, candidates, candidateCap);
 
   add(await fetchNautilusUrls(limit, fetch));

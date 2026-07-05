@@ -64,3 +64,5 @@ dev-server.log
 # Copilot CLI per-session scratch state (never commit)
 .copilot/session-state/
 ReadWise/
+
+provider-dbs/

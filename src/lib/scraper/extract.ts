@@ -34,7 +34,7 @@ const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
  * A JSON-LD `articleBody` is plain text, so wrapping it in `<p>` yields zero
  * images. When Readability captured essentially the same article *with* its
  * inline image(s) over a comparable-length body, we switch to Readability so the
- * imagery is not lost (e.g. NBC News, whose JSON-LD body is image-less). This
+ * imagery is not lost (for example, providers whose JSON-LD body is image-less). This
  * floor guards the swap: it never trades a full canonical JSON-LD body for a
  * short Readability stub on providers where JSON-LD is canonical precisely
  * *because* Readability under-performs.
@@ -472,7 +472,7 @@ function chooseArticleBody(
   // has zero images. When the canonical prose carries no imagery but
   // Readability captured content image(s) over a comparable-length body,
   // prefer Readability so inline images are recovered instead of dropped
-  // (e.g. NBC News serves an image-less JSON-LD body). The word-ratio floor
+  // for providers that serve an image-less JSON-LD body. The word-ratio floor
   // ensures we never trade a full JSON-LD body for a truncated Readability
   // stub on providers where JSON-LD is canonical because Readability is weak.
   const ldImgs = countImages(legacyBody);
@@ -496,7 +496,7 @@ function resolveCategory(provider: Provider | null, url: URL, section: string | 
 /**
  * Parses already-fetched HTML into a normalized, cleaned ScrapedArticle.
  * Combines schema.org JSON-LD, OpenGraph meta tags and raw `<p>` extraction so
- * it works across NBC News, National Geographic, Time and HuffPost.
+ * it works across BBC Features, National Geographic, Time and HuffPost.
  *
  * Pipeline:
  * 1. **Provider cleanup** (known providers only): removes noise blocks such as

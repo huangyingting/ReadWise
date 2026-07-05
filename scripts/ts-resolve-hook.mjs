@@ -55,6 +55,13 @@ export async function resolve(specifier, context, nextResolve) {
     }
   }
 
+  if (specifier.startsWith("/")) {
+    const resolved = tryFileVariants(specifier);
+    if (resolved) {
+      return { url: resolved, shortCircuit: true };
+    }
+  }
+
   try {
     return await nextResolve(specifier, context);
   } catch (err) {

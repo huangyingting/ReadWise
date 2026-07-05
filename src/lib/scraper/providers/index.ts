@@ -19,11 +19,9 @@ export {
   isProviderCategoryReadingSuitable,
 } from "./shared";
 
-import nbc from "./nbc";
 import natgeo from "./natgeo";
 import time from "./time";
 import huffpost from "./huffpost";
-import bbc from "./bbc";
 import bbcFeatures from "./bbcfeatures";
 import smithsonian from "./smithsonian";
 import knowable from "./knowable";
@@ -35,13 +33,17 @@ import theconversation from "./theconversation";
 import propublica from "./propublica";
 import grist from "./grist";
 import scientificamerican from "./scientificamerican";
+import atlasObscura from "./atlasobscura";
+import jstorDaily from "./jstordaily";
+import publicDomainReview from "./publicdomainreview";
+import hakaiMagazine from "./hakaimagazine";
+import yaleEnvironment360 from "./yalee360";
+import worksInProgress from "./worksinprogress";
 
 export const PROVIDERS: readonly Provider[] = [
-  nbc,
   natgeo,
   time,
   huffpost,
-  bbc,
   bbcFeatures,
   theconversation,
   propublica,
@@ -53,6 +55,12 @@ export const PROVIDERS: readonly Provider[] = [
   scientificamerican,
   noema,
   undark,
+  atlasObscura,
+  jstorDaily,
+  publicDomainReview,
+  hakaiMagazine,
+  yaleEnvironment360,
+  worksInProgress,
 ];
 
 function normalizeUrlHostname(hostname: string): string {

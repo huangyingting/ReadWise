@@ -63,7 +63,7 @@ export function LandingHeroSection({
             className="rw-fade-up mt-[var(--space-5)] max-w-[44ch] text-[length:var(--text-lg)] leading-[var(--leading-normal)] text-text-muted"
             style={animationDelay(FADE_DELAYS.copy)}
           >
-            Learn English from real articles by NBC News, National Geographic,
+            Learn English from real articles by BBC Features, National Geographic,
             Time, and more — with an AI toolkit that teaches as you read, not
             just translates.
           </p>

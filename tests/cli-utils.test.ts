@@ -31,7 +31,7 @@ before(() => {
   });
   mock.module("@/lib/scraper/providers", {
     namedExports: {
-      PROVIDERS: [{ key: "bbc", name: "BBC", hostnames: ["bbc.com"] }],
+      PROVIDERS: [{ key: "huffpost", name: "HuffPost", hostnames: ["huffpost.com"] }],
       getProvider: () => null,
       providerForUrl: () => null,
     },
@@ -449,7 +449,7 @@ describe("scrape.ts parseArgs", async () => {
   });
 
   test("--provider value", () => {
-    assert.equal(parseArgs(["--provider", "bbc"]).provider, "bbc");
+    assert.equal(parseArgs(["--provider", "huffpost"]).provider, "huffpost");
   });
 
   test("--all flag", () => {

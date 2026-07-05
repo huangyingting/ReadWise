@@ -297,15 +297,15 @@ test("isProviderEnabled defaults to true for unsynced providers and honors the f
   const { isProviderEnabled, syncContentSources, setContentSourceEnabled } = await import(
     "@/lib/scraper/sources"
   );
-  assert.equal(await isProviderEnabled("nbc"), true);
+  assert.equal(await isProviderEnabled("huffpost"), true);
 
   await syncContentSources();
-  assert.equal(await isProviderEnabled("nbc"), true);
+  assert.equal(await isProviderEnabled("huffpost"), true);
 
-  const updated = await setContentSourceEnabled("nbc", false);
+  const updated = await setContentSourceEnabled("huffpost", false);
   assert.ok(updated);
   assert.equal(updated?.enabled, false);
-  assert.equal(await isProviderEnabled("nbc"), false);
+  assert.equal(await isProviderEnabled("huffpost"), false);
 });
 
 test("setContentSourceEnabled returns null for an unknown provider", async () => {
@@ -317,9 +317,9 @@ test("recordCrawlRun upserts a row and computes failing health after repeated fa
   const { recordCrawlRun } = await import("@/lib/scraper/sources");
 
   const failOutcome = failedDiscoveryOutcome();
-  await recordCrawlRun("nbc", failOutcome);
-  await recordCrawlRun("nbc", failOutcome);
-  const row = await recordCrawlRun("nbc", failOutcome);
+  await recordCrawlRun("huffpost", failOutcome);
+  await recordCrawlRun("huffpost", failOutcome);
+  const row = await recordCrawlRun("huffpost", failOutcome);
 
   assert.equal(row.consecutiveFailures, 3);
   assert.equal(row.healthStatus, "failing");

@@ -38,6 +38,28 @@ export type UrlExtractorContext = {
   fetch: ExtractorFetch;
 };
 
+export type DiscoveredUrlSource =
+  | "api"
+  | "archive"
+  | "file"
+  | "heuristic"
+  | "rss"
+  | "seed"
+  | "sitemap"
+  | "unknown";
+
+export type DiscoveredUrl = {
+  url: string;
+  source: DiscoveredUrlSource;
+  discoveredAt: string;
+  lastModified?: string;
+  publishedAt?: string;
+  sourceUrl?: string;
+};
+
+export type UrlExtractorResult = string | Partial<DiscoveredUrl> & { url: string };
+export type UrlExtractor = (ctx: UrlExtractorContext) => Promise<UrlExtractorResult[]>;
+
 export type ProviderCleanup = {
   /**
    * Plain tag names to drop together with ALL their inner content (e.g.
@@ -84,6 +106,13 @@ export type ProviderCleanup = {
    * Sibling image/video content in the surrounding `<figure>` is preserved.
    */
   dropFigcaptions?: boolean;
+  /**
+   * Provider opt-in to remove `<figure>` blocks that contain image markup but no
+   * visible text, no caption, and no image alt/title text. This is intended for
+   * decorative logos or empty promo images left behind after neighboring text
+   * boilerplate is removed.
+   */
+  dropEmptyImageOnlyFigures?: boolean;
 };
 
 export type ProviderQuality = {
@@ -96,9 +125,9 @@ export type ProviderQuality = {
 
 /** A news source the scraper knows how to crawl and categorize. */
 export type Provider = {
-  /** Short CLI key, e.g. "nbc". */
+  /** Short CLI key, e.g. "huffpost". */
   key: string;
-  /** Human label stored as `Article.source`, e.g. "NBC News". */
+  /** Human label stored as `Article.source`, e.g. "HuffPost". */
   name: string;
   /** Hostnames (without protocol) whose URLs belong to this provider. */
   hostnames: string[];
@@ -134,8 +163,10 @@ export type Provider = {
    *
    * Extractor results are still validated against `articleUrlPattern`,
    * `articleUrlFilter`, robots rules, and the provider's hostname before use.
+   * Extractors may return plain URL strings or URL metadata entries; plain
+   * strings are normalized into `DiscoveredUrl` records by discovery.
    */
-  urlExtractor?: (ctx: UrlExtractorContext) => Promise<string[]>;
+  urlExtractor?: UrlExtractor;
   /**
    * Optional paginated seed-URL builder for HTML-discovery providers. Called
    * with `(seed, pageNum)` where `pageNum` starts at **2** (page 1 is the

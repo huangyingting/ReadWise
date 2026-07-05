@@ -68,7 +68,7 @@ test("extractArticle parses JSON-LD article into a cleaned record", () => {
     `<html><head><title>Fallback</title>` +
     `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
     `</head><body></body></html>`;
-  const result = extractArticle(html, "https://www.nbcnews.com/science/story");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/science-story_l_abc123");
   assert.ok(result);
   assert.equal(result?.title, "Climate Update");
   assert.equal(result?.author, "Sam Reporter");
@@ -145,12 +145,12 @@ test("extractArticle rejects bodies under 50 words", () => {
     "<html><head><title>Tiny</title></head><body><article>" +
     buildBody(5) +
     "</article></body></html>";
-  assert.equal(extractArticle(html, "https://www.nbcnews.com/x"), null);
+  assert.equal(extractArticle(html, "https://www.huffpost.com/entry/tiny_l_abc123"), null);
 });
 
 test("extractArticle returns null without a title", () => {
   const html = "<html><body><article>" + buildBody(80) + "</article></body></html>";
-  assert.equal(extractArticle(html, "https://www.nbcnews.com/x"), null);
+  assert.equal(extractArticle(html, "https://www.huffpost.com/entry/no-title_l_abc123"), null);
 });
 
 test("extractArticle returns null for an invalid URL", () => {
@@ -166,7 +166,7 @@ test("extractArticle sanitizes scraped body HTML (strips script/onerror/javascri
     `<p><img src="x" onerror="alert('xss')"> ` +
     `<a href="javascript:alert('xss')">click</a> ${filler}</p>` +
     "</article></body></html>";
-  const result = extractArticle(html, "https://www.nbcnews.com/security/story");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/security-story_l_abc123");
   assert.ok(result, "article should still extract");
   const content = result?.content ?? "";
   // Sanitizer must remove the dangerous constructs entirely.
@@ -188,7 +188,7 @@ test("extractArticle sanitizes a malicious JSON-LD headline path's body", () => 
     "<html><head><title>Fallback</title>" +
     `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
     "</head><body></body></html>";
-  const result = extractArticle(html, "https://www.nbcnews.com/world/story");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/world-story_l_abc123");
   assert.ok(result);
   // Body comes from articleBody (plain text) -> no markup leaks into content.
   assert.doesNotMatch(result?.content ?? "", /onerror/i);

@@ -82,7 +82,8 @@ test("quality/json-ld: extracts title, author, date, body from NewsArticle JSON-
     `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
     "</head><body><article><p>Fallback paragraph that should not win.</p></article></body></html>";
 
-  const result = extractArticle(html, "https://www.nbcnews.com/science/ocean-rcna12345");
+  const sourceUrl = "https://www.huffpost.com/entry/ocean-discovery_l_abc123";
+  const result = extractArticle(html, sourceUrl);
 
   assert.ok(result, "should extract a valid article");
   assert.equal(result!.title, "Ocean Discovery");
@@ -91,7 +92,7 @@ test("quality/json-ld: extracts title, author, date, body from NewsArticle JSON-
   assert.match(result!.content, /ocean\d+/, "body words should appear in content");
   assert.ok(result!.wordCount >= 50, `wordCount ${result!.wordCount} must be ≥ 50`);
   assert.equal(result!.category, "science");
-  assert.equal(result!.sourceUrl, "https://www.nbcnews.com/science/ocean-rcna12345");
+  assert.equal(result!.sourceUrl, sourceUrl);
 });
 
 test("quality/json-ld: word count is at least the word count of articleBody", async () => {
@@ -101,7 +102,7 @@ test("quality/json-ld: word count is at least the word count of articleBody", as
   const ld = { "@type": "NewsArticle", headline: "Climate News", articleBody: body };
   const html = `<html><head><script type="application/ld+json">${JSON.stringify(ld)}</script></head><body></body></html>`;
 
-  const result = extractArticle(html, "https://www.nbcnews.com/environment/story-rcna99999");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/environment-story_l_abc123");
   assert.ok(result);
   assert.ok(result!.wordCount >= 100, `wordCount ${result!.wordCount} should be ≥ 100`);
 });
@@ -118,7 +119,7 @@ test("quality/json-ld: JSON-LD body overrides raw <p> paragraphs", async () => {
     `<p>${wordBlock(80, "rawparagraph")}</p>` +
     "</article></body></html>";
 
-  const result = extractArticle(html, "https://www.nbcnews.com/tech/article-rcna00001");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/tech-article_l_abc123");
   assert.ok(result);
   assert.match(result!.content, /jsonld\d+/, "JSON-LD body should be used");
   assert.doesNotMatch(result!.content, /rawparagraph\d+/, "raw <p> body should NOT override");
@@ -174,7 +175,7 @@ test("quality/boilerplate: provider cleanup removes ad block before body extract
 
   const articleText = wordBlock(70, "newsword");
   const html =
-    "<html><head><title>NBC Cleanup Test</title></head><body>" +
+    "<html><head><title>HuffPost Cleanup Test</title></head><body>" +
     "<article>" +
     `<p>${articleText}</p>` +
     '<div class="advertisement"><p>Advertisement: BUY NOW!</p></div>' +
@@ -183,8 +184,8 @@ test("quality/boilerplate: provider cleanup removes ad block before body extract
     "</article>" +
     "</body></html>";
 
-  // NBC has cleanup configured: dropClassKeywords includes "related" and "advertisement"
-  const result = extractArticle(html, "https://www.nbcnews.com/world/test-story-rcna11111");
+  // HuffPost has cleanup configured: dropClassKeywords includes "related" and "advertisement"
+  const result = extractArticle(html, "https://www.huffpost.com/entry/test-story_l_abc111");
   assert.ok(result, "should extract article");
   assert.doesNotMatch(result!.content, /BUY NOW/, "ad content must be removed by cleanup");
   assert.doesNotMatch(
@@ -209,8 +210,8 @@ test("quality/boilerplate: provider cleanup removes video elements before body e
     "</article>" +
     "</body></html>";
 
-  // NBC has cleanup configured with dropSelectors: ["video", "iframe", "aside"]
-  const result = extractArticle(html, "https://www.nbcnews.com/tech/video-test-rcna22222");
+  // HuffPost has cleanup configured with dropSelectors: ["video", "iframe"]
+  const result = extractArticle(html, "https://www.huffpost.com/entry/video-test_l_def222");
   assert.ok(result);
   assert.doesNotMatch(result!.content, /Watch the video/, "video inner content must be stripped");
   assert.doesNotMatch(result!.content, /promo\.mp4/, "video src must be stripped");
@@ -311,7 +312,7 @@ test("quality/short: article with < 50 words returns null", async () => {
     "<html><head><title>Short Article</title></head>" +
     `<body><article><p>${wordBlock(10, "short")}</p></article></body></html>`;
 
-  const result = extractArticle(html, "https://www.nbcnews.com/brief/short-rcna00000");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/short_l_abc123");
   assert.strictEqual(result, null, "article with < 50 words should be rejected");
 });
 
@@ -322,7 +323,7 @@ test("quality/short: article with exactly 50 words is accepted", async () => {
     "<html><head><title>Borderline Article</title></head>" +
     `<body><article><p>${wordBlock(50, "border")}</p></article></body></html>`;
 
-  const result = extractArticle(html, "https://www.nbcnews.com/world/borderline-rcna00001");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/borderline_l_abc123");
   assert.ok(result, "article with exactly 50 words should be accepted");
   assert.ok(result!.wordCount >= 50);
 });
@@ -336,7 +337,7 @@ test("quality/short: JSON-LD body with < 50 words returns null", async () => {
     `<script type="application/ld+json">${JSON.stringify(ld)}</script>` +
     "</head><body></body></html>";
 
-  const result = extractArticle(html, "https://www.nbcnews.com/brief/tiny-rcna99900");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/tiny_l_abc123");
   assert.strictEqual(result, null, "JSON-LD body with < 50 words should be rejected");
 });
 
@@ -344,7 +345,7 @@ test("quality/short: article with no title returns null", async () => {
   const { extractArticle } = await import("@/lib/scraper/extract");
 
   const html = `<html><body><article><p>${wordBlock(80, "notitle")}</p></article></body></html>`;
-  const result = extractArticle(html, "https://www.nbcnews.com/world/no-title-rcna11110");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/no-title_l_abc123");
   assert.strictEqual(result, null, "article without a title should be rejected");
 });
 
@@ -418,7 +419,7 @@ test("quality/sanitize: links get rel=noopener noreferrer nofollow target=_blank
     '<p><a href="https://external.com/page">External link</a></p>' +
     "</article></body></html>";
 
-  const result = extractArticle(html, "https://www.nbcnews.com/world/link-test-rcna55555");
+  const result = extractArticle(html, "https://www.huffpost.com/entry/link-test_l_abc123");
   assert.ok(result);
   assert.match(result!.content, /rel="noopener noreferrer nofollow"/i);
   assert.match(result!.content, /target="_blank"/i);
