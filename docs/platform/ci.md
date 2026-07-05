@@ -96,7 +96,9 @@ npm run test:e2e:ui-audit:full -- --shard=4/4
 
 ### UI audit artifacts
 
-`e2e/ui-audit-500.spec.ts` writes machine-readable audit output under
+The route-family UI audit specs (`e2e/ui-audit-public-auth.spec.ts`,
+`e2e/ui-audit-reader-learning.spec.ts`, `e2e/ui-audit-classroom.spec.ts`, and
+`e2e/ui-audit-admin-operations.spec.ts`) write machine-readable audit output under
 `test-results/ui-audit/` by default, including:
 
 - `catalog.json` — the registered 500-case matrix.

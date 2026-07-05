@@ -79,3 +79,17 @@ Classified the 332 Node test files into Morpheus' subsystem buckets, then remove
 **Source:** Switch inbox (`decisions/inbox/Switch-ui-catchall-tests-split-by-helper-and-hook-functio.md`)
 
 Split the remaining UI catchall tests by semantic functionality. DOM helper assertions were merged into `selection-helpers.test.ts` or moved to new `theme-runtime.test.ts` and `reader-highlight-marks.test.ts`. React hook behavior assertions were moved into focused hook files (`load-more-list-hook`, `keyboard-shortcut-hook`, `focus-trap-hook`, `roving-tabindex-hook`, `current-reading-block-hook`, `tts-prose-highlight-hook`) instead of merging into existing pure/export tests, because each hook behavior suite needs an isolated React module mock harness and keeping that harness separate avoids destabilizing existing semantic tests. The original catchall files `tests/ui-hooks.test.ts` and `tests/ui-dom-helpers.test.ts` were deleted after all assertions were relocated.
+
+### 2026-07-05 — ReadWise release workflow runs only for versioned release inputs
+
+**Source:** Tank inbox (`decisions/inbox/tank-release-workflow-version-gate.md`)
+
+The main release workflow is named for ReadWise, validates `package.json` against `CHANGELOG.md`, installs dependencies, generates Prisma, and runs `npm test`; it now runs on manual dispatch or pushes touching version/release metadata instead of every main push. This aligns release validation with ReadWise's current test layout/runbook and avoids noisy stale release failures when package metadata is unchanged.
+
+### 2026-07-05 — UI audit Playwright suite is split by semantic subsystems
+
+**Source:** Trinity inbox (`decisions/inbox/trinity-ui-audit-semantic-split.md`)
+
+The legacy numeric `e2e/ui-audit-500.spec.ts` file was replaced by semantic subsystem specs for public/auth, reader learning, classroom, and admin operations. Shared route catalog, artifact, and runner support lives in `e2e/support/ui-audit.ts`; the canonical grep tag is now `@ui-audit` instead of the old numeric `@ui-audit-500` label.
+
+**Validation:** Switch verified discovery/listing at 500 tests across the 4 semantic files, `@ui-audit` grep compatibility, 50 high-risk tests, targeted `admin-ai-ops` passing 10 tests, targeted ESLint for the audit files, and `npm run typecheck -- --pretty false`.

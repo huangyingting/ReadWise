@@ -10,9 +10,19 @@ import {
   selectPendingEntries,
   selectPendingUrls,
 } from "../scripts/scrape-provider";
-import { parseSitemapEntries } from "../src/lib/scraper/providers/shared";
+import {
+  collectSitemapUrls,
+  hrefsFromHtml,
+  isPath,
+  lookupSection,
+  parseSitemapEntries,
+  providerReadingCategories,
+  sitemapUrlExtractor,
+  validUrl,
+} from "../src/lib/scraper/providers/shared";
 import { parseRssEntries } from "../src/lib/scraper/rss";
 import {
+  applyFetchStrategyEnvironment,
   fetchPlanSummary,
   providerWorkflowConfig,
 } from "../src/lib/scraper/workflow";
@@ -179,6 +189,36 @@ test("provider workflow config captures Atlas Playwright tuning", () => {
   assert.match(fetchPlanSummary(config), /profile-http:off fallback/);
 });
 
+test("provider workflow applies fetch strategy environment flags", () => {
+  const previous = {
+    profile: process.env.SCRAPER_FETCH_PROFILE_RETRY,
+    browser: process.env.SCRAPER_FETCH_BROWSER,
+    reader: process.env.SCRAPER_FETCH_READER,
+    wayback: process.env.SCRAPER_FETCH_WAYBACK,
+  };
+  try {
+    applyFetchStrategyEnvironment({
+      fetchPlan: [
+        { strategy: "http", enabled: true },
+        { strategy: "profile-http", enabled: false },
+        { strategy: "playwright", enabled: true },
+        { strategy: "reader-proxy", enabled: false },
+        { strategy: "wayback", enabled: true },
+      ],
+    });
+
+    assert.equal(process.env.SCRAPER_FETCH_PROFILE_RETRY, "false");
+    assert.equal(process.env.SCRAPER_FETCH_BROWSER, "true");
+    assert.equal(process.env.SCRAPER_FETCH_READER, "false");
+    assert.equal(process.env.SCRAPER_FETCH_WAYBACK, "true");
+  } finally {
+    process.env.SCRAPER_FETCH_PROFILE_RETRY = previous.profile;
+    process.env.SCRAPER_FETCH_BROWSER = previous.browser;
+    process.env.SCRAPER_FETCH_READER = previous.reader;
+    process.env.SCRAPER_FETCH_WAYBACK = previous.wayback;
+  }
+});
+
 test("provider workflow counts finalized outcomes", () => {
   const counts = countFinalizedOutcomes(
     new Map([
@@ -198,6 +238,73 @@ test("provider workflow counts finalized outcomes", () => {
     failed: 1,
     retry: 0,
   });
+});
+
+test("provider shared helpers keep URL discovery and category fallbacks graceful", async () => {
+  assert.equal(validUrl("not a url"), null);
+  assert.equal(isPath("not a url", "example.test", /story/), false);
+  assert.deepEqual(
+    hrefsFromHtml(`<a href="/story#comments">Story</a><a href=":bad">Bad</a>`, "https://example.test/base/"),
+    ["https://example.test/story", "https://example.test/base/:bad"],
+  );
+
+  const collected = await collectSitemapUrls(
+    ["https://example.test/missing.xml", "https://example.test/sitemap.xml"],
+    {
+      limit: 1,
+      fetch: async (url) => {
+        if (url.includes("missing")) throw new Error("network");
+        return `
+          <urlset>
+            <url><loc>https://example.test/keep-one</loc></url>
+            <url><loc>https://example.test/skip-two</loc></url>
+          </urlset>
+        `;
+      },
+    },
+    (url) => url.includes("keep"),
+  );
+  assert.deepEqual(collected, ["https://example.test/keep-one"]);
+
+  const extractor = sitemapUrlExtractor("https://example.test/index.xml", {
+    sitemapUrlFilter: (url) => url.includes("child"),
+  });
+  const entries = (await extractor({
+    limit: 1,
+    fetch: async (url) => {
+      if (url.includes("index")) {
+        return `
+          <sitemap><loc>https://example.test/child.xml</loc></sitemap>
+          <sitemap><loc>https://example.test/other.xml</loc></sitemap>
+        `;
+      }
+      return `
+        <urlset>
+          <url><loc>https://example.test/a</loc><lastmod>bad-date</lastmod></url>
+          <url><loc>https://example.test/b</loc><lastmod>2026-07-05</lastmod></url>
+        </urlset>
+      `;
+    },
+  })).filter((entry): entry is DiscoveredUrl => typeof entry !== "string");
+  assert.equal(entries.length, 2);
+  assert.equal(entries[0].source, "sitemap");
+  assert.equal(entries[0].lastModified, undefined);
+  assert.equal(entries[1].lastModified, "2026-07-05T00:00:00.000Z");
+
+  assert.equal(lookupSection(new URL("https://example.test/news/story"), "Format", [[/news/, "world"]]), "world");
+  assert.deepEqual(
+    providerReadingCategories({
+      key: "fixture",
+      name: "Fixture",
+      hostnames: ["example.test"],
+      seeds: [],
+      articleUrlPattern: /./,
+      defaultCategory: null,
+      categories: ["science", "sports"],
+      readingCategories: ["science"],
+    }),
+    ["science"],
+  );
 });
 
 function discoveryEntry(

@@ -97,6 +97,12 @@ describe("extensionless relative import resolution", async () => {
     );
     assert.equal(result.shortCircuit, true);
   });
+
+  test("resolves absolute project paths with extension variants", async () => {
+    const result = await resolve(path.join(projectRoot, "scripts/lib/cli"), {}, passthrough);
+    assert.equal(result.url, pathToFileURL(path.join(projectRoot, "scripts/lib/cli.ts")).href);
+    assert.equal(result.shortCircuit, true);
+  });
 });
 
 // ── Package subpath retry on ERR_MODULE_NOT_FOUND ─────────────────────────

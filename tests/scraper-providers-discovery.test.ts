@@ -136,122 +136,6 @@ test("Grist extractor falls back to RSS when sitemaps are unavailable or empty",
     },
   });
 
-  test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
-    const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
-    const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
-    const { jstorDaily } = await import("@/lib/scraper/providers/jstordaily");
-    const { publicDomainReview } = await import("@/lib/scraper/providers/publicdomainreview");
-    const { worksInProgress } = await import("@/lib/scraper/providers/worksinprogress");
-    const { yaleEnvironment360 } = await import("@/lib/scraper/providers/yalee360");
-
-    assert.ok(atlasObscura.urlExtractor);
-    assert.deepEqual(
-      await atlasObscura.urlExtractor({
-        limit: 10,
-        fetch: async (url) =>
-          url.endsWith("/articles.xml.gz")
-            ? sitemap([
-                "https://www.atlasobscura.com/articles/hidden-history",
-                "https://www.atlasobscura.com/places/not-an-article",
-              ])
-            : sitemap(["https://www.atlasobscura.com/foods/rare-dish"]),
-      }),
-      [
-        "https://www.atlasobscura.com/articles/hidden-history",
-        "https://www.atlasobscura.com/foods/rare-dish",
-      ],
-    );
-
-    assert.ok(jstorDaily.urlExtractor);
-    assert.deepEqual(
-      await jstorDaily.urlExtractor({
-        limit: 10,
-        fetch: async (url) => {
-          if (url === "https://daily.jstor.org/sitemap_index.xml") {
-            return sitemap([
-              "https://daily.jstor.org/page-sitemap.xml",
-              "https://daily.jstor.org/post-sitemap2.xml",
-              "https://daily.jstor.org/post-sitemap.xml",
-            ]);
-          }
-          if (url.endsWith("post-sitemap.xml")) {
-            return sitemap(["https://daily.jstor.org/archives/", "https://daily.jstor.org/history-of-tools/"]);
-          }
-          if (url.endsWith("post-sitemap2.xml")) {
-            return sitemap(["https://daily.jstor.org/why-ideas-travel/"]);
-          }
-          return "";
-        },
-      }),
-      ["https://daily.jstor.org/history-of-tools/", "https://daily.jstor.org/why-ideas-travel/"],
-    );
-
-    assert.ok(publicDomainReview.urlExtractor);
-    assert.deepEqual(
-      await publicDomainReview.urlExtractor({
-        limit: 10,
-        fetch: async (url) =>
-          url.includes("/essays/")
-            ? pdrPageData("allAirtable", ["gratacap-curator-in-lost-worlds"])
-            : pdrPageData("collections", ["diagrams-for-travel"]),
-      }),
-      [
-        "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/",
-        "https://publicdomainreview.org/collection/diagrams-for-travel/",
-      ],
-    );
-
-    assert.ok(hakaiMagazine.urlExtractor);
-    assert.deepEqual(
-      await hakaiMagazine.urlExtractor({
-        limit: 10,
-        fetch: async (url) =>
-          url.includes("custom_features")
-            ? sitemap([
-                "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
-                "https://hakaimagazine.com/wp-content/uploads/the-canoe.jpg",
-              ])
-            : sitemap(["https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"]),
-      }),
-      [
-        "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
-        "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/",
-      ],
-    );
-
-    assert.ok(yaleEnvironment360.urlExtractor);
-    assert.deepEqual(
-      await yaleEnvironment360.urlExtractor({
-        limit: 10,
-        fetch: async (url) => {
-          if (url === "https://e360.yale.edu/features") {
-            return `<a href="https://e360.yale.edu/features/home-battery-vpps">feature</a><a href="/digest/not-kept">digest</a>`;
-          }
-          if (url === "https://e360.yale.edu/features/p2") {
-            return `<a href="/features/antarctica-krill-whales">feature</a>`;
-          }
-          throw new Error("stop pages");
-        },
-      }),
-      [
-        "https://e360.yale.edu/features/home-battery-vpps",
-        "https://e360.yale.edu/features/antarctica-krill-whales",
-      ],
-    );
-
-    assert.ok(worksInProgress.urlExtractor);
-    assert.deepEqual(
-      await worksInProgress.urlExtractor({
-        limit: 10,
-        fetch: async () =>
-          sitemap([
-            "https://worksinprogress.co/issue/how-to-build-a-state",
-            "https://assets.worksinprogress.co/wp-content/uploads/hero.jpg",
-          ]),
-      }),
-      ["https://worksinprogress.co/issue/how-to-build-a-state"],
-    );
-  });
   assert.deepEqual(fallback, [rssArticle]);
 
   const childFailure = await grist.urlExtractor({
@@ -297,6 +181,124 @@ test("Grist extractor falls back to RSS when sitemaps are unavailable or empty",
   assert.equal(
     grist.categoryFor?.(new URL("https://grist.org/accountability/clean-water-investigation/"), null),
     "politics",
+  );
+});
+
+test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
+  const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
+  const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
+  const { jstorDaily } = await import("@/lib/scraper/providers/jstordaily");
+  const { publicDomainReview } = await import("@/lib/scraper/providers/publicdomainreview");
+  const { worksInProgress } = await import("@/lib/scraper/providers/worksinprogress");
+  const { yaleEnvironment360 } = await import("@/lib/scraper/providers/yalee360");
+
+  assert.ok(atlasObscura.urlExtractor);
+  assert.deepEqual(
+    await atlasObscura.urlExtractor({
+      limit: 10,
+      fetch: async (url) =>
+        url.endsWith("/articles.xml.gz")
+          ? sitemap([
+              "https://www.atlasobscura.com/articles/hidden-history",
+              "https://www.atlasobscura.com/places/not-an-article",
+            ])
+          : sitemap(["https://www.atlasobscura.com/foods/rare-dish"]),
+    }),
+    [
+      "https://www.atlasobscura.com/articles/hidden-history",
+      "https://www.atlasobscura.com/foods/rare-dish",
+    ],
+  );
+
+  assert.ok(jstorDaily.urlExtractor);
+  assert.deepEqual(
+    await jstorDaily.urlExtractor({
+      limit: 10,
+      fetch: async (url) => {
+        if (url === "https://daily.jstor.org/sitemap_index.xml") {
+          return sitemap([
+            "https://daily.jstor.org/page-sitemap.xml",
+            "https://daily.jstor.org/post-sitemap2.xml",
+            "https://daily.jstor.org/post-sitemap.xml",
+          ]);
+        }
+        if (url.endsWith("post-sitemap.xml")) {
+          return sitemap(["https://daily.jstor.org/archives/", "https://daily.jstor.org/history-of-tools/"]);
+        }
+        if (url.endsWith("post-sitemap2.xml")) {
+          return sitemap(["https://daily.jstor.org/why-ideas-travel/"]);
+        }
+        return "";
+      },
+    }),
+    ["https://daily.jstor.org/history-of-tools/", "https://daily.jstor.org/why-ideas-travel/"],
+  );
+  await assertEmptyWhenFetchFails(jstorDaily.urlExtractor, 1);
+
+  assert.ok(publicDomainReview.urlExtractor);
+  assert.deepEqual(
+    await publicDomainReview.urlExtractor({
+      limit: 10,
+      fetch: async (url) =>
+        url.includes("/essays/")
+          ? pdrPageData("allAirtable", ["gratacap-curator-in-lost-worlds"])
+          : pdrPageData("collections", ["diagrams-for-travel"]),
+    }),
+    [
+      "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/",
+      "https://publicdomainreview.org/collection/diagrams-for-travel/",
+    ],
+  );
+
+  assert.ok(hakaiMagazine.urlExtractor);
+  assert.deepEqual(
+    await hakaiMagazine.urlExtractor({
+      limit: 10,
+      fetch: async (url) =>
+        url.includes("custom_features")
+          ? sitemap([
+              "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
+              "https://hakaimagazine.com/wp-content/uploads/the-canoe.jpg",
+            ])
+          : sitemap(["https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"]),
+    }),
+    [
+      "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
+      "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/",
+    ],
+  );
+
+  assert.ok(yaleEnvironment360.urlExtractor);
+  assert.deepEqual(
+    await yaleEnvironment360.urlExtractor({
+      limit: 10,
+      fetch: async (url) => {
+        if (url === "https://e360.yale.edu/features") {
+          return `<a href="https://e360.yale.edu/features/home-battery-vpps">feature</a><a href="/digest/not-kept">digest</a>`;
+        }
+        if (url === "https://e360.yale.edu/features/p2") {
+          return `<a href="/features/antarctica-krill-whales">feature</a>`;
+        }
+        throw new Error("stop pages");
+      },
+    }),
+    [
+      "https://e360.yale.edu/features/home-battery-vpps",
+      "https://e360.yale.edu/features/antarctica-krill-whales",
+    ],
+  );
+
+  assert.ok(worksInProgress.urlExtractor);
+  assert.deepEqual(
+    await worksInProgress.urlExtractor({
+      limit: 10,
+      fetch: async () =>
+        sitemap([
+          "https://worksinprogress.co/issue/how-to-build-a-state",
+          "https://assets.worksinprogress.co/wp-content/uploads/hero.jpg",
+        ]),
+    }),
+    ["https://worksinprogress.co/issue/how-to-build-a-state"],
   );
 });
 

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import type { IncomingMessage, ServerResponse } from "node:http";
+import { EventEmitter } from "node:events";
 
 type ProviderLike = {
   key: string;
@@ -23,6 +24,7 @@ const stateRoot = path.resolve(
 
 const providers: ProviderLike[] = [
   { key: "fixture", name: "Fixture News", hostnames: ["example.com"] },
+  { key: "atlasobscura", name: "Atlas Obscura", hostnames: ["www.atlasobscura.com"] },
   { key: "undark", name: "Undark", hostnames: ["undark.org"] },
   {
     key: "smithsonian",
@@ -37,6 +39,8 @@ let scrape: any;
 let scrapeReview: any;
 let scrapeUndark: any;
 let scrapeSmithsonian: any;
+let scrapeProvider: any;
+let scrapeReadingSources: any;
 
 let extractArticleImpl: (html: string, url: string) => ReturnType<typeof articleFor> | null;
 let fetchHtmlImpl: (url: string) => Promise<string>;
@@ -291,6 +295,18 @@ before(async () => {
         discoverCalls.push({ provider, limit, options });
         return discoverImpl(provider, limit, options);
       },
+      discoverProviderUrlEntries: async (
+        provider: ProviderLike,
+        limit: number,
+        options?: unknown,
+      ) => {
+        discoverCalls.push({ provider, limit, options });
+        return (await discoverImpl(provider, limit, options)).map((url) => ({
+          url,
+          source: "mock",
+          discoveredAt: "2026-07-05T00:00:00.000Z",
+        }));
+      },
     },
   });
   mock.module("@/lib/article-library/policy", {
@@ -328,6 +344,8 @@ before(async () => {
   scrapeReview = await import("../scripts/scrape-review");
   scrapeUndark = await import("../scripts/scrape-undark");
   scrapeSmithsonian = await import("../scripts/scrape-smithsonian");
+  scrapeProvider = await import("../scripts/scrape-provider");
+  scrapeReadingSources = await import("../scripts/scrape-reading-sources");
 });
 
 beforeEach(() => {
@@ -1232,5 +1250,359 @@ test("scrape-smithsonian covers state, discovery, scrape, DB, publish, and main 
   assert.equal(
     (await readFile(statePath("smithsonian-main.json"), "utf8")).includes("smithsonian"),
     true,
+  );
+});
+
+test("scrape-provider covers provider state, resume, review, status, and scrape outcomes", async (t) => {
+  const consoleCapture = captureConsole(t);
+  await resetStateRoot();
+  const api = scrapeProvider.__scrapeProviderTest;
+  const provider = providerByKey.get("fixture");
+  const outDir = relativeStatePath("provider-workflow");
+  const paths = api.statePaths(outDir, "fixture");
+
+  assert.throws(
+    () => scrapeProvider.parseArgs(["discover", "--provider", "fixture", "--since", "not-date"]),
+    /Invalid --since date/,
+  );
+  assert.throws(
+    () => scrapeProvider.parseArgs(["discover", "--provider", "fixture", "--order", "random"]),
+    /Invalid --order/,
+  );
+  assert.throws(
+    () => api.resolveProviders(scrapeProvider.parseArgs(["discover"])),
+    /--provider is required/,
+  );
+  assert.throws(
+    () => api.resolveProviders(scrapeProvider.parseArgs(["discover", "--provider", "missing"])),
+    /Unknown provider/,
+  );
+  assert.equal(scrapeProvider.parseArgs(["discover", "--provider", "fixture", "--bad"]).limit, 100);
+  assert.match(consoleCapture.warns.join("\n"), /Unknown flag: --bad/);
+
+  assert.equal(api.normalizeUrl("not a url"), null);
+  assert.deepEqual(api.dedupeUrls(["https://example.com/a#x", "https://example.com/a", "bad"]), [
+    "https://example.com/a",
+  ]);
+  assert.equal(api.parseDiscoveredEntry("{bad"), null);
+  assert.equal(api.parseDiscoveredEntry(JSON.stringify({ nope: true })), null);
+  assert.equal(api.normalizeDate("bad"), null);
+  assert.equal(api.inferPublishedAtFromUrl("not a url"), null);
+  assert.equal(api.inferPublishedAtFromUrl("https://example.com/2026/07/05/story")?.startsWith("2026-07-05"), true);
+
+  discoverImpl = async () => [
+    "https://example.com/2026/07/05/fresh",
+    "https://example.com/2026/07/04/already",
+    "https://example.com/2026/07/03/fresh",
+  ];
+  prismaFindManyImpl = async (args) =>
+    (args.where.sourceUrl.in as string[])
+      .filter((url) => url.includes("already"))
+      .map((sourceUrl) => ({ sourceUrl }));
+  const discoverArgs = scrapeProvider.parseArgs([
+    "discover",
+    "--provider",
+    "fixture",
+    "--out-dir",
+    outDir,
+    "--limit",
+    "5",
+    "--order",
+    "oldest",
+  ]);
+  await api.runDiscover(provider, discoverArgs);
+  assert.match(await readFile(paths.pending, "utf8"), /fresh/);
+  assert.equal((await readFile(paths.pending, "utf8")).includes("already"), false);
+
+  await writeFile(
+    paths.outcomes,
+    [
+      JSON.stringify({ type: "outcome", url: "https://example.com/saved", status: "saved" }),
+      JSON.stringify({ type: "retry", url: "https://example.com/retry", status: "failed" }),
+      "not-json",
+    ].join("\n"),
+    "utf8",
+  );
+  const finalized = await api.readFinalizedOutcomes(paths.outcomes);
+  assert.equal(finalized.get("https://example.com/saved"), "saved");
+  assert.equal(api.parseOutcomeRecord(JSON.stringify({ type: "outcome", url: "u", status: "weird" })), null);
+  await assert.rejects(() => api.readFinalizedOutcomes(paths.dir), /EISDIR|illegal operation|directory/i);
+
+  await writeFile(
+    paths.discoveredJsonl,
+    [
+      JSON.stringify({ url: "https://example.com/2026-07-06/from-jsonl", publishedAt: "2026-07-06" }),
+      "bad-json",
+    ].join("\n"),
+    "utf8",
+  );
+  assert.deepEqual(
+    (await api.urlsForResume(provider, scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--out-dir", outDir]), paths)).map(
+      (entry: { url: string }) => entry.url,
+    ),
+    ["https://example.com/2026-07-06/from-jsonl"],
+  );
+
+  await assert.rejects(
+    () =>
+      api.urlsForResume(
+        provider,
+        scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--out-dir", outDir]),
+        { ...paths, discoveredJsonl: paths.dir },
+      ),
+    /EISDIR|illegal operation|directory/i,
+  );
+
+  const urlsFile = statePath("provider-urls.txt");
+  await writeFile(urlsFile, "https://example.com/file-one#comments\nnot a url\nhttps://example.com/file-one\n", "utf8");
+  assert.deepEqual(
+    (await api.urlsForResume(
+      provider,
+      scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--urls", urlsFile, "--out-dir", outDir]),
+      paths,
+    )).map((entry: { url: string }) => entry.url),
+    ["https://example.com/file-one"],
+  );
+  const fromFileArgs = scrapeProvider.parseArgs([
+    "discover",
+    "--provider",
+    "fixture",
+    "--urls",
+    urlsFile,
+    "--out-dir",
+    outDir,
+    "--include-existing",
+  ]);
+  assert.deepEqual((await api.discoverUrls(provider, fromFileArgs, paths)).map((entry: { url: string }) => entry.url), [
+    "https://example.com/file-one",
+  ]);
+
+  const txtResumeOutDir = relativeStatePath("provider-resume-txt");
+  const txtResumePaths = api.statePaths(txtResumeOutDir, "fixture");
+  await mkdir(txtResumePaths.dir, { recursive: true });
+  await writeFile(txtResumePaths.discovered, "https://example.com/from-txt\n", "utf8");
+  assert.deepEqual(
+    (await api.urlsForResume(
+      provider,
+      scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--out-dir", txtResumeOutDir]),
+      txtResumePaths,
+    )).map((entry: { url: string }) => entry.url),
+    ["https://example.com/from-txt"],
+  );
+  const discoverFallbackOutDir = relativeStatePath("provider-resume-discover");
+  const discoverFallbackPaths = api.statePaths(discoverFallbackOutDir, "fixture");
+  discoverImpl = async () => ["https://example.com/from-discovery"];
+  assert.deepEqual(
+    (await api.urlsForResume(
+      provider,
+      scrapeProvider.parseArgs(["resume", "--provider", "fixture", "--out-dir", discoverFallbackOutDir]),
+      discoverFallbackPaths,
+    )).map((entry: { url: string }) => entry.url),
+    ["https://example.com/from-discovery"],
+  );
+
+  discoverImpl = async () => [
+    "https://example.com/save",
+    "https://example.com/duplicate",
+    "https://example.com/reject",
+    "https://example.com/fail",
+  ];
+  prismaFindManyImpl = async () => [];
+  scrapeAndSaveImpl = async (url) => {
+    if (url.includes("duplicate")) return { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: url };
+    if (url.includes("reject")) return { status: "failed", reason: "content quality too low", sourceUrl: url };
+    if (url.includes("fail")) return { status: "failed", reason: "network failed", sourceUrl: url };
+    return savedOutcome(url);
+  };
+  const scrapeArgs = scrapeProvider.parseArgs([
+    "scrape",
+    "--provider",
+    "fixture",
+    "--out-dir",
+    outDir,
+    "--limit",
+    "4",
+    "--concurrency",
+    "2",
+    "--delay-ms",
+    "0",
+  ]);
+  await api.runScrape(provider, scrapeArgs);
+  assert.match(await readFile(paths.progress, "utf8"), /"status": "completed"/);
+  assert.match(await readFile(paths.failed, "utf8"), /fail/);
+  assert.match(await readFile(paths.rejected, "utf8"), /reject/);
+  assert.equal(recordCrawlCalls.at(-1)?.key, "fixture");
+
+  await api.runStatus(provider, scrapeProvider.parseArgs(["status", "--provider", "fixture", "--out-dir", outDir]));
+  assert.match(consoleCapture.logs.join("\n"), /status=completed/);
+
+  const reviewCalls: string[][] = [];
+  await api.runReview(
+    provider,
+    scrapeProvider.parseArgs([
+      "review",
+      "--provider",
+      "fixture",
+      "--out-dir",
+      outDir,
+      "--sample",
+      "7",
+      "--urls",
+      urlsFile,
+      "--host",
+      "0.0.0.0",
+      "--port",
+      "1234",
+      "--feedback-none",
+    ]),
+    async (args: string[]) => {
+      reviewCalls.push(args);
+    },
+  );
+  assert.deepEqual(reviewCalls[0].slice(0, 5), ["run", "scrape-review", "--", "--no-db", "--provider"]);
+  assert.equal(reviewCalls[0].includes("--urls"), true);
+  assert.equal(reviewCalls[0].includes("none"), false);
+  await api.runReview(
+    provider,
+    scrapeProvider.parseArgs(["review", "--provider", "fixture", "--out-dir", outDir]),
+    async (args: string[]) => {
+      reviewCalls.push(args);
+    },
+  );
+  assert.equal(reviewCalls.at(-1)?.includes("--discover"), true);
+
+  const fakeSpawn = (code: number | null, error?: Error) =>
+    ((_command: string, _args: string[]) => {
+      const child = new EventEmitter();
+      queueMicrotask(() => {
+        if (error) child.emit("error", error);
+        else child.emit("exit", code);
+      });
+      return child;
+    }) as never;
+  await api.spawnNpm(["ok"], fakeSpawn(0));
+  await assert.rejects(() => api.spawnNpm(["bad"], fakeSpawn(2)), /npm bad exited with code 2/);
+  await assert.rejects(() => api.spawnNpm(["err"], fakeSpawn(null, new Error("spawn failed"))), /spawn failed/);
+  await api.sleep(0);
+
+  const crashOutDir = relativeStatePath("provider-crash");
+  scrapeAndSaveImpl = async () => {
+    throw new Error("boom");
+  };
+  await assert.rejects(
+    () =>
+      api.runScrape(
+        provider,
+        scrapeProvider.parseArgs([
+          "scrape",
+          "--provider",
+          "fixture",
+          "--out-dir",
+          crashOutDir,
+          "--limit",
+          "1",
+          "--concurrency",
+          "1",
+          "--delay-ms",
+          "0",
+        ]),
+      ),
+    /boom/,
+  );
+  assert.match(
+    await readFile(api.statePaths(crashOutDir, "fixture").progress, "utf8"),
+    /"status": "crashed"/,
+  );
+
+  assert.equal(await api.main(["--help"]), 0);
+  assert.equal(await api.main(["list", "--provider", "all"]), 0);
+  assert.equal(await api.main(["status", "--provider", "fixture", "--out-dir", relativeStatePath("empty-provider")]), 0);
+});
+
+test("scrape-reading-sources covers discovery, selection, scrape modes, and main", async (t) => {
+  const consoleCapture = captureConsole(t);
+  await resetStateRoot();
+  const api = scrapeReadingSources.__readingSourcesTest;
+  const provider = providerByKey.get("atlasobscura");
+  const outDir = relativeStatePath("reading-source-workflow");
+
+  assert.deepEqual(api.parseProviderKeys(["--provider", "all"]), scrapeReadingSources.READING_SOURCE_PROVIDER_KEYS);
+  assert.throws(() => api.resolveProviders(["fixture"]), /not part of this non-sports/);
+  assert.throws(() => api.resolveProviders(["missing"]), /Unknown reading-source provider/);
+  assert.equal(api.urlListPath(outDir, "atlasobscura").endsWith("atlasobscura-fresh-urls.txt"), true);
+
+  assert.deepEqual(
+    scrapeReadingSources.countSaveOutcomes([
+      savedOutcome("https://www.atlasobscura.com/a"),
+      { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: "https://www.atlasobscura.com/b" },
+      { status: "failed", reason: "extract failed", sourceUrl: "https://www.atlasobscura.com/c" },
+      { status: "failed", reason: "network failed", sourceUrl: "https://www.atlasobscura.com/d" },
+    ]),
+    { saved: 1, skipped: 1, duplicates: 1, failed: 2, rejected: 1 },
+  );
+
+  discoverImpl = async () => [
+    "https://www.atlasobscura.com/seen",
+    "https://www.atlasobscura.com/fresh-one",
+    "https://www.atlasobscura.com/fresh-two",
+  ];
+  findExistingImpl = async (urls) => new Set(urls.filter((url) => url.includes("seen")));
+  await api.runProvider(
+    provider,
+    scrapeReadingSources.parseArgs(["--provider", "atlasobscura", "--limit", "1", "--out-dir", outDir]),
+  );
+  assert.equal(await readFile(api.urlListPath(outDir, "atlasobscura"), "utf8"), "https://www.atlasobscura.com/fresh-one\n");
+
+  scrapeAndSaveImpl = async (url) => savedOutcome(url, "Atlas Obscura");
+  await api.runProvider(
+    provider,
+    scrapeReadingSources.parseArgs([
+      "--provider",
+      "atlasobscura",
+      "--limit",
+      "2",
+      "--out-dir",
+      outDir,
+      "--scrape",
+      "--target-saved",
+      "--write-urls",
+    ]),
+  );
+  assert.equal(recordCrawlCalls.at(-1)?.key, "atlasobscura");
+
+  scrapeAndSaveImpl = async (url) =>
+    url.includes("fresh-two")
+      ? { status: "failed", reason: "content quality failed", sourceUrl: url }
+      : { status: "skipped", reason: "duplicate sourceUrl", sourceUrl: url };
+  await api.runProvider(
+    provider,
+    scrapeReadingSources.parseArgs([
+      "--provider",
+      "atlasobscura",
+      "--limit",
+      "3",
+      "--concurrency",
+      "2",
+      "--out-dir",
+      outDir,
+      "--include-existing",
+      "--scrape",
+    ]),
+  );
+  assert.match(consoleCapture.logs.join("\n"), /failed 1; rejected 1/);
+
+  findExistingImpl = async (urls) => new Set(urls);
+  await api.runProvider(
+    provider,
+    scrapeReadingSources.parseArgs(["--provider", "atlasobscura", "--limit", "1", "--out-dir", outDir, "--scrape"]),
+  );
+  assert.match(consoleCapture.logs.join("\n"), /selected 0/);
+
+  assert.equal(await api.main(["--help"]), 0);
+  findExistingImpl = async () => new Set();
+  scrapeAndSaveImpl = async (url) => savedOutcome(url, "Atlas Obscura");
+  assert.equal(
+    await api.main(["--provider", "atlasobscura", "--limit", "1", "--out-dir", outDir, "--discover-only"]),
+    0,
   );
 });

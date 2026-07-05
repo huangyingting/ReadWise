@@ -16,3 +16,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Coverage-98 coordination reached handoff: decision inbox processed, per-agent orchestration logs written, and final coverage/typecheck/lint validation passed.
 - 2026-07-02T00:30:07.481+00:00 — Ralph-requested PR #874 modular refactor cleanup was committed as `4585c1f`, opened, squash-merged into `main`, and logged by Scribe with an empty decision inbox.
+
+- 2026-07-05T22:05:44.651+00:00 — Ralph-coordinated release/CI/nightly recovery completed: release workflow/changelog, scraper test/coverage, PostgreSQL stale-lock, and admin AI ops audit fixes all passed final validation; changes remained uncommitted.
+- 2026-07-05T23:02:20.863+00:00 — Ralph-requested UI audit semantic split was logged: Trinity split the 500-case audit by subsystem, Switch verified selectors/runs/lint/typecheck, and Scribe merged the decision note.

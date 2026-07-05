@@ -1,27 +1,22 @@
 /**
- * Playwright UI audit: 500 end-user behavior combinations.
+ * Shared Playwright UI audit matrix and runner.
  *
  * Matrix: 50 route/session profiles × 5 behavior intents × 2 presentations.
  * Tests are intentionally data-driven so `--list` proves the registered count,
  * while normal Playwright `--grep` / `--shard` can run practical partitions.
- *
- * Useful slices:
- *   npm run test:e2e:ui-audit:full -- --list
- *   npm run test:e2e:ui-audit:high-risk
- *   npm run test:e2e:ui-audit:full -- --shard=1/4
  */
 import { type BrowserContext, type Page, type TestInfo } from "@playwright/test";
 import { mkdir, appendFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import { expect, TEST_ARTICLE_ID } from "./fixtures";
 
-type SessionState = "anonymous" | "reader" | "admin" | "new-reader";
-type SignIn = (options?: {
+export type SessionState = "anonymous" | "reader" | "admin" | "new-reader";
+export type SignIn = (options?: {
   role?: "Admin" | "Reader";
   onboarded?: boolean;
 }) => Promise<unknown>;
-type Subsystem =
+export type Subsystem =
   | "admin"
   | "auth"
   | "browse"
@@ -42,7 +37,7 @@ type Subsystem =
   | "teacher"
   | "today";
 
-type RouteProfile = {
+export type RouteProfile = {
   id: string;
   subsystem: Subsystem;
   session: SessionState;
@@ -53,19 +48,19 @@ type RouteProfile = {
   tags?: string[];
 };
 
-type Intent = {
+export type Intent = {
   id: string;
   title: string;
 };
 
-type Presentation = {
+export type Presentation = {
   id: string;
   title: string;
   viewport: { width: number; height: number };
   theme: "light" | "dark";
 };
 
-type Scenario = {
+export type Scenario = {
   caseId: string;
   route: RouteProfile;
   intent: Intent;
@@ -105,7 +100,7 @@ const FATAL_PATTERNS = [
   /The above error occurred in/i,
 ];
 
-const PRESENTATIONS: Presentation[] = [
+export const PRESENTATIONS: Presentation[] = [
   {
     id: "desktop-light",
     title: "desktop viewport with light theme",
@@ -120,7 +115,7 @@ const PRESENTATIONS: Presentation[] = [
   },
 ];
 
-const INTENTS: Intent[] = [
+export const INTENTS: Intent[] = [
   { id: "render", title: "rendering the page or redirect target" },
   { id: "semantic-smoke", title: "checking headings and page landmarks" },
   { id: "keyboard-focus", title: "checking keyboard focus reaches UI" },
@@ -128,7 +123,8 @@ const INTENTS: Intent[] = [
   { id: "theme-overflow", title: "checking theme application and viewport overflow" },
 ];
 
-const ROUTES: RouteProfile[] = [
+export const PUBLIC_AUTH_ONBOARDING_ROUTES: RouteProfile[] = [
+
   {
     id: "marketing-home-anon",
     subsystem: "marketing",
@@ -137,6 +133,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Real news. Real English. Real progress.",
     expectedText: "AI-Powered English Learning",
   },
+
   {
     id: "signin-anon",
     subsystem: "auth",
@@ -145,6 +142,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "signin-error-anon",
     subsystem: "auth",
@@ -154,6 +152,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: /problem|unable|try again/i,
   },
+
   {
     id: "marketing-home-reader",
     subsystem: "marketing",
@@ -162,6 +161,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Real news. Real English. Real progress.",
     expectedText: /Continue Reading/i,
   },
+
   {
     id: "auth-redirect-dashboard",
     subsystem: "auth",
@@ -171,6 +171,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "auth-redirect-browse",
     subsystem: "auth",
@@ -180,6 +181,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "auth-redirect-reader",
     subsystem: "auth",
@@ -189,6 +191,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "auth-redirect-study",
     subsystem: "auth",
@@ -198,6 +201,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "auth-redirect-teacher",
     subsystem: "auth",
@@ -207,6 +211,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "auth-redirect-assignments",
     subsystem: "auth",
@@ -216,6 +221,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Sign in to ReadWise",
     expectedText: "Back to home",
   },
+
   {
     id: "onboarding-new-reader",
     subsystem: "onboarding",
@@ -224,6 +230,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Welcome to ReadWise",
     expectedText: "Your English level",
   },
+
   {
     id: "dashboard-new-reader-redirect",
     subsystem: "onboarding",
@@ -233,6 +240,37 @@ const ROUTES: RouteProfile[] = [
     heading: "Welcome to ReadWise",
     expectedText: "Your English level",
   },
+
+  {
+    id: "welcome-reader",
+    subsystem: "onboarding",
+    session: "reader",
+    path: "/welcome",
+    heading: "Welcome to ReadWise",
+    expectedText: /placement|start|skip/i,
+  },
+
+  {
+    id: "privacy-public",
+    subsystem: "legal",
+    session: "anonymous",
+    path: "/privacy",
+    heading: "Privacy Policy",
+    expectedText: /localStorage|signed-in state/i,
+  },
+
+  {
+    id: "terms-public",
+    subsystem: "legal",
+    session: "anonymous",
+    path: "/terms",
+    heading: "Terms of Service",
+    expectedText: /do not agree|Service/i,
+  },
+
+];
+export const READER_LEARNING_ROUTES: RouteProfile[] = [
+
   {
     id: "dashboard-reader",
     subsystem: "dashboard",
@@ -241,6 +279,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Dashboard",
     expectedText: "For You",
   },
+
   {
     id: "dashboard-reader-level-filter",
     subsystem: "dashboard",
@@ -250,6 +289,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Dashboard",
     expectedText: /E2E Critical Reading/i,
   },
+
   {
     id: "browse-reader-all",
     subsystem: "browse",
@@ -258,6 +298,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Browse",
     expectedText: "All categories",
   },
+
   {
     id: "browse-reader-tech",
     subsystem: "browse",
@@ -267,6 +308,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Browse",
     expectedText: /E2E Critical Reading/i,
   },
+
   {
     id: "browse-reader-picks",
     subsystem: "browse",
@@ -276,6 +318,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Browse",
     expectedText: /E2E .*Practice|E2E Critical Reading/i,
   },
+
   {
     id: "reader-article-controls",
     subsystem: "reader",
@@ -285,6 +328,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: "Practice tools",
     tags: ["@high-risk"],
   },
+
   {
     id: "reader-article-practice-tools",
     subsystem: "reader",
@@ -294,6 +338,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: "Practice tools",
     tags: ["@high-risk"],
   },
+
   {
     id: "today-reader-plan",
     subsystem: "today",
@@ -303,6 +348,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: "Today's steps",
     tags: ["@high-risk"],
   },
+
   {
     id: "today-reader-skip",
     subsystem: "today",
@@ -312,6 +358,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: "Skip today",
     tags: ["@high-risk"],
   },
+
   {
     id: "study-reader",
     subsystem: "study",
@@ -320,6 +367,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Study list",
     expectedText: /Vocabulary|quiz/i,
   },
+
   {
     id: "study-words-reader",
     subsystem: "study",
@@ -328,6 +376,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Vocabulary journal",
     expectedText: "Back to Study hub",
   },
+
   {
     id: "offline-reader",
     subsystem: "offline",
@@ -337,6 +386,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: /No articles saved offline yet|Articles saved here/i,
     tags: ["@pwa"],
   },
+
   {
     id: "notes-reader-empty",
     subsystem: "notes",
@@ -345,6 +395,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Notes & Highlights",
     expectedText: "No highlights yet",
   },
+
   {
     id: "progress-reader-empty",
     subsystem: "progress",
@@ -353,6 +404,7 @@ const ROUTES: RouteProfile[] = [
     heading: "My Progress",
     expectedText: /No reading activity|No quiz attempts/i,
   },
+
   {
     id: "lists-reader-empty",
     subsystem: "lists",
@@ -361,6 +413,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Saved",
     expectedText: "No saved articles yet",
   },
+
   {
     id: "tags-reader-index",
     subsystem: "tags",
@@ -369,6 +422,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Tags",
     expectedText: "Technology",
   },
+
   {
     id: "tags-reader-tech-detail",
     subsystem: "tags",
@@ -377,6 +431,7 @@ const ROUTES: RouteProfile[] = [
     heading: "#Technology",
     expectedText: /E2E Critical Reading/i,
   },
+
   {
     id: "import-reader",
     subsystem: "import",
@@ -385,6 +440,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Import Article",
     expectedText: /Save any article|Paste your article text/i,
   },
+
   {
     id: "settings-reader",
     subsystem: "settings",
@@ -393,6 +449,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Settings",
     expectedText: "App theme",
   },
+
   {
     id: "series-reader-empty",
     subsystem: "series",
@@ -401,6 +458,10 @@ const ROUTES: RouteProfile[] = [
     heading: "Reading series",
     expectedText: /No reading series are available/i,
   },
+
+];
+export const CLASSROOM_ROUTES: RouteProfile[] = [
+
   {
     id: "assignments-reader-empty",
     subsystem: "teacher",
@@ -409,6 +470,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Assignments",
     expectedText: "No assignments yet",
   },
+
   {
     id: "teacher-reader-empty",
     subsystem: "teacher",
@@ -417,14 +479,10 @@ const ROUTES: RouteProfile[] = [
     heading: "Teaching",
     expectedText: "No classrooms yet",
   },
-  {
-    id: "welcome-reader",
-    subsystem: "onboarding",
-    session: "reader",
-    path: "/welcome",
-    heading: "Welcome to ReadWise",
-    expectedText: /placement|start|skip/i,
-  },
+
+];
+export const ADMIN_OPERATIONS_ROUTES: RouteProfile[] = [
+
   {
     id: "admin-dashboard",
     subsystem: "admin",
@@ -433,6 +491,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Dashboard",
     expectedText: "Overview",
   },
+
   {
     id: "admin-articles",
     subsystem: "admin",
@@ -441,6 +500,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Articles",
     expectedText: /E2E Critical Reading/i,
   },
+
   {
     id: "admin-articles-filtered",
     subsystem: "admin",
@@ -450,6 +510,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Articles",
     expectedText: /E2E Critical Reading/i,
   },
+
   {
     id: "admin-article-detail",
     subsystem: "admin",
@@ -459,6 +520,7 @@ const ROUTES: RouteProfile[] = [
     expectedText: /Correct metadata|Review verdict|Quality/i,
     tags: ["@high-risk"],
   },
+
   {
     id: "admin-jobs",
     subsystem: "admin",
@@ -467,6 +529,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Jobs",
     expectedText: /Filter|No jobs/i,
   },
+
   {
     id: "admin-jobs-filtered",
     subsystem: "admin",
@@ -476,6 +539,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Jobs",
     expectedText: /Filter/i,
   },
+
   {
     id: "admin-members",
     subsystem: "admin",
@@ -484,6 +548,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Members",
     expectedText: /Search name or email|E2E Admin/i,
   },
+
   {
     id: "admin-reports",
     subsystem: "admin",
@@ -492,6 +557,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Content Reports",
     expectedText: /No reports found|Filter by status/i,
   },
+
   {
     id: "admin-tags",
     subsystem: "admin",
@@ -500,6 +566,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Global tags",
     expectedText: /Search tag name|Technology/i,
   },
+
   {
     id: "admin-sources",
     subsystem: "admin",
@@ -508,6 +575,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Content sources",
     expectedText: /Sync from registry|No content sources yet/i,
   },
+
   {
     id: "admin-security",
     subsystem: "admin",
@@ -516,6 +584,7 @@ const ROUTES: RouteProfile[] = [
     heading: "Security",
     expectedText: /Trusted proxy|Recent security events/i,
   },
+
   {
     id: "admin-analytics",
     subsystem: "admin",
@@ -524,33 +593,87 @@ const ROUTES: RouteProfile[] = [
     heading: "Analytics",
     expectedText: /Conversion funnel|Feature usage/i,
   },
+
   {
     id: "admin-ai-ops",
     subsystem: "admin",
     session: "admin",
     path: "/admin/analytics/ai",
     heading: /AI .* content ops/i,
-    expectedText: /No AI invocations|Token spend/i,
+    expectedText: /Total tokens/i,
   },
-  {
-    id: "privacy-public",
-    subsystem: "legal",
-    session: "anonymous",
-    path: "/privacy",
-    heading: "Privacy Policy",
-    expectedText: /localStorage|signed-in state/i,
-  },
-  {
-    id: "terms-public",
-    subsystem: "legal",
-    session: "anonymous",
-    path: "/terms",
-    heading: "Terms of Service",
-    expectedText: /do not agree|Service/i,
-  },
+
 ];
 
-const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
+const ROUTE_GROUPS = [
+  ...PUBLIC_AUTH_ONBOARDING_ROUTES,
+  ...READER_LEARNING_ROUTES,
+  ...CLASSROOM_ROUTES,
+  ...ADMIN_OPERATIONS_ROUTES,
+];
+
+const ROUTES_BY_ID = new Map(ROUTE_GROUPS.map((route) => [route.id, route]));
+
+const ORIGINAL_ROUTE_ORDER = [
+  "marketing-home-anon",
+  "signin-anon",
+  "signin-error-anon",
+  "marketing-home-reader",
+  "auth-redirect-dashboard",
+  "auth-redirect-browse",
+  "auth-redirect-reader",
+  "auth-redirect-study",
+  "auth-redirect-teacher",
+  "auth-redirect-assignments",
+  "onboarding-new-reader",
+  "dashboard-new-reader-redirect",
+  "dashboard-reader",
+  "dashboard-reader-level-filter",
+  "browse-reader-all",
+  "browse-reader-tech",
+  "browse-reader-picks",
+  "reader-article-controls",
+  "reader-article-practice-tools",
+  "today-reader-plan",
+  "today-reader-skip",
+  "study-reader",
+  "study-words-reader",
+  "offline-reader",
+  "notes-reader-empty",
+  "progress-reader-empty",
+  "lists-reader-empty",
+  "tags-reader-index",
+  "tags-reader-tech-detail",
+  "import-reader",
+  "settings-reader",
+  "series-reader-empty",
+  "assignments-reader-empty",
+  "teacher-reader-empty",
+  "welcome-reader",
+  "admin-dashboard",
+  "admin-articles",
+  "admin-articles-filtered",
+  "admin-article-detail",
+  "admin-jobs",
+  "admin-jobs-filtered",
+  "admin-members",
+  "admin-reports",
+  "admin-tags",
+  "admin-sources",
+  "admin-security",
+  "admin-analytics",
+  "admin-ai-ops",
+  "privacy-public",
+  "terms-public",
+];
+
+export const ROUTES: RouteProfile[] = ORIGINAL_ROUTE_ORDER.map((routeId) => {
+  const route = ROUTES_BY_ID.get(routeId);
+  if (!route) throw new Error(`Missing UI audit route ${routeId}`);
+  return route;
+});
+
+export const SCENARIOS: Scenario[] = ROUTES.flatMap((route) =>
   INTENTS.flatMap((intent) =>
     PRESENTATIONS.map((presentation) => ({ route, intent, presentation })),
   ),
@@ -846,7 +969,7 @@ async function assertRouteBehavior(page: Page, profile: RouteProfile): Promise<v
       await expect(page.getByText("Conversion funnel").first()).toBeVisible();
       break;
     case "admin-ai-ops":
-      await expect(page.getByText(/No AI invocations|Token spend/i).first()).toBeVisible();
+      await expect(page.getByText(/Total tokens/i).first()).toBeVisible();
       break;
     default:
       if (profile.expectedText) {
@@ -878,9 +1001,9 @@ async function runScenario(page: Page, scenario: Scenario): Promise<void> {
   }
 }
 
-function scenarioTitle(scenario: Scenario): string {
+export function scenarioTitle(scenario: Scenario): string {
   const tags = [
-    "@ui-audit-500",
+    "@ui-audit",
     `@${scenario.route.subsystem}`,
     `@${scenario.route.session}`,
     `@${scenario.intent.id}`,
@@ -890,7 +1013,14 @@ function scenarioTitle(scenario: Scenario): string {
   return `${scenario.caseId} ${tags} ${scenario.route.id}: ${scenario.intent.title} on ${scenario.presentation.title}`;
 }
 
-test.beforeAll(async () => {
+let auditRunInitialized: Promise<void> | null = null;
+
+export async function initializeUiAuditRun(): Promise<void> {
+  auditRunInitialized ??= writeAuditRunArtifacts();
+  await auditRunInitialized;
+}
+
+async function writeAuditRunArtifacts(): Promise<void> {
   await mkdir(ARTIFACT_DIR, { recursive: true });
   await writeFile(
     LATEST_RUN_PATH,
@@ -936,26 +1066,50 @@ test.beforeAll(async () => {
     )}\n`,
   );
   await writeFile(RESULTS_PATH, "");
-});
+}
 
-for (const scenario of SCENARIOS) {
-  test(scenarioTitle(scenario), async ({ context, page, signIn }, testInfo) => {
-    const logs = installAuditCapture(page);
-    let caughtError: unknown = null;
+export function scenariosForRoutes(routes: readonly RouteProfile[]): Scenario[] {
+  const routeIds = new Set(routes.map((route) => route.id));
+  const scenarios = SCENARIOS.filter((scenario) => routeIds.has(scenario.route.id));
+  const expectedScenarioCount = routes.length * INTENTS.length * PRESENTATIONS.length;
 
-    try {
-      await applyPresentation(context, page, scenario.presentation);
-      await signInForProfile(signIn, scenario.route.session);
-      await runScenario(page, scenario);
+  if (scenarios.length !== expectedScenarioCount) {
+    throw new Error(
+      `UI audit split registered ${scenarios.length} scenarios for ${routes.length} routes; expected ${expectedScenarioCount}`,
+    );
+  }
 
-      const fatal = fatalMessages(logs);
-      expect(fatal, `fatal browser/render errors for ${scenario.caseId}`).toEqual([]);
-    } catch (error) {
-      caughtError = error;
-      throw error;
-    } finally {
-      await attachAuditLogs(testInfo, logs);
-      await appendAuditResult(scenario, testInfo, logs, caughtError);
-    }
-  });
+  return scenarios;
+}
+
+export async function runUiAuditScenario({
+  context,
+  page,
+  signIn,
+  testInfo,
+  scenario,
+}: {
+  context: BrowserContext;
+  page: Page;
+  signIn: SignIn;
+  testInfo: TestInfo;
+  scenario: Scenario;
+}): Promise<void> {
+  const logs = installAuditCapture(page);
+  let caughtError: unknown = null;
+
+  try {
+    await applyPresentation(context, page, scenario.presentation);
+    await signInForProfile(signIn, scenario.route.session);
+    await runScenario(page, scenario);
+
+    const fatal = fatalMessages(logs);
+    expect(fatal, `fatal browser/render errors for ${scenario.caseId}`).toEqual([]);
+  } catch (error) {
+    caughtError = error;
+    throw error;
+  } finally {
+    await attachAuditLogs(testInfo, logs);
+    await appendAuditResult(scenario, testInfo, logs, caughtError);
+  }
 }

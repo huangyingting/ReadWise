@@ -20,3 +20,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Pipeline, scraper, AI, and script coverage tests/seams completed with pipeline/script targets at >=98%; final coverage/typecheck/lint validation passed.
 - 2026-07-02T00:30:07.481+00:00 — PR #874 moved admin scrape trigger orchestration into `src/lib/scraper/admin-trigger.ts`; the route remains auth/validation/HTTP adapter, with targeted tests/typecheck/lint passing.
+
+- 2026-07-05T22:05:44.651+00:00 — Fixed scraper provider discovery test nesting and added scraper CLI/runtime coverage seams for native coverage; coverage gate passed with 496 measured files at >=98%.

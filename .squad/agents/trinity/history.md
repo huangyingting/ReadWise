@@ -18,3 +18,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-01T23:11:49.008+00:00 — UI catchall split decision was archived into decisions.md; hook/helper regrouping history is now captured for future UI test work.
 
 - 2026-07-02T00:30:07.481+00:00 — PR #874 moved reader UI components into `src/components/reader` and `src/components/reader/wordLookup` without compatibility shims; imports/docs/ESLint updated and typecheck/lint passed.
+
+- 2026-07-05T22:05:44.651+00:00 — Updated the admin AI ops UI audit expectation to `Total tokens`; targeted admin-ai-ops Playwright audit passed.
+- 2026-07-05T23:02:20.863+00:00 — Split the 500-case UI audit into semantic subsystem Playwright specs with shared support in `e2e/support/ui-audit.ts`; the canonical selector is now `@ui-audit`.
