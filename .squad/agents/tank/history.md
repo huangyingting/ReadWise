@@ -18,3 +18,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-01T23:11:49.008+00:00 — Backend-side coverage and regrouping decisions were consolidated into decisions.md; shared test ownership boundaries remain documented.
 
 - 2026-07-02T00:30:07.481+00:00 — PR #874 moved route DB/storage logic into subsystem modules and removed proven-dead redaction aliases; targeted tests/typecheck/lint/diff-check passed.
+
+- 2026-07-05T22:05:44.651+00:00 — Fixed ReadWise release workflow assumptions/triggers, added `CHANGELOG.md`, and pinned PostgreSQL stale-lock `runAfter` timing; final coverage, typecheck, lint, tests, and workflow YAML checks passed.

@@ -287,8 +287,8 @@ async function runProvider(provider: Provider, args: Args): Promise<void> {
   );
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
   if (args.help) {
     printHelp();
     return 0;
@@ -304,6 +304,21 @@ async function main(): Promise<number> {
   }
   return 0;
 }
+
+export const __readingSourcesTest = {
+  printHelp,
+  parseProviderKeys,
+  isDuplicateSkipped,
+  isRejectedFailure,
+  resolveProviders,
+  repoPath,
+  urlListPath,
+  writeUrlList,
+  scrapeSequential,
+  scrapeConcurrent,
+  runProvider,
+  main,
+};
 
 if (isMain(import.meta.url)) {
   runCli(main);

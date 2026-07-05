@@ -16,3 +16,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-01T20:03:33.362+00:00 — Scribe merged the coverage strategy decision, cleared the inbox item, wrote coverage session/orchestration logs, and propagated cross-agent history updates.
 - 2026-07-02T00:30:07.481+00:00 — Scribe logged PR #874 modular refactor cleanup, confirmed an empty decision inbox, wrote orchestration/session logs, and propagated cross-agent history updates.
+
+- 2026-07-05T22:05:44.651+00:00 — Scribe logged the release gate recovery, merged Tank's release workflow decision inbox note into `decisions.md`, cleared the inbox note, and recorded validation/state without committing repository changes.
+- 2026-07-05T23:02:20.863+00:00 — Scribe logged the semantic UI audit split, merged Trinity's decision inbox note, cleared the inbox note, and recorded Switch's validation without committing repository changes.

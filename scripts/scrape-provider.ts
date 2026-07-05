@@ -801,7 +801,11 @@ async function runStatus(provider: Provider, args: Args): Promise<void> {
   console.log(`config=${JSON.stringify(progress.config)}`);
 }
 
-async function runReview(provider: Provider, args: Args): Promise<void> {
+async function runReview(
+  provider: Provider,
+  args: Args,
+  spawnNpmImpl: (args: string[]) => Promise<void> = spawnNpm,
+): Promise<void> {
   const workflow = workflowFor(provider, args);
   const paths = statePaths(args.outDir, provider.key);
   const sample = args.sample ?? workflow.reviewSampleSize;
@@ -828,12 +832,12 @@ async function runReview(provider: Provider, args: Args): Promise<void> {
     reviewArgs.push("--discover");
   }
   console.log(`Starting review server for ${provider.key}; feedback: ${feedbackFile}`);
-  await spawnNpm(reviewArgs);
+  await spawnNpmImpl(reviewArgs);
 }
 
-function spawnNpm(args: string[]): Promise<void> {
+function spawnNpm(args: string[], spawnImpl: typeof spawn = spawn): Promise<void> {
   return new Promise((resolve, reject) => {
-    const child = spawn("npm", args, { stdio: "inherit", cwd: process.cwd() });
+    const child = spawnImpl("npm", args, { stdio: "inherit", cwd: process.cwd() });
     child.on("error", reject);
     child.on("exit", (code) => {
       if (code === 0) resolve();
@@ -879,8 +883,8 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function main(): Promise<number> {
-  const args = parseArgs(process.argv.slice(2));
+async function main(argv = process.argv.slice(2)): Promise<number> {
+  const args = parseArgs(argv);
   if (args.help) {
     printHelp();
     return 0;
@@ -900,6 +904,45 @@ async function main(): Promise<number> {
   }
   return 0;
 }
+
+export const __scrapeProviderTest = {
+  printHelp,
+  resolveProviders,
+  workflowFor,
+  repoPath,
+  statePaths,
+  writeUrlList,
+  writeDiscoveredEntries,
+  readUrlList,
+  readDiscoveredEntries,
+  discoverUrls,
+  urlsForResume,
+  existingSourceUrls,
+  normalizeDiscoveryEntries,
+  normalizeDiscoveryEntry,
+  parseDiscoveredEntry,
+  discoveryEntryTime,
+  normalizeDate,
+  inferPublishedAtFromUrl,
+  readFinalizedOutcomes,
+  parseOutcomeRecord,
+  classifyOutcome,
+  applyOutcomeCount,
+  appendOutcome,
+  writeProgress,
+  writeFailureLists,
+  runDiscover,
+  runScrape,
+  runStatus,
+  runReview,
+  spawnNpm,
+  listProviders,
+  dedupeUrls,
+  normalizeUrl,
+  isFileNotFound,
+  sleep,
+  main,
+};
 
 if (isMain(import.meta.url)) {
   runCli(main);

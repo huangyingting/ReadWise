@@ -144,7 +144,10 @@ test("claimNextJob recovers a stale lock once the TTL elapses", { skip: !enabled
   const { enqueueJob, claimNextJob, DEFAULT_LOCK_TTL_MS } = await import("@/lib/jobs");
 
   const t0 = new Date();
-  const job = await enqueueJob(JobType.PUSH_REMINDER, { stale: true }, { dedupeKey: id("job_stale") });
+  const job = await enqueueJob(JobType.PUSH_REMINDER, { stale: true }, {
+    dedupeKey: id("job_stale"),
+    runAfter: t0,
+  });
 
   const claimed = await claimNextJob("worker-1", { now: t0 });
   assertPresent(claimed, "worker-1 should claim the job");

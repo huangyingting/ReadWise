@@ -1,8 +1,14 @@
-name: Squad Release
+name: ReadWise Release
 
 on:
   push:
     branches: [main]
+    paths:
+      - package.json
+      - package-lock.json
+      - CHANGELOG.md
+      - .github/workflows/squad-release.yml
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -10,6 +16,10 @@ permissions:
 jobs:
   release:
     runs-on: ubuntu-latest
+    env:
+      DATABASE_URL: file:./ci.db
+      NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
+      NEXTAUTH_URL: http://localhost:3000
     steps:
       - uses: actions/checkout@v4
         with:
@@ -18,18 +28,39 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate Prisma client
+        run: npx prisma generate
 
       - name: Run tests
-        run: node --test test/*.test.cjs
+        run: npm test
 
       - name: Validate version consistency
         run: |
-          VERSION=$(node -e "console.log(require('./package.json').version)")
-          if ! grep -q "## \[$VERSION\]" CHANGELOG.md 2>/dev/null; then
-            echo "::error::Version $VERSION not found in CHANGELOG.md — update CHANGELOG.md before release"
-            exit 1
-          fi
-          echo "✅ Version $VERSION validated in CHANGELOG.md"
+          node <<'NODE'
+          const fs = require("node:fs");
+          const version = require("./package.json").version;
+          const changelogPath = "CHANGELOG.md";
+          const escapeRegExp = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+          if (!fs.existsSync(changelogPath)) {
+            console.log(`::error::Version ${version} not found in CHANGELOG.md — update CHANGELOG.md before release`);
+            process.exit(1);
+          }
+
+          const changelog = fs.readFileSync(changelogPath, "utf8");
+          const heading = new RegExp(`^## \\[${escapeRegExp(version)}\\](?:\\s|$)`, "m");
+          if (!heading.test(changelog)) {
+            console.log(`::error::Version ${version} not found in CHANGELOG.md — update CHANGELOG.md before release`);
+            process.exit(1);
+          }
+
+          console.log(`✅ Version ${version} validated in CHANGELOG.md`);
+          NODE
 
       - name: Read version from package.json
         id: version
