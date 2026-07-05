@@ -9,17 +9,19 @@
 process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
+import { gzipSync } from "node:zlib";
 
 // ---- mutable state -------------------------------------------------------
 let validated: string[] = [];
 let fetchCalls: string[] = [];
-let routes: Record<string, { status: number; location?: string; body?: string }> = {};
+let routes: Record<string, { status: number; location?: string; body?: string; bodyBytes?: Uint8Array }> = {};
 
 function isUnsafe(u: string): boolean {
   return /169\.254|127\.0|localhost|(^|\/)10\.|::1|metadata/i.test(u);
 }
 
 function fakeResponse(r: { status: number; location?: string; body?: string }): Response {
+  const bodyBytes = "bodyBytes" in r ? (r as { bodyBytes?: Uint8Array }).bodyBytes : undefined;
   return {
     status: r.status,
     ok: r.status >= 200 && r.status < 300,
@@ -28,6 +30,14 @@ function fakeResponse(r: { status: number; location?: string; body?: string }): 
         name.toLowerCase() === "location" ? (r.location ?? null) : null,
     },
     text: async () => r.body ?? "",
+    body: bodyBytes
+      ? new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(bodyBytes);
+            controller.close();
+          },
+        })
+      : undefined,
   } as unknown as Response;
 }
 
@@ -135,4 +145,18 @@ test("fetchHtml makes a single origin request for a plain 200 (chain stays dorma
   // No profile/reader/wayback fallbacks: exactly one underlying request.
   assert.deepEqual(fetchCalls, ["https://safe.example/ok"]);
   assert.deepEqual(validated, ["https://safe.example/ok"]);
+});
+
+test("fetchHtml decodes gzip-compressed sitemap bodies", async () => {
+  const { fetchText } = await import("@/lib/scraper/fetch");
+  routes = {
+    "https://safe.example/sitemap.xml.gz": {
+      status: 200,
+      bodyBytes: gzipSync("<urlset><url><loc>https://safe.example/a</loc></url></urlset>"),
+    },
+  };
+
+  const xml = await fetchText("https://safe.example/sitemap.xml.gz");
+
+  assert.equal(xml, "<urlset><url><loc>https://safe.example/a</loc></url></urlset>");
 });

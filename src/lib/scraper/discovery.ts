@@ -5,7 +5,13 @@
  * Every candidate URL passes through hostname, pattern, optional-filter, and
  * robots validation before being returned. No provider can bypass these checks.
  */
-import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
+import type {
+  DiscoveredUrl,
+  DiscoveredUrlSource,
+  Provider,
+  UrlExtractorContext,
+  UrlExtractorResult,
+} from "@/lib/scraper/types";
 import { fetchHtml, fetchText } from "@/lib/scraper/fetch";
 import { isProviderEnabled } from "@/lib/scraper/sources";
 import { isUrlAllowed } from "@/lib/scraper/robots";
@@ -97,6 +103,14 @@ export async function discoverProviderUrls(
   limit: number,
   deps: DiscoverDeps = {},
 ): Promise<string[]> {
+  return (await discoverProviderUrlEntries(provider, limit, deps)).map((entry) => entry.url);
+}
+
+export async function discoverProviderUrlEntries(
+  provider: Provider,
+  limit: number,
+  deps: DiscoverDeps = {},
+): Promise<DiscoveredUrl[]> {
   const fetchPage = deps.fetchHtml ?? fetchHtml;
   const enabledCheck = deps.isProviderEnabled ?? isProviderEnabled;
   const allowedCheck = deps.isUrlAllowed ?? isUrlAllowed;
@@ -122,7 +136,7 @@ async function discoverViaExtractor(
   limit: number,
   deps: DiscoverDeps,
   allowedCheck: (url: string) => Promise<boolean>,
-): Promise<string[]> {
+): Promise<DiscoveredUrl[]> {
   const extractorFetch: UrlExtractorContext["fetch"] =
     deps.extractorFetch ??
     ((url, init) =>
@@ -130,7 +144,7 @@ async function discoverViaExtractor(
         ? fetchText(url, init)
         : (deps.fetchHtml ?? fetchHtml)(url));
 
-  let candidates: string[];
+  let candidates: UrlExtractorResult[];
   try {
     candidates = await provider.urlExtractor!({ limit, fetch: extractorFetch });
   } catch (err) {
@@ -142,17 +156,18 @@ async function discoverViaExtractor(
   }
 
   const seen = new Set<string>();
-  const collected: string[] = [];
+  const collected: DiscoveredUrl[] = [];
 
   for (const raw of candidates) {
     if (collected.length >= limit) break;
-    const url = canonicalUrl(raw);
+    const candidate = normalizeExtractorResult(raw);
+    const url = canonicalUrl(candidate.url);
     if (!url) continue;
     if (seen.has(url)) continue;
     seen.add(url);
     if (!isProviderArticleUrl(url, provider)) continue;
     if (!(await allowedCheck(url))) continue;
-    collected.push(url);
+    collected.push(completeDiscoveredUrl({ ...candidate, url }, "unknown"));
   }
 
   return collected;
@@ -168,10 +183,10 @@ async function discoverViaSeedHtml(
   limit: number,
   fetchPage: (url: string) => Promise<string>,
   allowedCheck: (url: string) => Promise<boolean>,
-): Promise<string[]> {
+): Promise<DiscoveredUrl[]> {
   const maxPages = provider.maxSeedPages ?? 1;
   const MAX_CONSECUTIVE_EMPTY = 2;
-  const collected = new Set<string>();
+  const collected = new Map<string, DiscoveredUrl>();
 
   for (const seed of provider.seeds) {
     if (collected.size >= limit) break;
@@ -211,10 +226,58 @@ async function discoverViaSeedHtml(
       for (const link of newLinks) {
         if (collected.size >= limit) break;
         if (!(await allowedCheck(link))) continue;
-        collected.add(link);
+        collected.set(link, completeDiscoveredUrl({ url: link }, "seed"));
       }
     }
   }
 
-  return [...collected].slice(0, limit);
+  return [...collected.values()].slice(0, limit);
+}
+
+function normalizeExtractorResult(raw: UrlExtractorResult): Partial<DiscoveredUrl> & { url: string } {
+  return typeof raw === "string" ? { url: raw } : raw;
+}
+
+function completeDiscoveredUrl(
+  entry: Partial<DiscoveredUrl> & { url: string },
+  fallbackSource: DiscoveredUrlSource,
+): DiscoveredUrl {
+  const inferredPublishedAt = entry.publishedAt ?? inferPublishedAtFromUrl(entry.url);
+  return {
+    url: entry.url,
+    source: entry.source ?? fallbackSource,
+    discoveredAt: entry.discoveredAt ?? new Date().toISOString(),
+    ...(entry.lastModified ? { lastModified: normalizeIsoDate(entry.lastModified) ?? entry.lastModified } : {}),
+    ...(inferredPublishedAt ? { publishedAt: normalizeIsoDate(inferredPublishedAt) ?? inferredPublishedAt } : {}),
+    ...(entry.sourceUrl ? { sourceUrl: entry.sourceUrl } : {}),
+  };
+}
+
+function normalizeIsoDate(value: string): string | null {
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : null;
+}
+
+function inferPublishedAtFromUrl(url: string): string | undefined {
+  const path = safeUrlPath(url);
+  if (!path) return undefined;
+  const slashDate = path.match(/\/(20\d{2})\/([01]\d)\/([0-3]\d)(?:\/|$)/);
+  if (slashDate) return isoDateParts(slashDate[1], slashDate[2], slashDate[3]);
+  const dashDate = path.match(/\/(20\d{2})-([01]\d)-([0-3]\d)(?:[-/]|$)/);
+  if (dashDate) return isoDateParts(dashDate[1], dashDate[2], dashDate[3]);
+  return undefined;
+}
+
+function safeUrlPath(url: string): string | null {
+  try {
+    return new URL(url).pathname;
+  } catch {
+    return null;
+  }
+}
+
+function isoDateParts(year: string | undefined, month: string | undefined, day: string | undefined): string | undefined {
+  if (!year || !month || !day) return undefined;
+  const time = Date.UTC(Number(year), Number(month) - 1, Number(day));
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined;
 }

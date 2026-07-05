@@ -1,5 +1,5 @@
-import type { Provider } from "@/lib/scraper/types";
-import { excludes, lookupSection, parseSitemapLocs, rssUrlExtractor } from "./shared";
+import type { Provider, UrlExtractorResult } from "@/lib/scraper/types";
+import { excludes, extractorResultUrl, lookupSection, parseSitemapLocs, rssUrlExtractor } from "./shared";
 
 const TECHNOLOGY_REVIEW_SITEMAP_INDEX = "https://www.technologyreview.com/sitemap.xml";
 const TECHNOLOGY_REVIEW_NEWS_SITEMAP = "https://www.technologyreview.com/news-sitemap.xml";
@@ -117,14 +117,14 @@ function wpPostsApiUrl(page: number): string {
 function addArticleCandidates(
   urls: string[],
   seen: Set<string>,
-  candidates: readonly string[],
+  candidates: readonly UrlExtractorResult[],
   cap: number,
   baseUrl?: string,
 ): number {
   let added = 0;
-  for (const url of candidates) {
+  for (const candidate of candidates) {
     if (urls.length >= cap) break;
-    const normalized = normalizeCandidateUrl(url, baseUrl);
+    const normalized = normalizeCandidateUrl(extractorResultUrl(candidate), baseUrl);
     if (!normalized || !isArticleCandidate(normalized) || seen.has(normalized)) continue;
     seen.add(normalized);
     urls.push(normalized);
@@ -140,7 +140,7 @@ async function technologyReviewUrlExtractor({
   const cap = candidateCap(limit);
   const seen = new Set<string>();
   const urls: string[] = [];
-  const add = (candidates: readonly string[], baseUrl?: string) =>
+  const add = (candidates: readonly UrlExtractorResult[], baseUrl?: string) =>
     addArticleCandidates(urls, seen, candidates, cap, baseUrl);
   const reachedCap = () => urls.length >= cap;
 

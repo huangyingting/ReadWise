@@ -35,9 +35,9 @@ test("runSeed records a crawl-health outcome per provider (RW-050)", async () =>
   const recordCrawl: Array<{ key: string; outcome: CrawlRunOutcome }> = [];
 
   const stats = await runSeed({
-    providerKeys: ["nbc"],
+    providerKeys: ["huffpost"],
     deps: {
-      discover: async () => ["https://nbc.example/a", "https://nbc.example/b"],
+      discover: async () => ["https://huffpost.example/a", "https://huffpost.example/b"],
       scrapeAndSave: async (url: string) => ({
         status: "saved",
         id: url,
@@ -52,7 +52,7 @@ test("runSeed records a crawl-health outcome per provider (RW-050)", async () =>
   });
 
   assert.equal(recordCrawl.length, 1);
-  assert.equal(recordCrawl[0].key, "nbc");
+  assert.equal(recordCrawl[0].key, "huffpost");
   assert.equal(recordCrawl[0].outcome.discovered, 2);
   assert.equal(recordCrawl[0].outcome.scraped, 2);
   assert.equal(recordCrawl[0].outcome.failed, 0);
@@ -66,7 +66,7 @@ test("runSeed reports a discovery error in the crawl outcome", async () => {
   const recordCrawl: Array<{ key: string; outcome: CrawlRunOutcome }> = [];
 
   await runSeed({
-    providerKeys: ["nbc"],
+    providerKeys: ["huffpost"],
     deps: {
       discover: async () => {
         throw new Error("discovery blew up");

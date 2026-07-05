@@ -21,7 +21,7 @@ export const CONTAINER =
   "mx-auto max-w-[var(--marketing-container-w)] px-[clamp(var(--space-6),5vw,var(--space-8))]";
 
 export const SOURCES = [
-  "NBC News",
+  "BBC Features",
   "National Geographic",
   "Time",
   "HuffPost",

@@ -168,7 +168,8 @@ test("Nautilus urlExtractor: delegates to WP API via injected fetch", async () =
   const posts = makePosts(3);
   const mockFetch = async () => JSON.stringify(posts);
 
-  const urls = await nautilus.urlExtractor!({ limit: 10, fetch: mockFetch });
+  const urls = (await nautilus.urlExtractor!({ limit: 10, fetch: mockFetch }))
+    .map((result) => typeof result === "string" ? result : result.url);
 
   assertNautilusUrls(urls, 3);
 });

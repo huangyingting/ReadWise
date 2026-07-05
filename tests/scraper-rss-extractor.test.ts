@@ -16,7 +16,7 @@ import {
 import { createSmithsonianProvider } from "@/lib/scraper/providers/smithsonian";
 import { discoverProviderUrls } from "@/lib/scraper/discovery";
 import { getProvider } from "@/lib/scraper/providers";
-import type { Provider } from "@/lib/scraper/types";
+import type { Provider, UrlExtractorResult } from "@/lib/scraper/types";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -115,6 +115,26 @@ function assertNotFetched(fetched: string[], url: string): void {
   assert.equal(fetched.includes(url), false);
 }
 
+function extractorUrls(results: UrlExtractorResult[]): string[] {
+  return results.map((result) => typeof result === "string" ? result : result.url);
+}
+
+function assertDiscoveredResults(
+  results: UrlExtractorResult[],
+  source: string,
+  sourceUrls: string[],
+): void {
+  assert.deepEqual(
+    results.map((result) => {
+      assert.notEqual(typeof result, "string");
+      const entry = result as Exclude<UrlExtractorResult, string>;
+      assert.ok(Date.parse(entry.discoveredAt ?? ""), "discoveredAt should be an ISO timestamp");
+      return { source: entry.source, sourceUrl: entry.sourceUrl };
+    }),
+    sourceUrls.map((sourceUrl) => ({ source, sourceUrl })),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // rssUrlExtractor unit tests
 // ---------------------------------------------------------------------------
@@ -125,8 +145,9 @@ test("rssUrlExtractor: returns article URLs parsed from a single feed", async ()
     "https://example.com/a",
     "https://example.com/b",
   ]);
-  const urls = await extractor({ limit: 10, fetch: async () => xml });
-  assert.deepEqual(urls, ["https://example.com/a", "https://example.com/b"]);
+  const results = await extractor({ limit: 10, fetch: async () => xml });
+  assert.deepEqual(extractorUrls(results), ["https://example.com/a", "https://example.com/b"]);
+  assertDiscoveredResults(results, "rss", ["https://feed.test/rss", "https://feed.test/rss"]);
 });
 
 test("rssUrlExtractor: deduplicates URLs across feeds", async () => {
@@ -138,14 +159,19 @@ test("rssUrlExtractor: deduplicates URLs across feeds", async () => {
     "https://feed.test/one": makeFeed(["https://example.com/dup", "https://example.com/x"]),
     "https://feed.test/two": makeFeed(["https://example.com/dup", "https://example.com/y"]),
   };
-  const urls = await extractor({
+  const results = await extractor({
     limit: 10,
     fetch: async (url) => feedMap[url] ?? "",
   });
-  assert.deepEqual(urls, [
+  assert.deepEqual(extractorUrls(results), [
     "https://example.com/dup",
     "https://example.com/x",
     "https://example.com/y",
+  ]);
+  assertDiscoveredResults(results, "rss", [
+    "https://feed.test/one",
+    "https://feed.test/one",
+    "https://feed.test/two",
   ]);
 });
 
@@ -154,14 +180,15 @@ test("rssUrlExtractor: skips a feed that throws and keeps the rest", async () =>
     "https://feed.test/bad",
     "https://feed.test/good",
   ]);
-  const urls = await extractor({
+  const results = await extractor({
     limit: 10,
     fetch: async (url) => {
       if (url.endsWith("/bad")) throw new Error("boom");
       return makeFeed(["https://example.com/ok"]);
     },
   });
-  assert.deepEqual(urls, ["https://example.com/ok"]);
+  assert.deepEqual(extractorUrls(results), ["https://example.com/ok"]);
+  assertDiscoveredResults(results, "rss", ["https://feed.test/good"]);
 });
 
 test("rssUrlExtractor: returns empty array when every feed throws", async () => {
@@ -220,7 +247,7 @@ test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs
     ]),
   };
 
-  const urls = await extractor({
+  const results = await extractor({
     limit: 10,
     fetch: async (url) => {
       fetched.push(url);
@@ -228,10 +255,15 @@ test("sitemapUrlExtractor: fetches filtered child sitemaps and deduplicates URLs
     },
   });
 
-  assert.deepEqual(urls, [
+  assert.deepEqual(extractorUrls(results), [
     "https://example.com/a",
     "https://example.com/b",
     "https://example.com/c",
+  ]);
+  assertDiscoveredResults(results, "sitemap", [
+    "https://example.com/sitemap-articles-2026-06.xml",
+    "https://example.com/sitemap-articles-2026-06.xml",
+    "https://example.com/sitemap-articles-2026-05.xml",
   ]);
   assert.deepEqual(fetched, [
     "https://example.com/sitemap.xml",

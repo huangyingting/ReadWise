@@ -19,7 +19,7 @@ const titleWithSiteName = (title: string) => `${title} — ${SITE_NAME}`;
 export const landing = {
   title: `${SITE_NAME} — Learn English from Real News`,
   description:
-    "AI-powered English learning reader. Real articles from NBC News, National Geographic, Time, and HuffPost — with dictionary, translation, vocabulary, quizzes, narration, and CEFR leveling.",
+    "AI-powered English learning reader. Real articles from BBC Features, National Geographic, Time, and HuffPost — with dictionary, translation, vocabulary, quizzes, narration, and CEFR leveling.",
 } as const;
 
 export const signIn = {

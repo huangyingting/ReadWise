@@ -3,8 +3,13 @@
  *
  * Intentionally regex-based (no XML-parser dependency) — feeds are
  * well-structured enough that a targeted approach works reliably and keeps
- * the bundle small. Only URLs are extracted; all other fields are ignored.
+ * the bundle small.
  */
+
+export type RssEntry = {
+  url: string;
+  publishedAt?: string;
+};
 
 /**
  * Extracts article URLs from an RSS 2.0 or Atom feed XML string.
@@ -23,6 +28,7 @@
 const RSS_LINK_TEXT_RE = /<link>\s*([^\s<]+)\s*<\/link>/gi;
 const RSS_GUID_TEXT_RE = /<guid(\s[^>]*)?>([^<]+)<\/guid>/gi;
 const NON_PERMALINK_GUID_RE = /isPermaLink\s*=\s*["']false["']/i;
+const RSS_ITEM_BLOCK_RE = /<(?:item|entry)\b[^>]*>([\s\S]*?)<\/(?:item|entry)>/gi;
 
 function collectRssUrlCandidates(xml: string): string[] {
   const candidates: string[] = [];
@@ -58,16 +64,54 @@ function normalizeRssUrlCandidate(candidate: string): string | null {
 }
 
 export function parseRssUrls(xml: string): string[] {
-  const seen = new Set<string>();
-  const clean: string[] = [];
+  return parseRssEntries(xml).map((entry) => entry.url);
+}
 
-  for (const candidate of collectRssUrlCandidates(xml)) {
+export function parseRssEntries(xml: string): RssEntry[] {
+  const seen = new Set<string>();
+  const clean: RssEntry[] = [];
+
+  for (const entry of collectRssEntryCandidates(xml)) {
+    const candidate = entry.url;
     const normalized = normalizeRssUrlCandidate(candidate);
     if (normalized && !seen.has(normalized)) {
       seen.add(normalized);
-      clean.push(normalized);
+      const publishedAt = normalizeRssDate(entry.publishedAt);
+      clean.push({
+        url: normalized,
+        ...(publishedAt ? { publishedAt } : {}),
+      });
     }
   }
 
   return clean;
+}
+
+function collectRssEntryCandidates(xml: string): RssEntry[] {
+  const entries: RssEntry[] = [];
+  for (const match of xml.matchAll(RSS_ITEM_BLOCK_RE)) {
+    const block = match[1] ?? "";
+    const publishedAt = firstTagText(block, "pubDate")
+      ?? firstTagText(block, "published")
+      ?? firstTagText(block, "updated")
+      ?? firstTagText(block, "dc:date");
+    for (const candidate of collectRssUrlCandidates(block)) {
+      entries.push({ url: candidate, ...(publishedAt ? { publishedAt } : {}) });
+    }
+  }
+  return entries.length > 0
+    ? entries
+    : collectRssUrlCandidates(xml).map((url) => ({ url }));
+}
+
+function firstTagText(xml: string, tagName: string): string | null {
+  const escaped = tagName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const match = xml.match(new RegExp(`<${escaped}\\b[^>]*>\\s*([^<]+?)\\s*</${escaped}>`, "i"));
+  return match?.[1]?.trim() ?? null;
+}
+
+function normalizeRssDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined;
 }

@@ -87,6 +87,7 @@ export function mergeProviderCleanup(
   const dropLinkHrefKeywords = new Set<string>();
   const dropLinkHrefBlockKeywords = new Set<string>();
   let dropFigcaptions = false;
+  let dropEmptyImageOnlyFigures = false;
   for (const cleanup of cleanups) {
     for (const selector of cleanup?.dropSelectors ?? []) dropSelectors.add(selector);
     for (const keyword of cleanup?.dropClassKeywords ?? []) dropClassKeywords.add(keyword);
@@ -99,6 +100,7 @@ export function mergeProviderCleanup(
       dropLinkHrefBlockKeywords.add(keyword);
     }
     dropFigcaptions ||= cleanup?.dropFigcaptions === true;
+    dropEmptyImageOnlyFigures ||= cleanup?.dropEmptyImageOnlyFigures === true;
   }
   return {
     dropSelectors: [...dropSelectors],
@@ -108,6 +110,7 @@ export function mergeProviderCleanup(
     dropLinkHrefKeywords: [...dropLinkHrefKeywords],
     dropLinkHrefBlockKeywords: [...dropLinkHrefBlockKeywords],
     ...(dropFigcaptions ? { dropFigcaptions } : {}),
+    ...(dropEmptyImageOnlyFigures ? { dropEmptyImageOnlyFigures } : {}),
   };
 }
 
@@ -306,6 +309,28 @@ function dropFigcaptionElements(html: string, enabled: boolean): string {
   }
 }
 
+function hasMeaningfulImageText(img: Element): boolean {
+  return normalizeText([img.getAttribute("alt") ?? "", img.getAttribute("title") ?? ""].join(" ")).length > 0;
+}
+
+function dropEmptyImageOnlyFigures(html: string, enabled: boolean): string {
+  if (!enabled) return html;
+  try {
+    const { document } = parseHTML(html);
+    for (const figure of Array.from(document.querySelectorAll("figure"))) {
+      if (normalizeText(figure.textContent ?? "").length > 0) continue;
+      const images = Array.from(figure.querySelectorAll("img"));
+      if (images.length === 0) continue;
+      if (images.some(hasMeaningfulImageText)) continue;
+      figure.remove();
+    }
+    removeEmptyArticleContainers(document);
+    return document.toString();
+  } catch {
+    return html;
+  }
+}
+
 /**
  * Applies provider-level pre-extraction cleanup to raw page HTML.
  *
@@ -335,6 +360,9 @@ function dropFigcaptionElements(html: string, enabled: boolean): string {
  * - `dropFigcaptions` removes `<figcaption>` elements while preserving sibling
  *   image/video content in the surrounding figure.
  *
+ * - `dropEmptyImageOnlyFigures` removes image-only figures when the figure,
+ *   caption and image alt/title carry no readable text.
+ *
  * Returns the original string unchanged when no rules are provided.
  */
 export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): string {
@@ -346,6 +374,7 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
   const hrefKeywords = cleanup.dropLinkHrefKeywords ?? [];
   const hrefBlockKeywords = cleanup.dropLinkHrefBlockKeywords ?? [];
   const dropFigcaptions = cleanup.dropFigcaptions === true;
+  const dropEmptyImageOnlyFigureBlocks = cleanup.dropEmptyImageOnlyFigures === true;
   const lowerClassKeywords = keywords.map((kw) => kw.toLowerCase());
 
   // Early-exit: nothing to do.
@@ -356,7 +385,8 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
     !textExactKeywords.length &&
     !hrefKeywords.length &&
     !hrefBlockKeywords.length &&
-    !dropFigcaptions
+    !dropFigcaptions &&
+    !dropEmptyImageOnlyFigureBlocks
   ) {
     return html;
   }
@@ -407,9 +437,12 @@ export function applyProviderCleanup(html: string, cleanup: ProviderCleanup): st
       : html;
   return dropTextKeywordMatches(
     dropTextExactMatches(
-      dropFigcaptionElements(
-        dropLinkHrefBlockMatches(dropLinkHrefMatches(cleaned, hrefKeywords), hrefBlockKeywords),
-        dropFigcaptions,
+      dropEmptyImageOnlyFigures(
+        dropFigcaptionElements(
+          dropLinkHrefBlockMatches(dropLinkHrefMatches(cleaned, hrefKeywords), hrefBlockKeywords),
+          dropFigcaptions,
+        ),
+        dropEmptyImageOnlyFigureBlocks,
       ),
       textExactKeywords,
     ),

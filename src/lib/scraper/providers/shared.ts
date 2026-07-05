@@ -5,20 +5,138 @@
  * their own rules; they never duplicate the regex-matching plumbing.
  */
 import { CATEGORY_SLUGS, isReadingRecommended } from "@/lib/categories";
-import { parseRssUrls } from "@/lib/scraper/rss";
-import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
+import { parseRssEntries } from "@/lib/scraper/rss";
+import type {
+  DiscoveredUrl,
+  Provider,
+  UrlExtractor,
+  UrlExtractorContext,
+  UrlExtractorResult,
+} from "@/lib/scraper/types";
 
-function addUniqueUrl(seen: Set<string>, urls: string[], url: string): boolean {
-  if (seen.has(url)) return false;
+export type SitemapEntry = {
+  url: string;
+  lastModified?: string;
+};
+
+export function extractorResultUrl(candidate: UrlExtractorResult): string {
+  return typeof candidate === "string" ? candidate : candidate.url;
+}
+
+export const COMMON_READING_SOURCE_CLEANUP = {
+  dropClassKeywords: [
+    "advert",
+    "newsletter",
+    "promo",
+    "recirc",
+    "related",
+    "share",
+    "social",
+  ],
+  dropTextKeywords: [
+    "sign up for our newsletter",
+    "subscribe to our newsletter",
+    "support our journalism",
+  ],
+};
+
+export function candidateCap(limit: number): number {
+  return Number.isFinite(limit) ? Math.max(limit * 2, limit) : Number.POSITIVE_INFINITY;
+}
+
+export function addUnique(seen: Set<string>, urls: string[], url: string, cap: number): boolean {
+  if (urls.length >= cap || seen.has(url)) return false;
   seen.add(url);
   urls.push(url);
+  return urls.length >= cap;
+}
+
+export function validUrl(raw: string): URL | null {
+  try {
+    return new URL(raw);
+  } catch {
+    return null;
+  }
+}
+
+function hostnameWithoutWww(url: URL): string {
+  return url.hostname.toLowerCase().replace(/^www\./, "");
+}
+
+export function isPath(url: string, hostname: string, pattern: RegExp): boolean {
+  const parsed = validUrl(url);
+  return Boolean(parsed && hostnameWithoutWww(parsed) === hostname && pattern.test(parsed.pathname));
+}
+
+function normalizeAbsoluteUrl(raw: string, baseUrl: string): string | null {
+  try {
+    return new URL(raw, baseUrl).href.split("#")[0] ?? raw;
+  } catch {
+    return null;
+  }
+}
+
+export function hrefsFromHtml(html: string, baseUrl: string): string[] {
+  return [...html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)]
+    .map((match) => normalizeAbsoluteUrl(match[1] ?? "", baseUrl))
+    .filter((url): url is string => Boolean(url));
+}
+
+export async function collectSitemapUrls(
+  sitemapUrls: readonly string[],
+  ctx: UrlExtractorContext,
+  keepUrl: (url: string) => boolean,
+): Promise<string[]> {
+  const cap = candidateCap(ctx.limit);
+  const seen = new Set<string>();
+  const urls: string[] = [];
+  for (const sitemapUrl of sitemapUrls) {
+    if (urls.length >= cap) break;
+    let locs: string[];
+    try {
+      locs = parseSitemapLocs(await ctx.fetch(sitemapUrl));
+    } catch {
+      continue;
+    }
+    for (const url of locs) {
+      if (!keepUrl(url)) continue;
+      if (addUnique(seen, urls, url, cap)) break;
+    }
+  }
+  return urls;
+}
+
+function addUniqueUrl<T extends { url: string }>(seen: Set<string>, urls: T[], entry: T): boolean {
+  if (seen.has(entry.url)) return false;
+  seen.add(entry.url);
+  urls.push(entry);
   return true;
+}
+
+function sitemapEntry(url: string, lastModified: string | undefined, sourceUrl: string): DiscoveredUrl {
+  return {
+    url,
+    source: "sitemap",
+    discoveredAt: new Date().toISOString(),
+    sourceUrl,
+    ...(lastModified ? { lastModified } : {}),
+  };
+}
+
+function rssEntry(url: string, publishedAt: string | undefined, sourceUrl: string): DiscoveredUrl {
+  return {
+    url,
+    source: "rss",
+    discoveredAt: new Date().toISOString(),
+    sourceUrl,
+    ...(publishedAt ? { publishedAt } : {}),
+  };
 }
 
 /**
  * Builds a {@link Provider.urlExtractor} that discovers article URLs from one
  * or more RSS 2.0 / Atom feeds. Each feed is fetched via the injected
- * `ctx.fetch` (so tests stay network-free), parsed with {@link parseRssUrls},
+ * `ctx.fetch` (so tests stay network-free), parsed with {@link parseRssEntries},
  * and the results are deduplicated across feeds.
  *
  * Feeds are fetched in order until roughly `2 × limit` candidates are
@@ -26,23 +144,23 @@ function addUniqueUrl(seen: Set<string>, urls: string[], url: string): boolean {
  * validation). A feed that throws or returns nothing is skipped gracefully so
  * one unreachable feed never aborts discovery.
  *
- * Returned URLs are raw candidates — `discoverProviderUrls` still validates
- * each against the provider's hostname, `articleUrlPattern`, `articleUrlFilter`
- * and robots rules.
+ * Returned entries are raw candidates with source metadata —
+ * `discoverProviderUrls` still validates each against the provider's hostname,
+ * `articleUrlPattern`, `articleUrlFilter` and robots rules.
  */
 export function rssUrlExtractor(
   feedUrls: readonly string[],
-): (ctx: UrlExtractorContext) => Promise<string[]> {
+): UrlExtractor {
   const feeds = [...new Set(feedUrls)];
   return async ({ limit, fetch: fetchFn }) => {
     const seen = new Set<string>();
-    const urls: string[] = [];
+    const urls: DiscoveredUrl[] = [];
     for (const feedUrl of feeds) {
       if (urls.length >= limit * 2) break;
       try {
         const xml = await fetchFn(feedUrl);
-        for (const url of parseRssUrls(xml)) {
-          addUniqueUrl(seen, urls, url);
+        for (const entry of parseRssEntries(xml)) {
+          addUniqueUrl(seen, urls, rssEntry(entry.url, entry.publishedAt, feedUrl));
         }
       } catch {
         // graceful degradation — a single feed failure doesn't stop discovery
@@ -66,43 +184,82 @@ function decodeXmlText(value: string): string {
 }
 
 export function parseSitemapLocs(xml: string): string[] {
-  return [...xml.matchAll(/<loc>\s*([^<]+?)\s*<\/loc>/gi)]
-    .map((match) => decodeXmlText(match[1]?.trim() ?? ""))
-    .filter(Boolean);
+  return parseSitemapEntries(xml).map((entry) => entry.url);
+}
+
+export function parseSitemapEntries(xml: string): SitemapEntry[] {
+  const blocks = [...xml.matchAll(/<(?:url|sitemap)\b[^>]*>([\s\S]*?)<\/(?:url|sitemap)>/gi)]
+    .map((match) => match[1] ?? "");
+  const source = blocks.length > 0 ? blocks : [xml];
+  const entries: SitemapEntry[] = [];
+  const seen = new Set<string>();
+  for (const block of source) {
+    const rawLoc = tagText(block, "loc");
+    if (!rawLoc) continue;
+    const url = decodeXmlText(rawLoc);
+    if (!url || seen.has(url)) continue;
+    seen.add(url);
+    const lastModified = normalizeXmlDate(tagText(block, "lastmod"));
+    entries.push({
+      url,
+      ...(lastModified ? { lastModified } : {}),
+    });
+  }
+  return entries;
+}
+
+function tagText(xml: string, tagName: string): string | undefined {
+  const match = xml.match(new RegExp(`<${tagName}\\b[^>]*>\\s*([^<]+?)\\s*</${tagName}>`, "i"));
+  return match?.[1] ? decodeXmlText(match[1].trim()) : undefined;
+}
+
+function normalizeXmlDate(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const time = Date.parse(value);
+  return Number.isFinite(time) ? new Date(time).toISOString() : undefined;
 }
 
 export function sitemapUrlExtractor(
   sitemapIndexUrl: string,
   options: SitemapUrlExtractorOptions = {},
-): (ctx: UrlExtractorContext) => Promise<string[]> {
+): UrlExtractor {
   return async ({ limit, fetch: fetchFn }) => {
     const seen = new Set<string>();
-    const urls: string[] = [];
+    const urls: DiscoveredUrl[] = [];
     const candidateCap = Number.isFinite(limit)
       ? Math.max(limit * 2, limit)
       : Number.POSITIVE_INFINITY;
 
-    let indexLocs: string[];
+    let indexLocs: SitemapEntry[];
     try {
-      indexLocs = parseSitemapLocs(await fetchFn(sitemapIndexUrl));
+      indexLocs = parseSitemapEntries(await fetchFn(sitemapIndexUrl));
     } catch {
       return [];
     }
 
     const childSitemaps = options.sitemapUrlFilter
-      ? indexLocs.filter(options.sitemapUrlFilter)
+      ? indexLocs.filter((entry) => options.sitemapUrlFilter?.(entry.url))
       : indexLocs;
 
-    for (const sitemapUrl of childSitemaps) {
+    for (const sitemap of childSitemaps) {
       if (urls.length >= candidateCap) break;
-      let locs: string[];
+      let locs: SitemapEntry[];
       try {
-        locs = parseSitemapLocs(await fetchFn(sitemapUrl));
+        locs = parseSitemapEntries(await fetchFn(sitemap.url));
       } catch {
         continue;
       }
-      for (const url of locs) {
-        if (addUniqueUrl(seen, urls, url) && urls.length >= candidateCap) break;
+      for (const entry of locs) {
+        if (
+          addUniqueUrl(
+            seen,
+            urls,
+            sitemapEntry(entry.url, entry.lastModified, sitemap.url),
+          ) &&
+          urls.length >= candidateCap
+        ) {
+          break;
+        }
       }
     }
 

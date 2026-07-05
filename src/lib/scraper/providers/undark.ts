@@ -1,5 +1,5 @@
 import type { Provider, UrlExtractorContext } from "@/lib/scraper/types";
-import { excludes, lookupSection, rssUrlExtractor } from "./shared";
+import { excludes, extractorResultUrl, lookupSection, rssUrlExtractor } from "./shared";
 
 const UNDARK_WORDPRESS_API =
   "https://public-api.wordpress.com/rest/v1.1/sites/undark.org/posts/";
@@ -84,10 +84,14 @@ async function undarkUrlExtractor(ctx: UrlExtractorContext): Promise<string[]> {
   } catch {
     // The public WordPress.com endpoint is preferred for complete history, but
     // the latest RSS feed is still a useful degraded discovery path.
-    return undarkRssFallback(ctx);
+    return rssFallbackUrls(ctx);
   }
 
-  return urls.length > 0 ? urls : undarkRssFallback(ctx);
+  return urls.length > 0 ? urls : rssFallbackUrls(ctx);
+}
+
+async function rssFallbackUrls(ctx: UrlExtractorContext): Promise<string[]> {
+  return (await undarkRssFallback(ctx)).map(extractorResultUrl);
 }
 
 const undark: Provider = {

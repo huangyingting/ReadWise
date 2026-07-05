@@ -69,7 +69,7 @@ before(() => {
       CRAWL_RUN_HISTORY_LIMIT: 25,
       CRAWL_RUN_HISTORY_API_MAX_LIMIT: 50,
       listContentSources: async () => [
-        { id: "cs1", providerKey: "nbc", displayName: "NBC", enabled: true, healthStatus: "healthy" },
+        { id: "cs1", providerKey: "huffpost", displayName: "HuffPost", enabled: true, healthStatus: "healthy" },
       ],
       getContentSource: async () => sourceLookupResult,
       listRecentCrawlRuns: async (_key: string, limit: number) => recentRuns.slice(0, limit),
@@ -126,7 +126,7 @@ beforeEach(() => {
   syncCalls = 0;
   reviewCalls = [];
   takedownCalls = [];
-  toggleResult = { id: "cs1", providerKey: "nbc", displayName: "NBC", enabled: false };
+  toggleResult = { id: "cs1", providerKey: "huffpost", displayName: "HuffPost", enabled: false };
   reviewResult = { ok: true, reviewState: "approved", changes: { title: { from: "a", to: "b" } } };
   takedownResult = {
     ok: true,
@@ -161,11 +161,11 @@ test("PATCH /api/admin/sources/[key] toggles + audits", async () => {
     PATCH: RouteHandler;
   };
   const res = await PATCH(
-    jsonPatch("http://test/api/admin/sources/nbc", { enabled: false }),
-    withParams({ key: "nbc" }),
+    jsonPatch("http://test/api/admin/sources/huffpost", { enabled: false }),
+    withParams({ key: "huffpost" }),
   );
   assert.equal(res.status, 200);
-  assert.deepEqual(toggleCalls, [{ key: "nbc", enabled: false }]);
+  assert.deepEqual(toggleCalls, [{ key: "huffpost", enabled: false }]);
   assert.equal(auditCalls.at(-1)?.action, "admin.source.toggle");
 });
 

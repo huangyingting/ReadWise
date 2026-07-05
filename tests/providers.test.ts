@@ -17,7 +17,6 @@ type CategoryCase = readonly [section: string, category: string | null];
 type ProviderUrlCase = readonly [providerKey: string, url: string];
 
 const SOURCE_DERIVED_PROVIDER_KEYS = [
-  "bbc",
   "bbcfeatures",
   "theconversation",
   "propublica",
@@ -28,6 +27,12 @@ const SOURCE_DERIVED_PROVIDER_KEYS = [
   "technologyreview",
   "noema",
   "undark",
+  "atlasobscura",
+  "jstordaily",
+  "publicdomainreview",
+  "hakaimagazine",
+  "yalee360",
+  "worksinprogress",
 ] as const;
 
 const LONG_FORM_PROVIDER_KEYS = [
@@ -42,9 +47,15 @@ const LONG_FORM_PROVIDER_KEYS = [
   "propublica",
   "grist",
   "bbcfeatures",
+  "atlasobscura",
+  "jstordaily",
+  "publicdomainreview",
+  "hakaimagazine",
+  "yalee360",
+  "worksinprogress",
 ] as const;
 
-const NEWS_LEARNING_PROVIDER_KEYS = ["nbc", "time", "huffpost", "bbc"] as const;
+const NEWS_LEARNING_PROVIDER_KEYS = ["time", "huffpost"] as const;
 
 function getProviderOrFail(key: string) {
   const provider = getProvider(key);
@@ -95,34 +106,38 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 16 active providers (aeon + voa removed)", () => {
+test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
-    "bbc",
+    "atlasobscura",
     "bbcfeatures",
     "grist",
+    "hakaimagazine",
     "huffpost",
+    "jstordaily",
     "knowable",
     "natgeo",
     "nautilus",
-    "nbc",
     "noema",
     "propublica",
+    "publicdomainreview",
     "scientificamerican",
     "smithsonian",
     "technologyreview",
     "theconversation",
     "time",
     "undark",
+    "worksinprogress",
+    "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 16);
+  assert.equal(PROVIDERS.length, 20);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
 
 test("getProvider is case-insensitive", () => {
-  assert.ok(getProvider("NBC"));
-  assert.ok(getProvider("nbc"));
+  assert.ok(getProvider("TIME"));
+  assert.ok(getProvider("time"));
 });
 
 test("source-derived providers are registered", () => {
@@ -258,7 +273,6 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
 
 test("source-derived provider URL patterns match article URLs", () => {
   assertProviderUrlPatterns([
-    ["bbc", "https://www.bbc.com/news/articles/c1234567890"],
     ["bbcfeatures", "https://www.bbc.com/future/article/20260630-how-america-reinvented-english"],
     ["bbcfeatures", "https://www.bbc.com/travel/article/20260701-the-view-that-inspired-america-the-beautiful"],
     ["bbcfeatures", "https://www.bbc.com/culture/article/20260702-the-back-to-the-future-parody-thats-a-global-hit"],
@@ -276,6 +290,15 @@ test("source-derived provider URL patterns match article URLs", () => {
     ],
     ["propublica", "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"],
     ["grist", "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"],
+    ["atlasobscura", "https://www.atlasobscura.com/articles/mummy-madness-10-of-the-most-amazing-mummies-in-the-world"],
+    ["atlasobscura", "https://www.atlasobscura.com/foods/poutine"],
+    ["jstordaily", "https://daily.jstor.org/internet-things-totally-new-hundred-years-old/"],
+    ["publicdomainreview", "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/"],
+    ["publicdomainreview", "https://publicdomainreview.org/collection/diagrams-for-travel/"],
+    ["hakaimagazine", "https://hakaimagazine.com/features/the-canoe-in-the-forest/"],
+    ["hakaimagazine", "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"],
+    ["yalee360", "https://e360.yale.edu/features/home-battery-vpps"],
+    ["worksinprogress", "https://worksinprogress.co/issue/how-to-build-a-state"],
     ["noema", "https://www.noemamag.com/example-story/"],
     ["natgeo", "https://www.nationalgeographic.com/travel/national-parks/article/acadia-national-park"],
     ["natgeo", "https://www.nationalgeographic.com/premium/article/benefits-pet-dog-ownership-mental-health"],
@@ -286,9 +309,6 @@ test("source-derived provider URL patterns match article URLs", () => {
 });
 
 test("source-derived URL filters reject non-article pages", () => {
-  const bbc = getProviderOrFail("bbc");
-  assert.equal(bbc.articleUrlFilter?.("https://www.bbc.com/news/live/c1234567890"), false);
-
   const bbcFeatures = getProviderOrFail("bbcfeatures");
   assert.equal(bbcFeatures.articleUrlFilter?.("https://www.bbc.com/news/articles/c1234567890"), false);
   assert.equal(bbcFeatures.articleUrlFilter?.("https://www.bbc.com/future"), false);
@@ -333,6 +353,31 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(grist.articleUrlFilter?.("https://grist.org/updates/grist-hires-austin-corona-to-cover-energy/"), false);
   assert.equal(grist.articleUrlFilter?.("https://grist.org/category/climate-energy/"), false);
   assert.equal(grist.articleUrlFilter?.("https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"), true);
+
+  const atlas = getProviderOrFail("atlasobscura");
+  assert.equal(atlas.articleUrlFilter?.("https://www.atlasobscura.com/places/obscure-place"), false);
+  assert.equal(atlas.articleUrlFilter?.("https://www.atlasobscura.com/articles/podcast-hidden-place"), false);
+  assert.equal(atlas.articleUrlFilter?.("https://www.atlasobscura.com/articles/hidden-history"), true);
+
+  const jstor = getProviderOrFail("jstordaily");
+  assert.equal(jstor.articleUrlFilter?.("https://daily.jstor.org/archives/"), false);
+  assert.equal(jstor.articleUrlFilter?.("https://daily.jstor.org/hidden-history/"), true);
+
+  const pdr = getProviderOrFail("publicdomainreview");
+  assert.equal(pdr.articleUrlFilter?.("https://publicdomainreview.org/blog/2026/06/site-news/"), false);
+  assert.equal(pdr.articleUrlFilter?.("https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/"), true);
+
+  const hakai = getProviderOrFail("hakaimagazine");
+  assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/wp-content/uploads/image.jpg"), false);
+  assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/features/the-canoe-in-the-forest/"), true);
+
+  const yale = getProviderOrFail("yalee360");
+  assert.equal(yale.articleUrlFilter?.("https://e360.yale.edu/digest/sperm-whale-dialects"), false);
+  assert.equal(yale.articleUrlFilter?.("https://e360.yale.edu/features/home-battery-vpps"), true);
+
+  const wip = getProviderOrFail("worksinprogress");
+  assert.equal(wip.articleUrlFilter?.("https://worksinprogress.co/wp-content/uploads/hero.jpg"), false);
+  assert.equal(wip.articleUrlFilter?.("https://worksinprogress.co/issue/how-to-build-a-state"), true);
 
   const natgeo = getProviderOrFail("natgeo");
   assert.equal(
@@ -711,7 +756,7 @@ test("isProviderCategoryReadingSuitable honours overrides and rejects null", () 
 test("getProviderByName resolves by Article.source name, case-insensitively", () => {
   assert.equal(getProviderByName("Noema Magazine")?.key, "noema");
   assert.equal(getProviderByName("  noema magazine  ")?.key, "noema");
-  assert.equal(getProviderByName("NBC News")?.key, "nbc");
+  assert.equal(getProviderByName("Time")?.key, "time");
   assert.equal(getProviderByName("BBC Features")?.key, "bbcfeatures");
   assert.equal(getProviderByName("The Conversation")?.key, "theconversation");
   assert.equal(getProviderByName("ProPublica")?.key, "propublica");

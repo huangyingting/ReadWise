@@ -1,7 +1,7 @@
 /**
  * Tests for JSON-LD-body inline-image recovery (Part B of the image-loss fix).
  *
- * Some providers (e.g. NBC News) serve a JSON-LD `articleBody` — canonical but
+ * Some providers serve a JSON-LD `articleBody` — canonical but
  * plain text, so wrapping it in `<p>` yields ZERO images. The body-choice logic
  * used to keep that JSON-LD body unconditionally and never even consider the
  * Readability body, dropping every inline `<img>` Readability had captured.

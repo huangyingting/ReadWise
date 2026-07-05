@@ -79,16 +79,16 @@ test("unknown-provider extraction preserves legitimate newsletter article and im
   );
 });
 
-test("nbc cleaned HTML drops provider chrome but keeps article image and video link", () => {
-  const cleanup = requireProviderCleanup("nbc", "NBC");
+test("huffpost cleaned HTML drops provider chrome but keeps article image and video link", () => {
+  const cleanup = requireProviderCleanup("huffpost", "HuffPost");
 
   const html = `<!doctype html><html><head>
     <meta property="og:title" content="Orcas Return to Northern Waters" />
     </head><body><article>
       <h1>Orcas Return to Northern Waters</h1>
       <p>${wordBlock(45, "orca")} as researchers document a changing migration.</p>
-      <figure><img src="https://media.nbcnews.com/orca-breach.jpg" alt="An orca breaching" /></figure>
-      <p>The research team also published a <a href="https://www.nbcnews.com/video/orca-field-report">field video report</a> for readers.</p>
+      <figure><img src="https://img.huffingtonpost.com/orca-breach.jpg" alt="An orca breaching" /></figure>
+      <p>The research team also published a <a href="https://www.huffpost.com/video/orca-field-report">field video report</a> for readers.</p>
       <aside class="related"><h2>Related</h2><a href="/other">Another story</a></aside>
       <div class="social-share">Share on Facebook</div>
       <div class="newsletter">Sign up for the morning newsletter</div>
@@ -112,7 +112,7 @@ test("nbc cleaned HTML drops provider chrome but keeps article image and video l
 
   const content = extractContent(
     html,
-    "https://www.nbcnews.com/science/orcas-return-rcna123456",
+    "https://www.huffpost.com/entry/orcas-return-to-northern-waters_l_123abc",
     "article should extract",
   );
   assertNoProviderNoise(content, [
