@@ -57,15 +57,24 @@ Only **serious** and **critical** impact violations fail CI.  Lower-severity
 violations (`moderate`, `minor`) are surfaced in the axe report and reviewed
 manually but do not block builds at the baseline.
 
-This threshold will be tightened over time as known lower-severity issues are
-resolved.
+Moderate and minor axe findings remain non-blocking. They are still reviewed
+when surfaced locally or in reports, but this baseline intentionally blocks only
+serious/critical impact issues until known lower-severity noise is burned down.
 
-### Keyboard-focus smoke check
+### Targeted keyboard and live-region regressions
 
-In addition to the full axe scan, the reader surface includes a targeted
-keyboard-focus test: the **Display settings** toolbar button must be
-programmatically focusable, confirming that focus management in the reader
-toolbar is intact.
+In addition to the full axe scan, `e2e/accessibility.spec.ts` includes targeted
+regressions for the documented keyboard flows that axe cannot prove:
+
+- Reader toolbar **Display settings** remains programmatically focusable.
+- Command palette focus is trapped while open and Escape returns focus to the
+  element that opened it.
+- Keyboard-shortcuts modal keeps focus inside the dialog until Escape closes it.
+- Flashcard review can be operated by keyboard and announces answer reveal state
+  through an `aria-live` region.
+- Offline Today mutations surface a polite live-region status while queued.
+- Reduced-motion mode collapses tokenized motion durations.
+- Admin article filters and table column headers expose stable accessible labels.
 
 ### Known-issue allowlist
 
@@ -106,7 +115,7 @@ cannot fully verify.  Manual testing is required on each release.
 | Surface | Risk area | Manual check |
 |---------|-----------|--------------|
 | Reader toolbar | Focus ring visible on all buttons; correct `aria-label` | Tab through toolbar; verify ring + VoiceOver/NVDA reads labels |
-| Word lookup popover | Focus trapped inside popover when open | Open lookup; Tab must not leave the popover |
+| Word lookup popover | Focus moves to the popover and Escape returns focus | Open lookup; Tab/Escape must stay predictable |
 | Reader selection toolbar | Focus enters the active swatch; Tab wraps inside text actions; Escape returns to reader prose | Select text, press Ctrl/Cmd+E, verify focus and Escape return |
 | Highlights / notes panel | Focus moves to panel on open; returns on close | Open panel; close; confirm focus returns to trigger |
 | Audio mini-player | Play/pause/skip controls keyboard-operable | Tab to each control; press Space/Enter |
@@ -186,9 +195,7 @@ flashcard flip, and the audio mini-player under reduced-motion settings.
 
 The following areas are not yet covered by automated accessibility checks:
 
-- Flashcard keyboard-operability and ARIA state announcement.
-- Command palette focus-trap and Escape-return assertion.
-- Admin table column sort ARIA label verification.
-- Offline sync indicator `aria-live` region check.
-- Reduced-motion smoke test for reader and flashcard animations.
 - Colour contrast manual audit for custom colour tokens.
+- Full screen-reader announcement verification in VoiceOver/NVDA for the word
+  lookup popover and admin tables.
+- Reader selection toolbar focus trap and Escape-return assertion.

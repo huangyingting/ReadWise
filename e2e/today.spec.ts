@@ -1,11 +1,5 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
 /**
  * Today Session learner happy path (#800).
@@ -16,22 +10,6 @@ import {
  * and confirms the reading step advances to "Done". The Today feature flag
  * defaults to enabled, so the existing smoke tiers are unaffected.
  */
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInLearner(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
-
 function collectTodayRenderErrors(page: Page): string[] {
   const messages: string[] = [];
   const renderErrorPatterns = [
@@ -60,8 +38,8 @@ function collectTodayRenderErrors(page: Page): string[] {
   return messages;
 }
 
-async function gotoToday(context: BrowserContext, page: Page) {
-  await signInLearner(context);
+async function gotoToday(signIn: () => Promise<unknown>, page: Page) {
+  await signIn();
   const renderErrors = collectTodayRenderErrors(page);
   // Onboarded learners default to /today when the feature flag is on; the
   // post-sign-in and onboarding redirects (see learner-landing) target it.
@@ -73,10 +51,10 @@ async function gotoToday(context: BrowserContext, page: Page) {
 }
 
 test("learner lands on /today and sees the daily plan", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoToday(context, page);
+  await gotoToday(signIn, page);
 
   // The day's primary article resolves to a readable card linking to the reader.
   const articleLink = page
@@ -94,10 +72,10 @@ test("learner lands on /today and sees the daily plan", async ({
 });
 
 test("learner completes today's reading via the manual fallback", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoToday(context, page);
+  await gotoToday(signIn, page);
 
   // Mark today's reading done through the Today-only manual fallback.
   const markRead = page.getByRole("button", { name: "Mark reading done" });
@@ -113,10 +91,10 @@ test("learner completes today's reading via the manual fallback", async ({
 });
 
 test("learner can skip today and is shown a browse fallback", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoToday(context, page);
+  await gotoToday(signIn, page);
 
   const skip = page.getByRole("button", { name: "Skip today" });
   await expect(skip).toBeVisible();

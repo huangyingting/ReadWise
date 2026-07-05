@@ -6,30 +6,8 @@
  * clicking it flips the aria-pressed state (optimistic UI) and that a second
  * click restores the original state.
  */
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
-
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInReader(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
 async function gotoSeededArticle(page: Page) {
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
@@ -38,8 +16,8 @@ async function gotoSeededArticle(page: Page) {
   ).toBeVisible();
 }
 
-test("bookmark toggle: saves and then un-saves an article", async ({ context, page }) => {
-  await signInReader(context);
+test("bookmark toggle: saves and then un-saves an article", async ({ signIn, page }) => {
+  await signIn();
   await gotoSeededArticle(page);
 
   const saveBtn = page.getByRole("button", { name: "Save to reading list" });
@@ -57,8 +35,7 @@ test("bookmark toggle: saves and then un-saves an article", async ({ context, pa
   await expect(saveBtn).toHaveAttribute("aria-pressed", "false");
 });
 
-test("bookmark group is visible on the article page", async ({ context, page }) => {
-  await signInReader(context);
+test("bookmark group is visible on the article page", async ({ readerPage: page }) => {
   await gotoSeededArticle(page);
   await expect(page.getByRole("group", { name: "Bookmark controls" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Save to reading list" })).toBeVisible();

@@ -12,13 +12,19 @@
  */
 
 import { randomUUID } from "node:crypto";
-import { ArticleStatus, type Role } from "@prisma/client";
+import {
+  ArticleStatus,
+  type Classroom,
+  type Role,
+  type User,
+} from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 
 import { assertSafeE2eDatabaseUrl } from "./db-guard";
 
 export const TEST_ARTICLE_ID = "e2e-critical-reader";
+const FIXED_ARTICLE_PUBLISHED_AT = new Date("2026-01-15T12:00:00.000Z");
 
 export const ARTICLE_BODY = `
   <p>ReadWise helps learners read real English news with confidence. This smoke
@@ -102,6 +108,27 @@ export async function resetE2eDatabase(): Promise<void> {
   assertSafeE2eDatabaseUrl();
 
   await prisma.$transaction([
+    prisma.todayComprehensionFeedback.deleteMany(),
+    prisma.todaySession.deleteMany(),
+    prisma.assignmentCompletion.deleteMany(),
+    prisma.assignment.deleteMany(),
+    prisma.classroomMembership.deleteMany(),
+    prisma.classroom.deleteMany(),
+    prisma.membership.deleteMany(),
+    prisma.organization.deleteMany(),
+    prisma.contentReport.deleteMany(),
+    prisma.contentReview.deleteMany(),
+    prisma.mediaAsset.deleteMany(),
+    prisma.articleProcessingStep.deleteMany(),
+    prisma.analyticsEvent.deleteMany(),
+    prisma.reminderPreference.deleteMany(),
+    prisma.placementResult.deleteMany(),
+    prisma.seriesEnrollment.deleteMany(),
+    prisma.readingSeries.deleteMany(),
+    prisma.skillMastery.deleteMany(),
+    prisma.articleMastery.deleteMany(),
+    prisma.wordMastery.deleteMany(),
+    prisma.learnerCoachMemory.deleteMany(),
     prisma.articleDifficultyFeedback.deleteMany(),
     prisma.grammarExplanation.deleteMany(),
     prisma.pronunciationAttempt.deleteMany(),
@@ -167,6 +194,23 @@ export async function createUserWithSession({
   return { userId, sessionToken, expires };
 }
 
+export async function createSessionForUser(
+  userId: string,
+): Promise<{ userId: string; sessionToken: string; expires: Date }> {
+  const sessionToken = `e2e-session-${randomUUID()}`;
+  const expires = new Date(Date.now() + SESSION_TTL_MS);
+
+  await prisma.session.create({
+    data: {
+      userId,
+      sessionToken,
+      expires,
+    },
+  });
+
+  return { userId, sessionToken, expires };
+}
+
 /**
  * Seeds the deterministic E2E article fixtures (smoke articles + tech tag)
  * into an already-reset database.
@@ -175,11 +219,9 @@ export async function createUserWithSession({
  * integration tests can reuse the same fixture set without copy-pasting.
  */
 export async function seedE2eArticles(): Promise<void> {
-  const now = new Date();
-
   for (const article of E2E_ARTICLES) {
     await prisma.article.create({
-      data: articleCreateData(article, now),
+      data: articleCreateData(article, FIXED_ARTICLE_PUBLISHED_AT),
     });
   }
 
@@ -189,4 +231,72 @@ export async function seedE2eArticles(): Promise<void> {
   await prisma.articleTag.create({
     data: { articleId: TEST_ARTICLE_ID, tagId: tag.id },
   });
+}
+
+export async function seedDueFlashcard(userId: string): Promise<void> {
+  await prisma.savedWord.create({
+    data: {
+      userId,
+      word: "confidence",
+      explanation: "A feeling that you can do something well.",
+      example: "Learners read with more confidence after regular practice.",
+      contextSentence: "ReadWise helps learners read real English news with confidence.",
+      articleId: TEST_ARTICLE_ID,
+      dueAt: new Date("2026-01-01T00:00:00.000Z"),
+    },
+  });
+}
+
+export async function seedTeacherClassroom(): Promise<{
+  teacher: User;
+  student: User;
+  classroom: Classroom;
+}> {
+  const teacher = await prisma.user.create({
+    data: {
+      id: "e2e-teacher",
+      name: "E2E Teacher",
+      email: "e2e-teacher@example.com",
+      role: "Reader",
+      profile: { create: onboardedProfileCreateData().profile.create },
+    },
+  });
+  const student = await prisma.user.create({
+    data: {
+      id: "e2e-student",
+      name: "E2E Student",
+      email: "e2e-student@example.com",
+      role: "Reader",
+      profile: { create: onboardedProfileCreateData().profile.create },
+    },
+  });
+  const org = await prisma.organization.create({
+    data: {
+      id: "e2e-org",
+      name: "E2E Learning Org",
+      slug: "e2e-learning-org",
+    },
+  });
+  await prisma.membership.create({
+    data: { userId: teacher.id, orgId: org.id, role: "OrgAdmin" },
+  });
+  await prisma.membership.create({
+    data: { userId: student.id, orgId: org.id, role: "Student" },
+  });
+  const classroom = await prisma.classroom.create({
+    data: {
+      id: "e2e-classroom",
+      orgId: org.id,
+      name: "E2E Reading Group",
+      teacherId: teacher.id,
+    },
+  });
+  await prisma.classroomMembership.createMany({
+    data: [
+      { classroomId: classroom.id, userId: teacher.id, role: "Teacher" },
+      { classroomId: classroom.id, userId: student.id, role: "Student" },
+    ],
+  });
+
+  return { teacher, student, classroom };
 }
