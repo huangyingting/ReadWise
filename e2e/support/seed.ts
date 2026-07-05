@@ -2,13 +2,17 @@ import type { BrowserContext } from "@playwright/test";
 
 import { prisma } from "@/lib/prisma";
 import {
-  createUserWithSession,
   resetE2eDatabase,
   seedE2eArticles,
-  TEST_ARTICLE_ID,
 } from "@/lib/testing/e2e-fixtures";
 
-export { TEST_ARTICLE_ID, createUserWithSession } from "@/lib/testing/e2e-fixtures";
+export {
+  TEST_ARTICLE_ID,
+  createUserWithSession,
+  createSessionForUser,
+  seedDueFlashcard,
+  seedTeacherClassroom,
+} from "@/lib/testing/e2e-fixtures";
 
 const BASE_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://127.0.0.1:3100";
 const SESSION_COOKIE_NAME = "next-auth.session-token";

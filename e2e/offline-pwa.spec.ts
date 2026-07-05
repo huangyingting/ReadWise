@@ -14,32 +14,15 @@
  * No external providers or AI services are required. All pages are accessible
  * to any onboarded authenticated reader.
  */
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-} from "./support/seed";
+import { test, expect } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInReader(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
-
-async function gotoProtectedPage(context: BrowserContext, page: Page, path: string) {
-  await signInReader(context);
+async function gotoProtectedPage(
+  signIn: () => Promise<unknown>,
+  page: Page,
+  path: string,
+) {
+  await signIn();
   await page.goto(path);
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
@@ -49,15 +32,15 @@ async function gotoProtectedPage(context: BrowserContext, page: Page, path: stri
 // ---------------------------------------------------------------------------
 
 test("offline library loads and shows Offline Library heading", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoProtectedPage(context, page, "/offline");
+  await gotoProtectedPage(signIn, page, "/offline");
   await expect(page.getByRole("heading", { name: "Offline Library" })).toBeVisible();
 });
 
-test("offline library shows instructional subtitle", async ({ context, page }) => {
-  await gotoProtectedPage(context, page, "/offline");
+test("offline library shows instructional subtitle", async ({ signIn, page }) => {
+  await gotoProtectedPage(signIn, page, "/offline");
   await expect(
     page.getByText(/Articles saved here are available when you.re offline/),
   ).toBeVisible();
@@ -68,15 +51,15 @@ test("offline library shows instructional subtitle", async ({ context, page }) =
 // ---------------------------------------------------------------------------
 
 test("progress page loads and shows My Progress heading", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoProtectedPage(context, page, "/progress");
+  await gotoProtectedPage(signIn, page, "/progress");
   await expect(page.getByRole("heading", { name: "My Progress" })).toBeVisible();
 });
 
-test("progress page shows empty activity state for a new reader", async ({ context, page }) => {
-  await gotoProtectedPage(context, page, "/progress");
+test("progress page shows empty activity state for a new reader", async ({ signIn, page }) => {
+  await gotoProtectedPage(signIn, page, "/progress");
   await expect(
     page.getByText(/No reading activity in the past 52 weeks/),
   ).toBeVisible();
@@ -87,20 +70,20 @@ test("progress page shows empty activity state for a new reader", async ({ conte
 // ---------------------------------------------------------------------------
 
 test("notes page loads and shows Notes & Highlights heading", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoProtectedPage(context, page, "/notes");
+  await gotoProtectedPage(signIn, page, "/notes");
   await expect(
     page.getByRole("heading", { name: "Notes & Highlights" }),
   ).toBeVisible();
 });
 
 test("notes page shows empty state when user has no highlights", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoProtectedPage(context, page, "/notes");
+  await gotoProtectedPage(signIn, page, "/notes");
   await expect(page.getByText("No highlights yet")).toBeVisible();
 });
 

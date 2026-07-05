@@ -8,64 +8,47 @@
  *
  * No external providers (OAuth, AI, Speech) are required.
  */
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-} from "./support/seed";
+import { test, expect } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInReader(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
-
-async function gotoAuthenticatedPage(context: BrowserContext, page: Page, path: string) {
-  await signInReader(context);
+async function gotoAuthenticatedPage(
+  signIn: () => Promise<unknown>,
+  page: Page,
+  path: string,
+) {
+  await signIn();
   await page.goto(path);
   await expect(page).toHaveURL(new RegExp(`${path}$`));
 }
 
-test("teacher workspace loads and shows Teaching heading", async ({ context, page }) => {
-  await gotoAuthenticatedPage(context, page, "/teacher");
+test("teacher workspace loads and shows Teaching heading", async ({ signIn, page }) => {
+  await gotoAuthenticatedPage(signIn, page, "/teacher");
   await expect(page.getByRole("heading", { name: "Teaching" })).toBeVisible();
 });
 
 test("teacher workspace shows empty classroom state for a new reader", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoAuthenticatedPage(context, page, "/teacher");
+  await gotoAuthenticatedPage(signIn, page, "/teacher");
   await expect(page.getByRole("heading", { name: "Teaching" })).toBeVisible();
   // A user with no classrooms sees the empty state
   await expect(page.getByText("No classrooms yet")).toBeVisible();
 });
 
 test("student assignments page loads and shows Assignments heading", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoAuthenticatedPage(context, page, "/assignments");
+  await gotoAuthenticatedPage(signIn, page, "/assignments");
   await expect(page.getByRole("heading", { name: "Assignments" })).toBeVisible();
 });
 
 test("student assignments page shows empty state when no assignments exist", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await gotoAuthenticatedPage(context, page, "/assignments");
+  await gotoAuthenticatedPage(signIn, page, "/assignments");
   await expect(page.getByRole("heading", { name: "Assignments" })).toBeVisible();
   await expect(page.getByText("No assignments yet")).toBeVisible();
 });

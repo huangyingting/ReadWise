@@ -1,30 +1,5 @@
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
-
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signIn(
-  context: BrowserContext,
-  options: Parameters<typeof createUserWithSession>[0] = {},
-) {
-  const { sessionToken, expires } = await createUserWithSession(options);
-  await addSessionCookie(context, sessionToken, expires);
-}
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
 async function expectSeededReader(page: Page) {
   await expect(page).toHaveURL(new RegExp(`/reader/${TEST_ARTICLE_ID}$`));
@@ -34,10 +9,10 @@ async function expectSeededReader(page: Page) {
 }
 
 test("shows onboarding for an authenticated reader without a profile", async ({
-  context,
+  signIn,
   page,
 }) => {
-  await signIn(context, {
+  await signIn({
     onboarded: false,
   });
 
@@ -52,13 +27,8 @@ test("shows onboarding for an authenticated reader without a profile", async ({
 });
 
 test("opens dashboard, browse, reader, and admin with a seeded admin session", async ({
-  context,
-  page,
+  adminPage: page,
 }) => {
-  await signIn(context, {
-    role: "Admin",
-  });
-
   await page.goto("/dashboard");
   await expect(page.getByRole("heading", { name: "Dashboard" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "For You" })).toBeVisible();
@@ -91,10 +61,10 @@ test.describe("mobile-ish reader", () => {
   });
 
   test("keeps core reading controls usable on a narrow viewport", async ({
-    context,
-    page,
+    signIn,
+    mobilePage: page,
   }) => {
-    await signIn(context);
+    await signIn();
 
     await page.goto(`/reader/${TEST_ARTICLE_ID}`);
     await expectSeededReader(page);

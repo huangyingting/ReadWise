@@ -8,33 +8,9 @@
  * The test verifies that the pages render with correct headings and core
  * controls so that a regression in admin middleware or layout is caught early.
  */
-import { expect, test, type BrowserContext } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-} from "./support/seed";
+import { test, expect } from "./support/fixtures";
 
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInAs(context: BrowserContext, role: "Admin" | "Reader") {
-  const { sessionToken, expires } = await createUserWithSession({ role });
-  await addSessionCookie(context, sessionToken, expires);
-}
-
-test("admin can view the Articles management page", async ({ context, page }) => {
-  await signInAs(context, "Admin");
-
+test("admin can view the Articles management page", async ({ adminPage: page }) => {
   await page.goto("/admin/articles");
   await expect(page).toHaveURL(/\/admin\/articles$/);
   await expect(page.getByRole("heading", { name: "Articles" })).toBeVisible();
@@ -50,9 +26,7 @@ test("admin can view the Articles management page", async ({ context, page }) =>
   ).toBeVisible();
 });
 
-test("admin can filter articles by status", async ({ context, page }) => {
-  await signInAs(context, "Admin");
-
+test("admin can filter articles by status", async ({ adminPage: page }) => {
   await page.goto("/admin/articles");
   await expect(page.getByRole("heading", { name: "Articles" })).toBeVisible();
 
@@ -61,28 +35,21 @@ test("admin can filter articles by status", async ({ context, page }) => {
   await expect(statusFilter).toBeVisible();
 });
 
-test("admin can view the Jobs queue page", async ({ context, page }) => {
-  await signInAs(context, "Admin");
-
+test("admin can view the Jobs queue page", async ({ adminPage: page }) => {
   await page.goto("/admin/jobs");
   await expect(page).toHaveURL(/\/admin\/jobs$/);
   await expect(page.getByRole("heading", { name: "Jobs" })).toBeVisible();
 });
 
-test("admin can view the Members page", async ({ context, page }) => {
-  await signInAs(context, "Admin");
-
+test("admin can view the Members page", async ({ adminPage: page }) => {
   await page.goto("/admin/members");
   await expect(page).toHaveURL(/\/admin\/members$/);
   await expect(page.getByRole("heading", { name: "Members" })).toBeVisible();
 });
 
 test("admin article sort headers expose aria-sort and keyboard links", async ({
-  context,
-  page,
+  adminPage: page,
 }) => {
-  await signInAs(context, "Admin");
-
   await page.goto("/admin/articles?sort=title&order=asc");
 
   const titleHeader = page.locator("th[aria-sort='ascending']").filter({
@@ -101,9 +68,7 @@ test("admin article sort headers expose aria-sort and keyboard links", async ({
   await expect(page).toHaveURL(/order=desc/);
 });
 
-test("non-admin reader is redirected away from /admin", async ({ context, page }) => {
-  await signInAs(context, "Reader");
-
+test("non-admin reader is redirected away from /admin", async ({ readerPage: page }) => {
   await page.goto("/admin");
   // Readers should not reach the admin dashboard
   await expect(page).not.toHaveURL(/\/admin$/);

@@ -7,30 +7,8 @@
  * empty/loading state and the vocabulary panel shows the words tab; the test
  * does not depend on AI-generated content.
  */
-import { expect, test, type BrowserContext, type Page } from "@playwright/test";
-import {
-  addSessionCookie,
-  createUserWithSession,
-  disconnectDb,
-  seedSmokeData,
-  TEST_ARTICLE_ID,
-} from "./support/seed";
-
-test.describe.configure({ mode: "serial" });
-
-test.beforeEach(async ({ context }) => {
-  await context.clearCookies();
-  await seedSmokeData();
-});
-
-test.afterAll(async () => {
-  await disconnectDb();
-});
-
-async function signInReader(context: BrowserContext) {
-  const { sessionToken, expires } = await createUserWithSession();
-  await addSessionCookie(context, sessionToken, expires);
-}
+import { test, expect, TEST_ARTICLE_ID } from "./support/fixtures";
+import type { Page } from "@playwright/test";
 
 async function openPracticeTools(page: Page) {
   await page.goto(`/reader/${TEST_ARTICLE_ID}`);
@@ -40,8 +18,7 @@ async function openPracticeTools(page: Page) {
   await page.getByRole("button", { name: "Practice tools", exact: true }).click();
 }
 
-test("opens the Practice tools panel and shows the quiz tab", async ({ context, page }) => {
-  await signInReader(context);
+test("opens the Practice tools panel and shows the quiz tab", async ({ readerPage: page }) => {
   await openPracticeTools(page);
 
   // The tablist should be visible
@@ -52,8 +29,7 @@ test("opens the Practice tools panel and shows the quiz tab", async ({ context, 
   await expect(page.getByRole("tabpanel", { name: /quiz/i })).toBeVisible();
 });
 
-test("vocabulary (Words) tab is accessible from Practice tools", async ({ context, page }) => {
-  await signInReader(context);
+test("vocabulary (Words) tab is accessible from Practice tools", async ({ readerPage: page }) => {
   await openPracticeTools(page);
 
   // Click the Words tab
@@ -62,11 +38,8 @@ test("vocabulary (Words) tab is accessible from Practice tools", async ({ contex
 });
 
 test("navigating to /study shows the Study list page for an authenticated reader", async ({
-  context,
-  page,
+  readerPage: page,
 }) => {
-  await signInReader(context);
-
   await page.goto("/study");
   await expect(page.getByRole("heading", { name: "Study list" })).toBeVisible();
 });
