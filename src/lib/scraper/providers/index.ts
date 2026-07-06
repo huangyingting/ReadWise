@@ -39,6 +39,7 @@ import publicDomainReview from "./publicdomainreview";
 import hakaiMagazine from "./hakaimagazine";
 import yaleEnvironment360 from "./yalee360";
 import worksInProgress from "./worksinprogress";
+import wired from "./wired";
 
 export const PROVIDERS: readonly Provider[] = [
   natgeo,
@@ -61,6 +62,7 @@ export const PROVIDERS: readonly Provider[] = [
   hakaiMagazine,
   yaleEnvironment360,
   worksInProgress,
+  wired,
 ];
 
 function normalizeUrlHostname(hostname: string): string {
