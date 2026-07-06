@@ -257,11 +257,19 @@ test("reading-source providers discover non-sports article URLs from their stron
       fetch: async (url) =>
         sitemap([
           "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
+          "https://hakaimagazine.com/news/how-exactly-could-deep-sea-mining-benefit-all-of-humanity/",
+          "https://hakaimagazine.com/videos-visuals/one-great-shot-let-us-admire-the-lettuce-slug/",
+          "https://hakaimagazine.com/article-short/so-long-and-thanks-for-all-the-fish/",
           "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/",
           "https://hakaimagazine.com/wp-content/uploads/the-canoe.jpg",
         ]),
     }),
-    ["https://hakaimagazine.com/features/the-canoe-in-the-forest/"],
+    [
+      "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
+      "https://hakaimagazine.com/news/how-exactly-could-deep-sea-mining-benefit-all-of-humanity/",
+      "https://hakaimagazine.com/videos-visuals/one-great-shot-let-us-admire-the-lettuce-slug/",
+      "https://hakaimagazine.com/article-short/so-long-and-thanks-for-all-the-fish/",
+    ],
   );
 
   assert.ok(yaleEnvironment360.urlExtractor);

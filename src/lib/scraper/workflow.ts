@@ -53,8 +53,20 @@ const ATLAS_WORKFLOW: Omit<ProviderWorkflowConfig, "providerKey"> = {
   reviewSampleSize: 50,
 };
 
+const HAKAI_WORKFLOW: Omit<ProviderWorkflowConfig, "providerKey"> = {
+  ...DEFAULT_WORKFLOW,
+  fetchPlan: [
+    { strategy: "http", enabled: true },
+    { strategy: "profile-http", enabled: false, fallbackOnly: true },
+    { strategy: "playwright", enabled: true, fallbackOnly: true },
+    { strategy: "reader-proxy", enabled: true, fallbackOnly: true },
+    { strategy: "wayback", enabled: true, fallbackOnly: true },
+  ],
+};
+
 const PROVIDER_OVERRIDES: Record<string, Omit<ProviderWorkflowConfig, "providerKey">> = {
   atlasobscura: ATLAS_WORKFLOW,
+  hakaimagazine: HAKAI_WORKFLOW,
 };
 
 export function providerWorkflowConfig(

@@ -189,6 +189,14 @@ test("provider workflow config captures Atlas Playwright tuning", () => {
   assert.match(fetchPlanSummary(config), /profile-http:off fallback/);
 });
 
+test("provider workflow config disables profile-http for Hakai only", () => {
+  const config = providerWorkflowConfig({ key: "hakaimagazine" });
+
+  assert.match(fetchPlanSummary(config), /http:on/);
+  assert.match(fetchPlanSummary(config), /profile-http:off fallback/);
+  assert.match(fetchPlanSummary(config), /playwright:on fallback/);
+});
+
 test("provider workflow applies fetch strategy environment flags", () => {
   const previous = {
     profile: process.env.SCRAPER_FETCH_PROFILE_RETRY,
