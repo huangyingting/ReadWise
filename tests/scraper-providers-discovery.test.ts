@@ -736,7 +736,7 @@ test("WIRED extractor prefers news/monthly sitemaps, filters commerce URLs, and 
         return sitemap([fromMonthly, "https://www.wired.com/story/best-july-fourth-mattress-deals-2026/"]);
       }
       if (url === "https://www.wired.com/sitemap-2026-06.xml") throw new Error("older month unavailable");
-      if (url === "https://www.wired.com/feed/rss") return rss([fromRss]);
+      if (url === "https://www.wired.com/feed/rss") return rss(["http://[::1", fromRss]);
       if (url === provider.seeds[0]) return `<a href="${fromSeed}?itm=home#comments">Seed story</a>`;
       throw new Error("remaining seed unavailable");
     },
@@ -745,5 +745,28 @@ test("WIRED extractor prefers news/monthly sitemaps, filters commerce URLs, and 
   assert.deepEqual(
     result.map((entry) => (typeof entry === "string" ? entry : entry.url)),
     [fromNews, fromMonthly, fromRss, fromSeed],
+  );
+});
+
+test("WIRED extractor falls back to RSS and seed pages when sitemap index is unavailable", async () => {
+  const provider = (await import("@/lib/scraper/providers/wired")).default;
+  assert.ok(provider.urlExtractor);
+
+  const fromRss = "https://www.wired.com/story/how-to-avoid-spoilers-online/";
+  const fromSeed = "https://www.wired.com/story/inside-the-luddite-festival-harnessing-gen-zs-rage-against-big-tech/";
+  const result = await provider.urlExtractor({
+    limit: 10,
+    fetch: async (url) => {
+      if (url === "https://www.wired.com/feed/google-latest-news/sitemap-google-news") return sitemap([]);
+      if (url === "https://www.wired.com/sitemap.xml") throw new Error("sitemap index unavailable");
+      if (url === "https://www.wired.com/feed/rss") return rss([fromRss]);
+      if (url === provider.seeds[0]) return `<a href="${fromSeed}">Seed story</a>`;
+      throw new Error("remaining seed unavailable");
+    },
+  });
+
+  assert.deepEqual(
+    result.map((entry) => (typeof entry === "string" ? entry : entry.url)),
+    [fromRss, fromSeed],
   );
 });

@@ -42,12 +42,8 @@ function normalizeCandidateUrl(raw: string, baseUrl?: string): string | null {
 
 export function isWiredArticleUrl(url: string): boolean {
   if (!WIRED_ARTICLE_URL_RE.test(url)) return false;
-  try {
-    const slug = new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "";
-    return !WIRED_NON_EDITORIAL_SLUG_RE.test(slug);
-  } catch {
-    return false;
-  }
+  const slug = new URL(url).pathname.split("/").filter(Boolean).at(-1) ?? "";
+  return !WIRED_NON_EDITORIAL_SLUG_RE.test(slug);
 }
 
 function sitemapTimestamp(url: string): number {

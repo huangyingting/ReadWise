@@ -230,6 +230,10 @@ test("runtime config leaf modules clamp environment values", async () => {
     database.databaseUrlForPrismaAdapter("file:../root.db"),
     `file:${path.join(process.cwd(), "root.db").replace(/\\/g, "/")}`,
   );
+  assert.equal(
+    database.databaseUrlForPrismaAdapter("file:./ci.db?connection_limit=1"),
+    `file:${path.join(process.cwd(), "prisma/ci.db").replace(/\\/g, "/")}?connection_limit=1`,
+  );
   assert.equal(database.databaseUrlForPrismaAdapter("file:/tmp/readwise.db"), "file:/tmp/readwise.db");
   assert.equal(database.databaseUrlForPrismaAdapter("file::memory:"), "file::memory:");
   assert.equal(database.databaseUrlForPrismaAdapter("postgresql://db.example/readwise"), "postgresql://db.example/readwise");

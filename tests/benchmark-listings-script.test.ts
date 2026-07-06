@@ -99,7 +99,7 @@ mock.module("@/lib/feed", {
 });
 
 test("benchmark listings script runs browse and optional feed scenarios without content output", async () => {
-  const { main } = await importScript();
+  const { disconnectIfNeeded, main } = await importScript();
   const originalArgv = process.argv;
   process.argv = [
     process.execPath,
@@ -131,6 +131,27 @@ test("benchmark listings script runs browse and optional feed scenarios without 
     assert.match(logs.join("\n"), /personalized-feed/);
     assert.doesNotMatch(logs.join("\n"), /user-123|climate|article-1|article-2/);
     assert.equal(disconnects, 0);
+    await disconnectIfNeeded();
+    assert.equal(disconnects, 1);
+  } finally {
+    process.argv = originalArgv;
+  }
+});
+
+test("benchmark listings script prints help without loading database-backed modules", async () => {
+  const { main } = await importScript();
+  const originalArgv = process.argv;
+  process.argv = [process.execPath, "scripts/benchmark-listings.ts", "--help"];
+
+  try {
+    const { result, logs, errors } = await captureConsole(() => main());
+
+    assert.equal(result, 0);
+    assert.equal(listCalls.length, 0);
+    assert.equal(feedCalls.length, 0);
+    assert.match(logs.join("\n"), /Usage:/);
+    assert.match(logs.join("\n"), /READWISE_BENCHMARK_ALLOW_REMOTE_DB=1/);
+    assert.equal(errors.join("\n"), "");
   } finally {
     process.argv = originalArgv;
   }
@@ -154,4 +175,41 @@ test("benchmark listings script refuses non-SQLite databases unless explicitly a
   } finally {
     process.argv = originalArgv;
   }
+});
+
+test("benchmark listings CLI disconnects and exits on success or failure", async () => {
+  const { runBenchmarkCli } = await importScript();
+  const exits: Array<number | undefined> = [];
+  const errors: string[] = [];
+
+  await runBenchmarkCli({
+    main: async () => 2,
+    disconnect: async () => {
+      disconnects++;
+    },
+    error: (...args: unknown[]) => errors.push(args.join(" ")),
+    exit: (code?: number) => {
+      exits.push(code);
+    },
+  });
+  assert.deepEqual([...exits], [2]);
+  assert.equal(disconnects, 1);
+  assert.equal(errors.length, 0);
+
+  await runBenchmarkCli({
+    main: async () => {
+      throw new Error("benchmark boom");
+    },
+    disconnect: async () => {
+      disconnects++;
+    },
+    error: (...args: unknown[]) => errors.push(args.join(" ")),
+    exit: (code?: number) => {
+      exits.push(code);
+    },
+  });
+  assert.deepEqual([...exits], [2, 1]);
+  assert.equal(disconnects, 2);
+  assert.match(errors.join("\n"), /benchmark listings failed:/);
+  assert.match(errors.join("\n"), /benchmark boom/);
 });
