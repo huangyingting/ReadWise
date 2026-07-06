@@ -292,3 +292,100 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
   assert.match(content, /article-heat\.jpg/i, "article image must survive");
   assert.match(content, /A visible article caption should remain/i, "article caption must survive");
 });
+
+test("wired cleanup drops exact recirc/newsletter residue while preserving prose", () => {
+  const cleanup = requireProviderCleanup("wired", "WIRED");
+
+  const html = `<!doctype html><html><head>
+    <meta property="og:title" content="Fungi Map the Future" />
+    </head><body><article>
+      <h1>Fungi Map the Future</h1>
+      <p>${wordBlock(45, "mycelium")} as scientists compare soil networks across continents.</p>
+      <p>More Great WIRED Stories</p>
+      <figure><img src="https://media.wired.com/photos/fungi.jpg" alt="A network of fungi" /></figure>
+      <p>${wordBlock(45, "forest")} as the map changes how researchers understand ecosystems.</p>
+      <p>This is an edition of the Inner Loop newsletter. Read previous newsletters here.</p>
+      <p>${wordBlock(45, "climate")} as the reporting returns to the larger climate stakes.</p>
+    </article></body></html>`;
+
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
+  assertNoProviderNoise(cleaned, [
+    /More Great WIRED Stories/i,
+    /Inner Loop newsletter/i,
+    /previous newsletters/i,
+  ]);
+  assert.match(cleaned, /fungi\.jpg/i, "article image must survive cleanup");
+
+  const content = extractContent(
+    html,
+    "https://www.wired.com/story/theres-a-global-network-of-fungi-under-your-feet-this-is-the-first-complete-map/",
+    "article should extract",
+  );
+  assertNoProviderNoise(content, [
+    /More Great WIRED Stories/i,
+    /Inner Loop newsletter/i,
+    /previous newsletters/i,
+  ]);
+  assert.match(content, /fungi\.jpg/i, "article image must survive final extraction");
+  assert.match(content, /mycelium1/i, "article prose must survive final extraction");
+  assert.match(content, /climate1/i, "article tail prose must survive final extraction");
+
+  const articleBody = [
+    `${wordBlock(45, "network")} as the structured article body describes the actual reporting.`,
+    "More Great WIRED Stories",
+    `${wordBlock(45, "archive")} as the middle section keeps the reader focused on evidence.`,
+    "This is an edition of the Inner Loop newsletter. Read previous newsletters here.",
+    `${wordBlock(45, "future")} as the final section explains why the finding matters.`,
+  ].join("\n\n");
+  const jsonLd = {
+    "@type": "Article",
+    headline: "Fungi Map the Future",
+    author: { name: "Example Reporter" },
+    datePublished: "2026-07-05T11:00:00Z",
+    image: "https://media.wired.com/photos/fungi.jpg",
+    articleBody,
+  };
+  const jsonLdHtml = `<!doctype html><html><head>
+    <script type="application/ld+json">${JSON.stringify(jsonLd)}</script>
+    </head><body><main><p>Fallback page shell.</p></main></body></html>`;
+  const jsonLdContent = extractContent(
+    jsonLdHtml,
+    "https://www.wired.com/story/theres-a-global-network-of-fungi-under-your-feet-this-is-the-first-complete-map/",
+    "JSON-LD article should extract",
+  );
+  assertNoProviderNoise(jsonLdContent, [
+    /More Great WIRED Stories/i,
+    /Inner Loop newsletter/i,
+    /previous newsletters/i,
+  ]);
+  assert.match(jsonLdContent, /network1/i, "JSON-LD article prose must survive");
+  assert.match(jsonLdContent, /future1/i, "JSON-LD article tail prose must survive");
+
+  const collapsedJsonLd = {
+    ...jsonLd,
+    articleBody: [
+      `${wordBlock(45, "collapsed")} as the structured body is one long paragraph.`,
+      `${wordBlock(45, "flattened")} as the source page still has real paragraphs.`,
+      `${wordBlock(45, "structured")} as Readability should preserve those paragraphs.`,
+    ].join(" "),
+  };
+  const structuredHtml = `<!doctype html><html><head>
+    <title>Fungi Map the Future | WIRED</title>
+    <meta property="og:title" content="Fungi Map the Future" />
+    <script type="application/ld+json">${JSON.stringify(collapsedJsonLd)}</script>
+    </head><body><article>
+      <h1>Fungi Map the Future</h1>
+      <p>${wordBlock(45, "collapsed")} as the source page first paragraph remains distinct.</p>
+      <p>${wordBlock(45, "flattened")} as the source page second paragraph remains distinct.</p>
+      <p>${wordBlock(45, "structured")} as the source page third paragraph remains distinct.</p>
+    </article></body></html>`;
+  const structuredContent = extractContent(
+    structuredHtml,
+    "https://www.wired.com/story/theres-a-global-network-of-fungi-under-your-feet-this-is-the-first-complete-map/",
+    "Wired structured page should extract",
+  );
+  assert.ok(
+    (structuredContent.match(/<p\b/gi) ?? []).length >= 3,
+    "Wired extraction should preserve page paragraph structure when JSON-LD is collapsed",
+  );
+});

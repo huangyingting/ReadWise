@@ -74,6 +74,11 @@ const TRAILING_PUBLICATION_CTA_RE =
 const TECHNOLOGY_REVIEW_NEWSLETTER_ORIGIN_RE =
   /^this\s+story\s+originally\s+appeared\s+in\s+the\s+algorithm\b(?=[\s\S]{0,300}\bweekly\s+newsletter\b)(?=[\s\S]{0,300}\bsign\s?up\b)/i;
 
+const WIRED_EXACT_RESIDUE = new Set([
+  "more great wired stories",
+  "this is an edition of the inner loop newsletter. read previous newsletters here.",
+]);
+
 const ARCHIVE_LINK_RESIDUE_RE = /\barchive\s+page\b/i;
 
 const RECIRC_RANKED_ITEM_RE = /^\d+\s+.*\b(most\s+popular|trending|recommended\s+for\s+you|you\s+may\s+also\s+like)\b/i;
@@ -456,6 +461,18 @@ function collectTechnologyReviewResidue(root: Element, out: Candidate[]): void {
   }
 }
 
+function collectWiredResidue(root: Element, out: Candidate[]): void {
+  for (const el of Array.from(root.querySelectorAll(BLOCK_SELECTOR))) {
+    if (el === root) continue;
+    if (!isLeafBlock(el)) continue;
+    const text = trimmedText(el);
+    if (text.length === 0 || text.length > TEXT_BOILERPLATE_MAXLEN) continue;
+    if (WIRED_EXACT_RESIDUE.has(normalizeText(text))) {
+      out.push({ el, confidence: HIGH });
+    }
+  }
+}
+
 function isStandaloneImageCredit(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > IMAGE_CREDIT_MAXLEN) return false;
@@ -805,6 +822,9 @@ function collectRemovalCandidates(
   }
   if (providerKey === "technologyreview") {
     collectTechnologyReviewResidue(root, candidates);
+  }
+  if (providerKey === "wired") {
+    collectWiredResidue(root, candidates);
   }
   collectTrailingByline(root, normName, candidates);
   return candidates;

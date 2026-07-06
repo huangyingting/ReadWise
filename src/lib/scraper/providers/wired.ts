@@ -234,6 +234,10 @@ const wired: Provider = {
       "Subscribe to WIRED",
       "Save this story",
     ],
+    dropTextExactKeywords: [
+      "More Great WIRED Stories",
+      "This is an edition of the Inner Loop newsletter. Read previous newsletters here.",
+    ],
   },
 };
 
