@@ -3,7 +3,6 @@ import type { NextRequest } from "next/server";
 import {
   PROTECTED_PREFIXES,
   SESSION_COOKIES,
-  MIDDLEWARE_MATCHER,
 } from "@/lib/route-policy";
 import { defaultLandingPath } from "@/lib/learner-landing";
 
@@ -46,5 +45,33 @@ export function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: MIDDLEWARE_MATCHER,
+  matcher: [
+    "/",
+    "/dashboard/:path*",
+    "/today",
+    "/today/:path*",
+    "/reader/:path*",
+    "/settings/:path*",
+    "/onboarding/:path*",
+    "/admin/:path*",
+    "/study/:path*",
+    "/tags/:path*",
+    "/browse/:path*",
+    "/lists/:path*",
+    "/lists",
+    "/notes/:path*",
+    "/notes",
+    "/progress/:path*",
+    "/progress",
+    "/offline/:path*",
+    "/offline",
+    "/import",
+    "/import/:path*",
+    "/teacher",
+    "/teacher/:path*",
+    "/assignments",
+    "/assignments/:path*",
+    "/series",
+    "/series/:path*",
+  ],
 };

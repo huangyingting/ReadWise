@@ -15,6 +15,7 @@ import {
   SITE_NAME,
 } from "@/lib/copy/site";
 import { ICON_SVG, APPLE_TOUCH_ICON } from "@/lib/assets";
+import { buildBootstrapScript as buildReaderPrefsBootstrapScript } from "@/lib/reader-prefs";
 
 const sans = Inter({
   subsets: ["latin"],
@@ -77,6 +78,7 @@ export const metadata: Metadata = {
 // Key literal MUST match STORAGE_KEYS.THEME in src/lib/storage-keys.ts.
 const themeStorageKey = "readwise:theme";
 const themeScript = `(function(){try{var t=localStorage.getItem("${themeStorageKey}");if(t!=="light"&&t!=="dark"){t=window.matchMedia("(prefers-color-scheme: dark)").matches?"dark":"light";}document.documentElement.dataset.theme=t;}catch(e){}})();`;
+const readerPrefsScript = buildReaderPrefsBootstrapScript();
 
 type RootLayoutProps = {
   children: ReactNode;
@@ -102,7 +104,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
     >
       <head>
         <meta name="color-scheme" content="light dark" />
-        <script dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script id="readwise-theme-bootstrap" dangerouslySetInnerHTML={{ __html: themeScript }} />
+        <script
+          id="readwise-reader-prefs-bootstrap"
+          dangerouslySetInnerHTML={{ __html: readerPrefsScript }}
+        />
       </head>
       <body>
         <AppRuntime>{children}</AppRuntime>

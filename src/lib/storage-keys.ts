@@ -16,9 +16,9 @@
  *          account deletion.
  * "app"  — application-level state with no personal data; may be retained.
  *
- * NOTE: layout.tsx and ReaderPrefsScript.tsx inline their key strings inside
- * `<script>` tags that run before React hydrates. Those literals MUST stay
- * byte-for-byte identical to the corresponding STORAGE_KEYS entries below.
+ * NOTE: layout.tsx inlines key strings inside `<script>` tags that run before
+ * React hydrates. Those literals MUST stay byte-for-byte identical to the
+ * corresponding STORAGE_KEYS entries below.
  *
  * This module is client-safe: it imports nothing from server-only code.
  */
@@ -37,7 +37,7 @@ export const STORAGE_KEYS = {
 
   /** scope: local | privacy: user | owner: reader-prefs subsystem
    *  Payload: ReaderPrefs JSON { mode, fontScale, fontFamily, lineSpacing }
-   *  Matches the literal in ReaderPrefsScript.tsx's no-flash bootstrap `<script>`. */
+   *  Matches the literal in layout.tsx's reader-prefs bootstrap `<script>`. */
   READER_PREFS: "readwise:reader-prefs",
 
   /** scope: local | privacy: user | owner: translate / bilingual subsystem

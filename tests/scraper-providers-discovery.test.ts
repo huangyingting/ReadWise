@@ -255,17 +255,13 @@ test("reading-source providers discover non-sports article URLs from their stron
     await hakaiMagazine.urlExtractor({
       limit: 10,
       fetch: async (url) =>
-        url.includes("custom_features")
-          ? sitemap([
-              "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
-              "https://hakaimagazine.com/wp-content/uploads/the-canoe.jpg",
-            ])
-          : sitemap(["https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"]),
+        sitemap([
+          "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
+          "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/",
+          "https://hakaimagazine.com/wp-content/uploads/the-canoe.jpg",
+        ]),
     }),
-    [
-      "https://hakaimagazine.com/features/the-canoe-in-the-forest/",
-      "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/",
-    ],
+    ["https://hakaimagazine.com/features/the-canoe-in-the-forest/"],
   );
 
   assert.ok(yaleEnvironment360.urlExtractor);

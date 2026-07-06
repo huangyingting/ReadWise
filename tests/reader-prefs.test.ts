@@ -463,12 +463,25 @@ describe("buildBootstrapScript", () => {
     assert.ok(script.includes("'normal'"), "Script must include normal spacing default");
   });
 
-  test("uses currentScript.parentElement to target the reader root", async () => {
+  test("targets the reader root by id", async () => {
     const { buildBootstrapScript } = await import("@/lib/reader-prefs");
     const script = buildBootstrapScript();
     assert.ok(
-      script.includes("currentScript") && script.includes("parentElement"),
-      "Script must target currentScript.parentElement for pre-paint application",
+      script.includes("getElementById('reader-root')"),
+      "Script must target #reader-root from the root-layout bootstrap",
+    );
+  });
+
+  test("observes for reader root insertion during direct load and client navigation", async () => {
+    const { buildBootstrapScript } = await import("@/lib/reader-prefs");
+    const script = buildBootstrapScript();
+    assert.ok(
+      script.includes("MutationObserver"),
+      "Script must observe for #reader-root insertion",
+    );
+    assert.ok(
+      script.includes("__readwiseApplyReaderPrefs"),
+      "Script must expose a reusable apply function for client navigation",
     );
   });
 });
