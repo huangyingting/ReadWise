@@ -706,3 +706,44 @@ test("Technology Review extractor handles robots sitemap hints and API failures"
 
   assert.deepEqual(result, [fromRobots]);
 });
+
+test("WIRED extractor prefers news/monthly sitemaps, filters commerce URLs, and falls back to RSS/HTML", async () => {
+  const provider = (await import("@/lib/scraper/providers/wired")).default;
+  assert.ok(provider.urlExtractor);
+
+  const fromNews = "https://www.wired.com/story/prediction-markets-let-you-bet-wildfire/";
+  const fromMonthly = "https://www.wired.com/story/security-roundup-apples-hide-my-email-service-fails-to-hide-your-email/";
+  const fromRss = "https://www.wired.com/story/how-to-avoid-spoilers-online/";
+  const fromSeed = "https://www.wired.com/story/inside-the-luddite-festival-harnessing-gen-zs-rage-against-big-tech/";
+  const result = await provider.urlExtractor({
+    limit: 20,
+    fetch: async (url) => {
+      if (url === "https://www.wired.com/feed/google-latest-news/sitemap-google-news") {
+        return sitemap([
+          "https://www.wired.com/gallery/best-wifi-routers/",
+          fromNews,
+          "https://www.wired.com/story/dell-coupon-code/",
+        ]);
+      }
+      if (url === "https://www.wired.com/sitemap.xml") {
+        return sitemap([
+          "https://www.wired.com/sitemap-2026-06.xml",
+          "https://www.wired.com/sitemap-2026-07.xml",
+          "https://www.wired.com/tagpages-sitemap.xml",
+        ]);
+      }
+      if (url === "https://www.wired.com/sitemap-2026-07.xml") {
+        return sitemap([fromMonthly, "https://www.wired.com/story/best-july-fourth-mattress-deals-2026/"]);
+      }
+      if (url === "https://www.wired.com/sitemap-2026-06.xml") throw new Error("older month unavailable");
+      if (url === "https://www.wired.com/feed/rss") return rss([fromRss]);
+      if (url === provider.seeds[0]) return `<a href="${fromSeed}?itm=home#comments">Seed story</a>`;
+      throw new Error("remaining seed unavailable");
+    },
+  });
+
+  assert.deepEqual(
+    result.map((entry) => (typeof entry === "string" ? entry : entry.url)),
+    [fromNews, fromMonthly, fromRss, fromSeed],
+  );
+});

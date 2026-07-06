@@ -106,7 +106,7 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc removed)", () => {
+test("registry holds exactly the 21 active providers (aeon, voa, bbc news, nbc removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "atlasobscura",
@@ -127,10 +127,11 @@ test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc r
     "theconversation",
     "time",
     "undark",
+    "wired",
     "worksinprogress",
     "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 20);
+  assert.equal(PROVIDERS.length, 21);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
 });
@@ -307,6 +308,7 @@ test("source-derived provider URL patterns match article URLs", () => {
     ["undark", "https://undark.org/2026/06/23/example-story/"],
     ["undark", "https://undark.org/shreds-of-evidence-edna/"],
     ["undark", "https://race.undark.org/articles/good-blood-bad-policy-the-red-cross-and-jim-crow"],
+    ["wired", "https://www.wired.com/story/prediction-markets-let-you-bet-wildfire/"],
   ]);
 });
 
@@ -437,6 +439,13 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(undark.articleUrlFilter?.("https://undark.org/tag/climate-change/"), false);
   assert.equal(undark.articleUrlFilter?.("https://undark.org/funding/"), false);
   assert.equal(undark.articleUrlFilter?.("https://undark.org/2023/10/12/funding-innovation-younger/"), true);
+
+  const wired = getProviderOrFail("wired");
+  assert.equal(wired.articleUrlFilter?.("https://www.wired.com/gallery/best-wifi-routers/"), false);
+  assert.equal(wired.articleUrlFilter?.("https://www.wired.com/review/tcl-rm9l/"), false);
+  assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/dell-coupon-code/"), false);
+  assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/best-july-fourth-mattress-deals-2026/"), false);
+  assert.equal(wired.articleUrlFilter?.("https://www.wired.com/story/security-roundup-apples-hide-my-email-service-fails-to-hide-your-email/"), true);
 });
 
 test("smithsonian paginates category seeds with page query", () => {
@@ -627,6 +636,33 @@ test("technologyreview categoryFor: biotech→health, climate change & energy→
   assert.equal(p.categoryFor!(u, "Climate change and energy"), "environment");
   assert.equal(p.categoryFor!(u, "The Download"), null);
   assert.equal(p.categoryFor!(u, "Sponsored"), null);
+});
+
+test("wired categoryFor maps sections and story slugs across major verticals", () => {
+  const p = getProviderOrFail("wired");
+  assert.equal(
+    p.categoryFor!(new URL("https://www.wired.com/story/prediction-markets-let-you-bet-wildfire/"), "Science / Environment"),
+    "environment",
+  );
+  assert.equal(
+    p.categoryFor!(
+      new URL("https://www.wired.com/story/security-roundup-apples-hide-my-email-service-fails-to-hide-your-email/"),
+      "Security / Privacy",
+    ),
+    "tech",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.wired.com/story/book-club-the-yahoo-boys-chapter-7-9/"), "Culture / Books"),
+    "culture",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.wired.com/story/love-island-usa-app/"), "Culture"),
+    "entertainment",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://www.wired.com/story/google-deepmind-unionization-talks-are-off-to-a-rocky-start/"), "Business"),
+    "business",
+  );
 });
 
 test("theconversation categoryFor: slug/keyword rules fill gap categories", () => {
