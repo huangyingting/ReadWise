@@ -36,6 +36,8 @@ const TUNING_ENV = [
   "RATE_LIMIT_ADMIN_JOB_REQUESTS",
   "RATE_LIMIT_AUTH_REQUESTS",
   "RATE_LIMIT_WINDOW_MS",
+  "DB_QUERY_TIMING_ENABLED",
+  "DB_SLOW_QUERY_THRESHOLD_MS",
   "LOG_LEVEL",
 ];
 
@@ -49,7 +51,11 @@ const POSITIVE_INTEGER_TUNING_ENV = [
   "RATE_LIMIT_ADMIN_JOB_REQUESTS",
   "RATE_LIMIT_AUTH_REQUESTS",
   "RATE_LIMIT_WINDOW_MS",
+  "DB_SLOW_QUERY_THRESHOLD_MS",
 ];
+
+const BOOLEAN_TUNING_ENV = ["DB_QUERY_TIMING_ENABLED"] as const;
+const BOOLEAN_TUNING_VALUES = new Set(["1", "true", "yes", "on", "0", "false", "no", "off"]);
 
 const LOCAL_STORAGE_ENV = ["MEDIA_STORAGE", "MEDIA_STORAGE_DIR"];
 const AZURE_STORAGE_ENV = [
@@ -86,6 +92,15 @@ function evaluateTuning(): ConfigCheckReport {
     }
   };
   for (const name of POSITIVE_INTEGER_TUNING_ENV) positiveInt(name);
+
+  for (const name of BOOLEAN_TUNING_ENV) {
+    const value = envValue(name);
+    if (value && !BOOLEAN_TUNING_VALUES.has(value.toLowerCase())) {
+      issues.push(
+        issue("warning", "invalid_boolean", `${name} must be true/false, 1/0, on/off, or yes/no; default will be used.`, [name]),
+      );
+    }
+  }
 
   const retries = envValue("AI_MAX_RETRIES");
   if (retries) {

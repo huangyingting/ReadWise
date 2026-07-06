@@ -23,6 +23,8 @@ const ENV_KEYS = [
   "CSRF_ALLOWED_ORIGINS",
   "CSRF_ENFORCE",
   "DATABASE_URL",
+  "DB_QUERY_TIMING_ENABLED",
+  "DB_SLOW_QUERY_THRESHOLD_MS",
   "DICTIONARY_PROVIDER",
   "ERROR_ALERT_THRESHOLD",
   "ERROR_REPORTING_PROVIDER",
@@ -38,6 +40,7 @@ const ENV_KEYS = [
   "OTEL_EXPORTER_OTLP_ENDPOINT",
   "OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
   "OTEL_SERVICE_NAME",
+  "PRISMA_SCHEMA_PATH",
   "RATE_LIMIT_ADMIN_JOB_REQUESTS",
   "RATE_LIMIT_AI_REQUESTS",
   "RATE_LIMIT_AUTH_REQUESTS",
@@ -172,6 +175,7 @@ test("runtime config leaf modules clamp environment values", async () => {
   const security = await import("@/lib/runtime-config/security");
   const speech = await import("@/lib/runtime-config/speech");
   const storage = await import("@/lib/runtime-config/storage");
+  const database = await import("@/lib/runtime-config/database");
 
   assert.equal(analytics.analyticsEnabled(), false);
   process.env.ANALYTICS_ENABLED = "true";
@@ -207,6 +211,28 @@ test("runtime config leaf modules clamp environment values", async () => {
   assert.equal(rateLimit.rateLimitStoreMode(), "memory");
   mutableEnv.NODE_ENV = "production";
   assert.equal(rateLimit.rateLimitStoreMode(), "auto");
+
+  assert.equal(database.dbQueryTimingEnabled(), true);
+  process.env.DB_QUERY_TIMING_ENABLED = "false";
+  assert.equal(database.dbQueryTimingEnabled(), false);
+  process.env.DB_QUERY_TIMING_ENABLED = "on";
+  assert.equal(database.dbQueryTimingEnabled(), true);
+  assert.equal(database.dbSlowQueryThresholdMs(), 250);
+  process.env.DB_SLOW_QUERY_THRESHOLD_MS = "75";
+  assert.equal(database.dbSlowQueryThresholdMs(), 75);
+  process.env.DB_SLOW_QUERY_THRESHOLD_MS = "0";
+  assert.equal(database.dbSlowQueryThresholdMs(), 250);
+  assert.equal(
+    database.databaseUrlForPrismaAdapter("file:./dev.db"),
+    `file:${path.join(process.cwd(), "prisma/dev.db").replace(/\\/g, "/")}`,
+  );
+  assert.equal(
+    database.databaseUrlForPrismaAdapter("file:../root.db"),
+    `file:${path.join(process.cwd(), "root.db").replace(/\\/g, "/")}`,
+  );
+  assert.equal(database.databaseUrlForPrismaAdapter("file:/tmp/readwise.db"), "file:/tmp/readwise.db");
+  assert.equal(database.databaseUrlForPrismaAdapter("file::memory:"), "file::memory:");
+  assert.equal(database.databaseUrlForPrismaAdapter("postgresql://db.example/readwise"), "postgresql://db.example/readwise");
 
   assert.equal(speech.speechTimeoutMs(), 30_000);
   process.env.SPEECH_TIMEOUT_MS = "250";
@@ -317,12 +343,15 @@ test("validateRuntimeConfig reports malformed required, optional, and tuning set
   process.env.AZURE_SPEECH_OUTPUT_FORMAT = "audio/wav";
   process.env.AI_MAX_RETRIES = "-1";
   process.env.AI_REQUEST_TIMEOUT_MS = "0";
+  process.env.DB_SLOW_QUERY_THRESHOLD_MS = "-1";
+  process.env.DB_QUERY_TIMING_ENABLED = "sometimes";
   process.env.LOG_LEVEL = "chatty";
   report = validateRuntimeConfig();
   assert.equal(report.optional.speech.status, "degraded");
   assert.equal(report.tuning.status, "degraded");
   assertHasDiagnosticCode(report.warnings, "unsupported_speech_format");
   assertHasDiagnosticCode(report.warnings, "invalid_nonnegative_integer");
+  assertHasDiagnosticCode(report.warnings, "invalid_boolean");
   assertHasDiagnosticCode(report.warnings, "invalid_log_level");
 
   process.env.MEDIA_STORAGE = "azure";

@@ -60,6 +60,10 @@ export type StructuredLogger = {
   error: (message: string, meta?: Record<string, unknown>) => void;
 };
 
+export type LoggerOptions = {
+  includeRequestContext?: boolean;
+};
+
 const order: Record<LogLevel, number> = { debug: 0, info: 1, warn: 2, error: 3 };
 
 function minLevel(): LogLevel {
@@ -75,6 +79,7 @@ function buildLogLine(
   level: LogLevel,
   message: string,
   base: Record<string, unknown>,
+  includeRequestContext: boolean,
   meta?: Record<string, unknown>,
 ): Record<string, unknown> {
   return {
@@ -82,7 +87,7 @@ function buildLogLine(
     level,
     scope,
     message,
-    ...getRequestContext(),
+    ...(includeRequestContext ? getRequestContext() : undefined),
     ...base,
     ...meta,
   };
@@ -102,13 +107,15 @@ function writeLogLine(level: LogLevel, line: string): void {
 export function createLogger(
   scope: string,
   base: Record<string, unknown> = {},
+  options: LoggerOptions = {},
 ): StructuredLogger {
   const threshold = order[minLevel()];
+  const includeRequestContext = options.includeRequestContext ?? true;
   const emit =
     (level: LogLevel) =>
     (message: string, meta?: Record<string, unknown>) => {
       if (!shouldEmit(level, threshold)) return;
-      writeLogLine(level, JSON.stringify(buildLogLine(scope, level, message, base, meta)));
+      writeLogLine(level, JSON.stringify(buildLogLine(scope, level, message, base, includeRequestContext, meta)));
     };
   return {
     debug: emit("debug"),

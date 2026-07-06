@@ -9,13 +9,20 @@ import { PrismaPg } from "@prisma/adapter-pg";
 import { PrismaClient } from "@prisma/client";
 
 import { isPostgresDatabase } from "@/lib/db-utils";
-import { assertProductionPrismaSchemaMatchesDatabase } from "@/lib/runtime-config/database";
+import {
+  assertProductionPrismaSchemaMatchesDatabase,
+  databaseProviderFromUrl,
+  databaseUrlForPrismaAdapter,
+  dbQueryTimingEnabled,
+  dbSlowQueryThresholdMs,
+} from "@/lib/runtime-config/database";
+import { instrumentPrismaClient } from "@/lib/prisma-instrumentation";
 
 const globalForPrisma = globalThis as unknown as {
   prisma: PrismaClient | undefined;
 };
 
-const databaseUrl = process.env.DATABASE_URL ?? "file:./dev.db";
+const databaseUrl = databaseUrlForPrismaAdapter(process.env.DATABASE_URL ?? "file:./dev.db");
 const prismaLogLevels: Array<"error" | "warn"> =
   process.env.NODE_ENV === "development" ? ["error", "warn"] : ["error"];
 
@@ -43,11 +50,15 @@ function createSqlitePrismaClient(databaseUrl: string): PrismaClient {
 function createPrismaClient(): PrismaClient {
   assertProductionPrismaSchemaMatchesDatabase();
 
-  if (isPostgresDatabase()) {
-    return createPostgresPrismaClient(databaseUrl);
-  }
+  const client = isPostgresDatabase()
+    ? createPostgresPrismaClient(databaseUrl)
+    : createSqlitePrismaClient(databaseUrl);
 
-  return createSqlitePrismaClient(databaseUrl);
+  return instrumentPrismaClient(client, {
+    enabled: dbQueryTimingEnabled(),
+    provider: databaseProviderFromUrl(databaseUrl) ?? "unknown",
+    slowThresholdMs: dbSlowQueryThresholdMs(),
+  });
 }
 
 export const prisma =

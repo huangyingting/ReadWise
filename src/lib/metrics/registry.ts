@@ -43,6 +43,7 @@ export type MetricsSnapshot = {
 export const API_DURATION_BUCKETS_MS = [10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 export const AI_DURATION_BUCKETS_MS = [100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000];
 export const JOB_DURATION_BUCKETS_MS = [50, 100, 250, 500, 1000, 2500, 5000, 15000, 30000, 120000];
+export const DB_QUERY_DURATION_BUCKETS_MS = [1, 5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000];
 
 type CounterDef = { help: string; labels: Record<string, string>; value: number };
 type GaugeDef = { help: string; labels: Record<string, string>; value: number };

@@ -10,6 +10,7 @@ import {
   recordCacheMiss,
   recordContentProcessingRun,
   recordContentProcessingStep,
+  recordDbQuery,
   recordJobQueueDepth,
   recordWorkerJob,
   resetMetrics,
@@ -75,6 +76,14 @@ test("records worker, AI, cache, and content processing counters", () => {
   recordContentProcessingStep({ step: "tags", status: "generated" });
   recordContentProcessingRun({ outcome: "success", published: true });
   recordJobQueueDepth({ type: "TTS_GENERATE", status: "PENDING", depth: 4 });
+  recordDbQuery({
+    provider: "postgresql",
+    model: "Article",
+    operation: "findMany",
+    outcome: "success",
+    durationMs: 275,
+    slow: true,
+  });
 
   assert.equal(counterValue("readwise_worker_jobs_total", { outcome: "success", published: "true" }), 1);
   assert.equal(counterValue("readwise_worker_job_attempts_total", { outcome: "success" }), 2);
@@ -95,6 +104,24 @@ test("records worker, AI, cache, and content processing counters", () => {
         point.labels.status === "pending",
     )?.value,
     4,
+  );
+  assert.equal(
+    counterValue("readwise_db_queries_total", {
+      provider: "postgresql",
+      model: "article",
+      operation: "findmany",
+      outcome: "success",
+    }),
+    1,
+  );
+  assert.equal(
+    counterValue("readwise_db_slow_queries_total", {
+      provider: "postgresql",
+      model: "article",
+      operation: "findmany",
+      outcome: "success",
+    }),
+    1,
   );
 });
 

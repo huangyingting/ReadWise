@@ -51,6 +51,10 @@ const SAFE_ATTRIBUTE_KEYS = new Set<string>([
   "readwise.job_type",
   "readwise.attempt",
   "readwise.provider",
+  "readwise.db_provider",
+  "readwise.db_model",
+  "readwise.db_operation",
+  "readwise.slow",
   "readwise.host",
   "readwise.kind",
   "readwise.duration_ms",
@@ -138,6 +142,11 @@ export function setSpanAttributes(span: Span, attrs: Attributes): void {
 export function recordSpanError(span: Span, err: unknown): void {
   const message = err instanceof Error ? err.message : String(err);
   if (err instanceof Error) span.recordException(err);
+  span.setStatus({ code: SpanStatusCode.ERROR, message });
+}
+
+/** Mark a span as failed without recording exception text that may contain private content. */
+export function markSpanError(span: Span, message = "operation failed"): void {
   span.setStatus({ code: SpanStatusCode.ERROR, message });
 }
 

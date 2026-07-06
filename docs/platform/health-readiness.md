@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-06"
 description: "Documents /api/health, /api/ready, runtime configuration validation, migration checks, and optional-provider degradation. Captures current readiness JSON, provider check semantics, database/migration validation, and non-secret reporting."
 ---
 
@@ -128,6 +128,7 @@ values. It covers:
   `RATE_LIMIT_PUBLIC_REQUESTS`, `RATE_LIMIT_IMPORT_REQUESTS`,
   `RATE_LIMIT_ADMIN_JOB_REQUESTS`, `RATE_LIMIT_AUTH_REQUESTS`,
   `RATE_LIMIT_WINDOW_MS`,
+- `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS`,
 - `LOG_LEVEL`.
 
 Warnings are surfaced in readiness but do not block startup.

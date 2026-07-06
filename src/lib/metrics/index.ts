@@ -8,7 +8,7 @@
  *   route-groups  — low-cardinality API path normalisation
  *   exporter      — Prometheus text-format serialisation
  *   recorders/    — per-domain record helpers (api, worker, ai, cache,
- *                   content, security, jobs)
+ *                   content, security, jobs, db)
  *
  * Callers may import from `@/lib/metrics` (this barrel) or from any submodule
  * directly when they depend on a single domain.
@@ -33,3 +33,11 @@ export {
 export { recordErrorCaptured, recordSecurityEventMetric } from "@/lib/metrics/recorders/security";
 export type { JobQueueEvent } from "@/lib/metrics/recorders/jobs";
 export { recordJobQueueEvent, recordJobLockAge, recordJobQueueDepth } from "@/lib/metrics/recorders/jobs";
+export {
+  recordDbQuery,
+  normalizeDbProvider,
+  normalizeDbModel,
+  normalizeDbOperation,
+  type DbQueryMetricInput,
+  type DbQueryOutcome,
+} from "@/lib/metrics/recorders/db";

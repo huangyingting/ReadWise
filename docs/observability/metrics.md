@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
-description: "Documents in-process metrics registry, recorder helpers, route normalization, and Prometheus export boundary. Captures current counter/gauge/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
+last_updated: "2026-07-06"
+description: "Documents in-process metrics registry, recorder helpers, route normalization, database query timing, and Prometheus export boundary. Captures current counter/gauge/histogram/cache-stat behavior, labels, route grouping, and admin metrics route output."
 ---
 
 # Metrics subsystem
@@ -57,6 +57,7 @@ Standard histogram bucket sets:
 | `API_DURATION_BUCKETS_MS` | 10 … 10 000 | API request latency |
 | `AI_DURATION_BUCKETS_MS` | 100 … 60 000 | AI provider call latency |
 | `JOB_DURATION_BUCKETS_MS` | 50 … 120 000 | Worker job and job-queue latency |
+| `DB_QUERY_DURATION_BUCKETS_MS` | 1 … 10 000 | Prisma model/raw-query latency |
 
 ---
 
@@ -99,6 +100,7 @@ its own label contract and hides the raw counter/histogram names.
 | Content processing | `recorders/content.ts` | `recordContentProcessingRun`, `recordContentProcessingStep`, `recordIngestionRun` — article pipeline outcomes and step counts. |
 | Errors / security | `recorders/security.ts` | `recordErrorCaptured`, `recordSecurityEventMetric` — low-cardinality error and security-event counts. |
 | Job queue | `recorders/jobs.ts` | `recordJobQueueEvent`, `recordJobLockAge`, `recordJobQueueDepth` — lifecycle events, stale-lock age, and current queue depth. |
+| Database | `recorders/db.ts` | `recordDbQuery` — Prisma operation counts, duration histograms, and slow-query counters. |
 
 **Ownership note**: domain recorders exist in the metrics package because they
 encode the _signal_ (how to count an event), not the _meaning_ (what the count
@@ -134,6 +136,25 @@ design.
 | `readwise_job_queue_events_total` | counter | event, type | jobs |
 | `readwise_job_lock_age_ms` | histogram | type | jobs |
 | `readwise_job_queue_depth` | gauge | type, status | jobs |
+| `readwise_db_queries_total` | counter | provider, model, operation, outcome | db |
+| `readwise_db_query_duration_ms` | histogram | provider, model, operation, outcome | db |
+| `readwise_db_slow_queries_total` | counter | provider, model, operation, outcome | db |
+
+`src/lib/prisma.ts` enables content-free Prisma timing by default via
+`instrumentPrismaClient()`. It wraps Prisma model operations, root raw-query
+helpers, and root `$transaction` calls. Labels are bounded to:
+
+- `provider`: `sqlite`, `postgresql`, or `unknown`
+- `model`: Prisma model name, or `client` for root raw helpers / transactions
+- `operation`: Prisma operation name (`findmany`, `queryraw`, `transaction`, …)
+- `outcome`: `success` or `error`
+
+Slow operations increment `readwise_db_slow_queries_total` and emit a structured
+`db.slow_query` warning containing only provider/model/operation/outcome,
+duration, and threshold. SQL text, bind parameters, query args, article text,
+prompts, selected text, user ids, and raw ids are never logged or used as labels.
+Use `DB_QUERY_TIMING_ENABLED=false` to disable app-side timing and
+`DB_SLOW_QUERY_THRESHOLD_MS` to tune slow-query classification.
 
 ---
 
@@ -146,6 +167,7 @@ import {
   recordApiRequest,
   recordAiCall,
   recordWorkerJob,
+  recordDbQuery,
   exportMetricsPrometheus,
   getMetricsSnapshot,
 } from "@/lib/metrics";
