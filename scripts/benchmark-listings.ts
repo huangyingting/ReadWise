@@ -26,6 +26,13 @@ type BenchmarkResult = {
   avgMs: number;
 };
 
+type BenchmarkCliDeps = {
+  main?: () => Promise<number>;
+  disconnect?: () => Promise<void>;
+  error?: (...args: unknown[]) => void;
+  exit?: (code?: number) => void;
+};
+
 let loadedDatabaseBackedModules = false;
 
 function printHelp(): void {
@@ -161,7 +168,7 @@ function printResults(results: BenchmarkResult[], cold: boolean): void {
   }
 }
 
-export { main, parseArgs };
+export { disconnectIfNeeded, main, parseArgs, runBenchmarkCli };
 
 async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
@@ -210,17 +217,21 @@ async function disconnectIfNeeded(): Promise<void> {
   await prisma.$disconnect();
 }
 
-function runBenchmarkCli(): void {
-  main()
-    .then(async (code) => {
-      await disconnectIfNeeded();
-      process.exit(code);
-    })
-    .catch(async (error: unknown) => {
-      await disconnectIfNeeded();
-      console.error("benchmark listings failed:", error);
-      process.exit(1);
-    });
+async function runBenchmarkCli(deps: BenchmarkCliDeps = {}): Promise<void> {
+  const runMain = deps.main ?? main;
+  const disconnect = deps.disconnect ?? disconnectIfNeeded;
+  const error = deps.error ?? console.error;
+  const exit = deps.exit ?? process.exit;
+
+  try {
+    const code = await runMain();
+    await disconnect();
+    exit(code);
+  } catch (err: unknown) {
+    await disconnect();
+    error("benchmark listings failed:", err);
+    exit(1);
+  }
 }
 
-if (isMain(import.meta.url)) runBenchmarkCli();
+if (isMain(import.meta.url)) void runBenchmarkCli();

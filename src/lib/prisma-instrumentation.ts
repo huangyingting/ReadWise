@@ -44,10 +44,10 @@ type InstrumentationOptions = {
   slowThresholdMs: number;
 };
 
-type RawMethod = "$queryRaw" | "$executeRaw" | "$queryRawUnsafe" | "$executeRawUnsafe" | "$transaction";
+type RawMethod = "$queryRaw" | "$executeRaw" | "$queryRawUnsafe" | "$executeRawUnsafe";
 
 const INSTRUMENTED = Symbol.for("readwise.prisma.instrumented");
-const RAW_METHODS: RawMethod[] = ["$queryRaw", "$executeRaw", "$queryRawUnsafe", "$executeRawUnsafe", "$transaction"];
+const RAW_METHODS: RawMethod[] = ["$queryRaw", "$executeRaw", "$queryRawUnsafe", "$executeRawUnsafe"];
 const log = createLogger("db", {}, { includeRequestContext: false });
 
 async function measurePrismaQuery<T>(
@@ -128,13 +128,16 @@ function patchRawMethod(
 ): void {
   const current = client[method];
   if (typeof current !== "function") return;
-  const original = current.bind(client) as (...args: unknown[]) => Promise<unknown>;
+  const original = current as (this: unknown, ...args: unknown[]) => Promise<unknown>;
   try {
     Object.defineProperty(client, method, {
       configurable: true,
       writable: true,
-      value: (...args: unknown[]) =>
-        measurePrismaQuery(provider, slowThresholdMs, "client", rawOperationName(method), () => original(...args)),
+      value: function instrumentedRawMethod(this: unknown, ...args: unknown[]) {
+        return measurePrismaQuery(provider, slowThresholdMs, "client", rawOperationName(method), () =>
+          original.apply(this, args),
+        );
+      },
     });
   } catch {
     log.warn("db.raw_instrumentation_skipped", {
