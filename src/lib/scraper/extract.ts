@@ -455,10 +455,15 @@ function extractBodyHtml(html: string, baseUrl: string): string {
   return harvested.trim().length > 0 ? harvested : legacyParagraphHarvest(html);
 }
 
+function countContentBlocks(html: string): number {
+  return [...html.matchAll(/<(?:p|h2|h3|h4|h5|h6|ul|ol|blockquote|figure)\b/gi)].length;
+}
+
 function chooseArticleBody(
   legacyBody: string,
   ldBody: string | null,
   readable: ReadableArticle | null,
+  providerKey?: string | null,
 ): string {
   if (!readable) return legacyBody;
 
@@ -479,6 +484,13 @@ function chooseArticleBody(
   const readableImgs = countImages(readable.contentHtml);
   const ldWords = countWords(stripTags(legacyBody));
   const readableLongEnough = readable.wordCount >= ldWords * READABILITY_LD_MIN_WORD_RATIO;
+  if (
+    providerKey === "wired" &&
+    readableLongEnough &&
+    countContentBlocks(readable.contentHtml) > countContentBlocks(legacyBody)
+  ) {
+    return readable.contentHtml;
+  }
   return ldImgs === 0 && readableImgs >= 1 && readableLongEnough
     ? readable.contentHtml
     : legacyBody;
@@ -610,7 +622,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   //  - For the noisier legacy DOM harvest, prefer Readability unless the legacy
   //    body is >1.5× longer (a sign Readability over-trimmed) or Readability
   //    produced nothing usable — then fall back to legacy.
-  const chosenBody = chooseArticleBody(legacyBody, ldBody, readable);
+  const chosenBody = chooseArticleBody(legacyBody, ldBody, readable, provider?.key);
 
   // --- Step 6: declutter (runs in BOTH paths) --------------------------------
   // Removes residual boilerplate the extractor leaves behind — most importantly
