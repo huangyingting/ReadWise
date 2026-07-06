@@ -103,6 +103,10 @@ test("cleanup: hakai drops template labels, byline, citation, social, and relate
     '<video autoplay loop muted playsinline class="gif-video"><source src="coast.mp4" type="video/mp4" /><p>Your browser does not support the video element.</p></video>' +
     "<p>Coastal reporting video caption remains intact.</p>" +
     '<p><em>This article is also available in audio format. Listen now, <a href="https://mcdn.podbean.com/story.mp3">download</a>, or subscribe to “Hakai Magazine Audio Edition” through your favorite podcast app.</em></p>' +
+    '<p><em><img src="https://hakaimagazine.com/wp-content/uploads/sandpiper.png" alt="" />This article is the second in a two-part series. The first installment was “<a href="/features/slime-shorebirds-and-scientific-mystery/">Slime, Shorebirds, and a Scientific Mystery.</a>”</em></p>' +
+    '<p><em>*The Hakai Institute and </em>Hakai Magazine<em> are both part of the Tula Foundation. The magazine is <a href="/tula-foundation/">editorially independent</a> of the institute and foundation.</em></p>' +
+    '<p>Read our follow-up story, “<a href="/features/the-details-are-in-the-devils-tumors/">The Details Are in the Devil’s Tumors</a>,” published in 2023.</p>' +
+    '<p><em>Reporting for this story was supported by the <a href="http://pulitzercenter.org/">Pulitzer Center on Crisis Reporting</a>.</em></p>' +
     '<footer class="singlepagecontainer"><h3 class="invis">Article footer and bottom matter</h3><section class="main cite printonly"><h3 class="invis">Cite this Article:</h3><p>Cite this Article: Writer Name, Hakai Magazine.</p></section></footer>' +
     '<aside class="main relatedcontent"><h3>Related Content</h3><p>Another story teaser</p></aside>';
 
@@ -113,6 +117,8 @@ test("cleanup: hakai drops template labels, byline, citation, social, and relate
   assert.match(text, /Coastal reporting video caption remains intact/);
   assert.doesNotMatch(text, /Authored by|Writer Name|Wordcount|Share|Article body copy/i);
   assert.doesNotMatch(text, /Your browser does not support the video element|audio format/i);
+  assert.doesNotMatch(text, /two-part series|first installment|Tula Foundation|editorially independent/i);
+  assert.doesNotMatch(text, /follow-up story|Details Are in the Devil|Pulitzer Center|Crisis Reporting/i);
   assert.doesNotMatch(text, /Article footer and bottom matter|Cite this Article|Related Content|Another story teaser/i);
 });
 

@@ -9,7 +9,12 @@ import {
 
 const HAKAI_SITEMAPS = [
   "https://hakaimagazine.com/sitemap-posttype-custom_features.xml",
+  "https://hakaimagazine.com/sitemap-posttype-custom_news.xml",
+  "https://hakaimagazine.com/sitemap-posttype-custom_visuals.xml",
+  "https://hakaimagazine.com/sitemap-posttype-custom_quick.xml",
 ] as const;
+
+const HAKAI_ARTICLE_PATH_PATTERN = /^\/(?:features|news|videos-visuals|article-short)\/[a-z0-9][a-z0-9-]+\/?$/i;
 
 const HAKAI_DROP_CLASS_KEYWORDS = [
   ...COMMON_READING_SOURCE_CLEANUP.dropClassKeywords,
@@ -25,7 +30,13 @@ const HAKAI_DROP_CLASS_KEYWORDS = [
 const HAKAI_DROP_SELECTORS = ["video"] as const;
 
 const HAKAI_DROP_TEXT_KEYWORDS = [
+  "Read our follow-up story",
+  "Reporting for this story was supported by",
+  "The Hakai Institute and",
   "This article is also available in audio format",
+  "This article is the first in a two-part series",
+  "This article is the second in a two-part series",
+  "Tula Foundation",
 ] as const;
 
 const HAKAI_DROP_TEXT_EXACT_KEYWORDS = [
@@ -47,7 +58,7 @@ const HAKAI_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, string]> = [
 
 async function hakaiMagazineUrlExtractor(ctx: UrlExtractorContext): Promise<string[]> {
   return collectSitemapUrls(HAKAI_SITEMAPS, ctx, (url) =>
-    isPath(url, "hakaimagazine.com", /^\/features\/[a-z0-9][a-z0-9-]+\/?$/i),
+    isPath(url, "hakaimagazine.com", HAKAI_ARTICLE_PATH_PATTERN),
   );
 }
 
@@ -55,10 +66,16 @@ export const hakaiMagazine: Provider = {
   key: "hakaimagazine",
   name: "Hakai Magazine",
   hostnames: ["hakaimagazine.com", "www.hakaimagazine.com"],
-  seeds: ["https://hakaimagazine.com/features/"],
+  seeds: [
+    "https://hakaimagazine.com/features/",
+    "https://hakaimagazine.com/news/",
+    "https://hakaimagazine.com/videos-visuals/",
+    "https://hakaimagazine.com/article-short/",
+  ],
   articleUrlPattern:
-    /^https:\/\/(?:www\.)?hakaimagazine\.com\/features\/[a-z0-9][a-z0-9-]+\/?(?:[?#].*)?$/i,
+    /^https:\/\/(?:www\.)?hakaimagazine\.com\/(?:features|news|videos-visuals|article-short)\/[a-z0-9][a-z0-9-]+\/?(?:[?#].*)?$/i,
   articleUrlFilter: (url) =>
+    isPath(url, "hakaimagazine.com", HAKAI_ARTICLE_PATH_PATTERN) &&
     excludes(url, ["/profiles/", "/wp-content/", "/author/", "/category/", "/tag/", "/newsletter/"]),
   defaultCategory: "environment",
   categories: ["environment", "animals", "travel", "science", "history", "culture"],
