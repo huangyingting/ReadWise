@@ -1,8 +1,8 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
-description: "Documents SQLite/PostgreSQL database setup, schema generation, migration workflows, and local parity stack. Captures current Prisma schemas, DATABASE_URL/PRISMA_SCHEMA_PATH usage, migration tests, and data migration notes."
+last_updated: "2026-07-06"
+description: "Documents SQLite/PostgreSQL database setup, schema generation, migration workflows, local parity stack, and performance tuning entry points. Captures current Prisma schemas, DATABASE_URL/PRISMA_SCHEMA_PATH usage, migration tests, and data migration notes."
 ---
 
 # Database setup
@@ -53,6 +53,10 @@ scratch in CI against an isolated schema and verifies ownership/privacy
 constraints, scoped uniqueness/null behavior, cascades, audit-log retention,
 JSONB columns, article search indexes/FTS, persistent `Job` table enums, and
 PostgreSQL `FOR UPDATE SKIP LOCKED` claim/reclaim/dead-letter behavior.
+
+For query timing, slow-query logging, `pg_stat_statements`, PgBouncer/pooling,
+and listing/feed benchmark guidance, see
+[`../operations/performance-tuning.md`](../operations/performance-tuning.md).
 
 ## Docker image with PostgreSQL schema
 

@@ -11,7 +11,6 @@
  *   - Signal handling: registerShutdownSignals.
  */
 import { fileURLToPath } from "node:url";
-import { prisma } from "@/lib/prisma";
 
 type ExitFn = (code?: number) => never;
 
@@ -59,13 +58,18 @@ export function isMain(importMetaUrl: string): boolean {
  * or exits with code 1 after printing the error on failure.
  */
 export function runCli(main: () => Promise<number>, deps: CliRuntimeDeps = {}): void {
-  const disconnect = deps.disconnect ?? (() => prisma.$disconnect());
+  const disconnect = deps.disconnect ?? disconnectPrisma;
   const error = deps.error ?? console.error;
   const exit = deps.exit ?? process.exit;
 
   main()
     .then((code) => exitAfterDisconnect(code, disconnect, exit))
     .catch((err: unknown) => exitAfterCliError(err, { disconnect, error, exit }));
+}
+
+async function disconnectPrisma(): Promise<void> {
+  const { prisma } = await import("@/lib/prisma");
+  await prisma.$disconnect();
 }
 
 /**

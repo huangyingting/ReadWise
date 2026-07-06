@@ -117,6 +117,25 @@ test("createLogger auto-merges requestId and userId into log lines", async () =>
   assert.equal(parsed.level, "info");
 });
 
+test("createLogger can omit ambient request context for privacy-sensitive logs", async () => {
+  process.env.LOG_LEVEL = "info";
+  const { runWithRequestContext, createLogger } = await import("@/lib/observability/logger");
+  const lines = await captureConsole(() => {
+    runWithRequestContext({ requestId: "req-private", userId: "user-private", path: "/api/private" }, () => {
+      const log = createLogger("db", {}, { includeRequestContext: false });
+      log.warn("db.slow_query", { provider: "sqlite", operation: "findmany" });
+    });
+  });
+  const parsed = parseLastLogLine(lines);
+  assert.equal(parsed.scope, "db");
+  assert.equal(parsed.message, "db.slow_query");
+  assert.equal(parsed.provider, "sqlite");
+  assert.equal(parsed.operation, "findmany");
+  assert.equal(parsed.requestId, undefined);
+  assert.equal(parsed.userId, undefined);
+  assert.equal(parsed.path, undefined);
+});
+
 test("createLogger includes base fields in every line", async () => {
   process.env.LOG_LEVEL = "info";
   const { createLogger } = await import("@/lib/observability/logger");

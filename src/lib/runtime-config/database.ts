@@ -6,8 +6,8 @@
  *
  * @server-only — Must never be imported from a "use client" file.
  */
-import { isAbsolute, join } from "node:path";
-import { envValue } from "@/lib/runtime-config/env";
+import { dirname, isAbsolute, join } from "node:path";
+import { envValue, positiveIntEnv } from "@/lib/runtime-config/env";
 import type { ConfigIssue } from "@/lib/runtime-config/env";
 
 export const SQLITE_PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
@@ -17,6 +17,8 @@ const DEFAULT_PRISMA_SCHEMA_PATH = SQLITE_PRISMA_SCHEMA_PATH;
 const DATABASE_SCHEMA_MISMATCH_CODE = "database_prisma_schema_mismatch";
 const UNKNOWN_PRISMA_SCHEMA_PATH_CODE = "unknown_prisma_schema_path";
 const POSTGRES_DATABASE_URL_PREFIXES = ["postgresql://", "postgres://"] as const;
+const DB_QUERY_TIMING_DISABLED_VALUES = new Set(["0", "false", "off", "no"]);
+const DEFAULT_DB_SLOW_QUERY_THRESHOLD_MS = 250;
 
 type DatabaseProvider = "sqlite" | "postgresql";
 type SchemaProvider = DatabaseProvider | "unknown";
@@ -38,6 +40,54 @@ export function databaseProviderFromUrl(databaseUrl: string | null = envValue("D
   return null;
 }
 
+function splitSqliteFileUrl(databaseUrl: string): { pathPart: string; suffix: string } {
+  const value = databaseUrl.slice("file:".length);
+  const suffixStart = value.search(/[?#]/);
+  if (suffixStart < 0) return { pathPart: value, suffix: "" };
+  return {
+    pathPart: value.slice(0, suffixStart),
+    suffix: value.slice(suffixStart),
+  };
+}
+
+function isAbsoluteSqlitePath(pathPart: string): boolean {
+  return (
+    pathPart.startsWith("/") ||
+    pathPart.startsWith("\\") ||
+    pathPart.startsWith("//") ||
+    /^[a-zA-Z]:[\\/]/.test(pathPart)
+  );
+}
+
+function normalizeResolvedSqlitePath(path: string): string {
+  return path.replace(/\\/g, "/");
+}
+
+/**
+ * Normalizes SQLite `file:` URLs before passing them to runtime adapters.
+ *
+ * Prisma's schema convention treats `file:./dev.db` as relative to the schema
+ * directory (`prisma/dev.db`). The `@prisma/adapter-better-sqlite3` adapter
+ * resolves the same URL relative to `process.cwd()` unless we make it absolute,
+ * which can accidentally create/use a root-level `dev.db`.
+ */
+export function databaseUrlForPrismaAdapter(databaseUrl: string): string {
+  if (!databaseUrl.startsWith("file:")) return databaseUrl;
+
+  const { pathPart, suffix } = splitSqliteFileUrl(databaseUrl);
+  if (
+    pathPart.length === 0 ||
+    pathPart === ":memory:" ||
+    suffix.toLowerCase().includes("mode=memory") ||
+    isAbsoluteSqlitePath(pathPart)
+  ) {
+    return databaseUrl;
+  }
+
+  const schemaDir = dirname(prismaSchemaPath());
+  return `file:${normalizeResolvedSqlitePath(join(schemaDir, pathPart))}${suffix}`;
+}
+
 export function prismaSchemaProviderFromPath(schemaPath = configuredPrismaSchemaPath()): SchemaProvider {
   const normalized = normalizePath(schemaPath);
   if (normalized === SQLITE_PRISMA_SCHEMA_PATH || normalized.endsWith(`/${SQLITE_PRISMA_SCHEMA_PATH}`)) {
@@ -51,6 +101,28 @@ export function prismaSchemaProviderFromPath(schemaPath = configuredPrismaSchema
 
 export function configuredPrismaSchemaPath(): string {
   return envValue("PRISMA_SCHEMA_PATH") ?? DEFAULT_PRISMA_SCHEMA_PATH;
+}
+
+/**
+ * Whether Prisma database query timing is enabled.
+ *
+ * Defaults on. Set DB_QUERY_TIMING_ENABLED=0/false/off/no to disable the
+ * lightweight app-side metrics/tracing wrapper.
+ */
+export function dbQueryTimingEnabled(): boolean {
+  const raw = envValue("DB_QUERY_TIMING_ENABLED");
+  if (!raw) return true;
+  return !DB_QUERY_TIMING_DISABLED_VALUES.has(raw.toLowerCase());
+}
+
+/**
+ * App-side slow-query threshold in milliseconds.
+ *
+ * Used only for safe metrics/log events; PostgreSQL server-side slow logging is
+ * configured separately with log_min_duration_statement.
+ */
+export function dbSlowQueryThresholdMs(): number {
+  return positiveIntEnv("DB_SLOW_QUERY_THRESHOLD_MS", DEFAULT_DB_SLOW_QUERY_THRESHOLD_MS);
 }
 
 function schemaPathForProvider(provider: DatabaseProvider): string {

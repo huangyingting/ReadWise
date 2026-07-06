@@ -1,7 +1,7 @@
 ---
 type: "reference"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-06"
 description: "Documents server-side runtime-config ownership, direct process.env allowlist, and typed environment variable helpers. Captures current env-var ownership tables, feature switches, optional-provider config, and server-only import boundaries."
 ---
 
@@ -199,6 +199,8 @@ variable or changes a default.
 | `RATE_LIMIT_AI_REQUESTS`, `RATE_LIMIT_LOOKUP_REQUESTS`, `RATE_LIMIT_PUBLIC_REQUESTS`, `RATE_LIMIT_IMPORT_REQUESTS`, `RATE_LIMIT_ADMIN_JOB_REQUESTS`, `RATE_LIMIT_AUTH_REQUESTS`, `RATE_LIMIT_WINDOW_MS` | fixed-window thresholds | `rate-limit.ts` |
 | `RATE_LIMIT_STORE` | `auto` outside test, `memory` in test; supports `auto`, `database`, `memory` | `rate-limit.ts` |
 | `READWISE_DISABLE_LISTING_CACHE` | off unless truthy in listing-cache code | `src/lib/cache.ts` |
+| `DB_QUERY_TIMING_ENABLED` | on by default; set `0`/`false`/`off`/`no` to disable Prisma query timing | `database.ts` |
+| `DB_SLOW_QUERY_THRESHOLD_MS` | `250` | `database.ts` |
 | `ANALYTICS_ENABLED` | on outside test, off when `0`/`false` | `analytics.ts` |
 | `ANALYTICS_RETENTION_DAYS` | `400` | `analytics.ts` |
 
@@ -210,7 +212,7 @@ variable or changes a default.
 | --- | --- | --- |
 | `src/lib/runtime-config/ai.ts` | `ai` | `AZURE_OPENAI_*`, `AI_PROVIDER`, `AI_MODERATION_ENABLED`, `AI_REQUEST_TIMEOUT_MS`, `AI_MAX_RETRIES`, context/output token budgets, ledger, cost, quota env vars |
 | `src/lib/runtime-config/analytics.ts` | `analytics` | `ANALYTICS_ENABLED`, `ANALYTICS_RETENTION_DAYS` |
-| `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH` |
+| `src/lib/runtime-config/database.ts` | `database` | `DATABASE_URL`, `PRISMA_SCHEMA_PATH`, `DB_QUERY_TIMING_ENABLED`, `DB_SLOW_QUERY_THRESHOLD_MS` |
 | `src/lib/runtime-config/dictionary.ts` | `dictionary` | `DICTIONARY_PROVIDER`, `LOCAL_DICTIONARY_DIR`, `LOCAL_DICTIONARY_LANGUAGE` |
 | `src/lib/runtime-config/feature-flags.ts` | `featureFlags` | `FEATURE_AI_ENABLED`, `FEATURE_TTS_ENABLED`, `FEATURE_PUSH_ENABLED`, `FEATURE_SCRAPER_ENABLED`, `FEATURE_TODAY_SESSION_ENABLED` |
 | `src/lib/runtime-config/oauth.ts` | `oauth` | `GOOGLE_CLIENT_*`, `AZURE_AD_*` |

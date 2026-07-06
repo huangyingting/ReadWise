@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-06"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -112,6 +112,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`operations/provider-operations.md`](./operations/provider-operations.md) | Common lifecycle model for all external providers: health states, credential rotation, outage response, and provider-drift handling. |
 | [`operations/security-audit.md`](./operations/security-audit.md) | Security event and audit-log operations: `/admin/security`, recent event triage, durable audit-log reads, retention, and privacy-safe investigation rules. |
 | [`operations/tts-jobs.md`](./operations/tts-jobs.md) | `TTS_GENERATE` job scheduling, deduplication, retry policy, and rebuild flow under Operations ownership. |
+| [`operations/performance-tuning.md`](./operations/performance-tuning.md) | Database/query performance metrics, PostgreSQL slow-query logging, pg_stat_statements, pooling, and listing/feed benchmarks. |
 
 ### Platform
 
