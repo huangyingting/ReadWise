@@ -33,12 +33,6 @@
   color: var(--reading-text-muted, var(--text-muted));
 }
 
-/* TTS highlight colour — one rule covers all reading modes via --reading-* tokens. */
-[data-reading-mode]::highlight(tts-active) {
-  background-color: color-mix(in srgb, var(--reading-accent, var(--teal)) 30%, transparent);
-  color: var(--reading-text-strong, var(--reading-text, var(--text)));
-}
-
 /* Reading-progress bar — teal (reading-state) override */
 [data-reading-mode] .reading-progress-bar {
   background: var(--reading-accent, var(--bg-accent));

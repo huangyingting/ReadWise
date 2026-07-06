@@ -14,6 +14,7 @@
 
 import { useState, useEffect } from "react";
 import {
+  applyReaderPrefs,
   getReaderPrefs,
   setReaderPrefs,
   stepFontScale,
@@ -69,7 +70,9 @@ export function useReaderPrefs(): UseReaderPrefsResult {
 
   // Read stored prefs from localStorage — client-only, runs after mount.
   useEffect(() => {
-    setPrefsState(getReaderPrefs());
+    const prefs = getReaderPrefs();
+    setPrefsState(prefs);
+    applyReaderPrefs(prefs);
   }, []);
 
   function announce(msg: string) {

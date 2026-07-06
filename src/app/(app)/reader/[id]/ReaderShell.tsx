@@ -14,8 +14,8 @@
  *   5. ReaderMiniPlayer        — fixed bottom audio mini-player (outside layout)
  *
  * The shell renders inside `#reader-root` with `suppressHydrationWarning` so
- * the no-flash preference script can mutate `data-*` attributes before
- * hydration without triggering a React mismatch warning.
+ * the root-layout reader preference bootstrap can mutate `data-*` attributes
+ * before hydration without triggering a React mismatch warning.
  *
  * Client providers are scoped inside `#reader-root` to avoid wrapping the
  * entire RSC page output. Hoisting them to the top of the RSC tree would
@@ -40,7 +40,6 @@ import ArticleStudySection from "@/components/ArticleStudySection";
 import ArticleDifficultyFeedback from "@/components/ArticleDifficultyFeedback";
 import ReaderReadingBlockTracker from "@/components/reader/ReaderReadingBlockTracker";
 import ReaderTimeTracker from "@/components/reader/ReaderTimeTracker";
-import ReaderPrefsScript from "./ReaderPrefsScript";
 import ArticleHeader from "./ArticleHeader";
 import KeepReadingSection from "./KeepReadingSection";
 
@@ -162,16 +161,6 @@ export default function ReaderShell({ data, setTodayEnabled = false }: Props) {
 
   return (
     <div id="reader-root" suppressHydrationWarning>
-      {/*
-       * No-flash inline script: MUST be the first child of #reader-root so
-       * that document.currentScript.parentElement resolves to the element
-       * BEFORE any of its children are painted. Using getElementById fails
-       * because the script executes before #reader-root finishes parsing.
-       * suppressHydrationWarning on the parent prevents React from warning
-       * about the pre-hydration attribute mutation.
-       */}
-      <ReaderPrefsScript />
-
       {/* Provider tree scoped inside #reader-root — see module docblock. */}
       <ReaderProviders articleId={article.id}>
         <ReaderLayout>

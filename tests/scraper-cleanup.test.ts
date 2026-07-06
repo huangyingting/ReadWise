@@ -31,6 +31,10 @@ function applyMergedProviderCleanup(providerId: string, label: string, html: str
   );
 }
 
+function plainText(html: string): string {
+  return sanitizeArticleHtml(html).replace(/<[^>]*>/g, " ").replace(/\s+/g, " ").trim();
+}
+
 // ---------------------------------------------------------------------------
 // dropSelectors: tag-based removal
 // ---------------------------------------------------------------------------
@@ -88,6 +92,28 @@ test("cleanup: removes multiple different tag types in one pass", () => {
   assert.doesNotMatch(result, /Sidebar/);
   assert.match(result, /Content/);
   assert.match(result, /End/);
+});
+
+test("cleanup: hakai drops template labels, byline, citation, social, and related blocks", () => {
+  const html =
+    '<section class="singlebyline singlepagecontainer"><h3 class="invis">Authored by</h3> by <a href="/profiles/writer/">Writer Name</a><br /></section>' +
+    '<aside class="singlebydatewords singlepagecontainer"><h3 class="invis">Wordcount</h3> July 1, 2026 | 1,000 words</aside>' +
+    '<aside class="social-sharing"><h4>Share</h4><a href="https://facebook.example/share">Facebook</a></aside>' +
+    '<section class="maincontent singlepagecontainer"><h3 class="invis">Article body copy</h3><p>Important coastal reporting remains intact.</p></section>' +
+    '<video autoplay loop muted playsinline class="gif-video"><source src="coast.mp4" type="video/mp4" /><p>Your browser does not support the video element.</p></video>' +
+    "<p>Coastal reporting video caption remains intact.</p>" +
+    '<p><em>This article is also available in audio format. Listen now, <a href="https://mcdn.podbean.com/story.mp3">download</a>, or subscribe to “Hakai Magazine Audio Edition” through your favorite podcast app.</em></p>' +
+    '<footer class="singlepagecontainer"><h3 class="invis">Article footer and bottom matter</h3><section class="main cite printonly"><h3 class="invis">Cite this Article:</h3><p>Cite this Article: Writer Name, Hakai Magazine.</p></section></footer>' +
+    '<aside class="main relatedcontent"><h3>Related Content</h3><p>Another story teaser</p></aside>';
+
+  const result = applyMergedProviderCleanup("hakaimagazine", "Hakai", html);
+  const text = plainText(result);
+
+  assert.match(text, /Important coastal reporting remains intact/);
+  assert.match(text, /Coastal reporting video caption remains intact/);
+  assert.doesNotMatch(text, /Authored by|Writer Name|Wordcount|Share|Article body copy/i);
+  assert.doesNotMatch(text, /Your browser does not support the video element|audio format/i);
+  assert.doesNotMatch(text, /Article footer and bottom matter|Cite this Article|Related Content|Another story teaser/i);
 });
 
 // ---------------------------------------------------------------------------

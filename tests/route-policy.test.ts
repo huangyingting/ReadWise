@@ -12,6 +12,7 @@ import {
   MIDDLEWARE_MATCHER,
   SESSION_COOKIES,
 } from "@/lib/route-policy";
+import { config as middlewareConfig } from "../middleware";
 import {
   buildSecurityHeaders,
   CSP_DIRECTIVES,
@@ -40,6 +41,10 @@ test("middleware matcher contains the landing-page root entry", () => {
     (MIDDLEWARE_MATCHER as readonly string[]).includes("/"),
     "Matcher must include '/' for the landing-page authenticated redirect",
   );
+});
+
+test("middleware config matcher stays in sync with route policy", () => {
+  assert.deepEqual(middlewareConfig.matcher, MIDDLEWARE_MATCHER);
 });
 
 test("no matcher-only entries without a corresponding protected prefix", () => {

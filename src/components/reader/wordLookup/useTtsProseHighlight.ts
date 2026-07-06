@@ -12,6 +12,13 @@ import {
 import { collectTextNodes, type TextNodeEntry } from "@/components/reader/wordLookup/highlightMarks";
 
 const ACTIVE_TTS_HIGHLIGHT_NAME = "tts-active";
+const ACTIVE_TTS_HIGHLIGHT_STYLE_ID = "rw-tts-active-highlight-style";
+const ACTIVE_TTS_HIGHLIGHT_STYLE = `
+[data-reading-mode]::highlight(${ACTIVE_TTS_HIGHLIGHT_NAME}) {
+  background-color: color-mix(in srgb, var(--reading-accent, var(--teal)) 30%, transparent);
+  color: var(--reading-text-strong, var(--reading-text, var(--text)));
+}
+`;
 const SCROLL_VIEWPORT_TOP_RATIO = 0.2;
 const SCROLL_VIEWPORT_BOTTOM_RATIO = 0.75;
 
@@ -52,6 +59,17 @@ function getCssHighlightRegistry(): CssHighlightRegistry | null {
 
 function clearActiveTtsHighlight(cssh: CssHighlightRegistry): void {
   cssh.delete(ACTIVE_TTS_HIGHLIGHT_NAME);
+}
+
+function ensureActiveTtsHighlightStyle(): void {
+  if (typeof document === "undefined" || document.getElementById(ACTIVE_TTS_HIGHLIGHT_STYLE_ID)) {
+    return;
+  }
+
+  const style = document.createElement("style");
+  style.id = ACTIVE_TTS_HIGHLIGHT_STYLE_ID;
+  style.textContent = ACTIVE_TTS_HIGHLIGHT_STYLE;
+  document.head.append(style);
 }
 
 function createRangeForProseWord(active: ProseWord): Range | null {
@@ -272,6 +290,7 @@ export function useTtsProseHighlight(
   useEffect(() => {
     const cssh = getCssHighlightRegistry();
     if (!cssh) return;
+    ensureActiveTtsHighlightStyle();
 
     const idx = readerAudio.activeIndex;
     const map = ttsWordMapRef.current;

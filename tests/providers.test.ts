@@ -296,7 +296,6 @@ test("source-derived provider URL patterns match article URLs", () => {
     ["publicdomainreview", "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/"],
     ["publicdomainreview", "https://publicdomainreview.org/collection/diagrams-for-travel/"],
     ["hakaimagazine", "https://hakaimagazine.com/features/the-canoe-in-the-forest/"],
-    ["hakaimagazine", "https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"],
     ["yalee360", "https://e360.yale.edu/features/home-battery-vpps"],
     ["worksinprogress", "https://worksinprogress.co/issue/how-to-build-a-state"],
     ["noema", "https://www.noemamag.com/example-story/"],
@@ -369,6 +368,7 @@ test("source-derived URL filters reject non-article pages", () => {
 
   const hakai = getProviderOrFail("hakaimagazine");
   assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/wp-content/uploads/image.jpg"), false);
+  assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"), false);
   assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/features/the-canoe-in-the-forest/"), true);
 
   const yale = getProviderOrFail("yalee360");
