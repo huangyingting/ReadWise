@@ -31,7 +31,6 @@ import noema from "./noema";
 import undark from "./undark";
 import theconversation from "./theconversation";
 import propublica from "./propublica";
-import grist from "./grist";
 import scientificamerican from "./scientificamerican";
 import atlasObscura from "./atlasobscura";
 import jstorDaily from "./jstordaily";
@@ -47,7 +46,6 @@ export const PROVIDERS: readonly Provider[] = [
   bbcFeatures,
   theconversation,
   propublica,
-  grist,
   smithsonian,
   knowable,
   nautilus,

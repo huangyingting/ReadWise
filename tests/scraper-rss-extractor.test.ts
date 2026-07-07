@@ -648,38 +648,6 @@ test("propublica discovery: iterates day sitemaps newest first", async () => {
   );
 });
 
-test("grist discovery: walks post sitemaps newest first and filters updates", async () => {
-  const provider = getProvider("grist")!;
-  const newest = "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/";
-  const older = "https://grist.org/article/not-just-fueling-around/";
-  const fetched: string[] = [];
-  const sitemapMap: Record<string, string> = {
-    "https://grist.org/sitemap_index.xml": makeSitemapIndex([
-      "https://grist.org/post-sitemap.xml",
-      "https://grist.org/post-sitemap63.xml",
-      "https://grist.org/guide-post-sitemap.xml",
-      "https://grist.org/category-sitemap.xml",
-    ]),
-    "https://grist.org/post-sitemap63.xml": makeSitemap([
-      newest,
-      "https://grist.org/updates/grist-hires-austin-corona-to-cover-energy/",
-    ]),
-    "https://grist.org/post-sitemap.xml": makeSitemap([older]),
-    "https://grist.org/feed/": makeFeed(["https://grist.org/climate-energy/rss-fallback/"]),
-  };
-
-  const urls = await discoverWithFetch(
-    provider,
-    feedMapFetch(sitemapMap, makeSitemap([]), fetched),
-    10,
-  );
-
-  assert.deepEqual(urls, [newest, older]);
-  assert.ok(fetched.indexOf("https://grist.org/post-sitemap63.xml") < fetched.indexOf("https://grist.org/post-sitemap.xml"));
-  assertNotFetched(fetched, "https://grist.org/guide-post-sitemap.xml");
-  assertNotFetched(fetched, "https://grist.org/feed/");
-});
-
 test("undark discovery: returns only dated article URLs from the public WordPress.com posts API", async () => {
   const undark = getProvider("undark")!;
   const urls = await discoverWithFetch(

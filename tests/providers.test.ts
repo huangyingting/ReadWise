@@ -20,7 +20,6 @@ const SOURCE_DERIVED_PROVIDER_KEYS = [
   "bbcfeatures",
   "theconversation",
   "propublica",
-  "grist",
   "smithsonian",
   "knowable",
   "nautilus",
@@ -44,7 +43,6 @@ const LONG_FORM_PROVIDER_KEYS = [
   "undark",
   "theconversation",
   "propublica",
-  "grist",
   "bbcfeatures",
   "atlasobscura",
   "jstordaily",
@@ -104,12 +102,11 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, publicdomainreview removed)", () => {
+test("registry holds exactly the 19 active providers (aeon, voa, bbc news, nbc, publicdomainreview, grist removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "atlasobscura",
     "bbcfeatures",
-    "grist",
     "hakaimagazine",
     "huffpost",
     "jstordaily",
@@ -128,10 +125,11 @@ test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, 
     "worksinprogress",
     "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 20);
+  assert.equal(PROVIDERS.length, 19);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
   assert.equal(getProvider("publicdomainreview"), null, "publicdomainreview must be unregistered");
+  assert.equal(getProvider("grist"), null, "grist must be unregistered");
 });
 
 test("getProvider is case-insensitive", () => {
@@ -200,10 +198,6 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
       /republish/i.test(kw),
     ),
     "ProPublica cleanup should drop republish license modal chrome",
-  );
-  assert.ok(
-    getProviderOrFail("grist").cleanup?.dropClassKeywords?.some((kw) => /donate|newsletter/i.test(kw)),
-    "Grist cleanup should drop donation/newsletter chrome",
   );
   assert.ok(
     getProviderOrFail("bbcfeatures").cleanup?.dropClassKeywords?.some((kw) =>
@@ -288,7 +282,6 @@ test("source-derived provider URL patterns match article URLs", () => {
       "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931",
     ],
     ["propublica", "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"],
-    ["grist", "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"],
     ["atlasobscura", "https://www.atlasobscura.com/articles/mummy-madness-10-of-the-most-amazing-mummies-in-the-world"],
     ["atlasobscura", "https://www.atlasobscura.com/foods/poutine"],
     ["jstordaily", "https://daily.jstor.org/internet-things-totally-new-hundred-years-old/"],
@@ -348,11 +341,6 @@ test("source-derived URL filters reject non-article pages", () => {
     propublica.articleUrlFilter?.("https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"),
     true,
   );
-
-  const grist = getProviderOrFail("grist");
-  assert.equal(grist.articleUrlFilter?.("https://grist.org/updates/grist-hires-austin-corona-to-cover-energy/"), false);
-  assert.equal(grist.articleUrlFilter?.("https://grist.org/category/climate-energy/"), false);
-  assert.equal(grist.articleUrlFilter?.("https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"), true);
 
   const atlas = getProviderOrFail("atlasobscura");
   assert.equal(atlas.articleUrlFilter?.("https://www.atlasobscura.com/places/obscure-place"), false);
@@ -694,22 +682,6 @@ test("propublica categoryFor: national/criminal justice maps to politics", () =>
   assert.equal(p.categoryFor!(u, "National"), "politics");
   assert.equal(p.categoryFor!(u, "Health Care"), "health");
   assert.equal(p.categoryFor!(u, "Business"), "business");
-});
-
-test("grist categoryFor: climate/accountability paths map to environment or politics", () => {
-  const p = getProviderOrFail("grist");
-  assert.equal(
-    p.categoryFor!(new URL("https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/"), null),
-    "environment",
-  );
-  assert.equal(
-    p.categoryFor!(
-      new URL("https://grist.org/accountability/blood-in-the-well-one-towns-fight-against-the-slaughterhouse-polluting-it/"),
-      null,
-    ),
-    "politics",
-  );
-  assert.equal(p.categoryFor!(new URL("https://grist.org/culture/ask-a-climate-therapist/"), null), "culture");
 });
 
 test("smithsonian categoryFor: science-nature→science, innovation→tech", () => {
