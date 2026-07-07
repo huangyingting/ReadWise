@@ -21,6 +21,29 @@ const JSTOR_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, string]> = [
   [/travel|tourism|journey|migration/, "travel"],
 ];
 
+const JSTOR_DAILY_RESEARCH_NOTE =
+  "JSTOR is a digital library for scholars, researchers, and students. JSTOR Daily readers can access the original research behind our articles for free on JSTOR.";
+const JSTOR_DAILY_ICON_NOTICE = "The icon indicates free access to the linked research on JSTOR.";
+
+const JSTOR_DAILY_CLEANUP = {
+  ...COMMON_READING_SOURCE_CLEANUP,
+  dropClassKeywords: [
+    ...COMMON_READING_SOURCE_CLEANUP.dropClassKeywords.filter(
+      (keyword) => keyword !== "social" && keyword !== "share",
+    ),
+    "article-citations-container",
+    "j-icon",
+    "jstor-logo",
+  ],
+  dropTextKeywords: [
+    ...(COMMON_READING_SOURCE_CLEANUP.dropTextKeywords ?? []),
+    "jstor daily provides context for current events using scholarship found in jstor",
+    "jstor is part of ithaka",
+  ],
+  dropTextExactKeywords: [JSTOR_DAILY_ICON_NOTICE, JSTOR_DAILY_RESEARCH_NOTE],
+  dropLinkHrefBlockKeywords: ["collaborate-with-jstor"],
+};
+
 function postSitemapNumber(url: string): number {
   const match = url.match(/\/post-sitemap(\d*)\.xml$/i);
   if (!match) return Number.POSITIVE_INFINITY;
@@ -59,7 +82,7 @@ export const jstorDaily: Provider = {
   defaultCategory: "history",
   categories: ["history", "ideas", "culture", "science", "business", "environment", "travel"],
   readingCategories: ["history", "ideas", "culture", "science", "business", "environment", "travel"],
-  cleanup: COMMON_READING_SOURCE_CLEANUP,
+  cleanup: JSTOR_DAILY_CLEANUP,
   categoryFor: (url, section) => categoryFromRules(url, section, JSTOR_CATEGORY_RULES, "history"),
   urlExtractor: jstorDailyUrlExtractor,
 };

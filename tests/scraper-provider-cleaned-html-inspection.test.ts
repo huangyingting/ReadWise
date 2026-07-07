@@ -293,6 +293,68 @@ test("technologyreview cleanup drops recirc/signup tail and newsletter promo res
   assert.match(content, /A visible article caption should remain/i, "article caption must survive");
 });
 
+test("jstordaily cleanup preserves social-history articles and drops JSTOR footer residue", () => {
+  const cleanup = requireProviderCleanup("jstordaily", "JSTOR Daily");
+
+  const html = `<!doctype html><html><head>
+    <title>How Ideas Travel | JSTOR Daily</title>
+    <meta property="og:title" content="How Ideas Travel" />
+    </head><body>
+      <article class="post category-social-history pub_tag-social-work daily_series-shared-collections">
+        <h1>How Ideas Travel</h1>
+        <div class="j-icon">The <span class="jcitation"></span> icon indicates free access to the linked research on JSTOR.</div>
+        <p>${wordBlock(45, "archive")} as the reporting explains how social history shapes public memory.</p>
+        <p class="collab-incontent-banner"><a href="https://about.jstor.org/collaborate-with-jstor/"><img src="https://daily.jstor.org/wp-content/uploads/2025/05/jstor_collaborators_ad_in_text.jpg" alt="Collaborate" /><img src="https://daily.jstor.org/wp-content/uploads/2025/05/jstor_collaborators_ad_mobile.jpg" alt="Collaborate" /></a></p>
+        <div class="social-share">Share this article</div>
+        <p>${wordBlock(45, "evidence")} as the essay follows scholarship across archives.</p>
+        <p>JSTOR is a digital library for scholars, researchers, and students. JSTOR Daily readers can access the original research behind our articles for free on JSTOR.</p>
+        <p>${wordBlock(45, "reader")} as the conclusion returns to the historical argument.</p>
+        <div class="article-citations-container">
+          <div class="jstor-logo"><img src="/wp-content/uploads/2018/02/jstor-logo@2x.png" alt="JSTOR logo" /></div>
+          <div class="article-citations"><h2>Resources</h2><p>Research links and citation chrome.</p></div>
+        </div>
+      </article>
+      <footer>
+        <p>JSTOR Daily provides context for current events using scholarship found in JSTOR, a digital library of academic journals, books, and other material.</p>
+        <p>JSTOR is part of ITHAKA, a not-for-profit organization helping the academic community preserve the scholarly record.</p>
+      </footer>
+    </body></html>`;
+
+  const cleaned = applyGenericProviderCleanup(html, cleanup);
+  assert.match(cleaned, /archive1/i, "article prose in social-history wrapper must survive cleanup");
+  assert.match(cleaned, /evidence1/i, "middle article prose must survive cleanup");
+  assertNoProviderNoise(cleaned, [
+    /icon indicates free access/i,
+    /jstor_collaborators_ad/i,
+    /collaborate-with-jstor/i,
+    /Share this article/i,
+    /JSTOR is a digital library for scholars/i,
+    /jstor-logo@2x/i,
+    /Research links and citation chrome/i,
+    /JSTOR Daily provides context/i,
+    /JSTOR is part of ITHAKA/i,
+  ]);
+
+  const content = extractContent(
+    html,
+    "https://daily.jstor.org/how-ideas-travel/",
+    "JSTOR Daily article should extract",
+  );
+  assert.match(content, /archive1/i, "article prose must survive final extraction");
+  assert.match(content, /reader1/i, "article tail prose must survive final extraction");
+  assertNoProviderNoise(content, [
+    /icon indicates free access/i,
+    /jstor_collaborators_ad/i,
+    /collaborate-with-jstor/i,
+    /Share this article/i,
+    /JSTOR is a digital library for scholars/i,
+    /jstor-logo@2x/i,
+    /Research links and citation chrome/i,
+    /JSTOR Daily provides context/i,
+    /JSTOR is part of ITHAKA/i,
+  ]);
+});
+
 test("wired cleanup drops exact recirc/newsletter residue while preserving prose", () => {
   const cleanup = requireProviderCleanup("wired", "WIRED");
 
