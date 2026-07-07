@@ -29,7 +29,6 @@ const SOURCE_DERIVED_PROVIDER_KEYS = [
   "undark",
   "atlasobscura",
   "jstordaily",
-  "publicdomainreview",
   "hakaimagazine",
   "yalee360",
   "worksinprogress",
@@ -49,7 +48,6 @@ const LONG_FORM_PROVIDER_KEYS = [
   "bbcfeatures",
   "atlasobscura",
   "jstordaily",
-  "publicdomainreview",
   "hakaimagazine",
   "yalee360",
   "worksinprogress",
@@ -106,7 +104,7 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 21 active providers (aeon, voa, bbc news, nbc removed)", () => {
+test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, publicdomainreview removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "atlasobscura",
@@ -120,7 +118,6 @@ test("registry holds exactly the 21 active providers (aeon, voa, bbc news, nbc r
     "nautilus",
     "noema",
     "propublica",
-    "publicdomainreview",
     "scientificamerican",
     "smithsonian",
     "technologyreview",
@@ -131,9 +128,10 @@ test("registry holds exactly the 21 active providers (aeon, voa, bbc news, nbc r
     "worksinprogress",
     "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 21);
+  assert.equal(PROVIDERS.length, 20);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
+  assert.equal(getProvider("publicdomainreview"), null, "publicdomainreview must be unregistered");
 });
 
 test("getProvider is case-insensitive", () => {
@@ -294,8 +292,6 @@ test("source-derived provider URL patterns match article URLs", () => {
     ["atlasobscura", "https://www.atlasobscura.com/articles/mummy-madness-10-of-the-most-amazing-mummies-in-the-world"],
     ["atlasobscura", "https://www.atlasobscura.com/foods/poutine"],
     ["jstordaily", "https://daily.jstor.org/internet-things-totally-new-hundred-years-old/"],
-    ["publicdomainreview", "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/"],
-    ["publicdomainreview", "https://publicdomainreview.org/collection/diagrams-for-travel/"],
     ["hakaimagazine", "https://hakaimagazine.com/features/the-canoe-in-the-forest/"],
     ["hakaimagazine", "https://hakaimagazine.com/news/how-exactly-could-deep-sea-mining-benefit-all-of-humanity/"],
     ["hakaimagazine", "https://hakaimagazine.com/videos-visuals/one-great-shot-let-us-admire-the-lettuce-slug/"],
@@ -367,10 +363,6 @@ test("source-derived URL filters reject non-article pages", () => {
   assert.equal(jstor.articleUrlFilter?.("https://daily.jstor.org/archives/"), false);
   assert.equal(jstor.articleUrlFilter?.("https://daily.jstor.org/hidden-history/"), true);
 
-  const pdr = getProviderOrFail("publicdomainreview");
-  assert.equal(pdr.articleUrlFilter?.("https://publicdomainreview.org/blog/2026/06/site-news/"), false);
-  assert.equal(pdr.articleUrlFilter?.("https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/"), true);
-
   const hakai = getProviderOrFail("hakaimagazine");
   assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/wp-content/uploads/image.jpg"), false);
   assert.equal(hakai.articleUrlFilter?.("https://hakaimagazine.com/profiles/the-fleet-winged-ghosts-of-greenland/"), false);
@@ -392,6 +384,11 @@ test("source-derived URL filters reject non-article pages", () => {
   const yale = getProviderOrFail("yalee360");
   assert.equal(yale.articleUrlFilter?.("https://e360.yale.edu/digest/sperm-whale-dialects"), false);
   assert.equal(yale.articleUrlFilter?.("https://e360.yale.edu/features/home-battery-vpps"), true);
+  assert.equal(yale.articleUrlFilter?.("https://e360.yale.edu/features/p2"), false);
+  assert.equal(
+    yale.articleUrlFilter?.("https://e360.yale.edu/features/p87?lt%3Bmy_tag_0e553ec3a07a6cfbbc95d7411dcd694c"),
+    false,
+  );
 
   const wip = getProviderOrFail("worksinprogress");
   assert.equal(wip.articleUrlFilter?.("https://worksinprogress.co/wp-content/uploads/hero.jpg"), false);

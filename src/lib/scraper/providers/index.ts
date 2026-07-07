@@ -35,7 +35,6 @@ import grist from "./grist";
 import scientificamerican from "./scientificamerican";
 import atlasObscura from "./atlasobscura";
 import jstorDaily from "./jstordaily";
-import publicDomainReview from "./publicdomainreview";
 import hakaiMagazine from "./hakaimagazine";
 import yaleEnvironment360 from "./yalee360";
 import worksInProgress from "./worksinprogress";
@@ -58,7 +57,6 @@ export const PROVIDERS: readonly Provider[] = [
   undark,
   atlasObscura,
   jstorDaily,
-  publicDomainReview,
   hakaiMagazine,
   yaleEnvironment360,
   worksInProgress,

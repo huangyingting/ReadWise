@@ -11,18 +11,6 @@ function rss(urls: string[]): string {
   return `<rss><channel>${urls.map((url) => `<item><link>${url}</link></item>`).join("")}</channel></rss>`;
 }
 
-function pdrPageData(key: "allAirtable" | "collections", slugs: string[]): string {
-  return JSON.stringify({
-    result: {
-      data: {
-        [key]: {
-          edges: slugs.map((Slug) => ({ node: { data: { Slug } } })),
-        },
-      },
-    },
-  });
-}
-
 type UrlExtractor = (opts: {
   limit: number;
   fetch: (url: string) => Promise<string>;
@@ -188,7 +176,6 @@ test("reading-source providers discover non-sports article URLs from their stron
   const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
   const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
   const { jstorDaily } = await import("@/lib/scraper/providers/jstordaily");
-  const { publicDomainReview } = await import("@/lib/scraper/providers/publicdomainreview");
   const { worksInProgress } = await import("@/lib/scraper/providers/worksinprogress");
   const { yaleEnvironment360 } = await import("@/lib/scraper/providers/yalee360");
 
@@ -235,21 +222,6 @@ test("reading-source providers discover non-sports article URLs from their stron
   );
   await assertEmptyWhenFetchFails(jstorDaily.urlExtractor, 1);
 
-  assert.ok(publicDomainReview.urlExtractor);
-  assert.deepEqual(
-    await publicDomainReview.urlExtractor({
-      limit: 10,
-      fetch: async (url) =>
-        url.includes("/essays/")
-          ? pdrPageData("allAirtable", ["gratacap-curator-in-lost-worlds"])
-          : pdrPageData("collections", ["diagrams-for-travel"]),
-    }),
-    [
-      "https://publicdomainreview.org/essay/gratacap-curator-in-lost-worlds/",
-      "https://publicdomainreview.org/collection/diagrams-for-travel/",
-    ],
-  );
-
   assert.ok(hakaiMagazine.urlExtractor);
   assert.deepEqual(
     await hakaiMagazine.urlExtractor({
@@ -278,10 +250,10 @@ test("reading-source providers discover non-sports article URLs from their stron
       limit: 10,
       fetch: async (url) => {
         if (url === "https://e360.yale.edu/features") {
-          return `<a href="https://e360.yale.edu/features/home-battery-vpps">feature</a><a href="/digest/not-kept">digest</a>`;
+          return `<a href="https://e360.yale.edu/features/home-battery-vpps">feature</a><a href="/features/p2">page</a><a href="/digest/not-kept">digest</a>`;
         }
         if (url === "https://e360.yale.edu/features/p2") {
-          return `<a href="/features/antarctica-krill-whales">feature</a>`;
+          return `<a href="/features/antarctica-krill-whales">feature</a><a href="/features/p87?lt%3Bmy_tag_0e553ec3a07a6cfbbc95d7411dcd694c">bad page</a>`;
         }
         throw new Error("stop pages");
       },

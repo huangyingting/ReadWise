@@ -21,7 +21,6 @@ import {
 export const READING_SOURCE_PROVIDER_KEYS = [
   "atlasobscura",
   "jstordaily",
-  "publicdomainreview",
   "hakaimagazine",
   "yalee360",
   "worksinprogress",
