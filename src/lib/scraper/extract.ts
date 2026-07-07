@@ -40,6 +40,17 @@ const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
  * *because* Readability under-performs.
  */
 const READABILITY_LD_MIN_WORD_RATIO = 0.6;
+const READABILITY_PREFERRED_COLLAPSED_LD_PROVIDERS = new Set([
+  "harvardbusinessreview",
+  "wired",
+]);
+const JSON_LD_REFLOW_PROVIDERS = new Set(["harvardbusinessreview"]);
+const JSON_LD_REFLOW_MIN_WORDS = 50;
+const JSON_LD_REFLOW_MAX_WORDS = 140;
+const HASH_TABLE_ARTIFACT_PROVIDERS = new Set(["harvardbusinessreview"]);
+const HASH_TABLE_MIN_SEPARATORS = 8;
+const HBR_GENERATION_TABLE_START_RE = /\bGeneration#Birth\s*years#|\bGeneration#Birthyears#/i;
+const HBR_HASH_TABLE_FOOTNOTE_RE = /#\*\s+(.+)$/s;
 
 type ParsedDocument = ReturnType<typeof parseHTML>["document"];
 
@@ -208,12 +219,73 @@ function toAbsolute(url: string | null, base: string): string | null {
   }
 }
 
+function splitCollapsedPlainTextIntoParagraphs(text: string): string[] {
+  const sentences = text
+    .replace(/\s+/g, " ")
+    .trim()
+    .split(/(?<=[.!?])\s+(?=(?:["'([{]|&quot;|&ldquo;|&lsquo;)?[A-Z0-9])/)
+    .map((sentence) => sentence.trim())
+    .filter(Boolean);
+  if (sentences.length < 2) return [text.trim()];
+
+  const paragraphs: string[] = [];
+  let current: string[] = [];
+  let currentWords = 0;
+  for (const sentence of sentences) {
+    const sentenceWords = countWords(sentence);
+    if (
+      current.length > 0 &&
+      currentWords >= JSON_LD_REFLOW_MIN_WORDS &&
+      currentWords + sentenceWords > JSON_LD_REFLOW_MAX_WORDS
+    ) {
+      paragraphs.push(current.join(" "));
+      current = [];
+      currentWords = 0;
+    }
+    current.push(sentence);
+    currentWords += sentenceWords;
+  }
+  if (current.length > 0) paragraphs.push(current.join(" "));
+  return paragraphs;
+}
+
+function denseHashSeparatorCount(text: string): number {
+  return text.match(/#/g)?.length ?? 0;
+}
+
+function cleanHarvardBusinessReviewHashTableArtifact(paragraph: string): string[] {
+  if (denseHashSeparatorCount(paragraph) < HASH_TABLE_MIN_SEPARATORS) return [paragraph];
+
+  const footnote = paragraph.match(HBR_HASH_TABLE_FOOTNOTE_RE)?.[1]?.trim() ?? "";
+  const tableStart = paragraph.search(HBR_GENERATION_TABLE_START_RE);
+  if (tableStart >= 0) {
+    const prefix = paragraph.slice(0, tableStart).trim();
+    return [prefix, footnote].filter((part) => part.length > 0);
+  }
+
+  return footnote ? [footnote] : [];
+}
+
+function cleanHashTableArtifacts(paragraphs: string[], providerKey?: string | null): string[] {
+  if (providerKey == null || !HASH_TABLE_ARTIFACT_PROVIDERS.has(providerKey)) return paragraphs;
+  return paragraphs.flatMap(cleanHarvardBusinessReviewHashTableArtifact);
+}
+
 /** Builds article HTML from a plain-text body by wrapping paragraphs in <p>. */
-function paragraphsToHtml(text: string): string {
-  return text
+function paragraphsToHtml(text: string, providerKey?: string | null): string {
+  const paragraphs = text
     .split(/\n{2,}|\r\n\r\n/)
     .map((p) => p.trim())
-    .filter(Boolean)
+    .filter(Boolean);
+  const shouldReflow =
+    providerKey != null &&
+    JSON_LD_REFLOW_PROVIDERS.has(providerKey) &&
+    paragraphs.length === 1 &&
+    countWords(paragraphs[0] ?? "") > JSON_LD_REFLOW_MAX_WORDS;
+  return cleanHashTableArtifacts(
+    shouldReflow ? splitCollapsedPlainTextIntoParagraphs(paragraphs[0] ?? "") : paragraphs,
+    providerKey,
+  )
     .map((p) => `<p>${p.replace(/\n/g, " ")}</p>`)
     .join("\n");
 }
@@ -485,7 +557,8 @@ function chooseArticleBody(
   const ldWords = countWords(stripTags(legacyBody));
   const readableLongEnough = readable.wordCount >= ldWords * READABILITY_LD_MIN_WORD_RATIO;
   if (
-    providerKey === "wired" &&
+    providerKey != null &&
+    READABILITY_PREFERRED_COLLAPSED_LD_PROVIDERS.has(providerKey) &&
     readableLongEnough &&
     countContentBlocks(readable.contentHtml) > countContentBlocks(legacyBody)
   ) {
@@ -609,7 +682,7 @@ export function extractArticle(html: string, sourceUrl: string): ScrapedArticle 
   // --- Step 4: build the legacy body (JSON-LD articleBody or DOM harvest) ----
   // This is the fallback body and the canonical source when JSON-LD is present.
   const ldBody = ld && jsonLdString(ld.articleBody);
-  const legacyBody = ldBody ? paragraphsToHtml(ldBody) : extractBodyHtml(bodyHtml, sourceUrl);
+  const legacyBody = ldBody ? paragraphsToHtml(ldBody, provider?.key) : extractBodyHtml(bodyHtml, sourceUrl);
 
   // --- Step 5: clean-capture body via Readability (kill-switch, default ON) --
   // Readability isolates the main article from the script-stripped HTML so it
