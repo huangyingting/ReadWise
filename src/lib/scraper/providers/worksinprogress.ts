@@ -8,6 +8,15 @@ import {
 } from "./shared";
 
 const WORKS_IN_PROGRESS_SITEMAP = "https://worksinprogress.co/post-sitemap.xml";
+const WIP_DROP_TEXT_EXACT_KEYWORDS = [
+  "Image",
+  ...Array.from({ length: 50 }, (_, index) => String(index + 1)),
+];
+
+const WIP_CLEANUP = {
+  ...COMMON_READING_SOURCE_CLEANUP,
+  dropTextExactKeywords: WIP_DROP_TEXT_EXACT_KEYWORDS,
+};
 
 const WIP_CATEGORY_RULES: ReadonlyArray<readonly [RegExp, string]> = [
   [/technology|tech|software|\bai\b|comput|robot|internet|innovation/, "tech"],
@@ -36,7 +45,7 @@ export const worksInProgress: Provider = {
   defaultCategory: "ideas",
   categories: ["ideas", "business", "tech", "environment", "science", "health", "history", "culture"],
   readingCategories: ["ideas", "business", "tech", "environment", "science", "health", "history", "culture"],
-  cleanup: COMMON_READING_SOURCE_CLEANUP,
+  cleanup: WIP_CLEANUP,
   categoryFor: (url, section) => categoryFromRules(url, section, WIP_CATEGORY_RULES, "ideas"),
   urlExtractor: worksInProgressUrlExtractor,
 };

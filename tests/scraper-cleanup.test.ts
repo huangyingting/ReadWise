@@ -122,6 +122,40 @@ test("cleanup: hakai drops template labels, byline, citation, social, and relate
   assert.doesNotMatch(text, /Article footer and bottom matter|Cite this Article|Related Content|Another story teaser/i);
 });
 
+test("cleanup: Yale E360 drops grant disclosure while preserving article attribution", () => {
+  const html =
+    "<p>Important forest reporting remains intact.</p>" +
+    "<figure><img src=\"https://e360.yale.edu/assets/site/forest.jpg\" alt=\"Forest canopy\" />" +
+    "<figcaption>Map adapted by Yale Environment 360 from satellite data.</figcaption></figure>" +
+    "<p><em>Yale Environment 360 receives grant funding from the Climate and Land Use Alliance, which is cited in this article.</em></p>";
+
+  const result = applyMergedProviderCleanup("yalee360", "Yale E360", html);
+  const text = plainText(result);
+
+  assert.match(text, /Important forest reporting remains intact/);
+  assert.match(text, /Map adapted by Yale Environment 360/);
+  assert.doesNotMatch(text, /receives grant funding|Climate and Land Use Alliance/i);
+});
+
+test("cleanup: Works in Progress drops image labels and footnote markers", () => {
+  const html =
+    "<p>Article body remains intact.</p>" +
+    "<figure><img src=\"https://worksinprogress.co/image.jpg\" alt=\"Museum archive.\" />" +
+    "<figcaption><p>A historical machine.</p><p>Image</p><p>Museum archive.</p></figcaption></figure>" +
+    "<p>1</p><p>Footnote explanation remains useful.</p><p>2</p><p>Another note remains useful.</p>";
+
+  const result = applyMergedProviderCleanup("worksinprogress", "Works in Progress", html);
+  const text = plainText(result);
+
+  assert.match(text, /Article body remains intact/);
+  assert.match(text, /A historical machine/);
+  assert.match(text, /Museum archive/);
+  assert.match(text, /Footnote explanation remains useful/);
+  assert.match(text, /Another note remains useful/);
+  assert.doesNotMatch(text, /\bImage\b/);
+  assert.doesNotMatch(text, /(?:^|\s)[12](?:\s|$)/);
+});
+
 // ---------------------------------------------------------------------------
 // dropClassKeywords: class/id keyword-based removal
 // ---------------------------------------------------------------------------
