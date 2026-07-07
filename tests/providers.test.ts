@@ -20,6 +20,7 @@ const SOURCE_DERIVED_PROVIDER_KEYS = [
   "bbcfeatures",
   "theconversation",
   "propublica",
+  "harvardbusinessreview",
   "smithsonian",
   "knowable",
   "nautilus",
@@ -43,6 +44,7 @@ const LONG_FORM_PROVIDER_KEYS = [
   "undark",
   "theconversation",
   "propublica",
+  "harvardbusinessreview",
   "bbcfeatures",
   "atlasobscura",
   "jstordaily",
@@ -102,12 +104,13 @@ test("noema defaults to 'ideas' and smithsonian to 'history'", () => {
   assert.equal(getProviderOrFail("smithsonian").defaultCategory, "history");
 });
 
-test("registry holds exactly the 19 active providers (aeon, voa, bbc news, nbc, publicdomainreview, grist removed)", () => {
+test("registry holds exactly the 20 active providers (aeon, voa, bbc news, nbc, publicdomainreview, grist removed)", () => {
   const keys = PROVIDERS.map((p) => p.key).sort();
   assert.deepEqual(keys, [
     "atlasobscura",
     "bbcfeatures",
     "hakaimagazine",
+    "harvardbusinessreview",
     "huffpost",
     "jstordaily",
     "knowable",
@@ -125,7 +128,7 @@ test("registry holds exactly the 19 active providers (aeon, voa, bbc news, nbc, 
     "worksinprogress",
     "yalee360",
   ]);
-  assert.equal(PROVIDERS.length, 19);
+  assert.equal(PROVIDERS.length, 20);
   assert.equal(getProvider("aeon"), null, "aeon must be unregistered");
   assert.equal(getProvider("voa-learning-english"), null, "voa must be unregistered");
   assert.equal(getProvider("publicdomainreview"), null, "publicdomainreview must be unregistered");
@@ -198,6 +201,12 @@ test("source-derived provider cleanup rules cover live newsletter/recirc chrome"
       /republish/i.test(kw),
     ),
     "ProPublica cleanup should drop republish license modal chrome",
+  );
+  assert.ok(
+    getProviderOrFail("harvardbusinessreview").cleanup?.dropClassKeywords?.some((kw) =>
+      /newsletter|subscription/i.test(kw),
+    ),
+    "Harvard Business Review cleanup should drop newsletter/subscription chrome",
   );
   assert.ok(
     getProviderOrFail("bbcfeatures").cleanup?.dropClassKeywords?.some((kw) =>
@@ -282,6 +291,8 @@ test("source-derived provider URL patterns match article URLs", () => {
       "https://theconversation.com/why-rural-healthcare-funds-50b-focus-on-tech-upgrades-may-not-help-vulnerable-hospitals-and-providers-279931",
     ],
     ["propublica", "https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"],
+    ["harvardbusinessreview", "https://hbr.org/2026/07/performance-management-needs-new-metrics-in-the-ai-era"],
+    ["harvardbusinessreview", "https://hbr.org/1981/09/how-top-nonunion-companies-manage-employees"],
     ["atlasobscura", "https://www.atlasobscura.com/articles/mummy-madness-10-of-the-most-amazing-mummies-in-the-world"],
     ["atlasobscura", "https://www.atlasobscura.com/foods/poutine"],
     ["jstordaily", "https://daily.jstor.org/internet-things-totally-new-hundred-years-old/"],
@@ -341,6 +352,13 @@ test("source-derived URL filters reject non-article pages", () => {
     propublica.articleUrlFilter?.("https://www.propublica.org/article/florida-death-penalty-executions-ron-desantis"),
     true,
   );
+
+  const hbr = getProviderOrFail("harvardbusinessreview");
+  assert.equal(hbr.articleUrlFilter?.("https://hbr.org/topic/subject/strategy"), false);
+  assert.equal(hbr.articleUrlFilter?.("https://hbr.org/archive-toc/BR2604"), false);
+  assert.equal(hbr.articleUrlFilter?.("https://hbr.org/podcast/2026/07/leadership-summit-2026"), false);
+  assert.equal(hbr.articleUrlFilter?.("https://hbr.org/2026/07/performance-management-needs-new-metrics-in-the-ai-era"), true);
+  assert.equal(hbr.articleUrlFilter?.("https://hbr.org/1981/09/how-top-nonunion-companies-manage-employees"), true);
 
   const atlas = getProviderOrFail("atlasobscura");
   assert.equal(atlas.articleUrlFilter?.("https://www.atlasobscura.com/places/obscure-place"), false);
@@ -682,6 +700,22 @@ test("propublica categoryFor: national/criminal justice maps to politics", () =>
   assert.equal(p.categoryFor!(u, "National"), "politics");
   assert.equal(p.categoryFor!(u, "Health Care"), "health");
   assert.equal(p.categoryFor!(u, "Business"), "business");
+});
+
+test("harvard business review categoryFor: business topics map to business/tech/ideas", () => {
+  const p = getProviderOrFail("harvardbusinessreview");
+  assert.equal(
+    p.categoryFor!(new URL("https://hbr.org/2026/07/performance-management-needs-new-metrics-in-the-ai-era"), "Employee performance management"),
+    "tech",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://hbr.org/2026/07/ai-is-changing-how-customers-choose-your-business"), "AI and machine learning"),
+    "tech",
+  );
+  assert.equal(
+    p.categoryFor!(new URL("https://hbr.org/2026/07/want-workers-to-reskill-show-them-who-they-can-become"), "Managing uncertainty"),
+    "ideas",
+  );
 });
 
 test("smithsonian categoryFor: science-nature→science, innovation→tech", () => {

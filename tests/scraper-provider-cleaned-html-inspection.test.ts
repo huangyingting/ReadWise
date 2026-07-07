@@ -451,3 +451,124 @@ test("wired cleanup drops exact recirc/newsletter residue while preserving prose
     "Wired extraction should preserve page paragraph structure when JSON-LD is collapsed",
   );
 });
+
+test("Harvard Business Review extraction preserves page paragraphs when JSON-LD articleBody is collapsed", () => {
+  const collapsedJsonLd = {
+    "@type": "Article",
+    headline: "Performance Management Needs New Metrics",
+    author: [{ name: "Example Author" }],
+    datePublished: "2026-07-06T12:05:57.000Z",
+    image: "https://hbr.org/resources/images/article_assets/2026/06/performance.jpg",
+    articleSection: "Employee performance management",
+    articleBody: [
+      `${wordBlock(45, "metric")} as the structured body is one flattened paragraph.`,
+      `${wordBlock(45, "judgment")} as the source page still has real paragraphs.`,
+      `${wordBlock(45, "accountability")} as Readability should preserve those paragraphs.`,
+    ].join(" "),
+  };
+  const html = `<!doctype html><html><head>
+    <title>Performance Management Needs New Metrics</title>
+    <script type="application/ld+json">${JSON.stringify(collapsedJsonLd)}</script>
+    </head><body><article>
+      <h1>Performance Management Needs New Metrics</h1>
+      <p>${wordBlock(45, "metric")} as the source page first paragraph remains distinct.</p>
+      <p>${wordBlock(45, "judgment")} as the source page second paragraph remains distinct.</p>
+      <p>${wordBlock(45, "accountability")} as the source page third paragraph remains distinct.</p>
+    </article></body></html>`;
+
+  const content = extractContent(
+    html,
+    "https://hbr.org/2026/07/performance-management-needs-new-metrics-in-the-ai-era",
+    "HBR structured page should extract",
+  );
+
+  assert.ok(
+    (content.match(/<p\b/gi) ?? []).length >= 3,
+    "HBR extraction should preserve page paragraph structure when JSON-LD is collapsed",
+  );
+  assert.match(content, /metric1/i);
+  assert.match(content, /accountability1/i);
+});
+
+test("Harvard Business Review extraction reflows collapsed JSON-LD when page HTML is only a teaser", () => {
+  const collapsedJsonLd = {
+    "@type": "Article",
+    headline: "How to Compete Against Agentic Startups",
+    author: [{ name: "Example Author" }],
+    datePublished: "2026-05-26T12:15:17.000Z",
+    image: "https://hbr.org/resources/images/article_assets/2025/10/newsletter.png",
+    articleSection: "Business management",
+    articleBody: [
+      `${wordBlock(34, "Agentic")} as startups form and compete with faster customer feedback.`,
+      `${wordBlock(34, "Iteration")} as leaders compare experiments before incumbents can respond.`,
+      `${wordBlock(34, "Capital")} as founders need fewer systems and less funding to launch.`,
+      `${wordBlock(34, "Customer")} as product teams learn which features matter most.`,
+      `${wordBlock(34, "Flywheel")} as data compounds into durable advantage over time.`,
+      `${wordBlock(34, "Manager")} as established companies decide which defenses to build.`,
+      `${wordBlock(34, "Operating")} as executives redesign processes around autonomous work.`,
+      `${wordBlock(34, "Learning")} as the article closes with a practical leadership agenda.`,
+    ].join(" "),
+  };
+  const html = `<!doctype html><html><head>
+    <title>How to Compete Against Agentic Startups</title>
+    <script type="application/ld+json">${JSON.stringify(collapsedJsonLd)}</script>
+    </head><body><article id="main">
+      <svg role="img"><title>Harvard Business Review Logo</title></svg>
+      <h1>How to Compete Against Agentic Startups</h1>
+      <div class="Standard-module-scss-module__yt85fq__content">
+        <p><em>A short subscriber-only teaser appears in visible HTML.</em></p>
+      </div>
+    </article></body></html>`;
+
+  const content = extractContent(
+    html,
+    "https://hbr.org/2026/05/how-to-compete-against-agentic-startups",
+    "HBR collapsed JSON-LD article should extract",
+  );
+
+  assert.ok(
+    (content.match(/<p\b/gi) ?? []).length >= 3,
+    "HBR extraction should reflow collapsed JSON-LD into readable paragraphs",
+  );
+  assert.doesNotMatch(content, /A short subscriber-only teaser/i);
+  assert.match(content, /Agentic1/);
+  assert.match(content, /Learning1/);
+});
+
+test("Harvard Business Review extraction removes dense hash-delimited table artifacts", () => {
+  const collapsedJsonLd = {
+    "@type": "Article",
+    headline: "The Next 20 Years",
+    author: [{ name: "Example Author" }],
+    datePublished: "2007-07-01T12:00:00.000Z",
+    image: "https://hbr.org/resources/images/article_assets/2007/07/next20.png",
+    articleSection: "Business management",
+    articleBody: [
+      `${wordBlock(44, "Context")} as the article introduces generational cycles and workforce attitudes.`,
+      "America as a Sequence of Generations A generation encompasses a series of consecutive birth years spanning roughly the length of time needed to become an adult. Generation#Birthyears#Famous member(man)#Famous member(woman)#Era in which memberscame of age#ArchetypePuritan#1588-1617#John Winthrop#Anne Hutchinson#Puritan Awakening#ProphetNomad#####*Progressive#1843-1859#Woodrow Wilson#Mary Cassatt#-#ArtistMissionary#1860-1882#Franklin D. Roosevelt#Emma Goldman#Third Great Awakening#ProphetLost#1883-1900#Harry Truman#Dorothy Parker#-#NomadGI#1901-1924#John F. Kennedy#Katharine Hepburn#Depression-WW II Crisis#Hero?Homeland#2005-2025?#-#-#-#* The absence of a hero archetype during the mid-1800s is discussed as an exception.",
+      `${wordBlock(44, "Afterward")} as the article continues with ordinary prose after the exhibit.`,
+      "Another article detail says two companies ranked at #6 and #22, and those ordinary rank markers should remain.",
+    ].join(" "),
+  };
+  const html = `<!doctype html><html><head>
+    <title>The Next 20 Years</title>
+    <script type="application/ld+json">${JSON.stringify(collapsedJsonLd)}</script>
+    </head><body><article>
+      <h1>The Next 20 Years</h1>
+      <p>A short visible teaser.</p>
+    </article></body></html>`;
+
+  const content = extractContent(
+    html,
+    "https://hbr.org/2007/07/the-next-20-years-how-customer-and-workforce-attitudes-will-evolve",
+    "HBR hash-table article should extract",
+  );
+
+  assert.doesNotMatch(content, /ArtistMissionary/i);
+  assert.doesNotMatch(content, /\*Progressive/i);
+  assert.doesNotMatch(content, /Generation#Birthyears/i);
+  assert.doesNotMatch(content, /Famous member\(man\)#Famous member\(woman\)/i);
+  assert.match(content, /The absence of a hero archetype/i);
+  assert.match(content, /Afterward1/i);
+  assert.match(content, /#6 and #22/);
+});

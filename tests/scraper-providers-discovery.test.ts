@@ -110,6 +110,73 @@ test("ProPublica extractor sorts daily sitemaps, skips bad children, and degrade
   await assertEmptyWhenFetchFails(propublica.urlExtractor, 5, "down");
 });
 
+test("Harvard Business Review extractor combines latest service, page links, and archive TOCs", async () => {
+  const hbr = (await import("@/lib/scraper/providers/harvardbusinessreview")).default;
+  const { isHarvardBusinessReviewArticleUrl } = await import("@/lib/scraper/providers/harvardbusinessreview");
+  assert.ok(hbr.urlExtractor);
+
+  const latestArticle = "https://hbr.org/2026/07/performance-management-needs-new-metrics-in-the-ai-era";
+  const homeArticle = "https://hbr.org/2026/06/homepage-article";
+  const topicArticle = "https://hbr.org/2026/06/topic-article";
+  const archiveArticle = "https://hbr.org/2026/07/archive-article";
+  const legacyArchiveArticle = "https://hbr.org/1981/09/how-top-nonunion-companies-manage-employees";
+  const fetched: string[] = [];
+  const latestService =
+    "https://hbr.org/service/components/external-list/latest/0/8?format=json&id=page.external-list.the-latest";
+
+  const urls = extractorUrls(
+    await hbr.urlExtractor({
+      limit: 20,
+      fetch: async (url) => {
+        fetched.push(url);
+        if (url === latestService) {
+          return JSON.stringify({
+            page: { number: 0, size: 8, hasNext: false },
+            entry: [
+              {
+                link: { href: "/2026/07/performance-management-needs-new-metrics-in-the-ai-era" },
+                content: { src: "/2026/07/performance-management-needs-new-metrics-in-the-ai-era" },
+                published: "July 06, 2026",
+              },
+              {
+                link: { href: "/podcast/2026/07/audio-show" },
+                content: { src: "/podcast/2026/07/audio-show" },
+              },
+            ],
+          });
+        }
+        if (url === "https://hbr.org/") {
+          return `<a href="/2026/06/homepage-article?ab=home">home</a><a href="/archive-toc/BR2604">issue</a><script src="/resources/js/pages/the-latest_abc123.js"></script>`;
+        }
+        if (url === "https://hbr.org/topic/subject/strategy") {
+          return `<a href="/2026/06/topic-article">topic</a>`;
+        }
+        if (url === "https://hbr.org/resources/js/pages/the-latest_abc123.js") {
+          return '"/archive-toc/BR2503","/archive-toc/BR2604"';
+        }
+        if (url === "https://hbr.org/archive-toc/BR2604") {
+          return `<a href="/2026/07/archive-article">archive</a><a href="/podcast/2026/07/audio">audio</a>`;
+        }
+        if (url === "https://hbr.org/archive-toc/BR2503") {
+          return `<a href="/1981/09/how-top-nonunion-companies-manage-employees">legacy</a>`;
+        }
+        return "<html></html>";
+      },
+    }),
+  );
+
+  assert.deepEqual(urls, [
+    latestArticle,
+    homeArticle,
+    topicArticle,
+    archiveArticle,
+    legacyArchiveArticle,
+  ]);
+  assert.ok(fetched.includes("https://hbr.org/resources/js/pages/the-latest_abc123.js"));
+  assert.equal(isHarvardBusinessReviewArticleUrl("https://hbr.org/podcast/2026/07/audio-show"), false);
+  assert.equal(isHarvardBusinessReviewArticleUrl(legacyArchiveArticle), true);
+});
+
 test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
   const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
   const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
