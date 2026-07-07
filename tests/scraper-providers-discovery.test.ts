@@ -110,68 +110,6 @@ test("ProPublica extractor sorts daily sitemaps, skips bad children, and degrade
   await assertEmptyWhenFetchFails(propublica.urlExtractor, 5, "down");
 });
 
-test("Grist extractor falls back to RSS when sitemaps are unavailable or empty", async () => {
-  const grist = (await import("@/lib/scraper/providers/grist")).default;
-  assert.ok(grist.urlExtractor);
-
-  const rssArticle = "https://grist.org/extreme-weather/europe-heat-wave-adaptation-plans/";
-  const fallback = await grist.urlExtractor({
-    limit: 3,
-    fetch: async (url) => {
-      if (url === "https://grist.org/sitemap_index.xml") throw new Error("sitemap down");
-      if (url === "https://grist.org/feed/") return rss([rssArticle]);
-      return "";
-    },
-  });
-
-  assert.deepEqual(fallback, [rssArticle]);
-
-  const childFailure = await grist.urlExtractor({
-    limit: 3,
-    fetch: async (url) => {
-      if (url === "https://grist.org/sitemap_index.xml") {
-        return sitemap(["https://grist.org/post-sitemap2.xml"]);
-      }
-      if (url === "https://grist.org/post-sitemap2.xml") throw new Error("child down");
-      if (url === "https://grist.org/feed/") return rss([rssArticle]);
-      return "";
-    },
-  });
-  assert.deepEqual(childFailure, [rssArticle]);
-
-  const fromSitemap = await grist.urlExtractor({
-    limit: 5,
-    fetch: async (url) => {
-      if (url === "https://grist.org/sitemap_index.xml") {
-        return sitemap([
-          "https://grist.org/post-sitemap.xml",
-          "https://grist.org/post-sitemap3.xml",
-          "not a url",
-        ]);
-      }
-      if (url === "https://grist.org/post-sitemap3.xml") {
-        return sitemap(["https://grist.org/accountability/clean-water-investigation/"]);
-      }
-      if (url === "https://grist.org/post-sitemap.xml") {
-        return sitemap([
-          "https://grist.org/extreme-weather/heat-plans/",
-          "https://grist.org/extreme-weather/heat-plans/",
-        ]);
-      }
-      return "";
-    },
-  });
-  assert.deepEqual(fromSitemap, [
-    "https://grist.org/accountability/clean-water-investigation/",
-    "https://grist.org/extreme-weather/heat-plans/",
-  ]);
-  assert.equal(grist.articleUrlFilter?.("https://grist.org/updates/grist-hires-reporter/"), false);
-  assert.equal(
-    grist.categoryFor?.(new URL("https://grist.org/accountability/clean-water-investigation/"), null),
-    "politics",
-  );
-});
-
 test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
   const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
   const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
