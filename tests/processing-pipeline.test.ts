@@ -4,7 +4,7 @@ import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { ArticleStatus } from "@prisma/client";
 
-const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/wordfreq-v1";
+const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/onestop-calibrated-v3";
 
 type Candidate = {
   id: string;
@@ -360,5 +360,21 @@ test("processor handles missing articles and selection queries", async () => {
   assert.deepEqual(await listUnprocessedArticleIds({ includePublished: true, limit: 2 }), ["a1", "a2"]);
   const selectArgs = articleFindManyArgs.at(-1) as { where: Record<string, unknown>; take: number };
   assert.equal(selectArgs.take, 2);
-  assert.ok("OR" in (aiProcessableWhereArgs.at(-1) as Record<string, unknown>));
+  const includePublishedWhere = aiProcessableWhereArgs.at(-1) as {
+    OR: Array<Record<string, unknown>>;
+  };
+  assert.ok("OR" in includePublishedWhere);
+  assert.ok(includePublishedWhere.OR.some((clause) => "lexileApprox" in clause));
+  assert.ok(
+    includePublishedWhere.OR.some(
+      (clause) => JSON.stringify(clause) === JSON.stringify({ difficultyVersion: null }),
+    ),
+  );
+  assert.ok(
+    includePublishedWhere.OR.some(
+      (clause) =>
+        JSON.stringify(clause) ===
+        JSON.stringify({ difficultyVersion: { not: DIFFICULTY_ALGORITHM_VERSION } }),
+    ),
+  );
 });

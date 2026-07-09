@@ -22,3 +22,13 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-02T00:30:07.481+00:00 — PR #874 moved admin scrape trigger orchestration into `src/lib/scraper/admin-trigger.ts`; the route remains auth/validation/HTTP adapter, with targeted tests/typecheck/lint passing.
 
 - 2026-07-05T22:05:44.651+00:00 — Fixed scraper provider discovery test nesting and added scraper CLI/runtime coverage seams for native coverage; coverage gate passed with 496 measured files at >=98%.
+
+- 2026-07-07T07:54:41.474+00:00 — Evaluated CEFR/Lexile-like scoring on the small local `prisma/e2e.db` sample: 3 article rows clustered at B1/1030 with low confidence and one stored/current mismatch; recommends short-text caveats and labeled calibration data.
+
+- 2026-07-07T08:02:46.354+00:00 — Corrected CEFR/Lexile-like evaluation evidence now comes from `prisma/provider-dbs/workinprogress.db` (217 articles), superseding the earlier `prisma/e2e.db` sample for this analysis: CEFR B1 208, B2 7, A2 2; Lexile-like min 590/median 870/mean 861.66/max 1050; confidence high 165/medium 52/low 0.
+
+
+- 2026-07-07T09:08:07.205+00:00 — Researched CEFR calibration datasets and recommended UniversalCEFR/elg_cefr_en as a temporary CC BY-NC 4.0 calibration source; raw text was not committed, and v2 CEFR outputs remain heuristic/calibrated baseline evidence pending stronger gold corpus validation.
+
+
+- 2026-07-07T10:06:10.688+00:00 — Derived OneStopEnglish aggregate calibration stats, verified CC BY-SA 4.0 licensing, and kept raw text uncommitted; OSE `elementary`/`intermediate`/`advanced` labels are ordinal calibration anchors, not exact A1-C2 gold labels.

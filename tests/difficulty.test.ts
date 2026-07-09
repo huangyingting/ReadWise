@@ -2,6 +2,7 @@ import { afterEach, beforeEach, test } from "node:test";
 import assert from "node:assert/strict";
 import {
   DIFFICULTY_ALGORITHM_VERSION,
+  DIFFICULTY_CALIBRATION_CAVEAT,
   fleschReadingEase,
   heuristicDifficulty,
   parseLevel,
@@ -131,6 +132,36 @@ test("heuristicDifficulty scores dense academic text harder than simple common-w
   assert.ok(levelRank(hardResult.level) >= levelRank(easyResult.level));
 });
 
+test("heuristicDifficulty OneStopEnglish-calibrated bands keep broad OSE-like anchors separated", () => {
+  const elementary = heuristicDifficulty(wrap("The child reads a book at home and talks with her family."));
+  const intermediate = heuristicDifficulty(
+    wrap(
+      "Visitors can compare several exhibits while they follow the guide through the museum and answer questions about local history.",
+    ),
+  );
+  const advanced = heuristicDifficulty(
+    wrap(
+      "Consequently the epistemological framework necessitates institutional reconsideration despite methodological uncertainty and regulatory fragmentation.",
+    ),
+  );
+
+  assert.ok(levelRank(elementary.level) <= levelRank("A2"));
+  assert.ok(levelRank(intermediate.level) >= levelRank("B1"));
+  assert.ok(levelRank(advanced.level) >= levelRank("B2"));
+  assert.ok(elementary.score < intermediate.score);
+  assert.ok(intermediate.score < advanced.score);
+});
+
+test("difficulty calibration documents OneStopEnglish license and mapping caveats", () => {
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.source, "OneStopEnglish");
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.license, "CC BY-SA 4.0");
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.rawTextCommitted, false);
+  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.labelUse, /ordinal anchors/);
+  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.labelUse, /not exact A1-C2/);
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.cefr, "heuristic/calibrated");
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.lexile, "Lexile-like");
+});
+
 // ---------------------------------------------------------------------------
 // parseLevel — additional edge cases
 // ---------------------------------------------------------------------------
@@ -249,6 +280,40 @@ test("ensureArticleDifficulties uses levelToScore when difficultyScore is null",
   assert.equal(entry!.score, 58);
   assert.equal(entry!.lexileApprox, 900);
   assert.equal(entry!.source, "cache");
+});
+
+test("ensureArticleDifficulties recomputes stale difficulty metadata", async () => {
+  const updatedIds: string[] = [];
+  await withPrismaArticleStub(
+    {
+      update: async ({ where }: { where: { id: string } }) => {
+        updatedIds.push(where.id);
+        return {};
+      },
+    },
+    async () => {
+      const articles = [
+        {
+          id: "stale-1",
+          title: "Stale",
+          content: wrap("The cat ran fast big and basket garden summer winter."),
+          difficulty: "B1",
+          difficultyScore: 22,
+          lexileApprox: 760,
+          difficultyVersion: "deterministic-cefr/wordfreq-v1",
+        },
+      ];
+
+      const map = await ensureArticleDifficulties(articles);
+      const entry = map.get("stale-1");
+
+      assert.ok(entry !== undefined);
+      assert.equal(entry!.source, "deterministic");
+      assert.equal(entry!.version, DIFFICULTY_ALGORITHM_VERSION);
+      assert.equal(articles[0].difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
+      assert.deepEqual(updatedIds, ["stale-1"]);
+    },
+  );
 });
 
 // ---------------------------------------------------------------------------
@@ -386,6 +451,37 @@ test("getOrCreateArticleDifficulty assesses and persists difficulty when none is
       assert.ok(isDifficultyLevel((updateArgs as any).data.difficulty));
       assert.equal((updateArgs as any).data.difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
       assert.ok((updateArgs as any).data.lexileApprox >= 200);
+    },
+  );
+});
+
+test("getOrCreateArticleDifficulty assesses and persists when cached metadata is stale", async () => {
+  let updateArgs: Record<string, unknown> | null = null;
+  const content = wrap("The cat ran fast big and basket garden summer winter.");
+  await withPrismaArticleStub(
+    {
+      findUnique: async ({ where }: { where: { id: string } }) => ({
+        id: where.id,
+        title: "Stale Article",
+        content,
+        difficulty: "B1",
+        difficultyScore: 22,
+        lexileApprox: 760,
+        difficultyVersion: "deterministic-cefr/wordfreq-v1",
+      }),
+      update: async (args: { where: { id: string }; data: Record<string, unknown> }) => {
+        updateArgs = args;
+        return {};
+      },
+    },
+    async () => {
+      const result = await getOrCreateArticleDifficulty("art-stale");
+      assert.ok(result !== null);
+      assert.equal(result!.source, "deterministic");
+      assert.equal(result!.version, DIFFICULTY_ALGORITHM_VERSION);
+      assert.ok(updateArgs !== null, "expected stale cached difficulty to be persisted");
+      assert.equal((updateArgs as any).where.id, "art-stale");
+      assert.equal((updateArgs as any).data.difficultyVersion, DIFFICULTY_ALGORITHM_VERSION);
     },
   );
 });
