@@ -79,3 +79,8 @@ test("wordFrequencyBand falls back to legacy tier data when rank data misses", a
   const { wordFrequencyBand } = await import("@/lib/frequency-ranks");
   assert.equal(wordFrequencyBand("govern"), "top1k");
 });
+
+test("wordFrequencyBand treats Object prototype keys as rare words", async () => {
+  const { wordFrequencyBand } = await import("@/lib/frequency-ranks");
+  assert.equal(wordFrequencyBand("constructor"), "rare");
+});

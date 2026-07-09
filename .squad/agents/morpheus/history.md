@@ -18,3 +18,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 - 2026-07-01T23:11:49.008+00:00 — Decision inbox was merged into decisions.md with no archive required (3901 bytes), preserving the coverage/test-suite governance trail.
 
 - 2026-07-02T00:30:07.481+00:00 — Modular refactor PR #874 completed: Morpheus bounded the first PR with disjoint ownership and later approved stop with only non-blocking follow-ups.
+
+
+- 2026-07-07T10:06:10.688+00:00 — Independently revised OneStopEnglish v3 after Tank reviewer lockout, adding own-property guarded contraction/irregular map lookups and explicit CC BY-SA 4.0 ordinal-anchor caveats; final version was approved by Switch.

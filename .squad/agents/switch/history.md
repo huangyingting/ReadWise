@@ -21,3 +21,11 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-05T22:05:44.651+00:00 — Verified release recovery with coverage threshold 98, typecheck, lint, `npm test`, targeted admin AI ops Playwright, diff check, and workflow YAML parsing; current coverage denominator measured 496 files.
 - 2026-07-05T23:02:20.863+00:00 — Verified the semantic UI audit split: 500 listed tests across 4 subsystem files, `@ui-audit` compatibility, 50 high-risk tests, admin-ai-ops pass, targeted lint, and typecheck.
+
+- 2026-07-07T07:54:41.474+00:00 — Reviewed difficulty-scoring evaluation protocol; provider recomputes show B1 compression, so future validation should add gold fixtures, aggregate snapshots, and calibration metrics.
+
+
+- 2026-07-07T09:08:07.205+00:00 — Validated CEFR calibration v2 with 42 targeted tests passing, typecheck passing, targeted ESLint passing, and `git diff --check` passing; caveated that no committed calibration harness/snapshot exists and the distribution skews advanced, so CEFR remains heuristic pending stronger gold corpus validation.
+
+
+- 2026-07-07T10:06:10.688+00:00 — Rejected the initial OneStopEnglish v3 calibration for constructor-shadowed lexical normalization and missing caveats, then approved Morpheus' locked-out revision after 88 targeted tests, typecheck, targeted ESLint, diff-check, and provider aggregate validation passed.

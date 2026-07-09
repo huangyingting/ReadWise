@@ -194,6 +194,10 @@ test("normalizeCandidates: first candidate is the cleaned surface form", () => {
   assert.equal(normalizeCandidates("HELLO")[0], "hello");
 });
 
+test("normalizeCandidates: Object prototype keys are treated as ordinary words", () => {
+  assert.deepEqual(normalizeCandidates("constructor"), ["constructor"]);
+});
+
 // ---------------------------------------------------------------------------
 // morphCandidates
 // ---------------------------------------------------------------------------

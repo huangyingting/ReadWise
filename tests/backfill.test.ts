@@ -12,7 +12,7 @@ process.env.LOG_LEVEL = "error";
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
-const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/wordfreq-v1";
+const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/onestop-calibrated-v3";
 
 before(() => {
   // backfill.ts pulls in @/lib/jobs → @/lib/prisma at import; stub prisma so no

@@ -93,3 +93,50 @@ The main release workflow is named for ReadWise, validates `package.json` agains
 The legacy numeric `e2e/ui-audit-500.spec.ts` file was replaced by semantic subsystem specs for public/auth, reader learning, classroom, and admin operations. Shared route catalog, artifact, and runner support lives in `e2e/support/ui-audit.ts`; the canonical grep tag is now `@ui-audit` instead of the old numeric `@ui-audit-500` label.
 
 **Validation:** Switch verified discovery/listing at 500 tests across the 4 semantic files, `@ui-audit` grep compatibility, 50 high-risk tests, targeted `admin-ai-ops` passing 10 tests, targeted ESLint for the audit files, and `npm run typecheck -- --pretty false`.
+
+
+### 2026-07-07 — Treat CEFR/Lexile-like difficulty scores as deterministic baselines pending calibration
+
+**Source:** Scribe session synthesis (`log/2026-07-07T07-54-41.474+00-00-difficulty-calibration.md`)
+
+Current CEFR and Lexile-like algorithms are useful deterministic baselines because they are repeatable and available without optional providers, but they should not be treated as calibrated or authoritative labels yet. Mouse's local DB evaluation found 3 article rows compressed to B1/1030 low-confidence outputs with one stored/current mismatch; Tank confirmed the implementation is heuristic formula-based; Switch confirmed evaluation evidence needs to measure distribution quality, not just execution.
+
+**Priority recommendations:**
+1. Preserve and surface low-confidence caveats for short or sparse text.
+2. Relabel the current Lexile output as Lexile-like unless/until calibrated against a labeled corpus.
+3. Improve tokenization/sentence handling before relying on fine-grained level distinctions.
+4. Prefer stale-version processing selection so changed scoring versions recompute mismatched or stale article rows.
+5. Build a labeled evaluation corpus with gold fixtures, aggregate snapshots, and calibration metrics before raising confidence in CEFR/Lexile-like labels.
+
+
+### 2026-07-07 — Correction: provider DB evaluation supersedes e2e.db difficulty sample
+
+**Source:** Scribe correction session (`log/2026-07-07T08-02-46.354+00-00-difficulty-calibration-correction.md`)
+
+The earlier `prisma/e2e.db` empirical result recorded for CEFR/Lexile-like difficulty analysis is superseded for this analysis. The corrected evaluation protocol uses smaller provider databases under `prisma/provider-dbs/*`, with Mouse's rerun on `prisma/provider-dbs/workinprogress.db` (8,335,360 bytes, 217 articles) as the representative provider evidence.
+
+Corrected findings: CEFR B1 208 (95.9%), B2 7 (3.2%), A2 2 (0.9%); Lexile-like min 590, median 870, mean 861.66, max 1050; confidence high 165, medium 52, low 0. `prisma/e2e.db` should be treated only as a non-representative smoke observation. Provider DB evidence still shows B1 compression and reinforces the need for calibration before treating CEFR or Lexile-like labels as authoritative.
+
+
+### 2026-07-07 — CEFR calibration v2 remains heuristic pending gold-corpus validation
+
+**Source:** Scribe session synthesis (`log/2026-07-07T09-08-07.205+00-00-difficulty-calibration-v2.md`)
+
+`deterministic-cefr/wordfreq-calibrated-v2` calibrates CEFR thresholds from temporary UniversalCEFR/elg_cefr_en evidence, which is CC BY-NC 4.0. Raw calibration text was not committed, and the calibration source should be treated as temporary/non-commercial evidence rather than a durable product corpus.
+
+Implementation changed thresholds only, bumped `DIFFICULTY_ALGORITHM_VERSION`, and selected rows with stale `difficultyVersion` or missing `lexileApprox` for recomputation. Provider DB evaluation used `prisma/provider-dbs/workinprogress.db` only: baseline v1 A2 2 / B1 208 / B2 7 changed to v2 B2 2 / C1 141 / C2 74, while Lexile-like values stayed min 590, median 870, mean 861.66, max 1050.
+
+Decision/caveat: present CEFR v2 as a heuristic/calibrated deterministic baseline, not authoritative CEFR. There is no committed reproducible calibration harness/snapshot, and the new distribution skews advanced; stronger gold corpus validation is required before raising confidence or product authority claims.
+
+
+### 2026-07-07 — OneStopEnglish v3 calibration accepted with ordinal-anchor caveats
+
+**Source:** Tank inbox (`decisions/inbox/Tank-onestopenglish-calibrated-cefr-threshold-v3.md`) plus Morpheus independent revision and Switch approval.
+
+`deterministic-cefr/onestop-calibrated-v3` is accepted as the current deterministic CEFR threshold calibration. The calibration uses aggregate OneStopEnglish article-level evidence licensed CC BY-SA 4.0; raw OneStopEnglish text was not committed to the repository or Squad state.
+
+**Decision/caveats:** OneStopEnglish labels (`elementary`, `intermediate`, `advanced`) are ordinal calibration anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by the v3 calibration.
+
+**Implementation/review record:** Tank implemented the initial v3 change, but Switch rejected it as not merge-ready because lexical normalization failed on constructor-shadowed maps and caveats were not explicit enough. Reviewer lockout was enforced; Morpheus independently revised the implementation with own-property guarded lookups for contraction/irregular maps and explicit license/mapping caveats in tests/docs. Switch re-reviewed and approved.
+
+**Validation:** `git diff --check` passed; targeted Node tests passed (88); `npm run typecheck` passed; targeted ESLint passed. Provider aggregate validation used 19 `prisma/provider-dbs/*.db` files only, excluded root DBs and sidecars, and covered 286,985 article rows. Final aggregate: A1 23, A2 9,134, B1 60,820, B2 184,428, C1 32,578, C2 2; average score 38.04; average Lexile-like 842.21.

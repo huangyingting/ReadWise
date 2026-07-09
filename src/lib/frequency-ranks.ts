@@ -44,7 +44,7 @@ function bandForRank(rank: number): WordFrequencyBand {
 }
 
 function buildRankBands(): Record<string, WordFrequencyBand> {
-  const out: Record<string, WordFrequencyBand> = {};
+  const out = Object.create(null) as Record<string, WordFrequencyBand>;
   WORDFREQ_EN_TOP_10K.forEach((word, index) => {
     out[word] = bandForRank(index + 1);
   });
@@ -63,9 +63,9 @@ function coerceBand(value: string | undefined): WordFrequencyBand | null {
 /** Returns the best available frequency band for a raw word or `rare`. */
 export function wordFrequencyBand(raw: string): WordFrequencyBand {
   for (const candidate of normalizeCandidates(raw)) {
-    const ranked = WORD_FREQUENCY_RANKS[candidate];
+    const ranked = coerceBand(WORD_FREQUENCY_RANKS[candidate]);
     if (ranked) return ranked;
-    const band = coerceBand(WORD_FREQUENCY[candidate]);
+    const band = coerceBand(WORD_FREQUENCY[candidate] as string | undefined);
     if (band) return band;
   }
   return "rare";

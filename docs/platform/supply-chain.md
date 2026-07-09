@@ -181,6 +181,12 @@ Attribution and licence notes:
   list used for deterministic CEFR/Lexile-like scoring; it does not contain
   article text or user-private content.
 
+`deterministic-cefr/onestop-calibrated-v3` uses OneStopEnglish only as an
+external calibration source: no raw OneStopEnglish text is committed. The corpus
+is CC BY-SA 4.0, and its elementary/intermediate/advanced labels are ordinal
+reading-level anchors, not exact six-band A1-C2 CEFR gold labels. ReadWise CEFR
+therefore remains heuristic/calibrated, and `lexileApprox` remains Lexile-like.
+
 ---
 
 ## Exception log

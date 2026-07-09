@@ -334,6 +334,26 @@ export function morphCandidates(word: string): string[] {
   return out;
 }
 
+function hasOwnKey<T extends object>(object: T, key: PropertyKey): key is keyof T {
+  return Object.prototype.hasOwnProperty.call(object, key);
+}
+
+function contractionBaseFor(word: string): string | null {
+  if (!hasOwnKey(CONTRACTIONS, word)) {
+    return null;
+  }
+  const base = CONTRACTIONS[word];
+  return typeof base === "string" ? base : null;
+}
+
+function irregularCandidatesFor(base: string): string[] {
+  if (!hasOwnKey(IRREGULAR_BASES, base)) {
+    return [];
+  }
+  const candidates = IRREGULAR_BASES[base];
+  return Array.isArray(candidates) ? candidates : [];
+}
+
 /**
  * Normalizes a raw selected token into an ordered list of base-form candidates
  * to try, handling contractions, possessives and common inflections.
@@ -347,10 +367,10 @@ export function normalizeCandidates(raw: string): string[] {
   const out: string[] = [];
   const add = (x: string) => addUnique(out, x);
 
-  if (CONTRACTIONS[w]) {
-    const contractionBase = CONTRACTIONS[w];
+  const contractionBase = contractionBaseFor(w);
+  if (contractionBase) {
     add(contractionBase);
-    for (const candidate of IRREGULAR_BASES[contractionBase] ?? []) {
+    for (const candidate of irregularCandidatesFor(contractionBase)) {
       add(candidate);
     }
   }
@@ -367,7 +387,7 @@ export function normalizeCandidates(raw: string): string[] {
   for (const [index, candidate] of morphs.entries()) {
     add(candidate);
     if (index === 0) {
-      for (const irregular of IRREGULAR_BASES[base] ?? []) {
+      for (const irregular of irregularCandidatesFor(base)) {
         add(irregular);
       }
     }

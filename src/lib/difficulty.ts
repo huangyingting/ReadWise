@@ -33,7 +33,7 @@ export type DifficultyLevel = EnglishLevel;
 
 export const DIFFICULTY_LEVELS = ENGLISH_LEVELS;
 
-export { DIFFICULTY_ALGORITHM_VERSION };
+export { DIFFICULTY_ALGORITHM_VERSION, DIFFICULTY_CALIBRATION_CAVEAT } from "@/lib/difficulty-version";
 
 export type DifficultySource = "cache" | "deterministic";
 export type DifficultyConfidence = "low" | "medium" | "high";
@@ -93,11 +93,13 @@ type DifficultyPersistenceFields = {
 };
 
 const SCORE_LEVEL_THRESHOLDS: Array<{ max: number; level: DifficultyLevel }> = [
+  // v3 thresholds were calibrated against OneStopEnglish's three ordinal level
+  // anchors, not exact six-band CEFR gold labels; see difficulty-version.ts.
   { max: 15, level: "A1" },
-  { max: 30, level: "A2" },
-  { max: 48, level: "B1" },
-  { max: 65, level: "B2" },
-  { max: 82, level: "C1" },
+  { max: 27, level: "A2" },
+  { max: 34, level: "B1" },
+  { max: 44, level: "B2" },
+  { max: 60, level: "C1" },
 ];
 
 const SCORE_BOUNDARIES = SCORE_LEVEL_THRESHOLDS.map(({ max }) => max);

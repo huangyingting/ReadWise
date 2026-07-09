@@ -406,6 +406,9 @@ export async function listUnprocessedArticleIds(
         OR: [
           { status: ArticleStatus.DRAFT },
           { difficulty: null },
+          { lexileApprox: null },
+          { difficultyVersion: null },
+          { difficultyVersion: { not: DIFFICULTY_ALGORITHM_VERSION } },
           { tags: { none: {} } },
           { vocabulary: { none: {} } },
           { quizQuestions: { none: {} } },
