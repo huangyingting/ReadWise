@@ -42,6 +42,7 @@ const READABILITY_LEGACY_MAX_WORD_RATIO = 1.5;
 const READABILITY_LD_MIN_WORD_RATIO = 0.6;
 const READABILITY_PREFERRED_COLLAPSED_LD_PROVIDERS = new Set([
   "harvardbusinessreview",
+  "newyorker",
   "wired",
 ]);
 const JSON_LD_REFLOW_PROVIDERS = new Set(["harvardbusinessreview"]);

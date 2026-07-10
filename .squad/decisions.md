@@ -169,3 +169,32 @@ The difficulty calibration harness is accepted as a read-only evaluation path fo
 **Decision/caveats:** NC evidence is legally approved for this repository's calibration work when explicitly enabled, but raw calibration data remains outside the repository and Squad state. OneStopEnglish labels remain ordinal anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by v4.
 
 **Validation:** NC exact/within-one improved from v3 `.095/.450` to v4 `.308/.798`; OneStopEnglish exact/within-one improved from v3 `.485/.984` to v4 `.499/.995`. Switch approved after diff check, ESLint, typecheck, targeted Node tests (54/54), and provider filter/count/aggregate smoke. Provider aggregate used 19 `prisma/provider-dbs/*.db` files only, covering 286,985 articles: A2 191, B1 8,966, B2 97,611, C1 179,138, C2 1,079; average score 38.042, p50 38; Lexile-like average 842.206, p50 850.
+
+## 2026-07-10 — PR #965 Review (Issue #962)
+**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES
+**Blocking:** Six identical `TODAY_ROUTE_FEATURE_GATE` declarations across six routes replaces one duplication pattern with another. Must extract to a single shared Today-domain module (e.g. `src/lib/engagement/today-session/feature-gate.ts`).
+**Green:** Behavior preserved, gate ordering correct, tests adequate, no `any`/casts/new deps/unrelated changes, CI typecheck+lint pass, PG failure pre-existing.
+**Action:** Tank locked out. Switch must revise with exact deltas: extract shared gate, update six route imports.
+
+## 2026-07-10 — PR #965 Cycle 2 Re-Review (Morpheus)
+
+**Verdict:** REQUEST_CHANGES  
+**Blocking delta:** CI "Unit tests + native coverage" fails — `reflection/route.ts` at 95.45% < 98% threshold (lines 40-41 uncovered: `!result.ok` error branch). PR adds tests that import the route (making it measured) without covering the error path.  
+**Architecture:** APPROVED — single canonical gate, zero duplicates, correct dependency direction, clean export surface.  
+**Cycle-3 owner:** Switch (not locked out — cycle 2, not final rejection).  
+**Fix required:** One additional test exercising `recordTodayReflection → { ok: false }`.  
+**Comment URL:** https://github.com/huangyingting/ReadWise/pull/965  
+
+
+### 2026-07-10 — PR #973 Review (Issue #948 partial delivery)
+
+**Reviewer:** Morpheus | **Verdict:** REQUEST_CHANGES (CI gate only)
+**Technical verdict:** APPROVE — all boundary, type-safety, provider, frozen-file, and test gates pass.
+**Blocking:** "Unit tests + native coverage" CI pending at review time. Cannot verify 98% coverage gate.
+**Comment URL:** https://github.com/huangyingting/ReadWise/pull/973#issuecomment-4936920771
+**Findings:**
+1. All removed barrel exports have zero legitimate external consumers (verified via grep).
+2. Flashcard grade cast removal is type-safe (`oneOf(GRADES)` infers exact `Grade` union).
+3. Lazy provider: same singleton identity, improved error semantics (caller-visible vs import-time), no test leakage, no privacy change.
+4. Frozen files untouched, #948 open, #972 exact/deduplicated.
+**Gate:** Merge when "Unit tests + native coverage" CI passes green. If fails, Mouse locked, Switch revises.

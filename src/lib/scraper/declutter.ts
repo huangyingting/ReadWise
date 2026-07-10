@@ -473,6 +473,39 @@ function collectWiredResidue(root: Element, out: Candidate[]): void {
   }
 }
 
+/**
+ * Removes The New Yorker's ornamental diamond when it terminates a paragraph.
+ * The mark can be nested in an inline element and may precede a correction note,
+ * so inspect every paragraph while preserving diamonds used within prose.
+ */
+function stripNewYorkerTerminalEndMarks(root: Element): void {
+  for (const paragraph of Array.from(root.querySelectorAll("p"))) {
+    stripTerminalDiamond(paragraph);
+  }
+}
+
+function stripTerminalDiamond(parent: Element): boolean {
+  for (let node = parent.lastChild; node; node = node.previousSibling) {
+    if (node.nodeType === 3) {
+      const text = node.textContent ?? "";
+      if (text.trim().length === 0) continue;
+      if (!/♦\s*$/u.test(text)) return false;
+      node.textContent = text.replace(/\s*♦\s*$/u, "");
+      return true;
+    }
+
+    if (node.nodeType !== 1) continue;
+    const element = node as Element;
+    if (trimmedText(element).length === 0 && !hasMedia(element)) continue;
+    const removed = stripTerminalDiamond(element);
+    if (removed && trimmedText(element).length === 0 && !hasMedia(element)) {
+      element.remove();
+    }
+    return removed;
+  }
+  return false;
+}
+
 function isStandaloneImageCredit(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed.length === 0 || trimmed.length > IMAGE_CREDIT_MAXLEN) return false;
@@ -862,6 +895,10 @@ export function declutterArticleHtml(html: string, opts?: DeclutterOptions): str
   );
   for (const c of removals) {
     c.el.remove();
+  }
+
+  if (opts?.providerKey === "newyorker") {
+    stripNewYorkerTerminalEndMarks(root);
   }
 
   removeEmptyBlocks(root);
