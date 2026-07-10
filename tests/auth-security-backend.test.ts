@@ -54,12 +54,13 @@ before(() => {
       prisma: {},
     },
   });
-  mock.module("@/lib/auth-providers", {
+  mock.module("@/lib/auth/providers", {
     namedExports: {
       buildProviders: () => [{ id: "credentials" }],
+      getConfiguredProviders: () => [{ id: "credentials", name: "Credentials" }],
     },
   });
-  mock.module("@/lib/auth-bootstrap", {
+  mock.module("@/lib/auth/bootstrap", {
     namedExports: {
       bootstrapFirstUser: async (userId: string) => {
         bootstrappedUsers.push(userId);

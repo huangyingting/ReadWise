@@ -62,7 +62,7 @@ before(() => {
       },
     },
   });
-  mock.module("@/lib/auth-core", {
+  mock.module("@/lib/auth/session-core", {
     namedExports: {
       loadSession: async () => loadedSession,
       sessionHasCapability: () => capabilityAllowed,
