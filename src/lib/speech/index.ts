@@ -59,6 +59,7 @@ export {
   findSpeechSentenceRange,
   segmentSpeechPractice,
 } from "./practice";
+export { getArticleSpeechAudio } from "./repository";
 
 export type SpeechResult = {
   audio: string | null;

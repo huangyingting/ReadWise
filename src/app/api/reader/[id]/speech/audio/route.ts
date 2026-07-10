@@ -1,7 +1,7 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { idParams } from "@/lib/validation";
 import { requireReadableArticle } from "@/lib/reader/route-guard";
-import { getArticleSpeechAudio } from "@/lib/speech/repository";
+import { getArticleSpeechAudio } from "@/lib/speech";
 
 export const runtime = "nodejs";
 

@@ -1,6 +1,6 @@
 import { JobStatus, JobType } from "@prisma/client";
 import { recordJobQueueDepth } from "@/lib/metrics";
-import { countJobsByTypeAndStatus } from "@/lib/jobs/queries";
+import { countJobsByTypeAndStatus } from "./queries";
 
 function queueDepthKey(type: JobType, status: JobStatus): string {
   return `${type}:${status}`;
