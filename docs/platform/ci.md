@@ -1,7 +1,7 @@
 ---
 type: "testing"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-10"
 description: "Documents CI quality gates, native coverage, test tiers, UI audit sharding/artifacts, generated-doc drift checks, and release-readiness automation."
 ---
 
@@ -21,7 +21,7 @@ describes the tiers, what runs when, how to reproduce each gate locally, and the
 | **Unit tests + native coverage** | Node built-in test runner (`tests/**`) plus the 98% native Node line-coverage gate | `npm test && npm run coverage:node -- --summary-only --threshold 98` |
 | **Build** | Production Next.js build | `npm run build` |
 | **PostgreSQL Migrate / Integration** | PG migrate + integration tests | `npm run test:db` |
-| **Supply-chain hygiene** | Lockfile integrity (blocking) + `npm audit` HIGH/CRITICAL report (advisory) | `npm ci --ignore-scripts && npm audit --audit-level=high` |
+| **Supply-chain hygiene** | Lockfile integrity + blocking `npm audit` HIGH/CRITICAL gate | `npm ci --ignore-scripts && npm audit --audit-level=high` |
 | **Dependency review** | New-dep vulnerability scan (PRs only; blocks on HIGH/CRITICAL) | — (GitHub Advisory DB) |
 | **E2E smoke (Playwright)** | Small browser smoke slice (`e2e/smoke.spec.ts`) | `npm run test:e2e:smoke` |
 | **Full UI audit (Playwright)** | 500-case audit, sharded in CI when enabled | `npm run test:e2e:ui-audit:full -- --shard=1/4` |
@@ -33,7 +33,9 @@ triage or allowlist an advisory, see [`supply-chain.md`](supply-chain.md).
 The **API catalog drift check** runs as a step inside **Fast checks**. See
 [API catalog drift gate](#api-catalog-drift-gate) below for details.
 
-The jobs run in parallel (each installs dependencies with the `npm` cache warm),
+All Node jobs use Node.js 24, matching the root `package.json` engine policy and
+the production Docker image. The jobs run in parallel (each installs dependencies
+with the `npm` cache warm),
 so the slowest required gate sets the wall-clock time. Fast checks finish first,
 giving quick feedback on trivial type/lint mistakes.
 
@@ -57,9 +59,9 @@ to a few seconds, so the signal clarity is worth the small extra cost.
 
 - **Required per-PR gates:** fast checks, unit tests + native coverage, build,
   PostgreSQL migrate/integration, supply-chain lockfile integrity, and dependency
-  review. `npm audit` still runs in the supply-chain job but is advisory until the
-  pre-existing HIGH advisories are resolved; dependency review blocks PRs that add
-  or update HIGH/CRITICAL vulnerable packages.
+  review. `npm audit` blocks when the installed graph contains HIGH/CRITICAL
+  advisories; dependency review separately blocks PRs that add or update
+  HIGH/CRITICAL vulnerable packages.
 - **E2E is tiered off PRs.** Browser runs are slower and more prone to flakiness,
   so smoke runs **after merge** (push to `main`), **nightly** (release readiness),
   and **on demand** (the *Run workflow* button). Because the E2E jobs are excluded
