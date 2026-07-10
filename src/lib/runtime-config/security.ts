@@ -3,7 +3,7 @@
  *
  * IMPORTANT: never import from a Client Component.
  */
-import { envValue, positiveIntEnv } from "@/lib/runtime-config/env";
+import { envValue, positiveIntEnv } from "./env";
 
 // ---------------------------------------------------------------------------
 // Security — trusted proxy / client IP handling (RW-027)

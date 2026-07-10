@@ -8,7 +8,7 @@ import {
   envValue,
   positiveIntEnv,
   type FeatureConfig,
-} from "@/lib/runtime-config/env";
+} from "./env";
 
 // ---------------------------------------------------------------------------
 // Azure OpenAI (chat completions)
