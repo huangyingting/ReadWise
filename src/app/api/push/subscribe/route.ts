@@ -1,8 +1,13 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { isPushConfigured } from "@/lib/push/provider";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { subscribeBody } from "@/lib/push/schemas";
 import { subscribePush } from "@/lib/push/commands";
+
+const PUSH_SUBSCRIBE_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
 
 function validateHttpsEndpoint(endpoint: string): void {
   try {
@@ -34,7 +39,7 @@ export const POST = createHandler(
 
     validateHttpsEndpoint(endpoint);
 
-    await checkRateLimit(userId, "lookup");
+    await enforceRateLimitPolicy(PUSH_SUBSCRIBE_RATE_LIMIT, { session });
 
     const result = await subscribePush(userId, endpoint, p256dh, auth);
     if (!result.ok) {

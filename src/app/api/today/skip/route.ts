@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { object, oneOf, optional, string } from "@/lib/validation";
 import { skipTodaySession, TODAY_SKIP_REASONS } from "@/lib/engagement/today-session";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/skip
@@ -39,9 +39,7 @@ function skipResponse(result: SkipTodayResult) {
 export const POST = createHandler(
   { body: skipBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    enforceTodayGate();
 
     const result = await skipTodaySession({
       userId: session.user.id,

@@ -2,8 +2,13 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { getDueFlashcards } from "@/lib/learning/flashcards";
 import { buildCloze } from "@/lib/learning/cloze";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { parseClozeQuery } from "@/lib/study/schemas";
+
+const CLOZE_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
 
 type DueFlashcard = Awaited<ReturnType<typeof getDueFlashcards>>[number];
 
@@ -48,7 +53,7 @@ function toClozeItem(card: DueFlashcard) {
  * Errors: 401 unauthenticated.
  */
 export const GET = createHandler({ query: parseClozeQuery }, async ({ session, query }) => {
-  await checkRateLimit(session.user.id, "lookup");
+  await enforceRateLimitPolicy(CLOZE_RATE_LIMIT, { session });
 
   const cards = await getDueFlashcards(session.user.id, query.limit);
 

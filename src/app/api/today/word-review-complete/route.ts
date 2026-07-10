@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { object, optional, string } from "@/lib/validation";
 import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/completion";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/word-review-complete (#811)
@@ -47,9 +47,7 @@ function wordReviewCompleteResponse(view: WordReviewCompletionView) {
 export const POST = createHandler(
   { body: wordReviewCompleteBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    enforceTodayGate();
 
     const view = await markTodayWordReviewComplete({
       userId: session.user.id,

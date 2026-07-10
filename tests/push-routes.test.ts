@@ -66,6 +66,8 @@ before(() => {
       checkRateLimit: () => {},
       checkRateLimitByKey: () => {},
       clientIpKey: () => "ip:test",
+      sessionUserRateLimitPolicy: (scope: string) => ({ scope, resolveKey: ({ session }: { session: { user: { id: string } } }) => session.user.id }),
+      enforceRateLimitPolicy: async () => {},
     },
   });
 });
