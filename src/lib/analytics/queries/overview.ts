@@ -2,7 +2,7 @@
  * Pure funnel / activation / reading-completion / study-conversion / feature-
  * usage computation. Operates on already-loaded event rows — no Prisma imports.
  */
-import { ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
+import { ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events/catalog";
 import { percentage as pct } from "@/lib/aggregation";
 
 const T = ANALYTICS_EVENT_TYPES;

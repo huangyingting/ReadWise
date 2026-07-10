@@ -24,11 +24,11 @@
  * unit-testable without a DB.
  */
 import { AssignmentStatus } from "@prisma/client";
-import { isSystemAdmin } from "@/lib/org";
+import { isSystemAdmin } from "@/lib/org/guards";
 import {
 	getClassroomProgressData,
 	type ClassroomProgressData,
-} from "@/lib/classroom";
+} from "@/lib/classroom/progress";
 import { averageRounded as average, wholePercentage as rate } from "@/lib/aggregation";
 
 export type AnalyticsViewerRole = "learner" | "teacher" | "orgAdmin" | "systemAdmin";

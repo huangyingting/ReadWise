@@ -5,9 +5,10 @@
  * Covers:
  *   POST /api/orgs/[id]/members — 401, 403 (wrong org capability), 201
  *
- * Mocks: @/lib/api-auth, @/lib/org, @/lib/classroom — no DB or real auth.
+ * Mocks: @/lib/api-auth, @/lib/org (+ org/classroom submodules used by
+ * @/lib/tenant-api) — no DB or real auth.
  * @/lib/tenant-api is NOT mocked; the real requireOrgCapabilityApi runs against
- * the mocked @/lib/org dependencies so real ApiError throws are exercised.
+ * the mocked org submodules so real ApiError throws are exercised.
  *
  * NOTE: Do NOT import anything from @/lib/api-handler at the top level —
  * doing so eagerly loads @/lib/api-auth before the mock is registered.
@@ -58,29 +59,33 @@ before(() => {
     },
   });
 
-  // @/lib/org barrel — used by the real requireOrgCapabilityApi (in tenant-api) and
-  // also by the org/[id]/members route handler itself (addMember).
+  // The route imports addMember from the org barrel.
   mock.module("@/lib/org", {
     namedExports: {
-      getMembership: async () => membershipStub,
-      hasOrgCapability: () => isOrgAdminStub,
-      isSystemAdmin: () => false,
       addMember: async () => addMemberResult,
     },
   });
 
-  // @/lib/classroom barrel — required by the real @/lib/tenant-api import chain
-  // (it imports canManageClassroom + getClassroom). We never call those functions
-  // from this test file but they must be present to satisfy ESM named binding.
-  mock.module("@/lib/classroom", {
+  // The real tenant-api now imports org/classroom submodules directly.
+  mock.module("@/lib/org/queries", {
+    namedExports: {
+      getMembership: async () => membershipStub,
+    },
+  });
+  mock.module("@/lib/org/guards", {
+    namedExports: {
+      hasOrgCapability: () => isOrgAdminStub,
+      isSystemAdmin: () => false,
+    },
+  });
+  mock.module("@/lib/classroom/guards", {
     namedExports: {
       canManageClassroom: () => false,
+    },
+  });
+  mock.module("@/lib/classroom/queries", {
+    namedExports: {
       getClassroom: async () => null,
-      createClassroom: async () => null,
-      addClassroomMember: async () => null,
-      assignArticle: async () => null,
-      getStudentAssignmentContext: async () => null,
-      recordAssignmentCompletion: async () => null,
     },
   });
 });

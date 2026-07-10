@@ -12,12 +12,10 @@ import type { Session } from "next-auth";
 import type { Membership, Classroom } from "@prisma/client";
 import { ApiError } from "@/lib/errors/api-error";
 import type { Capability } from "@/lib/rbac";
-import {
-  getMembership,
-  hasOrgCapability,
-  isSystemAdmin,
-} from "@/lib/org";
-import { canManageClassroom, getClassroom } from "@/lib/classroom";
+import { getMembership } from "@/lib/org/queries";
+import { hasOrgCapability, isSystemAdmin } from "@/lib/org/guards";
+import { canManageClassroom } from "@/lib/classroom/guards";
+import { getClassroom } from "@/lib/classroom/queries";
 
 function forbidden(): never {
   throw new ApiError(403, "Forbidden");
