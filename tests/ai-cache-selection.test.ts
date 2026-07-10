@@ -20,6 +20,13 @@ before(() => {
       chatComplete: async () => aiReply,
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      isAiConfigured: () => aiConfigured,
+      aiModelName: () => (aiConfigured ? "gpt-test" : null),
+      chatComplete: async () => aiReply,
+    },
+  });
   // promptVersionFor is needed by the helper
   mock.module("@/lib/ai/chunking", {
     namedExports: {

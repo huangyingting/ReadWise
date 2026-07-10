@@ -33,6 +33,13 @@ before(() => {
       chatComplete: async () => aiReply,
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      isAiConfigured: () => aiConfigured,
+      aiModelName: () => (aiConfigured ? "gpt-test" : null),
+      chatComplete: async () => aiReply,
+    },
+  });
 
   mock.module("@/lib/prisma", {
     namedExports: {
