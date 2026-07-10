@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
 import { getServerSession } from "next-auth";
 import type { Session } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { authOptions } from "@/lib/auth/config";
 import AppShell from "@/components/shell/AppShell";
 import type { ShellUser } from "@/components/shell/types";
 
