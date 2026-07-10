@@ -177,6 +177,46 @@ test("Harvard Business Review extractor combines latest service, page links, and
   assert.equal(isHarvardBusinessReviewArticleUrl(legacyArchiveArticle), true);
 });
 
+test("Harvard Business Review extractor gracefully degrades when latest, seeds, scripts, or archive pages fail", async () => {
+  const hbr = (await import("@/lib/scraper/providers/harvardbusinessreview")).default;
+  assert.ok(hbr.urlExtractor);
+
+  const latestService =
+    "https://hbr.org/service/components/external-list/latest/0/8?format=json&id=page.external-list.the-latest";
+  const fallbackHomeArticle = "https://hbr.org/2026/05/fallback-home-article";
+  const archiveRecoveryArticle = "https://hbr.org/2026/06/archive-recovery-article";
+  const fetched: string[] = [];
+
+  const urls = extractorUrls(
+    await hbr.urlExtractor({
+      limit: 10,
+      fetch: async (url) => {
+        fetched.push(url);
+        if (url === latestService) throw new Error("latest unavailable");
+        if (url === "https://hbr.org/") {
+          return `<a href="/2026/05/fallback-home-article">home</a><a href="http://[::1">bad-url</a><a href="/archive-toc/202406">legacy-issue</a><script src="/resources/js/pages/topic_deadbeef.js"></script>`;
+        }
+        if (url === "https://hbr.org/the-latest") throw new Error("seed unavailable");
+        if (url === "https://hbr.org/topic/subject/strategy") {
+          return `<a href="/archive-toc/BR2604">modern-issue</a>`;
+        }
+        if (url === "https://hbr.org/resources/js/pages/topic_deadbeef.js") throw new Error("script blocked");
+        if (url === "https://hbr.org/archive-toc/202406") throw new Error("legacy archive blocked");
+        if (url === "https://hbr.org/archive-toc/BR2604") {
+          return `<a href="/2026/06/archive-recovery-article">archive</a>`;
+        }
+        return "<html></html>";
+      },
+    }),
+  );
+
+  assert.ok(urls.includes(fallbackHomeArticle));
+  assert.ok(urls.includes(archiveRecoveryArticle));
+  assert.ok(fetched.includes("https://hbr.org/the-latest"));
+  assert.ok(fetched.includes("https://hbr.org/resources/js/pages/topic_deadbeef.js"));
+  assert.ok(fetched.includes("https://hbr.org/archive-toc/202406"));
+});
+
 test("reading-source providers discover non-sports article URLs from their strongest indexes", async () => {
   const { atlasObscura } = await import("@/lib/scraper/providers/atlasobscura");
   const { hakaiMagazine } = await import("@/lib/scraper/providers/hakaimagazine");
