@@ -2,11 +2,16 @@ import { NextResponse } from "next/server";
 import { createHandler } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { lookupWord } from "@/lib/lexical/lookup";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { recordWordExposure } from "@/lib/learning/word-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { frequencyTier } from "@/lib/frequency";
+
+const DICTIONARY_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
 
 const bodySchema = object({ word: nonEmptyString(200) });
 
@@ -25,7 +30,7 @@ async function recordLookupUsage(userId: string, found: boolean) {
 }
 
 export const POST = createHandler({ body: bodySchema }, async ({ body, session }) => {
-  await checkRateLimit(session.user.id, "lookup");
+  await enforceRateLimitPolicy(DICTIONARY_RATE_LIMIT, { session });
   const result = await lookupWord(body.word);
   await recordDictionaryExposure(session.user.id, body.word);
   await recordLookupUsage(session.user.id, result.found);
