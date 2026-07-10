@@ -1,18 +1,20 @@
 /** Current deterministic article-difficulty algorithm identifier. */
-export const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/onestop-calibrated-v3";
+export const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/hybrid-calibrated-v4";
 
 /**
- * Calibration caveat for v3: OneStopEnglish raw text is not committed here; the
- * corpus is CC BY-SA 4.0. Its elementary/intermediate/advanced labels are
- * ordinal reading-level anchors, not exact six-band A1-C2 CEFR gold labels.
- * ReadWise CEFR remains heuristic/calibrated, and lexileApprox remains
- * Lexile-like rather than an official Lexile measure.
+ * Calibration caveat for v4: raw calibration text is not committed here. The
+ * hybrid threshold pass used opt-in UniversalCEFR/elg_cefr_en evidence
+ * (CC BY-NC-SA 4.0) as full A1-C2 input plus OneStopEnglish (CC BY-SA 4.0)
+ * elementary/intermediate/advanced article-level ordinal anchors. ReadWise CEFR
+ * remains heuristic/calibrated, and lexileApprox remains Lexile-like rather
+ * than an official Lexile measure.
  */
 export const DIFFICULTY_CALIBRATION_CAVEAT = {
-  source: "OneStopEnglish",
-  license: "CC BY-SA 4.0",
+  source: "UniversalCEFR/elg_cefr_en + OneStopEnglish",
+  license: "CC BY-NC-SA 4.0; CC BY-SA 4.0",
   rawTextCommitted: false,
-  labelUse: "ordinal anchors, not exact A1-C2 gold labels",
-  cefr: "heuristic/calibrated",
+  labelUse: "opt-in NC A1-C2 labels plus article-level ordinal anchors; not official CEFR certification",
+  cefr: "heuristic/hybrid-calibrated",
   lexile: "Lexile-like",
+  ncGate: "--enable-nc required for NC calibration inputs",
 } as const;

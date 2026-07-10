@@ -132,7 +132,7 @@ test("heuristicDifficulty scores dense academic text harder than simple common-w
   assert.ok(levelRank(hardResult.level) >= levelRank(easyResult.level));
 });
 
-test("heuristicDifficulty OneStopEnglish-calibrated bands keep broad OSE-like anchors separated", () => {
+test("heuristicDifficulty hybrid-calibrated bands keep broad OSE-like anchors separated", () => {
   const elementary = heuristicDifficulty(wrap("The child reads a book at home and talks with her family."));
   const intermediate = heuristicDifficulty(
     wrap(
@@ -152,14 +152,16 @@ test("heuristicDifficulty OneStopEnglish-calibrated bands keep broad OSE-like an
   assert.ok(intermediate.score < advanced.score);
 });
 
-test("difficulty calibration documents OneStopEnglish license and mapping caveats", () => {
-  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.source, "OneStopEnglish");
-  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.license, "CC BY-SA 4.0");
+test("difficulty calibration documents hybrid source licenses and mapping caveats", () => {
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.source, "UniversalCEFR/elg_cefr_en + OneStopEnglish");
+  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.license, /CC BY-NC-SA 4\.0/);
+  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.license, /CC BY-SA 4\.0/);
   assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.rawTextCommitted, false);
+  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.labelUse, /NC A1-C2 labels/);
   assert.match(DIFFICULTY_CALIBRATION_CAVEAT.labelUse, /ordinal anchors/);
-  assert.match(DIFFICULTY_CALIBRATION_CAVEAT.labelUse, /not exact A1-C2/);
-  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.cefr, "heuristic/calibrated");
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.cefr, "heuristic/hybrid-calibrated");
   assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.lexile, "Lexile-like");
+  assert.equal(DIFFICULTY_CALIBRATION_CAVEAT.ncGate, "--enable-nc required for NC calibration inputs");
 });
 
 // ---------------------------------------------------------------------------

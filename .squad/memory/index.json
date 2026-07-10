@@ -8,5 +8,15 @@
     "status": "active",
     "createdAt": "2026-07-07T08:03:23.471Z",
     "updatedAt": "2026-07-07T08:03:23.471Z"
+  },
+  {
+    "id": "16857482-fc68-4e4e-afb2-dbd0adde22e2",
+    "class": "DECISION",
+    "loadGuidance": "ALWAYS",
+    "title": "NC CEFR data legal approval",
+    "path": ".squad/decisions/inbox/squad-nc-cefr-data-legal-approval-16857482.md",
+    "status": "active",
+    "createdAt": "2026-07-09T12:18:42.670Z",
+    "updatedAt": "2026-07-09T12:18:42.670Z"
   }
 ]

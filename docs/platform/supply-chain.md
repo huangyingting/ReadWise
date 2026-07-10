@@ -181,11 +181,19 @@ Attribution and licence notes:
   list used for deterministic CEFR/Lexile-like scoring; it does not contain
   article text or user-private content.
 
-`deterministic-cefr/onestop-calibrated-v3` uses OneStopEnglish only as an
-external calibration source: no raw OneStopEnglish text is committed. The corpus
-is CC BY-SA 4.0, and its elementary/intermediate/advanced labels are ordinal
-reading-level anchors, not exact six-band A1-C2 CEFR gold labels. ReadWise CEFR
-therefore remains heuristic/calibrated, and `lexileApprox` remains Lexile-like.
+`deterministic-cefr/hybrid-calibrated-v4` uses opt-in
+UniversalCEFR/elg_cefr_en evidence (CC BY-NC-SA 4.0) as full CEFR input plus
+OneStopEnglish (CC BY-SA 4.0) as article-level ordinal anchors. No raw
+calibration text is committed. ReadWise CEFR therefore remains
+heuristic/hybrid-calibrated, and `lexileApprox` remains Lexile-like.
+`scripts/difficulty-eval.ts` can consume local UniversalCEFR, OneStop-style, and
+MIT Words-CEFR-style exports for aggregate calibration/audit reports, but those
+source exports must stay outside the repository; reports and snapshots must not
+include raw article text, titles, excerpts, article IDs, or word examples.
+UniversalCEFR/elg_cefr_en, Cambridge, CEFR-SP, CC BY-NC, CC BY-NC-SA, and other
+non-commercial calibration/vocabulary sources are disabled by default in the
+harness and require an explicit `--enable-nc` opt-in; aggregate output marks such
+sources with `nonCommercial: true` and license metadata.
 
 ---
 

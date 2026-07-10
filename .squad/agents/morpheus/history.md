@@ -21,3 +21,6 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-07T10:06:10.688+00:00 — Independently revised OneStopEnglish v3 after Tank reviewer lockout, adding own-property guarded contraction/irregular map lookups and explicit CC BY-SA 4.0 ordinal-anchor caveats; final version was approved by Switch.
+
+
+- 2026-07-09T09:02:11.131+00:00 — Independently revised the difficulty eval harness after Tank reviewer lockout, adding explicit `--enable-nc` handling, `datasetSources` license/non-commercial metadata, and docs/tests updates; final version was approved by Switch.

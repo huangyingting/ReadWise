@@ -4,7 +4,7 @@ import { before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 import { ArticleStatus } from "@prisma/client";
 
-const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/onestop-calibrated-v3";
+const DIFFICULTY_ALGORITHM_VERSION = "deterministic-cefr/hybrid-calibrated-v4";
 
 type Candidate = {
   id: string;
