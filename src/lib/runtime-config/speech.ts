@@ -3,7 +3,7 @@
  *
  * IMPORTANT: never import from a Client Component.
  */
-import { defineFeatureConfig, envValue, type FeatureConfig } from "@/lib/runtime-config/env";
+import { defineFeatureConfig, envValue, type FeatureConfig } from "./env";
 
 export type SpeechConfig = {
   key: string;

@@ -3,7 +3,7 @@
  *
  * IMPORTANT: never import from a Client Component.
  */
-import { positiveIntEnv } from "@/lib/runtime-config/env";
+import { positiveIntEnv } from "./env";
 
 const DEFAULT_RATE_LIMIT_AI = 20;
 const DEFAULT_RATE_LIMIT_LOOKUP = 60;

@@ -7,8 +7,7 @@
  * @server-only — Must never be imported from a "use client" file.
  */
 import { dirname, isAbsolute, join } from "node:path";
-import { envValue, positiveIntEnv } from "@/lib/runtime-config/env";
-import type { ConfigIssue } from "@/lib/runtime-config/env";
+import { envValue, positiveIntEnv, type ConfigIssue } from "./env";
 
 export const SQLITE_PRISMA_SCHEMA_PATH = "prisma/schema.prisma";
 export const POSTGRES_PRISMA_SCHEMA_PATH = "prisma/postgresql/schema.prisma";

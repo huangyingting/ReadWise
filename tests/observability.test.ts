@@ -87,3 +87,22 @@ test("observability sanitizeAttributes drops disallowed keys via barrel", async 
   assert.equal("article.content" in result, false);
   assert.equal("prompt" in result, false);
 });
+
+test("observability barrel exports stay identity-equal to focused submodules", async () => {
+  const pkg = await importObservability();
+  const logger = await import("@/lib/observability/logger");
+  const errors = await import("@/lib/observability/errors");
+  const tracing = await import("@/lib/observability/tracing");
+  const slo = await import("@/lib/observability/slo");
+
+  assert.equal(pkg.createLogger, logger.createLogger);
+  assert.equal(pkg.captureError, errors.captureError);
+  assert.equal(pkg.withSpan, tracing.withSpan);
+  assert.equal(pkg.evaluateSlos, slo.evaluateSlos);
+  assert.equal(pkg.SLI_CATALOG, slo.SLI_CATALOG);
+});
+
+test("observability barrel keeps node-only tracing bootstrap private", async () => {
+  const pkg = await importObservability();
+  assert.equal("startTracing" in pkg, false);
+});
