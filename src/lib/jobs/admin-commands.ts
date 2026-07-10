@@ -7,11 +7,13 @@
 import { JobStatus, type Job } from "@prisma/client";
 import {
   TERMINAL_STATUSES,
+} from "./types";
+import {
   archiveJob,
   cancelJob,
-  getJob,
   retryJob,
-} from "@/lib/jobs";
+} from "./lifecycle";
+import { getJob } from "./queries";
 import { type DomainResult, notFound, conflict, validationError, ok } from "@/lib/result";
 
 export const JOB_ACTIONS = ["retry", "cancel", "archive"] as const;

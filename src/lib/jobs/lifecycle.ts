@@ -122,7 +122,7 @@ export async function failJob(
         status: JobStatus.DEAD_LETTER,
         attempts,
         lastError: classified.message,
-        errorHistory: errorHistory as unknown as Prisma.InputJsonValue,
+        errorHistory,
         failedAt: now,
         deadLetteredAt: now,
         ...releaseLockData(),
@@ -147,7 +147,7 @@ export async function failJob(
       status: JobStatus.FAILED,
       attempts,
       lastError: classified.message,
-      errorHistory: errorHistory as unknown as Prisma.InputJsonValue,
+      errorHistory,
       runAfter: new Date(now.getTime() + delay),
       failedAt: now,
       ...releaseLockData(),
@@ -234,9 +234,65 @@ type ErrorHistoryEntry = {
   message: string;
 };
 
-function appendErrorHistory(existing: Prisma.JsonValue, entry: ErrorHistoryEntry): ErrorHistoryEntry[] {
-  const arr = Array.isArray(existing) ? (existing as unknown as ErrorHistoryEntry[]) : [];
-  return [...arr, entry].slice(-MAX_ERROR_HISTORY);
+function isJobErrorKind(value: string): value is JobErrorKind {
+  return (
+    value === "provider" ||
+    value === "validation" ||
+    value === "missing" ||
+    value === "permission" ||
+    value === "unknown"
+  );
+}
+
+function isRecord(value: Prisma.JsonValue): value is Record<string, Prisma.JsonValue> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function parseErrorHistoryEntry(value: Prisma.JsonValue): ErrorHistoryEntry | null {
+  if (!isRecord(value)) return null;
+  const at = value.at;
+  const attempt = value.attempt;
+  const kind = value.kind;
+  const message = value.message;
+  if (
+    typeof at !== "string" ||
+    typeof attempt !== "number" ||
+    !Number.isInteger(attempt) ||
+    attempt <= 0 ||
+    typeof kind !== "string" ||
+    typeof message !== "string"
+  ) {
+    return null;
+  }
+  if (!isJobErrorKind(kind)) {
+    return null;
+  }
+  return {
+    at,
+    attempt,
+    kind,
+    message,
+  };
+}
+
+function existingErrorHistory(existing: Prisma.JsonValue): ErrorHistoryEntry[] {
+  if (!Array.isArray(existing)) return [];
+  const normalized: ErrorHistoryEntry[] = [];
+  for (const item of existing) {
+    const parsed = parseErrorHistoryEntry(item);
+    if (parsed) normalized.push(parsed);
+  }
+  return normalized;
+}
+
+function appendErrorHistory(existing: Prisma.JsonValue, entry: ErrorHistoryEntry): Prisma.InputJsonArray {
+  const rows = [...existingErrorHistory(existing), entry].slice(-MAX_ERROR_HISTORY);
+  return rows.map((row) => ({
+    at: row.at,
+    attempt: row.attempt,
+    kind: row.kind,
+    message: row.message,
+  }));
 }
 
 function stripUndefined<T extends object>(obj: T): Partial<T> {
