@@ -1,9 +1,9 @@
 /**
  * Tests for the shared auth core (REF-044).
  *
- * Verifies the narrow `@/lib/auth-core` helpers — `loadSession` and
+ * Verifies the narrow `@/lib/auth/session-core` helpers — `loadSession` and
  * `sessionHasCapability` — in isolation with only `next-auth` and
- * `@/lib/auth` mocked, so this file imports no real I/O modules.
+ * `@/lib/auth/config` mocked, so this file imports no real I/O modules.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -15,21 +15,19 @@ import { makeSession } from "./support/auth-mock";
 
 let sessionState: Session | null = null;
 
-type AuthCoreModule = typeof import("@/lib/auth-core");
-
 before(() => {
   mock.module("next-auth", {
     namedExports: { getServerSession: async () => sessionState },
   });
-  mock.module("@/lib/auth", { namedExports: { authOptions: {} } });
+  mock.module("@/lib/auth/config", { namedExports: { authOptions: {} } });
 });
 
 beforeEach(() => {
   sessionState = null;
 });
 
-async function loadAuthCore(): Promise<AuthCoreModule> {
-  return import("@/lib/auth-core") as Promise<AuthCoreModule>;
+async function loadAuthCore() {
+  return import("@/lib/auth/session-core");
 }
 
 // ---------------------------------------------------------------------------
@@ -102,4 +100,11 @@ test("AuthResult type is exported from auth-core", async () => {
   // type-only export (no runtime value), but the module must load cleanly.
   assert.equal(typeof mod.loadSession, "function");
   assert.equal(typeof mod.sessionHasCapability, "function");
+});
+
+test("legacy auth-core export maps to canonical session-core module", async () => {
+  const compat = await import("@/lib/auth-core");
+  const canonical = await loadAuthCore();
+  assert.equal(compat.loadSession, canonical.loadSession);
+  assert.equal(compat.sessionHasCapability, canonical.sessionHasCapability);
 });

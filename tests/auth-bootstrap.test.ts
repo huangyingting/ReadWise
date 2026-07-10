@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 async function bootstrapFirstUser(userId: string) {
-  const mod = await import("@/lib/auth-bootstrap");
+  const mod = await import("@/lib/auth/bootstrap");
   return mod.bootstrapFirstUser(userId);
 }
 
@@ -54,4 +54,10 @@ test("bootstrapFirstUser does not promote when count is zero", async () => {
   fakeUserCount = 0;
   await bootstrapFirstUser("user-003");
   assert.equal(lastUpdateArgs, null, "update should not be called when user count is 0");
+});
+
+test("legacy auth-bootstrap export maps to canonical bootstrap module", async () => {
+  const compat = await import("@/lib/auth-bootstrap");
+  const canonical = await import("@/lib/auth/bootstrap");
+  assert.equal(compat.bootstrapFirstUser, canonical.bootstrapFirstUser);
 });
