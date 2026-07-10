@@ -40,6 +40,25 @@ export function isFeatureEnabled(feature: FeatureKey): boolean {
   return !DISABLED_ENV_VALUES.has(featureEnvValue(feature) ?? "");
 }
 
+export type FeatureGate<Context, DisabledResult = void> = {
+  feature: FeatureKey;
+  whenDisabled: (context: Context) => DisabledResult;
+};
+
+export function defineFeatureGate<Context, DisabledResult = void>(
+  gate: FeatureGate<Context, DisabledResult>,
+): FeatureGate<Context, DisabledResult> {
+  return gate;
+}
+
+export function enforceFeatureGate<Context, DisabledResult = void>(
+  gate: FeatureGate<Context, DisabledResult>,
+  context: Context,
+): DisabledResult | undefined {
+  if (isFeatureEnabled(gate.feature)) return undefined;
+  return gate.whenDisabled(context);
+}
+
 /** Convenience helpers — preferred over `isFeatureEnabled` for single-feature gates. */
 export const isAiFeatureEnabled = (): boolean => isFeatureEnabled("ai");
 export const isTtsFeatureEnabled = (): boolean => isFeatureEnabled("tts");
