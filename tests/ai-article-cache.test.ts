@@ -28,6 +28,16 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      isAiConfigured: () => configured,
+      aiModelName: () => (configured ? "gpt-test" : null),
+      chatComplete: async (messages: unknown[], options: Record<string, unknown>) => {
+        chatCalls.push({ messages, options });
+        return chatResult;
+      },
+    },
+  });
   mock.module("@/lib/ai/chunking", {
     namedExports: {
       promptVersionFor: (feature: string) => `${feature}-prompt`,
