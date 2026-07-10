@@ -1,4 +1,4 @@
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import { getClassroom } from "@/lib/classroom";
 import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
 import { CAPABILITIES } from "@/lib/rbac";
