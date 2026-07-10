@@ -21,7 +21,7 @@ jobs:
       NEXTAUTH_SECRET: ci-placeholder-secret-do-not-use-in-production
       NEXTAUTH_URL: http://localhost:3000
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
