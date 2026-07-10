@@ -87,6 +87,23 @@ function useStateMock<T>(initial: T | (() => T)): [T, (next: T | ((prev: T) => T
   ];
 }
 
+function useReducerMock<S, A>(
+  reducer: (state: S, action: A) => S,
+  initialArg: S,
+  init?: (arg: S) => S,
+): [S, (action: A) => void] {
+  const index = stateCursor++;
+  if (!(index in states)) {
+    states[index] = init ? init(initialArg) : initialArg;
+  }
+  return [
+    states[index] as S,
+    (action) => {
+      states[index] = reducer(states[index] as S, action);
+    },
+  ];
+}
+
 function useRefMock<T>(initial: T): { current: T } {
   const index = refCursor++;
   if (!refs[index]) {
@@ -103,6 +120,7 @@ mock.module("react", {
   namedExports: {
     useCallback: (fn: unknown) => fn,
     useEffect: (effect: () => unknown) => rememberCleanup(effect()),
+    useReducer: useReducerMock,
     useRef: useRefMock,
     useState: useStateMock,
   },
