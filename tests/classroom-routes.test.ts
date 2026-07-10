@@ -9,10 +9,11 @@
  *   POST /api/classrooms/[id]/assignments      — 401, 403, 404, 400 (invalid due date), 201
  *   POST /api/assignments/[id]/completion      — 401, 404, 201
  *
- * Mocks: @/lib/api-auth, @/lib/classroom, @/lib/org, @/lib/analytics/tenant,
- *        @/lib/prisma — no DB or real auth. @/lib/tenant-api is NOT mocked;
- *        the real functions run against mocked @/lib/org + @/lib/classroom
- *        dependencies so the real ApiError throws are exercised.
+ * Mocks: @/lib/api-auth, @/lib/classroom, @/lib/org, org/classroom submodules
+ *        consumed by @/lib/tenant-api and @/lib/analytics/classroom-access,
+ *        @/lib/analytics/tenant, @/lib/prisma — no DB or real auth.
+ *        @/lib/tenant-api is NOT mocked; the real functions run against the
+ *        mocked org/classroom dependencies so real ApiError throws are exercised.
  *
  * NOTE: Do NOT import anything from @/lib/api-handler at the top level —
  * doing so eagerly loads @/lib/api-auth (via its static import chain) before
@@ -105,7 +106,7 @@ before(() => {
     },
   });
 
-  // @/lib/classroom — used directly by routes AND by the real @/lib/tenant-api
+  // @/lib/classroom — used directly by routes.
   mock.module("@/lib/classroom", {
     namedExports: {
       // canManageClassroom is imported by @/lib/tenant-api; provide a simplified
@@ -126,8 +127,25 @@ before(() => {
       recordAssignmentCompletion: async () => completionResult,
     },
   });
+  // tenant-api + classroom-access import classroom submodules directly.
+  mock.module("@/lib/classroom/guards", {
+    namedExports: {
+      canManageClassroom: (
+        viewer: { id?: string | null } | null,
+        classroom: { teacherId?: string } | null | undefined,
+      ) => {
+        if (!classroom) return false;
+        return viewer?.id === classroom.teacherId || isOrgAdminStub;
+      },
+    },
+  });
+  mock.module("@/lib/classroom/queries", {
+    namedExports: {
+      getClassroom: async () => classroomStub,
+    },
+  });
 
-  // @/lib/org — used directly by the analytics route AND by real @/lib/tenant-api
+  // @/lib/org — kept for route modules that still consume the barrel directly.
   mock.module("@/lib/org", {
     namedExports: {
       getMembership: async () => membershipStub,
@@ -136,6 +154,17 @@ before(() => {
       hasOrgCapability: () => isOrgAdminStub,
       isSystemAdmin: () => false,
       // re-export canManageClassroom alias that tenant-api doesn't use via org barrel
+    },
+  });
+  mock.module("@/lib/org/queries", {
+    namedExports: {
+      getMembership: async () => membershipStub,
+    },
+  });
+  mock.module("@/lib/org/guards", {
+    namedExports: {
+      hasOrgCapability: () => isOrgAdminStub,
+      isSystemAdmin: () => false,
     },
   });
 
