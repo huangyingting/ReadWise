@@ -312,6 +312,17 @@ before(() => {
   mock.module("@/lib/runtime-config/feature-flags", {
     namedExports: {
       isTodaySessionFeatureEnabled: () => todayFeatureEnabled,
+      isFeatureEnabled: (feature: string) =>
+        feature === "todaySession" ? todayFeatureEnabled : true,
+      defineFeatureGate: <C, D>(gate: { feature: string; whenDisabled: (ctx: C) => D }) => gate,
+      enforceFeatureGate: <C, D>(
+        gate: { feature: string; whenDisabled: (ctx: C) => D },
+        ctx: C,
+      ): D | undefined => {
+        const enabled = gate.feature === "todaySession" ? todayFeatureEnabled : true;
+        if (!enabled) return gate.whenDisabled(ctx);
+        return undefined;
+      },
     },
   });
   mock.module("@/lib/engagement/today-session", {

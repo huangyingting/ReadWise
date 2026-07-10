@@ -16,13 +16,17 @@ import {
   loadTodayComprehensionCheck,
   submitTodayComprehension,
 } from "@/lib/engagement/today-session/comprehension";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import {
+  defineFeatureGate,
+  enforceFeatureGate,
+} from "@/lib/runtime-config/feature-flags";
 
-function assertTodayComprehensionEnabled() {
-  if (!isTodaySessionFeatureEnabled()) {
+const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
+  feature: "todaySession",
+  whenDisabled: (): never => {
     throw new ApiError(404, "Not found");
-  }
-}
+  },
+});
 
 function parseTimezone(params: URLSearchParams): string | null {
   return queryString(params, "timezone").trim() || null;
@@ -60,7 +64,7 @@ export const GET = createHandler(
     }),
   },
   async ({ query, session }) => {
-    assertTodayComprehensionEnabled();
+    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
     const check = await loadTodayComprehensionCheck({
       userId: session.user.id,
       requestTimezone: query.timezone,
@@ -95,7 +99,7 @@ function toSubmissionInput(body: ComprehensionBody, userId: string) {
 export const POST = createHandler(
   { body: comprehensionBody },
   async ({ body, session }) => {
-    assertTodayComprehensionEnabled();
+    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
 
     const result = await submitTodayComprehension(toSubmissionInput(body, session.user.id));
 
