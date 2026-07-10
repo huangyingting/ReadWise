@@ -13,7 +13,7 @@
  * is a normal value rather than a command failure.  That contract is documented
  * in ADR-0010 and is NOT an oversight.
  */
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 

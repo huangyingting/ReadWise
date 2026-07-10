@@ -6,7 +6,7 @@
  * but ONLY AFTER the article-readability check passes (IDOR + quota safety).
  */
 import type { Article } from "@prisma/client";
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import {
   articleAccessContext,
   getReadableArticleById,

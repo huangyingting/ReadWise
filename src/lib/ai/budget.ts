@@ -31,7 +31,7 @@
  * with no budget configured.
  */
 import { AsyncLocalStorage } from "node:async_hooks";
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import { createLogger, getRequestContext } from "@/lib/observability/logger";
 import {
   aiQuotaConfig,
