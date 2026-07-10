@@ -17,6 +17,7 @@
 import { useRef } from "react";
 import { Languages, RotateCcw, X } from "lucide-react";
 import { Button, IconButton, Select } from "@/components/ui";
+import type { TranslateSentenceResult } from "@/components/reader/wordLookup/sentenceTranslationTypes";
 import type { SupportedLanguage } from "@/lib/supported-languages";
 import { languageLabel } from "@/lib/supported-languages";
 import { useFocusTrap } from "@/lib/focus-trap";
@@ -24,10 +25,7 @@ import { usePopoverPosition } from "@/lib/use-popover-position";
 
 const SHIMMER_LINE_WIDTHS = ["92%", "78%", "55%"] as const;
 
-export interface TranslateSentenceResult {
-  translation: string | null;
-  fallback: boolean;
-}
+export type { TranslateSentenceResult } from "@/components/reader/wordLookup/sentenceTranslationTypes";
 
 interface Props {
   /** The selection bounding rect used as the anchor point. */

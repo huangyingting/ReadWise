@@ -16,7 +16,7 @@
  *    and Escape closes back to the reader selection context.
  */
 
-import { useCallback, useRef } from "react";
+import { useRef } from "react";
 import {
   Highlighter,
   StickyNote,
@@ -29,6 +29,7 @@ import { HighlightColorSwatchGroup } from "@/components/ui";
 import { useFocusTrap } from "@/lib/focus-trap";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { HighlightColor } from "@/components/ReaderHighlightsProvider";
+import { useMirroredElementRef } from "./useMirroredElementRef";
 
 const TOOLBAR_HEIGHT = 48; // approximate; see CSS .rw-sel-toolbar
 const ACTION_BUTTON_CLASS =
@@ -69,22 +70,15 @@ export default function SelectionToolbar({
   onClose,
   toolbarRef,
 }: SelectionToolbarProps) {
-  const innerRef = useRef<HTMLDivElement>(null);
   const selectedSwatchRef = useRef<HTMLButtonElement>(null);
-  const setToolbarElement = useCallback(
-    (el: HTMLDivElement | null) => {
-      (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      (toolbarRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    },
-    [toolbarRef],
-  );
+  const { elementRef, setElement } = useMirroredElementRef(toolbarRef);
 
-  usePopoverPosition(innerRef, selectionRect, {
+  usePopoverPosition(elementRef, selectionRect, {
     placement: "above",
     estimatedHeight: TOOLBAR_HEIGHT,
     deps: [selectionRect],
   });
-  useFocusTrap(innerRef, true, onClose, {
+  useFocusTrap(elementRef, true, onClose, {
     initialFocusRef: selectedSwatchRef,
     stopEscapePropagation: true,
   });
@@ -99,7 +93,7 @@ export default function SelectionToolbar({
 
   return (
     <div
-      ref={setToolbarElement}
+      ref={setElement}
       role="toolbar"
       aria-label="Text actions"
       className="rw-sel-toolbar"

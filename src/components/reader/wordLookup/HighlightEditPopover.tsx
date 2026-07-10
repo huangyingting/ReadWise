@@ -26,6 +26,7 @@ import { useFocusTrap } from "@/lib/focus-trap";
 import ConfirmAction from "@/components/ConfirmAction";
 import { usePopoverPosition } from "@/lib/use-popover-position";
 import type { Highlight, HighlightColor } from "@/components/ReaderHighlightsProvider";
+import { useMirroredElementRef } from "./useMirroredElementRef";
 
 const POPOVER_HEIGHT = 260; // approximate
 const NOTE_MAX = 2000;
@@ -57,33 +58,25 @@ export default function HighlightEditPopover({
   onDelete,
   popoverRef,
 }: HighlightEditPopoverProps) {
-  const innerRef = useRef<HTMLDivElement>(null);
+  const { elementRef, setElement } = useMirroredElementRef(popoverRef);
   const selectedSwatchRef = useRef<HTMLButtonElement>(null);
 
   const [noteText, setNoteText] = useState(highlight.note ?? "");
   const [noteOpen, setNoteOpen] = useState(!!highlight.note);
   const [deleting, setDeleting] = useState(false);
 
-  const setPopoverElement = useCallback(
-    (el: HTMLDivElement | null) => {
-      (innerRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-      (popoverRef as React.MutableRefObject<HTMLDivElement | null>).current = el;
-    },
-    [popoverRef],
-  );
-
   // Sync note text when highlight changes externally
   useEffect(() => {
     setNoteText(highlight.note ?? "");
   }, [highlight.note]);
 
-  useFocusTrap(innerRef, true, onClose, {
+  useFocusTrap(elementRef, true, onClose, {
     initialFocusRef: selectedSwatchRef,
     stopEscapePropagation: true,
   });
 
   // Position the popover — anchor is the bounding rect of the <mark> element
-  usePopoverPosition(innerRef, anchorEl.getBoundingClientRect(), {
+  usePopoverPosition(elementRef, anchorEl.getBoundingClientRect(), {
     placement: "above",
     estimatedHeight: POPOVER_HEIGHT,
     deps: [anchorEl],
@@ -118,7 +111,7 @@ export default function HighlightEditPopover({
 
   return (
     <div
-      ref={setPopoverElement}
+      ref={setElement}
       role="dialog"
       aria-label="Edit highlight"
       className="rw-hl-popover"
