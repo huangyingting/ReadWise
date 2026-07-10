@@ -35,3 +35,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-09T23:20:17.074+00:00 — Approved hybrid calibration v4 after diff check, ESLint, typecheck, targeted Node tests (54/54), provider filter/count/aggregate smoke, and aggregate-only metric review.
+
+- 2026-07-10T03:07:51.970+00:00 — Independently reviewed and approved Node 24/dependency alignment PR #938; observed only baseline failures and no PR-attributable merge blocker.
+
+- 2026-07-10T07:15:34.000+00:00 — Cycle-1 rejected PR #955 (bootstrap dev branch) for two blockers: stale required context `Supply-chain hygiene` (not matching CI name) and failing `PostgreSQL Migrate / Integration` in required checks. Assigned Tank as independent revision owner; Morpheus locked out.
+
+- 2026-07-10T07:15:34.000+00:00 — Cycle-2 APPROVED PR #955 after Tank's independent revision resolved both blockers: exact context `Supply-chain hygiene (lockfile + audit)` verified via live API, PostgreSQL removed from required checks, all other protection constraints intact. The only failing required gate (`Unit tests + native coverage`) is a pre-existing baseline defect (issue #956) fixed by approved PR #957 (Mouse APPROVE, full evidence). Bootstrap cycle documented: `dev` lacks updated ci.yml until #955 merges, so #957 cannot receive full CI checks until then; controlled one-time admin merge of #955 is safe given `enforce_admins: false`, narrow diff, and queued approved fix. Mandatory merge sequence: (1) admin-merge #955 → dev, (2) update/trigger CI on #957, (3) verify gates, (4) merge #957 → dev. Comment URL: https://github.com/huangyingting/ReadWise/pull/955#issuecomment-4932943882

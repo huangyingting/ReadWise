@@ -68,6 +68,38 @@ test("extractArticle recovers Readability images when JSON-LD body has comparabl
   assert.match(article.content, /photo\.jpg/);
 });
 
+test("extractArticle preserves New Yorker paragraphs when JSON-LD is collapsed", async () => {
+  const { extractArticle } = await import("@/lib/scraper/extract");
+  readableResult = {
+    contentHtml: [
+      `<p>${words(60, "opening")}</p>`,
+      `<p>${words(60, "middle")}</p>`,
+      `<p>${words(60, "ending")}</p>`,
+    ].join(""),
+    wordCount: 180,
+  };
+  const html = `
+    <script type="application/ld+json">
+      {
+        "@type": "Article",
+        "headline": "A New Yorker Investigation",
+        "articleBody": "${words(120, "collapsed")}"
+      }
+    </script>
+  `;
+
+  const article = extractArticle(
+    html,
+    "https://www.newyorker.com/culture/annals-of-inquiry/a-new-yorker-investigation",
+  );
+
+  assert.ok(article);
+  assert.equal((article.content.match(/<p\b/gi) ?? []).length, 3);
+  assert.match(article.content, /opening0/);
+  assert.match(article.content, /ending59/);
+  assert.doesNotMatch(article.content, /collapsed0/);
+});
+
 test("extractArticle rejects bodies below the minimum word count after cleanup", async () => {
   const { extractArticle } = await import("@/lib/scraper/extract");
   readableResult = null;

@@ -68,6 +68,29 @@ test("declutterArticleHtml applies Smithsonian author-line cleanup", () => {
   assert.ok(out.includes("article word 89"));
 });
 
+test("declutterArticleHtml removes New Yorker paragraph end marks", () => {
+  const html = [
+    `<p>A diagram uses ♦ to identify the control group.</p>`,
+    `<p>${body} <span>♦</span></p>`,
+    `<p><em>Correction: An earlier version misstated the sample size.</em></p>`,
+  ].join("");
+
+  const out = declutterArticleHtml(html, { providerKey: "newyorker" });
+
+  assert.match(out, /uses ♦ to identify/, "an inline diamond in prose is preserved");
+  assert.doesNotMatch(out, /article word 89\s*♦/, "the paragraph end mark is removed");
+  assert.match(out, /Correction:/, "a following correction note is preserved");
+  assert.doesNotMatch(out, /<span>\s*<\/span>/, "the emptied inline wrapper is removed");
+});
+
+test("declutterArticleHtml keeps paragraph-terminal diamonds for other providers", () => {
+  const html = `<p>${body} ♦</p>`;
+
+  const out = declutterArticleHtml(html, { providerKey: "example" });
+
+  assert.match(out, /article word 89 ♦/);
+});
+
 test("declutterArticleHtml removes trailing medium-confidence bylines", () => {
   const html = [
     `<p>${body}</p>`,

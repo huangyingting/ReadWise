@@ -19,3 +19,5 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 - 2026-07-05T22:05:44.651+00:00 — Ralph-coordinated release/CI/nightly recovery completed: release workflow/changelog, scraper test/coverage, PostgreSQL stale-lock, and admin AI ops audit fixes all passed final validation; changes remained uncommitted.
 - 2026-07-05T23:02:20.863+00:00 — Ralph-requested UI audit semantic split was logged: Trinity split the 500-case audit by subsystem, Switch verified selectors/runs/lint/typecheck, and Scribe merged the decision note.
+
+- 2026-07-10T03:07:51.970+00:00 — Coordinated PR #937/#938 handling: #938 was updated, approved, and merged; #937 remains open pending stable ESLint 10 ecosystem compatibility; cleanup left only local `main`.
