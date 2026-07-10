@@ -6,6 +6,7 @@ import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
+import { useMutation } from "@/hooks/useMutation";
 
 const FEATURES = [
   "difficulty",
@@ -61,8 +62,7 @@ export default function AdminBackfillForm() {
   const [category, setCategory] = useState("");
   const [langs, setLangs] = useState("");
   const [batchCap, setBatchCap] = useState("50");
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Backfill failed");
   const [result, setResult] = useState<BackfillResponse | null>(null);
   const submitDisabled = selected.size === 0 || !reason.trim();
 
@@ -76,12 +76,10 @@ export default function AdminBackfillForm() {
   }
 
   async function submit(dryRun: boolean) {
-    setBusy(true);
-    setError(null);
     setResult(null);
-    try {
-      const translateLangs = parseTranslateLangs(langs);
-      const data = await postJson<BackfillResponse>("/api/admin/jobs/backfill", {
+    const translateLangs = parseTranslateLangs(langs);
+    const data = await run(() =>
+      postJson<BackfillResponse>("/api/admin/jobs/backfill", {
         features: Array.from(selected),
         mode,
         reason,
@@ -90,15 +88,12 @@ export default function AdminBackfillForm() {
         status: status || undefined,
         category: category || undefined,
         translateLangs: translateLangs.length > 0 ? translateLangs : undefined,
-      });
-      setResult(data);
-      if (!data.dryRun && data.enqueued > 0) {
-        router.refresh();
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Backfill failed");
-    } finally {
-      setBusy(false);
+      }),
+    );
+    if (!data) return;
+    setResult(data);
+    if (!data.dryRun && data.enqueued > 0) {
+      router.refresh();
     }
   }
 
