@@ -3,17 +3,7 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { recordTodayReflection } from "@/lib/learning/review-assets";
 import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations/anchor";
-import {
-  defineFeatureGate,
-  enforceFeatureGate,
-} from "@/lib/runtime-config/feature-flags";
-
-const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
-  feature: "todaySession",
-  whenDisabled: (): never => {
-    throw new ApiError(404, "Not found");
-  },
-});
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/reflection
@@ -38,7 +28,7 @@ const reflectionBody = object({
 export const POST = createHandler(
   { body: reflectionBody },
   async ({ body, session }) => {
-    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
+    enforceTodayGate();
 
     const { highlightId, sentence } = body;
     const result = await recordTodayReflection({

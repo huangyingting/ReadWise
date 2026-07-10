@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import {
   object,
   optional,
@@ -16,17 +16,7 @@ import {
   loadTodayComprehensionCheck,
   submitTodayComprehension,
 } from "@/lib/engagement/today-session/comprehension";
-import {
-  defineFeatureGate,
-  enforceFeatureGate,
-} from "@/lib/runtime-config/feature-flags";
-
-const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
-  feature: "todaySession",
-  whenDisabled: (): never => {
-    throw new ApiError(404, "Not found");
-  },
-});
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 function parseTimezone(params: URLSearchParams): string | null {
   return queryString(params, "timezone").trim() || null;
@@ -64,7 +54,7 @@ export const GET = createHandler(
     }),
   },
   async ({ query, session }) => {
-    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
+    enforceTodayGate();
     const check = await loadTodayComprehensionCheck({
       userId: session.user.id,
       requestTimezone: query.timezone,
@@ -99,7 +89,7 @@ function toSubmissionInput(body: ComprehensionBody, userId: string) {
 export const POST = createHandler(
   { body: comprehensionBody },
   async ({ body, session }) => {
-    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
+    enforceTodayGate();
 
     const result = await submitTodayComprehension(toSubmissionInput(body, session.user.id));
 

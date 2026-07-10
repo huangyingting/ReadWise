@@ -1,18 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { object, optional, string } from "@/lib/validation";
 import { markTodayReadingCompleteManual } from "@/lib/engagement/today-session/completion";
-import {
-  defineFeatureGate,
-  enforceFeatureGate,
-} from "@/lib/runtime-config/feature-flags";
-
-const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
-  feature: "todaySession",
-  whenDisabled: (): never => {
-    throw new ApiError(404, "Not found");
-  },
-});
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/read-complete
@@ -52,7 +42,7 @@ function readCompleteResponse(view: ManualCompletionView | null) {
 export const POST = createHandler(
   { body: readCompleteBody },
   async ({ body, session }) => {
-    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
+    enforceTodayGate();
 
     const view = await markTodayReadingCompleteManual({
       userId: session.user.id,
