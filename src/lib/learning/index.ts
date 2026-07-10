@@ -6,19 +6,20 @@
  * for focused use; this barrel is the convenience entry point for code that
  * needs several learning APIs together.
  *
- * Import order reflects the dependency graph (leaves first):
- *   primitives/types → srs / cloze → word/article/skill/quiz mastery → flashcards → study-plan
- *   practice-attempts (shared helpers) → quiz-mastery
+ * Ownership:
+ *   - SRS scheduling + flashcard review loop
+ *   - Word/article/skill/quiz mastery progression
+ *   - Study plan diagnostics + review assets
+ *
+ * Internals such as shared primitives, generic validation helpers, and
+ * practice-attempt plumbing remain submodule-only imports.
  */
 
-export * from "./primitives";
-export * from "./types";
 export * from "./srs";
 export * from "./cloze";
 export * from "./word-mastery";
 export * from "./article-mastery";
 export * from "./skill-mastery";
-export * from "./practice-attempts";
 export * from "./quiz-mastery";
 export * from "./flashcards";
 export * from "./review-assets";

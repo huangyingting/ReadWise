@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { buttonVariants } from "@/components/ui";
 import ThemeToggle from "@/components/shell/ThemeToggle";
+import { WordmarkLink } from "@/components/Wordmark";
 import { focusRing } from "@/lib/cn";
-import { Wordmark } from "./Wordmark";
 
 export interface MarketingHeaderProps {
   signedIn: boolean;
@@ -34,7 +34,7 @@ export function MarketingHeader({ signedIn }: MarketingHeaderProps) {
         Skip to content
       </a>
       <div className="mx-auto flex h-[var(--marketing-header-h)] max-w-[var(--marketing-container-w)] items-center justify-between gap-[var(--space-4)] px-[clamp(var(--space-6),5vw,var(--space-8))]">
-        <Wordmark />
+        <WordmarkLink href="/" ariaLabel="ReadWise home" size="marketing" />
         <div className="flex items-center gap-[var(--space-2)] sm:gap-[var(--space-3)]">
           <ThemeToggle />
           <Link

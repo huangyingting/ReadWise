@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { gradeFlashcard, getReviewSummary } from "@/lib/learning/flashcards";
-import type { Grade } from "@/lib/learning/srs";
 import { recordEvent, ANALYTICS_EVENT_TYPES } from "@/lib/analytics/events";
 import { flashcardGradeBody } from "@/lib/study/schemas";
 import { bestEffortMastery } from "@/lib/learning/primitives";
@@ -25,11 +24,7 @@ import { markTodayWordReviewComplete } from "@/lib/engagement/today-session/comp
  */
 export const POST = createHandler({ body: flashcardGradeBody }, async ({ body, session }) => {
   const userId = session.user.id;
-  const result = await gradeFlashcard(
-    userId,
-    body.savedWordId,
-    body.grade as Grade,
-  );
+  const result = await gradeFlashcard(userId, body.savedWordId, body.grade);
   if (!result) throw new ApiError(404, "Flashcard not found");
 
   const { dueCount } = await getReviewSummary(userId);

@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { postJson } from "@/lib/client-fetch";
+import { getJson, postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { useMutation } from "@/hooks/useMutation";
+import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 import { TeacherFormShell } from "./TeacherFormShell";
 
 type StudentCandidate = {
@@ -19,6 +20,10 @@ interface AddStudentFormProps {
   classroomId: string;
   initialCandidates: StudentCandidate[];
 }
+
+type StudentCandidatesResponse = {
+  candidates: StudentCandidate[];
+};
 
 const STUDENT_QUERY_MAX_LENGTH = 100;
 
@@ -34,6 +39,13 @@ function candidateMatches(candidate: StudentCandidate, query: string): boolean {
   return haystack.includes(query.toLowerCase());
 }
 
+function studentCandidatesUrl(classroomId: string, query: string): string {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  const qs = params.toString();
+  return `/api/classrooms/${classroomId}/student-candidates${qs ? `?${qs}` : ""}`;
+}
+
 export default function AddStudentForm({
   classroomId,
   initialCandidates,
@@ -43,30 +55,25 @@ export default function AddStudentForm({
   const [selected, setSelected] = useState<StudentCandidate | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const { busy, error, run } = useMutation("Failed to add student");
+  const { run: runCandidateSearch } = useFilteredFetch<StudentCandidatesResponse>(0);
   const trimmedQuery = query.trim();
 
   useEffect(() => {
-    const controller = new AbortController();
-    const url = new URL(
-      `/api/classrooms/${classroomId}/student-candidates`,
-      window.location.origin,
-    );
-    if (trimmedQuery) url.searchParams.set("q", trimmedQuery);
-
     setSearchError(null);
-    fetch(url, { signal: controller.signal, headers: { accept: "application/json" } })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Student search failed");
-        return (await res.json()) as { candidates: StudentCandidate[] };
-      })
-      .then((data) => setCandidates(data.candidates))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+    runCandidateSearch({
+      fetcher: (signal) =>
+        getJson<StudentCandidatesResponse>(
+          studentCandidatesUrl(classroomId, trimmedQuery),
+          { signal },
+        ),
+      onResult: (data) => {
+        setCandidates(data.candidates);
+      },
+      onError: () => {
         setSearchError("Could not refresh student results. Showing recent matches.");
-      });
-
-    return () => controller.abort();
-  }, [classroomId, trimmedQuery]);
+      },
+    });
+  }, [classroomId, trimmedQuery, runCandidateSearch]);
 
   const visibleCandidates = useMemo(
     () => candidates.filter((candidate) => candidateMatches(candidate, trimmedQuery)),

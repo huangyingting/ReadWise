@@ -1,6 +1,6 @@
 import { Fragment } from "react";
 import ThemeToggle from "@/components/shell/ThemeToggle";
-import { Wordmark } from "./Wordmark";
+import { WordmarkLink } from "@/components/Wordmark";
 
 const LEGAL_LINKS = [
   { label: "Privacy", href: "#" },
@@ -15,7 +15,7 @@ export function MarketingFooter() {
   return (
     <footer className="border-t border-border bg-bg-subtle">
       <div className="mx-auto flex max-w-[var(--marketing-container-w)] flex-col items-center gap-[var(--space-4)] px-[clamp(var(--space-6),5vw,var(--space-8))] py-[var(--space-7)] text-center text-[length:var(--text-sm)] text-text-subtle md:flex-row md:justify-between md:text-left">
-        <Wordmark />
+        <WordmarkLink href="/" ariaLabel="ReadWise home" size="marketing" />
 
         <nav className="flex items-center gap-[var(--space-4)]" aria-label="Legal">
           {LEGAL_LINKS.map(({ label, href }, index) => (

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { patchJson } from "@/lib/client-fetch";
 import { Switch } from "@/components/ui/Switch";
+import { useMutation } from "@/hooks/useMutation";
 
 interface AdminSourceActionsProps {
   providerKey: string;
@@ -25,25 +26,22 @@ export default function AdminSourceActions({
 }: AdminSourceActionsProps) {
   const router = useRouter();
   const [on, setOn] = useState(enabled);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useMutation("Update failed");
   const statusLabel = getStatusLabel(on);
 
   async function toggle(next: boolean) {
-    setBusy(true);
-    setError(null);
     const prev = on;
     setOn(next);
-    try {
+    const updated = await run(async () => {
       await patchJson(`/api/admin/sources/${encodeURIComponent(providerKey)}`, {
         enabled: next,
       });
+      return true;
+    });
+    if (updated) {
       router.refresh();
-    } catch (err) {
+    } else {
       setOn(prev);
-      setError(err instanceof Error ? err.message : "Update failed");
-    } finally {
-      setBusy(false);
     }
   }
 

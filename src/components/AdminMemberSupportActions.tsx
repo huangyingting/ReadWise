@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
 import { postJson } from "@/lib/client-fetch";
 import { Button } from "@/components/ui/Button";
 import ConfirmAction from "@/components/ConfirmAction";
+import { useAdminAction } from "@/hooks/useAdminAction";
 
-type Busy = null | "revoke" | "export" | "repair" | "resend";
+type BusyAction = "revoke" | "export" | "repair" | "resend";
 type SupportAction = "revoke_sessions" | "export" | "repair" | "resend_help";
 type SupportResponse = Record<string, unknown>;
 
@@ -36,41 +36,38 @@ export default function AdminMemberSupportActions({
   memberId: string;
   isSelf: boolean;
 }) {
-  const router = useRouter();
-  const [busy, setBusy] = useState<Busy>(null);
-  const [error, setError] = useState<string | null>(null);
+  const { busy, error, run } = useAdminAction<BusyAction>();
   const [message, setMessage] = useState<string | null>(null);
 
   async function postSupportAction(
     action: SupportAction,
-    busyKey: Exclude<Busy, null>,
+    busyKey: BusyAction,
+    skipRefresh = false,
   ): Promise<SupportResponse | null> {
-    setBusy(busyKey);
-    setError(null);
     setMessage(null);
-    try {
-      return await postJson<SupportResponse>(
-        `/api/admin/members/${memberId}/support`,
-        { action },
-      );
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Action failed");
-      return null;
-    } finally {
-      setBusy(null);
-    }
+    let result: SupportResponse | null = null;
+    await run(
+      busyKey,
+      async () => {
+        result = await postJson<SupportResponse>(
+          `/api/admin/members/${memberId}/support`,
+          { action },
+        );
+      },
+      { skipRefresh, errorFallback: "Action failed" },
+    );
+    return result;
   }
 
   async function revoke() {
     const data = await postSupportAction("revoke_sessions", "revoke");
     if (data) {
       setMessage(`Revoked ${data.revoked ?? 0} session(s).`);
-      router.refresh();
     }
   }
 
   async function exportData() {
-    const data = await postSupportAction("export", "export");
+    const data = await postSupportAction("export", "export", true);
     if (data?.data) {
       downloadMemberExport(memberId, data.data);
       setMessage("Export downloaded.");
@@ -83,12 +80,11 @@ export default function AdminMemberSupportActions({
       setMessage(
         `Repair queued: ${data.enqueued ?? 0} job(s) across ${data.articleCount ?? 0} article(s).`,
       );
-      router.refresh();
     }
   }
 
   async function resend() {
-    const data = await postSupportAction("resend_help", "resend");
+    const data = await postSupportAction("resend_help", "resend", true);
     if (data) {
       setMessage(
         data.delivered

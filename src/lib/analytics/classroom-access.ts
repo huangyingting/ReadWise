@@ -1,6 +1,7 @@
 import { ApiError } from "@/lib/errors/api-error";
-import { getClassroom } from "@/lib/classroom";
-import { getMembership, hasOrgCapability, isSystemAdmin } from "@/lib/org";
+import { getClassroom } from "@/lib/classroom/queries";
+import { getMembership } from "@/lib/org/queries";
+import { hasOrgCapability, isSystemAdmin } from "@/lib/org/guards";
 import { CAPABILITIES } from "@/lib/rbac";
 import {
   type ClassroomAnalyticsFilters,

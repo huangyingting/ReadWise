@@ -216,6 +216,11 @@ before(() => {
       getClassroomProgressData: async () => classroomProgressData,
     },
   });
+  mock.module("@/lib/classroom/progress", {
+    namedExports: {
+      getClassroomProgressData: async () => classroomProgressData,
+    },
+  });
   mock.module("@/lib/org", {
     namedExports: {
       isSystemAdmin: (role: string | null | undefined) => role === "Admin" || role === "System",
