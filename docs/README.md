@@ -1,7 +1,7 @@
 ---
 type: "index"
 status: "current"
-last_updated: "2026-07-06"
+last_updated: "2026-07-10"
 description: "Maps durable subsystem documentation for the current ReadWise codebase. Keeps docs flat by subsystem and links feature docs, ADRs, runbooks, generated catalogs, and governance references."
 ---
 
@@ -23,8 +23,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | [`platform/database.md`](./platform/database.md) | SQLite and PostgreSQL workflows, local parity stack, migration testing, and data migration notes. |
 | [`platform/database-runbooks.md`](./platform/database-runbooks.md) | Backup, restore, rollback, and disaster-recovery runbooks. |
 | [`platform/ci.md`](./platform/ci.md) | CI quality gates, required checks, E2E tiers, and failure diagnosis. |
-
-## Subsystems
+| [`platform/git-workflow.md`](./platform/git-workflow.md) | Three-branch model (main/dev/insiders), branch naming, worktree workflow, and promotion pipeline. |
 
 ### Access and tenancy
 
