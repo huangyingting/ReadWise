@@ -4,10 +4,8 @@
  * IMPORTANT: never import from a Client Component.
  */
 import path from "node:path";
-import { createLogger } from "@/lib/observability/logger";
-import { envValue } from "@/lib/runtime-config/env";
-
-const log = createLogger("runtime-config.dictionary");
+import { warnRuntimeConfig } from "./internal/log";
+import { envValue } from "./env";
 
 export type DictionaryProviderMode = "free" | "local" | "hybrid";
 export type LocalDictionaryLanguage = "en" | "cn";
@@ -33,7 +31,10 @@ export function dictionaryProviderMode(): DictionaryProviderMode {
   const raw = envValue("DICTIONARY_PROVIDER")?.toLowerCase();
   if (!raw) return DEFAULT_PROVIDER_MODE;
   if (isDictionaryProviderMode(raw)) return raw;
-  log.warn("dictionary.unknown_provider", { value: raw, fallback: DEFAULT_PROVIDER_MODE });
+  warnRuntimeConfig("runtime-config.dictionary", "dictionary.unknown_provider", {
+    value: raw,
+    fallback: DEFAULT_PROVIDER_MODE,
+  });
   return DEFAULT_PROVIDER_MODE;
 }
 
@@ -48,7 +49,10 @@ export function localDictionaryLanguage(): LocalDictionaryLanguage {
   if (!raw) return DEFAULT_LOCAL_DICTIONARY_LANGUAGE;
   const language = LOCAL_DICTIONARY_LANGUAGE_BY_ENV.get(raw);
   if (language) return language;
-  log.warn("dictionary.unknown_language", { value: raw, fallback: DEFAULT_LOCAL_DICTIONARY_LANGUAGE });
+  warnRuntimeConfig("runtime-config.dictionary", "dictionary.unknown_language", {
+    value: raw,
+    fallback: DEFAULT_LOCAL_DICTIONARY_LANGUAGE,
+  });
   return DEFAULT_LOCAL_DICTIONARY_LANGUAGE;
 }
 

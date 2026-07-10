@@ -4,11 +4,9 @@
  * IMPORTANT: never import from a Client Component.
  */
 import path from "node:path";
-import { createLogger } from "@/lib/observability/logger";
-import { envValue } from "@/lib/runtime-config/env";
+import { warnRuntimeConfig } from "./internal/log";
+import { envValue } from "./env";
 import type { MediaStorageKind } from "@/lib/storage/types";
-
-const log = createLogger("storage");
 const LOCAL_STORAGE_KIND_ALIASES = new Set(["", "filesystem", "local"]);
 const DEFAULT_MEDIA_CONTAINER = "media";
 
@@ -17,7 +15,7 @@ function rawMediaStorageKind(): string {
 }
 
 function warnLocalStorageFallback(event: string, value: string): void {
-  log.warn(event, { value, fallback: "local" });
+  warnRuntimeConfig("storage", event, { value, fallback: "local" });
 }
 
 // ---------------------------------------------------------------------------

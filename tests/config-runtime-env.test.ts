@@ -169,6 +169,32 @@ test("dictionary config normalizes provider, language, and directory", async () 
   assert.equal(localDictionaryDir(), path.resolve(process.cwd(), "fixtures/dict"));
 });
 
+test("runtime-config barrel preserves public identities and provider fallbacks", async () => {
+  const runtimeConfig = await import("@/lib/runtime-config");
+  const ai = await import("@/lib/runtime-config/ai");
+  const dictionary = await import("@/lib/runtime-config/dictionary");
+  const oauth = await import("@/lib/runtime-config/oauth");
+  const observability = await import("@/lib/runtime-config/observability");
+  const push = await import("@/lib/runtime-config/push");
+  const speech = await import("@/lib/runtime-config/speech");
+  const storage = await import("@/lib/runtime-config/storage");
+
+  assert.equal(runtimeConfig.ai.aiConfig, ai.aiConfig);
+  assert.equal(runtimeConfig.dictionary.dictionaryProviderMode, dictionary.dictionaryProviderMode);
+  assert.equal(runtimeConfig.oauth.googleOAuthConfig, oauth.googleOAuthConfig);
+  assert.equal(runtimeConfig.observability.tracingConfig, observability.tracingConfig);
+  assert.equal(runtimeConfig.push.pushConfig, push.pushConfig);
+  assert.equal(runtimeConfig.speech.speechConfig, speech.speechConfig);
+  assert.equal(runtimeConfig.storage.mediaStorageKind, storage.mediaStorageKind);
+
+  assert.equal(runtimeConfig.ai.aiConfig.get(), null);
+  assert.equal(runtimeConfig.oauth.googleOAuthConfig.get(), null);
+  assert.equal(runtimeConfig.oauth.azureAdOAuthConfig.get(), null);
+  assert.equal(runtimeConfig.push.pushConfig.get(), null);
+  assert.equal(runtimeConfig.speech.speechConfig.get(), null);
+  assert.equal(runtimeConfig.observability.tracingConfig(), null);
+});
+
 test("runtime config leaf modules clamp environment values", async () => {
   const analytics = await import("@/lib/runtime-config/analytics");
   const rateLimit = await import("@/lib/runtime-config/rate-limit");
