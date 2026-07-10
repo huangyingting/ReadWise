@@ -6,7 +6,7 @@
  */
 
 import type { ArticleCardSource } from "@/lib/article-library";
-import type { DifficultyLevel } from "@/lib/difficulty";
+import type { EnglishLevel } from "@/lib/leveling/cefr-primitives";
 import type { Skill } from "@/lib/learning/types";
 import type { GoalPath } from "@/lib/learning/goal-path";
 
@@ -64,7 +64,7 @@ export type ScoredRecommendation = {
 
 /** All per-user signals needed to score candidates. Built once per request. */
 export type RecommendationContext = {
-  userLevel: DifficultyLevel | null;
+  userLevel: EnglishLevel | null;
   userLevelRank: number | null;
   topicSet: Set<string>;
   completedIds: Set<string>;

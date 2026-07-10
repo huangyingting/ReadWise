@@ -7,8 +7,11 @@
  */
 
 import { prisma } from "@/lib/prisma";
-import { isDifficultyLevel, levelRank } from "@/lib/leveling/cefr-primitives";
-import type { DifficultyLevel } from "@/lib/difficulty";
+import {
+  isDifficultyLevel,
+  levelRank,
+  type EnglishLevel,
+} from "@/lib/leveling/cefr-primitives";
 import { getProfile } from "@/lib/profile";
 import { parseTopics } from "@/lib/profile";
 import { getAdaptiveLevelRecommendation } from "@/lib/leveling";
@@ -39,7 +42,7 @@ export async function buildRecommendationContext(
   userId: string,
   candidateIds: string[],
   now: Date = new Date(),
-  opts: { placementLevel?: DifficultyLevel | null } = {},
+  opts: { placementLevel?: EnglishLevel | null } = {},
 ): Promise<RecommendationContext> {
   const [profile, adaptive, skillProfile, vocabAgg, progressRows, masteryRows, weakWordRows] =
     await Promise.all([
@@ -126,8 +129,8 @@ function fetchWeakWordRows(
 function resolveUserLevel(
   profileLevel: unknown,
   adaptive: AdaptiveLevelSignal,
-  placementLevel: DifficultyLevel | null | undefined,
-): DifficultyLevel | null {
+  placementLevel: EnglishLevel | null | undefined,
+): EnglishLevel | null {
   const adaptiveLevel = adaptive
     ? adaptive.recommendedLevel
     : isDifficultyLevel(profileLevel)
