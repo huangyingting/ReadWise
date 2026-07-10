@@ -30,7 +30,18 @@ export * from "@/lib/security/client-ip";
 export * from "@/lib/security/csrf";
 export * from "@/lib/security/events";
 export * from "@/lib/security/audit";
-// rate-limit re-exports clientIpKey from client-ip; export only its own symbols.
-export { checkRateLimit, checkRateLimitByKey } from "@/lib/security/rate-limit/index";
-export * from "@/lib/security/rate-limit/store";
+// Rate-limit re-exports clientIpKey from client-ip; keep the shared-store
+// internals private to the rate-limit package.
+export {
+  type RateLimitScope,
+  type RateLimitPolicy,
+  type SessionRateLimitContext,
+  type ClientIpRateLimitContext,
+  checkRateLimit,
+  checkRateLimitByKey,
+  defineRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+  clientIpRateLimitPolicy,
+  enforceRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 export * from "@/lib/security/headers";

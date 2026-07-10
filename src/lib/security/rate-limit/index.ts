@@ -45,17 +45,19 @@ import {
 
 const log = createLogger("rate-limit");
 
-const LIMIT_RESOLVERS: Record<string, () => number> = {
+const LIMIT_RESOLVERS = {
   lookup: rateLimitLookupRequests,
   public: rateLimitPublicRequests,
   import: rateLimitImportRequests,
   "admin-job": rateLimitAdminJobRequests,
   auth: rateLimitAuthRequests,
   ai: rateLimitAiRequests,
-};
+} as const;
 
-function getLimitForScope(scope: string): number {
-  return (LIMIT_RESOLVERS[scope] ?? rateLimitAiRequests)();
+export type RateLimitScope = keyof typeof LIMIT_RESOLVERS;
+
+function getLimitForScope(scope: RateLimitScope): number {
+  return LIMIT_RESOLVERS[scope]();
 }
 
 function getWindowMs(): number {
@@ -105,7 +107,7 @@ function checkInMemory(bucketKey: string, limit: number, windowMs: number, nowMs
 
 async function checkSharedStore(
   bucketKey: string,
-  scope: string,
+  scope: RateLimitScope,
   limit: number,
   windowMs: number,
   nowMs: number,
@@ -132,7 +134,10 @@ async function checkSharedStore(
  * Tries the shared DB store first, then falls back to the in-memory limiter when
  * that store is unavailable. Throws `ApiError(429)` when the limit is reached.
  */
-export async function checkRateLimitByKey(key: string, scope: string): Promise<void> {
+export async function checkRateLimitByKey(
+  key: string,
+  scope: RateLimitScope,
+): Promise<void> {
   const windowMs = getWindowMs();
   const limit = getLimitForScope(scope);
   const bucketKey = `${key}:${scope}`;
@@ -152,8 +157,90 @@ export async function checkRateLimitByKey(key: string, scope: string): Promise<v
  * @param userId - the authenticated user's id
  * @param scope  - a short string identifying the bucket (ai|lookup|public|import|admin-job|auth)
  */
-export async function checkRateLimit(userId: string, scope: string): Promise<void> {
+export async function checkRateLimit(
+  userId: string,
+  scope: RateLimitScope,
+): Promise<void> {
   await checkRateLimitByKey(userId, scope);
+}
+
+export type SessionRateLimitContext = {
+  session: { user: { id: string } };
+};
+
+export type ClientIpRateLimitContext = {
+  req: Request;
+};
+
+export type RateLimitPolicy<Context, OnExceededResult = void> = {
+  scope: RateLimitScope;
+  resolveKey: (context: Context) => string;
+  onExceeded?: (
+    context: Context,
+    error: ApiError,
+  ) => OnExceededResult | Promise<OnExceededResult>;
+};
+
+export function defineRateLimitPolicy<Context, OnExceededResult = void>(
+  policy: RateLimitPolicy<Context, OnExceededResult>,
+): RateLimitPolicy<Context, OnExceededResult> {
+  return policy;
+}
+
+export function sessionUserRateLimitPolicy<OnExceededResult = void>(
+  scope: RateLimitScope,
+  options?: {
+    onExceeded?: RateLimitPolicy<
+      SessionRateLimitContext,
+      OnExceededResult
+    >["onExceeded"];
+  },
+): RateLimitPolicy<SessionRateLimitContext, OnExceededResult> {
+  return defineRateLimitPolicy({
+    scope,
+    resolveKey: ({ session }) => session.user.id,
+    ...(options?.onExceeded ? { onExceeded: options.onExceeded } : {}),
+  });
+}
+
+export function clientIpRateLimitPolicy<OnExceededResult = void>(
+  scope: RateLimitScope,
+  options?: {
+    onExceeded?: RateLimitPolicy<
+      ClientIpRateLimitContext,
+      OnExceededResult
+    >["onExceeded"];
+  },
+): RateLimitPolicy<ClientIpRateLimitContext, OnExceededResult> {
+  return defineRateLimitPolicy({
+    scope,
+    resolveKey: ({ req }) => clientIpKey(req),
+    ...(options?.onExceeded ? { onExceeded: options.onExceeded } : {}),
+  });
+}
+
+/**
+ * Enforces a declarative rate-limit policy.
+ *
+ * - Default: throws `ApiError(429)` exactly like `checkRateLimit*`.
+ * - Optional `onExceeded`: route-specific fallback response/behavior for 429 only.
+ */
+export async function enforceRateLimitPolicy<
+  Context,
+  OnExceededResult = void,
+>(
+  policy: RateLimitPolicy<Context, OnExceededResult>,
+  context: Context,
+): Promise<OnExceededResult | undefined> {
+  try {
+    await checkRateLimitByKey(policy.resolveKey(context), policy.scope);
+    return undefined;
+  } catch (error) {
+    if (policy.onExceeded && error instanceof ApiError && error.status === 429) {
+      return await policy.onExceeded(context, error);
+    }
+    throw error;
+  }
 }
 
 /**
