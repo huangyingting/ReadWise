@@ -8,8 +8,22 @@ type ArticleJobPayload = {
   translateLangs?: string[];
 };
 
+function isPayloadRecord(payload: unknown): payload is Record<string, unknown> {
+  return payload !== null && typeof payload === "object" && !Array.isArray(payload);
+}
+
+function payloadStringArray(value: unknown): string[] | undefined {
+  return Array.isArray(value) && value.every((item) => typeof item === "string")
+    ? value
+    : undefined;
+}
+
 function articlePayload(job: Job): ArticleJobPayload {
-  return (job.payload ?? {}) as ArticleJobPayload;
+  const payload = isPayloadRecord(job.payload) ? job.payload : {};
+  const articleId = typeof payload.articleId === "string" ? payload.articleId : undefined;
+  const tts = typeof payload.tts === "boolean" ? payload.tts : undefined;
+  const translateLangs = payloadStringArray(payload.translateLangs);
+  return { articleId, tts, translateLangs };
 }
 
 function failedStepSummary(

@@ -54,6 +54,7 @@ before(() => {
       parseStoredSpeechWords: () => [],
       resolveStoredAudioUrl: async () => null,
       saveSpeechResult: async () => null,
+      getArticleSpeechAudio: async () => null,
     },
   });
 });
