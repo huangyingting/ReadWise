@@ -25,7 +25,7 @@
  *   RATE_LIMIT_WINDOW_MS           — window length (ms)  (default 60000)
  *   RATE_LIMIT_STORE               — auto | database | memory
  */
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import { createLogger } from "@/lib/observability/logger";
 import { clientIpKey } from "@/lib/security/client-ip";
 import {
