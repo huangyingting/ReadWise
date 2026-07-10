@@ -77,6 +77,7 @@ Keep feature docs aligned with code under `src/`, the Prisma schemas under
 | --- | --- |
 | [`learning/engagement-analytics.md`](./learning/engagement-analytics.md) | Reading progress, daily activity, streaks, shields, heatmaps, and reading-speed signals. |
 | [`learning/gamification.md`](./learning/gamification.md) | Gamification summary route, streak/shield widgets, daily-goal progress, and due-review counts. |
+| [`learning/difficulty-calibration.md`](./learning/difficulty-calibration.md) | Privacy-safe CEFR/Lexile-like calibration, NC dataset opt-in gate, provider DB drift snapshots, vocabulary penalty audit, and human label workflow. |
 | [`learning/learning-and-mastery.md`](./learning/learning-and-mastery.md) | Word/article/skill mastery, Today comprehension feedback, coach memory, learner analytics, adaptive leveling, streaks, SRS, and study-plan signals. |
 | [`learning/placement.md`](./learning/placement.md) | Reading placement passage flow, deterministic scoring, `PlacementResult` persistence, retake/skip behavior, and privacy rules. |
 | [`learning/profile-preferences.md`](./learning/profile-preferences.md) | Onboarding/profile validation, CEFR/topics/daily-goal preferences, level history, and personalization consumers. |

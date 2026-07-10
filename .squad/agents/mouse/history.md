@@ -32,3 +32,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-07T10:06:10.688+00:00 — Derived OneStopEnglish aggregate calibration stats, verified CC BY-SA 4.0 licensing, and kept raw text uncommitted; OSE `elementary`/`intermediate`/`advanced` labels are ordinal calibration anchors, not exact A1-C2 gold labels.
+
+
+- 2026-07-09T09:02:11.131+00:00 — Specified the next calibration harness methodology: read-only evaluation, raw/license-restricted data outside the repo, aggregate `.calibration-state/` reports, provider DBs only from `prisma/provider-dbs/*`, dataset license gates, MIT-safe vocabulary audits, human labels without article text, Lexile-like metrics, and provider drift thresholds.
+
+
+- 2026-07-09T23:20:17.074+00:00 — Derived v4 hybrid CEFR calibration targets using legal-approved NC UniversalCEFR A1-C2 aggregate labels plus OneStopEnglish ordinal article anchors, with provider guardrails and no raw calibration data committed.

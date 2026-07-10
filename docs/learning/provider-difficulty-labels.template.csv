@@ -1,0 +1,2 @@
+providerDb,articleId,cefr,ordinal,aggregateGuidance
+prisma/provider-dbs/example.db,article_id_from_provider_db,B2,intermediate,optional anonymized reviewer note

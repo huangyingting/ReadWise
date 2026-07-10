@@ -93,13 +93,13 @@ type DifficultyPersistenceFields = {
 };
 
 const SCORE_LEVEL_THRESHOLDS: Array<{ max: number; level: DifficultyLevel }> = [
-  // v3 thresholds were calibrated against OneStopEnglish's three ordinal level
-  // anchors, not exact six-band CEFR gold labels; see difficulty-version.ts.
-  { max: 15, level: "A1" },
-  { max: 27, level: "A2" },
-  { max: 34, level: "B1" },
-  { max: 44, level: "B2" },
-  { max: 60, level: "C1" },
+  // v4 thresholds blend opt-in NC A1-C2 labels with OneStopEnglish ordinal
+  // article anchors; see difficulty-version.ts for license/caveat details.
+  { max: 9, level: "A1" },
+  { max: 18, level: "A2" },
+  { max: 27, level: "B1" },
+  { max: 36, level: "B2" },
+  { max: 50, level: "C1" },
 ];
 
 const SCORE_BOUNDARIES = SCORE_LEVEL_THRESHOLDS.map(({ max }) => max);

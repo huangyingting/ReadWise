@@ -28,3 +28,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-07T10:06:10.688+00:00 — Implemented initial `deterministic-cefr/onestop-calibrated-v3`, but Switch rejected it for lexical-normalization constructor failure and insufficient license/mapping caveats; reviewer lockout was enforced and Morpheus owned the revision.
+
+
+- 2026-07-09T09:02:11.131+00:00 — Implemented the initial difficulty eval harness (`scripts/difficulty-eval.ts`, `npm run difficulty:eval`, docs/tests/template/package updates, provider DB smoke), but Switch rejected it for the missing NC dataset gate; reviewer lockout was enforced and Morpheus owned the revision.
+
+
+- 2026-07-09T23:20:17.074+00:00 — Implemented `deterministic-cefr/hybrid-calibrated-v4` as threshold-only cutoffs `[9,18,27,36,50]`, kept NC data gated via `--enable-nc`, preserved OneStop ordinal anchors, and left Lexile-like scoring unchanged.

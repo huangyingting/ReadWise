@@ -140,3 +140,32 @@ Decision/caveat: present CEFR v2 as a heuristic/calibrated deterministic baselin
 **Implementation/review record:** Tank implemented the initial v3 change, but Switch rejected it as not merge-ready because lexical normalization failed on constructor-shadowed maps and caveats were not explicit enough. Reviewer lockout was enforced; Morpheus independently revised the implementation with own-property guarded lookups for contraction/irregular maps and explicit license/mapping caveats in tests/docs. Switch re-reviewed and approved.
 
 **Validation:** `git diff --check` passed; targeted Node tests passed (88); `npm run typecheck` passed; targeted ESLint passed. Provider aggregate validation used 19 `prisma/provider-dbs/*.db` files only, excluded root DBs and sidecars, and covered 286,985 article rows. Final aggregate: A1 23, A2 9,134, B1 60,820, B2 184,428, C1 32,578, C2 2; average score 38.04; average Lexile-like 842.21.
+
+
+### 2026-07-09 — Difficulty calibration harness stays aggregate-only and license-gated
+
+**Source:** Tank inbox (`decisions/inbox/tank-difficulty-eval-harness.md`) plus Mouse methodology, Morpheus independent revision, and Switch approval.
+
+The difficulty calibration harness is accepted as a read-only evaluation path for CEFR/OneStop-style ordinal calibration, provider drift, Lexile-like metrics, and vocabulary audits. It must keep raw calibration datasets, article text, selected text, and other license-restricted or user-private content outside the repository and Squad state; committed fixtures/templates may describe schemas and labels but must not include article text.
+
+**Decision/caveats:**
+1. Harness reports are aggregate-only and live under `.calibration-state/`; human labels are allowed only without article text.
+2. Provider DB scans are restricted to `prisma/provider-dbs/*` and must exclude root Prisma DBs and sidecars.
+3. Dataset source metadata must record license and non-commercial status. Non-commercial datasets require explicit `--enable-nc` opt-in; OneStopEnglish CC BY-SA remains default-allowed, while UniversalCEFR, Cambridge, CEFR-SP, and NC-marked sources require opt-in.
+4. Vocabulary audits must remain MIT-safe, and provider drift thresholds should be treated as calibration guardrails.
+5. Lexile output remains Lexile-like wording only, not official Lexile.
+
+**Implementation/review record:** Tank implemented `scripts/difficulty-eval.ts`, `npm run difficulty:eval`, docs/tests/template/package updates, and the provider smoke, but Switch rejected the first version because it lacked the NC dataset gate. Reviewer lockout was enforced against Tank; Morpheus independently added the explicit `--enable-nc` gate, `datasetSources` license/non-commercial metadata, and docs/tests updates. Switch re-reviewed and approved.
+
+**Validation:** difficulty eval script tests passed 9/9; ESLint passed; typecheck passed; `git diff --check` passed; provider smoke was scoped to `prisma/provider-dbs/*` only and aggregate-only.
+
+
+### 2026-07-09 — Hybrid v4 CEFR calibration uses legal-approved NC data plus OneStopEnglish ordinal anchors
+
+**Source:** Tank inbox (`decisions/inbox/tank-hybrid-calibration-v4.md`) plus Mouse v4 target synthesis and Switch approval.
+
+`deterministic-cefr/hybrid-calibrated-v4` is accepted as the current deterministic CEFR threshold calibration. The implementation is threshold-only with cutoffs `[9,18,27,36,50]`, uses legal-approved UniversalCEFR/elg_cefr_en A1-C2 aggregate evidence only behind the explicit `--enable-nc` gate, and retains OneStopEnglish article labels as ordinal anchors.
+
+**Decision/caveats:** NC evidence is legally approved for this repository's calibration work when explicitly enabled, but raw calibration data remains outside the repository and Squad state. OneStopEnglish labels remain ordinal anchors, not exact A1-C2 gold labels. CEFR output remains a heuristic/calibrated deterministic estimate rather than authoritative CEFR certification. Lexile output remains Lexile-like and was not changed by v4.
+
+**Validation:** NC exact/within-one improved from v3 `.095/.450` to v4 `.308/.798`; OneStopEnglish exact/within-one improved from v3 `.485/.984` to v4 `.499/.995`. Switch approved after diff check, ESLint, typecheck, targeted Node tests (54/54), and provider filter/count/aggregate smoke. Provider aggregate used 19 `prisma/provider-dbs/*.db` files only, covering 286,985 articles: A2 191, B1 8,966, B2 97,611, C1 179,138, C2 1,079; average score 38.042, p50 38; Lexile-like average 842.206, p50 850.

@@ -29,3 +29,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-07T10:06:10.688+00:00 — Logged OneStopEnglish v3 calibration state, recorded accepted CC BY-SA 4.0 ordinal-anchor caveats in `decisions.md`, cleared Tank's accepted inbox note, and propagated Mouse/Tank/Morpheus/Switch history updates without committing or modifying non-`.squad` files.
+
+
+- 2026-07-09T09:02:11.131+00:00 — Logged the difficulty eval harness session/orchestration state, recorded aggregate-only/license-gated calibration caveats in `decisions.md`, cleared Tank's accepted inbox note, and propagated Mouse/Tank/Morpheus/Switch history updates without committing or modifying non-`.squad` files.
+
+
+- 2026-07-09T23:20:17.074+00:00 — Logged hybrid CEFR calibration v4, merged Tank's accepted decision inbox note into `decisions.md`, recorded NC/OneStop/raw-data caveats, propagated Mouse/Tank/Switch history updates, and did not commit repository changes.

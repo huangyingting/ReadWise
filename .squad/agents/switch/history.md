@@ -29,3 +29,9 @@ ReadWise is an AI-assisted English learning reader for long-form news and educat
 
 
 - 2026-07-07T10:06:10.688+00:00 — Rejected the initial OneStopEnglish v3 calibration for constructor-shadowed lexical normalization and missing caveats, then approved Morpheus' locked-out revision after 88 targeted tests, typecheck, targeted ESLint, diff-check, and provider aggregate validation passed.
+
+
+- 2026-07-09T09:02:11.131+00:00 — Rejected the initial difficulty eval harness for a missing NC dataset gate, enforced reviewer lockout against Tank, then approved Morpheus' independent revision after 9/9 difficulty eval tests, ESLint, typecheck, diff-check, and aggregate-only provider smoke passed.
+
+
+- 2026-07-09T23:20:17.074+00:00 — Approved hybrid calibration v4 after diff check, ESLint, typecheck, targeted Node tests (54/54), provider filter/count/aggregate smoke, and aggregate-only metric review.
