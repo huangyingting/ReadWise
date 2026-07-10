@@ -4,6 +4,10 @@
  * Centralizes readable-article lookup and uniform 404 enforcement for all
  * reader routes. AI variants also consume the user-keyed rate-limit quota —
  * but ONLY AFTER the article-readability check passes (IDOR + quota safety).
+ *
+ * Reader ownership note: route guards/schemas/commands live in this module;
+ * page rendering/loading stays in `page-loader.ts` and is intentionally
+ * separate.
  */
 import type { Article } from "@prisma/client";
 import { ApiError } from "@/lib/errors/api-error";
