@@ -45,6 +45,13 @@ before(() => {
       isSpeechConfigured: () => speechConfigured,
     },
   });
+
+  mock.module("@/lib/security/rate-limit/index", {
+    namedExports: {
+      sessionUserRateLimitPolicy: (scope: string) => ({ scope, resolveKey: ({ session }: { session: { user: { id: string } } }) => session.user.id }),
+      enforceRateLimitPolicy: async () => {},
+    },
+  });
 });
 
 beforeEach(() => {

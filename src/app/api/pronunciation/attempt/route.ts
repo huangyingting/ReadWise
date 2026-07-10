@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString, clampedInt, optional } from "@/lib/validation";
 import { recordPronunciationAttempt } from "@/lib/pronunciation";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { articleAccessContext, getReadableArticleById } from "@/lib/article-library";
 import { recordSkillEvidence } from "@/lib/learning/skill-mastery";
 import { bestEffortMastery } from "@/lib/learning/primitives";
@@ -15,6 +18,8 @@ import { bestEffortMastery } from "@/lib/learning/primitives";
  * word/phoneme arrays are not persisted), and rate-limits the endpoint so a
  * forged/out-of-range value cannot corrupt history/aggregates.
  */
+const PRONUNCIATION_RATE_LIMIT = sessionUserRateLimitPolicy("ai");
+
 const bodySchema = object({
   referenceText: nonEmptyString(2000),
   accuracyScore: clampedInt(0, 100),
@@ -54,7 +59,7 @@ async function recordPronunciationMastery(userId: string, body: PronunciationAtt
  */
 export const POST = createHandler({ body: bodySchema }, async ({ session, body }) => {
   await assertReadableArticle(body.articleId, session.user);
-  await checkRateLimit(session.user.id, "ai");
+  await enforceRateLimitPolicy(PRONUNCIATION_RATE_LIMIT, { session });
 
   const result = await recordPronunciationAttempt(session.user.id, body);
   // Best-effort mastery: pronunciation score feeds the pronunciation skill;

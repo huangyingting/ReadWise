@@ -101,6 +101,10 @@ before(() => {
       checkRateLimitByKey: (key: string, scope: string) => {
         rateLimitCalls.push({ userId: key, scope });
       },
+      sessionUserRateLimitPolicy: (scope: string) => ({ scope, resolveKey: ({ session }: { session: { user: { id: string } } }) => session.user.id }),
+      enforceRateLimitPolicy: async (policy: { resolveKey: (ctx: { session: { user: { id: string } } }) => string; scope: string }, ctx: { session: { user: { id: string } } }) => {
+        rateLimitCalls.push({ userId: policy.resolveKey(ctx), scope: policy.scope });
+      },
       clientIpKey: () => "ip:test",
     },
   });

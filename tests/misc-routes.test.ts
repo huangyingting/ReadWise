@@ -86,6 +86,7 @@ before(() => {
       checkRateLimit: async () => {},
       checkRateLimitByKey: async () => {},
       clientIpKey: () => "ip:test",
+      sessionUserRateLimitPolicy: (scope: string) => ({ scope, resolveKey: ({ session }: { session: { user: { id: string } } }) => session.user.id }),
       clientIpRateLimitPolicy: (
         _scope: string,
         options?: { onExceeded?: () => Response | Promise<Response> },
