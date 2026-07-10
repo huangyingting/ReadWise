@@ -1,11 +1,15 @@
 import { createHandler, ApiError } from "@/lib/api-handler";
 import { isPushConfigured } from "@/lib/push/provider";
-import { checkRateLimit } from "@/lib/security/rate-limit/index";
+import {
+  enforceRateLimitPolicy,
+  sessionUserRateLimitPolicy,
+} from "@/lib/security/rate-limit/index";
 import { unsubscribeBody } from "@/lib/push/schemas";
 import { unsubscribePush } from "@/lib/push/commands";
 
+const PUSH_UNSUBSCRIBE_RATE_LIMIT = sessionUserRateLimitPolicy("lookup");
+
 const PUSH_NOT_CONFIGURED_MESSAGE = "Push notifications are not configured on this server.";
-const RATE_LIMIT_ACTION = "lookup";
 
 function assertPushConfigured(log: { info: (message: string) => void }): void {
   if (isPushConfigured()) return;
@@ -31,7 +35,7 @@ export const POST = createHandler(
     const userId = session.user.id;
     const { endpoint } = body;
 
-    await checkRateLimit(userId, RATE_LIMIT_ACTION);
+    await enforceRateLimitPolicy(PUSH_UNSUBSCRIBE_RATE_LIMIT, { session });
 
     const result = await unsubscribePush(userId, endpoint);
     if (!result.ok) {
