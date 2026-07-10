@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-04"
+last_updated: "2026-07-10"
 description: "Documents dependency hygiene, vulnerability response, CI gates, and package-management boundaries. Captures current dependency review, lockfile expectations, advisory response, and upgrade verification workflow."
 ---
 
@@ -22,7 +22,7 @@ For general CI topology, see [`ci.md`](ci.md).
 | Gate | Where | Severity | Blocking? |
 | --- | --- | --- | --- |
 | **Lockfile integrity** (`npm ci`) | `supply-chain` CI job | n/a | **Yes** — hard fail |
-| **npm audit** | `supply-chain` CI job | HIGH + CRITICAL | Advisory (see below) |
+| **npm audit** | `supply-chain` CI job | HIGH + CRITICAL | **Yes** — hard fail |
 | **Dependency review** | `dependency-review` CI job (PRs only) | HIGH + CRITICAL | **Yes** — blocks PR merge |
 | **Dependabot security updates** | Automated PRs | all | PR opened automatically |
 
@@ -62,23 +62,11 @@ git commit -m "chore: sync package-lock.json"
 
 ### Current advisory state
 
-As of the date this gate was added, the audit reports **2 HIGH** advisories and
-**26 moderate** advisories, all transitive.  The HIGH advisories are in
-`@opentelemetry/exporter-prometheus` and `@opentelemetry/sdk-node`
-([GHSA-q7rr-3cgh-j5r3](https://github.com/advisories/GHSA-q7rr-3cgh-j5r3)).
-No direct fix is available without a breaking `@opentelemetry` upgrade.
-
-Because of these pre-existing advisories, the `npm audit` step in the
-`supply-chain` CI job runs with **`continue-on-error: true`** (advisory mode).
-The step always runs and its output is written to the run summary, so the signal
-is visible without breaking CI.
-
-**Promote to blocking** once the pre-existing HIGH advisories are resolved:
-
-1. Verify `npm audit --audit-level=high` exits 0 locally.
-2. Remove `continue-on-error: true` from the `npm audit (HIGH/CRITICAL — advisory)`
-   step in `.github/workflows/ci.yml`.
-3. Commit the change.
+The OpenTelemetry 0.220/2.9 upgrade resolves the pre-existing HIGH advisory
+[GHSA-q7rr-3cgh-j5r3](https://github.com/advisories/GHSA-q7rr-3cgh-j5r3).
+As of 2026-07-10, `npm audit --audit-level=high` reports no HIGH or CRITICAL
+advisories (8 moderate advisories remain). The `supply-chain` job therefore
+enforces `npm audit` as a blocking gate.
 
 ### Triaging a new advisory
 
@@ -91,9 +79,9 @@ is visible without breaking CI.
    - Open a GitHub issue labelled `security` describing the advisory, the
      dependency path, and why immediate upgrade is not feasible.
    - Document the exception in this file under [Exception log](#exception-log).
-   - The `continue-on-error: true` flag in CI covers pre-existing advisories;
-     new ones discovered by `dependency-review` will still block PRs that add
-     or upgrade the affected package.
+   - The blocking `npm audit` gate covers the full installed graph; new ones
+     discovered by `dependency-review` also block PRs that add or upgrade the
+     affected package.
 
 ---
 
@@ -199,9 +187,9 @@ sources with `nonCommercial: true` and license metadata.
 
 ## Exception log
 
-Pre-existing exceptions are listed here.  Each entry must include the advisory
-ID, the affected package, the reason for deferral, and a target remediation date.
+Active exceptions are listed here. Each entry must include the advisory ID, the
+affected package, the reason for deferral, and a target remediation date.
 
 | Advisory | Package | Severity | Reason for deferral | Target |
 | --- | --- | --- | --- | --- |
-| [GHSA-q7rr-3cgh-j5r3](https://github.com/advisories/GHSA-q7rr-3cgh-j5r3) | `@opentelemetry/exporter-prometheus`, `@opentelemetry/sdk-node` (transitive) | HIGH | No non-breaking fix available upstream as of gate introduction. Fix requires a major `@opentelemetry` upgrade; tracked separately. | Next `@opentelemetry` major release |
+| _None_ | — | — | No active HIGH/CRITICAL exceptions as of 2026-07-10. | — |

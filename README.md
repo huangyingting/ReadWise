@@ -88,7 +88,8 @@ OpenTelemetry) degrades gracefully when it is not configured.
 
 ## Prerequisites
 
-- Node.js **22.9+** and npm **10+** (`--env-file-if-exists` is used by CLI scripts).
+- Node.js **24.x** and npm **11.x** (matching `package.json`, CI, and the
+  production container).
 - No database server is required for the default SQLite workflow.
 - Docker Compose is optional, but recommended when testing PostgreSQL/Redis
   parity locally.
