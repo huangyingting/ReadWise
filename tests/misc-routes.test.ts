@@ -36,6 +36,7 @@ let levelRecommendation: Record<string, unknown> | null = defaultLevelRecommenda
 
 // PII capture — captureError is called from client-errors route with scrubbed message
 let capturedErrors: { message: string }[] = [];
+let clientErrorsRateLimitLimited = false;
 
 // account lifecycle stubs
 let deleteAccountResult: { ok: boolean; status?: number; error?: string } = { ok: true };
@@ -85,6 +86,16 @@ before(() => {
       checkRateLimit: async () => {},
       checkRateLimitByKey: async () => {},
       clientIpKey: () => "ip:test",
+      clientIpRateLimitPolicy: (
+        _scope: string,
+        options?: { onExceeded?: () => Response | Promise<Response> },
+      ) => ({ onExceeded: options?.onExceeded }),
+      enforceRateLimitPolicy: async (policy: {
+        onExceeded?: () => Response | Promise<Response>;
+      }) => {
+        if (!clientErrorsRateLimitLimited) return undefined;
+        return policy.onExceeded ? policy.onExceeded() : undefined;
+      },
     },
   });
 
@@ -166,6 +177,7 @@ beforeEach(() => {
   authState = "ok";
   levelRecommendation = defaultLevelRecommendation();
   capturedErrors = [];
+  clientErrorsRateLimitLimited = false;
   deleteAccountResult = { ok: true };
   exportDataResult = defaultExportData();
 });
@@ -262,6 +274,18 @@ test("POST /api/client-errors returns 204 for a valid error report", async () =>
     }),
   );
   assert.equal(res.status, 204);
+});
+
+test("POST /api/client-errors keeps returning 204 when rate-limited", async () => {
+  clientErrorsRateLimitLimited = true;
+  const { POST } = (await import("@/app/api/client-errors/route")) as { POST: RouteHandler };
+  const res = await POST(
+    jsonPost("http://test/api/client-errors", {
+      message: "TypeError: too many",
+    }),
+  );
+  assert.equal(res.status, 204);
+  assert.equal(capturedErrors.length, 0, "rate-limited requests should be silently absorbed");
 });
 
 test("POST /api/client-errors strips email PII before passing message to captureError", async () => {

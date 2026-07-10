@@ -285,6 +285,20 @@ before(() => {
         if (rateLimitThrows) throw new Error("limited");
       },
       clientIpKey: () => "ip:test",
+      sessionUserRateLimitPolicy: (_scope: string) => ({}),
+      clientIpRateLimitPolicy: (
+        _scope: string,
+        options?: { onExceeded?: (ctx: unknown, error: MockApiError) => unknown },
+      ) => ({ onExceeded: options?.onExceeded }),
+      enforceRateLimitPolicy: async (policy: {
+        onExceeded?: (ctx: unknown, error: MockApiError) => unknown;
+      }) => {
+        if (!rateLimitThrows) return undefined;
+        if (policy.onExceeded) {
+          return policy.onExceeded({ req }, new MockApiError(429, "limited"));
+        }
+        throw new MockApiError(429, "limited");
+      },
     },
   });
   mock.module("@/lib/engagement/today-session/comprehension", {
