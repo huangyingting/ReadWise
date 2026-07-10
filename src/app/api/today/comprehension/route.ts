@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import {
   object,
   optional,
@@ -16,13 +16,7 @@ import {
   loadTodayComprehensionCheck,
   submitTodayComprehension,
 } from "@/lib/engagement/today-session/comprehension";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
-
-function assertTodayComprehensionEnabled() {
-  if (!isTodaySessionFeatureEnabled()) {
-    throw new ApiError(404, "Not found");
-  }
-}
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 function parseTimezone(params: URLSearchParams): string | null {
   return queryString(params, "timezone").trim() || null;
@@ -60,7 +54,7 @@ export const GET = createHandler(
     }),
   },
   async ({ query, session }) => {
-    assertTodayComprehensionEnabled();
+    enforceTodayGate();
     const check = await loadTodayComprehensionCheck({
       userId: session.user.id,
       requestTimezone: query.timezone,
@@ -95,7 +89,7 @@ function toSubmissionInput(body: ComprehensionBody, userId: string) {
 export const POST = createHandler(
   { body: comprehensionBody },
   async ({ body, session }) => {
-    assertTodayComprehensionEnabled();
+    enforceTodayGate();
 
     const result = await submitTodayComprehension(toSubmissionInput(body, session.user.id));
 

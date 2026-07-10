@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
-import { createHandler, ApiError } from "@/lib/api-handler";
+import { createHandler } from "@/lib/api-handler";
 import { object, optional, string } from "@/lib/validation";
 import { markTodayReadingCompleteManual } from "@/lib/engagement/today-session/completion";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import { enforceTodayGate } from "@/lib/engagement/today-session/feature-gate";
 
 /**
  * POST /api/today/read-complete
@@ -42,9 +42,7 @@ function readCompleteResponse(view: ManualCompletionView | null) {
 export const POST = createHandler(
   { body: readCompleteBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    enforceTodayGate();
 
     const view = await markTodayReadingCompleteManual({
       userId: session.user.id,
