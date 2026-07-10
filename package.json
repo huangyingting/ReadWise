@@ -54,10 +54,11 @@
     "@azure/storage-blob": "^12.33.0",
     "@mozilla/readability": "^0.6.0",
     "@opentelemetry/api": "^1.9.1",
-    "@opentelemetry/exporter-trace-otlp-http": "^0.219.0",
-    "@opentelemetry/resources": "^2.8.0",
-    "@opentelemetry/sdk-node": "^0.219.0",
-    "@opentelemetry/semantic-conventions": "^1.41.1",
+    "@opentelemetry/exporter-trace-otlp-http": "^0.220.0",
+    "@opentelemetry/resources": "^2.9.0",
+    "@opentelemetry/sdk-node": "^0.220.0",
+    "@opentelemetry/sdk-trace-base": "^2.9.0",
+    "@opentelemetry/semantic-conventions": "^1.43.0",
     "@prisma/adapter-better-sqlite3": "^7.8.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
@@ -67,7 +68,7 @@
     "clsx": "^2.1.1",
     "franc-min": "^6.2.0",
     "linkedom": "^0.18.12",
-    "lucide-react": "^1.22.0",
+    "lucide-react": "^1.24.0",
     "microsoft-cognitiveservices-speech-sdk": "^1.50.0",
     "natural": "^8.1.1",
     "next": "^16.2.10",
@@ -76,14 +77,14 @@
     "react-dom": "^19.0.0",
     "sanitize-html": "^2.17.5",
     "tailwind-merge": "^3.6.0",
-    "undici": "^8.5.0",
+    "undici": "^8.7.0",
     "web-push": "^3.6.7"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.12.1",
     "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4.3.2",
-    "@types/node": "^26.0.1",
+    "@types/node": "^24.13.3",
     "@types/react": "^19.0.5",
     "@types/react-dom": "^19.0.3",
     "@types/web-push": "^3.6.4",
@@ -92,5 +93,10 @@
     "prisma": "^7.8.0",
     "tailwindcss": "^4.3.1",
     "typescript": "^6.0.3"
-  }
+  },
+  "engines": {
+    "node": ">=24 <25",
+    "npm": ">=11 <12"
+  },
+  "packageManager": "npm@11.13.0"
 }

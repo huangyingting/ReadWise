@@ -21,7 +21,7 @@
 # =============================================================================
 
 # ---- Stage 1: install ALL dependencies (needed for prisma generate + build) -
-FROM node:22-alpine AS deps
+FROM node:24-alpine AS deps
 WORKDIR /app
 
 COPY package*.json ./
@@ -31,7 +31,7 @@ COPY prisma/schema.prisma prisma/
 RUN npm ci
 
 # ---- Stage 2: build the Next.js application -----------------------------
-FROM node:22-alpine AS build
+FROM node:24-alpine AS build
 WORKDIR /app
 ARG PRISMA_SCHEMA_PATH=prisma/postgresql/schema.prisma
 
@@ -45,7 +45,7 @@ RUN npx prisma generate --schema "$PRISMA_SCHEMA_PATH"
 RUN npm run build
 
 # ---- Stage 3: lean production runner ------------------------------------
-FROM node:22-alpine AS runner
+FROM node:24-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
