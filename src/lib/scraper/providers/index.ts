@@ -38,6 +38,7 @@ import hakaiMagazine from "./hakaimagazine";
 import yaleEnvironment360 from "./yalee360";
 import worksInProgress from "./worksinprogress";
 import wired from "./wired";
+import newYorker from "./newyorker";
 import harvardBusinessReview from "./harvardbusinessreview";
 
 export const PROVIDERS: readonly Provider[] = [
@@ -60,6 +61,7 @@ export const PROVIDERS: readonly Provider[] = [
   yaleEnvironment360,
   worksInProgress,
   wired,
+  newYorker,
   harvardBusinessReview,
 ];
 
