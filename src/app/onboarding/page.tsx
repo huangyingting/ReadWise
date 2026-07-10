@@ -3,7 +3,7 @@ import { requireSession } from "@/lib/session";
 import { getProfile, isOnboarded } from "@/features/profile-preferences/repository";
 import { parseTopics } from "@/features/profile-preferences/schema";
 import { defaultLandingPath } from "@/lib/learner-landing";
-import { Wordmark } from "@/components/marketing/Wordmark";
+import { WordmarkLink } from "@/components/Wordmark";
 import ThemeToggle from "@/components/shell/ThemeToggle";
 import OnboardingForm from "./OnboardingForm";
 import { onboarding } from "@/lib/copy/pages";
@@ -33,7 +33,7 @@ export default async function OnboardingPage() {
     <main className="min-h-[100dvh] flex flex-col bg-bg">
       {/* Minimal top bar — same family as sign-in */}
       <div className="h-16 flex items-center justify-between max-w-[var(--container-listing)] w-full mx-auto px-[var(--space-6)]">
-        <Wordmark />
+        <WordmarkLink href="/" ariaLabel="ReadWise home" size="marketing" />
         <ThemeToggle />
       </div>
 

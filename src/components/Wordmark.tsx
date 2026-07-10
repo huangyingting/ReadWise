@@ -1,17 +1,21 @@
 import { cn, focusRing } from "@/lib/cn";
 import Link from "next/link";
 
+export type WordmarkSize = "header" | "large" | "marketing" | "error";
+
 interface WordmarkProps {
-  /** Scale variant — "header" (default) uses xl, "large" uses 2xl */
-  size?: "header" | "large";
+  /** Scale variant for app header, auth hero, and marketing chrome. */
+  size?: WordmarkSize;
   className?: string;
 }
 
 const WORDMARK_SIZE = {
   header: { textClass: "text-[length:var(--text-xl)]", markSize: 22 },
   large: { textClass: "text-[length:var(--text-2xl)]", markSize: 28 },
+  marketing: { textClass: "text-[length:var(--text-xl)]", markSize: 16 },
+  error: { textClass: "text-[length:var(--text-xl)]", markSize: 20 },
 } as const satisfies Record<
-  NonNullable<WordmarkProps["size"]>,
+  WordmarkSize,
   { textClass: string; markSize: number }
 >;
 
@@ -51,15 +55,36 @@ export function Wordmark({ size = "header", className }: WordmarkProps) {
   );
 }
 
-/** Wordmark as a link to /dashboard (for use inside the app shell). */
-export function WordmarkLink({ className }: { className?: string }) {
+interface WordmarkLinkProps {
+  /** Link destination (defaults to the app shell dashboard route). */
+  href?: string;
+  /** Accessible label for the link wrapper. */
+  ariaLabel?: string;
+  /** Forwarded to the inner Wordmark. */
+  size?: WordmarkSize;
+  className?: string;
+  wordmarkClassName?: string;
+}
+
+/** Focusable link wrapper around the canonical ReadWise wordmark. */
+export function WordmarkLink({
+  href = "/dashboard",
+  ariaLabel = "ReadWise — go to dashboard",
+  size = "header",
+  className,
+  wordmarkClassName,
+}: WordmarkLinkProps) {
   return (
     <Link
-      href="/dashboard"
-      className={cn("rounded-[var(--radius-sm)]", focusRing, className)}
-      aria-label="ReadWise — go to dashboard"
+      href={href}
+      className={cn(
+        "inline-flex no-underline rounded-[var(--radius-sm)]",
+        focusRing,
+        className,
+      )}
+      aria-label={ariaLabel}
     >
-      <Wordmark />
+      <Wordmark size={size} className={wordmarkClassName} />
     </Link>
   );
 }

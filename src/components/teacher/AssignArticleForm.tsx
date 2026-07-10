@@ -1,13 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { postJson } from "@/lib/client-fetch";
+import { getJson, postJson } from "@/lib/client-fetch";
 import { Input } from "@/components/ui/Input";
 import { Textarea } from "@/components/ui/Textarea";
 import { Field } from "@/components/ui/Field";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { useMutation } from "@/hooks/useMutation";
+import { useFilteredFetch } from "@/hooks/useFilteredFetch";
 import { TeacherFormShell } from "./TeacherFormShell";
 
 type ArticleOption = {
@@ -22,6 +23,10 @@ interface AssignArticleFormProps {
   classroomId: string;
   initialArticles: ArticleOption[];
 }
+
+type ArticleOptionsResponse = {
+  articles: ArticleOption[];
+};
 
 const ARTICLE_QUERY_MAX_LENGTH = 100;
 const INSTRUCTIONS_MAX_LENGTH = 2000;
@@ -40,6 +45,13 @@ function articleMatches(article: ArticleOption, query: string): boolean {
   if (!query) return true;
   const haystack = `${article.title} ${article.author ?? ""} ${article.source ?? ""}`.toLowerCase();
   return haystack.includes(query.toLowerCase());
+}
+
+function articleOptionsUrl(classroomId: string, query: string): string {
+  const params = new URLSearchParams();
+  if (query) params.set("q", query);
+  const qs = params.toString();
+  return `/api/classrooms/${classroomId}/article-options${qs ? `?${qs}` : ""}`;
 }
 
 function buildAssignmentPayload(
@@ -64,30 +76,25 @@ export default function AssignArticleForm({
   const [selected, setSelected] = useState<ArticleOption | null>(null);
   const [searchError, setSearchError] = useState<string | null>(null);
   const { busy, error, run } = useMutation("Failed to assign article");
+  const { run: runArticleSearch } = useFilteredFetch<ArticleOptionsResponse>(0);
   const trimmedQuery = query.trim();
 
   useEffect(() => {
-    const controller = new AbortController();
-    const url = new URL(
-      `/api/classrooms/${classroomId}/article-options`,
-      window.location.origin,
-    );
-    if (trimmedQuery) url.searchParams.set("q", trimmedQuery);
-
     setSearchError(null);
-    fetch(url, { signal: controller.signal, headers: { accept: "application/json" } })
-      .then(async (res) => {
-        if (!res.ok) throw new Error("Article search failed");
-        return (await res.json()) as { articles: ArticleOption[] };
-      })
-      .then((data) => setArticles(data.articles))
-      .catch((err) => {
-        if (err instanceof DOMException && err.name === "AbortError") return;
+    runArticleSearch({
+      fetcher: (signal) =>
+        getJson<ArticleOptionsResponse>(
+          articleOptionsUrl(classroomId, trimmedQuery),
+          { signal },
+        ),
+      onResult: (data) => {
+        setArticles(data.articles);
+      },
+      onError: () => {
         setSearchError("Could not refresh article results. Showing recent matches.");
-      });
-
-    return () => controller.abort();
-  }, [classroomId, trimmedQuery]);
+      },
+    });
+  }, [classroomId, trimmedQuery, runArticleSearch]);
 
   const visibleArticles = useMemo(
     () => articles.filter((article) => articleMatches(article, trimmedQuery)),
