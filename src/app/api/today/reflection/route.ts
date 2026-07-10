@@ -3,7 +3,17 @@ import { createHandler, ApiError } from "@/lib/api-handler";
 import { object, nonEmptyString } from "@/lib/validation";
 import { recordTodayReflection } from "@/lib/learning/review-assets";
 import { HIGHLIGHT_NOTE_MAX } from "@/lib/annotations/anchor";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import {
+  defineFeatureGate,
+  enforceFeatureGate,
+} from "@/lib/runtime-config/feature-flags";
+
+const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
+  feature: "todaySession",
+  whenDisabled: (): never => {
+    throw new ApiError(404, "Not found");
+  },
+});
 
 /**
  * POST /api/today/reflection
@@ -24,16 +34,11 @@ const reflectionBody = object({
   sentence: nonEmptyString(HIGHLIGHT_NOTE_MAX),
 });
 
-function requireTodayReflectionEnabled(): void {
-  if (!isTodaySessionFeatureEnabled()) {
-    throw new ApiError(404, "Not found");
-  }
-}
 
 export const POST = createHandler(
   { body: reflectionBody },
   async ({ body, session }) => {
-    requireTodayReflectionEnabled();
+    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
 
     const { highlightId, sentence } = body;
     const result = await recordTodayReflection({

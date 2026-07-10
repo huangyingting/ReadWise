@@ -6,7 +6,17 @@ import {
   SetTodayArticleError,
   loadTodayViewModel,
 } from "@/lib/engagement/today-session";
-import { isTodaySessionFeatureEnabled } from "@/lib/runtime-config/feature-flags";
+import {
+  defineFeatureGate,
+  enforceFeatureGate,
+} from "@/lib/runtime-config/feature-flags";
+
+const TODAY_ROUTE_FEATURE_GATE = defineFeatureGate<null, never>({
+  feature: "todaySession",
+  whenDisabled: (): never => {
+    throw new ApiError(404, "Not found");
+  },
+});
 
 /**
  * POST /api/today/set-article
@@ -51,9 +61,7 @@ function apiErrorForSetArticleError(err: SetTodayArticleError): ApiError {
 export const POST = createHandler(
   { body: setArticleBody },
   async ({ body, session }) => {
-    if (!isTodaySessionFeatureEnabled()) {
-      throw new ApiError(404, "Not found");
-    }
+    enforceFeatureGate(TODAY_ROUTE_FEATURE_GATE, null);
 
     try {
       await setTodayPrimaryArticle({

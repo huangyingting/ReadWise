@@ -11,6 +11,8 @@
  *   - POST /api/today/read-complete 404s when the feature is disabled (the
  *     route previously processed the request unconditionally) and is reachable
  *     when enabled.
+ *   - POST /api/today/reflection 404s when the feature is disabled and is
+ *     reachable when enabled.
  *   - The Dashboard Today card degrades away cleanly: the dashboard view model
  *     yields `todaySummary: null` (so the card is never rendered) and never
  *     loads a Today view model when the feature is off, and wires it through
@@ -172,6 +174,11 @@ before(() => {
       },
     },
   });
+  mock.module("@/lib/learning/review-assets", {
+    namedExports: {
+      recordTodayReflection: async () => ({ ok: true as const, highlightId: "hl-1" }),
+    },
+  });
 });
 
 beforeEach(() => {
@@ -214,8 +221,32 @@ describe("POST /api/today/read-complete disabled-state", () => {
 });
 
 // ---------------------------------------------------------------------------
-// Dashboard Today card hides when the feature is disabled
+// POST /api/today/reflection respects the kill switch
 // ---------------------------------------------------------------------------
+
+describe("POST /api/today/reflection disabled-state", () => {
+  async function POST(body: unknown = {}) {
+    const { POST: handler } = (await import(
+      "@/app/api/today/reflection/route"
+    )) as { POST: RouteHandler };
+    return handler(jsonPost("http://localhost/api/today/reflection", body));
+  }
+
+  test("returns 404 when the feature flag is disabled", async () => {
+    process.env[FLAG] = "false";
+    const res = await POST({ highlightId: "hl-1", sentence: "Great read." });
+    assert.equal(res.status, 404);
+  });
+
+  test("is reachable when the feature flag is enabled", async () => {
+    const res = await POST({ highlightId: "hl-1", sentence: "Great read." });
+    assert.equal(res.status, 200);
+    const body = (await res.json()) as { ok: boolean; highlightId: string };
+    assert.equal(body.ok, true);
+    assert.equal(body.highlightId, "hl-1");
+  });
+});
+
 
 describe("dashboard view model Today gating", () => {
   const user = { id: USER_ID, role: "Reader" as const };
