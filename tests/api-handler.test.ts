@@ -9,6 +9,7 @@ import { type RouteHandler } from "./support/route";
 import { type AuthState, fullAuthExports } from "./support/auth-mock";
 
 type ApiHandlerModule = typeof import("@/lib/api-handler");
+type ApiErrorModule = typeof import("@/lib/errors/api-error");
 
 // ---- mutable auth state --------------------------------------------------
 let authState: AuthState = "ok";
@@ -31,6 +32,10 @@ beforeEach(() => {
 
 async function loadApiHandler(): Promise<ApiHandlerModule> {
   return import("@/lib/api-handler") as Promise<ApiHandlerModule>;
+}
+
+async function loadApiErrorModule(): Promise<ApiErrorModule> {
+  return import("@/lib/errors/api-error") as Promise<ApiErrorModule>;
 }
 
 async function createOkPublicHandler(): Promise<RouteHandler> {
@@ -99,6 +104,28 @@ test("ApiError(409) surfaces correct status", async () => {
   const res = await handler(new Request("http://test/api/test"));
   assert.equal(res.status, 409);
   assert.equal((await res.json()).error, "conflict");
+});
+
+test("api-handler ApiError re-export keeps runtime identity", async () => {
+  const { ApiError: ApiHandlerError } = await loadApiHandler();
+  const { ApiError: FoundationError } = await loadApiErrorModule();
+  assert.equal(ApiHandlerError, FoundationError);
+
+  const fromFoundation = new FoundationError(418, "teapot");
+  assert.ok(fromFoundation instanceof ApiHandlerError);
+  assert.equal(fromFoundation.status, 418);
+  assert.equal(fromFoundation.message, "teapot");
+});
+
+test("handler catches ApiError thrown from foundation module import", async () => {
+  const { createPublicHandler } = await loadApiHandler();
+  const { ApiError } = await loadApiErrorModule();
+  const handler = createPublicHandler({}, async () => {
+    throw new ApiError(410, "gone");
+  }) as RouteHandler;
+  const res = await handler(new Request("http://test/api/test"));
+  assert.equal(res.status, 410);
+  assert.equal((await res.json()).error, "gone");
 });
 
 // ---- validation failure --------------------------------------------------

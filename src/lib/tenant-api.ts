@@ -10,7 +10,7 @@
  */
 import type { Session } from "next-auth";
 import type { Membership, Classroom } from "@prisma/client";
-import { ApiError } from "@/lib/api-handler";
+import { ApiError } from "@/lib/errors/api-error";
 import type { Capability } from "@/lib/rbac";
 import {
   getMembership,

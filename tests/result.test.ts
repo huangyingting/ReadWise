@@ -2,8 +2,7 @@
  * Tests for the domain result/error contract library (REF-082).
  *
  * Covers constructors, HTTP status codes, and the throwIfFailed route helper.
- * @/lib/api-handler is mocked so ApiError is available without the full
- * Next.js runtime.
+ * @/lib/errors/api-error is mocked so ApiError can be asserted directly.
  */
 process.env.LOG_LEVEL = "error";
 
@@ -23,7 +22,7 @@ class StubApiError extends Error {
 }
 
 before(() => {
-  mock.module("@/lib/api-handler", {
+  mock.module("@/lib/errors/api-error", {
     namedExports: { ApiError: StubApiError },
   });
 });
