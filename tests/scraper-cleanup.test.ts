@@ -397,6 +397,24 @@ test("cleanup: propublica removes republish license modal while preserving artic
   assert.doesNotMatch(result, /republishing this story/i);
 });
 
+test("cleanup: New Yorker removes the Condé Nast legal footer while preserving article prose", () => {
+  const html =
+    "<article>" +
+    "<p>Reported New Yorker prose should remain available to readers.</p>" +
+    "</article>" +
+    "<footer>" +
+    "<p>The New Yorker © 2026 Condé Nast. All rights reserved. The material on this site may not be reproduced without prior written permission. " +
+    '<a href="http://www.aboutads.info/">Ad Choices</a></p>' +
+    "</footer>";
+
+  const result = applyMergedProviderCleanup("newyorker", "The New Yorker", html);
+
+  assert.match(result, /Reported New Yorker prose/);
+  assert.doesNotMatch(result, /All rights reserved/i);
+  assert.doesNotMatch(result, /aboutads\.info/i);
+  assert.doesNotMatch(result, /Ad Choices/i);
+});
+
 test("cleanup: Atlas Obscura removes short internal newsletter CTA link blocks", () => {
   const html =
     "<article>" +
