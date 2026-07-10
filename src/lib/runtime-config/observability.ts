@@ -3,7 +3,7 @@
  *
  * IMPORTANT: never import from a Client Component.
  */
-import { envValue } from "@/lib/runtime-config/env";
+import { envValue } from "./env";
 
 // ---------------------------------------------------------------------------
 // Logging

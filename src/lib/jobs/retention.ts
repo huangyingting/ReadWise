@@ -15,7 +15,6 @@
 import { prisma } from "@/lib/prisma";
 import { JobStatus } from "@prisma/client";
 import type { Prisma } from "@prisma/client";
-import { positiveIntEnv } from "@/lib/runtime-config/env";
 
 const DEFAULT_TERMINAL_RETENTION_DAYS = 90;
 const DAY_MS = 24 * 60 * 60 * 1000;
@@ -23,6 +22,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 export const JOB_TERMINAL_STATUSES: JobStatus[] = [JobStatus.COMPLETED, JobStatus.DEAD_LETTER];
 
 export type PruneJobsClient = Pick<Prisma.TransactionClient, "job">;
+
+function positiveIntEnv(name: string, fallback: number): number {
+  const value = parseInt(process.env[name] ?? "", 10);
+  return Number.isFinite(value) && value > 0 ? value : fallback;
+}
 
 /**
  * Retention window (in days) for terminal job rows. Defaults to 90 days.

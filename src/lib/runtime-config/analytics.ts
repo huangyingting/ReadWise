@@ -3,7 +3,7 @@
  *
  * IMPORTANT: never import from a Client Component.
  */
-import { positiveIntEnv } from "@/lib/runtime-config/env";
+import { positiveIntEnv } from "./env";
 
 const analyticsEnabledEnv = "ANALYTICS_ENABLED";
 const analyticsRetentionDaysEnv = "ANALYTICS_RETENTION_DAYS";
