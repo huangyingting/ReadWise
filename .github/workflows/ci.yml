@@ -28,7 +28,7 @@ concurrency:
 #   unit-tests        — npm test + coverage gate  (every PR)
 #   build             — npm run build             (every PR)
 #   db-integration    — PostgreSQL migrate/test   (every PR)
-#   supply-chain      — lockfile + npm audit      (every PR; audit is advisory)
+#   supply-chain      — lockfile + npm audit      (every PR; blocks on HIGH/CRITICAL)
 #   dependency-review — new-dep vulnerability scan (PRs only, blocks on HIGH)
 #   e2e-smoke         — Playwright smoke          (push to main + nightly + manual; NOT on PRs)
 #   e2e-ui-audit      — 500-case Playwright audit (nightly + manual full_ui_audit; sharded)
@@ -58,10 +58,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -119,10 +119,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -160,10 +160,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -234,10 +234,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -264,13 +264,10 @@ jobs:
   #    or inconsistent with package.json (e.g. someone edited package.json without
   #    running `npm install`). This is the deterministic, zero-false-positive gate.
   #
-  # 2. npm audit (HIGH/CRITICAL, advisory) — reports known vulnerabilities at
-  #    high or critical severity.  `continue-on-error: true` is intentional: the
-  #    repo currently carries pre-existing transitive advisories that cannot be
-  #    fixed without breaking changes (see docs/platform/supply-chain.md).
-  #    The step ALWAYS runs and its output is visible in the job log and the run
-  #    summary so engineers can triage.  Once all pre-existing HIGH advisories
-  #    are remediated, flip this to `continue-on-error: false` to make it blocking.
+  # 2. npm audit (HIGH/CRITICAL, blocking) — reports known vulnerabilities at
+  #    high or critical severity and fails the job when any are found. The
+  #    OpenTelemetry 0.220/2.9 upgrade removed the pre-existing HIGH advisory
+  #    that previously required advisory-only handling.
   #
   # See docs/platform/supply-chain.md for the full policy, severity table, and
   # how to triage or allowlist an advisory.
@@ -283,10 +280,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       # -----------------------------------------------------------------------
@@ -300,23 +297,25 @@ jobs:
         run: npm ci --ignore-scripts
 
       # -----------------------------------------------------------------------
-      # npm audit — advisory (continue-on-error: true) until pre-existing
-      # HIGH advisories in @opentelemetry packages are remediated upstream.
-      # To promote to blocking: remove the continue-on-error line below.
+      # npm audit — blocking on HIGH/CRITICAL vulnerabilities.
       # -----------------------------------------------------------------------
-      - name: npm audit (HIGH/CRITICAL — advisory)
+      - name: npm audit (HIGH/CRITICAL)
         run: |
+          set +e
           echo "## npm audit report" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          if npm audit --audit-level=high 2>&1 | tee audit-output.txt; then
+          npm audit --audit-level=high 2>&1 | tee audit-output.txt
+          AUDIT_STATUS=${PIPESTATUS[0]}
+          set -e
+          if [ "$AUDIT_STATUS" -eq 0 ]; then
             echo "✅ No HIGH or CRITICAL vulnerabilities found." >> "$GITHUB_STEP_SUMMARY"
           else
-            echo "⚠️ HIGH or CRITICAL advisories detected (advisory-only — see supply-chain.md to triage):" >> "$GITHUB_STEP_SUMMARY"
+            echo "❌ HIGH or CRITICAL advisories detected (see supply-chain.md to triage):" >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
             tail -30 audit-output.txt >> "$GITHUB_STEP_SUMMARY"
             echo '```' >> "$GITHUB_STEP_SUMMARY"
+            exit "$AUDIT_STATUS"
           fi
-        continue-on-error: true  # Remove when pre-existing HIGH advisories are resolved.
 
   # ---------------------------------------------------------------------------
   # Dependency review — compares newly introduced npm packages against the
@@ -367,10 +366,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -448,10 +447,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Set up Node.js 22
+      - name: Set up Node.js 24
         uses: actions/setup-node@v6
         with:
-          node-version: "22"
+          node-version: "24"
           cache: "npm"
 
       - name: Install dependencies
@@ -542,5 +541,5 @@ jobs:
             echo "_E2E smoke is tiered (push to main + nightly + manual) and does not run on PRs._"
             echo "_Full UI audit runs nightly or via manual dispatch with full_ui_audit=true, sharded 4 ways._"
             echo "_Dependency review runs on PRs only and is not included in this summary._"
-            echo "_npm audit in supply-chain is advisory until pre-existing HIGH advisories are resolved._"
+            echo "_npm audit in supply-chain blocks on HIGH or CRITICAL advisories._"
           } >> "$GITHUB_STEP_SUMMARY"
