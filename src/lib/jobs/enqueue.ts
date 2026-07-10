@@ -33,6 +33,36 @@ type PendingJobBase = {
   priority: number;
 };
 
+function hasToJson(value: object): value is { toJSON: () => unknown } {
+  return "toJSON" in value && typeof value.toJSON === "function";
+}
+
+function isInputJsonValue(value: unknown): value is Prisma.InputJsonValue | null {
+  if (value === null) return true;
+  if (typeof value === "string" || typeof value === "boolean") return true;
+  if (typeof value === "number") return Number.isFinite(value);
+  if (Array.isArray(value)) return value.every(isInputJsonValue);
+  if (typeof value !== "object") return false;
+  if (hasToJson(value)) return true;
+  return Object.values(value).every(isInputJsonValue);
+}
+
+function payloadInputJsonObject(payload: JobPayload): Prisma.InputJsonObject {
+  const entries = Object.entries(payload);
+  const normalized: Record<string, Prisma.InputJsonValue | null> = {};
+  for (const [key, value] of entries) {
+    if (!isInputJsonValue(value)) {
+      throw new Error(`Job payload field "${key}" is not JSON-serializable.`);
+    }
+    normalized[key] = value;
+  }
+  return normalized;
+}
+
+function emptyErrorHistory(): Prisma.InputJsonArray {
+  return [];
+}
+
 /**
  * Persists a job. DB-backed, so it survives restarts. When `dedupeKey` is set
  * the operation is idempotent (see {@link EnqueueOptions.dedupeKey}).
@@ -76,8 +106,8 @@ async function enqueueDeduped(
       data: {
         type,
         status: JobStatus.PENDING,
-        payload: payload as Prisma.InputJsonValue,
-        errorHistory: [] as unknown as Prisma.InputJsonValue,
+        payload: payloadInputJsonObject(payload),
+        errorHistory: emptyErrorHistory(),
         attempts: 0,
         maxAttempts: base.maxAttempts,
         priority: base.priority,
@@ -121,8 +151,8 @@ function pendingJobData(
   return {
     type,
     status: JobStatus.PENDING,
-    payload: payload as Prisma.InputJsonValue,
-    errorHistory: [] as unknown as Prisma.InputJsonValue,
+    payload: payloadInputJsonObject(payload),
+    errorHistory: emptyErrorHistory(),
     attempts: 0,
     maxAttempts: base.maxAttempts,
     priority: base.priority,

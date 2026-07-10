@@ -49,6 +49,9 @@ before(() => {
       articleAccessContext: (user: unknown) => ({ userId: (user as { id?: string })?.id ?? null, role: (user as { role?: string })?.role ?? null }),
       getReadableArticleById: async () =>
         articleReadable ? { id: "a1", title: "T" } : null,
+      SYSTEM_ARTICLE_CONTEXT: { role: "System" },
+      getAiProcessableArticleById: async () => null,
+      isArticleOperator: () => false,
     },
   });
 
