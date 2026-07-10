@@ -100,6 +100,13 @@ before(() => {
       chatComplete: async () => completion,
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      isAiConfigured: () => aiConfigured,
+      aiModelName: () => (aiConfigured ? "gpt-test" : null),
+      chatComplete: async () => completion,
+    },
+  });
   mock.module("@/lib/content-pipeline", {
     namedExports: {
       articleHtmlToReaderText: () => "Neutral article sentence. ".repeat(400),

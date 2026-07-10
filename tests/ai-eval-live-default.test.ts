@@ -27,6 +27,16 @@ before(() => {
       aiModelName: () => null,
     },
   });
+  mock.module("@/lib/ai/facade", {
+    namedExports: {
+      chatComplete: async () => {
+        calls++;
+        return output;
+      },
+      isAiConfigured: () => false,
+      aiModelName: () => null,
+    },
+  });
 });
 
 test("live evaluation uses the lazy default model caller", async () => {
