@@ -23,7 +23,7 @@ import {
 import { Check } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { validateListName } from "@/lib/list-name-validation";
-import { useReadingListMutations } from "@/hooks/useReadingListMutations";
+import { useReadingListMutations } from "./useReadingListMutations";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
 
