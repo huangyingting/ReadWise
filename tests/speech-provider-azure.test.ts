@@ -3,11 +3,12 @@ process.env.LOG_LEVEL = "error";
 import { after, before, beforeEach, mock, test } from "node:test";
 import assert from "node:assert/strict";
 
+const logCalls: { level: string; msg: string; meta: Record<string, unknown> }[] = [];
 const logger = {
-  debug: () => {},
-  error: () => {},
-  info: () => {},
-  warn: () => {},
+  debug: (msg: string, meta?: Record<string, unknown>) => { logCalls.push({ level: "debug", msg, meta: meta ?? {} }); },
+  error: (msg: string, meta?: Record<string, unknown>) => { logCalls.push({ level: "error", msg, meta: meta ?? {} }); },
+  info: (msg: string, meta?: Record<string, unknown>) => { logCalls.push({ level: "info", msg, meta: meta ?? {} }); },
+  warn: (msg: string, meta?: Record<string, unknown>) => { logCalls.push({ level: "warn", msg, meta: meta ?? {} }); },
 };
 
 type SpeechMode =
@@ -16,12 +17,18 @@ type SpeechMode =
   | "error-callback"
   | "constructor-throws"
   | "speak-throws"
-  | "timeout";
+  | "timeout"
+  | "deferred";
 
 let mode: SpeechMode;
 let timeoutMs: number;
 let closedCount: number;
 let capturedConfig: Record<string, unknown> | null;
+
+/** Stored callbacks for deferred mode — allows testing late callback after timeout. */
+let deferredOnSuccess: ((result: { reason: string; audioData?: Uint8Array }) => void) | null;
+let deferredOnError: ((message: string) => void) | null;
+
 const originalSpeechTimeoutMs = process.env.SPEECH_TIMEOUT_MS;
 const AZURE_CONFIG = {
   key: "test-key",
@@ -75,6 +82,11 @@ before(() => {
       onError: (message: string) => void,
     ) {
       if (mode === "timeout") return;
+      if (mode === "deferred") {
+        deferredOnSuccess = onSuccess;
+        deferredOnError = onError;
+        return;
+      }
       if (mode === "speak-throws") throw new Error("speak failed");
       if (mode === "error-callback") {
         onError("provider failed");
@@ -136,6 +148,9 @@ beforeEach(() => {
   process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
   closedCount = 0;
   capturedConfig = null;
+  deferredOnSuccess = null;
+  deferredOnError = null;
+  logCalls.length = 0;
 });
 
 after(() => {
@@ -195,4 +210,106 @@ test("synthesize gracefully returns null for empty audio, callbacks, exceptions,
   timeoutMs = 1;
   process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
   await expectNullForMode("timeout");
+});
+
+test("timeout closes the synthesizer exactly once", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "timeout";
+  timeoutMs = 5;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+
+  const result = await synthesize("hello", AZURE_CONFIG, "article-timeout");
+
+  assert.equal(result, null);
+  assert.equal(closedCount, 1, "timeout must close synthesizer exactly once");
+  const timeoutLog = logCalls.find(
+    (l) => l.level === "error" && l.meta.reason === "timeout",
+  );
+  assert.ok(timeoutLog, "timeout should log an error with reason=timeout");
+});
+
+test("success cancels timeout timer — no timeout log emitted", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "success";
+  timeoutMs = 50;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  logCalls.length = 0;
+
+  const result = await synthesize("hello world", AZURE_CONFIG, "article-fast");
+
+  assert.ok(result, "should succeed");
+  assert.equal(closedCount, 1);
+
+  // Wait beyond what would be the timeout period to confirm no timeout log fires
+  await new Promise((r) => setTimeout(r, 80));
+
+  const timeoutLog = logCalls.find(
+    (l) => l.level === "error" && l.meta.reason === "timeout",
+  );
+  assert.equal(timeoutLog, undefined, "no timeout log should fire after success");
+});
+
+test("late success callback after timeout cannot change result or double-close", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "deferred";
+  timeoutMs = 5;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+
+  const resultPromise = synthesize("hello world", AZURE_CONFIG, "article-late");
+
+  // Wait for timeout to fire
+  const result = await resultPromise;
+  assert.equal(result, null, "should resolve null from timeout");
+  assert.equal(closedCount, 1, "timeout closes synthesizer once");
+
+  // Now invoke the late success callback (simulating SDK calling back after timeout)
+  assert.ok(deferredOnSuccess, "deferred success callback should be stored");
+  deferredOnSuccess!({ reason: "completed", audioData: new Uint8Array([9, 9, 9]) });
+
+  // Still null — no result change; close is idempotent (synthesizer already null)
+  assert.equal(closedCount, 1, "late callback must not double-close");
+});
+
+test("late error callback after timeout cannot change result or double-close", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "deferred";
+  timeoutMs = 5;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  closedCount = 0;
+
+  const result = await synthesize("hello world", AZURE_CONFIG, "article-late-err");
+  assert.equal(result, null);
+  assert.equal(closedCount, 1, "timeout closes synthesizer once");
+
+  // Invoke late error callback
+  assert.ok(deferredOnError, "deferred error callback should be stored");
+  deferredOnError!("belated failure");
+
+  assert.equal(closedCount, 1, "late error callback must not double-close");
+});
+
+test("constructor failure does not leak a timer", async () => {
+  const { synthesize } = await import("@/lib/speech/provider-azure");
+
+  mode = "constructor-throws";
+  timeoutMs = 5;
+  process.env.SPEECH_TIMEOUT_MS = String(timeoutMs);
+  logCalls.length = 0;
+
+  const result = await synthesize("hello", AZURE_CONFIG, "article-ctor");
+  assert.equal(result, null);
+
+  // Wait beyond timeout period — no timeout log should fire
+  await new Promise((r) => setTimeout(r, 20));
+
+  const timeoutLog = logCalls.find(
+    (l) => l.level === "error" && l.meta.reason === "timeout",
+  );
+  assert.equal(timeoutLog, undefined, "constructor failure must cancel the timer");
 });
