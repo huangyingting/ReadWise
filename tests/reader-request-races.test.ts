@@ -371,4 +371,75 @@ describe("useGrammarExplanation race guards", () => {
       contextSentence: "The paradigm is here.",
     });
   });
+
+  test("current request failure sets error and clears loading", async () => {
+    const d1 = deferred<Response>();
+    globalThis.fetch = (async () => d1.promise) as typeof fetch;
+
+    const { useGrammarExplanation } = await import(
+      "@/components/reader/wordLookup/useGrammarExplanation"
+    );
+
+    let hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+
+    const p1 = hook.runGrammarExplain("broken-phrase");
+
+    hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+    assert.equal(hook.grammarLoading, true);
+
+    // Reject the current (non-stale) request
+    d1.reject(new Error("Network failure"));
+    await flushAsyncWork();
+    await p1;
+
+    hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+    assert.equal(hook.grammarError, "Couldn't fetch grammar explanation. Try again.");
+    assert.equal(hook.grammarLoading, false);
+    assert.equal(hook.grammarResult, null);
+  });
+
+  test("retryGrammar reissues the stored phrase and can recover", async () => {
+    let fetchCall = 0;
+    const d1 = deferred<Response>();
+    const d2 = deferred<Response>();
+    globalThis.fetch = (async () => {
+      fetchCall++;
+      return fetchCall === 1 ? d1.promise : d2.promise;
+    }) as typeof fetch;
+
+    const { useGrammarExplanation } = await import(
+      "@/components/reader/wordLookup/useGrammarExplanation"
+    );
+
+    let hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+
+    // Set the phrase that retryGrammar will reissue
+    hook.setGrammarPhrase("retry-me");
+
+    // First request fails
+    const p1 = hook.runGrammarExplain("retry-me");
+    d1.reject(new Error("Transient error"));
+    await flushAsyncWork();
+    await p1;
+
+    hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+    assert.equal(hook.grammarError, "Couldn't fetch grammar explanation. Try again.");
+    assert.equal(hook.grammarLoading, false);
+
+    // Retry should reissue with the stored phrase
+    hook.retryGrammar();
+
+    hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+    assert.equal(hook.grammarLoading, true);
+    assert.equal(fetchCall, 2, "retryGrammar must issue a new fetch");
+
+    // This time it succeeds
+    d2.resolve(jsonResponse({ explanation: "recovered", fallback: false }));
+    await flushAsyncWork();
+
+    hook = useRenderGrammarHook(useGrammarExplanation, "article-1", () => "ctx");
+    assert.equal(hook.grammarResult?.explanation, "recovered");
+    assert.equal(hook.grammarLoading, false);
+    assert.equal(hook.grammarError, null);
+  });
 });
