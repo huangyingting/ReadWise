@@ -3,6 +3,9 @@
  *
  * Safe admin actions with per-status safety guards, using
  * {@link DomainResult} instead of a local result union.
+ *
+ * Lifecycle functions (retryJob, cancelJob) now include their own atomic
+ * expected-status predicates, so these guards are defense-in-depth.
  */
 import { JobStatus, type Job } from "@prisma/client";
 import {
@@ -74,7 +77,7 @@ export async function runJobAction(
         return conflict(`Cannot retry a ${job.status} job`);
       }
       const updated = await retryJob(jobId);
-      if (!updated) return notFound("Job not found");
+      if (!updated) return conflict(`Cannot retry a ${job.status} job (status changed)`);
       return actionOk(updated, previousStatus, action);
     }
     case "cancel": {
@@ -82,7 +85,7 @@ export async function runJobAction(
         return conflict(`Cannot cancel a ${job.status} job`);
       }
       const updated = await cancelJob(jobId, { reason: "cancelled by admin" });
-      if (!updated) return notFound("Job not found");
+      if (!updated) return conflict(`Cannot cancel a ${job.status} job (status changed)`);
       return actionOk(updated, previousStatus, action);
     }
     case "archive": {

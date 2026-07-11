@@ -1,7 +1,7 @@
 ---
 type: "policy"
 status: "current"
-last_updated: "2026-07-01"
+last_updated: "2026-07-11"
 description: "Documents global, tenant, and classroom capability resolution boundaries. Captures current role-to-capability mappings, guard usage, denial behavior, and authorization testing expectations."
 ---
 
@@ -67,7 +67,7 @@ A compile-time guard in `src/lib/rbac.ts` ensures the in-code active roles and
 Prisma enum cannot drift silently.
 
 The first user to sign in is promoted to `Admin` by the `events.createUser` hook
-in `src/lib/auth.ts`.
+in `src/lib/auth/config.ts`.
 
 ### System pseudo-principal
 
@@ -132,7 +132,7 @@ The auth guard modules form a layered hierarchy:
 | Module | Role |
 | --- | --- |
 | `src/lib/rbac.ts` | Pure capability/role model — no I/O. |
-| `src/lib/auth-core.ts` | Shared core: session loading (`loadSession`) and capability check (`sessionHasCapability`). No redirect or response side effects. |
+| `src/lib/auth/session-core.ts` | Session core: session loading (`loadSession`) and capability check (`sessionHasCapability`). No redirect or response side effects. |
 | `src/lib/session.ts` | Page guards — redirect to `/signin` or `/forbidden` on failure. |
 | `src/lib/api-auth.ts` | API guards — return `NextResponse` 401/403 on failure. |
 
@@ -155,8 +155,8 @@ redirect to `/forbidden`.
 
 ### APIs
 
-- `loadSession()` in `src/lib/auth-core.ts` — bare session fetch (no side effects).
-- `sessionHasCapability(session, capability)` in `src/lib/auth-core.ts` — inline capability check.
+- `loadSession()` in `src/lib/auth/session-core.ts` — bare session fetch (no side effects).
+- `sessionHasCapability(session, capability)` in `src/lib/auth/session-core.ts` — inline capability check.
 - `requireCapabilityApi(capability)` — route helper returning 401/403 responses.
 - `createAdminHandler(...)` — shared wrapper for routes gated by
   `CAPABILITIES.adminAccess`.

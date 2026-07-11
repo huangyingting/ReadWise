@@ -56,8 +56,3 @@ test("bootstrapFirstUser does not promote when count is zero", async () => {
   assert.equal(lastUpdateArgs, null, "update should not be called when user count is 0");
 });
 
-test("legacy auth-bootstrap export maps to canonical bootstrap module", async () => {
-  const compat = await import("@/lib/auth-bootstrap");
-  const canonical = await import("@/lib/auth/bootstrap");
-  assert.equal(compat.bootstrapFirstUser, canonical.bootstrapFirstUser);
-});

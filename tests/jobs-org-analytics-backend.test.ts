@@ -29,6 +29,8 @@ let jobGroupRowsByType: Array<{ type: string; _count: { _all: number } }>;
 let jobGroupRowsByTypeStatus: Array<{ type: string; status: string; _count: { _all: number } }>;
 let jobUpdates: AnyArgs[];
 let jobUpdateError: Error | null;
+let jobUpdateManyArgs: AnyArgs[];
+let jobUpdateManyCount: number;
 let jobDeletes: AnyArgs[];
 let queryRawRows: Array<{ id: string; wasStale: boolean; lockedAt: Date | null }>;
 let queryRawCalls: unknown[];
@@ -97,6 +99,8 @@ function resetMockState(): void {
   ];
   jobUpdates = [];
   jobUpdateError = null;
+  jobUpdateManyArgs = [];
+  jobUpdateManyCount = 1;
   jobDeletes = [];
   queryRawRows = [];
   queryRawCalls = [];
@@ -151,7 +155,10 @@ before(() => {
         if (jobUpdateError) throw jobUpdateError;
         return { ...jobById, ...(args.data as Record<string, unknown>) };
       },
-      updateMany: async () => ({ count: 1 }),
+      updateMany: async (args: AnyArgs) => {
+        jobUpdateManyArgs.push(args);
+        return { count: jobUpdateManyCount };
+      },
     },
     organization: {
       findUnique: async (args: { where: { id?: string; slug?: string } }) => {
@@ -432,11 +439,11 @@ test("enqueue helpers and lifecycle edge branches cover dedupe races and admin a
   );
   jobCreateError = null;
 
-  assert.equal((await lifecycle.startJob("job-1", "worker-a", { now }))?.status, JobStatus.RUNNING);
-  assert.equal(jobUpdates.at(-1)?.data.startedAt, now);
-  jobUpdateError = new Error("update failed");
+  assert.equal((await lifecycle.startJob("job-1", "worker-a", { now }))?.status, JobStatus.FAILED);
+  assert.equal(jobUpdateManyArgs.at(-1)?.data.startedAt, now);
+  jobUpdateManyCount = 0;
   assert.equal(await lifecycle.startJob("job-1", "worker-a", { now }), null);
-  jobUpdateError = null;
+  jobUpdateManyCount = 1;
 
   jobById = null;
   assert.equal(await lifecycle.archiveJob("missing"), null);
@@ -495,8 +502,8 @@ test("enqueue payload guards and failJob history normalization keep JSON boundar
     ],
   });
 
-  await lifecycle.failJob("job-history-mixed", new Error("new provider error"), { now });
-  assert.deepEqual(jobUpdates.at(-1)?.data.errorHistory, [
+  await lifecycle.failJob("job-history-mixed", "worker-a", new Error("new provider error"), { now });
+  assert.deepEqual(jobUpdateManyArgs.at(-1)?.data.errorHistory, [
     {
       at: "2026-01-01T00:00:00.000Z",
       attempt: 1,
@@ -517,8 +524,8 @@ test("enqueue payload guards and failJob history normalization keep JSON boundar
     maxAttempts: 5,
     errorHistory: { old: "shape" },
   });
-  await lifecycle.failJob("job-history-object", new Error("transient"), { now });
-  assert.deepEqual(jobUpdates.at(-1)?.data.errorHistory, [
+  await lifecycle.failJob("job-history-object", "worker-a", new Error("transient"), { now });
+  assert.deepEqual(jobUpdateManyArgs.at(-1)?.data.errorHistory, [
     {
       at: now.toISOString(),
       attempt: 1,

@@ -130,23 +130,25 @@ test("coverage gate parses CLI options in space and equals forms", () => {
     inputFile: "report.txt",
     inputFromStdin: true,
     showReport: false,
-    testArgs: ["--test", "tests/coverage-gate.test.ts"],
+   skipStatic: false,
+   testArgs: ["--test", "tests/coverage-gate.test.ts"],
   });
 
   assert.deepEqual(parseCliArgs([
-    "--threshold=99",
-    "--only-include=eslint-rules/",
-    "--include=src/",
-    "--input=report.txt",
-    "--quiet",
-    "tests/native.fixture.ts",
+   "--threshold=99",
+   "--only-include=eslint-rules/",
+   "--include=src/",
+   "--input=report.txt",
+   "--quiet",
+   "tests/native.fixture.ts",
   ]), {
-    threshold: 99,
-    includePrefixes: ["eslint-rules/", "src/"],
-    inputFile: "report.txt",
-    inputFromStdin: false,
-    showReport: false,
-    testArgs: ["tests/native.fixture.ts"],
+   threshold: 99,
+   includePrefixes: ["eslint-rules/", "src/"],
+   inputFile: "report.txt",
+   inputFromStdin: false,
+   showReport: false,
+   skipStatic: false,
+   testArgs: ["tests/native.fixture.ts"],
   });
 
   assert.deepEqual(parseCliArgs(["--only-include", "scripts/lib/cli.ts"]).includePrefixes, [
@@ -189,7 +191,7 @@ test("coverage gate reads input from files and stdin", () => {
 test("coverage gate succeeds for parsed input coverage", () => {
   const { logs, errors, output } = captureOutput();
 
-  const code = runCoverageGate(["--stdin", "--threshold", "98"], {
+  const code = runCoverageGate(["--stdin", "--threshold", "98", "--skip-static"], {
     readCoverageInput: () => PASSING_REPORT,
     output,
   });
@@ -223,7 +225,7 @@ test("coverage gate fails and prints uncovered lines for low coverage", () => {
 test("coverage gate reports no-table and preserves failing native status", () => {
   const noTable = captureOutput();
   assert.equal(
-    runCoverageGate([], {
+    runCoverageGate(["--skip-static"], {
       runNativeCoverage: () => ({ text: "TAP without coverage", status: 7 }),
       output: noTable.output,
     }),
@@ -233,7 +235,7 @@ test("coverage gate reports no-table and preserves failing native status", () =>
 
   const nativeFailure = captureOutput();
   assert.equal(
-    runCoverageGate([], {
+    runCoverageGate(["--skip-static"], {
       runNativeCoverage: () => ({ text: PASSING_REPORT, status: 5 }),
       output: nativeFailure.output,
     }),
@@ -288,4 +290,57 @@ test("runNativeCoverage can spawn native Node coverage for a narrow fixture", ()
     ),
     result.text,
   );
+});
+
+// ---------------------------------------------------------------------------
+// Static denominator integration tests
+// ---------------------------------------------------------------------------
+
+test("coverage gate with static denominator detects synthetic 0% files", () => {
+  const { logs, errors, output } = captureOutput();
+
+  const code = runCoverageGate(["--stdin", "--threshold", "98"], {
+    readCoverageInput: () => PASSING_REPORT,
+    output,
+    static: {
+      rootDir: process.cwd(),
+      debtFile: "coverage-debt.json",
+      today: "2026-07-11",
+    },
+  });
+
+  assert.equal(code, 1);
+  const allOutput = [...logs, ...errors].join("\n");
+  assert.match(allOutput, /Static denominator summary/);
+  assert.match(allOutput, /Static denominator failed/);
+  assert.match(allOutput, /synthetic/);
+});
+
+test("coverage gate static denominator reports missing debt file", () => {
+  const { errors, output } = captureOutput();
+
+  const code = runCoverageGate(["--stdin", "--threshold", "98"], {
+    readCoverageInput: () => PASSING_REPORT,
+    output,
+    static: {
+      rootDir: process.cwd(),
+      debtFile: "nonexistent-debt.json",
+      today: "2026-07-11",
+    },
+  });
+
+  assert.equal(code, 1);
+  assert.match(errors.join("\n"), /coverage-debt\.json not found/);
+});
+
+test("coverage gate --skip-static bypasses static denominator", () => {
+  const { logs, errors, output } = captureOutput();
+
+  const code = runCoverageGate(["--stdin", "--threshold", "98", "--skip-static"], {
+    readCoverageInput: () => PASSING_REPORT,
+    output,
+  });
+
+  assert.equal(code, 0);
+  assert.doesNotMatch([...logs, ...errors].join("\n"), /Static denominator/);
 });

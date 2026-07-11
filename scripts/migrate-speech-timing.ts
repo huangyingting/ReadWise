@@ -28,7 +28,7 @@ function parseArgs(argv: string[]): Args {
   };
 }
 
-async function main(): Promise<number> {
+export async function main(): Promise<number> {
   const args = parseArgs(process.argv.slice(2));
 
   console.log(
@@ -57,6 +57,10 @@ async function main(): Promise<number> {
 
 export { parseArgs };
 
-if (isMain(import.meta.url)) {
-  runScript(main, "Fatal");
+export function runAsCli(importMetaUrl = import.meta.url): void {
+  if (isMain(importMetaUrl)) {
+    runScript(main, "Fatal");
+  }
 }
+
+runAsCli();

@@ -160,10 +160,12 @@ before(() => {
       claimNextJob: async () => null,
       completeJob: async () => null,
       failJob: async () => null,
+      heartbeatJob: async () => true,
+      DEFAULT_LOCK_TTL_MS: 600000,
       JobError: MockJobError,
       JobStatus: { DEAD_LETTER: "DEAD_LETTER", FAILED: "FAILED" },
       JobType: MockJobType,
-      startJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
     },
   });
 });
@@ -367,7 +369,7 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
           attempts: 0,
         } as never;
       },
-      startJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
       failJob: async () => ({ status: JobStatus.FAILED }) as never,
     },
   );
@@ -393,8 +395,8 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
           attempts: 2,
         } as never;
       },
-      startJob: async () => null,
-      completeJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
+      completeJob: async () => ({ id: "ok" }) as never,
     },
   );
   assert.equal(stats.completed, 1);
@@ -420,7 +422,7 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
           attempts: 4,
         } as never;
       },
-      startJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
       failJob: async () => ({ status: JobStatus.DEAD_LETTER }) as never,
     },
   );
@@ -443,7 +445,7 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
         type: JobType.ARTICLE_PROCESS,
         attempts: 1,
       }) as never,
-      startJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
     },
   );
   assert.equal(stats.stoppedBySignal, true);
@@ -494,7 +496,7 @@ test("worker loop handles aborts, missing handlers, retry/dead-letter accounting
         workerClaims.push(args);
         return null;
       },
-      startJob: async () => null,
+      startJob: async () => ({ status: "RUNNING" }) as never,
       completeJob: async () => null,
       failJob: async () => null,
       sleep: async () => {},

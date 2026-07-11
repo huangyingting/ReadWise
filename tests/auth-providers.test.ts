@@ -132,16 +132,3 @@ test("authOptions.providers is non-empty when Google credentials are set", async
   });
 });
 
-test("legacy auth/auth-providers exports map to canonical modules", async () => {
-  const compatProviders = await import("@/lib/auth-providers");
-  const canonicalProviders = await import("@/lib/auth/providers");
-  const compatAuth = await import("@/lib/auth");
-  const canonicalAuth = await import("@/lib/auth/index");
-
-  assert.equal(compatProviders.buildProviders, canonicalProviders.buildProviders);
-  assert.equal(
-    compatProviders.getConfiguredProviders,
-    canonicalProviders.getConfiguredProviders,
-  );
-  assert.equal(compatAuth.authOptions, canonicalAuth.authOptions);
-});

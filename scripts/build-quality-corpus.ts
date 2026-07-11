@@ -46,6 +46,7 @@ import {
   SEED_AD_SAMPLES,
 } from "@/lib/scraper/quality-classifier-seed-corpus";
 import type { ScrapedArticle } from "@/lib/scraper/types";
+import { isMain, runScript } from "./lib/cli";
 
 const require = createRequire(import.meta.url);
 
@@ -86,7 +87,7 @@ function wordCount(text: string): number {
  * Truncates `text` to a SHORT excerpt: the first 1-2 sentences, hard-capped at
  * {@link MAX_SAMPLE_WORDS} words. Guarantees no full article body is committed.
  */
-function toShortExcerpt(text: string): string {
+export function toShortExcerpt(text: string): string {
   const clean = normalizeWhitespace(text);
   if (!clean) return "";
 
@@ -114,7 +115,7 @@ function dedupeKey(text: string): string {
 }
 
 /** Adds `text` to `out` if it is a fresh, well-sized sample. */
-function pushSample(out: string[], seen: Set<string>, text: string): boolean {
+export function pushSample(out: string[], seen: Set<string>, text: string): boolean {
   const excerpt = toShortExcerpt(text);
   const wc = wordCount(excerpt);
   if (wc < MIN_SAMPLE_WORDS || wc > MAX_SAMPLE_WORDS + 1) return false;
@@ -142,7 +143,7 @@ function anchorTexts(html: string): string[] {
  * a section page. These are exactly the link-list "junk" the scraper down-ranks
  * — short, factual link labels, never creative prose.
  */
-function linkDenseFragments(html: string): string[] {
+export function linkDenseFragments(html: string): string[] {
   const anchors = anchorTexts(html);
   const fragments: string[] = [];
   for (let i = 0; i < anchors.length; i += 8) {
@@ -214,7 +215,7 @@ function pick<T>(arr: readonly T[], n: number): T {
 }
 
 /** Generates a synthetic ad-copy line from rotating templates. */
-function syntheticAd(i: number): string {
+export function syntheticAd(i: number): string {
   const opener = pick(AD_OPENERS, i);
   const body = pick(AD_BODIES, Math.floor(i / AD_OPENERS.length) + i);
   const closer = pick(AD_CLOSERS, i * 3 + 1);
@@ -282,7 +283,7 @@ function labeledSamples(
  * This isolates the value of the harvested training data instead of comparing
  * each model against its own (different, easier/harder) held-out split.
  */
-function evalGain(
+export function evalGain(
   harvestedArticles: readonly string[],
   harvestedAds: readonly string[],
   seedArticles: readonly string[],
@@ -378,7 +379,7 @@ async function harvestRealNegatives(): Promise<string[]> {
   return out;
 }
 
-function buildSyntheticNegatives(target: number, existing: string[]): string[] {
+export function buildSyntheticNegatives(target: number, existing: string[]): string[] {
   const out = existing.slice();
   const seen = new Set(out.map(dedupeKey));
 
@@ -399,7 +400,7 @@ function harvestedNegativeTarget(positiveCount: number): number {
     SEED_AD_SAMPLES.length;
 }
 
-function capHarvestedSamples(
+export function capHarvestedSamples(
   positives: readonly string[],
   negatives: readonly string[],
 ): { harvestedArticles: string[]; harvestedAds: string[] } {
@@ -417,7 +418,7 @@ function literalArray(samples: readonly string[]): string {
   return `[\n${lines}\n]`;
 }
 
-function renderCorpusFile(articles: readonly string[], ads: readonly string[]): string {
+export function renderCorpusFile(articles: readonly string[], ads: readonly string[]): string {
   return `/**
  * Training corpus for the local Naive-Bayes ad/article quality classifier
  * (Issue #739 follow-up).
@@ -496,7 +497,7 @@ function logCorpusSummary(
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 
-async function main(): Promise<void> {
+export async function main(): Promise<void> {
   console.log("Harvesting POSITIVES (live article scrapes)…");
   const positives = await harvestPositives();
   console.log(`  → ${positives.length} unique article excerpts kept\n`);
@@ -531,7 +532,6 @@ async function main(): Promise<void> {
   logCorpusSummary(expandedArticles, expandedAds, evalResult, outPath);
 }
 
-main().catch((err) => {
-  console.error("build-quality-corpus failed:", err);
-  process.exit(1);
-});
+if (isMain(import.meta.url)) {
+  runScript(main, "build-quality-corpus failed");
+}
