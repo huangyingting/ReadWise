@@ -11,7 +11,7 @@
 
 const POSTGRES_DATABASE_URL_PREFIXES = ["postgresql://", "postgres://"] as const;
 
-function hasPostgresUrlPrefix(url: string): boolean {
+export function hasPostgresUrlPrefix(url: string): boolean {
   return POSTGRES_DATABASE_URL_PREFIXES.some((prefix) => url.startsWith(prefix));
 }
 
