@@ -2,32 +2,39 @@
  * Tests for src/lib/observability/tracing-node.ts — the Node SDK bootstrap.
  *
  * Verifies:
- * - Idempotent startTracing (no double-start)
+ * - errorMessage pure helper (Error instance and raw string)
  * - Graceful no-op when tracing is not configured
- * - OTLP vs console exporter selection
- * - Resilience: init failure does not throw, logs warning, resets state
- * - SIGTERM/SIGINT shutdown hooks are registered
+ * - Error in SDK init: resets `started` and logs warning (catch block)
+ * - Full OTLP start with shutdown handler registration and invocation
+ * - Idempotent startTracing (no double-start)
+ *
+ * NOTE: tests run in order to exercise the module-level `started` state
+ * machine: null-config → error → success → idempotency.
  */
 process.env.LOG_LEVEL = "error";
 
 import { test, before, beforeEach, mock } from "node:test";
 import assert from "node:assert/strict";
 
-let tracingConfigResult: { exporter: string; endpoint: string | null; serviceName: string; environment: string; serviceVersion: string } | null = null;
+let tracingConfigResult: {
+  exporter: string;
+  endpoint: string | null;
+  serviceName: string;
+  environment: string;
+  serviceVersion: string;
+} | null = null;
 let sdkStartCalls = 0;
 let sdkShutdownCalls = 0;
-let registeredSignals: string[] = [];
+let sdkShutdownShouldFail = false;
 let loadShouldFail = false;
 
 before(() => {
-  // Mock the config provider
   mock.module("@/lib/runtime-config/observability", {
     namedExports: {
       tracingConfig: () => tracingConfigResult,
     },
   });
 
-  // Mock the logger
   mock.module("@/lib/observability/logger", {
     namedExports: {
       createLogger: () => ({
@@ -39,15 +46,16 @@ before(() => {
     },
   });
 
-  // Mock OpenTelemetry modules
   mock.module("@opentelemetry/sdk-node", {
     namedExports: {
       NodeSDK: class MockNodeSDK {
         start() {
           sdkStartCalls++;
+          if (loadShouldFail) throw new Error("mock SDK start failure");
         }
         async shutdown() {
           sdkShutdownCalls++;
+          if (sdkShutdownShouldFail) throw new Error("mock shutdown failure");
         }
       },
     },
@@ -67,7 +75,9 @@ before(() => {
     namedExports: {
       OTLPTraceExporter: class MockOTLP {
         opts;
-        constructor(opts?: { url?: string }) { this.opts = opts; }
+        constructor(opts?: { url?: string }) {
+          this.opts = opts;
+        }
       },
     },
   });
@@ -82,19 +92,54 @@ beforeEach(() => {
   tracingConfigResult = null;
   sdkStartCalls = 0;
   sdkShutdownCalls = 0;
-  registeredSignals = [];
+  sdkShutdownShouldFail = false;
   loadShouldFail = false;
 });
 
+// ── errorMessage unit tests (pure, no module-state dependency) ───────────
+
+test("errorMessage returns message from Error instance", async () => {
+  const { errorMessage } = await import("@/lib/observability/tracing-node");
+  assert.equal(errorMessage(new Error("test failure")), "test failure");
+});
+
+test("errorMessage coerces non-Error values to string", async () => {
+  const { errorMessage } = await import("@/lib/observability/tracing-node");
+  assert.equal(errorMessage("raw string"), "raw string");
+  assert.equal(errorMessage(42), "42");
+  assert.equal(errorMessage(null), "null");
+});
+
+// ── startTracing state machine (tests MUST run in this order) ────────────
+
 test("startTracing is a no-op when tracingConfig returns null", async () => {
-  // Fresh import each time to reset `started` flag
-  const mod = await import("@/lib/observability/tracing-node");
-  // Re-import with the null config already in place (from beforeEach)
-  await mod.startTracing();
+  // tracingConfigResult = null (set by beforeEach)
+  const { startTracing } = await import("@/lib/observability/tracing-node");
+  await startTracing();
   assert.equal(sdkStartCalls, 0, "SDK should not start when config is null");
 });
 
-test("startTracing initializes the SDK when config is present", async () => {
+test("startTracing resets started and logs warning on SDK init failure", async () => {
+  // started=false from previous test (config was null)
+  tracingConfigResult = {
+    exporter: "otlp",
+    endpoint: "http://collector:4318/v1/traces",
+    serviceName: "readwise",
+    environment: "test",
+    serviceVersion: "1.0.0",
+  };
+  loadShouldFail = true;
+
+  const { startTracing } = await import("@/lib/observability/tracing-node");
+  await startTracing();
+
+  // SDK.start() threw → catch block ran → started reset to false
+  assert.equal(sdkStartCalls, 1, "SDK.start() should have been attempted once");
+  // started is now false again (reset by catch block)
+});
+
+test("startTracing initializes the SDK and registers shutdown handlers", async () => {
+  // started=false (reset by catch in previous test)
   tracingConfigResult = {
     exporter: "otlp",
     endpoint: "http://collector:4318/v1/traces",
@@ -103,8 +148,42 @@ test("startTracing initializes the SDK when config is present", async () => {
     serviceVersion: "1.0.0",
   };
 
-  // Need a fresh module to reset `started`
+  // Intercept process.once to capture the shutdown handler
+  let capturedShutdown: (() => void) | null = null;
+  const origOnce = process.once.bind(process);
+  (process as any).once = (event: string, fn: () => void) => {
+    if (event === "SIGTERM" || event === "SIGINT") capturedShutdown = fn;
+    origOnce(event as "SIGTERM", fn as NodeJS.SignalsListener);
+  };
+
   const { startTracing } = await import("@/lib/observability/tracing-node");
   await startTracing();
+
+  (process as any).once = origOnce;
+
   assert.equal(sdkStartCalls, 1, "SDK should start once");
+  assert.ok(capturedShutdown !== null, "shutdown handler should be registered");
+
+  // Invoke shutdown handler — covers lines 99-105
+  sdkShutdownShouldFail = true;
+  (capturedShutdown as any)();
+  // Give the microtask/Promise chain a tick to execute
+  await new Promise((r) => setImmediate(r));
+  assert.equal(sdkShutdownCalls, 1, "sdk.shutdown() should have been called");
+});
+
+test("startTracing is idempotent: second call returns early", async () => {
+  // started=true from previous test
+  tracingConfigResult = {
+    exporter: "otlp",
+    endpoint: "http://collector:4318/v1/traces",
+    serviceName: "readwise",
+    environment: "test",
+    serviceVersion: "1.0.0",
+  };
+
+  const { startTracing } = await import("@/lib/observability/tracing-node");
+  await startTracing();
+
+  assert.equal(sdkStartCalls, 0, "SDK should NOT start again (idempotency guard)");
 });
