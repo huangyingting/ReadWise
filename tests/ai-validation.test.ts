@@ -25,6 +25,50 @@ test("extractJsonArray tolerates code fences and surrounding prose", () => {
   assert.equal(extractJsonArray('{"not":"array"}'), null);
 });
 
+test("extractJsonArray stops at first valid array ignoring trailing bracketed prose", () => {
+  const json = JSON.stringify([{ word: "hello", explanation: "greeting" }]);
+  const raw = `${json} [some trailing notes for context]`;
+  assert.deepEqual(extractJsonArray(raw), [{ word: "hello", explanation: "greeting" }]);
+});
+
+test("extractJsonArray skips invalid bracketed annotation before valid JSON", () => {
+  const json = JSON.stringify(["alpha", "beta"]);
+  const raw = `[Note: the following are tags] ${json}`;
+  assert.deepEqual(extractJsonArray(raw), ["alpha", "beta"]);
+});
+
+test("extractJsonArray handles nested arrays and objects", () => {
+  const nested = [[1, 2], [3, [4, 5]], { a: [6] }];
+  assert.deepEqual(extractJsonArray(JSON.stringify(nested)), nested);
+});
+
+test("extractJsonArray handles brackets inside strings and escapes", () => {
+  const arr = [{ text: 'has [brackets] and "quotes"' }, { text: "back\\slash" }];
+  assert.deepEqual(extractJsonArray(JSON.stringify(arr)), arr);
+});
+
+test("extractJsonArray handles escaped backslashes at end of string", () => {
+  // A string ending with \\ followed by the close quote
+  const raw = '["trailing backslash\\\\"]';
+  assert.deepEqual(extractJsonArray(raw), ["trailing backslash\\"]);
+});
+
+test("extractJsonArray handles unicode content", () => {
+  const arr = [{ word: "日本語", explanation: "Japanese" }, { word: "café", explanation: "coffee shop" }];
+  assert.deepEqual(extractJsonArray(JSON.stringify(arr)), arr);
+});
+
+test("extractJsonArray returns null for unbalanced brackets", () => {
+  assert.equal(extractJsonArray("[[["), null);
+  assert.equal(extractJsonArray("]]]]"), null);
+  assert.equal(extractJsonArray('[{"key": "value"'), null);
+});
+
+test("extractJsonArray skips multiple invalid candidates before valid one", () => {
+  const raw = '[invalid json!] [also bad] ["valid"]';
+  assert.deepEqual(extractJsonArray(raw), ["valid"]);
+});
+
 test("toTitleCase title-cases words but preserves short acronyms", () => {
   assert.equal(toTitleCase("climate change"), "Climate Change");
   assert.equal(toTitleCase("AI"), "AI");
