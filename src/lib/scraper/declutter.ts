@@ -18,6 +18,7 @@
  * client" file.
  */
 import { parseHTML } from "linkedom";
+import { normalizeForTextMatch as normalizeText } from "@/lib/text/normalize-match";
 
 export interface DeclutterOptions {
   /** Author string from Readability — used to locate & strip the matching byline. */
@@ -176,11 +177,6 @@ type DateParts = {
   month: number;
   day: number;
 };
-
-/** Lowercase + collapse whitespace for tolerant text comparison. */
-function normalizeText(value: string): string {
-  return value.replace(/\s+/g, " ").trim().toLowerCase();
-}
 
 /** Strip punctuation/diacritic noise so name comparison is forgiving. */
 function normalizeName(value: string): string {
